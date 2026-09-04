@@ -6,6 +6,7 @@ import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import Button from '@/components/schools/shared/Button.vue'
 import { labelForCourse } from '@/lib/teacherCourses'
 import { getPaddle, paddleConfig } from '@/lib/paddle'
+import { canTakePayment } from '@/platform/paymentRoute'
 import { hasLiveSessionFor, useLoginCodeAudit } from '@/auth/loginCode'
 import '@/styles/schools-tokens.css'
 import { sendSignInCode } from '../../auth/sendSignInCode'
@@ -299,6 +300,12 @@ async function hasActiveSubscription(): Promise<boolean> {
 }
 
 async function openCheckout() {
+  // platform/paymentRoute: Paddle is the web rail. A store build has no route
+  // that can honour this yet, so say so rather than open nothing.
+  if (!canTakePayment()) {
+    checkoutError.value = "Joining a paid class isn't available in this version of the app yet."
+    return
+  }
   if (!teacher.value || !classInfo.value || !userId.value || !userEmail.value) return
   if (isOpeningCheckout.value) return
 

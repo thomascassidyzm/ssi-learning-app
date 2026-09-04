@@ -4,6 +4,10 @@ import { useRouter } from 'vue-router'
 import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import Button from '@/components/schools/shared/Button.vue'
 import { getPaddle, paddleConfig } from '@/lib/paddle'
+// Tutor billing is a seat purchase on the WEB rail (platform/paymentRoute):
+// build-time absent from a store build, panel and all.
+import { INSTITUTIONAL_PURCHASE_IN_BUILD } from '@/platform/paymentRoute'
+const seatPurchaseAvailable = INSTITUTIONAL_PURCHASE_IN_BUILD
 import { TEACHER_COURSES, labelForCourse } from '@/lib/teacherCourses'
 import { courseLabel, isFreeTier, type LiveCourse } from '@/lib/onboardingTracks'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
@@ -681,8 +685,8 @@ async function submitRecipient() {
       </FrostCard>
     </div>
 
-    <!-- Subscription / billing -->
-    <FrostCard variant="panel" class="section-panel">
+    <!-- Subscription / billing — web rail only (platform/paymentRoute). -->
+    <FrostCard v-if="seatPurchaseAvailable" variant="panel" class="section-panel">
       <div class="section-head">
         <span class="frost-section-title">Teacher plan</span>
         <p v-if="!hasSubscription" class="section-sub">
@@ -778,7 +782,7 @@ async function submitRecipient() {
             <!-- On trial: locked to the one signed-up language. Subscribe to unlock all. -->
             <p v-if="courseLocked" class="locked-course">
               {{ courseLabelFor(newClassCourse) }}
-              <span class="locked-hint">Subscribe to teach more languages</span>
+              <span class="locked-hint">{{ seatPurchaseAvailable ? 'Subscribe to teach more languages' : 'Not included in your current plan' }}</span>
             </p>
             <select v-else id="new-class-course" v-model="newClassCourse" required>
               <option v-for="c in availableCourses" :key="c.code" :value="c.code">

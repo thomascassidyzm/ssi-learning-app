@@ -4,7 +4,7 @@
 // STATS ROW · CHILDREN LIST (lenses are filters, not pages) · VERBS.
 // Mounted at /admin/groups/:id, /admin/schools/:id and /admin/classes/:id —
 // one endpoint (/api/groups/:id/home) resolves whichever id it's given.
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
@@ -20,7 +20,14 @@ import {
   type AssignableClass,
   type AssignmentOutcome,
 } from '@/composables/schools/assignTeacherClasses'
-import UpgradeView from '@/views/schools/UpgradeView.vue'
+import { INSTITUTIONAL_PURCHASE_IN_BUILD } from '@/platform/paymentRoute'
+
+// Seat purchase is web-only (platform/paymentRoute): in a store build this
+// folds to false and UpgradeView never enters the bundle.
+const UpgradeView = INSTITUTIONAL_PURCHASE_IN_BUILD
+  ? defineAsyncComponent(() => import('@/views/schools/UpgradeView.vue'))
+  : null
+const seatPurchaseAvailable = INSTITUTIONAL_PURCHASE_IN_BUILD
 import NodeMapRail from '@/components/admin/NodeMapRail.vue'
 import NodeMapRailSkeleton from '@/components/admin/NodeMapRailSkeleton.vue'
 import NodeChildrenList from '@/components/admin/NodeChildrenList.vue'
@@ -646,7 +653,10 @@ const listPayload = computed(() => {
       <p class="org-expired-lede">
         Subscribe below to keep every member, group and team in your organisation. Your data is safe — nothing is deleted.
       </p>
-      <UpgradeView />
+      <UpgradeView v-if="UpgradeView" />
+      <p v-else class="org-expired-lede">
+        Ask your organisation's administrator to renew the subscription.
+      </p>
     </div>
   </div>
 
@@ -657,7 +667,7 @@ const listPayload = computed(() => {
     <!-- ORG TRIAL BANNER — always-visible upgrade entry point DURING the
          trial (founder ruling: upgradeable at any point, not only at
          expiry). -->
-    <div v-if="showOrgTrialBanner" class="org-trial-banner schools-card">
+    <div v-if="showOrgTrialBanner && seatPurchaseAvailable" class="org-trial-banner schools-card">
       <span class="org-trial-copy">
         {{ orgGate?.trial_days_remaining }} day{{ orgGate?.trial_days_remaining === 1 ? '' : 's' }} left in your organisation's free trial — every language included.
       </span>

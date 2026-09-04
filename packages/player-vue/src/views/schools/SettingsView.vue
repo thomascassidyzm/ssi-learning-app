@@ -122,6 +122,11 @@ async function loadSubscription() {
   }
 }
 
+import { INSTITUTIONAL_PURCHASE_IN_BUILD } from '@/platform/paymentRoute'
+// Seat purchase + the Paddle portal are the WEB rail (platform/paymentRoute);
+// a store build shows neither.
+const seatPurchaseAvailable = INSTITUTIONAL_PURCHASE_IN_BUILD
+
 // Paddle billing portal — invoices, card updates, cancellation. Only
 // meaningful once subscribed (the webhook stamps provider_customer_id).
 const isOpeningPortal = ref(false)
@@ -502,7 +507,7 @@ function toggleDataItem(id: string) {
 
           <!-- Subscription + seats are managed on the canonical Upgrade page so
                there's a single payment surface (no duplicated checkout logic). -->
-          <div class="panel-actions">
+          <div v-if="seatPurchaseAvailable" class="panel-actions">
             <router-link to="/schools/upgrade" class="btn-play">
               {{ isSubscribed ? 'Manage subscription & seats →' : 'Subscribe / choose seats →' }}
             </router-link>
@@ -518,6 +523,9 @@ function toggleDataItem(id: string) {
             </button>
           </div>
           <p v-if="portalError" class="portal-error" role="alert">{{ portalError }}</p>
+          <p v-if="!seatPurchaseAvailable" class="plan-meta">
+            Subscription and seats are managed by your organisation's administrator.
+          </p>
         </section>
       </div>
     </div>

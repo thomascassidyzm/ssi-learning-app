@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { openInApp } from '../composables/useInAppBrowser'
-import { ref, inject, computed, watch } from 'vue'
+import { ref, inject, computed, watch, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SchoolsTopBar from '@/components/schools/shared/SchoolsTopBar.vue'
 import SchoolsErrorBoundary from '@/components/schools/shared/SchoolsErrorBoundary.vue'
-import UpgradeView from '@/views/schools/UpgradeView.vue'
+import { INSTITUTIONAL_PURCHASE_IN_BUILD } from '@/platform/paymentRoute'
 import { SignInModal } from '@/components/auth'
 import '@/styles/schools-tokens.css'
 import '@/styles/schools-design.css'
@@ -25,6 +25,13 @@ import NodeMapRail from '@/components/admin/NodeMapRail.vue'
 import NodeMapRailSkeleton from '@/components/admin/NodeMapRailSkeleton.vue'
 import { useSchoolsRail } from '@/composables/schools/useSchoolsRail'
 import { sendSignInCode } from '../auth/sendSignInCode'
+// Seat purchase is web-only (platform/paymentRoute). In a store build the
+// constant folds to false, this branch is dropped, and UpgradeView is not in
+// the bundle at all — the wall below explains the lock without offering a
+// purchase route the store forbids.
+const UpgradeView = INSTITUTIONAL_PURCHASE_IN_BUILD
+  ? defineAsyncComponent(() => import('@/views/schools/UpgradeView.vue'))
+  : null
 
 // Supabase client from App
 const supabase = inject('supabase', ref(null)) as any
@@ -741,7 +748,10 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
           Subscribe below to keep your classes, analytics and student progress.
           Your data is safe — nothing is deleted.
         </p>
-        <UpgradeView />
+        <UpgradeView v-if="UpgradeView" />
+        <p v-else class="expired-lede">
+          Ask your organisation's administrator to renew the subscription.
+        </p>
       </div>
     </div>
 
@@ -776,7 +786,7 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
            the terminal lockout. -->
       <div v-if="ctx.platformPastDue.value" class="schools-past-due-banner">
         ⚠️ There's a problem with your school's payment. Please update your card to avoid losing access.
-        <router-link to="/schools/upgrade">Manage billing</router-link>
+        <router-link v-if="INSTITUTIONAL_PURCHASE_IN_BUILD" to="/schools/upgrade">Manage billing</router-link>
       </div>
 
       <main :class="['main-content', { 'main-content--full': isPlayRoute }]">
