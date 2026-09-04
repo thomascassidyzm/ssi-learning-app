@@ -1,15 +1,19 @@
 # The Android app can now tell you it is out of date
 
-**Install:** https://popty.app/builds — top entry, "SSi Android wrapper — debug build (dev, 4 Sep 21:04)".
+**Install:** https://popty.app/builds — the top entry, cut from tonight's dev.
 It installs **over** the build already on your phone.
 
 **After installing, Settings shows exactly this on the build row:**
 
-    local-2ec8b53        4 Sept 2026, 21:04      Tap to update ›
+    local-<sha>          4 Sept 2026, <time>     Tap to update ›
     ssi-learning-app-git-dev-zenjin.vercel.app
 
-If you see anything else there — `local-9aca232`, `89af35fc`, or a `dev-` clock reading —
-you are holding an older APK and the install did not take.
+The `<sha>` is the commit named in that build's entry on popty.app/builds — the entry
+states the exact string to expect, because it is written after the bytes exist. This file
+deliberately does not hardcode it: a doc that names a sha is a doc that is wrong one
+commit later, which is the same class of defect as the silence this change cures. If the
+row reads `89af35fc` or a `dev-` clock reading, you are holding an older APK and the
+install did not take.
 
 **And tonight a fresh install should say nothing more than that.** The line is silent when
 the app is current, and this APK was cut from the exact commit dev is deploying — so
