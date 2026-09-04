@@ -917,6 +917,12 @@
         "noGaps": "no gaps, nothing asked of you",
         "simplyPlays": "it simply plays, then the speaking returns"
       },
+      "playerScreen": {
+        "oneGo": "One go: you hear it, then your turn, then twice properly.",
+        "offline": "Offline downloads live here.",
+        "everyCourse": "Every course you have.",
+        "theButton": "The only button that matters."
+      },
       "spacingReturns": {
         "alt": "A line through a session: new things arrive along the top, and each one comes back below at widening intervals.",
         "new": "new",
