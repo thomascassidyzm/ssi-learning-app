@@ -1,5 +1,12 @@
 # Plan 001: Gate every branch on typecheck + tests before it reaches `dev`
 
+> **SUPERSEDED — do not execute.** This plan built `verify.yml` and made
+> `auto-merge-claude.yml` wait on it. GitHub Actions is off on this repo and both
+> workflow files have been deleted (Tom's ruling, 2026-08-31: the command surface
+> replaces auto-merge). The same four gates now run as nightly jobs on watson-1,
+> which report rather than block; merges happen by hand or through the surface.
+> Kept as the record of why the gate existed.
+
 > **Executor instructions**: Follow this plan step by step. Run every
 > verification command and confirm the expected result before moving to the
 > next step. If anything in the "STOP conditions" section occurs, stop and
