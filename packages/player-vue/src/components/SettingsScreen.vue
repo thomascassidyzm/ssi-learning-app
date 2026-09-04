@@ -2184,7 +2184,7 @@ const confirmReset = async () => {
               <div class="divider"></div>
               <div class="setting-row">
                 <div class="setting-info">
-                  <span class="setting-desc">Manage or cancel this subscription from your account on a computer.</span>
+                  <span class="setting-desc">{{ t('settings.manageSubscriptionOnComputer') }}</span>
                 </div>
               </div>
             </template>
@@ -2196,7 +2196,7 @@ const confirmReset = async () => {
             <div v-if="!purchaseAvailable" class="setting-row">
               <div class="setting-info">
                 <span class="setting-label">{{ t('settings.subscription') }}</span>
-                <span class="setting-desc">Subscriptions aren't available in this version of the app yet.</span>
+                <span class="setting-desc">{{ t('settings.subscriptionsNotAvailableHere') }}</span>
               </div>
             </div>
             <div v-else class="setting-row clickable" @click="goPremium">

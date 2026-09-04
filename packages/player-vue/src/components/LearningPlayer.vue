@@ -16838,7 +16838,7 @@ defineExpose({
           <!-- Store shell with no wired billing route: an honest sentence. No
                button, no link, no price — a dead Pay control is a broken promise
                to the learner and a rejection at store review. -->
-          <p v-else class="paywall-unavailable">Subscriptions aren't available in this version of the app yet.</p>
+          <p v-else class="paywall-unavailable">{{ t('player.subscriptionsNotAvailableHere') }}</p>
           <!-- Access codes are entered in Settings during normal play, not here. -->
           <button class="paywall-btn paywall-btn-ghost" @click="dismissPaywall">{{ t('auth.maybeLater') }}</button>
         </div>
