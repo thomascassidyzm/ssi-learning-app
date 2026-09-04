@@ -1,20 +1,26 @@
 # The Android app can now tell you it is out of date
 
-**Install:** https://popty.app/builds — top entry, "SSi Android wrapper — debug build (dev, 4 Sep 20:53)".
+**Install:** https://popty.app/builds — top entry, "SSi Android wrapper — debug build (dev, 4 Sep 21:04)".
 It installs **over** the build already on your phone.
 
 **After installing, Settings shows exactly this on the build row:**
 
-    local-9aca232        4 Sept 2026, 20:53      Tap to update ›
+    local-2ec8b53        4 Sept 2026, 21:04      Tap to update ›
     ssi-learning-app-git-dev-zenjin.vercel.app
 
-If you see anything else there — `local-05ede29`, `89af35fc`, or a `dev-` clock reading —
+If you see anything else there — `local-9aca232`, `89af35fc`, or a `dev-` clock reading —
 you are holding an older APK and the install did not take.
 
-**And a fresh install should say nothing more than that.** The staleness line is
-deliberately silent when the app is current, and this APK was cut from the exact commit
-dev is deploying, so on the build row there should be no extra sentence tonight. Seeing
-the sentence on a fresh install would itself be the bug.
+**And tonight a fresh install should say nothing more than that.** The line is silent when
+the app is current, and this APK was cut from the exact commit dev is deploying — so
+there should be no extra sentence on the build row when you install it. Seeing one
+tonight would itself be the bug.
+
+**Tomorrow it will start speaking, and that is the point.** The APK compares itself
+against what is live on dev, and dev moves constantly. So the first time anyone pushes
+work after this build, your phone will start saying it is from 4 September and a newer
+version exists — truthfully, because the code in your hand really will be behind. That is
+the undetectable lag becoming a self-describing state.
 
 ## What changed
 
