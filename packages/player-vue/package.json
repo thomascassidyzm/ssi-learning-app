@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:store": "VITE_APP_SHELL=webview vite build",
+    "verify:payment-route": "node e2e/_payment-route-bundle-check.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
