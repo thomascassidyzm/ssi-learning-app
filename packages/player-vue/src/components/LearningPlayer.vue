@@ -10670,47 +10670,53 @@ const handleActivateInfPlay = async () => {
 
 // Jump to any belt (from ProgressModal)
 /**
- * The one-line reason a blocked belt-skip shows the learner, and the timer
- * that clears it. Deliberately a plain sentence, not a dialog: the learner
- * tapped a control, the control declined, and they need to know why in the
- * time it takes to read it.
+ * The one-line WAITING state a belt jump can show, and the timer that clears
+ * it. Under Tom's 2026-09-04 ruling this is never a refusal: the only sentence
+ * that may appear here says the content is still coming, and the jump keeps
+ * trying underneath it. A tap that lands says nothing at all — it just lands.
  */
 const beltBlockedMessage = ref<string | null>(null)
 let beltBlockedTimer: ReturnType<typeof setTimeout> | null = null
-const showBeltBlockedMessage = (text: string): void => {
+const showBeltWaitingMessage = (text: string): void => {
   beltBlockedMessage.value = text
   if (beltBlockedTimer) clearTimeout(beltBlockedTimer)
-  beltBlockedTimer = setTimeout(() => { beltBlockedMessage.value = null }, 5000)
+  beltBlockedTimer = setTimeout(() => { beltBlockedMessage.value = null }, 8000)
+}
+const clearBeltWaitingMessage = (): void => {
+  if (beltBlockedTimer) clearTimeout(beltBlockedTimer)
+  beltBlockedTimer = null
+  beltBlockedMessage.value = null
 }
 onUnmounted(() => { if (beltBlockedTimer) clearTimeout(beltBlockedTimer) })
 
-const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) => {
-  // NEVER OFFER WHAT CANNOT BE SERVED. The chips already draw themselves
-  // locked from the same function; this is the ACTION saying no as well,
-  // because the chips are not the only way in — the chevrons and the jump
-  // modal all funnel through here, and a stale chip must not be able to start
-  // a jump into content the app has no way to produce.
-  const refusal = beltSkipRefusal(belt)
-  if (refusal) {
-    logEvent('belt_skip_blocked', {
-      toBelt: belt.name,
-      fromBelt: playingBelt.value?.name ?? null,
-      targetSeed: belt.seedsRequired,
-      cause: isPractising.value ? 'practising' : 'not_on_device',
-      deliberateOffline: offlineActive.value,
-    })
-    showBeltBlockedMessage(refusal)
-    console.warn(`[LearningPlayer] Belt skip to ${belt.name} refused — ${refusal}`)
-    return
-  }
+/**
+ * How many times a jump re-asks for its target before it stops asking, and how
+ * long it waits between asks. Bounded on purpose: a course that genuinely does
+ * not contain the seed must not turn into an infinite retry or an endless
+ * spinner. ~31s of trying, then the waiting line stands and a second tap
+ * starts a fresh round of attempts.
+ */
+const BELT_JUMP_RETRY_BACKOFF_MS = [1_000, 2_000, 4_000, 8_000, 16_000]
+/** Supersedes an in-flight retry loop when a newer tap arrives. */
+let beltJumpAttemptToken = 0
 
+const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) => {
+  // NAVIGATION IS NEVER REFUSED (Tom, 2026-09-04): "user nav overrides
+  // everything - there's never any restrictions to where a user can go in the
+  // course, back and forth - the only issue is if the content has donwloaded."
+  //
+  // So there is no refusal branch here any more. Every tap is logged, gated
+  // only by entitlement (the money path), and then LANDED — or, if the content
+  // genuinely is not here yet, held in a waiting state that keeps trying and
+  // resolves itself. The previous refusals (practising mode; "we can't reach
+  // that right now") are gone; see beltAwaitingDownload for why each went.
+  //
   // Belt is the biggest manual difficulty dial (Principle 1) and the loudest
   // stickability signal there is — belt-back = drowning/consolidating, a dropout
   // precursor. Every belt move (chevron, pill, and the jump modal) routes through
   // here, so one emit captures the whole scale with the intent + timing that
-  // position-derivation cannot recover (a rapid jump-back-then-forward that never
-  // crosses a round boundary, and how fast they bailed). Capture fromBelt BEFORE
-  // the jump below mutates playingBelt.
+  // position-derivation cannot recover. Capture fromBelt BEFORE the jump below
+  // mutates playingBelt.
   const fromBelt = playingBelt.value
   logEvent('belt_skip', {
     fromBelt: fromBelt?.name ?? null,
@@ -10727,117 +10733,141 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
   // Belt-skip / jump-to-belt is the biggest leak: a premium non-subscriber must
   // not jump past the free preview. Gate the picked belt's first seed before
   // touching any playback state. (Free/community courses + subscribers pass.)
+  // This is an ENTITLEMENT gate on the money path, not a navigation policy, and
+  // it is loud — it raises the paywall rather than going quiet.
   if (!gateSeed(targetSeed)) return
 
-  isSkippingBelt.value = true
-  // Bracketed via PlayerConductor.runSeek (docs/player-decomposition-
-  // options.md Option 2's seeking(intent) state): stops the current cycle
-  // cleanly BEFORE the (potentially multi-second, course-wide) load below —
-  // otherwise SimplePlayer keeps playing/naturally advancing underneath
-  // loadSeedIfNeeded, which is exactly the "player keeps playing mid-cycle
-  // after a belt skip" report (73c1507a). runSeek captures the pre-skip
-  // play intent in the state itself and restores it once we've landed —
-  // for EVERY exit path (normal jump, enterInfPlayFromCache, or a thrown
-  // error), not just the happy path. Also gives a rapid double-tap the
-  // same cancel-and-replace protection prepareAndJump already had (the
-  // second tap supersedes the first at the conductor level).
-  await simplePlayer.runSeek(async () => {
-    try {
-      cancelInFlightLap()
-      haltAllPlayback()
-      // If we're currently in INF PLAY, picking an earlier content belt must
-      // EXIT to main loop. Flip mode FIRST (optimistically — the DB write
-      // settles in the background so the jump below isn't blocked on it;
-      // failures are logged, not swallowed), then load — the loaded queue is
-      // otherwise only the recycled INF-PLAY set and the target belt's
-      // main-loop rounds aren't present (the same trap that stranded
-      // back-skip). Mirrors handleGoBackBelt's INF-PLAY exit.
-      const inInfplay = currentMode.value === 'infplay'
-      if (inInfplay && !isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value) {
-        currentMode.value = 'main'
-        void activeProgressStore.value.setMode(learnerId.value, courseCode.value, 'main').catch((modeErr) => {
-          console.warn('[LearningPlayer] setMode(main) on belt-pill infplay exit failed:', modeErr)
-        })
-      }
-      console.log(`[LearningPlayer] Skipping to ${belt.name} belt - seed ${targetSeed}`, { fromInfplay: inInfplay })
+  // A newer tap supersedes any retry loop still running for an older one.
+  const attempt = ++beltJumpAttemptToken
 
-      // Cheap already-loaded check FIRST — the INF-PLAY idle warm (above, near
-      // the ∞ bootstrap) usually means the target belt's main-loop rounds are
-      // already merged into the live queue, so this returns immediately
-      // instead of paying the full course-wide generateScript() walk in the
-      // foreground (the several-second belt-jump regression). Only a genuine
-      // miss falls through to the regen inside loadSeedIfNeeded.
-      await loadSeedIfNeeded(targetSeed)
-      // Resolve the picked belt's FIRST LEGO by NEAREST >= match.
-      let resolvedTargetIdx = simplePlayer.findRoundIndexForBeltThreshold(targetSeed)
-      // Unresolved → try one more load, this time FORCED. Tom, 2026-09-04, on
-      // the first Android build: tapping Orange or Blue in zho_for_eng did
-      // nothing at all, while Yellow and White (already in the loaded queue)
-      // landed instantly. The telemetry says the same — `belt_skip` logged, no
-      // `cursor_move` after it, audio carrying on undisturbed.
-      //
-      // The retry used to be conditional on `inInfplay`, so a MAIN-LOOP jump
-      // got exactly one shot at loading the target. That one shot can come back
-      // with nothing through paths that are all silent: generateScript()'s
-      // in-flight dedupe can hand back a walk that was already running for a
-      // narrower purpose, `loadSeedIfNeeded` bails without loading when the
-      // Supabase client isn't up yet, and a rejected walk unwinds straight past
-      // here. The forced second attempt runs a genuinely fresh walk (the dedupe
-      // entry is cleared in generateScript's own finally), which is the cheap
-      // way to distinguish "we didn't manage to load it" from "the course does
-      // not contain it".
-      if (resolvedTargetIdx < 0) {
-        await loadSeedIfNeeded(targetSeed, /* forceReload */ true)
-        resolvedTargetIdx = simplePlayer.findRoundIndexForBeltThreshold(targetSeed)
-      }
-      if (resolvedTargetIdx < 0) {
-        // Still nothing. OFFLINE this is the legitimate course-end / edge-of-
-        // cache case and enterInfPlayFromCache handles it. ONLINE it is not:
-        // that function refuses the random recycle when online and returns
-        // false, so the tap ended in silence — no landing, no message, no
-        // event. NEVER OFFER WHAT CANNOT BE SERVED cuts both ways: if the
-        // control declines, it has to say so, in the same one-line form the
-        // practising/offline refusals already use.
-        const recycled = await enterInfPlayFromCache()
-        if (!recycled) {
-          logEvent('belt_skip_blocked', {
-            toBelt: belt.name,
-            fromBelt: fromBelt?.name ?? null,
-            targetSeed,
-            cause: 'unresolved_target',
-            deliberateOffline: offlineActive.value,
+  /**
+   * One shot at landing the jump. Returns true if the cursor moved.
+   * `forceReload` runs a genuinely fresh course walk (generateScript's
+   * in-flight dedupe entry is cleared in its own finally), which is the cheap
+   * way to distinguish "we didn't manage to load it" from "the course does not
+   * contain it".
+   */
+  const tryLand = async (forceReload: boolean): Promise<boolean> => {
+    let landed = false
+    isSkippingBelt.value = true
+    // Bracketed via PlayerConductor.runSeek: stops the current cycle cleanly
+    // BEFORE the (potentially multi-second, course-wide) load below — otherwise
+    // SimplePlayer keeps playing/naturally advancing underneath
+    // loadSeedIfNeeded, which is exactly the "player keeps playing mid-cycle
+    // after a belt skip" report (73c1507a). runSeek captures the pre-skip play
+    // intent and restores it once we've landed, for EVERY exit path. Also gives
+    // a rapid double-tap the same cancel-and-replace protection.
+    await simplePlayer.runSeek(async () => {
+      try {
+        cancelInFlightLap()
+        haltAllPlayback()
+        // If we're currently in INF PLAY, picking an earlier content belt must
+        // EXIT to main loop. Flip mode FIRST (optimistically — the DB write
+        // settles in the background so the jump below isn't blocked on it;
+        // failures are logged, not swallowed), then load — the loaded queue is
+        // otherwise only the recycled INF-PLAY set and the target belt's
+        // main-loop rounds aren't present (the same trap that stranded
+        // back-skip).
+        const inInfplay = currentMode.value === 'infplay'
+        if (inInfplay && !isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value) {
+          currentMode.value = 'main'
+          void activeProgressStore.value.setMode(learnerId.value, courseCode.value, 'main').catch((modeErr) => {
+            console.warn('[LearningPlayer] setMode(main) on belt-pill infplay exit failed:', modeErr)
           })
-          showBeltBlockedMessage(
-            t('player.beltJumpUnavailable', "We couldn't load {belt} just now — try again in a moment.")
-              .replace('{belt}', t('belt.label', '{color} Belt').replace('{color}', t(`belt.${belt.name}`, belt.name))),
-          )
-          console.warn(`[LearningPlayer] Belt jump to ${belt.name} (seed ${targetSeed}) unresolved after a forced reload`)
         }
-        return
-      }
-      // Move cursor by LEGO id (POSITION); belt DERIVES from the landed round.
-      // Resolve the target LEGO id atomically against simplePlayer's OWN
-      // rounds array (the one resolvedTargetIdx was found in) — NEVER by
-      // reusing that index against cachedRounds, a separate mirror that can
-      // desync from the live queue (e.g. the instant-playback full-script
-      // handoff replaces cachedRounds with the whole-course array without
-      // touching the live queue). Cross-indexing the two was the belt-skip
-      // fencepost bug: it silently landed one seed short of the tapped belt.
-      const targetLegoId = simplePlayer.findLegoIdForBeltThreshold(targetSeed)
-      if (targetLegoId) simplePlayer.jumpToLegoId(targetLegoId)
-      else simplePlayer.jumpToRound(resolvedTargetIdx)
+        console.log(`[LearningPlayer] Skipping to ${belt.name} belt - seed ${targetSeed}`, { fromInfplay: inInfplay, forceReload })
 
-      // Belt-pill jump can land anywhere (forward or back) — persist cursor.
-      // Optimistic UI: the learner has already landed on the target round;
-      // let the write settle in the background rather than blocking on it
-      // (setRemoteCursor inside already logs failures, never throws).
-      void persistCursorAtCurrentRound().catch((err) => {
-        console.warn('[LearningPlayer] persistCursorAtCurrentRound after belt skip failed:', err)
+        await loadSeedIfNeeded(targetSeed, forceReload)
+        const resolvedTargetIdx = simplePlayer.findRoundIndexForBeltThreshold(targetSeed)
+        if (resolvedTargetIdx < 0) return
+
+        // Move cursor by LEGO id (POSITION); belt DERIVES from the landed round.
+        // Resolve the target LEGO id atomically against simplePlayer's OWN
+        // rounds array (the one resolvedTargetIdx was found in) — NEVER by
+        // reusing that index against cachedRounds, a separate mirror that can
+        // desync from the live queue. Cross-indexing the two was the belt-skip
+        // fencepost bug: it silently landed one seed short of the tapped belt.
+        const targetLegoId = simplePlayer.findLegoIdForBeltThreshold(targetSeed)
+        if (targetLegoId) simplePlayer.jumpToLegoId(targetLegoId)
+        else simplePlayer.jumpToRound(resolvedTargetIdx)
+        landed = true
+
+        // Belt-pill jump can land anywhere (forward or back) — persist cursor.
+        // Optimistic UI: the learner has already landed on the target round;
+        // let the write settle in the background rather than blocking on it
+        // (setRemoteCursor inside already logs failures, never throws).
+        void persistCursorAtCurrentRound().catch((err) => {
+          console.warn('[LearningPlayer] persistCursorAtCurrentRound after belt skip failed:', err)
+        })
+      } finally {
+        isSkippingBelt.value = false
+      }
+    })
+    return landed
+  }
+
+  // THE TAP IS THE STRONGEST STATEMENT OF INTENT A LEARNER MAKES about what
+  // they want next, and the automatic warm queue is cursor-scoped by
+  // construction (collectHeadRoundsAudioIds walks forward from
+  // currentRoundIndex) — so landing the cursor IS reprioritising the fetch
+  // queue. All that was missing is urgency: a round advance triggers the gentle
+  // one-at-a-time rolling fill, where a deliberate jump deserves the burst.
+  const landAndWarm = (): void => {
+    clearBeltWaitingMessage()
+    void warmBurst()
+  }
+
+  if (await tryLand(false)) { landAndWarm(); return }
+
+  // Not resolved on the cheap already-loaded path. That is a CONTENT-NOT-HERE-
+  // YET fact, never a policy: say the one honest thing (it's still coming) and
+  // keep asking for it. The learner is never told no.
+  showBeltWaitingMessage(
+    beltAwaitingDownload(belt)
+      ?? t('player.beltStillDownloading', "{belt} is still downloading — it'll open as soon as it's here.")
+        .replace('{belt}', t('belt.label', '{color} Belt').replace('{color}', t(`belt.${belt.name}`, belt.name))),
+  )
+
+  for (let i = 0; i < BELT_JUMP_RETRY_BACKOFF_MS.length; i++) {
+    await new Promise((r) => setTimeout(r, BELT_JUMP_RETRY_BACKOFF_MS[i]))
+    if (attempt !== beltJumpAttemptToken) return   // a newer tap owns the cursor now
+    if (await tryLand(true)) {
+      landAndWarm()
+      // The repair worked, and the fact that it took N goes is the whole
+      // signal — a jump that needed a forced reload is a BUG in the load path,
+      // not a learner event. ALARM ONLY: nothing here reaches the learner.
+      logEvent('belt_skip_repaired', {
+        toBelt: belt.name,
+        fromBelt: fromBelt?.name ?? null,
+        targetSeed,
+        attempts: i + 2,
+        deliberateOffline: offlineActive.value,
       })
-    } finally {
-      isSkippingBelt.value = false
+      return
     }
+  }
+  if (attempt !== beltJumpAttemptToken) return
+
+  // Exhausted. OFFLINE this is the legitimate course-end / edge-of-cache case
+  // and enterInfPlayFromCache handles it (it refuses the random recycle when
+  // online, by design — Tom 2026-05-29). Either way the learner sees only the
+  // waiting line, which is true: the warm loop is still fetching, and a second
+  // tap starts a fresh round of attempts.
+  //
+  // ALARM, NOT A MESSAGE. `belt_skip_blocked` is retained purely as the
+  // detector — the row that says a navigation the app promised could not be
+  // served after every retry. It must read as an alarm in telemetry, and it
+  // must never have a learner-facing sentence attached to it.
+  await enterInfPlayFromCache()
+  logEvent('belt_skip_blocked', {
+    toBelt: belt.name,
+    fromBelt: fromBelt?.name ?? null,
+    targetSeed,
+    cause: 'unresolved_target',
+    attempts: BELT_JUMP_RETRY_BACKOFF_MS.length + 1,
+    deliberateOffline: offlineActive.value,
   })
+  console.warn(`[LearningPlayer] ALARM: belt jump to ${belt.name} (seed ${targetSeed}) unresolved after ${BELT_JUMP_RETRY_BACKOFF_MS.length + 1} attempts`)
 }
 
 // ── Header belt nav (‹‹ ››) — Tom 2026-06-01 ───────────────────────────────
@@ -12119,80 +12149,66 @@ const beltNewLegosOnDevice = (belt: { seedsRequired: number }): boolean => {
 }
 
 /**
- * CAN THE APP SERVE THIS BELT RIGHT NOW? The single question behind both the
- * belt pills and the belt-skip action. Returns the plain reason it cannot, or
- * null when it can.
+ * IS THIS BELT ON THE DEVICE YET? The single question behind both the belt
+ * pills and the belt-skip action.
  *
- * Tom, 2026-09-01, having belt-skipped to BLACK in practising mode while
- * perfectly online: "practising mode is allowing me to skip belts - I just
- * went - all the way to black belt". His ruling generalises the offline case
- * rather than adding a second one: belt skip is unavailable whenever the app
- * cannot serve the target belt, whatever the reason. So this is ONE check with
- * one list of causes, not a branch per state at each call site.
+ * TOM'S RULING, 2026-09-04: "user nav overrides everything - there's never any
+ * restrictions to where a user can go in the course, back and forth - the only
+ * issue is if the content has donwloaded."
  *
- * The causes, in the order they are decided:
+ * So this is no longer a refusal test with a list of causes. It is ONE
+ * availability question, and the answer is never "no" — it is "not yet". The
+ * two causes this function used to carry are gone, deliberately:
  *
- * 1. PRACTISING. The mode's whole definition is that the next new LEGO could
- *    not be fetched (playback/practisingMode.ts) — the app has already PROVED
- *    it cannot reach new content. A forward belt jump is a request for new
- *    content, so it is unservable by definition, and the device's cache does
- *    not enter into it: being online with the clip in hand is exactly the
- *    situation Tom was in, and it must still say no. Practising also refuses
- *    to write progress, so a jump made from here would move the learner
- *    somewhere the app then declines to remember.
+ *   PRACTISING. Removed. Tom's 2026-09-01 ruling ("practising mode is allowing
+ *   me to skip belts") made practising refuse a forward jump because the mode's
+ *   definition is that new content could not be fetched. The 09-04 ruling
+ *   supersedes it: a learner in practising mode who taps Blue is asking for
+ *   Blue, and the app's job is to go and get it, not to explain why it once
+ *   failed. If it genuinely is not here, they get the waiting line below like
+ *   anyone else.
  *
- * 2. NOTHING ON THE DEVICE. Offline or otherwise degraded, the belt is only
- *    servable if its new LEGOs are actually here (roundTeachesOffline).
+ *   "WE CAN'T REACH THAT RIGHT NOW". Removed as a category. Being unable to
+ *   fetch is a fact about the NETWORK, not a restriction on the learner, and
+ *   the only honest thing to say about it is that the content is still coming.
  *
- * BACKWARD IS ALWAYS FINE. The ladder downloads contiguously from the start,
- * and going back is how a learner who is drowning gets relief — never gated.
+ * Returns the one waiting sentence when the belt's new LEGOs are not on the
+ * device AND the app cannot currently fetch them; null otherwise. Never a
+ * refusal — the caller shows this while it keeps trying.
+ *
+ * BACKWARD IS ALWAYS FINE. The ladder downloads contiguously from the start.
  */
-const beltSkipRefusal = (belt: { name: string; seedsRequired: number }): string | null => {
+const beltAwaitingDownload = (belt: { name: string; seedsRequired: number }): string | null => {
   const goingForward = belt.seedsRequired > (playingBelt.value?.seedsRequired ?? 0)
   if (!goingForward) return null
-  // These sentences are read by the learner, in the belt modal and in the
-  // one-line refusal — so they are keyed, and the belt is named in the
-  // interface language (belt.label + belt.<colour>, already in all 24 locales).
+  if (!cannotFetchNewContent()) return null
+  if (beltNewLegosOnDevice(belt)) return null
+  // Read by the learner, in the belt modal and in the one-line waiting state —
+  // so it is keyed, and the belt is named in the interface language
+  // (belt.label + belt.<colour>, already in all 24 locales).
   const named = t('belt.label', '{color} Belt').replace('{color}', t(`belt.${belt.name}`, belt.name))
-  if (isPractising.value) {
-    return t('player.beltNeedsNewMaterial', "You're practising what you've already covered — {belt} needs new material we can't reach right now.")
-      .replace('{belt}', named)
-  }
-  if (cannotFetchNewContent() && !beltNewLegosOnDevice(belt)) {
-    return (offlineActive.value
-      ? t('player.beltNotInOfflineDownload', "{belt} isn't in your offline download — reconnect to add it.")
-      : t('player.beltNotOnDevice', "You're offline and {belt} isn't on this device yet."))
-      .replace('{belt}', named)
-  }
-  return null
+  return t('player.beltStillDownloading', "{belt} is still downloading — it'll open as soon as it's here.")
+    .replace('{belt}', named)
 }
 
-// Which belts the pill nav must draw as unavailable, and why. Same function
-// the action uses, so a pill reads locked exactly when tapping it would be
-// refused — the two can no longer disagree. White belt (seedsRequired 0, the
-// course start) is always present.
-const beltUnavailableReasons = computed<Map<string, string>>(() => {
+// Which belts are still on their way down, and the waiting line for each. Same
+// function the action uses, so a pill and a tap always say the same thing.
+// These belts stay TAPPABLE — the pill is an indicator, never a lock.
+// White belt (seedsRequired 0, the course start) is always present.
+const beltWaitingReasons = computed<Map<string, string>>(() => {
   const out = new Map<string, string>()
   // Touch the reactive inputs so this recomputes when they move (the helpers
   // below read refs through plain function calls).
   void cannotFetchNewContent(); void isPractising.value; void cachedRounds.value
   for (const belt of BELTS) {
     if (belt.seedsRequired === 0) continue
-    const reason = beltSkipRefusal(belt)
+    const reason = beltAwaitingDownload(belt)
     if (reason) out.set(belt.name, reason)
   }
   return out
 })
-const offlineUnavailableBeltNames = computed<Set<string>>(
-  () => new Set(beltUnavailableReasons.value.keys()),
-)
-// The one line under the belt ladder when the locks aren't about downloads.
-// Practising is its own cause and deserves its own sentence; offline keeps the
-// existing "belts up to X ready" wording, which is more informative.
-const beltUnavailableHint = computed<string | null>(() =>
-  isPractising.value
-    ? t('player.practisingBeltHint', "practising what you've already covered — new belts need material we can't reach right now")
-    : null,
+const beltsAwaitingDownload = computed<Set<string>>(
+  () => new Set(beltWaitingReasons.value.keys()),
 )
 // Offline-download progress state (offlineDlState/Done/Total/Failed) is imported
 // from useOfflineDownloadStatus and written by downloadForOffline below. The UI
@@ -16827,9 +16843,8 @@ defineExpose({
     :highest-belt-index="highestBeltIndex"
     :is-infplay="isInfPlayActive"
     :is-offline="cannotFetchNewContent()"
-    :offline-unavailable-belt-names="offlineUnavailableBeltNames"
-    :belt-unavailable-reasons="beltUnavailableReasons"
-    :belt-unavailable-hint="beltUnavailableHint"
+    :belts-awaiting-download="beltsAwaitingDownload"
+    :belt-waiting-reasons="beltWaitingReasons"
     @close="showProgressModal = false"
     @skipToBelt="handleSkipToBelt"
     @enterInfPlay="handleActivateInfPlay"
