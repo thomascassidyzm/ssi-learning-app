@@ -59,7 +59,7 @@ describe('ProgressModal — offline infinite-play message', () => {
  * deliberately flipped rather than deleted, because the flip is the change:
  * every chip emits, and a belt still coming down says so instead of refusing.
  */
-describe('ProgressModal — a belt still downloading is tappable and says so', () => {
+describe('ProgressModal — a belt still on its way is tappable and says so', () => {
   const stillComing = new Set([BELTS[3].name])
   // The chip names its belt in the INTERFACE language (belt.label +
   // belt.<colour>), not by the raw internal name — so "Green Belt", not
@@ -76,14 +76,16 @@ describe('ProgressModal — a belt still downloading is tappable and says so', (
     const chip = wrapper.findAll('.map-chip')
       .find((c) => c.attributes('aria-label')?.startsWith(label(BELTS[3].name)))!
     expect(chip.attributes('disabled')).toBeUndefined()
-    // It explains itself as a WAITING state, never as a refusal.
-    expect(chip.attributes('aria-label')).toMatch(/still downloading/)
+    // It explains itself as a WAITING state, never as a refusal — and in the
+    // shared self-resolving vocabulary (it "comes through"; nothing claims a
+    // transfer the app cannot verify is happening).
+    expect(chip.attributes('aria-label')).toMatch(/isn't on this device yet/)
     await chip.trigger('click')
     expect(wrapper.emitted('skipToBelt')).toHaveLength(1)
   })
 
   it('shows the waiting line the ACTION would give, when one is supplied', async () => {
-    const reason = "Green Belt is still downloading — it'll open as soon as it's here"
+    const reason = "Green Belt isn't on this device yet — it'll open as soon as it comes through"
     const wrapper = render({
       isOffline: true,
       beltsAwaitingDownload: stillComing,
@@ -171,5 +173,59 @@ describe('ProgressModal — the belt-strip padlock', () => {
   it('a course with nothing behind a paywall wears no padlock at all', () => {
     const wrapper = render({})
     expect(wrapper.findAll('.map-chip-lock')).toHaveLength(0)
+  })
+})
+
+/**
+ * ONE CONDITION, ONE PROMISE — the belt panel's display grammar.
+ *
+ * "New content is unreachable right now" can be on screen twice at once: the
+ * infinite-play note (player.offlinePracticeBody, Tom's sentence) and the
+ * belt-strip hint (progress.offlineBeltsReadyUpTo). On 2026-09-04 the two
+ * disagreed about the remedy — one said "can't reach new items", the other
+ * said "the rest open as they download", a transfer-progress claim the app
+ * cannot verify while nothing is reachable. The grammar rule: every sentence
+ * about a self-resolving state promises the SAME resolution, in the same
+ * vocabulary — "it comes through when we can reach it" — and never claims
+ * active progress. These tests pin both halves.
+ */
+describe('ProgressModal — the offline sentences make one promise', () => {
+  const engAny = eng as Record<string, any>
+  const PROMISE = 'as soon as we can reach them'
+
+  it('the infinite-play note and the belt-strip hint share the promise clause', () => {
+    expect(engAny.player.offlinePracticeBody).toContain(PROMISE)
+    expect(engAny.progress.offlineBeltsReadyUpTo).toContain(PROMISE)
+  })
+
+  it('renders both lines together without contradiction when infplay is offline with belts still to come', () => {
+    const wrapper = render({
+      isInfplay: true,
+      isOffline: true,
+      beltsAwaitingDownload: new Set([BELTS[5].name, BELTS[6].name]),
+    })
+    const text = wrapper.text()
+    // Both renderings of the condition are on screen…
+    expect(text).toContain(engAny.player.offlinePracticeBody)
+    expect(text).toContain('are on this device')
+    // …and each promises the same self-resolution.
+    expect(text.split(PROMISE).length - 1).toBeGreaterThanOrEqual(2)
+  })
+
+  it('waiting-state copy never claims a transfer the app cannot verify', () => {
+    // Scoped to the five waiting-state keys, deliberately: genuine download
+    // UI (the offline bulk download, which HAS a progress ring) may say
+    // "downloading"; a belt the app merely cannot reach may not.
+    const waitingCopy = [
+      engAny.progress.offlineBeltsReadyUpTo,
+      engAny.progress.beltStillDownloading,
+      engAny.progress.beltsStillDownloading,
+      engAny.player.beltStillDownloading,
+      engAny.player.contentStillDownloading,
+    ]
+    for (const line of waitingCopy) {
+      expect(line).toBeTruthy()
+      expect(line.toLowerCase()).not.toContain('download')
+    }
   })
 })

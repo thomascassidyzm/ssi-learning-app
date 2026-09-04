@@ -16,6 +16,39 @@
  * Deliberately drops the old "00:00 / this session" header — the
  * modal opens with the player paused, so the session counter sits
  * at zero and reads as misleading.
+ *
+ * THE BELT PANEL'S DISPLAY GRAMMAR (2026-09-04, from Tom's rulings that day).
+ * Every mark on the strip answers exactly ONE of four questions, and each
+ * question owns exactly ONE channel. They are independent axes, not values of
+ * one enum — two are facts about the BELT, two are facts about the LEARNER:
+ *
+ *   1. May I go there without paying?  (money)  → the padlock glyph, and
+ *      nothing else. Money never resolves itself, so the padlock is a
+ *      standing offer: full colour, tappable, opens the subscription card.
+ *   2. Is it on this device yet?       (time)   → the absence rendering:
+ *      dashed, unfilled, dimmed, download arrow. Time always resolves
+ *      itself, so the state is drawn as not-yet-there — never as a
+ *      different thing that IS there.
+ *   3. Where am I now?                 (cursor) → the current-chip ring, the
+ *      ▼ marker, "you're working on {belt}".
+ *   4. How far have I been?           (ceiling) → the ▽ marker, "you've
+ *      been as far as {belt}".
+ *
+ * The rules that keep it honest:
+ *   - One fact, one channel; one channel, one fact. A glyph never moonlights
+ *     (the padlock-for-undownloaded bug was exactly this).
+ *   - When two facts collide on one chip, the one that will NOT resolve
+ *     itself wins: money > time > plain (see chipLabel).
+ *   - Every rendering of a fact is a plain read of ONE binding — two
+ *     surfaces never recompute the same fact separately (beltWaitingReasons
+ *     is the pattern; the position-authority rule upstream is its cursor
+ *     counterpart).
+ *   - All four channels are DESCRIPTIVE, never gates. Navigation is never
+ *     refused; a tap that cannot land yet waits out loud and self-resolves.
+ *   - Words about a self-resolving state promise the resolution in one
+ *     shared vocabulary ("it comes through as soon as we can reach it") and
+ *     never claim progress the app cannot verify ("downloading"). Pinned in
+ *     ProgressModal.offlineNotice.test.ts.
  */
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import type { ContributionData } from '@/composables/useContribution'
@@ -235,7 +268,7 @@ const beltPaywallLabel = (belt: Belt) =>
 // The waiting line for this belt, in the words the action would use.
 const beltWaitingReason = (belt: Belt) =>
   props.beltWaitingReasons?.get(belt.name)
-  ?? t('progress.beltStillDownloading', "{belt} is still downloading — it'll open as soon as it's here")
+  ?? t('progress.beltStillDownloading', "{belt} isn't on this device yet — it'll open as soon as it comes through")
     .replace('{belt}', beltLabel(belt))
 
 // Only mention downloads when something is actually still coming — most
@@ -276,10 +309,10 @@ const beltStripHint = computed(() => {
     return t('progress.tapBeltHint', 'tap a belt to jump there, or ∞ at the end for infinite play')
   }
   if (offlineReadyUpToBeltName.value) {
-    return t('progress.offlineBeltsReadyUpTo', 'belts up to {belt} are on this device; the rest open as they download')
+    return t('progress.offlineBeltsReadyUpTo', 'belts up to {belt} are on this device; the rest will come through as soon as we can reach them')
       .replace('{belt}', offlineReadyUpToBeltName.value)
   }
-  return t('progress.beltsStillDownloading', "tap any belt — the ones still downloading open as soon as they're here")
+  return t('progress.beltsStillDownloading', "tap any belt — the ones still on their way will open as soon as they're here")
 })
 
 // NAVIGATION IS NEVER REFUSED (Tom, 2026-09-04). Every belt emits, including

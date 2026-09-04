@@ -3831,10 +3831,16 @@ const loadPositionFromLocalStorage = () => {
  * Single source of truth for resume across guests + signed-in. The
  * old "guest defaults to LEGO 1" path bypassed localStorage entirely
  * — this helper makes the same lookup work for everyone, so a guest
- * who played a session genuinely resumes where they were. Server
- * sync (signed-in cross-device) overwrites localStorage before this
- * runs; localStorage is the only thing playback actually reads.
- * Tom 2026-05-26.
+ * who played a session genuinely resumes where they were. Tom 2026-05-26.
+ *
+ * LOCAL-ONLY, deliberately: this reads the device cache and nothing
+ * else. For a signed-in learner the caller must still apply the
+ * position-authority rule (resolveAuthoritativePosition — server wins
+ * unless local is strictly fresher) before honouring the result; the
+ * cache fast-path does exactly that. A previous comment here claimed a
+ * server sync overwrote localStorage before this ran — no such sync
+ * exists, and trusting this value unconditionally is what resumed
+ * learners behind their real cursor (2026-09-04).
  */
 const resolveResumePosition = (rounds: any[]): { roundIndex: number; cycleIndex: number } | null => {
   // Production deep link beats the saved cursor — see deepLinkStart above.
@@ -10447,7 +10453,7 @@ const handleRoundForward = async () => {
       }
       if (targetIdx >= cachedRounds.value.length) {
         showBeltWaitingMessage(
-          t('player.contentStillDownloading', "That's still downloading — it'll open as soon as it's here."),
+          t('player.contentStillDownloading', "That isn't on this device yet — it'll open as soon as it comes through."),
         )
         // ALARM ONLY. A forward step that cannot resolve its own next round is
         // a bug in the load path, not a learner event.
@@ -10855,7 +10861,7 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
   // keep asking for it. The learner is never told no.
   showBeltWaitingMessage(
     beltAwaitingDownload(belt)
-      ?? t('player.beltStillDownloading', "{belt} is still downloading — it'll open as soon as it's here.")
+      ?? t('player.beltStillDownloading', "{belt} isn't on this device yet — it'll open as soon as it comes through.")
         .replace('{belt}', t('belt.label', '{color} Belt').replace('{color}', t(`belt.${belt.name}`, belt.name))),
   )
 
@@ -12218,7 +12224,7 @@ const beltAwaitingDownload = (belt: { name: string; seedsRequired: number }): st
   // so it is keyed, and the belt is named in the interface language
   // (belt.label + belt.<colour>, already in all 24 locales).
   const named = t('belt.label', '{color} Belt').replace('{color}', t(`belt.${belt.name}`, belt.name))
-  return t('player.beltStillDownloading', "{belt} is still downloading — it'll open as soon as it's here.")
+  return t('player.beltStillDownloading', "{belt} isn't on this device yet — it'll open as soon as it comes through.")
     .replace('{belt}', named)
 }
 
@@ -14572,6 +14578,10 @@ onMounted(async () => {
         // (new device / different origin / after ?reset=1) lands on the exact
         // CYCLE, not the round's intro. Fixes "main resumes at LEGO intro".
         let inferCursorCycle = 0
+        // The server's freshness stamp, for the position-authority comparison
+        // on the cache fast-path below (server wins unless local is strictly
+        // fresher — same rule resolveStartLegoId already applies).
+        let inferLastPracticedAt: number | null = null
         if (!isGuestLearner.value && progressStore?.value && learnerId.value) {
           try {
             // Bounded: this pre-check runs ahead of the cache fast-path below,
@@ -14600,6 +14610,7 @@ onMounted(async () => {
             inferEnrollmentMode = (await hasReachedInfinitePlay(inferCursorLegoId, courseCode.value)) ? 'infplay' : 'main'
             inferInfPlayRoundIndex = Math.max(1, enr?.infplay_round_index ?? 1)
             inferCursorCycle = Math.max(0, enr?.current_cycle_index ?? 0)
+            inferLastPracticedAt = enr?.last_practiced_at ? enr.last_practiced_at.getTime() : null
           } catch (modeErr) {
             console.warn('[InstantPlayback] mode pre-check failed, defaulting to main:', modeErr)
           }
@@ -14706,9 +14717,32 @@ onMounted(async () => {
               extractComponentsToMaps(cachedScript.rounds as any, '[Components] cache-fast-path')
 
               // Resume position via the shared resolveResumePosition
-              // helper — same lookup the bootstrap path uses, single
-              // source of truth (localStorage) regardless of auth.
-              const resume = resolveResumePosition(cachedScript.rounds as any[])
+              // helper — same lookup the bootstrap path uses.
+              let resume = resolveResumePosition(cachedScript.rounds as any[])
+              // POSITION AUTHORITY on the fast-path too (the 2026-07-09
+              // ruling): the server enrollment row is authoritative for a
+              // signed-in learner; localStorage is a device cache trusted only
+              // when strictly fresher. This path used to trust any local
+              // position unconditionally — no server→localStorage sync exists
+              // to make that safe — so a device carrying a stale local save
+              // resumed the learner BEHIND their real cursor, which is the
+              // "now marker behind furthest, position walked backwards" panel
+              // (Android, 2026-09-04). One fact (the cursor), one authority.
+              // Deep link outranks everything: it is an explicit "start HERE",
+              // and resolveResumePosition already honoured it above.
+              if (resume && !deepLinkStart.value && !isGuestLearner.value) {
+                const localPos = loadPositionFromLocalStorage()
+                const winner = resolveAuthoritativePosition(
+                  localPos?.legoId ? { legoId: localPos.legoId, lastUpdated: localPos.lastUpdated ?? null } : null,
+                  (inferCursorLegoId !== null || inferLastPracticedAt !== null)
+                    ? { cursorLegoId: inferCursorLegoId, lastPracticedAt: inferLastPracticedAt }
+                    : null,
+                )
+                if (winner.source === 'server' && winner.legoId !== localPos?.legoId) {
+                  console.log(`[InstantPlayback] cache fast-path: server cursor ${winner.legoId} outranks local ${localPos?.legoId ?? 'none'} — resuming from the enrollment row`)
+                  resume = null // fall to the DB-cursor resolution below
+                }
+              }
               let resumeRoundIndex = resume?.roundIndex ?? 0
               let resumeCycle = resume?.cycleIndex ?? 0
               // localStorage had no position (cleared cache / new device). Don't
