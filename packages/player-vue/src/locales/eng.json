@@ -259,6 +259,7 @@
     "keepPremium": "Keep Premium",
     "closeSettings": "Close settings",
     "updateAvailable": "Update available",
+    "appBehindLive": "This app is from {date}. A newer version is available — install it from popty.app/builds.",
     "tapUpdate": "Tap to update",
     "latestVersionTapVersion": "✦ In the latest version — tap the version above to update.",
     "loading": "Loading…",

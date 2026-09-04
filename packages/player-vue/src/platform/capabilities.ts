@@ -147,6 +147,27 @@ export function shouldOfferAppInstall(): boolean {
 }
 
 /**
+ * Should this build DESCRIBE its own staleness — "this app is from {date}, a
+ * newer version exists"?
+ *
+ * In a WebView: YES. The APK bundles its web assets, so nothing inside it can
+ * notice new code by itself and no action its holder takes will fetch any: the
+ * only remedy is installing a new app. Left silent, that lag is undetectable,
+ * which is exactly what happened to the build Tom was testing on 2026-09-04.
+ *
+ * On the web: NO. The service-worker update banner already owns this ground,
+ * a reload genuinely resolves it, and a line telling a browser user to go and
+ * install an app would be false. Web behaviour is unchanged.
+ *
+ * Note this is NOT `isNativeShell()` wearing a different hat, for the same
+ * reason `shouldOfferAppInstall()` is not: the question a caller has is this
+ * one, so this is the one the seam answers.
+ */
+export function shouldDescribeStaleness(): boolean {
+  return current.shell === 'webview'
+}
+
+/**
  * Is a service worker API present at all? Diagnostics and cleanup paths ask
  * this — they must keep working on the web and quietly no-op where there is
  * no SW to inspect.

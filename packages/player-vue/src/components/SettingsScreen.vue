@@ -20,6 +20,7 @@ import { paddleConfig } from '../lib/paddle'
 // this file that starts or manages a payment asks it — never the platform.
 import { canTakePayment, paddleBillingAvailable } from '../platform/paymentRoute'
 import { platform } from '../platform/capabilities'
+import { appIsStale, checkAppStaleness } from '../composables/useAppStaleness'
 import FamilyManagementModal from './FamilyManagementModal.vue'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useReleaseNotes } from '../composables/useReleaseNotes'
@@ -295,6 +296,37 @@ const buildOrigin = computed(() => {
   } catch {
     return ''
   }
+})
+
+// IS THIS APK BEHIND? (native shell only — see composables/useAppStaleness.ts)
+//
+// The bundled build cannot notice new code by itself: its own /version.json is
+// frozen into the APK. The composable asks the API ORIGIN instead, and only
+// says "behind" when the clock proves it. Kicked off on mount; silent on every
+// answer it cannot read, and silent on the web, where the update card above is
+// already the truthful affordance.
+//
+// It DESCRIBES. It does not gate: nothing below refuses a tap, blocks
+// navigation or interrupts playback.
+onMounted(() => { void checkAppStaleness() })
+
+// The date this build was made, in words — the learner gets a date, never a
+// sha. The sha stays one line up, on the build row, where provenance lives.
+const buildDateWords = computed(() => {
+  if (!buildTime) return ''
+  const d = new Date(buildTime)
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+})
+
+// A stale APK's only remedy is INSTALLING A NEW APP — no reload, no wait, no
+// amount of clearing storage brings new web code into a bundled shell. So this
+// sentence must not borrow the panel's self-resolving vocabulary ("it comes
+// through as soon as we can reach it"), which would be a lie here. It promises
+// the resolution that actually exists.
+const stalenessLine = computed(() => {
+  if (!appIsStale.value || !buildDateWords.value) return ''
+  return t('settings.appBehindLive').replace('{date}', buildDateWords.value)
 })
 
 // What's new — latest curated release notes from Supabase
@@ -1676,6 +1708,11 @@ const confirmReset = async () => {
            action. See buildOrigin above for why it exists at all. -->
       <p v-if="buildOrigin" class="build-origin">{{ buildOrigin }}</p>
 
+      <!-- This build is provably older than the live one. A DESCRIPTION, not a
+           gate: plain text, nothing tappable, no modal, and absent entirely
+           whenever the app is current or we cannot tell. -->
+      <p v-if="stalenessLine" class="build-stale" role="status">{{ stalenessLine }}</p>
+
       <!-- What's New — the release train's own notes, bundled at build time from
            tools/release-train/notes/ (shipped ones only, never a draft), merged
            with any admin-curated rows (see /admin/release-notes), which win their
@@ -2605,6 +2642,13 @@ const confirmReset = async () => {
   font-size: 0.75rem;
   color: var(--text-muted);
   font-weight: 400;
+}
+
+.build-stale {
+  margin: 6px 2px 12px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--text-secondary, var(--text-muted));
 }
 
 .build-origin {
