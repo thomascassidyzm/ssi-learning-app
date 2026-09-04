@@ -115,7 +115,12 @@
     "keepLearningReachNext": "Keep learning to reach the next level!",
     "progressLoadFailed": "We couldn't load where you got to. Your progress is safe — have another go.",
     "practisingBanner": "Practising",
-    "practisingBannerNote": "New material comes back when your connection does."
+    "practisingBannerNote": "New material comes back when your connection does.",
+    "beltJumpUnavailable": "We couldn't load {belt} just now — try again in a moment.",
+    "beltNeedsNewMaterial": "You're practising what you've already covered — {belt} needs new material we can't reach right now.",
+    "beltNotInOfflineDownload": "{belt} isn't in your offline download — reconnect to add it.",
+    "beltNotOnDevice": "You're offline and {belt} isn't on this device yet.",
+    "practisingBeltHint": "practising what you've already covered — new belts need material we can't reach right now"
   },
   "home": {
     "goodMorning": "Good morning",
@@ -680,7 +685,16 @@
   },
   "progress": {
     "infinitePlayRandomReview": "Infinite play — random review of everything you've learned",
-    "infinitePlayRandomReview2": "Infinite play: random review of everything you've learned"
+    "infinitePlayRandomReview2": "Infinite play: random review of everything you've learned",
+    "workingOnBelt": "you're working on {belt}",
+    "youreInMode": "you're in {mode}",
+    "infinitePlay": "infinite play",
+    "beenAsFarAs": "you've been as far as {belt}",
+    "jumpToBeltName": "Jump to {belt}",
+    "beltNotDownloaded": "{belt} isn't downloaded — reconnect to jump there",
+    "tapBeltHint": "tap a belt to jump there, or ∞ at the end for infinite play",
+    "offlineBeltsReadyUpTo": "offline — belts up to {belt} ready to play; beyond needs a connection",
+    "offlineBeltsLocked": "offline — locked belts aren't downloaded; connect to jump there"
   },
   "pronunciation": {
     "easier": "Easier",
