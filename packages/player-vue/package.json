@@ -26,6 +26,7 @@
   "dependencies": {
     "@capacitor/android": "^8.5.1",
     "@capacitor/core": "^8.5.1",
+    "@capacitor/ios": "^8.5.1",
     "@paddle/paddle-js": "^1.6.4",
     "@ssi/core": "workspace:*",
     "@supabase/supabase-js": "^2.86.0",
