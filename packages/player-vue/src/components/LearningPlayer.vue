@@ -18388,8 +18388,10 @@ defineExpose({
      ════════════════════════════════════════════════════════════════════════════ */
 
   /* ============ SAFE AREAS ============ */
-  --safe-area-top: env(safe-area-inset-top, 0px);
-  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  /* Raw measured insets, via the shell tokens in styles/design-tokens.css,
+     which know where a measured inset actually comes from on each shell. */
+  --safe-area-top: var(--shell-inset-top);
+  --safe-area-bottom: var(--shell-inset-bottom);
 
   /* ============ HERO CONSTRUCTION GRID ============
    * The whole top section is built from ONE base unit. Everything derives, so
@@ -18418,7 +18420,11 @@ defineExpose({
   --header-height: calc(var(--space-lg) + var(--title-slot) + var(--hero-gap) + var(--pill-height));
   --header-total: calc(var(--header-height) + var(--safe-area-top));
   --nav-height: 80px;
-  --nav-total: calc(var(--nav-height) + var(--safe-area-bottom));
+  /* Content clearance above the bottom nav = the nav band plus however far
+     the band itself is floated up. Whichever is larger is the honest answer:
+     on iOS that is the full inset (unchanged), on the Android native shell it
+     is the clearance, which is bigger than the inset by the touch margin. */
+  --nav-total: calc(var(--nav-height) + max(var(--safe-area-bottom), var(--shell-nav-clearance)));
   --control-bar-bottom: var(--nav-total);
   --hero-offset: var(--hero-gap); /* belt pill → dialog box = one rhythm unit */
   --hero-top: calc(var(--header-total) + var(--hero-offset));
@@ -18971,7 +18977,9 @@ defineExpose({
 /* Course identity — fixed above bottom nav, only during playback */
 .course-identity {
   position: fixed;
-  bottom: max(calc(env(safe-area-inset-bottom, 0px) / 2 + 82px), 94px);
+  /* 82px above the bottom nav's own clearance — identical arithmetic to the
+     old max(inset/2 + 82, 94) on web and iOS, and correct on Android too. */
+  bottom: calc(var(--shell-nav-clearance, 12px) + 82px);
   left: 50%;
   transform: translateX(-50%);
   display: flex;

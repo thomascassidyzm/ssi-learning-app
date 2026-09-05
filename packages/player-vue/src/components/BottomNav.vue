@@ -299,9 +299,14 @@ const handleSettings = () => {
 <style scoped>
 .bottom-nav {
   position: fixed;
-  /* Use half the safe area on iPhone (native apps do the same),
-     with 12px minimum for desktop/browser where safe area is 0 */
-  bottom: max(calc(env(safe-area-inset-bottom, 0px) / 2), 12px);
+  /* How far the floating pill sits above the bottom of the viewport is a
+     property of the SHELL, not of this component — see --shell-nav-clearance
+     in styles/design-tokens.css. Web and iOS: half the safe area with a 12px
+     minimum, exactly as before. Android native shell: the FULL inset plus a
+     touch margin, so the row clears the system navigation bar instead of
+     sitting in it. The fallback reproduces the old rule verbatim if the token
+     is ever missing. */
+  bottom: var(--shell-nav-clearance, max(calc(env(safe-area-inset-bottom, 0px) / 2), 12px));
   left: 50%;
   right: auto;
   transform: translateX(-50%);

@@ -20,6 +20,7 @@ import { paddleConfig } from '../lib/paddle'
 // this file that starts or manages a payment asks it — never the platform.
 import { canTakePayment, paddleBillingAvailable } from '../platform/paymentRoute'
 import { platform } from '../platform/capabilities'
+import { insetDiagnosticLine } from '../platform/shellSafeArea'
 import { appIsStale, checkAppStaleness } from '../composables/useAppStaleness'
 import { shaPrefixEq } from '../platform/buildStaleness'
 import FamilyManagementModal from './FamilyManagementModal.vue'
@@ -297,6 +298,27 @@ const buildOrigin = computed(() => {
   } catch {
     return ''
   }
+})
+
+// WHAT IS THE SHELL ACTUALLY REPORTING FOR THE SYSTEM BARS?
+//
+// The bottom controls clear the navigation bar by reading the measured inset
+// (--shell-nav-clearance, styles/design-tokens.css). A silently-zero inset
+// looks EXACTLY like that fix not being there, which is why this line exists:
+// four numbers and their source, so "the insets aren't reporting" is one
+// glance on the handset rather than a guess from a screenshot.
+//
+// Native shell only, and it lives on the build card because that is this
+// app's provenance corner — the sha and the API origin are already here. It
+// is NOT gated behind ?debug: a WebView has no address bar, so a query flag
+// would make it unreachable on the one device it exists for.
+const insetLine = ref('')
+function readInsetLine() { insetLine.value = insetDiagnosticLine() }
+onMounted(() => {
+  readInsetLine()
+  // Capacitor injects its inset properties from a DOM-ready callback that can
+  // land after this screen mounts; re-read once it has settled.
+  window.setTimeout(readInsetLine, 600)
 })
 
 // IS THIS APK BEHIND? (native shell only — see composables/useAppStaleness.ts)
@@ -1712,6 +1734,9 @@ const confirmReset = async () => {
            whenever the app is current or we cannot tell. -->
       <p v-if="stalenessLine" class="build-stale" role="status">{{ stalenessLine }}</p>
 
+      <!-- Measured system-bar insets. Native shell only; see readInsetLine. -->
+      <p v-if="insetLine" class="build-insets">{{ insetLine }}</p>
+
       <!-- What's New — the release train's own notes, bundled at build time from
            tools/release-train/notes/ (shipped ones only, never a draft), merged
            with any admin-curated rows (see /admin/release-notes), which win their
@@ -2648,6 +2673,14 @@ const confirmReset = async () => {
   font-size: 0.8rem;
   line-height: 1.45;
   color: var(--text-secondary, var(--text-muted));
+}
+
+.build-insets {
+  margin: 4px 2px 0;
+  font-size: 0.68rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
 }
 
 .build-origin {
