@@ -942,7 +942,7 @@ describe('usePodLapScheduler — work-debt cadence', () => {
     // Persist is fire-and-forget; let the queued writes settle.
     await new Promise((r) => setTimeout(r, 0))
     // Session ends; the persisted debt is what the next session reads back.
-    expect(state.enrollmentUpdates.at(-1)).toEqual({
+    expect(state.enrollmentUpdates[state.enrollmentUpdates.length - 1]).toEqual({
       completed_pod_rounds: 0,
       rounds_since_pod: 3,
     })

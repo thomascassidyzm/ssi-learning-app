@@ -15573,7 +15573,7 @@ onMounted(async () => {
                 console.log(`[LearningPlayer] Returning user has reached infinite play — loading full course + ${EXPANSION_BATCH} infinite-play rounds (endSeed=${endSeed})`)
               } else {
                 endSeed = startingSeed + LOOKAHEAD_CHUNK_SEEDS
-                console.log(`[LearningPlayer] Returning user at seed ${startingSeed} — loading 1..${endSeed}${podActivationOverride !== null ? ' (custom pod pin)' : ''}`)
+                console.log(`[LearningPlayer] Returning user at seed ${startingSeed} — loading 1..${endSeed}`)
               }
               result = await generateScript(config)
               console.log(`[LearningPlayer] Returning-user load ready: ${result.roundCount} rounds`)
