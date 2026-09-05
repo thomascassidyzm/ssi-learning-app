@@ -9,9 +9,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { readdirSync } from 'node:fs'
 import {
   buildNotes, finalizeBody, isDraftBody, reconcile, render, renderFinal, FINAL_HEADER_RE,
+  bulletsUnder, assertRenderable, shippedBullets,
 } from './release-notes.mjs'
+import { extractBullets, unrenderableMarkup } from './notes-bullets.mjs'
 
 const commit = (subject) => ({ subject, sha: 'a'.repeat(40), date: '2026-07-30', author: 'x' })
 const notesFor = (subjects) => buildNotes({
@@ -373,4 +376,76 @@ test('promote.sh writes the notes BEFORE it pushes main, so they ship with their
   assert.ok(commit < push, 'the notes must be committed onto the merge BEFORE the push to main')
   assert.match(sh, /--worktree" "\$WT"|--worktree "\$WT"/,
     'the finalise run must be handed the promote worktree, or the notes never reach main')
+})
+
+// ── the wrapped-bullet / markup defect class (2026-09-05) ───────────────────────────────────
+// A bullet that wrapped across two lines was cut off mid-sentence on its way through the
+// finaliser AND on its way into the panel; `**bold**` reached learners as literal asterisks.
+// Both parsers now come from notes-bullets.mjs, and the finaliser gates on the markup predicate.
+
+const WRAPPED = `## What's new
+
+- A tap always lands. Tapping a belt, or jumping to where you got to, could quietly
+  do nothing at all. Now it either takes you there or tells you it is still loading.
+- One short one.
+
+## Other stuff and bug fixes
+
+- Wrapped down here
+  too.
+`
+
+test('a wrapped bullet survives WHOLE — no more truncation mid-sentence', () => {
+  assert.deepEqual(bulletsUnder(WRAPPED, "What's new"), [
+    'A tap always lands. Tapping a belt, or jumping to where you got to, could quietly do ' +
+      'nothing at all. Now it either takes you there or tells you it is still loading.',
+    'One short one.',
+  ])
+  assert.deepEqual(extractBullets(WRAPPED, 'Other stuff and bug fixes'), ['Wrapped down here too.'])
+})
+
+test('hand-edited wrapped bullets reach the final file whole', () => {
+  // reconcile() is how a human's draft bullet is carried through finalise. Before the fix it
+  // carried only the bullet's first line.
+  const draft = `## What's new
+
+- Tom wrote this one by hand and it wrapped
+  onto a second line.
+`
+  const merged = reconcile(draft, notesFor(['chore: nothing user-facing']))
+  assert.ok(merged.features.includes('Tom wrote this one by hand and it wrapped onto a second line.'),
+    `hand bullet was truncated: ${JSON.stringify(merged.features)}`)
+})
+
+test('the markup predicate names every marker the panel cannot render', () => {
+  assert.deepEqual(unrenderableMarkup('Plain words, a comma, and a full stop.'), [])
+  assert.deepEqual(unrenderableMarkup('Nothing here — 5 * 3, snake_case, 2 - 1.'), [])
+  for (const bad of [
+    'Now **near-instant**.', 'Now __near-instant__.', 'Now *near-instant*.',
+    'Now _near-instant_.', 'Run `promote.sh`.', 'See [the docs](https://x.dev).',
+    '# A heading', 'A <b>tag</b>.',
+  ]) {
+    assert.ok(unrenderableMarkup(bad).length > 0, `not caught: ${bad}`)
+  }
+})
+
+test('the finalise gate REJECTS a note carrying markup, naming the bullet', () => {
+  assert.throws(
+    () => assertRenderable(`## What's new\n\n- Switching course is **near-instant**.\n`, 'notes/x.md'),
+    /cannot render[\s\S]*near-instant/)
+  assert.doesNotThrow(
+    () => assertRenderable(`## What's new\n\n- Switching course is near-instant.\n`, 'notes/x.md'))
+})
+
+test('EVERY shipped notes file is renderable by the panel, as it stands on disk', () => {
+  // A hand-edit to a notes file is caught by the ordinary suite, not only at promote time.
+  const dir = new URL('./notes/', import.meta.url)
+  for (const f of readdirSync(dir).filter((n) => n.endsWith('.md'))) {
+    const body = readFileSync(new URL(f, dir), 'utf8')
+    assert.doesNotThrow(() => assertRenderable(body, `notes/${f}`))
+    for (const b of shippedBullets(body)) {
+      assert.ok(!/\s(and|the|a|to|of|in|on|so|that|it|is|was)$/i.test(b.trim()),
+        `notes/${f}: bullet looks truncated mid-sentence: "${b}"`)
+    }
+  }
 })

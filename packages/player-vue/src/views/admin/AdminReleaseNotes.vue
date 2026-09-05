@@ -10,6 +10,11 @@
  * (keeps headlines honest and rendering predictable).
  */
 import { computed, inject, onMounted, ref, type Ref } from 'vue'
+// The SAME predicate the release train's finaliser gates on — one definition of "markup the
+// Settings panel cannot render", so a hand-typed `**bold**` is refused here rather than reaching
+// a learner as literal asterisks. (The panel interpolates bullets as text, deliberately: no
+// v-html sink fed by a table row.)
+import { findUnrenderable } from '../../../../../tools/release-train/notes-bullets.mjs'
 
 interface ReleaseNote {
   id: string
@@ -94,6 +99,14 @@ async function save() {
   }
   if (bullets.length === 0) {
     error.value = 'At least one bullet is required'
+    return
+  }
+  const unrenderable = findUnrenderable(bullets)
+  if (unrenderable.length) {
+    error.value =
+      'No markdown, by design — the Settings panel shows bullets as plain text, so this would ' +
+      'reach learners as literal punctuation. Fix: ' +
+      unrenderable.map((u) => `${u.problems.join(', ')} in "${u.bullet.slice(0, 60)}"`).join('; ')
     return
   }
   isSaving.value = true

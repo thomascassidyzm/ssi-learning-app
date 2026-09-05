@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { parseTrainNote, TRAIN_RELEASE_NOTES } from './trainReleaseNotes'
 import { mergeReleaseNotes, type ReleaseNote } from './useReleaseNotes'
+import { unrenderableMarkup } from '../../../../tools/release-train/notes-bullets.mjs'
 
 const FINAL = `<!-- release-notes:header -->
 # Release notes — shipped 2026-07-30
@@ -128,5 +129,43 @@ describe('the catch-all section', () => {
       'A small thing a learner notices.',
       'Another small thing.',
     ])
+  })
+})
+
+// ── the wrapped-bullet / markup defect class (2026-09-05) ──────────────────────────────────
+// The panel interpolates bullets as plain text, and this parser used to hold its own copy of the
+// bullet regex — so a bullet that wrapped over two lines arrived on a learner's screen cut off
+// mid-sentence, and `**bold**` arrived as literal asterisks. One shared definition now
+// (tools/release-train/notes-bullets.mjs), and the finaliser gates on the markup predicate.
+
+const WRAPPED = FINAL.replace(
+  '- Switching course is near-instant.',
+  '- Switching course is near-instant, and the round you were on is\n  remembered so you land\n  back where you left off.',
+)
+
+describe('wrapped bullets and unrenderable markup', () => {
+  it('joins a wrapped bullet instead of truncating it mid-sentence', () => {
+    const note = parseTrainNote(WRAPPED)!
+    expect(note.bullets[0]).toBe(
+      'Switching course is near-instant, and the round you were on is remembered so you land ' +
+        'back where you left off.',
+    )
+  })
+
+  it('no SHIPPED bullet carries markup the panel cannot render', () => {
+    // Walks every notes file actually bundled into the build.
+    const offenders = TRAIN_RELEASE_NOTES.flatMap((n) =>
+      n.bullets.filter((b) => unrenderableMarkup(b).length > 0).map((b) => `${n.id}: ${b}`),
+    )
+    expect(offenders).toEqual([])
+  })
+
+  it('no SHIPPED bullet ends mid-sentence the way truncation produced', () => {
+    const truncated = TRAIN_RELEASE_NOTES.flatMap((n) =>
+      n.bullets
+        .filter((b) => /\s(and|the|a|to|of|in|on|so|that|it|is|was)$/i.test(b.trim()))
+        .map((b) => `${n.id}: ${b}`),
+    )
+    expect(truncated).toEqual([])
   })
 })

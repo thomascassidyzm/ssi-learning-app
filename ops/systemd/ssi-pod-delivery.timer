@@ -1,0 +1,20 @@
+[Unit]
+Description=Nightly pod-delivery detector at 06:20 Europe/London
+Documentation=file:///home/tomcassidy/.cs-nightly/ssi-learning-app/docs/pod-delivery/pods-who-is-actually-getting-them-2026-09-05.md
+
+[Timer]
+# 06:20 London, stated in London so the twice-yearly DST shift needs no edit.
+# Chosen to miss every neighbour already on this box: 03:00 SSi CI, 03:50
+# landing sweep, 04:15 tmp sweep, 04:40, 05:10 audio-gap, 05:40 events archive,
+# 05:55 voice-variety. 06:20 is 25 minutes clear of the last of them, and after
+# the events archive so the window it reads is settled.
+OnCalendar=*-*-* 06:20:00 Europe/London
+RandomizedDelaySec=300
+AccuracySec=1min
+# A night missed because the box was down runs at next boot rather than
+# leaving a hole in the series.
+Persistent=true
+Unit=ssi-pod-delivery.service
+
+[Install]
+WantedBy=timers.target
