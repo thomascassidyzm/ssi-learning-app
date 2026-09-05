@@ -33,6 +33,11 @@
 	<array>
 		<string>audio</string>
 	</array>
+	<!-- PronunciationOverlay.vue calls getUserMedia. On iOS a microphone touch
+	     without this string is not a denied permission — the OS kills the
+	     process outright. The text is what the learner reads in the prompt. -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>SSi uses the microphone to hear you speak during practice.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
