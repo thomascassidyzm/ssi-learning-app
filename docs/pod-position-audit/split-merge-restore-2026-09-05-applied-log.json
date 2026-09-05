@@ -1,0 +1,45 @@
+{
+  "applied_at": "2026-09-05T19:27:34.734Z",
+  "applied": [
+    {
+      "learner_id": "1f9a123c-55b5-4a81-8ebd-bb0430b307d4",
+      "course_code": "fra_for_eng",
+      "target": "fra_for_eng:pod-1:SC04-S003",
+      "exposures": 60,
+      "exposures_before": 52,
+      "exposures_after": 60
+    },
+    {
+      "learner_id": "1f9a123c-55b5-4a81-8ebd-bb0430b307d4",
+      "course_code": "fra_for_eng",
+      "target": "fra_for_eng:pod-1:SC06-S012",
+      "exposures": 22,
+      "exposures_before": 16,
+      "exposures_after": 22
+    },
+    {
+      "learner_id": "1f9a123c-55b5-4a81-8ebd-bb0430b307d4",
+      "course_code": "fra_for_eng",
+      "target": "fra_for_eng:pod-1:SC07-S005",
+      "exposures": 9,
+      "exposures_before": 4,
+      "exposures_after": 9
+    },
+    {
+      "learner_id": "a826c529-ac97-4bc9-8885-9b877fa4280a",
+      "course_code": "fra_for_eng",
+      "target": "fra_for_eng:pod-1:SC04-S003",
+      "exposures": 19,
+      "exposures_before": 12,
+      "exposures_after": 19
+    },
+    {
+      "learner_id": "30d8027d-7921-4c50-84f3-fea58002e262",
+      "course_code": "zho_for_eng",
+      "target": "zho_for_eng:pod-1:SC02-S002",
+      "exposures": 3,
+      "exposures_before": null,
+      "exposures_after": 3
+    }
+  ]
+}
