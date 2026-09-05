@@ -24,10 +24,17 @@
  *   • Skipped lap → counter unchanged → same content next session
  *   • Belt-skip → no avalanche; pods just keep advancing one per played lap
  *   • Going back to earlier main rounds → pods continue forward
- *   • Course reset → counter back to 0 (and pod_activation_round back to NULL)
+ *   • Course reset → counter back to 0 (and the work-debt counter to 0)
  *
- * `pod_activation_round` (added 2026-05-03) still gates the main-round at
- * which pods START FIRING for that user.
+ * CADENCE IS A DEBT, NOT A SCHEDULE (2026-09-05, replacing the 2026-05-03
+ * `pod_activation_round` pin + position-modulus rule). `rounds_since_pod` on
+ * course_enrollments counts EVERY completed round — replays, easy mode,
+ * revival-tail rounds — and a lap fires at the first clean boundary where the
+ * debt reaches `roundInterval` (5). It resets to 0 only on lap COMPLETION;
+ * skip, failure, offline-incomplete and composed-nothing all leave the debt
+ * standing. Position never enters the rule, so a learner whose position crawls
+ * (Beuno: 33 rounds of work, position 10→14, no pod in a month) still gets the
+ * listening they earned.
  *
  * Guests (no enrollment row): use an in-memory counter that resets each
  * session. Friendlier than skipping pods entirely; matches the model where
@@ -197,15 +204,10 @@ export function podStageFor(
   return { stage: totalStages, iter: null }
 }
 
-const DEFAULT_POD_ACTIVATION = 5
-
-// Hotfix cap (2026-05-20). Some learners have stale enrollment values like
-// 21 / 31 / 58 from an earlier activation rule. Cap at 5 so the first pod
-// surfaces ~5 rounds into a session (gives the learner time to settle into
-// speaking practice before listening pods start interleaving). The proper
-// redesign (mode-agnostic monotonic counter, growing intervals like
-// 2 / 2 / 3 / 3 / 4 / 4 / 5 / 5 / 5 / 5...) lands separately.
-const POD_ACTIVATION_CAP = 5
+// The activation pin (DEFAULT_POD_ACTIVATION) and its 2026-05-20 stale-value
+// cap (POD_ACTIVATION_CAP) are DELETED: both existed only to tame a
+// position-modulus cadence. A work-debt counter starts from measured work,
+// needs no pin, and can produce no avalanche (it only ever has to reach 5).
 
 // isTargetRole + PodSentenceRow now live in ./podStageComposition (imported above).
 
@@ -461,8 +463,12 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
   const introAudio = ref<BookendAudio | null>(null)
   const outroAudio = ref<BookendAudio | null>(null)
 
-  /** Main-round at which pods START FIRING. NULL → use default 6. */
-  const podActivationRound = ref<number>(DEFAULT_POD_ACTIVATION)
+  /** Work debt: completed rounds since the last COMPLETED pod lap. Monotonic
+   *  up, reset to 0 only by markLapCompleted. Never a function of position. */
+  const roundsSincePod = ref<number>(0)
+  /** Main round of the last completed round we were told about — the anchor
+   *  for forward debt PROJECTION in preview callers (see firesAtRound). */
+  const debtAnchorRound = ref<number>(0)
   /** Independent ratchet counter. Increments only on completed laps. */
   const completedPodRounds = ref<number>(0)
 
@@ -519,7 +525,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
           !isGuestLearner(learnerId)
             ? supabase
                 .from('course_enrollments')
-                .select('pod_activation_round, completed_pod_rounds')
+                .select('rounds_since_pod, completed_pod_rounds')
                 .eq('learner_id', learnerId)
                 .eq('course_id', courseCode)
                 .maybeSingle()
@@ -590,17 +596,12 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
 
       const enrollment = (enrollmentResult as any)?.data
       if (enrollment) {
-        // Cap stale lifetime activation values (e.g. 21, 31, 58) so they
-        // don't keep pods locked behind a 20+-round wait. See
-        // POD_ACTIVATION_CAP block above for context.
-        const stored = enrollment.pod_activation_round
-        podActivationRound.value = stored != null
-          ? Math.min(stored, POD_ACTIVATION_CAP)
-          : DEFAULT_POD_ACTIVATION
+        roundsSincePod.value = Math.max(0, enrollment.rounds_since_pod ?? 0)
         completedPodRounds.value = enrollment.completed_pod_rounds ?? 0
       } else {
-        // Brand-new enrollment, guest, or read failed — keep defaults.
-        podActivationRound.value = DEFAULT_POD_ACTIVATION
+        // Brand-new enrollment, guest, or read failed — start the debt at 0
+        // and let this session's own work earn the first lap.
+        roundsSincePod.value = 0
         completedPodRounds.value = 0
       }
 
@@ -622,14 +623,53 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
    */
   const deferredPodPending = ref(false)
 
-  /** True iff pods should fire at the given main round. */
+  const podInterval = (): number =>
+    Math.max(1, Math.floor(unwrap(options.roundInterval) ?? 1))
+
+  /**
+   * Count one COMPLETED round of work against the debt. Called from the
+   * player's round-completed handler for EVERY round — replays, easy mode,
+   * revival tail, listening rounds — because the debt measures work done, not
+   * position reached. `mainRound` is only the projection anchor for preview
+   * callers; the fire decision never reads it. Persist is fire-and-forget:
+   * a failed write costs at most one round of debt, never playback.
+   */
+  const noteRoundCompleted = (mainRound?: number): void => {
+    roundsSincePod.value += 1
+    if (typeof mainRound === 'number' && Number.isFinite(mainRound)) {
+      debtAnchorRound.value = mainRound
+    }
+    void persistRatchet()
+  }
+
+  /**
+   * THE FIRE PREDICATE. A lap is due when the work debt has reached the
+   * interval and a lap can compose. No position term, by design.
+   */
+  const isLapDue = (): boolean => {
+    if (!isInitialized.value) return false
+    if (podSentences.value.length === 0) return false
+    if (deferredPodPending.value) return true
+    return roundsSincePod.value >= podInterval()
+  }
+
+  /**
+   * PREVIEW ONLY — "would a lap fall at main round R, if the learner walks
+   * forward from here completing one round per round?" Debt is not a pure
+   * function of round number, so this projects the CURRENT debt forward from
+   * the anchor with no resets other than its own fires. Used by span audio
+   * pre-warm and the sector-merge cursor, both of which ask "does a lap fall
+   * within this span" rather than "exactly which round". The live fire
+   * decision uses isLapDue(), never this.
+   */
   const shouldFireLapAt = (mainRound: number): boolean => {
     if (!isInitialized.value) return false
     if (podSentences.value.length === 0) return false
-    if (mainRound < podActivationRound.value) return false
     if (deferredPodPending.value) return true
-    const interval = Math.max(1, Math.floor(unwrap(options.roundInterval) ?? 1))
-    return (mainRound - podActivationRound.value) % interval === 0
+    const interval = podInterval()
+    const projected = roundsSincePod.value + (mainRound - debtAnchorRound.value)
+    if (projected < interval) return false
+    return (projected - interval) % interval === 0
   }
 
   /**
@@ -982,6 +1022,11 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
    */
   const markLapCompleted = async (): Promise<void> => {
     completedPodRounds.value = podRatchetAfterLap(getCohorts(), completedPodRounds.value)
+    // The debt is PAID — and only completion pays it. Skips, failures,
+    // offline-incomplete laps and composed-nothing boundaries all leave it
+    // standing so the next viable boundary fires.
+    roundsSincePod.value = 0
+    debtAnchorRound.value = 0
     deferredPodPending.value = false
     await persistRatchet()
     await flushExposures()
@@ -1021,12 +1066,12 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
   }
 
   /**
-   * Reset the ratchet (for course reset). Also clears the activation pin so
-   * it gets recaptured on next session.
+   * Reset the ratchet and the work debt (for course reset).
    */
   const reset = async (): Promise<void> => {
     completedPodRounds.value = 0
-    podActivationRound.value = DEFAULT_POD_ACTIVATION
+    roundsSincePod.value = 0
+    debtAnchorRound.value = 0
     podExposures = new Map()
     pendingExposures = []
 
@@ -1037,7 +1082,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     try {
       await supabase
         .from('course_enrollments')
-        .update({ completed_pod_rounds: 0, pod_activation_round: null })
+        .update({ completed_pod_rounds: 0, rounds_since_pod: 0 })
         .eq('learner_id', learnerId)
         .eq('course_id', courseCode)
       // Course reset clears the shared two-doors counter too.
@@ -1060,7 +1105,10 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     try {
       const { error } = await supabase
         .from('course_enrollments')
-        .update({ completed_pod_rounds: completedPodRounds.value })
+        .update({
+          completed_pod_rounds: completedPodRounds.value,
+          rounds_since_pod: roundsSincePod.value,
+        })
         .eq('learner_id', learnerId)
         .eq('course_id', courseCode)
       if (error) console.warn('[podLapScheduler] persist error:', error.message)
@@ -1073,7 +1121,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     // State
     isInitialized,
     isLoading,
-    podActivationRound,
+    roundsSincePod,
     completedPodRounds,
     podSentences,
     introAudio,
@@ -1081,6 +1129,8 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
 
     // Methods
     initialize,
+    isLapDue,
+    noteRoundCompleted,
     shouldFireLapAt,
     nextLap,
     nextLapPreviewFallback,
