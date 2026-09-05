@@ -60,7 +60,9 @@ describe('SEC0905-X-04 — echarts CVE-2026-45249 preconditions', () => {
     try {
       out = execFileSync(
         'git',
-        ['grep', '-nI', "-e", "type: 'lines'", '-e', 'type: "lines"', '--', 'src'],
+        // Exclude this file: it names the very string it greps for.
+        ['grep', '-nI', "-e", "type: 'lines'", '-e', 'type: "lines"', '--', 'src',
+         ':!src/security/echartsTooltipHtmlSink.security.test.ts'],
         { cwd: pkgRoot, encoding: 'utf-8' },
       )
     } catch {

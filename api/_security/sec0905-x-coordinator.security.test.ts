@@ -115,7 +115,12 @@ describe('SEC0905-X-06 — no secrets in tracked source (regression guard)', () 
     try {
       out = execFileSync(
         'git',
-        ['grep', '-nIE', pattern, '--', ':!*.md', ':!archive/*'],
+        // `:!<this file>` — the scanner must not match the pattern string it
+        // carries in its own source. Only THIS file is excluded, never the
+        // *.security.test.ts class: a secret committed in some other security
+        // spec is exactly the thing this guard exists to catch.
+        ['grep', '-nIE', pattern, '--', ':!*.md', ':!archive/*',
+         ':!api/_security/sec0905-x-coordinator.security.test.ts'],
         { cwd: repoRoot, encoding: 'utf-8' },
       )
     } catch (e: unknown) {
