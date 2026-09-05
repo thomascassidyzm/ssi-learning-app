@@ -1,6 +1,6 @@
 [Unit]
 Description=Nightly pod-delivery detector at 06:20 Europe/London
-Documentation=file:///home/tomcassidy/ssi-learning-app/docs/pod-delivery/pods-who-is-actually-getting-them-2026-09-05.md
+Documentation=file:///home/tomcassidy/.cs-nightly/ssi-learning-app/docs/pod-delivery/pods-who-is-actually-getting-them-2026-09-05.md
 
 [Timer]
 # 06:20 London, stated in London so the twice-yearly DST shift needs no edit.
