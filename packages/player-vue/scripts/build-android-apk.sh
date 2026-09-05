@@ -49,7 +49,14 @@ node scripts/injectPlatform.mjs dist/index.html "$API_ORIGIN"
 echo "==> capacitor sync"
 ./node_modules/.bin/cap sync android
 
-echo "==> gradle assembleDebug"
+# Neither JAVA_HOME nor ANDROID_HOME is exported on watson-1; gradle needs both
+# and says so in two very different ways. Defaults point at where they live.
+export JAVA_HOME="${JAVA_HOME:-$HOME/tools/jdk21}"
+export ANDROID_HOME="${ANDROID_HOME:-$HOME/Android/sdk}"
+export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+export PATH="$JAVA_HOME/bin:$PATH"
+
+echo "==> gradle assembleDebug (java: $JAVA_HOME, sdk: $ANDROID_HOME)"
 ( cd android && ./gradlew --no-daemon assembleDebug )
 
 APK=android/app/build/outputs/apk/debug/app-debug.apk
