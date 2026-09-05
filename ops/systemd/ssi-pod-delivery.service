@@ -1,0 +1,25 @@
+# Nightly pod-delivery detector — install with:
+#   cp ops/systemd/ssi-pod-delivery.{service,timer} ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now ssi-pod-delivery.timer
+[Unit]
+Description=Nightly count of who is actually RECEIVING listening pods
+Documentation=file:///home/tomcassidy/ssi-learning-app/docs/pod-delivery/pods-who-is-actually-getting-them-2026-09-05.md
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/tomcassidy/ssi-learning-app
+ExecStart=/usr/bin/node /home/tomcassidy/ssi-learning-app/scripts/pod-delivery-detector.mjs --days 7 --notice
+# Read-only: a handful of grouped aggregates over player_events and the
+# enrollment table. Cheap, but this box carries Tom's chat and ten Popty
+# services — back seat, and a hard cap so a wedged query never sits until
+# morning.
+Nice=15
+IOSchedulingClass=idle
+CPUWeight=20
+TimeoutStartSec=20min
+# Exit 1 is the detector's RED signal, not a unit failure — it has already
+# posted the notice by then. Read the log, not systemd's opinion of the unit.
+SuccessExitStatus=0 1
+OOMScoreAdjust=500
+StandardOutput=append:/home/tomcassidy/.local/log/ssi-pod-delivery-unit.log
+StandardError=append:/home/tomcassidy/.local/log/ssi-pod-delivery-unit.log
