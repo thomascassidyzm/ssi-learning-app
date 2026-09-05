@@ -297,6 +297,8 @@ CREATE FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[] DEF
     AS $$
 BEGIN
   -- SEC25-D-02: the no-argument call aggregates EVERY learner on the platform.
+  -- That is an ssi_admin view; scoped calls (explicit learner ids) stay open to
+  -- the authenticated dashboards that already pass their own scope.
   IF p_learner_ids IS NULL
      AND NOT public.is_ssi_admin()
      AND coalesce(auth.role(), '') <> 'service_role' THEN
@@ -1994,17 +1996,34 @@ COMMENT ON FUNCTION public.audio_canon_voice(v text) IS 'Canonical clip voice ke
 
 CREATE FUNCTION public.audio_configured_voice(p_course_code text, p_role text) RETURNS text
     LANGUAGE sql STABLE
-    AS $$
+    AS $_$
   SELECT CASE
-    WHEN v->>'provider' IS NOT NULL AND v->>'voiceId' IS NOT NULL
-      THEN (v->>'provider') || '_' || (v->>'voiceId')
-    ELSE v->>'voiceId'
+    WHEN vid IS NULL THEN NULL
+    -- The id already names its provider: keep it, normalising the alias only.
+    -- This is the branch that was doubling `human_`.
+    WHEN audio_provider_alias(substring(vid from '^([A-Za-z0-9]+)[_:]')) IS NOT NULL
+      THEN audio_provider_alias(substring(vid from '^([A-Za-z0-9]+)[_:]'))
+           || '_' || substring(vid from '^[A-Za-z0-9]+[_:](.*)$')
+    -- No prefix on the id: the provider key supplies one, as before.
+    WHEN prov IS NOT NULL
+      THEN COALESCE(audio_provider_alias(prov), prov) || '_' || vid
+    ELSE vid
   END
   FROM (
-    SELECT c.voice_config->'voices'->(CASE WHEN p_role = 'source' THEN 'known' ELSE p_role END) AS v
-    FROM courses c WHERE c.course_code = p_course_code
-  ) s;
-$$;
+    SELECT v->>'voiceId' AS vid, v->>'provider' AS prov
+    FROM (
+      SELECT c.voice_config->'voices'->(CASE WHEN p_role = 'source' THEN 'known' ELSE p_role END) AS v
+      FROM courses c WHERE c.course_code = p_course_code
+    ) s
+  ) t;
+$_$;
+
+
+--
+-- Name: FUNCTION audio_configured_voice(p_course_code text, p_role text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.audio_configured_voice(p_course_code text, p_role text) IS 'The voice_id string phase 8 would write for a role. The id''s own provider prefix wins over the provider key — a human artist''s id already carries human_, and doubling it made the autolinker refuse the artist''s own clips (fixed 2026-08-25).';
 
 
 --
@@ -2061,6 +2080,37 @@ $$;
 
 
 --
+-- Name: audio_provider_alias(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.audio_provider_alias(p_token text) RETURNS text
+    LANGUAGE sql IMMUTABLE
+    AS $$
+  SELECT CASE lower(p_token)
+    WHEN 'azure'      THEN 'azure'
+    WHEN 'ms'         THEN 'azure'
+    WHEN 'microsoft'  THEN 'azure'
+    WHEN 'xai'        THEN 'xai'
+    WHEN 'elevenlabs' THEN 'elevenlabs'
+    WHEN 'eleven'     THEN 'elevenlabs'
+    WHEN '11labs'     THEN 'elevenlabs'
+    WHEN 'google'     THEN 'google'
+    WHEN 'gcp'        THEN 'google'
+    WHEN 'narakeet'   THEN 'narakeet'
+    WHEN 'human'      THEN 'human'
+    ELSE NULL
+  END;
+$$;
+
+
+--
+-- Name: FUNCTION audio_provider_alias(p_token text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.audio_provider_alias(p_token text) IS 'Canonical provider name for a voice-id prefix token, or NULL if the token is not a provider. Mirrors PROVIDER_ALIASES in services/shared/clip-identity.cjs.';
+
+
+--
 -- Name: audio_voice_matches(text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2089,7 +2139,7 @@ DECLARE
   has_overwrite BOOLEAN := false;
   -- auto-maintained bookkeeping columns bump on every UPDATE; they are not
   -- editorial content, so changes to them alone must not trigger an audit.
-  ignore_cols TEXT[] := ARRAY['version','updated_at','created_at'];
+  ignore_cols TEXT[] := ARRAY['version','updated_at','created_at','last_edit_event_id'];
 BEGIN
   old_json := to_jsonb(OLD);
 
@@ -2456,6 +2506,19 @@ COMMENT ON FUNCTION public.canonical_language(code text) IS 'Region-free three-l
 
 
 --
+-- Name: canonical_script_versions_append_only(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.canonical_script_versions_append_only() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  RAISE EXCEPTION 'canonical_script_versions is append-only: % is not allowed (restore by appending a new save)', TG_OP;
+END;
+$$;
+
+
+--
 -- Name: canonical_voice_id(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2480,7 +2543,9 @@ BEGIN
     END IF;
     RETURN 'comp:' || array_to_string(out_parts, '+');
   END IF;
-  IF v ~ '^(azure|xai|elevenlabs|google|narakeet|human)_.' THEN RETURN v; END IF;
+  -- 'cartesia' added 2026-08-27. Cartesia voice ids are bare UUIDs with no
+  -- shape of their own, so the prefix is the ONLY thing that identifies them.
+  IF v ~ '^(azure|xai|elevenlabs|google|narakeet|human|cartesia)_.' THEN RETURN v; END IF;
   IF v ~ '^[a-z]{2,3}-[A-Za-z]{2,4}-[A-Za-z]+Neural$' THEN RETURN 'azure_' || v; END IF;
   IF lower(v) IN ('eve','leo','ara','sal','rex','gfzdpspr5fdp','bedd6226') THEN RETURN 'xai_' || v; END IF;
   RAISE EXCEPTION 'clip identity: voice_id % has no provider prefix and no inferable provider — the writer must supply one', v
@@ -2899,6 +2964,32 @@ $$;
 --
 
 COMMENT ON FUNCTION public.current_user_enrolled_course_codes() IS 'Course codes the calling auth user is enrolled in, across all their learner rows. SECURITY DEFINER so RLS policies can use it without re-entering RLS on course_enrollments/learners. Used by the courses_select policy (2026-08-03).';
+
+
+--
+-- Name: current_user_has_role(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.current_user_has_role(p_role text) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.learner_roles r
+    JOIN public.learners l ON l.id = r.learner_id
+    WHERE l.user_id = (auth.uid())::text
+      AND r.role = p_role
+      AND r.removed_at IS NULL
+  );
+$$;
+
+
+--
+-- Name: FUNCTION current_user_has_role(p_role text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.current_user_has_role(p_role text) IS 'Does the CURRENT auth user hold this exact role right now? The only place the auth-uid -> learner -> role hop may live. Returns false for anon, for an unknown uid and for a revoked grant — never null, so a policy predicate cannot fail open.';
 
 
 --
@@ -6047,6 +6138,21 @@ END $$;
 
 
 --
+-- Name: touch_course_enrollments_updated_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.touch_course_enrollments_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+BEGIN
+  NEW.updated_at := now();
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: touch_language_recording_policy(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -7063,8 +7169,86 @@ CREATE TABLE public.canonical_pod_scenarios (
     author_notes text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    variant_key text
+    variant_key text,
+    target_text text,
+    target_lang text,
+    attach_sentence_number integer
 );
+
+
+--
+-- Name: COLUMN canonical_pod_scenarios.attach_sentence_number; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.canonical_pod_scenarios.attach_sentence_number IS 'For a variant row: the sentence_number of the base walk row, within this row''s own scene_number, that the flow branches from. NULL on every base row. Supersedes the attach point recorded in scene_subtitle prose ("attaches to POD 1 scene 2 at g8-g9"), which is deliberately left intact.';
+
+
+--
+-- Name: canonical_pod_walk_steps; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.canonical_pod_walk_steps (
+    id text NOT NULL,
+    pod_slug text NOT NULL,
+    walk_id text NOT NULL,
+    walk_name text,
+    scene_number integer NOT NULL,
+    step_order integer NOT NULL,
+    kind text NOT NULL,
+    node_id text,
+    declared_as text NOT NULL,
+    register text,
+    resolution text NOT NULL,
+    scenario_id text,
+    note text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: canonical_script_versions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.canonical_script_versions (
+    id bigint NOT NULL,
+    scenario_id text NOT NULL,
+    pod_slug text NOT NULL,
+    kind text NOT NULL,
+    english_text text NOT NULL,
+    speaker text,
+    author_notes text,
+    saved_at timestamp with time zone DEFAULT now() NOT NULL,
+    saved_by text DEFAULT 'unknown'::text NOT NULL,
+    target_text text,
+    target_lang text,
+    CONSTRAINT canonical_script_versions_kind_check CHECK ((kind = ANY (ARRAY['original'::text, 'save'::text])))
+);
+
+
+--
+-- Name: TABLE canonical_script_versions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.canonical_script_versions IS 'Append-only edit history for canonical_pod_scenarios lines (Script Lab). One frozen original per line plus one row per save; restores append, never delete.';
+
+
+--
+-- Name: canonical_script_versions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.canonical_script_versions_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: canonical_script_versions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.canonical_script_versions_id_seq OWNED BY public.canonical_script_versions.id;
 
 
 --
@@ -7556,6 +7740,38 @@ COMMENT ON VIEW public.class_teachers IS 'Active teacher↔class relationships (
 
 
 --
+-- Name: coach_goals; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.coach_goals (
+    subscriber_id text NOT NULL,
+    week_index integer NOT NULL,
+    text text NOT NULL,
+    blessed boolean DEFAULT false NOT NULL,
+    set_at_ms bigint NOT NULL
+);
+
+
+--
+-- Name: coach_subscribers; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.coach_subscribers (
+    id text NOT NULL,
+    endpoint text NOT NULL,
+    p256dh text NOT NULL,
+    auth text NOT NULL,
+    program_slug text DEFAULT 'reasonable-eating'::text NOT NULL,
+    start_ms bigint NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_sent_at timestamp with time zone,
+    last_status integer,
+    fail_count integer DEFAULT 0 NOT NULL,
+    revoked_at timestamp with time zone
+);
+
+
+--
 -- Name: content_audio_link_drops; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -7644,6 +7860,13 @@ COMMENT ON TABLE public.content_audit_log IS 'Append-only history of UPDATE/DELE
 
 
 --
+-- Name: COLUMN content_audit_log.changed_by_uid; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.content_audit_log.changed_by_uid IS 'auth.uid() at the time of the change. STRUCTURALLY ALWAYS NULL: every writer of course content connects as service_role, where auth.uid() is null. 4,013,923 rows as of 2026-09-01 and not one carries a uid. Editor identity is captured at the application layer instead — see content_edit_events.';
+
+
+--
 -- Name: content_audit_log_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -7660,6 +7883,65 @@ CREATE SEQUENCE public.content_audit_log_id_seq
 --
 
 ALTER SEQUENCE public.content_audit_log_id_seq OWNED BY public.content_audit_log.id;
+
+
+--
+-- Name: content_edit_events; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.content_edit_events (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    occurred_at timestamp with time zone DEFAULT now() NOT NULL,
+    course_code text NOT NULL,
+    surface text NOT NULL,
+    operation text NOT NULL,
+    actor_kind text NOT NULL,
+    actor_id text NOT NULL,
+    actor_label text NOT NULL,
+    actor_verified boolean NOT NULL,
+    actor_role text,
+    scope jsonb DEFAULT '{}'::jsonb NOT NULL,
+    detail jsonb DEFAULT '{}'::jsonb NOT NULL,
+    request_id text,
+    CONSTRAINT content_edit_events_actor_id_check CHECK ((btrim(actor_id) <> ''::text)),
+    CONSTRAINT content_edit_events_actor_kind_check CHECK ((actor_kind = ANY (ARRAY['human'::text, 'agent'::text, 'service'::text]))),
+    CONSTRAINT content_edit_events_actor_label_check CHECK ((btrim(actor_label) <> ''::text))
+);
+
+
+--
+-- Name: TABLE content_edit_events; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.content_edit_events IS 'Append-only "who edited this course content" log, one row per save OPERATION. Written by services/shared/content-edit-log.cjs, which refuses to write without a resolved editor identity. Rows are never updated or deleted.';
+
+
+--
+-- Name: COLUMN content_edit_events.surface; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.content_edit_events.surface IS 'Which editing surface wrote this — service and route template, so a surface that stops stamping is findable by absence.';
+
+
+--
+-- Name: COLUMN content_edit_events.actor_kind; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.content_edit_events.actor_kind IS 'human = a Supabase-authenticated person; agent = a build/QA agent on loopback; service = a named pipeline or tools/ script.';
+
+
+--
+-- Name: COLUMN content_edit_events.actor_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.content_edit_events.actor_id IS 'Supabase auth user id for humans; agent pid/label for agents; script or service name for services. Stable machine key.';
+
+
+--
+-- Name: COLUMN content_edit_events.actor_verified; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.content_edit_events.actor_verified IS 'TRUE only when the identity was derived from a Supabase JWT this service verified itself. FALSE means the caller ASSERTED an identity over trusted loopback (agents, service mesh) and it was taken on trust. Never read a FALSE as a verified person.';
 
 
 --
@@ -8043,6 +8325,7 @@ CREATE TABLE public.course_enrollments (
     current_cycle_index integer DEFAULT 0 NOT NULL,
     current_mode text DEFAULT 'main'::text NOT NULL,
     infplay_round_index integer DEFAULT 0 NOT NULL,
+    updated_at timestamp with time zone,
     CONSTRAINT course_enrollments_current_mode_check CHECK ((current_mode = ANY (ARRAY['main'::text, 'infplay'::text])))
 );
 
@@ -8087,6 +8370,13 @@ COMMENT ON COLUMN public.course_enrollments.current_mode IS 'Playback mode. main
 --
 
 COMMENT ON COLUMN public.course_enrollments.infplay_round_index IS 'Rounds elapsed since entering INF PLAY mode. Resets to 1 on entry, increments per round_complete while in INF PLAY, reset to 0 on mode=main. Used for the 89-round spaced-rep drain math (rounds 1-89 still have fib offsets vs main-loop content) and for the visible "INF round N" display.';
+
+
+--
+-- Name: COLUMN course_enrollments.updated_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.course_enrollments.updated_at IS 'Set by trigger on every UPDATE. Dates the most recent change to this enrollment (cursor included). NULL means the row has not been updated since 2026-08-31, when the column was added — it is not a backfill. Pair with player_events.cursor_move for the client build that made a move.';
 
 
 --
@@ -8140,6 +8430,219 @@ CREATE TABLE public.course_gender_expansions (
 
 
 --
+-- Name: courses; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.courses (
+    course_code text NOT NULL,
+    display_name text NOT NULL,
+    known_lang text NOT NULL,
+    target_lang text NOT NULL,
+    voice_config jsonb DEFAULT '{}'::jsonb NOT NULL,
+    course_type text DEFAULT 'official'::text NOT NULL,
+    status text DEFAULT 'draft'::text NOT NULL,
+    creator_email text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    seed_count integer,
+    translation_analysis jsonb,
+    new_app_status text DEFAULT 'not_available'::text NOT NULL,
+    legacy_app_status text DEFAULT 'not_available'::text NOT NULL,
+    new_app_beta_started_at timestamp with time zone,
+    legacy_app_beta_started_at timestamp with time zone,
+    export_ready boolean DEFAULT false NOT NULL,
+    quality_rules jsonb,
+    content_version text DEFAULT '0.0.0'::text,
+    visibility text DEFAULT 'hidden'::text NOT NULL,
+    pricing_tier text DEFAULT 'premium'::text NOT NULL,
+    is_community boolean DEFAULT false NOT NULL,
+    released_at timestamp with time zone,
+    featured_order integer,
+    learner_display_name text,
+    variant_label text,
+    needs_gender_prep boolean,
+    gender_prep_check_notes text,
+    gender_prep_checked_at timestamp with time zone,
+    version integer DEFAULT 1 NOT NULL,
+    content_stamp timestamp with time zone DEFAULT now() NOT NULL,
+    audio_stamp timestamp with time zone DEFAULT now() NOT NULL,
+    record_full_max_seed integer DEFAULT 0 NOT NULL,
+    voice_pool_key text,
+    dialect text DEFAULT 'standard'::text NOT NULL,
+    known_dialect text,
+    CONSTRAINT chk_course_code_format CHECK (((course_code ~ '^[a-z]{3}(_[a-z0-9]+)?_for_[a-z]{3}$'::text) OR (course_code = 'eng_template'::text))),
+    CONSTRAINT courses_course_type_check CHECK ((course_type = ANY (ARRAY['official'::text, 'template'::text]))),
+    CONSTRAINT courses_dialect_not_blank CHECK ((btrim(dialect) <> ''::text)),
+    CONSTRAINT courses_legacy_app_status_check CHECK ((legacy_app_status = ANY (ARRAY['not_available'::text, 'draft'::text, 'beta'::text, 'released'::text]))),
+    CONSTRAINT courses_new_app_status_check CHECK ((new_app_status = ANY (ARRAY['not_available'::text, 'draft'::text, 'beta'::text, 'live'::text]))),
+    CONSTRAINT courses_record_full_max_seed_nonneg CHECK ((record_full_max_seed >= 0)),
+    CONSTRAINT courses_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'beta'::text, 'released'::text]))),
+    CONSTRAINT courses_voice_pool_key_shape CHECK (((voice_pool_key IS NULL) OR (voice_pool_key ~ '^[a-z]{2,3}(_[a-z0-9]{2,4})?$'::text))),
+    CONSTRAINT valid_pricing_tier CHECK ((pricing_tier = ANY (ARRAY['free'::text, 'premium'::text, 'community'::text])))
+);
+
+
+--
+-- Name: TABLE courses; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.courses IS 'Course metadata and voice configuration';
+
+
+--
+-- Name: COLUMN courses.new_app_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.new_app_status IS 'Deployment status for new community app: not_available → draft → beta → live';
+
+
+--
+-- Name: COLUMN courses.legacy_app_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.legacy_app_status IS 'Deployment status for legacy app: not_available → submitted → testing → live (locked until new_app_status is beta or live)';
+
+
+--
+-- Name: COLUMN courses.new_app_beta_started_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.new_app_beta_started_at IS 'Timestamp when new_app_status was set to beta (auto-set, auto-cleared)';
+
+
+--
+-- Name: COLUMN courses.legacy_app_beta_started_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.legacy_app_beta_started_at IS 'Timestamp when legacy_app_status was set to beta (auto-set, auto-cleared)';
+
+
+--
+-- Name: COLUMN courses.export_ready; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.export_ready IS 'Set by Phase 9 when course passes
+  all export validations (audio complete, shared audio exists, etc.)';
+
+
+--
+-- Name: COLUMN courses.visibility; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.visibility IS 'Course visibility: public (all users), hidden (admin only), beta (visible with beta badge)';
+
+
+--
+-- Name: COLUMN courses.pricing_tier; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.pricing_tier IS 'Pricing tier: free (always free), premium (paid after Yellow Belt), community (always free, community-created)';
+
+
+--
+-- Name: COLUMN courses.is_community; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.is_community IS 'Whether this is a community-created course (always free)';
+
+
+--
+-- Name: COLUMN courses.released_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.released_at IS 'Timestamp when course was made public';
+
+
+--
+-- Name: COLUMN courses.featured_order; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.featured_order IS 'Display order in course selector (lower = first)';
+
+
+--
+-- Name: COLUMN courses.variant_label; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.variant_label IS 'Short regional variant name (e.g. Northern, Southern, Brazilian). NULL if no variants exist for this language.';
+
+
+--
+-- Name: COLUMN courses.needs_gender_prep; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.needs_gender_prep IS 'Per-course override for gender-prep eligibility. NULL = use hardcoded GENDERED_LANGUAGES fallback. TRUE = course needs gender-prep regardless of language. FALSE = skip even if language is in fallback list.';
+
+
+--
+-- Name: COLUMN courses.gender_prep_check_notes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.gender_prep_check_notes IS 'Haiku''s reasoning when needs_gender_prep was set automatically (yes/no examples).';
+
+
+--
+-- Name: COLUMN courses.gender_prep_checked_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.gender_prep_checked_at IS 'When the Haiku detector last ran for this course.';
+
+
+--
+-- Name: COLUMN courses.record_full_max_seed; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.record_full_max_seed IS 'Record-everything seed cutoff: seeds 1..N are recorded as whole utterances (no LEGO splicing); seeds beyond N use the fast-and-slow covering-subset flow. 0 = off (default).';
+
+
+--
+-- Name: COLUMN courses.voice_pool_key; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.voice_pool_key IS 'Explicit app_config.pod_voice_pools key for this course''s TARGET voices. NULL = resolve from the course code''s region, then target_lang. Set only where the pool key genuinely exists; the casting path throws on a key with no pool rather than falling back. See tools/pod-sync.cjs poolKeysForCourse().';
+
+
+--
+-- Name: COLUMN courses.dialect; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.dialect IS 'Which dialect of target_lang this course teaches, as a fact of its content (Tom 2026-08-19). Lowercase tag; ''standard'' means the language has one dialect. Matched against language_recording_policy.voices[].dialect to route the human recording queue. NEVER inferred from the course code or from who is cast.';
+
+
+--
+-- Name: COLUMN courses.known_dialect; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.courses.known_dialect IS 'Which variant of the KNOWN language this course is taught FROM: ''north'', ''south'', ''standard'', or NULL. NULL means NOT STATED — never "standard" — because most known languages on the estate have a regional fork nobody has ruled on. Same vocabulary as courses.dialect (which describes the TARGET side); canonicalised by services/shared/dialect.cjs. Read by services/shared/cast-language-key.cjs to key the known-side cast, so a Northern-Welsh-known course keys ''cym_north'' and a cast on plain ''cym'' does not reach it (Tom''s ruling, 2026-08-31: a dialect is its own language).';
+
+
+--
+-- Name: course_human_recorded_roles; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.course_human_recorded_roles AS
+ SELECT a.course_code,
+    a.role,
+    c.target_lang,
+    c.known_lang,
+    count(*) AS clips,
+    count(DISTINCT a.voice_id) AS voices,
+    (array_agg(DISTINCT a.voice_id))[1] AS a_voice_id,
+    max(a.created_at) AS last_recorded_at
+   FROM (public.course_audio a
+     JOIN public.courses c ON ((c.course_code = a.course_code)))
+  WHERE ((a.origin = 'human'::text) AND (a.role IS NOT NULL))
+  GROUP BY a.course_code, a.role, c.target_lang, c.known_lang;
+
+
+--
+-- Name: VIEW course_human_recorded_roles; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.course_human_recorded_roles IS 'Per (course, role): how many clips are real human recordings. The measured half of the human-voice signal the Voice Lab casting guard reads (Tom 2026-08-31); services/shared/human-voice-courses.cjs is the policy half.';
+
+
+--
 -- Name: course_lego_positions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -8181,6 +8684,7 @@ CREATE TABLE public.course_legos (
     target_text_roman text,
     target_lego_id text,
     known_gloss_segments jsonb,
+    last_edit_event_id uuid,
     CONSTRAINT course_legos_lego_index_check CHECK (((lego_index > 0) AND (lego_index < 100))),
     CONSTRAINT course_legos_seed_number_check CHECK ((seed_number > 0))
 );
@@ -8285,6 +8789,13 @@ COMMENT ON COLUMN public.course_legos.known_gloss_segments IS 'Literal known-lan
 
 
 --
+-- Name: COLUMN course_legos.last_edit_event_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.course_legos.last_edit_event_id IS 'The content_edit_events row for the save that last wrote this LEGO. NULL means no attribution was captured, never a claim about who edited it.';
+
+
+--
 -- Name: course_practice_phrases; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -8326,6 +8837,7 @@ CREATE TABLE public.course_practice_phrases (
     display_tiling jsonb,
     display_tiling_version integer,
     known_gloss_segments jsonb,
+    last_edit_event_id uuid,
     CONSTRAINT course_practice_phrases_difficulty_check CHECK ((difficulty = ANY (ARRAY['easy'::text, 'medium'::text, 'hard'::text]))),
     CONSTRAINT course_practice_phrases_lego_index_check CHECK (((lego_index > 0) AND (lego_index < 100))),
     CONSTRAINT course_practice_phrases_lego_position_check CHECK ((lego_position = ANY (ARRAY['start'::text, 'middle'::text, 'end'::text]))),
@@ -8488,6 +9000,13 @@ COMMENT ON COLUMN public.course_practice_phrases.display_tiling_version IS 'Snap
 --
 
 COMMENT ON COLUMN public.course_practice_phrases.known_gloss_segments IS 'Literal known-language gloss chunks aligned under target words, in target order. [{span,known}], spans sum to the target word count. Presentational only — never text, never audio-affecting. NULL = derive from decomposition.';
+
+
+--
+-- Name: COLUMN course_practice_phrases.last_edit_event_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.course_practice_phrases.last_edit_event_id IS 'The content_edit_events row for the save that last wrote this phrase. NULL means no attribution was captured, never a claim about who edited it.';
 
 
 --
@@ -8870,185 +9389,6 @@ COMMENT ON COLUMN public.course_round_signoffs.audio_fingerprint IS 'md5 over th
 
 
 --
--- Name: courses; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.courses (
-    course_code text NOT NULL,
-    display_name text NOT NULL,
-    known_lang text NOT NULL,
-    target_lang text NOT NULL,
-    voice_config jsonb DEFAULT '{}'::jsonb NOT NULL,
-    course_type text DEFAULT 'official'::text NOT NULL,
-    status text DEFAULT 'draft'::text NOT NULL,
-    creator_email text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    seed_count integer,
-    translation_analysis jsonb,
-    new_app_status text DEFAULT 'not_available'::text NOT NULL,
-    legacy_app_status text DEFAULT 'not_available'::text NOT NULL,
-    new_app_beta_started_at timestamp with time zone,
-    legacy_app_beta_started_at timestamp with time zone,
-    export_ready boolean DEFAULT false NOT NULL,
-    quality_rules jsonb,
-    content_version text DEFAULT '0.0.0'::text,
-    visibility text DEFAULT 'hidden'::text NOT NULL,
-    pricing_tier text DEFAULT 'premium'::text NOT NULL,
-    is_community boolean DEFAULT false NOT NULL,
-    released_at timestamp with time zone,
-    featured_order integer,
-    learner_display_name text,
-    variant_label text,
-    needs_gender_prep boolean,
-    gender_prep_check_notes text,
-    gender_prep_checked_at timestamp with time zone,
-    version integer DEFAULT 1 NOT NULL,
-    content_stamp timestamp with time zone DEFAULT now() NOT NULL,
-    audio_stamp timestamp with time zone DEFAULT now() NOT NULL,
-    record_full_max_seed integer DEFAULT 0 NOT NULL,
-    voice_pool_key text,
-    dialect text DEFAULT 'standard'::text NOT NULL,
-    CONSTRAINT chk_course_code_format CHECK (((course_code ~ '^[a-z]{3}(_[a-z0-9]+)?_for_[a-z]{3}$'::text) OR (course_code = 'eng_template'::text))),
-    CONSTRAINT courses_course_type_check CHECK ((course_type = ANY (ARRAY['official'::text, 'template'::text]))),
-    CONSTRAINT courses_dialect_not_blank CHECK ((btrim(dialect) <> ''::text)),
-    CONSTRAINT courses_legacy_app_status_check CHECK ((legacy_app_status = ANY (ARRAY['not_available'::text, 'draft'::text, 'beta'::text, 'released'::text]))),
-    CONSTRAINT courses_new_app_status_check CHECK ((new_app_status = ANY (ARRAY['not_available'::text, 'draft'::text, 'beta'::text, 'live'::text]))),
-    CONSTRAINT courses_record_full_max_seed_nonneg CHECK ((record_full_max_seed >= 0)),
-    CONSTRAINT courses_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'beta'::text, 'released'::text]))),
-    CONSTRAINT courses_voice_pool_key_shape CHECK (((voice_pool_key IS NULL) OR (voice_pool_key ~ '^[a-z]{2,3}(_[a-z0-9]{2,4})?$'::text))),
-    CONSTRAINT valid_pricing_tier CHECK ((pricing_tier = ANY (ARRAY['free'::text, 'premium'::text, 'community'::text])))
-);
-
-
---
--- Name: TABLE courses; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.courses IS 'Course metadata and voice configuration';
-
-
---
--- Name: COLUMN courses.new_app_status; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.new_app_status IS 'Deployment status for new community app: not_available → draft → beta → live';
-
-
---
--- Name: COLUMN courses.legacy_app_status; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.legacy_app_status IS 'Deployment status for legacy app: not_available → submitted → testing → live (locked until new_app_status is beta or live)';
-
-
---
--- Name: COLUMN courses.new_app_beta_started_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.new_app_beta_started_at IS 'Timestamp when new_app_status was set to beta (auto-set, auto-cleared)';
-
-
---
--- Name: COLUMN courses.legacy_app_beta_started_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.legacy_app_beta_started_at IS 'Timestamp when legacy_app_status was set to beta (auto-set, auto-cleared)';
-
-
---
--- Name: COLUMN courses.export_ready; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.export_ready IS 'Set by Phase 9 when course passes
-  all export validations (audio complete, shared audio exists, etc.)';
-
-
---
--- Name: COLUMN courses.visibility; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.visibility IS 'Course visibility: public (all users), hidden (admin only), beta (visible with beta badge)';
-
-
---
--- Name: COLUMN courses.pricing_tier; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.pricing_tier IS 'Pricing tier: free (always free), premium (paid after Yellow Belt), community (always free, community-created)';
-
-
---
--- Name: COLUMN courses.is_community; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.is_community IS 'Whether this is a community-created course (always free)';
-
-
---
--- Name: COLUMN courses.released_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.released_at IS 'Timestamp when course was made public';
-
-
---
--- Name: COLUMN courses.featured_order; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.featured_order IS 'Display order in course selector (lower = first)';
-
-
---
--- Name: COLUMN courses.variant_label; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.variant_label IS 'Short regional variant name (e.g. Northern, Southern, Brazilian). NULL if no variants exist for this language.';
-
-
---
--- Name: COLUMN courses.needs_gender_prep; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.needs_gender_prep IS 'Per-course override for gender-prep eligibility. NULL = use hardcoded GENDERED_LANGUAGES fallback. TRUE = course needs gender-prep regardless of language. FALSE = skip even if language is in fallback list.';
-
-
---
--- Name: COLUMN courses.gender_prep_check_notes; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.gender_prep_check_notes IS 'Haiku''s reasoning when needs_gender_prep was set automatically (yes/no examples).';
-
-
---
--- Name: COLUMN courses.gender_prep_checked_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.gender_prep_checked_at IS 'When the Haiku detector last ran for this course.';
-
-
---
--- Name: COLUMN courses.record_full_max_seed; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.record_full_max_seed IS 'Record-everything seed cutoff: seeds 1..N are recorded as whole utterances (no LEGO splicing); seeds beyond N use the fast-and-slow covering-subset flow. 0 = off (default).';
-
-
---
--- Name: COLUMN courses.voice_pool_key; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.voice_pool_key IS 'Explicit app_config.pod_voice_pools key for this course''s TARGET voices. NULL = resolve from the course code''s region, then target_lang. Set only where the pool key genuinely exists; the casting path throws on a key with no pool rather than falling back. See tools/pod-sync.cjs poolKeysForCourse().';
-
-
---
--- Name: COLUMN courses.dialect; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.courses.dialect IS 'Which dialect of target_lang this course teaches, as a fact of its content (Tom 2026-08-19). Lowercase tag; ''standard'' means the language has one dialect. Matched against language_recording_policy.voices[].dialect to route the human recording queue. NEVER inferred from the course code or from who is cast.';
-
-
---
 -- Name: course_qa_estate; Type: VIEW; Schema: public; Owner: -
 --
 
@@ -9246,6 +9586,31 @@ COMMENT ON VIEW public.course_qa_round_status IS 'One row per round (= per LEGO)
 
 
 --
+-- Name: course_sectors; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.course_sectors (
+    base_course_code text NOT NULL,
+    sector_slug text NOT NULL,
+    sector_course_code text NOT NULL,
+    roles jsonb DEFAULT '[]'::jsonb NOT NULL,
+    role_map jsonb DEFAULT '{}'::jsonb NOT NULL,
+    core_anchor_lego_id text,
+    sector_pod_slug text,
+    status text DEFAULT 'draft'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE course_sectors; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.course_sectors IS 'A sector segment is its own course code but one course to the learner. This table is what makes the course-builder ZUT gate read the whole family (services/course-builder/lib/course-family.cjs) and what bounds the segment''s vocabulary window to the base course up to core_anchor_lego_id.';
+
+
+--
 -- Name: course_seed_drafts; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -9291,6 +9656,7 @@ CREATE TABLE public.course_seeds (
     approved_at timestamp with time zone,
     target_text_roman text,
     flagged_at timestamp with time zone,
+    last_edit_event_id uuid,
     CONSTRAINT course_seeds_seed_number_check CHECK ((seed_number > 0))
 );
 
@@ -9328,6 +9694,13 @@ COMMENT ON COLUMN public.course_seeds.release_batch IS 'Staged rollout batch num
 --
 
 COMMENT ON COLUMN public.course_seeds.version IS 'Increments on each edit for delta sync';
+
+
+--
+-- Name: COLUMN course_seeds.last_edit_event_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.course_seeds.last_edit_event_id IS 'The content_edit_events row for the save that last wrote this seed. NULL means NO ATTRIBUTION WAS CAPTURED — it is never a claim about who edited it. Deliberately not backfilled: the 423 eng_for_hin seeds proofread in August 2026 are bounded by their edit dates to Kai''s team, and that inference belongs in a document, not in this column.';
 
 
 --
@@ -9589,6 +9962,34 @@ CREATE TABLE public.email_access_grants (
     redeemed_at timestamp with time zone,
     redeemed_by_learner_id uuid
 );
+
+
+--
+-- Name: enrollment_threads; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.enrollment_threads (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    enrollment_id uuid NOT NULL,
+    sector_course_code text NOT NULL,
+    role text DEFAULT 'general'::text NOT NULL,
+    active boolean DEFAULT true NOT NULL,
+    last_completed_round_index integer,
+    current_cycle_index integer DEFAULT 0 NOT NULL,
+    highest_completed_round_index integer,
+    highest_completed_lego_id text,
+    completed_pod_rounds integer DEFAULT 0 NOT NULL,
+    pod_activation_round integer,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE enrollment_threads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.enrollment_threads IS 'Per-thread SCHEDULING state for the sector helix — cursor, ceiling, cycle index, pod ratchet, plus the active toggle and the role projection. Ownership is deliberately absent: it is global, content-keyed and thread-free. Review needs no state here because spaced repetition is positional within each script, so a parked thread (active=false) resumes intact. The schema allows many rows per enrolment (parked sectors); the player merges core plus exactly one active row.';
 
 
 --
@@ -9941,6 +10342,41 @@ CREATE SEQUENCE public.htw_copy_versions_id_seq
 --
 
 ALTER SEQUENCE public.htw_copy_versions_id_seq OWNED BY public.htw_copy_versions.id;
+
+
+--
+-- Name: human_clip_speakers; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.human_clip_speakers AS
+ SELECT voice_id,
+    language,
+    count(*) AS clips,
+    sum(duration_ms) AS total_ms,
+    min(duration_ms) AS shortest_ms,
+    max(duration_ms) AS longest_ms,
+    array_agg(DISTINCT role ORDER BY role) AS roles,
+    count(DISTINCT course_code) AS courses,
+    min(created_at) AS first_seen,
+    max(created_at) AS last_seen
+   FROM ( SELECT DISTINCT ON (course_audio.s3_key) course_audio.s3_key,
+            course_audio.voice_id,
+            course_audio.language,
+            course_audio.role,
+            course_audio.duration_ms,
+            course_audio.course_code,
+            course_audio.created_at
+           FROM public.course_audio
+          WHERE ((course_audio.origin = 'human'::text) AND (course_audio.s3_key IS NOT NULL) AND (course_audio.s3_key !~~ 'pending/%'::text) AND (course_audio.voice_id IS NOT NULL))
+          ORDER BY course_audio.s3_key, course_audio.created_at) files
+  GROUP BY voice_id, language;
+
+
+--
+-- Name: VIEW human_clip_speakers; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.human_clip_speakers IS 'Speakers the estate already holds recordings of, one row per (voice_id, language), counted by DISTINCT s3_key so a file shared by seventeen courses counts once. origin=human is a LABEL, not proof of a human — always listen before cloning.';
 
 
 --
@@ -10482,6 +10918,37 @@ CREATE TABLE public.learner_practice_history (
 
 
 --
+-- Name: learner_roles; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.learner_roles (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    learner_id uuid NOT NULL,
+    role text NOT NULL,
+    granted_by text,
+    granted_at timestamp with time zone DEFAULT now() NOT NULL,
+    removed_at timestamp with time zone,
+    note text
+);
+
+ALTER TABLE ONLY public.learner_roles FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: TABLE learner_roles; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.learner_roles IS 'Free-text roles a learner holds, one row each. Roles are NUMBERED PER PERSON (previewer_001, previewer_002...) so that two restricted pods can never leak into each other. Minting a role is this INSERT and nothing else — no enum, no CHECK, no lookup table, deliberately. Revoke by setting removed_at, never by deleting: the grant trail is the audit trail. Distinct from learners.platform_role, which is untouched.';
+
+
+--
+-- Name: COLUMN learner_roles.role; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.learner_roles.role IS 'Literal role name, matched against listening_pods.required_role. Free text ON BOTH SIDES on purpose: `previewer_002` must cost one INSERT, not a migration.';
+
+
+--
 -- Name: learner_speaking_opportunities; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -10617,7 +11084,9 @@ CREATE TABLE public.listening_pod_sentences (
     rerecord_wanted jsonb,
     target_text_approved_at timestamp with time zone,
     target_text_approved_by text,
-    target_text_review jsonb
+    target_text_review jsonb,
+    variant_key text,
+    attach_sentence_number integer
 );
 
 
@@ -10734,6 +11203,20 @@ COMMENT ON COLUMN public.listening_pod_sentences.target_text_review IS 'The veri
 
 
 --
+-- Name: COLUMN listening_pod_sentences.variant_key; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.listening_pod_sentences.variant_key IS 'NULL = this row is part of the pod''s linear walk. Non-NULL = a continuation attached at (scene_number, attach_sentence_number), never appended to the walk. Mirrors canonical_pod_scenarios.variant_key. Readers: services/shared/canonical-slate.cjs (server) and packages/player-vue/src/composables/podSlate.ts (client).';
+
+
+--
+-- Name: COLUMN listening_pod_sentences.attach_sentence_number; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.listening_pod_sentences.attach_sentence_number IS 'For a continuation: the sentence_number of the BASE walk row, within this row''s own scene_number, that the flow branches from. NULL on every base row.';
+
+
+--
 -- Name: listening_pods; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -10752,6 +11235,7 @@ CREATE TABLE public.listening_pods (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     metadata jsonb DEFAULT '{}'::jsonb,
     visibility text DEFAULT 'live'::text NOT NULL,
+    required_role text,
     CONSTRAINT listening_pods_difficulty_check CHECK ((difficulty = ANY (ARRAY['beginner'::text, 'beginner-intermediate'::text, 'intermediate'::text, 'advanced'::text]))),
     CONSTRAINT listening_pods_pod_type_check CHECK ((pod_type = ANY (ARRAY['core'::text, 'choice'::text]))),
     CONSTRAINT listening_pods_visibility_check CHECK ((visibility = ANY (ARRAY['live'::text, 'held'::text])))
@@ -10791,6 +11275,13 @@ COMMENT ON COLUMN public.listening_pods.source_file IS 'Markdown file this pod w
 --
 
 COMMENT ON COLUMN public.listening_pods.visibility IS 'Learner reachability gate. ''live'' = readable by anon/authenticated through RLS. ''held'' = invisible to learners entirely (no pod row, no sentences) while staying fully visible to service-role admin surfaces. Release is a deliberate human act — never set to ''live'' automatically on completeness. Trail in metadata.held_at / metadata.released_at.';
+
+
+--
+-- Name: COLUMN listening_pods.required_role; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.listening_pods.required_role IS 'Which single role may reach this pod. NULL = everyone (the default, and true of every pod that existed before 2026-09-03). Otherwise the literal name of a learner_roles.role, normally a per-person previewer_NNN. Composes with visibility: a pod must be visibility=''live'' AND role-permitted to be readable, so setting this on a held pod hides it from its owner too.';
 
 
 --
@@ -11516,6 +12007,23 @@ CREATE TABLE public.spike_events (
 
 
 --
+-- Name: staff_access_codes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.staff_access_codes (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    code_hash text NOT NULL,
+    target_user_id uuid NOT NULL,
+    school_id uuid,
+    created_by uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    redeemed_at timestamp with time zone,
+    redeemed_ip_hash text
+);
+
+
+--
 -- Name: target_audio; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -11837,6 +12345,63 @@ CREATE TABLE public.user_entitlements (
 
 
 --
+-- Name: voice_guide_in_use; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.voice_guide_in_use AS
+ SELECT c.known_lang,
+    a.role,
+    a.voice_id,
+    count(*) AS clips,
+    count(DISTINCT a.course_code) AS courses
+   FROM (public.course_audio a
+     JOIN public.courses c ON ((c.course_code = a.course_code)))
+  WHERE ((a.role = ANY (ARRAY['instruction'::text, 'encouragement'::text])) AND (a.voice_id IS NOT NULL) AND (c.known_lang IS NOT NULL))
+  GROUP BY c.known_lang, a.role, a.voice_id;
+
+
+--
+-- Name: VIEW voice_guide_in_use; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.voice_guide_in_use IS 'What the estate ACTUALLY speaks instructions and encouragements in today, grouped by the course''s KNOWN language — the fact the Voice Lab shows beside the (empty) guide slot so casting is a click rather than an investigation. Read-only, never written, never a source of truth for a render (Tom, 2026-08-29).';
+
+
+--
+-- Name: voice_language_roles; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.voice_language_roles (
+    language text NOT NULL,
+    gender text NOT NULL,
+    rank integer NOT NULL,
+    voice_id text NOT NULL,
+    notes text,
+    assigned_by text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    slot text DEFAULT 'phrase'::text NOT NULL,
+    CONSTRAINT voice_language_roles_gender_check CHECK ((gender = ANY (ARRAY['f'::text, 'm'::text]))),
+    CONSTRAINT voice_language_roles_rank_check CHECK (((rank >= 0) AND (rank <= 5))),
+    CONSTRAINT voice_language_roles_slot_check CHECK ((slot = ANY (ARRAY['phrase'::text, 'guide'::text])))
+);
+
+
+--
+-- Name: COLUMN voice_language_roles.language; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.voice_language_roles.language IS 'The CAST ENTITY a voice is cast for, NOT necessarily a base language tag. A plain language is itself (''fra''); a dialect is its own entity and its own row (''deu_at'', ''spa_mx'', ''cym_north'', ''gle_munster''). Computed by services/shared/cast-language-key.cjs from courses.voice_pool_key and courses.dialect — never from the course code. A cast on ''deu'' does not reach deu_at_for_eng, by design (Tom''s ruling, 2026-08-31).';
+
+
+--
+-- Name: COLUMN voice_language_roles.slot; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.voice_language_roles.slot IS 'phrase = the male/female course-material voices. guide = the instruction and encouragement voice, cast against the KNOWN language, one per language, gender informational only (Tom, 2026-08-29).';
+
+
+--
 -- Name: voices; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -11863,7 +12428,33 @@ CREATE TABLE public.voices (
     age text,
     metadata_source text,
     metadata_checked_at timestamp with time zone,
-    CONSTRAINT voices_gender_check CHECK ((gender = ANY (ARRAY['f'::text, 'm'::text])))
+    natural_pace_ratio numeric(5,3),
+    natural_pace_cps numeric(7,3),
+    natural_pace_samples integer,
+    natural_pace_measured_at timestamp with time zone,
+    natural_pace_method text,
+    natural_pace_nudge numeric(4,3),
+    natural_pace_nudge_note text,
+    consent_status text DEFAULT 'not_recorded'::text NOT NULL,
+    consent_person text,
+    consent_person_contact text,
+    consent_authorised_by text,
+    consent_authorised_how text,
+    consent_authorised_at timestamp with time zone,
+    consent_recorded_by text,
+    consent_recorded_at timestamp with time zone,
+    consent_source text,
+    consent_note text,
+    consent_declaration text,
+    consent_declaration_kind text,
+    consent_declaration_heard text,
+    CONSTRAINT voices_consent_authorised_is_evidenced CHECK (((consent_status <> 'authorised'::text) OR ((consent_authorised_by IS NOT NULL) AND (btrim(consent_authorised_by) <> ''::text) AND (consent_authorised_at IS NOT NULL)))),
+    CONSTRAINT voices_consent_awaiting_names_the_person CHECK (((consent_status <> 'awaiting_authorisation'::text) OR ((consent_person IS NOT NULL) AND (btrim(consent_person) <> ''::text)))),
+    CONSTRAINT voices_consent_declaration_kind_known CHECK (((consent_declaration_kind IS NULL) OR (consent_declaration_kind = ANY (ARRAY['spoken'::text, 'attested'::text])))),
+    CONSTRAINT voices_consent_status_known CHECK ((consent_status = ANY (ARRAY['not_recorded'::text, 'awaiting_authorisation'::text, 'authorised'::text, 'refused'::text, 'withdrawn'::text]))),
+    CONSTRAINT voices_gender_check CHECK ((gender = ANY (ARRAY['f'::text, 'm'::text]))),
+    CONSTRAINT voices_natural_pace_nudge_sane CHECK (((natural_pace_nudge IS NULL) OR ((natural_pace_nudge >= 0.5) AND (natural_pace_nudge <= 2.0)))),
+    CONSTRAINT voices_natural_pace_ratio_sane CHECK (((natural_pace_ratio IS NULL) OR ((natural_pace_ratio > 0.2) AND (natural_pace_ratio < 5.0))))
 );
 
 
@@ -11879,6 +12470,146 @@ COMMENT ON COLUMN public.voices.gender IS 'f|m as the PROVIDER states it — nev
 --
 
 COMMENT ON COLUMN public.voices.metadata_source IS 'Provenance of gender/age/locale, e.g. "xai:GET /v1/tts/voices/{id}".';
+
+
+--
+-- Name: COLUMN voices.natural_pace_ratio; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.voices.natural_pace_ratio IS 'Measured pace relative to the median voice of the same language+role. 1.0 = typical. NULL = unmeasured; an unmeasured voice must behave exactly as it did before per-voice pace existed.';
+
+
+--
+-- Name: COLUMN voices.natural_pace_cps; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.voices.natural_pace_cps IS 'Characters of text_normalized per second of audio. Evidence for natural_pace_ratio only — never comparable across languages.';
+
+
+--
+-- Name: COLUMN voices.natural_pace_samples; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.voices.natural_pace_samples IS 'Number of clips the measurement aggregated. Sample size is part of the claim.';
+
+
+--
+-- Name: COLUMN voices.natural_pace_measured_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.voices.natural_pace_measured_at IS 'When natural_pace_ratio was last computed.';
+
+
+--
+-- Name: COLUMN voices.natural_pace_method; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.voices.natural_pace_method IS 'The rule used, so a re-measurement under different assumptions is legible as a different claim.';
+
+
+--
+-- Name: COLUMN voices.natural_pace_nudge; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.voices.natural_pace_nudge IS 'Human multiplicative correction on top of the measurement. NULL or 1.0 = none. A re-measurement must never overwrite this.';
+
+
+--
+-- Name: COLUMN voices.natural_pace_nudge_note; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.voices.natural_pace_nudge_note IS 'Why the human nudged it, in their own words.';
+
+
+--
+-- Name: COLUMN voices.consent_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.voices.consent_status IS 'not_recorded | awaiting_authorisation | authorised | refused | withdrawn. NOT NULL: "nobody has recorded anything" is a value, never a missing one. Pre-existing rows are not_recorded and must never be backfilled.';
+
+
+--
+-- Name: COLUMN voices.consent_person; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.voices.consent_person IS 'Whose voice this is — the person the sample came from, named. A recording existing is not their permission to clone them.';
+
+
+--
+-- Name: COLUMN voices.consent_person_contact; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.voices.consent_person_contact IS 'How to reach that person, if known. Free text; email, phone or "via Tom".';
+
+
+--
+-- Name: COLUMN voices.consent_authorised_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.voices.consent_authorised_by IS 'The human who actually said yes. NOT the operator who recorded it — see consent_recorded_by.';
+
+
+--
+-- Name: COLUMN voices.consent_authorised_how; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.voices.consent_authorised_how IS 'How they said it: in person, by email, by message, on a call. A yes with no means is a rumour.';
+
+
+--
+-- Name: COLUMN voices.consent_authorised_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.voices.consent_authorised_at IS 'When the AUTHORISATION was given — not when the clone was made.';
+
+
+--
+-- Name: COLUMN voices.consent_recorded_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.voices.consent_recorded_by IS 'The dashboard user who wrote the record down.';
+
+
+--
+-- Name: COLUMN voices.consent_recorded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.voices.consent_recorded_at IS 'When the record was written down.';
+
+
+--
+-- Name: COLUMN voices.consent_source; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.voices.consent_source IS 'Provenance of the cloning sample in one line. A different question from permission.';
+
+
+--
+-- Name: COLUMN voices.consent_note; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.voices.consent_note IS 'Anything else a human needs to know about this permission, in their own words.';
+
+
+--
+-- Name: COLUMN voices.consent_declaration; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.voices.consent_declaration IS 'The exact words the person read aloud or agreed to, stored verbatim at the moment of consent so they can be produced later. Never looked up from code — the wording changes, this record must not.';
+
+
+--
+-- Name: COLUMN voices.consent_declaration_kind; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.voices.consent_declaration_kind IS 'spoken | attested. spoken = the person said the line on the recording being cloned, so speaker and consenter are the same body. attested = a named human agreed to the wording when uploading. Kept apart so the weaker evidence is never reported as the stronger.';
+
+
+--
+-- Name: COLUMN voices.consent_declaration_heard; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.voices.consent_declaration_heard IS 'What whisper actually heard on the recording, for the spoken kind. The evidence behind the check, not its verdict — it is what lets a human disagree with the machine later. NULL for attested, where there was nothing to listen to.';
 
 
 --
@@ -11935,6 +12666,13 @@ ALTER TABLE ONLY public.audio_convergence_log ALTER COLUMN id SET DEFAULT nextva
 --
 
 ALTER TABLE ONLY public.audio_flags ALTER COLUMN id SET DEFAULT nextval('public.audio_flags_id_seq'::regclass);
+
+
+--
+-- Name: canonical_script_versions id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.canonical_script_versions ALTER COLUMN id SET DEFAULT nextval('public.canonical_script_versions_id_seq'::regclass);
 
 
 --
@@ -12210,6 +12948,22 @@ ALTER TABLE ONLY public.canonical_pod_scenarios
 
 
 --
+-- Name: canonical_pod_walk_steps canonical_pod_walk_steps_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.canonical_pod_walk_steps
+    ADD CONSTRAINT canonical_pod_walk_steps_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: canonical_script_versions canonical_script_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.canonical_script_versions
+    ADD CONSTRAINT canonical_script_versions_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: canonical_seed_translations canonical_seed_translations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12298,6 +13052,30 @@ ALTER TABLE ONLY public.classes
 
 
 --
+-- Name: coach_goals coach_goals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.coach_goals
+    ADD CONSTRAINT coach_goals_pkey PRIMARY KEY (subscriber_id, week_index);
+
+
+--
+-- Name: coach_subscribers coach_subscribers_endpoint_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.coach_subscribers
+    ADD CONSTRAINT coach_subscribers_endpoint_key UNIQUE (endpoint);
+
+
+--
+-- Name: coach_subscribers coach_subscribers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.coach_subscribers
+    ADD CONSTRAINT coach_subscribers_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: content_audio_link_drops content_audio_link_drops_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12311,6 +13089,14 @@ ALTER TABLE ONLY public.content_audio_link_drops
 
 ALTER TABLE ONLY public.content_audit_log
     ADD CONSTRAINT content_audit_log_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: content_edit_events content_edit_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.content_edit_events
+    ADD CONSTRAINT content_edit_events_pkey PRIMARY KEY (id);
 
 
 --
@@ -12546,6 +13332,22 @@ ALTER TABLE ONLY public.course_round_signoffs
 
 
 --
+-- Name: course_sectors course_sectors_base_course_code_sector_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.course_sectors
+    ADD CONSTRAINT course_sectors_base_course_code_sector_slug_key UNIQUE (base_course_code, sector_slug);
+
+
+--
+-- Name: course_sectors course_sectors_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.course_sectors
+    ADD CONSTRAINT course_sectors_pkey PRIMARY KEY (sector_course_code);
+
+
+--
 -- Name: course_seed_drafts course_seed_drafts_course_code_seed_number_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12687,6 +13489,22 @@ ALTER TABLE ONLY public.documentation_sections
 
 ALTER TABLE ONLY public.email_access_grants
     ADD CONSTRAINT email_access_grants_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: enrollment_threads enrollment_threads_enrollment_id_sector_course_code_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.enrollment_threads
+    ADD CONSTRAINT enrollment_threads_enrollment_id_sector_course_code_key UNIQUE (enrollment_id, sector_course_code);
+
+
+--
+-- Name: enrollment_threads enrollment_threads_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.enrollment_threads
+    ADD CONSTRAINT enrollment_threads_pkey PRIMARY KEY (id);
 
 
 --
@@ -12946,6 +13764,14 @@ ALTER TABLE ONLY public.learner_practice_history
 
 
 --
+-- Name: learner_roles learner_roles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.learner_roles
+    ADD CONSTRAINT learner_roles_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: learner_speaking_opportunities learner_speaking_opportunities_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13018,11 +13844,11 @@ ALTER TABLE ONLY public.listening_pod_sentences
 
 
 --
--- Name: listening_pod_sentences listening_pod_sentences_pod_id_scene_number_sentence_number_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: listening_pod_sentences listening_pod_sentences_pod_scene_sent_variant_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.listening_pod_sentences
-    ADD CONSTRAINT listening_pod_sentences_pod_id_scene_number_sentence_number_key UNIQUE (pod_id, scene_number, sentence_number);
+    ADD CONSTRAINT listening_pod_sentences_pod_scene_sent_variant_key UNIQUE NULLS NOT DISTINCT (pod_id, scene_number, sentence_number, variant_key);
 
 
 --
@@ -13306,6 +14132,22 @@ ALTER TABLE ONLY public.spike_events
 
 
 --
+-- Name: staff_access_codes staff_access_codes_code_hash_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.staff_access_codes
+    ADD CONSTRAINT staff_access_codes_code_hash_key UNIQUE (code_hash);
+
+
+--
+-- Name: staff_access_codes staff_access_codes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.staff_access_codes
+    ADD CONSTRAINT staff_access_codes_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: subscriptions subscriptions_learner_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13522,6 +14364,14 @@ ALTER TABLE ONLY public.user_tags
 
 
 --
+-- Name: voice_language_roles voice_language_roles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.voice_language_roles
+    ADD CONSTRAINT voice_language_roles_pkey PRIMARY KEY (slot, language, gender, rank);
+
+
+--
 -- Name: voices voices_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13639,6 +14489,76 @@ CREATE UNIQUE INDEX audio_pass_requests_one_pending_per_course ON public.audio_p
 --
 
 CREATE INDEX audio_pass_requests_status_idx ON public.audio_pass_requests USING btree (status, created_at);
+
+
+--
+-- Name: canonical_pod_walk_steps_slug_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX canonical_pod_walk_steps_slug_idx ON public.canonical_pod_walk_steps USING btree (pod_slug, scene_number, step_order);
+
+
+--
+-- Name: canonical_script_versions_line_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX canonical_script_versions_line_idx ON public.canonical_script_versions USING btree (scenario_id, id);
+
+
+--
+-- Name: canonical_script_versions_one_original_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX canonical_script_versions_one_original_idx ON public.canonical_script_versions USING btree (scenario_id) WHERE (kind = 'original'::text);
+
+
+--
+-- Name: canonical_script_versions_slug_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX canonical_script_versions_slug_idx ON public.canonical_script_versions USING btree (pod_slug, scenario_id);
+
+
+--
+-- Name: coach_subscribers_live_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX coach_subscribers_live_idx ON public.coach_subscribers USING btree (created_at) WHERE (revoked_at IS NULL);
+
+
+--
+-- Name: content_edit_events_actor_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX content_edit_events_actor_idx ON public.content_edit_events USING btree (actor_id, occurred_at DESC);
+
+
+--
+-- Name: content_edit_events_course_time_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX content_edit_events_course_time_idx ON public.content_edit_events USING btree (course_code, occurred_at DESC);
+
+
+--
+-- Name: content_edit_events_scope_gin; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX content_edit_events_scope_gin ON public.content_edit_events USING gin (scope jsonb_path_ops);
+
+
+--
+-- Name: course_sectors_base_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX course_sectors_base_idx ON public.course_sectors USING btree (base_course_code);
+
+
+--
+-- Name: enrollment_threads_enrollment_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX enrollment_threads_enrollment_idx ON public.enrollment_threads USING btree (enrollment_id);
 
 
 --
@@ -14811,6 +15731,20 @@ CREATE INDEX idx_learner_points_learner ON public.learner_points USING btree (le
 
 
 --
+-- Name: idx_learner_roles_live; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_learner_roles_live ON public.learner_roles USING btree (learner_id, role) WHERE (removed_at IS NULL);
+
+
+--
+-- Name: idx_learner_roles_role; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_learner_roles_role ON public.learner_roles USING btree (role) WHERE (removed_at IS NULL);
+
+
+--
 -- Name: idx_learners_verified_emails; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -14906,6 +15840,13 @@ CREATE INDEX idx_listening_pods_course_type ON public.listening_pods USING btree
 --
 
 CREATE INDEX idx_listening_pods_held ON public.listening_pods USING btree (id) WHERE (visibility = 'held'::text);
+
+
+--
+-- Name: idx_listening_pods_required_role; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_listening_pods_required_role ON public.listening_pods USING btree (required_role) WHERE (required_role IS NOT NULL);
 
 
 --
@@ -15616,6 +16557,20 @@ CREATE UNIQUE INDEX schools_admin_user_id_key ON public.schools USING btree (adm
 
 
 --
+-- Name: staff_access_codes_live_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX staff_access_codes_live_idx ON public.staff_access_codes USING btree (expires_at) WHERE (redeemed_at IS NULL);
+
+
+--
+-- Name: staff_access_codes_target_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX staff_access_codes_target_idx ON public.staff_access_codes USING btree (target_user_id);
+
+
+--
 -- Name: tutor_rebate_ledger_provider_ref_type; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -15637,10 +16592,59 @@ CREATE UNIQUE INDEX uq_user_entitlements_learner_grant ON public.user_entitlemen
 
 
 --
+-- Name: voice_language_roles_no_self_backup; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX voice_language_roles_no_self_backup ON public.voice_language_roles USING btree (slot, language, gender, voice_id);
+
+
+--
+-- Name: voice_language_roles_one_guide_per_rank; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX voice_language_roles_one_guide_per_rank ON public.voice_language_roles USING btree (language, rank) WHERE (slot = 'guide'::text);
+
+
+--
+-- Name: voice_language_roles_slot_lang_rank_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX voice_language_roles_slot_lang_rank_idx ON public.voice_language_roles USING btree (slot, language, rank);
+
+
+--
+-- Name: voice_language_roles_voice_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX voice_language_roles_voice_idx ON public.voice_language_roles USING btree (voice_id);
+
+
+--
+-- Name: voices_consent_outstanding; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX voices_consent_outstanding ON public.voices USING btree (voice_id) WHERE (consent_status <> 'authorised'::text);
+
+
+--
+-- Name: voices_natural_pace_measured; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX voices_natural_pace_measured ON public.voices USING btree (voice_id) WHERE (natural_pace_ratio IS NOT NULL);
+
+
+--
 -- Name: course_audio audio_autolink; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER audio_autolink AFTER INSERT ON public.course_audio FOR EACH ROW EXECUTE FUNCTION public.link_audio_to_content();
+
+
+--
+-- Name: canonical_script_versions canonical_script_versions_append_only_trg; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER canonical_script_versions_append_only_trg BEFORE DELETE OR UPDATE ON public.canonical_script_versions FOR EACH ROW EXECUTE FUNCTION public.canonical_script_versions_append_only();
 
 
 --
@@ -15966,6 +16970,13 @@ CREATE TRIGGER trg_course_audio_normalize BEFORE INSERT OR UPDATE ON public.cour
 
 
 --
+-- Name: course_enrollments trg_course_enrollments_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_course_enrollments_updated_at BEFORE UPDATE ON public.course_enrollments FOR EACH ROW EXECUTE FUNCTION public.touch_course_enrollments_updated_at();
+
+
+--
 -- Name: courses trg_courses_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -16155,6 +17166,14 @@ ALTER TABLE ONLY public.build_lessons
 
 
 --
+-- Name: canonical_pod_walk_steps canonical_pod_walk_steps_scenario_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.canonical_pod_walk_steps
+    ADD CONSTRAINT canonical_pod_walk_steps_scenario_id_fkey FOREIGN KEY (scenario_id) REFERENCES public.canonical_pod_scenarios(id) ON DELETE SET NULL;
+
+
+--
 -- Name: class_sessions class_sessions_class_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -16184,6 +17203,14 @@ ALTER TABLE ONLY public.classes
 
 ALTER TABLE ONLY public.classes
     ADD CONSTRAINT classes_school_id_fkey FOREIGN KEY (school_id) REFERENCES public.schools(id) ON DELETE CASCADE;
+
+
+--
+-- Name: coach_goals coach_goals_subscriber_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.coach_goals
+    ADD CONSTRAINT coach_goals_subscriber_id_fkey FOREIGN KEY (subscriber_id) REFERENCES public.coach_subscribers(id) ON DELETE CASCADE;
 
 
 --
@@ -16259,6 +17286,14 @@ ALTER TABLE ONLY public.course_legos
 
 
 --
+-- Name: course_legos course_legos_last_edit_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.course_legos
+    ADD CONSTRAINT course_legos_last_edit_event_id_fkey FOREIGN KEY (last_edit_event_id) REFERENCES public.content_edit_events(id) ON DELETE SET NULL;
+
+
+--
 -- Name: course_legos course_legos_target1_audio_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -16288,6 +17323,14 @@ ALTER TABLE ONLY public.course_legos
 
 ALTER TABLE ONLY public.course_practice_phrases
     ADD CONSTRAINT course_practice_phrases_known_audio_id_fkey FOREIGN KEY (known_audio_id) REFERENCES public.course_audio(id) ON DELETE SET NULL;
+
+
+--
+-- Name: course_practice_phrases course_practice_phrases_last_edit_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.course_practice_phrases
+    ADD CONSTRAINT course_practice_phrases_last_edit_event_id_fkey FOREIGN KEY (last_edit_event_id) REFERENCES public.content_edit_events(id) ON DELETE SET NULL;
 
 
 --
@@ -16379,6 +17422,14 @@ ALTER TABLE ONLY public.course_seeds
 
 
 --
+-- Name: course_seeds course_seeds_last_edit_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.course_seeds
+    ADD CONSTRAINT course_seeds_last_edit_event_id_fkey FOREIGN KEY (last_edit_event_id) REFERENCES public.content_edit_events(id) ON DELETE SET NULL;
+
+
+--
 -- Name: course_seeds course_seeds_target1_audio_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -16432,6 +17483,14 @@ ALTER TABLE ONLY public.demo_orgs
 
 ALTER TABLE ONLY public.documentation_sections
     ADD CONSTRAINT documentation_sections_document_id_fkey FOREIGN KEY (document_id) REFERENCES public.documentation_content(id) ON DELETE CASCADE;
+
+
+--
+-- Name: enrollment_threads enrollment_threads_enrollment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.enrollment_threads
+    ADD CONSTRAINT enrollment_threads_enrollment_id_fkey FOREIGN KEY (enrollment_id) REFERENCES public.course_enrollments(id) ON DELETE CASCADE;
 
 
 --
@@ -16640,6 +17699,14 @@ ALTER TABLE ONLY public.learner_practice_history
 
 ALTER TABLE ONLY public.learner_practice_history
     ADD CONSTRAINT learner_practice_history_prompt_id_fkey FOREIGN KEY (prompt_id) REFERENCES public.practice_prompts(id);
+
+
+--
+-- Name: learner_roles learner_roles_learner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.learner_roles
+    ADD CONSTRAINT learner_roles_learner_id_fkey FOREIGN KEY (learner_id) REFERENCES public.learners(id) ON DELETE CASCADE;
 
 
 --
@@ -16899,6 +17966,14 @@ ALTER TABLE ONLY public.user_entitlements
 
 
 --
+-- Name: voice_language_roles voice_language_roles_voice_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.voice_language_roles
+    ADD CONSTRAINT voice_language_roles_voice_id_fkey FOREIGN KEY (voice_id) REFERENCES public.voices(voice_id) ON DELETE CASCADE;
+
+
+--
 -- Name: course_enrollments Admins can read all course_enrollments; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -17029,6 +18104,13 @@ CREATE POLICY "Anyone can view regions" ON public.regions FOR SELECT USING (true
 --
 
 CREATE POLICY "Authenticated can view config" ON public.gamification_config FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: content_edit_events Authenticated users can view content_edit_events; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Authenticated users can view content_edit_events" ON public.content_edit_events FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -17180,6 +18262,13 @@ CREATE POLICY "School admins can create teacher codes" ON public.invite_codes FO
 --
 
 CREATE POLICY "Service role can manage config" ON public.gamification_config TO service_role USING (true) WITH CHECK (true);
+
+
+--
+-- Name: content_edit_events Service role can manage content_edit_events; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Service role can manage content_edit_events" ON public.content_edit_events TO service_role USING (true) WITH CHECK (true);
 
 
 --
@@ -17691,6 +18780,18 @@ CREATE POLICY classes_update ON public.classes FOR UPDATE USING (((teacher_user_
 
 
 --
+-- Name: coach_goals; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.coach_goals ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: coach_subscribers; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.coach_subscribers ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: content_audio_link_drops; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -17701,6 +18802,12 @@ ALTER TABLE public.content_audio_link_drops ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.content_audit_log ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: content_edit_events; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.content_edit_events ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: content_feedback; Type: ROW SECURITY; Schema: public; Owner: -
@@ -17867,6 +18974,12 @@ ALTER TABLE public.course_round_assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.course_round_signoffs ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: course_sectors; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.course_sectors ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: course_seed_drafts; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -17979,6 +19092,12 @@ ALTER TABLE public.documentation_sections ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.email_access_grants ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: enrollment_threads; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.enrollment_threads ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: entitlement_codes; Type: ROW SECURITY; Schema: public; Owner: -
@@ -18246,6 +19365,12 @@ CREATE POLICY learner_practice_history_own_update ON public.learner_practice_his
 
 
 --
+-- Name: learner_roles; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.learner_roles ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: learner_speaking_opportunities; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -18337,7 +19462,7 @@ ALTER TABLE public.listening_pod_sentences ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY listening_pod_sentences_public_read ON public.listening_pod_sentences FOR SELECT TO authenticated, anon USING ((EXISTS ( SELECT 1
    FROM public.listening_pods p
-  WHERE ((p.id = listening_pod_sentences.pod_id) AND (p.visibility = 'live'::text)))));
+  WHERE ((p.id = listening_pod_sentences.pod_id) AND (p.visibility = 'live'::text) AND ((p.required_role IS NULL) OR public.current_user_has_role(p.required_role))))));
 
 
 --
@@ -18350,7 +19475,7 @@ ALTER TABLE public.listening_pods ENABLE ROW LEVEL SECURITY;
 -- Name: listening_pods listening_pods_public_read; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY listening_pods_public_read ON public.listening_pods FOR SELECT TO authenticated, anon USING ((visibility = 'live'::text));
+CREATE POLICY listening_pods_public_read ON public.listening_pods FOR SELECT TO authenticated, anon USING (((visibility = 'live'::text) AND ((required_role IS NULL) OR public.current_user_has_role(required_role))));
 
 
 --
@@ -18760,6 +19885,12 @@ CREATE POLICY "ssi_admin reads content_audit_log" ON public.content_audit_log FO
 
 CREATE POLICY "ssi_admin reads seed_redo_snapshots" ON public.seed_redo_snapshots FOR SELECT USING (public.is_ssi_admin());
 
+
+--
+-- Name: staff_access_codes; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.staff_access_codes ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: subscriptions; Type: ROW SECURITY; Schema: public; Owner: -
@@ -19349,6 +20480,15 @@ GRANT ALL ON FUNCTION public.audio_normalize_text() TO service_role;
 
 
 --
+-- Name: FUNCTION audio_provider_alias(p_token text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.audio_provider_alias(p_token text) TO anon;
+GRANT ALL ON FUNCTION public.audio_provider_alias(p_token text) TO authenticated;
+GRANT ALL ON FUNCTION public.audio_provider_alias(p_token text) TO service_role;
+
+
+--
 -- Name: FUNCTION audio_voice_matches(p_wanted text, p_candidate text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -19445,6 +20585,15 @@ GRANT ALL ON FUNCTION public.can_view_learner_data(p_learner_id uuid) TO service
 GRANT ALL ON FUNCTION public.canonical_language(code text) TO anon;
 GRANT ALL ON FUNCTION public.canonical_language(code text) TO authenticated;
 GRANT ALL ON FUNCTION public.canonical_language(code text) TO service_role;
+
+
+--
+-- Name: FUNCTION canonical_script_versions_append_only(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.canonical_script_versions_append_only() TO anon;
+GRANT ALL ON FUNCTION public.canonical_script_versions_append_only() TO authenticated;
+GRANT ALL ON FUNCTION public.canonical_script_versions_append_only() TO service_role;
 
 
 --
@@ -19564,6 +20713,16 @@ REVOKE ALL ON FUNCTION public.current_user_enrolled_course_codes() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.current_user_enrolled_course_codes() TO anon;
 GRANT ALL ON FUNCTION public.current_user_enrolled_course_codes() TO authenticated;
 GRANT ALL ON FUNCTION public.current_user_enrolled_course_codes() TO service_role;
+
+
+--
+-- Name: FUNCTION current_user_has_role(p_role text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.current_user_has_role(p_role text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.current_user_has_role(p_role text) TO anon;
+GRANT ALL ON FUNCTION public.current_user_has_role(p_role text) TO authenticated;
+GRANT ALL ON FUNCTION public.current_user_has_role(p_role text) TO service_role;
 
 
 --
@@ -20247,6 +21406,15 @@ GRANT ALL ON FUNCTION public.touch_course_content_stamp() TO service_role;
 
 
 --
+-- Name: FUNCTION touch_course_enrollments_updated_at(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.touch_course_enrollments_updated_at() TO anon;
+GRANT ALL ON FUNCTION public.touch_course_enrollments_updated_at() TO authenticated;
+GRANT ALL ON FUNCTION public.touch_course_enrollments_updated_at() TO service_role;
+
+
+--
 -- Name: FUNCTION touch_language_recording_policy(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -20630,6 +21798,33 @@ GRANT ALL ON TABLE public.canonical_pod_scenarios TO service_role;
 
 
 --
+-- Name: TABLE canonical_pod_walk_steps; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.canonical_pod_walk_steps TO anon;
+GRANT ALL ON TABLE public.canonical_pod_walk_steps TO authenticated;
+GRANT ALL ON TABLE public.canonical_pod_walk_steps TO service_role;
+
+
+--
+-- Name: TABLE canonical_script_versions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.canonical_script_versions TO anon;
+GRANT ALL ON TABLE public.canonical_script_versions TO authenticated;
+GRANT ALL ON TABLE public.canonical_script_versions TO service_role;
+
+
+--
+-- Name: SEQUENCE canonical_script_versions_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.canonical_script_versions_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.canonical_script_versions_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.canonical_script_versions_id_seq TO service_role;
+
+
+--
 -- Name: TABLE canonical_seed_translations; Type: ACL; Schema: public; Owner: -
 --
 
@@ -20808,6 +22003,20 @@ GRANT ALL ON TABLE public.class_teachers TO service_role;
 
 
 --
+-- Name: TABLE coach_goals; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.coach_goals TO service_role;
+
+
+--
+-- Name: TABLE coach_subscribers; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.coach_subscribers TO service_role;
+
+
+--
 -- Name: TABLE content_audio_link_drops; Type: ACL; Schema: public; Owner: -
 --
 
@@ -20840,6 +22049,15 @@ GRANT SELECT ON TABLE public.content_audit_log TO authenticated;
 GRANT ALL ON SEQUENCE public.content_audit_log_id_seq TO anon;
 GRANT ALL ON SEQUENCE public.content_audit_log_id_seq TO authenticated;
 GRANT ALL ON SEQUENCE public.content_audit_log_id_seq TO service_role;
+
+
+--
+-- Name: TABLE content_edit_events; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.content_edit_events TO anon;
+GRANT ALL ON TABLE public.content_edit_events TO authenticated;
+GRANT ALL ON TABLE public.content_edit_events TO service_role;
 
 
 --
@@ -20946,6 +22164,24 @@ GRANT ALL ON TABLE public.course_export_states TO service_role;
 GRANT ALL ON TABLE public.course_gender_expansions TO service_role;
 GRANT SELECT ON TABLE public.course_gender_expansions TO anon;
 GRANT SELECT ON TABLE public.course_gender_expansions TO authenticated;
+
+
+--
+-- Name: TABLE courses; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.courses TO anon;
+GRANT ALL ON TABLE public.courses TO authenticated;
+GRANT ALL ON TABLE public.courses TO service_role;
+
+
+--
+-- Name: TABLE course_human_recorded_roles; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.course_human_recorded_roles TO anon;
+GRANT ALL ON TABLE public.course_human_recorded_roles TO authenticated;
+GRANT ALL ON TABLE public.course_human_recorded_roles TO service_role;
 
 
 --
@@ -21070,15 +22306,6 @@ GRANT ALL ON TABLE public.course_round_signoffs TO service_role;
 
 
 --
--- Name: TABLE courses; Type: ACL; Schema: public; Owner: -
---
-
-GRANT ALL ON TABLE public.courses TO anon;
-GRANT ALL ON TABLE public.courses TO authenticated;
-GRANT ALL ON TABLE public.courses TO service_role;
-
-
---
 -- Name: TABLE course_qa_estate; Type: ACL; Schema: public; Owner: -
 --
 
@@ -21110,6 +22337,13 @@ GRANT ALL ON TABLE public.course_round_assignments TO service_role;
 GRANT ALL ON TABLE public.course_qa_round_status TO anon;
 GRANT ALL ON TABLE public.course_qa_round_status TO authenticated;
 GRANT ALL ON TABLE public.course_qa_round_status TO service_role;
+
+
+--
+-- Name: TABLE course_sectors; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.course_sectors TO service_role;
 
 
 --
@@ -21227,6 +22461,13 @@ GRANT ALL ON TABLE public.email_access_grants TO service_role;
 
 
 --
+-- Name: TABLE enrollment_threads; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.enrollment_threads TO service_role;
+
+
+--
 -- Name: TABLE entitlement_codes; Type: ACL; Schema: public; Owner: -
 --
 
@@ -21324,6 +22565,15 @@ GRANT ALL ON TABLE public.htw_copy_versions TO service_role;
 GRANT ALL ON SEQUENCE public.htw_copy_versions_id_seq TO anon;
 GRANT ALL ON SEQUENCE public.htw_copy_versions_id_seq TO authenticated;
 GRANT ALL ON SEQUENCE public.htw_copy_versions_id_seq TO service_role;
+
+
+--
+-- Name: TABLE human_clip_speakers; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.human_clip_speakers TO anon;
+GRANT ALL ON TABLE public.human_clip_speakers TO authenticated;
+GRANT ALL ON TABLE public.human_clip_speakers TO service_role;
 
 
 --
@@ -21468,6 +22718,15 @@ GRANT ALL ON TABLE public.learner_points TO service_role;
 
 GRANT SELECT,INSERT,MAINTAIN,UPDATE ON TABLE public.learner_practice_history TO authenticated;
 GRANT ALL ON TABLE public.learner_practice_history TO service_role;
+
+
+--
+-- Name: TABLE learner_roles; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.learner_roles TO anon;
+GRANT ALL ON TABLE public.learner_roles TO authenticated;
+GRANT ALL ON TABLE public.learner_roles TO service_role;
 
 
 --
@@ -21754,6 +23013,13 @@ GRANT ALL ON TABLE public.spike_events TO service_role;
 
 
 --
+-- Name: TABLE staff_access_codes; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.staff_access_codes TO service_role;
+
+
+--
 -- Name: TABLE target_audio; Type: ACL; Schema: public; Owner: -
 --
 
@@ -21847,6 +23113,24 @@ GRANT ALL ON TABLE public.tutor_rebate_ledger TO service_role;
 GRANT ALL ON TABLE public.user_entitlements TO anon;
 GRANT ALL ON TABLE public.user_entitlements TO authenticated;
 GRANT ALL ON TABLE public.user_entitlements TO service_role;
+
+
+--
+-- Name: TABLE voice_guide_in_use; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.voice_guide_in_use TO anon;
+GRANT ALL ON TABLE public.voice_guide_in_use TO authenticated;
+GRANT ALL ON TABLE public.voice_guide_in_use TO service_role;
+
+
+--
+-- Name: TABLE voice_language_roles; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.voice_language_roles TO anon;
+GRANT ALL ON TABLE public.voice_language_roles TO authenticated;
+GRANT ALL ON TABLE public.voice_language_roles TO service_role;
 
 
 --
