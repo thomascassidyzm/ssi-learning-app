@@ -230,6 +230,66 @@ explaining why the server builds its client from it and the browser must not).
 
 Recorded as a regression guard, not a finding.
 
+## SEC0905-X-07 — the new CORS layer is bypassed on the two audio endpoints, and `vercel.json` sets the same header a second time · **LOW** · CONFIRMED
+
+`api/_utils/cors.ts`'s header opens: *"the ONE place that decides whether a cross-origin caller may
+read an API response."* It is not. Three places do, and the other two both say `*`:
+
+| where | header |
+|---|---|
+| `api/audio/[audioId].ts:153` | `Access-Control-Allow-Origin: *` (hand-rolled) |
+| `api/audio/batch-urls.ts:77` | `Access-Control-Allow-Origin: *` (hand-rolled, + `Allow-Headers: Content-Type, Authorization`) |
+| `vercel.json` `headers[]`, `source: "/api/audio/(.*)"` | `Access-Control-Allow-Origin: *` (platform header) |
+
+Neither audio handler calls `applyCors`; both predate it and kept their own wildcard. **Three findings
+in one, of decreasing comfort:**
+
+**(a) The wildcard itself is defensible, and this audit does not ask for it to be removed.** The
+per-clip proxy is reached by `<audio src=…>`, which cannot set an `Authorization` header, so it must
+stay header-free (the file says so at line 24). Authentication here is a bearer token and nothing
+trusts a cookie — the same argument `cors.ts` makes for omitting `Access-Control-Allow-Credentials`
+— so a wildcard buys a cross-origin attacker no ambient credential to spend. Recorded as a
+**secure-assertion with a caveat**: it holds *only* while no endpoint under `/api/audio/` ever trusts
+a cookie. If one ever does, `*` + `Allow-Headers: Authorization` becomes a live vulnerability, and
+nothing in the code says so.
+
+**(b) The doubled header is a latent defect, not a vulnerability.** `vercel.json` applies
+`ACAO: *` to `/api/audio/(.*)` as a platform header *and* both handlers set it via `res.setHeader`.
+Whether the response ends up with one value or two is a Vercel implementation detail this audit did
+not test live. A response carrying two `Access-Control-Allow-Origin` headers is rejected outright by
+every browser — which would break the Android WebView that `cors.ts` was written to serve, on the
+offline bulk-download path, with a console message that looks nothing like the cause. Worth one line
+of deletion (drop the vercel.json rule, keep the handlers, which are the ones that answer `OPTIONS`).
+
+**(c) No rate limit on a 500-per-request presign endpoint · the part actually worth acting on.**
+`POST /api/audio/batch-urls` mints up to `MAX_IDS_PER_REQUEST = 500` presigned S3 GET URLs
+(`TTL_SECONDS = 300`) per call. Free/community courses and preview seeds (≤ Yellow) are deliberately
+never `gated`, so **that path requires no token at all** — an explicit, reasoned design decision
+("anonymous guests keep full offline download of everything they may have", file header). The
+entitlement gate on *premium* ids is sound and was correctly tightened for SEC0901-D-01; this is not
+a re-file of that.
+
+What is unguarded is **volume**. Grepped for `rateLimit` / `throttle` / bucket in
+`api/audio/batch-urls.ts` and `_utils/audioAccess.ts`: **nothing**. The repo has the machinery —
+`_utils/codeAttemptThrottle.ts`, `_utils/mintRateLimit.ts` — and does not use it here.
+
+*Failure scenario.* An attacker embeds one `fetch('https://saysomethingin.app/api/audio/batch-urls',
+{method:'POST', body: JSON.stringify({audioIds: [...500 free ids]})})` in a loop on any web page.
+`ACAO: *` means the browser lets the page read the responses; no token is required for free ids; no
+rate limit stops it. Every visitor to that page becomes an unwitting driver, so the load arrives
+**distributed across thousands of real residential IPs** — which is precisely the shape a per-IP
+limit would not have caught anyway, and which nothing at all catches today. Each request costs two
+Supabase reads plus 500 presign operations, and every URL handed out is 300 seconds of billable S3
+egress that SSi pays for. This is a cost/availability finding, not a data-disclosure one.
+
+*Fix:* a per-IP-and-per-token bucket on `batch-urls` using the existing `mintRateLimit` helper,
+sized to the legitimate client (the offline downloader asks for ~2000 clips = 4 requests, once per
+course). Not applied — findings only.
+
+*Not re-filed:* the enforced CSP is `frame-ancestors 'none'` only, with everything else in
+`Content-Security-Policy-Report-Only`. That is the known CLIENT-CONFIG-01, already tracked with an
+`it.todo` in `packages/player-vue/src/security/securityHeaders.security.test.ts:182`.
+
 ---
 
 ## Summary
@@ -241,6 +301,7 @@ Recorded as a regression guard, not a finding.
 | SEC0905-X-03 | HIGH | CONFIRMED | SEC0901-A-01 unfixed: group subtree resolved by mutable slug-path prefix, 3 call sites reach staff auth uids |
 | SEC0905-X-04 | INFO | CONFIRMED | 88 advisories, 1 critical — but 0 reach a browser except echarts CVE-2026-45249, which is unreachable (no `lines` series) |
 | SEC0905-X-05 | LOW (latent) | CONFIRMED | 6 echarts tooltip formatters emit unescaped HTML; safe only because no user-controlled name reaches them yet |
+| SEC0905-X-07 | LOW | CONFIRMED | audio endpoints bypass the new CORS layer with `ACAO: *` (defensible), vercel.json doubles the header, and a 500-presign endpoint has no rate limit at all |
 | SEC0905-X-06 | — | SECURE | no secrets in tracked source; every hit is a test placeholder |
 
 Tests: `api/_security/sec0905-x-coordinator.security.test.ts`,
