@@ -10,11 +10,19 @@
  *    to put the app in offline mode deliberately. … Play what you have.
  *    Verify access as and when you can. Never as a gate."
  *
- * Three scenarios, named for the three ways a learner actually loses the
- * network. All three must reach playable cycles from cache. The third is the
- * one that encodes the retirement of the deliberate/accidental distinction:
- * nothing in this file ever sets the offline toggle, so every case here IS the
- * "learner forgot to flip it" case.
+ * Cases named for the ways a learner actually loses the network. All of them
+ * must reach playable cycles from cache, and none of them ever sets the offline
+ * toggle — so every case here IS the "learner forgot to flip it" case, which is
+ * what retires the deliberate/accidental distinction.
+ *
+ * The weak-signal cases also carry the TWO-STRIKE rule (networkGate, Tom's
+ * ruling 2026-09-04) at the level where it actually bites — a real boot through
+ * this composable, not the gate in isolation. `networkGate.test.ts` proves the
+ * counting; these prove the JOIN: what one aborted boot, two aborted boots, and
+ * a boot that succeeded in between each do to `isNetworkPresumedDown()`, which
+ * is the signal that decides whether the rest of the app draws itself as
+ * offline. One 2.5s abort on a full 5G signal once drew a learner's whole belt
+ * strip as "not downloaded"; that is the bug these cases stand guard over.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ref } from 'vue'
@@ -75,6 +83,68 @@ function bootFromCurrentPosition(course: string) {
   return useInstantPlayback(ref(course), { resolveStartLegoId: () => START_LEGO })
 }
 
+/**
+ * A cache entry SHORTER than BOOTSTRAP_LIMIT and stamped at an older version —
+ * so the happy-path cached reader deliberately refuses it and the boot is
+ * forced onto the network, where only the last-resort reader will serve it.
+ * That is the real weak-signal shape, and it is the only shape that puts a
+ * boot in front of the network gate at all.
+ */
+function warmStaleCache(course: string, n = 3): void {
+  warmTheCache(course, { ...cyclesFixture(course, n), version: 3, next_lego_id: 'S0008L01' })
+}
+
+/**
+ * Hangs forever unless aborted — the captive-portal / one-bar case that
+ * `navigator.onLine` reports as "online". A boot against this stub spends its
+ * full critical-path budget and then aborts, which is exactly ONE strike.
+ */
+function stubHangingFetch(): void {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      (_url: string, init?: { signal?: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            const err = new Error('The operation was aborted')
+            err.name = 'AbortError'
+            reject(err)
+          })
+        }),
+    ),
+  )
+}
+
+/** A link that works. A boot against this stub is a critical-path SUCCESS. */
+function stubHealthyFetch(course: string): void {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) =>
+      url.includes('/cycles')
+        ? new Response(JSON.stringify(cyclesFixture(course, 6)), { status: 200 })
+        : new Response(JSON.stringify(mapFor(course)), { status: 200 }),
+    ),
+  )
+}
+
+/**
+ * Drive one whole boot across the 2500ms critical-path budget on fake timers.
+ * Advancing past the budget is what makes a hanging fetch abort; it is inert
+ * for a healthy one, which has already answered on microtasks.
+ */
+async function bootAcrossTheBudget(course: string) {
+  const instant = bootFromCurrentPosition(course)
+  const settled = instant.bootstrap().then(
+    (r) => ({ ok: true as const, r }),
+    (e) => ({ ok: false as const, e }),
+  )
+  // Nothing has been served at the 2.4s mark — the budget has not expired.
+  await vi.advanceTimersByTimeAsync(2400)
+  // Cross the 2500ms budget: the caller detaches from any hanging request.
+  await vi.advanceTimersByTimeAsync(400)
+  return { instant, outcome: await settled }
+}
+
 describe('useInstantPlayback — never gate playback on the network', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -100,53 +170,70 @@ describe('useInstantPlayback — never gate playback on the network', () => {
     expect(instant.isReady.value).toBe(true)
   })
 
-  it('weak signal, cache warm: requests never resolve, and playback starts on the budget rather than waiting on them', async () => {
-    // A cache entry SHORTER than BOOTSTRAP_LIMIT and stamped at an older
-    // version — so the happy-path cached reader deliberately refuses it and
-    // the code is forced onto the network. That is the real weak-signal shape:
-    // there is something on the device, but only the last-resort reader will
-    // serve it.
+  it('weak signal, cache warm: playback starts on the budget, and ONE aborted boot does NOT presume the network down', async () => {
     const course = 'cym_for_eng_weak'
-    warmTheCache(course, { ...cyclesFixture(course, 3), version: 3, next_lego_id: 'S0008L01' })
+    warmStaleCache(course)
     vi.useFakeTimers()
+    stubHangingFetch()
 
-    // Hangs forever unless aborted — the captive-portal / one-bar case that
-    // `navigator.onLine` reports as "online".
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(
-        (_url: string, init?: { signal?: AbortSignal }) =>
-          new Promise((_resolve, reject) => {
-            init?.signal?.addEventListener('abort', () => {
-              const err = new Error('The operation was aborted')
-              err.name = 'AbortError'
-              reject(err)
-            })
-          }),
-      ),
-    )
+    const { instant, outcome } = await bootAcrossTheBudget(course)
 
-    const instant = bootFromCurrentPosition(course)
-    const settled = instant.bootstrap().then(
-      (r) => ({ ok: true as const, r }),
-      (e) => ({ ok: false as const, e }),
-    )
-
-    // Nothing has been served at the 2.4s mark — the budget has not expired.
-    await vi.advanceTimersByTimeAsync(2400)
-    // Cross the 2500ms critical-path budget: the caller detaches from the
-    // hanging request and the cache answers.
-    await vi.advanceTimersByTimeAsync(400)
-
-    const outcome = await settled
+    // The learner plays. That is the whole point of the budget.
     expect(outcome.ok).toBe(true)
     if (!outcome.ok) return
     expect(outcome.r.firstCycle.lego_id).toBe(START_LEGO)
     expect(instant.getBufferedCyclesForLego(START_LEGO)).toHaveLength(3)
-    // And the stall is now OBSERVED, which is what flips the rest of the app
-    // (offlinePlaybackActive, the listening surfaces) onto its cached paths
-    // without anyone having touched the deliberate offline toggle.
+
+    // And the app stays on its LIVE paths. This is the join this file is
+    // uniquely placed to prove: a real boot through the composable, aborting
+    // on its budget, records exactly ONE strike — and one strike is noise, not
+    // evidence. A single unlucky request must not flip offlinePlaybackActive
+    // or draw the belt strip as "not downloaded" for a learner on full signal.
+    expect(isNetworkPresumedDown()).toBe(false)
+  })
+
+  it('two consecutive aborted boots, with no success between, DO presume the network down', async () => {
+    vi.useFakeTimers()
+    stubHangingFetch()
+
+    warmStaleCache('cym_for_eng_two_a')
+    await bootAcrossTheBudget('cym_for_eng_two_a')
+    expect(isNetworkPresumedDown()).toBe(false)
+
+    // Second strike: a pattern, not noise. NOW the rest of the app is entitled
+    // to serve its cached paths.
+    warmStaleCache('cym_for_eng_two_b')
+    const { instant, outcome } = await bootAcrossTheBudget('cym_for_eng_two_b')
     expect(isNetworkPresumedDown()).toBe(true)
+
+    // Playback never depended on that signal either way.
+    expect(outcome.ok).toBe(true)
+    expect(instant.getBufferedCyclesForLego(START_LEGO)).toHaveLength(3)
+  })
+
+  it('a successful boot between two aborted ones resets the count — no strike carries over', async () => {
+    vi.useFakeTimers()
+
+    // Strike one.
+    stubHangingFetch()
+    warmStaleCache('cym_for_eng_reset_a')
+    await bootAcrossTheBudget('cym_for_eng_reset_a')
+    expect(isNetworkPresumedDown()).toBe(false)
+
+    // A boot that reaches the server. Recovery is immediate and unconditional:
+    // the count goes back to zero, it is not merely decremented.
+    stubHealthyFetch('cym_for_eng_reset_b')
+    warmStaleCache('cym_for_eng_reset_b')
+    const healthy = await bootAcrossTheBudget('cym_for_eng_reset_b')
+    expect(healthy.outcome.ok).toBe(true)
+    expect(healthy.instant.getBufferedCyclesForLego(START_LEGO)).toHaveLength(6)
+    expect(isNetworkPresumedDown()).toBe(false)
+
+    // The next failure is therefore a FIRST strike again, not a second one.
+    stubHangingFetch()
+    warmStaleCache('cym_for_eng_reset_c')
+    await bootAcrossTheBudget('cym_for_eng_reset_c')
+    expect(isNetworkPresumedDown()).toBe(false)
   })
 
   it('deliberate offline toggle OFF, no connectivity, cache warm: identical to airplane mode', async () => {

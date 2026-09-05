@@ -6,6 +6,7 @@ import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import Button from '@/components/schools/shared/Button.vue'
 import { labelForCourse } from '@/lib/teacherCourses'
 import { getPaddle, paddleConfig } from '@/lib/paddle'
+import { canTakePayment } from '@/platform/paymentRoute'
 import { hasLiveSessionFor, useLoginCodeAudit } from '@/auth/loginCode'
 import '@/styles/schools-tokens.css'
 import { sendSignInCode } from '../../auth/sendSignInCode'
@@ -327,6 +328,16 @@ async function openCheckout() {
       return
     }
 
+    // platform/paymentRoute: Paddle is the web rail, and a store build has no
+    // route that can honour it yet — so say so rather than open nothing. The
+    // gate sits HERE, immediately before the checkout it guards, and not at the
+    // top of the function: everything above this line is the double-charge
+    // guard, which takes no money at all. Gating the whole function refused an
+    // already-paying learner the class they had already bought (2026-09-05).
+    if (!canTakePayment()) {
+      checkoutError.value = "Joining a paid class isn't available in this version of the app yet."
+      return
+    }
     const paddle = await getPaddle()
     paddle.Checkout.open({
       items: [{ priceId: studentPriceId.value, quantity: 1 }],

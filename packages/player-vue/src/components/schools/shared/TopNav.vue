@@ -14,6 +14,7 @@ interface NavTab {
   label: string
 }
 
+import { institutionalPurchaseAvailable } from '@/platform/paymentRoute'
 const props = withDefaults(defineProps<{
   mode?: 'schools' | 'teach'
   /** Preview/demo: show the full teacher tab set even without a resolved school role. */
@@ -63,7 +64,14 @@ const baseTabs: NavTab[] = [
 const tabs = computed(() => {
   const result: NavTab[] = []
   // Solo tutors get a single always-visible Upgrade link (the canonical pay page).
-  if (props.mode === 'teach') return [{ name: 'teach-upgrade', path: '/tutors/dashboard/upgrade', label: 'Upgrade' }]
+  if (props.mode === 'teach') {
+    // Seat purchase is web-only (platform/paymentRoute) — in a store build the
+    // route does not exist, and in a store SHELL it must not be offered, so
+    // neither does the tab. One question, asked of the seam.
+    return institutionalPurchaseAvailable()
+      ? [{ name: 'teach-upgrade', path: '/tutors/dashboard/upgrade', label: 'Upgrade' }]
+      : []
+  }
   // Preview/demo: show the full teacher tab set (incl. Insights) without a role.
   if (props.forceTabs) {
     return [...baseTabs, { name: 'insights', path: '/teacher-insights', label: 'Insights' }]

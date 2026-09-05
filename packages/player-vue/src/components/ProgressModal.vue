@@ -16,6 +16,39 @@
  * Deliberately drops the old "00:00 / this session" header — the
  * modal opens with the player paused, so the session counter sits
  * at zero and reads as misleading.
+ *
+ * THE BELT PANEL'S DISPLAY GRAMMAR (2026-09-04, from Tom's rulings that day).
+ * Every mark on the strip answers exactly ONE of four questions, and each
+ * question owns exactly ONE channel. They are independent axes, not values of
+ * one enum — two are facts about the BELT, two are facts about the LEARNER:
+ *
+ *   1. May I go there without paying?  (money)  → the padlock glyph, and
+ *      nothing else. Money never resolves itself, so the padlock is a
+ *      standing offer: full colour, tappable, opens the subscription card.
+ *   2. Is it on this device yet?       (time)   → the absence rendering:
+ *      dashed, unfilled, dimmed, download arrow. Time always resolves
+ *      itself, so the state is drawn as not-yet-there — never as a
+ *      different thing that IS there.
+ *   3. Where am I now?                 (cursor) → the current-chip ring, the
+ *      ▼ marker, "you're working on {belt}".
+ *   4. How far have I been?           (ceiling) → the ▽ marker, "you've
+ *      been as far as {belt}".
+ *
+ * The rules that keep it honest:
+ *   - One fact, one channel; one channel, one fact. A glyph never moonlights
+ *     (the padlock-for-undownloaded bug was exactly this).
+ *   - When two facts collide on one chip, the one that will NOT resolve
+ *     itself wins: money > time > plain (see chipLabel).
+ *   - Every rendering of a fact is a plain read of ONE binding — two
+ *     surfaces never recompute the same fact separately (beltWaitingReasons
+ *     is the pattern; the position-authority rule upstream is its cursor
+ *     counterpart).
+ *   - All four channels are DESCRIPTIVE, never gates. Navigation is never
+ *     refused; a tap that cannot land yet waits out loud and self-resolves.
+ *   - Words about a self-resolving state promise the resolution in one
+ *     shared vocabulary ("it comes through as soon as we can reach it") and
+ *     never claim progress the app cannot verify ("downloading"). Pinned in
+ *     ProgressModal.offlineNotice.test.ts.
  */
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import type { ContributionData } from '@/composables/useContribution'
@@ -54,18 +87,21 @@ const props = defineProps<{
   // content we can't fetch. LEGO/cycle nav stays enabled (it steps within
   // the cached plan); only out-of-reach belt jumps go.
   isOffline?: boolean
-  // Names of belts NOT yet on the device while offline (future / never
-  // downloaded). Belts absent from this set are already downloaded/played
-  // and stay fully tappable offline — only this set greys out. Ignored
-  // (and every belt tappable) when isOffline is false.
-  offlineUnavailableBeltNames?: Set<string>
-  /** Belt name → the plain reason it can't be served right now, from the same
-   *  function the belt-skip action uses. Optional: without it the chips fall
-   *  back to the generic not-downloaded wording. */
-  beltUnavailableReasons?: Map<string, string>
-  /** One line explaining WHY belts are locked, when the cause isn't simply
-   *  "not downloaded" — e.g. practising mode. Overrides the offline wording. */
-  beltUnavailableHint?: string | null
+  // Names of belts whose content is not on the device yet. EVERY belt stays
+  // tappable (Tom, 2026-09-04: navigation is never refused) — this set only
+  // marks which ones the learner will have to wait a moment for.
+  beltsAwaitingDownload?: Set<string>
+  /** Belt name → the waiting line, from the same function the belt-skip action
+   *  uses, so a pill and a tap always say the same thing. */
+  beltWaitingReasons?: Map<string, string>
+  // Names of belts this learner cannot reach WITHOUT PAYING. The padlock means
+  // entitlement and nothing else (Tom, 2026-09-04: "The only reason these would
+  // be locked would be if there was a [plain] entitlement issue... These should
+  // be just greyed out - never locked"). Money is the answer here and time
+  // never will be — which is exactly what separates it from the set above.
+  // Computed in LearningPlayer from the SAME canAccessSeed call that gates the
+  // jump, so the glyph and the behaviour cannot drift.
+  paywalledBeltNames?: Set<string>
 }>()
 
 const emit = defineEmits<{
@@ -172,7 +208,10 @@ const showFurthestMarker = computed(() => {
     && highestIdx.value > currentIdx.value
 })
 
-const furthestBeltName = computed(() => belts.value[highestIdx.value]?.name ?? null)
+const furthestBeltName = computed(() => {
+  const belt = belts.value[highestIdx.value]
+  return belt ? beltLabel(belt) : null
+})
 
 const beltCssVars = computed(() => ({
   '--belt-color': props.currentBelt.color,
@@ -181,40 +220,108 @@ const beltCssVars = computed(() => ({
 
 const isCurrentBelt = (belt: Belt) => belt.name === props.currentBelt.name
 
-// Only a belt whose content isn't on the device is unavailable offline —
-// NOT every non-current belt (that was the "everything greyed out" bug).
-const isBeltUnavailableOffline = (belt: Belt) =>
-  !!props.isOffline && !!props.offlineUnavailableBeltNames?.has(belt.name)
+// A belt named in the learner's own interface language: "Green Belt", "綠帶".
+// Both halves already ship in all 24 locales (belt.<colour> + belt.label), so
+// this is reuse, not new translation work — and it is the ONE place the modal
+// turns a belt into words, so nothing here can go back to naming them in
+// English. Unknown names fall through to their raw value rather than a key.
+const beltLabel = (belt: { name: string }): string =>
+  t('belt.label', '{color} Belt').replace('{color}', t(`belt.${belt.name}`, belt.name))
 
-// The reason this belt can't be served, in the words the action would use.
-// Falls back to the old not-downloaded line when no reason map is supplied.
-const beltUnavailableReason = (belt: Belt) =>
-  props.beltUnavailableReasons?.get(belt.name)
-  ?? `${belt.name} belt isn't downloaded — reconnect to jump there`
+// Sentences that wrap a belt name in belt-coloured emphasis. Word order moves
+// between languages, so the translated sentence is SPLIT on its {belt} slot and
+// the two halves are rendered either side of the <strong> — rather than
+// hardcoding "prefix + name + suffix", which is what put these four sentences
+// in the bare-English baseline in the first place.
+const splitAround = (sentence: string, token: string): [string, string] => {
+  const at = sentence.indexOf(token)
+  if (at === -1) return [sentence + ' ', '']
+  return [sentence.slice(0, at), sentence.slice(at + token.length)]
+}
+const workingOnParts = computed(() =>
+  splitAround(t('progress.workingOnBelt', "you're working on {belt}"), '{belt}'))
+const infinitePlayParts = computed(() =>
+  splitAround(t('progress.youreInMode', "you're in {mode}"), '{mode}'))
+const furthestParts = computed(() =>
+  splitAround(t('progress.beenAsFarAs', "you've been as far as {belt}"), '{belt}'))
 
-// Only warn about connectivity when it would actually block a jump — most
-// offline sessions have every belt up to position downloaded, so the old
-// blanket "offline — belt jumps need a connection" line was misleading.
+// A belt whose content is still on its way down. NOT a lock — the chip stays
+// tappable and the tap lands as soon as the content arrives (Tom, 2026-09-04:
+// "the only issue is if the content has donwloaded").
+const isBeltAwaitingDownload = (belt: Belt) =>
+  !!props.isOffline && !!props.beltsAwaitingDownload?.has(belt.name)
+
+// A belt behind the paywall. Drawn iff the learner would have to PAY to get
+// there — never because of anything the device is still fetching. Takes
+// precedence over the waiting state: if a belt is both unpaid and not yet
+// downloaded, the padlock is the honest glyph, because the download will
+// resolve itself and the payment will not.
+const isBeltPaywalled = (belt: Belt) =>
+  !!props.paywalledBeltNames?.has(belt.name)
+
+// What a padlocked chip says to a screen reader and on hover. It must read as
+// an offer, not a refusal — the tap opens the subscription card.
+const beltPaywallLabel = (belt: Belt) =>
+  t('progress.beltNeedsSubscription', '{belt} is part of the full course — tap to see the options')
+    .replace('{belt}', beltLabel(belt))
+
+// The waiting line for this belt, in the words the action would use.
+const beltWaitingReason = (belt: Belt) =>
+  props.beltWaitingReasons?.get(belt.name)
+  ?? t('progress.beltStillDownloading', "{belt} isn't on this device yet — it'll open as soon as it comes through")
+    .replace('{belt}', beltLabel(belt))
+
+// Only mention downloads when something is actually still coming — most
+// offline sessions have every belt up to position downloaded.
 const hasUndownloadedBelt = computed(() =>
-  !!props.isOffline && belts.value.some((b) => isBeltUnavailableOffline(b)))
+  !!props.isOffline && belts.value.some((b) => isBeltAwaitingDownload(b)))
 
 // Highest belt that's ready offline — the ladder is downloaded contiguously
 // from the start (behind-position is always in the bundle), so "belts up to
-// X ready" is the honest, unambiguous summary. Walk until the first
-// unavailable belt; White (the course start) is always present.
+// X ready" is the honest, unambiguous summary. Walk until the first belt
+// still coming down; White (the course start) is always present.
 const offlineReadyUpToBeltName = computed<string | null>(() => {
   if (!hasUndownloadedBelt.value) return null
   let last: string | null = null
   for (const b of belts.value) {
-    if (isBeltUnavailableOffline(b)) break
-    last = b.name
+    if (isBeltAwaitingDownload(b)) break
+    last = beltLabel(b)
   }
   return last
 })
 
+// Chip title/aria — the only words a screen reader gets for a belt dot.
+const jumpToBeltLabel = (belt: Belt): string =>
+  t('progress.jumpToBeltName', 'Jump to {belt}').replace('{belt}', beltLabel(belt))
+
+// One place decides what a chip says, in the same precedence as the glyph:
+// money first (it will not resolve itself), then time, then the plain jump.
+const chipLabel = (belt: Belt): string =>
+  isBeltPaywalled(belt) ? beltPaywallLabel(belt)
+  : isBeltAwaitingDownload(belt) ? beltWaitingReason(belt)
+  : jumpToBeltLabel(belt)
+
+// The one line under the ladder. Built here rather than in the template so the
+// three branches are t() calls a scanner can see, not literals inside a
+// mustache expression (which is how they slipped past the bare-English gate).
+const beltStripHint = computed(() => {
+  if (!hasUndownloadedBelt.value) {
+    return t('progress.tapBeltHint', 'tap a belt to jump there, or ∞ at the end for infinite play')
+  }
+  if (offlineReadyUpToBeltName.value) {
+    return t('progress.offlineBeltsReadyUpTo', 'belts up to {belt} are on this device; the rest will come through as soon as we can reach them')
+      .replace('{belt}', offlineReadyUpToBeltName.value)
+  }
+  return t('progress.beltsStillDownloading', "tap any belt — the ones still on their way will open as soon as they're here")
+})
+
+// NAVIGATION IS NEVER REFUSED (Tom, 2026-09-04). Every belt emits, including
+// the one the learner is already on — that is a restart, which the player
+// handles as direction 'restart' — and including belts still downloading,
+// which the player holds in a self-resolving waiting state. The one thing this
+// must never do is return silently: a tap that goes nowhere and says nothing
+// is the exact bug that had Tom tapping Orange eight times.
 function handleBeltClick(belt: Belt) {
-  if (isCurrentBelt(belt)) return
-  if (isBeltUnavailableOffline(belt)) return
   emit('skipToBelt', belt)
 }
 
@@ -350,11 +457,10 @@ onUnmounted(() => {
             <div class="belt-strip-head">
               <p class="belt-strip-prompt">
                 <template v-if="isInfplay">
-                  you're in <strong :style="{ color: 'var(--ssi-red, #c23a3a)' }">infinite play</strong>
+                  {{ infinitePlayParts[0] }}<strong :style="{ color: 'var(--ssi-red, #c23a3a)' }">{{ t('progress.infinitePlay', 'infinite play') }}</strong>{{ infinitePlayParts[1] }}
                 </template>
                 <template v-else>
-                  you're working on
-                  <strong :style="{ color: currentBelt.color }">{{ currentBelt.name }} belt</strong>
+                  {{ workingOnParts[0] }}<strong :style="{ color: currentBelt.color }">{{ beltLabel(currentBelt) }}</strong>{{ workingOnParts[1] }}
                 </template>
               </p>
             </div>
@@ -366,7 +472,7 @@ onUnmounted(() => {
               {{ t('player.offlinePracticeBody', 'We can\'t reach new items right now, so here\'s a chance to practise what you\'ve already covered — new items will come through as soon as we can reach them.') }}
             </p>
             <p v-if="showFurthestMarker && furthestBeltName" class="belt-strip-furthest-note">
-              you've been as far as <strong>{{ furthestBeltName }} belt</strong>
+              {{ furthestParts[0] }}<strong>{{ furthestBeltName }}</strong>{{ furthestParts[1] }}
             </p>
 
             <div class="map-row-wrap">
@@ -386,27 +492,47 @@ onUnmounted(() => {
                   :class="{
                     'map-chip--current': isCurrentBelt(belt),
                     'is-skipping': isSkipping,
-                    'is-offline': isBeltUnavailableOffline(belt),
+                    'is-offline': isBeltAwaitingDownload(belt) && !isBeltPaywalled(belt),
+                    'is-paywalled': isBeltPaywalled(belt),
                   }"
                   :style="{ '--chip-color': belt.color }"
-                  :disabled="isCurrentBelt(belt) || isSkipping || isBeltUnavailableOffline(belt)"
-                  :title="isBeltUnavailableOffline(belt) ? beltUnavailableReason(belt) : `Jump to ${belt.name} belt`"
-                  :aria-label="isBeltUnavailableOffline(belt) ? beltUnavailableReason(belt) : `Jump to ${belt.name} belt`"
+                  :disabled="isSkipping"
+                  :title="chipLabel(belt)"
+                  :aria-label="chipLabel(belt)"
                   @click="handleBeltClick(belt)"
                 >
                   <span class="map-chip-dot"></span>
-                  <!-- Lock affordance: dimming alone read as "murky" on-device
-                       (Tom 2026-07-09) — the padlock makes not-downloaded
-                       unmistakable at a glance. -->
+                  <!-- PADLOCK = ENTITLEMENT, and nothing else. It appears iff
+                       the learner would have to pay to go there, and the tap
+                       opens the same subscription card that meets them when
+                       they play into seed 20. It is never worn by a belt that
+                       is merely still downloading. -->
                   <svg
-                    v-if="isBeltUnavailableOffline(belt)"
-                    class="map-chip-lock"
+                    v-if="isBeltPaywalled(belt)"
+                    class="map-chip-glyph map-chip-lock"
                     viewBox="0 0 24 24" fill="none" stroke="currentColor"
                     stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
                     aria-hidden="true" focusable="false"
                   >
-                    <rect x="4" y="11" width="16" height="10" rx="2"/>
-                    <path d="M8 11V7a4 4 0 0 1 8 0v4"/>
+                    <rect x="4" y="10.5" width="16" height="10.5" rx="2"/>
+                    <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/>
+                  </svg>
+                  <!-- Still-coming affordance. Dimming alone read as "murky"
+                       on-device (Tom 2026-07-09), so the state gets a glyph —
+                       but a PADLOCK is the wrong word now that the chip is
+                       tappable (Tom 2026-09-04). A download arrow says "on its
+                       way", which is the only thing that can stand between a
+                       tap and a belt. -->
+                  <svg
+                    v-else-if="isBeltAwaitingDownload(belt)"
+                    class="map-chip-glyph map-chip-dl"
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
+                    aria-hidden="true" focusable="false"
+                  >
+                    <path d="M12 3v12"/>
+                    <path d="m7 10 5 5 5-5"/>
+                    <path d="M4 20h16"/>
                   </svg>
                 </button>
 
@@ -448,11 +574,7 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <p class="belt-strip-hint">{{ hasUndownloadedBelt
-              ? (beltUnavailableHint || (offlineReadyUpToBeltName
-                ? `offline — belts up to ${offlineReadyUpToBeltName} ready to play; beyond needs a connection`
-                : 'offline — locked belts aren\'t downloaded; connect to jump there'))
-              : 'tap a belt to jump there, or ∞ at the end for infinite play' }}</p>
+            <p class="belt-strip-hint">{{ beltStripHint }}</p>
           </section>
         </div>
       </div>
@@ -856,28 +978,36 @@ onUnmounted(() => {
   cursor: default;
 }
 
-/* Offline: belt jumps leap out of the downloaded plan, so they're disabled.
-   Dim HARD + desaturate the dot + overlay a padlock so the split between
-   ready and not-downloaded is unmistakable — 0.4 opacity alone read as
-   "murky as hell what was ready to play" on-device (Tom 2026-07-09). The
-   always-disabled current belt stays fully lit (bare :disabled only changes
-   the cursor, deliberately). */
+/* Still downloading: THREE redundant channels, none of them a padlock —
+   dashed outline, no fill, and the dim — plus the download-arrow glyph in the
+   corner. Dim alone read as "murky as hell what was ready to play" on-device
+   (Tom 2026-07-09), which is what put a padlock here in the first place; the
+   padlock is now reserved for entitlement, so the state has to earn its
+   legibility another way. The chip stays enabled: a tap lands as soon as the
+   content arrives. */
 .map-chip.is-offline {
-  opacity: 0.45;
-  background: #f1efeb;
+  opacity: 0.5;
+  background: transparent;
   border-style: dashed;
+  border-color: rgba(0, 0, 0, 0.28);
 }
 .map-chip.is-offline .map-chip-dot {
   filter: grayscale(0.85);
   box-shadow: none;
 }
-.map-chip-lock {
+.map-chip-glyph {
   position: absolute;
   width: 11px;
   height: 11px;
   top: 3px;
   right: 3px;
   color: rgba(0, 0, 0, 0.75);
+}
+
+/* Paywalled: the chip is NOT dimmed into the murk — it's a live offer, and it
+   stays fully tappable. The padlock alone carries the meaning. */
+.map-chip.is-paywalled .map-chip-dot {
+  filter: grayscale(0.6);
 }
 /* Anchor for the lock overlay — no visual change to available chips. */
 .map-chip {

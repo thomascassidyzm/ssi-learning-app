@@ -100,25 +100,45 @@ export type NetworkTimeout = typeof NETWORK_TIMEOUT
 
 /**
  * How long an observed stall keeps us in "presume the network is down" mode.
- * Short enough that a learner walking back into signal recovers quickly on
- * their own; long enough that a whole boot sequence behaves consistently
- * rather than half the calls waiting and half not.
+ *
+ * Was 60s. Cut to 20s on 2026-09-04, together with the two-strike rule below,
+ * after a learner on a full 5G signal was shown a whole belt strip drawn as
+ * "not downloaded" — one 2.5s abort on /round-map had convinced the app it was
+ * offline for the following minute. 20s still covers a boot sequence
+ * consistently (nothing on the boot path spans longer), and it bounds the
+ * damage to a few cycles rather than half a session when the link is genuinely
+ * bad but recovering.
  */
-const STALL_TTL_MS = 60_000
+const STALL_TTL_MS = 20_000
+
+/**
+ * How many critical-path failures IN A ROW before we presume the network is
+ * down. One failure is noise: a single unlucky request — a cold Lambda, one
+ * dropped packet, a hiccup on a handshake — is not evidence of an unusable
+ * link, and treating it as such is what produced the screenshots above. Two
+ * consecutive failures is a pattern. Any success resets the count to zero
+ * immediately, so recovery is never slowed by this.
+ */
+const STALL_STRIKES_REQUIRED = 2
 
 let stalledAt = 0
+let strikes = 0
 
 /**
  * Record that a critical-path network call timed out or failed outright.
- * This is the evidence `isNetworkPresumedDown()` reports on.
+ * This is the evidence `isNetworkPresumedDown()` reports on. It takes
+ * STALL_STRIKES_REQUIRED of these in a row, with no success between, before
+ * the signal actually goes true.
  */
 export function markNetworkStalled(): void {
-  stalledAt = Date.now()
+  strikes += 1
+  if (strikes >= STALL_STRIKES_REQUIRED) stalledAt = Date.now()
 }
 
 /** Record that a critical-path network call succeeded — the stall is over. */
 export function clearNetworkStalled(): void {
   stalledAt = 0
+  strikes = 0
 }
 
 /**
@@ -130,6 +150,7 @@ export function isNetworkPresumedDown(): boolean {
   if (!stalledAt) return false
   if (Date.now() - stalledAt > STALL_TTL_MS) {
     stalledAt = 0
+    strikes = 0
     return false
   }
   return true
@@ -201,4 +222,5 @@ export function wireNetworkRecovery(): void {
 /** Test seam — reset module state between cases. */
 export function __resetNetworkGateForTests(): void {
   stalledAt = 0
+  strikes = 0
 }

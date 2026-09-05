@@ -95,3 +95,11 @@ packages/player-vue/e2e/schools-nav/viewas-*.png
 .dbq.mjs
 .run.sh
 .ddl-staff-access-codes.sql
+
+# Capacitor Android wrapper — build output and copied web assets
+packages/player-vue/android/app/src/main/assets/public/
+packages/player-vue/android/app/src/main/assets/capacitor.config.json
+packages/player-vue/android/.gradle/
+packages/player-vue/android/build/
+packages/player-vue/android/app/build/
+packages/player-vue/android/capacitor-cordova-android-plugins/

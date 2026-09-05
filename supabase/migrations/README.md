@@ -21,4 +21,15 @@ git show <commit>^:supabase/migrations/<file>.sql             # read any archive
 2. Run `./supabase/snapshot-schema.sh` to refresh `schema.sql`.
 3. Commit the updated `schema.sql`.
 
+Step 2 was skipped between 25 August and 5 September 2026, and `schema.sql`
+went ten tables out of date while live code queried them. Two checks now catch
+that:
+
+- `api/schema-snapshot.test.ts` — runs in CI, needs no credential; fails if any
+  relation the shipping code names in `.from('…')` is absent from `schema.sql`.
+- `./supabase/check-schema-drift.sh` — read-only; compares the snapshot's
+  relations against the live DB and names the differences. **Not in CI**, because
+  CI has no database credential and should not be given one; run it by hand or
+  from a nightly job on a machine that already holds `.env.psql`.
+
 No new files go in this directory.

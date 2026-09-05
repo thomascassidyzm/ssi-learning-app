@@ -31,6 +31,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
+import { applyCors } from '../_utils/cors'
 import { resolveEffectiveSubscription } from '../_utils/familyAccess'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -85,16 +86,14 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse,
 ): Promise<void> {
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  // Cross-origin policy and preflight both live in `api/_utils/cors.ts` — the
+  // one place that decides them. This route is authenticated (a bearer, below),
+  // and an authenticated endpoint answering `*` is precisely the shape that
+  // helper exists to remove.
+  if (applyCors(req, res, { methods: 'GET, POST' })) return
   // Never let a CDN/SW cache an entitlement answer — it must reflect live state.
   res.setHeader('Cache-Control', 'no-store')
 
-  if (req.method === 'OPTIONS') {
-    res.status(200).end()
-    return
-  }
   if (req.method !== 'GET' && req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' })
     return

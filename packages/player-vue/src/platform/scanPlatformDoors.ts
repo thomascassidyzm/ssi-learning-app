@@ -51,6 +51,11 @@ export const DOOR_PATTERNS: DoorPattern[] = [
     why: 'service-worker registration is gated once, in PwaUpdatePrompt, via shouldRunServiceWorker()',
   },
   {
+    name: 'payment-route-redefinition',
+    re: /\b(?:function|const|let|var)\s+(?:paymentRoute|canTakePayment|paddleBillingAvailable|institutionalPurchaseAvailable|storeBillingWired)\b/i,
+    why: 'import the answer from platform/paymentRoute; there is exactly one payment-route declaration',
+  },
+  {
     name: 'raw-storage-estimate',
     re: /storage\s*\.\s*estimate\s*\(/,
     why: 'use estimateStorage()/storagePressure() from platform/storage so a native backend can be swapped in',

@@ -50,7 +50,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
-import { schoolMembershipsOf, type SchoolMembership } from '../_utils/schoolStaff'
+import {
+  schoolMembershipsOf,
+  schoolReachOf,
+  type SchoolMembership,
+  type SchoolReach,
+} from '../_utils/schoolStaff'
 import { getAppOrigin } from '../_utils/appOrigin'
 import {
   ACCESS_CODE_TTL_MS,
@@ -59,6 +64,7 @@ import {
   generateAccessCode,
   hashAccessCode,
 } from '../_utils/accessCode'
+import { applyCors } from '../_utils/cors'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -87,6 +93,11 @@ async function callerAdminSchoolId(svc: SupabaseClient, authUid: string): Promis
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  // Cross-origin policy and preflight both live in `api/_utils/cors.ts`.
+  // Without this the native WebView's preflight for the `Authorization`
+  // header goes unanswered and the call fails there while working on the web.
+  if (applyCors(req, res, { methods: 'POST' })) return
+
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' })
     return
@@ -144,11 +155,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // schools.admin_user_id rather than a tag.
     const isSelf = targetUserId === auth.userId
     if (!isSelf) {
-      // The SAME resolver that answered for the caller, so both spellings of
-      // membership are seen on both sides of the comparison.
-      const targetMemberships = await schoolMembershipsOf(supabase, targetUserId)
+      // Two questions, two resolvers — deliberately different, because they
+      // ARE different questions:
+      //   - "is this person staff at MY school?" → schoolMembershipsOf, the
+      //     same staff resolver that answered for the caller, so both spellings
+      //     of staff membership are seen on both sides of the comparison.
+      //   - "does this account reach anywhere ELSE?" → schoolReachOf, which
+      //     also counts a PUPIL seat. Minting a session opens whatever the
+      //     account can open, and a pupil seat at another school is exactly
+      //     that. See the header on schoolReachOf.
+      const targetStaffAt = await schoolMembershipsOf(supabase, targetUserId)
+      const targetReach = await schoolReachOf(supabase, targetUserId)
 
-      if (!targetMemberships.some((m: SchoolMembership) => m.schoolId === callerSchoolId)) {
+      if (!targetStaffAt.some((m: SchoolMembership) => m.schoolId === callerSchoolId)) {
         res.status(404).json({ error: 'That person is not a member of your school' })
         return
       }
@@ -169,10 +188,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         return
       }
 
-      // Staff at a SECOND school reach outside the caller's scope too — and
-      // "second school" includes one they FOUND (schools.admin_user_id) and
-      // were never tagged at, which the old tags-only check could not see.
-      const reachesElsewhere = targetMemberships.some((m: SchoolMembership) => m.schoolId !== callerSchoolId)
+      // A SECOND school outside the caller's scope — in ANY capacity. That
+      // includes one they FOUND (schools.admin_user_id) and were never tagged
+      // at, which the old tags-only check could not see, AND one they merely
+      // STUDY at, which the old staff-only check could not see either.
+      const reachesElsewhere = targetReach.some((m: SchoolReach) => m.schoolId !== callerSchoolId)
       if (reachesElsewhere) {
         res.status(403).json({ error: 'This account belongs to more than one school — ask SSi support for a link.' })
         return

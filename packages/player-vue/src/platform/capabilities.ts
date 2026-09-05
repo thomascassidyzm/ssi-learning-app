@@ -125,6 +125,49 @@ export function shouldRunServiceWorker(): boolean {
 }
 
 /**
+ * Should this build ever offer the learner "install this app"?
+ *
+ * On the web: YES. The PWA install banner, the /install guide and the org
+ * lane's install walk are all unchanged.
+ *
+ * In a WebView: NO. The learner has ALREADY installed the app — that is how
+ * they are reading this — so an add-to-home-screen offer is at best noise and
+ * at worst an instruction to install a second copy. Tom, seeing it on the
+ * first Android build, 2026-09-04: "we want to suppress this install pop up
+ * presumably!!!"
+ *
+ * Note this is NOT the same question as "did beforeinstallprompt fire". The
+ * banner's own gate was `display-mode: standalone`, which is FALSE inside a
+ * WebView, so the banner appeared without any prompt event at all. The
+ * question the callers actually have is this one, so this is the one the seam
+ * answers.
+ */
+export function shouldOfferAppInstall(): boolean {
+  return current.shell !== 'webview'
+}
+
+/**
+ * Should this build DESCRIBE its own staleness — "this app is from {date}, a
+ * newer version exists"?
+ *
+ * In a WebView: YES. The APK bundles its web assets, so nothing inside it can
+ * notice new code by itself and no action its holder takes will fetch any: the
+ * only remedy is installing a new app. Left silent, that lag is undetectable,
+ * which is exactly what happened to the build Tom was testing on 2026-09-04.
+ *
+ * On the web: NO. The service-worker update banner already owns this ground,
+ * a reload genuinely resolves it, and a line telling a browser user to go and
+ * install an app would be false. Web behaviour is unchanged.
+ *
+ * Note this is NOT `isNativeShell()` wearing a different hat, for the same
+ * reason `shouldOfferAppInstall()` is not: the question a caller has is this
+ * one, so this is the one the seam answers.
+ */
+export function shouldDescribeStaleness(): boolean {
+  return current.shell === 'webview'
+}
+
+/**
  * Is a service worker API present at all? Diagnostics and cleanup paths ask
  * this — they must keep working on the web and quietly no-op where there is
  * no SW to inspect.
