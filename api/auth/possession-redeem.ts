@@ -21,10 +21,11 @@
  * touches invite_codes.use_count or any role/grant logic.
  *
  * Security rails:
- *   - an address whose account is an EMPTY SHELL (never signed in, never
- *     confirmed, no role, no invite — the residue of an OTP that was
- *     requested and never arrived) IS adopted rather than refused: there is
- *     no account there to take over, and refusing it was itself the wall.
+ *   - an address whose account already exists is adopted ONLY when that
+ *     account shell carries a fresh claim naming THIS invite code — i.e. this
+ *     same flow created it moments ago and is retrying. See
+ *     api/_utils/shellClaim.ts for why shape alone ("looks untouched") was a
+ *     pre-hijacking hole (CWE-1188) rather than a safe rescue.
  *   - invite-code TYPES only (teacher/school_admin/school_admin_join/
  *     govt_admin/student) — ssi_admin/tester/god codes can't use this path.
  *   - an email that already has an account is NEVER minted a session here —
@@ -50,6 +51,7 @@ import { applyCors } from '../_utils/cors'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { randomUUID } from 'crypto'
 import { isValidEmailFormat, isDisposableEmailDomain, hasMxRecord } from '../_utils/emailValidation'
+import { buildShellClaim, clearedShellClaim, shellClaimMatches } from '../_utils/shellClaim'
 import {
   getClientIp,
   hashIp,
@@ -118,16 +120,21 @@ async function logAttempt(supabase: SupabaseClient, fields: AttemptFields): Prom
 }
 
 /**
- * An account is a SHELL if nobody has ever been inside it: no completed
- * sign-in, no confirmed email, and a learner row carrying no role, no
- * platform role and no redeemed invite. Adopting one hands a session to
- * whoever holds a valid invite code — which is exactly what that code does
- * for a brand-new address anyway, so this opens no capability that did not
- * already exist. Returns null (refuse) on ANY doubt.
+ * Adopt an existing account shell — ONLY one THIS invite's own flow created.
+ *
+ * The load-bearing check is the CLAIM (api/_utils/shellClaim.ts): the shell must
+ * carry a fresh, service-role-written stamp naming this exact invite code. The
+ * shape checks below (never signed in, never confirmed, no role/platform/invite
+ * on the learner row) are kept as defence in depth — a claimed shell that has
+ * somehow acquired a heartbeat is still refused — but they are no longer what
+ * makes adoption safe. Adding more of them was never going to be: it was the
+ * absence of a positive binding to this invite that let an attacker pre-create
+ * a shell for somebody else's address. Returns null (refuse) on ANY doubt.
  */
 async function tryAdoptShellAccount(
   supabase: SupabaseClient,
   email: string,
+  inviteCodeId: string,
 ): Promise<{ userId: string; session: { access_token: string; refresh_token: string } } | null> {
   try {
     // generateLink is also our lookup: for an address that already has an
@@ -144,6 +151,10 @@ async function tryAdoptShellAccount(
     const { data: fetched } = await supabase.auth.admin.getUserById(existingId)
     const user = fetched?.user
     if (!user) return null
+
+    // THE RULE: this invite may only bind a shell this invite's flow created.
+    if (!shellClaimMatches(user as { app_metadata?: Record<string, unknown> | null }, inviteCodeId)) return null
+
     if (user.last_sign_in_at) return null
     if (user.email_confirmed_at) return null
 
@@ -165,8 +176,12 @@ async function tryAdoptShellAccount(
 
     // Carry the same "never proved mailbox receipt" marker a fresh possession
     // account gets, so the add-your-email nudge behaves identically.
+    // Spend the claim in the same patch: one shell, adopted once.
     await supabase.auth.admin
-      .updateUserById(existingId, { user_metadata: { ...(user.user_metadata || {}), onboarded_via: 'possession' } })
+      .updateUserById(existingId, {
+        user_metadata: { ...(user.user_metadata || {}), onboarded_via: 'possession' },
+        app_metadata: clearedShellClaim(user.app_metadata as Record<string, unknown> | null),
+      })
       .catch(() => {})
 
     return {
@@ -393,6 +408,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const { data: created, error: createError } = await supabase.auth.admin.createUser({
       email: normalizedEmail,
       email_confirm: false,
+      // The claim: this shell belongs to THIS invite's redemption, and only a
+      // retry of it may adopt the row if creation half-fails below.
+      // Service-role-only storage — see api/_utils/shellClaim.ts.
+      app_metadata: buildShellClaim(inviteRow.id as string),
       user_metadata: {
         // Deliberately 'possession' for both paths — the whole needs-real-email
         // apparatus (useAuth.needs_verification, SettingsScreen's add-email
@@ -407,23 +426,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     if (createError || !created?.user) {
       if (isAlreadyRegisteredError(createError)) {
-        // --- EMPTY SHELL ADOPTION ---------------------------------------
-        // Asking for an OTP CREATES the auth user before the code is typed.
-        // So a teacher whose gateway eats the mail ends up owning an account
-        // they have never once been inside — and from that moment their
-        // invite code stops working too ("an account already exists"), which
-        // is the wall closing behind them. Measured live 2026-09-02: 81
-        // accounts in this state, the newest minted that morning.
+        // --- CLAIMED SHELL ADOPTION --------------------------------------
+        // Only a shell THIS invite's own flow created, moments ago, may be
+        // adopted — the createUser above stamps that claim, and nothing else
+        // in the estate can write it. That covers the one legitimate case:
+        // this same redemption created the row, the mint then failed, its
+        // cleanup failed too, and the person is retrying.
         //
-        // If the existing account is a SHELL — never signed in, never
-        // confirmed, no role, no invite, nothing to take — adopting it is not
-        // account takeover, because there is no account there yet. It is the
-        // same fresh start the code was always going to give them, on the row
-        // their own aborted attempt left behind.
-        //
-        // Anything with a heartbeat (one completed sign-in, a confirmed
-        // email, a role, a redeemed invite) is refused exactly as before.
-        const adopted = await tryAdoptShellAccount(supabase, normalizedEmail)
+        // Every other already-registered address — including the untouched
+        // residue of an OTP that never arrived — is refused with
+        // already_registered. Those two are indistinguishable from the row,
+        // and treating "untouched" as safe was the pre-hijacking hole
+        // (CWE-1188): anyone could manufacture an untouched shell for anyone
+        // else's address just by asking for a code. The gateway-eaten-OTP
+        // teacher is rescued instead by their school admin minting them an
+        // access code (api/school/staff-signin-link.ts), which is the same
+        // help with somebody accountable attached to it.
+        const adopted = await tryAdoptShellAccount(supabase, normalizedEmail, inviteRow.id as string)
         if (adopted) {
           await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: normalizedEmail, ipHash, outcome: 'adopted_shell', authUserId: adopted.userId })
           res.status(200).json({

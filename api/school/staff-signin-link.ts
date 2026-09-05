@@ -50,6 +50,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
+import { schoolMembershipsOf, type SchoolMembership } from '../_utils/schoolStaff'
 import { getAppOrigin } from '../_utils/appOrigin'
 import {
   ACCESS_CODE_TTL_MS,
@@ -72,29 +73,18 @@ const OUT_OF_SCOPE_PLATFORM_ROLES = new Set(['ssi_admin', 'god'])
 
 /**
  * The caller's own school, admin-only — resolved from their verified identity,
- * never from the request body. Same resolution as remove-staff.ts /
- * update-profile.ts: schools.admin_user_id, else a SCHOOL: tag with
- * role_in_context 'admin'.
+ * never from the request body.
+ *
+ * ONE resolver, used for the caller AND the target below
+ * (api/_utils/schoolStaff.ts → schoolMembershipsOf). Both spellings of school
+ * membership — `schools.admin_user_id` and an active SCHOOL: tag — are answered
+ * by that single function, so the caller and the target can never again be
+ * asked different questions about the same thing. That asymmetry was the bug:
+ * see the header comment on schoolMembershipsOf.
  */
 async function callerAdminSchoolId(svc: SupabaseClient, authUid: string): Promise<string | null> {
-  const { data: ownSchool } = await svc
-    .from('schools')
-    .select('id')
-    .eq('admin_user_id', authUid)
-    .maybeSingle()
-  if (ownSchool?.id) return String(ownSchool.id)
-
-  const { data: tag } = await svc
-    .from('user_tags')
-    .select('tag_value')
-    .eq('user_id', authUid)
-    .eq('tag_type', 'school')
-    .eq('role_in_context', 'admin')
-    .is('removed_at', null)
-    .limit(1)
-    .maybeSingle()
-  if (tag?.tag_value) return String(tag.tag_value).replace('SCHOOL:', '')
-  return null
+  const memberships = await schoolMembershipsOf(svc, authUid)
+  return memberships.find((m: SchoolMembership) => m.role === 'admin')?.schoolId ?? null
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -160,18 +150,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // schools.admin_user_id rather than a tag.
     const isSelf = targetUserId === auth.userId
     if (!isSelf) {
-      const { data: targetTag } = await supabase
-        .from('user_tags')
-        .select('id, role_in_context')
-        .eq('user_id', targetUserId)
-        .eq('tag_type', 'school')
-        .eq('tag_value', `SCHOOL:${callerSchoolId}`)
-        .in('role_in_context', ['teacher', 'admin'])
-        .is('removed_at', null)
-        .limit(1)
-        .maybeSingle()
+      // The SAME resolver that answered for the caller, so both spellings of
+      // membership are seen on both sides of the comparison.
+      const targetMemberships = await schoolMembershipsOf(supabase, targetUserId)
 
-      if (!targetTag) {
+      if (!targetMemberships.some((m: SchoolMembership) => m.schoolId === callerSchoolId)) {
         res.status(404).json({ error: 'That person is not a member of your school' })
         return
       }
@@ -192,16 +175,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         return
       }
 
-      // Staff at a SECOND school reach outside the caller's scope too.
-      const { data: otherTags } = await supabase
-        .from('user_tags')
-        .select('tag_value')
-        .eq('user_id', targetUserId)
-        .eq('tag_type', 'school')
-        .is('removed_at', null)
-      const reachesElsewhere = (otherTags || []).some(
-        (t: any) => String(t.tag_value || '').replace('SCHOOL:', '') !== callerSchoolId,
-      )
+      // Staff at a SECOND school reach outside the caller's scope too — and
+      // "second school" includes one they FOUND (schools.admin_user_id) and
+      // were never tagged at, which the old tags-only check could not see.
+      const reachesElsewhere = targetMemberships.some((m: SchoolMembership) => m.schoolId !== callerSchoolId)
       if (reachesElsewhere) {
         res.status(403).json({ error: 'This account belongs to more than one school — ask SSi support for a link.' })
         return
