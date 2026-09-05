@@ -33,6 +33,20 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
+  // Answer the preflight in the same posture this route serves: wildcard,
+  // credential-free, no Authorization. Without this an OPTIONS falls into the
+  // 405 below, and any cross-origin caller that preflights (a ranged fetch
+  // from the native shell, say) never reaches the bytes. The wildcard is the
+  // deliberate one — see the comment beside the response headers further down.
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Allow-Origin', '*')
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+    res.setHeader('Access-Control-Max-Age', '86400')
+    res.status(204).end()
+    return
+  }
+
   // Only allow GET requests
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' })
@@ -150,6 +164,22 @@ export default async function handler(
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
       res.setHeader('Vercel-CDN-Cache-Control', 'no-store')
       res.setHeader('CDN-Cache-Control', 'no-store')
+      // DELIBERATELY WILDCARD — reviewed 2026-09-04 and left open on purpose.
+      // Three reasons, in order of weight:
+      //  1. This proxy is reached by `<audio src>`, which cannot set an
+      //     `Authorization` header. It is header-free and credential-free by
+      //     design (note the absence of Authorization above, and cors.ts never
+      //     emits Allow-Credentials), so the wildcard grants no cross-origin
+      //     read that a plain <audio> tag could not already do.
+      //  2. `vercel.json` carries a platform-layer rule on `/api/audio/(.*)`
+      //     sending the same wildcard. That is a SECOND LOCK on this same
+      //     door, not another door: removing the header here would NOT close
+      //     the route, it would only make the code claim a posture the
+      //     deployment does not have. Close both or neither.
+      //  3. Audio must never stop. A wrong closure here is a live outage on a
+      //     learner's phone; the wildcard's blast radius is public mp3 bytes.
+      // The entitlement gate that actually matters is server-side, in
+      // `resolveAudioEntitlement` — CORS is a browser-read policy, not authz.
       res.setHeader('Access-Control-Allow-Origin', '*')
       res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type')

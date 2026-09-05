@@ -19,6 +19,9 @@ import { paddleConfig } from '../lib/paddle'
 // The ONE payment-route declaration (platform/paymentRoute). Every control in
 // this file that starts or manages a payment asks it — never the platform.
 import { canTakePayment, paddleBillingAvailable } from '../platform/paymentRoute'
+import { platform } from '../platform/capabilities'
+import { appIsStale, checkAppStaleness } from '../composables/useAppStaleness'
+import { shaPrefixEq } from '../platform/buildStaleness'
 import FamilyManagementModal from './FamilyManagementModal.vue'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useReleaseNotes } from '../composables/useReleaseNotes'
@@ -276,6 +279,57 @@ const versionDisplay = computed(() => {
   return formattedBuildTime.value ? `${sha} · ${formattedBuildTime.value}` : sha
 })
 
+// Which deployment is this build actually TALKING TO?
+//
+// On a bundled native shell the web assets are frozen into the APK, so the
+// build id alone does not answer the question that matters when something
+// looks wrong: which API origin is on the other end. The wrapper stamps that
+// origin at build time (scripts/injectPlatform.mjs -> window.__SSI_PLATFORM__)
+// and the platform seam reads it; on the web apiOrigin is empty by design,
+// where the page's own host IS the truthful answer.
+//
+// Host only, not the full URL — the scheme and path are noise on a phone.
+const buildOrigin = computed(() => {
+  try {
+    const configured = platform().apiOrigin
+    if (configured) return new URL(configured).host
+    return typeof window !== 'undefined' ? window.location.host : ''
+  } catch {
+    return ''
+  }
+})
+
+// IS THIS APK BEHIND? (native shell only — see composables/useAppStaleness.ts)
+//
+// The bundled build cannot notice new code by itself: its own /version.json is
+// frozen into the APK. The composable asks the API ORIGIN instead, and only
+// says "behind" when the clock proves it. Kicked off on mount; silent on every
+// answer it cannot read, and silent on the web, where the update card above is
+// already the truthful affordance.
+//
+// It DESCRIBES. It does not gate: nothing below refuses a tap, blocks
+// navigation or interrupts playback.
+onMounted(() => { void checkAppStaleness() })
+
+// The date this build was made, in words — the learner gets a date, never a
+// sha. The sha stays one line up, on the build row, where provenance lives.
+const buildDateWords = computed(() => {
+  if (!buildTime) return ''
+  const d = new Date(buildTime)
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+})
+
+// A stale APK's only remedy is INSTALLING A NEW APP — no reload, no wait, no
+// amount of clearing storage brings new web code into a bundled shell. So this
+// sentence must not borrow the panel's self-resolving vocabulary ("it comes
+// through as soon as we can reach it"), which would be a lie here. It promises
+// the resolution that actually exists.
+const stalenessLine = computed(() => {
+  if (!appIsStale.value || !buildDateWords.value) return ''
+  return t('settings.appBehindLive').replace('{date}', buildDateWords.value)
+})
+
 // What's new — latest curated release notes from Supabase
 const { notes: releaseNotes, isLoading: notesLoading, load: loadReleaseNotes } = useReleaseNotes()
 const showAllNotes = ref(false)
@@ -320,12 +374,10 @@ function visibleBullets(note: { id: string; bullets: string[] }): string[] {
 // short-circuit never fired → released_at (always after buildTime, since notes
 // are written post-deploy) produced a PERMANENT false "Update available" that
 // tapping couldn't clear. Compare on the shorter prefix to be length-agnostic.
+//
+// The comparison itself lives in platform/buildStaleness.ts, where the
+// staleness line reads it too — two surfaces must never recompute one fact.
 const latestNote = computed(() => releaseNotes.value[0] || null)
-function shaPrefixEq(a: string | null | undefined, b: string | null | undefined): boolean {
-  if (!a || !b) return false
-  const n = Math.min(a.length, b.length)
-  return n > 0 && a.slice(0, n) === b.slice(0, n)
-}
 const onLatestNoteVersion = computed(() => !!latestNote.value && shaPrefixEq(latestNote.value.version, buildNumber))
 const noteIndicatesNewer = computed(() => {
   const n = latestNote.value
@@ -1650,6 +1702,16 @@ const confirmReset = async () => {
         </span>
       </button>
 
+      <!-- Where this build's API traffic goes. Quiet second line, deliberately
+           outside the tappable card so it isn't read out as part of the update
+           action. See buildOrigin above for why it exists at all. -->
+      <p v-if="buildOrigin" class="build-origin">{{ buildOrigin }}</p>
+
+      <!-- This build is provably older than the live one. A DESCRIPTION, not a
+           gate: plain text, nothing tappable, no modal, and absent entirely
+           whenever the app is current or we cannot tell. -->
+      <p v-if="stalenessLine" class="build-stale" role="status">{{ stalenessLine }}</p>
+
       <!-- What's New — the release train's own notes, bundled at build time from
            tools/release-train/notes/ (shipped ones only, never a draft), merged
            with any admin-curated rows (see /admin/release-notes), which win their
@@ -2579,6 +2641,21 @@ const confirmReset = async () => {
   font-size: 0.75rem;
   color: var(--text-muted);
   font-weight: 400;
+}
+
+.build-stale {
+  margin: 6px 2px 12px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--text-secondary, var(--text-muted));
+}
+
+.build-origin {
+  margin: 6px 2px 0;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+  word-break: break-all;
 }
 
 .build-card {

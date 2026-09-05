@@ -100,10 +100,23 @@ export const INSTITUTIONAL_PURCHASE_IN_BUILD: boolean =
   typeof __INSTITUTIONAL_PURCHASE__ === 'boolean' ? __INSTITUTIONAL_PURCHASE__ : true
 
 /**
- * Runtime companion for components that render an institutional affordance
- * (nav tabs, trial-expired walls). In a webview build the constant above has
- * already removed the destination; this keeps the link from rendering too, so
- * there is no tab pointing at a route that no longer exists.
+ * THE answer for anything that RENDERS an institutional affordance — a nav tab,
+ * a billing panel, a trial-expired wall, an Upgrade link.
+ *
+ * Visibility and capability are one fact, and this is where it is declared.
+ * Deriving visibility from INSTITUTIONAL_PURCHASE_IN_BUILD instead is the
+ * defect an outside review found on 2026-09-05: the constant is BUILD-time, so
+ * in the case the Android shell actually uses — the WEB artifact loaded inside
+ * a WebView, with `window.__SSI_PLATFORM__ = { shell: 'webview' }` injected at
+ * boot, which capabilities.ts documents as a first-class path — the constant is
+ * true while the capability is false. The panel rendered, Subscribe worked, and
+ * Paddle opened inside a store app: an outside payment route for digital goods,
+ * and a hard rejection at review.
+ *
+ * So the split is: the constant removes code from the ARTIFACT (routes, lazy
+ * imports); this predicate decides what a learner or tutor SEES. Pinned by
+ * `institutionalVisibility.test.ts`, which scans the source rather than any one
+ * component, because the failure mode is the next surface written the old way.
  */
 export function institutionalPurchaseAvailable(): boolean {
   return INSTITUTIONAL_PURCHASE_IN_BUILD && paymentRoute() === 'paddle'

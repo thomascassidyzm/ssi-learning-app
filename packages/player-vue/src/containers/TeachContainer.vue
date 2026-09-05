@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router'
 import TopNav from '@/components/schools/shared/TopNav.vue'
 import AtmosphereBackdrop from '@/components/schools/shared/AtmosphereBackdrop.vue'
 import FrostCard from '@/components/schools/shared/FrostCard.vue'
-import { INSTITUTIONAL_PURCHASE_IN_BUILD } from '@/platform/paymentRoute'
+import { INSTITUTIONAL_PURCHASE_IN_BUILD, institutionalPurchaseAvailable } from '@/platform/paymentRoute'
 import Button from '@/components/schools/shared/Button.vue'
 import { SignInModal } from '@/components/auth'
 import { useAuthModal } from '@/composables/useAuthModal'
@@ -19,6 +19,9 @@ import { sendSignInCode } from '../auth/sendSignInCode'
 const UpgradeView = INSTITUTIONAL_PURCHASE_IN_BUILD
   ? defineAsyncComponent(() => import('@/views/schools/UpgradeView.vue'))
   : null
+// …and what is SHOWN asks the seam, so a web artifact running inside the
+// native WebView renders no purchase route either.
+const seatPurchaseAvailable = computed(() => institutionalPurchaseAvailable())
 
 // Supabase + auth from App.vue
 const supabase = inject('supabase', ref(null)) as any
@@ -256,7 +259,7 @@ const handleAuthSuccess = () => closeAuth()
           Subscribe below to keep running classes and earning. Your classes and
           students are safe — nothing is deleted.
         </p>
-        <UpgradeView v-if="UpgradeView" />
+        <UpgradeView v-if="UpgradeView && seatPurchaseAvailable" />
         <p v-else class="expired-lede">
           Your tutoring subscription has ended. Renew it from your account on a
           computer to start running classes again.

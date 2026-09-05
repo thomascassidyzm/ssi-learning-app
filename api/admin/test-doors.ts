@@ -41,8 +41,14 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { verifyAdmin } from '../_utils/auth'
+import { applyCors } from '../_utils/cors'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Cross-origin policy and preflight both live in `api/_utils/cors.ts`.
+  // Without this the native WebView's preflight for the `Authorization`
+  // header goes unanswered and the call fails there while working on the web.
+  if (applyCors(req, res, { methods: 'GET' })) return
+
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET')
     return res.status(405).json({ error: 'Method not allowed' })

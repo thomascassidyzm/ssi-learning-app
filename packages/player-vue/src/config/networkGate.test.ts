@@ -14,6 +14,7 @@ import {
   isNetworkPresumedDown,
   isOfflineish,
   markNetworkStalled,
+  clearNetworkStalled,
   __resetNetworkGateForTests,
 } from './networkGate'
 
@@ -35,14 +36,56 @@ describe('networkGate', () => {
 
   it('returns the sentinel instead of hanging, and records the stall', async () => {
     vi.useFakeTimers()
-    const hang = new Promise<string>(() => {})
-    const settled = withNetworkTimeout(hang)
+    const hang = () => withNetworkTimeout(new Promise<string>(() => {}))
+    const first = hang()
     await vi.advanceTimersByTimeAsync(CRITICAL_PATH_TIMEOUT_MS + 1)
-    expect(await settled).toBe(NETWORK_TIMEOUT)
+    expect(await first).toBe(NETWORK_TIMEOUT)
+    // ONE timeout is not evidence — see the two-strike test below.
+    expect(isNetworkPresumedDown()).toBe(false)
+    const second = hang()
+    await vi.advanceTimersByTimeAsync(CRITICAL_PATH_TIMEOUT_MS + 1)
+    expect(await second).toBe(NETWORK_TIMEOUT)
     expect(isNetworkPresumedDown()).toBe(true)
   })
 
+  /**
+   * The bug this rule exists for: one 2.5s abort on /round-map, on a full 5G
+   * signal, put the app into "presumed offline" for a whole minute — and the
+   * belt strip drew every belt as not-downloaded (Tom's screenshots,
+   * 2026-09-04).
+   */
+  it('one failure alone does NOT presume the network down', () => {
+    markNetworkStalled()
+    expect(isNetworkPresumedDown()).toBe(false)
+  })
+
+  it('two failures in a row do', () => {
+    markNetworkStalled()
+    markNetworkStalled()
+    expect(isNetworkPresumedDown()).toBe(true)
+  })
+
+  it('a success between two failures resets the count — no strike carries over', () => {
+    markNetworkStalled()
+    clearNetworkStalled()
+    markNetworkStalled()
+    expect(isNetworkPresumedDown()).toBe(false)
+  })
+
+  it('the presumption expires after the (shortened) TTL', () => {
+    vi.useFakeTimers()
+    markNetworkStalled()
+    markNetworkStalled()
+    expect(isNetworkPresumedDown()).toBe(true)
+    vi.advanceTimersByTime(20_001)
+    expect(isNetworkPresumedDown()).toBe(false)
+    // …and the strikes went with it: the next single failure starts clean.
+    markNetworkStalled()
+    expect(isNetworkPresumedDown()).toBe(false)
+  })
+
   it('a success after a stall clears the observation', async () => {
+    markNetworkStalled()
     markNetworkStalled()
     expect(isNetworkPresumedDown()).toBe(true)
     await withNetworkTimeout(Promise.resolve(1))
@@ -56,6 +99,7 @@ describe('networkGate', () => {
     // The weak-signal lie: the browser claims online, nothing completes.
     vi.stubGlobal('navigator', { onLine: true })
     expect(isOfflineish()).toBe(false)
+    markNetworkStalled()
     markNetworkStalled()
     expect(isOfflineish()).toBe(true)
   })

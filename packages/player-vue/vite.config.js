@@ -1,12 +1,45 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
 import { fileURLToPath, URL } from 'node:url'
+import { execFileSync } from 'node:child_process'
 
-// Generate build info at build time
+// Generate build info at build time.
+//
+// PROVENANCE, and why the git fallback is here (2026-09-04). A Vercel build
+// gets its sha from the git integration and stamps the 7-char prefix into both
+// `__BUILD_NUMBER__` and `/version.json`. A build made OUTSIDE that integration
+// — the Android wrapper, a local `pnpm build` — used to fall straight through
+// to a base-36 millisecond timestamp, so the Settings build row read something
+// like `dev-mtmmp3ke`: not a friendly alias for a commit, but no provenance at
+// all. Nobody could answer "which build is on that phone", because the commit
+// was never recorded. Reading the local sha makes the row answerable, and the
+// `local-` prefix keeps it honestly distinguishable from a deployed build.
 const buildTime = new Date().toISOString()
+
+/** The working tree's own short sha, marked local. Null if git can't answer. */
+function localGitBuildNumber() {
+  try {
+    const run = (args) =>
+      execFileSync('git', args, { cwd: import.meta.dirname, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+    const sha = run(['rev-parse', '--short=7', 'HEAD'])
+    if (!/^[0-9a-f]{7}$/.test(sha)) return null
+    // A dirty tree is NOT the commit it claims to be — say so in the row.
+    // TRACKED changes only (`-uno`): untracked files are build detritus and a
+    // worktree's own node_modules, and letting those stamp every local build
+    // `-dirty` would make the marker meaningless.
+    const dirty = run(['status', '--porcelain', '-uno']).length > 0
+    return `local-${sha}${dirty ? '-dirty' : ''}`
+  } catch {
+    // No git, no .git (a tarball, a slim container), git refused. Never let
+    // build-stamp bookkeeping break the build.
+    return null
+  }
+}
+
 const buildNumber = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ||
                     process.env.GIT_COMMIT?.slice(0, 7) ||
+                    localGitBuildNumber() ||
                     `dev-${Date.now().toString(36)}`
 
 // Dev-only affordances (the `?wedge=1` boot-watchdog rehearsal cheat). Vercel
@@ -34,12 +67,39 @@ const versionFilePlugin = () => ({
     this.emitFile({
       type: 'asset',
       fileName: 'version.json',
-      source: JSON.stringify({ buildNumber }),
+      // buildTime rides along so a reader can tell "newer" from merely
+      // "different". A bundled native shell compares its own stamp against
+      // this one (platform/buildStaleness.ts), and two shas that disagree do
+      // not say which came first — only the clock does.
+      source: JSON.stringify({ buildNumber, buildTime }),
     })
   },
 })
 
 // https://vite.dev/config/
+/**
+ * The shell name, resolved the way the APP resolves it.
+ *
+ * Vite loads .env files AFTER evaluating this config, so `process.env` alone
+ * sees only variables that were EXPORTED into the shell. App code, meanwhile,
+ * reads `import.meta.env.VITE_APP_SHELL` (platform/capabilities.ts), which Vite
+ * DOES populate from .env files. That is two sources for one fact: put
+ * `VITE_APP_SHELL=webview` in .env.production and `__INSTITUTIONAL_PURCHASE__`
+ * below evaluated as if this were a web build — leaving the three /upgrade
+ * routes and UpgradeView inside a native artifact — while the running app
+ * correctly reported 'webview'. Reproduced against the old config on
+ * 2026-09-05; the existing bundle check could not see it, because it passes the
+ * variable through `process.env` directly.
+ *
+ * loadEnv() reads the same files Vite will (and an exported process.env var
+ * still wins, as it does in Vite), so the build constant and the app agree by
+ * construction. Pinned by e2e/_payment-route-envfile-check.mjs.
+ */
+function appShell(mode) {
+  const env = { ...loadEnv(mode, import.meta.dirname, ''), ...process.env }
+  return String(env.VITE_APP_SHELL || '').trim()
+}
+
 export default defineConfig(({ mode }) => ({
   server: {
     proxy: {
@@ -265,7 +325,7 @@ export default defineConfig(({ mode }) => ({
     // three /upgrade routes and UpgradeView leave the artifact entirely.
     // Read ONLY by src/platform/paymentRoute.ts — one door.
     __INSTITUTIONAL_PURCHASE__: JSON.stringify(
-      (process.env.VITE_APP_SHELL || '').trim() !== 'webview'
+      appShell(mode) !== 'webview'
     ),
   },
   build: {

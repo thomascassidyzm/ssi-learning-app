@@ -2,6 +2,7 @@
 import { useI18n } from '../composables/useI18n'
 const { t } = useI18n()
 import { ref, inject, onMounted, onUnmounted } from 'vue'
+import { shouldOfferAppInstall } from '@/platform/capabilities'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -24,6 +25,12 @@ const MAX_DISMISSALS = 3
 const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
 function shouldShow(): boolean {
+  // Inside the native shell the learner installed the app to get here, and
+  // `display-mode: standalone` is false in a WebView — so the isStandalone
+  // check below does NOT cover this case and the banner was appearing on
+  // Android. One door: platform/capabilities answers it.
+  if (!shouldOfferAppInstall()) return false
+
   // Already installed — never show
   if (isStandalone) return false
 

@@ -52,6 +52,7 @@ import { useSchoolCheckout } from '@/composables/useSchoolCheckout'
 import { useOrgCheckout } from '@/composables/useOrgCheckout'
 import { useTeachersData } from '@/composables/schools/useTeachersData'
 import { getPaddle, paddleConfig } from '@/lib/paddle'
+import { institutionalPurchaseAvailable, paddleBillingAvailable } from '@/platform/paymentRoute'
 
 const supabase = inject<Ref<any>>('supabase', ref(null))
 const { currentUser, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
@@ -449,6 +450,8 @@ async function loadTutorSubscription(): Promise<void> {
 }
 
 async function openTutorPortal(): Promise<void> {
+  // Paddle's hosted portal is the web rail's own machinery (platform/paymentRoute).
+  if (!paddleBillingAvailable()) return
   const headers = await authHeaders()
   if (!headers) { tutorError.value = 'Sign in again to manage your subscription'; return }
   try {
@@ -463,6 +466,9 @@ async function openTutorPortal(): Promise<void> {
 
 async function subscribeTutor() {
   if (tutorBusy.value) return
+  // Capability, not build shape: an outside payment route must be unreachable
+  // from a store shell even when this view is in the artifact.
+  if (!institutionalPurchaseAvailable()) return
   // Double-subscribe guard: an already-active tutor goes to the portal, never a
   // second checkout. Re-fetch status first if the initial load hasn't resolved
   // yet (a fast click before loadTutorSubscription returns would otherwise see a
