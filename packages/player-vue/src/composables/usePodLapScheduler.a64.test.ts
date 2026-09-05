@@ -11,7 +11,7 @@ import { findConsecutiveBreach } from '../playback/capConsecutiveRepeats'
 interface MockState {
   podSentences: any[]
   bookends: any[]
-  enrollment: { pod_activation_round: number | null; completed_pod_rounds: number } | null
+  enrollment: { rounds_since_pod?: number | null; pod_activation_round?: number | null; completed_pod_rounds: number } | null
   enrollmentUpdates: Array<Record<string, any>>
 }
 

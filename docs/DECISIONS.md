@@ -1,3 +1,49 @@
+## 2026-09-05 — pod delivery is a work DEBT, not a position schedule (#646 → #649)
+
+Tom ruled yes to both of #646's questions: switch the cadence, and keep Welsh North/South and the
+no-pod courses HELD with the detector's RED standing loud rather than muted.
+
+**The rule.** One monotonic per-enrollment counter, `course_enrollments.rounds_since_pod`,
+incremented on EVERY completed round — replays, easy-mode rounds, revival-tail rounds. At any clean
+round boundary where the debt has reached `pods.roundInterval` (5) and a lap can compose, the pod
+fires; lap COMPLETION resets it to 0. Skip, failure, offline-incomplete and composed-nothing all
+leave the debt standing.
+
+**Why the axis changed.** The shipped rule was `(mainRound − activation) % 5 === 0` — five rounds of
+POSITION. Beuno did 33 round-completions in a month while his position crawled from round 10 to 14
+(replays after breaks, easy mode, short sessions), crossed no boundary, and received no pod at all.
+Position is a proxy for work; work is the thing. The constant 5 is unchanged. Measured on his real
+shape in a unit test: 0 fires under modulus, 6 under debt.
+
+**What was deleted, not left inert.** `usePodActivation.ts` (the returning-learner pin) and its call
+site, the 2026-05-20 `POD_ACTIVATION_CAP` hotfix and `DEFAULT_POD_ACTIVATION`, the
+`podActivationRound` ref and every read/write of `pod_activation_round` in the runtime path, and the
+INF-PLAY revival-ordinal special case in `podCadenceFiresAtRound` (revival rounds are work like any
+other now, so one rule covers both). Two interacting cadence mechanisms, one silently winning, was
+the named failure mode. The DB column stays — dropping a production column is not additive — but
+nothing reads or writes it.
+
+**Preview, the one genuine wrinkle.** `sectorMerge` and the span audio pre-warm take
+`shouldFireLapAt` as a pure `(totalRound) => boolean`, and a debt is not a pure function of round
+number. Settled as: the live fire decision uses a new `isLapDue()`, and `shouldFireLapAt` survives as
+a PREVIEW-ONLY forward projection of the current debt from its anchor. `sectorMerge`'s ratified
+rules are untouched.
+
+**Migration.** 1,464 enrollments with real completed rounds seeded to 5 (owed a lap at their next
+clean boundary); 300 brand-new left at 0. Seeded to the threshold, not to a computed backlog: the
+counter resets on completion and only ever needs to reach 5, so a bigger seed buys nothing and risks
+exactly the avalanche the 2026-05-20 cap was fighting.
+
+**The detector stands.** `scripts/pod-delivery-detector.mjs` runs nightly at 06:20 Europe/London
+(`ops/systemd/ssi-pod-delivery.{service,timer}`), `--days 7 --notice`, from its own worktree pinned
+to origin/dev. After the change it reports the same 9 RED / 2 AMBER / 13 GREEN as before —
+`cym_n_for_eng` RED no-servable-pod, `por_br`/`ukr`/`tur`/`isl` RED zero-delivery — which is the
+point: the content did not change, so a GREEN there would have meant a broken detector, not fixed
+courses. Held pods stay held and stay loud.
+
+Revert: one commit — `git revert fbc66978` (the rule) plus, if wanted,
+`ALTER TABLE public.course_enrollments DROP COLUMN rounds_since_pod;`. Nothing else depends on it.
+
 
 ## 2026-09-05 — promoted dev to production (ssi-learning-app)
 

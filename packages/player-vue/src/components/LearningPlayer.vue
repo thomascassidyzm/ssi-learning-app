@@ -55,7 +55,6 @@ import type { ListeningConfig as ListeningConfigType } from '../providers/genera
 // New simple script generation - direct database queries
 import { generateLearningScript as generateSimpleScript, DEFAULT_LISTENING_CONFIG, makeSliceYielder, yieldToEventLoop, type ScriptItem, type LearningScriptResult } from '../providers/generateLearningScript'
 import { computeCentralityFromScript, computeCentralityFromBundle } from '../playback/legoCentrality'
-import { resolvePodActivationRound } from '../composables/usePodActivation'
 import { toSimpleRounds, toSimpleRoundsCooperative, type TargetSpeedConfig } from '../providers/toSimpleRounds'
 import { computeListeningSpeed } from '../providers/toSimpleRounds'
 import { isRepeatCopyCycle } from '../providers/reshapeRoundRepeats'
@@ -669,16 +668,10 @@ const roundsOfScriptSliced = async (result: LearningScriptResult): Promise<any[]
 const runGenerateScript = async (
   listeningOverride?: ListeningConfigType,
 ): Promise<LearningScriptResult> => {
-  // Pod activation default lives on PodsConfig (admin UI is in L2 section).
-  // Merge it into the listening shape the generator consumes. Precedence:
-  //   1. listeningOverride.podActivationRound (per-learner pin path)
-  //   2. listeningConfig.value.podActivationRound (legacy `listening` row)
-  //   3. podsConfig.value.podActivationRound (new primary home)
-  //   4. hardcoded 6 (matches DEFAULT_POD_ACTIVATION elsewhere)
-  const baseListening = listeningOverride || listeningConfig.value
-  const podActivationRound =
-    baseListening.podActivationRound ?? podsConfig.value.podActivationRound ?? 6
-  const listening = { ...baseListening, podActivationRound }
+  // Pod cadence is a work DEBT resolved at runtime by usePodLapScheduler
+  // (2026-09-05) — the generator's podActivationRound is inert, retained only
+  // on the hot-fix rollback path, so nothing is merged into it here.
+  const listening = listeningOverride || listeningConfig.value
   // Full-course one-shot generation. The script generator walks the
   // whole inventory; the player consumes from wherever its cursor is
   // (resume-by-lego-id). No seed-range chunking; no emit windowing.
@@ -2600,6 +2593,15 @@ simplePlayer.onRoundCompleted((round) => {
     legoId: round.legoId,
     seedId: round.seedId,
   })
+
+  // WORK DEBT (2026-09-05). Every completed round — replay, easy mode,
+  // revival tail, listening round — pays into `rounds_since_pod`. This runs
+  // BEFORE the pod checks below on purpose: the round that just finished is
+  // the round that makes the debt due, so the fifth round's own boundary is
+  // where the lap fires.
+  if (podScheduler?.isInitialized.value) {
+    podScheduler.noteRoundCompleted(completedRoundIndex + 1)
+  }
 
   // Synchronously pause if a pod is about to fire on this boundary (a real
   // cadence fire, or a still-live ?pod=1 preview — podCadenceFiresAtRound
@@ -5915,17 +5917,13 @@ const updateBeltForPosition = (roundIndex) => {
   beltProgress.value.setPlayingPosition(seed)
 }
 
-// Pod-lap cadence, INF-PLAY-aware (B4, Tom 2026-06-03: listening fires every 5
-// ROUNDS, not cycles). `completedRoundIndex` is the 0-based flat queue index of
-// the round that just finished.
-//   • Main loop → defer to the scheduler's own activation+interval math, keyed
-//     on the absolute round number (unchanged behaviour).
-//   • INF PLAY → count the REVIVAL-TAIL ordinal (position past the main loop)
-//     and fire every `roundInterval` (normal config = 5) INF PLAY rounds. We use
-//     the position ordinal, NOT the bumped infplayRoundIndex, because the
-//     pre-pause check (onRoundCompleted) runs BEFORE saveRoundProgress bumps the
-//     counter and the fire check (here) runs AFTER — the position ordinal is the
-//     one value both see identically, so pause and fire never desync.
+// Pod-lap cadence (Tom 2026-06-03: listening fires every 5 ROUNDS, not cycles;
+// 2026-09-05: those are 5 rounds of WORK, not 5 rounds of position). The
+// scheduler holds a per-enrollment debt counter incremented on every completed
+// round, so this helper needs no round arithmetic and no INF-PLAY special case:
+// revival-tail rounds are work like any other and pay into the same debt.
+// `completedRoundIndex` is kept in the signature for the ?pod=1 / ?l1=1 preview
+// cheats and for call-site readability.
 const podCadenceFiresAtRound = (completedRoundIndex: number): boolean => {
   if (!podScheduler || !podScheduler.isInitialized.value) return false
   // ?pod=1 preview cheat: force true on every boundary until a forced lap
@@ -5942,17 +5940,7 @@ const podCadenceFiresAtRound = (completedRoundIndex: number): boolean => {
   // suppresses the pod PREVIEW cheat itself — if both flags are set,
   // ?pod=1 still wins (existing precedence, checked above).
   if (!forcePodPreviewCheat && forceLayer1PreviewCheat && !l1PreviewFired) return false
-  // Round-shape signal: recycled rounds have no main-loop cadence to schedule
-  // against by either route, so offline belt-held play takes the same branch.
-  if (isRecycledRoundPlayback.value) {
-    const mainLoopCount = mainLoopBoundary()
-    if (mainLoopCount < 0) return false
-    const infOrdinal = (completedRoundIndex - mainLoopCount) + 1 // 1-based revival round
-    if (infOrdinal <= 0) return false
-    const interval = Math.max(1, Math.floor(podsConfig.value.roundInterval ?? 5))
-    return infOrdinal % interval === 0
-  }
-  return podScheduler.shouldFireLapAt((completedRoundIndex || 0) + 1)
+  return podScheduler.isLapDue()
 }
 
 // A round-boundary interlude may chain commentary + a segued L1-into-pod lap
@@ -6222,9 +6210,10 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
     // playback that pod laps depend on (per the asset + program
     // architecture model).
     //
-    // Cadence via podCadenceFiresAtRound so INF PLAY counts revival-tail rounds
-    // (every 5), not the absolute flat queue index (B4).
-    if (podCadenceFiresAtRound(completedRoundIndex + 1)) {
+    // Under the work-debt rule the same due signal answers "will a lap fire
+    // soon" and "does one fire now" — a boundary that isn't due yet becomes due
+    // one round later, and prefetch is idempotent, so warming on due is enough.
+    if (podCadenceFiresAtRound(completedRoundIndex)) {
       podScheduler.prefetchLap((id) => audioCache.persistent.ensure(id))
     }
 
@@ -6437,7 +6426,7 @@ const handleRoundBoundaryBody = async (completedRoundIndex, completedLegoId, com
     // Warm the NEXT L1 lap's audio if the upcoming round ends in one and no
     // pod pre-empts it (mirror of the pod look-ahead prefetch above).
     if (l1Scheduler.shouldFireLapAt(completedMainRound + 1)
-        && !(podScheduler?.shouldFireLapAt(completedMainRound + 1))) {
+        && !(podScheduler?.isLapDue())) {
       l1Scheduler.prefetchLap(completedMainRound + 1, (id) => audioCache.persistent.ensure(id))
     }
 
@@ -15513,36 +15502,15 @@ onMounted(async () => {
             // start; phase 2 fills in the rest in the background. Returning users
             // beyond the initial window must await phase 2 so jumpToRound finds them.
             //
-            // Listening Pods (Layer 2) activation: for returning users with progress,
-            // resolve their per-enrollment pod_activation_round pin (writing it on
-            // first session if NULL) so the pod sequence starts from where they
-            // are now, not from R6 retroactively. When the pin differs from the
-            // default we bypass the eager preload and load fresh with the override
-            // — eager preload always uses the default config.
-            // Resolve the pod activation pin once — feeds into listeningConfig
-            // for any path that doesn't use the eager preload's default config.
+            // Listening Pods (Layer 2) cadence is a per-enrollment work DEBT
+            // (`rounds_since_pod`), resolved entirely at runtime by
+            // usePodLapScheduler — so there is no activation pin to resolve
+            // here any more and no reason to bypass the eager preload for one.
             // Base config comes from algorithm_config (DB-tweakable) so admins
             // can change layer1Playlist / graduation offset / window sizes
             // without redeploying. Falls back to DEFAULT_LISTENING_CONFIG if
             // the load hasn't completed yet.
             const baseListeningConfig = listeningConfig.value || DEFAULT_LISTENING_CONFIG
-            // Admin default for pod activation now lives on PodsConfig.
-            // Legacy `listening` rows still carry it; prefer that (it's the
-            // row that's been around longest), fall back to pods, then 6.
-            const adminPodActivationDefault =
-              baseListeningConfig.podActivationRound ?? podsConfig.value.podActivationRound ?? 6
-            let podActivationOverride: number | null = null
-            if (isReturningUser && startingSeed > 0) {
-              const resolved = await resolvePodActivationRound(
-                supabase.value,
-                learnerId.value,
-                courseCode.value
-              )
-              if (resolved !== adminPodActivationDefault) {
-                podActivationOverride = resolved
-                console.log(`[LearningPlayer] Pod activation pinned at round ${resolved} for returning user`)
-              }
-            }
 
             // Pick the load path:
             //   - Returning user (past seed 0):       own load, seeds 1..(startingSeed + LOOKAHEAD_CHUNK_SEEDS), with pod pin
@@ -15555,9 +15523,7 @@ onMounted(async () => {
             let result
             const eagerCourseMatches = eagerScript?.scriptPromise?.value &&
               eagerScript.courseCode.value === courseCode.value
-            const config = podActivationOverride !== null
-              ? { ...baseListeningConfig, podActivationRound: podActivationOverride }
-              : baseListeningConfig
+            const config = baseListeningConfig
 
             // Legacy fallback = a blocking full-course walk before play. Should
             // be rare (instant-playback failure). Be honest about the wait and
@@ -15607,7 +15573,7 @@ onMounted(async () => {
                 console.log(`[LearningPlayer] Returning user has reached infinite play — loading full course + ${EXPANSION_BATCH} infinite-play rounds (endSeed=${endSeed})`)
               } else {
                 endSeed = startingSeed + LOOKAHEAD_CHUNK_SEEDS
-                console.log(`[LearningPlayer] Returning user at seed ${startingSeed} — loading 1..${endSeed}${podActivationOverride !== null ? ' (custom pod pin)' : ''}`)
+                console.log(`[LearningPlayer] Returning user at seed ${startingSeed} — loading 1..${endSeed}`)
               }
               result = await generateScript(config)
               console.log(`[LearningPlayer] Returning-user load ready: ${result.roundCount} rounds`)
