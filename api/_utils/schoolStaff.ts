@@ -132,3 +132,65 @@ export async function isSchoolAdminOf(
     .maybeSingle()
   return !!tag
 }
+
+/** One school a user is staff at, under whichever spelling recorded it. */
+export interface SchoolMembership {
+  schoolId: string
+  role: 'admin' | 'teacher'
+}
+
+/**
+ * EVERY school this user is staff at — under BOTH spellings, in one answer.
+ *
+ * The bug this closes (found 2026-09-05, and it is the Chepstow bug of
+ * 2026-08-06 wearing a different hat): api/school/staff-signin-link.ts resolved
+ * the CALLER's school through both spellings — `schools.admin_user_id` OR a
+ * SCHOOL: tag — but asked whether the TARGET reaches beyond that school using
+ * `user_tags` ALONE. A founding admin of another school has the pointer and, if
+ * nothing ever tagged them, no tag at all. So they read as "belongs to nowhere
+ * else", and a school admin at school A could mint a live session as the person
+ * who runs school B.
+ *
+ * Two spellings of one identity, recognised in one place and missed in another,
+ * is the estate's recurring auth failure. So the answer is not another lookup
+ * next to the first: it is ONE function, used for the caller and the target
+ * alike, so the two can never again be asked different questions.
+ *
+ * Note what identity each spelling is keyed on — CLAUDE.md's identity
+ * rationalisation: `schools.admin_user_id` and `user_tags.user_id` BOTH hold the
+ * AUTH UID (text), not the learner PK. `authUid` here is `auth.uid()`, straight
+ * from verifyAuthToken.
+ */
+export async function schoolMembershipsOf(
+  supabase: SupabaseClient,
+  authUid: string,
+): Promise<SchoolMembership[]> {
+  if (!authUid) return []
+  const byId = new Map<string, SchoolMembership>()
+
+  // Spelling 1 — the founding-admin pointer. A person can found more than one.
+  const { data: owned } = await supabase.from('schools').select('id').eq('admin_user_id', authUid)
+  for (const row of (owned || []) as Array<{ id: string }>) {
+    if (row?.id) byId.set(String(row.id), { schoolId: String(row.id), role: 'admin' })
+  }
+
+  // Spelling 2 — active SCHOOL: membership tags. `removed_at IS NULL` matters:
+  // a revoked member must not keep the reach the tag once granted.
+  const { data: tags } = await supabase
+    .from('user_tags')
+    .select('tag_value, role_in_context')
+    .eq('user_id', authUid)
+    .eq('tag_type', 'school')
+    .in('role_in_context', SCHOOL_STAFF_ROLES as unknown as string[])
+    .is('removed_at', null)
+  for (const row of (tags || []) as Array<{ tag_value: string; role_in_context: string }>) {
+    const schoolId = String(row?.tag_value || '').replace('SCHOOL:', '')
+    if (!schoolId) continue
+    // 'admin' wins over 'teacher' when both spellings describe the same school.
+    const existing = byId.get(schoolId)
+    if (existing?.role === 'admin') continue
+    byId.set(schoolId, { schoolId, role: row.role_in_context === 'admin' ? 'admin' : 'teacher' })
+  }
+
+  return [...byId.values()]
+}
