@@ -38,7 +38,8 @@ function build(shell) {
   const out = mkdtempSync(join(tmpdir(), `ssi-bundle-${shell}-`))
   execFileSync('npx', ['vite', 'build', '--outDir', out], {
     stdio: 'ignore',
-    env: { ...process.env, ...(shell === 'webview' ? { VITE_APP_SHELL: 'webview' } : {}) },
+    // Inspect-only bundle: opts out of the webview Supabase-config guard.
+    env: { ...process.env, VITE_ALLOW_NO_SUPABASE: '1', ...(shell === 'webview' ? { VITE_APP_SHELL: 'webview' } : {}) },
   })
   return out
 }
