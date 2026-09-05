@@ -73,6 +73,23 @@ import { resolveServerCourseAccess, type CourseAccessInput } from '../_utils/cou
 const MAX_IDS_PER_REQUEST = 500
 const TTL_SECONDS = 300
 
+/**
+ * DELIBERATELY WILDCARD — reviewed 2026-09-04 and left open on purpose, unlike
+ * the five non-audio routes that were closed onto `api/_utils/cors.ts` that
+ * day. The reason is the platform layer: `vercel.json` carries a headers rule
+ * on `/api/audio/(.*)` emitting this same `Access-Control-Allow-Origin: *`, and
+ * it matches this route as well as the per-clip proxy. So this is a SECOND LOCK
+ * on one door rather than a separate door — removing the header here would not
+ * close the route, it would only make the code claim a posture the deployment
+ * does not have. Close both or neither.
+ *
+ * The wildcard is also cheap here: no `Allow-Credentials` is ever sent and no
+ * cookie is trusted as an identity, so it grants no ambient-credential read.
+ * `Authorization` is listed because the offline downloader carries a bearer,
+ * and the gate that actually matters is server-side entitlement
+ * (`resolveServerCourseAccess`, above) — CORS is a browser-read policy, not an
+ * authorisation layer.
+ */
 function setCorsHeaders(res: VercelResponse): void {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')

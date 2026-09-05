@@ -20,6 +20,7 @@ import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { hasTryEntitlement } from '../composables/useEntitlement'
 import { useSharedSubscription } from '../composables/useSubscription'
 import { useCheckout } from '../composables/useCheckout'
+import { canTakePayment } from '../platform/paymentRoute'
 import { useUserRole } from '../composables/useUserRole'
 import { checkCourseAccess, inferPricingTier } from '@ssi/core'
 import { BELTS, getSeedFromLegoId, getBeltIndexForSeed } from '../composables/useBeltProgress'
@@ -121,6 +122,8 @@ const emit = defineEmits(['close', 'selectCourse'])
 // "Go Premium" CTA — open the single Premium checkout directly (no marketing
 // page). Signed-out users get the auth modal first, then auto-continue to Paddle.
 const { startCheckout } = useCheckout()
+// The one payment-route question (platform/paymentRoute). No route, no CTA.
+const purchaseAvailable = computed(() => canTakePayment())
 function goPremium() {
   startCheckout()
   emit('close')
@@ -511,7 +514,7 @@ onMounted(() => {
                 <span class="section-header__title">{{ t('browse.premium') }}</span>
                 <span class="section-header__sub">{{ t('courseSelector.moUnlimitedAccessAll') }}</span>
               </div>
-              <button class="section-header__cta" @click="goPremium()">
+              <button v-if="purchaseAvailable" class="section-header__cta" @click="goPremium()">
                 {{ t('settings.goPremium') }}
               </button>
             </div>

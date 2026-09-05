@@ -121,7 +121,10 @@ const MAX_AGE = '86400'
  *   if (applyCors(req, res, { methods: 'GET' })) return
  */
 export function applyCors(req: VercelRequest, res: VercelResponse, opts: CorsOptions = {}): boolean {
-  const origin = (req.headers.origin as string | undefined) || ''
+  // `?.` because this helper now sits on ~95 routes and a request object
+  // without headers (a test double, a synthetic invocation) must not throw
+  // its way past authorisation that lives below it.
+  const origin = (req.headers?.origin as string | undefined) || ''
   const isPreflight = req.method === 'OPTIONS'
 
   // No Origin at all: a same-origin navigation/GET, a server-to-server call,
@@ -176,7 +179,7 @@ function withOptions(methods: string): string {
 
 /** Is the caller's Origin this same deployment? */
 function isSelfOrigin(req: VercelRequest, origin: string): boolean {
-  const host = ((req.headers.host as string) || '').toLowerCase()
+  const host = ((req.headers?.host as string) || '').toLowerCase()
   if (!host) return false
   try {
     return new URL(origin).host.toLowerCase() === host

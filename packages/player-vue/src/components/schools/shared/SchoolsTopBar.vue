@@ -17,6 +17,17 @@ type NavTab = {
   lens?: string
 }
 
+import { institutionalPurchaseAvailable } from '@/platform/paymentRoute'
+
+// Seat purchase is web-only (platform/paymentRoute). In a store build the
+// /schools/upgrade route is not compiled in, and in a store SHELL it must not
+// be offered at all — so the tab that points at it asks the seam, not the build
+// constant. One declaration, three tab sets.
+const upgradeTab = computed<NavTab[]>(() =>
+  institutionalPurchaseAvailable()
+    ? [{ label: 'Upgrade', to: '/schools/upgrade', routeName: 'schools-upgrade' }]
+    : []
+)
 const route = useRoute()
 const router = useRouter()
 const { currentUser, isGovtAdmin, isSchoolAdmin, clear: clearSchoolContext } = useSchoolContext()
@@ -88,7 +99,7 @@ const tabs = computed<NavTab[]>(() => {
         { label: 'Classes',   to: '/schools/classes',   routeName: 'classes' },
         { label: 'Students',  to: '/schools/students',  routeName: 'students' },
         { label: 'Insights',  to: `/org/${schoolId}/insights`, routeName: 'org-node-insights' },
-        { label: 'Upgrade',   to: '/schools/upgrade',   routeName: 'schools-upgrade' },
+        ...upgradeTab.value,
       ]
     }
     // Legacy school_admin rows with no resolvable school keep the flat set
@@ -102,7 +113,7 @@ const tabs = computed<NavTab[]>(() => {
       // (govt tabs, node "See insights") — the destination is already THE
       // LENS's teacher wrapper, only the label was still the old generation.
       { label: 'Insights',  to: '/schools/analytics', routeName: 'analytics' },
-      { label: 'Upgrade',   to: '/schools/upgrade',   routeName: 'schools-upgrade' },
+      ...upgradeTab.value,
     ]
   }
   // Teacher (default) — a school-employed teacher's billing is the school
@@ -118,7 +129,7 @@ const tabs = computed<NavTab[]>(() => {
     { label: 'Insights',  to: '/schools/analytics', routeName: 'analytics' },
   ]
   if (!currentUser.value.school_id) {
-    teacherTabs.push({ label: 'Upgrade', to: '/schools/upgrade', routeName: 'schools-upgrade' })
+    teacherTabs.push(...upgradeTab.value)
   }
   return teacherTabs
 })

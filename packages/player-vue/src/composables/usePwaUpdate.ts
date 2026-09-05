@@ -7,6 +7,8 @@
  *   - Click either → applyUpdate()
  */
 import { ref } from 'vue'
+import { apiOrigin } from '../platform/apiBase'
+import type { BuildStamp } from '../platform/buildStaleness'
 
 // True while a new service worker is waiting to take control.
 export const updateAvailable = ref(false)
@@ -45,14 +47,44 @@ export function isDifferentBuild(runningBuild: string, latestBuild: string | nul
   return runningBuild !== latestBuild
 }
 
-/** Fetches the build id actually live right now, bypassing every cache layer. */
-export async function fetchLatestBuildNumber(): Promise<string | null> {
+/**
+ * Where `/version.json` actually LIVES for this shell.
+ *
+ * On the web: the relative path, unchanged — the page origin IS the
+ * deployment, and that is what fixed the phantom update banner in 1403ac0e.
+ *
+ * In a bundled native shell: the API origin. The APK freezes its own
+ * `/version.json` into `assets/public/` and serves it from `https://localhost`,
+ * so the relative path can only ever hand back the running build's own id —
+ * the app asks itself and agrees with itself forever. `apiUrl()` cannot do
+ * this job: it deliberately rewrites `/api/...` paths only, and this is not
+ * one.
+ */
+function versionUrl(): string {
+  const origin = apiOrigin()
+  return origin ? `${origin}/version.json` : '/version.json'
+}
+
+/**
+ * Fetches the build stamp actually live right now, bypassing every cache
+ * layer. Null when it cannot be read at all (offline, endpoint down,
+ * unparseable) — callers decide what silence means for them.
+ */
+export async function fetchLatestBuild(): Promise<BuildStamp | null> {
   try {
-    const res = await fetch('/version.json', { cache: 'no-store' })
+    const res = await fetch(versionUrl(), { cache: 'no-store' })
     if (!res.ok) return null
     const data = await res.json()
-    return typeof data?.buildNumber === 'string' ? data.buildNumber : null
+    const buildNumber = typeof data?.buildNumber === 'string' ? data.buildNumber : null
+    const buildTime = typeof data?.buildTime === 'string' ? data.buildTime : null
+    if (!buildNumber && !buildTime) return null
+    return { buildNumber, buildTime }
   } catch {
     return null
   }
+}
+
+/** Fetches the build id actually live right now, bypassing every cache layer. */
+export async function fetchLatestBuildNumber(): Promise<string | null> {
+  return (await fetchLatestBuild())?.buildNumber ?? null
 }

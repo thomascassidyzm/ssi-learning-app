@@ -19,7 +19,7 @@ dev  ──promote──▶  staging  ──promote──▶  main
 
 | Branch | Purpose | Deploys to | Who |
 |--------|---------|------------|-----|
-| `dev` | Rapid integration — Tom's rapid work + ALL `claude/**` web sessions auto-merge here | `ssi-learning-app-git-dev-zenjin.vercel.app` (stable Vercel git-branch alias — **there is NO `dev.saysomethingin.app`, it 404s**) | Tom + Claude |
+| `dev` | Rapid integration — Tom's rapid work + ALL `claude/**` web sessions merge here (by hand or through the command surface; nothing auto-merges) | `ssi-learning-app-git-dev-zenjin.vercel.app` (stable Vercel git-branch alias — **there is NO `dev.saysomethingin.app`, it 404s**) | Tom + Claude |
 | `staging` | Stable soak — frozen-ish candidate the external/Colombo test team vets | `staging.saysomethingin.app` | promoted from `dev` |
 | `main` | Production — real users | `saysomethingin.app` | promoted from `staging` |
 
@@ -34,10 +34,20 @@ git pull origin dev
 Then **read [`WORKLIST.md`](./WORKLIST.md) (repo root)** — the shared multi-agent worklist (the live "what's next"). Before starting anything substantial, **claim your item there** (`[ ]`→`[~] @you MM-DD`, one-line commit) so parallel agents don't double-grab it. The full protocol is in its header.
 
 **Rules:**
-- `dev` is the **default branch** — new `claude/**` branches cut from it and auto-merge back to it (`.github/workflows/auto-merge-claude.yml`).
+- `dev` is the **default branch** — cut new `claude/**` branches from it and merge them back into it. **Nothing auto-merges and no workflow gates a merge**: GitHub Actions is off on this repo (Tom's ruling, 2026-08-31 — the command surface replaces it), so a pushed branch sits there until you merge it to `dev` yourself or Tom merges it through the surface. The typecheck/test gates run as nightly jobs on watson-1 and **report rather than block**, so a merge can land between two nightlies and be told about it the next morning. Run them locally before you merge: `pnpm --filter player-vue typecheck`, `pnpm --filter player-vue test`, `pnpm typecheck:api`, `pnpm test:api`.
 - **Promotion is manual and deliberate** (Tom drives it): merge `dev → staging` only when green; merge `staging → main` weekly, after the external team has vetted staging.
 - Do all feature/debug work on `dev` — it's the only environment that's safe to thrash. The external team and prod never see `dev`'s churn.
 - If you find yourself on `staging` or `main`, switch to `dev` before making changes.
+
+**GitHub Actions is retired, by DELETION, not by disabling.** `.github/` is empty on `dev` and on
+`staging` (deleted in `8c2a8830`). It still carries `auto-merge-claude.yml` and `verify.yml` on
+`main`, and will until the next ordinary promotion carries the deletion there — that residue is
+EXPECTED and is not a defect. This matters because every worker gets a private worktree cut from
+`origin/main`, so a worker reading `.github/workflows/` in its own fresh tree finds the files every
+time. Four workers in a row reported them as broken. They are not broken; they are retired, and the
+gate is `pnpm test:api` + the local feedback loops below, asserted by
+`api/_utils/securityTestMachineryIntegrity.security.test.ts`. Do not delete them from `main` — that
+is a hotfix to the production branch, and this is cosmetic.
 
 **Hotfix lane (production emergencies only):** a critical prod bug that can't wait for the promotion train goes straight to `main` via a `hotfix/<desc>` branch off `main`, then is **back-merged into `staging` AND `dev`** so the fix isn't lost on the next promotion. Use this sparingly — normal fixes ride the dev→staging→main train.
 

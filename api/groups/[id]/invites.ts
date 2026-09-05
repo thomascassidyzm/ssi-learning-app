@@ -57,6 +57,7 @@ import {
   type PersonalSigninTally,
 } from '../../_utils/personalLinkUses'
 import { sendInviteEmail, isMailable } from '../../_utils/sendInviteEmail'
+import { applyCors } from '../../_utils/cors'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -92,6 +93,11 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
+  // Cross-origin policy and preflight both live in `api/_utils/cors.ts`.
+  // Without this the native WebView's preflight for the `Authorization`
+  // header goes unanswered and the call fails there while working on the web.
+  if (applyCors(req, res, { methods: 'GET, POST, PATCH' })) return
+
   if (req.method !== 'GET' && req.method !== 'POST' && req.method !== 'PATCH') {
     res.status(405).json({ error: 'Method not allowed' })
     return

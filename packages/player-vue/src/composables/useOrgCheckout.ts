@@ -16,6 +16,7 @@
 
 import { ref, inject, type Ref } from 'vue'
 import { getPaddle, paddleConfig } from '@/lib/paddle'
+import { institutionalPurchaseAvailable } from '@/platform/paymentRoute'
 
 const isOpeningCheckout = ref(false)
 const checkoutError = ref('')
@@ -40,6 +41,10 @@ export function useOrgCheckout() {
   const supabase = inject<Ref<any>>('supabase', ref(null))
 
   async function startOrgCheckout(opts: StartOrgCheckoutOptions): Promise<void> {
+    // Seat purchase is a WEB-ONLY rail (platform/paymentRoute). In a store
+    // build the routes that reach here are not compiled in at all; this is
+    // the backstop if one is ever reached another way.
+    if (!institutionalPurchaseAvailable()) return
     if (isOpeningCheckout.value) return
     const billing = opts.billing === 'annual' ? 'annual' : 'monthly'
     const priceId =

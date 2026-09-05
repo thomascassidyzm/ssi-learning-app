@@ -16,6 +16,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from './_utils/auth'
+import { applyCors } from './_utils/cors'
 import { resolveVisibleScope } from './_utils/schoolScope'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -39,6 +40,27 @@ function getDeviceType(userAgent: string): 'mobile' | 'tablet' | 'desktop' {
   if (/ipad|android(?!.*mobile)|tablet/i.test(ua)) return 'tablet'
   if (/iphone|ipod|android.*mobile|webos|blackberry|opera mini|iemobile/i.test(ua)) return 'mobile'
   return 'desktop'
+}
+
+/**
+ * WHICH CONTAINER the session is running in — 'web' (browser tab or installed
+ * PWA) or 'webview' (the native Android/iOS shell).
+ *
+ * This is NOT device_type and must never be folded into it. device_type is
+ * form factor — phone, tablet, desktop — and a wrapped Android session on a
+ * phone is legitimately 'mobile'. Both axes matter: for the India rollout the
+ * question is whether the app beats the web, and answering it needs "phone,
+ * in the app" separable from "phone, in the browser". Tom, first Android
+ * build, 2026-09-04, where both read 'mobile'.
+ *
+ * The client declares it from its one platform door. The user-agent fallback
+ * catches an older client and Android's own `; wv)` WebView marker; an iOS
+ * WKWebView carries no such marker, which is exactly why the declaration is
+ * the primary source and the sniff is only the backstop.
+ */
+function getAppShell(declared: unknown, userAgent: string): 'web' | 'webview' {
+  if (declared === 'webview' || declared === 'web') return declared
+  return /;\s*wv\)/i.test(userAgent) ? 'webview' : 'web'
 }
 
 /**
@@ -176,18 +198,13 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse,
 ): Promise<VercelResponse | void> {
-  // Wildcard is deliberate and unchanged: this endpoint is credential-free
-  // (no Allow-Credentials, no cookie trusted as an identity) and accepts guest
-  // telemetry from anywhere. `Authorization` is listed because attribution
-  // rides a bearer token — without it every cross-origin authenticated flush
-  // from a native shell fails its preflight and the learner's telemetry is
-  // silently downgraded to guest. Matches the posture already shipped on
-  // /api/entitlement/offline-lease and /api/audio/batch-urls.
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
-
-  if (req.method === 'OPTIONS') return res.status(200).end()
+  // Cross-origin policy and preflight both live in `api/_utils/cors.ts`. The
+  // wildcard this replaced was justified as "accepts guest telemetry from
+  // anywhere", but the only callers are our own web origin and the native
+  // shell, and the allowlist covers both — including the `Authorization`
+  // preflight an authenticated flush needs. A beacon flush is unaffected
+  // either way: it never reads the response.
+  if (applyCors(req, res, { methods: 'POST' })) return
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -196,7 +213,7 @@ export default async function handler(
     return res.status(500).json({ error: 'Service role key not configured' })
   }
 
-  const body = req.body as { events?: unknown } | undefined
+  const body = req.body as { events?: unknown; app_shell?: unknown } | undefined
   const events = Array.isArray(body?.events) ? (body!.events as IncomingEvent[]) : null
   if (!events || events.length === 0) {
     return res.status(400).json({ error: 'events array required' })
@@ -210,6 +227,7 @@ export default async function handler(
   // Trusted identity from a verified session when present; else cookie/null.
   const userId = await resolveIdentity(req, supabase)
   const deviceType = getDeviceType(req.headers['user-agent'] || '')
+  const appShell = getAppShell(body?.app_shell, req.headers['user-agent'] || '')
   const ipCountry = (req.headers['x-vercel-ip-country'] as string) || null
   const env = getEnv(req.headers['host'] as string | undefined, req.headers['origin'] as string | undefined)
 
@@ -242,6 +260,7 @@ export default async function handler(
         payload: sanitizePayload(e.payload),
         client_version: typeof e.client_version === 'string' ? e.client_version.slice(0, 64) || null : null,
         device_type: deviceType,
+        app_shell: appShell,
         ip_country: ipCountry,
         env,
       }
@@ -252,7 +271,20 @@ export default async function handler(
   }
 
   try {
-    const { error } = await supabase.from('player_events').insert(rows)
+    let { error } = await supabase.from('player_events').insert(rows)
+    // app_shell is an ADDITIVE column (supabase/migrations/20260904_player_
+    // events_app_shell.sql.UNAPPLIED) that has to be applied by hand. Until it is, or if
+    // this code ever runs against a database that predates it, PostgREST
+    // rejects the whole batch for an unknown column — which would take out ALL
+    // telemetry to buy one new field. So a schema-cache/undefined-column error
+    // retries once without it: the new signal is the thing that degrades, not
+    // the existing ones. Delete this fallback once the column is live
+    // everywhere.
+    if (error && (error.code === 'PGRST204' || error.code === '42703')) {
+      console.warn('[player-events] app_shell column absent — retrying without it:', error.message)
+      const withoutShell = rows.map(({ app_shell: _drop, ...rest }) => rest)
+      ;({ error } = await supabase.from('player_events').insert(withoutShell))
+    }
     if (error) {
       // Log the real detail server-side; return a generic message so raw
       // PostgREST/Postgres text never leaks to an unauthenticated caller.

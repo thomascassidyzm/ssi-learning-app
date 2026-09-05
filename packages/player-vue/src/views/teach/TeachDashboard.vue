@@ -1,9 +1,19 @@
 <script setup lang="ts">
-import { ref, computed, inject, onMounted } from 'vue'
+import { ref, computed, inject, onMounted, defineAsyncComponent } from 'vue'
 import { useRouter } from 'vue-router'
 import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import Button from '@/components/schools/shared/Button.vue'
 import { getPaddle, paddleConfig } from '@/lib/paddle'
+// Tutor billing is a seat purchase on the WEB rail (platform/paymentRoute):
+// build-time absent from a store build, panel and all.
+import { INSTITUTIONAL_PURCHASE_IN_BUILD, institutionalPurchaseAvailable, paddleBillingAvailable } from '@/platform/paymentRoute'
+// The constant is for CODE ELISION only — it keeps the panel's markup out of a
+// store BUILD. What the tutor SEES asks the seam, because a web build running
+// inside the WebView has the constant true and the capability false.
+const TutorBillingPanel = INSTITUTIONAL_PURCHASE_IN_BUILD
+  ? defineAsyncComponent(() => import('./TutorBillingPanel.vue'))
+  : null
+const seatPurchaseAvailable = computed(() => institutionalPurchaseAvailable())
 import { TEACHER_COURSES, labelForCourse } from '@/lib/teacherCourses'
 import { courseLabel, isFreeTier, type LiveCourse } from '@/lib/onboardingTracks'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
@@ -402,6 +412,9 @@ onMounted(loadAll)
 
 async function startTrial() {
   if (isStartingTrial.value) return
+  // Capability, not build shape: never open an outside payment route from a
+  // shell that is not allowed one.
+  if (!institutionalPurchaseAvailable()) return
   // Double-subscribe guard: an already-paid tutor must never open a SECOND
   // checkout (that creates a second Paddle subscription = double-bill). Route
   // them to the billing portal to manage the existing one instead. Keyed on
@@ -462,6 +475,8 @@ async function startTrial() {
 
 async function openPortal() {
   if (isOpeningPortal.value) return
+  // Paddle's hosted portal is the web rail's own machinery (paddleBillingAvailable).
+  if (!paddleBillingAvailable()) return
   isOpeningPortal.value = true
   checkoutError.value = ''
   try {
@@ -681,77 +696,25 @@ async function submitRecipient() {
       </FrostCard>
     </div>
 
-    <!-- Subscription / billing -->
-    <FrostCard variant="panel" class="section-panel">
-      <div class="section-head">
-        <span class="frost-section-title">Teacher plan</span>
-        <p v-if="!hasSubscription" class="section-sub">
-          You're on your 1 month free trial. Then it's £{{ TEACHER_MONTHLY_PRICE }}/month —
-          your dashboard pauses if the trial lapses. Cancel anytime.
-        </p>
-        <p v-else class="section-sub">
-          £{{ TEACHER_MONTHLY_PRICE }}/month — up to {{ MAX_CLASSES }} classes,
-          unlimited students per class up to {{ MAX_STUDENTS_PER_CLASS }} each.
-        </p>
-      </div>
-
-      <div v-if="checkoutError" class="error">{{ checkoutError }}</div>
-
-      <div v-if="!hasSubscription" class="subscription-cta">
-        <div class="price-block">
-          <span class="price-amount frost-mono-nums">£{{ TEACHER_MONTHLY_PRICE }}</span>
-          <span class="price-period">/ month</span>
-        </div>
-        <p class="sub-blurb">
-          You earn £{{ COMMISSION_PER_STUDENT }} per student — three paying
-          students cover your £{{ TEACHER_MONTHLY_PRICE }} subscription. Every
-          student after that is profit.
-        </p>
-        <Button variant="primary" :loading="isStartingTrial" :disabled="!teacher?.id" @click="startTrial">
-          Subscribe — £{{ TEACHER_MONTHLY_PRICE }}/month
-        </Button>
-      </div>
-
-      <!-- Payment trouble first (platform column is authoritative; the generic
-           row is a fallback), then cancelled, then a catch-all Active/manage
-           row — a paying tutor must ALWAYS have a manage control here. -->
-      <div
-        v-else-if="teacher?.platform_status === 'past_due' || subscriptionStatus === 'past_due'"
-        class="sub-status-row past-due"
-      >
-        <div>
-          <p class="sub-status-label">Payment failed</p>
-          <p class="sub-status-sub">Your card was declined. Please update your payment method.</p>
-        </div>
-        <Button variant="primary" :loading="isOpeningPortal" @click="openPortal">
-          Update payment method
-        </Button>
-      </div>
-
-      <div v-else-if="subscriptionStatus === 'cancelled'" class="sub-status-row">
-        <div>
-          <p class="sub-status-label">Cancelled</p>
-          <p v-if="nextChargeDate" class="sub-status-sub">
-            Access continues until <strong>{{ nextChargeDate }}</strong>.
-          </p>
-        </div>
-        <Button variant="ghost" :loading="isOpeningPortal" @click="openPortal">
-          Manage subscription
-        </Button>
-      </div>
-
-      <div v-else class="sub-status-row">
-        <div>
-          <p class="sub-status-label">Active</p>
-          <p v-if="nextChargeDate" class="sub-status-sub">
-            Next charge: <strong>{{ nextChargeDate }}</strong>
-          </p>
-        </div>
-        <Button variant="ghost" :loading="isOpeningPortal" @click="openPortal">
-          Manage subscription
-        </Button>
-      </div>
-    </FrostCard>
+    <!-- Subscription / billing — WEB RAIL ONLY. The panel lives in its own
+         component so a store build never compiles its markup at all
+         (platform/paymentRoute); a v-if would still ship the markup. -->
+    <TutorBillingPanel
+      v-if="TutorBillingPanel && seatPurchaseAvailable"
+      :has-subscription="hasSubscription"
+      :teacher="teacher"
+      :subscription-status="subscriptionStatus"
+      :next-charge-date="nextChargeDate"
+      :checkout-error="checkoutError"
+      :is-starting-trial="isStartingTrial"
+      :is-opening-portal="isOpeningPortal"
+      :TEACHER_MONTHLY_PRICE="TEACHER_MONTHLY_PRICE"
+      :COMMISSION_PER_STUDENT="COMMISSION_PER_STUDENT"
+      :MAX_CLASSES="MAX_CLASSES"
+      :MAX_STUDENTS_PER_CLASS="MAX_STUDENTS_PER_CLASS"
+      @start-trial="startTrial"
+      @open-portal="openPortal"
+    />
 
     <!-- Inline create-class panel (§5.4: 2-field form = inline panel) -->
     <FrostCard v-if="isAddingClass" variant="panel" class="section-panel inline-form-panel">
@@ -778,7 +741,7 @@ async function submitRecipient() {
             <!-- On trial: locked to the one signed-up language. Subscribe to unlock all. -->
             <p v-if="courseLocked" class="locked-course">
               {{ courseLabelFor(newClassCourse) }}
-              <span class="locked-hint">Subscribe to teach more languages</span>
+              <span class="locked-hint">{{ seatPurchaseAvailable ? 'Subscribe to teach more languages' : 'Not included in your current plan' }}</span>
             </p>
             <select v-else id="new-class-course" v-model="newClassCourse" required>
               <option v-for="c in availableCourses" :key="c.code" :value="c.code">

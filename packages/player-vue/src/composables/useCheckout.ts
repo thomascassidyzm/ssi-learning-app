@@ -29,6 +29,7 @@
 
 import { ref, inject, nextTick, type Ref } from 'vue'
 import { getPaddle, paddleConfig } from '@/lib/paddle'
+import { canTakePayment } from '@/platform/paymentRoute'
 import { useAuthModal } from './useAuthModal'
 
 // The class name the inline Paddle frame mounts into. The CheckoutOverlay host
@@ -160,6 +161,11 @@ export function useCheckout() {
    * signed-in users go straight to Paddle.
    */
   async function startCheckout(opts: StartCheckoutOptions = {}): Promise<void> {
+    // Route gate (platform/paymentRoute). Paddle is the WEB rail; a native
+    // store shell must never reach it. Every caller also hides its control,
+    // but this is the backstop that makes a missed one inert rather than a
+    // dead button — and, in a store build, a review failure.
+    if (!canTakePayment()) return
     const courseCode = opts.courseCode ?? null
     const plan = opts.plan ?? 'premium'
     const billingPeriod = opts.billingPeriod ?? 'monthly'
@@ -190,6 +196,7 @@ export function useCheckout() {
    * sign-in, continue it into Paddle now.
    */
   async function completePendingCheckout(): Promise<void> {
+    if (!canTakePayment()) { pendingAfterAuth.value = false; return }
     if (!pendingAfterAuth.value) return
     pendingAfterAuth.value = false
     const code = pendingCourseCode.value

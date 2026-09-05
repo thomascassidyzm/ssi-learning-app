@@ -196,6 +196,91 @@ describe('POST /api/player-events', () => {
     expect(insertedRows[1].session_id).toBe('33333333-3333-4333-8333-333333333333')
   })
 
+  // ── app_shell: web vs the native shell ─────────────────────────────────
+  // device_type is FORM FACTOR and reads 'mobile' for a phone whether it is in
+  // the browser or in the wrapped app — which is why Tom's first Android
+  // session (2026-09-04) was indistinguishable from mobile web. app_shell is
+  // the second, orthogonal axis, and it must never collapse back into the first.
+  it('defaults to the web when the client says nothing and the UA is a browser', async () => {
+    const res = makeRes()
+    await handler(
+      makeReq('11111111-1111-4111-8111-111111111111', { events: [{ event_type: 'tap_play' }] }),
+      res,
+    )
+    expect(res.statusCode).toBe(200)
+    expect(insertedRows[0].app_shell).toBe('web')
+  })
+
+  it('records the native shell when the client declares it', async () => {
+    const res = makeRes()
+    await handler(
+      makeReq('11111111-1111-4111-8111-111111111111', {
+        events: [{ event_type: 'tap_play' }],
+        app_shell: 'webview',
+      }),
+      res,
+    )
+    expect(insertedRows[0].app_shell).toBe('webview')
+    // …and leaves device_type alone. Both axes, not one merged bucket.
+    expect(insertedRows[0].device_type).toBe('desktop')
+  })
+
+  it("falls back to Android's own WebView marker for a client that declares nothing", async () => {
+    const res = makeRes()
+    const req = makeReq('11111111-1111-4111-8111-111111111111', { events: [{ event_type: 'tap_play' }] })
+    ;(req.headers as any)['user-agent'] =
+      'Mozilla/5.0 (Linux; Android 16; sdk_gphone64_arm64 Build/BE2A; wv) AppleWebKit/537.36 Chrome/133.0 Mobile Safari/537.36'
+    await handler(req, res)
+    expect(insertedRows[0].app_shell).toBe('webview')
+    expect(insertedRows[0].device_type).toBe('mobile')
+  })
+
+  it('ignores a nonsense declared shell rather than persisting free text', async () => {
+    const res = makeRes()
+    await handler(
+      makeReq('11111111-1111-4111-8111-111111111111', {
+        events: [{ event_type: 'tap_play' }],
+        app_shell: 'DROP TABLE',
+      }),
+      res,
+    )
+    expect(insertedRows[0].app_shell).toBe('web')
+  })
+
+  it('keeps the rest of the telemetry when the app_shell column is not there yet', async () => {
+    // The column is applied by hand. Until it lands, PostgREST rejects the whole
+    // batch for an unknown column — one new field must not take out every
+    // existing one, so the insert retries once without it.
+    const res = makeRes()
+    let call = 0
+    insertError = null
+    // The mocked client reports insertError AFTER capturing the rows, so flip it
+    // on the first capture and off on the second: attempt one fails with the
+    // undefined-column code, the retry succeeds.
+    const origPush = insertedRows.push.bind(insertedRows)
+    insertedRows.push = ((...rows: any[]) => {
+      call += 1
+      insertError = call === 1
+        ? { code: 'PGRST204', message: "Could not find the 'app_shell' column" }
+        : null
+      return origPush(...rows)
+    }) as any
+    await handler(
+      makeReq('11111111-1111-4111-8111-111111111111', {
+        events: [{ event_type: 'tap_play' }],
+        app_shell: 'webview',
+      }),
+      res,
+    )
+    insertedRows.push = origPush as any
+    expect(res.statusCode).toBe(200)
+    // Two attempts: the first carried app_shell, the retry dropped it.
+    expect(insertedRows).toHaveLength(2)
+    expect(insertedRows[0].app_shell).toBe('webview')
+    expect('app_shell' in insertedRows[1]).toBe(false)
+    expect(insertedRows[1].event_type).toBe('tap_play')
+  })
+
   it('collapses an oversized payload to a marker instead of persisting the blob', async () => {
     const res = makeRes()
     const huge = 'x'.repeat(20 * 1024)

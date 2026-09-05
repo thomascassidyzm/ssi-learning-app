@@ -26,6 +26,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
+import { applyCors } from '../_utils/cors'
 import { isPlatformActive } from '../_utils/platformStatus'
 import { countSchoolTeachers } from '../_utils/schoolTeachers'
 
@@ -50,14 +51,11 @@ function isMissingPlatformSchema(err: { code?: string; message?: string } | null
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  // Cross-origin policy and preflight both live in `api/_utils/cors.ts`. This
+  // route is authenticated (verifyAuthToken, below), so it gets the closed
+  // allowlist rather than a wildcard.
+  if (applyCors(req, res, { methods: 'GET' })) return
 
-  if (req.method === 'OPTIONS') {
-    res.status(200).end()
-    return
-  }
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' })
     return

@@ -20,7 +20,7 @@ This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev
 - **Add:** append `[ ]` to the **end** of the relevant section. Never renumber/reorder/reflow existing lines (append-only keeps merges trivial).
 - **Finish:** flip `[~]`→`[x] @you MM-DD`, same one-line commit.
 - **Merge conflicts here are always two independent line edits → keep BOTH, strip the markers.** Never overwrite the other side. Don't bundle worklist edits with code commits.
-- **Branch hygiene** (inherits `CLAUDE.md`): claim/finish commits ride your normal working branch. **Never** add a worklist commit onto someone else's `claude/**` branch (it auto-merges wholesale to dev).
+- **Branch hygiene** (inherits `CLAUDE.md`): claim/finish commits ride your normal working branch. **Never** add a worklist commit onto someone else's `claude/**` branch — you mix your work into theirs and neither can land alone.
 
 ---
 

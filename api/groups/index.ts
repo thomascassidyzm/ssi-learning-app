@@ -28,6 +28,7 @@ import { isWithinLeaderSubtree } from '../_utils/orgLeader'
 import { createRootOrgAndLeader } from '../_utils/rootOrgProvision'
 import { findSiblingSlugCollisions, duplicateNameBody } from '../_utils/groupSlug'
 import { ensureGroupLeaderTag } from '../_utils/groupLeaderTag'
+import { applyCors } from '../_utils/cors'
 
 /**
  * ssi_admin/god first; fall back to a group-leader whose OWN governed group
@@ -80,6 +81,11 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
+  // Cross-origin policy and preflight both live in `api/_utils/cors.ts`.
+  // Without this the native WebView's preflight for the `Authorization`
+  // header goes unanswered and the call fails there while working on the web.
+  if (applyCors(req, res, { methods: 'GET, POST' })) return
+
   if (!supabaseServiceKey) {
     console.error('[Groups] SUPABASE_SERVICE_ROLE_KEY is empty!')
     res.status(500).json({ error: 'Server misconfigured', detail: 'Missing service role key' })

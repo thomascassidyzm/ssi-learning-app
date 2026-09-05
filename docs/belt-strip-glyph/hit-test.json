@@ -1,0 +1,249 @@
+{
+  "paywalled": [
+    {
+      "label": "Jump to White Belt",
+      "lock": false,
+      "downloadArrow": false,
+      "waitingClass": false,
+      "disabled": false,
+      "borderStyle": "solid",
+      "background": "rgb(250, 250, 246)",
+      "opacity": "1"
+    },
+    {
+      "label": "Jump to Yellow Belt",
+      "lock": false,
+      "downloadArrow": false,
+      "waitingClass": false,
+      "disabled": false,
+      "borderStyle": "solid",
+      "background": "rgb(255, 255, 255)",
+      "opacity": "1"
+    },
+    {
+      "label": "Orange Belt is part of the full course — tap to see the options",
+      "lock": true,
+      "downloadArrow": false,
+      "waitingClass": false,
+      "disabled": false,
+      "borderStyle": "solid",
+      "background": "rgb(250, 250, 246)",
+      "opacity": "1"
+    },
+    {
+      "label": "Green Belt is part of the full course — tap to see the options",
+      "lock": true,
+      "downloadArrow": false,
+      "waitingClass": false,
+      "disabled": false,
+      "borderStyle": "solid",
+      "background": "rgb(250, 250, 246)",
+      "opacity": "1"
+    },
+    {
+      "label": "Blue Belt is part of the full course — tap to see the options",
+      "lock": true,
+      "downloadArrow": false,
+      "waitingClass": false,
+      "disabled": false,
+      "borderStyle": "solid",
+      "background": "rgb(250, 250, 246)",
+      "opacity": "1"
+    },
+    {
+      "label": "Purple Belt is part of the full course — tap to see the options",
+      "lock": true,
+      "downloadArrow": false,
+      "waitingClass": false,
+      "disabled": false,
+      "borderStyle": "solid",
+      "background": "rgb(250, 250, 246)",
+      "opacity": "1"
+    },
+    {
+      "label": "Brown Belt is part of the full course — tap to see the options",
+      "lock": true,
+      "downloadArrow": false,
+      "waitingClass": false,
+      "disabled": false,
+      "borderStyle": "solid",
+      "background": "rgb(250, 250, 246)",
+      "opacity": "1"
+    },
+    {
+      "label": "Black Belt is part of the full course — tap to see the options",
+      "lock": true,
+      "downloadArrow": false,
+      "waitingClass": false,
+      "disabled": false,
+      "borderStyle": "solid",
+      "background": "rgb(250, 250, 246)",
+      "opacity": "1"
+    }
+  ],
+  "awaiting": [
+    {
+      "label": "Jump to White Belt",
+      "lock": false,
+      "downloadArrow": false,
+      "waitingClass": false,
+      "disabled": false,
+      "borderStyle": "solid",
+      "background": "rgb(250, 250, 246)",
+      "opacity": "1"
+    },
+    {
+      "label": "Jump to Yellow Belt",
+      "lock": false,
+      "downloadArrow": false,
+      "waitingClass": false,
+      "disabled": false,
+      "borderStyle": "solid",
+      "background": "rgb(255, 255, 255)",
+      "opacity": "1"
+    },
+    {
+      "label": "Jump to Orange Belt",
+      "lock": false,
+      "downloadArrow": false,
+      "waitingClass": false,
+      "disabled": false,
+      "borderStyle": "solid",
+      "background": "rgb(250, 250, 246)",
+      "opacity": "1"
+    },
+    {
+      "label": "Green Belt is still downloading — it'll open as soon as it's here",
+      "lock": false,
+      "downloadArrow": true,
+      "waitingClass": true,
+      "disabled": false,
+      "borderStyle": "dashed",
+      "background": "rgba(0, 0, 0, 0)",
+      "opacity": "0.5"
+    },
+    {
+      "label": "Blue Belt is still downloading — it'll open as soon as it's here",
+      "lock": false,
+      "downloadArrow": true,
+      "waitingClass": true,
+      "disabled": false,
+      "borderStyle": "dashed",
+      "background": "rgba(0, 0, 0, 0)",
+      "opacity": "0.5"
+    },
+    {
+      "label": "Purple Belt is still downloading — it'll open as soon as it's here",
+      "lock": false,
+      "downloadArrow": true,
+      "waitingClass": true,
+      "disabled": false,
+      "borderStyle": "dashed",
+      "background": "rgba(0, 0, 0, 0)",
+      "opacity": "0.5"
+    },
+    {
+      "label": "Brown Belt is still downloading — it'll open as soon as it's here",
+      "lock": false,
+      "downloadArrow": true,
+      "waitingClass": true,
+      "disabled": false,
+      "borderStyle": "dashed",
+      "background": "rgba(0, 0, 0, 0)",
+      "opacity": "0.5"
+    },
+    {
+      "label": "Black Belt is still downloading — it'll open as soon as it's here",
+      "lock": false,
+      "downloadArrow": true,
+      "waitingClass": true,
+      "disabled": false,
+      "borderStyle": "dashed",
+      "background": "rgba(0, 0, 0, 0)",
+      "opacity": "0.5"
+    }
+  ],
+  "both": [
+    {
+      "label": "Jump to White Belt",
+      "lock": false,
+      "downloadArrow": false,
+      "waitingClass": false,
+      "disabled": false,
+      "borderStyle": "solid",
+      "background": "rgb(250, 250, 246)",
+      "opacity": "1"
+    },
+    {
+      "label": "Jump to Yellow Belt",
+      "lock": false,
+      "downloadArrow": false,
+      "waitingClass": false,
+      "disabled": false,
+      "borderStyle": "solid",
+      "background": "rgb(255, 255, 255)",
+      "opacity": "1"
+    },
+    {
+      "label": "Orange Belt is part of the full course — tap to see the options",
+      "lock": true,
+      "downloadArrow": false,
+      "waitingClass": false,
+      "disabled": false,
+      "borderStyle": "solid",
+      "background": "rgb(250, 250, 246)",
+      "opacity": "1"
+    },
+    {
+      "label": "Green Belt is part of the full course — tap to see the options",
+      "lock": true,
+      "downloadArrow": false,
+      "waitingClass": false,
+      "disabled": false,
+      "borderStyle": "solid",
+      "background": "rgb(250, 250, 246)",
+      "opacity": "1"
+    },
+    {
+      "label": "Blue Belt is part of the full course — tap to see the options",
+      "lock": true,
+      "downloadArrow": false,
+      "waitingClass": false,
+      "disabled": false,
+      "borderStyle": "solid",
+      "background": "rgb(250, 250, 246)",
+      "opacity": "1"
+    },
+    {
+      "label": "Purple Belt is part of the full course — tap to see the options",
+      "lock": true,
+      "downloadArrow": false,
+      "waitingClass": false,
+      "disabled": false,
+      "borderStyle": "solid",
+      "background": "rgb(250, 250, 246)",
+      "opacity": "1"
+    },
+    {
+      "label": "Brown Belt is part of the full course — tap to see the options",
+      "lock": true,
+      "downloadArrow": false,
+      "waitingClass": false,
+      "disabled": false,
+      "borderStyle": "solid",
+      "background": "rgb(250, 250, 246)",
+      "opacity": "1"
+    },
+    {
+      "label": "Black Belt is part of the full course — tap to see the options",
+      "lock": true,
+      "downloadArrow": false,
+      "waitingClass": false,
+      "disabled": false,
+      "borderStyle": "solid",
+      "background": "rgb(250, 250, 246)",
+      "opacity": "1"
+    }
+  ],
+  "padlockedChipTappable": true
+}
