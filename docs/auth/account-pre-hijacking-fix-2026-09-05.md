@@ -97,3 +97,23 @@ each returning **200 with a minted session** where the fix returns 409.
 Verified the same way by restoring the tags-only target resolution: the
 containment test returns **200 and writes an access-code row** where the fix
 returns 403.
+
+## Verified live in production
+
+Probed against `https://saysomethingin.app` with disposable
+`ssi-sec-probe-<random>@gmail.com` addresses — never a real user's. Each run
+manufactured the shell exactly as send-code's OTP mint leaves it (service-role
+`createUser`, no mail sent), walked in with the live shared **student** join code
+`ZCW-804`, and deleted the probe account afterwards. Zero probe accounts remain.
+
+- **Before the deploy landed (6 runs, 01:51–01:54 UTC):** `200 adopted:true` with
+  a real access + refresh token on an address the caller never proved they owned.
+  The vulnerability reproduced end to end against live production.
+- **After (01:55:13 UTC):** `409 { reason: 'already_registered' }`, no session.
+
+Those seven rows in `possession_mint_attempts` with `ssi-sec-probe-*` emails are
+this verification, not exploitation.
+
+Shipped as `33aafce7` straight to `main` (Tom's ruling: confirmed live auth
+vulnerability, the admin/auth-class exception to the promotion train), and
+back-merged into `staging` and `dev` so the next promotion cannot lose it.
