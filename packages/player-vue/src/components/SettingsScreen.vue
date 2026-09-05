@@ -266,6 +266,25 @@ const formattedLearningTime = computed(() => {
 // App info
 const buildNumber = typeof __BUILD_NUMBER__ !== 'undefined' ? __BUILD_NUMBER__ : 'dev'
 const buildTime = typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : ''
+
+// WHICH BRANCH did this build freeze? (2026-09-05)
+//
+// The sha says which commit; it does not say which line of work. A tester
+// holding an APK, and Tom looking at an emulator, both need to know whether
+// they are on the dev build with the fix or the production one without it —
+// and a sha alone cannot tell them without a developer standing next to them.
+//
+// Derived from git at build time (scripts/buildBranch.mjs), never a field
+// anyone maintains by hand. Suppressed on `main` so a paying learner's screen
+// reads exactly as it does today: the branch is only ever information for
+// somebody who is NOT on production, and the ordinary learner is.
+const buildBranch = typeof __BUILD_BRANCH__ !== 'undefined' ? __BUILD_BRANCH__ : null
+const buildLabel = computed(() => {
+  const sha = buildNumber || 'dev'
+  const branch = (buildBranch || '').trim()
+  if (!branch || branch === 'main') return sha
+  return `${branch} · ${sha}`
+})
 const formattedBuildTime = computed(() => {
   if (!buildTime) return ''
   try {
@@ -274,10 +293,9 @@ const formattedBuildTime = computed(() => {
     return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
   } catch { return '' }
 })
-const versionDisplay = computed(() => {
-  const sha = buildNumber || 'dev'
-  return formattedBuildTime.value ? `${sha} · ${formattedBuildTime.value}` : sha
-})
+const versionDisplay = computed(() =>
+  formattedBuildTime.value ? `${buildLabel.value} · ${formattedBuildTime.value}` : buildLabel.value
+)
 
 // Which deployment is this build actually TALKING TO?
 //
@@ -1692,7 +1710,7 @@ const confirmReset = async () => {
         @click="handleUpdateToLatest"
       >
         <span class="build-card-version">
-          <span class="build-sha">{{ buildNumber || 'dev' }}</span>
+          <span class="build-sha">{{ buildLabel }}</span>
           <span v-if="formattedBuildTime" class="build-time">{{ formattedBuildTime }}</span>
         </span>
         <span class="build-card-action">
