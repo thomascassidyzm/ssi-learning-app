@@ -27,6 +27,7 @@ import { readFileSync, writeFileSync, appendFileSync, existsSync } from 'node:fs
 import { dirname, join } from 'node:path'
 import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
+import { isProbeHealthy } from './probeStatus.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const REPO = join(HERE, '..', '..')
@@ -261,7 +262,7 @@ async function runProbes() {
   const results = []
   for (const p of PROBES) {
     const r = await fetchText(p.url, p.method ? { method: p.method } : {}, 20000)
-    const ok = r.status === 200 && (!p.expectBody || r.body.includes(p.expectBody))
+    const ok = isProbeHealthy(p, r)
     results.push({ name: p.name, status: r.status, ok, error: r.error })
   }
   return results
