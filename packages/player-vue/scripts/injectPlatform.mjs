@@ -10,13 +10,22 @@
  * script, so it is set before the app bundle evaluates.
  *
  * Usage:
- *   node scripts/injectPlatform.mjs dist/index.html https://api-origin.example
+ *   node scripts/injectPlatform.mjs dist/index.html https://api-origin.example [android|ios]
+ *
+ * The optional third argument stamps the shell's OS so the seam can diverge
+ * where update delivery diverges (shouldDescribeStaleness goes silent on iOS).
+ * Omitted, the stamp carries no `os` and the seam reads '' — unknown, which
+ * behaves exactly as every stamp before this argument existed.
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 
-const [, , file, apiOrigin] = process.argv
+const [, , file, apiOrigin, osArg] = process.argv
 if (!file || !apiOrigin) {
-  console.error('usage: injectPlatform.mjs <index.html> <apiOrigin>')
+  console.error('usage: injectPlatform.mjs <index.html> <apiOrigin> [android|ios]')
+  process.exit(1)
+}
+if (osArg && osArg !== 'android' && osArg !== 'ios') {
+  console.error(`injectPlatform: unknown os "${osArg}" — use android or ios, or omit`)
   process.exit(1)
 }
 
@@ -27,7 +36,8 @@ if (html.includes(MARK)) {
   process.exit(0)
 }
 
-const tag = `<script>window.${MARK}={shell:'webview',apiOrigin:${JSON.stringify(apiOrigin)}};</script>`
+const osField = osArg ? `,os:${JSON.stringify(osArg)}` : ''
+const tag = `<script>window.${MARK}={shell:'webview',apiOrigin:${JSON.stringify(apiOrigin)}${osField}};</script>`
 // First inline script in <head> wins: it must run before /src/main.js.
 const at = html.indexOf('<head>')
 if (at === -1) {
