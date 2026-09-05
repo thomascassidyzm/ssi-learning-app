@@ -7,7 +7,7 @@
  * FOUNDING admin was invisible to every staff-keyed number in her own school.
  */
 import { describe, it, expect, vi } from 'vitest'
-import { ensureSchoolAdminTag, schoolMembershipsOf, SCHOOL_STAFF_ROLES } from './schoolStaff'
+import { ensureSchoolAdminTag, schoolMembershipsOf, schoolReachOf, SCHOOL_STAFF_ROLES } from './schoolStaff'
 
 function fakeClient(insertResult: { error: { code?: string; message?: string } | null }) {
   const inserts: unknown[] = []
@@ -134,5 +134,102 @@ describe('schoolMembershipsOf', () => {
 
   it('returns nothing for an empty uid, without querying', async () => {
     expect(await schoolMembershipsOf(membershipClient([{ id: 'school-1' }], []), '')).toEqual([])
+  })
+})
+
+/**
+ * schoolReachOf — the WIDER question, for containment only: "does this account
+ * touch anywhere else AT ALL", pupil seats included. The gap it closes
+ * (2026-09-05): api/school/staff-signin-link.ts asked that question with the
+ * STAFF resolver, so a teacher at school-1 who also studies at school-2 read as
+ * reaching nowhere else, and school-1's admin could mint a live session that
+ * opened their private pupil account at school-2.
+ */
+function reachClient(opts: {
+  owned?: Array<{ id: string }>
+  schoolTags?: Array<{ tag_value: string; role_in_context: string }>
+  classTags?: Array<{ tag_value: string; role_in_context: string }>
+  classes?: Array<{ id: string; school_id: string | null }>
+}) {
+  const chain = (rows: (calls: any[][]) => unknown) => {
+    const calls: any[][] = []
+    const b: any = {}
+    for (const m of ['select', 'eq', 'in', 'is']) {
+      b[m] = (...args: any[]) => {
+        calls.push([m, ...args])
+        return b
+      }
+    }
+    b.then = (resolve: any, reject: any) => Promise.resolve(rows(calls)).then(resolve, reject)
+    return b
+  }
+  const eqVal = (calls: any[][], col: string) => calls.find((c) => c[0] === 'eq' && c[1] === col)?.[2]
+  return {
+    from: (table: string) => {
+      if (table === 'schools') return chain(() => ({ data: opts.owned || [], error: null }))
+      if (table === 'classes') return chain(() => ({ data: opts.classes || [], error: null }))
+      return chain((calls) => {
+        const rows = eqVal(calls, 'tag_type') === 'class' ? opts.classTags || [] : opts.schoolTags || []
+        const allowed = calls.find((c) => c[0] === 'in' && c[1] === 'role_in_context')?.[2] as string[] | undefined
+        return { data: allowed ? rows.filter((r) => allowed.includes(r.role_in_context)) : rows, error: null }
+      })
+    },
+  } as any
+}
+
+describe('schoolReachOf', () => {
+  it('sees a PUPIL school tag that the staff-only resolver filters out', async () => {
+    const client = reachClient({
+      schoolTags: [
+        { tag_value: 'SCHOOL:school-1', role_in_context: 'teacher' },
+        { tag_value: 'SCHOOL:school-2', role_in_context: 'student' },
+      ],
+    })
+    // The staff view — deliberately blind to the pupil seat. This asymmetry is
+    // the whole bug, so both halves are asserted together.
+    expect(await schoolMembershipsOf(client, 'uid-1')).toEqual([{ schoolId: 'school-1', role: 'teacher' }])
+    expect(await schoolReachOf(client, 'uid-1')).toEqual([
+      { schoolId: 'school-1', role: 'teacher' },
+      { schoolId: 'school-2', role: 'student' },
+    ])
+  })
+
+  it('resolves a pupil CLASS tag to its school — the only tag a student redemption writes', async () => {
+    const out = await schoolReachOf(
+      reachClient({
+        classTags: [{ tag_value: 'CLASS:class-9', role_in_context: 'student' }],
+        classes: [{ id: 'class-9', school_id: 'school-2' }],
+      }),
+      'uid-1',
+    )
+    expect(out).toEqual([{ schoolId: 'school-2', role: 'student' }])
+  })
+
+  it('keeps the founding-admin pointer, and the highest capacity wins per school', async () => {
+    const out = await schoolReachOf(
+      reachClient({
+        owned: [{ id: 'school-1' }],
+        schoolTags: [{ tag_value: 'SCHOOL:school-1', role_in_context: 'student' }],
+        classTags: [{ tag_value: 'CLASS:class-3', role_in_context: 'teacher' }],
+        classes: [{ id: 'class-3', school_id: 'school-1' }],
+      }),
+      'uid-1',
+    )
+    expect(out).toEqual([{ schoolId: 'school-1', role: 'admin' }])
+  })
+
+  it('ignores a class whose school_id is null rather than inventing a school', async () => {
+    const out = await schoolReachOf(
+      reachClient({
+        classTags: [{ tag_value: 'CLASS:class-9', role_in_context: 'student' }],
+        classes: [{ id: 'class-9', school_id: null }],
+      }),
+      'uid-1',
+    )
+    expect(out).toEqual([])
+  })
+
+  it('returns nothing for an empty uid, without querying', async () => {
+    expect(await schoolReachOf(reachClient({ owned: [{ id: 'school-1' }] }), '')).toEqual([])
   })
 })

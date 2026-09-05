@@ -27,6 +27,11 @@ vi.mock('../_utils/auth', () => ({
 // and the target must be asked it the same way.
 let ownedSchools: Record<string, string[]>
 let schoolTags: Record<string, Array<{ tag_value: string; role_in_context: string }>>
+// Pupil reach: `user_tags` rows with tag_type='class' (what api/code/redeem.ts
+// writes when a learner redeems a student invite — a CLASS tag and NO school
+// tag), plus the class → school lookup that resolves them.
+let classTags: Record<string, Array<{ tag_value: string; role_in_context: string }>>
+let classSchools: Record<string, string>
 let targetLearnerRow: any
 let rateCount: number
 let rateErr: any
@@ -76,9 +81,27 @@ function makeQueryBuilder(table: string) {
       return Promise.resolve({ data: ids.map((id) => ({ id })), error: null }).then(resolve, reject)
     }
     if (table === 'user_tags') {
-      // schoolMembershipsOf spelling 2: active SCHOOL: staff tags.
+      // Honours tag_type AND the role_in_context filter, because the two
+      // resolvers differ in exactly those: schoolMembershipsOf asks for
+      // SCHOOL: tags .in(['teacher','admin']); schoolReachOf asks for SCHOOL:
+      // tags of ANY role and for CLASS: tags. A double that ignored the
+      // filters would let the staff-only query see pupil rows and pass the
+      // regression test for the wrong reason.
       const uid = eqVal('user_id') as string
-      return Promise.resolve({ data: schoolTags[uid] || [], error: null }).then(resolve, reject)
+      const tagType = eqVal('tag_type') as string
+      const rows = tagType === 'class' ? (classTags[uid] || []) : (schoolTags[uid] || [])
+      const roleFilter = calls.find((c) => c[0] === 'in' && c[1] === 'role_in_context')
+      const allowed = roleFilter ? (roleFilter[2] as string[]) : null
+      const data = allowed ? rows.filter((r) => allowed.includes(r.role_in_context)) : rows
+      return Promise.resolve({ data, error: null }).then(resolve, reject)
+    }
+    if (table === 'classes') {
+      const idFilter = calls.find((c) => c[0] === 'in' && c[1] === 'id')
+      const ids = (idFilter ? (idFilter[2] as string[]) : []) as string[]
+      const data = ids
+        .filter((id) => classSchools[id])
+        .map((id) => ({ id, school_id: classSchools[id] }))
+      return Promise.resolve({ data, error: null }).then(resolve, reject)
     }
     if (table === 'player_events') {
       return Promise.resolve({ count: rateCount, error: rateErr }).then(resolve, reject)
@@ -133,6 +156,8 @@ beforeEach(async () => {
   authResult = { valid: true, userId: 'admin-1' }
   ownedSchools = { 'admin-1': ['school-1'] }
   schoolTags = { 'target-1': [{ tag_value: 'SCHOOL:school-1', role_in_context: 'teacher' }] }
+  classTags = {}
+  classSchools = {}
   targetLearnerRow = { id: 'learner-target-1', user_id: 'target-1', display_name: 'Target Teacher', educational_role: null, platform_role: null }
   rateCount = 0
   rateErr = null
@@ -345,6 +370,58 @@ describe('POST /api/school/staff-signin-link', () => {
     it('404s: a target who founds ONLY another school is not a member of the caller\'s school at all', async () => {
       ownedSchools = { 'admin-1': ['school-1'], 'target-1': ['school-2'] }
       schoolTags['target-1'] = []
+      const res = makeRes()
+      await handler(makeReq('POST', { target_user_id: 'target-1' }), res)
+      expect(res.statusCode).toBe(404)
+      expect(codeInserts).toHaveLength(0)
+    })
+
+    // --- PUPIL REACH AT A SECOND SCHOOL (SEC 2026-09-05, second gap) ---
+    // The containment check reused schoolMembershipsOf, which deliberately
+    // filters to role_in_context IN ('teacher','admin') — correct for its other
+    // callers, wrong here. A person can teach at school-1 and STUDY at
+    // school-2 (api/code/redeem.ts supports exactly that), and the minted code
+    // opens their pupil account too. Under the staff-only view school-2 was
+    // invisible, so these mint 200 + a staff_access_codes row pre-fix.
+    it('403s: the target teaches here and is TAGGED A PUPIL at another school', async () => {
+      schoolTags['target-1'] = [
+        { tag_value: 'SCHOOL:school-1', role_in_context: 'teacher' },
+        { tag_value: 'SCHOOL:school-2', role_in_context: 'student' },
+      ]
+      const res = makeRes()
+      await handler(makeReq('POST', { target_user_id: 'target-1' }), res)
+      expect(res.statusCode).toBe(403)
+      expect(res.body.error).toMatch(/more than one school/)
+      expect(codeInserts).toHaveLength(0)
+      expect(res.body.access_code).toBeUndefined()
+    })
+
+    it('403s: the target teaches here and holds a pupil CLASS tag at another school', async () => {
+      // The commonest pupil of all: redeem.ts's student branch writes a CLASS
+      // tag and no school tag, so school-tags-only would still miss this.
+      classTags['target-1'] = [{ tag_value: 'CLASS:class-9', role_in_context: 'student' }]
+      classSchools['class-9'] = 'school-2'
+      const res = makeRes()
+      await handler(makeReq('POST', { target_user_id: 'target-1' }), res)
+      expect(res.statusCode).toBe(403)
+      expect(codeInserts).toHaveLength(0)
+    })
+
+    it('200: a pupil CLASS tag INSIDE the caller\'s own school is not reach elsewhere', async () => {
+      // The check must not become "refuse anyone with a class tag" — reach
+      // within the caller's own school is exactly what they already govern.
+      classTags['target-1'] = [{ tag_value: 'CLASS:class-3', role_in_context: 'teacher' }]
+      classSchools['class-3'] = 'school-1'
+      const res = makeRes()
+      await handler(makeReq('POST', { target_user_id: 'target-1' }), res)
+      expect(res.statusCode).toBe(200)
+      expect(codeInserts).toHaveLength(1)
+    })
+
+    it('404s: a pupil-only tag at the caller\'s school is not STAFF membership', async () => {
+      // Widening REACH must not widen who counts as staff — the pupil view is
+      // used for containment only.
+      schoolTags['target-1'] = [{ tag_value: 'SCHOOL:school-1', role_in_context: 'student' }]
       const res = makeRes()
       await handler(makeReq('POST', { target_user_id: 'target-1' }), res)
       expect(res.statusCode).toBe(404)
