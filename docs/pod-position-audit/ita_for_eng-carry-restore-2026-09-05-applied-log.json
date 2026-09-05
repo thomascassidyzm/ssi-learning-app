@@ -1,0 +1,169 @@
+{
+  "course": "ita_for_eng",
+  "live_pod": "ita_for_eng:pod-1",
+  "prospective": "/home/tomcassidy/ssi-dashboard-v7-clean/docs/pods/ita-pod0-switchover-prospective-2026-08-22.json",
+  "applied_at": "2026-09-05T19:22:59.536Z",
+  "tally": {
+    "present_ok": 19,
+    "present_lower": 6,
+    "MISSING": 7
+  },
+  "applied": [
+    {
+      "learner_id": "a826c529-ac97-4bc9-8885-9b877fa4280a",
+      "course_code": "ita_for_eng",
+      "recorded_key": "ita_for_eng:pod-0-unrecorded:SC04-S003:s0",
+      "target_key": "ita_for_eng:pod-1:SC04-S003:s0",
+      "recorded_exposures": 7,
+      "exposures_before": null,
+      "exposures_after": 7,
+      "action": "inserted",
+      "heard": "No, I'm sorry, I'm busy tomorrow. But let's talk on Saturday. See you then.",
+      "note": null
+    },
+    {
+      "learner_id": "a826c529-ac97-4bc9-8885-9b877fa4280a",
+      "course_code": "ita_for_eng",
+      "recorded_key": "ita_for_eng:pod-0-unrecorded:SC04-S003:s1",
+      "target_key": "ita_for_eng:pod-1:SC04-S003:s1",
+      "recorded_exposures": 6,
+      "exposures_before": null,
+      "exposures_after": 6,
+      "action": "inserted",
+      "heard": "No, I'm sorry, I'm busy tomorrow. But let's talk on Saturday. See you then.",
+      "note": null
+    },
+    {
+      "learner_id": "a826c529-ac97-4bc9-8885-9b877fa4280a",
+      "course_code": "ita_for_eng",
+      "recorded_key": "ita_for_eng:pod-0-unrecorded:SC04-S003:s2",
+      "target_key": "ita_for_eng:pod-1:SC04-S003:s2",
+      "recorded_exposures": 5,
+      "exposures_before": null,
+      "exposures_after": 5,
+      "action": "inserted",
+      "heard": "No, I'm sorry, I'm busy tomorrow. But let's talk on Saturday. See you then.",
+      "note": null
+    },
+    {
+      "learner_id": "a826c529-ac97-4bc9-8885-9b877fa4280a",
+      "course_code": "ita_for_eng",
+      "recorded_key": "ita_for_eng:pod-0-unrecorded:SC05-S001:s0",
+      "target_key": "ita_for_eng:pod-1:SC05-S001:s0",
+      "recorded_exposures": 4,
+      "exposures_before": null,
+      "exposures_after": 4,
+      "action": "inserted",
+      "heard": "Good evening, Sarah. Did you have a long day?",
+      "note": null
+    },
+    {
+      "learner_id": "a826c529-ac97-4bc9-8885-9b877fa4280a",
+      "course_code": "ita_for_eng",
+      "recorded_key": "ita_for_eng:pod-0-unrecorded:SC05-S001:s1",
+      "target_key": "ita_for_eng:pod-1:SC05-S001:s1",
+      "recorded_exposures": 3,
+      "exposures_before": null,
+      "exposures_after": 3,
+      "action": "inserted",
+      "heard": "Good evening, Sarah. Did you have a long day?",
+      "note": null
+    },
+    {
+      "learner_id": "a826c529-ac97-4bc9-8885-9b877fa4280a",
+      "course_code": "ita_for_eng",
+      "recorded_key": "ita_for_eng:pod-0-unrecorded:SC05-S002:s0",
+      "target_key": "ita_for_eng:pod-1:SC05-S002:s0",
+      "recorded_exposures": 2,
+      "exposures_before": null,
+      "exposures_after": 2,
+      "action": "inserted",
+      "heard": "Yes, very. I'm very tired now. Good night. See you tomorrow.",
+      "note": null
+    },
+    {
+      "learner_id": "a826c529-ac97-4bc9-8885-9b877fa4280a",
+      "course_code": "ita_for_eng",
+      "recorded_key": "ita_for_eng:pod-0-unrecorded:SC05-S002:s1",
+      "target_key": "ita_for_eng:pod-1:SC05-S002:s1",
+      "recorded_exposures": 1,
+      "exposures_before": null,
+      "exposures_after": 1,
+      "action": "inserted",
+      "heard": "Yes, very. I'm very tired now. Good night. See you tomorrow.",
+      "note": null
+    },
+    {
+      "learner_id": "a826c529-ac97-4bc9-8885-9b877fa4280a",
+      "course_code": "ita_for_eng",
+      "recorded_key": "ita_for_eng:pod-0-unrecorded:SC03-S010:s0",
+      "target_key": "ita_for_eng:pod-1:SC03-S010:s0",
+      "recorded_exposures": 14,
+      "exposures_before": 7,
+      "exposures_after": 14,
+      "action": "topped_up",
+      "heard": "Thank you very much. Goodbye.",
+      "note": null
+    },
+    {
+      "learner_id": "a826c529-ac97-4bc9-8885-9b877fa4280a",
+      "course_code": "ita_for_eng",
+      "recorded_key": "ita_for_eng:pod-0-unrecorded:SC03-S010:s1",
+      "target_key": "ita_for_eng:pod-1:SC03-S010:s1",
+      "recorded_exposures": 13,
+      "exposures_before": 6,
+      "exposures_after": 13,
+      "action": "topped_up",
+      "heard": "Thank you very much. Goodbye.",
+      "note": null
+    },
+    {
+      "learner_id": "a826c529-ac97-4bc9-8885-9b877fa4280a",
+      "course_code": "ita_for_eng",
+      "recorded_key": "ita_for_eng:pod-0-unrecorded:SC04-S002:s0",
+      "target_key": "ita_for_eng:pod-1:SC04-S002:s0",
+      "recorded_exposures": 11,
+      "exposures_before": 4,
+      "exposures_after": 11,
+      "action": "topped_up",
+      "heard": "Hello! I'm sorry but I can't talk at the moment. I need to go home now. Can we talk tomorrow?",
+      "note": null
+    },
+    {
+      "learner_id": "a826c529-ac97-4bc9-8885-9b877fa4280a",
+      "course_code": "ita_for_eng",
+      "recorded_key": "ita_for_eng:pod-0-unrecorded:SC04-S002:s1",
+      "target_key": "ita_for_eng:pod-1:SC04-S002:s1",
+      "recorded_exposures": 10,
+      "exposures_before": 3,
+      "exposures_after": 10,
+      "action": "topped_up",
+      "heard": "Hello! I'm sorry but I can't talk at the moment. I need to go home now. Can we talk tomorrow?",
+      "note": null
+    },
+    {
+      "learner_id": "a826c529-ac97-4bc9-8885-9b877fa4280a",
+      "course_code": "ita_for_eng",
+      "recorded_key": "ita_for_eng:pod-0-unrecorded:SC04-S002:s2",
+      "target_key": "ita_for_eng:pod-1:SC04-S002:s2",
+      "recorded_exposures": 9,
+      "exposures_before": 2,
+      "exposures_after": 9,
+      "action": "topped_up",
+      "heard": "Hello! I'm sorry but I can't talk at the moment. I need to go home now. Can we talk tomorrow?",
+      "note": null
+    },
+    {
+      "learner_id": "a826c529-ac97-4bc9-8885-9b877fa4280a",
+      "course_code": "ita_for_eng",
+      "recorded_key": "ita_for_eng:pod-0-unrecorded:SC04-S002:s3",
+      "target_key": "ita_for_eng:pod-1:SC04-S002:s3",
+      "recorded_exposures": 8,
+      "exposures_before": 1,
+      "exposures_after": 8,
+      "action": "topped_up",
+      "heard": "Hello! I'm sorry but I can't talk at the moment. I need to go home now. Can we talk tomorrow?",
+      "note": null
+    }
+  ]
+}

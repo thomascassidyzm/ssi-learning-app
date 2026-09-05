@@ -69,13 +69,18 @@ async function main() {
   const db = new Client({ connectionString: process.env.DATABASE_URL })
   await db.connect()
 
+  // The player's shared slug resolver prefers pod-1 and falls back to pod-0; older themed
+  // pods (e.g. spa_for_eng:music) can also be visibility=live but are never the served canon.
   const { rows: livePods } = await db.query(
     `select id from listening_pods where course_code=$1 and visibility='live'`, [COURSE])
-  if (livePods.length !== 1) {
-    console.error(`${COURSE}: expected exactly 1 live pod, found ${livePods.length} — refusing`)
+  const preferred = livePods.find(p => p.id === `${COURSE}:pod-1`) ||
+    livePods.find(p => p.id === `${COURSE}:pod-0`) ||
+    (livePods.length === 1 ? livePods[0] : null)
+  if (!preferred) {
+    console.error(`${COURSE}: cannot resolve served pod among ${livePods.length} live pods — refusing`)
     await db.end(); process.exit(2)
   }
-  const LIVE_POD = livePods[0].id
+  const LIVE_POD = preferred.id
   const LIVE_SLUG = LIVE_POD.split(':')[1]
 
   const { rows: canon } = await db.query(

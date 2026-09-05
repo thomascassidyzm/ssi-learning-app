@@ -1,0 +1,168 @@
+{
+  "course": "por_br_for_eng",
+  "live_pod": "por_br_for_eng:pod-1",
+  "prospective": "/home/tomcassidy/ssi-dashboard-v7-clean/docs/pods/por_br-pod0-switchover-prospective-2026-08-22.json",
+  "applied_at": "2026-09-05T19:23:11.109Z",
+  "tally": {
+    "present_ok": 4,
+    "MISSING": 13
+  },
+  "applied": [
+    {
+      "learner_id": "155dbf2e-265e-45c0-a227-fdc181e89362",
+      "course_code": "por_br_for_eng",
+      "recorded_key": "por_br_for_eng:pod-0-unrecorded:SC01-S002:s0",
+      "target_key": "por_br_for_eng:pod-1:SC01-S002:s0",
+      "recorded_exposures": 2,
+      "exposures_before": null,
+      "exposures_after": 2,
+      "action": "inserted",
+      "heard": "Good morning. How are you?",
+      "note": null
+    },
+    {
+      "learner_id": "155dbf2e-265e-45c0-a227-fdc181e89362",
+      "course_code": "por_br_for_eng",
+      "recorded_key": "por_br_for_eng:pod-0-unrecorded:SC01-S002:s1",
+      "target_key": "por_br_for_eng:pod-1:SC01-S002:s1",
+      "recorded_exposures": 1,
+      "exposures_before": null,
+      "exposures_after": 1,
+      "action": "inserted",
+      "heard": "Good morning. How are you?",
+      "note": null
+    },
+    {
+      "learner_id": "33344e24-4ae5-40ba-9611-178dbb5421c8",
+      "course_code": "por_br_for_eng",
+      "recorded_key": "por_br_for_eng:pod-0-unrecorded:SC01-S002:s0",
+      "target_key": "por_br_for_eng:pod-1:SC01-S002:s0",
+      "recorded_exposures": 22,
+      "exposures_before": null,
+      "exposures_after": 22,
+      "action": "inserted",
+      "heard": "Good morning. How are you?",
+      "note": null
+    },
+    {
+      "learner_id": "33344e24-4ae5-40ba-9611-178dbb5421c8",
+      "course_code": "por_br_for_eng",
+      "recorded_key": "por_br_for_eng:pod-0-unrecorded:SC01-S002:s1",
+      "target_key": "por_br_for_eng:pod-1:SC01-S002:s1",
+      "recorded_exposures": 21,
+      "exposures_before": null,
+      "exposures_after": 21,
+      "action": "inserted",
+      "heard": "Good morning. How are you?",
+      "note": null
+    },
+    {
+      "learner_id": "33344e24-4ae5-40ba-9611-178dbb5421c8",
+      "course_code": "por_br_for_eng",
+      "recorded_key": "por_br_for_eng:pod-0-unrecorded:SC01-S003:s0",
+      "target_key": "por_br_for_eng:pod-1:SC01-S003:s0",
+      "recorded_exposures": 20,
+      "exposures_before": null,
+      "exposures_after": 20,
+      "action": "inserted",
+      "heard": "I'm very well, thank you. Are you going to work?",
+      "note": null
+    },
+    {
+      "learner_id": "33344e24-4ae5-40ba-9611-178dbb5421c8",
+      "course_code": "por_br_for_eng",
+      "recorded_key": "por_br_for_eng:pod-0-unrecorded:SC01-S003:s1",
+      "target_key": "por_br_for_eng:pod-1:SC01-S003:s1",
+      "recorded_exposures": 19,
+      "exposures_before": null,
+      "exposures_after": 19,
+      "action": "inserted",
+      "heard": "I'm very well, thank you. Are you going to work?",
+      "note": null
+    },
+    {
+      "learner_id": "33344e24-4ae5-40ba-9611-178dbb5421c8",
+      "course_code": "por_br_for_eng",
+      "recorded_key": "por_br_for_eng:pod-0-unrecorded:SC01-S004:s0",
+      "target_key": "por_br_for_eng:pod-1:SC01-S004:s0",
+      "recorded_exposures": 18,
+      "exposures_before": null,
+      "exposures_after": 18,
+      "action": "inserted",
+      "heard": "Yes, I've got a busy day today. I hope you have a good day. See you later.",
+      "note": null
+    },
+    {
+      "learner_id": "33344e24-4ae5-40ba-9611-178dbb5421c8",
+      "course_code": "por_br_for_eng",
+      "recorded_key": "por_br_for_eng:pod-0-unrecorded:SC01-S004:s1",
+      "target_key": "por_br_for_eng:pod-1:SC01-S004:s1",
+      "recorded_exposures": 17,
+      "exposures_before": null,
+      "exposures_after": 17,
+      "action": "inserted",
+      "heard": "Yes, I've got a busy day today. I hope you have a good day. See you later.",
+      "note": null
+    },
+    {
+      "learner_id": "33344e24-4ae5-40ba-9611-178dbb5421c8",
+      "course_code": "por_br_for_eng",
+      "recorded_key": "por_br_for_eng:pod-0-unrecorded:SC01-S004:s2",
+      "target_key": "por_br_for_eng:pod-1:SC01-S004:s2",
+      "recorded_exposures": 16,
+      "exposures_before": null,
+      "exposures_after": 16,
+      "action": "inserted",
+      "heard": "Yes, I've got a busy day today. I hope you have a good day. See you later.",
+      "note": null
+    },
+    {
+      "learner_id": "33344e24-4ae5-40ba-9611-178dbb5421c8",
+      "course_code": "por_br_for_eng",
+      "recorded_key": "por_br_for_eng:pod-0-unrecorded:SC02-S002:s0",
+      "target_key": "por_br_for_eng:pod-1:SC02-S002:s0",
+      "recorded_exposures": 14,
+      "exposures_before": null,
+      "exposures_after": 14,
+      "action": "inserted",
+      "heard": "No, it's free. Please, go ahead.",
+      "note": null
+    },
+    {
+      "learner_id": "33344e24-4ae5-40ba-9611-178dbb5421c8",
+      "course_code": "por_br_for_eng",
+      "recorded_key": "por_br_for_eng:pod-0-unrecorded:SC02-S002:s1",
+      "target_key": "por_br_for_eng:pod-1:SC02-S002:s1",
+      "recorded_exposures": 13,
+      "exposures_before": null,
+      "exposures_after": 13,
+      "action": "inserted",
+      "heard": "No, it's free. Please, go ahead.",
+      "note": null
+    },
+    {
+      "learner_id": "33344e24-4ae5-40ba-9611-178dbb5421c8",
+      "course_code": "por_br_for_eng",
+      "recorded_key": "por_br_for_eng:pod-0-unrecorded:SC03-S010:s0",
+      "target_key": "por_br_for_eng:pod-1:SC03-S010:s0",
+      "recorded_exposures": 6,
+      "exposures_before": null,
+      "exposures_after": 6,
+      "action": "inserted",
+      "heard": "Thank you very much. Goodbye.",
+      "note": null
+    },
+    {
+      "learner_id": "33344e24-4ae5-40ba-9611-178dbb5421c8",
+      "course_code": "por_br_for_eng",
+      "recorded_key": "por_br_for_eng:pod-0-unrecorded:SC03-S010:s1",
+      "target_key": "por_br_for_eng:pod-1:SC03-S010:s1",
+      "recorded_exposures": 5,
+      "exposures_before": null,
+      "exposures_after": 5,
+      "action": "inserted",
+      "heard": "Thank you very much. Goodbye.",
+      "note": null
+    }
+  ]
+}
