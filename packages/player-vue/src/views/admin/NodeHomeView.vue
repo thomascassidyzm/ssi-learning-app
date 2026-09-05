@@ -20,14 +20,16 @@ import {
   type AssignableClass,
   type AssignmentOutcome,
 } from '@/composables/schools/assignTeacherClasses'
-import { INSTITUTIONAL_PURCHASE_IN_BUILD } from '@/platform/paymentRoute'
+import { INSTITUTIONAL_PURCHASE_IN_BUILD, institutionalPurchaseAvailable } from '@/platform/paymentRoute'
 
 // Seat purchase is web-only (platform/paymentRoute): in a store build this
 // folds to false and UpgradeView never enters the bundle.
 const UpgradeView = INSTITUTIONAL_PURCHASE_IN_BUILD
   ? defineAsyncComponent(() => import('@/views/schools/UpgradeView.vue'))
   : null
-const seatPurchaseAvailable = INSTITUTIONAL_PURCHASE_IN_BUILD
+// Visibility asks the seam, never the build constant — a web build inside the
+// native WebView has the constant true and the capability false.
+const seatPurchaseAvailable = computed(() => institutionalPurchaseAvailable())
 import NodeMapRail from '@/components/admin/NodeMapRail.vue'
 import NodeMapRailSkeleton from '@/components/admin/NodeMapRailSkeleton.vue'
 import NodeChildrenList from '@/components/admin/NodeChildrenList.vue'
@@ -653,7 +655,7 @@ const listPayload = computed(() => {
       <p class="org-expired-lede">
         Subscribe below to keep every member, group and team in your organisation. Your data is safe — nothing is deleted.
       </p>
-      <UpgradeView v-if="UpgradeView" />
+      <UpgradeView v-if="UpgradeView && seatPurchaseAvailable" />
       <p v-else class="org-expired-lede">
         Ask your organisation's administrator to renew the subscription.
       </p>

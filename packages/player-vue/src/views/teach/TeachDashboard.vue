@@ -6,11 +6,14 @@ import Button from '@/components/schools/shared/Button.vue'
 import { getPaddle, paddleConfig } from '@/lib/paddle'
 // Tutor billing is a seat purchase on the WEB rail (platform/paymentRoute):
 // build-time absent from a store build, panel and all.
-import { INSTITUTIONAL_PURCHASE_IN_BUILD } from '@/platform/paymentRoute'
-const seatPurchaseAvailable = INSTITUTIONAL_PURCHASE_IN_BUILD
+import { INSTITUTIONAL_PURCHASE_IN_BUILD, institutionalPurchaseAvailable, paddleBillingAvailable } from '@/platform/paymentRoute'
+// The constant is for CODE ELISION only — it keeps the panel's markup out of a
+// store BUILD. What the tutor SEES asks the seam, because a web build running
+// inside the WebView has the constant true and the capability false.
 const TutorBillingPanel = INSTITUTIONAL_PURCHASE_IN_BUILD
   ? defineAsyncComponent(() => import('./TutorBillingPanel.vue'))
   : null
+const seatPurchaseAvailable = computed(() => institutionalPurchaseAvailable())
 import { TEACHER_COURSES, labelForCourse } from '@/lib/teacherCourses'
 import { courseLabel, isFreeTier, type LiveCourse } from '@/lib/onboardingTracks'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
@@ -409,6 +412,9 @@ onMounted(loadAll)
 
 async function startTrial() {
   if (isStartingTrial.value) return
+  // Capability, not build shape: never open an outside payment route from a
+  // shell that is not allowed one.
+  if (!institutionalPurchaseAvailable()) return
   // Double-subscribe guard: an already-paid tutor must never open a SECOND
   // checkout (that creates a second Paddle subscription = double-bill). Route
   // them to the billing portal to manage the existing one instead. Keyed on
@@ -469,6 +475,8 @@ async function startTrial() {
 
 async function openPortal() {
   if (isOpeningPortal.value) return
+  // Paddle's hosted portal is the web rail's own machinery (paddleBillingAvailable).
+  if (!paddleBillingAvailable()) return
   isOpeningPortal.value = true
   checkoutError.value = ''
   try {
@@ -692,7 +700,7 @@ async function submitRecipient() {
          component so a store build never compiles its markup at all
          (platform/paymentRoute); a v-if would still ship the markup. -->
     <TutorBillingPanel
-      v-if="TutorBillingPanel"
+      v-if="TutorBillingPanel && seatPurchaseAvailable"
       :has-subscription="hasSubscription"
       :teacher="teacher"
       :subscription-status="subscriptionStatus"

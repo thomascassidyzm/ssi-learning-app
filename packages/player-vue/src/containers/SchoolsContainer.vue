@@ -4,7 +4,7 @@ import { ref, inject, computed, watch, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SchoolsTopBar from '@/components/schools/shared/SchoolsTopBar.vue'
 import SchoolsErrorBoundary from '@/components/schools/shared/SchoolsErrorBoundary.vue'
-import { INSTITUTIONAL_PURCHASE_IN_BUILD } from '@/platform/paymentRoute'
+import { INSTITUTIONAL_PURCHASE_IN_BUILD, institutionalPurchaseAvailable } from '@/platform/paymentRoute'
 import { SignInModal } from '@/components/auth'
 import '@/styles/schools-tokens.css'
 import '@/styles/schools-design.css'
@@ -32,6 +32,9 @@ import { sendSignInCode } from '../auth/sendSignInCode'
 const UpgradeView = INSTITUTIONAL_PURCHASE_IN_BUILD
   ? defineAsyncComponent(() => import('@/views/schools/UpgradeView.vue'))
   : null
+// …and what is SHOWN asks the seam, so a web artifact running inside the
+// native WebView renders no purchase route either.
+const seatPurchaseAvailable = computed(() => institutionalPurchaseAvailable())
 
 // Supabase client from App
 const supabase = inject('supabase', ref(null)) as any
@@ -748,7 +751,7 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
           Subscribe below to keep your classes, analytics and student progress.
           Your data is safe — nothing is deleted.
         </p>
-        <UpgradeView v-if="UpgradeView" />
+        <UpgradeView v-if="UpgradeView && seatPurchaseAvailable" />
         <p v-else class="expired-lede">
           Ask your organisation's administrator to renew the subscription.
         </p>
@@ -786,7 +789,7 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
            the terminal lockout. -->
       <div v-if="ctx.platformPastDue.value" class="schools-past-due-banner">
         ⚠️ There's a problem with your school's payment. Please update your card to avoid losing access.
-        <router-link v-if="INSTITUTIONAL_PURCHASE_IN_BUILD" to="/schools/upgrade">Manage billing</router-link>
+        <router-link v-if="seatPurchaseAvailable" to="/schools/upgrade">Manage billing</router-link>
       </div>
 
       <main :class="['main-content', { 'main-content--full': isPlayRoute }]">

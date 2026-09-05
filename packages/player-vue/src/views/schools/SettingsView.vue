@@ -124,13 +124,18 @@ async function loadSubscription() {
   }
 }
 
-import { INSTITUTIONAL_PURCHASE_IN_BUILD } from '@/platform/paymentRoute'
-// Seat purchase + the Paddle portal are the WEB rail (platform/paymentRoute);
-// a store build shows neither.
-const seatPurchaseAvailable = INSTITUTIONAL_PURCHASE_IN_BUILD
+import {
+  INSTITUTIONAL_PURCHASE_IN_BUILD,
+  institutionalPurchaseAvailable,
+  paddleBillingAvailable,
+} from '@/platform/paymentRoute'
+// Seat purchase + the Paddle portal are the WEB rail (platform/paymentRoute).
+// The constant keeps the panel's markup out of a store BUILD; what an admin
+// SEES asks the seam, so a web build inside the WebView hides it too.
 const SchoolBillingPanel = INSTITUTIONAL_PURCHASE_IN_BUILD
   ? defineAsyncComponent(() => import('./SchoolBillingPanel.vue'))
   : null
+const seatPurchaseAvailable = computed(() => institutionalPurchaseAvailable())
 
 // Paddle billing portal — invoices, card updates, cancellation. Only
 // meaningful once subscribed (the webhook stamps provider_customer_id).
@@ -138,6 +143,8 @@ const isOpeningPortal = ref(false)
 const portalError = ref('')
 async function openBillingPortal() {
   if (isOpeningPortal.value) return
+  // Paddle's hosted portal is the web rail's own machinery.
+  if (!paddleBillingAvailable()) return
   isOpeningPortal.value = true
   portalError.value = ''
   try {
@@ -505,7 +512,7 @@ function toggleDataItem(id: string) {
         <!-- Billing is the WEB rail (platform/paymentRoute): its own component
              so a store build never compiles the seat-purchase markup. -->
         <SchoolBillingPanel
-          v-else-if="activeSection === 'billing' && SchoolBillingPanel"
+          v-else-if="activeSection === 'billing' && SchoolBillingPanel && seatPurchaseAvailable"
           :plan-line="planLine"
           :PRICE_PER_SEAT_GBP="PRICE_PER_SEAT_GBP"
           :is-subscribed="isSubscribed"
