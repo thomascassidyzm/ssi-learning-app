@@ -28,7 +28,7 @@ describe('placeCard — back-to-player invariant', () => {
 
   it('unanchored states go bottom-center with safe-area clearance', () => {
     const s = placeCard(null, VW, VH)
-    expect(s.bottom).toContain('env(safe-area-inset-bottom')
+    expect(s.bottom).toContain('var(--shell-inset-bottom)')
     expect(s.top).toBeUndefined()
   })
 
@@ -48,7 +48,7 @@ describe('placeCard — back-to-player invariant', () => {
     // top edge at ~42px — inside the Learn-escape zone. Pre-guardrail code
     // allowed this (only checked > 0); it must now fall back.
     const s = placeCard(rect(250, 550), VW, VH)
-    expect(s.bottom).toContain('env(safe-area-inset-bottom')
+    expect(s.bottom).toContain('var(--shell-inset-bottom)')
   })
 
   it('below-placement is clamped out of the chrome even for a top-edge anchor', () => {
@@ -67,7 +67,7 @@ describe('placeCard — back-to-player invariant', () => {
 
   it('oversized anchors (taller than viewport) fall back to bottom-center', () => {
     const s = placeCard(rect(-500, 3000), VW, VH)
-    expect(s.bottom).toContain('env(safe-area-inset-bottom')
+    expect(s.bottom).toContain('var(--shell-inset-bottom)')
   })
 
   it('card width shrinks on narrow viewports and stays inside them', () => {

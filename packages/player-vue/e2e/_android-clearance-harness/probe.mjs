@@ -140,20 +140,34 @@ if (Math.abs(web.fromBottom - 24) > 0.5) {
 }
 report.push({ mode: 'web/iOS (android rule off), inset 48px', fromBottom: web.fromBottom })
 
-// NEGATIVE CONTROL. The same assertions against the PRE-FIX rule must FAIL —
-// half a 48px three-button inset leaves the row 24px up, i.e. inside the bar.
+// NEGATIVE CONTROL. The same assertions against the PRE-FIX rule must FAIL.
+// `legacy=1` restores dev's rule verbatim — max(calc(inset / 2), 12px) — so
+// this loop is the REPRODUCTION of what Deborah is hitting, at all three
+// postures, as well as the proof that the probe can tell the fix from the bug.
 // A probe that has only ever been seen green proves nothing.
-await page.goto(`${base}/?legacy=1&inset=48px`)
-await page.waitForSelector('.bottom-nav')
-const legacy = await page.evaluate(() => {
-  const nav = document.querySelector('.bottom-nav').getBoundingClientRect()
-  return { fromBottom: window.innerHeight - nav.bottom }
-})
-const legacyClearsBar = legacy.fromBottom - 48
-if (legacyClearsBar >= TOUCH_MARGIN) {
-  failures.push(`negative control: the OLD rule also cleared the bar by ${legacyClearsBar.toFixed(1)}px — the probe cannot tell the fix from the bug`)
+const legacyRows = []
+for (const inset of ['0px', '24px', '48px']) {
+  const insetPx = parseFloat(inset)
+  await page.goto(`${base}/?legacy=1&inset=${encodeURIComponent(inset)}`)
+  await page.waitForSelector('.bottom-nav')
+  await page.waitForTimeout(50)
+  const legacy = await page.evaluate(() => {
+    const nav = document.querySelector('.bottom-nav').getBoundingClientRect()
+    return { fromBottom: window.innerHeight - nav.bottom }
+  })
+  legacyRows.push({
+    inset,
+    fromBottom: legacy.fromBottom,
+    clearsBarBy: legacy.fromBottom - insetPx,
+    verdict: legacy.fromBottom - insetPx >= TOUCH_MARGIN ? 'ok' : 'COLLIDES',
+  })
 }
-report.push({ mode: 'NEGATIVE CONTROL — old rule, 48px inset', fromBottom: legacy.fromBottom, clearsBarBy: legacyClearsBar })
+// The tall three-button case is the one that must be seen broken.
+const legacy48 = legacyRows.find((r) => r.inset === '48px')
+if (legacy48.clearsBarBy >= TOUCH_MARGIN) {
+  failures.push(`negative control: the OLD rule also cleared the bar by ${legacy48.clearsBarBy.toFixed(1)}px — the probe cannot tell the fix from the bug`)
+}
+report.push({ mode: 'NEGATIVE CONTROL — old rule (dev), all postures', rows: legacyRows })
 
 fs.writeFileSync(path.join(out, 'clearance-report.json'), JSON.stringify({ failures, report }, null, 2))
 console.log(JSON.stringify({ failures, report }, null, 2))

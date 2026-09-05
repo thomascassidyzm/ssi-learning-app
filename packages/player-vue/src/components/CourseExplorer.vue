@@ -1846,7 +1846,7 @@ onUnmounted(() => {
 /* Global Stop Button */
 .global-stop-btn {
   position: fixed;
-  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(24px + var(--shell-inset-bottom));
   right: 24px;
   z-index: 9999;
   display: flex;
