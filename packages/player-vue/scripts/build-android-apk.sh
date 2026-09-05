@@ -41,13 +41,13 @@ export VITE_APP_SHELL=webview
 
 echo "==> building web bundle (shell=webview)"
 pnpm --filter @ssi/core build
-npx vite build
+./node_modules/.bin/vite build
 
 echo "==> stamping platform seam"
 node scripts/injectPlatform.mjs dist/index.html "$API_ORIGIN"
 
 echo "==> capacitor sync"
-npx cap sync android
+./node_modules/.bin/cap sync android
 
 echo "==> gradle assembleDebug"
 ( cd android && ./gradlew --no-daemon assembleDebug )
