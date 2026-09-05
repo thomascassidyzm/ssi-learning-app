@@ -186,7 +186,35 @@
    * LAYOUT
    * ================================================================ */
   --nav-height: 80px;
-  --nav-height-safe: calc(80px + env(safe-area-inset-bottom, 0px));
+  --nav-height-safe: calc(80px + var(--shell-inset-bottom));
+
+  /* ================================================================
+   * SHELL SAFE AREAS — the ONE definition every edge-anchored piece of
+   * shell chrome derives from. Nothing anchored to a screen edge should
+   * write env(safe-area-inset-*) itself; it should read these.
+   *
+   * --shell-inset-bottom / --shell-inset-top are the RAW measured insets.
+   * They prefer the custom properties Capacitor's SystemBars plugin sets on
+   * documentElement (Cap 8, insetsHandling: 'css' — SystemBars.java
+   * injectSafeAreaCSS, values in dp) and fall back to native env(). Both
+   * agree wherever both exist; the property is the only source that reports
+   * on an Android WebView whose insets the plugin has already consumed.
+   *
+   * --shell-nav-clearance is how far the floating bottom chrome sits above
+   * the bottom of the viewport. On the web and on iOS it is EXACTLY what it
+   * has always been — half the inset, 12px minimum — because that is the
+   * native convention there and nobody has complained about it.
+   *
+   * The Android native shell overrides it below: Deborah, the first external
+   * Android tester, 2026-09-05 — "I do not like that the bottom controls are
+   * so close to my phone controls." Half an inset leaves the pill row inside
+   * the system navigation bar when the WebView draws edge-to-edge, and a bare
+   * 12px leaves it hard against the bar when Capacitor has padded the WebView
+   * out of it instead. Both readings are her complaint.
+   * ================================================================ */
+  --shell-inset-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --shell-inset-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --shell-nav-clearance: max(calc(var(--shell-inset-bottom) / 2), 12px);
   --container-max: 1400px;
   --sidebar-width: 280px;
 
@@ -419,4 +447,33 @@
 :lang(tha), :lang(ur), :lang(urd), :lang(yi), :lang(yid), :lang(yue),
 :lang(zh), :lang(zho) {
   font-style: normal !important;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ * ANDROID NATIVE SHELL — bottom chrome must CLEAR the system navigation
+ * bar, never merely acknowledge it.
+ *
+ * The attribute is set once at boot by platform/shellSafeArea.ts (the only
+ * module that asks what shell this is). Nothing else keys off it.
+ *
+ * FULL inset, not half: Android's navigation bar is a live control surface
+ * under both gesture and three-button navigation, not iOS's inert home
+ * indicator, so the chrome has to sit entirely above it.
+ *
+ * PLUS a 16px touch margin: the pill row's tap targets end at its bottom
+ * edge, and a control flush against the back gesture is the bug being fixed.
+ *
+ * WITH a floor (--shell-nav-floor): a measured inset of zero is ambiguous —
+ * it is CORRECT when Capacitor has padded the WebView out of the system bars
+ * (the chrome is then already clear of them), and it is the FAILURE MODE when
+ * the window is edge-to-edge and nothing is reporting insets. The floor is
+ * 24px for the first case and shellSafeArea.ts raises it to 64px when it can
+ * see that no inset source is reporting at all. It is a safety net, never the
+ * fix — where the real inset is larger, the real inset wins.
+ * ════════════════════════════════════════════════════════════════════ */
+:root[data-shell-android="1"] {
+  --shell-nav-clearance: max(
+    calc(var(--shell-inset-bottom) + 16px),
+    var(--shell-nav-floor, 24px)
+  );
 }

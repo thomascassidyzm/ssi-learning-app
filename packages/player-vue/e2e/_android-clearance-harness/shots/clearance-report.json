@@ -1,0 +1,209 @@
+{
+  "failures": [],
+  "report": [
+    {
+      "inset": "0px",
+      "expected": 24,
+      "viewportHeight": 915,
+      "barTop": 915,
+      "navBottom": 891,
+      "clearance": 24,
+      "resolvedClearance": "max( calc(0px + 16px), 24px )",
+      "controls": [
+        {
+          "name": "grid",
+          "cx": 71,
+          "cy": 855,
+          "bottom": 881,
+          "clearance": 34,
+          "hitsSelf": true,
+          "hitTag": "svg."
+        },
+        {
+          "name": "previous",
+          "cx": 143,
+          "cy": 855,
+          "bottom": 881,
+          "clearance": 34,
+          "hitsSelf": true,
+          "hitTag": "svg."
+        },
+        {
+          "name": "play",
+          "cx": 216,
+          "cy": 855,
+          "bottom": 883,
+          "clearance": 32,
+          "hitsSelf": true,
+          "hitTag": "rect."
+        },
+        {
+          "name": "next",
+          "cx": 289,
+          "cy": 855,
+          "bottom": 881,
+          "clearance": 34,
+          "hitsSelf": true,
+          "hitTag": "svg."
+        },
+        {
+          "name": "settings",
+          "cx": 361,
+          "cy": 855,
+          "bottom": 881,
+          "clearance": 34,
+          "hitsSelf": true,
+          "hitTag": "svg."
+        },
+        {
+          "name": "modes",
+          "cx": 358,
+          "cy": 785,
+          "bottom": 807,
+          "clearance": 108,
+          "hitsSelf": true,
+          "hitTag": "line."
+        }
+      ]
+    },
+    {
+      "inset": "24px",
+      "expected": 16,
+      "viewportHeight": 915,
+      "barTop": 891,
+      "navBottom": 875,
+      "clearance": 16,
+      "resolvedClearance": "max( calc(24px + 16px), 24px )",
+      "controls": [
+        {
+          "name": "grid",
+          "cx": 71,
+          "cy": 839,
+          "bottom": 865,
+          "clearance": 26,
+          "hitsSelf": true,
+          "hitTag": "svg."
+        },
+        {
+          "name": "previous",
+          "cx": 143,
+          "cy": 839,
+          "bottom": 865,
+          "clearance": 26,
+          "hitsSelf": true,
+          "hitTag": "svg."
+        },
+        {
+          "name": "play",
+          "cx": 216,
+          "cy": 839,
+          "bottom": 867,
+          "clearance": 24,
+          "hitsSelf": true,
+          "hitTag": "rect."
+        },
+        {
+          "name": "next",
+          "cx": 289,
+          "cy": 839,
+          "bottom": 865,
+          "clearance": 26,
+          "hitsSelf": true,
+          "hitTag": "svg."
+        },
+        {
+          "name": "settings",
+          "cx": 361,
+          "cy": 839,
+          "bottom": 865,
+          "clearance": 26,
+          "hitsSelf": true,
+          "hitTag": "svg."
+        },
+        {
+          "name": "modes",
+          "cx": 358,
+          "cy": 769,
+          "bottom": 791,
+          "clearance": 100,
+          "hitsSelf": true,
+          "hitTag": "line."
+        }
+      ]
+    },
+    {
+      "inset": "48px",
+      "expected": 16,
+      "viewportHeight": 915,
+      "barTop": 867,
+      "navBottom": 851,
+      "clearance": 16,
+      "resolvedClearance": "max( calc(48px + 16px), 24px )",
+      "controls": [
+        {
+          "name": "grid",
+          "cx": 71,
+          "cy": 815,
+          "bottom": 841,
+          "clearance": 26,
+          "hitsSelf": true,
+          "hitTag": "svg."
+        },
+        {
+          "name": "previous",
+          "cx": 143,
+          "cy": 815,
+          "bottom": 841,
+          "clearance": 26,
+          "hitsSelf": true,
+          "hitTag": "svg."
+        },
+        {
+          "name": "play",
+          "cx": 216,
+          "cy": 815,
+          "bottom": 843,
+          "clearance": 24,
+          "hitsSelf": true,
+          "hitTag": "rect."
+        },
+        {
+          "name": "next",
+          "cx": 289,
+          "cy": 815,
+          "bottom": 841,
+          "clearance": 26,
+          "hitsSelf": true,
+          "hitTag": "svg."
+        },
+        {
+          "name": "settings",
+          "cx": 361,
+          "cy": 815,
+          "bottom": 841,
+          "clearance": 26,
+          "hitsSelf": true,
+          "hitTag": "svg."
+        },
+        {
+          "name": "modes",
+          "cx": 358,
+          "cy": 745,
+          "bottom": 767,
+          "clearance": 100,
+          "hitsSelf": true,
+          "hitTag": "line."
+        }
+      ]
+    },
+    {
+      "mode": "web/iOS (android rule off), inset 48px",
+      "fromBottom": 24
+    },
+    {
+      "mode": "NEGATIVE CONTROL — old rule, 48px inset",
+      "fromBottom": 24,
+      "clearsBarBy": -24
+    }
+  ]
+}
