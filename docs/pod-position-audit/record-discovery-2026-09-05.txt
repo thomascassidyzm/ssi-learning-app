@@ -1,0 +1,68 @@
+ara_eg_for_eng   1 candidate(s)  ->  ara_eg-pod0-switchover-prospective-2026-08-22.json
+ara_for_eng      1 candidate(s)  ->  ara-pod0-switchover-prospective-2026-08-22.json
+ara_sy_for_eng   0 candidate(s)  ->  NO RECORD
+bul_for_eng      0 candidate(s)  ->  NO RECORD
+cat_for_eng      0 candidate(s)  ->  NO RECORD
+cat_for_spa      0 candidate(s)  ->  NO RECORD
+cym_n_for_eng    0 candidate(s)  ->  NO RECORD
+cym_s_for_eng    0 candidate(s)  ->  NO RECORD
+dan_for_eng      0 candidate(s)  ->  NO RECORD
+deu_at_for_eng   0 candidate(s)  ->  NO RECORD
+deu_for_eng      1 candidate(s)  ->  deu-pod0-switchover-prospective-2026-08-22.json
+deu_for_jpn      0 candidate(s)  ->  NO RECORD
+ell_for_eng      0 candidate(s)  ->  NO RECORD
+eng_for_ara      0 candidate(s)  ->  NO RECORD
+eng_for_ben      0 candidate(s)  ->  NO RECORD
+eng_for_deu      0 candidate(s)  ->  NO RECORD
+eng_for_fra      0 candidate(s)  ->  NO RECORD
+eng_for_guj      0 candidate(s)  ->  NO RECORD
+eng_for_hin      0 candidate(s)  ->  NO RECORD
+eng_for_ita      0 candidate(s)  ->  NO RECORD
+eng_for_jpn      0 candidate(s)  ->  NO RECORD
+eng_for_kor      0 candidate(s)  ->  NO RECORD
+eng_for_pan      0 candidate(s)  ->  NO RECORD
+eng_for_por      0 candidate(s)  ->  NO RECORD
+eng_for_sin      0 candidate(s)  ->  NO RECORD
+eng_for_spa      0 candidate(s)  ->  NO RECORD
+eng_for_tam      0 candidate(s)  ->  NO RECORD
+eng_for_urd      0 candidate(s)  ->  NO RECORD
+eng_for_zho      0 candidate(s)  ->  NO RECORD
+est_for_eng      0 candidate(s)  ->  NO RECORD
+eus_for_eng      1 candidate(s)  ->  eus-pod0-switchover-prospective-2026-08-22.json
+eus_for_spa      0 candidate(s)  ->  NO RECORD
+fas_for_eng      0 candidate(s)  ->  NO RECORD
+fin_for_eng      0 candidate(s)  ->  NO RECORD
+fra_ca_for_eng   0 candidate(s)  ->  NO RECORD
+fra_for_eng      1 candidate(s)  ->  fra-pod0-switchover-prospective-2026-08-22.json
+fra_for_jpn      0 candidate(s)  ->  NO RECORD
+gle_for_eng      0 candidate(s)  ->  NO RECORD
+heb_for_eng      0 candidate(s)  ->  NO RECORD
+hin_for_eng      0 candidate(s)  ->  NO RECORD
+  note: 1 record shape(s) present only in the alternate checkout, not used: hrv-pod0-switchover-2026-08-22-prospective.json
+hrv_for_eng      1 candidate(s)  ->  hrv-pod0-switchover-applied-2026-08-22.json
+hye_for_eng      0 candidate(s)  ->  NO RECORD
+isl_for_eng      1 candidate(s)  ->  isl-pod0-switchover-prospective-2026-08-22.json
+ita_for_eng      1 candidate(s)  ->  ita-pod0-switchover-prospective-2026-08-22.json
+ita_for_jpn      0 candidate(s)  ->  NO RECORD
+jpn_for_eng      1 candidate(s)  ->  jpn-pod0-switchover-prospective-2026-08-22.json
+kor_for_eng      1 candidate(s)  ->  kor-pod0-switchover-prospective-2026-08-22.json
+lav_for_eng      0 candidate(s)  ->  NO RECORD
+lit_for_eng      0 candidate(s)  ->  NO RECORD
+nep_for_eng      0 candidate(s)  ->  NO RECORD
+nld_for_eng      0 candidate(s)  ->  NO RECORD
+nor_for_eng      0 candidate(s)  ->  NO RECORD
+pol_for_eng      0 candidate(s)  ->  NO RECORD
+por_br_for_eng   1 candidate(s)  ->  por_br-pod0-switchover-prospective-2026-08-22.json
+por_for_eng      1 candidate(s)  ->  por-pod0-switchover-prospective-2026-08-22.json
+ron_for_eng      1 candidate(s)  ->  ron-pod0-switchover-prospective-2026-08-22.json
+spa_for_eng      1 candidate(s)  ->  spa-pod0-switchover-prospective-2026-08-22.json
+spa_for_jpn      0 candidate(s)  ->  NO RECORD
+spa_mx_for_eng   1 candidate(s)  ->  spa_mx-pod0-switchover-prospective-2026-08-22.json
+swa_for_eng      0 candidate(s)  ->  NO RECORD
+swe_for_eng      1 candidate(s)  ->  swe-pod0-switchover-prospective-2026-08-22.json
+tha_for_eng      0 candidate(s)  ->  NO RECORD
+tur_for_eng      0 candidate(s)  ->  NO RECORD
+ukr_for_eng      0 candidate(s)  ->  NO RECORD
+zho_for_eng      1 candidate(s)  ->  zho-pod0-switchover-prospective-2026-08-22.json
+zho_for_jpn      0 candidate(s)  ->  NO RECORD
+zzz_test2_for_eng 0 candidate(s)  ->  NO RECORD

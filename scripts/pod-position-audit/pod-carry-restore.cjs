@@ -36,6 +36,7 @@
  *
  * Usage:
  *   node scripts/pod-position-audit/pod-carry-restore.cjs --course=deu            # dry-run diff
+ *   node scripts/pod-position-audit/pod-carry-restore.cjs --discover                # what record each course has
  *   node scripts/pod-position-audit/pod-carry-restore.cjs --course=deu --apply    # restore + log
  *   node scripts/pod-position-audit/pod-carry-restore.cjs --prospective=/path.json --apply
  */
@@ -53,9 +54,69 @@ const args = Object.fromEntries(process.argv.slice(2).map(a => {
 }))
 
 const APPLY = !!args.apply
-const PROSPECTIVE = args.prospective ||
-  (args.course && path.join(DASH, 'docs', 'pods', `${args.course}-pod0-switchover-prospective-2026-08-22.json`))
-if (!PROSPECTIVE) { console.error('need --course=<code> or --prospective=<path>'); process.exit(1) }
+const PODS_DIR = path.join(DASH, 'docs', 'pods')
+// A SECOND dashboard checkout exists on this box. Discovery deliberately reads only the
+// canonical one; the alternate is scanned for candidates DASH lacks and REPORTED, never used —
+// merging two checkouts' records is exactly the ambiguity this tool refuses elsewhere.
+const ALT_PODS_DIR = '/home/tomcassidy/SSi/ssi-dashboard-v7-clean/docs/pods'
+
+/**
+ * Find the switchover record for a course by looking at what is ON DISK, not by constructing one
+ * filename. Job #651's audit built exactly `<code>-pod0-switchover-prospective-<date>.json` and so
+ * declared Croatian recordless, while `hrv-pod0-switchover-applied-2026-08-22.json` sat beside the
+ * sixteen it did find. A filename convention mistaken for an absence cost a day; reasoning from an
+ * absence is the failure mode this function exists to remove.
+ *
+ * Matches any `<code>-pod0-switchover-*.json` — which covers all three orderings observed
+ * (`-prospective-<date>`, `-applied-<date>`, `-<date>-prospective`) and anything else that turns up.
+ * Preference when several match: the APPLIED record, then the newest by name; the choice is printed.
+ */
+function discoverRecords(code, dir) {
+  let names = []
+  try { names = fs.readdirSync(dir) } catch { return [] }
+  const re = new RegExp(`^${code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-pod0-switchover-.*\\.json$`)
+  return names.filter(n => re.test(n)).sort().map(n => path.join(dir, n))
+}
+function resolveRecord(code) {
+  const found = discoverRecords(code, PODS_DIR)
+  const alt = discoverRecords(code, ALT_PODS_DIR).map(p => path.basename(p))
+  const extra = alt.filter(n => !found.some(f => path.basename(f) === n))
+  if (extra.length) console.log(`  note: ${extra.length} record shape(s) present only in the alternate checkout, not used: ${extra.join(', ')}`)
+  if (!found.length) return null
+  const applied = found.filter(f => /-applied[-.]/.test(path.basename(f)))
+  const pick = applied.length ? applied[applied.length - 1] : found[found.length - 1]
+  if (found.length > 1) {
+    console.log(`  ${found.length} candidate records for ${code}: ${found.map(f => path.basename(f)).join(', ')}`)
+    console.log(`  using ${path.basename(pick)} (${applied.length ? 'applied record preferred' : 'newest by name'})`)
+  }
+  return pick
+}
+
+// --discover: for every course that has a listening pod, say which record discovery resolves.
+// This is the proof that the fix finds Croatian and still finds the sixteen that already worked.
+if (args.discover) {
+  const db = new Client({ connectionString: process.env.DATABASE_URL })
+  db.connect()
+    .then(() => db.query(`select distinct course_code from listening_pods order by course_code`))
+    .then(({ rows }) => {
+      for (const { course_code } of rows) {
+        const code = course_code.replace(/_for_eng$/, '')
+        const found = discoverRecords(code, PODS_DIR).map(f => path.basename(f))
+        const pick = resolveRecord(code)
+        console.log(`${course_code.padEnd(16)} ${found.length} candidate(s)  ->  ${pick ? path.basename(pick) : 'NO RECORD'}`)
+      }
+      return db.end()
+    })
+    .catch(e => { console.error('FAILED:', e.message); process.exit(1) })
+} else {
+
+const PROSPECTIVE = args.prospective || (args.course && resolveRecord(args.course))
+if (!PROSPECTIVE) {
+  console.error(args.course
+    ? `no pod0-switchover record on disk for --course=${args.course} in ${PODS_DIR}`
+    : 'need --course=<code> or --prospective=<path>')
+  process.exit(1)
+}
 
 const norm = (t) => (t || '').replace(/\s+/g, ' ').trim()
 const splitOf = (id) => { const m = /:s(\d+)$/.exec(id); return m ? Number(m[1]) : null }
@@ -209,3 +270,4 @@ async function main() {
 }
 
 main().catch(e => { console.error('FAILED:', e.message); process.exit(1) })
+}
