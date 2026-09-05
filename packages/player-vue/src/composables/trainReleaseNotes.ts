@@ -33,18 +33,14 @@ export interface TrainReleaseNote {
   is_published: boolean
 }
 
-function sectionBullets(body: string, heading: string): string[] {
-  const lines = body.split('\n')
-  const start = lines.findIndex((l) => l.trim().toLowerCase() === `## ${heading}`.toLowerCase())
-  if (start === -1) return []
-  const out: string[] = []
-  for (const line of lines.slice(start + 1)) {
-    if (line.startsWith('## ')) break
-    const m = /^\s*-\s+(.*\S)\s*$/.exec(line)
-    if (m) out.push(m[1])
-  }
-  return out
-}
+// ONE definition of "a bullet", shared with the finaliser that writes these files
+// (tools/release-train/release-notes.mjs). This parser used to hold its own copy of the same
+// regex; two copies agreeing by coincidence is how a wrapped bullet shipped truncated
+// mid-sentence, and how the "## Other stuff and bug fixes" heading drift below went unnoticed
+// for a month. Do not re-inline it. The same reach across the package boundary as the glob below.
+import { extractBullets } from '../../../../tools/release-train/notes-bullets.mjs'
+
+const sectionBullets = extractBullets
 
 /**
  * Parse one notes file. Returns null for drafts, unparseable files, and finals

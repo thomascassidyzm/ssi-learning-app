@@ -55,6 +55,7 @@ import { fileURLToPath } from 'node:url'
 import {
   candidate, condense, areaOf, publish, readOnDev, log, sh, GH_REPO,
 } from './lib.mjs'
+import { extractBullets, findUnrenderable } from './notes-bullets.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const NOTES_DIR = join(HERE, 'notes')
@@ -384,19 +385,15 @@ export function render(cand, notes, { draftDate }) {
 // after the machine's own. (A bullet the machine DID produce but budget-cut is recognised as
 // machine output and drops, so the founder's three-feature cap still holds.)
 
-/** Pull the `- ` bullets out of one `## ` section of a rendered notes body. */
-export function bulletsUnder(body, heading) {
-  const lines = (body || '').split('\n')
-  const start = lines.findIndex((l) => l.trim().toLowerCase() === `## ${heading}`.toLowerCase())
-  if (start === -1) return []
-  const out = []
-  for (const line of lines.slice(start + 1)) {
-    if (line.startsWith('## ')) break
-    const m = /^\s*-\s+(.*\S)\s*$/.exec(line)
-    if (m) out.push(m[1])
-  }
-  return out
-}
+/**
+ * Pull the `- ` bullets out of one `## ` section of a rendered notes body.
+ *
+ * Re-export, NOT a copy: notes-bullets.mjs is the single definition of "a bullet", shared with
+ * the player-vue parser that puts these on a learner's screen. It joins wrapped continuation
+ * lines, which this function used to drop silently (a hand-edited bullet that wrapped was cut
+ * in half on the way into the shipped file).
+ */
+export const bulletsUnder = extractBullets
 
 /**
  * Did a HUMAN touch this notes file, or only the machine? Every machine commit to a notes file is
@@ -502,6 +499,36 @@ function today() { return new Date().toISOString().slice(0, 10) }
 // learner ever sees these bullets, so if the two drift, a promote can "succeed" into silence.
 export const FINAL_HEADER_RE = /^#\s*Release notes\s*—\s*shipped\s+(\d{4}-\d{2}-\d{2})\s*$/m
 
+/** Every bullet a learner would see from this notes body — all three headings, in panel order. */
+export function shippedBullets(body) {
+  return [
+    ...extractBullets(body, "What's new"),
+    ...extractBullets(body, 'Other stuff and bug fixes'),
+    ...extractBullets(body, 'Fixes'),
+  ]
+}
+
+/**
+ * THE GATE (2026-09-05 ruling, closing the defect class from the 2026-09-05 ship): a notes file
+ * must never reach a learner carrying markup the Settings panel cannot render. The panel
+ * interpolates bullets as plain text, so `**bold**` arrives as literal asterisks. Constrain the
+ * generator rather than teach the panel markdown — the alternative is an HTML sink on a
+ * learner-facing page fed by a hand-authored table row.
+ *
+ * Throws, naming the bullet and what is wrong with it. promote.sh treats a notes failure as
+ * "ship anyway, report the failure loudly, write no notes" — so a bad bullet is never written and
+ * never shipped, which is exactly the outcome wanted.
+ */
+export function assertRenderable(body, rel = 'the notes') {
+  const bad = findUnrenderable(shippedBullets(body))
+  if (!bad.length) return
+  const lines = bad.map(({ bullet, problems }) =>
+    `  - ${problems.join(', ')}: ${bullet.length > 120 ? bullet.slice(0, 119) + '…' : bullet}`)
+  throw new Error(
+    `${rel} carries markup the Settings "What's new" panel cannot render — it would reach ` +
+    `learners as literal punctuation. Rewrite these bullets in plain words:\n${lines.join('\n')}`)
+}
+
 /** Is this notes body still an un-shipped draft? (Anything not stamped final counts as one.) */
 export function isDraftBody(body) {
   return !(body && FINAL_HEADER_RE.test(body))
@@ -591,6 +618,9 @@ async function main() {
       if (!body) return log('no draft notes and no promoted range — nothing to finalise'), 0
       final = finalizeBody(body, { shipDate, sha, count })
     }
+    // Gate BEFORE anything is written or printed: broken copy must not reach a notes file.
+    assertRenderable(final, rel)
+
     if (DRY) { process.stdout.write(final); return 0 }
     mkdirSync(NOTES_DIR, { recursive: true })
     const abs = join(NOTES_DIR, `${draftDate}.md`)
