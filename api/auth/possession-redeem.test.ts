@@ -459,17 +459,26 @@ describe('POST /api/auth/possession-redeem', () => {
     })
   })
 
-  // --- Empty-shell adoption (tryAdoptShellAccount): when createUser hits
-  // "already registered", an address whose account is an untouched shell
-  // (never signed in, never confirmed, no role/platform/invite) is adopted
-  // rather than refused. Anything with a heartbeat stays refused — this is
-  // the account-takeover boundary, so the refusal cases must be thorough. ---
-  describe('empty-shell adoption on already-registered', () => {
+  // --- CLAIMED-shell adoption (tryAdoptShellAccount): when createUser hits
+  // "already registered", the address's existing account is adopted ONLY if it
+  // carries a fresh app_metadata claim naming THIS invite code — i.e. this same
+  // flow created it and is retrying. Everything else is refused. This is the
+  // account-takeover boundary, so the refusal cases must be thorough. ---
+  describe('claimed-shell adoption on already-registered', () => {
     beforeEach(() => {
       createUserResult = { data: { user: null }, error: { code: 'email_exists', message: 'A user with this email address has already been registered' } }
       generateLinkResult = { data: { user: { id: 'shell-user-1' }, properties: { hashed_token: 'shell-token-1' } }, error: null }
       getUserByIdResult = {
-        data: { user: { id: 'shell-user-1', last_sign_in_at: null, email_confirmed_at: null, user_metadata: {} } },
+        data: {
+          user: {
+            id: 'shell-user-1',
+            last_sign_in_at: null,
+            email_confirmed_at: null,
+            user_metadata: {},
+            // Stamped by THIS invite's own createUser call moments ago.
+            app_metadata: { possession_claim: { invite_code_id: 'invite-1', claimed_at: new Date().toISOString() } },
+          },
+        },
         error: null,
       }
       shellLearnerRow = null
@@ -477,7 +486,7 @@ describe('POST /api/auth/possession-redeem', () => {
       verifyOtpResult = { data: { session: { access_token: 'shell-at', refresh_token: 'shell-rt' } }, error: null }
     })
 
-    it('ADOPTS a true empty shell: 200, adopted:true, a session, and an adopted_shell audit outcome', async () => {
+    it('ADOPTS a shell this invite itself created: 200, adopted:true, a session, and an adopted_shell audit outcome', async () => {
       const res = makeRes()
       await handler(makeReq({ code: 'TEACH-1', email: 'shell@school.example' }), res)
 
@@ -566,6 +575,109 @@ describe('POST /api/auth/possession-redeem', () => {
 
       expect(res._status).toBe(409)
       expect(res._json.reason).toBe('already_registered')
+      expect(res._json.session).toBeUndefined()
+    })
+
+    it('stamps the claim naming THIS invite when it creates a fresh account', async () => {
+      createUserResult = { data: { user: { id: 'auth-user-1' } }, error: null }
+      const res = makeRes()
+      await handler(makeReq({ code: 'TEACH-1', email: 'brandnew@school.example' }), res)
+
+      expect(res._status).toBe(200)
+      expect(createUserArg.app_metadata.possession_claim.invite_code_id).toBe('invite-1')
+      expect(typeof createUserArg.app_metadata.possession_claim.claimed_at).toBe('string')
+    })
+
+    it('SPENDS the claim on adoption, so one shell is adopted once', async () => {
+      const res = makeRes()
+      await handler(makeReq({ code: 'TEACH-1', email: 'shell@school.example' }), res)
+
+      expect(res._json.adopted).toBe(true)
+      const patch = updateUserByIdCalls.find((c) => c.id === 'shell-user-1')?.patch
+      expect(patch.app_metadata.possession_claim).toBeNull()
+    })
+  })
+
+  // --- CWE-1188 ACCOUNT PRE-HIJACKING (SEC 2026-09-05) --------------------
+  // The takeover chain this fix exists to break, reproduced end to end:
+  //
+  //   1. The attacker POSTs the victim's real work address to
+  //      /api/auth/send-code. Supabase's OTP mint CREATES the auth user
+  //      (`shouldCreateUser: true`), so an untouched shell now exists for
+  //      victim@theirschool.uk: never signed in, never confirmed, no learner
+  //      role. The victim knows nothing about it.
+  //   2. The attacker walks into /api/auth/possession-redeem with that same
+  //      address and ANY valid shared invite code — a class join code handed
+  //      out to a whole year group is enough.
+  //   3. Pre-fix, the shell PASSED every rail (no last_sign_in_at, no
+  //      email_confirmed_at, no role/platform/invite on the learner row) and
+  //      possession-redeem minted a real access + refresh token on the
+  //      victim's address. From there the attacker completes the victim's
+  //      genuine staff invite themselves and owns the account from the start.
+  //
+  // Every fixture below is the SHELL EXACTLY AS send-code LEAVES IT: no
+  // app_metadata claim, because send-code never made one — that absence is
+  // precisely the difference between the attacker's shell and a legitimate
+  // retry, and it is what the fix keys on.
+  //
+  // These four tests FAIL against the pre-fix code: with the claim check
+  // removed, each of them mints a session and returns 200 adopted:true, and
+  // every `expect(409)` / `expect(session).toBeUndefined()` here blows up.
+  describe('CWE-1188 account pre-hijacking regression', () => {
+    beforeEach(() => {
+      // createUser refuses: the shell the attacker manufactured already holds
+      // the address.
+      createUserResult = { data: { user: null }, error: { code: 'email_exists', message: 'A user with this email address has already been registered' } }
+      generateLinkResult = { data: { user: { id: 'victim-shell' }, properties: { hashed_token: 'victim-token' } }, error: null }
+      // The send-code residue: pristine, and carrying NO claim.
+      getUserByIdResult = {
+        data: { user: { id: 'victim-shell', last_sign_in_at: null, email_confirmed_at: null, user_metadata: {}, app_metadata: {} } },
+        error: null,
+      }
+      shellLearnerRow = null
+      verifyOtpResult = { data: { session: { access_token: 'victim-at', refresh_token: 'victim-rt' } }, error: null }
+    })
+
+    it('a shared STUDENT join code cannot adopt a send-code shell for a staff address', async () => {
+      inviteRow.code_type = 'student'
+      const res = makeRes()
+      await handler(makeReq({ code: 'TEACH-1', email: 'victim@theirschool.uk' }), res)
+
+      expect(res._status).toBe(409)
+      expect(res._json.reason).toBe('already_registered')
+      expect(res._json.session).toBeUndefined()
+      expect(res._json.adopted).toBeUndefined()
+      expect(attempts.some((a) => a.outcome === 'adopted_shell')).toBe(false)
+    })
+
+    it('a TEACHER invite cannot adopt a send-code shell it did not create either', async () => {
+      const res = makeRes()
+      await handler(makeReq({ code: 'TEACH-1', email: 'victim@theirschool.uk' }), res)
+
+      expect(res._status).toBe(409)
+      expect(res._json.session).toBeUndefined()
+      expect(attempts.some((a) => a.outcome === 'already_registered')).toBe(true)
+    })
+
+    it('a claim belonging to a DIFFERENT invite code cannot be spent by this one', async () => {
+      getUserByIdResult.data.user.app_metadata = {
+        possession_claim: { invite_code_id: 'some-other-invite', claimed_at: new Date().toISOString() },
+      }
+      const res = makeRes()
+      await handler(makeReq({ code: 'TEACH-1', email: 'victim@theirschool.uk' }), res)
+
+      expect(res._status).toBe(409)
+      expect(res._json.session).toBeUndefined()
+    })
+
+    it('a STALE claim for the right invite is refused — a claim covers one sitting, not forever', async () => {
+      getUserByIdResult.data.user.app_metadata = {
+        possession_claim: { invite_code_id: 'invite-1', claimed_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() },
+      }
+      const res = makeRes()
+      await handler(makeReq({ code: 'TEACH-1', email: 'victim@theirschool.uk' }), res)
+
+      expect(res._status).toBe(409)
       expect(res._json.session).toBeUndefined()
     })
   })

@@ -21,11 +21,13 @@ vi.mock('../_utils/auth', () => ({
   verifyAuthToken: vi.fn(async () => authResult),
 }))
 
-let schoolByAdmin: Record<string, string | undefined>
-let adminTag: any
-let targetStaffTag: any
+// School membership is modelled per user in BOTH spellings, because that is
+// the whole point of the fix: `schools.admin_user_id` (the founding-admin
+// pointer) and active `user_tags` SCHOOL: rows are one question, and the caller
+// and the target must be asked it the same way.
+let ownedSchools: Record<string, string[]>
+let schoolTags: Record<string, Array<{ tag_value: string; role_in_context: string }>>
 let targetLearnerRow: any
-let targetOtherTags: any[]
 let rateCount: number
 let rateErr: any
 let insertedEvents: any[]
@@ -52,19 +54,6 @@ function makeQueryBuilder(table: string) {
   }
 
   builder.maybeSingle = () => {
-    if (table === 'schools') {
-      const authUid = eqVal('admin_user_id')
-      const id = schoolByAdmin[authUid as string]
-      return Promise.resolve({ data: id ? { id } : null, error: null })
-    }
-    if (table === 'user_tags') {
-      // Admin-school lookup filters role_in_context via .eq(); the staff
-      // lookup filters it via .in() — that's how the two branches differ.
-      if (eqVal('role_in_context') === 'admin') {
-        return Promise.resolve({ data: adminTag, error: null })
-      }
-      return Promise.resolve({ data: targetStaffTag, error: null })
-    }
     if (table === 'learners') {
       return Promise.resolve({ data: targetLearnerRow, error: null })
     }
@@ -80,8 +69,16 @@ function makeQueryBuilder(table: string) {
       supersedeCalls.push(calls)
       return Promise.resolve({ error: supersedeErr }).then(resolve, reject)
     }
+    if (table === 'schools') {
+      // schoolMembershipsOf spelling 1: every school this uid founded.
+      const uid = eqVal('admin_user_id') as string
+      const ids = ownedSchools[uid] || []
+      return Promise.resolve({ data: ids.map((id) => ({ id })), error: null }).then(resolve, reject)
+    }
     if (table === 'user_tags') {
-      return Promise.resolve({ data: targetOtherTags, error: null }).then(resolve, reject)
+      // schoolMembershipsOf spelling 2: active SCHOOL: staff tags.
+      const uid = eqVal('user_id') as string
+      return Promise.resolve({ data: schoolTags[uid] || [], error: null }).then(resolve, reject)
     }
     if (table === 'player_events') {
       return Promise.resolve({ count: rateCount, error: rateErr }).then(resolve, reject)
@@ -134,11 +131,9 @@ function makeRes(): VercelResponse & { statusCode?: number; body?: any } {
 
 beforeEach(async () => {
   authResult = { valid: true, userId: 'admin-1' }
-  schoolByAdmin = { 'admin-1': 'school-1' }
-  adminTag = null
-  targetStaffTag = { id: 'tag-1', role_in_context: 'teacher' }
+  ownedSchools = { 'admin-1': ['school-1'] }
+  schoolTags = { 'target-1': [{ tag_value: 'SCHOOL:school-1', role_in_context: 'teacher' }] }
   targetLearnerRow = { id: 'learner-target-1', user_id: 'target-1', display_name: 'Target Teacher', educational_role: null, platform_role: null }
-  targetOtherTags = [{ tag_value: 'SCHOOL:school-1' }]
   rateCount = 0
   rateErr = null
   insertedEvents = []
@@ -179,8 +174,7 @@ describe('POST /api/school/staff-signin-link', () => {
   })
 
   it('403s when the caller is not a school admin (neither schools.admin_user_id nor a school-admin tag)', async () => {
-    schoolByAdmin = {}
-    adminTag = null
+    ownedSchools = {}
     const res = makeRes()
     await handler(makeReq('POST', { target_user_id: 'target-1' }), res)
     expect(res.statusCode).toBe(403)
@@ -188,15 +182,15 @@ describe('POST /api/school/staff-signin-link', () => {
   })
 
   it('resolves caller adminship via a school-admin user_tags row when schools.admin_user_id is not set', async () => {
-    schoolByAdmin = {}
-    adminTag = { tag_value: 'SCHOOL:school-1' }
+    ownedSchools = {}
+    schoolTags['admin-1'] = [{ tag_value: 'SCHOOL:school-1', role_in_context: 'admin' }]
     const res = makeRes()
     await handler(makeReq('POST', { target_user_id: 'target-1' }), res)
     expect(res.statusCode).toBe(200)
   })
 
   it('404s when the target holds no active teacher/admin tag at the caller\'s school', async () => {
-    targetStaffTag = null
+    schoolTags['target-1'] = []
     const res = makeRes()
     await handler(makeReq('POST', { target_user_id: 'target-1' }), res)
     expect(res.statusCode).toBe(404)
@@ -220,7 +214,10 @@ describe('POST /api/school/staff-signin-link', () => {
   })
 
   it('403 CONTAINMENT: refuses a target who also holds an active school tag for a DIFFERENT school', async () => {
-    targetOtherTags = [{ tag_value: 'SCHOOL:school-1' }, { tag_value: 'SCHOOL:school-2' }]
+    schoolTags['target-1'] = [
+      { tag_value: 'SCHOOL:school-1', role_in_context: 'teacher' },
+      { tag_value: 'SCHOOL:school-2', role_in_context: 'teacher' },
+    ]
     const res = makeRes()
     await handler(makeReq('POST', { target_user_id: 'target-1' }), res)
     expect(res.statusCode).toBe(403)
@@ -323,5 +320,45 @@ describe('POST /api/school/staff-signin-link', () => {
     expect(res.statusCode).toBe(404)
   })
 
+  // --- CROSS-SCHOOL REACH via the untagged founding admin (SEC 2026-09-05) ---
+  // The same two-spellings-of-identity bug as Chepstow, 2026-08-06. The caller's
+  // own school was resolved through BOTH spellings (schools.admin_user_id OR a
+  // SCHOOL: tag); the target's reach beyond that school was resolved through
+  // user_tags ALONE. A person who FOUNDED another school holds the pointer and,
+  // if nothing ever tagged them, no tag — so they read as "belongs nowhere
+  // else", and a school admin at school-1 could mint a live session as the
+  // person who runs school-2.
+  //
+  // These two tests FAIL against the pre-fix code: with the target resolved from
+  // user_tags only, both mint (200, an access code, a staff_access_codes row).
+  describe('cross-school containment regression', () => {
+    it('403s: the target ALSO founds another school via schools.admin_user_id and carries no tag for it', async () => {
+      ownedSchools = { 'admin-1': ['school-1'], 'target-1': ['school-2'] }
+      schoolTags['target-1'] = [{ tag_value: 'SCHOOL:school-1', role_in_context: 'teacher' }]
+      const res = makeRes()
+      await handler(makeReq('POST', { target_user_id: 'target-1' }), res)
+      expect(res.statusCode).toBe(403)
+      expect(codeInserts).toHaveLength(0)
+      expect(res.body.access_code).toBeUndefined()
+    })
 
+    it('404s: a target who founds ONLY another school is not a member of the caller\'s school at all', async () => {
+      ownedSchools = { 'admin-1': ['school-1'], 'target-1': ['school-2'] }
+      schoolTags['target-1'] = []
+      const res = makeRes()
+      await handler(makeReq('POST', { target_user_id: 'target-1' }), res)
+      expect(res.statusCode).toBe(404)
+      expect(codeInserts).toHaveLength(0)
+    })
+
+    it('200: a target who FOUNDED the caller\'s own school and was never tagged is now recognised as staff', async () => {
+      // The other half of the one-resolver fix — the Chepstow parity direction.
+      ownedSchools = { 'admin-1': ['school-1'], 'target-1': ['school-1'] }
+      schoolTags['target-1'] = []
+      const res = makeRes()
+      await handler(makeReq('POST', { target_user_id: 'target-1' }), res)
+      expect(res.statusCode).toBe(200)
+      expect(codeInserts).toHaveLength(1)
+    })
+  })
 })
