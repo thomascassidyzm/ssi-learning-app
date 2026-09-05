@@ -57,16 +57,16 @@ describe('the two build identifiers share one source', () => {
     // business is the id the reader compares, not the shape of the object it
     // travels in — an object with more in it is not a fork.
     const widened = fork(
-      'source: JSON.stringify({ buildNumber, buildTime }),',
-      'source: JSON.stringify({ buildNumber, buildTime, note: "hello" }),'
+      'source: JSON.stringify({ buildNumber, buildTime, buildBranch }),',
+      'source: JSON.stringify({ buildNumber, buildTime, buildBranch, note: "hello" }),'
     )
     expect(findBuildIdentityForks(widened)).toEqual([])
   })
 
   it('goes red when the emitter uses a different identifier', () => {
     const forked = fork(
-      'source: JSON.stringify({ buildNumber, buildTime }),',
-      'source: JSON.stringify({ buildNumber: swSelfUpdate, buildTime }),'
+      'source: JSON.stringify({ buildNumber, buildTime, buildBranch }),',
+      'source: JSON.stringify({ buildNumber: swSelfUpdate, buildTime, buildBranch }),'
     )
     const findings = findBuildIdentityForks(forked)
     expect(findings.map((f) => f.kind)).toEqual(['forked'])
@@ -75,12 +75,12 @@ describe('the two build identifiers share one source', () => {
 
   it('goes red when the emitter inlines its own expression', () => {
     const forked = fork(
-      'source: JSON.stringify({ buildNumber, buildTime }),',
-      'source: JSON.stringify({ buildNumber: Date.now().toString(36), buildTime }),'
+      'source: JSON.stringify({ buildNumber, buildTime, buildBranch }),',
+      'source: JSON.stringify({ buildNumber: Date.now().toString(36), buildTime, buildBranch }),'
     )
     const findings = findBuildIdentityForks(forked)
     expect(findings.map((f) => f.kind)).toEqual(['inline-expression'])
-    expect(findings[0].why).toContain("version.json's source is computed inline")
+    expect(findings[0].why).toContain("version.json's buildNumber is computed inline")
   })
 
   it('goes red when __BUILD_NUMBER__ is given a different expression', () => {
@@ -101,8 +101,8 @@ describe('the two build identifiers share one source', () => {
 
   it("goes red when version.json stops emitting the reader's key", () => {
     const forked = fork(
-      'source: JSON.stringify({ buildNumber, buildTime }),',
-      'source: JSON.stringify({ build: buildNumber, buildTime }),'
+      'source: JSON.stringify({ buildNumber, buildTime, buildBranch }),',
+      'source: JSON.stringify({ build: buildNumber, buildTime, buildBranch }),'
     )
     const findings = findBuildIdentityForks(forked)
     expect(findings.map((f) => f.kind)).toEqual(['emitter-key'])
@@ -113,8 +113,40 @@ describe('the two build identifiers share one source', () => {
     const noDefine = findBuildIdentityForks(real.replace('__BUILD_NUMBER__:', 'BUILD_NUMBER_X:'))
     expect(noDefine.map((f) => f.kind)).toEqual(['define-missing'])
 
+    // Killing the emitter kills it for EVERY fact the stamp carries, so each
+    // pair reports its own missing side.
     const noEmitter = findBuildIdentityForks(real.replace("fileName: 'version.json',", ''))
-    expect(noEmitter.map((f) => f.kind)).toEqual(['emitter-missing'])
+    expect(noEmitter.map((f) => f.kind)).toEqual(['emitter-missing', 'emitter-missing'])
+  })
+
+  it('the branch is held to the same one-binding rule as the sha', () => {
+    // The stamp carries THREE facts now (sha, time, branch) and the branch
+    // travels the same two routes the sha does. A guard over half the stamp
+    // would not have stopped the fork it was written to stop.
+    expect(findDefineExpression(real, '__BUILD_BRANCH__')).toBe('JSON.stringify(buildBranch)')
+    const emitter = findVersionEmitterSource(real, 'buildBranch')
+    expect(emitter?.key).toBe('buildBranch')
+    expect(emitter?.value).toBe('buildBranch')
+  })
+
+  it('goes red when the branch define and version.json fork apart', () => {
+    const forked = fork(
+      '__BUILD_BRANCH__: JSON.stringify(buildBranch),',
+      '__BUILD_BRANCH__: JSON.stringify(process.env.VERCEL_GIT_COMMIT_REF || null),'
+    )
+    const findings = findBuildIdentityForks(forked)
+    expect(findings.map((f) => `${f.define}:${f.kind}`)).toEqual([
+      '__BUILD_BRANCH__:inline-expression',
+    ])
+  })
+
+  it("goes red when version.json drops the branch it advertises", () => {
+    const forked = fork(
+      'source: JSON.stringify({ buildNumber, buildTime, buildBranch }),',
+      'source: JSON.stringify({ buildNumber, buildTime }),'
+    )
+    const findings = findBuildIdentityForks(forked)
+    expect(findings.map((f) => `${f.define}:${f.kind}`)).toEqual(['__BUILD_BRANCH__:emitter-key'])
   })
 
   it('ignores the comment lines that name both identifiers in prose', () => {

@@ -3,6 +3,7 @@ import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
 import { fileURLToPath, URL } from 'node:url'
 import { execFileSync } from 'node:child_process'
+import { resolveBuildBranch } from './scripts/buildBranch.mjs'
 
 // Generate build info at build time.
 //
@@ -42,6 +43,8 @@ const buildNumber = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ||
                     localGitBuildNumber() ||
                     `dev-${Date.now().toString(36)}`
 
+const buildBranch = resolveBuildBranch()
+
 // Dev-only affordances (the `?wedge=1` boot-watchdog rehearsal cheat). Vercel
 // tags BOTH dev and staging as VERCEL_ENV='preview' (production branch is
 // `main`), so staging is carved out by branch name — it must behave exactly
@@ -68,10 +71,10 @@ const versionFilePlugin = () => ({
       type: 'asset',
       fileName: 'version.json',
       // buildTime rides along so a reader can tell "newer" from merely
-      // "different". A bundled native shell compares its own stamp against
+      // "different"; buildBranch says which line of work this froze. A bundled native shell compares its own stamp against
       // this one (platform/buildStaleness.ts), and two shas that disagree do
       // not say which came first — only the clock does.
-      source: JSON.stringify({ buildNumber, buildTime }),
+      source: JSON.stringify({ buildNumber, buildTime, buildBranch }),
     })
   },
 })
@@ -311,6 +314,7 @@ export default defineConfig(({ mode }) => ({
   define: {
     __BUILD_TIME__: JSON.stringify(buildTime),
     __BUILD_NUMBER__: JSON.stringify(buildNumber),
+    __BUILD_BRANCH__: JSON.stringify(buildBranch),
     // `?wedge=1` boot-watchdog rehearsal cheat (docs/pwa-lifecycle-design.md
     // §3) — dev only. Reuses swSelfUpdate's exact env carve-out (not
     // production, not the staging branch) rather than inventing a second

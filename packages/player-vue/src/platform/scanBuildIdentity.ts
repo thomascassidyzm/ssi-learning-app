@@ -1,6 +1,6 @@
 /**
- * scanBuildIdentity — a pure scanner that checks the two build identifiers the
- * app compares against each other still come from ONE source.
+ * scanBuildIdentity — a pure scanner that checks the build identifiers the app
+ * compares against each other still come from ONE source.
  *
  * WHY THIS EXISTS. `vite.config.js` derives a single module-scope `buildNumber`
  * and feeds it to two places:
@@ -21,6 +21,12 @@
  * failure is SILENT: the banner either never fires or fires forever. That is
  * the same failure class the update-race hotfix `1403ac0e` closed, re-opened
  * from the other end.
+ *
+ * TWO PAIRS, ONE RULE (2026-09-05). The stamp now carries the BRANCH beside
+ * the sha (`__BUILD_BRANCH__` / version.json's `buildBranch`), for the same
+ * reason and by the same route. A guard that only guards half the stamp will
+ * not stop the next fork, so the check below runs over every pair in
+ * `IDENTITY_PAIRS` rather than over the sha alone.
  *
  * Proven in both directions by its test: run over the real config expecting
  * zero findings, and fed synthetic forked configs expecting red. A verifier
@@ -44,7 +50,18 @@ export type BuildIdentityFindingKind =
 export interface BuildIdentityFinding {
   kind: BuildIdentityFindingKind
   why: string
+  /** Which define this finding is about, e.g. `__BUILD_NUMBER__`. */
+  define: string
 }
+
+/**
+ * The stamp's facts, each of which travels by two routes that must not fork:
+ * a `define` compiled into the app, and a property of `/version.json`.
+ */
+export const IDENTITY_PAIRS: { define: string; key: string }[] = [
+  { define: '__BUILD_NUMBER__', key: 'buildNumber' },
+  { define: '__BUILD_BRANCH__', key: 'buildBranch' },
+]
 
 /** Lines that are prose rather than code. Same rule as scanClientApiCalls. */
 function isCommentLine(line: string): boolean {
@@ -78,17 +95,15 @@ function toBinding(expr: string): string | null {
   return IDENTIFIER.test(e) ? e : null
 }
 
-/** The `__BUILD_NUMBER__: <expr>` value, as written. */
-export function findDefineExpression(content: string): string | null {
+/** The `<define>: <expr>` value, as written. */
+export function findDefineExpression(content: string, define = '__BUILD_NUMBER__'): string | null {
+  const pattern = new RegExp(`${define}\\s*:\\s*(.+)$`)
   for (const { line } of codeLines(content)) {
-    const m = /__BUILD_NUMBER__\s*:\s*(.+)$/.exec(line)
+    const m = pattern.exec(line)
     if (m) return tidy(m[1])
   }
   return null
 }
-
-/** The reader's key: `fetchLatestBuildNumber()` reads `data.buildNumber`. */
-const READER_KEY = 'buildNumber'
 
 /** Split an object body on its TOP-LEVEL commas, ignoring nested brackets. */
 function splitTopLevel(body: string): string[] {
@@ -118,7 +133,7 @@ export interface EmitterSource {
 }
 
 /** The `source:` of the asset whose `fileName` is `version.json`. */
-export function findVersionEmitterSource(content: string): EmitterSource | null {
+export function findVersionEmitterSource(content: string, readerKey = 'buildNumber'): EmitterSource | null {
   const lines = codeLines(content)
   const at = lines.findIndex(({ line }) => /fileName\s*:\s*['"`]version\.json['"`]/.test(line))
   if (at === -1) return null
@@ -140,9 +155,9 @@ export function findVersionEmitterSource(content: string): EmitterSource | null 
     // there.
     for (const prop of splitTopLevel(body)) {
       const keyed = /^([A-Za-z_$][\w$]*)\s*:\s*([\s\S]*)$/.exec(prop)
-      if (keyed && keyed[1] === READER_KEY) return { raw, key: keyed[1], value: tidy(keyed[2]) }
+      if (keyed && keyed[1] === readerKey) return { raw, key: keyed[1], value: tidy(keyed[2]) }
       // Shorthand `{ buildNumber }` — the key and the value are one name.
-      if (IDENTIFIER.test(prop) && prop === READER_KEY) return { raw, key: prop, value: prop }
+      if (IDENTIFIER.test(prop) && prop === readerKey) return { raw, key: prop, value: prop }
     }
     return { raw, key: null, value: null }
   }
@@ -150,35 +165,42 @@ export function findVersionEmitterSource(content: string): EmitterSource | null 
 }
 
 /**
- * THE CHECK. `__BUILD_NUMBER__` and the `/version.json` emitter must both be
- * plain references to the SAME module-scope binding — so the two strings the
- * update check compares cannot drift apart.
+ * THE CHECK, for ONE pair. The define and the matching `/version.json`
+ * property must both be plain references to the SAME module-scope binding —
+ * so the two strings a reader compares cannot drift apart.
  */
-export function findBuildIdentityForks(content: string): BuildIdentityFinding[] {
+export function findPairForks(
+  content: string,
+  pair: { define: string; key: string }
+): BuildIdentityFinding[] {
   const findings: BuildIdentityFinding[] = []
-  const defineExpr = findDefineExpression(content)
-  const emitter = findVersionEmitterSource(content)
+  const { define, key: readerKey } = pair
+  const defineExpr = findDefineExpression(content, define)
+  const emitter = findVersionEmitterSource(content, readerKey)
 
   if (defineExpr === null) {
     findings.push({
+      define,
       kind: 'define-missing',
-      why: 'no `__BUILD_NUMBER__: …` entry found in the config — the Settings build row compiles against it',
+      why: `no \`${define}: …\` entry found in the config — the Settings build row compiles against it`,
     })
   }
   if (emitter === null) {
     findings.push({
+      define,
       kind: 'emitter-missing',
       why: 'no `source:` found for the asset emitting version.json — usePwaUpdate fetches it to detect a new build',
     })
   }
   if (defineExpr === null || emitter === null) return findings
 
-  if (emitter.key !== READER_KEY) {
+  if (emitter.key !== readerKey) {
     findings.push({
+      define,
       kind: 'emitter-key',
-      why: `version.json emits ${emitter.key ? `\`${emitter.key}\`` : 'no readable property'}, but fetchLatestBuildNumber() reads \`${READER_KEY}\``,
+      why: `version.json emits ${emitter.key ? `\`${emitter.key}\`` : 'no readable property'}, but the reader reads \`${readerKey}\` (fetchLatestBuildNumber)`,
     })
-    // The id the update check compares is not in the file at all, so every
+    // The id the reader compares is not in the file at all, so every
     // downstream question about which binding it references is meaningless —
     // report the one real finding rather than a cascade behind it.
     return findings
@@ -189,22 +211,25 @@ export function findBuildIdentityForks(content: string): BuildIdentityFinding[] 
 
   if (defineBinding === null) {
     findings.push({
+      define,
       kind: 'inline-expression',
-      why: `__BUILD_NUMBER__ is computed inline (\`${defineExpr}\`) instead of referencing the shared build-number binding — nothing then guarantees version.json holds the same value`,
+      why: `${define} is computed inline (\`${defineExpr}\`) instead of referencing the shared binding — nothing then guarantees version.json holds the same value`,
     })
   }
   if (emitterBinding === null) {
     findings.push({
+      define,
       kind: 'inline-expression',
-      why: `version.json's source is computed inline (\`${emitter.value ?? emitter.raw}\`) instead of referencing the shared build-number binding — nothing then guarantees __BUILD_NUMBER__ holds the same value`,
+      why: `version.json's ${readerKey} is computed inline (\`${emitter.value ?? emitter.raw}\`) instead of referencing the shared binding — nothing then guarantees ${define} holds the same value`,
     })
   }
   if (defineBinding === null || emitterBinding === null) return findings
 
   if (defineBinding !== emitterBinding) {
     findings.push({
+      define,
       kind: 'forked',
-      why: `__BUILD_NUMBER__ uses \`${defineBinding}\` but version.json uses \`${emitterBinding}\` — usePwaUpdate compares those two strings, so a fork makes the update banner either never fire or fire forever`,
+      why: `${define} uses \`${defineBinding}\` but version.json uses \`${emitterBinding}\` — a reader compares those two strings, so a fork makes the answer either never change or never agree`,
     })
     return findings
   }
@@ -212,9 +237,15 @@ export function findBuildIdentityForks(content: string): BuildIdentityFinding[] 
   const declared = new RegExp(`^(?:const|let|var)\\s+${defineBinding}\\s*=`, 'm')
   if (!declared.test(content)) {
     findings.push({
+      define,
       kind: 'unbound',
       why: `\`${defineBinding}\` has no module-scope declaration in this config, so the two consumers may not be reading one value`,
     })
   }
   return findings
+}
+
+/** THE CHECK, over every fact the stamp carries. */
+export function findBuildIdentityForks(content: string): BuildIdentityFinding[] {
+  return IDENTITY_PAIRS.flatMap((pair) => findPairForks(content, pair))
 }

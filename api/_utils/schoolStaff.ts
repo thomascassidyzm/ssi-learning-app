@@ -140,6 +140,17 @@ export interface SchoolMembership {
 }
 
 /**
+ * One school an account REACHES, in any capacity at all — staff or pupil.
+ *
+ * Deliberately a wider type than `SchoolMembership`: a containment check asks
+ * "does this account touch anywhere else?", and a pupil seat is a touch.
+ */
+export interface SchoolReach {
+  schoolId: string
+  role: 'admin' | 'teacher' | 'student'
+}
+
+/**
  * EVERY school this user is staff at — under BOTH spellings, in one answer.
  *
  * The bug this closes (found 2026-09-05, and it is the Chepstow bug of
@@ -190,6 +201,93 @@ export async function schoolMembershipsOf(
     const existing = byId.get(schoolId)
     if (existing?.role === 'admin') continue
     byId.set(schoolId, { schoolId, role: row.role_in_context === 'admin' ? 'admin' : 'teacher' })
+  }
+
+  return [...byId.values()]
+}
+
+/**
+ * EVERY school this account reaches, in ANY capacity — staff OR pupil.
+ *
+ * The gap this closes (2026-09-05, sibling of the one above): a containment
+ * check must ask "does this account reach anywhere else AT ALL", but
+ * `schoolMembershipsOf` deliberately answers a narrower question — "is this
+ * person STAFF here" — and filters to teacher/admin. Its other callers want
+ * exactly that. api/school/staff-signin-link.ts does not: it mints a live
+ * session as the target, so a pupil seat at a second school is reach the same
+ * way a teaching post is, and the staff-only view could not see it. A person
+ * who teaches at school A and studies at school B is a real, supported state
+ * (api/code/redeem.ts writes both), so school A's admin could mint a session
+ * that opened that person's private pupil account at school B.
+ *
+ * Three spellings of reach, all unioned here so no caller has to remember them:
+ *   1. `schools.admin_user_id` — the founding-admin pointer.
+ *   2. an active `user_tags` SCHOOL: tag, of ANY role (student included).
+ *   3. an active `user_tags` CLASS: tag, resolved to that class's school —
+ *      because the pupil path (redeem.ts) writes a CLASS tag and NO school tag,
+ *      so school-tags-only would still miss the commonest pupil of all.
+ *
+ * Highest capacity wins when several spellings describe one school, so the
+ * returned role never understates what the account can do there.
+ */
+export async function schoolReachOf(
+  supabase: SupabaseClient,
+  authUid: string,
+): Promise<SchoolReach[]> {
+  if (!authUid) return []
+  const rank = { student: 0, teacher: 1, admin: 2 } as const
+  const byId = new Map<string, SchoolReach>()
+  const note = (schoolId: string, role: SchoolReach['role']) => {
+    if (!schoolId) return
+    const existing = byId.get(schoolId)
+    if (existing && rank[existing.role] >= rank[role]) return
+    byId.set(schoolId, { schoolId, role })
+  }
+
+  // Spellings 1 + 2 — staff reach, from the one staff resolver, so the two can
+  // never drift apart.
+  for (const m of await schoolMembershipsOf(supabase, authUid)) note(m.schoolId, m.role)
+
+  // Spelling 2 (widened) — school tags carrying a NON-staff role.
+  const { data: tags } = await supabase
+    .from('user_tags')
+    .select('tag_value, role_in_context')
+    .eq('user_id', authUid)
+    .eq('tag_type', 'school')
+    .is('removed_at', null)
+  for (const row of (tags || []) as Array<{ tag_value: string; role_in_context: string }>) {
+    const schoolId = String(row?.tag_value || '').replace('SCHOOL:', '')
+    const role = row?.role_in_context === 'admin' ? 'admin' : row?.role_in_context === 'teacher' ? 'teacher' : 'student'
+    note(schoolId, role)
+  }
+
+  // Spelling 3 — class tags, resolved to their school.
+  const { data: classTags } = await supabase
+    .from('user_tags')
+    .select('tag_value, role_in_context')
+    .eq('user_id', authUid)
+    .eq('tag_type', 'class')
+    .is('removed_at', null)
+  const classIds = [
+    ...new Set(
+      ((classTags || []) as Array<{ tag_value: string; role_in_context: string }>)
+        .map((row) => String(row?.tag_value || '').replace('CLASS:', ''))
+        .filter(Boolean),
+    ),
+  ]
+  if (classIds.length) {
+    const roleByClass = new Map<string, SchoolReach['role']>()
+    for (const row of (classTags || []) as Array<{ tag_value: string; role_in_context: string }>) {
+      const classId = String(row?.tag_value || '').replace('CLASS:', '')
+      const role = row?.role_in_context === 'admin' ? 'admin' : row?.role_in_context === 'teacher' ? 'teacher' : 'student'
+      const existing = roleByClass.get(classId)
+      if (!existing || rank[existing] < rank[role]) roleByClass.set(classId, role)
+    }
+    const { data: classes } = await supabase.from('classes').select('id, school_id').in('id', classIds)
+    for (const row of (classes || []) as Array<{ id: string; school_id: string | null }>) {
+      if (!row?.school_id) continue
+      note(String(row.school_id), roleByClass.get(String(row.id)) ?? 'student')
+    }
   }
 
   return [...byId.values()]
