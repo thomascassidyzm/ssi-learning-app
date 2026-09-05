@@ -6,6 +6,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    include: ['api/**/*.test.ts'],
+    // pod-delivery-detector rides this suite: scripts/ has no suite of its
+    // own, and a detector whose tests never run is itself an undetected fault.
+    include: ['api/**/*.test.ts', 'scripts/pod-delivery-detector.test.ts'],
   },
 })

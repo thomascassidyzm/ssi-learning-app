@@ -164,8 +164,12 @@ describe('security-test machinery integrity — pinned roster', () => {
 
 describe('security-test machinery integrity — config wiring', () => {
   it('vitest.api.config.ts collects api/**/*.test.ts (so *.security.test.ts rides it)', () => {
+    // The guarantee is that the api glob IS collected — not that it is the
+    // only entry. `scripts/pod-delivery-detector.test.ts` was added alongside
+    // it on 2026-09-05 (scripts/ has no suite of its own); extra entries are
+    // fine, a missing api glob is not.
     const cfg = readFileSync(resolve(repoRoot, 'vitest.api.config.ts'), 'utf8')
-    expect(cfg).toMatch(/include:\s*\[\s*['"]api\/\*\*\/\*\.test\.ts['"]\s*\]/)
+    expect(cfg).toMatch(/include:\s*\[\s*['"]api\/\*\*\/\*\.test\.ts['"]/)
   })
 
   it('vitest.security-audit.config.ts collects ONLY api/**/*.security-audit.ts (disjoint from test:api)', () => {

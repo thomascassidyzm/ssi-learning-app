@@ -8326,6 +8326,7 @@ CREATE TABLE public.course_enrollments (
     current_mode text DEFAULT 'main'::text NOT NULL,
     infplay_round_index integer DEFAULT 0 NOT NULL,
     updated_at timestamp with time zone,
+    rounds_since_pod integer DEFAULT 0 NOT NULL,
     CONSTRAINT course_enrollments_current_mode_check CHECK ((current_mode = ANY (ARRAY['main'::text, 'infplay'::text])))
 );
 
@@ -8377,6 +8378,13 @@ COMMENT ON COLUMN public.course_enrollments.infplay_round_index IS 'Rounds elaps
 --
 
 COMMENT ON COLUMN public.course_enrollments.updated_at IS 'Set by trigger on every UPDATE. Dates the most recent change to this enrollment (cursor included). NULL means the row has not been updated since 2026-08-31, when the column was added — it is not a backfill. Pair with player_events.cursor_move for the client build that made a move.';
+
+
+--
+-- Name: COLUMN course_enrollments.rounds_since_pod; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.course_enrollments.rounds_since_pod IS 'Work debt for Listening Pods (Layer 2): completed rounds since the last COMPLETED pod lap. Incremented on EVERY completed round (replays, easy mode, revival tail) — it measures work done, never position. A lap fires at the first clean boundary where it reaches pods.roundInterval (5); lap completion resets it to 0. Skips, failures, offline-incomplete laps and composed-nothing boundaries leave it standing. Replaces the position-modulus cadence and pod_activation_round pin (2026-09-05). Course reset sets it back to 0.';
 
 
 --

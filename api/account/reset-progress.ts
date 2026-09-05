@@ -111,7 +111,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         last_completed_round_index: null,
         highest_completed_round_index: null,
         completed_pod_rounds: 0,
-        pod_activation_round: null,
+        // Work-debt cadence (2026-09-05): a course reset clears the debt too.
+        // `pod_activation_round` is no longer read by anything — the column
+        // stays for history, but nothing writes it.
+        rounds_since_pod: 0,
         infplay_round_index: 0,
         current_mode: 'main',
       })

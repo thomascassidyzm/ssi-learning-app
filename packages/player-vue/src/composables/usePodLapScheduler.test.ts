@@ -37,7 +37,7 @@ const STAGE_LADDER_POLICY: ListeningPlayPolicy = {
 interface MockState {
   podSentences: any[]
   bookends: any[]
-  enrollment: { pod_activation_round: number | null; completed_pod_rounds: number } | null
+  enrollment: { rounds_since_pod?: number | null; pod_activation_round?: number | null; completed_pod_rounds: number } | null
   enrollmentUpdates: Array<Record<string, any>>
   /** learner_pod_state rows for the two-doors exposure counter (optional). */
   podState?: Array<{ sentence_id: string; exposures: number }>
@@ -189,7 +189,7 @@ describe('usePodLapScheduler — initialization', () => {
     }
   })
 
-  it('brand new user (no enrollment) defaults activation=6, ratchet=0', async () => {
+  it('brand new user (no enrollment) starts the work debt at 0, ratchet 0', async () => {
     state.podSentences = [podSentence(1), podSentence(2)]
     state.bookends = [bookendIntro, bookendOutro]
     state.enrollment = null
@@ -198,38 +198,40 @@ describe('usePodLapScheduler — initialization', () => {
       supabase: makeMockSupabase(state),
       courseCode: 'hrv_for_eng',
       learnerId: 'real-uuid',
+      roundInterval: 5,
     })
     await scheduler.initialize()
 
     expect(scheduler.isInitialized.value).toBe(true)
-    // Default activation lowered from 6 to 5 (commit 65ee76b8:
-    // "L2 pod activation: round 5 — give learners speaking-practice warm-up")
-    expect(scheduler.podActivationRound.value).toBe(5)
+    expect(scheduler.roundsSincePod.value).toBe(0)
     expect(scheduler.completedPodRounds.value).toBe(0)
-    expect(scheduler.shouldFireLapAt(4)).toBe(false)
-    expect(scheduler.shouldFireLapAt(5)).toBe(true)
+    // Debt, not position: nothing is due until five rounds of work are done.
+    expect(scheduler.isLapDue()).toBe(false)
+    for (let i = 0; i < 4; i++) scheduler.noteRoundCompleted(i + 1)
+    expect(scheduler.isLapDue()).toBe(false)
+    scheduler.noteRoundCompleted(5)
+    expect(scheduler.isLapDue()).toBe(true)
   })
 
-  it('returning user with pin reads stored values (capped by POD_ACTIVATION_CAP)', async () => {
+  it('returning user with a migrated debt of 5 is due at the very next boundary', async () => {
     state.podSentences = [podSentence(1)]
     state.bookends = [bookendIntro, bookendOutro]
-    // Stored value 50 is larger than POD_ACTIVATION_CAP (5). Per commit
-    // 839dc9f ("cap stale activation values"), values bigger than the
-    // cap are clamped down so historical pre-cap rows don't keep pods
-    // locked behind a 20+-round wait. Stored count (7) is unaffected.
-    state.enrollment = { pod_activation_round: 50, completed_pod_rounds: 7 }
+    // The migration seeds every enrollment with real work done to 5 — owed a
+    // lap immediately, and only ever owed ONE (the counter resets on
+    // completion), which is why no avalanche is possible.
+    state.enrollment = { rounds_since_pod: 5, completed_pod_rounds: 7 }
 
     const scheduler = usePodLapScheduler({
       supabase: makeMockSupabase(state),
       courseCode: 'hrv_for_eng',
       learnerId: 'real-uuid',
+      roundInterval: 5,
     })
     await scheduler.initialize()
 
-    expect(scheduler.podActivationRound.value).toBe(5)
+    expect(scheduler.roundsSincePod.value).toBe(5)
     expect(scheduler.completedPodRounds.value).toBe(7)
-    expect(scheduler.shouldFireLapAt(4)).toBe(false)
-    expect(scheduler.shouldFireLapAt(5)).toBe(true)
+    expect(scheduler.isLapDue()).toBe(true)
   })
 
   it('guests skip the enrollment read entirely (in-memory ratchet)', async () => {
@@ -735,7 +737,7 @@ describe('usePodLapScheduler — ratchet semantics', () => {
     expect(s.completedPodRounds.value).toBe(3)
     await s.markLapCompleted()
     expect(s.completedPodRounds.value).toBe(4)
-    expect(state.enrollmentUpdates).toContainEqual({ completed_pod_rounds: 4 })
+    expect(state.enrollmentUpdates).toContainEqual({ completed_pod_rounds: 4, rounds_since_pod: 0 })
   })
 
   it('skipping a lap (no markLapCompleted call) leaves counter unchanged', async () => {
@@ -758,7 +760,7 @@ describe('usePodLapScheduler — ratchet semantics', () => {
   // (retired 2026-08-06). The counter now only ever advances by a played
   // lap — see 'markLapCompleted' above.
 
-  it('reset clears the counter and pin', async () => {
+  it('reset clears the ratchet and the work debt', async () => {
     const s = usePodLapScheduler({
       supabase: makeMockSupabase(state),
       courseCode: 'c',
@@ -767,11 +769,10 @@ describe('usePodLapScheduler — ratchet semantics', () => {
     await s.initialize()
     await s.reset()
     expect(s.completedPodRounds.value).toBe(0)
-    // Default activation is 5 (was 6 pre-65ee76b8).
-    expect(s.podActivationRound.value).toBe(5)
+    expect(s.roundsSincePod.value).toBe(0)
     expect(state.enrollmentUpdates).toContainEqual({
       completed_pod_rounds: 0,
-      pod_activation_round: null,
+      rounds_since_pod: 0,
     })
   })
 
@@ -863,5 +864,126 @@ describe('usePodLapScheduler — served pod resolution', () => {
     })
     await s.initialize()
     expect(state.queriedPodId).toBe('cym_n_for_eng:senedd-s4c-steve')
+  })
+})
+
+// ============================================================================
+// THE WORK-DEBT CADENCE (2026-09-05, #646 → #649)
+//
+// Under the old position-modulus rule a pod fired when
+// `(mainRound - activation) % 5 === 0`. Beuno (beunollyn, deu_for_eng) did 33
+// round-completions in a month while his POSITION crawled from round 10 to
+// round 14 — replays after breaks, easy mode, short sessions — so he crossed
+// no boundary and received no pod at all. These tests replay that exact shape
+// and assert he now fires repeatedly.
+// ============================================================================
+describe('usePodLapScheduler — work-debt cadence', () => {
+  let state: MockState
+  beforeEach(() => {
+    resetServedPodCache()
+    state = {
+      podSentences: [podSentence(1), podSentence(2)],
+      bookends: [bookendIntro, bookendOutro],
+      enrollment: { rounds_since_pod: 0, completed_pod_rounds: 0 },
+      enrollmentUpdates: [],
+    }
+  })
+
+  const makeScheduler = () =>
+    usePodLapScheduler({
+      supabase: makeMockSupabase(state),
+      courseCode: 'deu_for_eng',
+      learnerId: 'real-uuid',
+      // Live config: algorithm_config.pods.roundInterval = 5.
+      roundInterval: 5,
+    })
+
+  it("Beuno's real shape: 33 rounds of work, position 10→14 — fires 6 times, not never", async () => {
+    const s = makeScheduler()
+    await s.initialize()
+
+    let fires = 0
+    // 33 completed rounds; position advances only 10 → 14 across them, exactly
+    // as the live data shows. Position is passed as the projection anchor and
+    // must have NO influence on whether a lap fires.
+    for (let work = 1; work <= 33; work++) {
+      const position = 10 + Math.floor((work - 1) / 8) // crawls 10, 11, 12, 13, 14
+      s.noteRoundCompleted(position)
+      if (s.isLapDue()) {
+        fires++
+        await s.markLapCompleted()
+      }
+    }
+    // Under the modulus rule this was 0. Under debt it is one lap per 5 rounds
+    // of work done: floor(33 / 5) = 6.
+    expect(fires).toBe(6)
+  })
+
+  it('the debt stands when a lap is skipped, and pays at the next boundary', async () => {
+    const s = makeScheduler()
+    await s.initialize()
+    for (let i = 0; i < 5; i++) s.noteRoundCompleted(i + 1)
+    expect(s.isLapDue()).toBe(true)
+    // Skipped / failed / composed-nothing: markLapCompleted is NOT called.
+    expect(s.roundsSincePod.value).toBe(5)
+    expect(s.isLapDue()).toBe(true)
+    s.noteRoundCompleted(6)
+    expect(s.isLapDue()).toBe(true)
+    await s.markLapCompleted()
+    expect(s.roundsSincePod.value).toBe(0)
+    expect(s.isLapDue()).toBe(false)
+  })
+
+  it('debt carries across sessions — the short-session learner gets the pod first thing next time', async () => {
+    const s1 = makeScheduler()
+    await s1.initialize()
+    for (let i = 0; i < 3; i++) s1.noteRoundCompleted(i + 1)
+    expect(s1.isLapDue()).toBe(false)
+    // Persist is fire-and-forget; let the queued writes settle.
+    await new Promise((r) => setTimeout(r, 0))
+    // Session ends; the persisted debt is what the next session reads back.
+    expect(state.enrollmentUpdates[state.enrollmentUpdates.length - 1]).toEqual({
+      completed_pod_rounds: 0,
+      rounds_since_pod: 3,
+    })
+
+    state.enrollment = { rounds_since_pod: 3, completed_pod_rounds: 0 }
+    const s2 = makeScheduler()
+    await s2.initialize()
+    expect(s2.isLapDue()).toBe(false)
+    s2.noteRoundCompleted(4)
+    s2.noteRoundCompleted(5)
+    expect(s2.isLapDue()).toBe(true)
+  })
+
+  it('completing a lap resets the debt so a large migrated debt cannot avalanche', async () => {
+    state.enrollment = { rounds_since_pod: 40, completed_pod_rounds: 0 }
+    const s = makeScheduler()
+    await s.initialize()
+    expect(s.isLapDue()).toBe(true)
+    await s.markLapCompleted()
+    // One lap paid the whole debt — the counter is a threshold, not a backlog.
+    expect(s.isLapDue()).toBe(false)
+    expect(s.roundsSincePod.value).toBe(0)
+  })
+
+  it('a course with no servable pod never fires, however large the debt', async () => {
+    state.podSentences = []
+    state.enrollment = { rounds_since_pod: 99, completed_pod_rounds: 0 }
+    const s = makeScheduler()
+    await s.initialize()
+    expect(s.isLapDue()).toBe(false)
+  })
+
+  it('preview projection: shouldFireLapAt reads the debt forward from the anchor', async () => {
+    const s = makeScheduler()
+    await s.initialize()
+    for (let i = 0; i < 3; i++) s.noteRoundCompleted(i + 1) // debt 3, anchor 3
+    // Two more rounds of work reaches the interval, so the projected fire is
+    // at main round 5; the one after at 10.
+    expect(s.shouldFireLapAt(4)).toBe(false)
+    expect(s.shouldFireLapAt(5)).toBe(true)
+    expect(s.shouldFireLapAt(9)).toBe(false)
+    expect(s.shouldFireLapAt(10)).toBe(true)
   })
 })
