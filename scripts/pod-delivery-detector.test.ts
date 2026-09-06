@@ -5,7 +5,7 @@
  */
 import { describe, it, expect } from 'vitest'
 // @ts-expect-error — plain .mjs module, no declaration file
-import { classifyCourse, lapsOwedFor, isTestLearner } from './pod-delivery-detector.mjs'
+import { classifyCourse, classifyDormant, lapsOwedFor, isTestLearner } from './pod-delivery-detector.mjs'
 
 describe('classifyCourse', () => {
   it('goes RED when active learners have no live pod to serve (cym_n shape)', () => {
@@ -38,6 +38,26 @@ describe('classifyCourse', () => {
   it('one owed lap and one delivered is GREEN, not amber (owed 1 has no half)', () => {
     expect(classifyCourse({ activeLearners: 1, lapsOwed: 1, delivered: 1, servedPodStatus: 'live' }))
       .toBe('GREEN')
+  })
+})
+
+describe('classifyDormant', () => {
+  it('goes RED on the Afrikaans shape: laps once played, no pod to serve, learner long gone', () => {
+    expect(classifyDormant({ everLapped: true, servedPodStatus: 'none' }))
+      .toBe('RED dormant-no-servable-pod')
+  })
+
+  it('goes RED on a held-only pod too — held and absent are the same silence to a learner', () => {
+    expect(classifyDormant({ everLapped: true, servedPodStatus: 'held-only' }))
+      .toBe('RED dormant-no-servable-pod')
+  })
+
+  it('stays quiet on a healthy course with a live pod', () => {
+    expect(classifyDormant({ everLapped: true, servedPodStatus: 'live' })).toBe('GREEN')
+  })
+
+  it('stays quiet on a course nobody has ever done listening on', () => {
+    expect(classifyDormant({ everLapped: false, servedPodStatus: 'none' })).toBe('GREEN')
   })
 })
 

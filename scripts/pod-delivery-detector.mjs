@@ -33,6 +33,21 @@
  *   AMBER under-delivery  — ≥2 owed, delivered under half of owed.
  *   GREEN otherwise.
  *
+ * A SECOND, WINDOW-INDEPENDENT pass runs beside the census above, because the
+ * census can only see a course while somebody is still burning rounds on it.
+ * Afrikaans is the specimen (job #659, 2026-09-05): its one real learner did
+ * three listening laps on 2026-08-01, got Layer-1 seed cups because the course
+ * has no pod and never had one, and then stopped coming. Five weeks later he
+ * is outside every sensible window, so the census above does not print
+ * afr_for_eng at all and the course reads as fine. That is the failure mode
+ * silence CAUSES: the learner leaves, and their leaving hides the defect.
+ *
+ * So the dormant pass reads a STATE rather than a window — every course that
+ * has EVER logged a pod lap for a real learner and has no live pod row today
+ * — and reports the ones the census did not already cover. It is one extra
+ * grouped read (3,633 rows estate-wide as of 2026-09-05) and it is the only
+ * check on this box that stays loud after the last learner has given up.
+ *
  * Exit 1 on any RED (CI/red-notice semantics), 0 otherwise. READ-ONLY: this
  * script never writes to the database.
  *
@@ -60,6 +75,19 @@ export function classifyCourse(c) {
   if (c.activeLearners > 0 && c.servedPodStatus !== 'live') return 'RED no-servable-pod'
   if (c.lapsOwed >= 1 && c.delivered === 0) return 'RED zero-delivery'
   if (c.lapsOwed >= 2 && c.delivered < c.lapsOwed / 2) return 'AMBER under-delivery'
+  return 'GREEN'
+}
+
+/**
+ * The dormant verdict: a course that HAS listening history and CANNOT serve a
+ * pod today. Window-independent by construction — it takes no dates, so a
+ * learner who gave up five weeks ago still keeps the course loud.
+ *
+ * @param {{ everLapped: boolean, servedPodStatus: 'live'|'held-only'|'none' }} c
+ * @returns {'RED dormant-no-servable-pod'|'GREEN'}
+ */
+export function classifyDormant(c) {
+  if (c.everLapped && c.servedPodStatus !== 'live') return 'RED dormant-no-servable-pod'
   return 'GREEN'
 }
 
@@ -122,11 +150,14 @@ async function main() {
     return all
   }
 
-  const [learnerRows, pods, rounds, laps] = await Promise.all([
+  const [learnerRows, pods, rounds, laps, everLaps] = await Promise.all([
     getAll('learners?select=id,display_name,is_demo,is_internal'),
     getAll('listening_pods?select=course_code,slug,visibility'),
     getAll(`player_events?select=user_id,course_code,payload&event_type=eq.round_complete&occurred_at=gte.${since}`),
     getAll(`player_events?select=user_id,course_code,payload&event_type=eq.pod_lap_start&occurred_at=gte.${since}`),
+    // All time, two columns. The dormant pass's whole point is that it has no
+    // window, so it cannot take the `since` filter the four reads above take.
+    getAll('player_events?select=user_id,course_code&event_type=eq.pod_lap_start'),
   ])
 
   const learners = new Map(learnerRows.map((l) => [l.id, l]))
@@ -171,6 +202,24 @@ async function main() {
     results.push({ course, activeLearners, lapsOwed, delivered: lp.delivered, unflagged: lp.unflagged, servedPodStatus, verdict })
   }
 
+  // Dormant pass: courses with listening history and no live pod, that the
+  // windowed census above did not already print.
+  const covered = new Set(results.map((r) => r.course))
+  const everBy = new Map() // course → Set(real learner)
+  for (const e of everLaps) {
+    if (!real(e.user_id)) continue
+    const set = everBy.get(e.course_code) ?? new Set()
+    set.add(e.user_id)
+    everBy.set(e.course_code, set)
+  }
+  const dormant = []
+  for (const [course, who] of [...everBy.entries()].sort()) {
+    if (covered.has(course)) continue
+    const servedPodStatus = podStatus.get(course) ?? 'none'
+    const verdict = classifyDormant({ everLapped: who.size > 0, servedPodStatus })
+    if (verdict !== 'GREEN') dormant.push({ course, learners: who.size, servedPodStatus, verdict })
+  }
+
   const reds = results.filter((r) => r.verdict.startsWith('RED'))
   const ambers = results.filter((r) => r.verdict.startsWith('AMBER'))
 
@@ -181,16 +230,24 @@ async function main() {
   }
   console.log(`\n${reds.length} RED, ${ambers.length} AMBER, ${results.length - reds.length - ambers.length} GREEN of ${results.length} active courses`)
 
-  if (reds.length && process.argv.includes('--notice')) {
-    await postNotice(reds, ambers, days).catch((e) => console.error(`notice FAILED: ${e.message}`))
+  if (dormant.length) {
+    console.log('\nDORMANT (listening history, no live pod, nobody active in the window):')
+    console.log('course | realLearnersEverLapped | servedPod | verdict')
+    for (const d of dormant) console.log(`${d.course} | ${d.learners} | ${d.servedPodStatus} | ${d.verdict}`)
+  } else {
+    console.log('\nDORMANT: none — every course with listening history either serves a live pod or has an active learner above.')
   }
-  process.exit(reds.length ? 1 : 0)
+
+  if ((reds.length || dormant.length) && process.argv.includes('--notice')) {
+    await postNotice(reds, ambers, dormant, days).catch((e) => console.error(`notice FAILED: ${e.message}`))
+  }
+  process.exit(reds.length || dormant.length ? 1 : 0)
 }
 
 /** One plain-English notice into this repo's project channel — the same
  *  delivery path the audio-gap nightly uses. A detector talking to nobody is
  *  not a detector. */
-async function postNotice(reds, ambers, days) {
+async function postNotice(reds, ambers, dormant, days) {
   const SURFACE = process.env.CS_SURFACE || 'http://localhost:4317'
   const api = async (method, route, body) => {
     const r = await fetch(SURFACE + route, {
@@ -206,9 +263,15 @@ async function postNotice(reds, ambers, days) {
   const ch = (chans.channels || []).find((c) => /ssi-learning-app/.test(c.cwd || ''))
   if (!ch) { console.error('no project channel for ssi-learning-app — notice NOT delivered'); return }
   const lines = [
-    `Listening pods are NOT reaching learners on ${reds.length} course(s) (last ${days} days, real learners only):`,
+    reds.length
+      ? `Listening pods are NOT reaching learners on ${reds.length} course(s) (last ${days} days, real learners only):`
+      : '',
     ...reds.map((r) => `• ${r.course} — ${r.activeLearners} learner(s) did ${r.lapsOwed} lap(s) worth of work, got ${r.delivered} pod dialogue(s)${r.servedPodStatus !== 'live' ? ` — no live pod to serve (${r.servedPodStatus})` : ''}`),
     ambers.length ? `Under-delivering: ${ambers.map((r) => r.course).join(', ')}` : '',
+    dormant.length
+      ? `Nobody is playing these any more, and they still cannot serve a pod — the learner left, which is what hides this:`
+      : '',
+    ...dormant.map((d) => `• ${d.course} — ${d.learners} real learner(s) once did listening laps here, no live pod (${d.servedPodStatus})`),
     'Detector: scripts/pod-delivery-detector.mjs (ssi-learning-app).',
   ].filter(Boolean)
   await api('POST', '/api/reply', { jobId: ch.convId, automated: true, text: lines.join('\n') })
