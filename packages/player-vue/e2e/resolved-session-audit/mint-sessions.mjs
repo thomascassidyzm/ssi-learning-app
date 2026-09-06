@@ -4,6 +4,7 @@
 // sessions.json for the Playwright cold-load harness to inject.
 import { createClient } from '@supabase/supabase-js'
 import { writeFileSync } from 'node:fs'
+import { adminEmail, assertNotProtected } from '../_test-accounts.mjs'
 
 const URL = 'https://swfvymspfxmnfhevgdkg.supabase.co'
 const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -16,11 +17,13 @@ const PERSONAS = {
   school_admin: 'thomas.cassidy+ang_school_admin@gmail.com',
   teacher: 'thomas.cassidy+ang_school_teacher@gmail.com',
   govt_admin: 'thomas.cassidy+govtest@gmail.com',
-  ssi_admin: 'thomas.cassidy+ssi@gmail.com',
+  ssi_admin: adminEmail(process.env.ADMIN_EMAIL),
 }
 
 const out = {}
 for (const [role, email] of Object.entries(PERSONAS)) {
+  // Every persona, not just the admin one: no harness holds a real person's session.
+  assertNotProtected(email)
   const { data, error } = await admin.auth.admin.generateLink({ type: 'magiclink', email })
   if (error) throw new Error(`${role}: generateLink failed: ${error.message}`)
   const anon = createClient(URL, ANON, { auth: { persistSession: false, autoRefreshToken: false } })

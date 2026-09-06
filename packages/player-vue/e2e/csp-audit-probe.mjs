@@ -8,6 +8,7 @@ import { chromium } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
 import { mkdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
+import { adminEmail, assertNotProtected } from './_test-accounts.mjs'
 
 const BASE = process.env.BASE_URL || 'https://ssi-learning-app-git-dev-zenjin.vercel.app'
 const OUT = process.env.OUT_DIR || '/tmp/csp-audit/'
@@ -15,8 +16,8 @@ mkdirSync(OUT, { recursive: true })
 
 const SB_URL = 'https://swfvymspfxmnfhevgdkg.supabase.co'
 const ANON_KEY = 'sb_publishable_qtEtXRcEOkvapw99x5suww_SuCXYmvg'
-const TESTER = process.env.TESTER_EMAIL || 'thomas.cassidy+bumface@gmail.com'
-const ADMIN_EMAIL = 'thomas.cassidy+ssi@gmail.com'
+const TESTER = assertNotProtected(process.env.TESTER_EMAIL || 'thomas.cassidy+bumface@gmail.com')
+const ADMIN_EMAIL = adminEmail(process.env.ADMIN_EMAIL)
 const TEACHER_LINK = process.env.TEACHER_LINK || `${BASE}/redeem/ZKD-834`
 const serviceKey = readFileSync(homedir() + '/.ssi-sentinel.env', 'utf8')
   .match(/SUPABASE_SERVICE_ROLE_KEY=(.*)/)[1].trim()
@@ -25,6 +26,9 @@ const projectRef = new URL(SB_URL).hostname.split('.')[0]
 const svc = createClient(SB_URL, serviceKey)
 
 async function mintSession(email) {
+  // A harness may only ever hold a session for a test account — see
+  // e2e/_test-accounts.mjs for the 2026-09-06 incident this prevents.
+  assertNotProtected(email)
   const anon = createClient(SB_URL, ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
   const { data: link, error: lerr } = await svc.auth.admin.generateLink({ type: 'magiclink', email })
   if (lerr) throw lerr

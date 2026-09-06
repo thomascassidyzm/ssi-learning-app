@@ -14,6 +14,12 @@
 import { mkdirSync, readFileSync } from 'node:fs'
 import { createClient } from '@supabase/supabase-js'
 import { chromium } from '@playwright/test'
+import { adminEmail, assertNotProtected } from './_test-accounts.mjs'
+
+// Resolved FIRST, before this file reads a key or touches the network: a
+// refusal to sign in as a real person must not depend on the box having
+// an .env file. See e2e/_test-accounts.mjs.
+const SSI_ADMIN_EMAIL = adminEmail(process.env.ADMIN_EMAIL)
 
 const envFile = readFileSync(new URL('../../../.env', import.meta.url), 'utf8')
 const pick = (k) => envFile.match(new RegExp(`^${k}=(.*)$`, 'm'))?.[1].trim()
@@ -30,12 +36,14 @@ mkdirSync(OUT, { recursive: true })
 // Riya carries 590 lego_progress rows but ZERO rows in either VAD-fed table.
 const WITH_VAD = { id: '95f91ddc-5ed1-4490-8cb2-245de7154f70', name: 'Kavya Chandra' }
 const NO_VAD = { id: '68ae36d6-a71c-4dd2-bb3d-8b3db9018e55', name: 'Riya Pillai' }
-const SSI_ADMIN_EMAIL = 'thomas.cassidy+ssi@gmail.com'
 
 let failures = 0
 const check = (label, ok, detail = '') => { console.log(`${ok ? 'PASS' : 'FAIL'} — ${label}${detail ? ` :: ${detail}` : ''}`); if (!ok) failures++ }
 
 async function mintAdminSession(email) {
+  // A harness may only ever hold a session for a test account — see
+  // e2e/_test-accounts.mjs for the 2026-09-06 incident this prevents.
+  assertNotProtected(email)
   const svc = createClient(SUPABASE_URL, SERVICE_KEY)
   const { data, error } = await svc.auth.admin.generateLink({ type: 'magiclink', email })
   if (error) return { error }
@@ -60,7 +68,7 @@ const browser = await chromium.launch({
 
 const { session: adminSession, error: adminErr } = await mintAdminSession(SSI_ADMIN_EMAIL)
 if (adminErr) throw new Error(`ssi_admin session mint failed: ${adminErr.message}`)
-console.log('INFO — ssi_admin persona signed in via generateLink/verifyOtp (real existing admin account, no DB writes)')
+console.log(`INFO — ssi_admin persona ${SSI_ADMIN_EMAIL} signed in via generateLink/verifyOtp (dedicated harness admin, no DB writes)`)
 
 const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } })
 await injectSession(ctx, adminSession, 'ssi_admin')

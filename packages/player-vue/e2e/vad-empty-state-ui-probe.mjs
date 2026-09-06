@@ -13,6 +13,12 @@
 import { mkdirSync, readFileSync } from 'node:fs'
 import { createClient } from '@supabase/supabase-js'
 import { chromium } from '@playwright/test'
+import { adminEmail, assertNotProtected } from './_test-accounts.mjs'
+
+// Resolved FIRST, before this file reads a key or touches the network: a
+// refusal to sign in as a real person must not depend on the box having
+// an .env file. See e2e/_test-accounts.mjs.
+const SSI_ADMIN_EMAIL = adminEmail(process.env.ADMIN_EMAIL)
 
 const envFile = readFileSync(new URL('../../../.env', import.meta.url), 'utf8')
 const pick = (k) => envFile.match(new RegExp(`^${k}=(.*)$`, 'm'))?.[1].trim()
@@ -31,7 +37,6 @@ const TEACHER_EMAIL = 'thomas.cassidy+demo.irish.teacher1@gmail.com'
 // Existing real ssi_admin account (verified via read-only query: learners.platform_role
 // = 'ssi_admin' for this user_id) — mint a session via generateLink/verifyOtp, same
 // read-only pattern as e2e/demo-schools/verify-demo-schools.mjs. No DB writes.
-const SSI_ADMIN_EMAIL = 'thomas.cassidy+ssi@gmail.com'
 const SERVICE_KEY = pick('SUPABASE_SERVICE_ROLE_KEY')
 
 let failures = 0
@@ -45,6 +50,9 @@ async function passwordSignIn(email) {
 }
 
 async function mintAdminSession(email) {
+  // A harness may only ever hold a session for a test account — see
+  // e2e/_test-accounts.mjs for the 2026-09-06 incident this prevents.
+  assertNotProtected(email)
   const svc = createClient(SUPABASE_URL, SERVICE_KEY)
   const { data, error } = await svc.auth.admin.generateLink({ type: 'magiclink', email })
   if (error) return { error }
@@ -72,7 +80,7 @@ const { session: adminSession, error: adminErr } = await mintAdminSession(SSI_AD
 if (adminErr) {
   console.log(`INFO — ssi_admin session mint failed: ${adminErr.message}`)
 } else {
-  console.log('INFO — ssi_admin persona signed in via generateLink/verifyOtp (real existing admin account, no DB writes)')
+  console.log(`INFO — ssi_admin persona ${SSI_ADMIN_EMAIL} signed in via generateLink/verifyOtp (dedicated harness admin, no DB writes)`)
 }
 
 let sawAdminSurface = false

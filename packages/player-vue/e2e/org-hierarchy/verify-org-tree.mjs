@@ -7,18 +7,22 @@
 // renders at depth 2, then deletes everything it created.
 import { createClient } from '@supabase/supabase-js'
 import { chromium } from '@playwright/test'
+import { adminEmail, assertNotProtected } from '../_test-accounts.mjs'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL
 const ANON = process.env.VITE_SUPABASE_ANON_KEY
 const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY
 const BASE = process.env.BASE_URL || 'http://localhost:5173'
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'thomas.cassidy+ssi@gmail.com'
+const ADMIN_EMAIL = adminEmail(process.env.ADMIN_EMAIL)
 if (!SUPABASE_URL || !ANON || !SERVICE) throw new Error('missing Supabase env vars')
 
 const svc = createClient(SUPABASE_URL, SERVICE)
 const projectRef = new URL(SUPABASE_URL).hostname.split('.')[0]
 
 async function mintSession(email) {
+  // A harness may only ever hold a session for a test account — see
+  // e2e/_test-accounts.mjs for the 2026-09-06 incident this prevents.
+  assertNotProtected(email)
   const { data, error } = await svc.auth.admin.generateLink({ type: 'magiclink', email })
   if (error) throw new Error(`generateLink(${email}) failed: ${error.message}`)
   const anon = createClient(SUPABASE_URL, ANON, { auth: { persistSession: false, autoRefreshToken: false } })

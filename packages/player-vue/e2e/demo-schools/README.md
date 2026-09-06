@@ -17,9 +17,10 @@ SUPABASE_SERVICE_ROLE_KEY=... VITE_SUPABASE_ANON_KEY=... \
 node e2e/demo-schools/verify-demo-schools.mjs
 ```
 
-`ADMIN_EMAIL` (default `thomas.cassidy+ssi@gmail.com`) must be a real
-`ssi_admin` account. `COURSE_CODE` (default `zho_for_eng`) must be a live
-course.
+`ADMIN_EMAIL` (default `thomas.cassidy+e2e-admin@gmail.com`, the dedicated
+harness admin — see `e2e/_test-accounts.mjs`) must be an `ssi_admin` account,
+and naming a real person's address throws before a browser opens.
+`COURSE_CODE` (default `zho_for_eng`) must be a live course.
 
 ## Hard-won traps
 

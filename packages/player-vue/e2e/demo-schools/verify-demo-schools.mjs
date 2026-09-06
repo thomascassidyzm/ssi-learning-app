@@ -17,12 +17,13 @@
 // itself, not rely on a later human sweep.
 import { createClient } from '@supabase/supabase-js'
 import { chromium } from '@playwright/test'
+import { adminEmail, assertNotProtected } from '../_test-accounts.mjs'
 
 const SUPABASE_URL = 'https://swfvymspfxmnfhevgdkg.supabase.co'
 const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY
 const ANON = process.env.VITE_SUPABASE_ANON_KEY
 const BASE = process.env.BASE_URL || 'https://ssi-learning-app-git-dev-zenjin.vercel.app'
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'thomas.cassidy+ssi@gmail.com'
+const ADMIN_EMAIL = adminEmail(process.env.ADMIN_EMAIL)
 const COURSE_CODE = process.env.COURSE_CODE || 'zho_for_eng'
 const SHOULD_PURGE = process.argv.includes('--purge')
 
@@ -31,6 +32,9 @@ if (!SERVICE || !ANON) throw new Error('missing SUPABASE_SERVICE_ROLE_KEY / VITE
 const svc = createClient(SUPABASE_URL, SERVICE)
 
 async function mintSession(email) {
+  // A harness may only ever hold a session for a test account — see
+  // e2e/_test-accounts.mjs for the 2026-09-06 incident this prevents.
+  assertNotProtected(email)
   const { data, error } = await svc.auth.admin.generateLink({ type: 'magiclink', email })
   if (error) throw new Error(`generateLink(${email}) failed: ${error.message}`)
   const anon = createClient(SUPABASE_URL, ANON, { auth: { persistSession: false, autoRefreshToken: false } })
