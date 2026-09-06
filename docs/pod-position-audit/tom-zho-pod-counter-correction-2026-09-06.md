@@ -118,7 +118,27 @@ not a count.)
 
 | | before | after |
 |---|---|---|
-| `course_enrollments.completed_pod_rounds` (Tom, `zho_for_eng`) | 461 | **44** |
+| `course_enrollments.completed_pod_rounds` (Tom, `zho_for_eng`) | 462 | **45** |
+
+461 became 462 while this job ran: Tom completed another genuine pod lap at
+13:29. The derivation is recomputed at write time — 43 + one cohort per genuine
+Layer-2 lap on or after 2026-09-06 — so the laps he plays are credited rather
+than lost. Applied 13:30:32Z, re-read confirmed 45, everything else untouched.
+
+### It did not stick, and that is a finding
+
+**At 13:34:46Z his own client wrote 462 straight back.** `usePodLapScheduler`
+holds `completed_pod_rounds` in memory from the session's first read, and
+`persistRatchet()` writes that value on every completed round — last writer
+wins, no re-read, no compare-and-set. So **no server-side correction to a
+learner's pod counter can survive an open tab**, and any future one has to
+either wait for the session to end or be paired with a client that re-reads.
+
+The correction is armed to re-apply: `cs-long-706-zho-correct.service` waits
+for six minutes of silence on his zho telemetry, re-derives, and applies once
+(`scripts/pod-position-audit/tom-zho-apply-when-quiet.sh`). Until then, and for
+anyone doing this by hand: **a reload of the app is what makes the corrected
+value take** — a page load re-reads the enrollment row.
 
 Nothing else on the row was touched — not `pod_activation_round`, not `rounds_since_pod`, not the
 main-flow cursor, not `learner_pod_state`. Applied log with the full before-state:
