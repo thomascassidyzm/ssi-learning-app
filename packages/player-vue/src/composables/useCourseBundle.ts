@@ -32,6 +32,7 @@
  */
 
 import type { CourseBundle } from '@ssi/core'
+import { reportBundleTier } from '../playback/bundleTierTelemetry'
 
 const DB_NAME = 'ssi-bundle-cache'
 /**
@@ -71,7 +72,54 @@ interface CachedBundle {
    * for any full bundle — one re-fetch, once.
    */
   ownerId?: string | null
+  /**
+   * THE DECLARATION (#685). The tier this record was fetched under, stated
+   * rather than inferred, and — the part that does not exist anywhere else —
+   * whether the fetch carried an auth token at all.
+   *
+   * `fetchedWithAuth: false` makes the record PROVISIONAL: it says what the
+   * server hands an anonymous caller, which is a fact about the app's boot
+   * timing and nothing at all about what this learner is entitled to. The app
+   * names its first course and fetches the bundle before Supabase has restored
+   * the session (#676's pole-position race), so the very first record written
+   * on a device is routinely provisional — and until `revalidateCachedBundles`
+   * existed nothing ever re-asked, because the in-memory `session` map pins the
+   * first answer for the life of the tab.
+   *
+   * `fetchedWithAuth: true` makes it authoritative FOR `ownerId`: the server
+   * saw who was asking and answered accordingly.
+   *
+   * A record written before this field existed has neither property; treated as
+   * provisional, i.e. re-validated once the moment an identity exists.
+   */
+  tier?: 'preview' | 'full'
+  fetchedWithAuth?: boolean
   bundle: CourseBundle
+}
+
+/** The tier a bundle IS, read off the wire shape. */
+function tierOf(bundle: CourseBundle): 'preview' | 'full' {
+  return bundle.previewOnly ? 'preview' : 'full'
+}
+
+/**
+ * Does this stored record still describe the caller in front of us, or must we
+ * go and ask the server again?
+ *
+ * Three ways a record can disagree with the present:
+ *  1. it is PROVISIONAL (fetched with no token) and we now hold one — the
+ *     pole-position race, and the common case;
+ *  2. it declares `preview` while we hold a token — the upgrade-to-paid case
+ *     the read path already guards, restated here so the sweep sees it too;
+ *  3. it declares `full` for a different identity — SEC0901-D-02, again.
+ */
+function declarationDisagrees(cached: CachedBundle, hasToken: boolean, identity: string | null): boolean {
+  const declaredTier = cached.tier ?? tierOf(cached.bundle)
+  const declaredWithAuth = cached.fetchedWithAuth === true
+  if (hasToken && !declaredWithAuth) return true
+  if (hasToken && declaredTier === 'preview') return true
+  if (declaredTier === 'full' && !cachedOwnerMatches(cached, identity)) return true
+  return false
 }
 
 // ---------------------------------------------------------------------------
@@ -216,8 +264,24 @@ async function writeCached(entry: CachedBundle): Promise<void> {
   })
 }
 
+async function readAllCached(): Promise<CachedBundle[]> {
+  const db = await openDb()
+  if (!db) return []
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(STORE, 'readonly')
+      const all = tx.objectStore(STORE).getAll()
+      all.onsuccess = () => resolve((all.result as CachedBundle[]) ?? [])
+      all.onerror = () => resolve([])
+    } catch {
+      resolve([])
+    }
+  })
+}
+
 export async function clearCachedBundle(courseCode: string): Promise<void> {
   session.delete(courseCode)
+  revalidated.delete(courseCode)
   const db = await openDb()
   if (!db) return
   await new Promise<void>((resolve) => {
@@ -243,6 +307,7 @@ export async function clearCachedBundle(courseCode: string): Promise<void> {
  */
 export async function clearAllCachedBundles(): Promise<void> {
   session.clear()
+  revalidated.clear()
   const db = await openDb()
   if (!db) return
   await new Promise<void>((resolve) => {
@@ -261,14 +326,21 @@ export async function clearAllCachedBundles(): Promise<void> {
 // NETWORK
 // ---------------------------------------------------------------------------
 
-async function getJson<T>(url: string, timeoutMs: number): Promise<T> {
+/**
+ * Returns the body AND whether the request actually carried an Authorization
+ * header. The caller stores that second fact on the cache record: a bundle
+ * fetched without a token is provisional, and knowing so is what lets the app
+ * re-ask exactly once rather than either trusting it forever (#676's poisoned
+ * preview) or re-fetching on every load.
+ */
+async function getJson<T>(url: string, timeoutMs: number): Promise<{ data: T; sentAuth: boolean }> {
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), timeoutMs)
   try {
     const headers = await authHeaders()
     const res = await fetch(url, headers ? { signal: ctrl.signal, headers } : { signal: ctrl.signal })
     if (!res.ok) throw new Error(`bundle fetch ${res.status} ${res.statusText}`)
-    return (await res.json()) as T
+    return { data: (await res.json()) as T, sentAuth: !!headers }
   } finally {
     clearTimeout(timer)
   }
@@ -284,7 +356,12 @@ export async function probeBundleVersion(
   apiBase = '/api/courses',
 ): Promise<{ contentVersion: string | number; scriptShapeVersion: number } | null> {
   try {
-    return await getJson(`${apiBase}/${encodeURIComponent(courseCode)}/bundle?head=1`, HEAD_TIMEOUT_MS)
+    return (
+      await getJson<{ contentVersion: string | number; scriptShapeVersion: number }>(
+        `${apiBase}/${encodeURIComponent(courseCode)}/bundle?head=1`,
+        HEAD_TIMEOUT_MS,
+      )
+    ).data
   } catch {
     return null
   }
@@ -301,6 +378,13 @@ const inflight = new Map<string, Promise<CourseBundle>>()
  * probe. Version freshness is a once-per-session question, not a per-page one.
  */
 const session = new Map<string, CourseBundle>()
+
+/**
+ * Which courses this session has already re-validated, and for whom. Keyed by
+ * course, valued by identity, so a sign-out-and-in as somebody else re-asks
+ * while a settled learner does not. Cleared with the caches.
+ */
+const revalidated = new Map<string, string>()
 
 export interface GetBundleOptions {
   apiBase?: string
@@ -333,23 +417,17 @@ export async function getCourseBundle(
   const run = (async (): Promise<CourseBundle> => {
     const cached = opts.forceRefresh ? null : await readCached(courseCode)
 
-    // A cached PREVIEW bundle is only valid for a caller who is still
-    // unentitled. Cache identity carries `previewOnly` (bundleCacheKey) but
-    // the IndexedDB store is keyed by course alone, so without this check a
-    // learner who cached the 19-seed preview as a guest keeps being served it
-    // after signing in — the head probe compares versions only and would
-    // happily agree. If we now have a token, re-fetch and let the server say.
-    if (cached?.bundle?.previewOnly && (await hasAuthToken())) {
-      // fall through to the network fetch below
-    } else if (
+    // Does the record's own declaration still describe this caller? A cached
+    // PREVIEW is only valid for someone still unentitled; a cached FULL bundle
+    // only for the identity that fetched it (SEC0901-D-02); and a record
+    // fetched with no token at all is provisional, so it is re-asked the
+    // moment an identity exists (#685). When any of those disagree we fall
+    // through to the network and let the server say — the head probe compares
+    // versions only and would happily agree with a poisoned record.
+    if (
       cached?.bundle &&
-      !cached.bundle.previewOnly &&
-      !cachedOwnerMatches(cached, await currentIdentityId())
+      !declarationDisagrees(cached, await hasAuthToken(), await currentIdentityId())
     ) {
-      // SEC0901-D-02: a FULL bundle cached by someone else (or by a signed-in
-      // learner, now being asked for by a signed-out one) is paid content this
-      // caller has not been granted. Fall through and let the server say.
-    } else if (cached?.bundle) {
       if (opts.skipVersionCheck) return cached.bundle
       const head = await probeBundleVersion(courseCode, apiBase)
       if (!head) return cached.bundle // offline / probe failed — trust the cache
@@ -360,7 +438,7 @@ export async function getCourseBundle(
       if (stillCurrent) return cached.bundle
     }
 
-    const bundle = await getJson<CourseBundle>(
+    const { data: bundle, sentAuth } = await getJson<CourseBundle>(
       `${apiBase}/${encodeURIComponent(courseCode)}/bundle`,
       FETCH_TIMEOUT_MS,
     )
@@ -376,6 +454,8 @@ export async function getCourseBundle(
       cacheKey: bundleCacheKey(identityOf(bundle)),
       cachedAt: Date.now(),
       ownerId: await currentIdentityId(),
+      tier: tierOf(bundle),
+      fetchedWithAuth: sentAuth,
       bundle,
     })
     return bundle
@@ -388,6 +468,100 @@ export async function getCourseBundle(
     return bundle
   } finally {
     inflight.delete(courseCode)
+  }
+}
+
+/**
+ * THE HEAL (#685). Re-ask the server for every course this device holds whose
+ * stored declaration disagrees with the entitlement the learner actually has,
+ * and quietly swap the fuller bundle in.
+ *
+ * Called when an identity ARRIVES — session restore, sign-in, token refresh —
+ * which is precisely the moment the boot-time answer can turn out to have been
+ * wrong. #676 proved the poison: the app names its first course and fetches the
+ * bundle before Supabase has restored the session, the server correctly hands
+ * an anonymous caller the 19-seed free preview, and that preview is then held
+ * by the in-memory `session` map for the life of the tab. Measured on a
+ * poisoned profile (#685 step 2): thirty seconds after a premium session
+ * appeared in the same tab, the app had made ZERO further bundle requests and
+ * the stored record still read `preview / 57 legos / ownerId null`. A reload
+ * heals it; nothing short of a reload did.
+ *
+ * The repair is AUTOMATIC and SILENT (Tom, 2026-09-06: "better to do it
+ * automatically"). No prompt, no toast, no banner, no button — the alarm goes
+ * to telemetry (`bundle_tier_heal`), never to the learner.
+ *
+ * Rules it keeps:
+ *  - EVERY course held on the device, not just the one in pole position. The
+ *    bug is pole-position; the mechanism is general.
+ *  - A failed refetch (offline, 5xx) changes nothing: the cached bundle keeps
+ *    serving and we try again on the next load. Serving slightly stale content
+ *    beats refusing to play — this module's standing philosophy.
+ *  - It never tears down a running player. Replacing the `session` entry means
+ *    the NEXT script materialisation (the next belt tap, the next round build)
+ *    picks up the fuller bundle; audio already in flight is untouched.
+ *  - It asks ONCE per (course, identity). A confirmed-preview learner — someone
+ *    genuinely unentitled — is not re-asked on every load: the refetch stamps
+ *    `fetchedWithAuth`, which makes the record authoritative and the
+ *    disagreement go away.
+ */
+export async function revalidateCachedBundles(opts: GetBundleOptions = {}): Promise<void> {
+  const apiBase = opts.apiBase ?? '/api/courses'
+  const hasToken = await hasAuthToken()
+  const identity = await currentIdentityId()
+  // No token = nothing to re-validate against. A signed-out caller's records
+  // are already correct for a signed-out caller.
+  if (!hasToken) return
+
+  const cached = await readAllCached()
+  // The in-memory map can hold a course whose IndexedDB write has not landed
+  // yet (the persist is deliberately backgrounded), so sweep both.
+  const codes = new Set<string>([...cached.map((c) => c.courseCode), ...session.keys()])
+
+  for (const courseCode of codes) {
+    const record = cached.find((c) => c.courseCode === courseCode)
+    const inSession = session.get(courseCode)
+    const disagrees = record
+      ? declarationDisagrees(record, hasToken, identity)
+      // Nothing on disk yet: the session entry is provisional exactly when it
+      // is a preview, which is the only thing an anonymous fetch can return
+      // that a token might improve on.
+      : !!inSession?.previewOnly
+    if (!disagrees) continue
+    if (revalidated.get(courseCode) === (identity ?? '')) continue
+    revalidated.set(courseCode, identity ?? '')
+
+    const storedTier: 'preview' | 'full' =
+      record?.tier ?? (record ? tierOf(record.bundle) : inSession ? tierOf(inSession) : 'preview')
+    const storedWithAuth = record?.fetchedWithAuth === true
+    const startedAt = Date.now()
+    try {
+      // forceRefresh so it goes past both the session map and the record it is
+      // there to replace; getCourseBundle re-writes the store and we re-seat
+      // the session entry, so the running player's next materialisation sees it.
+      const fresh = await getCourseBundle(courseCode, { ...opts, apiBase, forceRefresh: true })
+      const resolvedTier = tierOf(fresh)
+      session.set(courseCode, fresh)
+      reportBundleTier({
+        courseCode,
+        storedTier,
+        storedWithAuth,
+        resolvedTier,
+        outcome: resolvedTier !== storedTier ? 'healed' : 'confirmed',
+        tookMs: Date.now() - startedAt,
+      })
+    } catch (err) {
+      // Try again next load — never blank a player, never surface an error.
+      revalidated.delete(courseCode)
+      reportBundleTier({
+        courseCode,
+        storedTier,
+        storedWithAuth,
+        outcome: 'failed',
+        tookMs: Date.now() - startedAt,
+        detail: String((err as Error)?.message ?? err).slice(0, 160),
+      })
+    }
   }
 }
 
