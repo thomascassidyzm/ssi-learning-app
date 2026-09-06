@@ -46,11 +46,29 @@ export const SCHOOL_STAFF_ROLES = ['teacher', 'admin'] as const
 /**
  * Give a school's admin their `user_tags` SCHOOL: membership row.
  *
- * Idempotent: 23505 (unique_violation on the `user_tags_active_natural_key`
- * partial unique index over (user_id, tag_type, tag_value) WHERE removed_at IS
- * NULL) means an active tag for this user+school already exists, which grants
- * exactly what this call asked for — a no-op, not an error. Same handling as
- * api/code/redeem.ts. So re-provisioning a school never duplicates the row.
+ * Idempotent: 23505 (unique_violation) USUALLY means an active tag for this
+ * user+school already exists, which grants exactly what this call asked for — a
+ * no-op, not an error. Same handling as api/code/redeem.ts. So re-provisioning
+ * a school never duplicates the row.
+ *
+ * But 23505 does NOT prove the grant landed, and treating it as proof is how a
+ * school ends up with nobody holding admin while every caller was told it
+ * succeeded. Verified against the live DB 2026-09-05: the constraint that fires
+ * here is `unique_active_tag` — UNIQUE (user_id, tag_type, tag_value) with NO
+ * `WHERE removed_at IS NULL`. The partial index this comment used to name
+ * (`user_tags_active_natural_key`, migration 20260717_user_tags_active_unique)
+ * is still marked NOT YET APPLIED and is not live. Consequence: a REVOKED tag
+ * (removed_at set, by api/school/remove-staff.ts) keeps occupying the unique
+ * slot, so RE-GRANTING admin to a previously-removed person raises 23505 and
+ * inserts nothing — and both admin predicates (this file's isSchoolAdminOf and
+ * the SQL is_school_admin_of) require `removed_at IS NULL`, so the person is
+ * still not an admin. Two live rows sit in exactly that state as of 2026-09-05.
+ *
+ * So the 23505 branch VERIFIES rather than assumes: re-read for an ACTIVE tag,
+ * and if there isn't one, fail LOUDLY (error string + a console.error naming
+ * the school) instead of reporting a grant that did not happen. This changes
+ * nothing transactional — no extra write, no rescue attempt; it only stops the
+ * silence.
  *
  * Returns an error message on a real failure, or null on success/no-op. Callers
  * on a school-CREATION path treat a failure as non-fatal (the school itself is
@@ -69,8 +87,27 @@ export async function ensureSchoolAdminTag(
     role_in_context: 'admin',
     added_by: params.addedBy ?? params.userId,
   })
-  if (error && error.code !== '23505') return error.message || 'user_tags insert failed'
-  return null
+  if (!error) return null
+  if (error.code !== '23505') return error.message || 'user_tags insert failed'
+
+  // 23505 — the key is taken. Taken by an ACTIVE tag is the idempotent no-op we
+  // want; taken by a REMOVED one means this grant silently did not happen.
+  const { data: active } = await supabase
+    .from('user_tags')
+    .select('id')
+    .eq('user_id', params.userId)
+    .eq('tag_type', 'school')
+    .eq('tag_value', `SCHOOL:${params.schoolId}`)
+    .is('removed_at', null)
+    .maybeSingle()
+  if (active) return null
+
+  const msg =
+    `admin tag NOT granted for school ${params.schoolId}: a removed user_tags row ` +
+    `holds the unique key, so the insert was rejected and this school has no ` +
+    `active admin tag for this user`
+  console.error('[schoolStaff.ensureSchoolAdminTag]', msg)
+  return msg
 }
 
 /**
