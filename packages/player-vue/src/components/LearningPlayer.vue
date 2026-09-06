@@ -137,6 +137,7 @@ import { bundleFullScriptSliced } from '../providers/bundleFullScript'
 import { backendCyclesToRounds, infPlayCyclesToRounds } from '../providers/backendCyclesToRounds'
 import { setIntroAudioTelemetrySink } from '../playback/introAudioTelemetry'
 import { setBundlePathTelemetrySink, reportBundlePath } from '../playback/bundlePathTelemetry'
+import { setBundleTierTelemetrySink } from '../playback/bundleTierTelemetry'
 import { shouldShowInterjection, type CommentaryDisplayType } from '../playback/interjectionDisplay'
 import type { Round as PlayerRound } from '../playback/SimplePlayer'
 import { getAudioCache } from '../cache/createAudioCache'
@@ -1867,6 +1868,25 @@ setBundlePathTelemetrySink((e) => {
   })
 })
 onUnmounted(() => setBundlePathTelemetrySink(null))
+
+// A stored bundle that disagreed with the learner's real entitlement, and what
+// happened when we re-asked (#685). The repair is silent by ruling — no toast,
+// no banner — so this event is the ONLY place it announces itself, and the only
+// way to count how many devices are carrying a poisoned preview. Not deduped:
+// the sweep fires at most once per course per identity per session anyway, and
+// each course is its own fact.
+setBundleTierTelemetrySink((e) => {
+  logEvent('bundle_tier_heal', {
+    bundle_course_code: e.courseCode,
+    stored_tier: e.storedTier,
+    stored_with_auth: e.storedWithAuth,
+    resolved_tier: e.resolvedTier ?? null,
+    outcome: e.outcome,
+    tookMs: e.tookMs,
+    detail: e.detail ?? null,
+  })
+})
+onUnmounted(() => setBundleTierTelemetrySink(null))
 // Expose audio_failed banner state at top level so the template can
 // use it directly (refs nested inside a plain object aren't auto-unwrapped).
 const audioFailedBanner = simplePlayer.audioFailed
