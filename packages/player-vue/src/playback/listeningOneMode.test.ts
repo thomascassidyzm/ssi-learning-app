@@ -443,7 +443,12 @@ describe('4b — the belt ceiling caps the exposure ramp, when one is configured
   it('end to end: a white-belt learner under a CONFIGURED ceiling never emits above 0.8', async () => {
     // The scheduler is handed the learner's anchor seed; every emitted play must
     // respect the ceiling however aged the cohort is.
-    for (const exposureLap of [0, 5, 40]) {
+    // 38, not 40 (Tom, 2026-09-06): "top of the ladder it then goes - completes,
+    // disappears, is no longer in the sequence". The default ladder is 39 laps
+    // long (1 + 3 + 5×7) and a one-sentence pod's cohort-round is ratchet + 1,
+    // so 38 is its last lap in the sequence; a cohort past that has COMPLETED
+    // and is deliberately no longer emitted, leaving no lap to assert on.
+    for (const exposureLap of [0, 5, 38]) {
       const s = usePodLapScheduler({
         supabase: makeMockSupabase([podSentence(1)], exposureLap),
         courseCode: 'c',
@@ -479,7 +484,9 @@ describe('4b — the belt ceiling caps the exposure ramp, when one is configured
 
   it('end to end: a blue-belt Easy learner is at 1.0 too', async () => {
     const s = usePodLapScheduler({
-      supabase: makeMockSupabase([podSentence(1)], 40),
+      // 38 = the last lap before the cohort completes and leaves the sequence
+      // (Tom, 2026-09-06) — see the note in the white-belt test above.
+      supabase: makeMockSupabase([podSentence(1)], 38),
       courseCode: 'c',
       learnerId: 'u',
       listeningPolicy: easy(),
