@@ -2062,12 +2062,21 @@ const progressHistoryResolved = ref(false)
  *  navy button, the highest-contrast thing in the frame, sitting directly under
  *  the prompt card and out-shouting Play itself, asking a person to sign up
  *  before they had heard a single word. It also wasn't true: there was nothing
- *  to save. Gated on the estate's own position signal (the highest LEGO
- *  actually played), it first appears about a minute in, straight after the
- *  learner has finished their first LEGO — at which point the sentence is
- *  honest and the ask has been earned. */
+ *  to save. Now it appears once the learner has finished their first ROUND —
+ *  one round is one LEGO, so that is exactly "they have played something",
+ *  and by then the ask has been earned and the sentence is true.
+ *
+ *  The signal is the LIVE round cursor, deliberately, and not
+ *  `highestCompletedLegoId`: every writer of that ceiling sits behind an
+ *  `isGuestLearner` early-return, because it is the PERSISTED-progress
+ *  ceiling and guests persist nothing. Gating on it suppressed the sign-in
+ *  ask for guests permanently — the one audience it exists for. (Caught by
+ *  walking the built branch, not by reading the code.) The ceiling stays in
+ *  the test as the resumed-position case. */
 const showGuestSaveNudge = computed(
-  () => isGuestLearner.value && !!highestCompletedLegoId.value,
+  () =>
+    isGuestLearner.value &&
+    (simplePlayer.roundIndex.value > 0 || !!highestCompletedLegoId.value),
 )
 // Cursor LEGO ID from the enrollment row (last_completed_lego_id).
 // Reactive copy of the DB value — the canonical "where is the cursor"
