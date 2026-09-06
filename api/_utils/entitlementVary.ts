@@ -29,7 +29,10 @@
 import type { VercelResponse } from '@vercel/node'
 
 export function setEntitlementVary(res: VercelResponse): void {
-  const existing = res.getHeader('Vary')
+  // `getHeader` is defensive: several handler tests in this repo pass a stub
+  // response that only implements setHeader/status/json, and a caching header
+  // is never worth failing a request over.
+  const existing = typeof res.getHeader === 'function' ? res.getHeader('Vary') : undefined
   const parts = String(existing ?? '')
     .split(',')
     .map((p) => p.trim())
