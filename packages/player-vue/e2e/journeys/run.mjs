@@ -32,8 +32,9 @@ import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import {
   launch, mintSession, createFreshUser, deleteUser, attachWaterfall, legBreakdown,
   waitAudible, pressTransport, waitReady, courseName, openCoursePicker, courseRow,
-  cycleOffline, stat, secs,
+  cycleOffline, stat, secs, ensureTestLearner, TEST_LEARNER,
 } from './lib.mjs'
+import { testerEmail } from '../_test-accounts.mjs'
 
 const BASE = process.env.BASE_URL || 'https://staging.saysomethingin.app'
 const JOURNEY = process.env.JOURNEY || 'j1'
@@ -42,7 +43,9 @@ const RUNS = Number(process.env.RUNS || 5)
 const BUDGET = Number(process.env.BUDGET_MS || 120000)
 const SCRATCH = process.env.CS_SCRATCH || '/tmp'
 const OUT = process.env.OUT_DIR || `${SCRATCH}/journeys/${JOURNEY}-${NETNAME}/`
-const TESTER = process.env.TESTER_EMAIL || 'thomas.cassidy+ssi@gmail.com'
+// The dedicated journey learner — NEVER a real person's account. TESTER_EMAIL
+// can point at another test account; it cannot point at a protected one.
+const TESTER = testerEmail(process.env.TESTER_EMAIL)
 // Course A = the one the learner already has. Course B = the new one.
 const COURSE_A = process.env.COURSE_A || 'Spanish'
 const COURSE_B = process.env.COURSE_B || 'Italian'
@@ -441,6 +444,13 @@ const FN = { j1, j2, j3, j4, j5, j6 }
 if (!FN[JOURNEY]) { console.error(`unknown JOURNEY "${JOURNEY}" — one of ${Object.keys(FN).join(', ')}`); process.exit(2) }
 
 log(`BASE=${BASE} JOURNEY=${JOURNEY} NET=${NETNAME} RUNS=${RUNS}`)
+// j2-j6 sign in. Create the dedicated learner if this box has never run the
+// harness before, so "use a test account" needs no manual provisioning step
+// that somebody could skip.
+if (JOURNEY !== 'j1') {
+  await ensureTestLearner(TESTER)
+  log(`tester: ${TESTER}`)
+}
 const results = []
 for (let i = 1; i <= RUNS; i++) {
   try { results.push(await FN[JOURNEY](i)) }

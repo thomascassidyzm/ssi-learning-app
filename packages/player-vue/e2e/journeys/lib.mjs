@@ -23,6 +23,7 @@ import { execSync } from 'node:child_process'
 import { homedir } from 'node:os'
 import { chromium } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
+import { assertNotProtected, ensureTestLearner as ensureAccount, TEST_LEARNER } from '../_test-accounts.mjs'
 
 // ── Chrome on this box ──────────────────────────────────────────────────────
 // The headless_shell Playwright picks by default is missing libnspr4 here;
@@ -70,6 +71,9 @@ export const sessionKey = `sb-${projectRef}-auth-token`
 // Mint a real signed-in session without sending an email. Used for every
 // journey that needs an actual learner rather than a guest.
 export async function mintSession(email) {
+  // The guard every journey passes through. A harness may only ever hold a
+  // session for a test account — see e2e/_test-accounts.mjs for why.
+  assertNotProtected(email)
   const s = svc()
   const anon = createClient(SB_URL, ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
   const { data: link, error: lerr } = await s.auth.admin.generateLink({ type: 'magiclink', email })
@@ -89,6 +93,13 @@ export async function createFreshUser(prefix = 'baseline') {
   if (error) throw error
   return { email, id: data.user.id }
 }
+// The dedicated journey learner, created on first use so a fresh box needs no
+// manual provisioning.
+export async function ensureTestLearner(email = TEST_LEARNER) {
+  return ensureAccount(svc(), email)
+}
+export { TEST_LEARNER }
+
 export async function deleteUser(id) {
   try { await svc().auth.admin.deleteUser(id) } catch { /* best effort */ }
 }

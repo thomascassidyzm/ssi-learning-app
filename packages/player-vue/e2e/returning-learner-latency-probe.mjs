@@ -46,13 +46,17 @@ import { chromium } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
 import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
+import { testerEmail } from './_test-accounts.mjs'
 
 const BASE = process.env.BASE_URL || 'https://ssi-learning-app-git-dev-zenjin.vercel.app'
 const OUT = process.env.OUT_DIR || `${process.env.CS_SCRATCH || '/tmp'}/returning-learner/`
 const RUNS = Number(process.env.RUNS || 5)
 const THROTTLE = process.env.THROTTLE || 'slow4g'
 const BUDGET_MS = Number(process.env.BUDGET_MS || 90000)
-const TESTER = process.env.TESTER_EMAIL || 'thomas.cassidy+ssi@gmail.com'
+// The dedicated e2e learner — NEVER Tom's real account, which this probe used
+// to default to. This probe plays lessons and switches courses as the account
+// it signs in as. See e2e/_test-accounts.mjs.
+const TESTER = testerEmail(process.env.TESTER_EMAIL)
 const COURSE_HINT = process.env.COURSE_HINT || 'Italian' // course-name fragment shown post-boot, for the log only
 
 mkdirSync(OUT, { recursive: true })

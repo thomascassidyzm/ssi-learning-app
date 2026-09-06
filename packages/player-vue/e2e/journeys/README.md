@@ -16,6 +16,19 @@ One journey at a time:
 BASE_URL=https://staging.saysomethingin.app JOURNEY=j3 NET=slow3g RUNS=5 node e2e/journeys/run.mjs
 ```
 
+## Which account it signs in as
+
+j2-j6 sign in. They sign in as **`thomas.cassidy+e2e-learner@gmail.com`**, a
+dedicated account created on first run — never a real person's.
+
+This is enforced, not remembered. `mintSession()` throws for any account in
+`e2e/_test-accounts.mjs`'s protected register, so `TESTER_EMAIL` cannot point
+the harness at a human even by accident. It happened once: on 1 September this
+harness defaulted to Tom's real learner account and journeys j2/j4 drove the
+course picker on it, rewriting his saved course mid-session — ~150 zero-length
+sessions alternating Spanish/Italian are still in the database from that
+morning. Proof the guard holds: `node e2e/_prove-test-account.mjs`.
+
 ## The journeys
 
 | | Journey | t0 (the learner's action) | t1 (what they got) |
