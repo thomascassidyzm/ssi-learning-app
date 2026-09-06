@@ -25,6 +25,11 @@
  *   • Belt-skip → no avalanche; pods just keep advancing one per played lap
  *   • Going back to earlier main rounds → pods continue forward
  *   • Course reset → counter back to 0 (and the work-debt counter to 0)
+ *   • TOP OF THE LADDER COMPLETES (Tom 2026-09-06): a cohort that has served
+ *     every rung, top one included, is dropped from the lap for good — it is no
+ *     longer in the sequence. The pods stay always-available in the Pods tab of
+ *     Listening mode. When every cohort has completed, the pod track stops
+ *     claiming boundaries at all (allCohortsCompleted).
  *
  * CADENCE IS A DEBT, NOT A SCHEDULE (2026-09-05, replacing the 2026-05-03
  * `pod_activation_round` pin + position-modulus rule). `rounds_since_pod` on
@@ -109,7 +114,9 @@ export {
  * The number of stages is *not* hardcoded in the runtime — podStageFor reads
  * `totalStages` from the actual playlist. Admins can add / remove stages
  * from the listening admin page without code changes; the highest-numbered
- * stage is always treated as the eternal hold.
+ * stage is the LAST rung of the ladder — served for its own dwell, after which
+ * the cohort completes and leaves the sequence (Tom, 2026-09-06; see
+ * podCohortHasCompleted). It used to be an eternal hold.
  *
  * Stage 1 is intentionally all 1.0× — no 2× until stage 2 — so the learner
  * gets a clean target / known / target / target intro. Aran's 2026-05-07
@@ -155,8 +162,9 @@ export const DEFAULT_STAGE_PLAYLIST: Record<number, PodPlayRole[]> = {
 }
 
 /**
- * Default pod-rounds spent in each transitional stage before promoting.
- * The final stage is eternal regardless. Aran asked for 5 (was 3) — gives
+ * Default pod-rounds spent in each stage before promoting. The final stage
+ * used to be eternal; since Tom's 2026-09-06 ruling it too lasts its dwell and
+ * then the cohort completes and disappears. Aran asked for 5 (was 3) — gives
  * the learner more reps at each pattern before the speed/structure changes.
  */
 export const DEFAULT_STAGE_DURATION = 5
@@ -177,8 +185,11 @@ export const DEFAULT_STAGE_DURATIONS: Record<number, number> = { 1: 1, 2: 3 }
 
 /**
  * Map an alive-count to a stage. Transitional stages 1..(totalStages-1)
- * each last `stageDuration` pod-rounds; the highest-numbered stage is
- * eternal. `totalStages` defaults to the length of DEFAULT_STAGE_PLAYLIST
+ * each last `stageDuration` pod-rounds; the highest-numbered stage is returned
+ * for every alive-count past them (iter null). Since Tom's 2026-09-06 ruling
+ * that is NOT an eternal hold — the lap composer graduates the cohort once it
+ * has served the top rung's dwell too (podCohortHasCompleted); this function is
+ * only the stage MAP and is unchanged. `totalStages` defaults to the length of DEFAULT_STAGE_PLAYLIST
  * so unit tests calling podStageFor() without args still see consistent
  * behaviour; callers in the runtime pass the live playlist's key count.
  */
@@ -202,6 +213,59 @@ export function podStageFor(
     cum += d
   }
   return { stage: totalStages, iter: null }
+}
+
+/**
+ * THE LADDER COMPLETES (Tom, 2026-09-06): "top of the ladder it then goes -
+ * completes, disappears, is no longer in the sequence - the PODS are all
+ * always available in the listening mode section".
+ *
+ * So the highest-numbered stage is NO LONGER an eternal hold. A cohort climbs
+ * every rung including the top one, serves the top rung for its own dwell, and
+ * then GRADUATES: it is dropped from the lap composer and never emitted into
+ * the pod sequence again. It does not sit at the top in permanent target-only
+ * immersion (rejected) and it does not stop a rung short and keep cycling
+ * (rejected). The sentence keeps living in the Pods tab of Listening mode,
+ * where the learner can always open its scene and play it — nothing is
+ * deleted from the learner's world, only from the automatic sequence.
+ *
+ * WHY THE TOP RUNG IS SERVED RATHER THAN SKIPPED. "Top of the ladder it THEN
+ * goes" — it arrives, does the top rung, then leaves. Graduating on ARRIVAL at
+ * the terminal stage would make that rung dead content: Tom's own 2026-08-24
+ * fade ladder authors stage 8 as the bare t@2× close of the fade, and skipping
+ * it would silently delete the rung he wrote. So the ladder's total length =
+ * every stage's dwell, terminal stage included, and graduation is the round
+ * AFTER that.
+ *
+ * Returns the total pod-rounds a cohort spends on the ladder before it
+ * completes. A single-stage config has no ladder to climb, so it is treated as
+ * never-graduating (Infinity) rather than graduating everything at once.
+ */
+export function podLadderTotalRounds(
+  stageDuration: number = DEFAULT_STAGE_DURATION,
+  totalStages: number = Object.keys(DEFAULT_STAGE_PLAYLIST).length,
+  stageDurations?: Record<string | number, number>,
+): number {
+  if (!Number.isFinite(totalStages) || totalStages < 2) return Infinity
+  let total = 0
+  for (let stage = 1; stage <= totalStages; stage++) {
+    total += stageDurations?.[stage] ?? stageDurations?.[String(stage)] ?? stageDuration
+  }
+  return total
+}
+
+/**
+ * Has this cohort finished the ladder and completed? `alive` is its exposure
+ * count (the number of laps it has been in play — the same value podStageFor
+ * takes). True ⇒ drop it from the lap. See podLadderTotalRounds for the ruling.
+ */
+export function podCohortHasCompleted(
+  alive: number,
+  stageDuration: number = DEFAULT_STAGE_DURATION,
+  totalStages: number = Object.keys(DEFAULT_STAGE_PLAYLIST).length,
+  stageDurations?: Record<string | number, number>,
+): boolean {
+  return alive > podLadderTotalRounds(stageDuration, totalStages, stageDurations)
 }
 
 // The activation pin (DEFAULT_POD_ACTIVATION) and its 2026-05-20 stale-value
@@ -649,6 +713,10 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
   const isLapDue = (): boolean => {
     if (!isInitialized.value) return false
     if (podSentences.value.length === 0) return false
+    // Every cohort has completed the ladder (Tom 2026-09-06) — the pod track is
+    // finished for this course, so it stops claiming boundaries entirely rather
+    // than claiming one every five rounds and composing nothing.
+    if (allCohortsCompleted()) return false
     if (deferredPodPending.value) return true
     return roundsSincePod.value >= podInterval()
   }
@@ -665,6 +733,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
   const shouldFireLapAt = (mainRound: number): boolean => {
     if (!isInitialized.value) return false
     if (podSentences.value.length === 0) return false
+    if (allCohortsCompleted()) return false
     if (deferredPodPending.value) return true
     const interval = podInterval()
     const projected = roundsSincePod.value + (mainRound - debtAnchorRound.value)
@@ -766,6 +835,27 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
   }
 
   /**
+   * Has EVERY cohort in this course completed the ladder (Tom, 2026-09-06)?
+   * Then the pod track is done: it stops claiming listening boundaries, so the
+   * learner falls cleanly through to the Layer-1 seed cup instead of hitting a
+   * boundary that composes nothing every five rounds. The pods themselves stay
+   * in the Pods tab for ever.
+   *
+   * Cheap: cohorts are memoised, and only the YOUNGEST cohort has to be tested
+   * — derived alive falls as the cohort gets newer, and the drill lift only
+   * ever raises a cohort's alive, so if the youngest has completed, all have.
+   * Intake unfinished (cohorts still waiting to debut) ⇒ never "all done".
+   */
+  const allCohortsCompleted = (): boolean => {
+    const cohorts = getCohorts()
+    if (cohorts.length === 0) return false
+    const podRound = podCohortRoundFor(cohorts, completedPodRounds.value)
+    if (podRound < cohorts.length) return false
+    const { stageDuration, stageDurationsMap, totalStages } = resolveStageConfig()
+    return podCohortHasCompleted(podRound - cohorts.length + 1, stageDuration, totalStages, stageDurationsMap)
+  }
+
+  /**
    * The live listening policy (Tom's 2026-08-07 one-mode redesign). Absent ⇒
    * the shipped FAST policy — one T·K·T·T pattern, a flat 1.0 ramp, ceiling
    * 1.0 — so a caller that passes nothing (tests, previews) still gets the
@@ -848,6 +938,14 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
         (m.sentence_id ? (podExposures.get(m.sentence_id) ?? 0) : 0) + 1))
       const alive = Math.max(derivedAlive, storedLift)
 
+      // COMPLETES AND DISAPPEARS (Tom, 2026-09-06). A cohort that has finished
+      // the ladder leaves the sequence for good — it is not emitted into this
+      // lap or any later one. It stays playable for ever in the Pods tab of
+      // Listening mode. Applies on BOTH paths (one-mode and the retired
+      // stage-playlist escape hatch): the ruling is about the sequence, not
+      // about the pattern.
+      if (podCohortHasCompleted(alive, stageDuration, totalStages, stageDurationsMap)) continue
+
       const stageInfo = podStageFor(1, alive, stageDuration, totalStages, stageDurationsMap)
       if (!stageInfo) continue
       // Escape hatch only: replay the retired ladder. Default path takes the
@@ -870,8 +968,9 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       // the stage-playlist branch below does not call it — so the fade's
       // closing ps2x reps play at the 2.0× they are authored at. That used to
       // be an accident of `undefined`; it is now the ruling. A pod has its own
-      // completion signal — reaching the eternal bare-target-at-2× stage IS
-      // the signal — so it needs no speed ceiling on top. The ceiling itself
+      // completion signal — reaching the final bare-target-at-2× stage IS the
+      // signal, and since 2026-09-06 it literally completes there — so it needs
+      // no speed ceiling on top. The ceiling itself
       // is UNCHANGED and still absolute for every non-pod listening path: the
       // `else` arm here (Layer-1 seed sandwiches, speedSource:'exposure')
       // still runs through resolveListeningSpeed and is still clamped to 1.0.
