@@ -24,6 +24,13 @@
 /** Which container the app is running in. */
 export type AppShell = 'web' | 'webview'
 
+/**
+ * Which operating system a native shell is running on. Empty on the web and on
+ * a shell that did not say — every consumer must treat '' as "unknown", never
+ * as "android".
+ */
+export type ShellOs = '' | 'android' | 'ios'
+
 export interface PlatformConfig {
   /** 'web' = a normal browser tab / installed PWA. 'webview' = a native shell. */
   shell: AppShell
@@ -33,6 +40,14 @@ export interface PlatformConfig {
    * A WebView sets this because its own origin serves no API.
    */
   apiOrigin: string
+  /**
+   * The native shell's OS, stamped by the wrapper alongside `shell`. The web
+   * never sets it. It exists for the ONE divergence found so far: update
+   * delivery. On Android the newest build sits on popty.app/builds and the
+   * staleness line may point there; on iOS builds arrive through TestFlight /
+   * the App Store, which own that conversation entirely.
+   */
+  os: ShellOs
 }
 
 /**
@@ -74,7 +89,10 @@ function detect(): PlatformConfig {
   // Trailing slash off, so apiUrl() can concatenate a leading-slash path.
   const apiOrigin = originRaw.replace(/\/+$/, '')
 
-  return { shell, apiOrigin }
+  const osRaw = String(injected.os ?? readEnv('VITE_APP_SHELL_OS') ?? '')
+  const os: ShellOs = osRaw === 'android' || osRaw === 'ios' ? osRaw : ''
+
+  return { shell, apiOrigin, os }
 }
 
 let current: PlatformConfig = detect()
@@ -92,6 +110,7 @@ export function configurePlatform(patch: Partial<PlatformConfig>): Readonly<Plat
   current = {
     shell: patch.shell ?? current.shell,
     apiOrigin: (patch.apiOrigin ?? current.apiOrigin).replace(/\/+$/, ''),
+    os: patch.os ?? current.os,
   }
   return current
 }
@@ -162,9 +181,24 @@ export function shouldOfferAppInstall(): boolean {
  * Note this is NOT `isNativeShell()` wearing a different hat, for the same
  * reason `shouldOfferAppInstall()` is not: the question a caller has is this
  * one, so this is the one the seam answers.
+ *
+ * EXCEPT ON iOS, where the answer is NO — silence, ruled 2026-09-05. The
+ * sentence this gate drives promises the resolution that actually exists, and
+ * on Android that resolution is real: popty.app/builds serves the newest APK
+ * on demand, so "a newer version is available — install it" holds whenever the
+ * comparison fires. On iOS neither half survives. Builds arrive only through
+ * TestFlight / the App Store, so a newer WEB deployment does not imply any
+ * newer app exists for the holder to install — the line could name no
+ * resolution truthfully. And when a newer build HAS been uploaded, TestFlight
+ * itself notifies the tester and offers the update button; our line would
+ * duplicate a platform affordance, worse. Rule 2 of buildStaleness.ts is
+ * "silent when unsure" — on iOS we are structurally unsure, so: silent.
+ * An unknown OS ('') stays LOUD on purpose: today's Android wrapper does not
+ * stamp an os yet, and going quiet on it would silently revert the 2026-09-04
+ * staleness cure.
  */
 export function shouldDescribeStaleness(): boolean {
-  return current.shell === 'webview'
+  return current.shell === 'webview' && current.os !== 'ios'
 }
 
 /**
