@@ -20,10 +20,14 @@
  *    counter; Beuno is deliberately seeded to 5 = owed a lap next boundary).
  *  - a per-row applied log records the before-state, so it is the rollback.
  *
+ * Job #657 (Tom's ruling, 2026-09-05): the ruling was never person-specific —
+ * generalised to any learner + course, so the other seven members of the class
+ * are restored by exactly this method rather than a reinvented one.
+ *
  * Usage:
- *   node scripts/pod-position-audit/pod-ratchet-restore.cjs                # dry run
- *   node scripts/pod-position-audit/pod-ratchet-restore.cjs --apply
- *   node scripts/pod-position-audit/pod-ratchet-restore.cjs --fleet        # read-only fleet fingerprint census
+ *   node scripts/pod-position-audit/pod-ratchet-restore.cjs --fleet
+ *   node scripts/pod-position-audit/pod-ratchet-restore.cjs --learner <uuid|display_name> --course <course_id>
+ *   node scripts/pod-position-audit/pod-ratchet-restore.cjs --learner paddyhardy --course rus_for_eng --apply
  */
 const path = require('path')
 const fs = require('fs')
@@ -36,8 +40,24 @@ const REPO = path.resolve(__dirname, '..', '..')
 const APPLY = process.argv.includes('--apply')
 const FLEET = process.argv.includes('--fleet')
 
-const LEARNER_ID = '884a23bf-b5ca-4558-b297-c826b04c6dc7' // beunollyn
-const COURSE_ID = 'deu_for_eng'
+function arg(name, dflt) {
+  const i = process.argv.indexOf('--' + name)
+  return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : dflt
+}
+// Defaults preserve #656's target so the known-answer check is a bare re-run.
+const LEARNER_ARG = arg('learner', '884a23bf-b5ca-4558-b297-c826b04c6dc7') // beunollyn
+const COURSE_ID = arg('course', 'deu_for_eng')
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** Resolve --learner (uuid or display_name) to a single learners.id. */
+async function resolveLearner(c, ref) {
+  const { rows } = UUID_RE.test(ref)
+    ? await c.query('select id, display_name from learners where id = $1', [ref])
+    : await c.query('select id, display_name from learners where display_name = $1', [ref])
+  if (rows.length !== 1) throw new Error(`--learner ${ref} resolved to ${rows.length} learners, need exactly 1`)
+  return rows[0]
+}
 
 async function loadCore() {
   const cohorts = await import(path.join(REPO, 'packages/core/src/pods/podCohorts.ts'))
@@ -99,10 +119,14 @@ async function main() {
     return
   }
 
+  const learner = await resolveLearner(c, LEARNER_ARG)
+  const LEARNER_ID = learner.id
+
   // 1. current live state
   const before = (
     await c.query(
-      `select learner_id, course_id, completed_pod_rounds, pod_activation_round, rounds_since_pod, updated_at
+      `select learner_id, course_id, completed_pod_rounds, pod_activation_round, rounds_since_pod, updated_at,
+              highest_completed_seed, highest_completed_lego_id, current_mode
          from course_enrollments where learner_id = $1 and course_id = $2`,
       [LEARNER_ID, COURSE_ID],
     )
@@ -113,13 +137,27 @@ async function main() {
   const tele = await derivedLaps(c, LEARNER_ID, COURSE_ID)
 
   // 3. today's live cohorts → target stored value
-  const pod = (
-    await c.query(
-      `select id from listening_pods where course_code = $1 and visibility = 'live' order by pod_order nulls last, id limit 1`,
-      [COURSE_ID],
-    )
-  ).rows[0]
-  if (!pod) throw new Error('no live pod for ' + COURSE_ID)
+  // WHICH POD. Mirror the learner path exactly (composables/servedPod.ts):
+  // only slugs 'pod-1' then 'pod-0', pod_type core, visibility 'live'. #656's
+  // `visibility = 'live' order by pod_order` happened to pick the right row for
+  // deu_for_eng but is not the serving rule — a held pod is INDISTINGUISHABLE
+  // from absent to a learner, and a parked slug must never resolve.
+  // `--pod <id>` overrides it, for the one case where the pod the learner
+  // actually heard is still on disk but currently held: mapping through the
+  // real content they met beats mapping through nothing.
+  const POD_OVERRIDE = arg('pod', null)
+  const pod = POD_OVERRIDE
+    ? (await c.query(`select id, slug, visibility from listening_pods where id = $1`, [POD_OVERRIDE])).rows[0]
+    : (
+        await c.query(
+          `select id, slug, visibility from listening_pods
+            where course_code = $1 and visibility = 'live'
+              and slug = any($2::text[]) and (pod_type is null or pod_type = 'core')
+            order by array_position($2::text[], slug) limit 1`,
+          [COURSE_ID, ['pod-1', 'pod-0']],
+        )
+      ).rows[0]
+  if (!pod) throw new Error('no served pod for ' + COURSE_ID + ' (no live pod-1/pod-0) — cannot map laps to sentences')
   const podRows = (
     await c.query(
       `select id, global_order, scene_number, speaker, target_text, known_text, target_audio_id,
@@ -139,20 +177,26 @@ async function main() {
   }
 
   const record = {
-    job: 656,
-    ruling: "Tom, 2026-09-05: give Beuno back the listening-pod lap he was actually at",
+    job: 657,
+    ruling: "Tom, 2026-09-05: a silently-zeroed pod ratchet is given back to the learner — not person-specific",
     generated_at: new Date().toISOString(),
     learner_id: LEARNER_ID,
-    display_name: 'beunollyn',
+    display_name: learner.display_name,
     course_id: COURSE_ID,
     before: {
       completed_pod_rounds: before.completed_pod_rounds,
       pod_activation_round: before.pod_activation_round,
       rounds_since_pod: before.rounds_since_pod,
       updated_at: before.updated_at,
+      highest_completed_seed: before.highest_completed_seed,
+      highest_completed_lego_id: before.highest_completed_lego_id,
+      current_mode: before.current_mode,
     },
     telemetry: tele,
-    live_pod: { pod_id: pod.id, turn_rows: podRows.length, sentences: sentences.length, cohorts: cohorts.length },
+    live_pod: {
+      pod_id: pod.id, slug: pod.slug, visibility: pod.visibility, overridden: Boolean(POD_OVERRIDE),
+      turn_rows: podRows.length, sentences: sentences.length, cohorts: cohorts.length,
+    },
     ladder,
     target_completed_pod_rounds: target,
     target_round: cohorts.length ? PC.podCohortRoundFor(cohorts, target) : null,
@@ -185,8 +229,27 @@ async function main() {
   record.rounds_since_pod_unchanged = after.rounds_since_pod === before.rounds_since_pod
   record.no_op = after.completed_pod_rounds === before.completed_pod_rounds
 
-  const out = path.join(REPO, 'docs/pod-position-audit/pod-ratchet-restore-applied-log.json')
-  fs.writeFileSync(out, JSON.stringify(record, null, 2) + '\n')
+  // Independent re-read of the live row — RETURNING is not the verification.
+  const reread = (
+    await c.query(
+      `select completed_pod_rounds, pod_activation_round, rounds_since_pod,
+              highest_completed_seed, highest_completed_lego_id, current_mode
+         from course_enrollments where learner_id = $1 and course_id = $2`,
+      [LEARNER_ID, COURSE_ID],
+    )
+  ).rows[0]
+  record.reread = reread
+  record.reread_matches_target = reread.completed_pod_rounds === Math.max(before.completed_pod_rounds || 0, target)
+  record.cursor_untouched =
+    reread.highest_completed_seed === before.highest_completed_seed &&
+    reread.highest_completed_lego_id === before.highest_completed_lego_id &&
+    reread.current_mode === before.current_mode &&
+    reread.rounds_since_pod === before.rounds_since_pod
+
+  const out = path.join(REPO, 'docs/pod-position-audit/pod-ratchet-restore-fleet-applied-log.json')
+  const log = fs.existsSync(out) ? JSON.parse(fs.readFileSync(out, 'utf8')) : []
+  log.push(record)
+  fs.writeFileSync(out, JSON.stringify(log, null, 2) + '\n')
   console.log(JSON.stringify(record, null, 2))
   console.log('applied log →', out)
   await c.end()
