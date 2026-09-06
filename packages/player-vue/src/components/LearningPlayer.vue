@@ -2054,6 +2054,21 @@ const highestCompletedLegoId = ref<string | null>(null)
  *  acting on the second would hand an existing learner the new-learner default.
  *  Consumed only by applyNewLearnerModeDefault() further down. */
 const progressHistoryResolved = ref(false)
+
+/** Should a guest be shown the "Save Progress" ask?
+ *
+ *  Only once there IS progress. The nudge used to render on `isGuestLearner`
+ *  alone, so on a cold first boot it was on screen from second zero — a filled
+ *  navy button, the highest-contrast thing in the frame, sitting directly under
+ *  the prompt card and out-shouting Play itself, asking a person to sign up
+ *  before they had heard a single word. It also wasn't true: there was nothing
+ *  to save. Gated on the estate's own position signal (the highest LEGO
+ *  actually played), it first appears about a minute in, straight after the
+ *  learner has finished their first LEGO — at which point the sentence is
+ *  honest and the ask has been earned. */
+const showGuestSaveNudge = computed(
+  () => isGuestLearner.value && !!highestCompletedLegoId.value,
+)
 // Cursor LEGO ID from the enrollment row (last_completed_lego_id).
 // Reactive copy of the DB value — the canonical "where is the cursor"
 // signal for the resting-state journey-bar comparison. DON'T derive
@@ -17362,7 +17377,7 @@ defineExpose({
 
       <!-- Guest save progress button -->
       <Transition name="nudge-fade">
-        <button v-if="isGuestLearner" class="guest-progress-nudge" @click="openAuth()">
+        <button v-if="showGuestSaveNudge" class="guest-progress-nudge" @click="openAuth()">
           {{ t('player.saveProgress') }}
         </button>
       </Transition>
@@ -17808,7 +17823,7 @@ defineExpose({
         </div>
 
         <!-- Guest progress warning -->
-        <div v-if="isGuestLearner" class="guest-progress-nudge" :class="{ expanded: !isAudioPlaying }" @click="openAuth()">
+        <div v-if="showGuestSaveNudge" class="guest-progress-nudge" :class="{ expanded: !isAudioPlaying }" @click="openAuth()">
           <svg class="nudge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
             <line x1="12" y1="9" x2="12" y2="13"/>
@@ -21365,6 +21380,13 @@ button.phase-segment:active:not(.is-active) {
   border-color: rgba(0, 0, 0, 0.18);
   color: var(--text-muted);
   box-shadow: none;
+  /* The scoped rule already says opacity 0.25 for :disabled, but the mist
+     base rule above sets opacity: 1 at equal specificity and later in the
+     sheet, so it won. Result on a phone: the dead back-chevron rendered as
+     the same crisp white circle as its live twin, and a brand-new learner's
+     tap on it landed on nothing with no signal at all. Restated here so the
+     dimming survives the theme. */
+  opacity: 0.35;
 }
 
 /* --- INF-PLAY state for the CENTRAL belt-progress pill (mist theme).
