@@ -69,6 +69,7 @@ import {
   type L1SeedAudio,
   type L1FallbackPhraseRow,
   computeSeedLastLegoIndex,
+  computeSeedLegoIdSets,
   seedOwnAudio,
   deriveSeedFallbackAudio,
 } from './layer1CupFallback'
@@ -110,6 +111,7 @@ export {
   type L1SeedAudio,
   type L1FallbackPhraseRow,
   computeSeedLastLegoIndex,
+  computeSeedLegoIdSets,
   seedOwnAudio,
   deriveSeedFallbackAudio,
   selectFallbackWinnerRows,
@@ -664,7 +666,8 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
 
       // THE CUP FALLBACK (Tom, 2026-09-06): fetch the last-LEGO basket rows
       // for the seeds that have NO target audio of their own, so their cups
-      // can pour the longest phrase instead of composing nothing. One batched,
+      // can pour the phrase covering the most of the seed's LEGO set instead
+      // of composing nothing. One batched,
       // paged query for just those seeds — nothing on a course with complete
       // seed audio (needy is empty and no request is made).
       const catRows = (catalogueRows || []) as Array<{ seed_number: number; lego_index: number }>
@@ -685,7 +688,7 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
               for (let from = 0; ; from += PAGE) {
                 const { data, error } = await supabase
                   .from('course_practice_phrases')
-                  .select('seed_number, lego_index, phrase_role, known_text, target_text, known_audio_id, target1_audio_id, target2_audio_id, target1_duration_ms')
+                  .select('seed_number, lego_index, phrase_role, known_text, target_text, known_audio_id, target1_audio_id, target2_audio_id, target1_duration_ms, connected_lego_ids')
                   .eq('course_code', courseCode)
                   .in('seed_number', needy)
                   .not('known_audio_id', 'is', null)
@@ -715,6 +718,7 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
       fallbackAudio.value = deriveSeedFallbackAudio(
         stampRowAudioRefs(revisedRefs, phraseRows),
         lastLegoIdx,
+        computeSeedLegoIdSets(catRows),
       )
 
       const byRole = new Map<string, L1BookendAudio>()

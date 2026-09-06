@@ -2,7 +2,7 @@
 # SSI Learning App v1.0.0
 # Version: 1.0.0 (2025-12-03)
 # Status: Superseded in part (2026-04-29) — see banner below
-# Last updated: 2026-09-06 (LAYER-1 CUP FALLBACK — a cup plays the seed or the longest last-LEGO phrase)
+# Last updated: 2026-09-06 (LAYER-1 CUP FALLBACK v2 — a cup plays the seed or the last-LEGO phrase covering the most of the seed's LEGO set)
 # Source: Aran Jones methodology insights, 2025-12-03
 
 # =============================================================================
@@ -62,10 +62,20 @@
 # UPDATE (2026-09-06, Tom): LAYER-1 CUP FALLBACK — "cups play EITHER the
 # SEED itself, or the longest phrase from the last LEGO in the SEED's BASKET
 # of phrases." A seed with any target clip (either voice) plays ITSELF; a
-# seed with none plays the longest fully-audio'd non-component phrase of its
-# highest-lego_index basket (USE preferred over BUILD, longest by
-# target1_duration_ms — the course's own basket ordering measure); a seed
-# with neither skips exactly as before. Derived at init, never hand-mapped:
+# seed with none plays a fully-audio'd non-component phrase of its
+# highest-lego_index basket; a seed
+# with neither skips exactly as before.
+# UPDATE v2 (2026-09-06, Tom, same day): the winner is no longer the LONGEST
+# phrase but the one covering the MOST of the seed's own LEGO set — "find the
+# phrase in the last LEGO's BASKET that contains the most LEGOS from the
+# entire SEED", under the frame "the SEED itself is notionally the culminating
+# practice phrase of a SEED's LEGO SET". Coverage = distinct seed LEGOs
+# present (the phrase's own LEGO + connected_lego_ids ∩ the seed's LEGO ids,
+# unweighted); coverage outranks role; at equal coverage the v1 ladder stands
+# (USE over BUILD, then longest target1_duration_ms, then text length, then
+# text). Courses with no connected_lego_ids signal (Spanish today) tie at
+# coverage 1 and get exactly the v1 behaviour.
+# Derived at init, never hand-mapped:
 # packages/player-vue/src/composables/layer1CupFallback.ts (pure), wired in
 # useLayer1Scheduler.initialize()/nextLap(), winners persisted to the offline
 # snapshot (listeningMetaCache.l1FallbackPhrases) so downloaded courses pour

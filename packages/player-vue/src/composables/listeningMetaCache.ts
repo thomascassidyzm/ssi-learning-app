@@ -23,6 +23,7 @@ import { resolveServedPod } from './servedPod'
 import {
   type L1FallbackPhraseRow,
   computeSeedLastLegoIndex,
+  computeSeedLegoIdSets,
   selectFallbackWinnerRows,
 } from './layer1CupFallback'
 import {
@@ -203,6 +204,10 @@ export interface CachedL1FallbackPhrase {
   target1_audio_id: string | null
   target2_audio_id: string | null
   target1_duration_ms: number | null
+  /** OTHER lego ids in this phrase — the coverage selector's signal. Absent
+   *  on snapshots written before it existed (harmless: a lone persisted
+   *  winner wins re-derivation regardless of its coverage). */
+  connected_lego_ids?: string[] | null
 }
 
 /**
@@ -515,7 +520,7 @@ const fetchAndCacheListeningMetaOnce = async (
       for (let from = 0; ; from += PAGE) {
         const { data, error } = await client
           .from('course_practice_phrases')
-          .select('seed_number, lego_index, phrase_role, known_text, target_text, known_audio_id, target1_audio_id, target2_audio_id, target1_duration_ms')
+          .select('seed_number, lego_index, phrase_role, known_text, target_text, known_audio_id, target1_audio_id, target2_audio_id, target1_duration_ms, connected_lego_ids')
           .eq('course_code', courseCode)
           .in('seed_number', needySeeds)
           .not('known_audio_id', 'is', null)
@@ -528,9 +533,11 @@ const fetchAndCacheListeningMetaOnce = async (
         }
         if (!data || data.length < PAGE) break
       }
+      const catRows = (catalogue || []) as Array<{ seed_number: number; lego_index: number }>
       l1FallbackPhrases = selectFallbackWinnerRows(
         phraseRows,
-        computeSeedLastLegoIndex((catalogue || []) as Array<{ seed_number: number; lego_index: number }>),
+        computeSeedLastLegoIndex(catRows),
+        computeSeedLegoIdSets(catRows),
       )
     }
 
