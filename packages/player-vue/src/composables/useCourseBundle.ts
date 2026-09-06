@@ -123,13 +123,7 @@ function cachedOwnerMatches(cached: CachedBundle, current: string | null): boole
   return (cached.ownerId ?? null) === current
 }
 
-/** True when a signed-in session token is available for this fetch.
- *
- *  Exported (as `hasCourseBundleAuthToken`) so the SCRIPT cache can ask the
- *  same question this module already answers: a cached artefact that is the
- *  free-preview slice must not be served to a caller who now holds a token.
- *  One registration in App.vue, two consumers — never a second provider.
- */
+/** True when a signed-in session token is available for this fetch. */
 async function hasAuthToken(): Promise<boolean> {
   if (!authTokenProvider) return false
   try {
@@ -152,9 +146,6 @@ async function authHeaders(): Promise<Record<string, string> | undefined> {
 // ---------------------------------------------------------------------------
 // IDENTITY
 // ---------------------------------------------------------------------------
-
-/** See hasAuthToken above — shared with useScriptCache's preview-poison guard. */
-export const hasCourseBundleAuthToken = (): Promise<boolean> => hasAuthToken()
 
 export function bundleCacheKey(id: BundleIdentity): string {
   return `${String(id.contentVersion)}|${id.scriptShapeVersion}|${id.previewOnly ? 'preview' : 'full'}`

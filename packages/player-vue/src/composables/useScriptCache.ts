@@ -13,8 +13,6 @@ import { openDB, deleteDB, type IDBPDatabase } from 'idb'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { OfflineLease } from '../config/offlineLease'
 import { refreshListeningMetaIfStale } from './listeningMetaCache'
-import { hasCourseBundleAuthToken } from './useCourseBundle'
-import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 
 // Cache configuration
 // Scripts live in IndexedDB. localStorage's ~5MB cap overflowed on big
@@ -160,64 +158,11 @@ export interface CachedScript {
 // SCRIPT CACHE (localStorage)
 // ============================================================================
 
-/**
- * Highest seed this cached script's rounds actually reach, or null when the
- * entry carries no parseable seed. Rounds are stamped `seedId: "S0019"`.
- */
-const maxCachedSeed = (data: CachedScript): number | null => {
-  let max: number | null = null
-  for (const round of (data.rounds || []) as Array<{ seedId?: string }>) {
-    const m = /^S(\d{1,})$/.exec(round?.seedId ?? '')
-    if (!m) continue
-    const seed = parseInt(m[1], 10)
-    if (Number.isFinite(seed) && (max === null || seed > max)) max = seed
-  }
-  return max
-}
-
-/**
- * PREVIEW-POISON GUARD (job #676, 2026-09-06).
- *
- * This cache is keyed by `(SCRIPT_VERSION, courseCode)` and has no TTL, so
- * whatever lands in it is what the learner plays until a version bump. That is
- * fine for a script generated from the whole course, and permanent damage for
- * one generated from the 19-seed FREE PREVIEW — which is exactly what a
- * `/bundle` fetch made before the session was restored (or made signed out)
- * returns. On a premium course a payer then finds Orange Belt and everything
- * above it unreachable for good: "Orange Belt isn't on this device yet",
- * forever, on that course only. That is the shape Tom hit on `zho_for_eng`.
- *
- * The server side of this is `api/_utils/entitlementVary.ts` (a missing
- * `Vary: Authorization` let a browser cache hand the payer the anonymous
- * preview body). This is the healing half: a device already carrying the
- * poison has no other way back, because nothing in the old entry says how it
- * was made.
- *
- * The test is deliberately narrow: a whole main loop that stops at or below the
- * free-preview ceiling, asked for by a caller who NOW holds a session token. A
- * genuinely 19-seed course pays one regeneration; a poisoned premium course is
- * repaired. Signed-out callers keep their preview — it is the right script for
- * them.
- */
-const isPreviewPoisoned = async (data: CachedScript): Promise<boolean> => {
-  const max = maxCachedSeed(data)
-  if (max === null || max > PREMIUM_PREVIEW_MAX_SEED) return false
-  return await hasCourseBundleAuthToken()
-}
-
 export const getCachedScript = async (courseCode: string): Promise<CachedScript | null> => {
   try {
     const db = await scriptDb()
     const data = (await db.get(SCRIPT_STORE, idbKey(courseCode))) as CachedScript | undefined
     if (!data) return null
-    if (await isPreviewPoisoned(data)) {
-      console.warn(
-        `[ScriptCache] ${courseCode}: cached script stops at seed ${maxCachedSeed(data)} ` +
-        '(the free-preview window) but this learner is signed in — discarding and regenerating.',
-      )
-      try { await db.delete(SCRIPT_STORE, idbKey(courseCode)) } catch { /* best effort */ }
-      return null
-    }
     // No TTL — cache persists until version bump or explicit clear (PWA: the
     // cache is the source of truth).
     console.log('[ScriptCache] Loaded from IndexedDB')
