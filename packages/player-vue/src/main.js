@@ -10,6 +10,7 @@ import { loadWebFonts } from './utils/loadWebFonts'
 import { selectPrecacheEntriesToPoison } from './utils/wedgeCheat'
 import { applyDeepLinkLocale } from './utils/deepLinkLocale'
 import { installApiOriginRewrite } from './platform/apiBase'
+import { installShellSafeArea } from './platform/shellSafeArea'
 
 // Point every app-relative `/api/...` request at the configured API origin.
 // FIRST, before anything can make a request. On the web the configured origin
@@ -18,6 +19,12 @@ import { installApiOriginRewrite } from './platform/apiBase'
 // WebView — whose own origin serves no API — it is the one place that makes
 // the difference. See platform/apiBase.ts.
 installApiOriginRewrite()
+
+// Make the system-bar insets real for edge-anchored chrome, and make a
+// MISSING measurement visible rather than silent. No-op on the web and in an
+// iOS shell — it only switches on the Android native shell's clearance rule.
+// See platform/shellSafeArea.ts and --shell-nav-clearance in design-tokens.css.
+installShellSafeArea()
 
 // A deep link to a course sets the interface language to that course's KNOWN
 // language — the one the visitor already speaks — unless they have chosen a

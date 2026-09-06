@@ -54,7 +54,7 @@ export function placeCard(rect: RectLike | null, vw: number, vh: number, safeTop
   const bottomCenter: CardStyle = {
     left: `${(vw - w) / 2}px`,
     // Standing safe-area rule: bottom-anchored chrome clears the home indicator.
-    bottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
+    bottom: 'calc(24px + var(--shell-inset-bottom))',
     width: `${w}px`,
   }
   if (!rect) return bottomCenter

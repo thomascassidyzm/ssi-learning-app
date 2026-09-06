@@ -4,6 +4,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 import { fileURLToPath, URL } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { resolveBuildBranch } from './scripts/buildBranch.mjs'
+import { missingWebviewBuildConfig } from './scripts/webviewBuildGuard.mjs'
 
 // Generate build info at build time.
 //
@@ -103,6 +104,44 @@ function appShell(mode) {
   return String(env.VITE_APP_SHELL || '').trim()
 }
 
+/**
+ * A webview build with no Supabase config is DEAD ON ARRIVAL — refuse to make one.
+ *
+ * 2026-09-05: the APK on popty.app/builds (`local-5e99196`) was built on a box
+ * with none of the VITE_SUPABASE_* variables set, so `loadConfig()` produced an
+ * empty url/anonKey, no Supabase client was ever created, and the player sat
+ * with its transport bar rendered and the play button spinning forever. The
+ * runtime already screams about this (src/config/env.ts →
+ * missingRequiredConfig), but a console error on a phone inside a WebView is a
+ * message nobody can read, and unlike a Vercel deploy there is no redeploy — a
+ * human has already installed the artifact.
+ *
+ * So the check moves to the one moment where it is still free: build time. A
+ * web build is deliberately left alone (Vercel supplies these from project env,
+ * and a broken preview is one redeploy away). Set VITE_ALLOW_NO_SUPABASE=1 only
+ * for builds made to be INSPECTED rather than installed — the two
+ * e2e/_payment-route-* checks do exactly that.
+ */
+function shippableWebviewBuildGuard(mode) {
+  return {
+    name: 'ssi-shippable-webview-build-guard',
+    apply: 'build',
+    buildStart() {
+      const env = { ...loadEnv(mode, import.meta.dirname, ''), ...process.env }
+      const missing = missingWebviewBuildConfig(env)
+      if (!missing.length) return
+      throw new Error(
+        'Refusing to build the webview/APK bundle without Supabase config: ' +
+        missing.join(', ') + '. Without these the installed app has no Supabase ' +
+        'client — sign-in, progress and course loading are all dead, and the ' +
+        'player spins forever on a blank screen. Build it with ' +
+        'scripts/build-android-apk.sh, or set VITE_ALLOW_NO_SUPABASE=1 if this ' +
+        'bundle is only going to be inspected, never installed.'
+      )
+    },
+  }
+}
+
 export default defineConfig(({ mode }) => ({
   server: {
     proxy: {
@@ -111,6 +150,7 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     vue(),
+    shippableWebviewBuildGuard(mode),
     versionFilePlugin(),
     VitePWA({
       // prompt: new SW waits until the user actively triggers it (banner

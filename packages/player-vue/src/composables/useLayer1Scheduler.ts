@@ -43,6 +43,12 @@
  *   • Carries known-language audio in the `trans` slot — mirrors Layer-2 pods
  *     (target → known → target → target). A seed with no known audio skips the
  *     trans slot (target, target, target); the slot is never silenced.
+ *   • CUP FALLBACK (Tom, 2026-09-06): a cup plays EITHER the seed itself
+ *     (any target voice), OR — when the seed has no target audio at all — the
+ *     longest fully-audio'd phrase from the seed's LAST LEGO's basket, derived
+ *     at init (deriveSeedFallbackAudio). A seed with neither skips as before.
+ *     Invisible on courses with complete seed audio; exists so a mid-changeover
+ *     course (Welsh, 2026-09) still pours real cups with zero new recording.
  *   • Forever loop: once a course stops introducing seeds (the 600 cap, or its own
  *     end), cup membership stops changing, so each cup just keeps pouring its fixed
  *     set (each seed's sandwich) — steady background maintenance.
@@ -58,7 +64,14 @@
 import { ref, shallowRef, type Ref } from 'vue'
 import { capConsecutiveRepeats } from '../playback/capConsecutiveRepeats'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { getCachedListeningMeta, retryListeningRead } from './listeningMetaCache'
+import { getCachedListeningMeta, retryListeningRead, retryListeningReadOrThrow } from './listeningMetaCache'
+import {
+  type L1SeedAudio,
+  type L1FallbackPhraseRow,
+  computeSeedLastLegoIndex,
+  seedOwnAudio,
+  deriveSeedFallbackAudio,
+} from './layer1CupFallback'
 import { computeListeningSpeed, type TargetSpeedConfig } from '../providers/toSimpleRounds'
 import { getRevisedAudioRefs, stampRowAudioRefs } from '../providers/revisedAudioRefs'
 import {
@@ -89,15 +102,18 @@ export type Layer1PlayRole = 'ps' | 'trans'
  */
 export const L1_ROLE_SPEED: Record<Layer1PlayRole, number> = { ps: 1.0, trans: 1.0 }
 
-/** The audio a single seed exposes for its Layer-1 sandwich. */
-export interface L1SeedAudio {
-  seedNumber: number
-  target1Id: string
-  target2Id: string | null
-  knownId: string | null
-  targetText: string
-  knownText: string
-}
+/** The audio a single seed exposes for its Layer-1 sandwich, plus the whole
+ *  cup-fallback derivation (Tom's ruling, 2026-09-06) — moved to
+ *  layer1CupFallback.ts so the offline snapshot can share it without a
+ *  circular import, re-exported here so callers and tests keep one door. */
+export {
+  type L1SeedAudio,
+  type L1FallbackPhraseRow,
+  computeSeedLastLegoIndex,
+  seedOwnAudio,
+  deriveSeedFallbackAudio,
+  selectFallbackWinnerRows,
+} from './layer1CupFallback'
 
 /**
  * One slot of the per-seed Layer-1 sandwich (admin-tunable playlist).
@@ -518,6 +534,11 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
   const isInitialized = ref(false)
   const isLoading = ref(false)
   const seeds = shallowRef<Map<number, L1SeedRow>>(new Map())
+  /** seedNum → substitute sandwich for seeds with NO target audio of their
+   *  own — the longest last-LEGO basket phrase (Tom's cup-fallback ruling,
+   *  2026-09-06; see deriveSeedFallbackAudio). Empty on courses with full
+   *  seed audio, so the fallback is invisible there. */
+  const fallbackAudio = shallowRef<Map<number, L1SeedAudio>>(new Map())
   const seedLastOrdinal = shallowRef<Map<number, number>>(new Map())
   const introductionOrder = shallowRef<number[]>([])
   const sortedOrdinals = shallowRef<number[]>([])
@@ -641,6 +662,61 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
       introductionOrder.value = intro.order
       sortedOrdinals.value = intro.ordinals
 
+      // THE CUP FALLBACK (Tom, 2026-09-06): fetch the last-LEGO basket rows
+      // for the seeds that have NO target audio of their own, so their cups
+      // can pour the longest phrase instead of composing nothing. One batched,
+      // paged query for just those seeds — nothing on a course with complete
+      // seed audio (needy is empty and no request is made).
+      const catRows = (catalogueRows || []) as Array<{ seed_number: number; lego_index: number }>
+      const needy: number[] = []
+      const lastLegoIdx = computeSeedLastLegoIndex(catRows)
+      for (const row of seedMap.values()) {
+        if (!row.target1_audio_id && !row.target2_audio_id && lastLegoIdx.has(row.seed_number)) {
+          needy.push(row.seed_number)
+        }
+      }
+      let phraseRows: L1FallbackPhraseRow[] = []
+      if (needy.length > 0) {
+        const PAGE = 1000
+        try {
+          const fetched = await retryListeningReadOrThrow(
+            async () => {
+              const rows: L1FallbackPhraseRow[] = []
+              for (let from = 0; ; from += PAGE) {
+                const { data, error } = await supabase
+                  .from('course_practice_phrases')
+                  .select('seed_number, lego_index, phrase_role, known_text, target_text, known_audio_id, target1_audio_id, target2_audio_id, target1_duration_ms')
+                  .eq('course_code', courseCode)
+                  .in('seed_number', needy)
+                  .not('known_audio_id', 'is', null)
+                  .not('target1_audio_id', 'is', null)
+                  .not('target2_audio_id', 'is', null)
+                  .range(from, from + PAGE - 1)
+                if (error) throw new Error(error.message)
+                rows.push(...((data || []) as L1FallbackPhraseRow[]))
+                if (!data || data.length < PAGE) break
+              }
+              return rows
+            },
+          )
+          phraseRows = fetched
+        } catch (err) {
+          // Offline / failed: the snapshot persisted by the deliberate download
+          // (nothing cached → the needy seeds just skip, exactly as before).
+          const cached = await getCachedListeningMeta(courseCode)
+          if (cached?.l1FallbackPhrases) {
+            console.warn('[layer1Scheduler] fallback-phrase fetch failed — using offline cache')
+            phraseRows = cached.l1FallbackPhrases as L1FallbackPhraseRow[]
+          } else {
+            console.warn('[layer1Scheduler] fallback-phrase fetch failed (no cache):', err)
+          }
+        }
+      }
+      fallbackAudio.value = deriveSeedFallbackAudio(
+        stampRowAudioRefs(revisedRefs, phraseRows),
+        lastLegoIdx,
+      )
+
       const byRole = new Map<string, L1BookendAudio>()
       for (const row of bookendRows || []) {
         byRole.set(row.role, { id: row.id, text: row.text, duration_ms: row.duration_ms })
@@ -747,8 +823,11 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
     const seedMap = seeds.value
     const plays: L1Play[] = []
     for (const sNum of cupSeeds) {
-      const seed = seedMap.get(sNum)
-      if (!seed?.target1_audio_id) continue
+      // The seed itself when it has any target audio; else the longest phrase
+      // of its last LEGO's basket (Tom's cup-fallback ruling, 2026-09-06);
+      // else skip, exactly as before — never a play that can't resolve.
+      const audio = seedOwnAudio(seedMap.get(sNum)) ?? fallbackAudio.value.get(sNum)
+      if (!audio) continue
       const uniformSpeed = exposureRamped
         ? resolveListeningSpeed(
             seedExposureAt({
@@ -763,14 +842,7 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
             beltCeiling,
           )
         : undefined
-      plays.push(...buildSeedPlays({
-        seedNumber: sNum,
-        target1Id: seed.target1_audio_id,
-        target2Id: seed.target2_audio_id,
-        knownId: seed.known_audio_id,
-        targetText: seed.target_text_roman || seed.target_text,
-        knownText: seed.known_text,
-      }, list, speedCfg(), uniformSpeed))
+      plays.push(...buildSeedPlays(audio, list, speedCfg(), uniformSpeed))
     }
     if (plays.length === 0) return null
 
@@ -819,16 +891,11 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
     const seedMap = seeds.value
     const plays: L1Play[] = []
     for (const sNum of order.slice(0, 4)) {
-      const seed = seedMap.get(sNum)
-      if (!seed?.target1_audio_id) continue
-      plays.push(...buildSeedPlays({
-        seedNumber: sNum,
-        target1Id: seed.target1_audio_id,
-        target2Id: seed.target2_audio_id,
-        knownId: seed.known_audio_id,
-        targetText: seed.target_text_roman || seed.target_text,
-        knownText: seed.known_text,
-      }, list, speedCfg(), previewSpeed))
+      // Same seed-or-longest-phrase resolution as nextLap — a preview that
+      // behaves differently from production misleads whoever is watching it.
+      const audio = seedOwnAudio(seedMap.get(sNum)) ?? fallbackAudio.value.get(sNum)
+      if (!audio) continue
+      plays.push(...buildSeedPlays(audio, list, speedCfg(), previewSpeed))
     }
     if (plays.length === 0) return null
     const playableSeeds = new Set(plays.map((pl) => pl.seedNumber)).size
@@ -861,6 +928,7 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
     isInitialized,
     isLoading,
     seeds,
+    fallbackAudio,
     seedLastOrdinal,
     introductionOrder,
     introAudio,

@@ -21,12 +21,14 @@ import { tmpdir } from 'node:os'
 
 const ROOT = process.cwd()
 const ENVFILE = join(ROOT, '.env.production')
+// This bundle is built to be GREPPED, never installed, so it opts out of the
+// webview Supabase-config guard in vite.config.js (VITE_ALLOW_NO_SUPABASE).
 const MARKERS = ['schools-upgrade', 'org-upgrade', 'teach-upgrade', 'per teacher seat']
 if (existsSync(ENVFILE)) { console.error('refusing: .env.production already exists'); process.exit(2) }
 writeFileSync(ENVFILE, 'VITE_APP_SHELL=webview\n')
 const out = mkdtempSync(join(tmpdir(), 'ssi-envfile-'))
 try {
-  execFileSync('npx', ['vite', 'build', '--outDir', out], { stdio: 'inherit', env: { ...process.env } })
+  execFileSync('npx', ['vite', 'build', '--outDir', out], { stdio: 'inherit', env: { ...process.env, VITE_ALLOW_NO_SUPABASE: '1' } })
   const src = readdirSync(join(out, 'assets')).filter(f => f.endsWith('.js'))
     .map(f => readFileSync(join(out, 'assets', f), 'utf8'))
   const leaked = MARKERS.filter(m => src.some(s => s.includes(m)))

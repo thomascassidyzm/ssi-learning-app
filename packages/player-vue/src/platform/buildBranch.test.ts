@@ -5,11 +5,37 @@
  * wrapper build is worse than nothing: a silently-zero value looks exactly
  * like a working one, and the Settings row would quietly go back to saying
  * only what it said before. So the fallback chain is pinned in every shape,
- * including the two a real build cannot reach on purpose — a detached HEAD
- * and no git at all.
+ * including the two that come back with no branch at all — a detached HEAD
+ * and no git — both of which are real: the nightly CI checkout and the deploy
+ * sentinel's are force-checked-out and detached.
+ *
+ * The git-touching cases run against a throwaway repo this file builds, never
+ * against the ambient checkout. Asserting the working tree you happen to be
+ * standing in is on a branch tests the machine, not the code, and it was red
+ * on the first nightly after this module landed for exactly that reason.
  */
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { resolveBuildBranch } from '../../scripts/buildBranch.mjs'
+import { localGitBranch, resolveBuildBranch } from '../../scripts/buildBranch.mjs'
+
+const git = (cwd: string, args: string[]) =>
+  execFileSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+    env: {
+      ...process.env,
+      GIT_AUTHOR_NAME: 'ssi',
+      GIT_AUTHOR_EMAIL: 'ssi@example.com',
+      GIT_COMMITTER_NAME: 'ssi',
+      GIT_COMMITTER_EMAIL: 'ssi@example.com',
+      GIT_CONFIG_GLOBAL: '/dev/null',
+      GIT_CONFIG_SYSTEM: '/dev/null',
+    },
+  })
 
 const never = () => {
   throw new Error('git should not have been consulted')
@@ -46,13 +72,44 @@ describe('resolveBuildBranch', () => {
     ).toBeNull()
   })
 
-  it('reads a real, non-empty branch from THIS working tree with no env at all', () => {
-    // The wrapper/local path, run for real. If this comes back empty the
-    // Android build's stamp is empty too, and that is the failure this test
-    // exists to catch.
-    const branch = resolveBuildBranch({ env: {} })
-    expect(typeof branch).toBe('string')
-    expect(branch).not.toBe('')
-    expect(branch).not.toBe('HEAD')
+  it('reads a real branch name out of a real git checkout, running git for real', () => {
+    // The wrapper/local path, exercised end-to-end against actual git — the
+    // flags, the cwd, the stdio config. It runs against a repo this test
+    // builds, NOT the ambient checkout: a detached checkout (CI, the deploy
+    // sentinel) legitimately has no branch, and asserting otherwise tests the
+    // machine rather than the code.
+    const repo = mkdtempSync(join(tmpdir(), 'ssi-build-branch-'))
+    try {
+      git(repo, ['init', '--initial-branch=cs/596-build-stamp'])
+      git(repo, ['commit', '--allow-empty', '-m', 'first'])
+
+      expect(localGitBranch(repo)).toBe('cs/596-build-stamp')
+      expect(resolveBuildBranch({ env: {}, gitBranch: () => localGitBranch(repo) })).toBe('cs/596-build-stamp')
+    } finally {
+      rmSync(repo, { recursive: true, force: true })
+    }
+  })
+
+  it('comes back null on a real detached checkout, which is what CI and the deploy sentinel are', () => {
+    const repo = mkdtempSync(join(tmpdir(), 'ssi-build-branch-'))
+    try {
+      git(repo, ['init', '--initial-branch=main'])
+      git(repo, ['commit', '--allow-empty', '-m', 'first'])
+      git(repo, ['checkout', '--detach', 'HEAD'])
+
+      expect(localGitBranch(repo)).toBe('HEAD')
+      expect(resolveBuildBranch({ env: {}, gitBranch: () => localGitBranch(repo) })).toBeNull()
+    } finally {
+      rmSync(repo, { recursive: true, force: true })
+    }
+  })
+
+  it('comes back null where there is no git repository at all', () => {
+    const notARepo = mkdtempSync(join(tmpdir(), 'ssi-build-branch-nogit-'))
+    try {
+      expect(resolveBuildBranch({ env: {}, gitBranch: () => localGitBranch(notARepo) })).toBeNull()
+    } finally {
+      rmSync(notARepo, { recursive: true, force: true })
+    }
   })
 })
