@@ -3,6 +3,36 @@
   <head>
     <meta charset="UTF-8" />
 
+    <!-- crypto.randomUUID landed in Chrome/WebView 92 (May 2021). Everything
+         else in this bundle runs on WebView 80 (Feb 2020) — measured, job #701,
+         by executing the shipped assets/public bundle in Chromium 80/87/90/92/98.
+         Without this shim, an Android WebView between 80 and 91 parses the whole
+         app, mounts Vue, paints the background — and then throws
+         "crypto.randomUUID is not a function" out of Supabase init, leaving a
+         blank shell with no error on screen. That is the dishonest failure: the
+         learner sees an empty app and nothing tells them why.
+
+         It is inline in <head> deliberately: it must be installed before any
+         module script evaluates, and this is the only point that is guaranteed
+         to be. Feature-detected, so it costs modern engines one typeof check.
+         v4 shape, crypto.getRandomValues-backed (WebView 24+), so the ids stay
+         real UUIDs rather than Math.random strings. -->
+    <script>
+      (function () {
+        if (typeof crypto === 'undefined' || typeof crypto.getRandomValues !== 'function') return
+        if (typeof crypto.randomUUID === 'function') return
+        crypto.randomUUID = function randomUUID() {
+          var b = new Uint8Array(16)
+          crypto.getRandomValues(b)
+          b[6] = (b[6] & 0x0f) | 0x40
+          b[8] = (b[8] & 0x3f) | 0x80
+          var h = ''
+          for (var i = 0; i < 16; i++) h += (b[i] + 0x100).toString(16).slice(1)
+          return h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20)
+        }
+      })()
+    </script>
+
     <!-- PWA Meta Tags -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#D9D6D2" />
