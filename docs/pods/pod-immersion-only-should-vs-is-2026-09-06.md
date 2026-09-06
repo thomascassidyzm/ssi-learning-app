@@ -11,7 +11,11 @@ OLD position-coupled model — it climbed 43 → 459 between 10 June and 31 Augu
 laps — and job #657 faithfully restored that already-inflated number. So: the sound is correct,
 the position that produced it is not.
 
-Seeds: confirmed unconditioned, one line, as Tom's second listen said. `useLayer1Scheduler.ts`
+Seeds: settled twice over. Tom listened again on staging and reported the whole Layer-1 path
+correct by observation — "theyre playing properly with the drill cadence at 1x. they play every
+ROUND now - as Im past SEED 30. theres only a small number of SEEDS in each cup, theyre all doing
+t k t t at 1x and the app is handing back to the speaking exercises once theyve completed - all
+without incident". The code agrees: `useLayer1Scheduler.ts`
 reads `policy.pattern` (target · known · target2 · target) and runs its speed through
 `resolveListeningSpeed`, which is hard-clamped at 1.0. The pod-lap ratchet never enters Layer 1.
 Nothing was changed there.
@@ -98,8 +102,9 @@ That is a taste call about what "finished" should sound like, and it is yours.
 Read-only throughout: PostgREST reads against the live Supabase with the service key, plus the
 `#657` applied log from git. No writes, no test suite (read-only work, per the standing rule).
 
-**EXPLICIT GAP — no reproduction by ear.** I did not sign in to staging as Tom and listen; that
-would need his session and risks touching his state. The reproduction is by evidence instead: the
+**EXPLICIT GAP — no reproduction of the POD lap by ear.** I did not sign in to staging as Tom and
+listen; that would need his session and risks touching his state. (Layer 1 needs no such caveat —
+Tom verified it himself on staging, quoted at the top.) The reproduction is by evidence instead: the
 12:42Z lap on 6 September recorded `playsExpected: 383, playsCompleted: 385, abortReason:
 "completed"` on 367 sentences whose every cohort computes to the terminal `['ps2x']` stage. That is
 the sound he described, reconstructed from the row the player itself wrote.
