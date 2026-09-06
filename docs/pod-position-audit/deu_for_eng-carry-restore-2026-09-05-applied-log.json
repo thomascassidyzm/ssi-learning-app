@@ -1,0 +1,180 @@
+{
+  "course": "deu_for_eng",
+  "live_pod": "deu_for_eng:pod-1",
+  "prospective": "/home/tomcassidy/ssi-dashboard-v7-clean/docs/pods/deu-pod0-switchover-prospective-2026-08-22.json",
+  "applied_at": "2026-09-05T19:20:15.038Z",
+  "tally": {
+    "present_ok": 3,
+    "MISSING": 14
+  },
+  "applied": [
+    {
+      "learner_id": "81987d60-0c00-4553-8a36-79f83cdf1774",
+      "course_code": "deu_for_eng",
+      "recorded_key": "deu_for_eng:pod-0-unrecorded:SC01-S002:s0",
+      "target_key": "deu_for_eng:pod-1:SC01-S002:s0",
+      "recorded_exposures": 2,
+      "exposures_before": null,
+      "exposures_after": 2,
+      "action": "inserted",
+      "heard": "Good morning. How are you?",
+      "note": null
+    },
+    {
+      "learner_id": "81987d60-0c00-4553-8a36-79f83cdf1774",
+      "course_code": "deu_for_eng",
+      "recorded_key": "deu_for_eng:pod-0-unrecorded:SC01-S002:s1",
+      "target_key": "deu_for_eng:pod-1:SC01-S002:s1",
+      "recorded_exposures": 2,
+      "exposures_before": null,
+      "exposures_after": 2,
+      "action": "inserted",
+      "heard": "Good morning. How are you?",
+      "note": null
+    },
+    {
+      "learner_id": "81987d60-0c00-4553-8a36-79f83cdf1774",
+      "course_code": "deu_for_eng",
+      "recorded_key": "deu_for_eng:pod-0-unrecorded:SC01-S003:s0",
+      "target_key": "deu_for_eng:pod-1:SC01-S003:s0",
+      "recorded_exposures": 1,
+      "exposures_before": null,
+      "exposures_after": 1,
+      "action": "inserted",
+      "heard": "I'm very well, thank you. Are you going to work?",
+      "note": null
+    },
+    {
+      "learner_id": "81987d60-0c00-4553-8a36-79f83cdf1774",
+      "course_code": "deu_for_eng",
+      "recorded_key": "deu_for_eng:pod-0-unrecorded:SC01-S003:s1",
+      "target_key": "deu_for_eng:pod-1:SC01-S003:s1",
+      "recorded_exposures": 1,
+      "exposures_before": null,
+      "exposures_after": 1,
+      "action": "inserted",
+      "heard": "I'm very well, thank you. Are you going to work?",
+      "note": null
+    },
+    {
+      "learner_id": "81987d60-0c00-4553-8a36-79f83cdf1774",
+      "course_code": "deu_for_eng",
+      "recorded_key": "deu_for_eng:pod-0-unrecorded:SC01-S004:s0",
+      "target_key": "deu_for_eng:pod-1:SC01-S004:s0",
+      "recorded_exposures": 1,
+      "exposures_before": null,
+      "exposures_after": 1,
+      "action": "inserted",
+      "heard": "Yes, I've got a busy day today. I hope you have a good day. See you later.",
+      "note": null
+    },
+    {
+      "learner_id": "81987d60-0c00-4553-8a36-79f83cdf1774",
+      "course_code": "deu_for_eng",
+      "recorded_key": "deu_for_eng:pod-0-unrecorded:SC01-S004:s1",
+      "target_key": "deu_for_eng:pod-1:SC01-S004:s1",
+      "recorded_exposures": 1,
+      "exposures_before": null,
+      "exposures_after": 1,
+      "action": "inserted",
+      "heard": "Yes, I've got a busy day today. I hope you have a good day. See you later.",
+      "note": null
+    },
+    {
+      "learner_id": "81987d60-0c00-4553-8a36-79f83cdf1774",
+      "course_code": "deu_for_eng",
+      "recorded_key": "deu_for_eng:pod-0-unrecorded:SC01-S004:s2",
+      "target_key": "deu_for_eng:pod-1:SC01-S004:s2",
+      "recorded_exposures": 1,
+      "exposures_before": null,
+      "exposures_after": 1,
+      "action": "inserted",
+      "heard": "Yes, I've got a busy day today. I hope you have a good day. See you later.",
+      "note": null
+    },
+    {
+      "learner_id": "884a23bf-b5ca-4558-b297-c826b04c6dc7",
+      "course_code": "deu_for_eng",
+      "recorded_key": "deu_for_eng:pod-0-unrecorded:SC01-S002:s0",
+      "target_key": "deu_for_eng:pod-1:SC01-S002:s0",
+      "recorded_exposures": 3,
+      "exposures_before": null,
+      "exposures_after": 3,
+      "action": "inserted",
+      "heard": "Good morning. How are you?",
+      "note": null
+    },
+    {
+      "learner_id": "884a23bf-b5ca-4558-b297-c826b04c6dc7",
+      "course_code": "deu_for_eng",
+      "recorded_key": "deu_for_eng:pod-0-unrecorded:SC01-S002:s1",
+      "target_key": "deu_for_eng:pod-1:SC01-S002:s1",
+      "recorded_exposures": 3,
+      "exposures_before": null,
+      "exposures_after": 3,
+      "action": "inserted",
+      "heard": "Good morning. How are you?",
+      "note": null
+    },
+    {
+      "learner_id": "884a23bf-b5ca-4558-b297-c826b04c6dc7",
+      "course_code": "deu_for_eng",
+      "recorded_key": "deu_for_eng:pod-0-unrecorded:SC01-S003:s0",
+      "target_key": "deu_for_eng:pod-1:SC01-S003:s0",
+      "recorded_exposures": 2,
+      "exposures_before": null,
+      "exposures_after": 2,
+      "action": "inserted",
+      "heard": "I'm very well, thank you. Are you going to work?",
+      "note": null
+    },
+    {
+      "learner_id": "884a23bf-b5ca-4558-b297-c826b04c6dc7",
+      "course_code": "deu_for_eng",
+      "recorded_key": "deu_for_eng:pod-0-unrecorded:SC01-S003:s1",
+      "target_key": "deu_for_eng:pod-1:SC01-S003:s1",
+      "recorded_exposures": 2,
+      "exposures_before": null,
+      "exposures_after": 2,
+      "action": "inserted",
+      "heard": "I'm very well, thank you. Are you going to work?",
+      "note": null
+    },
+    {
+      "learner_id": "884a23bf-b5ca-4558-b297-c826b04c6dc7",
+      "course_code": "deu_for_eng",
+      "recorded_key": "deu_for_eng:pod-0-unrecorded:SC01-S004:s0",
+      "target_key": "deu_for_eng:pod-1:SC01-S004:s0",
+      "recorded_exposures": 2,
+      "exposures_before": null,
+      "exposures_after": 2,
+      "action": "inserted",
+      "heard": "Yes, I've got a busy day today. I hope you have a good day. See you later.",
+      "note": null
+    },
+    {
+      "learner_id": "884a23bf-b5ca-4558-b297-c826b04c6dc7",
+      "course_code": "deu_for_eng",
+      "recorded_key": "deu_for_eng:pod-0-unrecorded:SC01-S004:s1",
+      "target_key": "deu_for_eng:pod-1:SC01-S004:s1",
+      "recorded_exposures": 2,
+      "exposures_before": null,
+      "exposures_after": 2,
+      "action": "inserted",
+      "heard": "Yes, I've got a busy day today. I hope you have a good day. See you later.",
+      "note": null
+    },
+    {
+      "learner_id": "884a23bf-b5ca-4558-b297-c826b04c6dc7",
+      "course_code": "deu_for_eng",
+      "recorded_key": "deu_for_eng:pod-0-unrecorded:SC01-S004:s2",
+      "target_key": "deu_for_eng:pod-1:SC01-S004:s2",
+      "recorded_exposures": 2,
+      "exposures_before": null,
+      "exposures_after": 2,
+      "action": "inserted",
+      "heard": "Yes, I've got a busy day today. I hope you have a good day. See you later.",
+      "note": null
+    }
+  ]
+}

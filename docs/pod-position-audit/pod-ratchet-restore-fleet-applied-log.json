@@ -1,0 +1,5553 @@
+[
+  {
+    "job": 657,
+    "ruling": "Tom, 2026-09-05: a silently-zeroed pod ratchet is given back to the learner — not person-specific",
+    "generated_at": "2026-09-05T20:38:48.372Z",
+    "learner_id": "81987d60-0c00-4553-8a36-79f83cdf1774",
+    "display_name": "Tom",
+    "course_id": "zho_for_eng",
+    "before": {
+      "completed_pod_rounds": 0,
+      "pod_activation_round": 456,
+      "rounds_since_pod": 5,
+      "updated_at": "2026-09-05T19:11:04.008Z",
+      "highest_completed_seed": 40,
+      "highest_completed_lego_id": "S0668L02",
+      "current_mode": "main"
+    },
+    "telemetry": {
+      "events": 143,
+      "completedEvents": [
+        {
+          "id": "21342",
+          "occurred_at": "2026-05-22T12:06:39.020Z",
+          "podRound": 33,
+          "abortReason": "completed",
+          "playsExpected": 111,
+          "playsCompleted": 113
+        },
+        {
+          "id": "93013",
+          "occurred_at": "2026-06-03T14:25:46.866Z",
+          "podRound": 34,
+          "abortReason": "completed",
+          "playsExpected": 113,
+          "playsCompleted": 115
+        },
+        {
+          "id": "93170",
+          "occurred_at": "2026-06-03T14:31:20.297Z",
+          "podRound": 111,
+          "abortReason": "completed",
+          "playsExpected": 80,
+          "playsCompleted": 82
+        },
+        {
+          "id": "93336",
+          "occurred_at": "2026-06-03T14:40:27.517Z",
+          "podRound": 112,
+          "abortReason": "completed",
+          "playsExpected": 80,
+          "playsCompleted": 82
+        },
+        {
+          "id": "93523",
+          "occurred_at": "2026-06-03T14:50:11.424Z",
+          "podRound": 113,
+          "abortReason": "completed",
+          "playsExpected": 82,
+          "playsCompleted": 84
+        },
+        {
+          "id": "93908",
+          "occurred_at": "2026-06-03T15:01:24.744Z",
+          "podRound": 114,
+          "abortReason": "completed",
+          "playsExpected": 82,
+          "playsCompleted": 84
+        },
+        {
+          "id": "94315",
+          "occurred_at": "2026-06-03T15:11:41.287Z",
+          "podRound": 35,
+          "abortReason": "completed",
+          "playsExpected": 115,
+          "playsCompleted": 117
+        },
+        {
+          "id": "99196",
+          "occurred_at": "2026-06-04T02:52:00.296Z",
+          "podRound": 36,
+          "abortReason": "completed",
+          "playsExpected": 116,
+          "playsCompleted": 118
+        },
+        {
+          "id": "99435",
+          "occurred_at": "2026-06-04T03:07:03.380Z",
+          "podRound": 37,
+          "abortReason": "completed",
+          "playsExpected": 117,
+          "playsCompleted": 119
+        },
+        {
+          "id": "99905",
+          "occurred_at": "2026-06-04T03:38:51.468Z",
+          "podRound": 38,
+          "abortReason": "completed",
+          "playsExpected": 118,
+          "playsCompleted": 120
+        },
+        {
+          "id": "103235",
+          "occurred_at": "2026-06-04T11:52:58.331Z",
+          "podRound": 39,
+          "abortReason": "completed",
+          "playsExpected": 119,
+          "playsCompleted": 121
+        },
+        {
+          "id": "121257",
+          "occurred_at": "2026-06-07T00:46:43.732Z",
+          "podRound": 40,
+          "abortReason": "completed",
+          "playsExpected": 120,
+          "playsCompleted": 122
+        },
+        {
+          "id": "130019",
+          "occurred_at": "2026-06-07T23:45:57.010Z",
+          "podRound": 41,
+          "abortReason": "completed",
+          "playsExpected": 121,
+          "playsCompleted": 123
+        },
+        {
+          "id": "130685",
+          "occurred_at": "2026-06-08T00:50:10.670Z",
+          "podRound": 42,
+          "abortReason": "completed",
+          "playsExpected": 122,
+          "playsCompleted": 124
+        },
+        {
+          "id": "143444",
+          "occurred_at": "2026-06-10T11:47:54.217Z",
+          "podRound": 43,
+          "abortReason": "completed",
+          "playsExpected": 123,
+          "playsCompleted": 124
+        },
+        {
+          "id": "556740",
+          "occurred_at": "2026-07-31T00:51:30.280Z",
+          "podRound": 188,
+          "abortReason": "completed",
+          "playsExpected": 8,
+          "playsCompleted": 10
+        },
+        {
+          "id": "766005",
+          "occurred_at": "2026-08-31T09:58:35.887Z",
+          "podRound": 459,
+          "abortReason": "completed",
+          "playsExpected": 32,
+          "playsCompleted": 34
+        }
+      ],
+      "laps": 459,
+      "distinctPodRounds": [
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        111,
+        112,
+        113,
+        114,
+        188,
+        459
+      ]
+    },
+    "live_pod": {
+      "pod_id": "zho_for_eng:pod-1",
+      "slug": "pod-1",
+      "visibility": "live",
+      "overridden": false,
+      "turn_rows": 231,
+      "sentences": 367,
+      "cohorts": 366
+    },
+    "ladder": [
+      {
+        "lap": 1,
+        "storedAfter": 2,
+        "roundNow": 2
+      },
+      {
+        "lap": 2,
+        "storedAfter": 3,
+        "roundNow": 3
+      },
+      {
+        "lap": 3,
+        "storedAfter": 4,
+        "roundNow": 4
+      },
+      {
+        "lap": 4,
+        "storedAfter": 5,
+        "roundNow": 5
+      },
+      {
+        "lap": 5,
+        "storedAfter": 6,
+        "roundNow": 6
+      },
+      {
+        "lap": 6,
+        "storedAfter": 7,
+        "roundNow": 7
+      },
+      {
+        "lap": 7,
+        "storedAfter": 8,
+        "roundNow": 8
+      },
+      {
+        "lap": 8,
+        "storedAfter": 9,
+        "roundNow": 9
+      },
+      {
+        "lap": 9,
+        "storedAfter": 10,
+        "roundNow": 10
+      },
+      {
+        "lap": 10,
+        "storedAfter": 11,
+        "roundNow": 11
+      },
+      {
+        "lap": 11,
+        "storedAfter": 12,
+        "roundNow": 12
+      },
+      {
+        "lap": 12,
+        "storedAfter": 13,
+        "roundNow": 13
+      },
+      {
+        "lap": 13,
+        "storedAfter": 14,
+        "roundNow": 14
+      },
+      {
+        "lap": 14,
+        "storedAfter": 15,
+        "roundNow": 15
+      },
+      {
+        "lap": 15,
+        "storedAfter": 16,
+        "roundNow": 16
+      },
+      {
+        "lap": 16,
+        "storedAfter": 17,
+        "roundNow": 17
+      },
+      {
+        "lap": 17,
+        "storedAfter": 18,
+        "roundNow": 18
+      },
+      {
+        "lap": 18,
+        "storedAfter": 19,
+        "roundNow": 19
+      },
+      {
+        "lap": 19,
+        "storedAfter": 20,
+        "roundNow": 20
+      },
+      {
+        "lap": 20,
+        "storedAfter": 21,
+        "roundNow": 21
+      },
+      {
+        "lap": 21,
+        "storedAfter": 22,
+        "roundNow": 22
+      },
+      {
+        "lap": 22,
+        "storedAfter": 23,
+        "roundNow": 23
+      },
+      {
+        "lap": 23,
+        "storedAfter": 24,
+        "roundNow": 24
+      },
+      {
+        "lap": 24,
+        "storedAfter": 25,
+        "roundNow": 25
+      },
+      {
+        "lap": 25,
+        "storedAfter": 26,
+        "roundNow": 26
+      },
+      {
+        "lap": 26,
+        "storedAfter": 27,
+        "roundNow": 27
+      },
+      {
+        "lap": 27,
+        "storedAfter": 28,
+        "roundNow": 28
+      },
+      {
+        "lap": 28,
+        "storedAfter": 29,
+        "roundNow": 29
+      },
+      {
+        "lap": 29,
+        "storedAfter": 30,
+        "roundNow": 30
+      },
+      {
+        "lap": 30,
+        "storedAfter": 31,
+        "roundNow": 31
+      },
+      {
+        "lap": 31,
+        "storedAfter": 32,
+        "roundNow": 32
+      },
+      {
+        "lap": 32,
+        "storedAfter": 33,
+        "roundNow": 33
+      },
+      {
+        "lap": 33,
+        "storedAfter": 34,
+        "roundNow": 34
+      },
+      {
+        "lap": 34,
+        "storedAfter": 35,
+        "roundNow": 35
+      },
+      {
+        "lap": 35,
+        "storedAfter": 36,
+        "roundNow": 36
+      },
+      {
+        "lap": 36,
+        "storedAfter": 37,
+        "roundNow": 37
+      },
+      {
+        "lap": 37,
+        "storedAfter": 38,
+        "roundNow": 38
+      },
+      {
+        "lap": 38,
+        "storedAfter": 39,
+        "roundNow": 39
+      },
+      {
+        "lap": 39,
+        "storedAfter": 40,
+        "roundNow": 40
+      },
+      {
+        "lap": 40,
+        "storedAfter": 41,
+        "roundNow": 41
+      },
+      {
+        "lap": 41,
+        "storedAfter": 42,
+        "roundNow": 42
+      },
+      {
+        "lap": 42,
+        "storedAfter": 43,
+        "roundNow": 43
+      },
+      {
+        "lap": 43,
+        "storedAfter": 44,
+        "roundNow": 44
+      },
+      {
+        "lap": 44,
+        "storedAfter": 45,
+        "roundNow": 45
+      },
+      {
+        "lap": 45,
+        "storedAfter": 46,
+        "roundNow": 46
+      },
+      {
+        "lap": 46,
+        "storedAfter": 47,
+        "roundNow": 47
+      },
+      {
+        "lap": 47,
+        "storedAfter": 48,
+        "roundNow": 48
+      },
+      {
+        "lap": 48,
+        "storedAfter": 49,
+        "roundNow": 49
+      },
+      {
+        "lap": 49,
+        "storedAfter": 50,
+        "roundNow": 50
+      },
+      {
+        "lap": 50,
+        "storedAfter": 51,
+        "roundNow": 51
+      },
+      {
+        "lap": 51,
+        "storedAfter": 52,
+        "roundNow": 52
+      },
+      {
+        "lap": 52,
+        "storedAfter": 53,
+        "roundNow": 53
+      },
+      {
+        "lap": 53,
+        "storedAfter": 54,
+        "roundNow": 54
+      },
+      {
+        "lap": 54,
+        "storedAfter": 55,
+        "roundNow": 55
+      },
+      {
+        "lap": 55,
+        "storedAfter": 56,
+        "roundNow": 56
+      },
+      {
+        "lap": 56,
+        "storedAfter": 57,
+        "roundNow": 57
+      },
+      {
+        "lap": 57,
+        "storedAfter": 58,
+        "roundNow": 58
+      },
+      {
+        "lap": 58,
+        "storedAfter": 59,
+        "roundNow": 59
+      },
+      {
+        "lap": 59,
+        "storedAfter": 60,
+        "roundNow": 60
+      },
+      {
+        "lap": 60,
+        "storedAfter": 61,
+        "roundNow": 61
+      },
+      {
+        "lap": 61,
+        "storedAfter": 62,
+        "roundNow": 62
+      },
+      {
+        "lap": 62,
+        "storedAfter": 63,
+        "roundNow": 63
+      },
+      {
+        "lap": 63,
+        "storedAfter": 64,
+        "roundNow": 64
+      },
+      {
+        "lap": 64,
+        "storedAfter": 65,
+        "roundNow": 65
+      },
+      {
+        "lap": 65,
+        "storedAfter": 66,
+        "roundNow": 66
+      },
+      {
+        "lap": 66,
+        "storedAfter": 67,
+        "roundNow": 67
+      },
+      {
+        "lap": 67,
+        "storedAfter": 68,
+        "roundNow": 68
+      },
+      {
+        "lap": 68,
+        "storedAfter": 69,
+        "roundNow": 69
+      },
+      {
+        "lap": 69,
+        "storedAfter": 70,
+        "roundNow": 70
+      },
+      {
+        "lap": 70,
+        "storedAfter": 71,
+        "roundNow": 71
+      },
+      {
+        "lap": 71,
+        "storedAfter": 72,
+        "roundNow": 72
+      },
+      {
+        "lap": 72,
+        "storedAfter": 73,
+        "roundNow": 73
+      },
+      {
+        "lap": 73,
+        "storedAfter": 74,
+        "roundNow": 74
+      },
+      {
+        "lap": 74,
+        "storedAfter": 75,
+        "roundNow": 75
+      },
+      {
+        "lap": 75,
+        "storedAfter": 76,
+        "roundNow": 76
+      },
+      {
+        "lap": 76,
+        "storedAfter": 77,
+        "roundNow": 77
+      },
+      {
+        "lap": 77,
+        "storedAfter": 78,
+        "roundNow": 78
+      },
+      {
+        "lap": 78,
+        "storedAfter": 79,
+        "roundNow": 79
+      },
+      {
+        "lap": 79,
+        "storedAfter": 80,
+        "roundNow": 80
+      },
+      {
+        "lap": 80,
+        "storedAfter": 81,
+        "roundNow": 81
+      },
+      {
+        "lap": 81,
+        "storedAfter": 82,
+        "roundNow": 82
+      },
+      {
+        "lap": 82,
+        "storedAfter": 83,
+        "roundNow": 83
+      },
+      {
+        "lap": 83,
+        "storedAfter": 84,
+        "roundNow": 84
+      },
+      {
+        "lap": 84,
+        "storedAfter": 85,
+        "roundNow": 85
+      },
+      {
+        "lap": 85,
+        "storedAfter": 86,
+        "roundNow": 86
+      },
+      {
+        "lap": 86,
+        "storedAfter": 87,
+        "roundNow": 87
+      },
+      {
+        "lap": 87,
+        "storedAfter": 88,
+        "roundNow": 88
+      },
+      {
+        "lap": 88,
+        "storedAfter": 89,
+        "roundNow": 89
+      },
+      {
+        "lap": 89,
+        "storedAfter": 90,
+        "roundNow": 90
+      },
+      {
+        "lap": 90,
+        "storedAfter": 91,
+        "roundNow": 91
+      },
+      {
+        "lap": 91,
+        "storedAfter": 92,
+        "roundNow": 92
+      },
+      {
+        "lap": 92,
+        "storedAfter": 93,
+        "roundNow": 93
+      },
+      {
+        "lap": 93,
+        "storedAfter": 94,
+        "roundNow": 94
+      },
+      {
+        "lap": 94,
+        "storedAfter": 95,
+        "roundNow": 95
+      },
+      {
+        "lap": 95,
+        "storedAfter": 96,
+        "roundNow": 96
+      },
+      {
+        "lap": 96,
+        "storedAfter": 97,
+        "roundNow": 97
+      },
+      {
+        "lap": 97,
+        "storedAfter": 98,
+        "roundNow": 98
+      },
+      {
+        "lap": 98,
+        "storedAfter": 99,
+        "roundNow": 99
+      },
+      {
+        "lap": 99,
+        "storedAfter": 100,
+        "roundNow": 100
+      },
+      {
+        "lap": 100,
+        "storedAfter": 101,
+        "roundNow": 101
+      },
+      {
+        "lap": 101,
+        "storedAfter": 102,
+        "roundNow": 102
+      },
+      {
+        "lap": 102,
+        "storedAfter": 103,
+        "roundNow": 103
+      },
+      {
+        "lap": 103,
+        "storedAfter": 104,
+        "roundNow": 104
+      },
+      {
+        "lap": 104,
+        "storedAfter": 105,
+        "roundNow": 105
+      },
+      {
+        "lap": 105,
+        "storedAfter": 106,
+        "roundNow": 106
+      },
+      {
+        "lap": 106,
+        "storedAfter": 107,
+        "roundNow": 107
+      },
+      {
+        "lap": 107,
+        "storedAfter": 108,
+        "roundNow": 108
+      },
+      {
+        "lap": 108,
+        "storedAfter": 109,
+        "roundNow": 109
+      },
+      {
+        "lap": 109,
+        "storedAfter": 110,
+        "roundNow": 110
+      },
+      {
+        "lap": 110,
+        "storedAfter": 111,
+        "roundNow": 111
+      },
+      {
+        "lap": 111,
+        "storedAfter": 112,
+        "roundNow": 112
+      },
+      {
+        "lap": 112,
+        "storedAfter": 113,
+        "roundNow": 113
+      },
+      {
+        "lap": 113,
+        "storedAfter": 114,
+        "roundNow": 114
+      },
+      {
+        "lap": 114,
+        "storedAfter": 115,
+        "roundNow": 115
+      },
+      {
+        "lap": 115,
+        "storedAfter": 116,
+        "roundNow": 116
+      },
+      {
+        "lap": 116,
+        "storedAfter": 117,
+        "roundNow": 117
+      },
+      {
+        "lap": 117,
+        "storedAfter": 118,
+        "roundNow": 118
+      },
+      {
+        "lap": 118,
+        "storedAfter": 119,
+        "roundNow": 119
+      },
+      {
+        "lap": 119,
+        "storedAfter": 120,
+        "roundNow": 120
+      },
+      {
+        "lap": 120,
+        "storedAfter": 121,
+        "roundNow": 121
+      },
+      {
+        "lap": 121,
+        "storedAfter": 122,
+        "roundNow": 122
+      },
+      {
+        "lap": 122,
+        "storedAfter": 123,
+        "roundNow": 123
+      },
+      {
+        "lap": 123,
+        "storedAfter": 124,
+        "roundNow": 124
+      },
+      {
+        "lap": 124,
+        "storedAfter": 125,
+        "roundNow": 125
+      },
+      {
+        "lap": 125,
+        "storedAfter": 126,
+        "roundNow": 126
+      },
+      {
+        "lap": 126,
+        "storedAfter": 127,
+        "roundNow": 127
+      },
+      {
+        "lap": 127,
+        "storedAfter": 128,
+        "roundNow": 128
+      },
+      {
+        "lap": 128,
+        "storedAfter": 129,
+        "roundNow": 129
+      },
+      {
+        "lap": 129,
+        "storedAfter": 130,
+        "roundNow": 130
+      },
+      {
+        "lap": 130,
+        "storedAfter": 131,
+        "roundNow": 131
+      },
+      {
+        "lap": 131,
+        "storedAfter": 132,
+        "roundNow": 132
+      },
+      {
+        "lap": 132,
+        "storedAfter": 133,
+        "roundNow": 133
+      },
+      {
+        "lap": 133,
+        "storedAfter": 134,
+        "roundNow": 134
+      },
+      {
+        "lap": 134,
+        "storedAfter": 135,
+        "roundNow": 135
+      },
+      {
+        "lap": 135,
+        "storedAfter": 136,
+        "roundNow": 136
+      },
+      {
+        "lap": 136,
+        "storedAfter": 137,
+        "roundNow": 137
+      },
+      {
+        "lap": 137,
+        "storedAfter": 138,
+        "roundNow": 138
+      },
+      {
+        "lap": 138,
+        "storedAfter": 139,
+        "roundNow": 139
+      },
+      {
+        "lap": 139,
+        "storedAfter": 140,
+        "roundNow": 140
+      },
+      {
+        "lap": 140,
+        "storedAfter": 141,
+        "roundNow": 141
+      },
+      {
+        "lap": 141,
+        "storedAfter": 142,
+        "roundNow": 142
+      },
+      {
+        "lap": 142,
+        "storedAfter": 143,
+        "roundNow": 143
+      },
+      {
+        "lap": 143,
+        "storedAfter": 144,
+        "roundNow": 144
+      },
+      {
+        "lap": 144,
+        "storedAfter": 145,
+        "roundNow": 145
+      },
+      {
+        "lap": 145,
+        "storedAfter": 146,
+        "roundNow": 146
+      },
+      {
+        "lap": 146,
+        "storedAfter": 147,
+        "roundNow": 147
+      },
+      {
+        "lap": 147,
+        "storedAfter": 148,
+        "roundNow": 148
+      },
+      {
+        "lap": 148,
+        "storedAfter": 149,
+        "roundNow": 149
+      },
+      {
+        "lap": 149,
+        "storedAfter": 150,
+        "roundNow": 150
+      },
+      {
+        "lap": 150,
+        "storedAfter": 151,
+        "roundNow": 151
+      },
+      {
+        "lap": 151,
+        "storedAfter": 152,
+        "roundNow": 152
+      },
+      {
+        "lap": 152,
+        "storedAfter": 153,
+        "roundNow": 153
+      },
+      {
+        "lap": 153,
+        "storedAfter": 154,
+        "roundNow": 154
+      },
+      {
+        "lap": 154,
+        "storedAfter": 155,
+        "roundNow": 155
+      },
+      {
+        "lap": 155,
+        "storedAfter": 156,
+        "roundNow": 156
+      },
+      {
+        "lap": 156,
+        "storedAfter": 157,
+        "roundNow": 157
+      },
+      {
+        "lap": 157,
+        "storedAfter": 158,
+        "roundNow": 158
+      },
+      {
+        "lap": 158,
+        "storedAfter": 159,
+        "roundNow": 159
+      },
+      {
+        "lap": 159,
+        "storedAfter": 160,
+        "roundNow": 160
+      },
+      {
+        "lap": 160,
+        "storedAfter": 161,
+        "roundNow": 161
+      },
+      {
+        "lap": 161,
+        "storedAfter": 162,
+        "roundNow": 162
+      },
+      {
+        "lap": 162,
+        "storedAfter": 163,
+        "roundNow": 163
+      },
+      {
+        "lap": 163,
+        "storedAfter": 164,
+        "roundNow": 164
+      },
+      {
+        "lap": 164,
+        "storedAfter": 165,
+        "roundNow": 165
+      },
+      {
+        "lap": 165,
+        "storedAfter": 166,
+        "roundNow": 166
+      },
+      {
+        "lap": 166,
+        "storedAfter": 167,
+        "roundNow": 167
+      },
+      {
+        "lap": 167,
+        "storedAfter": 168,
+        "roundNow": 168
+      },
+      {
+        "lap": 168,
+        "storedAfter": 169,
+        "roundNow": 169
+      },
+      {
+        "lap": 169,
+        "storedAfter": 170,
+        "roundNow": 170
+      },
+      {
+        "lap": 170,
+        "storedAfter": 171,
+        "roundNow": 171
+      },
+      {
+        "lap": 171,
+        "storedAfter": 172,
+        "roundNow": 172
+      },
+      {
+        "lap": 172,
+        "storedAfter": 173,
+        "roundNow": 173
+      },
+      {
+        "lap": 173,
+        "storedAfter": 174,
+        "roundNow": 174
+      },
+      {
+        "lap": 174,
+        "storedAfter": 175,
+        "roundNow": 175
+      },
+      {
+        "lap": 175,
+        "storedAfter": 176,
+        "roundNow": 176
+      },
+      {
+        "lap": 176,
+        "storedAfter": 177,
+        "roundNow": 177
+      },
+      {
+        "lap": 177,
+        "storedAfter": 178,
+        "roundNow": 178
+      },
+      {
+        "lap": 178,
+        "storedAfter": 179,
+        "roundNow": 179
+      },
+      {
+        "lap": 179,
+        "storedAfter": 180,
+        "roundNow": 180
+      },
+      {
+        "lap": 180,
+        "storedAfter": 181,
+        "roundNow": 181
+      },
+      {
+        "lap": 181,
+        "storedAfter": 182,
+        "roundNow": 182
+      },
+      {
+        "lap": 182,
+        "storedAfter": 183,
+        "roundNow": 183
+      },
+      {
+        "lap": 183,
+        "storedAfter": 184,
+        "roundNow": 184
+      },
+      {
+        "lap": 184,
+        "storedAfter": 185,
+        "roundNow": 185
+      },
+      {
+        "lap": 185,
+        "storedAfter": 186,
+        "roundNow": 186
+      },
+      {
+        "lap": 186,
+        "storedAfter": 187,
+        "roundNow": 187
+      },
+      {
+        "lap": 187,
+        "storedAfter": 188,
+        "roundNow": 188
+      },
+      {
+        "lap": 188,
+        "storedAfter": 189,
+        "roundNow": 189
+      },
+      {
+        "lap": 189,
+        "storedAfter": 190,
+        "roundNow": 190
+      },
+      {
+        "lap": 190,
+        "storedAfter": 191,
+        "roundNow": 191
+      },
+      {
+        "lap": 191,
+        "storedAfter": 192,
+        "roundNow": 192
+      },
+      {
+        "lap": 192,
+        "storedAfter": 193,
+        "roundNow": 193
+      },
+      {
+        "lap": 193,
+        "storedAfter": 194,
+        "roundNow": 194
+      },
+      {
+        "lap": 194,
+        "storedAfter": 195,
+        "roundNow": 195
+      },
+      {
+        "lap": 195,
+        "storedAfter": 196,
+        "roundNow": 196
+      },
+      {
+        "lap": 196,
+        "storedAfter": 197,
+        "roundNow": 197
+      },
+      {
+        "lap": 197,
+        "storedAfter": 198,
+        "roundNow": 198
+      },
+      {
+        "lap": 198,
+        "storedAfter": 199,
+        "roundNow": 199
+      },
+      {
+        "lap": 199,
+        "storedAfter": 200,
+        "roundNow": 200
+      },
+      {
+        "lap": 200,
+        "storedAfter": 201,
+        "roundNow": 201
+      },
+      {
+        "lap": 201,
+        "storedAfter": 202,
+        "roundNow": 202
+      },
+      {
+        "lap": 202,
+        "storedAfter": 203,
+        "roundNow": 203
+      },
+      {
+        "lap": 203,
+        "storedAfter": 204,
+        "roundNow": 204
+      },
+      {
+        "lap": 204,
+        "storedAfter": 205,
+        "roundNow": 205
+      },
+      {
+        "lap": 205,
+        "storedAfter": 206,
+        "roundNow": 206
+      },
+      {
+        "lap": 206,
+        "storedAfter": 207,
+        "roundNow": 207
+      },
+      {
+        "lap": 207,
+        "storedAfter": 208,
+        "roundNow": 208
+      },
+      {
+        "lap": 208,
+        "storedAfter": 209,
+        "roundNow": 209
+      },
+      {
+        "lap": 209,
+        "storedAfter": 210,
+        "roundNow": 210
+      },
+      {
+        "lap": 210,
+        "storedAfter": 211,
+        "roundNow": 211
+      },
+      {
+        "lap": 211,
+        "storedAfter": 212,
+        "roundNow": 212
+      },
+      {
+        "lap": 212,
+        "storedAfter": 213,
+        "roundNow": 213
+      },
+      {
+        "lap": 213,
+        "storedAfter": 214,
+        "roundNow": 214
+      },
+      {
+        "lap": 214,
+        "storedAfter": 215,
+        "roundNow": 215
+      },
+      {
+        "lap": 215,
+        "storedAfter": 216,
+        "roundNow": 216
+      },
+      {
+        "lap": 216,
+        "storedAfter": 217,
+        "roundNow": 217
+      },
+      {
+        "lap": 217,
+        "storedAfter": 218,
+        "roundNow": 218
+      },
+      {
+        "lap": 218,
+        "storedAfter": 219,
+        "roundNow": 219
+      },
+      {
+        "lap": 219,
+        "storedAfter": 220,
+        "roundNow": 220
+      },
+      {
+        "lap": 220,
+        "storedAfter": 221,
+        "roundNow": 221
+      },
+      {
+        "lap": 221,
+        "storedAfter": 222,
+        "roundNow": 222
+      },
+      {
+        "lap": 222,
+        "storedAfter": 223,
+        "roundNow": 223
+      },
+      {
+        "lap": 223,
+        "storedAfter": 224,
+        "roundNow": 224
+      },
+      {
+        "lap": 224,
+        "storedAfter": 225,
+        "roundNow": 225
+      },
+      {
+        "lap": 225,
+        "storedAfter": 226,
+        "roundNow": 226
+      },
+      {
+        "lap": 226,
+        "storedAfter": 227,
+        "roundNow": 227
+      },
+      {
+        "lap": 227,
+        "storedAfter": 228,
+        "roundNow": 228
+      },
+      {
+        "lap": 228,
+        "storedAfter": 229,
+        "roundNow": 229
+      },
+      {
+        "lap": 229,
+        "storedAfter": 230,
+        "roundNow": 230
+      },
+      {
+        "lap": 230,
+        "storedAfter": 231,
+        "roundNow": 231
+      },
+      {
+        "lap": 231,
+        "storedAfter": 232,
+        "roundNow": 232
+      },
+      {
+        "lap": 232,
+        "storedAfter": 233,
+        "roundNow": 233
+      },
+      {
+        "lap": 233,
+        "storedAfter": 234,
+        "roundNow": 234
+      },
+      {
+        "lap": 234,
+        "storedAfter": 235,
+        "roundNow": 235
+      },
+      {
+        "lap": 235,
+        "storedAfter": 236,
+        "roundNow": 236
+      },
+      {
+        "lap": 236,
+        "storedAfter": 237,
+        "roundNow": 237
+      },
+      {
+        "lap": 237,
+        "storedAfter": 238,
+        "roundNow": 238
+      },
+      {
+        "lap": 238,
+        "storedAfter": 239,
+        "roundNow": 239
+      },
+      {
+        "lap": 239,
+        "storedAfter": 240,
+        "roundNow": 240
+      },
+      {
+        "lap": 240,
+        "storedAfter": 241,
+        "roundNow": 241
+      },
+      {
+        "lap": 241,
+        "storedAfter": 242,
+        "roundNow": 242
+      },
+      {
+        "lap": 242,
+        "storedAfter": 243,
+        "roundNow": 243
+      },
+      {
+        "lap": 243,
+        "storedAfter": 244,
+        "roundNow": 244
+      },
+      {
+        "lap": 244,
+        "storedAfter": 245,
+        "roundNow": 245
+      },
+      {
+        "lap": 245,
+        "storedAfter": 246,
+        "roundNow": 246
+      },
+      {
+        "lap": 246,
+        "storedAfter": 247,
+        "roundNow": 247
+      },
+      {
+        "lap": 247,
+        "storedAfter": 248,
+        "roundNow": 248
+      },
+      {
+        "lap": 248,
+        "storedAfter": 249,
+        "roundNow": 249
+      },
+      {
+        "lap": 249,
+        "storedAfter": 250,
+        "roundNow": 250
+      },
+      {
+        "lap": 250,
+        "storedAfter": 251,
+        "roundNow": 251
+      },
+      {
+        "lap": 251,
+        "storedAfter": 252,
+        "roundNow": 252
+      },
+      {
+        "lap": 252,
+        "storedAfter": 253,
+        "roundNow": 253
+      },
+      {
+        "lap": 253,
+        "storedAfter": 254,
+        "roundNow": 254
+      },
+      {
+        "lap": 254,
+        "storedAfter": 255,
+        "roundNow": 255
+      },
+      {
+        "lap": 255,
+        "storedAfter": 256,
+        "roundNow": 256
+      },
+      {
+        "lap": 256,
+        "storedAfter": 257,
+        "roundNow": 257
+      },
+      {
+        "lap": 257,
+        "storedAfter": 258,
+        "roundNow": 258
+      },
+      {
+        "lap": 258,
+        "storedAfter": 259,
+        "roundNow": 259
+      },
+      {
+        "lap": 259,
+        "storedAfter": 260,
+        "roundNow": 260
+      },
+      {
+        "lap": 260,
+        "storedAfter": 261,
+        "roundNow": 261
+      },
+      {
+        "lap": 261,
+        "storedAfter": 262,
+        "roundNow": 262
+      },
+      {
+        "lap": 262,
+        "storedAfter": 263,
+        "roundNow": 263
+      },
+      {
+        "lap": 263,
+        "storedAfter": 264,
+        "roundNow": 264
+      },
+      {
+        "lap": 264,
+        "storedAfter": 265,
+        "roundNow": 265
+      },
+      {
+        "lap": 265,
+        "storedAfter": 266,
+        "roundNow": 266
+      },
+      {
+        "lap": 266,
+        "storedAfter": 267,
+        "roundNow": 267
+      },
+      {
+        "lap": 267,
+        "storedAfter": 268,
+        "roundNow": 268
+      },
+      {
+        "lap": 268,
+        "storedAfter": 269,
+        "roundNow": 269
+      },
+      {
+        "lap": 269,
+        "storedAfter": 270,
+        "roundNow": 270
+      },
+      {
+        "lap": 270,
+        "storedAfter": 271,
+        "roundNow": 271
+      },
+      {
+        "lap": 271,
+        "storedAfter": 272,
+        "roundNow": 272
+      },
+      {
+        "lap": 272,
+        "storedAfter": 273,
+        "roundNow": 273
+      },
+      {
+        "lap": 273,
+        "storedAfter": 274,
+        "roundNow": 274
+      },
+      {
+        "lap": 274,
+        "storedAfter": 275,
+        "roundNow": 275
+      },
+      {
+        "lap": 275,
+        "storedAfter": 276,
+        "roundNow": 276
+      },
+      {
+        "lap": 276,
+        "storedAfter": 277,
+        "roundNow": 277
+      },
+      {
+        "lap": 277,
+        "storedAfter": 278,
+        "roundNow": 278
+      },
+      {
+        "lap": 278,
+        "storedAfter": 279,
+        "roundNow": 279
+      },
+      {
+        "lap": 279,
+        "storedAfter": 280,
+        "roundNow": 280
+      },
+      {
+        "lap": 280,
+        "storedAfter": 281,
+        "roundNow": 281
+      },
+      {
+        "lap": 281,
+        "storedAfter": 282,
+        "roundNow": 282
+      },
+      {
+        "lap": 282,
+        "storedAfter": 283,
+        "roundNow": 283
+      },
+      {
+        "lap": 283,
+        "storedAfter": 284,
+        "roundNow": 284
+      },
+      {
+        "lap": 284,
+        "storedAfter": 285,
+        "roundNow": 285
+      },
+      {
+        "lap": 285,
+        "storedAfter": 286,
+        "roundNow": 286
+      },
+      {
+        "lap": 286,
+        "storedAfter": 287,
+        "roundNow": 287
+      },
+      {
+        "lap": 287,
+        "storedAfter": 288,
+        "roundNow": 288
+      },
+      {
+        "lap": 288,
+        "storedAfter": 289,
+        "roundNow": 289
+      },
+      {
+        "lap": 289,
+        "storedAfter": 290,
+        "roundNow": 290
+      },
+      {
+        "lap": 290,
+        "storedAfter": 291,
+        "roundNow": 291
+      },
+      {
+        "lap": 291,
+        "storedAfter": 292,
+        "roundNow": 292
+      },
+      {
+        "lap": 292,
+        "storedAfter": 293,
+        "roundNow": 293
+      },
+      {
+        "lap": 293,
+        "storedAfter": 294,
+        "roundNow": 294
+      },
+      {
+        "lap": 294,
+        "storedAfter": 295,
+        "roundNow": 295
+      },
+      {
+        "lap": 295,
+        "storedAfter": 296,
+        "roundNow": 296
+      },
+      {
+        "lap": 296,
+        "storedAfter": 297,
+        "roundNow": 297
+      },
+      {
+        "lap": 297,
+        "storedAfter": 298,
+        "roundNow": 298
+      },
+      {
+        "lap": 298,
+        "storedAfter": 299,
+        "roundNow": 299
+      },
+      {
+        "lap": 299,
+        "storedAfter": 300,
+        "roundNow": 300
+      },
+      {
+        "lap": 300,
+        "storedAfter": 301,
+        "roundNow": 301
+      },
+      {
+        "lap": 301,
+        "storedAfter": 302,
+        "roundNow": 302
+      },
+      {
+        "lap": 302,
+        "storedAfter": 303,
+        "roundNow": 303
+      },
+      {
+        "lap": 303,
+        "storedAfter": 304,
+        "roundNow": 304
+      },
+      {
+        "lap": 304,
+        "storedAfter": 305,
+        "roundNow": 305
+      },
+      {
+        "lap": 305,
+        "storedAfter": 306,
+        "roundNow": 306
+      },
+      {
+        "lap": 306,
+        "storedAfter": 307,
+        "roundNow": 307
+      },
+      {
+        "lap": 307,
+        "storedAfter": 308,
+        "roundNow": 308
+      },
+      {
+        "lap": 308,
+        "storedAfter": 309,
+        "roundNow": 309
+      },
+      {
+        "lap": 309,
+        "storedAfter": 310,
+        "roundNow": 310
+      },
+      {
+        "lap": 310,
+        "storedAfter": 311,
+        "roundNow": 311
+      },
+      {
+        "lap": 311,
+        "storedAfter": 312,
+        "roundNow": 312
+      },
+      {
+        "lap": 312,
+        "storedAfter": 313,
+        "roundNow": 313
+      },
+      {
+        "lap": 313,
+        "storedAfter": 314,
+        "roundNow": 314
+      },
+      {
+        "lap": 314,
+        "storedAfter": 315,
+        "roundNow": 315
+      },
+      {
+        "lap": 315,
+        "storedAfter": 316,
+        "roundNow": 316
+      },
+      {
+        "lap": 316,
+        "storedAfter": 317,
+        "roundNow": 317
+      },
+      {
+        "lap": 317,
+        "storedAfter": 318,
+        "roundNow": 318
+      },
+      {
+        "lap": 318,
+        "storedAfter": 319,
+        "roundNow": 319
+      },
+      {
+        "lap": 319,
+        "storedAfter": 320,
+        "roundNow": 320
+      },
+      {
+        "lap": 320,
+        "storedAfter": 321,
+        "roundNow": 321
+      },
+      {
+        "lap": 321,
+        "storedAfter": 322,
+        "roundNow": 322
+      },
+      {
+        "lap": 322,
+        "storedAfter": 323,
+        "roundNow": 323
+      },
+      {
+        "lap": 323,
+        "storedAfter": 324,
+        "roundNow": 324
+      },
+      {
+        "lap": 324,
+        "storedAfter": 325,
+        "roundNow": 325
+      },
+      {
+        "lap": 325,
+        "storedAfter": 326,
+        "roundNow": 326
+      },
+      {
+        "lap": 326,
+        "storedAfter": 327,
+        "roundNow": 327
+      },
+      {
+        "lap": 327,
+        "storedAfter": 328,
+        "roundNow": 328
+      },
+      {
+        "lap": 328,
+        "storedAfter": 329,
+        "roundNow": 329
+      },
+      {
+        "lap": 329,
+        "storedAfter": 330,
+        "roundNow": 330
+      },
+      {
+        "lap": 330,
+        "storedAfter": 331,
+        "roundNow": 331
+      },
+      {
+        "lap": 331,
+        "storedAfter": 332,
+        "roundNow": 332
+      },
+      {
+        "lap": 332,
+        "storedAfter": 333,
+        "roundNow": 333
+      },
+      {
+        "lap": 333,
+        "storedAfter": 334,
+        "roundNow": 334
+      },
+      {
+        "lap": 334,
+        "storedAfter": 335,
+        "roundNow": 335
+      },
+      {
+        "lap": 335,
+        "storedAfter": 336,
+        "roundNow": 336
+      },
+      {
+        "lap": 336,
+        "storedAfter": 337,
+        "roundNow": 337
+      },
+      {
+        "lap": 337,
+        "storedAfter": 338,
+        "roundNow": 338
+      },
+      {
+        "lap": 338,
+        "storedAfter": 339,
+        "roundNow": 339
+      },
+      {
+        "lap": 339,
+        "storedAfter": 340,
+        "roundNow": 340
+      },
+      {
+        "lap": 340,
+        "storedAfter": 341,
+        "roundNow": 341
+      },
+      {
+        "lap": 341,
+        "storedAfter": 342,
+        "roundNow": 342
+      },
+      {
+        "lap": 342,
+        "storedAfter": 343,
+        "roundNow": 343
+      },
+      {
+        "lap": 343,
+        "storedAfter": 344,
+        "roundNow": 344
+      },
+      {
+        "lap": 344,
+        "storedAfter": 345,
+        "roundNow": 345
+      },
+      {
+        "lap": 345,
+        "storedAfter": 346,
+        "roundNow": 346
+      },
+      {
+        "lap": 346,
+        "storedAfter": 347,
+        "roundNow": 347
+      },
+      {
+        "lap": 347,
+        "storedAfter": 348,
+        "roundNow": 348
+      },
+      {
+        "lap": 348,
+        "storedAfter": 349,
+        "roundNow": 349
+      },
+      {
+        "lap": 349,
+        "storedAfter": 350,
+        "roundNow": 350
+      },
+      {
+        "lap": 350,
+        "storedAfter": 351,
+        "roundNow": 351
+      },
+      {
+        "lap": 351,
+        "storedAfter": 352,
+        "roundNow": 352
+      },
+      {
+        "lap": 352,
+        "storedAfter": 353,
+        "roundNow": 353
+      },
+      {
+        "lap": 353,
+        "storedAfter": 354,
+        "roundNow": 354
+      },
+      {
+        "lap": 354,
+        "storedAfter": 355,
+        "roundNow": 355
+      },
+      {
+        "lap": 355,
+        "storedAfter": 356,
+        "roundNow": 356
+      },
+      {
+        "lap": 356,
+        "storedAfter": 357,
+        "roundNow": 357
+      },
+      {
+        "lap": 357,
+        "storedAfter": 358,
+        "roundNow": 358
+      },
+      {
+        "lap": 358,
+        "storedAfter": 359,
+        "roundNow": 359
+      },
+      {
+        "lap": 359,
+        "storedAfter": 360,
+        "roundNow": 360
+      },
+      {
+        "lap": 360,
+        "storedAfter": 361,
+        "roundNow": 361
+      },
+      {
+        "lap": 361,
+        "storedAfter": 362,
+        "roundNow": 362
+      },
+      {
+        "lap": 362,
+        "storedAfter": 363,
+        "roundNow": 363
+      },
+      {
+        "lap": 363,
+        "storedAfter": 364,
+        "roundNow": 364
+      },
+      {
+        "lap": 364,
+        "storedAfter": 365,
+        "roundNow": 365
+      },
+      {
+        "lap": 365,
+        "storedAfter": 366,
+        "roundNow": 366
+      },
+      {
+        "lap": 366,
+        "storedAfter": 367,
+        "roundNow": 367
+      },
+      {
+        "lap": 367,
+        "storedAfter": 368,
+        "roundNow": 368
+      },
+      {
+        "lap": 368,
+        "storedAfter": 369,
+        "roundNow": 369
+      },
+      {
+        "lap": 369,
+        "storedAfter": 370,
+        "roundNow": 370
+      },
+      {
+        "lap": 370,
+        "storedAfter": 371,
+        "roundNow": 371
+      },
+      {
+        "lap": 371,
+        "storedAfter": 372,
+        "roundNow": 372
+      },
+      {
+        "lap": 372,
+        "storedAfter": 373,
+        "roundNow": 373
+      },
+      {
+        "lap": 373,
+        "storedAfter": 374,
+        "roundNow": 374
+      },
+      {
+        "lap": 374,
+        "storedAfter": 375,
+        "roundNow": 375
+      },
+      {
+        "lap": 375,
+        "storedAfter": 376,
+        "roundNow": 376
+      },
+      {
+        "lap": 376,
+        "storedAfter": 377,
+        "roundNow": 377
+      },
+      {
+        "lap": 377,
+        "storedAfter": 378,
+        "roundNow": 378
+      },
+      {
+        "lap": 378,
+        "storedAfter": 379,
+        "roundNow": 379
+      },
+      {
+        "lap": 379,
+        "storedAfter": 380,
+        "roundNow": 380
+      },
+      {
+        "lap": 380,
+        "storedAfter": 381,
+        "roundNow": 381
+      },
+      {
+        "lap": 381,
+        "storedAfter": 382,
+        "roundNow": 382
+      },
+      {
+        "lap": 382,
+        "storedAfter": 383,
+        "roundNow": 383
+      },
+      {
+        "lap": 383,
+        "storedAfter": 384,
+        "roundNow": 384
+      },
+      {
+        "lap": 384,
+        "storedAfter": 385,
+        "roundNow": 385
+      },
+      {
+        "lap": 385,
+        "storedAfter": 386,
+        "roundNow": 386
+      },
+      {
+        "lap": 386,
+        "storedAfter": 387,
+        "roundNow": 387
+      },
+      {
+        "lap": 387,
+        "storedAfter": 388,
+        "roundNow": 388
+      },
+      {
+        "lap": 388,
+        "storedAfter": 389,
+        "roundNow": 389
+      },
+      {
+        "lap": 389,
+        "storedAfter": 390,
+        "roundNow": 390
+      },
+      {
+        "lap": 390,
+        "storedAfter": 391,
+        "roundNow": 391
+      },
+      {
+        "lap": 391,
+        "storedAfter": 392,
+        "roundNow": 392
+      },
+      {
+        "lap": 392,
+        "storedAfter": 393,
+        "roundNow": 393
+      },
+      {
+        "lap": 393,
+        "storedAfter": 394,
+        "roundNow": 394
+      },
+      {
+        "lap": 394,
+        "storedAfter": 395,
+        "roundNow": 395
+      },
+      {
+        "lap": 395,
+        "storedAfter": 396,
+        "roundNow": 396
+      },
+      {
+        "lap": 396,
+        "storedAfter": 397,
+        "roundNow": 397
+      },
+      {
+        "lap": 397,
+        "storedAfter": 398,
+        "roundNow": 398
+      },
+      {
+        "lap": 398,
+        "storedAfter": 399,
+        "roundNow": 399
+      },
+      {
+        "lap": 399,
+        "storedAfter": 400,
+        "roundNow": 400
+      },
+      {
+        "lap": 400,
+        "storedAfter": 401,
+        "roundNow": 401
+      },
+      {
+        "lap": 401,
+        "storedAfter": 402,
+        "roundNow": 402
+      },
+      {
+        "lap": 402,
+        "storedAfter": 403,
+        "roundNow": 403
+      },
+      {
+        "lap": 403,
+        "storedAfter": 404,
+        "roundNow": 404
+      },
+      {
+        "lap": 404,
+        "storedAfter": 405,
+        "roundNow": 405
+      },
+      {
+        "lap": 405,
+        "storedAfter": 406,
+        "roundNow": 406
+      },
+      {
+        "lap": 406,
+        "storedAfter": 407,
+        "roundNow": 407
+      },
+      {
+        "lap": 407,
+        "storedAfter": 408,
+        "roundNow": 408
+      },
+      {
+        "lap": 408,
+        "storedAfter": 409,
+        "roundNow": 409
+      },
+      {
+        "lap": 409,
+        "storedAfter": 410,
+        "roundNow": 410
+      },
+      {
+        "lap": 410,
+        "storedAfter": 411,
+        "roundNow": 411
+      },
+      {
+        "lap": 411,
+        "storedAfter": 412,
+        "roundNow": 412
+      },
+      {
+        "lap": 412,
+        "storedAfter": 413,
+        "roundNow": 413
+      },
+      {
+        "lap": 413,
+        "storedAfter": 414,
+        "roundNow": 414
+      },
+      {
+        "lap": 414,
+        "storedAfter": 415,
+        "roundNow": 415
+      },
+      {
+        "lap": 415,
+        "storedAfter": 416,
+        "roundNow": 416
+      },
+      {
+        "lap": 416,
+        "storedAfter": 417,
+        "roundNow": 417
+      },
+      {
+        "lap": 417,
+        "storedAfter": 418,
+        "roundNow": 418
+      },
+      {
+        "lap": 418,
+        "storedAfter": 419,
+        "roundNow": 419
+      },
+      {
+        "lap": 419,
+        "storedAfter": 420,
+        "roundNow": 420
+      },
+      {
+        "lap": 420,
+        "storedAfter": 421,
+        "roundNow": 421
+      },
+      {
+        "lap": 421,
+        "storedAfter": 422,
+        "roundNow": 422
+      },
+      {
+        "lap": 422,
+        "storedAfter": 423,
+        "roundNow": 423
+      },
+      {
+        "lap": 423,
+        "storedAfter": 424,
+        "roundNow": 424
+      },
+      {
+        "lap": 424,
+        "storedAfter": 425,
+        "roundNow": 425
+      },
+      {
+        "lap": 425,
+        "storedAfter": 426,
+        "roundNow": 426
+      },
+      {
+        "lap": 426,
+        "storedAfter": 427,
+        "roundNow": 427
+      },
+      {
+        "lap": 427,
+        "storedAfter": 428,
+        "roundNow": 428
+      },
+      {
+        "lap": 428,
+        "storedAfter": 429,
+        "roundNow": 429
+      },
+      {
+        "lap": 429,
+        "storedAfter": 430,
+        "roundNow": 430
+      },
+      {
+        "lap": 430,
+        "storedAfter": 431,
+        "roundNow": 431
+      },
+      {
+        "lap": 431,
+        "storedAfter": 432,
+        "roundNow": 432
+      },
+      {
+        "lap": 432,
+        "storedAfter": 433,
+        "roundNow": 433
+      },
+      {
+        "lap": 433,
+        "storedAfter": 434,
+        "roundNow": 434
+      },
+      {
+        "lap": 434,
+        "storedAfter": 435,
+        "roundNow": 435
+      },
+      {
+        "lap": 435,
+        "storedAfter": 436,
+        "roundNow": 436
+      },
+      {
+        "lap": 436,
+        "storedAfter": 437,
+        "roundNow": 437
+      },
+      {
+        "lap": 437,
+        "storedAfter": 438,
+        "roundNow": 438
+      },
+      {
+        "lap": 438,
+        "storedAfter": 439,
+        "roundNow": 439
+      },
+      {
+        "lap": 439,
+        "storedAfter": 440,
+        "roundNow": 440
+      },
+      {
+        "lap": 440,
+        "storedAfter": 441,
+        "roundNow": 441
+      },
+      {
+        "lap": 441,
+        "storedAfter": 442,
+        "roundNow": 442
+      },
+      {
+        "lap": 442,
+        "storedAfter": 443,
+        "roundNow": 443
+      },
+      {
+        "lap": 443,
+        "storedAfter": 444,
+        "roundNow": 444
+      },
+      {
+        "lap": 444,
+        "storedAfter": 445,
+        "roundNow": 445
+      },
+      {
+        "lap": 445,
+        "storedAfter": 446,
+        "roundNow": 446
+      },
+      {
+        "lap": 446,
+        "storedAfter": 447,
+        "roundNow": 447
+      },
+      {
+        "lap": 447,
+        "storedAfter": 448,
+        "roundNow": 448
+      },
+      {
+        "lap": 448,
+        "storedAfter": 449,
+        "roundNow": 449
+      },
+      {
+        "lap": 449,
+        "storedAfter": 450,
+        "roundNow": 450
+      },
+      {
+        "lap": 450,
+        "storedAfter": 451,
+        "roundNow": 451
+      },
+      {
+        "lap": 451,
+        "storedAfter": 452,
+        "roundNow": 452
+      },
+      {
+        "lap": 452,
+        "storedAfter": 453,
+        "roundNow": 453
+      },
+      {
+        "lap": 453,
+        "storedAfter": 454,
+        "roundNow": 454
+      },
+      {
+        "lap": 454,
+        "storedAfter": 455,
+        "roundNow": 455
+      },
+      {
+        "lap": 455,
+        "storedAfter": 456,
+        "roundNow": 456
+      },
+      {
+        "lap": 456,
+        "storedAfter": 457,
+        "roundNow": 457
+      },
+      {
+        "lap": 457,
+        "storedAfter": 458,
+        "roundNow": 458
+      },
+      {
+        "lap": 458,
+        "storedAfter": 459,
+        "roundNow": 459
+      },
+      {
+        "lap": 459,
+        "storedAfter": 460,
+        "roundNow": 460
+      }
+    ],
+    "target_completed_pod_rounds": 460,
+    "target_round": 460,
+    "applied": true,
+    "after": {
+      "completed_pod_rounds": 460,
+      "pod_activation_round": 456,
+      "rounds_since_pod": 5,
+      "updated_at": "2026-09-05T20:38:48.394Z"
+    },
+    "rounds_since_pod_unchanged": true,
+    "no_op": false,
+    "reread": {
+      "completed_pod_rounds": 460,
+      "pod_activation_round": 456,
+      "rounds_since_pod": 5,
+      "highest_completed_seed": 40,
+      "highest_completed_lego_id": "S0668L02",
+      "current_mode": "main"
+    },
+    "reread_matches_target": true,
+    "cursor_untouched": true
+  },
+  {
+    "job": 657,
+    "ruling": "Tom, 2026-09-05: a silently-zeroed pod ratchet is given back to the learner — not person-specific",
+    "generated_at": "2026-09-05T20:38:49.111Z",
+    "learner_id": "81987d60-0c00-4553-8a36-79f83cdf1774",
+    "display_name": "Tom",
+    "course_id": "hrv_for_eng",
+    "before": {
+      "completed_pod_rounds": 0,
+      "pod_activation_round": null,
+      "rounds_since_pod": 5,
+      "updated_at": "2026-09-05T19:11:04.008Z",
+      "highest_completed_seed": 20,
+      "highest_completed_lego_id": "S0300L02",
+      "current_mode": "main"
+    },
+    "telemetry": {
+      "events": 57,
+      "completedEvents": [
+        {
+          "id": "88993",
+          "occurred_at": "2026-06-03T00:08:05.726Z",
+          "podRound": 12,
+          "abortReason": "completed",
+          "playsExpected": 48,
+          "playsCompleted": 50
+        },
+        {
+          "id": "89377",
+          "occurred_at": "2026-06-03T00:41:33.182Z",
+          "podRound": 13,
+          "abortReason": "completed",
+          "playsExpected": 52,
+          "playsCompleted": 54
+        },
+        {
+          "id": "182854",
+          "occurred_at": "2026-06-16T20:14:10.872Z",
+          "podRound": 222,
+          "abortReason": "completed",
+          "playsExpected": 10,
+          "playsCompleted": 12
+        },
+        {
+          "id": "182945",
+          "occurred_at": "2026-06-16T20:18:59.302Z",
+          "podRound": 223,
+          "abortReason": "completed",
+          "playsExpected": 10,
+          "playsCompleted": 12
+        }
+      ],
+      "laps": 223,
+      "distinctPodRounds": [
+        12,
+        13,
+        222,
+        223
+      ]
+    },
+    "live_pod": {
+      "pod_id": "hrv_for_eng:pod-1",
+      "slug": "pod-1",
+      "visibility": "live",
+      "overridden": false,
+      "turn_rows": 231,
+      "sentences": 403,
+      "cohorts": 402
+    },
+    "ladder": [
+      {
+        "lap": 1,
+        "storedAfter": 2,
+        "roundNow": 2
+      },
+      {
+        "lap": 2,
+        "storedAfter": 3,
+        "roundNow": 3
+      },
+      {
+        "lap": 3,
+        "storedAfter": 4,
+        "roundNow": 4
+      },
+      {
+        "lap": 4,
+        "storedAfter": 5,
+        "roundNow": 5
+      },
+      {
+        "lap": 5,
+        "storedAfter": 6,
+        "roundNow": 6
+      },
+      {
+        "lap": 6,
+        "storedAfter": 7,
+        "roundNow": 7
+      },
+      {
+        "lap": 7,
+        "storedAfter": 8,
+        "roundNow": 8
+      },
+      {
+        "lap": 8,
+        "storedAfter": 9,
+        "roundNow": 9
+      },
+      {
+        "lap": 9,
+        "storedAfter": 10,
+        "roundNow": 10
+      },
+      {
+        "lap": 10,
+        "storedAfter": 11,
+        "roundNow": 11
+      },
+      {
+        "lap": 11,
+        "storedAfter": 12,
+        "roundNow": 12
+      },
+      {
+        "lap": 12,
+        "storedAfter": 13,
+        "roundNow": 13
+      },
+      {
+        "lap": 13,
+        "storedAfter": 14,
+        "roundNow": 14
+      },
+      {
+        "lap": 14,
+        "storedAfter": 15,
+        "roundNow": 15
+      },
+      {
+        "lap": 15,
+        "storedAfter": 16,
+        "roundNow": 16
+      },
+      {
+        "lap": 16,
+        "storedAfter": 17,
+        "roundNow": 17
+      },
+      {
+        "lap": 17,
+        "storedAfter": 18,
+        "roundNow": 18
+      },
+      {
+        "lap": 18,
+        "storedAfter": 19,
+        "roundNow": 19
+      },
+      {
+        "lap": 19,
+        "storedAfter": 20,
+        "roundNow": 20
+      },
+      {
+        "lap": 20,
+        "storedAfter": 21,
+        "roundNow": 21
+      },
+      {
+        "lap": 21,
+        "storedAfter": 22,
+        "roundNow": 22
+      },
+      {
+        "lap": 22,
+        "storedAfter": 23,
+        "roundNow": 23
+      },
+      {
+        "lap": 23,
+        "storedAfter": 24,
+        "roundNow": 24
+      },
+      {
+        "lap": 24,
+        "storedAfter": 25,
+        "roundNow": 25
+      },
+      {
+        "lap": 25,
+        "storedAfter": 26,
+        "roundNow": 26
+      },
+      {
+        "lap": 26,
+        "storedAfter": 27,
+        "roundNow": 27
+      },
+      {
+        "lap": 27,
+        "storedAfter": 28,
+        "roundNow": 28
+      },
+      {
+        "lap": 28,
+        "storedAfter": 29,
+        "roundNow": 29
+      },
+      {
+        "lap": 29,
+        "storedAfter": 30,
+        "roundNow": 30
+      },
+      {
+        "lap": 30,
+        "storedAfter": 31,
+        "roundNow": 31
+      },
+      {
+        "lap": 31,
+        "storedAfter": 32,
+        "roundNow": 32
+      },
+      {
+        "lap": 32,
+        "storedAfter": 33,
+        "roundNow": 33
+      },
+      {
+        "lap": 33,
+        "storedAfter": 34,
+        "roundNow": 34
+      },
+      {
+        "lap": 34,
+        "storedAfter": 35,
+        "roundNow": 35
+      },
+      {
+        "lap": 35,
+        "storedAfter": 36,
+        "roundNow": 36
+      },
+      {
+        "lap": 36,
+        "storedAfter": 37,
+        "roundNow": 37
+      },
+      {
+        "lap": 37,
+        "storedAfter": 38,
+        "roundNow": 38
+      },
+      {
+        "lap": 38,
+        "storedAfter": 39,
+        "roundNow": 39
+      },
+      {
+        "lap": 39,
+        "storedAfter": 40,
+        "roundNow": 40
+      },
+      {
+        "lap": 40,
+        "storedAfter": 41,
+        "roundNow": 41
+      },
+      {
+        "lap": 41,
+        "storedAfter": 42,
+        "roundNow": 42
+      },
+      {
+        "lap": 42,
+        "storedAfter": 43,
+        "roundNow": 43
+      },
+      {
+        "lap": 43,
+        "storedAfter": 44,
+        "roundNow": 44
+      },
+      {
+        "lap": 44,
+        "storedAfter": 45,
+        "roundNow": 45
+      },
+      {
+        "lap": 45,
+        "storedAfter": 46,
+        "roundNow": 46
+      },
+      {
+        "lap": 46,
+        "storedAfter": 47,
+        "roundNow": 47
+      },
+      {
+        "lap": 47,
+        "storedAfter": 48,
+        "roundNow": 48
+      },
+      {
+        "lap": 48,
+        "storedAfter": 49,
+        "roundNow": 49
+      },
+      {
+        "lap": 49,
+        "storedAfter": 50,
+        "roundNow": 50
+      },
+      {
+        "lap": 50,
+        "storedAfter": 51,
+        "roundNow": 51
+      },
+      {
+        "lap": 51,
+        "storedAfter": 52,
+        "roundNow": 52
+      },
+      {
+        "lap": 52,
+        "storedAfter": 53,
+        "roundNow": 53
+      },
+      {
+        "lap": 53,
+        "storedAfter": 54,
+        "roundNow": 54
+      },
+      {
+        "lap": 54,
+        "storedAfter": 55,
+        "roundNow": 55
+      },
+      {
+        "lap": 55,
+        "storedAfter": 56,
+        "roundNow": 56
+      },
+      {
+        "lap": 56,
+        "storedAfter": 57,
+        "roundNow": 57
+      },
+      {
+        "lap": 57,
+        "storedAfter": 58,
+        "roundNow": 58
+      },
+      {
+        "lap": 58,
+        "storedAfter": 59,
+        "roundNow": 59
+      },
+      {
+        "lap": 59,
+        "storedAfter": 60,
+        "roundNow": 60
+      },
+      {
+        "lap": 60,
+        "storedAfter": 61,
+        "roundNow": 61
+      },
+      {
+        "lap": 61,
+        "storedAfter": 62,
+        "roundNow": 62
+      },
+      {
+        "lap": 62,
+        "storedAfter": 63,
+        "roundNow": 63
+      },
+      {
+        "lap": 63,
+        "storedAfter": 64,
+        "roundNow": 64
+      },
+      {
+        "lap": 64,
+        "storedAfter": 65,
+        "roundNow": 65
+      },
+      {
+        "lap": 65,
+        "storedAfter": 66,
+        "roundNow": 66
+      },
+      {
+        "lap": 66,
+        "storedAfter": 67,
+        "roundNow": 67
+      },
+      {
+        "lap": 67,
+        "storedAfter": 68,
+        "roundNow": 68
+      },
+      {
+        "lap": 68,
+        "storedAfter": 69,
+        "roundNow": 69
+      },
+      {
+        "lap": 69,
+        "storedAfter": 70,
+        "roundNow": 70
+      },
+      {
+        "lap": 70,
+        "storedAfter": 71,
+        "roundNow": 71
+      },
+      {
+        "lap": 71,
+        "storedAfter": 72,
+        "roundNow": 72
+      },
+      {
+        "lap": 72,
+        "storedAfter": 73,
+        "roundNow": 73
+      },
+      {
+        "lap": 73,
+        "storedAfter": 74,
+        "roundNow": 74
+      },
+      {
+        "lap": 74,
+        "storedAfter": 75,
+        "roundNow": 75
+      },
+      {
+        "lap": 75,
+        "storedAfter": 76,
+        "roundNow": 76
+      },
+      {
+        "lap": 76,
+        "storedAfter": 77,
+        "roundNow": 77
+      },
+      {
+        "lap": 77,
+        "storedAfter": 78,
+        "roundNow": 78
+      },
+      {
+        "lap": 78,
+        "storedAfter": 79,
+        "roundNow": 79
+      },
+      {
+        "lap": 79,
+        "storedAfter": 80,
+        "roundNow": 80
+      },
+      {
+        "lap": 80,
+        "storedAfter": 81,
+        "roundNow": 81
+      },
+      {
+        "lap": 81,
+        "storedAfter": 82,
+        "roundNow": 82
+      },
+      {
+        "lap": 82,
+        "storedAfter": 83,
+        "roundNow": 83
+      },
+      {
+        "lap": 83,
+        "storedAfter": 84,
+        "roundNow": 84
+      },
+      {
+        "lap": 84,
+        "storedAfter": 85,
+        "roundNow": 85
+      },
+      {
+        "lap": 85,
+        "storedAfter": 86,
+        "roundNow": 86
+      },
+      {
+        "lap": 86,
+        "storedAfter": 87,
+        "roundNow": 87
+      },
+      {
+        "lap": 87,
+        "storedAfter": 88,
+        "roundNow": 88
+      },
+      {
+        "lap": 88,
+        "storedAfter": 89,
+        "roundNow": 89
+      },
+      {
+        "lap": 89,
+        "storedAfter": 90,
+        "roundNow": 90
+      },
+      {
+        "lap": 90,
+        "storedAfter": 91,
+        "roundNow": 91
+      },
+      {
+        "lap": 91,
+        "storedAfter": 92,
+        "roundNow": 92
+      },
+      {
+        "lap": 92,
+        "storedAfter": 93,
+        "roundNow": 93
+      },
+      {
+        "lap": 93,
+        "storedAfter": 94,
+        "roundNow": 94
+      },
+      {
+        "lap": 94,
+        "storedAfter": 95,
+        "roundNow": 95
+      },
+      {
+        "lap": 95,
+        "storedAfter": 96,
+        "roundNow": 96
+      },
+      {
+        "lap": 96,
+        "storedAfter": 97,
+        "roundNow": 97
+      },
+      {
+        "lap": 97,
+        "storedAfter": 98,
+        "roundNow": 98
+      },
+      {
+        "lap": 98,
+        "storedAfter": 99,
+        "roundNow": 99
+      },
+      {
+        "lap": 99,
+        "storedAfter": 100,
+        "roundNow": 100
+      },
+      {
+        "lap": 100,
+        "storedAfter": 101,
+        "roundNow": 101
+      },
+      {
+        "lap": 101,
+        "storedAfter": 102,
+        "roundNow": 102
+      },
+      {
+        "lap": 102,
+        "storedAfter": 103,
+        "roundNow": 103
+      },
+      {
+        "lap": 103,
+        "storedAfter": 104,
+        "roundNow": 104
+      },
+      {
+        "lap": 104,
+        "storedAfter": 105,
+        "roundNow": 105
+      },
+      {
+        "lap": 105,
+        "storedAfter": 106,
+        "roundNow": 106
+      },
+      {
+        "lap": 106,
+        "storedAfter": 107,
+        "roundNow": 107
+      },
+      {
+        "lap": 107,
+        "storedAfter": 108,
+        "roundNow": 108
+      },
+      {
+        "lap": 108,
+        "storedAfter": 109,
+        "roundNow": 109
+      },
+      {
+        "lap": 109,
+        "storedAfter": 110,
+        "roundNow": 110
+      },
+      {
+        "lap": 110,
+        "storedAfter": 111,
+        "roundNow": 111
+      },
+      {
+        "lap": 111,
+        "storedAfter": 112,
+        "roundNow": 112
+      },
+      {
+        "lap": 112,
+        "storedAfter": 113,
+        "roundNow": 113
+      },
+      {
+        "lap": 113,
+        "storedAfter": 114,
+        "roundNow": 114
+      },
+      {
+        "lap": 114,
+        "storedAfter": 115,
+        "roundNow": 115
+      },
+      {
+        "lap": 115,
+        "storedAfter": 116,
+        "roundNow": 116
+      },
+      {
+        "lap": 116,
+        "storedAfter": 117,
+        "roundNow": 117
+      },
+      {
+        "lap": 117,
+        "storedAfter": 118,
+        "roundNow": 118
+      },
+      {
+        "lap": 118,
+        "storedAfter": 119,
+        "roundNow": 119
+      },
+      {
+        "lap": 119,
+        "storedAfter": 120,
+        "roundNow": 120
+      },
+      {
+        "lap": 120,
+        "storedAfter": 121,
+        "roundNow": 121
+      },
+      {
+        "lap": 121,
+        "storedAfter": 122,
+        "roundNow": 122
+      },
+      {
+        "lap": 122,
+        "storedAfter": 123,
+        "roundNow": 123
+      },
+      {
+        "lap": 123,
+        "storedAfter": 124,
+        "roundNow": 124
+      },
+      {
+        "lap": 124,
+        "storedAfter": 125,
+        "roundNow": 125
+      },
+      {
+        "lap": 125,
+        "storedAfter": 126,
+        "roundNow": 126
+      },
+      {
+        "lap": 126,
+        "storedAfter": 127,
+        "roundNow": 127
+      },
+      {
+        "lap": 127,
+        "storedAfter": 128,
+        "roundNow": 128
+      },
+      {
+        "lap": 128,
+        "storedAfter": 129,
+        "roundNow": 129
+      },
+      {
+        "lap": 129,
+        "storedAfter": 130,
+        "roundNow": 130
+      },
+      {
+        "lap": 130,
+        "storedAfter": 131,
+        "roundNow": 131
+      },
+      {
+        "lap": 131,
+        "storedAfter": 132,
+        "roundNow": 132
+      },
+      {
+        "lap": 132,
+        "storedAfter": 133,
+        "roundNow": 133
+      },
+      {
+        "lap": 133,
+        "storedAfter": 134,
+        "roundNow": 134
+      },
+      {
+        "lap": 134,
+        "storedAfter": 135,
+        "roundNow": 135
+      },
+      {
+        "lap": 135,
+        "storedAfter": 136,
+        "roundNow": 136
+      },
+      {
+        "lap": 136,
+        "storedAfter": 137,
+        "roundNow": 137
+      },
+      {
+        "lap": 137,
+        "storedAfter": 138,
+        "roundNow": 138
+      },
+      {
+        "lap": 138,
+        "storedAfter": 139,
+        "roundNow": 139
+      },
+      {
+        "lap": 139,
+        "storedAfter": 140,
+        "roundNow": 140
+      },
+      {
+        "lap": 140,
+        "storedAfter": 141,
+        "roundNow": 141
+      },
+      {
+        "lap": 141,
+        "storedAfter": 142,
+        "roundNow": 142
+      },
+      {
+        "lap": 142,
+        "storedAfter": 143,
+        "roundNow": 143
+      },
+      {
+        "lap": 143,
+        "storedAfter": 144,
+        "roundNow": 144
+      },
+      {
+        "lap": 144,
+        "storedAfter": 145,
+        "roundNow": 145
+      },
+      {
+        "lap": 145,
+        "storedAfter": 146,
+        "roundNow": 146
+      },
+      {
+        "lap": 146,
+        "storedAfter": 147,
+        "roundNow": 147
+      },
+      {
+        "lap": 147,
+        "storedAfter": 148,
+        "roundNow": 148
+      },
+      {
+        "lap": 148,
+        "storedAfter": 149,
+        "roundNow": 149
+      },
+      {
+        "lap": 149,
+        "storedAfter": 150,
+        "roundNow": 150
+      },
+      {
+        "lap": 150,
+        "storedAfter": 151,
+        "roundNow": 151
+      },
+      {
+        "lap": 151,
+        "storedAfter": 152,
+        "roundNow": 152
+      },
+      {
+        "lap": 152,
+        "storedAfter": 153,
+        "roundNow": 153
+      },
+      {
+        "lap": 153,
+        "storedAfter": 154,
+        "roundNow": 154
+      },
+      {
+        "lap": 154,
+        "storedAfter": 155,
+        "roundNow": 155
+      },
+      {
+        "lap": 155,
+        "storedAfter": 156,
+        "roundNow": 156
+      },
+      {
+        "lap": 156,
+        "storedAfter": 157,
+        "roundNow": 157
+      },
+      {
+        "lap": 157,
+        "storedAfter": 158,
+        "roundNow": 158
+      },
+      {
+        "lap": 158,
+        "storedAfter": 159,
+        "roundNow": 159
+      },
+      {
+        "lap": 159,
+        "storedAfter": 160,
+        "roundNow": 160
+      },
+      {
+        "lap": 160,
+        "storedAfter": 161,
+        "roundNow": 161
+      },
+      {
+        "lap": 161,
+        "storedAfter": 162,
+        "roundNow": 162
+      },
+      {
+        "lap": 162,
+        "storedAfter": 163,
+        "roundNow": 163
+      },
+      {
+        "lap": 163,
+        "storedAfter": 164,
+        "roundNow": 164
+      },
+      {
+        "lap": 164,
+        "storedAfter": 165,
+        "roundNow": 165
+      },
+      {
+        "lap": 165,
+        "storedAfter": 166,
+        "roundNow": 166
+      },
+      {
+        "lap": 166,
+        "storedAfter": 167,
+        "roundNow": 167
+      },
+      {
+        "lap": 167,
+        "storedAfter": 168,
+        "roundNow": 168
+      },
+      {
+        "lap": 168,
+        "storedAfter": 169,
+        "roundNow": 169
+      },
+      {
+        "lap": 169,
+        "storedAfter": 170,
+        "roundNow": 170
+      },
+      {
+        "lap": 170,
+        "storedAfter": 171,
+        "roundNow": 171
+      },
+      {
+        "lap": 171,
+        "storedAfter": 172,
+        "roundNow": 172
+      },
+      {
+        "lap": 172,
+        "storedAfter": 173,
+        "roundNow": 173
+      },
+      {
+        "lap": 173,
+        "storedAfter": 174,
+        "roundNow": 174
+      },
+      {
+        "lap": 174,
+        "storedAfter": 175,
+        "roundNow": 175
+      },
+      {
+        "lap": 175,
+        "storedAfter": 176,
+        "roundNow": 176
+      },
+      {
+        "lap": 176,
+        "storedAfter": 177,
+        "roundNow": 177
+      },
+      {
+        "lap": 177,
+        "storedAfter": 178,
+        "roundNow": 178
+      },
+      {
+        "lap": 178,
+        "storedAfter": 179,
+        "roundNow": 179
+      },
+      {
+        "lap": 179,
+        "storedAfter": 180,
+        "roundNow": 180
+      },
+      {
+        "lap": 180,
+        "storedAfter": 181,
+        "roundNow": 181
+      },
+      {
+        "lap": 181,
+        "storedAfter": 182,
+        "roundNow": 182
+      },
+      {
+        "lap": 182,
+        "storedAfter": 183,
+        "roundNow": 183
+      },
+      {
+        "lap": 183,
+        "storedAfter": 184,
+        "roundNow": 184
+      },
+      {
+        "lap": 184,
+        "storedAfter": 185,
+        "roundNow": 185
+      },
+      {
+        "lap": 185,
+        "storedAfter": 186,
+        "roundNow": 186
+      },
+      {
+        "lap": 186,
+        "storedAfter": 187,
+        "roundNow": 187
+      },
+      {
+        "lap": 187,
+        "storedAfter": 188,
+        "roundNow": 188
+      },
+      {
+        "lap": 188,
+        "storedAfter": 189,
+        "roundNow": 189
+      },
+      {
+        "lap": 189,
+        "storedAfter": 190,
+        "roundNow": 190
+      },
+      {
+        "lap": 190,
+        "storedAfter": 191,
+        "roundNow": 191
+      },
+      {
+        "lap": 191,
+        "storedAfter": 192,
+        "roundNow": 192
+      },
+      {
+        "lap": 192,
+        "storedAfter": 193,
+        "roundNow": 193
+      },
+      {
+        "lap": 193,
+        "storedAfter": 194,
+        "roundNow": 194
+      },
+      {
+        "lap": 194,
+        "storedAfter": 195,
+        "roundNow": 195
+      },
+      {
+        "lap": 195,
+        "storedAfter": 196,
+        "roundNow": 196
+      },
+      {
+        "lap": 196,
+        "storedAfter": 197,
+        "roundNow": 197
+      },
+      {
+        "lap": 197,
+        "storedAfter": 198,
+        "roundNow": 198
+      },
+      {
+        "lap": 198,
+        "storedAfter": 199,
+        "roundNow": 199
+      },
+      {
+        "lap": 199,
+        "storedAfter": 200,
+        "roundNow": 200
+      },
+      {
+        "lap": 200,
+        "storedAfter": 201,
+        "roundNow": 201
+      },
+      {
+        "lap": 201,
+        "storedAfter": 202,
+        "roundNow": 202
+      },
+      {
+        "lap": 202,
+        "storedAfter": 203,
+        "roundNow": 203
+      },
+      {
+        "lap": 203,
+        "storedAfter": 204,
+        "roundNow": 204
+      },
+      {
+        "lap": 204,
+        "storedAfter": 205,
+        "roundNow": 205
+      },
+      {
+        "lap": 205,
+        "storedAfter": 206,
+        "roundNow": 206
+      },
+      {
+        "lap": 206,
+        "storedAfter": 207,
+        "roundNow": 207
+      },
+      {
+        "lap": 207,
+        "storedAfter": 208,
+        "roundNow": 208
+      },
+      {
+        "lap": 208,
+        "storedAfter": 209,
+        "roundNow": 209
+      },
+      {
+        "lap": 209,
+        "storedAfter": 210,
+        "roundNow": 210
+      },
+      {
+        "lap": 210,
+        "storedAfter": 211,
+        "roundNow": 211
+      },
+      {
+        "lap": 211,
+        "storedAfter": 212,
+        "roundNow": 212
+      },
+      {
+        "lap": 212,
+        "storedAfter": 213,
+        "roundNow": 213
+      },
+      {
+        "lap": 213,
+        "storedAfter": 214,
+        "roundNow": 214
+      },
+      {
+        "lap": 214,
+        "storedAfter": 215,
+        "roundNow": 215
+      },
+      {
+        "lap": 215,
+        "storedAfter": 216,
+        "roundNow": 216
+      },
+      {
+        "lap": 216,
+        "storedAfter": 217,
+        "roundNow": 217
+      },
+      {
+        "lap": 217,
+        "storedAfter": 218,
+        "roundNow": 218
+      },
+      {
+        "lap": 218,
+        "storedAfter": 219,
+        "roundNow": 219
+      },
+      {
+        "lap": 219,
+        "storedAfter": 220,
+        "roundNow": 220
+      },
+      {
+        "lap": 220,
+        "storedAfter": 221,
+        "roundNow": 221
+      },
+      {
+        "lap": 221,
+        "storedAfter": 222,
+        "roundNow": 222
+      },
+      {
+        "lap": 222,
+        "storedAfter": 223,
+        "roundNow": 223
+      },
+      {
+        "lap": 223,
+        "storedAfter": 224,
+        "roundNow": 224
+      }
+    ],
+    "target_completed_pod_rounds": 224,
+    "target_round": 224,
+    "applied": true,
+    "after": {
+      "completed_pod_rounds": 224,
+      "pod_activation_round": null,
+      "rounds_since_pod": 5,
+      "updated_at": "2026-09-05T20:38:49.135Z"
+    },
+    "rounds_since_pod_unchanged": true,
+    "no_op": false,
+    "reread": {
+      "completed_pod_rounds": 224,
+      "pod_activation_round": null,
+      "rounds_since_pod": 5,
+      "highest_completed_seed": 20,
+      "highest_completed_lego_id": "S0300L02",
+      "current_mode": "main"
+    },
+    "reread_matches_target": true,
+    "cursor_untouched": true
+  },
+  {
+    "job": 657,
+    "ruling": "Tom, 2026-09-05: a silently-zeroed pod ratchet is given back to the learner — not person-specific",
+    "generated_at": "2026-09-05T20:38:49.846Z",
+    "learner_id": "f420b8a8-8613-4227-be11-9ba9d27eacf0",
+    "display_name": "jamesharvey1992",
+    "course_id": "hin_for_eng",
+    "before": {
+      "completed_pod_rounds": 0,
+      "pod_activation_round": null,
+      "rounds_since_pod": 5,
+      "updated_at": "2026-09-05T19:11:04.008Z",
+      "highest_completed_seed": 0,
+      "highest_completed_lego_id": null,
+      "current_mode": "main"
+    },
+    "telemetry": {
+      "events": 2,
+      "completedEvents": [
+        {
+          "id": "234486",
+          "occurred_at": "2026-06-25T12:28:12.002Z",
+          "podRound": 1,
+          "abortReason": "completed",
+          "playsExpected": 3,
+          "playsCompleted": 5
+        }
+      ],
+      "laps": 1,
+      "distinctPodRounds": [
+        1
+      ]
+    },
+    "live_pod": {
+      "pod_id": "hin_for_eng:pod-1",
+      "slug": "pod-1",
+      "visibility": "live",
+      "overridden": false,
+      "turn_rows": 231,
+      "sentences": 283,
+      "cohorts": 282
+    },
+    "ladder": [
+      {
+        "lap": 1,
+        "storedAfter": 2,
+        "roundNow": 2
+      }
+    ],
+    "target_completed_pod_rounds": 2,
+    "target_round": 2,
+    "applied": true,
+    "after": {
+      "completed_pod_rounds": 2,
+      "pod_activation_round": null,
+      "rounds_since_pod": 5,
+      "updated_at": "2026-09-05T20:38:49.870Z"
+    },
+    "rounds_since_pod_unchanged": true,
+    "no_op": false,
+    "reread": {
+      "completed_pod_rounds": 2,
+      "pod_activation_round": null,
+      "rounds_since_pod": 5,
+      "highest_completed_seed": 0,
+      "highest_completed_lego_id": null,
+      "current_mode": "main"
+    },
+    "reread_matches_target": true,
+    "cursor_untouched": true
+  },
+  {
+    "job": 657,
+    "ruling": "Tom, 2026-09-05: a silently-zeroed pod ratchet is given back to the learner — not person-specific",
+    "generated_at": "2026-09-05T20:38:50.542Z",
+    "learner_id": "de757444-2c5c-493f-9e51-42d1d6e7147d",
+    "display_name": "nba4191",
+    "course_id": "hye_for_eng",
+    "before": {
+      "completed_pod_rounds": 0,
+      "pod_activation_round": null,
+      "rounds_since_pod": 5,
+      "updated_at": "2026-09-05T19:11:04.008Z",
+      "highest_completed_seed": 0,
+      "highest_completed_lego_id": null,
+      "current_mode": "main"
+    },
+    "telemetry": {
+      "events": 6,
+      "completedEvents": [
+        {
+          "id": "226496",
+          "occurred_at": "2026-06-23T21:38:29.382Z",
+          "podRound": 1,
+          "abortReason": "completed",
+          "playsExpected": 3,
+          "playsCompleted": 5
+        }
+      ],
+      "laps": 1,
+      "distinctPodRounds": [
+        1
+      ]
+    },
+    "live_pod": {
+      "pod_id": "hye_for_eng:pod-0",
+      "slug": "pod-0",
+      "visibility": "live",
+      "overridden": false,
+      "turn_rows": 142,
+      "sentences": 279,
+      "cohorts": 278
+    },
+    "ladder": [
+      {
+        "lap": 1,
+        "storedAfter": 2,
+        "roundNow": 2
+      }
+    ],
+    "target_completed_pod_rounds": 2,
+    "target_round": 2,
+    "applied": true,
+    "after": {
+      "completed_pod_rounds": 2,
+      "pod_activation_round": null,
+      "rounds_since_pod": 5,
+      "updated_at": "2026-09-05T20:38:50.564Z"
+    },
+    "rounds_since_pod_unchanged": true,
+    "no_op": false,
+    "reread": {
+      "completed_pod_rounds": 2,
+      "pod_activation_round": null,
+      "rounds_since_pod": 5,
+      "highest_completed_seed": 0,
+      "highest_completed_lego_id": null,
+      "current_mode": "main"
+    },
+    "reread_matches_target": true,
+    "cursor_untouched": true
+  },
+  {
+    "job": 657,
+    "ruling": "Tom, 2026-09-05: a silently-zeroed pod ratchet is given back to the learner — not person-specific",
+    "generated_at": "2026-09-05T20:38:51.261Z",
+    "learner_id": "3a466e15-a985-4d46-812a-d94a9e9d52df",
+    "display_name": "fransetter",
+    "course_id": "cym_s_for_eng",
+    "before": {
+      "completed_pod_rounds": 0,
+      "pod_activation_round": 26,
+      "rounds_since_pod": 5,
+      "updated_at": "2026-09-05T19:11:04.008Z",
+      "highest_completed_seed": 150,
+      "highest_completed_lego_id": "S0217L01",
+      "current_mode": "main"
+    },
+    "telemetry": {
+      "events": 2,
+      "completedEvents": [
+        {
+          "id": "721707",
+          "occurred_at": "2026-08-22T16:36:47.359Z",
+          "podRound": 326,
+          "abortReason": "completed",
+          "playsExpected": 4,
+          "playsCompleted": 4
+        }
+      ],
+      "laps": 326,
+      "distinctPodRounds": [
+        326
+      ]
+    },
+    "live_pod": {
+      "pod_id": "cym_s_for_eng:pod-0",
+      "slug": "pod-0",
+      "visibility": "held",
+      "overridden": true,
+      "turn_rows": 231,
+      "sentences": 231,
+      "cohorts": 230
+    },
+    "ladder": [
+      {
+        "lap": 1,
+        "storedAfter": 2,
+        "roundNow": 2
+      },
+      {
+        "lap": 2,
+        "storedAfter": 3,
+        "roundNow": 3
+      },
+      {
+        "lap": 3,
+        "storedAfter": 4,
+        "roundNow": 4
+      },
+      {
+        "lap": 4,
+        "storedAfter": 5,
+        "roundNow": 5
+      },
+      {
+        "lap": 5,
+        "storedAfter": 6,
+        "roundNow": 6
+      },
+      {
+        "lap": 6,
+        "storedAfter": 7,
+        "roundNow": 7
+      },
+      {
+        "lap": 7,
+        "storedAfter": 8,
+        "roundNow": 8
+      },
+      {
+        "lap": 8,
+        "storedAfter": 9,
+        "roundNow": 9
+      },
+      {
+        "lap": 9,
+        "storedAfter": 10,
+        "roundNow": 10
+      },
+      {
+        "lap": 10,
+        "storedAfter": 11,
+        "roundNow": 11
+      },
+      {
+        "lap": 11,
+        "storedAfter": 12,
+        "roundNow": 12
+      },
+      {
+        "lap": 12,
+        "storedAfter": 13,
+        "roundNow": 13
+      },
+      {
+        "lap": 13,
+        "storedAfter": 14,
+        "roundNow": 14
+      },
+      {
+        "lap": 14,
+        "storedAfter": 15,
+        "roundNow": 15
+      },
+      {
+        "lap": 15,
+        "storedAfter": 16,
+        "roundNow": 16
+      },
+      {
+        "lap": 16,
+        "storedAfter": 17,
+        "roundNow": 17
+      },
+      {
+        "lap": 17,
+        "storedAfter": 18,
+        "roundNow": 18
+      },
+      {
+        "lap": 18,
+        "storedAfter": 19,
+        "roundNow": 19
+      },
+      {
+        "lap": 19,
+        "storedAfter": 20,
+        "roundNow": 20
+      },
+      {
+        "lap": 20,
+        "storedAfter": 21,
+        "roundNow": 21
+      },
+      {
+        "lap": 21,
+        "storedAfter": 22,
+        "roundNow": 22
+      },
+      {
+        "lap": 22,
+        "storedAfter": 23,
+        "roundNow": 23
+      },
+      {
+        "lap": 23,
+        "storedAfter": 24,
+        "roundNow": 24
+      },
+      {
+        "lap": 24,
+        "storedAfter": 25,
+        "roundNow": 25
+      },
+      {
+        "lap": 25,
+        "storedAfter": 26,
+        "roundNow": 26
+      },
+      {
+        "lap": 26,
+        "storedAfter": 27,
+        "roundNow": 27
+      },
+      {
+        "lap": 27,
+        "storedAfter": 28,
+        "roundNow": 28
+      },
+      {
+        "lap": 28,
+        "storedAfter": 29,
+        "roundNow": 29
+      },
+      {
+        "lap": 29,
+        "storedAfter": 30,
+        "roundNow": 30
+      },
+      {
+        "lap": 30,
+        "storedAfter": 31,
+        "roundNow": 31
+      },
+      {
+        "lap": 31,
+        "storedAfter": 32,
+        "roundNow": 32
+      },
+      {
+        "lap": 32,
+        "storedAfter": 33,
+        "roundNow": 33
+      },
+      {
+        "lap": 33,
+        "storedAfter": 34,
+        "roundNow": 34
+      },
+      {
+        "lap": 34,
+        "storedAfter": 35,
+        "roundNow": 35
+      },
+      {
+        "lap": 35,
+        "storedAfter": 36,
+        "roundNow": 36
+      },
+      {
+        "lap": 36,
+        "storedAfter": 37,
+        "roundNow": 37
+      },
+      {
+        "lap": 37,
+        "storedAfter": 38,
+        "roundNow": 38
+      },
+      {
+        "lap": 38,
+        "storedAfter": 39,
+        "roundNow": 39
+      },
+      {
+        "lap": 39,
+        "storedAfter": 40,
+        "roundNow": 40
+      },
+      {
+        "lap": 40,
+        "storedAfter": 41,
+        "roundNow": 41
+      },
+      {
+        "lap": 41,
+        "storedAfter": 42,
+        "roundNow": 42
+      },
+      {
+        "lap": 42,
+        "storedAfter": 43,
+        "roundNow": 43
+      },
+      {
+        "lap": 43,
+        "storedAfter": 44,
+        "roundNow": 44
+      },
+      {
+        "lap": 44,
+        "storedAfter": 45,
+        "roundNow": 45
+      },
+      {
+        "lap": 45,
+        "storedAfter": 46,
+        "roundNow": 46
+      },
+      {
+        "lap": 46,
+        "storedAfter": 47,
+        "roundNow": 47
+      },
+      {
+        "lap": 47,
+        "storedAfter": 48,
+        "roundNow": 48
+      },
+      {
+        "lap": 48,
+        "storedAfter": 49,
+        "roundNow": 49
+      },
+      {
+        "lap": 49,
+        "storedAfter": 50,
+        "roundNow": 50
+      },
+      {
+        "lap": 50,
+        "storedAfter": 51,
+        "roundNow": 51
+      },
+      {
+        "lap": 51,
+        "storedAfter": 52,
+        "roundNow": 52
+      },
+      {
+        "lap": 52,
+        "storedAfter": 53,
+        "roundNow": 53
+      },
+      {
+        "lap": 53,
+        "storedAfter": 54,
+        "roundNow": 54
+      },
+      {
+        "lap": 54,
+        "storedAfter": 55,
+        "roundNow": 55
+      },
+      {
+        "lap": 55,
+        "storedAfter": 56,
+        "roundNow": 56
+      },
+      {
+        "lap": 56,
+        "storedAfter": 57,
+        "roundNow": 57
+      },
+      {
+        "lap": 57,
+        "storedAfter": 58,
+        "roundNow": 58
+      },
+      {
+        "lap": 58,
+        "storedAfter": 59,
+        "roundNow": 59
+      },
+      {
+        "lap": 59,
+        "storedAfter": 60,
+        "roundNow": 60
+      },
+      {
+        "lap": 60,
+        "storedAfter": 61,
+        "roundNow": 61
+      },
+      {
+        "lap": 61,
+        "storedAfter": 62,
+        "roundNow": 62
+      },
+      {
+        "lap": 62,
+        "storedAfter": 63,
+        "roundNow": 63
+      },
+      {
+        "lap": 63,
+        "storedAfter": 64,
+        "roundNow": 64
+      },
+      {
+        "lap": 64,
+        "storedAfter": 65,
+        "roundNow": 65
+      },
+      {
+        "lap": 65,
+        "storedAfter": 66,
+        "roundNow": 66
+      },
+      {
+        "lap": 66,
+        "storedAfter": 67,
+        "roundNow": 67
+      },
+      {
+        "lap": 67,
+        "storedAfter": 68,
+        "roundNow": 68
+      },
+      {
+        "lap": 68,
+        "storedAfter": 69,
+        "roundNow": 69
+      },
+      {
+        "lap": 69,
+        "storedAfter": 70,
+        "roundNow": 70
+      },
+      {
+        "lap": 70,
+        "storedAfter": 71,
+        "roundNow": 71
+      },
+      {
+        "lap": 71,
+        "storedAfter": 72,
+        "roundNow": 72
+      },
+      {
+        "lap": 72,
+        "storedAfter": 73,
+        "roundNow": 73
+      },
+      {
+        "lap": 73,
+        "storedAfter": 74,
+        "roundNow": 74
+      },
+      {
+        "lap": 74,
+        "storedAfter": 75,
+        "roundNow": 75
+      },
+      {
+        "lap": 75,
+        "storedAfter": 76,
+        "roundNow": 76
+      },
+      {
+        "lap": 76,
+        "storedAfter": 77,
+        "roundNow": 77
+      },
+      {
+        "lap": 77,
+        "storedAfter": 78,
+        "roundNow": 78
+      },
+      {
+        "lap": 78,
+        "storedAfter": 79,
+        "roundNow": 79
+      },
+      {
+        "lap": 79,
+        "storedAfter": 80,
+        "roundNow": 80
+      },
+      {
+        "lap": 80,
+        "storedAfter": 81,
+        "roundNow": 81
+      },
+      {
+        "lap": 81,
+        "storedAfter": 82,
+        "roundNow": 82
+      },
+      {
+        "lap": 82,
+        "storedAfter": 83,
+        "roundNow": 83
+      },
+      {
+        "lap": 83,
+        "storedAfter": 84,
+        "roundNow": 84
+      },
+      {
+        "lap": 84,
+        "storedAfter": 85,
+        "roundNow": 85
+      },
+      {
+        "lap": 85,
+        "storedAfter": 86,
+        "roundNow": 86
+      },
+      {
+        "lap": 86,
+        "storedAfter": 87,
+        "roundNow": 87
+      },
+      {
+        "lap": 87,
+        "storedAfter": 88,
+        "roundNow": 88
+      },
+      {
+        "lap": 88,
+        "storedAfter": 89,
+        "roundNow": 89
+      },
+      {
+        "lap": 89,
+        "storedAfter": 90,
+        "roundNow": 90
+      },
+      {
+        "lap": 90,
+        "storedAfter": 91,
+        "roundNow": 91
+      },
+      {
+        "lap": 91,
+        "storedAfter": 92,
+        "roundNow": 92
+      },
+      {
+        "lap": 92,
+        "storedAfter": 93,
+        "roundNow": 93
+      },
+      {
+        "lap": 93,
+        "storedAfter": 94,
+        "roundNow": 94
+      },
+      {
+        "lap": 94,
+        "storedAfter": 95,
+        "roundNow": 95
+      },
+      {
+        "lap": 95,
+        "storedAfter": 96,
+        "roundNow": 96
+      },
+      {
+        "lap": 96,
+        "storedAfter": 97,
+        "roundNow": 97
+      },
+      {
+        "lap": 97,
+        "storedAfter": 98,
+        "roundNow": 98
+      },
+      {
+        "lap": 98,
+        "storedAfter": 99,
+        "roundNow": 99
+      },
+      {
+        "lap": 99,
+        "storedAfter": 100,
+        "roundNow": 100
+      },
+      {
+        "lap": 100,
+        "storedAfter": 101,
+        "roundNow": 101
+      },
+      {
+        "lap": 101,
+        "storedAfter": 102,
+        "roundNow": 102
+      },
+      {
+        "lap": 102,
+        "storedAfter": 103,
+        "roundNow": 103
+      },
+      {
+        "lap": 103,
+        "storedAfter": 104,
+        "roundNow": 104
+      },
+      {
+        "lap": 104,
+        "storedAfter": 105,
+        "roundNow": 105
+      },
+      {
+        "lap": 105,
+        "storedAfter": 106,
+        "roundNow": 106
+      },
+      {
+        "lap": 106,
+        "storedAfter": 107,
+        "roundNow": 107
+      },
+      {
+        "lap": 107,
+        "storedAfter": 108,
+        "roundNow": 108
+      },
+      {
+        "lap": 108,
+        "storedAfter": 109,
+        "roundNow": 109
+      },
+      {
+        "lap": 109,
+        "storedAfter": 110,
+        "roundNow": 110
+      },
+      {
+        "lap": 110,
+        "storedAfter": 111,
+        "roundNow": 111
+      },
+      {
+        "lap": 111,
+        "storedAfter": 112,
+        "roundNow": 112
+      },
+      {
+        "lap": 112,
+        "storedAfter": 113,
+        "roundNow": 113
+      },
+      {
+        "lap": 113,
+        "storedAfter": 114,
+        "roundNow": 114
+      },
+      {
+        "lap": 114,
+        "storedAfter": 115,
+        "roundNow": 115
+      },
+      {
+        "lap": 115,
+        "storedAfter": 116,
+        "roundNow": 116
+      },
+      {
+        "lap": 116,
+        "storedAfter": 117,
+        "roundNow": 117
+      },
+      {
+        "lap": 117,
+        "storedAfter": 118,
+        "roundNow": 118
+      },
+      {
+        "lap": 118,
+        "storedAfter": 119,
+        "roundNow": 119
+      },
+      {
+        "lap": 119,
+        "storedAfter": 120,
+        "roundNow": 120
+      },
+      {
+        "lap": 120,
+        "storedAfter": 121,
+        "roundNow": 121
+      },
+      {
+        "lap": 121,
+        "storedAfter": 122,
+        "roundNow": 122
+      },
+      {
+        "lap": 122,
+        "storedAfter": 123,
+        "roundNow": 123
+      },
+      {
+        "lap": 123,
+        "storedAfter": 124,
+        "roundNow": 124
+      },
+      {
+        "lap": 124,
+        "storedAfter": 125,
+        "roundNow": 125
+      },
+      {
+        "lap": 125,
+        "storedAfter": 126,
+        "roundNow": 126
+      },
+      {
+        "lap": 126,
+        "storedAfter": 127,
+        "roundNow": 127
+      },
+      {
+        "lap": 127,
+        "storedAfter": 128,
+        "roundNow": 128
+      },
+      {
+        "lap": 128,
+        "storedAfter": 129,
+        "roundNow": 129
+      },
+      {
+        "lap": 129,
+        "storedAfter": 130,
+        "roundNow": 130
+      },
+      {
+        "lap": 130,
+        "storedAfter": 131,
+        "roundNow": 131
+      },
+      {
+        "lap": 131,
+        "storedAfter": 132,
+        "roundNow": 132
+      },
+      {
+        "lap": 132,
+        "storedAfter": 133,
+        "roundNow": 133
+      },
+      {
+        "lap": 133,
+        "storedAfter": 134,
+        "roundNow": 134
+      },
+      {
+        "lap": 134,
+        "storedAfter": 135,
+        "roundNow": 135
+      },
+      {
+        "lap": 135,
+        "storedAfter": 136,
+        "roundNow": 136
+      },
+      {
+        "lap": 136,
+        "storedAfter": 137,
+        "roundNow": 137
+      },
+      {
+        "lap": 137,
+        "storedAfter": 138,
+        "roundNow": 138
+      },
+      {
+        "lap": 138,
+        "storedAfter": 139,
+        "roundNow": 139
+      },
+      {
+        "lap": 139,
+        "storedAfter": 140,
+        "roundNow": 140
+      },
+      {
+        "lap": 140,
+        "storedAfter": 141,
+        "roundNow": 141
+      },
+      {
+        "lap": 141,
+        "storedAfter": 142,
+        "roundNow": 142
+      },
+      {
+        "lap": 142,
+        "storedAfter": 143,
+        "roundNow": 143
+      },
+      {
+        "lap": 143,
+        "storedAfter": 144,
+        "roundNow": 144
+      },
+      {
+        "lap": 144,
+        "storedAfter": 145,
+        "roundNow": 145
+      },
+      {
+        "lap": 145,
+        "storedAfter": 146,
+        "roundNow": 146
+      },
+      {
+        "lap": 146,
+        "storedAfter": 147,
+        "roundNow": 147
+      },
+      {
+        "lap": 147,
+        "storedAfter": 148,
+        "roundNow": 148
+      },
+      {
+        "lap": 148,
+        "storedAfter": 149,
+        "roundNow": 149
+      },
+      {
+        "lap": 149,
+        "storedAfter": 150,
+        "roundNow": 150
+      },
+      {
+        "lap": 150,
+        "storedAfter": 151,
+        "roundNow": 151
+      },
+      {
+        "lap": 151,
+        "storedAfter": 152,
+        "roundNow": 152
+      },
+      {
+        "lap": 152,
+        "storedAfter": 153,
+        "roundNow": 153
+      },
+      {
+        "lap": 153,
+        "storedAfter": 154,
+        "roundNow": 154
+      },
+      {
+        "lap": 154,
+        "storedAfter": 155,
+        "roundNow": 155
+      },
+      {
+        "lap": 155,
+        "storedAfter": 156,
+        "roundNow": 156
+      },
+      {
+        "lap": 156,
+        "storedAfter": 157,
+        "roundNow": 157
+      },
+      {
+        "lap": 157,
+        "storedAfter": 158,
+        "roundNow": 158
+      },
+      {
+        "lap": 158,
+        "storedAfter": 159,
+        "roundNow": 159
+      },
+      {
+        "lap": 159,
+        "storedAfter": 160,
+        "roundNow": 160
+      },
+      {
+        "lap": 160,
+        "storedAfter": 161,
+        "roundNow": 161
+      },
+      {
+        "lap": 161,
+        "storedAfter": 162,
+        "roundNow": 162
+      },
+      {
+        "lap": 162,
+        "storedAfter": 163,
+        "roundNow": 163
+      },
+      {
+        "lap": 163,
+        "storedAfter": 164,
+        "roundNow": 164
+      },
+      {
+        "lap": 164,
+        "storedAfter": 165,
+        "roundNow": 165
+      },
+      {
+        "lap": 165,
+        "storedAfter": 166,
+        "roundNow": 166
+      },
+      {
+        "lap": 166,
+        "storedAfter": 167,
+        "roundNow": 167
+      },
+      {
+        "lap": 167,
+        "storedAfter": 168,
+        "roundNow": 168
+      },
+      {
+        "lap": 168,
+        "storedAfter": 169,
+        "roundNow": 169
+      },
+      {
+        "lap": 169,
+        "storedAfter": 170,
+        "roundNow": 170
+      },
+      {
+        "lap": 170,
+        "storedAfter": 171,
+        "roundNow": 171
+      },
+      {
+        "lap": 171,
+        "storedAfter": 172,
+        "roundNow": 172
+      },
+      {
+        "lap": 172,
+        "storedAfter": 173,
+        "roundNow": 173
+      },
+      {
+        "lap": 173,
+        "storedAfter": 174,
+        "roundNow": 174
+      },
+      {
+        "lap": 174,
+        "storedAfter": 175,
+        "roundNow": 175
+      },
+      {
+        "lap": 175,
+        "storedAfter": 176,
+        "roundNow": 176
+      },
+      {
+        "lap": 176,
+        "storedAfter": 177,
+        "roundNow": 177
+      },
+      {
+        "lap": 177,
+        "storedAfter": 178,
+        "roundNow": 178
+      },
+      {
+        "lap": 178,
+        "storedAfter": 179,
+        "roundNow": 179
+      },
+      {
+        "lap": 179,
+        "storedAfter": 180,
+        "roundNow": 180
+      },
+      {
+        "lap": 180,
+        "storedAfter": 181,
+        "roundNow": 181
+      },
+      {
+        "lap": 181,
+        "storedAfter": 182,
+        "roundNow": 182
+      },
+      {
+        "lap": 182,
+        "storedAfter": 183,
+        "roundNow": 183
+      },
+      {
+        "lap": 183,
+        "storedAfter": 184,
+        "roundNow": 184
+      },
+      {
+        "lap": 184,
+        "storedAfter": 185,
+        "roundNow": 185
+      },
+      {
+        "lap": 185,
+        "storedAfter": 186,
+        "roundNow": 186
+      },
+      {
+        "lap": 186,
+        "storedAfter": 187,
+        "roundNow": 187
+      },
+      {
+        "lap": 187,
+        "storedAfter": 188,
+        "roundNow": 188
+      },
+      {
+        "lap": 188,
+        "storedAfter": 189,
+        "roundNow": 189
+      },
+      {
+        "lap": 189,
+        "storedAfter": 190,
+        "roundNow": 190
+      },
+      {
+        "lap": 190,
+        "storedAfter": 191,
+        "roundNow": 191
+      },
+      {
+        "lap": 191,
+        "storedAfter": 192,
+        "roundNow": 192
+      },
+      {
+        "lap": 192,
+        "storedAfter": 193,
+        "roundNow": 193
+      },
+      {
+        "lap": 193,
+        "storedAfter": 194,
+        "roundNow": 194
+      },
+      {
+        "lap": 194,
+        "storedAfter": 195,
+        "roundNow": 195
+      },
+      {
+        "lap": 195,
+        "storedAfter": 196,
+        "roundNow": 196
+      },
+      {
+        "lap": 196,
+        "storedAfter": 197,
+        "roundNow": 197
+      },
+      {
+        "lap": 197,
+        "storedAfter": 198,
+        "roundNow": 198
+      },
+      {
+        "lap": 198,
+        "storedAfter": 199,
+        "roundNow": 199
+      },
+      {
+        "lap": 199,
+        "storedAfter": 200,
+        "roundNow": 200
+      },
+      {
+        "lap": 200,
+        "storedAfter": 201,
+        "roundNow": 201
+      },
+      {
+        "lap": 201,
+        "storedAfter": 202,
+        "roundNow": 202
+      },
+      {
+        "lap": 202,
+        "storedAfter": 203,
+        "roundNow": 203
+      },
+      {
+        "lap": 203,
+        "storedAfter": 204,
+        "roundNow": 204
+      },
+      {
+        "lap": 204,
+        "storedAfter": 205,
+        "roundNow": 205
+      },
+      {
+        "lap": 205,
+        "storedAfter": 206,
+        "roundNow": 206
+      },
+      {
+        "lap": 206,
+        "storedAfter": 207,
+        "roundNow": 207
+      },
+      {
+        "lap": 207,
+        "storedAfter": 208,
+        "roundNow": 208
+      },
+      {
+        "lap": 208,
+        "storedAfter": 209,
+        "roundNow": 209
+      },
+      {
+        "lap": 209,
+        "storedAfter": 210,
+        "roundNow": 210
+      },
+      {
+        "lap": 210,
+        "storedAfter": 211,
+        "roundNow": 211
+      },
+      {
+        "lap": 211,
+        "storedAfter": 212,
+        "roundNow": 212
+      },
+      {
+        "lap": 212,
+        "storedAfter": 213,
+        "roundNow": 213
+      },
+      {
+        "lap": 213,
+        "storedAfter": 214,
+        "roundNow": 214
+      },
+      {
+        "lap": 214,
+        "storedAfter": 215,
+        "roundNow": 215
+      },
+      {
+        "lap": 215,
+        "storedAfter": 216,
+        "roundNow": 216
+      },
+      {
+        "lap": 216,
+        "storedAfter": 217,
+        "roundNow": 217
+      },
+      {
+        "lap": 217,
+        "storedAfter": 218,
+        "roundNow": 218
+      },
+      {
+        "lap": 218,
+        "storedAfter": 219,
+        "roundNow": 219
+      },
+      {
+        "lap": 219,
+        "storedAfter": 220,
+        "roundNow": 220
+      },
+      {
+        "lap": 220,
+        "storedAfter": 221,
+        "roundNow": 221
+      },
+      {
+        "lap": 221,
+        "storedAfter": 222,
+        "roundNow": 222
+      },
+      {
+        "lap": 222,
+        "storedAfter": 223,
+        "roundNow": 223
+      },
+      {
+        "lap": 223,
+        "storedAfter": 224,
+        "roundNow": 224
+      },
+      {
+        "lap": 224,
+        "storedAfter": 225,
+        "roundNow": 225
+      },
+      {
+        "lap": 225,
+        "storedAfter": 226,
+        "roundNow": 226
+      },
+      {
+        "lap": 226,
+        "storedAfter": 227,
+        "roundNow": 227
+      },
+      {
+        "lap": 227,
+        "storedAfter": 228,
+        "roundNow": 228
+      },
+      {
+        "lap": 228,
+        "storedAfter": 229,
+        "roundNow": 229
+      },
+      {
+        "lap": 229,
+        "storedAfter": 230,
+        "roundNow": 230
+      },
+      {
+        "lap": 230,
+        "storedAfter": 231,
+        "roundNow": 231
+      },
+      {
+        "lap": 231,
+        "storedAfter": 232,
+        "roundNow": 232
+      },
+      {
+        "lap": 232,
+        "storedAfter": 233,
+        "roundNow": 233
+      },
+      {
+        "lap": 233,
+        "storedAfter": 234,
+        "roundNow": 234
+      },
+      {
+        "lap": 234,
+        "storedAfter": 235,
+        "roundNow": 235
+      },
+      {
+        "lap": 235,
+        "storedAfter": 236,
+        "roundNow": 236
+      },
+      {
+        "lap": 236,
+        "storedAfter": 237,
+        "roundNow": 237
+      },
+      {
+        "lap": 237,
+        "storedAfter": 238,
+        "roundNow": 238
+      },
+      {
+        "lap": 238,
+        "storedAfter": 239,
+        "roundNow": 239
+      },
+      {
+        "lap": 239,
+        "storedAfter": 240,
+        "roundNow": 240
+      },
+      {
+        "lap": 240,
+        "storedAfter": 241,
+        "roundNow": 241
+      },
+      {
+        "lap": 241,
+        "storedAfter": 242,
+        "roundNow": 242
+      },
+      {
+        "lap": 242,
+        "storedAfter": 243,
+        "roundNow": 243
+      },
+      {
+        "lap": 243,
+        "storedAfter": 244,
+        "roundNow": 244
+      },
+      {
+        "lap": 244,
+        "storedAfter": 245,
+        "roundNow": 245
+      },
+      {
+        "lap": 245,
+        "storedAfter": 246,
+        "roundNow": 246
+      },
+      {
+        "lap": 246,
+        "storedAfter": 247,
+        "roundNow": 247
+      },
+      {
+        "lap": 247,
+        "storedAfter": 248,
+        "roundNow": 248
+      },
+      {
+        "lap": 248,
+        "storedAfter": 249,
+        "roundNow": 249
+      },
+      {
+        "lap": 249,
+        "storedAfter": 250,
+        "roundNow": 250
+      },
+      {
+        "lap": 250,
+        "storedAfter": 251,
+        "roundNow": 251
+      },
+      {
+        "lap": 251,
+        "storedAfter": 252,
+        "roundNow": 252
+      },
+      {
+        "lap": 252,
+        "storedAfter": 253,
+        "roundNow": 253
+      },
+      {
+        "lap": 253,
+        "storedAfter": 254,
+        "roundNow": 254
+      },
+      {
+        "lap": 254,
+        "storedAfter": 255,
+        "roundNow": 255
+      },
+      {
+        "lap": 255,
+        "storedAfter": 256,
+        "roundNow": 256
+      },
+      {
+        "lap": 256,
+        "storedAfter": 257,
+        "roundNow": 257
+      },
+      {
+        "lap": 257,
+        "storedAfter": 258,
+        "roundNow": 258
+      },
+      {
+        "lap": 258,
+        "storedAfter": 259,
+        "roundNow": 259
+      },
+      {
+        "lap": 259,
+        "storedAfter": 260,
+        "roundNow": 260
+      },
+      {
+        "lap": 260,
+        "storedAfter": 261,
+        "roundNow": 261
+      },
+      {
+        "lap": 261,
+        "storedAfter": 262,
+        "roundNow": 262
+      },
+      {
+        "lap": 262,
+        "storedAfter": 263,
+        "roundNow": 263
+      },
+      {
+        "lap": 263,
+        "storedAfter": 264,
+        "roundNow": 264
+      },
+      {
+        "lap": 264,
+        "storedAfter": 265,
+        "roundNow": 265
+      },
+      {
+        "lap": 265,
+        "storedAfter": 266,
+        "roundNow": 266
+      },
+      {
+        "lap": 266,
+        "storedAfter": 267,
+        "roundNow": 267
+      },
+      {
+        "lap": 267,
+        "storedAfter": 268,
+        "roundNow": 268
+      },
+      {
+        "lap": 268,
+        "storedAfter": 269,
+        "roundNow": 269
+      },
+      {
+        "lap": 269,
+        "storedAfter": 270,
+        "roundNow": 270
+      },
+      {
+        "lap": 270,
+        "storedAfter": 271,
+        "roundNow": 271
+      },
+      {
+        "lap": 271,
+        "storedAfter": 272,
+        "roundNow": 272
+      },
+      {
+        "lap": 272,
+        "storedAfter": 273,
+        "roundNow": 273
+      },
+      {
+        "lap": 273,
+        "storedAfter": 274,
+        "roundNow": 274
+      },
+      {
+        "lap": 274,
+        "storedAfter": 275,
+        "roundNow": 275
+      },
+      {
+        "lap": 275,
+        "storedAfter": 276,
+        "roundNow": 276
+      },
+      {
+        "lap": 276,
+        "storedAfter": 277,
+        "roundNow": 277
+      },
+      {
+        "lap": 277,
+        "storedAfter": 278,
+        "roundNow": 278
+      },
+      {
+        "lap": 278,
+        "storedAfter": 279,
+        "roundNow": 279
+      },
+      {
+        "lap": 279,
+        "storedAfter": 280,
+        "roundNow": 280
+      },
+      {
+        "lap": 280,
+        "storedAfter": 281,
+        "roundNow": 281
+      },
+      {
+        "lap": 281,
+        "storedAfter": 282,
+        "roundNow": 282
+      },
+      {
+        "lap": 282,
+        "storedAfter": 283,
+        "roundNow": 283
+      },
+      {
+        "lap": 283,
+        "storedAfter": 284,
+        "roundNow": 284
+      },
+      {
+        "lap": 284,
+        "storedAfter": 285,
+        "roundNow": 285
+      },
+      {
+        "lap": 285,
+        "storedAfter": 286,
+        "roundNow": 286
+      },
+      {
+        "lap": 286,
+        "storedAfter": 287,
+        "roundNow": 287
+      },
+      {
+        "lap": 287,
+        "storedAfter": 288,
+        "roundNow": 288
+      },
+      {
+        "lap": 288,
+        "storedAfter": 289,
+        "roundNow": 289
+      },
+      {
+        "lap": 289,
+        "storedAfter": 290,
+        "roundNow": 290
+      },
+      {
+        "lap": 290,
+        "storedAfter": 291,
+        "roundNow": 291
+      },
+      {
+        "lap": 291,
+        "storedAfter": 292,
+        "roundNow": 292
+      },
+      {
+        "lap": 292,
+        "storedAfter": 293,
+        "roundNow": 293
+      },
+      {
+        "lap": 293,
+        "storedAfter": 294,
+        "roundNow": 294
+      },
+      {
+        "lap": 294,
+        "storedAfter": 295,
+        "roundNow": 295
+      },
+      {
+        "lap": 295,
+        "storedAfter": 296,
+        "roundNow": 296
+      },
+      {
+        "lap": 296,
+        "storedAfter": 297,
+        "roundNow": 297
+      },
+      {
+        "lap": 297,
+        "storedAfter": 298,
+        "roundNow": 298
+      },
+      {
+        "lap": 298,
+        "storedAfter": 299,
+        "roundNow": 299
+      },
+      {
+        "lap": 299,
+        "storedAfter": 300,
+        "roundNow": 300
+      },
+      {
+        "lap": 300,
+        "storedAfter": 301,
+        "roundNow": 301
+      },
+      {
+        "lap": 301,
+        "storedAfter": 302,
+        "roundNow": 302
+      },
+      {
+        "lap": 302,
+        "storedAfter": 303,
+        "roundNow": 303
+      },
+      {
+        "lap": 303,
+        "storedAfter": 304,
+        "roundNow": 304
+      },
+      {
+        "lap": 304,
+        "storedAfter": 305,
+        "roundNow": 305
+      },
+      {
+        "lap": 305,
+        "storedAfter": 306,
+        "roundNow": 306
+      },
+      {
+        "lap": 306,
+        "storedAfter": 307,
+        "roundNow": 307
+      },
+      {
+        "lap": 307,
+        "storedAfter": 308,
+        "roundNow": 308
+      },
+      {
+        "lap": 308,
+        "storedAfter": 309,
+        "roundNow": 309
+      },
+      {
+        "lap": 309,
+        "storedAfter": 310,
+        "roundNow": 310
+      },
+      {
+        "lap": 310,
+        "storedAfter": 311,
+        "roundNow": 311
+      },
+      {
+        "lap": 311,
+        "storedAfter": 312,
+        "roundNow": 312
+      },
+      {
+        "lap": 312,
+        "storedAfter": 313,
+        "roundNow": 313
+      },
+      {
+        "lap": 313,
+        "storedAfter": 314,
+        "roundNow": 314
+      },
+      {
+        "lap": 314,
+        "storedAfter": 315,
+        "roundNow": 315
+      },
+      {
+        "lap": 315,
+        "storedAfter": 316,
+        "roundNow": 316
+      },
+      {
+        "lap": 316,
+        "storedAfter": 317,
+        "roundNow": 317
+      },
+      {
+        "lap": 317,
+        "storedAfter": 318,
+        "roundNow": 318
+      },
+      {
+        "lap": 318,
+        "storedAfter": 319,
+        "roundNow": 319
+      },
+      {
+        "lap": 319,
+        "storedAfter": 320,
+        "roundNow": 320
+      },
+      {
+        "lap": 320,
+        "storedAfter": 321,
+        "roundNow": 321
+      },
+      {
+        "lap": 321,
+        "storedAfter": 322,
+        "roundNow": 322
+      },
+      {
+        "lap": 322,
+        "storedAfter": 323,
+        "roundNow": 323
+      },
+      {
+        "lap": 323,
+        "storedAfter": 324,
+        "roundNow": 324
+      },
+      {
+        "lap": 324,
+        "storedAfter": 325,
+        "roundNow": 325
+      },
+      {
+        "lap": 325,
+        "storedAfter": 326,
+        "roundNow": 326
+      },
+      {
+        "lap": 326,
+        "storedAfter": 327,
+        "roundNow": 327
+      }
+    ],
+    "target_completed_pod_rounds": 327,
+    "target_round": 327,
+    "applied": true,
+    "after": {
+      "completed_pod_rounds": 327,
+      "pod_activation_round": 26,
+      "rounds_since_pod": 5,
+      "updated_at": "2026-09-05T20:38:51.284Z"
+    },
+    "rounds_since_pod_unchanged": true,
+    "no_op": false,
+    "reread": {
+      "completed_pod_rounds": 327,
+      "pod_activation_round": 26,
+      "rounds_since_pod": 5,
+      "highest_completed_seed": 150,
+      "highest_completed_lego_id": "S0217L01",
+      "current_mode": "main"
+    },
+    "reread_matches_target": true,
+    "cursor_untouched": true
+  }
+]

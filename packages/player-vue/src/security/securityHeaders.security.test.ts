@@ -132,17 +132,22 @@ describe('vercel.json — security response headers', () => {
     expect(csp).not.toMatch(/script-src[^;]*'unsafe-eval'/)
   })
 
-  it("the CSP script hash still matches index.html's inline boot watchdog", () => {
-    // If the boot-watchdog script is edited, this hash goes stale. Under
-    // Report-Only that is only noise — but promoting the policy to enforced
-    // with a stale hash would white-screen the app, so CI catches the drift here.
+  it('the CSP carries a current hash for EVERY inline script in index.html', () => {
+    // If an inline script is edited or a new one is added, its hash goes stale
+    // or missing. Under Report-Only that is only noise — but promoting the
+    // policy to enforced with a stale or absent hash would break that script
+    // (white screen, or a boot shim that silently never runs), so CI catches
+    // the drift here. index.html carries two: the Android WebView
+    // crypto.randomUUID shim (#701) and the boot watchdog.
     const html = readFileSync(resolve(REPO_ROOT, 'packages/player-vue/index.html'), 'utf8')
     const inline = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
-    expect(inline).toHaveLength(1)
+    expect(inline.length).toBeGreaterThan(0)
 
-    const hash = 'sha256-' + createHash('sha256').update(inline[0][1], 'utf8').digest('base64')
     const csp = headerValue(broadRule(loadVercelConfig()), 'Content-Security-Policy-Report-Only')!
-    expect(csp).toContain(`'${hash}'`)
+    for (const [, body] of inline) {
+      const hash = 'sha256-' + createHash('sha256').update(body, 'utf8').digest('base64')
+      expect(csp).toContain(`'${hash}'`)
+    }
   })
 
   it('the internal schools mockups keep same-origin framing (they iframe each other)', () => {

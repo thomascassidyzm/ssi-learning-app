@@ -10,9 +10,9 @@
 # "the sentinel runs current code" a property of the system instead of a favour.
 #
 # Each tick, in this order:
-#   1. fetch + hard-sync the checkout to origin/dev (detached HEAD — no branch
-#      pointer is moved, so the clone's own branches and its worktrees are
-#      untouched; untracked files are never swept).
+#   1. fetch origin/dev, keep the checkout ON THE `dev` BRANCH, and advance that
+#      branch FAST-FORWARD ONLY. No other branch pointer is moved and no worktree
+#      is touched; untracked files are never swept.
 #   2. if pnpm-lock.yaml changed since the last successful install, kick off an
 #      install in the BACKGROUND and carry on. The tick is never blocked by it.
 #   3. run sentinel.mjs.
@@ -28,6 +28,18 @@
 # production over HTTP. `dev` is this repo's default branch and auto-merge target,
 # so it is where the sentinel's own tooling lands first; tracking `main` would
 # have reverted the play-probe fix and restored the broken alarm.
+#
+# WHY NOT DETACHED ANY MORE (2026-09-06, job #900). From 2026-08-20 to 2026-09-06
+# this step did `git checkout -qf --detach FETCH_HEAD`, which left the checkout on
+# no branch at all. That checkout is also the base every SSi worker worktree is
+# cloned from, so what ran was not what anyone thought was running. Asked whether
+# the detachment was deliberate, Tom ruled: "not deliberate, I have no idea, but we
+# should have merged everything to staging anyway". So the checkout now STAYS ON
+# `dev` and the branch is advanced with `merge --ff-only`. The original reason for
+# detaching — never move a branch pointer another worktree might hold — is kept:
+# only `dev` moves, only forwards, and only if git can fast-forward it. If it
+# cannot (dev diverged, or another worktree holds `dev`), the step LOGS AND CARRIES
+# ON with the code on disk. It never forces and never rewrites.
 #
 # Deliberately NOT set -e: see THE INVARIANT.
 set -uo pipefail
@@ -59,19 +71,33 @@ main() {
     tail -n 8000 "$LOG" >"$LOG.tmp" 2>/dev/null && mv "$LOG.tmp" "$LOG"
   fi
 
-  # --- 1. sync to origin/dev --------------------------------------------------
+  # --- 1. sync to origin/dev, ON the dev branch -------------------------------
   if timeout 90 "$GIT" -C "$REPO" fetch --quiet "$TRACK_REMOTE" "$TRACK_BRANCH" 2>/dev/null; then
     target=$("$GIT" -C "$REPO" rev-parse FETCH_HEAD 2>/dev/null)
     current=$("$GIT" -C "$REPO" rev-parse HEAD 2>/dev/null)
     if [ -z "$target" ]; then
       log "SYNC SKIPPED: could not resolve FETCH_HEAD — running code on disk ($current)"
-    elif [ "$target" != "$current" ]; then
-      # -f discards tracked-file edits: this checkout is a machine's working copy,
-      # not a place to author. Untracked files are left exactly as they are.
-      if timeout 90 "$GIT" -C "$REPO" checkout -qf --detach "$target" 2>/dev/null; then
-        log "synced ${current:0:7} -> ${target:0:7} ($TRACK_REMOTE/$TRACK_BRANCH)"
-      else
-        log "SYNC FAILED: checkout of ${target:0:7} failed — running code on disk (${current:0:7})"
+    else
+      # a) be ON the branch. -f discards tracked-file edits: this checkout is a
+      #    machine's working copy, not a place to author. Untracked files are left
+      #    exactly as they are. If another worktree holds `dev`, git refuses and we
+      #    carry on with whatever HEAD already is.
+      on=$("$GIT" -C "$REPO" symbolic-ref -q --short HEAD 2>/dev/null || echo '')
+      if [ "$on" != "$TRACK_BRANCH" ]; then
+        if timeout 90 "$GIT" -C "$REPO" checkout -qf "$TRACK_BRANCH" 2>/dev/null; then
+          log "attached HEAD to $TRACK_BRANCH (was: ${on:-detached ${current:0:7}})"
+        else
+          log "ATTACH FAILED: could not check out $TRACK_BRANCH — running code on disk (${current:0:7})"
+        fi
+      fi
+      # b) advance the branch, fast-forward only. Never force, never rewrite.
+      current=$("$GIT" -C "$REPO" rev-parse HEAD 2>/dev/null)
+      if [ "$target" != "$current" ]; then
+        if timeout 90 "$GIT" -C "$REPO" merge --ff-only --quiet "$target" 2>/dev/null; then
+          log "synced ${current:0:7} -> ${target:0:7} ($TRACK_REMOTE/$TRACK_BRANCH, ff-only on $TRACK_BRANCH)"
+        else
+          log "SYNC FAILED: cannot fast-forward to ${target:0:7} — running code on disk (${current:0:7})"
+        fi
       fi
     fi
   else
