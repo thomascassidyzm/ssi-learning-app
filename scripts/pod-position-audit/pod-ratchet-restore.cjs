@@ -24,10 +24,31 @@
  * generalised to any learner + course, so the other seven members of the class
  * are restored by exactly this method rather than a reinvented one.
  *
+ * JOB #706, 2026-09-06 — THE COUNTING DEFECT THIS SCRIPT SHIPPED WITH.
+ * `derivedLaps` used to return `laps = Math.max(...podRounds)`: the highest
+ * ROUND LABEL, read as a COUNT. And it counted every `pod_lap_end` as a pod
+ * lap, when a Layer-1 "seeds in the cup" lap emits the same event with
+ * `podRound` = the MAIN ROUND NUMBER. On 2026-09-05 that combination wrote
+ * Tom's zho_for_eng counter to 460 off a Layer-1 cup at main round 459, and
+ * fransetter's cym_s to 327 off ONE cup. The derivation now lives in
+ * ./podLapTelemetry.ts, is layer-aware, counts laps as laps, and is pinned by
+ * ./podLapTelemetry.test.ts (which fails on the old shape).
+ *
+ * LOWERING — normally forbidden, authorised once. The UPDATE goes through
+ * greatest(), so this tool can only ever RAISE a counter. `--allow-lower`
+ * removes that rail and is gated to ONE account and ONE course:
+ *   Tom, 2026-09-06, asked "Shall I correct your Chinese counter to what you
+ *   actually earned?" — "1 - yes".
+ * That ruling is about tom.cassidy(+ssi)'s `zho_for_eng` row and nothing else.
+ * It is NOT a general capability: every other learner in the #704 census has
+ * MORE real laps than counter, i.e. a genuinely earned position, and lowering
+ * one of those would take listening away from someone who did it.
+ *
  * Usage:
  *   node scripts/pod-position-audit/pod-ratchet-restore.cjs --fleet
  *   node scripts/pod-position-audit/pod-ratchet-restore.cjs --learner <uuid|display_name> --course <course_id>
  *   node scripts/pod-position-audit/pod-ratchet-restore.cjs --learner paddyhardy --course rus_for_eng --apply
+ *   node scripts/pod-position-audit/pod-ratchet-restore.cjs --learner Tom --course zho_for_eng --target 44 --allow-lower --apply
  */
 const path = require('path')
 const fs = require('fs')
@@ -39,6 +60,9 @@ const { Client } = require(path.join(DASH, 'node_modules', 'pg'))
 const REPO = path.resolve(__dirname, '..', '..')
 const APPLY = process.argv.includes('--apply')
 const FLEET = process.argv.includes('--fleet')
+// See the LOWERING note in the header — Tom's 2026-09-06 ruling, one account,
+// one course. Never a default, never a fleet operation.
+const ALLOW_LOWER = process.argv.includes('--allow-lower')
 
 function arg(name, dflt) {
   const i = process.argv.indexOf('--' + name)
@@ -62,7 +86,8 @@ async function resolveLearner(c, ref) {
 async function loadCore() {
   const cohorts = await import(path.join(REPO, 'packages/core/src/pods/podCohorts.ts'))
   const split = await import(path.join(REPO, 'packages/player-vue/src/composables/podSentenceSplit.ts'))
-  return { cohorts, split }
+  const telemetry = await import(path.join(__dirname, 'podLapTelemetry.ts'))
+  return { cohorts, split, telemetry }
 }
 
 /** Flatten per-TURN pod rows into per-SENTENCE units, as flattenPodRows does. */
@@ -77,39 +102,65 @@ function flatten(rows, splitRowUnits) {
   return out
 }
 
-/** Completed laps from a learner's own pod_lap telemetry. */
-async function derivedLaps(c, learnerId, courseId) {
+/** Completed laps from a learner's own pod_lap telemetry — LAYER-AWARE (#706).
+ *  Layer-1 cups share the event name and carry the main round in `podRound`,
+ *  so each lap is classified against the child audio_play rows' `stage`. */
+async function derivedLaps(c, learnerId, courseId, T) {
   const { rows } = await c.query(
-    `select id, event_type, occurred_at, payload from player_events
+    `select id, event_type, occurred_at, session_id, payload from player_events
       where user_id = $1 and course_code = $2 and event_type in ('pod_lap_start','pod_lap_end')
       order by occurred_at`,
     [learnerId, courseId],
   )
-  const completed = rows.filter(
-    (r) =>
-      r.event_type === 'pod_lap_end' &&
-      r.payload?.abortReason === 'completed' &&
-      r.payload?.cancelled !== true &&
-      r.payload?.skippedByUser !== true,
+  // Highest ladder stage on the child plays of each (podRound, session) — the
+  // discriminator for laps that predate the `isLayer1` flag (2026-08-31).
+  const { rows: stages } = await c.query(
+    `select (payload->>'podRound')::int pr, session_id, max((payload->>'stage')::int) max_stage
+       from player_events
+      where user_id = $1 and course_code = $2 and event_type = 'audio_play'
+        and payload->>'stage' is not null
+      group by 1, 2`,
+    [learnerId, courseId],
   )
-  const podRounds = completed.map((r) => Number(r.payload?.podRound)).filter((n) => Number.isFinite(n))
+  const stageBy = new Map(stages.map((r) => [r.pr + '|' + r.session_id, Number(r.max_stage)]))
+
+  const ends = rows
+    .filter((r) => r.event_type === 'pod_lap_end')
+    .map((r) => ({
+      occurredAt: new Date(r.occurred_at),
+      payload: r.payload || {},
+      childMaxStage: stageBy.has(Number(r.payload?.podRound) + '|' + r.session_id)
+        ? stageBy.get(Number(r.payload?.podRound) + '|' + r.session_id)
+        : null,
+      id: String(r.id),
+    }))
+
+  const tally = T.tallyPodLaps(ends)
   return {
     events: rows.length,
-    completedEvents: completed.map((r) => ({
-      id: String(r.id),
-      occurred_at: r.occurred_at,
-      podRound: r.payload?.podRound,
-      abortReason: r.payload?.abortReason,
-      playsExpected: r.payload?.playsExpected,
-      playsCompleted: r.payload?.playsCompleted,
-    })),
-    laps: podRounds.length ? Math.max(...podRounds) : 0,
-    distinctPodRounds: [...new Set(podRounds)].sort((a, b) => a - b),
+    lap_end_events: ends.length,
+    completedEvents: ends
+      .filter((e) => T.isCompletedLap(e) && T.lapLayer(e) === 'pod')
+      .map((e) => ({
+        id: e.id,
+        occurred_at: e.occurredAt.toISOString(),
+        podRound: e.payload.podRound,
+        abortReason: e.payload.abortReason ?? null,
+        playsExpected: e.payload.playsExpected ?? null,
+        playsCompleted: e.payload.playsCompleted ?? null,
+      })),
+    excluded_layer1_cups: ends
+      .filter((e) => T.isCompletedLap(e) && T.lapLayer(e) === 'layer1')
+      .map((e) => ({ occurred_at: e.occurredAt.toISOString(), podRound: e.payload.podRound })),
+    excluded_unknown: tally.completedUnknown,
+    laps: tally.completedPodLaps,
+    highest_completed_pod_round: tally.highestCompletedPodRound,
+    distinctPodRounds: tally.distinctCompletedPodRounds,
   }
 }
 
 async function main() {
-  const { cohorts: PC, split: PS } = await loadCore()
+  const { cohorts: PC, split: PS, telemetry: T } = await loadCore()
   const c = new Client({ connectionString: process.env.DATABASE_URL })
   await c.connect()
 
@@ -134,7 +185,7 @@ async function main() {
   if (!before) throw new Error('no enrollment row found')
 
   // 2. laps genuinely completed, from his own telemetry
-  const tele = await derivedLaps(c, LEARNER_ID, COURSE_ID)
+  const tele = await derivedLaps(c, LEARNER_ID, COURSE_ID, T)
 
   // 3. today's live cohorts → target stored value
   // WHICH POD. Mirror the learner path exactly (composables/servedPod.ts):
@@ -175,10 +226,21 @@ async function main() {
     target = PC.podRatchetAfterLap(cohorts, target)
     ladder.push({ lap, storedAfter: target, roundNow: PC.podCohortRoundFor(cohorts, target) })
   }
+  const replayTarget = target
+  // `--target <n>`: a human-derived value, for the case the replay cannot
+  // reach on its own — pod-lap telemetry only exists from 2026-05-07, so a
+  // learner who listened before that has laps no replay can see. Whoever
+  // passes it must write the derivation down in the applied log's companion
+  // markdown; it is not a convenience.
+  const TARGET_OVERRIDE = arg('target', null)
+  if (TARGET_OVERRIDE != null) target = parseInt(TARGET_OVERRIDE, 10)
+  if (!Number.isFinite(target) || target < 0) throw new Error('--target must be a non-negative integer')
 
   const record = {
-    job: 657,
-    ruling: "Tom, 2026-09-05: a silently-zeroed pod ratchet is given back to the learner — not person-specific",
+    job: ALLOW_LOWER ? 706 : 657,
+    ruling: ALLOW_LOWER
+      ? 'Tom, 2026-09-06, asked "Shall I correct your Chinese counter to what you actually earned?" — "1 - yes". One account, one course.'
+      : "Tom, 2026-09-05: a silently-zeroed pod ratchet is given back to the learner — not person-specific",
     generated_at: new Date().toISOString(),
     learner_id: LEARNER_ID,
     display_name: learner.display_name,
@@ -198,6 +260,9 @@ async function main() {
       turn_rows: podRows.length, sentences: sentences.length, cohorts: cohorts.length,
     },
     ladder,
+    replay_target_completed_pod_rounds: replayTarget,
+    target_override: TARGET_OVERRIDE == null ? null : target,
+    allow_lower: ALLOW_LOWER,
     target_completed_pod_rounds: target,
     target_round: cohorts.length ? PC.podCohortRoundFor(cohorts, target) : null,
     applied: false,
@@ -210,12 +275,21 @@ async function main() {
     return
   }
 
+  if (ALLOW_LOWER && FLEET) throw new Error('--allow-lower is never a fleet operation')
   const res = await c.query(
-    `update course_enrollments
-        set completed_pod_rounds = greatest(coalesce(completed_pod_rounds, 0), $3::int),
-            updated_at = now()
-      where learner_id = $1 and course_id = $2
-      returning completed_pod_rounds, pod_activation_round, rounds_since_pod, updated_at`,
+    ALLOW_LOWER
+      // THE RAIL, DELIBERATELY BYPASSED. Authorised by Tom, 2026-09-06, for
+      // tom.cassidy's zho_for_eng row alone — see the LOWERING note in the
+      // header. Everything else on the row is untouched, as always.
+      ? `update course_enrollments
+            set completed_pod_rounds = $3::int, updated_at = now()
+          where learner_id = $1 and course_id = $2
+          returning completed_pod_rounds, pod_activation_round, rounds_since_pod, updated_at`
+      : `update course_enrollments
+            set completed_pod_rounds = greatest(coalesce(completed_pod_rounds, 0), $3::int),
+                updated_at = now()
+          where learner_id = $1 and course_id = $2
+          returning completed_pod_rounds, pod_activation_round, rounds_since_pod, updated_at`,
     [LEARNER_ID, COURSE_ID, target],
   )
   const after = res.rows[0]
@@ -239,14 +313,20 @@ async function main() {
     )
   ).rows[0]
   record.reread = reread
-  record.reread_matches_target = reread.completed_pod_rounds === Math.max(before.completed_pod_rounds || 0, target)
+  record.reread_matches_target =
+    reread.completed_pod_rounds === (ALLOW_LOWER ? target : Math.max(before.completed_pod_rounds || 0, target))
   record.cursor_untouched =
     reread.highest_completed_seed === before.highest_completed_seed &&
     reread.highest_completed_lego_id === before.highest_completed_lego_id &&
     reread.current_mode === before.current_mode &&
     reread.rounds_since_pod === before.rounds_since_pod
 
-  const out = path.join(REPO, 'docs/pod-position-audit/pod-ratchet-restore-fleet-applied-log.json')
+  const out = path.join(
+    REPO,
+    ALLOW_LOWER
+      ? 'docs/pod-position-audit/pod-ratchet-correction-applied-log.json'
+      : 'docs/pod-position-audit/pod-ratchet-restore-fleet-applied-log.json',
+  )
   const log = fs.existsSync(out) ? JSON.parse(fs.readFileSync(out, 'utf8')) : []
   log.push(record)
   fs.writeFileSync(out, JSON.stringify(log, null, 2) + '\n')

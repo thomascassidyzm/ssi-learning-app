@@ -1,0 +1,47 @@
+[
+  {
+    "job": 706,
+    "ruling": "Tom, 2026-09-06: \"Shall I correct your Chinese counter to what you actually earned?\" — \"1 - yes\". One account, one course.",
+    "root_cause": "#657 derived laps as max(podRound) over every pod_lap_end, and a Layer-1 seed cup emits that event with podRound = the MAIN ROUND. A cup at main round 459 became 459 laps and wrote 460 to a row that was 0. Fixed in podLapTelemetry.ts, pinned by podLapTelemetry.test.ts.",
+    "generated_at": "2026-09-06T13:30:32.207Z",
+    "learner_id": "81987d60-0c00-4553-8a36-79f83cdf1774",
+    "display_name": "Tom",
+    "course_id": "zho_for_eng",
+    "before": {
+      "completed_pod_rounds": 462,
+      "pod_activation_round": 456,
+      "rounds_since_pod": 0,
+      "updated_at": "2026-09-06T13:30:17.642Z",
+      "highest_completed_seed": 40,
+      "highest_completed_lego_id": "S0668L02",
+      "current_mode": "main"
+    },
+    "derivation": {
+      "sentences": 367,
+      "cohorts": 366,
+      "earned_by_2026_06_10": 43,
+      "laps_since": 2,
+      "layer1_cups_excluded_since": 3,
+      "target": 45
+    },
+    "target_completed_pod_rounds": 45,
+    "lowering": true,
+    "applied": true,
+    "after": {
+      "completed_pod_rounds": 45,
+      "pod_activation_round": 456,
+      "rounds_since_pod": 0,
+      "updated_at": "2026-09-06T13:30:32.231Z"
+    },
+    "reread": {
+      "completed_pod_rounds": 45,
+      "pod_activation_round": 456,
+      "rounds_since_pod": 0,
+      "highest_completed_seed": 40,
+      "highest_completed_lego_id": "S0668L02",
+      "current_mode": "main"
+    },
+    "reread_matches_target": true,
+    "everything_else_untouched": true
+  }
+]
