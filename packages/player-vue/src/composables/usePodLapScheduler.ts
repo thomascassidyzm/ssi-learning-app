@@ -116,18 +116,22 @@ export {
  * insertion (new stage 2) bridges the jump from "no 2×" to "all 2×".
  */
 /**
- * DEAD ON THE LEARNER PATH — read this before believing anything below.
+ * THIS MAP IS A FALLBACK, NOT THE LADDER LEARNERS HEAR — read this before
+ * believing anything below.
  *
- * Two things make this map unreachable for a real learner in the main flow:
- *   1. the 2026-08-07 one-mode redesign — unless `listeningUseStagePlaylist`
- *      is set on the `listening` config row (it is not; there is no
- *      learner-facing way to set it), nextLap() ignores the stage playlist
- *      entirely and plays `policy.pattern` for every cohort at every age;
- *   2. even through that escape hatch, the LIVE `pods` row in algorithm_config
- *      overrides this whole map, and its stage 1 is ['ps','trans','ps','ps'] —
- *      no `explainer` slot anywhere in its nine stages.
- * So the `explainer` role below reaches nobody but the admin auditioner. The
- * per-stage comments describe the retired ladder, kept as its record.
+ * Corrected 2026-09-06 (#704) against the live DB. The previous note here said
+ * the stage ladder was dead on the learner path because
+ * `listeningUseStagePlaylist` was unset. IT IS SET: the live `listening` row in
+ * algorithm_config carries `"listeningUseStagePlaylist": true`, description
+ * "stage playlist ON 2026-08-24". So nextLap() DOES take the stage-playlist
+ * branch for every real learner, and the fade ladder is what they hear.
+ *
+ * What is still true is that this code map is overridden: the LIVE `pods` row
+ * in algorithm_config supplies the actual ladder (eight stages, stage 1
+ * ['ps','trans','ps','ps'] for two laps, terminal stage 8 ['ps2x'] — bare
+ * target at 2×, eternal). It carries no `explainer` slot anywhere, so the
+ * `explainer` role below reaches nobody but the admin auditioner. The
+ * per-stage comments describe the retired code ladder, kept as its record.
  */
 export const DEFAULT_STAGE_PLAYLIST: Record<number, PodPlayRole[]> = {
   // Stage 1 — "Phase 0" (Tom 2026-06-10): the sentence's introduction.
