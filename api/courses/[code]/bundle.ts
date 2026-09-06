@@ -36,6 +36,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { applyCors } from '../../_utils/cors'
+import { setEntitlementVary } from '../../_utils/entitlementVary'
 import { createClient } from '@supabase/supabase-js'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
@@ -364,6 +365,11 @@ export default async function handler(
 ): Promise<void> {
   // Cross-origin (native shell) policy + preflight. No-op same-origin.
   if (applyCors(req, res, { methods: 'GET' })) return
+  // This body depends on the caller's entitlement, and it is served with a
+  // cacheable Cache-Control. Without this header a browser cache keyed on the
+  // URL alone hands a signed-in payer the anonymous free-preview body it stored
+  // moments earlier (job #676) — see api/_utils/entitlementVary.ts.
+  setEntitlementVary(res)
 
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' })

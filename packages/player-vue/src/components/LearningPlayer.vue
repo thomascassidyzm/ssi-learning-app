@@ -17041,12 +17041,17 @@ defineExpose({
     </div>
   </Transition>
 
-  <!-- A belt-skip the device can't honour, said in one line. Reuses the
-       between-rounds tip toast: it sits above the nav, clears itself, and
-       never takes the screen — the learner asked for something, they get told
-       why not, and play carries on underneath. -->
+  <!-- A belt-skip the device can't honour yet, said in one line. Borrows the
+       between-rounds tip's shell but NOT its position: this one lives near the
+       TOP of the screen (Tom, 2026-09-06 — "there's plenty of screen space for
+       a 'no content' warning higher up"). At the bottom it landed in the
+       busiest strip on the player — belt pill, Easy/Fast, bottom nav — and on
+       his phone it rendered under the Easy/Fast control, clipped to "Orange
+       Belt isn't on th…". The empty middle of the screen has room for the
+       whole sentence, and the layer it now sits on is above everything else
+       the player draws, so this is not a dodge around one collision. -->
   <Transition name="fade">
-    <div v-if="beltBlockedMessage" class="mode-tip" role="status" aria-live="polite">
+    <div v-if="beltBlockedMessage" class="mode-tip belt-waiting-tip" role="status" aria-live="polite">
       <span>{{ beltBlockedMessage }}</span>
     </div>
   </Transition>
@@ -20944,6 +20949,45 @@ button.phase-segment:active:not(.is-active) {
    sits above the nav like the tip, tap anywhere to dismiss (auto-hides). */
 .course-updated-notice {
   cursor: default;
+}
+
+/* "{belt} isn't on this device yet" — the ONE sentence a belt jump may show
+   while it keeps trying. It rides the mode-tip shell but overrides the two
+   things that made it unreadable on Tom's phone (2026-09-06):
+
+   POSITION. The bottom strip is the busiest part of the player — belt pill,
+   Easy/Fast, bottom nav — so the tip landed under the Easy/Fast control. It
+   moves up into the one genuinely empty band on the player: below the prompt
+   card, above the course flag. 38% of the viewport puts it there on a phone
+   and keeps it there on a tall or a short one, because everything it has to
+   avoid is anchored to the same two ends. Nothing is drawn in that band, so
+   this is the "plenty of screen space" Tom pointed at rather than a nudge
+   past today's one overlap.
+
+   LAYER. z-index above every overlay this screen can draw (belt-skip and
+   paywall at 3000, the offline picker backdrop at 3100), so it is above
+   whatever else is up — a general rule, not a dodge around one collision.
+
+   And it WRAPS. The old single-line flex clipped the sentence to "Orange Belt
+   isn't on th…"; shortening the words was never the fix. Horizontal padding
+   respects the landscape notch per the repo's safe-area rule. */
+.belt-waiting-tip {
+  top: max(38%, calc(96px + env(safe-area-inset-top, 0px)));
+  bottom: auto;
+  transform: translate(-50%, -50%);
+  z-index: 3200;
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
+  line-height: 1.35;
+  cursor: default;
+  padding: 0.75rem 1rem;
+  width: max-content;
+  max-width: min(
+    28rem,
+    calc(100vw - 2rem - max(0px, env(safe-area-inset-left, 0px)) - max(0px, env(safe-area-inset-right, 0px)))
+  );
 }
 
 .mode-tip__body {
