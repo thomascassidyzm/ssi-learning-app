@@ -2,7 +2,7 @@
 # SSI Learning App v1.0.0
 # Version: 1.0.0 (2025-12-03)
 # Status: Superseded in part (2026-04-29) — see banner below
-# Last updated: 2026-08-22 (PODS ARE 1-BASED — the served pod slug is resolved per course, not hardcoded)
+# Last updated: 2026-09-06 (LAYER-1 CUP FALLBACK — a cup plays the seed or the longest last-LEGO phrase)
 # Source: Aran Jones methodology insights, 2025-12-03
 
 # =============================================================================
@@ -58,6 +58,20 @@
 # layer1StagePlaylist/l1ActiveSize/l1ReserveSize/l1UrnPullCount,
 # emitL1Cluster, learner_l1_state fire-count hydration) was deleted — it had
 # been unreachable since the 2026-05-19 L1 main-flow removal.
+#
+# UPDATE (2026-09-06, Tom): LAYER-1 CUP FALLBACK — "cups play EITHER the
+# SEED itself, or the longest phrase from the last LEGO in the SEED's BASKET
+# of phrases." A seed with any target clip (either voice) plays ITSELF; a
+# seed with none plays the longest fully-audio'd non-component phrase of its
+# highest-lego_index basket (USE preferred over BUILD, longest by
+# target1_duration_ms — the course's own basket ordering measure); a seed
+# with neither skips exactly as before. Derived at init, never hand-mapped:
+# packages/player-vue/src/composables/layer1CupFallback.ts (pure), wired in
+# useLayer1Scheduler.initialize()/nextLap(), winners persisted to the offline
+# snapshot (listeningMetaCache.l1FallbackPhrases) so downloaded courses pour
+# the same cups. Invisible on courses with complete seed audio (the phrase
+# query is not even issued); exists so mid-changeover Welsh pours real cups
+# with zero new recording.
 #
 # UPDATE (2026-08-06, Tom): LISTENING FOLLOWS THE BELT SPEED GATING.
 # Tom, live on staging (French): "LIStening exercises are way too fast
