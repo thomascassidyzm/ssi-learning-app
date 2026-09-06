@@ -17,23 +17,28 @@ import {
 } from './useLayer1Scheduler'
 
 // ============================================================================
-// Supabase mock — covers the three query shapes initialize() issues:
+// Supabase mock — covers the query shapes initialize() issues:
 //   .from('course_seeds').select(...).eq(...).order(...).limit(...)
 //   .from('course_legos').select(...).eq(...).order(...).order(...).limit(...)
 //   .from('course_audio').select(...).eq(...).in(...)
+//   .from('course_practice_phrases').select(...).eq(...).in(...).not(...).range(...)
+//     (the cup-fallback read — only issued when a seed has no target audio)
 // ============================================================================
-function makeMockSupabase(state: { seeds: any[]; catalogue: any[]; bookends: any[] }) {
+function makeMockSupabase(state: { seeds: any[]; catalogue: any[]; bookends: any[]; phrases?: any[] }) {
   const builder = (table: string) => {
     const chain: any = {
       select: () => chain,
       eq: () => chain,
       in: () => chain,
+      not: () => chain,
       order: () => chain,
       limit: () => chain,
+      range: () => chain,
       then: (cb: any) => {
         if (table === 'course_seeds') return Promise.resolve({ data: state.seeds, error: null }).then(cb)
         if (table === 'course_legos') return Promise.resolve({ data: state.catalogue, error: null }).then(cb)
         if (table === 'course_audio') return Promise.resolve({ data: state.bookends, error: null }).then(cb)
+        if (table === 'course_practice_phrases') return Promise.resolve({ data: state.phrases || [], error: null }).then(cb)
         return Promise.resolve({ data: null, error: null }).then(cb)
       },
     }
@@ -41,6 +46,19 @@ function makeMockSupabase(state: { seeds: any[]; catalogue: any[]; bookends: any
   }
   return { from: builder } as any
 }
+
+const fallbackPhrase = (n: number, over: Partial<Record<string, unknown>> = {}) => ({
+  seed_number: n,
+  lego_index: 1,
+  phrase_role: 'eternal_eligible',
+  known_text: `KP${n}`,
+  target_text: `TP${n}`,
+  known_audio_id: `pkn-${n}`,
+  target1_audio_id: `pt1-${n}`,
+  target2_audio_id: `pt2-${n}`,
+  target1_duration_ms: 2000,
+  ...over,
+})
 
 const l1Seed = (n: number, hasAudio = true) => ({
   seed_number: n,
@@ -397,5 +415,81 @@ describe('useLayer1Scheduler — nextLapPreviewFallback (?l1=1 preview cheat)', 
     })
     await s.initialize()
     expect(s.nextLapPreviewFallback(1)).toBeNull()
+  })
+})
+
+// ----------------------------------------------------------------------------
+// The cup fallback in the composable (Tom's ruling, 2026-09-06) — a seed with
+// no target audio pours its last LEGO's longest phrase; a voice-2-only seed
+// still pours THE SEED. Exercised through the preview path (same resolution
+// as nextLap, no 30-seed activation scaffolding needed).
+// ----------------------------------------------------------------------------
+describe('useLayer1Scheduler — cup fallback (seed or longest last-LEGO phrase)', () => {
+  it('pours the fallback phrase for a seed with no target audio', async () => {
+    const catalogue = [
+      { seed_number: 1, lego_index: 1 },
+      { seed_number: 1, lego_index: 2 },
+    ]
+    const seeds = [l1Seed(1, false)]
+    const phrases = [
+      fallbackPhrase(1, { lego_index: 1, target_text: 'not-last-lego', target1_duration_ms: 9000 }),
+      fallbackPhrase(1, { lego_index: 2, target_text: 'short', target1_duration_ms: 1000, target1_audio_id: 'pt1-short' }),
+      fallbackPhrase(1, { lego_index: 2, target_text: 'the longest phrase', target1_duration_ms: 3000, target1_audio_id: 'pt1-long', known_audio_id: 'pkn-long', known_text: 'the known gloss' }),
+    ]
+    const s = useLayer1Scheduler({
+      supabase: makeMockSupabase({ seeds, catalogue, bookends: [], phrases }),
+      courseCode: 'c', learnerId: 'u',
+    })
+    await s.initialize()
+    const lap = s.nextLapPreviewFallback(1)
+    expect(lap).not.toBeNull()
+    // Longest phrase of the LAST lego (index 2) wins — never the 9s phrase on lego 1.
+    expect(lap!.plays.filter(p => p.role === 'ps').every(p => ['pt1-long', 'pt2-1'].includes(p.audioId))).toBe(true)
+    expect(lap!.plays.some(p => p.audioId === 'pt1-long')).toBe(true)
+    // The KNOWN slot is the PHRASE's own known clip, never the seed's.
+    const trans = lap!.plays.find(p => p.role === 'trans')
+    expect(trans?.audioId).toBe('pkn-long')
+    expect(trans?.text).toBe('the known gloss')
+  })
+
+  it('plays THE SEED via its voice-2 clip when only target2 audio exists (no phrase substitution)', async () => {
+    const catalogue = [{ seed_number: 1, lego_index: 1 }]
+    const seeds = [{ ...l1Seed(1, false), target2_audio_id: 'tgt2-only' }]
+    const s = useLayer1Scheduler({
+      supabase: makeMockSupabase({ seeds, catalogue, bookends: [], phrases: [fallbackPhrase(1)] }),
+      courseCode: 'c', learnerId: 'u',
+    })
+    await s.initialize()
+    const lap = s.nextLapPreviewFallback(1)
+    expect(lap).not.toBeNull()
+    expect(lap!.plays.every(p => p.audioId === 'tgt2-only')).toBe(true)
+    expect(lap!.plays.every(p => p.text === 'T1')).toBe(true)
+  })
+
+  it('still skips a seed with no target audio and no eligible phrase', async () => {
+    const catalogue = [{ seed_number: 1, lego_index: 1 }]
+    const seeds = [l1Seed(1, false)]
+    const phrases = [fallbackPhrase(1, { phrase_role: 'component' })] // components never pour
+    const s = useLayer1Scheduler({
+      supabase: makeMockSupabase({ seeds, catalogue, bookends: [], phrases }),
+      courseCode: 'c', learnerId: 'u',
+    })
+    await s.initialize()
+    expect(s.nextLapPreviewFallback(1)).toBeNull()
+  })
+
+  it('is inert on a course with complete seed audio — lap identical with and without phrase rows', async () => {
+    const catalogue = Array.from({ length: 4 }, (_, i) => ({ seed_number: i + 1, lego_index: 1 }))
+    const seeds = Array.from({ length: 4 }, (_, i) => l1Seed(i + 1))
+    const mk = (phrases: any[]) => useLayer1Scheduler({
+      supabase: makeMockSupabase({ seeds, catalogue, bookends: [], phrases }),
+      courseCode: 'c', learnerId: 'u',
+    })
+    const a = mk([])
+    const b = mk([fallbackPhrase(1), fallbackPhrase(2)])
+    await a.initialize()
+    await b.initialize()
+    expect(JSON.stringify(a.nextLapPreviewFallback(1))).toBe(JSON.stringify(b.nextLapPreviewFallback(1)))
+    expect(b.fallbackAudio.value.size).toBe(0) // no needy seeds → no fallback derived at all
   })
 })

@@ -55,7 +55,7 @@ const collapsed = ref(false)
      mission is waiting for. */
   left: 16px;
   /* Standing rule: bottom chrome clears the home indicator. */
-  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(16px + var(--shell-inset-bottom));
   z-index: 60;
   max-width: 320px;
 }

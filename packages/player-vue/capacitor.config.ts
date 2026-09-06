@@ -23,6 +23,25 @@ const config: CapacitorConfig = {
     // Debug builds only. Cleartext stays off — the API origin is https.
     allowMixedContent: false,
   },
+  plugins: {
+    /**
+     * INSET HANDLING IS DECLARED, NOT INHERITED. 'css' is already Capacitor
+     * 8's default, and it is written down here because the app's whole
+     * bottom-chrome clearance depends on it: with 'css' the SystemBars plugin
+     * sets `--safe-area-inset-*` on documentElement in dp, which is the only
+     * source that reports correctly in BOTH of its postures — the one where
+     * it pads the WebView out of the system bars (and env() legitimately
+     * reads 0), and the one where the WebView draws edge-to-edge and env() is
+     * live. 'disable' would leave the app with no inset source at all and the
+     * bottom controls back inside the navigation bar.
+     *
+     * See src/platform/shellSafeArea.ts and --shell-nav-clearance in
+     * src/styles/design-tokens.css.
+     */
+    SystemBars: {
+      insetsHandling: 'css',
+    },
+  },
 }
 
 export default config

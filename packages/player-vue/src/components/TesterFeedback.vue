@@ -415,7 +415,7 @@ async function submitFeedback() {
 /* Floating action button — draggable */
 .feedback-fab {
   position: fixed;
-  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(24px + var(--shell-inset-bottom));
   right: 24px;
   z-index: 9998;
   width: 48px;
