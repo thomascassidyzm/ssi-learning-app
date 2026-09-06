@@ -21,6 +21,11 @@ import { openDB, deleteDB, type IDBPDatabase } from 'idb'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { resolveServedPod } from './servedPod'
 import {
+  type L1FallbackPhraseRow,
+  computeSeedLastLegoIndex,
+  selectFallbackWinnerRows,
+} from './layer1CupFallback'
+import {
   getRevisedAudioRefs,
   stampRowAudioRefs,
   applyAudioRef,
@@ -178,6 +183,26 @@ export interface CachedListeningMeta {
   coreSeeds: CachedCoreSeed[]
   /** course_legos (seed_number, lego_index) catalogue — L1 ordinals. */
   legoCatalogue: Array<{ seed_number: number; lego_index: number }>
+  /** Last-LEGO basket phrase rows for seeds with NO target audio of their own
+   *  — the L1 cup fallback's raw material (Tom's ruling, 2026-09-06; derived
+   *  by useLayer1Scheduler's deriveSeedFallbackAudio). Absent on entries
+   *  written before the fallback existed — those seeds just skip offline,
+   *  which is the pre-fallback behaviour, until the next refresh. */
+  l1FallbackPhrases?: CachedL1FallbackPhrase[]
+}
+
+/** Mirrors useLayer1Scheduler's L1FallbackPhraseRow (kept structural, not
+ *  imported, so the cache module stays dependency-light). */
+export interface CachedL1FallbackPhrase {
+  seed_number: number
+  lego_index: number
+  phrase_role: string | null
+  known_text: string
+  target_text: string
+  known_audio_id: string | null
+  target1_audio_id: string | null
+  target2_audio_id: string | null
+  target1_duration_ms: number | null
 }
 
 /**
@@ -475,6 +500,40 @@ const fetchAndCacheListeningMetaOnce = async (
       .limit(10000)
     if (catErr) throw new Error(`course_legos: ${catErr.message}`)
 
+    // L1 cup-fallback phrases (Tom's ruling, 2026-09-06): for seeds with NO
+    // target audio of their own, persist the WINNING last-LEGO basket phrase —
+    // one row per seed, selected by the same pure derivation the scheduler
+    // runs live (selectFallbackWinnerRows), so the offline cup pours the same
+    // clip and the offline download carries only those three ids per seed.
+    // Empty on courses with complete seed audio.
+    const needySeeds = coreSeeds
+      .filter((s) => !s.target1_audio_id && !s.target2_audio_id)
+      .map((s) => s.seed_number)
+    let l1FallbackPhrases: CachedL1FallbackPhrase[] = []
+    if (needySeeds.length > 0) {
+      const phraseRows: L1FallbackPhraseRow[] = []
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await client
+          .from('course_practice_phrases')
+          .select('seed_number, lego_index, phrase_role, known_text, target_text, known_audio_id, target1_audio_id, target2_audio_id, target1_duration_ms')
+          .eq('course_code', courseCode)
+          .in('seed_number', needySeeds)
+          .not('known_audio_id', 'is', null)
+          .not('target1_audio_id', 'is', null)
+          .not('target2_audio_id', 'is', null)
+          .range(from, from + PAGE - 1)
+        if (error) throw new Error(`l1-fallback phrases: ${error.message}`)
+        for (const r of stampRowAudioRefs(revisedRefs, data || [])) {
+          phraseRows.push(r as L1FallbackPhraseRow)
+        }
+        if (!data || data.length < PAGE) break
+      }
+      l1FallbackPhrases = selectFallbackWinnerRows(
+        phraseRows,
+        computeSeedLastLegoIndex((catalogue || []) as Array<{ seed_number: number; lego_index: number }>),
+      )
+    }
+
     // Stamp is best-effort: a failed stamp read must not drop the whole
     // bundle — the entry just lands stamp-less and refreshes next online boot.
     const stampRow = stampResult.data as
@@ -495,6 +554,7 @@ const fetchAndCacheListeningMetaOnce = async (
       fineKnowns,
       coreSeeds,
       legoCatalogue: (catalogue || []) as Array<{ seed_number: number; lego_index: number }>,
+      l1FallbackPhrases,
     }
     await setCachedListeningMeta(meta)
     return meta
@@ -623,6 +683,11 @@ export const collectListeningMetaAudioIds = (meta: CachedListeningMeta): string[
   const add = (id?: string | null) => { if (id) ids.add(id) }
   for (const s of meta.coreSeeds) {
     add(s.known_audio_id); add(s.target1_audio_id); add(s.target2_audio_id)
+  }
+  // L1 cup-fallback winners — the phrase clips a seed with no audio of its
+  // own pours instead (Tom's ruling, 2026-09-06). One phrase per needy seed.
+  for (const p of meta.l1FallbackPhrases || []) {
+    add(p.known_audio_id); add(p.target1_audio_id); add(p.target2_audio_id)
   }
   for (const row of meta.podRows) {
     add(row.target_audio_id); add(row.known_audio_id); add(row.explainer_audio_id)
