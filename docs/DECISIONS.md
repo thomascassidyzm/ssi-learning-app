@@ -93,3 +93,37 @@ throws on a violation; `AdminReleaseNotes` refuses to save one.
 **The word that reverts it:** render. If bold in the notes ever earns its keep, the change is to
 give the panel a markdown renderer plus a sanitiser, drop `assertRenderable` from the finalise
 path, and keep the shared extractor — the joining half of the module survives either way.
+
+## 2026-09-06 — the base checkout goes back on `dev`, and the outstanding work goes to staging
+
+`/home/tomcassidy/ssi-learning-app` — the checkout the deploy sentinel runs out of AND the base
+every SSi worker worktree is cloned from — had been on no branch at all since 2026-08-20, because
+the sentinel's sync step ran `git checkout -qf --detach FETCH_HEAD` every three minutes. Asked
+whether that was deliberate, Tom ruled: *"not deliberate, I have no idea, but we should have merged
+everything to staging anyway."*
+
+**The detachment.** It was reasoned, not accidental: detaching guarantees no branch pointer moves,
+so the clone's own branches and its ~22 worktrees are safe. That guarantee is kept without the
+detachment by advancing `dev` **fast-forward-only** — only `dev` moves, only forwards, and only when
+git can do it. Attach failure and ff failure both log and carry on, so the invariant that an update
+failure never silences the watchman is unchanged. Nothing existed only in that checkout: it was
+bit-identical to `origin/dev` with a clean tree; its two local-only commits were a scratch
+main∪dev probe (left alone) and an unpushed README/CLAUDE.md docs fix (merged here).
+
+**The sweep.** Twenty-three unlanded branches — pod carry/ratchet restores, the Layer-1 census, the
+Android field-test build and its WebView shim, the cold-start fixes, the iOS scaffold, and the
+India/environment/identity design docs — were merged to `dev` and promoted to `staging`. Four were
+left where they are, each for a reason that is a finding rather than a chore: `cs/595` (two
+independent suites collide in one authz test file), `cs/680` (predates the #672 cup fallback it
+would clobber), `perf/journey-baseline` (its i18n key work is superseded — dev's locales carry 702
+keys to that branch's 365), and `cs/551` plus its four area branches (characterization tests that
+pin code dev has since fixed).
+
+**What the sweep caught that no single branch could.** #701 added a second inline script to
+`index.html` while the CSP hash guard asserted there was exactly one. Each branch was green alone.
+Together they exposed a real gap: the shim's hash was missing from the policy, so promoting CSP from
+Report-Only to enforced would have blocked the very shim that lets Android WebView 80-91 boot.
+
+**The word that reverts it:** detach. If keeping the sentinel's checkout on a branch ever costs more
+than it is worth, the change is three lines in `tools/deploy-sentinel/run.sh` and one field in
+`command-surface/ops/serving-refs.json`.
