@@ -45,7 +45,8 @@
  *     trans slot (target, target, target); the slot is never silenced.
  *   • CUP FALLBACK (Tom, 2026-09-06): a cup plays EITHER the seed itself
  *     (any target voice), OR — when the seed has no target audio at all — the
- *     longest fully-audio'd phrase from the seed's LAST LEGO's basket, derived
+ *     fully-audio'd phrase of the seed's LAST LEGO's basket covering the most
+ *     of the seed's own LEGO set (Tom's v2 ruling, 2026-09-06), derived
  *     at init (deriveSeedFallbackAudio). A seed with neither skips as before.
  *     Invisible on courses with complete seed audio; exists so a mid-changeover
  *     course (Welsh, 2026-09) still pours real cups with zero new recording.
@@ -537,7 +538,7 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
   const isLoading = ref(false)
   const seeds = shallowRef<Map<number, L1SeedRow>>(new Map())
   /** seedNum → substitute sandwich for seeds with NO target audio of their
-   *  own — the longest last-LEGO basket phrase (Tom's cup-fallback ruling,
+   *  own — the most-seed-LEGO-covering last-LEGO basket phrase (Tom's cup-fallback ruling,
    *  2026-09-06; see deriveSeedFallbackAudio). Empty on courses with full
    *  seed audio, so the fallback is invisible there. */
   const fallbackAudio = shallowRef<Map<number, L1SeedAudio>>(new Map())
@@ -827,8 +828,9 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
     const seedMap = seeds.value
     const plays: L1Play[] = []
     for (const sNum of cupSeeds) {
-      // The seed itself when it has any target audio; else the longest phrase
-      // of its last LEGO's basket (Tom's cup-fallback ruling, 2026-09-06);
+      // The seed itself when it has any target audio; else the phrase of its
+      // last LEGO's basket covering the most of the seed's LEGO set (Tom's
+      // cup-fallback ruling v2, 2026-09-06);
       // else skip, exactly as before — never a play that can't resolve.
       const audio = seedOwnAudio(seedMap.get(sNum)) ?? fallbackAudio.value.get(sNum)
       if (!audio) continue
@@ -895,7 +897,7 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
     const seedMap = seeds.value
     const plays: L1Play[] = []
     for (const sNum of order.slice(0, 4)) {
-      // Same seed-or-longest-phrase resolution as nextLap — a preview that
+      // Same seed-or-fallback-phrase resolution as nextLap — a preview that
       // behaves differently from production misleads whoever is watching it.
       const audio = seedOwnAudio(seedMap.get(sNum)) ?? fallbackAudio.value.get(sNum)
       if (!audio) continue
