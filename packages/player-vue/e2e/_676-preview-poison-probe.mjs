@@ -126,7 +126,26 @@ const chips = await page.locator('.map-chip').evaluateAll((els) => els.map((e) =
 chips.forEach((c,i)=>console.log(`  chip${i}: ${c.cls} | ${c.title}`))
 const oi = chips.findIndex((c) => /orange/i.test(c.title||''))
 await page.locator('.map-chip').nth(oi).click()
-await page.waitForTimeout(15000)
+// The waiting toast shows for 8s from the first unlanded attempt — shoot it
+// while it is up, with the belt pill and the Easy/Fast control both on screen.
+await page.waitForTimeout(2500)
+const tip = page.locator('.belt-waiting-tip, .mode-tip').first()
+if (await tip.count()) {
+  const box = await tip.boundingBox()
+  console.log('WAITING TOAST:', JSON.stringify(await tip.textContent()))
+  console.log('  box:', JSON.stringify(box), 'viewport 393x851')
+  const clipped = await tip.evaluate((el) => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1)
+  const z = await tip.evaluate((el) => getComputedStyle(el).zIndex)
+  console.log('  clipped:', clipped, '| z-index:', z)
+  const covered = await tip.evaluate((el) => {
+    const b = el.getBoundingClientRect()
+    const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)
+    return hit === el || el.contains(hit) ? null : (hit?.className || hit?.tagName || 'unknown')
+  })
+  console.log('  covered by:', covered ?? 'nothing — the toast is the topmost element at its own centre')
+} else { console.log('WAITING TOAST: not shown') }
+await page.screenshot({ path: `${OUT}B-waiting-toast.png` })
+await page.waitForTimeout(12500)
 await page.screenshot({ path: `${OUT}B-after-orange.png` })
 
 // ACCEPTANCE: does Orange-belt content actually DOWNLOAD and PLAY?
