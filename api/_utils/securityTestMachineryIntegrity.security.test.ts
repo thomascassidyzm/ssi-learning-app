@@ -132,6 +132,7 @@ describe('security-test machinery integrity — pinned roster', () => {
     'api/billing/bindingLadder.security.test.ts',
     'api/code/redeemPrivilegeReach.security.test.ts',
     'api/courses/edgeCacheKeying.security.test.ts',
+    'api/courses/entitlementVary.security.test.ts',
     'api/courses/roundMap.security.test.ts',
     'api/groups/groupsErrorLeakage.security.test.ts',
     'api/me/standing.security.test.ts',

@@ -145,7 +145,7 @@ function shippableWebviewBuildGuard(mode) {
 export default defineConfig(({ mode }) => ({
   server: {
     proxy: {
-      '/api': { target: 'https://ssi-learning-app-git-dev-zenjin.vercel.app', changeOrigin: true },
+      '/api': { target: process.env.API_PROXY_TARGET || 'https://ssi-learning-app-git-dev-zenjin.vercel.app', changeOrigin: true },
     },
   },
   plugins: [
