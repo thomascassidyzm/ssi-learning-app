@@ -23,6 +23,10 @@ vi.mock('../_utils/schoolNode', () => ({
 
 let writes: Record<string, any[]>
 let tagError: { code?: string; message?: string } | null
+// What the 23505 VERIFY re-read finds (see ensureSchoolAdminTag): an ACTIVE tag
+// already holding the key is the idempotent no-op; a REMOVED one holding it
+// means the grant silently did not happen and must be reported.
+let activeTagAfter23505: boolean
 
 function makeChainable(table: string) {
   const builder: any = {
@@ -35,6 +39,11 @@ function makeChainable(table: string) {
     delete: () => { writes[table] = writes[table] || []; writes[table].push({ op: 'delete' }); return builder },
     select: () => builder,
     eq: () => builder,
+    is: () => builder,
+    maybeSingle: () =>
+      Promise.resolve(
+        table === 'user_tags' && activeTagAfter23505 ? { data: { id: 'tag-1' }, error: null } : { data: null, error: null },
+      ),
     single: () =>
       Promise.resolve(
         table === 'schools'
@@ -65,6 +74,7 @@ beforeEach(async () => {
   vi.resetModules()
   writes = {}
   tagError = null
+  activeTagAfter23505 = true
   handler = (await import('./create-school')).default
 })
 
@@ -98,10 +108,26 @@ describe('POST /api/admin/create-school', () => {
     expect((writes.schools || []).some((w) => w.op === 'delete')).toBe(false)
   })
 
-  it('a 23505 on the tag is an idempotent no-op, not a failure', async () => {
+  it('a 23505 on the tag with an ACTIVE tag already present is an idempotent no-op, not a failure', async () => {
     tagError = { code: '23505', message: 'duplicate key value' }
     const res = makeRes()
     await handler(req, res)
     expect(res._status).toBe(200)
+  })
+
+  it('a 23505 where a REMOVED tag holds the key still returns 200 — the school stands, the tag failure is non-fatal and reported', async () => {
+    // ensureSchoolAdminTag now returns a loud error string in this case rather
+    // than silently claiming success. School creation treats a tag failure as
+    // non-fatal and healable, so the status stays 200 and the school is not
+    // rolled back — but the error is no longer invisible to the caller.
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    tagError = { code: '23505', message: 'duplicate key value' }
+    activeTagAfter23505 = false
+    const res = makeRes()
+    await handler(req, res)
+    expect(res._status).toBe(200)
+    expect((writes.schools || []).some((w) => w.op === 'delete')).toBe(false)
+    expect(errSpy).toHaveBeenCalled()
+    errSpy.mockRestore()
   })
 })
