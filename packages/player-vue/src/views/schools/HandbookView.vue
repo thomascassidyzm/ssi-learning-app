@@ -201,7 +201,7 @@ function goTo(entry: HandbookEntry): string | null {
 }
 .entry-p { margin: 0; color: var(--schools-fg-2, #555); font-size: var(--text-sm); line-height: 1.6; }
 .entry-p :deep(strong), .entry-steps :deep(strong) { color: var(--schools-fg, #0F1212); font-weight: var(--font-semibold); }
-.entry-steps { margin: 0; padding-left: 1.2em; color: var(--schools-fg-2, #555); font-size: var(--text-sm); line-height: 1.6; }
+.entry-steps { margin: 0; padding-left: 1.4em; list-style: decimal; color: var(--schools-fg-2, #555); font-size: var(--text-sm); line-height: 1.6; }
 .entry-steps li { margin-bottom: 2px; }
 .entry-goto { margin-top: var(--space-4); align-self: flex-start; text-decoration: none; }
 </style>
