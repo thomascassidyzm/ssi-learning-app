@@ -1,0 +1,33 @@
+{
+  "id": "give-a-class-its-course",
+  "title": "Give a class its course",
+  "section": "courses-and-content",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "setup"
+  },
+  "anchor": "setup-class-course",
+  "keywords": [
+    "course",
+    "class",
+    "assign",
+    "choose",
+    "language",
+    "which",
+    "search",
+    "picker"
+  ],
+  "handbook": {
+    "what": "Picking the language a class is learning. This is how a course reaches learners at all — a course does not belong to a person, it belongs to a class, and everybody in that class practises it.",
+    "where": "On each class row, the **Choose course** picker beside the class name.",
+    "how": [
+      "Tap **Choose course** on the class row.",
+      "Start typing a language to narrow the list — the catalogue runs to dozens of courses.",
+      "Pick the one you want. Where a language offers more than one version, the versions differ by region or accent.",
+      "Save the class, and everyone who joins it lands in that course."
+    ],
+    "note": "The list here is whatever you left ticked at the Choose courses step. If a course you expect is missing, go back a step and tick it."
+  }
+}

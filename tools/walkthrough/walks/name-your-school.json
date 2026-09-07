@@ -1,0 +1,32 @@
+{
+  "id": "name-your-school",
+  "title": "Name your school",
+  "section": "your-school",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "setup"
+  },
+  "anchor": "setup-school-name",
+  "keywords": [
+    "school",
+    "name",
+    "rename",
+    "title",
+    "setup",
+    "step 1",
+    "first"
+  ],
+  "handbook": {
+    "what": "Telling the app what your school is actually called. The name you type here is the one your teachers and students see on every page, on every invite link they open, and at the top of every report.",
+    "where": "Step one of first-time setup, the box marked **School name**.",
+    "how": [
+      "Open first-time setup and stay on step one.",
+      "Type your school's name as you would write it on a letterhead.",
+      "Tap **Continue** — the name is saved before the next step opens.",
+      "If you have just arrived and the box is empty for a second, give it a moment and press **Continue** again."
+    ],
+    "note": "Typing it here counts as confirming it, so you will not be asked to confirm your school's name again afterwards. To change it later, use School profile in Settings."
+  }
+}

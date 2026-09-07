@@ -1,0 +1,33 @@
+{
+  "id": "delete-your-school",
+  "title": "Delete your school",
+  "section": "your-school",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "settings"
+  },
+  "anchor": "settings-delete-school",
+  "keywords": [
+    "delete",
+    "remove",
+    "close",
+    "school",
+    "danger",
+    "permanent",
+    "undo"
+  ],
+  "handbook": {
+    "what": "Closing your school down for good. It removes the school itself along with its classes and everybody's enrolment in them, and it cannot be undone.",
+    "where": "Settings, then Data & privacy, at the bottom under Danger zone.",
+    "how": [
+      "Open Settings and choose Data & privacy.",
+      "Scroll to Danger zone and tap **Delete school**.",
+      "Read what the app lists as going with it — classes, students, teachers and recorded sessions are each counted for you.",
+      "If the school has real activity in it, type the school's name exactly to confirm you mean it.",
+      "Confirm. You are signed out to a clean slate, because the account you were using belonged to a school that no longer exists."
+    ],
+    "note": "Only your own school can be deleted this way, and only by its admin. A school with nothing in it deletes without the typed confirmation; one with students and sessions always asks for it."
+  }
+}

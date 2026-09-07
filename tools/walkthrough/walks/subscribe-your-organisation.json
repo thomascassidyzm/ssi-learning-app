@@ -1,0 +1,35 @@
+{
+  "id": "subscribe-your-organisation",
+  "title": "Subscribe your organisation",
+  "section": "your-school",
+  "personas": [
+    "leader"
+  ],
+  "place": {
+    "route": "upgrade"
+  },
+  "anchor": "upgrade-subscribe-org",
+  "keywords": [
+    "subscribe",
+    "pay",
+    "upgrade",
+    "organisation",
+    "org",
+    "seats",
+    "learner seats",
+    "group",
+    "monthly",
+    "annual"
+  ],
+  "handbook": {
+    "what": "Putting your whole organisation on a paid plan. You pay per learner seat, and one subscription covers every seat and every language across the group.",
+    "where": "The **Upgrade** button on your organisation's dashboard.",
+    "how": [
+      "Open the Upgrade page.",
+      "Choose Monthly or Annual — annual works out at two months free per seat.",
+      "Set the number of learner seats with the stepper. It opens at the number of people already joined.",
+      "Tap **Subscribe** and fill in the card details on the payment panel that opens on the page."
+    ],
+    "note": "A seat belongs to one named learner for the whole period you have paid for, so plan the count against the people you expect rather than swapping seats between them mid-term. You can add more seats at any time."
+  }
+}

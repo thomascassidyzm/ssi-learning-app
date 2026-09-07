@@ -209,7 +209,7 @@ watch(currentUser, (u) => {
         <button type="button" class="btn-ghost" :disabled="!filteredSchools.length" @click="handleExport">
           Export
         </button>
-        <button v-if="!isAdminView" type="button" class="btn-play" @click="openAddModal">+ Add school</button>
+        <button v-if="!isAdminView" type="button" class="btn-play" data-walk="verb-add-school" @click="openAddModal">+ Add school</button>
       </div>
     </div>
 
@@ -271,7 +271,7 @@ watch(currentUser, (u) => {
         </div>
       </div>
 
-      <table class="ssi-table">
+      <table class="ssi-table" data-walk="schools-list-table">
         <thead>
           <tr>
             <th>School</th>
@@ -312,7 +312,7 @@ watch(currentUser, (u) => {
                 <span class="schools-subtle">{{ school.health.replace('-', ' ') }}</span>
               </span>
             </td>
-            <td class="links-cell" @click.stop>
+            <td class="links-cell" data-walk="schools-list-link-chips" @click.stop>
               <button
                 type="button"
                 class="link-chip"

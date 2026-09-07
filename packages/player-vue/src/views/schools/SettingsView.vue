@@ -412,7 +412,7 @@ function toggleDataItem(id: string) {
           </label>
           <p v-if="!canEditSchool" class="field-hint">Only a school admin can edit the school profile.</p>
           <div v-if="canEditSchool" class="panel-actions">
-            <button type="button" class="btn-play" :disabled="profileSaveStatus === 'saving'" @click="saveSchoolProfile">
+            <button type="button" class="btn-play" data-walk="settings-save-profile" :disabled="profileSaveStatus === 'saving'" @click="saveSchoolProfile">
               {{ profileSaveStatus === 'saving' ? 'Saving…' : profileSaveStatus === 'saved' ? 'Saved' : 'Save changes' }}
             </button>
             <button type="button" class="btn-ghost">Cancel</button>
@@ -464,7 +464,7 @@ function toggleDataItem(id: string) {
             </button>
           </div>
           <div v-if="!isAdminView" class="panel-actions">
-            <button type="button" class="btn-play" :disabled="localizationSaveStatus === 'saving'" @click="saveLocalization">
+            <button type="button" class="btn-play" data-walk="settings-localisation-save" :disabled="localizationSaveStatus === 'saving'" @click="saveLocalization">
               {{ localizationSaveStatus === 'saving' ? 'Saving…' : localizationSaveStatus === 'saved' ? 'Saved' : 'Save changes' }}
             </button>
           </div>
@@ -492,7 +492,7 @@ function toggleDataItem(id: string) {
             </button>
           </div>
           <div class="panel-actions data-actions">
-            <button type="button" class="btn-ghost" :disabled="isExporting" @click="handleExportData">
+            <button type="button" class="btn-ghost" data-walk="settings-export-data" :disabled="isExporting" @click="handleExportData">
               {{ isExporting ? 'Preparing…' : 'Download all data (.csv)' }}
             </button>
           </div>
@@ -504,7 +504,7 @@ function toggleDataItem(id: string) {
                 <div class="toggle-title">Delete this school</div>
                 <div class="toggle-desc">Permanently deletes the school, its classes and enrolments. Cannot be undone.</div>
               </div>
-              <button type="button" class="btn-danger" @click="openDeleteSchoolModal">Delete school</button>
+              <button type="button" class="btn-danger" data-walk="settings-delete-school" @click="openDeleteSchoolModal">Delete school</button>
             </div>
           </div>
         </section>

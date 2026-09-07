@@ -22,7 +22,7 @@ const emit = defineEmits<{ (e: 'open-portal'): void }>()
 <template>
   <section class="schools-card schools-card-pad panel">
           <h2 class="arsenal panel-title">Billing</h2>
-          <div class="plan-card">
+          <div class="plan-card" data-walk="settings-billing-plan">
             <div class="schools-kicker plan-kicker">Current plan</div>
             <div class="arsenal plan-title">{{ planLine }}</div>
             <div class="plan-meta">£{{ PRICE_PER_SEAT_GBP }} per teacher seat / month.</div>

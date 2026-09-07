@@ -397,6 +397,7 @@ onMounted(() => {
               <span class="field-label">School name</span>
               <input
                 v-model="schoolName"
+                data-walk="setup-school-name"
                 type="text"
                 class="field-input"
                 placeholder="e.g. Ysgol Bro Banw"
@@ -415,7 +416,7 @@ onMounted(() => {
             app does the teaching, so a teacher doesn't need to speak the language.
           </p>
 
-          <div v-if="teacherJoinCode" class="join-code-callout">
+          <div v-if="teacherJoinCode" class="join-code-callout" data-walk="setup-staff-links">
             <InviteLinkField label="Teacher invite link" :url="inviteUrl(teacherJoinCode)" />
             <InviteLinkField v-if="adminJoinCode" label="Admin invite link" :url="inviteUrl(adminJoinCode)" />
           </div>
@@ -448,7 +449,7 @@ onMounted(() => {
             and we'll sort it out. You can continue and add classes once courses are available.
           </div>
 
-          <div v-else class="course-grid">
+          <div v-else class="course-grid" data-walk="setup-course-picker">
             <label
               v-for="grant in effectiveCourseGrants"
               :key="grant.course_code"
@@ -516,7 +517,7 @@ onMounted(() => {
                 placeholder="Class name"
                 :disabled="draft.saved"
               />
-              <span class="select-wrap field-input-flex">
+              <span class="select-wrap field-input-flex" data-walk="setup-class-course">
                 <FrostSelect
                   v-model="draft.course_code"
                   :options="courseSelectOptions"
@@ -541,7 +542,7 @@ onMounted(() => {
                 </svg>
               </button>
             </div>
-            <button type="button" class="btn-ghost btn-add" @click="addClassRow">
+            <button type="button" class="btn-ghost btn-add" data-walk="setup-add-class-row" @click="addClassRow">
               + Add another class
             </button>
           </div>
@@ -560,7 +561,7 @@ onMounted(() => {
             <span aria-hidden="true">&larr;</span> Back
           </button>
           <div class="step-nav-right">
-            <button type="button" class="btn-ghost" @click="handleSaveExit">
+            <button type="button" class="btn-ghost" data-walk="setup-save-exit" @click="handleSaveExit">
               Save &amp; exit
             </button>
             <button
