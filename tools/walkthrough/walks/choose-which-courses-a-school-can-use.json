@@ -1,0 +1,31 @@
+{
+  "id": "choose-which-courses-a-school-can-use",
+  "title": "Choose which courses a school can use",
+  "section": "courses-and-content",
+  "personas": [
+    "admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "anchor": "verb-courses",
+  "keywords": [
+    "courses",
+    "entitlement",
+    "trial",
+    "paid",
+    "access",
+    "catalogue"
+  ],
+  "handbook": {
+    "what": "Setting what a school or group is allowed to learn: the whole catalogue when they are paid up, or a named course or two while they are trialling.",
+    "where": "The node's home page, **Courses** along the top.",
+    "how": [
+      "Open the home page of the school or group.",
+      "Tap **Courses**.",
+      "Choose the whole catalogue, or search for the courses the trial should carry.",
+      "Save, and everyone below that node inherits it."
+    ],
+    "note": "A trial runs for thirty days on a paid course and a year on a free or community one, and the server works the dates out on save — what you see before saving is a preview."
+  }
+}

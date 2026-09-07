@@ -1,0 +1,30 @@
+{
+  "id": "add-a-school-under-a-group",
+  "title": "Add a school under a group",
+  "section": "your-school",
+  "personas": [
+    "admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "anchor": "verb-add-school",
+  "keywords": [
+    "school",
+    "add",
+    "create",
+    "group",
+    "structure"
+  ],
+  "handbook": {
+    "what": "Creating a school inside a group, so it has its own home page, its own staff and its own learners while still rolling up into whatever sits above it.",
+    "where": "The group's home page, **Add a school** along the top.",
+    "how": [
+      "Open the home page of the group the school belongs under.",
+      "Tap **Add a school**.",
+      "Type the school's name.",
+      "Tap **Add**, and the school appears in the list below."
+    ],
+    "note": "The verb only shows on a plain group. A school cannot contain another school, and an organisation using the neutral wording has groups rather than schools all the way down."
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "id": "remove-a-teacher-from-your-school",
+  "title": "Remove a teacher from your school",
+  "section": "getting-people-in",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "teachers"
+  },
+  "anchor": "teacher-remove",
+  "keywords": [
+    "remove",
+    "teacher",
+    "leaver",
+    "staff",
+    "delete"
+  ],
+  "handbook": {
+    "what": "Taking a teacher off your school when they leave. Their own account survives — what goes is their place in this school and their view of its classes and learners.",
+    "where": "The **Teachers** page, the **Remove** button on that teacher's row.",
+    "how": [
+      "Find the teacher in the list.",
+      "Tap **Remove** on their row.",
+      "Confirm when asked for their name back.",
+      "The list refreshes without them."
+    ],
+    "note": "An admin's row carries no **Remove** button, so a school can never lose its own admin through this list. Change their role first if that is really what you want."
+  }
+}

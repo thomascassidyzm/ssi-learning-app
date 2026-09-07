@@ -418,6 +418,7 @@ watch(selectedUser, (newUser) => {
                 v-if="canManageStaff && t.role !== 'Admin'"
                 type="button"
                 class="btn-ghost btn-small remove-btn"
+                data-walk="teacher-remove"
                 @click="handleRemoveTeacher(t.user_id, t.name)"
               >
                 Remove
@@ -468,7 +469,7 @@ watch(selectedUser, (newUser) => {
         <p class="join-body">
           Share this link however you reach your staff — Teams, WhatsApp, in person. Clicking it signs them straight in.
         </p>
-        <InviteLinkField :url="teacherJoinLink" />
+        <InviteLinkField :url="teacherJoinLink" data-walk="teachers-invite-link" />
 
         <button
           v-if="!showCode"

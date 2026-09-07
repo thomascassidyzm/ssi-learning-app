@@ -1,0 +1,33 @@
+{
+  "id": "make-a-link-anyone-can-use",
+  "title": "Make a link anyone can use",
+  "section": "getting-people-in",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "anchor": "verb-shareable-link",
+  "keywords": [
+    "shareable",
+    "link",
+    "join",
+    "open",
+    "role",
+    "bulk"
+  ],
+  "handbook": {
+    "what": "One link, by role, that you can put in a newsletter or on a slide and let a whole room use. Unlike a personal invite it is not tied to anybody, so new arrivals type their own name before they are in.",
+    "where": "The node's home page, **Get a shareable link** along the top.",
+    "how": [
+      "Open the home page of the group, school or organisation they should join.",
+      "Tap **Get a shareable link**.",
+      "Pick the role everyone using it will arrive as.",
+      "Tap **Create invite link** and copy what comes back."
+    ],
+    "note": "It is open to anyone holding it, so when a link has travelled further than you meant, revoke it in **Ways in** and make a fresh one. Use **Invite a person** instead when you can name who is coming."
+  }
+}

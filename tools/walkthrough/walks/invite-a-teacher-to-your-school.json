@@ -1,0 +1,32 @@
+{
+  "id": "invite-a-teacher-to-your-school",
+  "title": "Invite a teacher to your school",
+  "section": "getting-people-in",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "teachers"
+  },
+  "anchor": "teachers-invite-link",
+  "keywords": [
+    "teacher",
+    "invite",
+    "link",
+    "staff",
+    "join",
+    "code"
+  ],
+  "handbook": {
+    "what": "One standing link that turns anyone who opens it into a teacher of your school. It is the same link every time, so you can hand it to a whole staff room at once.",
+    "where": "The **Teachers** page, the **Invite teachers** card below the list.",
+    "how": [
+      "Open **Teachers**.",
+      "Scroll to the **Invite teachers** card.",
+      "Tap **Copy invite link**.",
+      "Send it however you reach your staff — Teams, WhatsApp, printed on a slip.",
+      "They open it, sign in once, and appear in your list as a teacher."
+    ],
+    "note": "If you are standing in front of them rather than sending anything, **Show code instead** gives you a short code to read out or write on a whiteboard, and they type it in at saysomethingin.com/redeem."
+  }
+}
