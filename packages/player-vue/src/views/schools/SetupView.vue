@@ -45,13 +45,14 @@ import { getLanguageName } from '@/composables/useI18n'
 import { courseShortName } from '@ssi/core'
 import FrostSelect from '@/components/FrostSelect.vue'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
+import { preselectedCourseCode } from './setupCoursePreselect'
 
 const router = useRouter()
 const supabase = inject('supabase', ref(null)) as any
 const { currentUser } = useSchoolContext()
 const { activeSchool, currentSchool, fetchSchools } = useSchoolData()
 const { classes, fetchClasses, createClass, error: classesError } = useClassesData()
-const { availableCourses: effectiveCourseGrants, fetchCatalogue, loadSchoolPlatformState } = useSchoolCourseCatalogue()
+const { availableCourses: effectiveCourseGrants, schoolTrialCourse, fetchCatalogue, loadSchoolPlatformState } = useSchoolCourseCatalogue()
 const { teachers, fetchTeachers } = useTeachersData()
 
 interface Step {
@@ -212,7 +213,7 @@ const draftClasses = ref<DraftClass[]>([
 ])
 
 function addClassRow() {
-  draftClasses.value.push({ class_name: '', course_code: '', saved: false })
+  draftClasses.value.push({ class_name: '', course_code: signupCourseCode.value || '', saved: false })
 }
 
 function removeClassRow(index: number) {
@@ -234,6 +235,26 @@ const availableCoursesForClass = computed<CatalogueCourse[]>(() => {
 const courseSelectOptions = computed(() =>
   availableCoursesForClass.value.map(g => ({ value: g.course_code, label: courseDisplayName(g) })),
 )
+
+// The language this school chose at sign-up, read back from the one place it
+// was stored (schools.trial_course_code). The wizard opened its course picker
+// empty and asked "Choose course" of a head who answered that question at the
+// door ten minutes earlier (founder report, 2026-09-07). Preselected, never
+// locked: the picker still carries every course the school can use, filterable,
+// because a school on its free year will want other languages too.
+const signupCourseCode = computed(() =>
+  preselectedCourseCode(schoolTrialCourse.value, availableCoursesForClass.value),
+)
+
+// Fill only rows the head has not answered for themselves, and never touch a
+// saved one — a preselection that overwrites a real choice is worse than no
+// preselection at all.
+watch(signupCourseCode, (code) => {
+  if (!code) return
+  for (const draft of draftClasses.value) {
+    if (!draft.saved && !draft.course_code) draft.course_code = code
+  }
+}, { immediate: true })
 
 async function persistClasses(): Promise<boolean> {
   const school = activeSchool.value || currentSchool.value
