@@ -63,7 +63,10 @@ const STAFF_CAP = 8
 const OPEN_ROWS = 12
 const rowCount = computed(() => props.node.children.length + props.node.classes.length + props.node.staff.length)
 const hasBelow = computed(() => rowCount.value > 0 || props.node.hiddenGroups > 0)
-const open = ref(props.isRoot || rowCount.value <= OPEN_ROWS)
+// SHAPE FIRST: the top two levels open themselves, deeper ones wait to be
+// tapped. Seen live on the 13-node IME tree, opening everything unrolled 85
+// rows and buried the very structure the panel exists to show.
+const open = ref(props.isRoot || (props.depth < 2 && rowCount.value <= OPEN_ROWS))
 const showAllClasses = ref(false)
 const shownClasses = computed(() =>
   showAllClasses.value ? props.node.classes : props.node.classes.slice(0, CLASS_CAP))
@@ -80,6 +83,9 @@ const empty = computed(() => isEmptyNode(props.node))
 function openNode(): void {
   if (props.isRoot) return
   router.push(groupHomePath(props.node.id, member.value))
+}
+function initial(name: string): string {
+  return (name.trim()[0] || '?').toUpperCase()
 }
 function openClass(id: string): void {
   router.push(classHomePath(id, member.value))
@@ -160,7 +166,7 @@ function openClass(id: string): void {
         <span class="tree-rails" aria-hidden="true">
           <span v-for="i in depth + 1" :key="i" class="rail"></span>
         </span>
-        <span class="tree-caret is-leaf" aria-hidden="true"></span>
+        <span class="tree-person-dot" aria-hidden="true">{{ initial(p.name) }}</span>
         <span class="tree-name is-person-name">{{ p.name }}</span>
         <button
           v-if="personActionLabel"
@@ -289,6 +295,20 @@ function openClass(id: string): void {
   padding-left: var(--space-3, 12px);
   font-size: var(--text-xs);
   color: var(--schools-fg-3, #8A8078);
+}
+
+/* A person is not a class. The page already speaks in initialled avatars, so
+   people carry a small quiet one and read as people at a glance — without it,
+   live on the IME tree, "Anjali Das" and "Y7 English" were the same row. */
+.tree-person-dot {
+  flex: none;
+  width: 22px; height: 22px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: rgba(44, 38, 34, 0.07);
+  color: var(--schools-fg-3, #8A8078);
+  font-size: 10px;
+  font-weight: var(--font-semibold);
 }
 
 .tree-person-action {

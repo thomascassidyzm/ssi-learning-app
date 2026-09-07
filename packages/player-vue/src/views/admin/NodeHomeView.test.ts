@@ -164,6 +164,33 @@ describe('NodeHomeView — one grammar at every level', () => {
       .toEqual(['NPTC Group', 'All Learners', 'AS Tutorial 1', 'karen.jones'])
   })
 
+  it('SHAPE FIRST: the top two levels open themselves, deeper ones wait for a tap', async () => {
+    routeMock.params = { id: 'nation2' }
+    setupFetch({
+      kind: 'node',
+      node: { id: 'nation2', name: 'Nation', label: 'nation', is_demo: false, hasSchool: false, rollup: { childGroupCount: 1, teacherCount: 0, classCount: 1, learnerCount: 9 }, commercial: null },
+      ancestors: [], siblings: [], children: [],
+      tree: {
+        nodes: [
+          { id: 'region', name: 'Region', label: 'region', parentId: 'nation2', rollup: { childGroupCount: 1, learnerCount: 9 } },
+          { id: 'school', name: 'A School', label: 'school', parentId: 'region', hasSchool: true, rollup: { childGroupCount: 0, learnerCount: 9 } },
+        ],
+        classes: [{ id: 'c1', name: 'Year 5', nodeId: 'school', teachers: [], studentCount: 9 }],
+        staff: [],
+      },
+      practiceHours: 0,
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    // Depth 0 and 1 draw themselves; the school at depth 2 is closed, so its
+    // class waits behind one tap.
+    expect(wrapper.findAll('.tree-name').map((n) => n.text())).toEqual(['Nation', 'Region', 'A School'])
+    const schoolCaret = wrapper.findAll('.tree-caret').filter((c) => c.attributes('aria-expanded') === 'false')[0]
+    await schoolCaret.trigger('click')
+    expect(wrapper.findAll('.tree-name').map((n) => n.text())).toEqual(['Nation', 'Region', 'A School', 'Year 5'])
+  })
+
   it('SCALE (the biggest real structures): 49 classes and 39 staff on one node degrade by cap-and-reveal, not by scroll', async () => {
     routeMock.params = { id: 'big' }
     setupFetch({
