@@ -1,0 +1,31 @@
+{
+  "id": "copy-a-class-link-from-the-list",
+  "title": "Copy a class link without opening the class",
+  "section": "getting-people-in",
+  "personas": [
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "classes"
+  },
+  "anchor": "classes-share-link",
+  "keywords": [
+    "copy",
+    "link",
+    "share",
+    "join",
+    "classes"
+  ],
+  "handbook": {
+    "what": "Grabbing a class's join link straight from the class list, for when you are sending links to several classes in one sitting.",
+    "where": "**My Classes**, the **Copy link** button in each row.",
+    "how": [
+      "Open **My Classes**.",
+      "Find the class's row.",
+      "Tap **Copy link**.",
+      "Paste it into your email or your lesson slide."
+    ],
+    "note": "It is the same link the class page offers, so a student who follows it lands in that class either way."
+  }
+}

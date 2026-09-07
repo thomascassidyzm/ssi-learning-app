@@ -1,0 +1,31 @@
+{
+  "id": "play-a-class-from-the-list",
+  "title": "Start a class session from the list",
+  "section": "running-classes",
+  "personas": [
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "classes"
+  },
+  "anchor": "classes-row-play",
+  "keywords": [
+    "play",
+    "session",
+    "class",
+    "start",
+    "lesson"
+  ],
+  "handbook": {
+    "what": "Starting a shared practice session for a class without opening the class first. Your device leads and the whole class moves together from where the class last got to.",
+    "where": "**My Classes**, the **Play as class** button at the end of the class's row.",
+    "how": [
+      "Open **My Classes**.",
+      "Find the class you are about to teach.",
+      "Tap **Play as class** at the end of its row.",
+      "The player opens on that class's course, at the class's own place in it."
+    ],
+    "note": "It is the same session the class page starts, so it moves the class on for everyone on the roster. Only school staff see this button, and only on a live account rather than a read-only view."
+  }
+}

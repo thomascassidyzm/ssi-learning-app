@@ -671,6 +671,7 @@ const deleteImpactLines = computed(() => {
             type="button"
             title="Rename class"
             aria-label="Rename class"
+            data-walk="class-rename"
             @click="renameClass"
             style="margin-left:10px;background:none;border:none;cursor:pointer;color:var(--schools-fg-3);vertical-align:middle;padding:4px;"
           >
@@ -681,6 +682,7 @@ const deleteImpactLines = computed(() => {
             type="button"
             title="Delete class"
             aria-label="Delete class"
+            data-walk="class-delete"
             @click="openDeleteModal"
             style="margin-left:2px;background:none;border:none;cursor:pointer;color:var(--schools-fg-3);vertical-align:middle;padding:4px;"
           >
@@ -839,7 +841,7 @@ const deleteImpactLines = computed(() => {
       </div>
 
     <div class="body-grid">
-      <section class="roster schools-card">
+      <section class="roster schools-card" data-walk="class-roster">
         <header class="roster-head">
           <h3 class="arsenal roster-title">Roster</h3>
           <div class="roster-tools">
@@ -892,6 +894,7 @@ const deleteImpactLines = computed(() => {
                     v-if="!isAdminView"
                     type="button"
                     class="btn-ghost btn-small remove-btn"
+                    data-walk="class-student-remove"
                     @click="handleRemoveStudent({ user_id: s.user_id, name: s.name })"
                   >
                     Remove
@@ -916,7 +919,7 @@ const deleteImpactLines = computed(() => {
       </section>
 
       <aside class="rail" :class="{ 'rail-first': rosterObservedEmpty }">
-        <div class="schools-card schools-card-pad rail-card">
+        <div class="schools-card schools-card-pad rail-card" data-walk="class-journey">
           <div class="schools-kicker rail-kicker">Course Journey</div>
           <JourneyBar :done="journeyDone" :total="journeyTotal" label="Course Journey" />
           <p class="rail-note">

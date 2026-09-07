@@ -1,0 +1,32 @@
+{
+  "id": "remove-a-student-from-a-class",
+  "title": "Remove a student from a class",
+  "section": "running-classes",
+  "personas": [
+    "leader",
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "class-detail"
+  },
+  "anchor": "class-student-remove",
+  "keywords": [
+    "remove",
+    "student",
+    "roster",
+    "leave",
+    "class"
+  ],
+  "handbook": {
+    "what": "Taking a student off a class roster, for a pupil who has changed set or joined the wrong class from a shared link.",
+    "where": "The class page, the **Remove** button at the end of the student's row in the roster.",
+    "how": [
+      "Open the class from **My Classes**.",
+      "Find the student in the roster.",
+      "Tap **Remove** at the end of their row.",
+      "Confirm when asked."
+    ],
+    "note": "The student keeps their account and everything they have learned, and they can join another class straight away. Only their place on this roster goes."
+  }
+}
