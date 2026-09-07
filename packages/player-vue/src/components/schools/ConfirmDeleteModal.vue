@@ -21,8 +21,17 @@ const props = defineProps({
   submitting: { type: Boolean, default: false },
   error: { type: String, default: '' },
   // Verb on the danger button — e.g. "Purge" for the demo-org purge flow.
-  confirmLabel: { type: String, default: () => t('schools.ui.confirmDelete.defaultConfirmLabel', 'Delete') },
+  confirmLabel: { type: String, default: '' },
 })
+
+/**
+ * The default verb is resolved here, not in the prop default. A prop default is
+ * hoisted outside setup(), so it cannot call t() — and a default evaluated once
+ * would freeze in English anyway, since the locale chunk is still loading then.
+ */
+const confirmLabelText = computed(
+  () => props.confirmLabel || t('schools.ui.confirmDelete.defaultConfirmLabel', 'Delete'),
+)
 
 const emit = defineEmits(['close', 'confirm'])
 
@@ -102,7 +111,7 @@ function handleConfirm() {
             <button type="button" class="btn-cancel" :disabled="submitting" @click="handleClose">{{ t('schools.ui.confirmDelete.cancel', 'Cancel') }}</button>
             <button type="button" class="btn-delete" :disabled="!canConfirm" @click="handleConfirm">
               <span v-if="submitting" class="btn-spinner"></span>
-              <span v-else>{{ confirmLabel }}</span>
+              <span v-else>{{ confirmLabelText }}</span>
             </button>
           </footer>
         </div>

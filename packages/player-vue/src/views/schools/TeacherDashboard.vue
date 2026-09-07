@@ -388,7 +388,7 @@ function exportCsv() {
              4. The file downloads with today's date in its name.
              Worth knowing. What you export is what you can see, so a filter applied to
              the table applies to the file as well.
-             checked: 3161edde.c8eed759
+             checked: 1bbce9a2.c8eed759
         -->
         <button data-walk="classes-export" v-if="enrichedClasses.length > 0" type="button" class="btn-ghost" @click="exportCsv">
           {{ t('schools.teacherDashboard.exportCsv', 'Export CSV') }}
@@ -412,7 +412,7 @@ function exportCsv() {
              5. Tap **Create Class**.
              Worth knowing. The join link is made for you at the same moment. Nothing
              else is needed to start teaching.
-             checked: c4f6df3b.f81ed3fe
+             checked: f400ae55.f81ed3fe
         -->
         <button v-if="!isAdminView" type="button" class="btn-play" data-walk="verb-new-class" @click="openCreateModal">
           + {{ t('schools.teacherDashboard.newClass', 'New class') }}
@@ -565,7 +565,7 @@ function exportCsv() {
                Worth knowing. The row is a button in its own right, so a keyboard
                works too. The buttons at the right of the row do their own jobs and
                do not open the class.
-               checked: 4366b552.5d707d0d
+               checked: 9d656f72.5d707d0d
           -->
           <tr
             v-for="cls in filtered"
@@ -617,7 +617,7 @@ function exportCsv() {
                    4. Paste it into your email or your lesson slide.
                    Worth knowing. It is the same link the class page offers, so a
                    student who follows it lands in that class either way.
-                   checked: 27669bfb.08226b73
+                   checked: 0500adc5.08226b73
               -->
               <button type="button" class="share-btn" data-walk="classes-share-link" @click.stop="copyShareLink(cls)" :title="shareUrlFor(cls)">
                 {{ copiedClassId === cls.id ? t('schools.teacherDashboard.copied', 'Copied ✓') : t('schools.teacherDashboard.copyLink', 'Copy link') }}
@@ -644,7 +644,7 @@ function exportCsv() {
                    so it moves the class on for everyone on the roster. Only
                    school staff see this button, and only on a live account
                    rather than a read-only view.
-                   checked: 9919331b.bd7d13d8
+                   checked: 20cba773.bd7d13d8
               -->
               <button v-if="canPlayAsClass" type="button" class="row-play-btn" data-walk="classes-row-play" @click.stop="handlePlayClass(cls)">▶ {{ t('schools.teacherDashboard.playAsClass', 'Play as class') }}</button>
             </td>

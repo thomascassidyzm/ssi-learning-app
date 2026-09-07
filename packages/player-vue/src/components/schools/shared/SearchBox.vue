@@ -21,12 +21,19 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   modelValue: '',
-  placeholder: () => t('schools.ui.searchBox.defaultPlaceholder', 'Search...'),
   block: false,
   size: 'md',
   autofocus: false,
   disabled: false,
 })
+
+/**
+ * The default label is resolved in a computed, not in withDefaults. A
+ * defineProps default is hoisted outside setup(), so it cannot call t() at
+ * all — and even where the compiler allows it, a default evaluated once would
+ * freeze in English, because on boot the locale chunk is still in flight.
+ */
+const placeholderText = computed(() => props.placeholder ?? t('schools.ui.searchBox.defaultPlaceholder', 'Search...'))
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
@@ -88,7 +95,7 @@ const classes = computed(() => [
       ref="inputRef"
       type="text"
       :value="modelValue"
-      :placeholder="placeholder"
+      :placeholder="placeholderText"
       :disabled="disabled"
       :autofocus="autofocus"
       class="search-input"

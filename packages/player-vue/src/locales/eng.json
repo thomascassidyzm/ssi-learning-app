@@ -396,7 +396,8 @@
     "whatShallWeCall": "What shall we call you?",
     "schoolInstitution": "School / institution",
     "eGYsgolGymraeg": "e.g. Ysgol Gymraeg…",
-    "canChangeTheseAnytime": "You can change these anytime in your settings."
+    "canChangeTheseAnytime": "You can change these anytime in your settings.",
+    "enterCodeSentTo": "Enter the 6-digit code we sent to {email}. It can take a couple of minutes to arrive."
   },
   "driving": {
     "exitDrivingMode": "Exit driving mode",

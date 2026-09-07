@@ -449,7 +449,7 @@ function toggleDataItem(id: string) {
                  Worth knowing. Only a school admin can edit this. A teacher
                  opening the same page sees the details but cannot change them.
                  Your school's type is set by your group administrator, not here.
-                 checked: 2aee237d.51c105f3
+                 checked: ac34d640.51c105f3
             -->
             <button type="button" class="btn-play" data-walk="settings-save-profile" :disabled="profileSaveStatus === 'saving'" @click="saveSchoolProfile">
               {{ profileSaveStatus === 'saving' ? t('schools.schoolSettings.saving', 'Saving…') : profileSaveStatus === 'saved' ? t('schools.schoolSettings.saved', 'Saved') : t('schools.schoolSettings.saveChanges', 'Save changes') }}
@@ -521,7 +521,7 @@ function toggleDataItem(id: string) {
                  Worth knowing. This is remembered on the device you set it on.
                  Teachers and students each choose their own, so setting it here
                  does not change what anybody else sees.
-                 checked: 1bcc02fa.ca2221e1
+                 checked: 0626c6d1.ca2221e1
             -->
             <button type="button" class="btn-play" data-walk="settings-localisation-save" :disabled="localizationSaveStatus === 'saving'" @click="saveLocalization">
               {{ localizationSaveStatus === 'saving' ? t('schools.schoolSettings.saving', 'Saving…') : localizationSaveStatus === 'saved' ? t('schools.schoolSettings.saved', 'Saved') : t('schools.schoolSettings.saveChanges', 'Save changes') }}
@@ -571,7 +571,7 @@ function toggleDataItem(id: string) {
                  Worth knowing. It is a snapshot of the moment you press the
                  button, not a live link. Download it again whenever you need
                  current figures.
-                 checked: 5d883f51.bdde1e52
+                 checked: da9d73ae.bdde1e52
             -->
             <button type="button" class="btn-ghost" data-walk="settings-export-data" :disabled="isExporting" @click="handleExportData">
               {{ isExporting ? t('schools.schoolSettings.preparing', 'Preparing…') : t('schools.schoolSettings.downloadAllData', 'Download all data (.csv)') }}
@@ -610,7 +610,7 @@ function toggleDataItem(id: string) {
                    and only by its admin. A school with nothing in it deletes
                    without the typed confirmation; one with students and sessions
                    always asks for it.
-                   checked: 79dfa3af.1ba6f4b2
+                   checked: 548d7ce1.1ba6f4b2
               -->
               <button type="button" class="btn-danger" data-walk="settings-delete-school" @click="openDeleteSchoolModal">{{ t('schools.schoolSettings.deleteSchool', 'Delete school') }}</button>
             </div>

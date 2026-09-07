@@ -1,4 +1,14 @@
 /**
+ * @vitest-environment node
+ *
+ * A filesystem test, not a DOM one. Under the project default (happy-dom) the
+ * `url` module is shimmed and `fileURLToPath` is not a function, so this file
+ * threw before a single assertion ran — the suite reported one failed FILE and
+ * zero failed tests, which reads like an infrastructure blip rather than an
+ * unguarded gate. Found 2026-09-07 while localising the schools surface: both
+ * i18n gates had been silently inert.
+ */
+/**
  * No bare English in a learner-facing template.
  *
  * WHY: on 2026-09-02 Tom opened "English for Hindi speakers" on his phone and

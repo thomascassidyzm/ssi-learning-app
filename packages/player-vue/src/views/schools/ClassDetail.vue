@@ -798,7 +798,7 @@ const deleteImpactLines = computed(() => {
                Worth knowing. Only the name changes. The roster, the join link, the
                join code and the class's place on the course all carry on exactly as
                they were.
-               checked: 4d2f2218.79ed7bb4
+               checked: 137a5581.79ed7bb4
           -->
           <button
             v-if="!isAdminView"
@@ -830,7 +830,7 @@ const deleteImpactLines = computed(() => {
                Worth knowing. Students keep their own accounts and everything they
                have learned. What goes is the class itself, its roster and its join
                link.
-               checked: d4143519.a0456621
+               checked: 84c11a94.a0456621
           -->
           <button
             v-if="!isAdminView"
@@ -881,7 +881,7 @@ const deleteImpactLines = computed(() => {
              4. Tap play to start the session.
              Worth knowing. The join code is the same code all lesson, so a student
              arriving late still gets in.
-             checked: 5290f872.e182c56c
+             checked: a56c85be.e182c56c
         -->
         <button v-if="canPlayAsClass" type="button" class="btn-play btn-play-lg" data-walk="class-play" :disabled="!canLaunch" @click="handlePlay">
           <span class="play-glyph">&#9654;</span>
@@ -930,7 +930,7 @@ const deleteImpactLines = computed(() => {
                    4. Save.
                    Worth knowing. Untick and save is how you take a teacher off a
                    class — there is no separate remove.
-                   checked: 0cd7063d.6e7979d0
+                   checked: 982376d8.6e7979d0
               -->
               <button
                 v-if="canManageTeachers"
@@ -959,7 +959,7 @@ const deleteImpactLines = computed(() => {
                    4. Tap **Make lead** on their row.
                    Worth knowing. You stay on the class as a teacher. Only the
                    lead changes.
-                   checked: 2ede673e.3fde2189
+                   checked: 912a3c21.3fde2189
               -->
               <button
                 v-if="!tch.is_lead && canManageTeachers"
@@ -1015,7 +1015,7 @@ const deleteImpactLines = computed(() => {
                4. Pick your colleague from the list.
                Worth knowing. Both of you are teachers of the class. One of you is
                the lead, and the lead is the one the school's lists show first.
-               checked: ab5f2d72.35a5bb74
+               checked: faaae99f.35a5bb74
           -->
           <button type="button" class="btn-ghost btn-small teacher-add-open" data-walk="class-teacher-add" @click="showAddTeacher = true">
             {{ t('schools.classDetail.addAnotherTeacher', 'Add another teacher') }}
@@ -1150,7 +1150,7 @@ const deleteImpactLines = computed(() => {
                  pupil brings everything they have already learned with them.
                  For a pupil with no account at all, use the class link in
                  **Invite students** instead.
-                 checked: c0267e28.e2daca58
+                 checked: bf23506f.e2daca58
             -->
             <button
               v-if="!isAdminView"
@@ -1172,7 +1172,7 @@ const deleteImpactLines = computed(() => {
             v-model="addStudentSearch"
             type="search"
             class="roster-search add-student-search"
-            :placeholder="t('schools.classDetail.searchSchoolStudentsPlaceholder', &quot;Search your school's students...&quot;)"
+            :placeholder="t('schools.classDetail.searchSchoolStudentsPlaceholder', 'Search your school\u2019s students...')"
           />
 
           <p v-if="justAdded" class="add-student-note add-student-done">
@@ -1298,7 +1298,7 @@ const deleteImpactLines = computed(() => {
                        everything they have learned, and they can join
                        another class straight away. Only their place on this
                        roster goes.
-                       checked: 8f3eea39.0523415f
+                       checked: 1f8aba11.0523415f
                   -->
                   <button
                     v-if="!isAdminView"
@@ -1352,7 +1352,7 @@ const deleteImpactLines = computed(() => {
              Worth knowing. The class average is the honest number for planning a
              lesson. The belt spread is the one that tells you whether the class is
              holding together or pulling apart.
-             checked: a95511dd.c7baf113
+             checked: 6c1128ac.c7baf113
         -->
         <div class="schools-card schools-card-pad rail-card" data-walk="class-journey">
           <div class="schools-kicker rail-kicker">{{ t('schools.classDetail.courseJourneyKicker', 'Course Journey') }}</div>

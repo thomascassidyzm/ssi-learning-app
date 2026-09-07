@@ -236,7 +236,7 @@ watch(currentUser, (u) => {
              Worth knowing. There is no separate onboarding step to remember. Both
              links live on the school's row from then on, so you can fetch them again
              any time.
-             checked: 2006c633.1822d897
+             checked: eff8d8b7.1822d897
         -->
         <button v-if="!isAdminView" type="button" class="btn-play" data-walk="verb-add-school" @click="openAddModal">{{ t('schools.schoolsList.addSchool', '+ Add school') }}</button>
       </div>

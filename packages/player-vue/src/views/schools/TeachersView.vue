@@ -430,7 +430,7 @@ watch(selectedUser, (newUser) => {
                    Worth knowing. A class with nobody on it says so in the list,
                    and the teacher you tick will lead it. Tick a class that
                    already has a teacher and yours joins as a co-teacher instead.
-                   checked: fda2b356.d5378b72
+                   checked: f87575a8.d5378b72
               -->
               <button
                 v-if="canAssignClasses"
@@ -468,7 +468,7 @@ watch(selectedUser, (newUser) => {
                    whoever uses it becomes that teacher — so give it to them
                    directly and never post it anywhere shared. Need another? Tap
                    **Access code** again.
-                   checked: 3ee8a11e.10716eae
+                   checked: 310cb8f2.10716eae
               -->
               <button
                 v-if="canManageStaff"
@@ -501,7 +501,7 @@ watch(selectedUser, (newUser) => {
                    Worth knowing. An admin's row carries no **Remove** button, so
                    a school can never lose its own admin through this list.
                    Change their role first if that is really what you want.
-                   checked: 19a44d46.324451a9
+                   checked: 4cb305ee.324451a9
               -->
               <button
                 v-if="canManageStaff && row.role !== 'Admin'"

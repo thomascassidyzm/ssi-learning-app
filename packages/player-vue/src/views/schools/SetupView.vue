@@ -482,7 +482,7 @@ onMounted(() => {
                    will not be asked to confirm your school's name again
                    afterwards. To change it later, use School profile in
                    Settings.
-                   checked: ad8fa59c.c31f39bc
+                   checked: 2317b59b.c31f39bc
               -->
               <input
                 v-model="schoolName"
@@ -749,7 +749,7 @@ onMounted(() => {
                  rows, so running the wizard twice will not duplicate them.
                  Students are added from each class's own page whenever you are
                  ready.
-                 checked: 15048309.725c800f
+                 checked: 206d8073.725c800f
             -->
             <button type="button" class="btn-ghost btn-add" data-walk="setup-add-class-row" @click="addClassRow">
               {{ t('schools.setup.addAnotherClass', '+ Add another class') }}
@@ -798,7 +798,7 @@ onMounted(() => {
                  also be changed later from Settings and from your class pages. The
                  course ticks on step three are only a filter for the class list on
                  step four, so they are not kept when you leave.
-                 checked: 87b14c3e.52f1bfb1
+                 checked: a7315a25.52f1bfb1
             -->
             <button type="button" class="btn-ghost" data-walk="setup-save-exit" @click="handleSaveExit">
               {{ t('schools.setup.saveExit', 'Save & exit') }}

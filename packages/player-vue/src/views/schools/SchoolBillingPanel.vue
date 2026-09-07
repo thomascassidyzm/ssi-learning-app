@@ -47,7 +47,7 @@ const emit = defineEmits<{ (e: 'open-portal'): void }>()
                so there is a single place to go and no second checkout to get
                confused with. The invoices button appears once a subscription is
                running.
-               checked: 94d6a6af.6d43376c
+               checked: 565562e0.6d43376c
           -->
           <div class="plan-card" data-walk="settings-billing-plan">
             <div class="schools-kicker plan-kicker">{{ t('schools.billing.currentPlan', 'Current plan') }}</div>

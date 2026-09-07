@@ -673,7 +673,7 @@ watch(currentUser, (user) => {
              Worth knowing. While the count matches what you already pay for, the
              button simply says current and does nothing, so you cannot double-bill
              yourself by tapping it twice.
-             checked: 95e23d49.019cc784
+             checked: 83d2f470.019cc784
         -->
         <button
           v-if="isOrgSubscribed"
@@ -711,7 +711,7 @@ watch(currentUser, (user) => {
              you have paid for, so plan the count against the people you expect rather
              than swapping seats between them mid-term. You can add more seats at any
              time.
-             checked: 44ff210e.c1902157
+             checked: 140f6550.c1902157
         -->
         <button
           v-else-if="!checkoutOpen"
@@ -843,7 +843,7 @@ watch(currentUser, (user) => {
              5. You come back to the dashboard with the subscription live.
              Worth knowing. Seats are teacher seats, not student seats. Your students
              do not each need one.
-             checked: 033171bf.0d701bd3
+             checked: 91d17c54.0d701bd3
         -->
         <button
           v-else-if="!checkoutOpen"
@@ -924,7 +924,7 @@ watch(currentUser, (user) => {
                 invoices and cancellation.
              Worth knowing. Your students pay for their own learning separately, so
              three paying students cover what your dashboard costs.
-             checked: 7ec1f6dc.96d00595
+             checked: 2d745438.96d00595
         -->
         <button
           v-else-if="!checkoutOpen"

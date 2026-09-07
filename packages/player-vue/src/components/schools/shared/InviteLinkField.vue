@@ -2,7 +2,7 @@
 // Every surface that offers an invite shows the FULL URL as visible,
 // selectable text (monospace + copy button) — not just a bare Copy button.
 // One shared component instead of five near-duplicate markup blocks.
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from '@/composables/useI18n'
 
 const { t } = useI18n()
@@ -13,8 +13,15 @@ const props = withDefaults(defineProps<{
   copyLabel?: string
 }>(), {
   label: '',
-  copyLabel: () => t('schools.ui.inviteLinkField.copyLabel', 'Copy invite link'),
 })
+
+/**
+ * The default label is resolved in a computed, not in withDefaults. A
+ * defineProps default is hoisted outside setup(), so it cannot call t() at
+ * all — and even where the compiler allows it, a default evaluated once would
+ * freeze in English, because on boot the locale chunk is still in flight.
+ */
+const copyLabelText = computed(() => props.copyLabel ?? t('schools.ui.inviteLinkField.copyLabel', 'Copy invite link'))
 
 const copied = ref(false)
 async function copy() {
@@ -41,7 +48,7 @@ async function copy() {
         :disabled="!url"
         @click="copy"
       >
-        {{ copied ? t('schools.ui.inviteLinkField.copied', 'Copied') : copyLabel }}
+        {{ copied ? t('schools.ui.inviteLinkField.copied', 'Copied') : copyLabelText }}
       </button>
     </div>
   </div>

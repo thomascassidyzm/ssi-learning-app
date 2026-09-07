@@ -27,11 +27,18 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   modelValue: null,
-  placeholder: () => t('schools.ui.filterDropdown.placeholderAll', 'All'),
   showFilterIcon: false,
   disabled: false,
   size: 'md',
 })
+
+/**
+ * The default label is resolved in a computed, not in withDefaults. A
+ * defineProps default is hoisted outside setup(), so it cannot call t() at
+ * all — and even where the compiler allows it, a default evaluated once would
+ * freeze in English, because on boot the locale chunk is still in flight.
+ */
+const placeholderText = computed(() => props.placeholder ?? t('schools.ui.filterDropdown.placeholderAll', 'All'))
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string | number | null): void
@@ -47,7 +54,7 @@ const selectedOption = computed(() =>
 )
 
 const displayText = computed(() =>
-  selectedOption.value?.label || props.placeholder
+  selectedOption.value?.label || placeholderText.value
 )
 
 const toggle = () => {
