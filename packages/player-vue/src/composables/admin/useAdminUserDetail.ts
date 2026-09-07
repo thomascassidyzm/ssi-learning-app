@@ -3,6 +3,7 @@
  */
 
 import { ref } from 'vue'
+import { fetchPracticeByCourse } from '../practiceByCourse'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export interface UserProfile {
@@ -180,14 +181,16 @@ export function useAdminUserDetail(client: SupabaseClient) {
       // Override per-course practice with telemetry-derived minutes (player_events
       // is the SSoT; course_enrollments.total_practice_minutes is a dead counter).
       // Fall back to the stored value per course only if the RPC itself errors.
-      const { data: pmRows, error: pmErr } = await client
-        .rpc('admin_practice_minutes_by_course', { p_learner_ids: [learnerId] })
-      if (pmErr) console.warn('[AdminUserDetail] practice RPC error:', pmErr)
-      const pmByCourse = pmErr
-        ? null
-        : new Map<string, { minutes: number; isEstimated: boolean }>(
-            (pmRows || []).map((r: any) => [r.course_code, { minutes: r.practice_minutes || 0, isEstimated: !!r.is_estimated }]),
-          )
+      // Server-mediated: /api/school/practice-by-course resolves the caller's
+      // scope (here, the admin passthrough) — the old direct RPC was readable
+      // by any signed-in user who knew a learner UUID.
+      let pmByCourse: Map<string, { minutes: number; isEstimated: boolean }> | null = null
+      try {
+        const pmRows = await fetchPracticeByCourse(client, [learnerId])
+        pmByCourse = new Map(pmRows.map(r => [r.course_code, { minutes: r.practice_minutes || 0, isEstimated: !!r.is_estimated }]))
+      } catch (pmErr) {
+        console.warn('[AdminUserDetail] practice fetch error:', pmErr)
+      }
       enrollments.value = (enrollResult.data || []).map((e: any) => ({
         ...e,
         total_practice_minutes: pmByCourse ? (pmByCourse.get(e.course_id)?.minutes ?? 0) : e.total_practice_minutes,
