@@ -13,6 +13,9 @@
 import { mkdirSync, readFileSync } from 'node:fs'
 import { createClient } from '@supabase/supabase-js'
 import { chromium } from '@playwright/test'
+import { requireAccount } from './real-account-guard.mjs'
+
+const SSI_ADMIN_EMAIL = requireAccount('ADMIN_EMAIL', 'signs in as an ssi_admin and drives the live admin surface', 'thomas.cassidy+admin001@gmail.com')
 
 const envFile = readFileSync(new URL('../../../.env', import.meta.url), 'utf8')
 const pick = (k) => envFile.match(new RegExp(`^${k}=(.*)$`, 'm'))?.[1].trim()
@@ -31,7 +34,6 @@ const TEACHER_EMAIL = 'thomas.cassidy+demo.irish.teacher1@gmail.com'
 // Existing real ssi_admin account (verified via read-only query: learners.platform_role
 // = 'ssi_admin' for this user_id) — mint a session via generateLink/verifyOtp, same
 // read-only pattern as e2e/demo-schools/verify-demo-schools.mjs. No DB writes.
-const SSI_ADMIN_EMAIL = 'thomas.cassidy+ssi@gmail.com'
 const SERVICE_KEY = pick('SUPABASE_SERVICE_ROLE_KEY')
 
 let failures = 0

@@ -4,6 +4,9 @@
 // sessions.json for the Playwright cold-load harness to inject.
 import { createClient } from '@supabase/supabase-js'
 import { writeFileSync } from 'node:fs'
+import { requireAccount } from '../real-account-guard.mjs'
+
+const SSI_ADMIN_EMAIL = requireAccount('ADMIN_EMAIL', 'mints a real browser session for the ssi_admin persona', 'thomas.cassidy+admin001@gmail.com')
 
 const URL = 'https://swfvymspfxmnfhevgdkg.supabase.co'
 const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -16,7 +19,7 @@ const PERSONAS = {
   school_admin: 'thomas.cassidy+ang_school_admin@gmail.com',
   teacher: 'thomas.cassidy+ang_school_teacher@gmail.com',
   govt_admin: 'thomas.cassidy+govtest@gmail.com',
-  ssi_admin: 'thomas.cassidy+ssi@gmail.com',
+  ssi_admin: SSI_ADMIN_EMAIL,
 }
 
 const out = {}
