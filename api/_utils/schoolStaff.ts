@@ -46,11 +46,25 @@ export const SCHOOL_STAFF_ROLES = ['teacher', 'admin'] as const
 /**
  * Give a school's admin their `user_tags` SCHOOL: membership row.
  *
- * Idempotent: 23505 (unique_violation on the `user_tags_active_natural_key`
- * partial unique index over (user_id, tag_type, tag_value) WHERE removed_at IS
- * NULL) means an active tag for this user+school already exists, which grants
- * exactly what this call asked for — a no-op, not an error. Same handling as
- * api/code/redeem.ts. So re-provisioning a school never duplicates the row.
+ * Idempotent, and REACTIVATING — the two are not the same thing, and treating
+ * them as the same is the bug this closes (NPTC onboarding, 2026-09-07).
+ *
+ * The constraint that fires here is `unique_active_tag` — UNIQUE (user_id,
+ * tag_type, tag_value) with NO `WHERE removed_at IS NULL` (the partial index
+ * migration 20260717_user_tags_active_unique would have created is still not
+ * applied). So a SOFT-REMOVED tag keeps occupying the unique slot. Re-inviting
+ * a school admin who was previously removed by api/school/remove-staff.ts
+ * therefore raises 23505 and inserts NOTHING — while every admin predicate
+ * (this file's isSchoolAdminOf, the SQL is_school_admin_of) requires
+ * `removed_at IS NULL`, so the person is still not an admin. Swallowing that
+ * 23505 as success reported a grant that never happened.
+ *
+ * So the 23505 branch RE-READS the row that holds the key and, if it is a
+ * removed one, REACTIVATES it (removed_at cleared, role/added_at/added_by
+ * refreshed) — exactly the shape api/code/redeem.ts's insertTagReactivating and
+ * api/_utils/classTeacherTag.ts's ensureClassTeacherTag already use for the
+ * class and group tags. An ACTIVE row holding the key is the genuine
+ * idempotent no-op it always was, so re-provisioning still never duplicates.
  *
  * Returns an error message on a real failure, or null on success/no-op. Callers
  * on a school-CREATION path treat a failure as non-fatal (the school itself is
@@ -62,14 +76,42 @@ export async function ensureSchoolAdminTag(
   supabase: SupabaseClient,
   params: { userId: string; schoolId: string; addedBy?: string },
 ): Promise<string | null> {
+  const tagValue = `SCHOOL:${params.schoolId}`
+  const addedBy = params.addedBy ?? params.userId
+
   const { error } = await supabase.from('user_tags').insert({
     user_id: params.userId,
     tag_type: 'school',
-    tag_value: `SCHOOL:${params.schoolId}`,
+    tag_value: tagValue,
     role_in_context: 'admin',
-    added_by: params.addedBy ?? params.userId,
+    added_by: addedBy,
   })
-  if (error && error.code !== '23505') return error.message || 'user_tags insert failed'
+  if (!error) return null
+  if (error.code !== '23505') return error.message || 'user_tags insert failed'
+
+  // 23505 — the unique key is taken. By an ACTIVE row it is the no-op we want;
+  // by a REMOVED one it means this grant did not happen, and must be revived.
+  const { data: existing, error: readError } = await supabase
+    .from('user_tags')
+    .select('id, removed_at')
+    .eq('user_id', params.userId)
+    .eq('tag_type', 'school')
+    .eq('tag_value', tagValue)
+    .maybeSingle()
+  if (readError) return readError.message || 'user_tags re-read failed'
+  const row = existing as { id?: string; removed_at?: string | null } | null
+  if (!row || !row.removed_at) return null
+
+  const { error: reactivateError } = await supabase
+    .from('user_tags')
+    .update({
+      removed_at: null,
+      role_in_context: 'admin',
+      added_at: new Date().toISOString(),
+      added_by: addedBy,
+    })
+    .eq('id', row.id)
+  if (reactivateError) return reactivateError.message || 'user_tags reactivate failed'
   return null
 }
 

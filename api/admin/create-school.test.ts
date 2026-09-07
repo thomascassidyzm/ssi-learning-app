@@ -35,6 +35,15 @@ function makeChainable(table: string) {
     delete: () => { writes[table] = writes[table] || []; writes[table].push({ op: 'delete' }); return builder },
     select: () => builder,
     eq: () => builder,
+    update: (payload: unknown) => {
+      writes[table] = writes[table] || []
+      writes[table].push({ op: 'update', payload })
+      return builder
+    },
+    // ensureSchoolAdminTag's post-23505 re-read: which row holds the unique
+    // key, an active one or a soft-removed one. Null here = nothing found, the
+    // idempotent no-op this test asserts.
+    maybeSingle: () => Promise.resolve({ data: null, error: null }),
     single: () =>
       Promise.resolve(
         table === 'schools'
