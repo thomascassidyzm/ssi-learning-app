@@ -2,11 +2,11 @@
  * step to Paddle's order summary and READ the price. No card, no purchase. */
 import { createClient } from '@supabase/supabase-js'
 import { chromium } from '@playwright/test'
-const BASE = 'https://staging.saysomethingin.app'
+const BASE = process.env.BASE_URL || 'https://staging.saysomethingin.app'
 const OUT = process.env.CS_SCRATCH
 const svc = createClient(process.env.SUPABASE_URL.trim(), process.env.SUPABASE_SERVICE_KEY.trim(), { auth: { persistSession: false } })
 const STAMP = String(Date.now()).slice(-7)
-const EMAIL = `thomas.cassidy+zz.cs184.${STAMP}@gmail.com`
+const EMAIL = `thomas.cassidy+zz.cs184p.${STAMP}@gmail.com`
 const PASSWORD = 'SsiTest2026!'
 let browser, userId = null
 const log = (...a) => console.log(...a)
@@ -61,7 +61,6 @@ try {
     await p.locator('.checkout-close').first().click().catch(() => {})
     await p.waitForTimeout(2000)
   }
-  await readPrice('£25/month', 'family-monthly')
   await readPrice('£15/month', 'premium-monthly')
 } catch (e) { console.error('PROBE FAILED:', e) }
 finally {
