@@ -8,6 +8,10 @@ import { chromium } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
 import { mkdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
+import { requireAccount } from './real-account-guard.mjs'
+
+const TESTER = requireAccount('TESTER_EMAIL', 'signs in as a learner and plays real audio, which writes real progress')
+const ADMIN_EMAIL = requireAccount('ADMIN_EMAIL', 'signs in as an ssi_admin and drives the admin dashboards', 'thomas.cassidy+admin001@gmail.com')
 
 const BASE = process.env.BASE_URL || 'https://ssi-learning-app-git-dev-zenjin.vercel.app'
 const OUT = process.env.OUT_DIR || '/tmp/csp-audit/'
@@ -15,8 +19,6 @@ mkdirSync(OUT, { recursive: true })
 
 const SB_URL = 'https://swfvymspfxmnfhevgdkg.supabase.co'
 const ANON_KEY = 'sb_publishable_qtEtXRcEOkvapw99x5suww_SuCXYmvg'
-const TESTER = process.env.TESTER_EMAIL || 'thomas.cassidy+bumface@gmail.com'
-const ADMIN_EMAIL = 'thomas.cassidy+ssi@gmail.com'
 const TEACHER_LINK = process.env.TEACHER_LINK || `${BASE}/redeem/ZKD-834`
 const serviceKey = readFileSync(homedir() + '/.ssi-sentinel.env', 'utf8')
   .match(/SUPABASE_SERVICE_ROLE_KEY=(.*)/)[1].trim()

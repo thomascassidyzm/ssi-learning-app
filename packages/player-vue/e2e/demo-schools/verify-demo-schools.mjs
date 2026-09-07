@@ -17,12 +17,14 @@
 // itself, not rely on a later human sweep.
 import { createClient } from '@supabase/supabase-js'
 import { chromium } from '@playwright/test'
+import { requireAccount } from '../real-account-guard.mjs'
+
+const ADMIN_EMAIL = requireAccount('ADMIN_EMAIL', 'signs in as an ssi_admin and creates and tears down a real demo org', 'thomas.cassidy+admin001@gmail.com')
 
 const SUPABASE_URL = 'https://swfvymspfxmnfhevgdkg.supabase.co'
 const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY
 const ANON = process.env.VITE_SUPABASE_ANON_KEY
 const BASE = process.env.BASE_URL || 'https://ssi-learning-app-git-dev-zenjin.vercel.app'
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'thomas.cassidy+ssi@gmail.com'
 const COURSE_CODE = process.env.COURSE_CODE || 'zho_for_eng'
 const SHOULD_PURGE = process.argv.includes('--purge')
 

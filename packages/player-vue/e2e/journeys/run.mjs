@@ -34,6 +34,7 @@ import {
   waitAudible, pressTransport, waitReady, courseName, openCoursePicker, courseRow,
   cycleOffline, stat, secs,
 } from './lib.mjs'
+import { requireAccount } from '../real-account-guard.mjs'
 
 const BASE = process.env.BASE_URL || 'https://staging.saysomethingin.app'
 const JOURNEY = process.env.JOURNEY || 'j1'
@@ -50,20 +51,7 @@ const OUT = process.env.OUT_DIR || `${SCRATCH}/journeys/${JOURNEY}-${NETNAME}/`
 // no safe default for "which human's account should this machine touch", so
 // there isn't one: no TESTER_EMAIL means refuse to run, and a handful of
 // known real accounts are refused even if passed explicitly.
-const REAL_ACCOUNT_DENYLIST = new Set([
-  'thomas.cassidy+ssi@gmail.com', // this file's old unguarded default
-  'thomas.cassidy@gmail.com',
-  'tomcassidy@mac.com',
-])
-if (!process.env.TESTER_EMAIL) {
-  console.error('TESTER_EMAIL is required. This harness refuses to run without an explicit target account — it plays real audio and writes real progress. Pass a disposable test-account email, e.g. TESTER_EMAIL=thomas.cassidy+bumface@gmail.com.')
-  process.exit(1)
-}
-const TESTER = process.env.TESTER_EMAIL
-if (REAL_ACCOUNT_DENYLIST.has(TESTER.toLowerCase())) {
-  console.error(`TESTER_EMAIL "${TESTER}" is a real human account, not a test account. This harness refuses to enter progress on it. Use a disposable test alias instead.`)
-  process.exit(1)
-}
+const TESTER = requireAccount('TESTER_EMAIL', 'plays real audio and writes real progress')
 // Course A = the one the learner already has. Course B = the new one.
 const COURSE_A = process.env.COURSE_A || 'Spanish'
 const COURSE_B = process.env.COURSE_B || 'Italian'

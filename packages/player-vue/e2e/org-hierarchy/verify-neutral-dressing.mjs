@@ -6,12 +6,14 @@
 // invite roles defaulting to Group leader.
 import { createClient } from '@supabase/supabase-js'
 import { chromium } from '@playwright/test'
+import { requireAccount } from '../real-account-guard.mjs'
+
+const ADMIN_EMAIL = requireAccount('ADMIN_EMAIL', 'signs in as an ssi_admin and drives the live org surface', 'thomas.cassidy+admin001@gmail.com')
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
 const ANON = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
 const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY
 const BASE = process.env.BASE_URL || 'https://ssi-learning-app-git-dev-zenjin.vercel.app'
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'thomas.cassidy+ssi@gmail.com'
 const ORG_ID = process.env.ORG_ID || 'c778ad64-5110-4f50-93a7-8a308198caa5' // Cardiff Council
 if (!SUPABASE_URL || !ANON || !SERVICE) throw new Error('missing Supabase env vars')
 
