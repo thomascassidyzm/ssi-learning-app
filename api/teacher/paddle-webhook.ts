@@ -431,9 +431,55 @@ export default async function handler(
 // SUBSCRIPTION EVENTS
 // ============================================
 
+/**
+ * A PLAN CHANGE, FILED OFF THE PRICE THAT WAS ACTUALLY BILLED.
+ *
+ * When a Premium subscriber upgrades to Family (api/subscription/change-plan),
+ * Paddle changes the PRICE on the SAME subscription. Everything else about the
+ * event is unchanged — including `customData.kind`, which was baked in at the
+ * first checkout and still says 'premium'. Routed on kind, the event would run
+ * handlePremiumSubscription and write plan_name 'SSi Premium' back over the
+ * Family row: the person pays £25 and gets no family seats.
+ *
+ * So a plan change is keyed off the BILLED PRICE, which comes from Paddle's own
+ * payload and cannot be faked, exactly as the tier checks below already are.
+ * The owner is resolved from the EXISTING subscriptions row that already carries
+ * this subscription id — server-side, no customData involved at all — which also
+ * means a changed subscription whose row we have never seen falls through to the
+ * ordinary handling rather than being written to a guessed learner.
+ *
+ * Returns true when it handled the event.
+ */
+async function handlePlanChangeToFamily(supabase: any, data: any): Promise<boolean> {
+  const { data: row, error } = await supabase
+    .from('subscriptions')
+    .select('learner_id, plan_name')
+    .eq('provider_subscription_id', data.id)
+    .maybeSingle()
+  if (error || !row?.learner_id) return false
+
+  console.log(
+    '[paddle-webhook] plan change to family detected on existing subscription:',
+    data.id,
+    'existing plan_name:', row.plan_name
+  )
+  await writeFamilyRow(supabase, row.learner_id, data)
+  return true
+}
+
 export async function handleSubscriptionEvent(supabase: any, data: any): Promise<void> {
   const customData = (data.customData || {}) as Record<string, unknown>
   const kind = customData.kind as string | undefined
+
+  // PRICE FIRST, for a plan change only. An event billed on the FAMILY tier
+  // whose customData still claims a non-family kind can only be a plan change
+  // on a subscription we already hold — file it as Family, or fall through if
+  // we hold no such row.
+  if (kind !== 'family_plan') {
+    const billedPriceId = planIdOf(data)
+    const billedMeta = billedPriceId ? PRICE_CATALOG[billedPriceId] : undefined
+    if (billedMeta?.tier === 'family' && (await handlePlanChangeToFamily(supabase, data))) return
+  }
 
   if (kind === 'premium' || kind === 'teacher_plan' || kind === 'learner_premium') {
     // 'learner_premium' is the CURRENT consumer premium flow. customData.kind is
@@ -1343,8 +1389,15 @@ export async function handleFamilySubscription(
     console.error('[paddle-webhook] Learner not found for supabase_user_id:', supabaseUserId, learnerErr)
     return
   }
-  const learnerId = learner.id
+  await writeFamilyRow(supabase, learner.id, data)
+}
 
+/**
+ * The one absolute, idempotent write of an owner's Family row. Shared by the
+ * first-checkout path above and by the Premium → Family plan change, so both
+ * land identical state and neither can drift from the other.
+ */
+async function writeFamilyRow(supabase: any, learnerId: string, data: any): Promise<void> {
   const status = SUB_STATUS_MAP[data.status] || 'none'
   const periodEnd: string | null = data.currentBillingPeriod?.endsAt || data.nextBilledAt || null
   const planId = planIdOf(data)
