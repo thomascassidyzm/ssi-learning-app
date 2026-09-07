@@ -11,18 +11,103 @@
  * hardcoded £15/mo Premium checkout. SSi Family was live in Paddle and fully
  * wired in code, and no customer could reach it.
  *
+ * TWO STEPS, one overlay. A signed-out buyer who has chosen a plan gets the
+ * DETAILS step here rather than the sign-in modal: email, confirm, an optional
+ * password, and on to Paddle. Tom walked the old flow on 2026-09-07 and was
+ * sent to his mailbox for a six-digit code before he was allowed to reach a
+ * card field — "they shouldn't have to verify their email account yet - that's
+ * messy". Verification is not a gate in front of a purchase; it happens after,
+ * through the needs_verification nudge the account is stamped with.
+ *
  * Same overlay shell as CheckoutOverlay (safe-area padding, close button,
- * Escape, backdrop tap) so the two steps feel like one flow. Tap is the only
- * affordance.
+ * Escape, backdrop tap) so the steps feel like one flow.
  */
-import { computed, watch, onBeforeUnmount } from 'vue'
+import { computed, ref, watch, onBeforeUnmount } from 'vue'
 import { useCheckout } from '@/composables/useCheckout'
 import { useI18n } from '@/composables/useI18n'
 import { paddleConfig } from '@/lib/paddle'
+import { paddleBillingAvailable } from '@/platform/paymentRoute'
 import { FAMILY_SEAT_CAP } from '@/constants/family'
 
-const { plansOpen, closePlans, choosePlan, isOpeningCheckout } = useCheckout()
+const {
+  plansOpen,
+  closePlans,
+  choosePlan,
+  isOpeningCheckout,
+  detailsOpen,
+  detailsBusy,
+  detailsError,
+  detailsExistingAccount,
+  submitBuyerDetails,
+  signInAndPay,
+  emailMeACodeInstead,
+  closeDetails,
+  openPlans,
+  alreadySubscribedOpen,
+  closeAlreadySubscribed,
+  openSubscriptionPortal,
+} = useCheckout()
 const { t } = useI18n()
+
+// ── The details step ──
+const email = ref('')
+const emailConfirm = ref('')
+const wantsPassword = ref(false)
+const password = ref('')
+const passwordConfirm = ref('')
+// Local, form-level complaint (mismatches). Server-side problems come back on
+// detailsError so the two never fight over the same line.
+const formError = ref('')
+
+// Reset every time the step opens, so a second run of the flow never starts
+// half-filled with the first one's typing.
+watch(detailsOpen, (open) => {
+  if (!open) return
+  email.value = ''
+  emailConfirm.value = ''
+  wantsPassword.value = false
+  password.value = ''
+  passwordConfirm.value = ''
+  formError.value = ''
+})
+
+const emailLooksValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim()))
+
+const canSubmitDetails = computed(() => {
+  if (detailsBusy.value) return false
+  if (!emailLooksValid.value) return false
+  if (detailsExistingAccount.value) return password.value.length > 0
+  if (email.value.trim().toLowerCase() !== emailConfirm.value.trim().toLowerCase()) return false
+  if (wantsPassword.value && (password.value.length < 6 || password.value !== passwordConfirm.value)) return false
+  return true
+})
+
+async function onDetailsSubmit() {
+  formError.value = ''
+  // The already-registered branch: they are signing IN, so only the password
+  // matters and the confirm fields are gone from the form.
+  if (detailsExistingAccount.value) {
+    await signInAndPay({ email: email.value.trim(), password: password.value })
+    return
+  }
+  if (email.value.trim().toLowerCase() !== emailConfirm.value.trim().toLowerCase()) {
+    formError.value = t('plans.emailsMustMatch')
+    return
+  }
+  if (wantsPassword.value && password.value !== passwordConfirm.value) {
+    formError.value = t('plans.passwordsMustMatch')
+    return
+  }
+  await submitBuyerDetails({
+    email: email.value.trim(),
+    password: wantsPassword.value ? password.value : undefined,
+  })
+}
+
+function backToPlans() {
+  closeDetails()
+  openPlans(null)
+}
 
 // Family only appears once its Paddle prices are configured — hidden, not a
 // broken button, exactly as the Settings row already does it.
@@ -37,11 +122,32 @@ const familyDesc = computed(() =>
   t('plans.familyDesc').replace('{seats}', String(FAMILY_SEAT_CAP)),
 )
 
-function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape') closePlans()
+// One overlay, two steps — so the Escape/scroll-lock wiring keys off "either
+// step is open" rather than off the plans list alone.
+const anyStepOpen = computed(() => plansOpen.value || detailsOpen.value || alreadySubscribedOpen.value)
+
+// The manage-subscription route offered alongside the block, so an existing
+// subscriber is told something true AND has somewhere to go. Hidden in a store
+// shell, where Paddle's hosted portal is not theirs to open.
+const canManageBilling = computed(() => paddleBillingAvailable())
+const portalBusy = ref(false)
+async function onManageSubscription() {
+  portalBusy.value = true
+  try {
+    await openSubscriptionPortal()
+  } finally {
+    portalBusy.value = false
+  }
 }
 
-watch(plansOpen, (open) => {
+function onKeydown(e: KeyboardEvent) {
+  if (e.key !== 'Escape') return
+  if (alreadySubscribedOpen.value) closeAlreadySubscribed()
+  else if (detailsOpen.value) closeDetails()
+  else closePlans()
+}
+
+watch(anyStepOpen, (open) => {
   if (typeof document === 'undefined') return
   if (open) {
     document.addEventListener('keydown', onKeydown)
@@ -117,6 +223,129 @@ onBeforeUnmount(() => {
           </section>
 
           <p class="plans-note">{{ t('plans.cancelAnytime') }}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 2 — the buyer's details. No email round-trip stands between
+         this form and the card field. -->
+    <div
+      v-if="detailsOpen"
+      class="plans-overlay"
+      role="dialog"
+      aria-modal="true"
+      :aria-label="t('plans.yourDetails')"
+      @click.self="closeDetails"
+    >
+      <div class="plans-card" @click.stop>
+        <header class="plans-bar">
+          <span class="plans-title">{{ t('plans.yourDetails') }}</span>
+          <button type="button" class="plans-close" :aria-label="t('plans.close')" @click="closeDetails">✕</button>
+        </header>
+
+        <form class="plans-scroll" @submit.prevent="onDetailsSubmit">
+          <label class="field">
+            <span class="field-label">{{ t('auth.email') }}</span>
+            <input
+              v-model="email"
+              type="email"
+              class="field-input"
+              autocomplete="email"
+              inputmode="email"
+              required
+            />
+          </label>
+
+          <!-- The confirm fields disappear once we know the account exists:
+               at that point they are signing IN, not creating anything. -->
+          <label v-if="!detailsExistingAccount" class="field">
+            <span class="field-label">{{ t('plans.confirmEmail') }}</span>
+            <input
+              v-model="emailConfirm"
+              type="email"
+              class="field-input"
+              autocomplete="email"
+              inputmode="email"
+              required
+            />
+          </label>
+
+          <label v-if="!detailsExistingAccount" class="opt-row">
+            <input v-model="wantsPassword" type="checkbox" />
+            <span>{{ t('plans.setPasswordOptional') }}</span>
+          </label>
+
+          <label v-if="wantsPassword || detailsExistingAccount" class="field">
+            <span class="field-label">{{ t('auth.password') }}</span>
+            <input
+              v-model="password"
+              type="password"
+              class="field-input"
+              :autocomplete="detailsExistingAccount ? 'current-password' : 'new-password'"
+            />
+          </label>
+
+          <label v-if="wantsPassword && !detailsExistingAccount" class="field">
+            <span class="field-label">{{ t('plans.confirmPassword') }}</span>
+            <input v-model="passwordConfirm" type="password" class="field-input" autocomplete="new-password" />
+          </label>
+
+          <p v-if="formError || detailsError" class="field-error">{{ formError || detailsError }}</p>
+
+          <button type="submit" class="plan-btn submit-btn" :disabled="!canSubmitDetails">
+            {{ detailsExistingAccount ? t('plans.signInAndContinue') : t('plans.continueToPayment') }}
+          </button>
+
+          <button
+            v-if="detailsExistingAccount"
+            type="button"
+            class="text-btn"
+            @click="emailMeACodeInstead"
+          >{{ t('plans.emailMeACode') }}</button>
+
+          <p v-if="!detailsExistingAccount" class="plans-note">{{ t('plans.receiptNote') }}</p>
+
+          <button type="button" class="text-btn" @click="backToPlans">{{ t('plans.backToPlans') }}</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- STEP 3 — ALREADY SUBSCRIBED (#255). Not a step forward: a stop. This
+         person is already paying, so opening a second Paddle subscription
+         would charge them twice and give them nothing. Say that plainly, and
+         leave the manage-subscription route open so it is not a dead end. -->
+    <div
+      v-if="alreadySubscribedOpen"
+      class="plans-overlay"
+      role="dialog"
+      aria-modal="true"
+      :aria-label="t('plans.alreadySubscribedTitle')"
+      @click.self="closeAlreadySubscribed"
+    >
+      <div class="plans-card" @click.stop>
+        <header class="plans-bar">
+          <span class="plans-title">{{ t('plans.alreadySubscribedTitle') }}</span>
+          <button
+            type="button"
+            class="plans-close"
+            :aria-label="t('plans.close')"
+            @click="closeAlreadySubscribed"
+          >✕</button>
+        </header>
+
+        <div class="plans-scroll">
+          <p class="plan-desc">{{ t('plans.alreadySubscribedBody') }}</p>
+          <p class="plan-desc">{{ t('plans.alreadySubscribedChangeComing') }}</p>
+
+          <button
+            v-if="canManageBilling"
+            type="button"
+            class="plan-btn"
+            :disabled="portalBusy"
+            @click="onManageSubscription"
+          >{{ portalBusy ? t('plans.opening') : t('plans.manageSubscription') }}</button>
+
+          <button type="button" class="text-btn" @click="closeAlreadySubscribed">{{ t('plans.close') }}</button>
         </div>
       </div>
     </div>
@@ -228,6 +457,60 @@ onBeforeUnmount(() => {
 }
 .plan-btn:hover { filter: brightness(1.08); }
 .plan-btn:disabled { opacity: 0.65; cursor: progress; }
+
+.field {
+  display: block;
+  margin-bottom: 0.85rem;
+}
+.field-label {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary, #64748b);
+}
+.field-input {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.6rem 0.75rem;
+  box-sizing: border-box;
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  border-radius: 0.7rem;
+  background: var(--bg-primary, #fff);
+  color: var(--text-primary, #1e293b);
+  font-family: var(--font-body);
+  font-size: 1rem; /* 16px — anything smaller makes iOS Safari zoom on focus */
+}
+.opt-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary, #64748b);
+  cursor: pointer;
+}
+.field-error {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  color: var(--accent, #c23a3a);
+}
+.submit-btn {
+  width: 100%;
+}
+.text-btn {
+  display: block;
+  width: 100%;
+  margin-top: 0.75rem;
+  padding: 0.5rem;
+  border: none;
+  background: none;
+  color: var(--text-secondary, #64748b);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
 
 .plans-note {
   margin: 0.9rem 0 0;
