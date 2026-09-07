@@ -12,27 +12,52 @@ const props = withDefaults(defineProps<{
   modelValue: string
   options: Option[]
   ariaLabel?: string
+  /** Show a search box at the top of the open menu. Standing estate rule:
+   *  any list long enough to scan is filterable. Off by default so short
+   *  lists (3-4 options) don't grow a pointless box. */
+  filterable?: boolean
+  filterPlaceholder?: string
+  /** Shown on the trigger when nothing is selected yet. */
+  placeholder?: string
+  disabled?: boolean
 }>(), {
   ariaLabel: 'Select an option',
+  filterable: false,
+  filterPlaceholder: 'Search…',
+  placeholder: '',
+  disabled: false,
 })
 
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
 const open = ref(false)
 const activeIndex = ref(-1)
+const query = ref('')
 const rootEl = ref<HTMLElement | null>(null)
 const listEl = ref<HTMLElement | null>(null)
+const searchEl = ref<HTMLInputElement | null>(null)
 
 const selectedLabel = computed(
   () => props.options.find((o) => o.value === props.modelValue)?.label ?? '',
 )
-const selectedIndex = computed(() => props.options.findIndex((o) => o.value === props.modelValue))
+
+/** The options actually on screen — everything, unless a filter is typed. */
+const visibleOptions = computed(() => {
+  const q = query.value.trim().toLowerCase()
+  if (!props.filterable || !q) return props.options
+  return props.options.filter((o) => o.label.toLowerCase().includes(q))
+})
+const selectedIndex = computed(() =>
+  visibleOptions.value.findIndex((o) => o.value === props.modelValue),
+)
 
 function openMenu() {
-  if (open.value) return
+  if (open.value || props.disabled) return
   open.value = true
+  query.value = ''
   activeIndex.value = selectedIndex.value >= 0 ? selectedIndex.value : 0
   nextTick(() => {
+    if (props.filterable) searchEl.value?.focus()
     const el = listEl.value?.querySelector<HTMLElement>(`[data-i="${activeIndex.value}"]`)
     el?.scrollIntoView({ block: 'nearest' })
   })
@@ -40,11 +65,16 @@ function openMenu() {
 function closeMenu() {
   open.value = false
   activeIndex.value = -1
+  query.value = ''
 }
 function toggle() { open.value ? closeMenu() : openMenu() }
 
+// Typing re-filters, so the highlight has to come back to the top of whatever
+// is left — otherwise Enter picks a row that scrolled out from under it.
+function onQueryInput() { activeIndex.value = 0 }
+
 function choose(i: number) {
-  const opt = props.options[i]
+  const opt = visibleOptions.value[i]
   if (opt) emit('update:modelValue', opt.value)
   closeMenu()
 }
@@ -57,11 +87,14 @@ function onTriggerKey(e: KeyboardEvent) {
 function onListKey(e: KeyboardEvent) {
   if (!open.value) return
   if (e.key === 'Escape') { e.preventDefault(); closeMenu() }
-  else if (e.key === 'ArrowDown') { e.preventDefault(); activeIndex.value = Math.min(props.options.length - 1, activeIndex.value + 1); scrollActive() }
+  else if (e.key === 'ArrowDown') { e.preventDefault(); activeIndex.value = Math.min(visibleOptions.value.length - 1, activeIndex.value + 1); scrollActive() }
   else if (e.key === 'ArrowUp') { e.preventDefault(); activeIndex.value = Math.max(0, activeIndex.value - 1); scrollActive() }
   else if (e.key === 'Home') { e.preventDefault(); activeIndex.value = 0; scrollActive() }
-  else if (e.key === 'End') { e.preventDefault(); activeIndex.value = props.options.length - 1; scrollActive() }
-  else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(activeIndex.value) }
+  else if (e.key === 'End') { e.preventDefault(); activeIndex.value = visibleOptions.value.length - 1; scrollActive() }
+  else if (e.key === 'Enter') { e.preventDefault(); choose(activeIndex.value) }
+  // Space is a character while a filter box has focus; only treat it as
+  // "choose" when there is no search field to type into.
+  else if (e.key === ' ' && !props.filterable) { e.preventDefault(); choose(activeIndex.value) }
 }
 function scrollActive() {
   nextTick(() => {
@@ -90,11 +123,12 @@ onBeforeUnmount(() => watchOutside(false))
       class="fs-trigger"
       :aria-label="ariaLabel"
       :aria-expanded="open"
+      :disabled="disabled"
       aria-haspopup="listbox"
       @click="toggle"
       @keydown="onTriggerKey"
     >
-      <span class="fs-value">{{ selectedLabel }}</span>
+      <span class="fs-value" :class="{ 'is-placeholder': !selectedLabel }">{{ selectedLabel || placeholder }}</span>
       <svg class="fs-chev" :class="{ open }" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <polyline points="6 9 12 15 18 9" />
       </svg>
@@ -102,7 +136,19 @@ onBeforeUnmount(() => watchOutside(false))
 
     <Transition name="fs-pop">
       <ul v-if="open" ref="listEl" class="fs-list" role="listbox" :aria-activedescendant="`fs-opt-${activeIndex}`">
-        <li v-for="(opt, i) in options" :key="opt.value" role="presentation">
+        <li v-if="filterable" class="fs-search-row" role="presentation">
+          <input
+            ref="searchEl"
+            v-model="query"
+            type="text"
+            class="fs-search"
+            :placeholder="filterPlaceholder"
+            :aria-label="filterPlaceholder"
+            autocomplete="off"
+            @input="onQueryInput"
+          />
+        </li>
+        <li v-for="(opt, i) in visibleOptions" :key="opt.value" role="presentation">
           <button
             :id="`fs-opt-${i}`"
             type="button"
@@ -117,6 +163,9 @@ onBeforeUnmount(() => watchOutside(false))
             <span class="fs-check" aria-hidden="true">{{ opt.value === modelValue ? '✓' : '' }}</span>
             <span class="fs-opt-label">{{ opt.label }}</span>
           </button>
+        </li>
+        <li v-if="filterable && visibleOptions.length === 0" class="fs-empty" role="presentation">
+          No matches for &ldquo;{{ query.trim() }}&rdquo;
         </li>
       </ul>
     </Transition>
@@ -135,18 +184,20 @@ onBeforeUnmount(() => watchOutside(false))
   width: 100%;
   min-height: 40px;
   padding: 9px 12px;
-  font-family: var(--font-mono);
-  font-size: 13px;
+  font-family: var(--fs-font, var(--font-mono));
+  font-size: var(--fs-font-size, 13px);
   color: var(--ink-primary, #2c2622);
   text-align: left;
-  background: rgba(255, 255, 255, 0.5);
+  background: var(--fs-bg, rgba(255, 255, 255, 0.5));
   backdrop-filter: blur(12px) saturate(1.6);
   -webkit-backdrop-filter: blur(12px) saturate(1.6);
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  border-radius: 12px;
+  border: 1px solid var(--fs-border, rgba(255, 255, 255, 0.7));
+  border-radius: var(--fs-radius, 12px);
   cursor: pointer;
   transition: border-color 140ms ease, box-shadow 140ms ease;
 }
+.fs-trigger:disabled { cursor: not-allowed; opacity: 0.62; }
+.fs-value.is-placeholder { color: var(--ink-tertiary, #8a827c); }
 .fs-trigger:hover { border-color: rgba(var(--rc-entity, 96 165 250), 0.55); }
 .fs-trigger:focus-visible {
   outline: none;
@@ -185,8 +236,8 @@ onBeforeUnmount(() => watchOutside(false))
   gap: 8px;
   width: 100%;
   padding: 9px 10px;
-  font-family: var(--font-mono);
-  font-size: 13px;
+  font-family: var(--fs-font, var(--font-mono));
+  font-size: var(--fs-font-size, 13px);
   color: var(--ink-secondary, #4a4440);
   text-align: left;
   background: transparent;
@@ -199,14 +250,80 @@ onBeforeUnmount(() => watchOutside(false))
 .fs-check { width: 14px; flex-shrink: 0; color: var(--rc-entity-ink, #2563eb); }
 .fs-opt-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* Search box — sits at the top of the open panel and stays there while the
+   list below it scrolls. */
+.fs-search-row {
+  position: sticky;
+  top: -6px;
+  z-index: 1;
+  margin: -6px -6px 0;
+  padding: 6px;
+  background: rgba(255, 255, 255, 0.97);
+  border-radius: 14px 14px 0 0;
+}
+.fs-search {
+  width: 100%;
+  padding: 8px 10px;
+  font-family: var(--fs-font, var(--font-mono));
+  font-size: var(--fs-font-size, 13px);
+  color: var(--ink-primary, #2c2622);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(44, 38, 34, 0.16);
+  border-radius: 9px;
+}
+.fs-search:focus {
+  outline: none;
+  border-color: rgba(var(--rc-entity, 96 165 250), 0.7);
+  box-shadow: 0 0 0 3px rgba(var(--rc-entity, 96 165 250), 0.16);
+}
+.fs-empty {
+  padding: 10px;
+  font-family: var(--fs-font, var(--font-mono));
+  font-size: var(--fs-font-size, 13px);
+  color: var(--ink-tertiary, #8a827c);
+}
+
 .fs-pop-enter-active, .fs-pop-leave-active { transition: opacity 130ms ease, transform 130ms ease; }
 .fs-pop-enter-from, .fs-pop-leave-to { opacity: 0; transform: translateY(-6px) scale(0.98); }
 
 @media (prefers-reduced-transparency: reduce) {
-  .fs-trigger { background: rgba(255, 255, 255, 0.96); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .fs-trigger { background: var(--fs-bg, rgba(255, 255, 255, 0.96)); backdrop-filter: none; -webkit-backdrop-filter: none; }
   .fs-list { background: #ffffff; backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .fs-chev, .fs-pop-enter-active, .fs-pop-leave-active { transition: none; }
+  .fs-chev, /* Search box — sits at the top of the open panel and stays there while the
+   list below it scrolls. */
+.fs-search-row {
+  position: sticky;
+  top: -6px;
+  z-index: 1;
+  margin: -6px -6px 0;
+  padding: 6px;
+  background: rgba(255, 255, 255, 0.97);
+  border-radius: 14px 14px 0 0;
+}
+.fs-search {
+  width: 100%;
+  padding: 8px 10px;
+  font-family: var(--fs-font, var(--font-mono));
+  font-size: var(--fs-font-size, 13px);
+  color: var(--ink-primary, #2c2622);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(44, 38, 34, 0.16);
+  border-radius: 9px;
+}
+.fs-search:focus {
+  outline: none;
+  border-color: rgba(var(--rc-entity, 96 165 250), 0.7);
+  box-shadow: 0 0 0 3px rgba(var(--rc-entity, 96 165 250), 0.16);
+}
+.fs-empty {
+  padding: 10px;
+  font-family: var(--fs-font, var(--font-mono));
+  font-size: var(--fs-font-size, 13px);
+  color: var(--ink-tertiary, #8a827c);
+}
+
+.fs-pop-enter-active, .fs-pop-leave-active { transition: none; }
 }
 </style>
