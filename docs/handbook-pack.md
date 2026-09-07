@@ -1,10 +1,10 @@
 # Handbook — compiled render
 
-**Version `b200e1a2e6bc` · generated 2026-09-07 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `ea01810ea071` · generated 2026-09-07 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## Add a class to a group
 
-Section: running-classes · roles: admin, leader · anchor: `verb-add-class` · in `packages/player-vue/src/components/admin/NodeActionBar.vue`
+Section: running-classes · roles: admin, leader, school_admin · anchor: `verb-add-class` · in `packages/player-vue/src/components/admin/NodeActionBar.vue`
 
 **What it's for.** Creating a class underneath a group you lead, before anyone is teaching it. Useful when you are setting a term up in advance and will put a teacher on each class later.
 
@@ -67,7 +67,7 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `ver
 
 ## Bring your first person in
 
-Section: getting-people-in · roles: admin, leader · anchor: `verb-invite-person` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · has a walk
+Section: getting-people-in · roles: admin, leader, school_admin · anchor: `verb-invite-person` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · has a walk
 
 **What it's for.** Bringing anyone into this part of the tree — a leader, a teacher or a learner — with a personal link that is their login.
 
@@ -371,7 +371,7 @@ Section: getting-people-in · roles: school_admin, leader · anchor: `teacher-as
 
 ## Hand a class over to another teacher
 
-Section: running-classes · roles: teacher · anchor: `class-teacher-make-lead` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
+Section: running-classes · roles: leader, school_admin, teacher · anchor: `class-teacher-make-lead` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
 
 **What it's for.** Passing the lead of a class to another teacher who already teaches it — for a maternity cover, a term swap, or a permanent handover.
 
@@ -494,7 +494,7 @@ Section: getting-people-in · roles: school_admin · anchor: `teachers-invite-li
 
 ## Invite a teacher who isn't here yet
 
-Section: running-classes · roles: teacher · anchor: `class-coteacher-link` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
+Section: running-classes · roles: leader, school_admin, teacher · anchor: `class-coteacher-link` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
 
 **What it's for.** Getting a teacher who has no account yet into one class of yours, without going through the school admin.
 
@@ -555,7 +555,7 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `ver
 
 ## Move a teacher to another class
 
-Section: running-classes · roles: teacher · anchor: `class-teacher-other-classes` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
+Section: running-classes · roles: leader, school_admin, teacher · anchor: `class-teacher-other-classes` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
 
 **What it's for.** Changing which classes a teacher is on, in one pass, without visiting each class in turn.
 
@@ -614,7 +614,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class
 
 ## Put the app on your device
 
-Section: your-own-account · roles: leader · anchor: `account-install` · in `packages/player-vue/src/components/admin/YourAccount.vue` · has a walk
+Section: your-own-account · roles: leader, school_admin · anchor: `account-install` · in `packages/player-vue/src/components/admin/YourAccount.vue` · has a walk
 
 **What it's for.** Putting SSi on your phone or tablet as an app, so it opens from the home screen and works without a browser tab.
 
@@ -750,7 +750,7 @@ Section: your-school · roles: admin · anchor: `verb-rename` · in `packages/pl
 
 ## Run your first class session
 
-Section: running-classes · roles: teacher · anchor: `class-play` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
+Section: running-classes · roles: school_admin, teacher · anchor: `class-play` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
 
 **What it's for.** Running a live practice session with a class in the room, everyone hearing the same thing at the same time.
 
@@ -797,7 +797,7 @@ Section: your-school · roles: school_admin · anchor: `settings-billing-plan` �
 
 ## Set or change your password
 
-Section: your-own-account · roles: leader · anchor: `account-password` · in `packages/player-vue/src/components/admin/YourAccount.vue` · has a walk
+Section: your-own-account · roles: leader, school_admin · anchor: `account-password` · in `packages/player-vue/src/components/admin/YourAccount.vue` · has a walk
 
 **What it's for.** Giving yourself a password so you can sign back in without waiting for a link in your email.
 
@@ -841,7 +841,7 @@ Section: your-school · roles: school_admin, teacher · anchor: `settings-locali
 
 ## Share a class with a colleague
 
-Section: running-classes · roles: teacher · anchor: `class-teacher-add` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
+Section: running-classes · roles: leader, school_admin, teacher · anchor: `class-teacher-add` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
 
 **What it's for.** Adding another teacher to a class you already run, so you both see the same roster and the same progress.
 
@@ -917,7 +917,7 @@ Section: your-school · roles: school_admin · anchor: `upgrade-subscribe-school
 
 ## Take a teacher off a class, or move them
 
-Section: running-classes · roles: school_admin, leader · anchor: `assign-classes-modal` · in `packages/player-vue/src/components/schools/AssignClassesModal.vue`
+Section: running-classes · roles: leader, school_admin, teacher · anchor: `assign-classes-modal` · in `packages/player-vue/src/components/schools/AssignClassesModal.vue`
 
 **What it's for.** Changing which classes a teacher takes without removing them from the school. The ticks start from what is true today, so moving somebody from one class to another is a single change rather than two.
 
@@ -947,7 +947,7 @@ Section: seeing-progress · roles: admin, school_admin, teacher · anchor: `stud
 
 ## The class roster
 
-Section: seeing-progress · roles: admin, leader, school_admin, teacher · anchor: `class-roster` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
+Section: seeing-progress · roles: leader, school_admin, teacher · anchor: `class-roster` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
 
 **What it's for.** Everyone in the class, one row each, with their belt, how much they have learned, how much they have practised and when they were last at it. This is the answer to who is quietly drifting.
 
@@ -1055,7 +1055,7 @@ Section: your-school · roles: school_admin, leader · anchor: `upgrade-seats-ac
 
 ## Where the class has got to
 
-Section: seeing-progress · roles: admin, leader, school_admin, teacher · anchor: `class-journey` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
+Section: seeing-progress · roles: leader, school_admin, teacher · anchor: `class-journey` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
 
 **What it's for.** How far the class has travelled through its course, as a bar with the class average behind it and the next belt named. A class carries its own place on the course, moved by the sessions you run together.
 

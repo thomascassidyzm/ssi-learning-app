@@ -1,5 +1,5 @@
 {
-  "version": "b200e1a2e6bc",
+  "version": "ea01810ea071",
   "generatedAt": "2026-09-07",
   "walks": [
     {
@@ -916,7 +916,8 @@
       "section": "running-classes",
       "personas": [
         "admin",
-        "leader"
+        "leader",
+        "school_admin"
       ],
       "keywords": [
         "class",
@@ -1045,7 +1046,8 @@
       "section": "getting-people-in",
       "personas": [
         "admin",
-        "leader"
+        "leader",
+        "school_admin"
       ],
       "keywords": [
         "invite",
@@ -1701,6 +1703,8 @@
       "title": "Hand a class over to another teacher",
       "section": "running-classes",
       "personas": [
+        "leader",
+        "school_admin",
         "teacher"
       ],
       "keywords": [
@@ -1962,6 +1966,8 @@
       "title": "Invite a teacher who isn't here yet",
       "section": "running-classes",
       "personas": [
+        "leader",
+        "school_admin",
         "teacher"
       ],
       "keywords": [
@@ -2091,6 +2097,8 @@
       "title": "Move a teacher to another class",
       "section": "running-classes",
       "personas": [
+        "leader",
+        "school_admin",
         "teacher"
       ],
       "keywords": [
@@ -2217,7 +2225,8 @@
       "title": "Put the app on your device",
       "section": "your-own-account",
       "personas": [
-        "leader"
+        "leader",
+        "school_admin"
       ],
       "keywords": [
         "install",
@@ -2506,6 +2515,7 @@
       "title": "Run your first class session",
       "section": "running-classes",
       "personas": [
+        "school_admin",
         "teacher"
       ],
       "keywords": [
@@ -2610,7 +2620,8 @@
       "title": "Set or change your password",
       "section": "your-own-account",
       "personas": [
-        "leader"
+        "leader",
+        "school_admin"
       ],
       "keywords": [
         "password",
@@ -2705,6 +2716,8 @@
       "title": "Share a class with a colleague",
       "section": "running-classes",
       "personas": [
+        "leader",
+        "school_admin",
         "teacher"
       ],
       "keywords": [
@@ -2871,8 +2884,9 @@
       "title": "Take a teacher off a class, or move them",
       "section": "running-classes",
       "personas": [
+        "leader",
         "school_admin",
-        "leader"
+        "teacher"
       ],
       "keywords": [
         "move",
@@ -2935,7 +2949,6 @@
       "title": "The class roster",
       "section": "seeing-progress",
       "personas": [
-        "admin",
         "leader",
         "school_admin",
         "teacher"
@@ -3176,7 +3189,6 @@
       "title": "Where the class has got to",
       "section": "seeing-progress",
       "personas": [
-        "admin",
         "leader",
         "school_admin",
         "teacher"
