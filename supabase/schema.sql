@@ -20252,7 +20252,6 @@ GRANT ALL ON FUNCTION public.admin_practice_minutes(p_learner_ids uuid[]) TO ser
 --
 
 REVOKE ALL ON FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[]) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[]) TO authenticated;
 GRANT ALL ON FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[]) TO service_role;
 
 

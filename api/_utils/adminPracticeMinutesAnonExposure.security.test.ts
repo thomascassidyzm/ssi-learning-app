@@ -83,17 +83,18 @@ describe('SEC25-D-02: admin_practice_minutes(_by_course) — DEFINER, anon-grant
     )
   })
 
-  it('PENDING REVOKE: _by_course still carries `authenticated` in the snapshot until the migration is applied live', () => {
-    // The client repoint ships FIRST and the revoke follows once it is live in
-    // production — a revoke ahead of its callers is the blanking failure. This
-    // assertion therefore pins the CURRENT live truth; the commit that applies
-    // 20260907_practice_minutes_scope_repoint_revoke.sql and re-snapshots
-    // schema.sql flips it to service_role-only.
+  it('SECURE: admin_practice_minutes_by_course() is service_role only — no anon, and no authenticated either', () => {
     expect(schema).toContain(
       'REVOKE ALL ON FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[]) FROM PUBLIC;',
     )
     expect(schema).not.toContain(
       'GRANT ALL ON FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[]) TO anon;',
+    )
+    // The named-learner oracle: the `authenticated` grant is what let any
+    // signed-in caller read a stranger's practice history from a UUID alone.
+    // Revoked live 2026-09-07, canaried, after the four callers were repointed.
+    expect(schema).not.toContain(
+      'GRANT ALL ON FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[]) TO authenticated;',
     )
     expect(schema).toContain(
       'GRANT ALL ON FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[]) TO service_role;',
