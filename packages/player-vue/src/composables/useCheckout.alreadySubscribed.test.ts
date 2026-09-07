@@ -14,13 +14,25 @@
  * with the guard. The last one is the other half of the bar: a person who is
  * NOT subscribed must still be able to buy, so the guard is not allowed to
  * fail closed.
+ *
+ * WHAT CHANGED 2026-09-07, and what did NOT. Premium → Family is now a real
+ * upgrade: it runs as a Paddle PLAN CHANGE on the existing subscription
+ * (useCheckout.familyUpgrade.test.ts pins it). No assertion here was dropped
+ * for it — every case below is one the guard must still block, so the
+ * subscriber in these tests is on Family and can only be trying to buy a
+ * SECOND subscription.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { computed } from 'vue'
 
-const { checkoutOpen, subscribed } = vi.hoisted(() => ({
+const { checkoutOpen, subscribed, planName } = vi.hoisted(() => ({
   checkoutOpen: vi.fn(),
   subscribed: { value: false },
+  // The plan they are on. 'SSi Family' here keeps every case below a genuine
+  // BLOCK rather than the Premium → Family plan change, which has its own file
+  // (useCheckout.familyUpgrade.test.ts). The guard these tests pin is unchanged
+  // for everything except that one upgrade.
+  planName: { value: 'SSi Family' as string | null },
 }))
 
 vi.mock('@/lib/paddle', () => ({
@@ -39,6 +51,7 @@ vi.mock('@/composables/useAuthModal', () => ({ useAuthModal: () => ({ open: vi.f
 vi.mock('./useSubscription', () => ({
   useSharedSubscription: () => ({
     isSubscribed: computed(() => subscribed.value),
+    subscription: computed(() => (subscribed.value ? { planName: planName.value } : null)),
     refresh: async () => {},
     openPortal: async () => {},
   }),
@@ -56,6 +69,7 @@ describe('an existing subscriber cannot open a second checkout', () => {
   beforeEach(() => {
     checkoutOpen.mockClear()
     subscribed.value = true
+    planName.value = 'SSi Family'
     session = { user: { id: 'user-1', email: 'payer@example.test' } }
     setSchoolsClient(client)
     const c = useCheckout()
@@ -75,6 +89,8 @@ describe('an existing subscriber cannot open a second checkout', () => {
   })
 
   it('a NAMED plan (the picker going straight to Paddle) is blocked too', async () => {
+    // Already on Family — buying it again is exactly the double-subscription
+    // this guard exists to stop, and there is no plan change to offer.
     const checkout = useCheckout()
     await checkout.startCheckout({ plan: 'family', billingPeriod: 'monthly' })
     await settle()
@@ -92,9 +108,10 @@ describe('an existing subscriber cannot open a second checkout', () => {
     expect(checkout.detailsOpen.value).toBe(true)
 
     // They turn out to have an account already (409 already_registered), sign
-    // in — and that account is ALREADY subscribed.
+    // in — and that account is ALREADY subscribed, on Family.
     session = { user: { id: 'user-1', email: 'payer@example.test' } }
     subscribed.value = true
+    planName.value = 'SSi Family'
     await useCheckout().completePendingCheckout()
     await settle()
 
