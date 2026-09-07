@@ -1,0 +1,30 @@
+{
+  "id": "open-a-class",
+  "title": "Open a class",
+  "section": "running-classes",
+  "personas": [
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "classes"
+  },
+  "anchor": "classes-row",
+  "keywords": [
+    "class",
+    "open",
+    "detail",
+    "roster",
+    "view"
+  ],
+  "handbook": {
+    "what": "Going from the summary row into the class itself, where the roster, the teachers, the join link and the class's progress all live.",
+    "where": "**My Classes**, anywhere on the class's row.",
+    "how": [
+      "Open **My Classes**.",
+      "Tap the row for the class you want.",
+      "The class page opens on its roster."
+    ],
+    "note": "The row is a button in its own right, so a keyboard works too. The buttons at the right of the row do their own jobs and do not open the class."
+  }
+}

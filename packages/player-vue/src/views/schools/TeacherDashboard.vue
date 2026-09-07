@@ -356,10 +356,10 @@ function exportCsv() {
         <p class="page-subtitle schools-subtle">{{ headlineSubtitle }} <UpdatedStamp /></p>
       </div>
       <div class="page-head-actions">
-        <button v-if="enrichedClasses.length > 0" type="button" class="btn-ghost" @click="exportCsv">
+        <button data-walk="classes-export" v-if="enrichedClasses.length > 0" type="button" class="btn-ghost" @click="exportCsv">
           Export CSV
         </button>
-        <button v-if="!isAdminView" type="button" class="btn-play" @click="openCreateModal">
+        <button v-if="!isAdminView" type="button" class="btn-play" data-walk="verb-new-class" @click="openCreateModal">
           + New class
         </button>
       </div>
@@ -406,7 +406,7 @@ function exportCsv() {
     </div>
 
     <!-- Filters -->
-    <div v-if="enrichedClasses.length > 0" class="filters-bar schools-card">
+    <div data-walk="classes-filters" v-if="enrichedClasses.length > 0" class="filters-bar schools-card">
       <label class="filter">
         <span class="filter-label">Course</span>
         <select v-model="courseFilter" class="filter-select">
@@ -439,7 +439,7 @@ function exportCsv() {
 
     <!-- Table -->
     <div v-if="filtered.length > 0" class="schools-card table-card">
-      <table class="ssi-table">
+      <table class="ssi-table" data-walk="classes-table">
         <thead>
           <tr>
             <th>Class</th>
@@ -459,6 +459,7 @@ function exportCsv() {
             v-for="cls in filtered"
             :key="cls.id"
             class="row-clickable"
+            data-walk="classes-row"
             tabindex="0"
             role="button"
             :aria-label="`Open ${cls.class_name}`"
@@ -487,12 +488,12 @@ function exportCsv() {
               </span>
             </td>
             <td class="cell-share">
-              <button type="button" class="share-btn" @click.stop="copyShareLink(cls)" :title="shareUrlFor(cls)">
+              <button type="button" class="share-btn" data-walk="classes-share-link" @click.stop="copyShareLink(cls)" :title="shareUrlFor(cls)">
                 {{ copiedClassId === cls.id ? 'Copied ✓' : 'Copy link' }}
               </button>
             </td>
             <td class="cell-action">
-              <button v-if="canPlayAsClass" type="button" class="row-play-btn" @click.stop="handlePlayClass(cls)">▶ Play as class</button>
+              <button v-if="canPlayAsClass" type="button" class="row-play-btn" data-walk="classes-row-play" @click.stop="handlePlayClass(cls)">▶ Play as class</button>
             </td>
           </tr>
         </tbody>

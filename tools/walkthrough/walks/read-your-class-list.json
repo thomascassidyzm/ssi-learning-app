@@ -1,0 +1,32 @@
+{
+  "id": "read-your-class-list",
+  "title": "Read your class list",
+  "section": "running-classes",
+  "personas": [
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "classes"
+  },
+  "anchor": "classes-table",
+  "keywords": [
+    "classes",
+    "list",
+    "overview",
+    "belt",
+    "hours",
+    "health"
+  ],
+  "handbook": {
+    "what": "One row per class, showing at a glance how each one is doing: how many students, what belt the class has reached, hours practised this week, the shape of the last seven days, and a health mark for classes worth a look.",
+    "where": "**My Classes**, the table filling most of the page.",
+    "how": [
+      "Open **My Classes**.",
+      "Read down the health column first, because that is where the app is pointing you.",
+      "Use the small chart in each row to see whether practice is steady or has stopped.",
+      "Compare hours this week between classes taking the same course."
+    ],
+    "note": "Health is worked out from how many of the last seven days the class practised on. A quiet week reads as needing eyes, which is a prompt for a word rather than a worry."
+  }
+}

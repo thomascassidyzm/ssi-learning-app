@@ -1,0 +1,32 @@
+{
+  "id": "rename-a-class",
+  "title": "Rename a class",
+  "section": "running-classes",
+  "personas": [
+    "leader",
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "class-detail"
+  },
+  "anchor": "class-rename",
+  "keywords": [
+    "class",
+    "rename",
+    "name",
+    "edit",
+    "title"
+  ],
+  "handbook": {
+    "what": "Changing what a class is called, for a name typed in a hurry or a group that has moved up a year.",
+    "where": "The class page, the small pencil beside the class name.",
+    "how": [
+      "Open the class from **My Classes**.",
+      "Tap the pencil next to the name at the top.",
+      "Type the new name.",
+      "Confirm it."
+    ],
+    "note": "Only the name changes. The roster, the join link, the join code and the class's place on the course all carry on exactly as they were."
+  }
+}

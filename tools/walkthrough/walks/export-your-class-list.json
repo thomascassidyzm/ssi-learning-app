@@ -1,0 +1,31 @@
+{
+  "id": "export-your-class-list",
+  "title": "Export your class list",
+  "section": "running-classes",
+  "personas": [
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "classes"
+  },
+  "anchor": "classes-export",
+  "keywords": [
+    "export",
+    "csv",
+    "download",
+    "report",
+    "classes"
+  ],
+  "handbook": {
+    "what": "Taking the class list away as a spreadsheet, with the name, language, student count, belt, hours this week, sessions, health and join code for every class.",
+    "where": "**My Classes**, the **Export CSV** button along the top.",
+    "how": [
+      "Open **My Classes**.",
+      "Filter the list down first if you only want part of it.",
+      "Tap **Export CSV**.",
+      "The file downloads with today's date in its name."
+    ],
+    "note": "What you export is what you can see, so a filter applied to the table applies to the file as well."
+  }
+}

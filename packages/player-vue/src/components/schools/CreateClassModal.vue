@@ -224,7 +224,7 @@ const handleSubmit = () => {
                 <p v-if="lockedNote" class="form-hint">{{ lockedNote }}</p>
               </template>
               <!-- Full catalogue (~74 courses): searchable type-ahead, not a plain <select>. -->
-              <div v-else class="course-picker">
+              <div v-else class="course-picker" data-walk="create-class-course">
                 <button
                   v-if="selectedCourse && !isCourseListOpen"
                   id="courseCode"
