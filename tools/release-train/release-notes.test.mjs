@@ -369,7 +369,7 @@ test('promote.sh writes the notes BEFORE it pushes main, so they ship with their
   // which is how Settings came to show 16 Aug on 2026-08-29. Order is the fix; lock it.
   const sh = readFileSync(new URL('./promote.sh', import.meta.url), 'utf8')
   const notes = sh.indexOf("${NOTES_ARGS[@]}")
-  const commit = sh.indexOf('add -- tools/release-train/notes/')
+  const commit = sh.search(/add (-A )?-- tools\/release-train\/notes\//)
   const push = sh.indexOf('push origin HEAD:main')
   assert.ok(notes > 0 && commit > 0 && push > 0, 'promote.sh lost one of its three steps')
   assert.ok(notes < commit, 'the notes must be written before they are staged')
