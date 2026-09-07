@@ -12,6 +12,7 @@ import {
   clearedUnclaimedMint,
   provedMailbox,
   mayClaim,
+  mintIsRevocable,
   UNCLAIMED_MINT_KEY,
 } from './unclaimedMint'
 
@@ -84,5 +85,48 @@ describe('mayClaim — the whole attack, one case per step', () => {
 
   it('a token with no session_id claims nothing', () => {
     expect(mayClaim(marker, null, OTP)).toBe(false)
+  })
+})
+
+/**
+ * PROVENANCE — job #354, the live breakage.
+ *
+ * The schools teacher-invite flow stamps the SAME marker as the purchase path
+ * did, deliberately. The password on a schools account is the teacher's own,
+ * set through SchoolsPasswordPrompt because school mail gateways quarantine
+ * our sign-in codes. Rotating it on a routine second-device code sign-in is a
+ * total lockout, and nothing visible goes wrong at the moment it happens.
+ */
+describe('provenance — whose credentials this rule may destroy', () => {
+  const OTHER_SESSION = 'a-second-device-signing-in-by-code'
+  const markerFrom = (mintedBy: string) =>
+    readUnclaimedMint({ app_metadata: buildUnclaimedMint(MINT_SESSION, mintedBy) })
+
+  it('CASE 1 — a buyer-path mint is still swept: the original security property holds', () => {
+    expect(mayClaim(markerFrom('buyer_account'), OWNER_SESSION, OTP)).toBe(true)
+  })
+
+  it('CASE 2 — a schools mint is NEVER swept, so the teacher keeps the password they set', () => {
+    expect(mayClaim(markerFrom('possession_redeem'), OTHER_SESSION, OTP)).toBe(false)
+    expect(mayClaim(markerFrom('possession_adopt'), OTHER_SESSION, OTP)).toBe(false)
+  })
+
+  it('CASE 3 — absent or unrecognised provenance fails CLOSED, destroying nothing', () => {
+    // readUnclaimedMint fills 'unknown' when the field is missing or not a string.
+    const noProvenance = readUnclaimedMint({
+      app_metadata: { [UNCLAIMED_MINT_KEY]: { session_id: MINT_SESSION } },
+    })
+    expect(noProvenance?.minted_by).toBe('unknown')
+    expect(mayClaim(noProvenance, OWNER_SESSION, OTP)).toBe(false)
+    expect(mayClaim(markerFrom('some_future_endpoint'), OWNER_SESSION, OTP)).toBe(false)
+    expect(mayClaim(markerFrom(''), OWNER_SESSION, OTP)).toBe(false)
+  })
+
+  it('names the allowlist directly, so a new minting path has to opt in', () => {
+    expect(mintIsRevocable('buyer_account')).toBe(true)
+    expect(mintIsRevocable('possession_redeem')).toBe(false)
+    expect(mintIsRevocable('unknown')).toBe(false)
+    expect(mintIsRevocable(null)).toBe(false)
+    expect(mintIsRevocable(undefined)).toBe(false)
   })
 })
