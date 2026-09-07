@@ -37,6 +37,8 @@ let generateLinkResult: any
 let verifyOtpResult: any
 let deleteUserCalls: string[]
 let learnerInserts: any[]
+let learnerUpdateTargets: string[]
+let learnerRowExists: boolean
 let learnerDeletes: string[]
 let attempts: any[]
 let ipCount: number
@@ -65,9 +67,20 @@ vi.mock('@supabase/supabase-js', () => ({
         if (table === 'possession_mint_attempts') return attemptsBuilder()
         if (table === 'learners') {
           return {
-            insert: (row: any) => {
+            // The row is made by the on_auth_user_created trigger; the handler
+            // UPDATEs it. An insert here fails 23505 in the live DB.
+            update: (row: any) => {
               learnerInserts.push(row)
-              return Promise.resolve({ error: null })
+              return {
+                eq: (_c: string, val: string) => ({
+                  select: () => ({
+                    maybeSingle: () => {
+                      learnerUpdateTargets.push(val)
+                      return Promise.resolve({ data: learnerRowExists ? { id: 'learner-1' } : null, error: null })
+                    },
+                  }),
+                }),
+              }
             },
             delete: () => ({
               eq: (_col: string, val: string) => {
@@ -134,6 +147,8 @@ describe('POST /api/auth/buyer-account', () => {
     ipCount = 0
     attempts = []
     learnerInserts = []
+    learnerUpdateTargets = []
+    learnerRowExists = true
     learnerDeletes = []
     deleteUserCalls = []
     createUserArg = undefined
@@ -158,10 +173,12 @@ describe('POST /api/auth/buyer-account', () => {
     expect(createUserArg.email_confirm).toBe(false)
     expect(createUserArg.email).toBe('buyer@example.com')
     expect(createUserArg.user_metadata.onboarded_via).toBe('possession')
-    // The learner row exists BEFORE Paddle, because the webhook resolves the
-    // payer by supabase_user_id → learners.user_id.
-    expect(learnerInserts).toHaveLength(1)
-    expect(learnerInserts[0]).toMatchObject({ user_id: 'user-new', needs_verification: true })
+    // The learner row is settled BEFORE Paddle, because the webhook resolves
+    // the payer by supabase_user_id → learners.user_id. The row itself is made
+    // by the on_auth_user_created trigger, so the handler stamps the one thing
+    // the trigger cannot know.
+    expect(learnerInserts).toEqual([{ needs_verification: true }])
+    expect(learnerUpdateTargets).toEqual(['user-new'])
   })
 
   it('sets the password when one is given, and never demands one', async () => {
@@ -181,6 +198,14 @@ describe('POST /api/auth/buyer-account', () => {
     expect(res.statusCode).toBe(409)
     expect(res.body.reason).toBe('already_registered')
     expect(res.body.session).toBeUndefined()
+  })
+
+  it('fails loudly when the learner row never appears', async () => {
+    learnerRowExists = false
+    const res = makeRes()
+    await handler(makeReq({ email: 'buyer@example.com' }), res)
+    expect(res.statusCode).toBe(500)
+    expect(deleteUserCalls).toEqual(['user-new'])
   })
 
   it('rolls BOTH rows back when the session mint fails', async () => {
