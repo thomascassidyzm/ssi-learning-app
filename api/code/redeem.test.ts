@@ -1795,3 +1795,220 @@ describe('POST /api/code/redeem — teacher seat cap (ADMIN-ENT-05)', () => {
     expect(writes.user_tags[0].payload).toMatchObject({ tag_type: 'group' })
   })
 })
+
+/**
+ * RE-INVITE AFTER REMOVAL (NPTC Group onboarding, 2026-09-07).
+ *
+ * `unique_active_tag UNIQUE (user_id, tag_type, tag_value)` is TOTAL — no
+ * `WHERE removed_at IS NULL` — so a soft-removed tag row keeps holding the
+ * unique key. Re-inviting somebody who was previously removed therefore raised
+ * 23505 on the insert; every tag-insert site in redeem.ts swallowed that as
+ * "idempotent success", so the API answered success and the person was NOT
+ * back in. These tests fail against that code and pass against the
+ * reactivate-on-conflict fix.
+ */
+describe('POST /api/code/redeem — re-invite after removal reactivates the soft-removed tag', () => {
+  let handler: typeof import('./redeem').default
+
+  beforeEach(async () => {
+    vi.resetModules()
+    writes = {}
+    responders = {}
+    authUserOverride = { email: 'leader@example.com' }
+    entitlementClaimResult = { data: 'claimed', error: null }
+    handler = (await import('./redeem')).default
+  })
+
+  // The live shape: the person's tag row exists but is soft-removed, so
+  //  - the dedup precheck (`.is('removed_at', null)`) finds nothing and lets
+  //    the redemption through, and
+  //  - the insert hits the total unique constraint → 23505.
+  function removedTagResponder(removedIds: Record<string, string>) {
+    return (calls: any[][]) => {
+      if (calls.some((c) => c[0] === 'insert')) {
+        return {
+          data: null,
+          error: {
+            code: '23505',
+            message: 'duplicate key value violates unique constraint "unique_active_tag"',
+          },
+        }
+      }
+      const select = calls.find((c) => c[0] === 'select')
+      if (select) {
+        const tagValue = calls.find((c) => c[0] === 'eq' && c[1] === 'tag_value')?.[2] as string
+        // The helper's conflict re-read asks for `id, removed_at` and does NOT
+        // filter on removed_at — that is the call that must see the dead row.
+        if (select[1] === 'id, removed_at' && removedIds[tagValue]) {
+          return { data: { id: removedIds[tagValue], removed_at: '2026-08-01T00:00:00Z' }, error: null }
+        }
+        // Every other select is an active-tag lookup: there is no active tag.
+        return { data: null, error: null }
+      }
+      return { data: null, error: null }
+    }
+  }
+
+  it('TEACHER re-invite: a previously-removed teacher is REACTIVATED, not silently skipped', async () => {
+    responders.invite_codes = (calls) => {
+      if (calls.some((c) => c[0] === 'select')) {
+        return {
+          data: {
+            id: 'invite-reinvite-teacher',
+            code: 'REINVITE-T',
+            code_type: 'teacher',
+            grants_region: null,
+            grants_school_id: 'school-9',
+            grants_class_id: 'class-7',
+            grants_group_id: null,
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = () => ({ data: { id: 'learner-reinvite-teacher' }, error: null })
+    responders.user_tags = removedTagResponder({
+      'SCHOOL:school-9': 'dead-school-tag',
+      'CLASS:class-7': 'dead-class-tag',
+    })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'REINVITE-T', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+
+    // The point: both dead rows were brought back to active.
+    const updates = (writes.user_tags ?? []).filter((w: any) => w.op === 'update')
+    expect(updates).toHaveLength(2)
+    for (const u of updates) {
+      expect(u.payload).toMatchObject({ removed_at: null, role_in_context: 'teacher' })
+    }
+  })
+
+  it('STUDENT re-invite: a previously-removed student is REACTIVATED into the class', async () => {
+    responders.invite_codes = (calls) => {
+      if (calls.some((c) => c[0] === 'select')) {
+        return {
+          data: {
+            id: 'invite-reinvite-student',
+            code: 'REINVITE-S',
+            code_type: 'student',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: 'class-7',
+            grants_group_id: null,
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = () => ({ data: { id: 'learner-reinvite-student' }, error: null })
+    responders.user_tags = removedTagResponder({ 'CLASS:class-7': 'dead-student-tag' })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'REINVITE-S', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+
+    const updates = (writes.user_tags ?? []).filter((w: any) => w.op === 'update')
+    expect(updates).toHaveLength(1)
+    expect(updates[0].payload).toMatchObject({ removed_at: null, role_in_context: 'student' })
+  })
+
+  it('GROUP-SCOPED re-invite: a previously-removed group member is REACTIVATED at the node', async () => {
+    responders.invite_codes = (calls) => {
+      if (calls.some((c) => c[0] === 'select')) {
+        return {
+          data: {
+            id: 'invite-reinvite-group',
+            code: 'REINVITE-G',
+            code_type: 'teacher',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: null,
+            grants_group_id: 'group-node-1',
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = () => ({ data: { id: 'learner-reinvite-group' }, error: null })
+    responders.user_tags = removedTagResponder({ 'GROUP:group-node-1': 'dead-group-tag' })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'REINVITE-G', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+
+    const updates = (writes.user_tags ?? []).filter((w: any) => w.op === 'update')
+    expect(updates).toHaveLength(1)
+    expect(updates[0].payload).toMatchObject({ removed_at: null, role_in_context: 'teacher' })
+  })
+
+  it('ACTIVE duplicate is still an idempotent no-op — no reactivation write, still success', async () => {
+    responders.invite_codes = (calls) => {
+      if (calls.some((c) => c[0] === 'select')) {
+        return {
+          data: {
+            id: 'invite-dup-active',
+            code: 'DUP-ACTIVE',
+            code_type: 'student',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: 'class-7',
+            grants_group_id: null,
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = () => ({ data: { id: 'learner-dup-active' }, error: null })
+    responders.user_tags = (calls) => {
+      if (calls.some((c) => c[0] === 'insert')) {
+        return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "unique_active_tag"' } }
+      }
+      const select = calls.find((c) => c[0] === 'select')
+      if (select && select[1] === 'id, removed_at') {
+        // The key is held by a LIVE row (a concurrent/retried redemption).
+        return { data: { id: 'live-tag', removed_at: null }, error: null }
+      }
+      // The dedup precheck must still see nothing, or the redemption is refused
+      // before it ever reaches the insert.
+      return { data: null, error: null }
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'DUP-ACTIVE', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    expect((writes.user_tags ?? []).filter((w: any) => w.op === 'update')).toHaveLength(0)
+  })
+})
