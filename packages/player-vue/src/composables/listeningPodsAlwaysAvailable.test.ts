@@ -1,4 +1,13 @@
 /**
+ * @vitest-environment node
+ *
+ * A filesystem test, not a DOM one. Under the project default (happy-dom) the
+ * `url` module is shimmed and `fileURLToPath` is not a function, so this file
+ * threw before a single assertion ran — a failed FILE and zero failed TESTS,
+ * which reads like an infrastructure blip rather than an unguarded ruling.
+ * Third instance of this found on 2026-09-07, alongside the two i18n gates.
+ */
+/**
  * "The PODS are all always available in the listening mode section"
  * (Tom, 2026-09-06 — the second half of the top-of-the-ladder ruling).
  *
