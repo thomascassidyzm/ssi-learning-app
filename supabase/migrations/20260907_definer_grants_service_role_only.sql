@@ -42,3 +42,17 @@ GRANT EXECUTE ON FUNCTION public.audit_log_prune(integer) TO service_role;
 GRANT EXECUTE ON FUNCTION public.analytics_learner_progress_rate(uuid, text) TO service_role;
 
 NOTIFY pgrst, 'reload schema';
+
+-- ── second pass, after the #324 sibling audit ────────────────────────────────
+-- Two more ungated WRITES that `anon` could reach. Both switch which version of
+-- an AI course-generation prompt or brief is live, from a client-supplied
+-- key — an unauthenticated caller could repoint content generation at any
+-- stored version. Neither has a caller anywhere in the estate (searched both
+-- repos and the surface), and both carried the PUBLIC grant as well as the two
+-- browser roles, so PUBLIC has to go or the revoke does nothing.
+REVOKE EXECUTE ON FUNCTION public.activate_brief_version(text, text, text) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.activate_prompt_version(text, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.activate_brief_version(text, text, text) TO service_role;
+GRANT EXECUTE ON FUNCTION public.activate_prompt_version(text, text) TO service_role;
+
+NOTIFY pgrst, 'reload schema';

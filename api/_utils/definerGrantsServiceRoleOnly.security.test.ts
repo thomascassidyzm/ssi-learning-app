@@ -39,6 +39,11 @@ const SERVER_ONLY = [
   'reverse_teacher_commission',
   'audit_log_prune',
   'analytics_learner_progress_rate',
+  // second pass, after the #324 sibling audit: two more ungated writes that
+  // `anon` could reach, both repointing AI course-generation content at any
+  // stored version from a client-supplied key, neither with a caller anywhere.
+  'activate_brief_version',
+  'activate_prompt_version',
 ]
 
 describe('server-only SECURITY DEFINER functions are not granted to the browser roles', () => {

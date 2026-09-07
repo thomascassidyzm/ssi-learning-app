@@ -20229,8 +20229,6 @@ GRANT ALL ON FUNCTION public.accrue_teacher_commission_held(p_teacher_id uuid, p
 -- Name: FUNCTION activate_brief_version(p_known_code text, p_target_code text, p_version text); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.activate_brief_version(p_known_code text, p_target_code text, p_version text) TO anon;
-GRANT ALL ON FUNCTION public.activate_brief_version(p_known_code text, p_target_code text, p_version text) TO authenticated;
 GRANT ALL ON FUNCTION public.activate_brief_version(p_known_code text, p_target_code text, p_version text) TO service_role;
 
 
@@ -20238,8 +20236,6 @@ GRANT ALL ON FUNCTION public.activate_brief_version(p_known_code text, p_target_
 -- Name: FUNCTION activate_prompt_version(p_phase_code text, p_version text); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.activate_prompt_version(p_phase_code text, p_version text) TO anon;
-GRANT ALL ON FUNCTION public.activate_prompt_version(p_phase_code text, p_version text) TO authenticated;
 GRANT ALL ON FUNCTION public.activate_prompt_version(p_phase_code text, p_version text) TO service_role;
 
 
