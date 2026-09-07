@@ -36,8 +36,8 @@ const stubs = {
 }
 
 const CANDIDATES = [
-  { user_id: 'u-ana', learner_id: 'L-ana', display_name: 'Ana Lewis', current_class_name: 'Grade 7A' },
-  { user_id: 'u-bo', learner_id: 'L-bo', display_name: 'Bo Rhys', current_class_name: 'Grade 7A' },
+  { user_id: 'u-ana', learner_id: 'L-ana', display_name: 'Ana Lewis', current_classes: [{ id: 'c2', name: 'Grade 7A' }] },
+  { user_id: 'u-bo', learner_id: 'L-bo', display_name: 'Bo Rhys', current_classes: [] },
 ]
 
 let fetchMock: ReturnType<typeof vi.fn>
@@ -57,7 +57,7 @@ async function mountAsTeacher() {
     history: createMemoryHistory(),
     routes: [
       { path: '/schools/classes', name: 'classes', component: { template: '<div/>' } },
-      { path: '/schools/classes/:classId', name: 'class-detail', component: ClassDetail },
+      { path: '/schools/classes/:id', name: 'class-detail', component: ClassDetail },
     ],
   })
   router.push('/schools/classes/c1')
@@ -105,7 +105,7 @@ describe('ClassDetail — putting students into the class', () => {
         return { ok: true, json: async () => ({ candidates: CANDIDATES }) } as any
       }
       if (String(url) === '/api/teacher/class-students') {
-        return { ok: true, json: async () => ({ ok: true }) } as any
+        return { ok: true, json: async () => ({ ok: true, still_in: [{ id: 'c2', name: 'Grade 7A' }] }) } as any
       }
       return { ok: true, json: async () => ({}) } as any
     })
@@ -137,8 +137,10 @@ describe('ClassDetail — putting students into the class', () => {
     // The dropdown ruling: whatever you open carries a search box.
     expect(picker.find('input[type="search"]').exists()).toBe(true)
     expect(picker.text()).toContain('Ana Lewis')
-    // The class they are in NOW, so a move reads as a move.
+    // The classes they are in NOW, so the teacher can see what the tap leaves.
     expect(picker.text()).toContain('Grade 7A')
+    // And a pupil in no class at all says so, rather than showing a blank.
+    expect(picker.text()).toContain('In no class')
 
     await picker.find('input[type="search"]').setValue('bo')
     expect(wrapper.find('[data-walk="class-student-picker"]').text()).not.toContain('Ana Lewis')
@@ -151,6 +153,12 @@ describe('ClassDetail — putting students into the class', () => {
     expect(posted).toBeTruthy()
     expect(JSON.parse((posted as any)[1].body)).toEqual({ class_id: 'c1', target_user_id: 'u-ana' })
     expect(wrapper.text()).toContain('Ana Lewis is in this class now')
+    // An add is an ADD. The page says the old membership is still standing and
+    // links to the class whose roster carries the Remove button.
+    expect(wrapper.text()).toContain('Still in')
+    const stillIn = wrapper.find('.add-student-link')
+    expect(stillIn.text()).toBe('Grade 7A')
+    expect(stillIn.attributes('href')).toContain('c2')
     // The filter that found them is spent — left standing it reads as
     // "nobody matches ana" directly under "Ana Lewis is in this class now".
     expect(wrapper.text()).not.toContain('Nobody in your school matches')
@@ -219,6 +227,22 @@ describe('ClassDetail — putting students into the class', () => {
     expect(rail.exists()).toBe(true)
     expect(rail.classes()).not.toContain('rail-first')
     expect(roster.element.compareDocumentPosition(rail.element) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('never claims a transfer that did not happen when the pupil is in no other class', async () => {
+    const wrapper = await mountAsTeacher()
+    await wrapper.find('[data-walk="class-student-add"]').trigger('click')
+    await flushPromises()
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (String(url) === '/api/teacher/class-students' && init?.method === 'POST') {
+        return { ok: true, json: async () => ({ ok: true, still_in: [] }) } as any
+      }
+      return { ok: true, json: async () => ({ candidates: CANDIDATES }) } as any
+    })
+    await wrapper.findAll('.add-student-row')[1].trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Bo Rhys is in this class now')
+    expect(wrapper.text()).not.toContain('Still in')
   })
 
   it('keeps the roster table when the class HAS students', async () => {

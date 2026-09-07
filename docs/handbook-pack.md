@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `a88e812f05a4` · generated 2026-09-07 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `e3e4b3ea6fce` · generated 2026-09-07 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## Add a class to a group
 
@@ -79,7 +79,7 @@ Section: getting-people-in · roles: leader, school_admin, teacher · anchor: `c
 4. Tap the pupil. They appear on the roster straight away.
 5. Add as many as you need, then tap **Done**.
 
-**Worth knowing.** The list holds the pupils in your school who are not in this class yet, and shows the class each of them is in now. A pupil brings everything they have already learned with them. For a pupil with no account at all, use the class link in **Invite students** instead.
+**Worth knowing.** The list holds the pupils in your school who are not in this class yet, and under each name are the classes they are in now, or **In no class**. Adding does not take them out of those classes — a pupil can be in more than one, one for each course they are doing. If you meant to move them, the message that confirms the add names the class they are still in and takes you to it, where their row has a **Remove** button. A pupil brings everything they have already learned with them. For a pupil with no account at all, use the class link in **Invite students** instead.
 
 ## Bring your first person in
 
