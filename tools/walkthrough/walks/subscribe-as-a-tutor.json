@@ -1,0 +1,34 @@
+{
+  "id": "subscribe-as-a-tutor",
+  "title": "Subscribe as a tutor",
+  "section": "your-school",
+  "personas": [
+    "teacher"
+  ],
+  "place": {
+    "route": "upgrade"
+  },
+  "anchor": "upgrade-subscribe-tutor",
+  "keywords": [
+    "tutor",
+    "subscribe",
+    "pay",
+    "upgrade",
+    "freelance",
+    "single",
+    "monthly",
+    "annual",
+    "students"
+  ],
+  "handbook": {
+    "what": "Paying for your own tutoring dashboard when you teach on your own rather than inside a school. It is one seat, for you.",
+    "where": "The **Upgrade** button on your tutoring dashboard.",
+    "how": [
+      "Open the Upgrade page.",
+      "Choose Monthly or Annual — annual works out at two months free.",
+      "Tap **Subscribe** and fill in the card details on the payment panel that opens on the page.",
+      "Once it is running, the same button becomes **Manage subscription** for invoices and cancellation."
+    ],
+    "note": "Your students pay for their own learning separately, so three paying students cover what your dashboard costs."
+  }
+}

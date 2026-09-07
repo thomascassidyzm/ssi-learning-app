@@ -1,0 +1,33 @@
+{
+  "id": "add-a-school",
+  "title": "Add a school to your programme",
+  "section": "your-school",
+  "personas": [
+    "leader"
+  ],
+  "place": {
+    "route": "schools-list"
+  },
+  "anchor": "verb-add-school",
+  "keywords": [
+    "add",
+    "new",
+    "school",
+    "create",
+    "programme",
+    "group",
+    "register"
+  ],
+  "handbook": {
+    "what": "Creating a new school inside your programme. The school exists the moment you name it, already attached to your group, with its admin link and teacher link ready to hand over.",
+    "where": "All schools, the **+ Add school** button at the top right.",
+    "how": [
+      "Tap **+ Add school**.",
+      "Type the school's name and tap **Create school**.",
+      "Copy the Admin link and send it to whoever will run the school — opening it takes them straight to sign-in as its admin.",
+      "Copy the Teacher link too if you are setting their staff up as well.",
+      "Tap **Done**. The new school appears in the list."
+    ],
+    "note": "There is no separate onboarding step to remember. Both links live on the school's row from then on, so you can fetch them again any time."
+  }
+}

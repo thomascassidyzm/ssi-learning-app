@@ -612,7 +612,7 @@ watch(currentUser, (user) => {
         </div>
 
         <!-- Honest seats-vs-actual display (DECISION A, no gating). -->
-        <p v-if="isOrgSubscribed" class="upgrade-note seats-actual-note">
+        <p v-if="isOrgSubscribed" class="upgrade-note seats-actual-note" data-walk="upgrade-seats-actual">
           {{ orgMemberCount ?? 0 }} learner{{ (orgMemberCount ?? 0) === 1 ? '' : 's' }} joined ·
           {{ orgPaidSeats ?? orgSeatCount }} seat{{ (orgPaidSeats ?? orgSeatCount) === 1 ? '' : 's' }} paid
           <span v-if="orgPaidSeats !== null && (orgMemberCount ?? 0) > orgPaidSeats" class="seats-over-note">
@@ -621,7 +621,7 @@ watch(currentUser, (user) => {
         </p>
         <!-- Not yet subscribed: the same honesty, against what's ABOUT to be
              billed — the stepper seeded from the real member count. -->
-        <p v-else-if="(orgMemberCount ?? 0) > 0" class="upgrade-note seats-actual-note">
+        <p v-else-if="(orgMemberCount ?? 0) > 0" class="upgrade-note seats-actual-note" data-walk="upgrade-seats-actual">
           {{ orgMemberCount }} learner{{ orgMemberCount === 1 ? '' : 's' }} joined ·
           subscribing for {{ orgSeats }} seat{{ orgSeats === 1 ? '' : 's' }}
           <span v-if="orgSeats < (orgMemberCount ?? 0)" class="seats-over-note">
@@ -638,6 +638,7 @@ watch(currentUser, (user) => {
           type="button"
           class="btn-play btn-play--block upgrade-cta"
           :disabled="isUpdatingOrgSeats || orgSeatCount === orgPaidSeats"
+          data-walk="upgrade-update-seats"
           @click="updateOrgSeats"
         >
           {{ isUpdatingOrgSeats ? 'Updating…' : orgSeatCount === orgPaidSeats ? `${orgSeatCount} seats (current)` : `Update to ${orgSeatCount} seats — £${orgMonthlyTotalGbp}/mo` }}
@@ -648,6 +649,7 @@ watch(currentUser, (user) => {
           type="button"
           class="btn-play btn-play--block upgrade-cta"
           :disabled="!orgId || isOpeningOrgCheckout || !orgSubLoaded"
+          data-walk="upgrade-subscribe-org"
           @click="subscribeOrg"
         >
           {{ !orgSubLoaded ? 'Loading…' : isOpeningOrgCheckout ? 'Opening…' : `Subscribe — £${orgTotalGbp}${periodSuffix}` }}
@@ -709,7 +711,7 @@ watch(currentUser, (user) => {
         </div>
 
         <!-- Honest seats-vs-actual display (no gating — just self-correction). -->
-        <p v-if="isSubscribed" class="upgrade-note seats-actual-note">
+        <p v-if="isSubscribed" class="upgrade-note seats-actual-note" data-walk="upgrade-seats-actual">
           {{ joinedTeacherCount }} teacher{{ joinedTeacherCount === 1 ? '' : 's' }} joined ·
           {{ paidSeats ?? seatCount }} seat{{ (paidSeats ?? seatCount) === 1 ? '' : 's' }} paid
           <span v-if="paidSeats !== null && joinedTeacherCount > paidSeats" class="seats-over-note">
@@ -719,7 +721,7 @@ watch(currentUser, (user) => {
         <!-- Not yet subscribed: same honesty, against what's ABOUT to be billed
              — the stepper is seeded from this joined count, and the admin can
              still step it anywhere they like. -->
-        <p v-else-if="joinedTeacherCount > 0" class="upgrade-note seats-actual-note">
+        <p v-else-if="joinedTeacherCount > 0" class="upgrade-note seats-actual-note" data-walk="upgrade-seats-actual">
           {{ joinedTeacherCount }} teacher{{ joinedTeacherCount === 1 ? '' : 's' }} joined ·
           subscribing for {{ seats }} seat{{ seats === 1 ? '' : 's' }}
           <span v-if="seats < joinedTeacherCount" class="seats-over-note">
@@ -736,6 +738,7 @@ watch(currentUser, (user) => {
           type="button"
           class="btn-play btn-play--block upgrade-cta"
           :disabled="isUpdatingSeats || seatCount === paidSeats"
+          data-walk="upgrade-update-seats"
           @click="updateSeats"
         >
           {{ isUpdatingSeats ? 'Updating…' : seatCount === paidSeats ? `${seatCount} seats (current)` : `Update to ${seatCount} seats — £${monthlyTotalGbp}/mo` }}
@@ -746,6 +749,7 @@ watch(currentUser, (user) => {
           type="button"
           class="btn-play btn-play--block upgrade-cta"
           :disabled="!schoolId || isOpeningCheckout || !schoolSubLoaded"
+          data-walk="upgrade-subscribe-school"
           @click="subscribeSchool"
         >
           {{ !schoolSubLoaded ? 'Loading…' : isOpeningCheckout ? 'Opening…' : `Subscribe — £${schoolTotalGbp}${periodSuffix}` }}
@@ -804,6 +808,7 @@ watch(currentUser, (user) => {
           type="button"
           class="btn-play btn-play--block upgrade-cta"
           :disabled="tutorBusy || !tutorTeacherId || !tutorSubLoaded"
+          data-walk="upgrade-subscribe-tutor"
           @click="subscribeTutor"
         >
           {{ tutorBusy ? 'Opening…' : (!tutorTeacherId || !tutorSubLoaded) ? 'Loading…' : `Subscribe — £${tutorTotalGbp}${periodSuffix}` }}

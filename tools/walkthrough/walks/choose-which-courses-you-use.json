@@ -1,0 +1,34 @@
+{
+  "id": "choose-which-courses-you-use",
+  "title": "Choose which courses your school uses",
+  "section": "courses-and-content",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "setup"
+  },
+  "anchor": "setup-course-picker",
+  "keywords": [
+    "course",
+    "courses",
+    "language",
+    "languages",
+    "choose",
+    "pick",
+    "catalogue",
+    "setup",
+    "step 3"
+  ],
+  "handbook": {
+    "what": "Narrowing the full list of courses your school can teach down to the handful you actually intend to use, so that choosing a course for a class is a short list rather than a long one.",
+    "where": "Step three of first-time setup, the grid of tickable course tiles under **Choose courses**.",
+    "how": [
+      "Open step three of first-time setup.",
+      "Everything available to your school starts ticked.",
+      "Untick anything you do not plan to teach.",
+      "Tap **Continue** — the next step only offers the courses you left ticked."
+    ],
+    "note": "This is a filter and nothing more. It does not change what your school has access to, and it takes nothing away from anyone. A school on a trial sees its one trial course here; a subscribed school sees the whole catalogue."
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "id": "subscribe-your-school",
+  "title": "Subscribe your school",
+  "section": "your-school",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "upgrade"
+  },
+  "anchor": "upgrade-subscribe-school",
+  "keywords": [
+    "subscribe",
+    "pay",
+    "upgrade",
+    "seats",
+    "teacher seats",
+    "trial",
+    "monthly",
+    "annual",
+    "checkout",
+    "price"
+  ],
+  "handbook": {
+    "what": "Turning a trial into a paid school. You pay per teacher seat, and one subscription covers every language and every class those teachers run.",
+    "where": "The **Upgrade** button on your dashboard, or Settings then Billing then **Subscribe / choose seats**.",
+    "how": [
+      "Open the Upgrade page.",
+      "Choose Monthly or Annual — annual works out at two months free per seat.",
+      "Set the number of teacher seats with the stepper. It opens at the number of teachers who have actually joined.",
+      "Tap **Subscribe** and fill in the card details on the payment panel that opens on the page.",
+      "You come back to the dashboard with the subscription live."
+    ],
+    "note": "Seats are teacher seats, not student seats. Your students do not each need one."
+  }
+}

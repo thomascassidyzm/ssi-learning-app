@@ -1,0 +1,34 @@
+{
+  "id": "copy-a-schools-joining-links",
+  "title": "Copy a school's joining links",
+  "section": "getting-people-in",
+  "personas": [
+    "leader"
+  ],
+  "place": {
+    "route": "schools-list"
+  },
+  "anchor": "schools-list-link-chips",
+  "keywords": [
+    "link",
+    "links",
+    "invite",
+    "admin",
+    "teacher",
+    "copy",
+    "join",
+    "code",
+    "chase"
+  ],
+  "handbook": {
+    "what": "Fetching the admin link or the teacher link for any school in your programme, so you can chase a school that has not got started or replace a link somebody has lost.",
+    "where": "All schools, the Links column on each school's row.",
+    "how": [
+      "Find the school's row in the list.",
+      "Tap **Admin** to copy its admin link, or **Teacher** to copy its teacher link.",
+      "The chip reads Copied so you know it worked.",
+      "Paste it into an email or a message to whoever needs it."
+    ],
+    "note": "Tapping a link chip does not open the school — the rest of the row does that. A school still flagged as awaiting admin is one whose admin link nobody has opened yet."
+  }
+}
