@@ -63,9 +63,12 @@ function makeRound(legoId: string): Round {
     cycles: [
       {
         id: `${legoId}-c1`,
-        known: { text: 'hello', audioUrl: 'https://example.com/k.mp3' },
+        // Per-LEGO text: identical prompts in adjacent rounds would be capped
+        // by A-64's consecutive-play rule, which these failure-handling tests
+        // are not about (see consecutivePlayIdentity.test.ts).
+        known: { text: `hello ${legoId}`, audioUrl: 'https://example.com/k.mp3' },
         target: {
-          text: 'hola',
+          text: `hola ${legoId}`,
           voice1Url: 'https://example.com/t1.mp3',
           voice2Url: 'https://example.com/t2.mp3',
         },
@@ -970,7 +973,7 @@ describe('SimplePlayer — skip/reposition audio-sync invariant', () => {
 
     // Display (currentRound/currentCycle) and audio.src must agree on round 1.
     expect(player.currentState.roundIndex).toBe(1)
-    expect(player.currentCycle?.known.text).toBe('hello')
+    expect(player.currentCycle?.known.text).toBe('hello S0002L01')
     expect(mockAudio.src).toBe('https://example.com/k.mp3') // round 1's prompt, not a repeat of round 0's voice1
   })
 

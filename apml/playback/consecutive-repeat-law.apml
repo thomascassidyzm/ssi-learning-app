@@ -1,8 +1,9 @@
 # APML Playback: The consecutive-repeat law (A-64)
 # SSI Learning App
-# Version: 1.2.1
-# Last updated: 2026-08-08
+# Version: 1.3.0
+# Last updated: 2026-09-07
 # Source: packages/player-vue/src/playback/capConsecutiveRepeats.ts
+#         packages/player-vue/src/playback/SimplePlayer.ts
 #         packages/player-vue/src/providers/generateLearningScript.ts
 #         packages/player-vue/src/providers/backendCyclesToRounds.ts
 #         packages/player-vue/src/providers/toSimpleRounds.ts
@@ -48,6 +49,21 @@ SPECIFICATION:
     and on the instant-playback path (backendCyclesToRounds, where
     repeatRoundCycles runs before capRoundCycles). Any future emitter that
     wants a deliberate repeat must sit in the same place.
+
+    THAT ORDERING WAS INVERTED FOR A YEAR AND A MONTH, and this paragraph was
+    the reason nobody looked. On 2026-08-09 the Easy repeat MOVED into the
+    walker (SimplePlayer.advanceCycle asks getCycleRepeatCount live, per step)
+    so that a mid-round mode flip is obeyed immediately. From that day the
+    repeat ran DOWNSTREAM of this floor, outside its reach: the floor caps
+    ITEMS, the learner hears PLAYS, and nothing reconciled the two counts.
+    Measured by job #316 on 2026-09-07 over real rounds from the live cycles
+    route for spa/fra/deu/ita/tur/pol: a lawful adjacent BUILD/USE pair
+    carrying identical text was given two plays EACH in Easy, so round 2 of
+    every course probed sounded the same prompt FOUR times in a row.
+
+    The floor therefore now exists in TWO places, and both are needed: the
+    build-time cap on items (capRoundCycles) and a runtime cap on consecutive
+    identical PLAYS in the walker itself (see THE RUNTIME ENFORCEMENT POINT).
   identity: |
     "The same prompt" = identical normalised known text paired with identical
     normalised target text (the getPhraseId notion). Listening items are the
@@ -83,6 +99,39 @@ COMPONENT:
     max: "Identical items allowed back to back. Default 2 — the law."
     seed: "Identities immediately preceding this sequence, so the cap holds across a boundary the caller processes in separate calls."
     minKeep: "Never return fewer than N items even if the law would empty the sequence. Keeping the session alive outranks the cap; such items are counted in forcedKeeps."
+
+## ============================================================================
+## THE RUNTIME ENFORCEMENT POINT
+## ============================================================================
+
+COMPONENT:
+  file: "packages/player-vue/src/playback/SimplePlayer.ts"
+  added: "2026-09-07, job #335, closing what job #316 measured"
+  state:
+    - "recentPlayIdentities: string[] — the prompt identities of the last MAX_CYCLE_PLAYS plays the walker actually STARTED"
+    - "MAX_CYCLE_PLAYS = 2 — now the ceiling on consecutive identical PLAYS, not only on one cycle's repeats"
+  identity: "cyclePromptIdentity, imported from capConsecutiveRepeats — the two enforcement points cannot disagree about what 'the same prompt' means"
+  rules: |
+    1. Every play started through startPhase('prompt') is recorded.
+    2. advanceCycle declines the live repeat when the two plays behind it
+       already carry this prompt, AND when the next cycle this round will play
+       carries it too. The second clause is the measured case: declining the
+       repeat lets BOTH cycles of an identical pair play once each, so two
+       hearings are had and no cycle is lost to the UI or to progress.
+    3. findNextSoundableCycleIndex is the floor for what re-interleaving cannot
+       reach — a duplicate arriving across a ROUND seam. Such a cycle is
+       stepped over; by definition its prompt has just sounded twice.
+    4. A reposition (jumpToRound, stop) clears the memory: the learner's own
+       move breaks the run, and a jump back onto a phrase is a request for it.
+    5. A learner's phase-strip tap (skipToPhase) is exempt in BOTH directions —
+       neither counted against the cap nor refused by it — exactly as it
+       already neither spends nor adds a hearing on currentCyclePlays.
+  what_it_does_not_cover: |
+    resume()'s restart of the current cycle — see KNOWN RESIDUE below, which
+    predicted this exact construction and declined to cap it. It is now bounded
+    rather than open: the restart IS recorded, so the run stops at three and
+    the walker then declines the repeat and steps over any further identical
+    cycle. Never four, and never automatic — the learner asked.
 
 ## ============================================================================
 ## APPLICATION SITES
@@ -208,6 +257,12 @@ RESIDUE:
       NOT capped. A queue-level cap cannot see it — only a resume-time check
       could — and changing resume semantics to chase an interaction-dependent
       edge risks a worse regression than the edge itself. Logged for Tom.
+    status_2026_09_07: |
+      Still not capped, and the reasoning above still holds — but now BOUNDED.
+      The runtime cap records the restart like any other play, so the third
+      hearing cannot become a fourth: the repeat is declined and any further
+      identical cycle is stepped over. Pinned by the last test in
+      consecutivePlayIdentity.test.ts.
   stage0_and_atom_fusion:
     files:
       - "packages/player-vue/src/composables/usePodStage0.ts + @ssi/core stage0Sequence.ts"
@@ -243,12 +298,21 @@ TESTS:
       toSimpleRounds — against the intro/debut/build triple the server cycles
       route makes possible, within a round and across the round seam. Three of
       these five tests fail without the cap.
+  - file: "packages/player-vue/src/playback/consecutivePlayIdentity.test.ts"
+    covers: |
+      The RUNTIME cap, against the identities of the prompts SimplePlayer
+      actually starts: the identical BUILD/USE pair of spa_for_eng round 2 in
+      Easy and in Fast, distinct prompts keeping their two plays each, the
+      round seam, normalisation of case and punctuation, and the bounded
+      resume exception. Four of its six tests fail without the runtime cap
+      (measured on dev at 7fa3d697: longest identical run 4, and 5 with a
+      resume).
   - file: "packages/player-vue/src/composables/usePodLapScheduler.a64.test.ts"
     covers: |
       Pod laps with 1, 2 and 4 sentences, with and without bookends, flattened
       across consecutive laps into the sequence the learner actually hears.
 
 ## ============================================================================
-## Last updated: 2026-08-08
+## Last updated: 2026-09-07
 ## APML v2.0.0
 ## ============================================================================
