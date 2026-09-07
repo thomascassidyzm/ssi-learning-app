@@ -5,7 +5,7 @@
 // Mounted at /admin/groups/:id, /admin/schools/:id and /admin/classes/:id —
 // one endpoint (/api/groups/:id/home) resolves whichever id it's given.
 import { ref, computed, watch, nextTick, defineAsyncComponent } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
@@ -56,7 +56,6 @@ import { derivePreset } from '@/composables/nodeTerminology'
 import { timeAgo } from '@/composables/admin/adminUtils'
 
 const route = useRoute()
-const router = useRouter()
 const { getClient, getAuthToken } = useAdminClient()
 
 // Member mount (/org/:id — a leader inside the /schools shell) vs the
