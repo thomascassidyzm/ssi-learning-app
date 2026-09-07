@@ -395,6 +395,31 @@ onMounted(() => {
           <div class="form-stack">
             <label class="field">
               <span class="field-label">School name</span>
+              <!-- HANDBOOK Name your school
+                   section: your-school
+                   roles: school_admin
+                   place: setup
+                   keywords: school, name, rename, title, setup, step 1, first
+                   What it's for. Telling the app what your school is actually
+                   called. The name you type here is the one your teachers and
+                   students see on every page, on every invite link they open,
+                   and at the top of every report.
+                   Where it is. Step one of first-time setup, the box marked
+                   **School name**.
+                   How you do it.
+                   1. Open first-time setup and stay on step one.
+                   2. Type your school's name as you would write it on a
+                      letterhead.
+                   3. Tap **Continue** — the name is saved before the next step
+                      opens.
+                   4. If you have just arrived and the box is empty for a second,
+                      give it a moment and press **Continue** again.
+                   Worth knowing. Typing it here counts as confirming it, so you
+                   will not be asked to confirm your school's name again
+                   afterwards. To change it later, use School profile in
+                   Settings.
+                   checked: ad8fa59c
+              -->
               <input
                 v-model="schoolName"
                 data-walk="setup-school-name"
@@ -416,6 +441,30 @@ onMounted(() => {
             app does the teaching, so a teacher doesn't need to speak the language.
           </p>
 
+          <!-- HANDBOOK Hand out your staff links
+               section: getting-people-in
+               roles: school_admin
+               place: setup
+               keywords: invite, teacher, staff, admin, link, join, colleague, setup, step 2
+               What it's for. Getting your colleagues in. Your school has a standing
+               teacher link and a standing admin link — send either one and whoever
+               opens it is signed in with that role, with no sign-up form to fill in.
+               Where it is. Step two of first-time setup, under **Add your
+               teachers**. The full links are shown as text with a copy button beside
+               each.
+               How you do it.
+               1. Open step two of first-time setup.
+               2. Copy the **Teacher invite link** for anyone who will run classes.
+               3. Copy the **Admin invite link** for anyone who needs to manage the
+                  school itself.
+               4. Send them however you normally reach staff — email, Teams, a
+                  message, or written down.
+               5. Anyone who has already joined is listed underneath, so you can see
+                  who is in.
+               Worth knowing. A teacher does not need to speak the language. The app
+               does the teaching, so anyone on your staff can run a class.
+               checked: 3c797dab
+          -->
           <div v-if="teacherJoinCode" class="join-code-callout" data-walk="setup-staff-links">
             <InviteLinkField label="Teacher invite link" :url="inviteUrl(teacherJoinCode)" />
             <InviteLinkField v-if="adminJoinCode" label="Admin invite link" :url="inviteUrl(adminJoinCode)" />
@@ -449,6 +498,28 @@ onMounted(() => {
             and we'll sort it out. You can continue and add classes once courses are available.
           </div>
 
+          <!-- HANDBOOK Choose which courses your school uses
+               section: courses-and-content
+               roles: school_admin
+               place: setup
+               keywords: course, courses, language, languages, choose, pick, catalogue, setup, step 3
+               What it's for. Narrowing the full list of courses your school can
+               teach down to the handful you actually intend to use, so that choosing
+               a course for a class is a short list rather than a long one.
+               Where it is. Step three of first-time setup, the grid of tickable
+               course tiles under **Choose courses**.
+               How you do it.
+               1. Open step three of first-time setup.
+               2. Everything available to your school starts ticked.
+               3. Untick anything you do not plan to teach.
+               4. Tap **Continue** — the next step only offers the courses you left
+                  ticked.
+               Worth knowing. This is a filter and nothing more. It does not change
+               what your school has access to, and it takes nothing away from anyone.
+               A school on a trial sees its one trial course here; a subscribed
+               school sees the whole catalogue.
+               checked: c7090f3e
+          -->
           <div v-else class="course-grid" data-walk="setup-course-picker">
             <label
               v-for="grant in effectiveCourseGrants"
@@ -517,6 +588,30 @@ onMounted(() => {
                 placeholder="Class name"
                 :disabled="draft.saved"
               />
+              <!-- HANDBOOK Give a class its course
+                   section: courses-and-content
+                   roles: school_admin
+                   place: setup
+                   keywords: course, class, assign, choose, language, which, search, picker
+                   What it's for. Picking the language a class is learning. This
+                   is how a course reaches learners at all — a course does not
+                   belong to a person, it belongs to a class, and everybody in
+                   that class practises it.
+                   Where it is. On each class row, the **Choose course** picker
+                   beside the class name.
+                   How you do it.
+                   1. Tap **Choose course** on the class row.
+                   2. Start typing a language to narrow the list — the catalogue
+                      runs to dozens of courses.
+                   3. Pick the one you want. Where a language offers more than
+                      one version, the versions differ by region or accent.
+                   4. Save the class, and everyone who joins it lands in that
+                      course.
+                   Worth knowing. The list here is whatever you left ticked at
+                   the Choose courses step. If a course you expect is missing, go
+                   back a step and tick it.
+                   checked: 32d3a7b2
+              -->
               <span class="select-wrap field-input-flex" data-walk="setup-class-course">
                 <FrostSelect
                   v-model="draft.course_code"
@@ -542,6 +637,31 @@ onMounted(() => {
                 </svg>
               </button>
             </div>
+            <!-- HANDBOOK Create your first classes
+                 section: running-classes
+                 roles: school_admin
+                 place: setup
+                 keywords: class, classes, create, new, first, setup, step 4, group
+                 What it's for. Setting up the classes your school will actually
+                 teach. A class is a name, a course and the students who join it,
+                 and it is the thing every progress figure in the dashboard is
+                 eventually counted against.
+                 Where it is. Step four of first-time setup, under **Create
+                 classes**. **+ Add another class** sits below the rows.
+                 How you do it.
+                 1. Open step four of first-time setup.
+                 2. Type a class name in the first row and choose its course.
+                 3. Tap **+ Add another class** for each further class and fill the
+                    row in the same way.
+                 4. Remove a row you no longer want with the cross at its end.
+                 5. Tap **Finish setup** — every filled-in row is created, and each
+                    one is marked Added as it saves.
+                 Worth knowing. Classes you have already made are listed above the
+                 rows, so running the wizard twice will not duplicate them.
+                 Students are added from each class's own page whenever you are
+                 ready.
+                 checked: 88185ef6
+            -->
             <button type="button" class="btn-ghost btn-add" data-walk="setup-add-class-row" @click="addClassRow">
               + Add another class
             </button>
@@ -561,6 +681,33 @@ onMounted(() => {
             <span aria-hidden="true">&larr;</span> Back
           </button>
           <div class="step-nav-right">
+            <!-- HANDBOOK Work through setup at your own pace
+                 section: your-school
+                 roles: school_admin
+                 place: setup
+                 keywords: setup, wizard, first, start, onboarding, steps, later, finish, resume, save
+                 What it's for. The first-run wizard that takes a brand-new school
+                 from nothing to teachers, courses and classes. It is four short
+                 steps and it does not have to be done in one sitting.
+                 Where it is. Settings, then First-time setup. The steps are listed
+                 down the left, and **Save & exit** sits at the bottom of every
+                 one.
+                 How you do it.
+                 1. Open the wizard and work down the steps on the left — your
+                    school, your staff, your courses, your classes.
+                 2. **Continue** saves the step you are on and moves you to the
+                    next one.
+                 3. Tap any step in the left-hand list to jump straight to it,
+                    forwards or back.
+                 4. **Save & exit** puts you back on your dashboard with everything
+                    you have entered kept.
+                 5. Come back to Settings and First-time setup whenever you want to
+                    carry on.
+                 Worth knowing. Nothing here is a one-shot. Everything the wizard
+                 sets up — the school name, the invite links, the classes — can
+                 also be changed later from Settings and from your class pages.
+                 checked: 784d6038
+            -->
             <button type="button" class="btn-ghost" data-walk="setup-save-exit" @click="handleSaveExit">
               Save &amp; exit
             </button>

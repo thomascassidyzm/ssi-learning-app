@@ -234,6 +234,29 @@ const homeLink = computed(() => {
         <!-- VOICE & PAUSE — the same renderer the admin board uses, scoped to
              this node by the server. Uptake first, denominators everywhere:
              a learner with no mic data is absent here, never a zero. -->
+        <!-- HANDBOOK Voice and pause
+             section: seeing-progress
+             roles: admin, leader, school_admin
+             place: node-insights
+             keywords: voice, pause, microphone, mic, speaking, uptake, prosody, adaptive
+             What it's for. What the microphone is actually giving us below this level:
+             how many learners have any mic-derived data at all, and for those who do,
+             how the pause the app leaves them to speak in is settling, and how they
+             sound when they speak.
+             Where it is. The **Voice and pause** section at the bottom of any level's
+             insights page.
+             How you do it.
+             1. Open a level and tap **See insights**.
+             2. Scroll past the rate comparison to the voice section.
+             3. Read the uptake figure first — it is how many learners this is based
+                on.
+             4. Open a class or a learner within it to see the same reading at a
+                smaller scope.
+             Worth knowing. A learner with no microphone data is absent from these
+             figures rather than counted as a zero, so the denominator is always
+             stated.
+             checked: e009121e
+        -->
         <section class="vad-section" data-walk="insights-voice-pause">
           <header class="vad-section-head">
             <span class="schools-kicker">Attention · voice</span>

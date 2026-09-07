@@ -1,7 +1,6 @@
 {
   "id": "invites-desk",
   "title": "The invites desk",
-  "section": "getting-people-in",
   "personas": [
     "admin"
   ],
@@ -16,17 +15,6 @@
     "mint",
     "org"
   ],
-  "handbook": {
-    "what": "The platform-wide desk where SSi mints and manages invites across every organisation at once.",
-    "where": "The admin area, **Invites**.",
-    "how": [
-      "Open the invites desk from the admin area.",
-      "Pick the mode from the strip along the top — the mode decides what kind of invite you are minting.",
-      "Fill in who it is for and submit.",
-      "Use the active toggle to read live invites rather than spent ones."
-    ],
-    "note": "This is the operator's desk, not a school's. A school brings its own people in from its own home page."
-  },
   "steps": [
     {
       "anchor": "invites-mode-strip",

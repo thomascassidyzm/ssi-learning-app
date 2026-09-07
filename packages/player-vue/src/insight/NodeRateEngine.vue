@@ -233,6 +233,27 @@ const metricDesc = computed(() => {
         <p class="nre-fixed">{{ courseShortName(engineState.applied.course_code) }}</p>
       </div>
 
+      <!-- HANDBOOK Reading your insights
+           section: seeing-progress
+           roles: admin, leader, school_admin
+           place: node-insights
+           keywords: insights, numbers, rate, compare, measure, window
+           walk: reading-insights
+           What it's for. Reading the pace of learning at this level — what is being
+           counted, over what period, and against what.
+           Where it is. The node's home page, **See insights**.
+           How you do it.
+           1. Open the node's home page and tap **See insights**.
+           2. Pick the **measure** — progress, practice, or class sessions. The line
+              underneath says exactly what it means.
+           3. Pick the **window** — the period the rate is computed over. Shorter reacts
+              faster, longer smooths the noise.
+           4. Use **Compare to** to put an average alongside.
+           5. **Overview** takes you back to the same place's home page.
+           Worth knowing. Everything here is a rate, not a raw total, so groups of very
+           different sizes still compare fairly.
+           checked: a0b474a7
+      -->
       <label v-if="showMeasurePicker" class="nre-field nre-field-wide" data-walk="insights-measure">
         <span class="nre-field-label">Measure</span>
         <FrostSelect v-model="measureModel" :options="measureSelectOptions" aria-label="Measure" />
@@ -251,6 +272,26 @@ const metricDesc = computed(() => {
     <p class="nre-metric-desc">{{ metricDesc }}</p>
 
     <!-- ── The widget — or an honest state, never a fabricated number ── -->
+    <!-- HANDBOOK Why the insights show a rate, not a total
+         section: seeing-progress
+         roles: admin, leader, school_admin
+         place: node-insights
+         keywords: rate, total, per week, fair, compare, average, pace, denominator
+         What it's for. Everything on the insights page is a rate — an amount per learner
+         per week — rather than a running total. A total only ever says how big and how old
+         something is, so a large school always beats a small one. A rate says how fast it
+         is moving, which is the thing you can actually act on.
+         Where it is. The comparison block under the pickers on any level's insights page.
+         How you do it.
+         1. Open a level and tap **See insights**.
+         2. Read the line under the pickers — it says in words what the current measure
+            counts.
+         3. The block below puts this level's rate beside whatever you are comparing it to.
+         4. Change the window to compute the same rate over a shorter or longer period.
+         Worth knowing. A pace matters more than a position: a class three sentences behind
+         but climbing fast is healthier than one parked far ahead.
+         checked: 921d5d96
+    -->
     <div v-if="comparison" class="nre-widget-card" data-walk="insights-rate-widget">
       <RateCompare :data="comparison" />
     </div>

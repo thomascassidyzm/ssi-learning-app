@@ -1,7 +1,6 @@
 {
   "id": "install-the-app",
   "title": "Put the app on your device",
-  "section": "your-own-account",
   "personas": [
     "leader"
   ],
@@ -21,16 +20,6 @@
     "home screen",
     "pwa"
   ],
-  "handbook": {
-    "what": "Putting SSi on your phone or tablet as an app, so it opens from the home screen and works without a browser tab.",
-    "where": "Your node's home page, **Your account**.",
-    "how": [
-      "Open your home page on the device you want it on.",
-      "Scroll to **Your account**.",
-      "Tap the install row and follow the prompt your device gives you."
-    ],
-    "note": "Install it on the device you actually teach from — the install belongs to the device, not to your account."
-  },
   "steps": [
     {
       "anchor": "account-card",

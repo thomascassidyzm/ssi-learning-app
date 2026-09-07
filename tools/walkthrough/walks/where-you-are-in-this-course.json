@@ -2,6 +2,12 @@
   "id": "where-you-are-in-this-course",
   "title": "Where you are in this course",
   "topic": "Where you are",
+  "personas": [
+    "learner"
+  ],
+  "place": {
+    "route": "library"
+  },
   "keywords": [
     "belt",
     "belts",
@@ -17,12 +23,6 @@
     "grade",
     "score"
   ],
-  "personas": [
-    "learner"
-  ],
-  "place": {
-    "route": "library"
-  },
   "steps": [
     {
       "anchor": "library-progress-card",

@@ -1,7 +1,6 @@
 {
   "id": "hand-over-the-lead",
   "title": "Hand a class over to another teacher",
-  "section": "running-classes",
   "personas": [
     "teacher"
   ],
@@ -15,17 +14,6 @@
     "teacher",
     "transfer"
   ],
-  "handbook": {
-    "what": "Passing the lead of a class to another teacher who already teaches it — for a maternity cover, a term swap, or a permanent handover.",
-    "where": "The class page, the **Teachers** section.",
-    "how": [
-      "Open the class from My Classes.",
-      "Scroll to **Teachers**.",
-      "Find the colleague who should lead it.",
-      "Tap **Make lead** on their row."
-    ],
-    "note": "You stay on the class as a teacher. Only the lead changes."
-  },
   "steps": [
     {
       "anchor": "class-teachers",

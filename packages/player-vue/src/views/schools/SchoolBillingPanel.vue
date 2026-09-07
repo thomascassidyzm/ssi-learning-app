@@ -22,6 +22,29 @@ const emit = defineEmits<{ (e: 'open-portal'): void }>()
 <template>
   <section class="schools-card schools-card-pad panel">
           <h2 class="arsenal panel-title">Billing</h2>
+          <!-- HANDBOOK See what your school pays
+               section: your-school
+               roles: school_admin
+               place: settings
+               keywords: billing, plan, pay, cost, price, seats, invoice, invoices, subscription, card, cancel
+               What it's for. The plain statement of your school's plan — its name,
+               how many teacher seats it is paying for, and whether the subscription
+               is live.
+               Where it is. Settings, then Billing.
+               How you do it.
+               1. Open Settings and choose Billing.
+               2. Read the current plan line: your school, its seat count, and active
+                  if the subscription is running.
+               3. Tap **Manage subscription & seats** to change how many seats you
+                  pay for.
+               4. Tap **Billing & invoices** to reach invoices, change the card, or
+                  cancel.
+               Worth knowing. Every payment change happens on the one Upgrade page,
+               so there is a single place to go and no second checkout to get
+               confused with. The invoices button appears once a subscription is
+               running.
+               checked: 94d6a6af
+          -->
           <div class="plan-card" data-walk="settings-billing-plan">
             <div class="schools-kicker plan-kicker">Current plan</div>
             <div class="arsenal plan-title">{{ planLine }}</div>

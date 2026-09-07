@@ -1,7 +1,6 @@
 {
   "id": "invite-a-supply-teacher",
   "title": "Invite a teacher who isn't here yet",
-  "section": "running-classes",
   "personas": [
     "teacher"
   ],
@@ -16,17 +15,6 @@
     "class",
     "link"
   ],
-  "handbook": {
-    "what": "Getting a teacher who has no account yet into one class of yours, without going through the school admin.",
-    "where": "The class page, the **Teachers** section.",
-    "how": [
-      "Open the class from My Classes.",
-      "Scroll to **Teachers**.",
-      "Take the co-teacher link.",
-      "Send it to them — opening it puts them on this class as a teacher."
-    ],
-    "note": "The link is scoped to this one class, so a cover teacher never lands in the rest of the school."
-  },
   "steps": [
     {
       "anchor": "class-teachers",

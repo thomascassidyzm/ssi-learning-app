@@ -630,7 +630,7 @@ onMounted(() => {
             <div class="stat-label">{{ t('browse.phrasesLearnt') }}</div>
           </div>
 
-          <div v-if="showPhrasesSpoken" class="stat-card" data-walk="library-stat-phrases">
+          <div v-if="showPhrasesSpoken" class="stat-card">
             <div class="stat-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>

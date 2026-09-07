@@ -1,7 +1,6 @@
 {
   "id": "run-class-session",
   "title": "Run your first class session",
-  "section": "running-classes",
   "personas": [
     "teacher"
   ],
@@ -16,17 +15,6 @@
     "join",
     "code"
   ],
-  "handbook": {
-    "what": "Running a live practice session with a class in the room, everyone hearing the same thing at the same time.",
-    "where": "The class page, the join link and the play button.",
-    "how": [
-      "Open the class from My Classes.",
-      "Put the join link or the join code on the screen for the room.",
-      "Wait for the students to arrive on their own devices.",
-      "Tap play to start the session."
-    ],
-    "note": "The join code is the same code all lesson, so a student arriving late still gets in."
-  },
   "steps": [
     {
       "anchor": "class-join-link",

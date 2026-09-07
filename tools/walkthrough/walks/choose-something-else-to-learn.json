@@ -2,6 +2,12 @@
   "id": "choose-something-else-to-learn",
   "title": "Choose something else to learn",
   "topic": "Other languages",
+  "personas": [
+    "learner"
+  ],
+  "place": {
+    "route": "library"
+  },
   "keywords": [
     "course",
     "courses",
@@ -17,12 +23,6 @@
     "spanish",
     "welsh"
   ],
-  "personas": [
-    "learner"
-  ],
-  "place": {
-    "route": "library"
-  },
   "steps": [
     {
       "anchor": "library-course-search",

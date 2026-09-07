@@ -175,6 +175,25 @@ watch(selectedUser, (newUser) => {
         <!-- data-walk sits BEFORE v-if here on purpose: the walkthrough
              compiler scans the opening tag with a no-'>' regex, and the
              "> 0" inside this condition would hide the anchor from it. -->
+        <!-- HANDBOOK Take your lists away as a spreadsheet
+             section: seeing-progress
+             roles: admin, school_admin, teacher
+             place: students
+             keywords: export, csv, spreadsheet, download, report
+             What it's for. A CSV of whoever is currently on screen, for a report, a
+             governors' meeting, or your own sums in a spreadsheet.
+             Where it is. The **Students** page and the **Teachers** page, **Export
+             CSV** along the top.
+             How you do it.
+             1. Filter or search the list down to whoever you want.
+             2. Tap **Export CSV**.
+             3. The file downloads with today's date in its name.
+             4. Open it in whatever spreadsheet you use.
+             Worth knowing. The export follows your filters, not the whole school — so
+             a filtered list gives you a filtered file. Clear the filters first if you
+             want everybody.
+             checked: 4c2a8130
+        -->
         <button data-walk="students-export" v-if="enrichedStudents.length > 0" type="button" class="btn-ghost" @click="exportCsv">
           Export CSV
         </button>
@@ -279,6 +298,29 @@ watch(selectedUser, (newUser) => {
             </td>
             <td><span class="schools-subtle">{{ s.last_active_display }}</span></td>
             <td class="cell-action">
+              <!-- HANDBOOK Look up one student
+                   section: seeing-progress
+                   roles: admin, school_admin, teacher
+                   place: students
+                   keywords: student, search, filter, find, progress, belt
+                   What it's for. Finding one learner among all of them and
+                   opening what they have actually done. The list carries their
+                   belt, their hours this week, and when they were last here, so
+                   you can often answer the question without opening anything.
+                   Where it is. The **Students** page, the search box and filters
+                   above the list, then **View** on their row.
+                   How you do it.
+                   1. Open **Students**.
+                   2. Type part of their name in the search box, or narrow the
+                      list by class, belt or health.
+                   3. Read their row for belt, hours and last active.
+                   4. Tap **View** to open their own progress.
+                   Worth knowing. Health is worked out from their last visit and
+                   how they sit against their own class, so a learner marked as
+                   needing attention is one who has gone quiet or fallen behind
+                   the people beside them.
+                   checked: 7abab547
+              -->
               <a href="#" class="cell-link" data-walk="student-view-link" @click.prevent="viewStudent(s)">View &rarr;</a>
             </td>
           </tr>

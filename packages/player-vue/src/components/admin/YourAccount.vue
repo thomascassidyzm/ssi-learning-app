@@ -112,6 +112,23 @@ function openGuide(): void {
       <span v-if="email" class="account-email">{{ email }}</span>
     </div>
 
+    <!-- HANDBOOK Set or change your password
+         section: your-own-account
+         roles: leader
+         place: node-home
+         keywords: password, sign in, login, account, security
+         walk: set-your-password
+         What it's for. Giving yourself a password so you can sign back in without waiting
+         for a link in your email.
+         Where it is. Your node's home page, **Your account**.
+         How you do it.
+         1. Open your home page and scroll to **Your account**.
+         2. Tap the password row.
+         3. Type the password you want and save.
+         Worth knowing. Your original invite link keeps working. A password is a second
+         door, not a replacement.
+         checked: e86f1422
+    -->
     <div class="account-row" data-walk="account-password">
       <div class="account-row-text">
         <span class="account-row-title">{{ hasPassword ? 'Password' : 'No password yet' }}</span>
@@ -144,6 +161,23 @@ function openGuide(): void {
     </form>
     <p v-else-if="saved" class="account-saved" role="status">Password saved.</p>
 
+    <!-- HANDBOOK Put the app on your device
+         section: your-own-account
+         roles: leader
+         place: node-home
+         keywords: install, app, phone, device, home screen, pwa
+         walk: install-the-app
+         What it's for. Putting SSi on your phone or tablet as an app, so it opens from the
+         home screen and works without a browser tab.
+         Where it is. Your node's home page, **Your account**.
+         How you do it.
+         1. Open your home page on the device you want it on.
+         2. Scroll to **Your account**.
+         3. Tap the install row and follow the prompt your device gives you.
+         Worth knowing. Install it on the device you actually teach from — the install
+         belongs to the device, not to your account.
+         checked: b26b8ea2
+    -->
     <div class="account-row" data-walk="account-install">
       <div class="account-row-text">
         <span class="account-row-title">

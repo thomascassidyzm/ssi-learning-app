@@ -1,7 +1,6 @@
 {
   "id": "invite-first-person",
   "title": "Bring your first person in",
-  "section": "getting-people-in",
   "personas": [
     "admin",
     "leader"
@@ -20,18 +19,6 @@
     "leader",
     "learner"
   ],
-  "handbook": {
-    "what": "Bringing anyone into this part of the tree — a leader, a teacher or a learner — with a personal link that is their login.",
-    "where": "The node's home page, the buttons along the top, **Invite a person**.",
-    "how": [
-      "Open the group, school or organisation you want them to belong to.",
-      "Tap **Invite a person**.",
-      "Pick the role they arrive as.",
-      "Type their name and submit.",
-      "Copy the minted link and send it."
-    ],
-    "note": "Nothing is created until you submit. Every link you mint lands in **Ways in**."
-  },
   "steps": [
     {
       "anchor": "verb-invite-person",

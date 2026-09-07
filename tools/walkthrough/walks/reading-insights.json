@@ -1,7 +1,6 @@
 {
   "id": "reading-insights",
   "title": "Reading your insights",
-  "section": "seeing-progress",
   "personas": [
     "admin",
     "leader",
@@ -18,18 +17,6 @@
     "measure",
     "window"
   ],
-  "handbook": {
-    "what": "Reading the pace of learning at this level — what is being counted, over what period, and against what.",
-    "where": "The node's home page, **See insights**.",
-    "how": [
-      "Open the node's home page and tap **See insights**.",
-      "Pick the **measure** — progress, practice, or class sessions. The line underneath says exactly what it means.",
-      "Pick the **window** — the period the rate is computed over. Shorter reacts faster, longer smooths the noise.",
-      "Use **Compare to** to put an average alongside.",
-      "**Overview** takes you back to the same place's home page."
-    ],
-    "note": "Everything here is a rate, not a raw total, so groups of very different sizes still compare fairly."
-  },
   "steps": [
     {
       "anchor": "insights-measure",

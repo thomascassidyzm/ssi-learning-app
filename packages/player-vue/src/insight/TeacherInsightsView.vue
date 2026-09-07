@@ -200,6 +200,28 @@ const requestedLearnerName = computed(() => {
       </header>
 
       <div v-if="classSelectOptions.length > 1" class="tiv-controls">
+        <!-- HANDBOOK Your class against the average
+             section: seeing-progress
+             roles: teacher
+             place: analytics
+             keywords: analytics, insights, rate, compare, average, class, pace, window
+             What it's for. The teacher's own insight tool: pick one of your classes
+             and see its pace set against the average, over the period and for the
+             measure you choose. It answers whether a class is moving well, which a
+             roster of totals cannot.
+             Where it is. **Analytics** in the schools navigation.
+             How you do it.
+             1. Open **Analytics**.
+             2. Pick the class you want from **Your classes** if you teach more than
+                one.
+             3. Pick the **measure** — the line underneath says exactly what it counts.
+             4. Pick the **window** the rate is computed over, and what to **compare
+                to**.
+             5. Read the comparison block for your class's rate beside that average.
+             Worth knowing. A class with too few sessions to compare honestly says so
+             rather than showing a number built from nothing.
+             checked: 3e0c2b26
+        -->
         <label class="tiv-field tiv-field-wide" data-walk="teacher-insights-class">
           <span class="tiv-field-label">Your classes</span>
           <FrostSelect v-model="selectedClassId" :options="classSelectOptions" aria-label="Your classes" />

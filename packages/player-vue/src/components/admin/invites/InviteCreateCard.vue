@@ -33,6 +33,25 @@ const initialWho = computed(() => (typeof route.query.who === 'string' ? route.q
   <div class="schools-card create-panel">
     <div class="panel-head">
       <span class="schools-kicker">Create invite</span>
+      <!-- HANDBOOK The invites desk
+           section: getting-people-in
+           roles: admin
+           place: admin-invites
+           keywords: invites, desk, codes, admin, mint, org
+           walk: invites-desk
+           What it's for. The platform-wide desk where SSi mints and manages invites
+           across every organisation at once.
+           Where it is. The admin area, **Invites**.
+           How you do it.
+           1. Open the invites desk from the admin area.
+           2. Pick the mode from the strip along the top — the mode decides what kind of
+              invite you are minting.
+           3. Fill in who it is for and submit.
+           4. Use the active toggle to read live invites rather than spent ones.
+           Worth knowing. This is the operator's desk, not a school's. A school brings
+           its own people in from its own home page.
+           checked: 1590d7cf
+      -->
       <div class="mode-toggle" role="tablist" data-walk="invites-mode-strip">
         <button
           type="button" role="tab" class="mode-btn"

@@ -1,16 +1,17 @@
 /**
  * handbook — the Handbook page's data layer.
  *
- * TWO READINGS OF ONE SOURCE. A capability is authored exactly once, in
- * tools/walkthrough/walks/*.json. The walkthrough engine reads it as a
- * just-in-time clip; this module reads the same compiled pack as a map —
- * every capability written out in prose, whether or not it has a clip.
+ * THE PROSE LIVES IN THE CODE. A capability's description is an HTML comment
+ * directly above the element that IS the capability, in the .vue source, so
+ * the agent changing what a button does is already looking at the sentence
+ * describing it — Tom, 2026-09-07: "the models built the prose, so at the
+ * point of making any change they can update the prose too".
  *
- * Nothing here is a hand-written list of what the dashboard can do. The
- * entries come from pack.json, which the compiler refuses to emit unless
- * every entry names a data-walk anchor that still exists in the live .vue
- * source. Delete the button and the build fails; the page cannot go stale
- * behind the product.
+ * tools/walkthrough/compile.mjs reads those comments, pins each one to a
+ * fingerprint of the element it describes, and emits them into pack.json.
+ * Nothing here is a hand-written list of what the dashboard can do: delete
+ * the button and the build fails, change what it does without rewriting its
+ * sentence and the build fails naming the capability.
  *
  * Founder rulings, 2026-09-07:
  *  - it is called the HANDBOOK, never Training. A handbook is what you look
@@ -83,8 +84,11 @@ export function placeLink(entry: HandbookEntry, nodeId: string | null | undefine
 }
 
 export interface HandbookEntry {
+  /** Slug of the title — the compiler's own key, stable while the title is. */
   id: string
   title: string
+  /** The .vue file the description lives in, beside the thing it describes. */
+  source?: string
   section: HandbookSectionId
   personas: WalkPersona[]
   keywords: string[]

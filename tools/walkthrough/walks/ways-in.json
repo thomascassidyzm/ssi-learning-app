@@ -1,7 +1,6 @@
 {
   "id": "ways-in",
   "title": "Ways in — who can get in, and how to change it",
-  "section": "getting-people-in",
   "personas": [
     "admin",
     "leader",
@@ -24,18 +23,6 @@
     "ledger",
     "shareable"
   ],
-  "handbook": {
-    "what": "The ledger of every way into this part of the tree — who has a live link, what it lets them do, and how to change your mind.",
-    "where": "The node's home page, the **Ways in** section below the lists.",
-    "how": [
-      "Open the node's home page and scroll to **Ways in**.",
-      "Read the rows: each one is a live way in, personal or shareable.",
-      "**Copy** hands you the link again.",
-      "**Re-mint** issues a fresh link and kills the old one on the spot.",
-      "**Revoke** closes that way in entirely."
-    ],
-    "note": "A shareable link is open to anyone who holds it, so revoke is the tool when a link has travelled further than you meant."
-  },
   "steps": [
     {
       "anchor": "ways-in-ledger",

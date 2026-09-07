@@ -74,19 +74,12 @@ export function validateWalkSchema(walk) {
   }
   if (!walk.place || typeof walk.place.route !== 'string') at('place.route is required')
   if (walk.place?.kinds && !Array.isArray(walk.place.kinds)) at('place.kinds must be an array')
-  // steps[] is OPTIONAL since the handbook (2026-09-07): an entry with prose
-  // and no clip is a first-class capability, it just has no "Show me". When
-  // present it must still be a real walk.
-  if (walk.steps !== undefined && (!Array.isArray(walk.steps) || !walk.steps.length)) {
-    at('steps[] must be non-empty when present')
+  if (!Array.isArray(walk.steps) || !walk.steps.length) at('steps[] must be non-empty')
+  // A walk is a CLIP and nothing else since 2026-09-07: the handbook prose
+  // lives beside the capability in the .vue source, never here.
+  if (walk.handbook || walk.section) {
+    at('handbook prose does not live in walk JSON — it lives in an HTML comment above the anchored element')
   }
-  if (!Array.isArray(walk.steps) && walk.anchor === undefined) {
-    at('an entry with no steps[] must name an anchor')
-  }
-  if (walk.anchor !== undefined && !/^[a-z0-9-]+$/.test(String(walk.anchor))) {
-    at('anchor must be kebab-case')
-  }
-  errors.push(...validateHandbookBlock(walk))
   walk.steps?.forEach((s, i) => {
     if (!s.anchor || !/^[a-z0-9-]+$/.test(s.anchor)) at(`step ${i + 1}: anchor must be kebab-case`)
     if (!s.say || typeof s.say !== 'string') at(`step ${i + 1}: say is required`)
@@ -101,48 +94,87 @@ export function validateWalkSchema(walk) {
 }
 
 /**
- * Gate 9 — the handbook block. Every non-learner entry carries prose that
- * reads standalone: what it is for, where it is, and the numbered steps. An
- * entry without prose does not compile, because the page's whole claim is
- * that it is the complete map.
+ * Gate 9 — the prose itself, as parsed out of the .vue source.
  *
- * Prose laws are the explainer's own (tools/explainer/rulings/*.md and the
- * header of explainer/learnerExplainers.ts): no parentheses anywhere, since
- * an aside is an explanation and this product explains by example.
+ * The page's whole claim is that it is the complete map and that it is true.
+ * So: a capability with no description does not compile, and a description
+ * that says nothing does not compile either.
  */
-export function validateHandbookBlock(walk) {
+export function validateHandbookEntry(entry) {
   const errors = []
-  const at = (msg) => errors.push(`walk "${walk?.id ?? '?'}": ${msg}`)
-  if (!isHandbookEntry(walk)) {
-    // A learner-only entry with prose would be written and never rendered —
-    // the page is the non-learner map. Only said where the personas are
-    // themselves valid, so an unknown persona reports once, not twice.
-    const learnerOnly = (walk?.personas ?? []).every((p) => p === 'learner')
-    if (learnerOnly && walk?.handbook) at('learner-only entries carry no handbook block')
-    return errors
+  const at = (msg) => errors.push(`${entry.path}: HANDBOOK "${entry.title}" — ${msg}`)
+  if (!HANDBOOK_SECTIONS.includes(entry.section)) {
+    at(`section "${entry.section || ''}" is not one of ${HANDBOOK_SECTIONS.join(', ')}`)
   }
-  if (!HANDBOOK_SECTIONS.includes(walk.section)) {
-    at(`section "${walk.section ?? ''}" is not one of ${HANDBOOK_SECTIONS.join(', ')}`)
+  if (!entry.personas.length) at('roles: is required — say whose capability this is')
+  for (const p of entry.personas) if (!PERSONAS.includes(p)) at(`unknown role "${p}"`)
+  if (!entry.personas.some((p) => HANDBOOK_PERSONAS.includes(p))) {
+    at('a handbook entry needs at least one non-learner role')
   }
-  const hb = walk.handbook
-  if (!hb || typeof hb !== 'object') {
-    at('handbook block is required — a capability with no prose is a hole in the page')
-    return errors
+  if (!entry.what.trim()) at('"What it\'s for." is required')
+  if (!entry.where.trim()) at('"Where it is." is required')
+  if (!entry.how.length) at('"How you do it." needs at least one numbered step')
+  for (const [i, step] of entry.how.entries()) {
+    if (!step.trim()) at(`how step ${i + 1} is empty`)
   }
-  for (const field of ['what', 'where']) {
-    if (typeof hb[field] !== 'string' || !hb[field].trim()) at(`handbook.${field} must be non-empty prose`)
-  }
-  if (!Array.isArray(hb.how) || !hb.how.length) at('handbook.how must be a non-empty array of steps')
-  else hb.how.forEach((step, i) => {
-    if (typeof step !== 'string' || !step.trim()) at(`handbook.how step ${i + 1} must be non-empty prose`)
-  })
-  if (hb.note !== undefined && (typeof hb.note !== 'string' || !hb.note.trim())) {
-    at('handbook.note must be non-empty prose when present')
-  }
-  const prose = [hb.what, hb.where, hb.note, ...(Array.isArray(hb.how) ? hb.how : [])]
-    .filter((x) => typeof x === 'string').join(' ')
-  if (/[()]/.test(prose)) at('handbook prose contains parentheses — zero-explanation ruling: say it in the sentence')
+  const prose = [entry.what, entry.where, entry.note, ...entry.how].join(' ')
+  if (/[()]/.test(prose)) at('prose contains parentheses — zero-explanation ruling: say it in the sentence')
+  if (/\bTODO\b|\bTBC\b|\bplaceholder\b/i.test(prose)) at('prose is a placeholder — write the sentence or delete the block')
   return errors
+}
+
+/**
+ * Gate 9b — COVERAGE. Every data-walk anchor in the source is a declared
+ * capability, so every one must either carry a description or be a step of a
+ * walkthrough clip whose own entry describes it. A button that announces
+ * itself as a capability and then has nothing to say about itself is exactly
+ * the silent blank this page exists to abolish.
+ */
+export function gateHandbookCoverage(anchorIds, entries, walks) {
+  const failures = []
+  const described = new Set(entries.flatMap((e) => [e.anchor, ...(e.parts ?? [])]))
+  const stepped = new Set(walks.flatMap((w) => (w.steps ?? []).map((s) => s.anchor)))
+  for (const id of anchorIds) {
+    if (described.has(id) || stepped.has(id)) continue
+    failures.push(`COVERAGE: data-walk="${id}" declares a capability with no handbook description — write a HANDBOOK comment above it, list it as a part of the capability it belongs to, or delete the anchor`)
+  }
+  const ids = new Set(walks.map((w) => w.id))
+  for (const e of entries) {
+    if (e.walk && !ids.has(e.walk)) failures.push(`${e.path}: HANDBOOK "${e.title}" names walk "${e.walk}", which does not exist`)
+  }
+  const seen = new Set()
+  for (const e of entries) {
+    const key = e.title.toLowerCase()
+    if (seen.has(key)) failures.push(`${e.path}: two handbook entries are both titled "${e.title}" — one capability, one description`)
+    seen.add(key)
+  }
+  return { failures }
+}
+
+/**
+ * Gate 9c — FRESHNESS, the backstop.
+ *
+ * The primary mechanism is not this gate: it is that the description sits
+ * next to the code, so the agent changing a capability rewrites its sentence
+ * in the same edit. This exists only for the case where somebody did not.
+ * The fingerprint covers the gate, the handler, the label and the handler's
+ * own source — see fingerprintCapability — so a behaviour change under an
+ * unchanged name fails the build naming the capability, and the repair is
+ * one command.
+ */
+export function gateHandbookFreshness(entries, fingerprintOf) {
+  const failures = []
+  for (const e of entries) {
+    const now = fingerprintOf(e)
+    if (!e.checked) {
+      failures.push(`STALE: ${e.path}: HANDBOOK "${e.title}" has never been pinned to what it describes — read the sentence against the code, then run: node tools/walkthrough/compile.mjs --reconfirm`)
+      continue
+    }
+    if (e.checked !== now) {
+      failures.push(`STALE: ${e.path}: "${e.title}" — the capability changed since this description was last read. Re-read the sentence against the code, fix it if it now lies, then run: node tools/walkthrough/compile.mjs --reconfirm "${e.anchor}"`)
+    }
+  }
+  return { failures }
 }
 
 /**
@@ -261,11 +293,14 @@ export function gateAnchors(walks, vueFiles) {
       }
     }
   }
-  for (const id of anchorTags.keys()) {
-    if (!referenced.has(id)) warnings.push(`orphan anchor data-walk="${id}" — no walk references it`)
-  }
+  // Orphan anchors are no longer a warning: gateHandbookCoverage makes an
+  // undescribed, unwalked anchor a BUILD FAILURE, which is the stronger
+  // statement and would only be repeated here as noise.
   return { failures, warnings }
 }
+
+/** The runtime's place vocabulary, captured by gatePlaces for the entry checks. */
+export const KNOWN_PLACES_CACHE = new Set()
 
 /** Gate 3 — place validity, lockstep with the runtime's KNOWN_PLACES list. */
 export function gatePlaces(walks, runtimeSrc) {
@@ -273,6 +308,8 @@ export function gatePlaces(walks, runtimeSrc) {
   const m = runtimeSrc.match(/KNOWN_PLACES\s*=\s*\[([^\]]*)\]/)
   if (!m) return { failures: ['LOCKSTEP: useWalkthrough.ts no longer declares KNOWN_PLACES'], places: [] }
   const places = [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1])
+  KNOWN_PLACES_CACHE.clear()
+  for (const p of places) KNOWN_PLACES_CACHE.add(p)
   for (const walk of walks) {
     if (!places.includes(walk.place.route)) {
       failures.push(`PLACE: walk "${walk.id}" place.route "${walk.place.route}" is not in the runtime's KNOWN_PLACES (${places.join(', ')})`)
@@ -370,32 +407,35 @@ export function gateUniqueIds(walks) {
 /**
  * Deterministic pack assembly (version = content hash, stamped by the CLI).
  *
- * TWO readings of ONE source. `walks` is the just-in-time engine's list and
- * only ever holds entries that actually have steps, so the overlay's
- * contract is unchanged. `handbook` is the map: every non-learner entry,
- * clip or no clip, in section order, carrying its prose and the personas
- * the page badges it with.
+ * TWO READINGS, TWO SOURCES, ONE TRUTH. `walks` are the just-in-time clips,
+ * authored in tools/walkthrough/walks/*.json. `handbook` is the map, read
+ * out of the .vue files themselves — so the prose ships from where the code
+ * is, and cannot be edited into a lie without the compiler noticing.
  */
-export function assemblePack(entries) {
-  const sorted = [...entries].sort((a, b) => a.id.localeCompare(b.id))
-  const walks = sorted.filter((e) => Array.isArray(e.steps) && e.steps.length)
-    .map(({ handbook: _handbook, section: _section, anchor: _anchor, ...walk }) => walk)
-  const handbook = sorted.filter(isHandbookEntry).map((e) => ({
-    id: e.id,
-    title: e.title,
-    section: e.section,
-    personas: e.personas,
-    keywords: e.keywords ?? [],
-    place: e.place,
-    anchor: e.anchor ?? e.steps?.[0]?.anchor,
-    walk: Array.isArray(e.steps) && e.steps.length ? e.id : null,
-    ...e.handbook,
-  }))
-  return { walks, handbook }
+export function assemblePack(walks, entries = []) {
+  const sortedWalks = [...walks].sort((a, b) => a.id.localeCompare(b.id))
+  const handbook = [...entries]
+    .sort((a, b) => a.title.localeCompare(b.title))
+    .map((e) => ({
+      id: e.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+      title: e.title,
+      section: e.section,
+      personas: e.personas,
+      keywords: e.keywords,
+      place: { route: e.place },
+      anchor: e.anchor,
+      source: e.path,
+      walk: e.walk ?? null,
+      what: e.what,
+      where: e.where,
+      how: e.how,
+      ...(e.note ? { note: e.note } : {}),
+    }))
+  return { walks: sortedWalks, handbook }
 }
 
 /** Run every gate; returns { failures, warnings }. */
-export function runGates({ walks, vueFiles, runtimeSrc, rulesJson, evaluateRulesSrc, handbookSrc }) {
+export function runGates({ walks, vueFiles, runtimeSrc, rulesJson, evaluateRulesSrc, handbookSrc, entries = [], fingerprintOf }) {
   const failures = []
   const warnings = []
   for (const w of walks) failures.push(...validateWalkSchema(w))
@@ -413,5 +453,13 @@ export function runGates({ walks, vueFiles, runtimeSrc, rulesJson, evaluateRules
     failures.push(...gateRoleBadges(runtimeSrc, handbookSrc).failures)
     failures.push(...gatePlaceLinks(runtimeSrc, handbookSrc).failures)
   }
+  for (const e of entries) {
+    failures.push(...validateHandbookEntry(e))
+    if (!KNOWN_PLACES_CACHE.has(e.place)) failures.push(`${e.path}: HANDBOOK "${e.title}" — place "${e.place}" is not one the runtime knows`)
+  }
+  const anchorIds = [...new Set(vueFiles.flatMap(({ src }) =>
+    [...src.matchAll(/\bdata-walk="([a-z0-9-]+)"/g)].map((m) => m[1])))]
+  failures.push(...gateHandbookCoverage(anchorIds, entries, walks).failures)
+  if (fingerprintOf) failures.push(...gateHandbookFreshness(entries, fingerprintOf).failures)
   return { failures, warnings }
 }

@@ -77,6 +77,27 @@ function handleConfirm() {
 <template>
   <Teleport to="body">
     <Transition name="modal">
+      <!-- HANDBOOK Take a teacher off a class, or move them
+           section: running-classes
+           roles: school_admin, leader
+           place: teachers
+           keywords: move, remove, class, teacher, swap, reassign
+           What it's for. Changing which classes a teacher takes without removing them
+           from the school. The ticks start from what is true today, so moving somebody
+           from one class to another is a single change rather than two.
+           Where it is. The **Teachers** page, **Assign to a class** on that teacher's
+           row, then the ticks.
+           How you do it.
+           1. Open **Assign to a class** on the teacher's row.
+           2. Untick the class they are leaving.
+           3. Tick the class they are joining, if there is one.
+           4. Tap **Save** — the button counts your changes back to you before you
+              commit.
+           Worth knowing. If part of a change fails the panel stays open and names the
+           class it could not do, and the ticks reset to what is actually true. Nothing
+           is ever reported as saved when it was not.
+           checked: 8bfaece0
+      -->
       <div v-if="isOpen" class="modal-overlay" data-walk="assign-classes-modal" @click="handleOverlayClick" @keydown.escape="handleClose">
         <div class="modal" role="dialog" aria-modal="true" aria-labelledby="assign-modal-title">
           <header class="modal-header">

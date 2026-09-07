@@ -1,7 +1,6 @@
 {
   "id": "share-a-class",
   "title": "Share a class with a colleague",
-  "section": "running-classes",
   "personas": [
     "teacher"
   ],
@@ -15,17 +14,6 @@
     "colleague",
     "teachers"
   ],
-  "handbook": {
-    "what": "Adding another teacher to a class you already run, so you both see the same roster and the same progress.",
-    "where": "The class page, the **Teachers** section.",
-    "how": [
-      "Open the class from My Classes.",
-      "Scroll to **Teachers**.",
-      "Tap **Add a teacher**.",
-      "Pick your colleague from the list."
-    ],
-    "note": "Both of you are teachers of the class. One of you is the lead, and the lead is the one the school's lists show first."
-  },
   "steps": [
     {
       "anchor": "class-teachers",

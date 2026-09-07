@@ -1,7 +1,6 @@
 {
   "id": "invite-first-teacher",
   "title": "Bring your first teacher in",
-  "section": "getting-people-in",
   "personas": [
     "admin",
     "leader",
@@ -20,18 +19,6 @@
     "colleague",
     "link"
   ],
-  "handbook": {
-    "what": "Getting a colleague into the school with a teacher's view, without them signing up for anything.",
-    "where": "Your school's home page, the buttons along the top, **Invite a person**.",
-    "how": [
-      "Open your school's home page.",
-      "Tap **Invite a person**.",
-      "Pick **Teacher** as the role — the link carries the role with it, so whoever opens it arrives as a teacher of this school.",
-      "Type their name and submit. The account exists the moment you tap.",
-      "Copy the link and send it to them any way you like."
-    ],
-    "note": "The link IS their login. It lands in **Ways in**, where you can re-mint or revoke it — re-minting kills the old link on the spot."
-  },
   "steps": [
     {
       "anchor": "verb-invite-person",

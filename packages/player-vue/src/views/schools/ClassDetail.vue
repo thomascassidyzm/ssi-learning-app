@@ -666,6 +666,24 @@ const deleteImpactLines = computed(() => {
         <div class="schools-kicker page-eyebrow">{{ courseLabel }}</div>
         <h1 class="arsenal page-title">
           {{ classData.class_name }}
+          <!-- HANDBOOK Rename a class
+               section: running-classes
+               roles: leader, school_admin, teacher
+               place: class-detail
+               keywords: class, rename, name, edit, title
+               What it's for. Changing what a class is called, for a name typed in a
+               hurry or a group that has moved up a year.
+               Where it is. The class page, the small pencil beside the class name.
+               How you do it.
+               1. Open the class from **My Classes**.
+               2. Tap the pencil next to the name at the top.
+               3. Type the new name.
+               4. Confirm it.
+               Worth knowing. Only the name changes. The roster, the join link, the
+               join code and the class's place on the course all carry on exactly as
+               they were.
+               checked: 4d2f2218
+          -->
           <button
             v-if="!isAdminView"
             type="button"
@@ -677,6 +695,27 @@ const deleteImpactLines = computed(() => {
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
           </button>
+          <!-- HANDBOOK Delete a class
+               section: running-classes
+               roles: leader, school_admin, teacher
+               place: class-detail
+               keywords: class, delete, remove, close, archive
+               What it's for. Removing a class you no longer want, usually one set up
+               by mistake or a group that has finished. Before anything is deleted
+               the app tells you what goes with it.
+               Where it is. The class page, the small bin beside the class name.
+               How you do it.
+               1. Open the class from **My Classes**.
+               2. Tap the bin next to the name at the top.
+               3. Read the list of what will go with the class.
+               4. If the class has real practice behind it, type the class name to
+                  confirm you mean it.
+               5. Confirm the deletion.
+               Worth knowing. Students keep their own accounts and everything they
+               have learned. What goes is the class itself, its roster and its join
+               link.
+               checked: d4143519
+          -->
           <button
             v-if="!isAdminView"
             type="button"
@@ -710,6 +749,24 @@ const deleteImpactLines = computed(() => {
 
       <div class="page-head-actions">
         <WalkOffer v-if="!isAdminView" persona="teacher" place="class-detail" />
+        <!-- HANDBOOK Run your first class session
+             section: running-classes
+             roles: teacher
+             place: class-detail
+             keywords: session, play, class, run, join, code
+             walk: run-class-session
+             What it's for. Running a live practice session with a class in the room,
+             everyone hearing the same thing at the same time.
+             Where it is. The class page, the join link and the play button.
+             How you do it.
+             1. Open the class from My Classes.
+             2. Put the join link or the join code on the screen for the room.
+             3. Wait for the students to arrive on their own devices.
+             4. Tap play to start the session.
+             Worth knowing. The join code is the same code all lesson, so a student
+             arriving late still gets in.
+             checked: 5290f872
+        -->
         <button v-if="canPlayAsClass" type="button" class="btn-play btn-play-lg" data-walk="class-play" :disabled="!canLaunch" @click="handlePlay">
           <span class="play-glyph">&#9654;</span>
           Play as class
@@ -739,6 +796,26 @@ const deleteImpactLines = computed(() => {
               <!-- The other direction, from the same row: which OTHER classes
                    does this person take? Moving them off this class and onto
                    another is one untick and one tick in here. -->
+              <!-- HANDBOOK Move a teacher to another class
+                   section: running-classes
+                   roles: teacher
+                   place: class-detail
+                   keywords: move, teacher, classes, assign, timetable
+                   walk: move-a-teacher-between-classes
+                   What it's for. Changing which classes a teacher is on, in one
+                   pass, without visiting each class in turn.
+                   Where it is. The class page, the **Teachers** section, a
+                   teacher's other classes.
+                   How you do it.
+                   1. Open a class the teacher is on.
+                   2. Scroll to **Teachers** and open their other classes.
+                   3. Tick the classes they should be on and untick the ones they
+                      should not.
+                   4. Save.
+                   Worth knowing. Untick and save is how you take a teacher off a
+                   class — there is no separate remove.
+                   checked: 0cd7063d
+              -->
               <button
                 v-if="canManageTeachers"
                 type="button"
@@ -749,6 +826,25 @@ const deleteImpactLines = computed(() => {
               >
                 Other classes
               </button>
+              <!-- HANDBOOK Hand a class over to another teacher
+                   section: running-classes
+                   roles: teacher
+                   place: class-detail
+                   keywords: lead, hand over, class, teacher, transfer
+                   walk: hand-over-the-lead
+                   What it's for. Passing the lead of a class to another teacher
+                   who already teaches it — for a maternity cover, a term swap,
+                   or a permanent handover.
+                   Where it is. The class page, the **Teachers** section.
+                   How you do it.
+                   1. Open the class from My Classes.
+                   2. Scroll to **Teachers**.
+                   3. Find the colleague who should lead it.
+                   4. Tap **Make lead** on their row.
+                   Worth knowing. You stay on the class as a teacher. Only the
+                   lead changes.
+                   checked: 2ede673e
+              -->
               <button
                 v-if="!t.is_lead && canManageTeachers"
                 type="button"
@@ -788,6 +884,24 @@ const deleteImpactLines = computed(() => {
                to multiple classes", so the button says teacher, not
                co-teacher, and the line under it states the rule in plain
                English rather than leaving a head to infer it. -->
+          <!-- HANDBOOK Share a class with a colleague
+               section: running-classes
+               roles: teacher
+               place: class-detail
+               keywords: class, share, co-teacher, colleague, teachers
+               walk: share-a-class
+               What it's for. Adding another teacher to a class you already run, so
+               you both see the same roster and the same progress.
+               Where it is. The class page, the **Teachers** section.
+               How you do it.
+               1. Open the class from My Classes.
+               2. Scroll to **Teachers**.
+               3. Tap **Add a teacher**.
+               4. Pick your colleague from the list.
+               Worth knowing. Both of you are teachers of the class. One of you is
+               the lead, and the lead is the one the school's lists show first.
+               checked: ab5f2d72
+          -->
           <button type="button" class="btn-ghost btn-small teacher-add-open" data-walk="class-teacher-add" @click="showAddTeacher = true">
             Add another teacher
           </button>
@@ -817,6 +931,24 @@ const deleteImpactLines = computed(() => {
           </div>
         </template>
 
+        <!-- HANDBOOK Invite a teacher who isn't here yet
+             section: running-classes
+             roles: teacher
+             place: class-detail
+             keywords: supply, cover, teacher, invite, class, link
+             walk: invite-a-supply-teacher
+             What it's for. Getting a teacher who has no account yet into one class of
+             yours, without going through the school admin.
+             Where it is. The class page, the **Teachers** section.
+             How you do it.
+             1. Open the class from My Classes.
+             2. Scroll to **Teachers**.
+             3. Take the co-teacher link.
+             4. Send it to them — opening it puts them on this class as a teacher.
+             Worth knowing. The link is scoped to this one class, so a cover teacher
+             never lands in the rest of the school.
+             checked: d27e7961
+        -->
         <div v-if="canManageTeachers" class="teacher-link-block" data-walk="class-coteacher-link">
           <p class="rail-note schools-subtle">
             Colleague not on the staff list yet? Send them a link into this class.
@@ -841,6 +973,26 @@ const deleteImpactLines = computed(() => {
       </div>
 
     <div class="body-grid">
+      <!-- HANDBOOK The class roster
+           section: seeing-progress
+           roles: admin, leader, school_admin, teacher
+           place: class-detail
+           keywords: roster, students, progress, belt, last active
+           What it's for. Everyone in the class, one row each, with their belt, how much
+           they have learned, how much they have practised and when they were last at it.
+           This is the answer to who is quietly drifting.
+           Where it is. The class page, the **Roster** table.
+           How you do it.
+           1. Open the class from **My Classes**.
+           2. Read down the mark under each name, which flags anyone behind the class or
+              long gone quiet.
+           3. Type a name into the search box to jump to one student.
+           4. Compare a student's practice against the class average shown in the rail
+              beside the table.
+           Worth knowing. A student who has never started shows as inactive rather than
+           as behind, because nothing has happened yet to judge.
+           checked: 9e190afc
+      -->
       <section class="roster schools-card" data-walk="class-roster">
         <header class="roster-head">
           <h3 class="arsenal roster-title">Roster</h3>
@@ -890,6 +1042,27 @@ const deleteImpactLines = computed(() => {
                 <td>{{ s.hours7d }}h</td>
                 <td><span class="schools-subtle">{{ s.last_active_display }}</span></td>
                 <td class="row-action">
+                  <!-- HANDBOOK Remove a student from a class
+                       section: running-classes
+                       roles: leader, school_admin, teacher
+                       place: class-detail
+                       keywords: remove, student, roster, leave, class
+                       What it's for. Taking a student off a class roster,
+                       for a pupil who has changed set or joined the wrong
+                       class from a shared link.
+                       Where it is. The class page, the **Remove** button at
+                       the end of the student's row in the roster.
+                       How you do it.
+                       1. Open the class from **My Classes**.
+                       2. Find the student in the roster.
+                       3. Tap **Remove** at the end of their row.
+                       4. Confirm when asked.
+                       Worth knowing. The student keeps their account and
+                       everything they have learned, and they can join
+                       another class straight away. Only their place on this
+                       roster goes.
+                       checked: 8f3eea39
+                  -->
                   <button
                     v-if="!isAdminView"
                     type="button"
@@ -919,6 +1092,29 @@ const deleteImpactLines = computed(() => {
       </section>
 
       <aside class="rail" :class="{ 'rail-first': rosterObservedEmpty }">
+        <!-- HANDBOOK Where the class has got to
+             section: seeing-progress
+             roles: admin, leader, school_admin, teacher
+             place: class-detail
+             keywords: progress, journey, belt, position, course
+             What it's for. How far the class has travelled through its course, as a
+             bar with the class average behind it and the next belt named. A class
+             carries its own place on the course, moved by the sessions you run
+             together.
+             Where it is. The class page, the **Course Journey** card in the column
+             beside the roster.
+             How you do it.
+             1. Open the class from **My Classes**.
+             2. Read the bar for how much of the course the class has covered.
+             3. Read the line under it for the class average and how far it is to the
+                next belt.
+             4. Compare that with the belt spread underneath, which shows how tightly
+                the class is travelling together.
+             Worth knowing. The class average is the honest number for planning a
+             lesson. The belt spread is the one that tells you whether the class is
+             holding together or pulling apart.
+             checked: a95511dd
+        -->
         <div class="schools-card schools-card-pad rail-card" data-walk="class-journey">
           <div class="schools-kicker rail-kicker">Course Journey</div>
           <JourneyBar :done="journeyDone" :total="journeyTotal" label="Course Journey" />
@@ -970,6 +1166,29 @@ const deleteImpactLines = computed(() => {
             <p class="join-help">
               Share this link — students click it, sign up, and land straight in the class.
             </p>
+            <!-- HANDBOOK How students join a class
+                 section: getting-people-in
+                 roles: leader, school_admin, teacher
+                 place: class-detail
+                 keywords: join, link, code, students, invite, class
+                 What it's for. The one door into a class. A student who follows
+                 the class link signs up and lands straight in the class, on the
+                 right course, with no code to type. The same class also has a
+                 short code for a room where a link is awkward.
+                 Where it is. The class page, the **Invite students** card.
+                 How you do it.
+                 1. Open the class from **My Classes**.
+                 2. Copy the link from the **Invite students** card and send it to
+                    your students.
+                 3. For a room with a whiteboard, tap **Show code instead** and
+                    write the code up.
+                 4. Students enter that code at saysomethingin.com/redeem.
+                 Worth knowing. The link and the code both stay valid, so the same
+                 one works for a student who joins in week one and a student who
+                 arrives in week six. If the card says it could not load, do not
+                 hand anything out until it comes back.
+                 checked: bc4a8a6b
+            -->
             <div v-if="joinPanel.url" data-walk="class-join-link"><InviteLinkField :url="joinPanel.url" /></div>
 
             <button

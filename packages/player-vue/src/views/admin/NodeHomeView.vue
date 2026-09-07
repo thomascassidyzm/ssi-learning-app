@@ -674,6 +674,25 @@ const listPayload = computed(() => {
         <!-- MAP RAIL — always the whole column; a cold load without cached
              ancestry gets the quiet skeleton, never a text flash and never
              the main pane sliding into this column. -->
+        <!-- HANDBOOK Finding your way around the organisation
+             section: seeing-progress
+             roles: admin, leader, school_admin
+             place: node-home
+             keywords: map, rail, navigate, where am i, ancestors, siblings, orientation
+             What it's for. A standing map down the side of every level, showing where
+             you are: the levels above you, the level you are on, its neighbours and
+             what sits under it. It never disappears, so you can always tell how deep
+             into the organisation you have gone.
+             Where it is. The column on the left of any group, school or class page.
+             How you do it.
+             1. Open any level of your organisation.
+             2. Read down the map to see the path from your top level to here.
+             3. Tap any name in it to move straight there.
+             4. The page rebuilds around the new level and the map redraws with it.
+             Worth knowing. A leader only ever sees their own part of the organisation
+             — the map is trimmed by the server, not hidden in the page.
+             checked: ddf17908
+        -->
         <aside class="rail-col schools-card" data-walk="node-map-rail">
           <NodeMapRail
             v-if="rail"
@@ -799,7 +818,52 @@ const listPayload = computed(() => {
           </router-link>
 
           <!-- STATS ROW -->
+          <!-- HANDBOOK How fresh these numbers are
+               section: seeing-progress
+               roles: admin, leader, school_admin
+               place: node-home
+               keywords: updated, refresh, fresh, stale, time, reload
+               What it's for. A small time stamp saying when the figures on the page
+               were last loaded, so you always know whether you are looking at this
+               morning or this minute.
+               Where it is. Just above the row of numbers, reading **Updated** and a
+               time.
+               How you do it.
+               1. Open any level of your organisation.
+               2. Read the stamp above the numbers for the time they were fetched.
+               3. Pull the page down or reload it to fetch again — the stamp moves
+                  with it.
+               Worth knowing. Nothing is shown until the first load has genuinely
+               succeeded, so an empty stamp means the numbers have not arrived rather
+               than that they are old.
+               checked: 66198dfa
+          -->
           <div class="stats-updated" data-walk="node-updated"><UpdatedStamp /></div>
+          <!-- HANDBOOK The numbers on any level
+               section: seeing-progress
+               roles: admin, leader, school_admin
+               place: node-home
+               keywords: numbers, stats, practice hours, learners, teachers, classes, rollup
+               What it's for. The row of figures at the top of any level of your
+               organisation. They always count everything below that level, each
+               person once, so a group's numbers already include every school, class
+               and learner underneath it.
+               Where it is. Across the top of the page for a group, a school or a
+               class, under the name.
+               How you do it.
+               1. Open the level you want — a group, a school or a class.
+               2. **Class practice** is the hours classes have practised together
+                  beneath this level.
+               3. **Classes practising this week** is how many of them have run a
+                  session in the last seven days.
+               4. **Teachers** and **Learners** count the people below this level,
+                  each once however many classes they are in.
+               5. On a class the same row switches to that class's own sessions this
+                  week, its practice hours, its students and its teachers.
+               Worth knowing. An organisation that is not school-shaped sees the same
+               row worded as practice hours, groups and learners instead.
+               checked: b278e3a1
+          -->
           <div class="stats-row" data-walk="node-stats">
             <div v-for="s in stats" :key="s.word" class="stat-card schools-card">
               <span class="stat-value frost-mono-nums">{{ switching ? NBSP : s.value }}</span>
@@ -823,6 +887,27 @@ const listPayload = computed(() => {
             <!-- CLASS PRACTICE leads — the class practising together IS the
                  primary metric (founder ruling). Students are the bonus layer
                  below. -->
+            <!-- HANDBOOK Whether a class is practising together
+                 section: seeing-progress
+                 roles: admin, leader, school_admin
+                 place: node-home
+                 keywords: class practice, sessions, together, this week, last session, play as class
+                 What it's for. The headline card on a class: how many sessions it
+                 has run this week, how long ago the last one was, and the total
+                 hours it has practised together. Classes practising together is
+                 what a language programme lives on, so this leads over anything
+                 individual students do alone.
+                 Where it is. The **Class practice** card on a class page.
+                 How you do it.
+                 1. Open a class from the tree or the map.
+                 2. Read the big figure for sessions run this week.
+                 3. The line under it gives the time since the last session and the
+                    running total of hours and sessions.
+                 Worth knowing. A class that has never played together says so
+                 plainly and names the teacher's **Play as class** button as the
+                 thing that starts the first one.
+                 checked: 2423aa12
+            -->
             <div class="schools-card class-card" data-walk="class-practice">
               <span class="schools-kicker">Class practice</span>
               <template v-if="classPractice?.totalSessions">
@@ -836,6 +921,29 @@ const listPayload = computed(() => {
               </template>
               <p v-else class="class-card-note">No class practice yet — the teacher's Play as class button starts the first session.</p>
             </div>
+            <!-- HANDBOOK How far a class has travelled
+                 section: seeing-progress
+                 roles: admin, leader, school_admin
+                 place: node-home
+                 keywords: journey, progress, legos, position, course, belt, how far
+                 What it's for. A bar showing where a class has got to in its
+                 course, measured in LEGOs — the individual pieces of language the
+                 course teaches. The class's own shared position leads, and the
+                 average its students have reached on their own sits alongside it.
+                 Where it is. The **Course journey** card on a class page.
+                 How you do it.
+                 1. Open a class.
+                 2. Read the bar for how much of the course the class has covered
+                    together.
+                 3. The line underneath gives both figures: the class's shared
+                    position, and the average students have reached learning alone.
+                 4. It also names the next belt and how many LEGOs are left to
+                    reach it.
+                 Worth knowing. A class that has never played together has no
+                 shared position, so the bar falls back to the students' own
+                 average and says so.
+                 checked: 37cd9c93
+            -->
             <div class="schools-card class-card" data-walk="class-journey">
               <span class="schools-kicker">Course journey</span>
               <!-- The bar runs in LEGOs on both sides. journey.done is the
@@ -861,6 +969,29 @@ const listPayload = computed(() => {
                 <template v-else>Reached Black belt — top of the ladder.</template>
               </p>
             </div>
+            <!-- HANDBOOK Reading the belts
+                 section: seeing-progress
+                 roles: admin, leader, school_admin
+                 place: node-home
+                 keywords: belt, belts, white, black, distribution, spread, seeds
+                 What it's for. How a class is spread across the eight belts, from
+                 white to black. A belt is earned by completing whole sentences of
+                 the course, so it is a coarse, honest badge of distance travelled
+                 rather than a score or a grade.
+                 Where it is. The **Belt distribution** card on a class page.
+                 How you do it.
+                 1. Open a class.
+                 2. Read the coloured strip for the shape of the class — a wide
+                    band of one colour means everyone is together.
+                 3. The list underneath names each belt and how many students hold
+                    it.
+                 4. The ladder runs white, yellow, orange, green, blue, purple,
+                    brown, black, reached at 8, 20, 40, 80, 150, 280 and 400
+                    completed sentences.
+                 Worth knowing. Every screen in the product uses that one ladder,
+                 so a student never shows a different belt in two places.
+                 checked: fa2db137
+            -->
             <div class="schools-card class-card" data-walk="class-belts">
               <span class="schools-kicker">Belt distribution</span>
               <template v-if="enrichedStudents.length">
@@ -875,6 +1006,29 @@ const listPayload = computed(() => {
               </template>
               <p v-else class="class-card-note">No students in this class yet.</p>
             </div>
+            <!-- HANDBOOK Practice per student per week
+                 section: seeing-progress
+                 roles: admin, leader, school_admin
+                 place: node-home
+                 keywords: benchmark, minutes, per student, per week, average, compare, rate
+                 What it's for. Minutes of practice per student per week for this
+                 class, set against the same figure for its school and for everyone
+                 doing the course. Dividing by students and by weeks is what lets a
+                 class of nine and a class of thirty be compared honestly.
+                 Where it is. The **Practice min/student/week** card on a class
+                 page.
+                 How you do it.
+                 1. Open a class.
+                 2. Read the top bar for this class's own minutes per student per
+                    week.
+                 3. The bars below it are the school average and the global average
+                    for the course.
+                 4. Compare the lengths — the numbers at the end give the exact
+                    figures.
+                 Worth knowing. A class with too little practice recorded shows a
+                 plain line saying so rather than a bar built from almost nothing.
+                 checked: 3079497c
+            -->
             <div class="schools-card class-card" data-walk="class-benchmark">
               <span class="schools-kicker">Practice min/student/week</span>
               <Bench v-if="benchmark" :data="benchmark" unit="m" />
@@ -913,6 +1067,32 @@ const listPayload = computed(() => {
                   {{ neutral ? 'Nothing below this yet — add a group or invite people with the buttons above.' : (member ? 'Nothing below this yet.' : 'Nothing below this yet — use the buttons above to add a school or group.') }}
                 </p>
               </template>
+              <!-- HANDBOOK Reading one student's progress
+                   section: seeing-progress
+                   roles: admin, leader, school_admin
+                   place: node-home
+                   keywords: student, learner, progress, roster, last active, drifting, spark
+                   What it's for. Every student in a class, one to a row, each
+                   carrying their own position in the course, their belt, their
+                   practice over the last week and how recently they were active.
+                   A quiet coloured dot flags anyone who has gone quiet or fallen
+                   well behind the class.
+                   Where it is. The **Students** list at the bottom of a class
+                   page.
+                   How you do it.
+                   1. Open a class.
+                   2. Read down the rows — the bar on each is that student's own
+                      position in the course, in LEGOs.
+                   3. The small chart beside it is their practice over the past
+                      week, with the minutes named.
+                   4. The dot and word at the start of a row say whether they are
+                      excellent, good, needing attention or inactive.
+                   5. Tap a row to open that person.
+                   Worth knowing. Needing attention means either nothing for a
+                   fortnight or less than half the class average, so it is a
+                   prompt to look rather than a verdict.
+                   checked: fd291729
+              -->
               <NodeChildrenList
                 v-else
                 data-walk="class-students"
