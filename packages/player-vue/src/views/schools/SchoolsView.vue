@@ -209,7 +209,28 @@ watch(currentUser, (u) => {
         <button type="button" class="btn-ghost" :disabled="!filteredSchools.length" @click="handleExport">
           Export
         </button>
-        <button v-if="!isAdminView" type="button" class="btn-play" @click="openAddModal">+ Add school</button>
+        <!-- HANDBOOK Add a school to your programme
+             section: your-school
+             roles: leader
+             place: schools-list
+             keywords: add, new, school, create, programme, group, register
+             What it's for. Creating a new school inside your programme. The school
+             exists the moment you name it, already attached to your group, with its
+             admin link and teacher link ready to hand over.
+             Where it is. All schools, the **+ Add school** button at the top right.
+             How you do it.
+             1. Tap **+ Add school**.
+             2. Type the school's name and tap **Create school**.
+             3. Copy the Admin link and send it to whoever will run the school —
+                opening it takes them straight to sign-in as its admin.
+             4. Copy the Teacher link too if you are setting their staff up as well.
+             5. Tap **Done**. The new school appears in the list.
+             Worth knowing. There is no separate onboarding step to remember. Both
+             links live on the school's row from then on, so you can fetch them again
+             any time.
+             checked: 2006c633
+        -->
+        <button v-if="!isAdminView" type="button" class="btn-play" data-walk="verb-add-school" @click="openAddModal">+ Add school</button>
       </div>
     </div>
 
@@ -271,7 +292,31 @@ watch(currentUser, (u) => {
         </div>
       </div>
 
-      <table class="ssi-table">
+      <!-- HANDBOOK See every school in your programme
+           section: seeing-progress
+           roles: leader
+           place: schools-list
+           keywords: schools, all, list, programme, group, compare, search, sort, export, health
+           What it's for. One table of every school you look after, with its students,
+           teachers, classes and practice hours side by side, so a whole programme reads
+           at a glance instead of school by school.
+           Where it is. All schools. The totals sit above the table and the search and
+           sort controls sit on its header row.
+           How you do it.
+           1. Open All schools.
+           2. Read the totals across the top for the programme as a whole.
+           3. Search by name to find one school, or sort by name, hours or students.
+           4. Read the Status column — a school with nobody running it yet is flagged as
+              awaiting admin.
+           5. Tap any row to open that school's own dashboard.
+           6. Tap **Export** for the same table as a spreadsheet file.
+           Worth knowing. The list holds still until you refresh it, so a number on
+           screen will not change under you while you are reading. If a refresh fails you
+           are told plainly rather than being shown stale figures as if they were
+           current.
+           checked: b6977247
+      -->
+      <table class="ssi-table" data-walk="schools-list-table">
         <thead>
           <tr>
             <th>School</th>
@@ -312,7 +357,27 @@ watch(currentUser, (u) => {
                 <span class="schools-subtle">{{ school.health.replace('-', ' ') }}</span>
               </span>
             </td>
-            <td class="links-cell" @click.stop>
+            <!-- HANDBOOK Copy a school's joining links
+                 section: getting-people-in
+                 roles: leader
+                 place: schools-list
+                 keywords: link, links, invite, admin, teacher, copy, join, code, chase
+                 What it's for. Fetching the admin link or the teacher link for any
+                 school in your programme, so you can chase a school that has not
+                 got started or replace a link somebody has lost.
+                 Where it is. All schools, the Links column on each school's row.
+                 How you do it.
+                 1. Find the school's row in the list.
+                 2. Tap **Admin** to copy its admin link, or **Teacher** to copy
+                    its teacher link.
+                 3. The chip reads Copied so you know it worked.
+                 4. Paste it into an email or a message to whoever needs it.
+                 Worth knowing. Tapping a link chip does not open the school — the
+                 rest of the row does that. A school still flagged as awaiting
+                 admin is one whose admin link nobody has opened yet.
+                 checked: 81dd9258
+            -->
+            <td class="links-cell" data-walk="schools-list-link-chips" @click.stop>
               <button
                 type="button"
                 class="link-chip"

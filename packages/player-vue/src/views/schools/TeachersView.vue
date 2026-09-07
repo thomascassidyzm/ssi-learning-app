@@ -387,6 +387,27 @@ watch(selectedUser, (newUser) => {
               <!-- People-first assignment: the leader is on their staff list,
                    so the verb lives on the PERSON. Admins teach too (they
                    appear here as staff), so this is offered on every row. -->
+              <!-- HANDBOOK Give a teacher their classes
+                   section: getting-people-in
+                   roles: school_admin, leader
+                   place: teachers
+                   keywords: assign, class, teacher, staff, classes
+                   What it's for. Putting a teacher onto the classes they will
+                   teach, working from your staff list rather than opening each
+                   class in turn. This is how a new arrival gets their timetable
+                   in one sitting.
+                   Where it is. The **Teachers** page, the **Assign to a class**
+                   button on that teacher's row.
+                   How you do it.
+                   1. Find the teacher in the list.
+                   2. Tap **Assign to a class**.
+                   3. Tick every class they should teach.
+                   4. Tap **Save** to apply the ticks.
+                   Worth knowing. A class with nobody on it says so in the list,
+                   and the teacher you tick will lead it. Tick a class that
+                   already has a teacher and yours joins as a co-teacher instead.
+                   checked: fda2b356
+              -->
               <button
                 v-if="canAssignClasses"
                 type="button"
@@ -401,6 +422,30 @@ watch(selectedUser, (newUser) => {
                    their own admin hands them a link instead. Offered on every
                    row, admins included — an admin locked out is stuck the same
                    way a teacher is. -->
+              <!-- HANDBOOK Hand a teacher their access code
+                   section: getting-people-in
+                   roles: school_admin
+                   place: teachers
+                   keywords: access code, sign-in, locked out, email, teacher, link
+                   What it's for. A way to get a teacher into their own account
+                   when email is not reaching them. School mail gateways
+                   quarantine our sign-in codes often enough that this is the
+                   rescue, not the exception.
+                   Where it is. The **Teachers** page, the **Access code** button
+                   on that teacher's row.
+                   How you do it.
+                   1. Find the teacher in the list.
+                   2. Tap **Access code** on their row.
+                   3. Read the code out to them, write it down, or paste the link
+                      into whatever you already use.
+                   4. They go to saysomethingin.app/join and type the code in.
+                   5. Tap **Done** when they are through.
+                   Worth knowing. The code works once and lasts two days, and
+                   whoever uses it becomes that teacher — so give it to them
+                   directly and never post it anywhere shared. Need another? Tap
+                   **Access code** again.
+                   checked: 3ee8a11e
+              -->
               <button
                 v-if="canManageStaff"
                 type="button"
@@ -414,10 +459,31 @@ watch(selectedUser, (newUser) => {
               <!-- Removal acts only on TEACHER tags (api/school/remove-staff.ts
                    deliberately refuses an admin, so a school can't lose its own
                    admin through the staff list) — so don't offer the control. -->
+              <!-- HANDBOOK Remove a teacher from your school
+                   section: getting-people-in
+                   roles: school_admin
+                   place: teachers
+                   keywords: remove, teacher, leaver, staff, delete
+                   What it's for. Taking a teacher off your school when they
+                   leave. Their own account survives — what goes is their place
+                   in this school and their view of its classes and learners.
+                   Where it is. The **Teachers** page, the **Remove** button on
+                   that teacher's row.
+                   How you do it.
+                   1. Find the teacher in the list.
+                   2. Tap **Remove** on their row.
+                   3. Confirm when asked for their name back.
+                   4. The list refreshes without them.
+                   Worth knowing. An admin's row carries no **Remove** button, so
+                   a school can never lose its own admin through this list.
+                   Change their role first if that is really what you want.
+                   checked: 19a44d46
+              -->
               <button
                 v-if="canManageStaff && t.role !== 'Admin'"
                 type="button"
                 class="btn-ghost btn-small remove-btn"
+                data-walk="teacher-remove"
                 @click="handleRemoveTeacher(t.user_id, t.name)"
               >
                 Remove
@@ -468,7 +534,29 @@ watch(selectedUser, (newUser) => {
         <p class="join-body">
           Share this link however you reach your staff — Teams, WhatsApp, in person. Clicking it signs them straight in.
         </p>
-        <InviteLinkField :url="teacherJoinLink" />
+        <!-- HANDBOOK Invite a teacher to your school
+             section: getting-people-in
+             roles: school_admin
+             place: teachers
+             keywords: teacher, invite, link, staff, join, code
+             What it's for. One standing link that turns anyone who opens it into a
+             teacher of your school. It is the same link every time, so you can hand it
+             to a whole staff room at once.
+             Where it is. The **Teachers** page, the **Invite teachers** card below the
+             list.
+             How you do it.
+             1. Open **Teachers**.
+             2. Scroll to the **Invite teachers** card.
+             3. Tap **Copy invite link**.
+             4. Send it however you reach your staff — Teams, WhatsApp, printed on a
+                slip.
+             5. They open it, sign in once, and appear in your list as a teacher.
+             Worth knowing. If you are standing in front of them rather than sending
+             anything, **Show code instead** gives you a short code to read out or
+             write on a whiteboard, and they type it in at saysomethingin.com/redeem.
+             checked: 45f0541c
+        -->
+        <InviteLinkField :url="teacherJoinLink" data-walk="teachers-invite-link" />
 
         <button
           v-if="!showCode"

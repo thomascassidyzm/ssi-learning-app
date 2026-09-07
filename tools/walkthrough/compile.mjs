@@ -12,14 +12,24 @@
  *   node tools/walkthrough/compile.mjs --check   # validate only, no writes
  */
 import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runGates, assemblePack } from './lib.mjs'
+import { parseHandbookBlocks, fingerprintCapability, stampChecked } from './handbookSource.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(HERE, '..', '..')
 const CHECK_ONLY = process.argv.includes('--check')
+// --reconfirm is the REPAIR TOOL for the freshness gate. A gate with no
+// one-step repair gets routed around, so this is one command: re-read the
+// sentence against the code, then stamp it. With an anchor id it re-pins one
+// capability; bare, it re-pins every one of them.
+const RECONFIRM = process.argv.includes('--reconfirm')
+const RECONFIRM_ONLY = process.argv[process.argv.indexOf('--reconfirm') + 1]?.startsWith('-') === false
+  ? process.argv[process.argv.indexOf('--reconfirm') + 1]
+  : null
 
 function vueFilesUnder(dir) {
   const out = []
@@ -32,27 +42,102 @@ function vueFilesUnder(dir) {
   return out
 }
 
+const vueFiles = vueFilesUnder(join(ROOT, 'packages/player-vue/src'))
+
+// THE HANDBOOK'S SOURCE IS THE .vue FILES (Tom's ruling 2026-09-07): the
+// description of a capability lives in an HTML comment directly above the
+// element that is the capability, so the agent changing behaviour is already
+// looking at the sentence.
+const parsed = vueFiles.map(({ path, src }) => ({ path, src, ...parseHandbookBlocks(path, src) }))
+const entries = parsed.flatMap((p) => p.entries)
+const parseErrors = parsed.flatMap((p) => p.errors)
+const srcByPath = new Map(vueFiles.map(({ path, src }) => [path, src]))
+const fingerprintOf = (e) => fingerprintCapability(srcByPath.get(e.path), e.tag, e.tagStart)
+
+if (RECONFIRM) {
+  let stamped = 0
+  for (const { path, entries: fileEntries } of parsed) {
+    const targets = fileEntries
+      .filter((e) => !RECONFIRM_ONLY || e.anchor === RECONFIRM_ONLY)
+      .filter((e) => e.checked !== fingerprintOf(e))
+    if (!targets.length) continue
+    let src = readFileSync(join(ROOT, path), 'utf8')
+    // Back to front, so earlier offsets stay valid.
+    for (const e of [...targets].sort((a, b) => b.blockStart - a.blockStart)) {
+      src = stampChecked(src, e, fingerprintOf(e))
+      console.log(`  ✓ re-pinned "${e.title}" — ${path}`)
+      stamped += 1
+    }
+    writeFileSync(join(ROOT, path), src)
+  }
+  console.log(stamped
+    ? `[walkthrough] ${stamped} description${stamped === 1 ? '' : 's'} re-pinned to the code they describe.`
+    : '[walkthrough] nothing to re-pin — every description is already pinned to its current capability.')
+  // ONE COMMAND, NOT TWO. Re-pinning without recompiling leaves pack.json —
+  // which IS what the Handbook page renders — holding the old sentence, so the
+  // build goes green while the page still lies. Recompile in the same breath;
+  // a repair that needs a second command someone has to remember is a repair
+  // that will be half-done at 3am.
+  const self = fileURLToPath(import.meta.url)
+  const res = spawnSync(process.execPath, [self], { encoding: 'utf8', stdio: 'inherit' })
+  process.exit(res.status ?? 1)
+}
+
+// A gate that fails without showing the shape of a good answer teaches nothing.
+// This quotes a REAL entry — the shortest complete one in the tree — so the
+// example can never drift from what the compiler actually accepts.
+function exampleBlock() {
+  const complete = entries.filter((e) => e.what && e.where && e.how.length && e.checked)
+  if (!complete.length) return ''
+  const e = complete.reduce((a, b) => (b.raw.length < a.raw.length ? b : a))
+  // Dedent to the block's own left edge first — an example that arrives with
+  // somebody else's indentation reads as a mess rather than as a template.
+  const rawLines = e.raw.split('\n')
+  const pad = Math.min(...rawLines.slice(1).filter((l) => l.trim()).map((l) => l.match(/^ */)[0].length))
+  const quoted = rawLines.map((l, i) => `     ${i === 0 ? l : l.slice(pad)}`).join('\n')
+  return (
+    `\nA GOOD ONE, quoted verbatim from ${e.path}:${e.line} — copy this shape:\n\n` +
+    quoted + '\n\n' +
+    `     …and the element it sits above carries data-walk="${e.anchor}".\n` +
+    '     The checked: line is not yours to write — --reconfirm stamps it.\n'
+  )
+}
+
 const walksDir = join(HERE, 'walks')
 const walkFiles = readdirSync(walksDir).filter((f) => f.endsWith('.json')).sort()
 const walks = walkFiles.map((f) => JSON.parse(readFileSync(join(walksDir, f), 'utf8')))
 
 const { failures, warnings } = runGates({
   walks,
-  vueFiles: vueFilesUnder(join(ROOT, 'packages/player-vue/src')),
+  entries,
+  fingerprintOf,
+  vueFiles,
   runtimeSrc: readFileSync(join(ROOT, 'packages/player-vue/src/walkthrough/useWalkthrough.ts'), 'utf8'),
   rulesJson: JSON.parse(readFileSync(join(ROOT, 'tools/explainer/rules.json'), 'utf8')),
   evaluateRulesSrc: readFileSync(join(ROOT, 'packages/player-vue/src/explainer/evaluateRules.ts'), 'utf8'),
+  handbookSrc: readFileSync(join(ROOT, 'packages/player-vue/src/walkthrough/handbook.ts'), 'utf8'),
 })
 
 for (const w of warnings) console.log(`  ⚠ ${w}`)
+failures.unshift(...parseErrors)
 if (failures.length) {
   console.error('\n[walkthrough] COMPILE FAILED — a walk would lie about the product:')
   for (const f of failures) console.error(`  ✗ ${f}`)
-  console.error('\nFix the anchor/persona/place, or re-author the walk, then re-run.')
+  console.error(
+    '\nHOW TO FIX THIS, if you have never seen this gate before:\n' +
+    '  1. Open the file:line named above. The description of a capability lives in an\n' +
+    '     HTML comment directly above the element that IS the capability.\n' +
+    '  2. Write it, or rewrite it so it tells the truth about what the code now does.\n' +
+    '     British English, mechanism only, no parentheses.\n' +
+    '  3. Run ONE command — it re-pins the sentence to the code and recompiles the pack:\n' +
+    '       node tools/walkthrough/compile.mjs --reconfirm\n' +
+    '     Add an anchor id to re-pin just one: --reconfirm "your-anchor-id"\n' +
+    exampleBlock()
+  )
   process.exit(1)
 }
 
-const pack = assemblePack(walks)
+const pack = assemblePack(walks, entries)
 const content = JSON.stringify(pack)
 const versioned = {
   version: createHash('sha256').update(content).digest('hex').slice(0, 12),
@@ -61,7 +146,7 @@ const versioned = {
 }
 
 if (CHECK_ONLY) {
-  console.log(`[walkthrough] check OK — pack version would be ${versioned.version} (${walks.length} walks · ${walks.reduce((n, w) => n + w.steps.length, 0)} steps)`)
+  console.log(`[walkthrough] check OK — pack version would be ${versioned.version} (${pack.walks.length} walks · ${pack.walks.reduce((n, w) => n + w.steps.length, 0)} steps · ${pack.handbook.length} handbook entries)`)
   process.exit(0)
 }
 
@@ -83,6 +168,28 @@ const md = [
 ].join('\n')
 writeFileSync(join(ROOT, 'docs/walkthrough-pack.md'), md)
 
-console.log(`[walkthrough] pack ${versioned.version} written — ${walks.length} walks`)
+const handbookMd = [
+  '# Handbook — compiled render',
+  '',
+  `**Version \`${versioned.version}\` · generated ${versioned.generatedAt} by \`tools/walkthrough/compile.mjs\`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**`,
+  '',
+  ...versioned.handbook.flatMap((e) => [
+    `## ${e.title}`,
+    '',
+    `Section: ${e.section} · roles: ${e.personas.join(', ')} · anchor: \`${e.anchor}\` · in \`${e.source}\`${e.walk ? ' · has a walk' : ''}`,
+    '',
+    `**What it's for.** ${e.what}`,
+    '',
+    `**Where it is.** ${e.where}`,
+    '',
+    ...e.how.map((h, i) => `${i + 1}. ${h}`),
+    '',
+    ...(e.note ? [`**Worth knowing.** ${e.note}`, ''] : []),
+  ]),
+].join('\n')
+writeFileSync(join(ROOT, 'docs/handbook-pack.md'), handbookMd)
+
+console.log(`[walkthrough] pack ${versioned.version} written — ${pack.walks.length} walks · ${pack.handbook.length} handbook entries`)
 console.log('  → packages/player-vue/src/walkthrough/pack.json')
 console.log('  → docs/walkthrough-pack.md')
+console.log('  → docs/handbook-pack.md')

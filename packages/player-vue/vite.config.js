@@ -2,7 +2,7 @@ import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
 import { fileURLToPath, URL } from 'node:url'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { resolveBuildBranch } from './scripts/buildBranch.mjs'
 import { missingWebviewBuildConfig } from './scripts/webviewBuildGuard.mjs'
 
@@ -105,6 +105,32 @@ function appShell(mode) {
 }
 
 /**
+ * HANDBOOK / WALKTHROUGH DRIFT GATE (2026-09-07).
+ *
+ * The Handbook page and the walkthrough clips are both compiled from
+ * tools/walkthrough/walks/*.json, and every entry names a data-walk anchor
+ * that must still exist in the live .vue source. Running that compiler at
+ * buildStart is what makes "a deleted button breaks the build" literally
+ * true, rather than "a deleted button leaves a stale page that misleads a
+ * teacher". It reads files and exits; no network, no tokens, ~200ms.
+ */
+function walkthroughDriftGate() {
+  return {
+    name: 'ssi-walkthrough-drift-gate',
+    apply: 'build',
+    buildStart() {
+      const cli = fileURLToPath(new URL('../../tools/walkthrough/compile.mjs', import.meta.url))
+      const res = spawnSync(process.execPath, [cli, '--check'], { encoding: 'utf8' })
+      if (res.status === 0) return
+      throw new Error(
+        'Walkthrough/Handbook compile failed — the page would lie about the product:\n' +
+        (res.stderr || res.stdout || `compile.mjs exited ${res.status}`)
+      )
+    },
+  }
+}
+
+/**
  * A webview build with no Supabase config is DEAD ON ARRIVAL — refuse to make one.
  *
  * 2026-09-05: the APK on popty.app/builds (`local-5e99196`) was built on a box
@@ -150,6 +176,7 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     vue(),
+    walkthroughDriftGate(),
     shippableWebviewBuildGuard(mode),
     versionFilePlugin(),
     VitePWA({

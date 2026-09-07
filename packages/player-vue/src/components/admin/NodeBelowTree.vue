@@ -108,9 +108,34 @@ function openClass(id: string): void {
       >{{ open ? '▾' : '▸' }}</button>
       <span v-else class="tree-caret is-leaf" aria-hidden="true"></span>
 
+      <!-- HANDBOOK Walking down to a school, a class or a person
+           section: seeing-progress
+           roles: admin, leader, school_admin
+           place: node-home
+           keywords: tree, below, structure, drill down, school, class, teacher, nested
+           What it's for. A drawn tree of everything hanging beneath the level you are on
+           — groups inside groups, the classes in each, the teachers who take them and
+           the staff who teach nothing yet. It is one picture of the shape of your
+           organisation, not a list you have to filter.
+           Where it is. The **Below this** panel under the numbers on any group or school
+           page.
+           How you do it.
+           1. Open a group or a school.
+           2. Tap a caret to open or close what sits under a name.
+           3. Tap any name to go to that level — the numbers and the tree redraw for it.
+           4. A class row names its teachers and its student count without you opening
+              it.
+           5. Where there are more than eight classes or people, a **more** button
+              reveals the rest.
+           Worth knowing. The top two levels open themselves and deeper ones wait to be
+           tapped, so a large organisation shows you its shape instead of eighty-five
+           rows.
+           checked: 5d58fdb7
+      -->
       <button
         type="button"
         class="tree-name"
+        data-walk="below-tree-name"
         :class="{ 'is-here': isRoot }"
         :disabled="isRoot"
         @click="openNode"

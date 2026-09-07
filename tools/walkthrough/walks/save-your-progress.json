@@ -2,6 +2,15 @@
   "id": "save-your-progress",
   "title": "Save your progress",
   "topic": "Saving your progress",
+  "personas": [
+    "learner"
+  ],
+  "place": {
+    "route": "library",
+    "kinds": [
+      "guest"
+    ]
+  },
   "keywords": [
     "sign in",
     "signin",
@@ -18,15 +27,6 @@
     "backup",
     "guest"
   ],
-  "personas": [
-    "learner"
-  ],
-  "place": {
-    "route": "library",
-    "kinds": [
-      "guest"
-    ]
-  },
   "steps": [
     {
       "anchor": "library-save-progress",

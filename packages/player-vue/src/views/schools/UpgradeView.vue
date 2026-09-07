@@ -612,7 +612,27 @@ watch(currentUser, (user) => {
         </div>
 
         <!-- Honest seats-vs-actual display (DECISION A, no gating). -->
-        <p v-if="isOrgSubscribed" class="upgrade-note seats-actual-note">
+        <!-- HANDBOOK When more people join than you have seats
+             section: your-school
+             roles: school_admin, leader
+             place: upgrade
+             keywords: seats, over, run out, exceeded, too many, joined, paid, limit, blocked, locked
+             What it's for. What happens when your school or organisation outgrows the
+             seats it is paying for. Nothing is blocked, nobody is locked out, and no
+             lesson stops. The page simply tells you the truth so you can put it right.
+             Where it is. The Upgrade page, the line directly under the seat stepper.
+             How you do it.
+             1. Open the Upgrade page.
+             2. Read the line under the stepper: how many people have joined, and how
+                many seats are paid for.
+             3. If more have joined than you pay for, the line says so and names the
+                difference.
+             4. Step the seat count up to match and tap the update button.
+             Worth knowing. This is deliberately an honest count rather than a gate. We
+             would rather show you the gap than shut a class out mid-lesson.
+             checked: 14c138d5
+        -->
+        <p v-if="isOrgSubscribed" class="upgrade-note seats-actual-note" data-walk="upgrade-seats-actual">
           {{ orgMemberCount ?? 0 }} learner{{ (orgMemberCount ?? 0) === 1 ? '' : 's' }} joined ·
           {{ orgPaidSeats ?? orgSeatCount }} seat{{ (orgPaidSeats ?? orgSeatCount) === 1 ? '' : 's' }} paid
           <span v-if="orgPaidSeats !== null && (orgMemberCount ?? 0) > orgPaidSeats" class="seats-over-note">
@@ -621,7 +641,7 @@ watch(currentUser, (user) => {
         </p>
         <!-- Not yet subscribed: the same honesty, against what's ABOUT to be
              billed — the stepper seeded from the real member count. -->
-        <p v-else-if="(orgMemberCount ?? 0) > 0" class="upgrade-note seats-actual-note">
+        <p v-else-if="(orgMemberCount ?? 0) > 0" class="upgrade-note seats-actual-note" data-walk="upgrade-seats-actual">
           {{ orgMemberCount }} learner{{ orgMemberCount === 1 ? '' : 's' }} joined ·
           subscribing for {{ orgSeats }} seat{{ orgSeats === 1 ? '' : 's' }}
           <span v-if="orgSeats < (orgMemberCount ?? 0)" class="seats-over-note">
@@ -633,21 +653,66 @@ watch(currentUser, (user) => {
         <p v-if="orgSeatsMessage" class="upgrade-note">{{ orgSeatsMessage }}</p>
 
         <!-- Subscribed → edit seats in place (PATCH, monthly-oriented). -->
+        <!-- HANDBOOK Change how many seats you pay for
+             section: your-school
+             roles: school_admin, leader
+             place: upgrade
+             keywords: seats, add, remove, more, fewer, change, update, billing, staff, grow
+             What it's for. Growing or shrinking a live subscription as staff or
+             learners come and go, without going through checkout a second time.
+             Where it is. The Upgrade page, once you are already subscribed. The
+             stepper sits beside the running total.
+             How you do it.
+             1. Open the Upgrade page.
+             2. Step the seat count up or down, or type the number straight in.
+             3. The button changes to read Update, with the new monthly total on it.
+             4. Tap it. The change is made against your existing subscription — no
+                second charge and no new card details.
+             Worth knowing. While the count matches what you already pay for, the
+             button simply says current and does nothing, so you cannot double-bill
+             yourself by tapping it twice.
+             checked: 95e23d49
+        -->
         <button
           v-if="isOrgSubscribed"
           type="button"
           class="btn-play btn-play--block upgrade-cta"
           :disabled="isUpdatingOrgSeats || orgSeatCount === orgPaidSeats"
+          data-walk="upgrade-update-seats"
           @click="updateOrgSeats"
         >
           {{ isUpdatingOrgSeats ? 'Updating…' : orgSeatCount === orgPaidSeats ? `${orgSeatCount} seats (current)` : `Update to ${orgSeatCount} seats — £${orgMonthlyTotalGbp}/mo` }}
         </button>
         <!-- Else → open the INITIAL inline checkout. -->
+        <!-- HANDBOOK Subscribe your organisation
+             section: your-school
+             roles: leader
+             place: upgrade
+             keywords: subscribe, pay, upgrade, organisation, org, seats, learner seats, group, monthly, annual
+             What it's for. Putting your whole organisation on a paid plan. You pay per
+             learner seat, and one subscription covers every seat and every language
+             across the group.
+             Where it is. The **Upgrade** button on your organisation's dashboard.
+             How you do it.
+             1. Open the Upgrade page.
+             2. Choose Monthly or Annual — annual works out at two months free per
+                seat.
+             3. Set the number of learner seats with the stepper. It opens at the
+                number of people already joined.
+             4. Tap **Subscribe** and fill in the card details on the payment panel
+                that opens on the page.
+             Worth knowing. A seat belongs to one named learner for the whole period
+             you have paid for, so plan the count against the people you expect rather
+             than swapping seats between them mid-term. You can add more seats at any
+             time.
+             checked: 44ff210e
+        -->
         <button
           v-else-if="!checkoutOpen"
           type="button"
           class="btn-play btn-play--block upgrade-cta"
           :disabled="!orgId || isOpeningOrgCheckout || !orgSubLoaded"
+          data-walk="upgrade-subscribe-org"
           @click="subscribeOrg"
         >
           {{ !orgSubLoaded ? 'Loading…' : isOpeningOrgCheckout ? 'Opening…' : `Subscribe — £${orgTotalGbp}${periodSuffix}` }}
@@ -709,7 +774,7 @@ watch(currentUser, (user) => {
         </div>
 
         <!-- Honest seats-vs-actual display (no gating — just self-correction). -->
-        <p v-if="isSubscribed" class="upgrade-note seats-actual-note">
+        <p v-if="isSubscribed" class="upgrade-note seats-actual-note" data-walk="upgrade-seats-actual">
           {{ joinedTeacherCount }} teacher{{ joinedTeacherCount === 1 ? '' : 's' }} joined ·
           {{ paidSeats ?? seatCount }} seat{{ (paidSeats ?? seatCount) === 1 ? '' : 's' }} paid
           <span v-if="paidSeats !== null && joinedTeacherCount > paidSeats" class="seats-over-note">
@@ -719,7 +784,7 @@ watch(currentUser, (user) => {
         <!-- Not yet subscribed: same honesty, against what's ABOUT to be billed
              — the stepper is seeded from this joined count, and the admin can
              still step it anywhere they like. -->
-        <p v-else-if="joinedTeacherCount > 0" class="upgrade-note seats-actual-note">
+        <p v-else-if="joinedTeacherCount > 0" class="upgrade-note seats-actual-note" data-walk="upgrade-seats-actual">
           {{ joinedTeacherCount }} teacher{{ joinedTeacherCount === 1 ? '' : 's' }} joined ·
           subscribing for {{ seats }} seat{{ seats === 1 ? '' : 's' }}
           <span v-if="seats < joinedTeacherCount" class="seats-over-note">
@@ -736,16 +801,41 @@ watch(currentUser, (user) => {
           type="button"
           class="btn-play btn-play--block upgrade-cta"
           :disabled="isUpdatingSeats || seatCount === paidSeats"
+          data-walk="upgrade-update-seats"
           @click="updateSeats"
         >
           {{ isUpdatingSeats ? 'Updating…' : seatCount === paidSeats ? `${seatCount} seats (current)` : `Update to ${seatCount} seats — £${monthlyTotalGbp}/mo` }}
         </button>
         <!-- Else → open the INITIAL inline checkout. -->
+        <!-- HANDBOOK Subscribe your school
+             section: your-school
+             roles: school_admin
+             place: upgrade
+             keywords: subscribe, pay, upgrade, seats, teacher seats, trial, monthly, annual, checkout, price
+             What it's for. Turning a trial into a paid school. You pay per teacher
+             seat, and one subscription covers every language and every class those
+             teachers run.
+             Where it is. The **Upgrade** button on your dashboard, or Settings then
+             Billing then **Subscribe / choose seats**.
+             How you do it.
+             1. Open the Upgrade page.
+             2. Choose Monthly or Annual — annual works out at two months free per
+                seat.
+             3. Set the number of teacher seats with the stepper. It opens at the
+                number of teachers who have actually joined.
+             4. Tap **Subscribe** and fill in the card details on the payment panel
+                that opens on the page.
+             5. You come back to the dashboard with the subscription live.
+             Worth knowing. Seats are teacher seats, not student seats. Your students
+             do not each need one.
+             checked: 033171bf
+        -->
         <button
           v-else-if="!checkoutOpen"
           type="button"
           class="btn-play btn-play--block upgrade-cta"
           :disabled="!schoolId || isOpeningCheckout || !schoolSubLoaded"
+          data-walk="upgrade-subscribe-school"
           @click="subscribeSchool"
         >
           {{ !schoolSubLoaded ? 'Loading…' : isOpeningCheckout ? 'Opening…' : `Subscribe — £${schoolTotalGbp}${periodSuffix}` }}
@@ -799,11 +889,31 @@ watch(currentUser, (user) => {
         >
           Manage subscription
         </button>
+        <!-- HANDBOOK Subscribe as a tutor
+             section: your-school
+             roles: teacher
+             place: upgrade
+             keywords: tutor, subscribe, pay, upgrade, freelance, single, monthly, annual, students
+             What it's for. Paying for your own tutoring dashboard when you teach on
+             your own rather than inside a school. It is one seat, for you.
+             Where it is. The **Upgrade** button on your tutoring dashboard.
+             How you do it.
+             1. Open the Upgrade page.
+             2. Choose Monthly or Annual — annual works out at two months free.
+             3. Tap **Subscribe** and fill in the card details on the payment panel
+                that opens on the page.
+             4. Once it is running, the same button becomes **Manage subscription** for
+                invoices and cancellation.
+             Worth knowing. Your students pay for their own learning separately, so
+             three paying students cover what your dashboard costs.
+             checked: 7ec1f6dc
+        -->
         <button
           v-else-if="!checkoutOpen"
           type="button"
           class="btn-play btn-play--block upgrade-cta"
           :disabled="tutorBusy || !tutorTeacherId || !tutorSubLoaded"
+          data-walk="upgrade-subscribe-tutor"
           @click="subscribeTutor"
         >
           {{ tutorBusy ? 'Opening…' : (!tutorTeacherId || !tutorSubLoaded) ? 'Loading…' : `Subscribe — £${tutorTotalGbp}${periodSuffix}` }}

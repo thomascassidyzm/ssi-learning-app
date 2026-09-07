@@ -470,7 +470,29 @@ async function handlePlayClass(cls: ClassInfo) {
           :key="cls.id"
           :class="['teacher-compact-row', { last: i === teacherClasses.length - 1 }]"
         >
-          <router-link :to="schoolsLink('class-detail', { classId: cls.id })" class="class-link">
+          <!-- HANDBOOK Your classes at a glance
+               section: seeing-progress
+               roles: teacher
+               place: dashboard
+               keywords: classes, dashboard, overview, students, join code, course
+               What it's for. Your teaching dashboard, with your classes first. Every
+               class you teach is a row or a card carrying its course, how many
+               students are in it, their average practice, and the join code you read
+               out to get a new pupil in.
+               Where it is. The schools dashboard you land on, above everything else
+               on the page.
+               How you do it.
+               1. Open the schools dashboard.
+               2. Read down the list — one entry per class you teach.
+               3. Tap a class name to open its own page, with the roster and its
+                  settings.
+               4. **Play as class** on any entry starts a session the whole class
+                  does together.
+               Worth knowing. A brand new account shows a single button to create
+               your first class instead of the list.
+               checked: fb0e12ae
+          -->
+          <router-link :to="schoolsLink('class-detail', { classId: cls.id })" class="class-link" data-walk="dash-class-card">
             <BeltDot belt="white" :size="28" ring />
             <div class="class-link-text">
               <div class="class-name">{{ cls.class_name }}</div>
@@ -478,7 +500,30 @@ async function handlePlayClass(cls: ClassInfo) {
             </div>
           </router-link>
           <div class="schools-subtle">{{ courseDisplayName(cls.course_code) }}</div>
-          <div>
+          <!-- HANDBOOK How your class measures up
+               section: seeing-progress
+               roles: teacher
+               place: dashboard
+               keywords: benchmark, compare, cycles, school, global, average, bench
+               What it's for. A three-bar benchmark on each class, showing the cycles
+               that class has done against the average for your school and the
+               average across everyone learning that course anywhere. It answers the
+               question a total cannot: is this normal.
+               Where it is. On each class on the schools dashboard, under the heading
+               naming class, school and global.
+               How you do it.
+               1. Open the schools dashboard and find the class you want to read.
+               2. The top bar is **Class** — your own class's figure.
+               3. **School** underneath it is the average across the other classes in
+                  your school.
+               4. **Global** is the average across every class doing that course.
+               5. Longer bars mean more; the number at the end of each bar is the
+                  figure itself.
+               Worth knowing. A class with too little recorded activity shows a dash
+               rather than an invented bar.
+               checked: 8f36867c
+          -->
+          <div data-walk="dash-class-bench">
             <Bench v-if="benchFor(classReports.get(cls.id))" :data="benchFor(classReports.get(cls.id))!" unit="c" />
             <span v-else class="schools-subtle">—</span>
           </div>
@@ -506,7 +551,7 @@ async function handlePlayClass(cls: ClassInfo) {
         >
           <div class="panel-head">
             <div class="course-eyebrow">{{ courseDisplayName(cls.course_code) }}</div>
-            <router-link :to="schoolsLink('class-detail', { classId: cls.id })" class="panel-title-link">
+            <router-link :to="schoolsLink('class-detail', { classId: cls.id })" class="panel-title-link" data-walk="dash-class-card">
               <h2 class="arsenal panel-title">{{ cls.class_name }}</h2>
             </router-link>
             <div class="panel-meta">
@@ -523,7 +568,7 @@ async function handlePlayClass(cls: ClassInfo) {
             @click="handlePlayClass(cls)"
           >▶ Play as class</button>
 
-          <div v-if="benchFor(classReports.get(cls.id))" class="panel-bench">
+          <div v-if="benchFor(classReports.get(cls.id))" class="panel-bench" data-walk="dash-class-bench">
             <div class="schools-kicker bench-kicker">Cycles · class vs school vs global</div>
             <Bench :data="benchFor(classReports.get(cls.id))!" unit="c" />
           </div>
@@ -545,7 +590,26 @@ async function handlePlayClass(cls: ClassInfo) {
 
       <!-- Stats, demoted: one quiet line under the classes (founder ruling
            2026-07-30 — classes lead, numbers follow). -->
-      <div v-if="teacherClasses.length" class="teacher-stat-line schools-subtle">
+      <!-- HANDBOOK Your own teaching numbers
+           section: seeing-progress
+           roles: teacher
+           place: dashboard
+           keywords: numbers, totals, students, hours, sessions, practice
+           What it's for. One quiet line totalling your whole teaching load — how many
+           students you have across every class, how many hours they have practised
+           between them, and how many sessions have been run. It is a record of what has
+           happened, never a target.
+           Where it is. Underneath your classes on the schools dashboard.
+           How you do it.
+           1. Open the schools dashboard and scroll past your classes.
+           2. **Students** counts every pupil in every class you teach, each person once.
+           3. **Hours practised** is real practice time those pupils have logged.
+           4. **Sessions** is how many class sessions have been run.
+           Worth knowing. The line only appears once you have at least one class — there
+           is nothing to total before that.
+           checked: 4ec80f25
+      -->
+      <div v-if="teacherClasses.length" class="teacher-stat-line schools-subtle" data-walk="dash-teacher-stats">
         <span><strong class="arsenal stat-line-value">{{ teacherStats.students }}</strong> students</span>
         <span class="dot-sep">·</span>
         <span><strong class="arsenal stat-line-value">{{ teacherStats.hours }}h</strong> practised</span>

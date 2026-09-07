@@ -177,6 +177,25 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
   <section class="ways-in schools-card schools-card-pad">
     <!-- data-walk sits on the head, not the section — a subtree ledger can be
          thousands of px tall, and a walk ring must fit in a viewport. -->
+    <!-- HANDBOOK Ways in — who can get in, and how to change it
+         section: getting-people-in
+         roles: admin, leader, school_admin
+         place: node-home
+         keywords: ways in, links, revoke, re-mint, access, ledger, shareable
+         walk: ways-in
+         What it's for. The ledger of every way into this part of the tree — who has a live
+         link, what it lets them do, and how to change your mind.
+         Where it is. The node's home page, the **Ways in** section below the lists.
+         How you do it.
+         1. Open the node's home page and scroll to **Ways in**.
+         2. Read the rows: each one is a live way in, personal or shareable.
+         3. **Copy** hands you the link again.
+         4. **Re-mint** issues a fresh link and kills the old one on the spot.
+         5. **Revoke** closes that way in entirely.
+         Worth knowing. A shareable link is open to anyone who holds it, so revoke is the
+         tool when a link has travelled further than you meant.
+         checked: e47b054f
+    -->
     <div class="ways-in-head" data-walk="ways-in-ledger">
       <span class="schools-kicker">Ways in</span>
       <span v-if="!isLoading" class="ways-in-count">{{ visible.length }} link{{ visible.length === 1 ? '' : 's' }}</span>
@@ -231,6 +250,27 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
           <td class="muted">{{ when(l.createdAt) }}{{ l.createdBy ? ` · ${l.createdBy}` : '' }}</td>
           <td class="verbs-col">
             <button v-if="l.status === 'active'" type="button" class="row-verb" :class="{ 'is-copied': copiedCode === l.code }" data-walk="ways-in-copy" @click="copyLink(l)">{{ copiedCode === l.code ? 'Copied!' : 'Copy' }}</button>
+            <!-- HANDBOOK Email someone their invite again
+                 section: getting-people-in
+                 roles: admin, leader, school_admin
+                 place: node-home
+                 keywords: resend, email, invite, again, lost, ways in
+                 What it's for. Sending the same invite email a second time to
+                 somebody who never found the first one. Nothing changes and no new
+                 link is made, so the one they may yet dig out of a spam folder
+                 still works.
+                 Where it is. The node's home page, the **Ways in** section,
+                 **Email again** on their row.
+                 How you do it.
+                 1. Scroll to **Ways in** on the node's home page.
+                 2. Find the person's row.
+                 3. Tap **Email again**.
+                 4. The note above the table names the address it went to.
+                 Worth knowing. Only rows for a named person with an email on file
+                 carry this button. If our mail is being eaten by their school's
+                 gateway, read them the link instead of sending it a third time.
+                 checked: ec078ac6
+            -->
             <button v-if="l.status === 'active' && l.species === 'personal' && l.personalEmail" type="button" class="row-verb" :disabled="busyCode === l.code" :title="`Send the invite to ${l.personalEmail} again`" data-walk="ways-in-resend" @click="patch(l, 'resend')">Email again</button>
             <button v-if="l.status === 'active' && l.species === 'personal'" type="button" class="row-verb" :disabled="busyCode === l.code" data-walk="ways-in-remint" @click="patch(l, 'rotate')">Re-mint</button>
             <button v-if="l.status === 'active'" type="button" class="row-verb is-danger" :disabled="busyCode === l.code" data-walk="ways-in-revoke" @click="patch(l, 'revoke')">Revoke</button>

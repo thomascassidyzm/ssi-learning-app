@@ -356,10 +356,49 @@ function exportCsv() {
         <p class="page-subtitle schools-subtle">{{ headlineSubtitle }} <UpdatedStamp /></p>
       </div>
       <div class="page-head-actions">
-        <button v-if="enrichedClasses.length > 0" type="button" class="btn-ghost" @click="exportCsv">
+        <!-- HANDBOOK Export your class list
+             section: running-classes
+             roles: school_admin, teacher
+             place: classes
+             keywords: export, csv, download, report, classes
+             What it's for. Taking the class list away as a spreadsheet, with the name,
+             language, student count, belt, hours this week, sessions, health and join
+             code for every class.
+             Where it is. **My Classes**, the **Export CSV** button along the top.
+             How you do it.
+             1. Open **My Classes**.
+             2. Filter the list down first if you only want part of it.
+             3. Tap **Export CSV**.
+             4. The file downloads with today's date in its name.
+             Worth knowing. What you export is what you can see, so a filter applied to
+             the table applies to the file as well.
+             checked: 3161edde
+        -->
+        <button data-walk="classes-export" v-if="enrichedClasses.length > 0" type="button" class="btn-ghost" @click="exportCsv">
           Export CSV
         </button>
-        <button v-if="!isAdminView" type="button" class="btn-play" @click="openCreateModal">
+        <!-- HANDBOOK Make a class
+             section: running-classes
+             roles: school_admin, teacher
+             place: classes
+             keywords: class, create, new, make, start
+             What it's for. Setting up a class of your own: a name, a language, and a
+             link students use to join it. A class holds a roster, its own place on the
+             course, and everything the class practises together.
+             Where it is. **My Classes**, the **+ New class** button along the top of
+             the page.
+             How you do it.
+             1. Open **My Classes**.
+             2. Tap **+ New class**.
+             3. Give the class a name you will recognise on a list, such as Year 7
+                Welsh.
+             4. Choose the language the class is learning.
+             5. Tap **Create Class**.
+             Worth knowing. The join link is made for you at the same moment. Nothing
+             else is needed to start teaching.
+             checked: c4f6df3b
+        -->
+        <button v-if="!isAdminView" type="button" class="btn-play" data-walk="verb-new-class" @click="openCreateModal">
           + New class
         </button>
       </div>
@@ -406,7 +445,25 @@ function exportCsv() {
     </div>
 
     <!-- Filters -->
-    <div v-if="enrichedClasses.length > 0" class="filters-bar schools-card">
+    <!-- HANDBOOK Find a class in a long list
+         section: running-classes
+         roles: school_admin, teacher
+         place: classes
+         keywords: filter, sort, search, course, health, classes
+         What it's for. Narrowing a long list down to the classes you care about right now,
+         by language or by how they are doing, and putting them in the order that answers
+         your question.
+         Where it is. **My Classes**, the strip of pickers above the table.
+         How you do it.
+         1. Open **My Classes**.
+         2. Pick a language under **Course** to see only the classes learning it.
+         3. Pick a state under **Health** to pull out the classes that need attention.
+         4. Change **Sort** to order by students, hours this week or progress.
+         Worth knowing. The totals above the table follow the filter, so the student count
+         and the hours are always the total of what you are actually looking at.
+         checked: 35143594
+    -->
+    <div data-walk="classes-filters" v-if="enrichedClasses.length > 0" class="filters-bar schools-card">
       <label class="filter">
         <span class="filter-label">Course</span>
         <select v-model="courseFilter" class="filter-select">
@@ -439,7 +496,28 @@ function exportCsv() {
 
     <!-- Table -->
     <div v-if="filtered.length > 0" class="schools-card table-card">
-      <table class="ssi-table">
+      <!-- HANDBOOK Read your class list
+           section: running-classes
+           roles: school_admin, teacher
+           place: classes
+           keywords: classes, list, overview, belt, hours, health
+           What it's for. One row per class, showing at a glance how each one is doing:
+           how many students, what belt the class has reached, hours practised this week,
+           the shape of the last seven days, and a health mark for classes worth a look.
+           Where it is. **My Classes**, the table filling most of the page.
+           How you do it.
+           1. Open **My Classes**.
+           2. Read down the health column first, because that is where the app is
+              pointing you.
+           3. Use the small chart in each row to see whether practice is steady or has
+              stopped.
+           4. Compare hours this week between classes taking the same course.
+           Worth knowing. Health is worked out from how many of the last seven days the
+           class practised on. A quiet week reads as needing eyes, which is a prompt for
+           a word rather than a worry.
+           checked: c4749cd2
+      -->
+      <table class="ssi-table" data-walk="classes-table">
         <thead>
           <tr>
             <th>Class</th>
@@ -455,10 +533,29 @@ function exportCsv() {
           </tr>
         </thead>
         <tbody>
+          <!-- HANDBOOK Open a class
+               section: running-classes
+               roles: school_admin, teacher
+               place: classes
+               keywords: class, open, detail, roster, view
+               What it's for. Going from the summary row into the class itself, where
+               the roster, the teachers, the join link and the class's progress all
+               live.
+               Where it is. **My Classes**, anywhere on the class's row.
+               How you do it.
+               1. Open **My Classes**.
+               2. Tap the row for the class you want.
+               3. The class page opens on its roster.
+               Worth knowing. The row is a button in its own right, so a keyboard
+               works too. The buttons at the right of the row do their own jobs and
+               do not open the class.
+               checked: 4366b552
+          -->
           <tr
             v-for="cls in filtered"
             :key="cls.id"
             class="row-clickable"
+            data-walk="classes-row"
             tabindex="0"
             role="button"
             :aria-label="`Open ${cls.class_name}`"
@@ -487,12 +584,53 @@ function exportCsv() {
               </span>
             </td>
             <td class="cell-share">
-              <button type="button" class="share-btn" @click.stop="copyShareLink(cls)" :title="shareUrlFor(cls)">
+              <!-- HANDBOOK Copy a class link without opening the class
+                   section: getting-people-in
+                   roles: school_admin, teacher
+                   place: classes
+                   keywords: copy, link, share, join, classes
+                   What it's for. Grabbing a class's join link straight from the
+                   class list, for when you are sending links to several classes
+                   in one sitting.
+                   Where it is. **My Classes**, the **Copy link** button in each
+                   row.
+                   How you do it.
+                   1. Open **My Classes**.
+                   2. Find the class's row.
+                   3. Tap **Copy link**.
+                   4. Paste it into your email or your lesson slide.
+                   Worth knowing. It is the same link the class page offers, so a
+                   student who follows it lands in that class either way.
+                   checked: 27669bfb
+              -->
+              <button type="button" class="share-btn" data-walk="classes-share-link" @click.stop="copyShareLink(cls)" :title="shareUrlFor(cls)">
                 {{ copiedClassId === cls.id ? 'Copied ✓' : 'Copy link' }}
               </button>
             </td>
             <td class="cell-action">
-              <button v-if="canPlayAsClass" type="button" class="row-play-btn" @click.stop="handlePlayClass(cls)">▶ Play as class</button>
+              <!-- HANDBOOK Start a class session from the list
+                   section: running-classes
+                   roles: school_admin, teacher
+                   place: classes
+                   keywords: play, session, class, start, lesson
+                   What it's for. Starting a shared practice session for a class
+                   without opening the class first. Your device leads and the
+                   whole class moves together from where the class last got to.
+                   Where it is. **My Classes**, the **Play as class** button at
+                   the end of the class's row.
+                   How you do it.
+                   1. Open **My Classes**.
+                   2. Find the class you are about to teach.
+                   3. Tap **Play as class** at the end of its row.
+                   4. The player opens on that class's course, at the class's own
+                      place in it.
+                   Worth knowing. It is the same session the class page starts,
+                   so it moves the class on for everyone on the roster. Only
+                   school staff see this button, and only on a live account
+                   rather than a read-only view.
+                   checked: 9919331b
+              -->
+              <button v-if="canPlayAsClass" type="button" class="row-play-btn" data-walk="classes-row-play" @click.stop="handlePlayClass(cls)">▶ Play as class</button>
             </td>
           </tr>
         </tbody>

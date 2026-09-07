@@ -224,7 +224,30 @@ const handleSubmit = () => {
                 <p v-if="lockedNote" class="form-hint">{{ lockedNote }}</p>
               </template>
               <!-- Full catalogue (~74 courses): searchable type-ahead, not a plain <select>. -->
-              <div v-else class="course-picker">
+              <!-- HANDBOOK Choose what a class learns
+                   section: courses-and-content
+                   roles: school_admin, teacher
+                   place: classes
+                   keywords: course, language, choose, class, catalogue
+                   What it's for. Setting the language a class learns. Every
+                   class carries one course, and it decides what the class
+                   practises, what students hear when they join, and where the
+                   class's shared position sits.
+                   Where it is. The **Create New Class** panel, the **Course /
+                   Language** picker.
+                   How you do it.
+                   1. Tap **+ New class** on **My Classes**.
+                   2. Type into the course box to search the catalogue.
+                   3. Pick the language the class is learning.
+                   4. Finish creating the class.
+                   Worth knowing. The course is set when the class is made and
+                   stays with it. A class that needs a different language is a
+                   new class, which keeps the old one's records intact. A school
+                   on a free trial is held to the one language it signed up for
+                   until it subscribes.
+                   checked: 674a1caa
+              -->
+              <div v-else class="course-picker" data-walk="create-class-course">
                 <button
                   v-if="selectedCourse && !isCourseListOpen"
                   id="courseCode"

@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, watch, inject } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
-import { useClassesData, type ClassReport, type ClassDeleteImpact } from '@/composables/schools/useClassesData'
+import { useClassesData, type ClassReport, type ClassDeleteImpact, type StudentCandidate } from '@/composables/schools/useClassesData'
 import { useTeachersData, type TeacherOption } from '@/composables/schools/useTeachersData'
 import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
 import AssignClassesModal from '@/components/schools/AssignClassesModal.vue'
@@ -53,6 +53,8 @@ const {
   deleteClass: deleteClassApi,
   addClassTeacher,
   removeClassTeacher,
+  fetchAddableStudents,
+  addClassStudent,
   createCoTeacherLink,
   classes,
   fetchClasses,
@@ -638,6 +640,95 @@ watch(classIdParam, (classId, previous) => {
   }
 })
 
+// ── Adding students ───────────────────────────────────────────────────────
+// The reported gap, in the owner's words: "adding students to a class is not
+// obvious — no clear flow for it on the class page". There WAS a way in — the
+// join link — but it is addressed to the pupil, not to the teacher, and it
+// cannot help with the pupil who is already in the school and simply in the
+// wrong set. So the class page now carries the teacher's own door, on the
+// roster, which is the thing the teacher is looking at when the need arises.
+//
+// One control, one degree of freedom: tap to open, type to narrow, tap a name
+// to put them in. No drag, no multi-select, no second screen.
+const showAddStudent = ref(false)
+const studentCandidates = ref<StudentCandidate[]>([])
+const candidatesLoaded = ref(false)
+const addStudentError = ref('')
+const addStudentSearch = ref('')
+const addingStudentId = ref('')
+const justAddedName = ref('')
+
+const filteredCandidates = computed(() => {
+  const q = addStudentSearch.value.trim().toLowerCase()
+  if (!q) return studentCandidates.value
+  return studentCandidates.value.filter(c => c.display_name.toLowerCase().includes(q))
+})
+
+// What the picker is allowed to SAY. "Nobody left to add" is an assertion about
+// the school, so it may only be made once the lookup has actually come back
+// clean — never because it failed or has not resolved (the same rule the
+// teachers panel and the join card already keep).
+const candidateListState = computed<'loading' | 'error' | 'empty' | 'ready'>(() => {
+  if (addStudentError.value) return 'error'
+  if (!candidatesLoaded.value) return 'loading'
+  return studentCandidates.value.length ? 'ready' : 'empty'
+})
+
+async function openAddStudent(): Promise<void> {
+  showAddStudent.value = true
+  addStudentSearch.value = ''
+  justAddedName.value = ''
+  await loadCandidates()
+}
+
+// On a COLD load of the class URL the class id arrives after the page paints —
+// the same late arrival that once left the co-teacher-link button sitting dead.
+// A picker opened in that window has no class to ask about, so it waits here
+// and asks the moment the class lands, rather than reading "looking up…"
+// forever (walked on a real class page, 2026-09-07).
+watch(() => classData.value.id, (id) => {
+  if (id && showAddStudent.value && !candidatesLoaded.value) void loadCandidates()
+})
+
+function closeAddStudent(): void {
+  showAddStudent.value = false
+  addStudentSearch.value = ''
+  justAddedName.value = ''
+}
+
+async function loadCandidates(): Promise<void> {
+  const classId = classData.value.id
+  if (!classId) return  // the watcher above calls back when the class arrives
+  candidatesLoaded.value = false
+  addStudentError.value = ''
+  const { candidates, error } = await fetchAddableStudents(classId)
+  studentCandidates.value = candidates
+  candidatesLoaded.value = !error
+  addStudentError.value = error ? `Couldn't load the school's students. ${error}` : ''
+}
+
+async function addStudent(candidate: StudentCandidate): Promise<void> {
+  if (addingStudentId.value) return
+  addingStudentId.value = candidate.user_id
+  addStudentError.value = ''
+  const result = await addClassStudent(classData.value.id, candidate.user_id)
+  addingStudentId.value = ''
+  if (!result.ok) {
+    addStudentError.value = `Couldn't add ${candidate.display_name}. ${result.error ?? ''}`.trim()
+    return
+  }
+  // The panel stays open — a teacher moving a set adds several in a row — but
+  // the person who has just moved leaves the list and is named above it, so the
+  // page never leaves you guessing whether the tap landed.
+  justAddedName.value = candidate.display_name
+  studentCandidates.value = studentCandidates.value.filter(c => c.user_id !== candidate.user_id)
+  // The search has done its job. Left standing it says "nobody matches aadhya"
+  // directly under "Aadhya Verma is in this class now", which reads as a
+  // contradiction of itself.
+  addStudentSearch.value = ''
+  await fetchClassDetail(classData.value.id)
+}
+
 const deleteImpactLines = computed(() => {
   const impact = deleteImpact.value
   if (!impact) return []
@@ -666,21 +757,62 @@ const deleteImpactLines = computed(() => {
         <div class="schools-kicker page-eyebrow">{{ courseLabel }}</div>
         <h1 class="arsenal page-title">
           {{ classData.class_name }}
+          <!-- HANDBOOK Rename a class
+               section: running-classes
+               roles: leader, school_admin, teacher
+               place: class-detail
+               keywords: class, rename, name, edit, title
+               What it's for. Changing what a class is called, for a name typed in a
+               hurry or a group that has moved up a year.
+               Where it is. The class page, the small pencil beside the class name.
+               How you do it.
+               1. Open the class from **My Classes**.
+               2. Tap the pencil next to the name at the top.
+               3. Type the new name.
+               4. Confirm it.
+               Worth knowing. Only the name changes. The roster, the join link, the
+               join code and the class's place on the course all carry on exactly as
+               they were.
+               checked: 4d2f2218
+          -->
           <button
             v-if="!isAdminView"
             type="button"
             title="Rename class"
             aria-label="Rename class"
+            data-walk="class-rename"
             @click="renameClass"
             style="margin-left:10px;background:none;border:none;cursor:pointer;color:var(--schools-fg-3);vertical-align:middle;padding:4px;"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
           </button>
+          <!-- HANDBOOK Delete a class
+               section: running-classes
+               roles: leader, school_admin, teacher
+               place: class-detail
+               keywords: class, delete, remove, close, archive
+               What it's for. Removing a class you no longer want, usually one set up
+               by mistake or a group that has finished. Before anything is deleted
+               the app tells you what goes with it.
+               Where it is. The class page, the small bin beside the class name.
+               How you do it.
+               1. Open the class from **My Classes**.
+               2. Tap the bin next to the name at the top.
+               3. Read the list of what will go with the class.
+               4. If the class has real practice behind it, type the class name to
+                  confirm you mean it.
+               5. Confirm the deletion.
+               Worth knowing. Students keep their own accounts and everything they
+               have learned. What goes is the class itself, its roster and its join
+               link.
+               checked: d4143519
+          -->
           <button
             v-if="!isAdminView"
             type="button"
             title="Delete class"
             aria-label="Delete class"
+            data-walk="class-delete"
             @click="openDeleteModal"
             style="margin-left:2px;background:none;border:none;cursor:pointer;color:var(--schools-fg-3);vertical-align:middle;padding:4px;"
           >
@@ -708,6 +840,24 @@ const deleteImpactLines = computed(() => {
 
       <div class="page-head-actions">
         <WalkOffer v-if="!isAdminView" persona="teacher" place="class-detail" />
+        <!-- HANDBOOK Run your first class session
+             section: running-classes
+             roles: school_admin, teacher
+             place: class-detail
+             keywords: session, play, class, run, join, code
+             walk: run-class-session
+             What it's for. Running a live practice session with a class in the room,
+             everyone hearing the same thing at the same time.
+             Where it is. The class page, the join link and the play button.
+             How you do it.
+             1. Open the class from My Classes.
+             2. Put the join link or the join code on the screen for the room.
+             3. Wait for the students to arrive on their own devices.
+             4. Tap play to start the session.
+             Worth knowing. The join code is the same code all lesson, so a student
+             arriving late still gets in.
+             checked: 5290f872
+        -->
         <button v-if="canPlayAsClass" type="button" class="btn-play btn-play-lg" data-walk="class-play" :disabled="!canLaunch" @click="handlePlay">
           <span class="play-glyph">&#9654;</span>
           Play as class
@@ -737,6 +887,26 @@ const deleteImpactLines = computed(() => {
               <!-- The other direction, from the same row: which OTHER classes
                    does this person take? Moving them off this class and onto
                    another is one untick and one tick in here. -->
+              <!-- HANDBOOK Move a teacher to another class
+                   section: running-classes
+                   roles: leader, school_admin, teacher
+                   place: class-detail
+                   keywords: move, teacher, classes, assign, timetable
+                   walk: move-a-teacher-between-classes
+                   What it's for. Changing which classes a teacher is on, in one
+                   pass, without visiting each class in turn.
+                   Where it is. The class page, the **Teachers** section, a
+                   teacher's other classes.
+                   How you do it.
+                   1. Open a class the teacher is on.
+                   2. Scroll to **Teachers** and open their other classes.
+                   3. Tick the classes they should be on and untick the ones they
+                      should not.
+                   4. Save.
+                   Worth knowing. Untick and save is how you take a teacher off a
+                   class — there is no separate remove.
+                   checked: 0cd7063d
+              -->
               <button
                 v-if="canManageTeachers"
                 type="button"
@@ -747,6 +917,25 @@ const deleteImpactLines = computed(() => {
               >
                 Other classes
               </button>
+              <!-- HANDBOOK Hand a class over to another teacher
+                   section: running-classes
+                   roles: leader, school_admin, teacher
+                   place: class-detail
+                   keywords: lead, hand over, class, teacher, transfer
+                   walk: hand-over-the-lead
+                   What it's for. Passing the lead of a class to another teacher
+                   who already teaches it — for a maternity cover, a term swap,
+                   or a permanent handover.
+                   Where it is. The class page, the **Teachers** section.
+                   How you do it.
+                   1. Open the class from My Classes.
+                   2. Scroll to **Teachers**.
+                   3. Find the colleague who should lead it.
+                   4. Tap **Make lead** on their row.
+                   Worth knowing. You stay on the class as a teacher. Only the
+                   lead changes.
+                   checked: 2ede673e
+              -->
               <button
                 v-if="!t.is_lead && canManageTeachers"
                 type="button"
@@ -786,6 +975,24 @@ const deleteImpactLines = computed(() => {
                to multiple classes", so the button says teacher, not
                co-teacher, and the line under it states the rule in plain
                English rather than leaving a head to infer it. -->
+          <!-- HANDBOOK Share a class with a colleague
+               section: running-classes
+               roles: leader, school_admin, teacher
+               place: class-detail
+               keywords: class, share, co-teacher, colleague, teachers
+               walk: share-a-class
+               What it's for. Adding another teacher to a class you already run, so
+               you both see the same roster and the same progress.
+               Where it is. The class page, the **Teachers** section.
+               How you do it.
+               1. Open the class from My Classes.
+               2. Scroll to **Teachers**.
+               3. Tap **Add a teacher**.
+               4. Pick your colleague from the list.
+               Worth knowing. Both of you are teachers of the class. One of you is
+               the lead, and the lead is the one the school's lists show first.
+               checked: ab5f2d72
+          -->
           <button type="button" class="btn-ghost btn-small teacher-add-open" data-walk="class-teacher-add" @click="showAddTeacher = true">
             Add another teacher
           </button>
@@ -815,6 +1022,24 @@ const deleteImpactLines = computed(() => {
           </div>
         </template>
 
+        <!-- HANDBOOK Invite a teacher who isn't here yet
+             section: running-classes
+             roles: leader, school_admin, teacher
+             place: class-detail
+             keywords: supply, cover, teacher, invite, class, link
+             walk: invite-a-supply-teacher
+             What it's for. Getting a teacher who has no account yet into one class of
+             yours, without going through the school admin.
+             Where it is. The class page, the **Teachers** section.
+             How you do it.
+             1. Open the class from My Classes.
+             2. Scroll to **Teachers**.
+             3. Take the co-teacher link.
+             4. Send it to them — opening it puts them on this class as a teacher.
+             Worth knowing. The link is scoped to this one class, so a cover teacher
+             never lands in the rest of the school.
+             checked: d27e7961
+        -->
         <div v-if="canManageTeachers" class="teacher-link-block" data-walk="class-coteacher-link">
           <p class="rail-note schools-subtle">
             Colleague not on the staff list yet? Send them a link into this class.
@@ -839,20 +1064,149 @@ const deleteImpactLines = computed(() => {
       </div>
 
     <div class="body-grid">
-      <section class="roster schools-card">
+      <!-- HANDBOOK The class roster
+           section: seeing-progress
+           roles: leader, school_admin, teacher
+           place: class-detail
+           keywords: roster, students, progress, belt, last active
+           parts: class-roster-empty
+           What it's for. Everyone in the class, one row each, with their belt, how much
+           they have learned, how much they have practised and when they were last at it.
+           This is the answer to who is quietly drifting.
+           Where it is. The class page, the **Roster** table.
+           How you do it.
+           1. Open the class from **My Classes**.
+           2. Read down the mark under each name, which flags anyone behind the class or
+              long gone quiet.
+           3. Type a name into the search box to jump to one student.
+           4. Compare a student's practice against the class average shown in the rail
+              beside the table.
+           Worth knowing. A student who has never started shows as inactive rather than
+           as behind, because nothing has happened yet to judge. A class nobody has
+           joined yet shows its empty places instead of a table, with **Add students**
+           in it.
+           checked: 9e190afc
+      -->
+      <section class="roster schools-card" data-walk="class-roster">
         <header class="roster-head">
           <h3 class="arsenal roster-title">Roster</h3>
           <div class="roster-tools">
+            <!-- One search at a time: nothing to search in an empty class, and
+                 while the picker is open ITS box is the one you mean. -->
             <input
+              v-if="!rosterObservedEmpty && !showAddStudent"
               v-model="searchQuery"
               type="search"
               placeholder="Search students..."
               class="roster-search"
             />
+            <!-- HANDBOOK Add students to a class
+                 section: getting-people-in
+                 roles: leader, school_admin, teacher
+                 place: class-detail
+                 keywords: add, student, class, roster, move, join
+                 parts: class-student-picker
+                 What it's for. Putting a pupil who is already in your school
+                 into this class, for a pupil who has changed set or landed in
+                 the wrong class.
+                 Where it is. The class page, the **Add students** button at the
+                 top of the roster.
+                 How you do it.
+                 1. Open the class from **My Classes**.
+                 2. Tap **Add students** above the roster.
+                 3. Type a few letters of the name to narrow the list.
+                 4. Tap the pupil. They appear on the roster straight away.
+                 5. Add as many as you need, then tap **Done**.
+                 Worth knowing. The list holds the pupils in your school who are
+                 not in this class yet, and shows the class each of them is in
+                 now. A pupil brings everything they have already learned with
+                 them. For a pupil with no account at all, use the class link in
+                 **Invite students** instead.
+                 checked: e36b80b5
+            -->
+            <button
+              v-if="!isAdminView"
+              type="button"
+              class="btn-ghost btn-small roster-add"
+              data-walk="class-student-add"
+              @click="showAddStudent ? closeAddStudent() : openAddStudent()"
+            >
+              {{ showAddStudent ? 'Done' : 'Add students' }}
+            </button>
           </div>
         </header>
 
-        <div class="roster-scroll">
+        <!-- The picker: search, then tap a name. It sits INSIDE the roster
+             card, directly under the button that opened it, so the thing you
+             are changing is the thing you are looking at. -->
+        <div v-if="showAddStudent && !isAdminView" class="add-student-panel" data-walk="class-student-picker">
+          <input
+            v-model="addStudentSearch"
+            type="search"
+            class="roster-search add-student-search"
+            placeholder="Search your school's students..."
+          />
+
+          <p v-if="justAddedName" class="add-student-note add-student-done">
+            {{ justAddedName }} is in this class now.
+          </p>
+
+          <ul v-if="candidateListState === 'ready'" class="add-student-list">
+            <li v-for="c in filteredCandidates" :key="c.user_id">
+              <button
+                type="button"
+                class="add-student-row"
+                :disabled="!!addingStudentId"
+                @click="addStudent(c)"
+              >
+                <span class="avatar avatar-small">{{ getInitials(c.display_name) }}</span>
+                <span class="add-student-name">
+                  {{ c.display_name }}
+                  <span v-if="c.current_class_name" class="add-student-where">{{ c.current_class_name }}</span>
+                </span>
+                <span class="add-student-verb">{{ addingStudentId === c.user_id ? 'Adding…' : 'Add' }}</span>
+              </button>
+            </li>
+            <li v-if="filteredCandidates.length === 0" class="add-student-note schools-subtle">
+              Nobody in your school matches "{{ addStudentSearch }}".
+            </li>
+          </ul>
+          <p v-else-if="candidateListState === 'loading'" class="add-student-note schools-subtle">
+            Looking up your school's students…
+          </p>
+          <p v-else-if="candidateListState === 'error'" class="add-student-note">{{ addStudentError }}</p>
+          <p v-else class="add-student-note schools-subtle">
+            Everyone in your school is already in this class. For a student who has no account
+            yet, share the class link from <strong>Invite students</strong>.
+          </p>
+
+          <p v-if="candidateListState === 'ready' && addStudentError" class="add-student-note">{{ addStudentError }}</p>
+        </div>
+
+        <!-- An empty class is DRAWN empty — six empty places, the shape the
+             roster will take — rather than a table of headings with a sentence
+             under it. The two doors sit right in it: the pupils already in the
+             school, and the link for the ones who have no account yet. -->
+        <div v-if="rosterObservedEmpty" class="roster-empty" data-walk="class-roster-empty">
+          <div class="empty-seats" aria-hidden="true">
+            <span v-for="n in 6" :key="n" class="empty-seat"></span>
+          </div>
+          <p class="empty-line">Nobody is in this class yet.</p>
+          <button
+            v-if="!isAdminView && !showAddStudent"
+            type="button"
+            class="btn-ghost btn-small"
+            @click="openAddStudent"
+          >
+            Add students
+          </button>
+          <p v-if="!isAdminView" class="empty-sub schools-subtle">
+            Or share the class link in <strong>Invite students</strong> — students who follow it
+            sign up and land straight in this class.
+          </p>
+        </div>
+
+        <div v-else class="roster-scroll">
           <table class="ssi-table">
             <thead>
               <tr>
@@ -888,10 +1242,32 @@ const deleteImpactLines = computed(() => {
                 <td>{{ s.hours7d }}h</td>
                 <td><span class="schools-subtle">{{ s.last_active_display }}</span></td>
                 <td class="row-action">
+                  <!-- HANDBOOK Remove a student from a class
+                       section: running-classes
+                       roles: leader, school_admin, teacher
+                       place: class-detail
+                       keywords: remove, student, roster, leave, class
+                       What it's for. Taking a student off a class roster,
+                       for a pupil who has changed set or joined the wrong
+                       class from a shared link.
+                       Where it is. The class page, the **Remove** button at
+                       the end of the student's row in the roster.
+                       How you do it.
+                       1. Open the class from **My Classes**.
+                       2. Find the student in the roster.
+                       3. Tap **Remove** at the end of their row.
+                       4. Confirm when asked.
+                       Worth knowing. The student keeps their account and
+                       everything they have learned, and they can join
+                       another class straight away. Only their place on this
+                       roster goes.
+                       checked: 8f3eea39
+                  -->
                   <button
                     v-if="!isAdminView"
                     type="button"
                     class="btn-ghost btn-small remove-btn"
+                    data-walk="class-student-remove"
                     @click="handleRemoveStudent({ user_id: s.user_id, name: s.name })"
                   >
                     Remove
@@ -907,16 +1283,41 @@ const deleteImpactLines = computed(() => {
               <tr v-else-if="filteredStudents.length === 0 && (rosterError || classDetailError)">
                 <td colspan="6" class="empty-row">Couldn't load roster. {{ rosterError || classDetailError }}</td>
               </tr>
-              <tr v-else-if="filteredStudents.length === 0">
-                <td colspan="6" class="empty-row">No students have joined this class yet.</td>
-              </tr>
             </tbody>
           </table>
         </div>
       </section>
 
-      <aside class="rail" :class="{ 'rail-first': rosterObservedEmpty }">
-        <div class="schools-card schools-card-pad rail-card">
+      <!-- The rail used to jump ABOVE the roster on an empty class, because the
+           invite link was the only thing worth doing and it was the bottom of
+           the page. The roster now carries the doing itself — the empty places,
+           "Add students", and a pointer at the invite card — so it stays first
+           and the rail stays a rail. The join card still rises to the top of it. -->
+      <aside class="rail">
+        <!-- HANDBOOK Where the class has got to
+             section: seeing-progress
+             roles: leader, school_admin, teacher
+             place: class-detail
+             keywords: progress, journey, belt, position, course
+             What it's for. How far the class has travelled through its course, as a
+             bar with the class average behind it and the next belt named. A class
+             carries its own place on the course, moved by the sessions you run
+             together.
+             Where it is. The class page, the **Course Journey** card in the column
+             beside the roster.
+             How you do it.
+             1. Open the class from **My Classes**.
+             2. Read the bar for how much of the course the class has covered.
+             3. Read the line under it for the class average and how far it is to the
+                next belt.
+             4. Compare that with the belt spread underneath, which shows how tightly
+                the class is travelling together.
+             Worth knowing. The class average is the honest number for planning a
+             lesson. The belt spread is the one that tells you whether the class is
+             holding together or pulling apart.
+             checked: a95511dd
+        -->
+        <div class="schools-card schools-card-pad rail-card" data-walk="class-journey">
           <div class="schools-kicker rail-kicker">Course Journey</div>
           <JourneyBar :done="journeyDone" :total="journeyTotal" label="Course Journey" />
           <p class="rail-note">
@@ -967,6 +1368,29 @@ const deleteImpactLines = computed(() => {
             <p class="join-help">
               Share this link — students click it, sign up, and land straight in the class.
             </p>
+            <!-- HANDBOOK How students join a class
+                 section: getting-people-in
+                 roles: leader, school_admin, teacher
+                 place: class-detail
+                 keywords: join, link, code, students, invite, class
+                 What it's for. The one door into a class. A student who follows
+                 the class link signs up and lands straight in the class, on the
+                 right course, with no code to type. The same class also has a
+                 short code for a room where a link is awkward.
+                 Where it is. The class page, the **Invite students** card.
+                 How you do it.
+                 1. Open the class from **My Classes**.
+                 2. Copy the link from the **Invite students** card and send it to
+                    your students.
+                 3. For a room with a whiteboard, tap **Show code instead** and
+                    write the code up.
+                 4. Students enter that code at saysomethingin.com/redeem.
+                 Worth knowing. The link and the code both stay valid, so the same
+                 one works for a student who joins in week one and a student who
+                 arrives in week six. If the card says it could not load, do not
+                 hand anything out until it comes back.
+                 checked: bc4a8a6b
+            -->
             <div v-if="joinPanel.url" data-walk="class-join-link"><InviteLinkField :url="joinPanel.url" /></div>
 
             <button
@@ -1146,8 +1570,21 @@ const deleteImpactLines = computed(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
   padding: 12px 16px;
   border-bottom: 1px solid var(--schools-border);
+}
+
+/* Search and "Add students" sit on ONE line beside the title, and drop to a
+   line of their own on a narrow phone rather than stacking on top of each
+   other in the corner. */
+.roster-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 220px;
+  justify-content: flex-end;
 }
 
 .roster-title { font-size: 17px; }
@@ -1168,6 +1605,71 @@ const deleteImpactLines = computed(() => {
   border-color: var(--schools-red);
   background: #fff;
 }
+
+.roster-add { white-space: nowrap; }
+
+/* The picker. A list of names you tap — no dropdown, no multi-select. */
+.add-student-panel {
+  border-top: 1px solid var(--schools-border, rgba(0, 0, 0, 0.08));
+  padding: 12px 0 4px;
+  margin-bottom: 4px;
+}
+.add-student-search { width: 100%; margin-bottom: 8px; }
+.add-student-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.add-student-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 8px;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+.add-student-row:hover:not(:disabled) { background: var(--schools-hover, rgba(0, 0, 0, 0.04)); }
+.add-student-row:disabled { opacity: 0.55; cursor: default; }
+.add-student-name { flex: 1; min-width: 0; }
+.add-student-where {
+  display: block;
+  font-size: 12px;
+  color: var(--schools-fg-3);
+}
+.add-student-verb {
+  font-size: 13px;
+  color: var(--schools-fg-3);
+}
+.add-student-note { font-size: 13px; margin: 8px 2px 0; }
+.add-student-done { color: var(--schools-fg-2, inherit); }
+.avatar-small { width: 28px; height: 28px; font-size: 11px; }
+
+/* An empty class, drawn. */
+.roster-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 28px 16px 32px;
+  text-align: center;
+}
+.empty-seats { display: flex; gap: 10px; }
+.empty-seat {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px dashed var(--schools-border, rgba(0, 0, 0, 0.16));
+}
+.empty-line { margin: 0; font-size: 15px; }
+.empty-sub { margin: 0; font-size: 13px; max-width: 34ch; }
 
 .roster-scroll {
   overflow: auto;
@@ -1428,9 +1930,6 @@ const deleteImpactLines = computed(() => {
 @media (max-width: 960px) {
   .detail { padding: 16px; }
   .body-grid { grid-template-columns: 1fr; }
-  /* One column: the rail stacks BELOW the roster, so on an empty class the
-     invite link would be the bottom of the page. Lift it above the roster. */
-  .rail-first { order: -1; }
   .roster { max-height: none; }
   .roster-scroll { overflow-x: auto; }
   .ssi-table { min-width: 640px; }

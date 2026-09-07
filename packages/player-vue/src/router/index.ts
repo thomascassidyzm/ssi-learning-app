@@ -79,6 +79,9 @@ const NodeInsightsView = () => import('@/views/admin/NodeInsightsView.vue')
 const SettingsView = () => import('@/views/schools/SettingsView.vue')
 const SchoolsView = () => import('@/views/schools/SchoolsView.vue')
 const SetupView = () => import('@/views/schools/SetupView.vue')
+// HANDBOOK (2026-09-07) — the compiled map of every capability, shared by the
+// /schools and /org mounts: one component, one address per lane.
+const HandbookView = () => import('@/views/schools/HandbookView.vue')
 // THE VIEW — the one recursive node home (archive/docs-retired-2026-08-24/THE-VIEW.md)
 const NodeHomeView = () => import('@/views/admin/NodeHomeView.vue')
 // Referenced ONLY from the INSTITUTIONAL_PURCHASE_IN_BUILD branches below, so a
@@ -187,6 +190,15 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: 'Insights',
           description: 'The Insight Engine scoped to this node (member scope)',
+        },
+      },
+      {
+        path: ':id/handbook',
+        name: 'org-handbook',
+        component: HandbookView,
+        meta: {
+          title: 'Handbook',
+          description: 'Everything this dashboard can do, compiled from the same source that gates the live dashboard',
         },
       },
       ...(INSTITUTIONAL_PURCHASE_IN_BUILD ? [{
@@ -299,6 +311,16 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: 'Settings',
           description: 'School and account settings',
+          railFrame: true,
+        },
+      },
+      {
+        path: 'handbook',
+        name: 'schools-handbook',
+        component: HandbookView,
+        meta: {
+          title: 'Handbook',
+          description: 'Everything this dashboard can do, compiled from the same source that gates the live dashboard',
           railFrame: true,
         },
       },

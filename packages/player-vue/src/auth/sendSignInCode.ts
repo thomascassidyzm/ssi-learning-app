@@ -45,7 +45,7 @@ export async function sendSignInCode(client: any, email: string): Promise<SendSi
     // A real throttle is a real answer — never retry it through the fallback.
     if (res.status === 429) {
       const body = await res.json().catch(() => ({}))
-      return { error: { message: body?.error || 'Too many codes requested. Please wait a few minutes.' }, via: 'resend' }
+      return { error: { message: body?.error || "We've sent a few codes to that address already, and the last one may still be on its way. Give it a couple of minutes, then try again." }, via: 'resend' }
     }
     // Anything else (404 on an un-deployed route, 503 unconfigured, 502 from
     // the provider) falls through to Supabase's mailer below.

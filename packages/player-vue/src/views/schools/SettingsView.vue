@@ -412,7 +412,29 @@ function toggleDataItem(id: string) {
           </label>
           <p v-if="!canEditSchool" class="field-hint">Only a school admin can edit the school profile.</p>
           <div v-if="canEditSchool" class="panel-actions">
-            <button type="button" class="btn-play" :disabled="profileSaveStatus === 'saving'" @click="saveSchoolProfile">
+            <!-- HANDBOOK Change your school's name and details
+                 section: your-school
+                 roles: school_admin
+                 place: settings
+                 keywords: rename, name, profile, school, details, contact, email, city, region, about, edit
+                 What it's for. Correcting or updating what the app knows about
+                 your school — its name, its town, its contact email and a short
+                 description. The name is the one that shows on every page your
+                 staff and students see.
+                 Where it is. Settings, then School profile.
+                 How you do it.
+                 1. Open Settings and stay on School profile.
+                 2. Edit any of the fields — school name, city, region, contact
+                    email, about.
+                 3. Tap **Save changes**. The button reads Saved when it has gone
+                    through.
+                 4. The new name appears across the dashboard straight away.
+                 Worth knowing. Only a school admin can edit this. A teacher
+                 opening the same page sees the details but cannot change them.
+                 Your school's type is set by your group administrator, not here.
+                 checked: 2aee237d
+            -->
+            <button type="button" class="btn-play" data-walk="settings-save-profile" :disabled="profileSaveStatus === 'saving'" @click="saveSchoolProfile">
               {{ profileSaveStatus === 'saving' ? 'Saving…' : profileSaveStatus === 'saved' ? 'Saved' : 'Save changes' }}
             </button>
             <button type="button" class="btn-ghost">Cancel</button>
@@ -464,7 +486,27 @@ function toggleDataItem(id: string) {
             </button>
           </div>
           <div v-if="!isAdminView" class="panel-actions">
-            <button type="button" class="btn-play" :disabled="localizationSaveStatus === 'saving'" @click="saveLocalization">
+            <!-- HANDBOOK Set your language and time zone
+                 section: your-school
+                 roles: school_admin, teacher
+                 place: settings
+                 keywords: language, welsh, cymraeg, spanish, time zone, timezone, localisation, interface, week
+                 What it's for. Choosing the language the dashboard itself speaks
+                 to you in, and the time zone your dates and times are read
+                 against.
+                 Where it is. Settings, then Localisation.
+                 How you do it.
+                 1. Open Settings and choose Localisation.
+                 2. Pick a **Default interface language**.
+                 3. Pick a **Time zone** so activity times read correctly for where
+                    you are.
+                 4. Tap **Save changes**.
+                 Worth knowing. This is remembered on the device you set it on.
+                 Teachers and students each choose their own, so setting it here
+                 does not change what anybody else sees.
+                 checked: 1bcc02fa
+            -->
+            <button type="button" class="btn-play" data-walk="settings-localisation-save" :disabled="localizationSaveStatus === 'saving'" @click="saveLocalization">
               {{ localizationSaveStatus === 'saving' ? 'Saving…' : localizationSaveStatus === 'saved' ? 'Saved' : 'Save changes' }}
             </button>
           </div>
@@ -492,7 +534,29 @@ function toggleDataItem(id: string) {
             </button>
           </div>
           <div class="panel-actions data-actions">
-            <button type="button" class="btn-ghost" :disabled="isExporting" @click="handleExportData">
+            <!-- HANDBOOK Download your school's data
+                 section: seeing-progress
+                 roles: school_admin, teacher
+                 place: settings
+                 keywords: export, download, csv, data, spreadsheet, report, records, progress
+                 What it's for. Taking your school's progress figures out of the
+                 app as a spreadsheet file — every student, the class they are in,
+                 how far they have got, how long they have practised and when they
+                 were last active.
+                 Where it is. Settings, then Data & privacy, the button reading
+                 **Download all data**.
+                 How you do it.
+                 1. Open Settings and choose Data & privacy.
+                 2. Tap **Download all data**.
+                 3. The file lands in your downloads, named after your school and
+                    today's date.
+                 4. Open it in any spreadsheet app to sort, filter or share it.
+                 Worth knowing. It is a snapshot of the moment you press the
+                 button, not a live link. Download it again whenever you need
+                 current figures.
+                 checked: 5d883f51
+            -->
+            <button type="button" class="btn-ghost" data-walk="settings-export-data" :disabled="isExporting" @click="handleExportData">
               {{ isExporting ? 'Preparing…' : 'Download all data (.csv)' }}
             </button>
           </div>
@@ -504,7 +568,34 @@ function toggleDataItem(id: string) {
                 <div class="toggle-title">Delete this school</div>
                 <div class="toggle-desc">Permanently deletes the school, its classes and enrolments. Cannot be undone.</div>
               </div>
-              <button type="button" class="btn-danger" @click="openDeleteSchoolModal">Delete school</button>
+              <!-- HANDBOOK Delete your school
+                   section: your-school
+                   roles: school_admin
+                   place: settings
+                   keywords: delete, remove, close, school, danger, permanent, undo
+                   What it's for. Closing your school down for good. It removes
+                   the school itself along with its classes and everybody's
+                   enrolment in them, and it cannot be undone.
+                   Where it is. Settings, then Data & privacy, at the bottom
+                   under Danger zone.
+                   How you do it.
+                   1. Open Settings and choose Data & privacy.
+                   2. Scroll to Danger zone and tap **Delete school**.
+                   3. Read what the app lists as going with it — classes,
+                      students, teachers and recorded sessions are each counted
+                      for you.
+                   4. If the school has real activity in it, type the school's
+                      name exactly to confirm you mean it.
+                   5. Confirm. You are signed out to a clean slate, because the
+                      account you were using belonged to a school that no longer
+                      exists.
+                   Worth knowing. Only your own school can be deleted this way,
+                   and only by its admin. A school with nothing in it deletes
+                   without the typed confirmation; one with students and sessions
+                   always asks for it.
+                   checked: 79dfa3af
+              -->
+              <button type="button" class="btn-danger" data-walk="settings-delete-school" @click="openDeleteSchoolModal">Delete school</button>
             </div>
           </div>
         </section>

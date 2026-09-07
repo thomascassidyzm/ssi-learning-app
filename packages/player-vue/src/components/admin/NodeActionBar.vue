@@ -577,32 +577,233 @@ function closeDelete(): void {
            link for a known person, or a shareable link by role — the old
            learner-only "Get join link" folded into the shareable menu. -->
       <!-- Class mode: one verb, and it says what it does. -->
+      <!-- HANDBOOK Add a student to a class
+           section: getting-people-in
+           roles: admin, leader, school_admin
+           place: node-home
+           keywords: student, invite, class, learner, join, link
+           What it's for. Making one learner their own way into one class. The link puts
+           them straight into that class with no forms and no sign-up, so a child can be
+           learning within a minute of opening it.
+           Where it is. The class's own page, **Invite students** along the top.
+           How you do it.
+           1. Open the class.
+           2. Tap **Invite students**.
+           3. Type the student's name.
+           4. Add their email if you want us to send it, or leave it blank and you get a
+              link to hand over yourself.
+           5. Submit, and repeat for the next student.
+           Worth knowing. One student at a time, on purpose — the link is theirs alone
+           and carries the class with it. The **Students** page's **+ Invite students**
+           button brings you here for exactly this reason.
+           checked: aa3e5463
+      -->
       <button v-if="classMode" type="button" class="verb" :class="{ 'is-open': openForm === 'person' }" data-walk="verb-invite-student" @click="toggle('person')">Invite students</button>
       <template v-else>
+      <!-- HANDBOOK Bring your first person in
+           section: getting-people-in
+           roles: admin, leader, school_admin
+           place: node-home
+           keywords: invite, person, link, join, leader, learner
+           walk: invite-first-person
+           What it's for. Bringing anyone into this part of the tree — a leader, a
+           teacher or a learner — with a personal link that is their login.
+           Where it is. The node's home page, the buttons along the top, **Invite a
+           person**.
+           How you do it.
+           1. Open the group, school or organisation you want them to belong to.
+           2. Tap **Invite a person**.
+           3. Pick the role they arrive as.
+           4. Type their name and submit.
+           5. Copy the minted link and send it.
+           Worth knowing. Nothing is created until you submit. Every link you mint lands
+           in **Ways in**.
+           checked: e35d11f4
+      -->
       <button type="button" class="verb" :class="{ 'is-open': openForm === 'person' }" data-walk="verb-invite-person" @click="toggle('person')">Invite a person</button>
+      <!-- HANDBOOK Make a link anyone can use
+           section: getting-people-in
+           roles: admin, leader, school_admin
+           place: node-home
+           keywords: shareable, link, join, open, role, bulk
+           What it's for. One link, by role, that you can put in a newsletter or on a
+           slide and let a whole room use. Unlike a personal invite it is not tied to
+           anybody, so new arrivals type their own name before they are in.
+           Where it is. The node's home page, **Get a shareable link** along the top.
+           How you do it.
+           1. Open the home page of the group, school or organisation they should join.
+           2. Tap **Get a shareable link**.
+           3. Pick the role everyone using it will arrive as.
+           4. Tap **Create invite link** and copy what comes back.
+           Worth knowing. It is open to anyone holding it, so when a link has travelled
+           further than you meant, revoke it in **Ways in** and make a fresh one. Use
+           **Invite a person** instead when you can name who is coming.
+           checked: 9c63d409
+      -->
       <button type="button" class="verb" :class="{ 'is-open': openForm === 'invite' }" data-walk="verb-shareable-link" @click="toggle('invite')">Get a shareable link</button>
       <!-- Add a group is for LEADERS too (founder ruling 2026-08-02: any
            group can contain subgroups — the endpoint authorizes a leader on
            their own subtree). Add a school is education-dressing-only. -->
       <button type="button" class="verb" :class="{ 'is-open': openForm === 'group' }" @click="toggle('group')">Add a group</button>
-      <button v-if="!member && !node.commercial && !neutral" type="button" class="verb" :class="{ 'is-open': openForm === 'school' }" @click="toggle('school')">Add a school</button>
+      <!-- HANDBOOK Add a school under a group
+           section: your-school
+           roles: admin
+           place: node-home
+           keywords: school, add, create, group, structure
+           What it's for. Creating a school inside a group, so it has its own home page,
+           its own staff and its own learners while still rolling up into whatever sits
+           above it.
+           Where it is. The group's home page, **Add a school** along the top.
+           How you do it.
+           1. Open the home page of the group the school belongs under.
+           2. Tap **Add a school**.
+           3. Type the school's name.
+           4. Tap **Add**, and the school appears in the list below.
+           Worth knowing. The verb only shows on a plain group. A school cannot contain
+           another school, and an organisation using the neutral wording has groups
+           rather than schools all the way down.
+           checked: 5641ca01
+      -->
+      <button v-if="!member && !node.commercial && !neutral" type="button" class="verb" :class="{ 'is-open': openForm === 'school' }" data-walk="verb-add-school" @click="toggle('school')">Add a school</button>
       <!-- Add a class is for LEADERS too (founder ruling 2026-09-07: a class
            belongs to a group, even when that group is the org itself, and it
            needs no teacher to exist). Education dressing only. -->
+      <!-- HANDBOOK Add a class to a group
+           parts: add-class-name, add-class-submit
+           section: running-classes
+           roles: admin, leader, school_admin
+           place: node-home
+           keywords: class, add, group, org, leader
+           What it's for. Creating a class underneath a group you lead, before anyone is
+           teaching it. Useful when you are setting a term up in advance and will put a
+           teacher on each class later.
+           Where it is. The group's own page, the **Add a class** button in the row of
+           actions at the top.
+           How you do it.
+           1. Open the group the class belongs under.
+           2. Tap **Add a class**.
+           3. Type the class name.
+           4. Choose the course the class will learn.
+           5. Tap **Add**.
+           Worth knowing. A class needs no teacher to exist. It sits under the group
+           waiting, and you put a teacher on it whenever you are ready.
+           checked: 0b14ec1f
+      -->
       <button v-if="!neutral" type="button" class="verb" :class="{ 'is-open': openForm === 'class' }" data-walk="verb-add-class" @click="toggle('class')">Add a class</button>
-      <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'demo' }" @click="toggle('demo')">Mint a demo org</button>
-      <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'courses' }" @click="toggle('courses')">Courses</button>
-      <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'rename' }" @click="openRename">Rename</button>
+      <!-- HANDBOOK Set up a demo organisation
+           section: your-school
+           roles: admin
+           place: node-home
+           keywords: demo, sales, pilot, mint, trial, prospect
+           What it's for. Standing up a whole organisation with plausible people and
+           activity already in it, for showing somebody what the product looks like once
+           it is running rather than what it looks like empty.
+           Where it is. The home page of the node it should sit under, **Mint a demo
+           org** along the top.
+           How you do it.
+           1. Open the home page of the node the demo belongs under.
+           2. Tap **Mint a demo org**.
+           3. Type a name for it, and a leader's email if somebody is to be handed it.
+           4. Tap **Mint**, and copy the leader link that comes back.
+           Worth knowing. A demo org's own page grows a **Refresh demo activity** button,
+           which moves its learners on so a demo you minted weeks ago does not look
+           abandoned when you next open it.
+           checked: 09ac296d
+      -->
+      <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'demo' }" data-walk="verb-mint-demo" @click="toggle('demo')">Mint a demo org</button>
+      <!-- HANDBOOK Choose which courses a school can use
+           section: courses-and-content
+           roles: admin
+           place: node-home
+           keywords: courses, entitlement, trial, paid, access, catalogue
+           What it's for. Setting what a school or group is allowed to learn: the whole
+           catalogue when they are paid up, or a named course or two while they are
+           trialling.
+           Where it is. The node's home page, **Courses** along the top.
+           How you do it.
+           1. Open the home page of the school or group.
+           2. Tap **Courses**.
+           3. Choose the whole catalogue, or search for the courses the trial should
+              carry.
+           4. Save, and everyone below that node inherits it.
+           Worth knowing. A trial runs for thirty days on a paid course and a year on a
+           free or community one, and the server works the dates out on save — what you
+           see before saving is a preview.
+           checked: bf4ae0a1
+      -->
+      <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'courses' }" data-walk="verb-courses" @click="toggle('courses')">Courses</button>
+      <!-- HANDBOOK Rename a school or group
+           section: your-school
+           roles: admin
+           place: node-home
+           keywords: rename, name, change, school, group
+           What it's for. Changing what a school or group is called everywhere it
+           appears. Nothing else moves — the same people, classes and links carry on
+           under the new name.
+           Where it is. The node's home page, **Rename** along the top.
+           How you do it.
+           1. Open the home page of the school or group.
+           2. Tap **Rename**.
+           3. Type the new name.
+           4. Tap **Save**.
+           Worth knowing. If the new name matches something else already sitting beside
+           it you are warned and asked to confirm, because two identical names in one
+           list is usually a mistake rather than a plan.
+           checked: c3b0189b
+      -->
+      <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'rename' }" data-walk="verb-rename" @click="openRename">Rename</button>
       <button v-if="!member && node.is_demo" type="button" class="verb verb-demo" :disabled="isRefreshing" @click="refreshDemo">
         {{ isRefreshing ? 'Refreshing…' : 'Refresh demo activity' }}
       </button>
-      <button v-if="!member" type="button" class="verb verb-danger" @click="requestDelete">Delete</button>
+      <!-- HANDBOOK Delete a school or group
+           section: your-school
+           roles: admin
+           place: node-home
+           keywords: delete, remove, school, group, close
+           What it's for. Removing a school or group that should never have existed, or
+           has been wound up. It is the one verb here that takes everything below it with
+           it.
+           Where it is. The node's home page, **Delete** at the end of the row of
+           buttons.
+           How you do it.
+           1. Open the home page of the school or group.
+           2. Tap **Delete**.
+           3. Read the summary of what goes with it — classes, people and links are
+              counted for you.
+           4. Type the name back when asked, and confirm.
+           Worth knowing. You are only asked to type the name when there is real activity
+           underneath, which is the signal to stop and check. An empty shell deletes on a
+           single confirm.
+           checked: 9ffcd50a
+      -->
+      <button v-if="!member" type="button" class="verb verb-danger" data-walk="verb-delete" @click="requestDelete">Delete</button>
       </template>
     </div>
 
     <!-- Inline forms (one at a time) -->
     <div v-if="openForm === 'person'" class="verb-form-block">
       <div class="verb-form">
+        <!-- HANDBOOK Choose what role someone arrives as
+             section: getting-people-in
+             roles: admin, leader, school_admin
+             place: node-home
+             keywords: role, teacher, leader, learner, invite, permissions
+             What it's for. The role you pick on an invite is the role the person lands
+             in, and it travels with the link rather than being set afterwards. Teacher
+             sees their own classes, group leader sees everything below their node,
+             learner just learns.
+             Where it is. Any node's home page, **Invite a person**, the role dropdown
+             on the left of the form.
+             How you do it.
+             1. Tap **Invite a person** on the node you want them to belong to.
+             2. Open the role dropdown.
+             3. Pick the role they should hold in this place.
+             4. Fill in their name and submit.
+             Worth knowing. The place matters as much as the role — a group leader
+             invited on a group leads that group and everything under it, so invite
+             people on the node whose shape you actually mean.
+             checked: 8119168f
+        -->
         <select v-if="!classMode" v-model="personRole" class="frost-select" data-walk="invite-form-role">
           <option v-if="!neutral" value="teacher">Teacher</option>
           <option value="leader">Group leader</option>
