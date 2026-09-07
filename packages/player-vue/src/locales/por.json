@@ -115,7 +115,8 @@
     "keepLearningReachNext": "Continue a aprender para chegar ao próximo nível!",
     "progressLoadFailed": "Não conseguimos carregar onde tinha ficado. O seu progresso está guardado — tente outra vez.",
     "practisingBanner": "A praticar",
-    "practisingBannerNote": "O material novo volta assim que a sua ligação voltar."
+    "practisingBannerNote": "O material novo volta assim que a sua ligação voltar.",
+    "choosePlanCancel": "Dois planos, a partir de £15/mês. Cancele quando quiser."
   },
   "home": {
     "goodMorning": "Bom dia",
@@ -302,7 +303,9 @@
     "practisingModeOnlyAlready": "O modo de prática está ATIVADO — só está tocando conteúdo que você já viu.",
     "reloadsNewestVersionDownloads": "Recarrega com a versão mais recente. As suas transferências e progresso são mantidos.",
     "fixesMostAudioLoading": "Resolve a maioria dos problemas de áudio e de carregamento. Continua com sessão iniciada.",
-    "addHomeScreenFaster": "Adicione ao seu ecrã principal para um acesso mais rápido e offline"
+    "addHomeScreenFaster": "Adicione ao seu ecrã principal para um acesso mais rápido e offline",
+    "plansFromMonth": "£15/mês para uma conta, £25/mês para seis",
+    "upgrade": "Mudar de plano"
   },
   "belt": {
     "yourProgress": "Seu progresso",
@@ -626,6 +629,19 @@
   "checkout": {
     "closeCheckout": "Fechar checkout"
   },
+  "plans": {
+    "chooseAPlan": "Escolha um plano",
+    "close": "Fechar",
+    "premiumName": "SSi Premium",
+    "premiumDesc": "Uma conta. Todos os cursos e línguas, e transferências para usar offline.",
+    "premiumMonthly": "£15/mês",
+    "premiumAnnual": "£150/ano",
+    "familyName": "Família SSi",
+    "familyDesc": "Tudo o que o Premium tem, para {seats} contas, incluindo a sua. Cada pessoa mantém o seu próprio progresso.",
+    "familyMonthly": "£25/mês",
+    "familyAnnual": "£250/ano",
+    "cancelAnytime": "Cancele quando quiser."
+  },
   "family": {
     "family": "Família",
     "signQrCode": "Código QR de acesso",
@@ -639,6 +655,7 @@
     "inviteByEmail": "+ Convidar por e-mail"
   },
   "common": {
+    "noMatchesFor": "Sem resultados para “{query}”",
     "oneOpensBrowser": "Este abre-se no seu navegador.",
     "refreshData": "Atualizar dados",
     "tryAgain": "Tentar novamente"

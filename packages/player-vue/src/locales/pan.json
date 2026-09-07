@@ -115,7 +115,8 @@
     "keepLearningReachNext": "ਅਗਲੇ ਪੱਧਰ 'ਤੇ ਪਹੁੰਚਣ ਲਈ ਸਿੱਖਦੇ ਰਹੋ!",
     "progressLoadFailed": "ਤੁਸੀਂ ਕਿੱਥੇ ਪਹੁੰਚੇ ਸੀ, ਇਹ ਲੋਡ ਨਹੀਂ ਹੋ ਸਕਿਆ। ਤੁਹਾਡੀ ਤਰੱਕੀ ਸੁਰੱਖਿਅਤ ਹੈ — ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।",
     "practisingBanner": "ਅਭਿਆਸ ਜਾਰੀ ਹੈ",
-    "practisingBannerNote": "ਜਦੋਂ ਤੁਹਾਡਾ ਕਨੈਕਸ਼ਨ ਵਾਪਸ ਆਵੇਗਾ, ਨਵੀਂ ਸਮੱਗਰੀ ਵੀ ਵਾਪਸ ਆ ਜਾਵੇਗੀ।"
+    "practisingBannerNote": "ਜਦੋਂ ਤੁਹਾਡਾ ਕਨੈਕਸ਼ਨ ਵਾਪਸ ਆਵੇਗਾ, ਨਵੀਂ ਸਮੱਗਰੀ ਵੀ ਵਾਪਸ ਆ ਜਾਵੇਗੀ।",
+    "choosePlanCancel": "ਦੋ ਪਲਾਨ, £15/ਮਹੀਨਾ ਤੋਂ। ਕਿਸੇ ਵੀ ਸਮੇਂ ਰੱਦ ਕਰੋ।"
   },
   "home": {
     "goodMorning": "ਸ਼ੁਭ ਸਵੇਰ",
@@ -302,7 +303,9 @@
     "practisingModeOnlyAlready": "ਅਭਿਆਸ ਮੋਡ ਚਾਲੂ ਹੈ — ਸਿਰਫ਼ ਪਹਿਲਾਂ ਹੀ ਸਿੱਖੀ ਸਮੱਗਰੀ ਚੱਲ ਰਹੀ ਹੈ।",
     "reloadsNewestVersionDownloads": "ਨਵੀਨਤਮ ਵਰਜਨ ਨਾਲ ਦੁਬਾਰਾ ਲੋਡ ਕਰਦਾ ਹੈ। ਤੁਹਾਡੇ ਡਾਊਨਲੋਡ ਅਤੇ ਤਰੱਕੀ ਸੰਭਾਲੇ ਰਹਿੰਦੇ ਹਨ।",
     "fixesMostAudioLoading": "ਜ਼ਿਆਦਾਤਰ ਆਡੀਓ ਅਤੇ ਲੋਡਿੰਗ ਸਮੱਸਿਆਵਾਂ ਠੀਕ ਕਰਦਾ ਹੈ। ਤੁਸੀਂ ਸਾਈਨ ਇਨ ਰਹਿੰਦੇ ਹੋ।",
-    "addHomeScreenFaster": "ਤੇਜ਼, ਆਫਲਾਈਨ ਪਹੁੰਚ ਲਈ ਆਪਣੀ ਹੋਮ ਸਕ੍ਰੀਨ 'ਤੇ ਸ਼ਾਮਲ ਕਰੋ"
+    "addHomeScreenFaster": "ਤੇਜ਼, ਆਫਲਾਈਨ ਪਹੁੰਚ ਲਈ ਆਪਣੀ ਹੋਮ ਸਕ੍ਰੀਨ 'ਤੇ ਸ਼ਾਮਲ ਕਰੋ",
+    "plansFromMonth": "ਇੱਕ ਖਾਤੇ ਲਈ £15/ਮਹੀਨਾ, ਛੇ ਲਈ £25/ਮਹੀਨਾ",
+    "upgrade": "ਅੱਪਗ੍ਰੇਡ"
   },
   "belt": {
     "yourProgress": "ਤੁਹਾਡੀ ਤਰੱਕੀ",
@@ -626,6 +629,19 @@
   "checkout": {
     "closeCheckout": "ਚੈੱਕਆਊਟ ਬੰਦ ਕਰੋ"
   },
+  "plans": {
+    "chooseAPlan": "ਪਲਾਨ ਚੁਣੋ",
+    "close": "ਬੰਦ ਕਰੋ",
+    "premiumName": "SSi ਪ੍ਰੀਮੀਅਮ",
+    "premiumDesc": "ਇੱਕ ਖਾਤਾ। ਸਾਰੇ ਕੋਰਸ ਅਤੇ ਭਾਸ਼ਾਵਾਂ, ਅਤੇ ਆਫ਼ਲਾਈਨ ਲਈ ਡਾਊਨਲੋਡ।",
+    "premiumMonthly": "£15/ਮਹੀਨਾ",
+    "premiumAnnual": "£150/ਸਾਲ",
+    "familyName": "SSi ਪਰਿਵਾਰ",
+    "familyDesc": "ਪ੍ਰੀਮੀਅਮ ਦਾ ਸਭ ਕੁਝ, ਤੁਹਾਡੇ ਸਮੇਤ {seats} ਖਾਤਿਆਂ ਲਈ। ਹਰ ਕੋਈ ਆਪਣੀ ਤਰੱਕੀ ਵੱਖਰੀ ਰੱਖਦਾ ਹੈ।",
+    "familyMonthly": "£25/ਮਹੀਨਾ",
+    "familyAnnual": "£250/ਸਾਲ",
+    "cancelAnytime": "ਕਿਸੇ ਵੀ ਵੇਲੇ ਰੱਦ ਕਰੋ।"
+  },
   "family": {
     "family": "ਪਰਿਵਾਰ",
     "signQrCode": "ਸਾਈਨ-ਇਨ QR ਕੋਡ",
@@ -639,6 +655,7 @@
     "inviteByEmail": "+ ਈਮੇਲ ਰਾਹੀਂ ਸੱਦਾ ਦਿਓ"
   },
   "common": {
+    "noMatchesFor": "“{query}” ਲਈ ਕੋਈ ਮੇਲ ਨਹੀਂ",
     "oneOpensBrowser": "ਇਹ ਤੁਹਾਡੇ ਬ੍ਰਾਊਜ਼ਰ ਵਿੱਚ ਖੁੱਲ੍ਹਦਾ ਹੈ।",
     "refreshData": "ਡਾਟਾ ਤਾਜ਼ਾ ਕਰੋ",
     "tryAgain": "ਮੁੜ ਕੋਸ਼ਿਸ਼"

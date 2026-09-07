@@ -115,7 +115,8 @@
     "keepLearningReachNext": "次のレベルに向けて学習を続けましょう!",
     "progressLoadFailed": "どこまで進んだかを読み込めませんでした。学習の記録は残っています — もう一度お試しください。",
     "practisingBanner": "練習中",
-    "practisingBannerNote": "接続が戻れば、新しい教材も戻ります。"
+    "practisingBannerNote": "接続が戻れば、新しい教材も戻ります。",
+    "choosePlanCancel": "プランは2つ、月額15ポンドから。いつでも解約できます。"
   },
   "home": {
     "goodMorning": "おはようございます",
@@ -302,7 +303,9 @@
     "practisingModeOnlyAlready": "練習モードがオンです — 既に学んだ内容のみが再生されます。",
     "reloadsNewestVersionDownloads": "最新バージョンでリロードします。ダウンロードと進捗は保持されます。",
     "fixesMostAudioLoading": "ほとんどの音声や読み込みの問題を解決します。サインイン状態は維持されます。",
-    "addHomeScreenFaster": "ホーム画面に追加すると、より速く、オフラインでもアクセスできます"
+    "addHomeScreenFaster": "ホーム画面に追加すると、より速く、オフラインでもアクセスできます",
+    "plansFromMonth": "1アカウント月額15ポンド、6アカウント月額25ポンド",
+    "upgrade": "アップグレード"
   },
   "belt": {
     "yourProgress": "あなたの進捗",
@@ -626,6 +629,19 @@
   "checkout": {
     "closeCheckout": "チェックアウトを閉じる"
   },
+  "plans": {
+    "chooseAPlan": "プランを選ぶ",
+    "close": "閉じる",
+    "premiumName": "SSi プレミアム",
+    "premiumDesc": "アカウント1つ。すべてのコースと言語、オフライン用のダウンロードつき。",
+    "premiumMonthly": "月額15ポンド",
+    "premiumAnnual": "年額150ポンド",
+    "familyName": "SSi ファミリー",
+    "familyDesc": "プレミアムのすべてを、ご自身を含む{seats}アカウントで。それぞれが自分の進捗を保てます。",
+    "familyMonthly": "月額25ポンド",
+    "familyAnnual": "年額250ポンド",
+    "cancelAnytime": "いつでも解約できます。"
+  },
   "family": {
     "family": "ファミリー",
     "signQrCode": "サインイン用QRコード",
@@ -639,6 +655,7 @@
     "inviteByEmail": "+ メールで招待"
   },
   "common": {
+    "noMatchesFor": "「{query}」に一致するものはありません",
     "oneOpensBrowser": "これはブラウザで開きます。",
     "refreshData": "データを更新",
     "tryAgain": "再試行"

@@ -115,7 +115,8 @@
     "keepLearningReachNext": "अगले स्तर तक पहुँचने के लिए सीखते रहें!",
     "progressLoadFailed": "आप कहाँ तक पहुँचे थे, यह लोड नहीं हो सका। आपकी प्रगति सुरक्षित है — दोबारा कोशिश करें।",
     "practisingBanner": "अभ्यास जारी है",
-    "practisingBannerNote": "आपका कनेक्शन लौटते ही नई सामग्री भी लौट आएगी।"
+    "practisingBannerNote": "आपका कनेक्शन लौटते ही नई सामग्री भी लौट आएगी।",
+    "choosePlanCancel": "दो प्लान, £15/माह से। कभी भी रद्द करें।"
   },
   "home": {
     "goodMorning": "सुप्रभात",
@@ -302,7 +303,9 @@
     "practisingModeOnlyAlready": "प्रैक्टिसिंग मोड ऑन है — सिर्फ़ वही सामग्री चल रही है जो आप पहले से सीख चुके हैं।",
     "reloadsNewestVersionDownloads": "नवीनतम वर्शन के साथ रीलोड होता है। आपके डाउनलोड और प्रगति बनी रहती है।",
     "fixesMostAudioLoading": "ज़्यादातर ऑडियो और लोडिंग समस्याओं को ठीक करता है। आप साइन इन रहते हैं।",
-    "addHomeScreenFaster": "तेज़, ऑफ़लाइन एक्सेस के लिए अपनी होम स्क्रीन पर जोड़ें"
+    "addHomeScreenFaster": "तेज़, ऑफ़लाइन एक्सेस के लिए अपनी होम स्क्रीन पर जोड़ें",
+    "plansFromMonth": "एक खाते के लिए £15/माह, छह के लिए £25/माह",
+    "upgrade": "अपग्रेड"
   },
   "belt": {
     "yourProgress": "आपकी प्रगति",
@@ -626,6 +629,19 @@
   "checkout": {
     "closeCheckout": "चेकआउट बंद करें"
   },
+  "plans": {
+    "chooseAPlan": "प्लान चुनें",
+    "close": "बंद करें",
+    "premiumName": "SSi प्रीमियम",
+    "premiumDesc": "एक खाता। सभी कोर्स और भाषाएँ, और ऑफ़लाइन के लिए डाउनलोड।",
+    "premiumMonthly": "£15/माह",
+    "premiumAnnual": "£150/वर्ष",
+    "familyName": "SSi फ़ैमिली",
+    "familyDesc": "प्रीमियम की हर सुविधा, आपके सहित {seats} खातों के लिए। हर किसी की अपनी प्रगति अलग रहती है।",
+    "familyMonthly": "£25/माह",
+    "familyAnnual": "£250/वर्ष",
+    "cancelAnytime": "कभी भी रद्द करें।"
+  },
   "family": {
     "family": "परिवार",
     "signQrCode": "साइन-इन क्यूआर कोड",
@@ -639,6 +655,7 @@
     "inviteByEmail": "+ ईमेल से आमंत्रित करें"
   },
   "common": {
+    "noMatchesFor": "“{query}” के लिए कोई मेल नहीं",
     "oneOpensBrowser": "यह आपके ब्राउज़र में खुलता है।",
     "refreshData": "डेटा रीफ़्रेश करें",
     "tryAgain": "फिर से कोशिश करें"

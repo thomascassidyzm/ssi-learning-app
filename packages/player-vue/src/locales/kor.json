@@ -115,7 +115,8 @@
     "keepLearningReachNext": "다음 레벨까지 조금만 더 힘내세요!",
     "progressLoadFailed": "어디까지 하셨는지 불러오지 못했습니다. 학습 기록은 안전합니다 — 다시 시도해 보세요.",
     "practisingBanner": "연습 중",
-    "practisingBannerNote": "연결이 돌아오면 새 학습 자료도 함께 돌아옵니다."
+    "practisingBannerNote": "연결이 돌아오면 새 학습 자료도 함께 돌아옵니다.",
+    "choosePlanCancel": "요금제 두 가지, 월 15파운드부터. 언제든 해지할 수 있어요."
   },
   "home": {
     "goodMorning": "좋은 아침이에요",
@@ -302,7 +303,9 @@
     "practisingModeOnlyAlready": "연습 모드가 켜져 있습니다 — 이미 배운 내용만 재생됩니다.",
     "reloadsNewestVersionDownloads": "최신 버전으로 새로고침해요. 다운로드한 내용과 진행 상황은 그대로 유지돼요.",
     "fixesMostAudioLoading": "대부분의 음성 및 로딩 문제를 해결해요. 로그인 상태는 유지돼요.",
-    "addHomeScreenFaster": "홈 화면에 추가하면 더 빠르고 오프라인에서도 접근할 수 있어요"
+    "addHomeScreenFaster": "홈 화면에 추가하면 더 빠르고 오프라인에서도 접근할 수 있어요",
+    "plansFromMonth": "계정 1개 월 15파운드, 6개 월 25파운드",
+    "upgrade": "업그레이드"
   },
   "belt": {
     "yourProgress": "나의 진행률",
@@ -626,6 +629,19 @@
   "checkout": {
     "closeCheckout": "결제 닫기"
   },
+  "plans": {
+    "chooseAPlan": "요금제 선택",
+    "close": "닫기",
+    "premiumName": "SSi 프리미엄",
+    "premiumDesc": "계정 하나로. 모든 강좌와 언어, 오프라인 다운로드까지.",
+    "premiumMonthly": "월 15파운드",
+    "premiumAnnual": "연 150파운드",
+    "familyName": "SSi 패밀리",
+    "familyDesc": "프리미엄의 모든 기능을 본인 포함 {seats}개 계정에서. 각자 자신의 진행 상황을 유지합니다.",
+    "familyMonthly": "월 25파운드",
+    "familyAnnual": "연 250파운드",
+    "cancelAnytime": "언제든 해지할 수 있습니다."
+  },
   "family": {
     "family": "가족",
     "signQrCode": "로그인용 QR 코드",
@@ -639,6 +655,7 @@
     "inviteByEmail": "+ 이메일로 초대"
   },
   "common": {
+    "noMatchesFor": "“{query}”에 대한 결과가 없습니다",
     "oneOpensBrowser": "이건 브라우저에서 열려요.",
     "refreshData": "데이터 새로고침",
     "tryAgain": "다시 시도"

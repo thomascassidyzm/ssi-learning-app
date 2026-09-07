@@ -115,7 +115,8 @@
     "keepLearningReachNext": "Máa bá ẹ̀kọ́ rẹ nìṣó láti dé ìpele tó kàn!",
     "progressLoadFailed": "A kò lè gbé ibi tí o dé wọlé. Ìlọsíwájú rẹ wà láìléwu — gbìyànjú lẹ́ẹ̀kan sí i.",
     "practisingBanner": "Ìdánrawò",
-    "practisingBannerNote": "Àwọn ohun tuntun yóò padà nígbà tí ìsopọ̀ rẹ bá padà."
+    "practisingBannerNote": "Àwọn ohun tuntun yóò padà nígbà tí ìsopọ̀ rẹ bá padà.",
+    "choosePlanCancel": "Ètò méjì, láti £15/oṣù. Fagilé nígbàkúgbà."
   },
   "home": {
     "goodMorning": "Ẹ kú àárọ̀",
@@ -302,7 +303,9 @@
     "practisingModeOnlyAlready": "Ipò Àdáṣe wà ní ṣíṣí — ohun tí o ti kọ́ tẹ́lẹ̀ nìkan ni ó ń ṣiṣẹ́.",
     "reloadsNewestVersionDownloads": "Yóò tún ru wá pẹ̀lú ẹ̀dà tuntun jùlọ. Àwọn ohun tí o gbà àti ìlọsíwájú rẹ ni a óò pa mọ́.",
     "fixesMostAudioLoading": "Ó máa ń tún ọ̀pọ̀lọpọ̀ ìṣòro ìró àti ìrùwá ṣe. Iwọ yóò dúró ní ìwọlé.",
-    "addHomeScreenFaster": "Fi kún ojú-ìwé ilé rẹ fún ààyè tó yára síi, láìní ìsopọ̀"
+    "addHomeScreenFaster": "Fi kún ojú-ìwé ilé rẹ fún ààyè tó yára síi, láìní ìsopọ̀",
+    "plansFromMonth": "£15/oṣù fún àkántì kan, £25/oṣù fún mẹ́fà",
+    "upgrade": "Ṣe àgbéga"
   },
   "belt": {
     "yourProgress": "Ìtẹ̀síwájú rẹ",
@@ -626,6 +629,19 @@
   "checkout": {
     "closeCheckout": "Ti ìsanwó"
   },
+  "plans": {
+    "chooseAPlan": "Yan ètò kan",
+    "close": "Pa",
+    "premiumName": "SSi Premium",
+    "premiumDesc": "Àkántì kan. Gbogbo ẹ̀kọ́ àti èdè, àti ìgbàsílẹ̀ fún lílo láìsí ìtakùn.",
+    "premiumMonthly": "£15/oṣù",
+    "premiumAnnual": "£150/ọdún",
+    "familyName": "SSi Family",
+    "familyDesc": "Gbogbo ohun tí ó wà nínú Premium, fún àkántì {seats}, pẹ̀lú tìrẹ. Olúkúlùkù ní ìlọsíwájú tirẹ̀.",
+    "familyMonthly": "£25/oṣù",
+    "familyAnnual": "£250/ọdún",
+    "cancelAnytime": "O lè fagilé nígbàkúùgbà."
+  },
   "family": {
     "family": "Ìdílé",
     "signQrCode": "Àmì QR ìwọlé",
@@ -639,6 +655,7 @@
     "inviteByEmail": "+ Pe nípasẹ̀ ímeèlì"
   },
   "common": {
+    "noMatchesFor": "Kò sí àbájáde fún “{query}”",
     "oneOpensBrowser": "Èyí máa ṣí sórí atúmọ̀-ayélujára rẹ.",
     "refreshData": "Sọ dátà di tuntun",
     "tryAgain": "Gbìyànjú lẹ́ẹ̀kan sí i"

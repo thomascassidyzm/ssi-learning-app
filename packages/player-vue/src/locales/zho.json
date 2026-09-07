@@ -115,7 +115,8 @@
     "keepLearningReachNext": "继续学习，迈向下一等级！",
     "progressLoadFailed": "无法加载你的进度位置。你的学习记录是安全的 — 请再试一次。",
     "practisingBanner": "练习中",
-    "practisingBannerNote": "网络恢复后，新的内容就会回来。"
+    "practisingBannerNote": "网络恢复后，新的内容就会回来。",
+    "choosePlanCancel": "两种方案，£15/月起，随时可取消。"
   },
   "home": {
     "goodMorning": "早上好",
@@ -302,7 +303,9 @@
     "practisingModeOnlyAlready": "练习模式已开启 — 目前只播放你已学过的内容。",
     "reloadsNewestVersionDownloads": "重新加载到最新版本，你的下载内容和学习进度都会保留。",
     "fixesMostAudioLoading": "可解决大多数音频和加载问题，且你会保持登录状态。",
-    "addHomeScreenFaster": "添加到主屏幕，获得更快的离线访问体验"
+    "addHomeScreenFaster": "添加到主屏幕，获得更快的离线访问体验",
+    "plansFromMonth": "单个账户 £15/月，6 个账户 £25/月",
+    "upgrade": "升级"
   },
   "belt": {
     "yourProgress": "你的进度",
@@ -626,6 +629,19 @@
   "checkout": {
     "closeCheckout": "关闭结账页面"
   },
+  "plans": {
+    "chooseAPlan": "选择方案",
+    "close": "关闭",
+    "premiumName": "SSi高级版",
+    "premiumDesc": "一个账户。所有课程与语言，还能下载离线使用。",
+    "premiumMonthly": "£15/月",
+    "premiumAnnual": "£150/年",
+    "familyName": "SSi家庭版",
+    "familyDesc": "高级版的全部内容，{seats} 个账户，包括你自己。每个人各自记录进度。",
+    "familyMonthly": "£25/月",
+    "familyAnnual": "£250/年",
+    "cancelAnytime": "随时可取消。"
+  },
   "family": {
     "family": "家庭",
     "signQrCode": "登录二维码",
@@ -639,6 +655,7 @@
     "inviteByEmail": "+ 通过邮箱邀请"
   },
   "common": {
+    "noMatchesFor": "没有与“{query}”匹配的结果",
     "oneOpensBrowser": "这个会在你的浏览器中打开。",
     "refreshData": "刷新数据",
     "tryAgain": "重试"

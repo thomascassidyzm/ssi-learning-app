@@ -17,16 +17,25 @@
  */
 import { computed, watch, onBeforeUnmount } from 'vue'
 import { useCheckout } from '@/composables/useCheckout'
+import { useI18n } from '@/composables/useI18n'
 import { paddleConfig } from '@/lib/paddle'
 import { FAMILY_SEAT_CAP } from '@/constants/family'
 
 const { plansOpen, closePlans, choosePlan, isOpeningCheckout } = useCheckout()
+const { t } = useI18n()
 
 // Family only appears once its Paddle prices are configured — hidden, not a
 // broken button, exactly as the Settings row already does it.
 const familyMonthly = computed(() => !!paddleConfig.familyMonthlyPriceId)
 const familyAnnual = computed(() => !!paddleConfig.familyAnnualPriceId)
 const showFamily = computed(() => familyMonthly.value || familyAnnual.value)
+
+// The seat cap is a number in code, not a word in a sentence — so the sentence
+// is one translated string with a {seats} slot, the same idiom SettingsScreen
+// already uses for `{date}`.
+const familyDesc = computed(() =>
+  t('plans.familyDesc').replace('{seats}', String(FAMILY_SEAT_CAP)),
+)
 
 function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape') closePlans()
@@ -57,41 +66,38 @@ onBeforeUnmount(() => {
       class="plans-overlay"
       role="dialog"
       aria-modal="true"
-      aria-label="Choose a plan"
+      :aria-label="t('plans.chooseAPlan')"
       @click.self="closePlans"
     >
       <div class="plans-card" @click.stop>
         <header class="plans-bar">
-          <span class="plans-title">Choose a plan</span>
-          <button type="button" class="plans-close" aria-label="Close" @click="closePlans">✕</button>
+          <span class="plans-title">{{ t('plans.chooseAPlan') }}</span>
+          <button type="button" class="plans-close" :aria-label="t('plans.close')" @click="closePlans">✕</button>
         </header>
 
         <div class="plans-scroll">
           <section class="plan">
-            <h3 class="plan-name">SSi Premium</h3>
-            <p class="plan-desc">One account. Every course and language, and downloads for offline.</p>
+            <h3 class="plan-name">{{ t('plans.premiumName') }}</h3>
+            <p class="plan-desc">{{ t('plans.premiumDesc') }}</p>
             <div class="plan-prices">
               <button
                 type="button"
                 class="plan-btn"
                 :disabled="isOpeningCheckout"
                 @click="choosePlan('premium', 'monthly')"
-              >£15/month</button>
+              >{{ t('plans.premiumMonthly') }}</button>
               <button
                 type="button"
                 class="plan-btn"
                 :disabled="isOpeningCheckout"
                 @click="choosePlan('premium', 'annual')"
-              >£150/year</button>
+              >{{ t('plans.premiumAnnual') }}</button>
             </div>
           </section>
 
           <section v-if="showFamily" class="plan">
-            <h3 class="plan-name">SSi Family</h3>
-            <p class="plan-desc">
-              Everything in Premium, for {{ FAMILY_SEAT_CAP }} accounts including yours.
-              Everyone keeps their own progress.
-            </p>
+            <h3 class="plan-name">{{ t('plans.familyName') }}</h3>
+            <p class="plan-desc">{{ familyDesc }}</p>
             <div class="plan-prices">
               <button
                 v-if="familyMonthly"
@@ -99,18 +105,18 @@ onBeforeUnmount(() => {
                 class="plan-btn"
                 :disabled="isOpeningCheckout"
                 @click="choosePlan('family', 'monthly')"
-              >£25/month</button>
+              >{{ t('plans.familyMonthly') }}</button>
               <button
                 v-if="familyAnnual"
                 type="button"
                 class="plan-btn"
                 :disabled="isOpeningCheckout"
                 @click="choosePlan('family', 'annual')"
-              >£250/year</button>
+              >{{ t('plans.familyAnnual') }}</button>
             </div>
           </section>
 
-          <p class="plans-note">Cancel anytime.</p>
+          <p class="plans-note">{{ t('plans.cancelAnytime') }}</p>
         </div>
       </div>
     </div>

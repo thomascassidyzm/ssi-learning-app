@@ -635,6 +635,19 @@
   "checkout": {
     "closeCheckout": "Close checkout"
   },
+  "plans": {
+    "chooseAPlan": "Choose a plan",
+    "close": "Close",
+    "premiumName": "SSi Premium",
+    "premiumDesc": "One account. Every course and language, and downloads for offline.",
+    "premiumMonthly": "£15/month",
+    "premiumAnnual": "£150/year",
+    "familyName": "SSi Family",
+    "familyDesc": "Everything in Premium, for {seats} accounts including yours. Everyone keeps their own progress.",
+    "familyMonthly": "£25/month",
+    "familyAnnual": "£250/year",
+    "cancelAnytime": "Cancel anytime."
+  },
   "family": {
     "family": "Family",
     "signQrCode": "Sign-in QR code",
@@ -648,6 +661,7 @@
     "inviteByEmail": "+ Invite by email"
   },
   "common": {
+    "noMatchesFor": "No matches for “{query}”",
     "oneOpensBrowser": "This one opens in your browser.",
     "refreshData": "Refresh data",
     "tryAgain": "Try again"
