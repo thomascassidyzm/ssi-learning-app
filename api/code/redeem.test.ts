@@ -1471,10 +1471,10 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
 
   function inviteTagRedeemTest(
     codeType: 'teacher' | 'school_admin_join' | 'student',
-    // Models what ensureSchoolAdminTag's post-23505 VERIFY re-read finds: an
-    // ACTIVE tag holding the unique key (the raced winner's — idempotent
-    // success) or a REMOVED one holding it (the grant silently did not happen).
-    activeTagAfter23505: boolean = true,
+    // Models what ensureSchoolAdminTag's post-23505 re-read finds: an ACTIVE
+    // tag holding the unique key (the raced winner's — idempotent success) or a
+    // REMOVED one holding it (the re-invite case, which must be reactivated).
+    existingTagAfter23505: { id: string; removed_at: string | null } = { id: 'tag-1', removed_at: null },
   ) {
     return async () => {
       const grantsSchoolId = codeType === 'student' ? null : 'school-x'
@@ -1510,17 +1510,16 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
         if (isInsert) {
           return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "user_tags_active_natural_key"' } }
         }
-        // ensureSchoolAdminTag's post-23505 verify reads user_tags with the
+        // ensureSchoolAdminTag's post-23505 re-read reads user_tags with the
         // same chain as the earlier "already redeemed?" dedup check, so shape
         // alone cannot tell them apart — ORDER can: the dedup runs before any
-        // insert (and must read null, or redemption short-circuits), the verify
+        // insert (and must read null, or redemption short-circuits), the re-read
         // only after the insert has been attempted.
-        const isAdminTagVerify =
+        const isAdminTagReread =
           (writes.user_tags || []).some((w) => w.op === 'insert') &&
-          calls.some((c) => c[0] === 'eq' && c[1] === 'tag_type' && c[2] === 'school') &&
-          calls.some((c) => c[0] === 'is' && c[1] === 'removed_at')
-        if (isAdminTagVerify) {
-          return { data: activeTagAfter23505 ? { id: 'tag-1' } : null, error: null }
+          calls.some((c) => c[0] === 'eq' && c[1] === 'tag_type' && c[2] === 'school')
+        if (isAdminTagReread) {
+          return { data: existingTagAfter23505, error: null }
         }
         return { data: null, error: null }
       }
@@ -1529,11 +1528,15 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
       const res = makeRes()
       await handler(makeReq({ body: { code: 'TAG-DUP', codeKind: 'invite' } }), res)
 
-      if (!activeTagAfter23505) {
-        // The key is held by a REMOVED tag, so the admin seat this redemption
-        // asked for does NOT exist. Reporting success there is how a school
-        // ends up with nobody able to administer it and no error anywhere.
-        expect(res._status).toBe(500)
+      if (existingTagAfter23505.removed_at) {
+        // The key is held by a REMOVED tag — the re-invite case. The tag is
+        // REACTIVATED, so the admin seat this redemption asked for genuinely
+        // exists afterwards, and the caller is told the truth.
+        expect(res._status).toBe(200)
+        const update = (writes.user_tags || []).find((w) => w.op === 'update')
+        expect(update).toBeTruthy()
+        expect((update as any).payload.removed_at).toBeNull()
+        expect((update as any).payload.role_in_context).toBe('admin')
         return
       }
       // 23505 is treated as success — the redemption is idempotent, NOT a 500.
@@ -1547,8 +1550,8 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
   it('school_admin_join branch: a 23505 on the user_tags insert is idempotent success, not a 500', inviteTagRedeemTest('school_admin_join'))
   it('student branch: a 23505 on the user_tags insert is idempotent success, not a 500', inviteTagRedeemTest('student'))
   it(
-    'school_admin_join branch: a 23505 where a REMOVED tag holds the key is a LOUD 500, not a silent success',
-    inviteTagRedeemTest('school_admin_join', false),
+    'school_admin_join branch: a 23505 where a REMOVED tag holds the key REACTIVATES it (re-invite)',
+    inviteTagRedeemTest('school_admin_join', { id: 'tag-removed', removed_at: '2026-09-01T10:00:00.000Z' }),
   )
 })
 

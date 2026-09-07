@@ -6,7 +6,7 @@
  * CLAIM path ever wrote an admin's user_tags SCHOOL: row, so a school's
  * FOUNDING admin was invisible to every staff-keyed number in her own school.
  */
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import {
   ensureSchoolAdminTag,
   isSchoolAdminOf,
@@ -16,17 +16,20 @@ import {
 } from './schoolStaff'
 
 /**
- * `activeTagAfter23505` models what the follow-up VERIFY read finds: whether an
- * ACTIVE tag actually holds the unique key (idempotent no-op) or a REMOVED one
- * does (the grant silently did not happen — see schoolStaff.ts's 23505 note).
+ * `existingRow` models what the post-23505 re-read finds: the row that already
+ * holds the `unique_active_tag` key. An ACTIVE one (removed_at null) is the
+ * idempotent no-op; a SOFT-REMOVED one is the re-invite case that must be
+ * reactivated rather than reported as a grant that never happened.
  */
 function fakeClient(
   insertResult: { error: { code?: string; message?: string } | null },
-  activeTagAfter23505: boolean = true,
+  existingRow: { id: string; removed_at: string | null } | null = null,
 ) {
   const inserts: unknown[] = []
+  const updates: Array<{ payload: any; id: string | null }> = []
   const client = {
     inserts,
+    updates,
     from: (table: string) => ({
       insert: (payload: unknown) => {
         inserts.push({ table, payload })
@@ -36,8 +39,19 @@ function fakeClient(
         const b: any = {
           eq: () => b,
           is: () => b,
-          maybeSingle: () =>
-            Promise.resolve({ data: activeTagAfter23505 ? { id: 'tag-1' } : null, error: null }),
+          maybeSingle: () => Promise.resolve({ data: existingRow, error: null }),
+        }
+        return b
+      },
+      update: (payload: any) => {
+        const rec: { payload: any; id: string | null } = { payload, id: null }
+        updates.push(rec)
+        const b: any = {
+          eq: (_col: string, val: string) => {
+            rec.id = val
+            return b
+          },
+          then: (resolve: any, reject: any) => Promise.resolve({ error: null }).then(resolve, reject),
         }
         return b
       },
@@ -87,30 +101,58 @@ describe('ensureSchoolAdminTag', () => {
     expect((client.inserts[0] as any).payload.added_by).toBe('ssi-admin-uid')
   })
 
-  it('is idempotent — 23505 with an ACTIVE tag already present is a no-op, not an error', async () => {
+  it('is idempotent — 23505 held by an ACTIVE tag is a no-op, not an error', async () => {
     // A re-provision, or a raced concurrent redemption, hits 23505 while the
-    // grant this call asked for is already in force. Nothing to report.
-    const client = fakeClient({ error: { code: '23505', message: 'duplicate key value' } }, true)
+    // grant this call asked for is already in force. Nothing to do, nothing to
+    // report — and in particular no pointless UPDATE over a live row.
+    const client = fakeClient({ error: { code: '23505', message: 'duplicate key value' } }, {
+      id: 'tag-1',
+      removed_at: null,
+    })
     const err = await ensureSchoolAdminTag(client, { userId: 'admin-uid', schoolId: 'school-1' })
     expect(err).toBeNull()
+    expect(client.updates).toEqual([])
   })
 
-  it('23505 with NO active tag is a LOUD failure — the grant did not happen', async () => {
-    // Verified live 2026-09-05: the constraint that fires is `unique_active_tag`
-    // — UNIQUE (user_id, tag_type, tag_value) with NO `WHERE removed_at IS NULL`
-    // (migration 20260717_user_tags_active_unique's partial index is still
-    // unapplied). So a REVOKED tag keeps the key, and re-granting admin to a
-    // previously-removed person inserts nothing while both admin predicates
-    // still say "not an admin". Reporting success there is how a school ends up
-    // with nobody able to administer it and no error anywhere. Two live rows
-    // were in exactly this state on 2026-09-05.
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const client = fakeClient({ error: { code: '23505', message: 'duplicate key value' } }, false)
+  it('RE-INVITE: 23505 held by a REMOVED tag reactivates that row', async () => {
+    // The live bug (NPTC onboarding, 2026-09-07). `unique_active_tag` is
+    // UNIQUE (user_id, tag_type, tag_value) with NO removed_at predicate, so a
+    // school admin removed by api/school/remove-staff.ts keeps the key. The
+    // re-invite's INSERT therefore raises 23505 and writes nothing, and every
+    // admin predicate requires removed_at IS NULL — so the person is still not
+    // an admin, and the old code told the caller it had worked.
+    const client = fakeClient({ error: { code: '23505', message: 'duplicate key value' } }, {
+      id: 'tag-removed',
+      removed_at: '2026-09-01T10:00:00.000Z',
+    })
+    const err = await ensureSchoolAdminTag(client, {
+      userId: 'admin-uid',
+      schoolId: 'school-1',
+      addedBy: 'inviter-uid',
+    })
+
+    expect(err).toBeNull()
+    expect(client.updates).toHaveLength(1)
+    expect(client.updates[0].id).toBe('tag-removed')
+    expect(client.updates[0].payload.removed_at).toBeNull()
+    expect(client.updates[0].payload.role_in_context).toBe('admin')
+    expect(client.updates[0].payload.added_by).toBe('inviter-uid')
+    expect(typeof client.updates[0].payload.added_at).toBe('string')
+  })
+
+  it('23505 with no row found at all is a no-op — parity with redeem.ts insertTagReactivating', async () => {
+    // The key was taken at INSERT time but the re-read finds nothing: a raced
+    // concurrent delete, or a 23505 raised by some other constraint. The
+    // reactivating shape used across the estate (api/code/redeem.ts's
+    // insertTagReactivating, api/_utils/classTeacherTag.ts) treats this as a
+    // no-op rather than inventing a second convention here. Before 2026-09-07
+    // this branch ALSO covered the re-invite case, which is the bug the test
+    // above now pins: a removed row holding the key is reactivated, not
+    // reported as either success or failure.
+    const client = fakeClient({ error: { code: '23505', message: 'duplicate key value' } }, null)
     const err = await ensureSchoolAdminTag(client, { userId: 'admin-uid', schoolId: 'school-1' })
-    expect(err).toContain('school-1')
-    expect(err).toContain('NOT granted')
-    expect(errSpy).toHaveBeenCalled()
-    errSpy.mockRestore()
+    expect(err).toBeNull()
+    expect(client.updates).toEqual([])
   })
 
   it('reports a real failure', async () => {

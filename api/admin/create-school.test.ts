@@ -23,10 +23,10 @@ vi.mock('../_utils/schoolNode', () => ({
 
 let writes: Record<string, any[]>
 let tagError: { code?: string; message?: string } | null
-// What the 23505 VERIFY re-read finds (see ensureSchoolAdminTag): an ACTIVE tag
-// already holding the key is the idempotent no-op; a REMOVED one holding it
-// means the grant silently did not happen and must be reported.
-let activeTagAfter23505: boolean
+// What the 23505 re-read finds (see ensureSchoolAdminTag): an ACTIVE row
+// holding the key is the idempotent no-op; a REMOVED one is the re-invite case
+// and gets reactivated.
+let existingTagAfter23505: { id: string; removed_at: string | null } | null
 
 function makeChainable(table: string) {
   const builder: any = {
@@ -40,9 +40,14 @@ function makeChainable(table: string) {
     select: () => builder,
     eq: () => builder,
     is: () => builder,
+    update: (payload: unknown) => {
+      writes[table] = writes[table] || []
+      writes[table].push({ op: 'update', payload })
+      return builder
+    },
     maybeSingle: () =>
       Promise.resolve(
-        table === 'user_tags' && activeTagAfter23505 ? { data: { id: 'tag-1' }, error: null } : { data: null, error: null },
+        table === 'user_tags' ? { data: existingTagAfter23505, error: null } : { data: null, error: null },
       ),
     single: () =>
       Promise.resolve(
@@ -74,7 +79,7 @@ beforeEach(async () => {
   vi.resetModules()
   writes = {}
   tagError = null
-  activeTagAfter23505 = true
+  existingTagAfter23505 = { id: 'tag-1', removed_at: null }
   handler = (await import('./create-school')).default
 })
 
@@ -115,19 +120,19 @@ describe('POST /api/admin/create-school', () => {
     expect(res._status).toBe(200)
   })
 
-  it('a 23505 where a REMOVED tag holds the key still returns 200 — the school stands, the tag failure is non-fatal and reported', async () => {
-    // ensureSchoolAdminTag now returns a loud error string in this case rather
-    // than silently claiming success. School creation treats a tag failure as
-    // non-fatal and healable, so the status stays 200 and the school is not
-    // rolled back — but the error is no longer invisible to the caller.
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+  it('a 23505 where a REMOVED tag holds the key reactivates that tag', async () => {
+    // ensureSchoolAdminTag now revives the soft-removed row instead of either
+    // silently claiming success or merely reporting the failure. The school is
+    // created and its admin genuinely holds an active membership tag again.
     tagError = { code: '23505', message: 'duplicate key value' }
-    activeTagAfter23505 = false
+    existingTagAfter23505 = { id: 'tag-removed', removed_at: '2026-09-01T10:00:00.000Z' }
     const res = makeRes()
     await handler(req, res)
     expect(res._status).toBe(200)
     expect((writes.schools || []).some((w) => w.op === 'delete')).toBe(false)
-    expect(errSpy).toHaveBeenCalled()
-    errSpy.mockRestore()
+    const update = (writes.user_tags || []).find((w) => w.op === 'update')
+    expect(update).toBeTruthy()
+    expect(update.payload.removed_at).toBeNull()
+    expect(update.payload.role_in_context).toBe('admin')
   })
 })
