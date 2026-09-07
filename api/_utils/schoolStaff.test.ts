@@ -9,14 +9,45 @@
 import { describe, it, expect, vi } from 'vitest'
 import { ensureSchoolAdminTag, schoolMembershipsOf, schoolReachOf, SCHOOL_STAFF_ROLES } from './schoolStaff'
 
-function fakeClient(insertResult: { error: { code?: string; message?: string } | null }) {
+/**
+ * `existingRow` models what the post-23505 re-read finds: the row that already
+ * holds the `unique_active_tag` key. An ACTIVE one (removed_at null) is the
+ * idempotent no-op; a SOFT-REMOVED one is the re-invite case that must be
+ * reactivated rather than reported as a grant that never happened.
+ */
+function fakeClient(
+  insertResult: { error: { code?: string; message?: string } | null },
+  existingRow: { id: string; removed_at: string | null } | null = null,
+) {
   const inserts: unknown[] = []
+  const updates: Array<{ payload: any; id: string | null }> = []
   const client = {
     inserts,
+    updates,
     from: (table: string) => ({
       insert: (payload: unknown) => {
         inserts.push({ table, payload })
         return Promise.resolve(insertResult)
+      },
+      select: () => {
+        const b: any = {
+          eq: () => b,
+          is: () => b,
+          maybeSingle: () => Promise.resolve({ data: existingRow, error: null }),
+        }
+        return b
+      },
+      update: (payload: any) => {
+        const rec: { payload: any; id: string | null } = { payload, id: null }
+        updates.push(rec)
+        const b: any = {
+          eq: (_col: string, val: string) => {
+            rec.id = val
+            return b
+          },
+          then: (resolve: any, reject: any) => Promise.resolve({ error: null }).then(resolve, reject),
+        }
+        return b
       },
     }),
   }
@@ -64,13 +95,43 @@ describe('ensureSchoolAdminTag', () => {
     expect((client.inserts[0] as any).payload.added_by).toBe('ssi-admin-uid')
   })
 
-  it('is idempotent — 23505 on the active-tag unique index is a no-op, not an error', async () => {
-    // user_tags_active_natural_key is UNIQUE on (user_id, tag_type, tag_value)
-    // WHERE removed_at IS NULL, so a re-provision (or a raced concurrent
-    // redemption) hits 23505 and must NOT fail the caller.
-    const client = fakeClient({ error: { code: '23505', message: 'duplicate key value' } })
+  it('is idempotent — 23505 held by an ACTIVE tag is a no-op, not an error', async () => {
+    // A re-provision, or a raced concurrent redemption, hits 23505 while the
+    // grant this call asked for is already in force. Nothing to do, nothing to
+    // report — and in particular no pointless UPDATE over a live row.
+    const client = fakeClient({ error: { code: '23505', message: 'duplicate key value' } }, {
+      id: 'tag-1',
+      removed_at: null,
+    })
     const err = await ensureSchoolAdminTag(client, { userId: 'admin-uid', schoolId: 'school-1' })
     expect(err).toBeNull()
+    expect(client.updates).toEqual([])
+  })
+
+  it('RE-INVITE: 23505 held by a REMOVED tag reactivates that row', async () => {
+    // The live bug (NPTC onboarding, 2026-09-07). `unique_active_tag` is
+    // UNIQUE (user_id, tag_type, tag_value) with NO removed_at predicate, so a
+    // school admin removed by api/school/remove-staff.ts keeps the key. The
+    // re-invite's INSERT therefore raises 23505 and writes nothing, and every
+    // admin predicate requires removed_at IS NULL — so the person is still not
+    // an admin, and the old code told the caller it had worked.
+    const client = fakeClient({ error: { code: '23505', message: 'duplicate key value' } }, {
+      id: 'tag-removed',
+      removed_at: '2026-09-01T10:00:00.000Z',
+    })
+    const err = await ensureSchoolAdminTag(client, {
+      userId: 'admin-uid',
+      schoolId: 'school-1',
+      addedBy: 'inviter-uid',
+    })
+
+    expect(err).toBeNull()
+    expect(client.updates).toHaveLength(1)
+    expect(client.updates[0].id).toBe('tag-removed')
+    expect(client.updates[0].payload.removed_at).toBeNull()
+    expect(client.updates[0].payload.role_in_context).toBe('admin')
+    expect(client.updates[0].payload.added_by).toBe('inviter-uid')
+    expect(typeof client.updates[0].payload.added_at).toBe('string')
   })
 
   it('reports a real failure', async () => {
