@@ -3,6 +3,7 @@
  */
 
 import { ref, computed } from 'vue'
+import { fetchPracticeByCourse } from '../practiceByCourse'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 interface CourseInfo {
@@ -87,9 +88,16 @@ export function useAdminCourses(client: SupabaseClient) {
       // Practice minutes per course, derived from telemetry (player_events) —
       // the SSoT. course_enrollments.total_practice_minutes is a dead counter
       // (stopped being written ~mid-April 2026).
-      const { data: practiceData, error: practiceErr } = await client
-        .rpc('admin_practice_minutes_by_course')
-      if (practiceErr) console.warn('[AdminCourses] practice RPC error:', practiceErr)
+      // Server-mediated: /api/school/practice-by-course with no learner_ids is
+      // the platform-wide aggregate, admin-only and enforced server-side. The
+      // old direct RPC also served any signed-in caller a NAMED learner's
+      // history, which is why it is now service_role only.
+      let practiceData: Array<{ course_code: string; practice_minutes: number }> | null = null
+      try {
+        practiceData = await fetchPracticeByCourse(client, null)
+      } catch (practiceErr) {
+        console.warn('[AdminCourses] practice fetch error:', practiceErr)
+      }
 
       // Fetch sessions in last 30 days for active learner count
       const thirtyDaysAgo = new Date()
