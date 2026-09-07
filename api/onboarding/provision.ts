@@ -546,9 +546,17 @@ export default async function handler(
         !commercial,
       )
       if (r.denied) {
+        // HONEST, NOT MERELY TRUE (founder ruling 2026-09-07). The old wording
+        // — "This email has already used its free school trial" — was accurate
+        // and useless: by the time it fires the school above HAS been created
+        // and this admin IS wired to it, so a first-timer read it as "you are
+        // refused" while looking at a "Go to your school dashboard" button.
+        // Say what actually happened: the school is ready, only the free trial
+        // was refused. The guard itself is unchanged — it exists to stop trial
+        // farming and it is doing its job.
         res.status(409).json({
           error:
-            'This email has already used its free school trial. Subscribe to set up another school.',
+            'Your school is set up and ready. We could not start a new free trial, though — this email has already used its one free school trial. Open your dashboard to subscribe.',
           trial_burned: true,
           requires_checkout: true,
         })
