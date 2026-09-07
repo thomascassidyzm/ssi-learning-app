@@ -346,8 +346,14 @@ watch(selectedUser, (newUser) => {
       <div v-if="signinLinkFor" class="schools-card schools-card-pad signin-link-panel">
         <div class="schools-kicker">{{ t('schools.teachers.accessCodeForKicker', 'Access code for {name}').replace('{name}', signinLinkFor.name) }}</div>
         <p class="signin-link-body">
-          {{ t('schools.teachers.signinLinkBodyPre', 'Read this out to {name}, write it down, or paste it into Teams — however you normally reach them. They go to').replace('{name}', signinLinkFor.name) }}
-          <strong>saysomethingin.app/join</strong> {{ t('schools.teachers.signinLinkBodyPost', 'and type it in. No email needed.') }}
+          {{
+            t(
+              'schools.teachers.signinLinkBody',
+              'Read this out to {name}, write it down, or paste it into Teams — however you normally reach them. They go to {url} and type it in. No email needed.',
+            )
+              .replace('{name}', signinLinkFor.name)
+              .replace('{url}', 'saysomethingin.app/join')
+          }}
         </p>
         <div class="signin-link-code">{{ signinLinkFor.code }}</div>
         <div class="signin-link-row">
@@ -587,8 +593,12 @@ watch(selectedUser, (newUser) => {
         <template v-else>
           <div class="join-code">{{ teacherJoinCode }}</div>
           <p class="join-body join-body-small">
-            {{ t('schools.teachers.joinBodySmallPre', 'For writing on a whiteboard — teachers enter it at') }}
-            <strong>saysomethingin.com/redeem</strong>.
+            {{
+              t(
+                'schools.teachers.joinBodySmall',
+                'For writing on a whiteboard — teachers enter it at {url}.',
+              ).replace('{url}', 'saysomethingin.com/redeem')
+            }}
           </p>
           <button
             type="button"

@@ -16,6 +16,14 @@ export const UNTRANSLATABLE: readonly string[] = [
   'SaySomethingIn',
   'SSi',
 
+  // Product tier names built on the brand mark. "SSi Premium" and "SSi
+  // Schools" name a thing you buy; translating the noun beside a brand mark
+  // invents a different product name in every market, which is the same
+  // reasoning as the wordmark two lines up. Keyed in the templates so a
+  // locale COULD carry them, and copied verbatim into every locale by
+  // tools/i18n/fill.mjs because of this entry.
+  'SSi Premium',
+
   // Registered company name and address. A legal address is an address; it is
   // the same characters in Hindi as in English or the post does not arrive.
   '© 2026 SaySomethingIn Cyf · Glaslyn, Ffordd y Parc, Bangor, Gwynedd LL57 4FE, Wales',

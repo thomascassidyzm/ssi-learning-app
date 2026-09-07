@@ -37,6 +37,8 @@
   "schools.dashboard.hours": "Hours",
   "schools.dashboard.hoursPractised": "Hours practised",
   "schools.dashboard.inclStaffPractice": "incl. {hours} staff practice",
+  "schools.dashboard.inviteLabelAdmin": "Admin",
+  "schools.dashboard.inviteLabelTeacher": "Teacher",
   "schools.dashboard.inviteOrManageTeachingStaff": "Invite or manage teaching staff",
   "schools.dashboard.inviteTeacher": "+ Invite teacher",
   "schools.dashboard.joinCode": "Join code",

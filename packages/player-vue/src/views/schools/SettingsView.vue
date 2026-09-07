@@ -9,12 +9,15 @@ const { t } = useI18n()
 
 type SectionId = 'profile' | 'locale' | 'data' | 'billing'
 
-const SECTIONS: { id: SectionId; label: string }[] = [
+// A computed, not a plain array, for the same reason as dataToggles below:
+// evaluated once at setup it would read t() before the locale chunk has
+// landed and freeze the section nav in English for the session.
+const SECTIONS = computed<{ id: SectionId; label: string }[]>(() => [
   { id: 'profile', label: t('schools.schoolSettings.sectionProfile', 'School profile') },
   { id: 'locale', label: t('schools.schoolSettings.sectionLocalisation', 'Localisation') },
   { id: 'data', label: t('schools.schoolSettings.sectionDataPrivacy', 'Data & privacy') },
   { id: 'billing', label: t('schools.schoolSettings.sectionBilling', 'Billing') },
-]
+])
 
 const isAdminView = inject<boolean>('isAdminView', false)
 const supabase = inject<import('vue').Ref<any>>('supabase', ref(null))
@@ -30,7 +33,7 @@ const { activeSchool, currentSchool, fetchSchools } = useSchoolData()
 const canEditSchool = computed(() => isSchoolAdmin.value && !isAdminView)
 // No billing panel in this build (store shell) => no Billing tab either.
 const visibleSections = computed(() =>
-  SECTIONS.filter((s) => s.id !== 'billing' || (isSchoolAdmin.value && seatPurchaseAvailable)))
+  SECTIONS.value.filter((s) => s.id !== 'billing' || (isSchoolAdmin.value && seatPurchaseAvailable)))
 
 const activeSection = ref<SectionId>('profile')
 

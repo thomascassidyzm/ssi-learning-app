@@ -893,8 +893,8 @@ async function handlePlayClass(cls: ClassInfo) {
           </button>
         </div>
         <div v-if="!isAdminView && createdSchoolLinks" class="created-links">
-          <InviteLinkField v-if="schoolInviteUrl(createdSchoolLinks.admin_join_code)" label="Admin" :url="schoolInviteUrl(createdSchoolLinks.admin_join_code)!" />
-          <InviteLinkField v-if="schoolInviteUrl(createdSchoolLinks.teacher_join_code)" label="Teacher" :url="schoolInviteUrl(createdSchoolLinks.teacher_join_code)!" />
+          <InviteLinkField v-if="schoolInviteUrl(createdSchoolLinks.admin_join_code)" :label="t('schools.dashboard.inviteLabelAdmin', 'Admin')" :url="schoolInviteUrl(createdSchoolLinks.admin_join_code)!" />
+          <InviteLinkField v-if="schoolInviteUrl(createdSchoolLinks.teacher_join_code)" :label="t('schools.dashboard.inviteLabelTeacher', 'Teacher')" :url="schoolInviteUrl(createdSchoolLinks.teacher_join_code)!" />
         </div>
 
         <!-- Outstanding links minted before the one-primitive change
