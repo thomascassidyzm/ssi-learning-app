@@ -14,6 +14,9 @@
 import { mkdirSync, readFileSync } from 'node:fs'
 import { createClient } from '@supabase/supabase-js'
 import { chromium } from '@playwright/test'
+import { requireAccount } from './real-account-guard.mjs'
+
+const SSI_ADMIN_EMAIL = requireAccount('ADMIN_EMAIL', 'signs in as an ssi_admin and drives the live admin surface', 'thomas.cassidy+admin001@gmail.com')
 
 const envFile = readFileSync(new URL('../../../.env', import.meta.url), 'utf8')
 const pick = (k) => envFile.match(new RegExp(`^${k}=(.*)$`, 'm'))?.[1].trim()
@@ -30,7 +33,6 @@ mkdirSync(OUT, { recursive: true })
 // Riya carries 590 lego_progress rows but ZERO rows in either VAD-fed table.
 const WITH_VAD = { id: '95f91ddc-5ed1-4490-8cb2-245de7154f70', name: 'Kavya Chandra' }
 const NO_VAD = { id: '68ae36d6-a71c-4dd2-bb3d-8b3db9018e55', name: 'Riya Pillai' }
-const SSI_ADMIN_EMAIL = 'thomas.cassidy+ssi@gmail.com'
 
 let failures = 0
 const check = (label, ok, detail = '') => { console.log(`${ok ? 'PASS' : 'FAIL'} — ${label}${detail ? ` :: ${detail}` : ''}`); if (!ok) failures++ }
