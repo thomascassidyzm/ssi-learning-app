@@ -33,6 +33,8 @@ const seatPurchaseAvailable = computed(() => institutionalPurchaseAvailable())
 import NodeMapRail from '@/components/admin/NodeMapRail.vue'
 import NodeMapRailSkeleton from '@/components/admin/NodeMapRailSkeleton.vue'
 import NodeChildrenList from '@/components/admin/NodeChildrenList.vue'
+import NodeBelowTree from '@/components/admin/NodeBelowTree.vue'
+import { buildBelowTree, isEmptyNode } from '@/components/admin/belowTree'
 import { cacheNodeHome, cachedNodeHome, cachedRail, dropCachedNode } from '@/composables/admin/nodeHomeCache'
 import NodeActionBar from '@/components/admin/NodeActionBar.vue'
 import WaysInLedger from '@/components/admin/WaysInLedger.vue'
@@ -135,14 +137,6 @@ const ledgerEl = ref<InstanceType<typeof WaysInLedger> | null>(null)
 const identityHoldPx = ref<number | null>(null)
 const NBSP = '\u00A0'
 
-const ALL_LENSES = [
-  { value: 'children', label: 'Directly below' },
-  { value: 'groups', label: 'All groups' },
-  { value: 'schools', label: 'All schools' },
-  { value: 'teachers', label: 'All teachers' },
-  { value: 'classes', label: 'All classes' },
-]
-
 const isClass = computed(() => home.value?.kind === 'class')
 
 // ─── The dressing (founder ruling 2026-08-02: ed-speak is VOCABULARY, not
@@ -152,17 +146,17 @@ const isClass = computed(() => home.value?.kind === 'class')
 const preset = computed(() => derivePreset(home.value))
 const neutral = computed(() => preset.value === 'neutral')
 
-// Neutral trees have nothing for the school/teacher/class lenses to filter.
-const LENSES = computed(() => (neutral.value ? ALL_LENSES.slice(0, 2) : ALL_LENSES))
-const lens = computed(() => {
-  if (isClass.value) return 'students'
-  const q = typeof route.query.lens === 'string' ? route.query.lens : ''
-  return LENSES.value.some((l) => l.value === q) ? q : 'children'
-})
-
-function setLens(value: string): void {
-  router.replace({ query: { ...route.query, lens: value === 'children' ? undefined : value } })
-}
+// BELOW THIS is DRAWN, not filtered (founder ruling 2026-09-07: the chip row
+// "is a little confusing… it's not entirely clear what it is"). The five
+// filter chips are gone: four of them were positions in one containment
+// structure, and the tree draws that structure whole. A class home still has
+// exactly one list — its students — so `lens` survives only as that constant.
+const lens = computed(() => (isClass.value ? 'students' : 'children'))
+const belowTree = computed(() => buildBelowTree(home.value))
+// The one place words beat drawing: a node with NOTHING under it draws a
+// single row, which reads as a page that failed to load. Everywhere else the
+// structure speaks for itself.
+const belowTreeIsBare = computed(() => !!belowTree.value && isEmptyNode(belowTree.value))
 
 async function fetchHome(): Promise<void> {
   const id = String(route.params.id || '')
@@ -175,11 +169,7 @@ async function fetchHome(): Promise<void> {
   error.value = null
   try {
     const token = await getAuthToken()
-    const params = new URLSearchParams()
-    const activeLens = typeof route.query.lens === 'string' ? route.query.lens : ''
-    if (activeLens && activeLens !== 'children') params.set('lens', activeLens)
-    const qs = params.toString()
-    const resp = await fetch(`/api/groups/${id}/home${qs ? `?${qs}` : ''}`, {
+    const resp = await fetch(`/api/groups/${id}/home`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
     const data = await resp.json().catch(() => ({}))
@@ -190,7 +180,7 @@ async function fetchHome(): Promise<void> {
     }
     home.value = data
     loadedId.value = id
-    cacheNodeHome(id, data, activeLens)
+    cacheNodeHome(id, data, '')
     markUpdated()
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to load'
@@ -524,7 +514,7 @@ const classesData = (() => {
   try { return useClassesData() } catch { return null }
 })()
 
-const canAssignTeachers = computed(() => isOwnSchoolNode.value && lens.value === 'teachers')
+const canAssignTeachers = computed(() => isOwnSchoolNode.value && !isClass.value)
 
 const assignTarget = ref<{ user_id: string; name: string } | null>(null)
 const assignBusy = ref(false)
@@ -563,9 +553,9 @@ const signinLinkBusy = ref('')
 const signinLinkError = ref('')
 const signinLinkCopied = ref(false)
 
-async function openSigninLink(userId: string): Promise<void> {
-  const t = (home.value?.teachers || []).find((x: any) => x.user_id === userId)
-  const name = t?.name || 'this teacher'
+async function openSigninLink(person: { user_id: string; name: string }): Promise<void> {
+  const userId = person.user_id
+  const name = person.name || 'this teacher'
   signinLinkBusy.value = userId
   signinLinkError.value = ''
   signinLinkCopied.value = false
@@ -590,10 +580,8 @@ async function copySigninLink(): Promise<void> {
   }
 }
 
-function openAssign(userId: string): void {
-  const t = (home.value?.teachers || []).find((x: any) => x.user_id === userId)
-  if (!t) return
-  assignTarget.value = { user_id: userId, name: t.name }
+function openAssign(person: { user_id: string; name: string }): void {
+  assignTarget.value = { user_id: person.user_id, name: person.name }
   assignOutcomes.value = []
   assignSummary.value = ''
   void classesData?.fetchClasses()
@@ -899,12 +887,6 @@ const listPayload = computed(() => {
           <section class="children-section schools-card">
             <div class="children-head">
               <span class="schools-kicker">{{ isClass ? 'Students' : 'Below this' }}</span>
-              <div v-if="!isClass" class="lens-chips">
-                <button
-                  v-for="l in LENSES" :key="l.value" type="button" class="chip"
-                  :class="{ 'is-active': lens === l.value }" @click="setLens(l.value)"
-                >{{ l.label }}</button>
-              </div>
             </div>
             <!-- The body holds its pre-load height while rows re-fetch (node
                  switch, lens change or refresh) — no collapse-to-spinner,
@@ -915,20 +897,29 @@ const listPayload = computed(() => {
               :style="isLoading && childrenHoldPx ? { minHeight: `${childrenHoldPx}px` } : undefined"
             >
               <div v-if="isLoading" class="children-loading">Loading…</div>
+              <!-- BELOW THIS, drawn: this node and what hangs beneath it,
+                   nested. A class home keeps its one flat list of students. -->
+              <template v-else-if="!isClass">
+                <div v-if="belowTree" class="below-tree">
+                  <NodeBelowTree
+                    :node="belowTree"
+                    is-root
+                    :person-action-label="canAssignTeachers ? 'Assign to a class' : undefined"
+                    :person-action2-label="canAssignTeachers ? 'Access code' : undefined"
+                    @person-action="openAssign"
+                    @person-action-2="openSigninLink"
+                  />
+                </div>
+                <p v-if="belowTree && belowTreeIsBare" class="children-bare">
+                  {{ neutral ? 'Nothing below this yet — add a group or invite people with the buttons above.' : (member ? 'Nothing below this yet.' : 'Nothing below this yet — use the buttons above to add a school or group.') }}
+                </p>
+              </template>
               <NodeChildrenList
                 v-else
                 :lens="lens"
                 :payload="listPayload"
-                :row-action-label="canAssignTeachers ? 'Assign to a class' : undefined"
-                row-action-walk="teacher-assign-classes"
-                :row-action2-label="canAssignTeachers ? 'Access code' : undefined"
-                row-action2-walk="teacher-signin-link"
-                @row-action="openAssign"
-                @row-action-2="openSigninLink"
               >
-                <template #empty>
-                  {{ isClass ? 'No students in this class yet.' : (neutral ? 'Nothing below this yet — add a group or invite people with the buttons above.' : (member ? 'Nothing below this yet.' : 'Nothing below this yet — use the buttons above to add a school or group.')) }}
-                </template>
+                <template #empty>No students in this class yet.</template>
               </NodeChildrenList>
             </div>
           </section>
@@ -1174,12 +1165,8 @@ const listPayload = computed(() => {
   font-family: var(--font-mono, 'Spline Sans Mono', monospace);
   font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--schools-red, #DB1E17);
 }
-.lens-chips { display: inline-flex; gap: 4px; flex-wrap: wrap; }
-.chip {
-  padding: 5px 12px; font-size: var(--text-xs); font-weight: var(--font-medium); border-radius: 999px;
-  border: 1px solid rgba(44, 38, 34, 0.14); background: rgba(255, 255, 255, 0.5); color: var(--schools-fg-2, #555); cursor: pointer;
-}
-.chip.is-active { background: rgba(var(--tone-red, 219 30 23), 0.08); border-color: rgba(var(--tone-red, 219 30 23), 0.4); color: var(--schools-red, #DB1E17); }
+.below-tree { display: flex; flex-direction: column; padding: var(--space-2, 8px) 0 var(--space-3, 12px); }
+.children-bare { padding: 0 var(--space-4) var(--space-5, 20px); margin: 0; text-align: center; color: var(--schools-fg-3, #8A8078); font-size: var(--text-sm); }
 .children-body { display: flex; flex-direction: column; }
 .children-loading { padding: var(--space-6); text-align: center; color: var(--schools-fg-3, #8A8078); font-size: var(--text-sm); margin: auto 0; }
 

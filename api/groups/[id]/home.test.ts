@@ -196,6 +196,37 @@ describe('GET /api/groups/:id/home', () => {
     expect(res.body.practiceHours).toBe(135.1)
   })
 
+  it('BELOW THIS, DRAWN (founder ruling 2026-09-07): the default payload carries the containment tree — nodes with parents, classes on the node that holds them, staff on theirs', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('programme'), res)
+    expect(res.statusCode).toBe(200)
+
+    const tree = res.body.tree
+    // Every node BELOW this one, each carrying the parent it hangs off — the
+    // shape the client nests. The viewed node itself is never in the list.
+    expect(tree.nodes.map((n: any) => [n.id, n.parentId])).toEqual([['school-node', 'programme']])
+    expect(tree.nodes[0].rollup.learnerCount).toBe(2)
+    // A class is a leaf ON its own node — the defect this replaces was a
+    // school whose classes hung off itself reading as "nothing below this".
+    expect(tree.classes).toEqual([
+      { id: 'class-1', name: 'Year 6 Hindi', nodeId: 'school-node', teachers: ['Mr Rao', 'Ms Mehta'], studentCount: 2 },
+    ])
+    // People are drawn, on the node they sit on: the verbs that belong to a
+    // person (assign to a class, access code) need a row to live on.
+    expect(tree.staff.map((p: any) => [p.name, p.nodeId]))
+      .toEqual([['Mr Rao', 'school-node'], ['Ms Mehta', 'school-node']])
+  })
+
+  it('a ?lens= request pays for no tree — the legacy flat slice is all it asks for', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('programme', { lens: 'schools' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.tree).toBeUndefined()
+    expect(res.body.schools).toBeDefined()
+  })
+
   it('resolves a SCHOOL id to its node — same page, commercial state attached', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
