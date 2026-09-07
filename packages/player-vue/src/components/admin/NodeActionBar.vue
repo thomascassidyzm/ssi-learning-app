@@ -492,7 +492,7 @@ function closeDelete(): void {
            link for a known person, or a shareable link by role — the old
            learner-only "Get join link" folded into the shareable menu. -->
       <button type="button" class="verb" :class="{ 'is-open': openForm === 'person' }" data-walk="verb-invite-person" @click="toggle('person')">Invite a person</button>
-      <button type="button" class="verb" :class="{ 'is-open': openForm === 'invite' }" @click="toggle('invite')">Get a shareable link</button>
+      <button type="button" class="verb" :class="{ 'is-open': openForm === 'invite' }" data-walk="verb-shareable-link" @click="toggle('invite')">Get a shareable link</button>
       <!-- Add a group is for LEADERS too (founder ruling 2026-08-02: any
            group can contain subgroups — the endpoint authorizes a leader on
            their own subtree). Add a school is education-dressing-only. -->

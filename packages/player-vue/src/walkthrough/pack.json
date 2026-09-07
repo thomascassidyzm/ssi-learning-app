@@ -1,6 +1,6 @@
 {
-  "version": "13e56e8b59fb",
-  "generatedAt": "2026-08-19",
+  "version": "9a63d35d43be",
+  "generatedAt": "2026-09-07",
   "walks": [
     {
       "id": "choose-something-else-to-learn",
@@ -688,18 +688,25 @@
         },
         {
           "anchor": "ways-in-remint",
-          "say": "**Re-mint** is the one to know about: it mints a NEW link and the old one stops working the moment you tap — anyone who bookmarked the old link is locked out until you send them the new one.",
+          "say": "**Re-mint** sits on a person's OWN sign-in link, and only there: it makes that person a new link and the old one stops working the moment you tap — if they bookmarked the old one they are locked out until you send them the new one. A shareable link has no Re-mint, because there is nobody to re-bind it to.",
           "advance": {
             "on": "next"
           }
         },
         {
           "anchor": "ways-in-revoke",
-          "say": "**Revoke** switches a link off. It's undoable — a revoked row grows a **Put back** button.",
+          "say": "**Revoke** switches a link off. It's undoable — a revoked row grows a **Put back** button. For a shareable link this is how you retire it: revoke the old one, then make a fresh one.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "verb-shareable-link",
+          "say": "And this is where a brand-new shareable link comes from — **Get a shareable link** at the top of this page, one per role. **Invite a person** next to it makes a personal link for someone you can name.",
           "advance": {
             "on": "next"
           },
-          "terminal": "The short version: copy is safe, re-mint kills the old link instantly, revoke can always be undone."
+          "terminal": "The short version: copy is safe, revoke can always be undone, re-mint is for one person's own link — and a new shareable link is made at the top of the page, not in the ledger."
         }
       ]
     },
