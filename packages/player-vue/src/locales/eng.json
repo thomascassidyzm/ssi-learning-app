@@ -1092,6 +1092,213 @@
           "terminal": "That's your position. Close this whenever you like and press play — it always picks up exactly where you left off."
         }
       }
+    },
+    "hand-over-the-lead": {
+      "title": "Hand a class over to another teacher",
+      "steps": {
+        "0": {
+          "say": "One teacher on a class is the **lead** — the one the class is listed under, and the one a school admin comes to about it. When you move on from a class, that name should move too."
+        },
+        "1": {
+          "say": "**Make lead** hands it to a colleague already on the class. It takes effect straight away, so add them first and hand over once you have."
+        },
+        "2": {
+          "say": "Nothing else moves. The pupils, their progress and every session stay exactly where they are, and you stay on the class as a teacher — you have passed the lead, not left.",
+          "terminal": "That's handover — the lead is a name, not a wall. Nothing changed while you read this; only your own taps do."
+        }
+      }
+    },
+    "install-the-app": {
+      "title": "Put the app on your device",
+      "steps": {
+        "0": {
+          "say": "**Your account** holds the two things that are about you rather than your organisation: your sign-in, and the app on the device you are holding."
+        },
+        "1": {
+          "say": "This row already knows what device you are on. On a computer it offers to install the app in its own window; on a phone it offers to add it to your home screen. Same organisation either way — it just saves you finding the tab."
+        },
+        "2": {
+          "say": "If your browser can do it in one tap, the button does it. If it cannot, the button walks you through your browser's own menu instead — and you can remove the app again any time, like any other app.",
+          "terminal": "Nothing here is one-time — if you said no on your first visit, this row is still waiting whenever you change your mind."
+        }
+      }
+    },
+    "invite-a-supply-teacher": {
+      "title": "Invite a teacher who isn't here yet",
+      "steps": {
+        "0": {
+          "say": "Use this when the colleague has no account yet — a supply teacher starting on Monday, or someone new to the school. It saves waiting for an admin to add them first."
+        },
+        "1": {
+          "say": "**Create a co-teacher link** mints a fresh link the moment you tap it. Whoever opens it lands as a teacher of this class, and of this school — not as its lead, and not over any of your other classes."
+        },
+        "2": {
+          "say": "Keep it apart from this one. This is the **student** link — anyone who opens it joins the class as a learner. One link makes a colleague, the other makes a pupil, so send them to the right people.",
+          "terminal": "Short version: the teacher link is minted per colleague and puts them beside you, the student link is the standing one for the class. This tour minted nothing."
+        }
+      }
+    },
+    "invite-first-person": {
+      "title": "Bring your first person in",
+      "steps": {
+        "0": {
+          "say": "People join through here — tap **Invite a person**. Nothing is created until you submit the form."
+        },
+        "1": {
+          "say": "Pick **Group leader** for someone who will run a group of their own, or **Learner** for someone who is here to learn. The link carries the role with it, so they arrive already belonging to this group."
+        },
+        "2": {
+          "say": "With their name filled in, this mints their own sign-in link — the account exists the moment you tap, and the link IS their login. No sign-up, no password. Send it any way you like."
+        },
+        "3": {
+          "say": "Every link you mint lands here in **Ways in** — you can revoke it or re-mint it any time. Re-minting kills the old link on the spot.",
+          "terminal": "That's the whole flow — the link is their login. This tour minted nothing; only your own taps do."
+        }
+      }
+    },
+    "invite-first-teacher": {
+      "title": "Bring your first teacher in",
+      "steps": {
+        "0": {
+          "say": "People join through here — tap **Invite a person**. Nothing is created until you submit the form."
+        },
+        "1": {
+          "say": "Pick **Teacher** — the link carries the role with it, so whoever clicks it arrives as a teacher of this school."
+        },
+        "2": {
+          "say": "With their name filled in, this mints their own sign-in link — the account exists the moment you tap, and the link IS their login. Send it any way you like."
+        },
+        "3": {
+          "say": "Every link you mint lands here in **Ways in** — you can revoke it or re-mint it any time. Re-minting kills the old link on the spot.",
+          "terminal": "That's the whole flow — the link is their login. This tour minted nothing; only your own taps do."
+        }
+      }
+    },
+    "invites-desk": {
+      "title": "The invites desk",
+      "steps": {
+        "0": {
+          "say": "Three ways to mint access, one form: **Into an organisation** (role links into the tree), **Direct access** (codes and magic links), **New demo org** (a full practice tree)."
+        },
+        "1": {
+          "say": "**Who** silently changes what the submit button does: some options mint a FRESH link, others surface the STANDING link that already exists. Watch the button label switch as you change this."
+        },
+        "2": {
+          "say": "Every submit on this desk mints REAL access the moment you tap — a leaked leader link makes a stranger a group leader. This tour never taps it for you."
+        },
+        "3": {
+          "say": "This pill is not just a badge — tapping it is a live kill-switch. It disables or re-enables the link across all four underlying access mechanisms at once.",
+          "terminal": "Rule of the desk: look before you mint — everything here is live the moment it exists."
+        }
+      }
+    },
+    "move-a-teacher-between-classes": {
+      "title": "Move a teacher to another class",
+      "steps": {
+        "0": {
+          "say": "**Teachers** answers 'who teaches this class?'. A head usually wants the other direction too — 'which classes does this person take?' — and that is the same question read backwards."
+        },
+        "1": {
+          "say": "**Other classes** on anyone's row asks it that way round. It never moves anybody on its own — it opens a list for you to change."
+        },
+        "2": {
+          "say": "Every class in the school, with the ones this teacher already takes already ticked. Ticking a second, or a third, is all 'belonging to several classes' means — there is no separate step for it."
+        },
+        "3": {
+          "say": "A move is just both at once: tick where they are going, untick where they are leaving. You are looking at the truth before you change it, so nothing here is a guess."
+        },
+        "4": {
+          "say": "Saving applies only the boxes you actually changed. If one of them fails, it says which class failed and why, rather than claiming everything saved.",
+          "terminal": "That's moving a teacher — one untick, one tick, one save. This tour changed nothing; only your own taps do."
+        }
+      }
+    },
+    "reading-insights": {
+      "title": "Reading your insights",
+      "steps": {
+        "0": {
+          "say": "The **measure** picks what's being counted — progress, practice, class sessions. The line underneath the pickers says exactly what the current one means."
+        },
+        "1": {
+          "say": "The **window** is the period the rate is computed over — shorter windows react faster, longer ones smooth the noise."
+        },
+        "2": {
+          "say": "**Compare to** puts an average alongside. Everything here is a rate, not a raw total — so groups of different sizes compare fairly."
+        },
+        "3": {
+          "say": "**Overview** takes you back to the same place's home — insights is a lens on where you already are, not a different page to get lost in.",
+          "terminal": "Rates lead, position is context — and the picker text always says what a measure means."
+        }
+      }
+    },
+    "run-class-session": {
+      "title": "Run your first class session",
+      "steps": {
+        "0": {
+          "say": "Students join with this link — share it and they sign up straight into this class."
+        },
+        "1": {
+          "say": "Prefer a whiteboard? **Show code instead** reveals a standing code — anyone who enters it at saysomethingin.com/redeem joins this class, until the code changes."
+        },
+        "2": {
+          "say": "**Play as class** is the heart of it: one device — yours — leads the whole class through a session, and it counts for every student on the roster.",
+          "terminal": "When you're ready, tap Play as class for real — this tour never starts a session for you."
+        }
+      }
+    },
+    "set-your-password": {
+      "title": "Set or change your password",
+      "steps": {
+        "0": {
+          "say": "**Your account** is your own corner of this page — not the organisation's, yours. Your sign-in and your device live here, and nothing in it is visible to anyone you have invited."
+        },
+        "1": {
+          "say": "If you arrived through a **link in an email**, that link will not last forever. A password is how you get back into your organisation from a new laptop, a new phone, or after clearing your browser."
+        },
+        "2": {
+          "say": "Tap **Set a password** and the form opens right here. You will sign in with your email address and that password from then on — and you can come back and change it any time.",
+          "terminal": "That is the whole thing — one password, always changeable, always in the same place."
+        }
+      }
+    },
+    "share-a-class": {
+      "title": "Share a class with a colleague",
+      "steps": {
+        "0": {
+          "say": "A class does not have to be yours alone. **Teachers** lists everyone who teaches it, with the lead marked — a job share, a department colleague, a supply teacher covering for a fortnight."
+        },
+        "1": {
+          "say": "**Add another teacher** is how you share it. Nobody is added until you pick a name and confirm."
+        },
+        "2": {
+          "say": "You can pick anyone already teaching at your school. If the list is empty, your colleague has not joined the school yet — the link underneath brings them straight in."
+        },
+        "3": {
+          "say": "What they get is the whole class: the roster, the sessions, the progress, and the right to run a class session. What they do not get is the lead — that stays with you until you hand it over.",
+          "terminal": "That's sharing a class — same class, two teachers, one lead. This tour added nobody; only your own taps do."
+        }
+      }
+    },
+    "ways-in": {
+      "title": "Ways in — who can get in, and how to change it",
+      "steps": {
+        "0": {
+          "say": "Every way in, in one ledger: personal sign-in links and shareable join links, for everywhere below here. Filter by role or by place with the chips."
+        },
+        "1": {
+          "say": "**Copy** re-shares the same live link — always safe, nothing changes."
+        },
+        "2": {
+          "say": "**Re-mint** sits on a person's OWN sign-in link, and only there: it makes that person a new link and the old one stops working the moment you tap — if they bookmarked the old one they are locked out until you send them the new one. A shareable link has no Re-mint, because there is nobody to re-bind it to."
+        },
+        "3": {
+          "say": "**Revoke** switches a link off. It's undoable — a revoked row grows a **Put back** button. For a shareable link this is how you retire it: revoke the old one, then make a fresh one."
+        },
+        "4": {
+          "say": "And this is where a brand-new shareable link comes from — **Get a shareable link** at the top of this page, one per role. **Invite a person** next to it makes a personal link for someone you can name.",
+          "terminal": "The short version: copy is safe, revoke can always be undone, re-mint is for one person's own link — and a new shareable link is made at the top of the page, not in the ledger."
+        }
+      }
     }
   }
 }
