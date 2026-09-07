@@ -2703,5 +2703,39 @@
       "whyLink": "why?",
       "widgetNotFound": "Widget \"{widget}\" not found."
     }
+  },
+  "noticing": {
+    "silent-class": {
+      "invitation": "This class practises together, but not this week — worth a look at how the pace is holding?",
+      "ctaLabel": "See the pace"
+    },
+    "quiet-subtree": {
+      "invitation": "None of the {classPractice.classCount} classes below have practised together this week — the class list shows who last played when.",
+      "ctaLabel": "See the classes"
+    },
+    "school-needs-first-teacher": {
+      "invitation": "No teachers here yet — want a 30-second tour of bringing the first one in?",
+      "ctaLabel": "Show me"
+    },
+    "school-no-teachers": {
+      "invitation": "{name} has no teachers yet — its teacher link gets them started.",
+      "ctaLabel": "Open {name}"
+    },
+    "org-needs-first-person": {
+      "invitation": "Nobody here yet — want a 30-second tour of bringing the first person in?",
+      "ctaLabel": "Show me"
+    },
+    "org-not-started": {
+      "invitation": "{node.rollup.learnerCount} people belong below this group, but none of them has practised yet — the links ledger at the bottom shows who has actually been sent a way in.",
+      "ctaLabel": "See where it stands"
+    },
+    "group-nobody-in-it": {
+      "invitation": "{name} has nobody in it yet — its own link is how it fills up.",
+      "ctaLabel": "Open {name}"
+    },
+    "students-quiet-week": {
+      "invitation": "{count} of the students haven't practised on their own this week — the rows below show who.",
+      "ctaLabel": "See the students"
+    }
   }
 }
