@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 type BenchData = { class: number; school: number; course: number }
 
@@ -14,9 +17,9 @@ const max = computed(() => {
 })
 
 const rows = computed(() => [
-  { label: 'Class',  value: props.data.class,  color: 'var(--schools-red)' },
-  { label: 'School', value: props.data.school, color: 'rgba(15,18,18,.35)' },
-  { label: 'Global', value: props.data.course, color: 'rgba(15,18,18,.18)' },
+  { label: t('schools.ui.bench.labelClass', 'Class'),  value: props.data.class,  color: 'var(--schools-red)' },
+  { label: t('schools.ui.bench.labelSchool', 'School'), value: props.data.school, color: 'rgba(15,18,18,.35)' },
+  { label: t('schools.ui.bench.labelGlobal', 'Global'), value: props.data.course, color: 'rgba(15,18,18,.18)' },
 ])
 
 const unit = computed(() => props.unit ?? 'm')

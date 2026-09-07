@@ -13,6 +13,9 @@ import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
 import Sparkline from '@/components/schools/shared/Sparkline.vue'
 import type { Belt } from '@/composables/schools/belts'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 interface Row {
   key: string
@@ -62,7 +65,7 @@ function initial(name: string): string {
 function joinNames(names: string[], cap = 3): string {
   if (!names.length) return ''
   if (names.length <= cap) return names.join(', ')
-  return `${names.slice(0, cap).join(', ')} +${names.length - cap} more`
+  return t('org.ui.nodeChildrenList.namesPlusMore', '{names} +{n} more').replace('{names}', names.slice(0, cap).join(', ')).replace('{n}', String(names.length - cap))
 }
 
 // The dressing, per ROW (founder ruling 2026-08-02: ed-speak is vocabulary
@@ -74,15 +77,15 @@ function rowSchoolish(n: any): boolean {
 function groupCounts(n: any): { value: string | number; word: string }[] {
   if (rowSchoolish(n)) {
     return [
-      ...(n.rollup?.childGroupCount ? [{ value: n.rollup.childGroupCount, word: 'below' }] : []),
-      { value: n.rollup?.teacherCount ?? 0, word: 'teachers' },
-      { value: n.rollup?.classCount ?? 0, word: 'classes' },
-      { value: n.rollup?.learnerCount ?? 0, word: 'learners' },
+      ...(n.rollup?.childGroupCount ? [{ value: n.rollup.childGroupCount, word: t('org.ui.nodeChildrenList.wordBelow', 'below') }] : []),
+      { value: n.rollup?.teacherCount ?? 0, word: t('org.ui.nodeChildrenList.wordTeachers', 'teachers') },
+      { value: n.rollup?.classCount ?? 0, word: t('org.ui.nodeChildrenList.wordClasses', 'classes') },
+      { value: n.rollup?.learnerCount ?? 0, word: t('org.ui.nodeChildrenList.wordLearners', 'learners') },
     ]
   }
   return [
-    ...(n.rollup?.childGroupCount ? [{ value: n.rollup.childGroupCount, word: n.rollup.childGroupCount === 1 ? 'group' : 'groups' }] : []),
-    { value: n.rollup?.learnerCount ?? 0, word: 'learners' },
+    ...(n.rollup?.childGroupCount ? [{ value: n.rollup.childGroupCount, word: n.rollup.childGroupCount === 1 ? t('org.ui.nodeChildrenList.wordGroup', 'group') : t('org.ui.nodeChildrenList.wordGroups', 'groups') }] : []),
+    { value: n.rollup?.learnerCount ?? 0, word: t('org.ui.nodeChildrenList.wordLearners', 'learners') },
   ]
 }
 
@@ -92,8 +95,8 @@ const rows = computed<Row[]>(() => {
     return (p.children || []).map((n: any): Row => ({
       key: n.id,
       name: n.name,
-      caption: n.hasSchool || n.commercial ? 'School' : (n.label ? n.label[0].toUpperCase() + n.label.slice(1) : 'Group'),
-      badge: n.is_demo ? 'Demo' : null,
+      caption: n.hasSchool || n.commercial ? t('org.ui.nodeChildrenList.school', 'School') : (n.label ? n.label[0].toUpperCase() + n.label.slice(1) : t('org.ui.nodeChildrenList.group', 'Group')),
+      badge: n.is_demo ? t('org.ui.nodeChildrenList.demo', 'Demo') : null,
       counts: groupCounts(n),
       to: groupHomePath(n.id, member.value),
     }))
@@ -102,8 +105,8 @@ const rows = computed<Row[]>(() => {
     return (p.groups || []).map((g: any): Row => ({
       key: g.id,
       name: g.name,
-      caption: `${g.hasSchool ? 'School' : 'Group'}${g.parentName ? ` · under ${g.parentName}` : ''}`,
-      badge: g.is_demo ? 'Demo' : null,
+      caption: `${g.hasSchool ? t('org.ui.nodeChildrenList.school', 'School') : t('org.ui.nodeChildrenList.group', 'Group')}${g.parentName ? ` · ${t('org.ui.nodeChildrenList.underParent', 'under {parent}').replace('{parent}', g.parentName)}` : ''}`,
+      badge: g.is_demo ? t('org.ui.nodeChildrenList.demo', 'Demo') : null,
       counts: groupCounts(g),
       to: groupHomePath(g.id, member.value),
     }))
@@ -112,12 +115,12 @@ const rows = computed<Row[]>(() => {
     return (p.schools || []).map((s: any): Row => ({
       key: s.schoolId,
       name: s.name,
-      caption: s.teachers?.length ? joinNames(s.teachers) : 'No teachers yet',
-      badge: !s.hasAdmin ? 'Awaiting admin' : null,
+      caption: s.teachers?.length ? joinNames(s.teachers) : t('org.ui.nodeChildrenList.noTeachersYet', 'No teachers yet'),
+      badge: !s.hasAdmin ? t('org.ui.nodeChildrenList.awaitingAdmin', 'Awaiting admin') : null,
       counts: [
-        { value: s.studentCount, word: 'students' },
-        { value: s.classCount, word: 'classes' },
-        { value: `${s.practiceHours}h`, word: 'practised' },
+        { value: s.studentCount, word: t('org.ui.nodeChildrenList.wordStudents', 'students') },
+        { value: s.classCount, word: t('org.ui.nodeChildrenList.wordClasses', 'classes') },
+        { value: `${s.practiceHours}h`, word: t('org.ui.nodeChildrenList.wordPractised', 'practised') },
       ],
       // Stay inside the one map surface: a school IS a node (THE MODEL I2),
       // so open its node home rather than repainting a separate school page.
@@ -125,14 +128,14 @@ const rows = computed<Row[]>(() => {
     }))
   }
   if (props.lens === 'teachers') {
-    return (p.teachers || []).map((t: any): Row => ({
-      key: t.user_id,
-      name: t.name,
-      caption: t.classes?.length
-        ? joinNames(t.classes.map((c: any) => c.name))
-        : 'No classes yet',
-      counts: [{ value: t.classes?.length ?? 0, word: t.classes?.length === 1 ? 'class' : 'classes' }],
-      to: t.classes?.length === 1 ? classHomePath(t.classes[0].id, member.value) : null,
+    return (p.teachers || []).map((teacher: any): Row => ({
+      key: teacher.user_id,
+      name: teacher.name,
+      caption: teacher.classes?.length
+        ? joinNames(teacher.classes.map((c: any) => c.name))
+        : t('org.ui.nodeChildrenList.noClassesYet', 'No classes yet'),
+      counts: [{ value: teacher.classes?.length ?? 0, word: teacher.classes?.length === 1 ? t('org.ui.nodeChildrenList.wordClass', 'class') : t('org.ui.nodeChildrenList.wordClasses', 'classes') }],
+      to: teacher.classes?.length === 1 ? classHomePath(teacher.classes[0].id, member.value) : null,
     }))
   }
   if (props.lens === 'classes') {
@@ -145,12 +148,12 @@ const rows = computed<Row[]>(() => {
         c.home,
         joinNames(c.teachers || []),
         c.lastClassSessionAt
-          ? `Last class session ${new Date(c.lastClassSessionAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
-          : 'No class practice yet',
+          ? t('org.ui.nodeChildrenList.lastClassSessionOn', 'Last class session {date}').replace('{date}', new Date(c.lastClassSessionAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }))
+          : t('org.ui.nodeChildrenList.noClassPracticeYet', 'No class practice yet'),
       ].filter(Boolean).join(' · '),
       counts: [
-        { value: `${c.classPracticeHours ?? 0}h`, word: 'class practice' },
-        { value: c.studentCount, word: 'students' },
+        { value: `${c.classPracticeHours ?? 0}h`, word: t('org.ui.nodeChildrenList.wordClassPractice', 'class practice') },
+        { value: c.studentCount, word: t('org.ui.nodeChildrenList.wordStudents', 'students') },
       ],
       to: classHomePath(c.id, member.value),
     }))
@@ -165,13 +168,13 @@ const rows = computed<Row[]>(() => {
       key: s.learner_id,
       name: s.name,
       caption: s.last_active_at
-        ? `Last practised ${new Date(s.last_active_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
-        : 'Not started yet',
+        ? t('org.ui.nodeChildrenList.lastPractisedOn', 'Last practised {date}').replace('{date}', new Date(s.last_active_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }))
+        : t('org.ui.nodeChildrenList.notStartedYet', 'Not started yet'),
       belt: s.belt || null,
       health: s.health || null,
       counts: [
-        { value: s.legos_mastered ?? 0, word: 'LEGOs' },
-        { value: `${s.practice_hours}h`, word: 'practised' },
+        { value: s.legos_mastered ?? 0, word: t('org.ui.nodeChildrenList.wordLegos', 'LEGOs') },
+        { value: `${s.practice_hours}h`, word: t('org.ui.nodeChildrenList.wordPractised', 'practised') },
       ],
       // Payload-supplied only (guided missions): the real server never sends
       // a student link — there is no individual learner page (founder ruling
@@ -183,6 +186,13 @@ const rows = computed<Row[]>(() => {
   }
   return []
 })
+
+const HEALTH_WORD = computed<Record<string, string>>(() => ({
+  excellent: t('org.ui.nodeChildrenList.healthExcellent', 'excellent'),
+  good: t('org.ui.nodeChildrenList.healthGood', 'good'),
+  'needs-attention': t('org.ui.nodeChildrenList.healthNeedsAttention', 'needs attention'),
+  inactive: t('org.ui.nodeChildrenList.healthInactive', 'inactive'),
+}))
 
 function open(row: Row): void {
   if (row.to) router.push(row.to)
@@ -200,21 +210,21 @@ function open(row: Row): void {
             <span v-if="row.badge" class="child-badge">{{ row.badge }}</span>
           </span>
           <span v-if="row.caption" class="child-caption">
-            <template v-if="row.health"><HealthDot :health="row.health as any" /> {{ row.health.replace('-', ' ') }} · </template>{{ row.caption }}
+            <template v-if="row.health"><HealthDot :health="row.health as any" /> {{ HEALTH_WORD[row.health] || row.health.replace('-', ' ') }} · </template>{{ row.caption }}
           </span>
         </span>
         <span v-if="row.journey" class="child-journey">
           <JourneyBar :done="row.journey.done" :total="row.journey.total" label="" />
-          <span class="child-journey-note">{{ row.journey.done }}<template v-if="row.journey.total"> of {{ row.journey.total }}</template> LEGOs</span>
+          <span class="child-journey-note">{{ row.journey.total ? t('org.ui.nodeChildrenList.doneOfTotalLegos', '{done} of {total} LEGOs').replace('{done}', String(row.journey.done)).replace('{total}', String(row.journey.total)) : t('org.ui.nodeChildrenList.doneLegos', '{done} LEGOs').replace('{done}', String(row.journey.done)) }}</span>
         </span>
         <span v-if="row.spark" class="child-spark">
           <Sparkline :data="row.spark.minutes" :width="96" :height="26" />
-          <span class="child-count-word">{{ row.spark.week_minutes }}m this wk</span>
+          <span class="child-count-word">{{ t('org.ui.nodeChildrenList.mThisWeek', '{n}m this wk').replace('{n}', String(row.spark.week_minutes)) }}</span>
         </span>
         <span class="child-counts">
           <span v-if="row.belt" class="child-count child-belt">
             <span class="child-count-value"><BeltDot :belt="row.belt" :size="12" /> {{ row.belt }}</span>
-            <span class="child-count-word">belt</span>
+            <span class="child-count-word">{{ t('org.ui.nodeChildrenList.wordBelt', 'belt') }}</span>
           </span>
           <span v-for="(c, i) in row.counts" :key="i" class="child-count">
             <span class="child-count-value frost-mono-nums">{{ c.value }}</span>
@@ -239,7 +249,7 @@ function open(row: Row): void {
       >{{ rowAction2Label }}</button>
     </li>
     <li v-if="rows.length === 0" class="child-empty">
-      <slot name="empty">Nothing here yet.</slot>
+      <slot name="empty">{{ t('org.ui.nodeChildrenList.nothingHereYet', 'Nothing here yet.') }}</slot>
     </li>
   </ul>
 </template>

@@ -35,6 +35,9 @@ import {
   validatePassword,
 } from '@/composables/useManagerOnboarding'
 import { detectFromBrowser, installFraming } from '@/utils/installPlatform'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   isOpen: boolean
@@ -59,26 +62,26 @@ const hasNativePrompt = computed(() => !!installPrompt?.value)
 // terminal beat — the same shape as tools/walkthrough/walks/*.json. ───
 type Beat = 'why' | 'do' | 'done'
 
-const PASSWORD_WALK = {
-  kicker: 'Set your password',
+const PASSWORD_WALK = computed(() => ({
+  kicker: t('org.ui.managerOnboardingGate.setYourPassword', 'Set your password'),
   beats: ['why', 'do', 'done'] as Beat[],
   say: {
-    why: 'You got in here through a **link in an email**, and that link will not last. A password is how you get back into the organisation you are building — from a new laptop, a new phone, or after clearing your browser.',
-    do: 'Choose a password you will remember. You will sign in with **your email address and this password** from now on.',
-    done: 'Done — that is your way back in. Carrying straight on with what you were doing.',
+    why: t('org.ui.managerOnboardingGate.whyPassword', 'You got in here through a **link in an email**, and that link will not last. A password is how you get back into the organisation you are building — from a new laptop, a new phone, or after clearing your browser.'),
+    do: t('org.ui.managerOnboardingGate.doPassword', 'Choose a password you will remember. You will sign in with **your email address and this password** from now on.'),
+    done: t('org.ui.managerOnboardingGate.donePassword', 'Done — that is your way back in. Carrying straight on with what you were doing.'),
   },
-}
+}))
 
 const INSTALL_WALK = computed(() => ({
   kicker: framing.value.title,
   beats: ['why', 'do'] as Beat[],
   say: {
     why: platform.surface === 'desktop'
-      ? `${framing.value.blurb} It is the same organisation either way — this just saves you finding the tab every morning.`
-      : `${framing.value.blurb} It is the same organisation either way — this just puts it a tap away.`,
+      ? t('org.ui.managerOnboardingGate.whyInstallDesktop', '{blurb} It is the same organisation either way — this just saves you finding the tab every morning.').replace('{blurb}', framing.value.blurb)
+      : t('org.ui.managerOnboardingGate.whyInstallMobile', '{blurb} It is the same organisation either way — this just puts it a tap away.').replace('{blurb}', framing.value.blurb),
     do: hasNativePrompt.value
-      ? 'Your browser can do this for you now — one tap and it is done. You can remove it again any time, like any other app.'
-      : 'It takes a couple of taps in your browser\'s own menu. Want me to show you where they are?',
+      ? t('org.ui.managerOnboardingGate.doInstallNative', 'Your browser can do this for you now — one tap and it is done. You can remove it again any time, like any other app.')
+      : t('org.ui.managerOnboardingGate.doInstallGuide', 'It takes a couple of taps in your browser\'s own menu. Want me to show you where they are?'),
     done: '',
   },
 }))
@@ -87,7 +90,7 @@ type Phase = 'password' | 'install'
 const phase = ref<Phase>('password')
 const beat = ref(0)
 
-const walk = computed(() => (phase.value === 'password' ? PASSWORD_WALK : INSTALL_WALK.value))
+const walk = computed(() => (phase.value === 'password' ? PASSWORD_WALK.value : INSTALL_WALK.value))
 const currentBeat = computed<Beat>(() => walk.value.beats[beat.value] ?? 'why')
 const say = computed(() => {
   if (phase.value === 'password' && currentBeat.value === 'why' && props.whyCopy) return props.whyCopy
@@ -135,11 +138,11 @@ const showBack = computed(() => beat.value > 0 && currentBeat.value !== 'done')
 
 const nextLabel = computed(() => {
   if (phase.value === 'password') {
-    if (currentBeat.value === 'why') return 'Next'
-    if (currentBeat.value === 'do') return saving.value ? 'Saving…' : 'Save it'
-    return 'Done'
+    if (currentBeat.value === 'why') return t('org.ui.managerOnboardingGate.next', 'Next')
+    if (currentBeat.value === 'do') return saving.value ? t('org.ui.managerOnboardingGate.saving', 'Saving…') : t('org.ui.managerOnboardingGate.saveIt', 'Save it')
+    return t('org.ui.managerOnboardingGate.done', 'Done')
   }
-  return currentBeat.value === 'why' ? 'Next' : framing.value.cta
+  return currentBeat.value === 'why' ? t('org.ui.managerOnboardingGate.next', 'Next') : framing.value.cta
 })
 
 function back(): void {
@@ -176,7 +179,7 @@ async function advancePassword(): Promise<void> {
     emit('passworded')
     beat.value = 2
   } catch {
-    error.value = 'Could not save that password. Try again.'
+    error.value = t('org.ui.managerOnboardingGate.couldNotSavePassword', 'Could not save that password. Try again.')
   } finally {
     saving.value = false
   }
@@ -245,20 +248,20 @@ function skipInstall(): void {
                 manager will not offer to save a credential it cannot see, and
                 it also tells the teacher which account they are setting.
               -->
-              <label class="gate-label" for="gate-username">Your account</label>
+              <label class="gate-label" for="gate-username">{{ t('org.ui.managerOnboardingGate.yourAccount', 'Your account') }}</label>
               <input
                 id="gate-username" :value="accountEmail" type="email" class="frost-input gate-username"
                 autocomplete="username" readonly tabindex="-1"
               />
-              <label class="gate-label" for="gate-password">New password</label>
+              <label class="gate-label" for="gate-password">{{ t('org.ui.managerOnboardingGate.newPassword', 'New password') }}</label>
               <input
                 id="gate-password" v-model="password" type="password" class="frost-input"
-                autocomplete="new-password" :placeholder="`At least ${MIN_PASSWORD_LENGTH} characters`"
+                autocomplete="new-password" :placeholder="t('org.ui.managerOnboardingGate.atLeastNCharacters', 'At least {n} characters').replace('{n}', String(MIN_PASSWORD_LENGTH))"
               />
-              <label class="gate-label" for="gate-confirm">Confirm password</label>
+              <label class="gate-label" for="gate-confirm">{{ t('org.ui.managerOnboardingGate.confirmPassword', 'Confirm password') }}</label>
               <input
                 id="gate-confirm" v-model="confirm" type="password" class="frost-input"
-                autocomplete="new-password" placeholder="Type it again"
+                autocomplete="new-password" :placeholder="t('org.ui.managerOnboardingGate.typeItAgain', 'Type it again')"
               />
               <p v-if="error" class="gate-error" role="alert">{{ error }}</p>
               <!-- Enter submits; the card's own Next is the visible verb. -->
@@ -266,7 +269,7 @@ function skipInstall(): void {
             </form>
 
             <div v-if="phase === 'install' && currentBeat === 'do'" class="gate-aside">
-              <button type="button" class="gate-notnow" @click="skipInstall">Not now</button>
+              <button type="button" class="gate-notnow" @click="skipInstall">{{ t('org.ui.managerOnboardingGate.notNow', 'Not now') }}</button>
             </div>
           </WalkCard>
         </div>

@@ -16,11 +16,13 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
+import { useI18n } from '@/composables/useI18n'
 import {
   handbookEntries, handbookSections, searchHandbook, viewerPersona, isMine, badgesFor, placeLink,
   type HandbookEntry,
 } from '@/walkthrough/handbook'
 
+const { t } = useI18n()
 const route = useRoute()
 const { currentUser } = useSchoolContext()
 
@@ -95,9 +97,9 @@ function goTo(entry: HandbookEntry): string | null {
 <template>
   <main class="handbook-screen">
     <header class="handbook-head">
-      <span class="schools-kicker">Handbook</span>
-      <h1 class="arsenal page-title">Everything this dashboard can do</h1>
-      <p class="handbook-lede">Written out in full. Search it, or read the lot.</p>
+      <span class="schools-kicker">{{ t('schools.handbookPage.kicker', 'Handbook') }}</span>
+      <h1 class="arsenal page-title">{{ t('schools.handbookPage.title', 'Everything this dashboard can do') }}</h1>
+      <p class="handbook-lede">{{ t('schools.handbookPage.lede', 'Written out in full. Search it, or read the lot.') }}</p>
     </header>
 
     <div class="schools-card schools-card-pad handbook-controls">
@@ -105,20 +107,20 @@ function goTo(entry: HandbookEntry): string | null {
         v-model="query"
         type="search"
         class="handbook-search"
-        placeholder="Search the handbook"
-        aria-label="Search the handbook"
+        :placeholder="t('schools.handbookPage.searchPlaceholder', 'Search the handbook')"
+        :aria-label="t('schools.handbookPage.searchAriaLabel', 'Search the handbook')"
       />
       <div class="handbook-toggles">
-        <div class="scope-toggle" role="group" aria-label="Which capabilities to show">
-          <button type="button" class="scope-option" :class="{ 'is-on': !mineOnly }" @click="mineOnly = false">Everything</button>
-          <button type="button" class="scope-option" :class="{ 'is-on': mineOnly }" @click="mineOnly = true">Just what I can do</button>
+        <div class="scope-toggle" role="group" :aria-label="t('schools.handbookPage.scopeAriaLabel', 'Which capabilities to show')">
+          <button type="button" class="scope-option" :class="{ 'is-on': !mineOnly }" @click="mineOnly = false">{{ t('schools.handbookPage.everything', 'Everything') }}</button>
+          <button type="button" class="scope-option" :class="{ 'is-on': mineOnly }" @click="mineOnly = true">{{ t('schools.handbookPage.justWhatICanDo', 'Just what I can do') }}</button>
         </div>
-        <button type="button" class="btn-ghost" @click="readTheLot">{{ allOpen ? 'Close them all' : 'Read the lot' }}</button>
+        <button type="button" class="btn-ghost" @click="readTheLot">{{ allOpen ? t('schools.handbookPage.closeThemAll', 'Close them all') : t('schools.handbookPage.readTheLot', 'Read the lot') }}</button>
       </div>
     </div>
 
     <p v-if="!visible.length" class="handbook-empty">
-      Nothing in the handbook matches that yet.
+      {{ t('schools.handbookPage.emptyState', 'Nothing in the handbook matches that yet.') }}
     </p>
 
     <section v-for="s in sections" :key="s.id" class="schools-card schools-card-pad handbook-section">
@@ -133,23 +135,23 @@ function goTo(entry: HandbookEntry): string | null {
             <span class="entry-chev" aria-hidden="true">{{ open.has(e.id) ? '−' : '+' }}</span>
           </button>
           <div v-if="open.has(e.id)" class="entry-body">
-            <h3 class="entry-h">What it's for</h3>
+            <h3 class="entry-h">{{ t('schools.handbookPage.whatItsFor', "What it's for") }}</h3>
             <!-- eslint-disable-next-line vue/no-v-html — compiled repo prose, escaped in md() -->
             <p class="entry-p" v-html="md(e.what)"></p>
-            <h3 class="entry-h">Where it is</h3>
+            <h3 class="entry-h">{{ t('schools.handbookPage.whereItIs', 'Where it is') }}</h3>
             <!-- eslint-disable-next-line vue/no-v-html — compiled repo prose, escaped in md() -->
             <p class="entry-p" v-html="md(e.where)"></p>
-            <h3 class="entry-h">How you do it</h3>
+            <h3 class="entry-h">{{ t('schools.handbookPage.howYouDoIt', 'How you do it') }}</h3>
             <ol class="entry-steps">
               <!-- eslint-disable-next-line vue/no-v-html — compiled repo prose, escaped in md() -->
               <li v-for="(step, i) in e.how" :key="i" v-html="md(step)"></li>
             </ol>
             <template v-if="e.note">
-              <h3 class="entry-h">Worth knowing</h3>
+              <h3 class="entry-h">{{ t('schools.handbookPage.worthKnowing', 'Worth knowing') }}</h3>
               <!-- eslint-disable-next-line vue/no-v-html — compiled repo prose, escaped in md() -->
               <p class="entry-p" v-html="md(e.note)"></p>
             </template>
-            <router-link v-if="goTo(e)" class="btn-play entry-goto" :to="goTo(e)!">Take me there</router-link>
+            <router-link v-if="goTo(e)" class="btn-play entry-goto" :to="goTo(e)!">{{ t('schools.handbookPage.takeMeThere', 'Take me there') }}</router-link>
           </div>
         </article>
       </div>

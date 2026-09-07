@@ -16,6 +16,7 @@
 import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
+import { useI18n } from '@/composables/useI18n'
 import NodeRateEngine, { type EngineState } from '@/insight/NodeRateEngine.vue'
 import NodeMapRail from '@/components/admin/NodeMapRail.vue'
 import NodeMapRailSkeleton from '@/components/admin/NodeMapRailSkeleton.vue'
@@ -30,6 +31,7 @@ import { summariseVad, type VadSummary } from '@/insight/data/vadUptake'
 const route = useRoute()
 const router = useRouter()
 const { getAuthToken } = useAdminClient()
+const { t } = useI18n()
 
 const nodeId = computed(() => String(route.params.id || ''))
 
@@ -110,15 +112,15 @@ const isClass = computed(() =>
 const labelWord = computed(() => {
   const n = home.value?.node
   if (!n) return state.value?.node.label ? state.value.node.label[0].toUpperCase() + state.value.node.label.slice(1) : ''
-  if (isClass.value) return 'Class'
-  if (n.commercial || n.hasSchool) return 'School'
-  return n.label ? n.label[0].toUpperCase() + n.label.slice(1) : 'Group'
+  if (isClass.value) return t('org.insights.labelClass', 'Class')
+  if (n.commercial || n.hasSchool) return t('org.insights.labelSchool', 'School')
+  return n.label ? n.label[0].toUpperCase() + n.label.slice(1) : t('org.insights.labelGroup', 'Group')
 })
 const title = computed(() => home.value?.node?.name || rail.value?.node?.name || state.value?.node.name || '…')
 const subtitle = computed(() =>
   isClass.value
-    ? 'How this class is moving, compared with the average you choose.'
-    : 'How everyone below this is moving, compared with the average you choose.')
+    ? t('org.insights.subtitleClass', 'How this class is moving, compared with the average you choose.')
+    : t('org.insights.subtitleDefault', 'How everyone below this is moving, compared with the average you choose.'))
 
 // ─── VOICE & PAUSE, scoped to this node ────────────────────────────────────
 // Founder ruling 2026-08-20, verbatim: "the VAD data should follow the same
@@ -149,7 +151,7 @@ watch(nodeId, async (id) => {
   try {
     vad.value = await fetchVadScope({ groupId: id }, await getAuthToken())
   } catch (e: unknown) {
-    vadError.value = e instanceof Error ? e.message : 'Could not read the voice & pause data.'
+    vadError.value = e instanceof Error ? e.message : t('org.insights.vadReadError', 'Could not read the voice & pause data.')
   } finally {
     vadLoading.value = false
   }
@@ -207,7 +209,7 @@ const homeLink = computed(() => {
         <!-- IDENTITY HEADER — same grammar as node home; insights is a lens -->
         <header class="identity">
           <div class="identity-text">
-            <span class="schools-kicker">{{ labelWord }} · Insights</span>
+            <span class="schools-kicker">{{ t('org.insights.kicker', '{label} · Insights').replace('{label}', labelWord) }}</span>
             <h1 class="identity-name arsenal">{{ title }}</h1>
             <p class="niv-sub">{{ subtitle }}</p>
           </div>
@@ -215,8 +217,8 @@ const homeLink = computed(() => {
             <UpdatedStamp />
             <WalkOffer :persona="member ? 'leader' : 'admin'" place="node-insights" />
             <div class="verbs">
-              <router-link :to="homeLink" class="verb-btn verb-btn-secondary" data-walk="insights-overview">Overview</router-link>
-              <router-link v-if="!member" to="/admin/stats" class="verb-btn verb-btn-secondary">All boards</router-link>
+              <router-link :to="homeLink" class="verb-btn verb-btn-secondary" data-walk="insights-overview">{{ t('org.insights.overview', 'Overview') }}</router-link>
+              <router-link v-if="!member" to="/admin/stats" class="verb-btn verb-btn-secondary">{{ t('org.insights.allBoards', 'All boards') }}</router-link>
             </div>
           </div>
         </header>
@@ -259,12 +261,10 @@ const homeLink = computed(() => {
         -->
         <section class="vad-section" data-walk="insights-voice-pause">
           <header class="vad-section-head">
-            <span class="schools-kicker">Attention · voice</span>
-            <h2 class="vad-section-title arsenal">Voice &amp; pause</h2>
+            <span class="schools-kicker">{{ t('org.insights.attentionVoice', 'Attention · voice') }}</span>
+            <h2 class="vad-section-title arsenal">{{ t('org.insights.voicePauseTitle', 'Voice & pause') }}</h2>
             <p class="vad-section-sub">
-              What the microphone is actually giving us below this point — how many
-              learners have mic-derived data at all, and for those who do, how the
-              adaptive pause is settling and how they sound.
+              {{ t('org.insights.voicePauseSub', 'What the microphone is actually giving us below this point — how many learners have mic-derived data at all, and for those who do, how the adaptive pause is settling and how they sound.') }}
             </p>
           </header>
           <VadPanel

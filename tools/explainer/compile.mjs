@@ -42,8 +42,24 @@ const verbs = []
 for (const m of actionBarSrc.matchAll(/<button[^>]*class="verb[^>]*>([\s\S]*?)<\/button>/g)) {
   const attrs = m[0]
   // Label = last plain-text run in the button (skips {{ ternary }} spinners).
-  const text = m[1].replace(/\{\{[\s\S]*?\}\}/g, (t) => {
-    const q = t.match(/'([^']+)'\s*\}\}\s*$/)
+  //
+  // Since the schools/org surface was localised (2026-09-07) a verb's label is
+  // not a bare literal any more — it is `{{ t('a.key', 'Invite a person') }}`.
+  // The English fallback IS the live truth, so that is what we read; the old
+  // trailing-quote rule stays behind it for any mustache that is still a plain
+  // ternary. Without this the parser found zero verbs and the gate said the
+  // surface had changed, which it had not.
+  const text = m[1].replace(/\{\{[\s\S]*?\}\}/g, (tok) => {
+    // LAST t() in the token, not the first: a spinner is
+    // `{{ busy ? t(a,'Refreshing…') : t(b,'Refresh demo activity') }}` and the
+    // steady-state label is the one a reader sees. Taking the first gave the
+    // gate a verb called "Refreshing…" that no ruling explains.
+    const keyed = [...tok.matchAll(/\bt\(\s*['"][\w.]+['"]\s*,\s*(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)")/g)]
+    if (keyed.length) {
+      const last = keyed[keyed.length - 1]
+      return (last[1] ?? last[2]).replace(/\\'/g, "'").replace(/\\"/g, '"')
+    }
+    const q = tok.match(/'([^']+)'\s*\}\}\s*$/)
     return q ? q[1] : ''
   }).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
   if (!text) continue
@@ -55,7 +71,14 @@ const nodeHomeSrc = read('packages/player-vue/src/views/admin/NodeHomeView.vue')
 if (/See insights/.test(nodeHomeSrc)) verbs.push({ label: 'See insights', adminOnly: false })
 
 // Stat words: the stats-row card labels.
-const statWords = [...new Set([...nodeHomeSrc.matchAll(/word:\s*(?:cp\s*\?\s*)?'([^']+)'/g)].map((m) => m[1]))]
+// `word:` used to be a bare literal; since the org surface was localised it is
+// `word: t('a.key', 'Class practice')`. The English fallback is the live truth.
+const statWords = [
+  ...new Set([
+    ...[...nodeHomeSrc.matchAll(/word:\s*(?:cp\s*\?\s*)?t\(\s*['"][\w.]+['"]\s*,\s*'([^']+)'/g)].map((m) => m[1]),
+    ...[...nodeHomeSrc.matchAll(/word:\s*(?:cp\s*\?\s*)?'([^']+)'/g)].map((m) => m[1]),
+  ]),
+]
 if (statWords.length < 4) failures.push(`DERIVE: only ${statWords.length} stat words parsed from NodeHomeView.vue`)
 
 // Insight measures + windows, from the node rate-compare endpoint.

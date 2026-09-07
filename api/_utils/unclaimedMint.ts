@@ -6,12 +6,20 @@
  * against the live project the same night, reproduced end to end before a
  * line of this was written).
  *
- * api/auth/buyer-account.ts mints an account for whatever address is typed
+ * api/auth/buyer-account.ts minted an account for whatever address was typed
  * into the purchase form, with `email_confirm: false`, an OPTIONAL
  * CALLER-SUPPLIED PASSWORD, and a real session handed straight back — no mail
- * sent, nothing proved. That is the deliberate "pay first, verify later"
- * product decision and it is not in question here. What was missing is the
- * other end of it: NOTHING HAPPENED WHEN THE REAL MAILBOX OWNER TURNED UP.
+ * sent, nothing proved. What was missing was the other end of it: NOTHING
+ * HAPPENED WHEN THE REAL MAILBOX OWNER TURNED UP.
+ *
+ * THAT ENDPOINT IS GONE. Tom reversed the product decision behind it the same
+ * night: the purchase flow now verifies by emailed code BEFORE it takes a card,
+ * so no account is ever created from an unverified address with a
+ * caller-supplied password. This file did not die with it, for two reasons —
+ * api/auth/possession-redeem.ts still hands a session to whoever spends a
+ * shared invite code, on an address nobody has proved; and every account
+ * squatted through buyer-account while it was live is still out there, and is
+ * swept the moment its real owner signs in.
  *
  * So: type a stranger's address, choose a password, get a session, walk away.
  * The address's real owner later signs in with a mailed code — into the SAME
@@ -125,4 +133,21 @@ export function mayClaim(
   if (!callerSessionId) return false
   if (callerSessionId === marker.session_id) return false
   return provedMailbox(callerAmr)
+}
+
+/**
+ * The `session_id` GoTrue stamps on every access token.
+ *
+ * Verified live 2026-09-07: present on this project's tokens and stable across
+ * refresh, which is what makes it usable as the marker above. It lived in
+ * api/auth/buyer-account.ts until that endpoint was retired; it belongs here,
+ * beside the rule that is the only thing that reads it.
+ */
+export function readSessionId(accessToken: string): string | null {
+  try {
+    const payload = JSON.parse(Buffer.from(accessToken.split('.')[1] || '', 'base64').toString('utf8'))
+    return typeof payload?.session_id === 'string' && payload.session_id ? payload.session_id : null
+  } catch {
+    return null
+  }
 }

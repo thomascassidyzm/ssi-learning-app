@@ -24,7 +24,7 @@ import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 import WalkOffer from '@/components/admin/WalkOffer.vue'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
-import { getLanguageName } from '@/composables/useI18n'
+import { getLanguageName, useI18n } from '@/composables/useI18n'
 import { deriveBelt, BELTS, type Belt } from '@/composables/schools/belts'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
@@ -35,6 +35,7 @@ type Health = 'excellent' | 'good' | 'needs-attention' | 'inactive'
 
 const router = useRouter()
 const route = useRoute()
+const { t } = useI18n()
 
 const isAdminView = inject<boolean>('isAdminView', false)
 const { schoolsLink } = useSchoolsNav()
@@ -84,7 +85,7 @@ function getInitials(name: string): string {
 }
 
 function formatLastActive(dateStr: string | null): string {
-  if (!dateStr) return 'Never'
+  if (!dateStr) return t('schools.classDetail.lastActiveNever', 'Never')
   const date = new Date(dateStr)
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
@@ -96,6 +97,15 @@ function formatLastActive(dateStr: string | null): string {
   if (diffDays < 30) return `${diffDays}d`
   if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo`
   return `${Math.floor(diffDays / 365)}y`
+}
+
+function healthLabel(health: Health): string {
+  switch (health) {
+    case 'excellent': return t('schools.classDetail.healthExcellent', 'excellent')
+    case 'good': return t('schools.classDetail.healthGood', 'good')
+    case 'needs-attention': return t('schools.classDetail.healthNeedsAttention', 'needs attention')
+    case 'inactive': return t('schools.classDetail.healthInactive', 'inactive')
+  }
 }
 
 function deriveStudentHealth(seeds: number, lastActiveAt: string | null, classAvg: number): Health {
@@ -349,7 +359,7 @@ async function copyJoinCode() {
 }
 
 async function handleRemoveStudent(student: { user_id: string; name: string }) {
-  if (!confirm(`Remove ${student.name} from this class?`)) return
+  if (!confirm(t('schools.classDetail.confirmRemoveStudent', 'Remove {name} from this class?').replace('{name}', student.name))) return
   const supabase = getSchoolsClient()
   const { error } = await supabase
     .from('user_tags')
@@ -365,11 +375,11 @@ async function handleRemoveStudent(student: { user_id: string; name: string }) {
 // — a direct client `classes.update()` has no ownership check at all (classes
 // is RLS-off by design), so ownership is enforced server-side instead.
 async function renameClass() {
-  const next = (window.prompt('Rename class', classData.value.class_name) || '').trim()
+  const next = (window.prompt(t('schools.classDetail.renameClassPrompt', 'Rename class'), classData.value.class_name) || '').trim()
   if (!next || next === classData.value.class_name) return
   const ok = await renameClassApi(classData.value.id, next)
   if (!ok) {
-    window.alert('Could not rename the class. Please try again.')
+    window.alert(t('schools.classDetail.renameClassFailed', 'Could not rename the class. Please try again.'))
     return
   }
   fetchClassDetail(classData.value.id)
@@ -493,7 +503,7 @@ const assignClasses = computed<AssignableClass[]>(() => {
 // An empty class list and an unreadable one must never look alike.
 const assignLoadError = computed(() =>
   classDetailError.value
-    ? `Couldn't load this school's classes, so this list may be incomplete. ${classDetailError.value}`
+    ? t('schools.classDetail.assignLoadError', "Couldn't load this school's classes, so this list may be incomplete. {error}").replace('{error}', classDetailError.value)
     : '',
 )
 
@@ -556,7 +566,7 @@ async function loadTeacherCandidates(): Promise<void> {
   teacherCandidates.value = candidates
   // A failed lookup is REPORTED, not shown as an empty picker — an empty list
   // and a broken list must never look the same to a teacher.
-  teacherPanelError.value = error ? `Couldn't load the staff list. ${error}` : ''
+  teacherPanelError.value = error ? t('schools.classDetail.teacherListLoadError', "Couldn't load the staff list. {error}").replace('{error}', error) : ''
 }
 
 async function addTeacher(): Promise<void> {
@@ -567,7 +577,7 @@ async function addTeacher(): Promise<void> {
   const result = await addClassTeacher(classData.value.id, targetUserId)
   teacherBusy.value = false
   if (!result.ok) {
-    teacherPanelError.value = `Couldn't add that teacher. ${result.error ?? ''}`.trim()
+    teacherPanelError.value = t('schools.classDetail.addTeacherError', "Couldn't add that teacher. {error}").replace('{error}', result.error ?? '').trim()
     return
   }
   pickedTeacherId.value = ''
@@ -577,13 +587,13 @@ async function addTeacher(): Promise<void> {
 
 async function removeTeacher(teacher: { user_id: string; name: string }): Promise<void> {
   if (teacherBusy.value) return
-  if (!confirm(`Remove ${teacher.name} from this class? They keep their account — they just stop seeing this class.`)) return
+  if (!confirm(t('schools.classDetail.confirmRemoveTeacher', 'Remove {name} from this class? They keep their account — they just stop seeing this class.').replace('{name}', teacher.name))) return
   teacherBusy.value = true
   teacherPanelError.value = ''
   const result = await removeClassTeacher(classData.value.id, teacher.user_id)
   teacherBusy.value = false
   if (!result.ok) {
-    teacherPanelError.value = `Couldn't remove that teacher. ${result.error ?? ''}`.trim()
+    teacherPanelError.value = t('schools.classDetail.removeTeacherError', "Couldn't remove that teacher. {error}").replace('{error}', result.error ?? '').trim()
     return
   }
   await fetchClassDetail(classData.value.id)
@@ -599,7 +609,7 @@ async function makeLead(teacher: { user_id: string; name: string }): Promise<voi
   const result = await addClassTeacher(classData.value.id, teacher.user_id, { lead: true })
   teacherBusy.value = false
   if (!result.ok) {
-    teacherPanelError.value = `Couldn't hand over the lead. ${result.error ?? ''}`.trim()
+    teacherPanelError.value = t('schools.classDetail.makeLeadError', "Couldn't hand over the lead. {error}").replace('{error}', result.error ?? '').trim()
     return
   }
   await fetchClassDetail(classData.value.id)
@@ -618,13 +628,13 @@ async function mintCoTeacherLink(): Promise<void> {
   const result = await createCoTeacherLink(classData.value.id)
   coTeacherLinkBusy.value = false
   if (!result.ok || !result.code) {
-    teacherPanelError.value = `Couldn't create a co-teacher link. ${result.error ?? ''}`.trim()
+    teacherPanelError.value = t('schools.classDetail.coTeacherLinkError', "Couldn't create a co-teacher link. {error}").replace('{error}', result.error ?? '').trim()
     return
   }
   // Same rule as the student link: a code-less URL is never shown.
   const link = redeemLink(result.code)
   if (!link) {
-    teacherPanelError.value = "Couldn't create a co-teacher link. The server returned no code."
+    teacherPanelError.value = t('schools.classDetail.coTeacherLinkNoCode', "Couldn't create a co-teacher link. The server returned no code.")
     return
   }
   coTeacherLink.value = link
@@ -704,7 +714,7 @@ async function loadCandidates(): Promise<void> {
   const { candidates, error } = await fetchAddableStudents(classId)
   studentCandidates.value = candidates
   candidatesLoaded.value = !error
-  addStudentError.value = error ? `Couldn't load the school's students. ${error}` : ''
+  addStudentError.value = error ? t('schools.classDetail.loadCandidatesError', "Couldn't load the school's students. {error}").replace('{error}', error) : ''
 }
 
 async function addStudent(candidate: StudentCandidate): Promise<void> {
@@ -714,7 +724,7 @@ async function addStudent(candidate: StudentCandidate): Promise<void> {
   const result = await addClassStudent(classData.value.id, candidate.user_id)
   addingStudentId.value = ''
   if (!result.ok) {
-    addStudentError.value = `Couldn't add ${candidate.display_name}. ${result.error ?? ''}`.trim()
+    addStudentError.value = t('schools.classDetail.addStudentError', "Couldn't add {name}. {error}").replace('{name}', candidate.display_name).replace('{error}', result.error ?? '').trim()
     return
   }
   // The panel stays open — a teacher moving a set adds several in a row — but
@@ -736,9 +746,21 @@ const deleteImpactLines = computed(() => {
   const impact = deleteImpact.value
   if (!impact) return []
   const lines: string[] = []
-  if (impact.learnerCount) lines.push(`${impact.learnerCount} student${impact.learnerCount === 1 ? '' : 's'}`)
-  if (impact.teacherCount) lines.push(`${impact.teacherCount} teacher${impact.teacherCount === 1 ? '' : 's'}`)
-  if (impact.sessionCount) lines.push(`${impact.sessionCount} recorded session${impact.sessionCount === 1 ? '' : 's'}`)
+  if (impact.learnerCount) {
+    const key = impact.learnerCount === 1 ? 'schools.classDetail.deleteImpactStudentOne' : 'schools.classDetail.deleteImpactStudentsMany'
+    const fallback = impact.learnerCount === 1 ? '{n} student' : '{n} students'
+    lines.push(t(key, fallback).replace('{n}', String(impact.learnerCount)))
+  }
+  if (impact.teacherCount) {
+    const key = impact.teacherCount === 1 ? 'schools.classDetail.deleteImpactTeacherOne' : 'schools.classDetail.deleteImpactTeachersMany'
+    const fallback = impact.teacherCount === 1 ? '{n} teacher' : '{n} teachers'
+    lines.push(t(key, fallback).replace('{n}', String(impact.teacherCount)))
+  }
+  if (impact.sessionCount) {
+    const key = impact.sessionCount === 1 ? 'schools.classDetail.deleteImpactSessionOne' : 'schools.classDetail.deleteImpactSessionsMany'
+    const fallback = impact.sessionCount === 1 ? '{n} recorded session' : '{n} recorded sessions'
+    lines.push(t(key, fallback).replace('{n}', String(impact.sessionCount)))
+  }
   return lines
 })
 </script>
@@ -746,7 +768,7 @@ const deleteImpactLines = computed(() => {
 <template>
   <main class="detail">
     <nav class="breadcrumb">
-      <a href="#" @click.prevent="handleBack">{{ backToSchool ? (viewingSchool?.school_name || 'School') : 'Classes' }}</a>
+      <a href="#" @click.prevent="handleBack">{{ backToSchool ? (viewingSchool?.school_name || t('schools.classDetail.schoolFallback', 'School')) : t('schools.classDetail.classesCrumb', 'Classes') }}</a>
       <span class="crumb-sep">/</span>
       <span class="crumb-current">{{ classData.class_name }}</span>
     </nav>
@@ -776,13 +798,13 @@ const deleteImpactLines = computed(() => {
                Worth knowing. Only the name changes. The roster, the join link, the
                join code and the class's place on the course all carry on exactly as
                they were.
-               checked: 4d2f2218.79ed7bb4
+               checked: 137a5581.79ed7bb4
           -->
           <button
             v-if="!isAdminView"
             type="button"
-            title="Rename class"
-            aria-label="Rename class"
+            :title="t('schools.classDetail.renameClassLabel', 'Rename class')"
+            :aria-label="t('schools.classDetail.renameClassLabel', 'Rename class')"
             data-walk="class-rename"
             @click="renameClass"
             style="margin-left:10px;background:none;border:none;cursor:pointer;color:var(--schools-fg-3);vertical-align:middle;padding:4px;"
@@ -808,13 +830,13 @@ const deleteImpactLines = computed(() => {
                Worth knowing. Students keep their own accounts and everything they
                have learned. What goes is the class itself, its roster and its join
                link.
-               checked: d4143519.a0456621
+               checked: 84c11a94.a0456621
           -->
           <button
             v-if="!isAdminView"
             type="button"
-            title="Delete class"
-            aria-label="Delete class"
+            :title="t('schools.classDetail.deleteClassLabel', 'Delete class')"
+            :aria-label="t('schools.classDetail.deleteClassLabel', 'Delete class')"
             data-walk="class-delete"
             @click="openDeleteModal"
             style="margin-left:2px;background:none;border:none;cursor:pointer;color:var(--schools-fg-3);vertical-align:middle;padding:4px;"
@@ -825,16 +847,16 @@ const deleteImpactLines = computed(() => {
         <div class="meta-row">
           <span class="meta-belt">
             <BeltDot :belt="classBelt" :size="12" ring />
-            {{ classBelt.charAt(0).toUpperCase() + classBelt.slice(1) }} belt class
+            {{ t('schools.classDetail.beltClassLabel', '{belt} belt class').replace('{belt}', classBelt.charAt(0).toUpperCase() + classBelt.slice(1)) }}
           </span>
           <span class="meta-dot">·</span>
           <!-- Same rule as the panels: with the roster unread, "0 students" is
                an assertion we have no basis for. -->
-          <span v-if="rosterError || classDetailError">student count unavailable</span>
-          <span v-else>{{ students.length }} students</span>
+          <span v-if="rosterError || classDetailError">{{ t('schools.classDetail.studentCountUnavailable', 'student count unavailable') }}</span>
+          <span v-else>{{ t('schools.classDetail.studentCount', '{n} students').replace('{n}', String(students.length)) }}</span>
           <template v-if="classData.last_lego_id">
             <span class="meta-dot">·</span>
-            <span>Position {{ classData.last_lego_id }}</span>
+            <span>{{ t('schools.classDetail.positionLabel', 'Position {id}').replace('{id}', classData.last_lego_id) }}</span>
           </template>
           <span class="meta-dot">·</span>
           <UpdatedStamp />
@@ -859,11 +881,11 @@ const deleteImpactLines = computed(() => {
              4. Tap play to start the session.
              Worth knowing. The join code is the same code all lesson, so a student
              arriving late still gets in.
-             checked: 5290f872.e182c56c
+             checked: a56c85be.e182c56c
         -->
         <button v-if="canPlayAsClass" type="button" class="btn-play btn-play-lg" data-walk="class-play" :disabled="!canLaunch" @click="handlePlay">
           <span class="play-glyph">&#9654;</span>
-          Play as class
+          {{ t('schools.classDetail.playAsClass', 'Play as class') }}
         </button>
       </div>
     </header>
@@ -878,13 +900,13 @@ const deleteImpactLines = computed(() => {
            A class's staff outranks its belt histogram, so this is also the
            right order on a desktop. -->
       <div v-if="!isAdminView" class="schools-card schools-card-pad rail-card teachers-card" data-walk="class-teachers">
-        <div class="schools-kicker rail-kicker">Teachers</div>
+        <div class="schools-kicker rail-kicker">{{ t('schools.classDetail.teachersKicker', 'Teachers') }}</div>
 
         <ul v-if="teacherListState === 'ready'" class="teacher-list">
-          <li v-for="t in classTeachers" :key="t.user_id" class="teacher-row">
+          <li v-for="tch in classTeachers" :key="tch.user_id" class="teacher-row">
             <span class="teacher-name">
-              {{ t.name }}<span v-if="t.is_me" class="teacher-you"> (you)</span>
-              <span v-if="t.is_lead" class="teacher-lead">lead</span>
+              {{ tch.name }}<span v-if="tch.is_me" class="teacher-you"> {{ t('schools.classDetail.youSuffix', '(you)') }}</span>
+              <span v-if="tch.is_lead" class="teacher-lead">{{ t('schools.classDetail.leadLabel', 'lead') }}</span>
             </span>
             <span class="teacher-actions">
               <!-- The other direction, from the same row: which OTHER classes
@@ -908,7 +930,7 @@ const deleteImpactLines = computed(() => {
                    4. Save.
                    Worth knowing. Untick and save is how you take a teacher off a
                    class — there is no separate remove.
-                   checked: 0cd7063d.6e7979d0
+                   checked: 982376d8.6e7979d0
               -->
               <button
                 v-if="canManageTeachers"
@@ -916,9 +938,9 @@ const deleteImpactLines = computed(() => {
                 class="btn-text teacher-action"
                 data-walk="class-teacher-other-classes"
                 :disabled="teacherBusy"
-                @click="openAssign(t)"
+                @click="openAssign(tch)"
               >
-                Other classes
+                {{ t('schools.classDetail.otherClassesLabel', 'Other classes') }}
               </button>
               <!-- HANDBOOK Hand a class over to another teacher
                    section: running-classes
@@ -937,40 +959,39 @@ const deleteImpactLines = computed(() => {
                    4. Tap **Make lead** on their row.
                    Worth knowing. You stay on the class as a teacher. Only the
                    lead changes.
-                   checked: 2ede673e.3fde2189
+                   checked: 912a3c21.3fde2189
               -->
               <button
-                v-if="!t.is_lead && canManageTeachers"
+                v-if="!tch.is_lead && canManageTeachers"
                 type="button"
                 class="btn-text teacher-action"
                 data-walk="class-teacher-make-lead"
                 :disabled="teacherBusy"
-                @click="makeLead(t)"
+                @click="makeLead(tch)"
               >
-                Make lead
+                {{ t('schools.classDetail.makeLeadLabel', 'Make lead') }}
               </button>
               <button
-                v-if="canManageTeachers || t.is_me"
+                v-if="canManageTeachers || tch.is_me"
                 type="button"
                 class="btn-text teacher-action teacher-action-remove"
                 :disabled="teacherBusy"
-                @click="removeTeacher(t)"
+                @click="removeTeacher(tch)"
               >
-                {{ canManageTeachers ? 'Remove' : 'Leave' }}
+                {{ canManageTeachers ? t('schools.classDetail.removeLabel', 'Remove') : t('schools.classDetail.leaveLabel', 'Leave') }}
               </button>
             </span>
           </li>
         </ul>
-        <p v-else-if="teacherListState === 'loading'" class="rail-note schools-subtle">Loading the teacher list…</p>
+        <p v-else-if="teacherListState === 'loading'" class="rail-note schools-subtle">{{ t('schools.classDetail.teacherListLoading', 'Loading the teacher list…') }}</p>
         <p v-else-if="teacherListState === 'error'" class="rail-note schools-subtle">
-          Couldn't load the teacher list, so we can't show who teaches this class. Try refreshing.
+          {{ t('schools.classDetail.teacherListError', "Couldn't load the teacher list, so we can't show who teaches this class. Try refreshing.") }}
         </p>
-        <p v-else class="rail-note schools-subtle">No teachers are linked to this class yet.</p>
+        <p v-else class="rail-note schools-subtle">{{ t('schools.classDetail.teacherListEmpty', 'No teachers are linked to this class yet.') }}</p>
 
         <template v-if="!canManageTeachers">
           <p class="rail-note schools-subtle">
-            You teach this class alongside its lead teacher. Only the lead teacher or a
-            school leader can bring another colleague in.
+            {{ t('schools.classDetail.coTeacherNote', 'You teach this class alongside its lead teacher. Only the lead teacher or a school leader can bring another colleague in.') }}
           </p>
         </template>
         <template v-else-if="!showAddTeacher">
@@ -994,33 +1015,32 @@ const deleteImpactLines = computed(() => {
                4. Pick your colleague from the list.
                Worth knowing. Both of you are teachers of the class. One of you is
                the lead, and the lead is the one the school's lists show first.
-               checked: ab5f2d72.35a5bb74
+               checked: faaae99f.35a5bb74
           -->
           <button type="button" class="btn-ghost btn-small teacher-add-open" data-walk="class-teacher-add" @click="showAddTeacher = true">
-            Add another teacher
+            {{ t('schools.classDetail.addAnotherTeacher', 'Add another teacher') }}
           </button>
-          <p class="rail-note schools-subtle">
-            A class can have as many teachers as you like, and a teacher can take
-            as many classes as you like. Use <strong>Other classes</strong> on
-            anyone above to put them on another class, or to move them off this one.
-          </p>
+          <p
+            class="rail-note schools-subtle"
+            v-html="t('schools.classDetail.addTeacherHint', 'A class can have as many teachers as you like, and a teacher can take as many classes as you like. Use {other} on anyone above to put them on another class, or to move them off this one.').replace('{other}', '<strong>' + t('schools.classDetail.otherClassesLabel', 'Other classes') + '</strong>')"
+          ></p>
         </template>
         <template v-else>
           <select v-model="pickedTeacherId" class="teacher-select" data-walk="class-teacher-picker" :disabled="teacherBusy">
-            <option value="">Choose a teacher…</option>
-            <option v-for="t in addableTeachers" :key="t.user_id" :value="t.user_id">
-              {{ t.display_name }}
+            <option value="">{{ t('schools.classDetail.chooseTeacherOption', 'Choose a teacher…') }}</option>
+            <option v-for="at in addableTeachers" :key="at.user_id" :value="at.user_id">
+              {{ at.display_name }}
             </option>
           </select>
           <p v-if="!addableTeachers.length" class="rail-note schools-subtle">
-            Nobody else on the staff list yet — a colleague has to join the school before you can share the class with them.
+            {{ t('schools.classDetail.noAddableTeachers', 'Nobody else on the staff list yet — a colleague has to join the school before you can share the class with them.') }}
           </p>
           <div class="teacher-add-actions">
             <button type="button" class="btn-ghost btn-small" :disabled="!pickedTeacherId || teacherBusy" @click="addTeacher">
-              {{ teacherBusy ? 'Adding…' : 'Add' }}
+              {{ teacherBusy ? t('schools.classDetail.addingLabel', 'Adding…') : t('schools.classDetail.addLabel', 'Add') }}
             </button>
             <button type="button" class="btn-text teacher-action" :disabled="teacherBusy" @click="showAddTeacher = false; pickedTeacherId = ''">
-              Cancel
+              {{ t('schools.classDetail.cancelLabel', 'Cancel') }}
             </button>
           </div>
         </template>
@@ -1045,7 +1065,7 @@ const deleteImpactLines = computed(() => {
         -->
         <div v-if="canManageTeachers" class="teacher-link-block" data-walk="class-coteacher-link">
           <p class="rail-note schools-subtle">
-            Colleague not on the staff list yet? Send them a link into this class.
+            {{ t('schools.classDetail.coTeacherLinkHint', 'Colleague not on the staff list yet? Send them a link into this class.') }}
           </p>
           <InviteLinkField v-if="coTeacherLink" :url="coTeacherLink" />
           <button
@@ -1053,13 +1073,13 @@ const deleteImpactLines = computed(() => {
             type="button"
             class="btn-ghost btn-small"
             :disabled="coTeacherLinkBusy || !classData.id"
-            :title="!classData.id ? 'Waiting for the class to load' : undefined"
+            :title="!classData.id ? t('schools.classDetail.waitingForClass', 'Waiting for the class to load') : undefined"
             @click="mintCoTeacherLink"
           >
             <!-- On a cold direct load of the class URL this button is gated on
                  classData.id, which arrives late. Say so rather than sitting
                  dead and unexplained (production run, 2026-08-07). -->
-            {{ coTeacherLinkBusy ? 'Creating…' : (!classData.id ? 'Loading the class…' : 'Create a co-teacher link') }}
+            {{ coTeacherLinkBusy ? t('schools.classDetail.creatingLabel', 'Creating…') : (!classData.id ? t('schools.classDetail.loadingClass', 'Loading the class…') : t('schools.classDetail.createCoTeacherLink', 'Create a co-teacher link')) }}
           </button>
         </div>
 
@@ -1092,7 +1112,7 @@ const deleteImpactLines = computed(() => {
       -->
       <section class="roster schools-card" data-walk="class-roster">
         <header class="roster-head">
-          <h3 class="arsenal roster-title">Roster</h3>
+          <h3 class="arsenal roster-title">{{ t('schools.classDetail.rosterTitle', 'Roster') }}</h3>
           <div class="roster-tools">
             <!-- One search at a time: nothing to search in an empty class, and
                  while the picker is open ITS box is the one you mean. -->
@@ -1100,7 +1120,7 @@ const deleteImpactLines = computed(() => {
               v-if="!rosterObservedEmpty && !showAddStudent"
               v-model="searchQuery"
               type="search"
-              placeholder="Search students..."
+              :placeholder="t('schools.classDetail.searchStudentsPlaceholder', 'Search students...')"
               class="roster-search"
             />
             <!-- HANDBOOK Add students to a class
@@ -1130,7 +1150,7 @@ const deleteImpactLines = computed(() => {
                  pupil brings everything they have already learned with them.
                  For a pupil with no account at all, use the class link in
                  **Invite students** instead.
-                 checked: c0267e28.e2daca58
+                 checked: bf23506f.e2daca58
             -->
             <button
               v-if="!isAdminView"
@@ -1139,7 +1159,7 @@ const deleteImpactLines = computed(() => {
               data-walk="class-student-add"
               @click="showAddStudent ? closeAddStudent() : openAddStudent()"
             >
-              {{ showAddStudent ? 'Done' : 'Add students' }}
+              {{ showAddStudent ? t('schools.classDetail.doneLabel', 'Done') : t('schools.classDetail.addStudentsLabel', 'Add students') }}
             </button>
           </div>
         </header>
@@ -1152,17 +1172,17 @@ const deleteImpactLines = computed(() => {
             v-model="addStudentSearch"
             type="search"
             class="roster-search add-student-search"
-            placeholder="Search your school's students..."
+            :placeholder="t('schools.classDetail.searchSchoolStudentsPlaceholder', 'Search your school\u2019s students...')"
           />
 
           <p v-if="justAdded" class="add-student-note add-student-done">
-            {{ justAdded.name }} is in this class now.
+            {{ t('schools.classDetail.justAddedLabel', '{name} is in this class now.').replace('{name}', justAdded.name) }}
             <template v-if="justAdded.still_in.length">
-              Still in
+              {{ t('schools.classDetail.stillInLabel', 'Still in') }}
               <template v-for="(cl, i) in justAdded.still_in" :key="cl.id">
                 <router-link class="add-student-link" :to="{ name: 'class-detail', params: { id: cl.id } }">{{ cl.name }}</router-link><span v-if="i < justAdded.still_in.length - 1">, </span>
               </template>
-              — open it to take them off that roster.
+              {{ t('schools.classDetail.openToRemoveLabel', '— open it to take them off that roster.') }}
             </template>
           </p>
 
@@ -1177,23 +1197,24 @@ const deleteImpactLines = computed(() => {
                 <span class="avatar avatar-small">{{ getInitials(c.display_name) }}</span>
                 <span class="add-student-name">
                   {{ c.display_name }}
-                  <span class="add-student-where">{{ c.current_classes.length ? c.current_classes.map(cl => cl.name).join(', ') : 'In no class' }}</span>
+                  <span class="add-student-where">{{ c.current_classes.length ? c.current_classes.map(cl => cl.name).join(', ') : t('schools.classDetail.inNoClassLabel', 'In no class') }}</span>
                 </span>
-                <span class="add-student-verb">{{ addingStudentId === c.user_id ? 'Adding…' : 'Add' }}</span>
+                <span class="add-student-verb">{{ addingStudentId === c.user_id ? t('schools.classDetail.addingLabel', 'Adding…') : t('schools.classDetail.addLabel', 'Add') }}</span>
               </button>
             </li>
             <li v-if="filteredCandidates.length === 0" class="add-student-note schools-subtle">
-              Nobody in your school matches "{{ addStudentSearch }}".
+              {{ t('schools.classDetail.noCandidateMatch', 'Nobody in your school matches "{query}".').replace('{query}', addStudentSearch) }}
             </li>
           </ul>
           <p v-else-if="candidateListState === 'loading'" class="add-student-note schools-subtle">
-            Looking up your school's students…
+            {{ t('schools.classDetail.lookingUpStudents', "Looking up your school's students…") }}
           </p>
           <p v-else-if="candidateListState === 'error'" class="add-student-note">{{ addStudentError }}</p>
-          <p v-else class="add-student-note schools-subtle">
-            Everyone in your school is already in this class. For a student who has no account
-            yet, share the class link from <strong>Invite students</strong>.
-          </p>
+          <p
+            v-else
+            class="add-student-note schools-subtle"
+            v-html="t('schools.classDetail.allStudentsInClass', 'Everyone in your school is already in this class. For a student who has no account yet, share the class link from {inviteStudents}.').replace('{inviteStudents}', '<strong>' + t('schools.classDetail.inviteStudentsLabel', 'Invite students') + '</strong>')"
+          ></p>
 
           <p v-if="candidateListState === 'ready' && addStudentError" class="add-student-note">{{ addStudentError }}</p>
         </div>
@@ -1206,30 +1227,31 @@ const deleteImpactLines = computed(() => {
           <div class="empty-seats" aria-hidden="true">
             <span v-for="n in 6" :key="n" class="empty-seat"></span>
           </div>
-          <p class="empty-line">Nobody is in this class yet.</p>
+          <p class="empty-line">{{ t('schools.classDetail.rosterEmptyLine', 'Nobody is in this class yet.') }}</p>
           <button
             v-if="!isAdminView && !showAddStudent"
             type="button"
             class="btn-ghost btn-small"
             @click="openAddStudent"
           >
-            Add students
+            {{ t('schools.classDetail.addStudentsLabel', 'Add students') }}
           </button>
-          <p v-if="!isAdminView" class="empty-sub schools-subtle">
-            Or share the class link in <strong>Invite students</strong> — students who follow it
-            sign up and land straight in this class.
-          </p>
+          <p
+            v-if="!isAdminView"
+            class="empty-sub schools-subtle"
+            v-html="t('schools.classDetail.rosterEmptyInviteHint', 'Or share the class link in {inviteStudents} — students who follow it sign up and land straight in this class.').replace('{inviteStudents}', '<strong>' + t('schools.classDetail.inviteStudentsLabel', 'Invite students') + '</strong>')"
+          ></p>
         </div>
 
         <div v-else class="roster-scroll">
           <table class="ssi-table">
             <thead>
               <tr>
-                <th>Student</th>
-                <th>Belt</th>
-                <th>LEGOs</th>
-                <th>Practice</th>
-                <th>Last active</th>
+                <th>{{ t('schools.classDetail.studentColumn', 'Student') }}</th>
+                <th>{{ t('schools.classDetail.beltColumn', 'Belt') }}</th>
+                <th>{{ t('schools.classDetail.legosColumn', 'LEGOs') }}</th>
+                <th>{{ t('schools.classDetail.practiceColumn', 'Practice') }}</th>
+                <th>{{ t('schools.classDetail.lastActiveColumn', 'Last active') }}</th>
                 <th></th>
               </tr>
             </thead>
@@ -1242,7 +1264,7 @@ const deleteImpactLines = computed(() => {
                       <div class="student-name">{{ s.name }}</div>
                       <div class="student-sub">
                         <HealthDot :health="s.health" />
-                        <span>{{ s.health.replace('-', ' ') }}</span>
+                        <span>{{ healthLabel(s.health) }}</span>
                       </div>
                     </div>
                   </div>
@@ -1276,7 +1298,7 @@ const deleteImpactLines = computed(() => {
                        everything they have learned, and they can join
                        another class straight away. Only their place on this
                        roster goes.
-                       checked: 8f3eea39.0523415f
+                       checked: 1f8aba11.0523415f
                   -->
                   <button
                     v-if="!isAdminView"
@@ -1285,18 +1307,18 @@ const deleteImpactLines = computed(() => {
                     data-walk="class-student-remove"
                     @click="handleRemoveStudent({ user_id: s.user_id, name: s.name })"
                   >
-                    Remove
+                    {{ t('schools.classDetail.removeLabel', 'Remove') }}
                   </button>
                 </td>
               </tr>
               <tr v-if="filteredStudents.length === 0 && searchQuery">
-                <td colspan="6" class="empty-row">No students match "{{ searchQuery }}"</td>
+                <td colspan="6" class="empty-row">{{ t('schools.classDetail.noStudentsMatch', 'No students match "{query}"').replace('{query}', searchQuery) }}</td>
               </tr>
               <tr v-else-if="filteredStudents.length === 0 && classDetailLoading">
-                <td colspan="6" class="empty-row schools-subtle">Loading roster…</td>
+                <td colspan="6" class="empty-row schools-subtle">{{ t('schools.classDetail.loadingRoster', 'Loading roster…') }}</td>
               </tr>
               <tr v-else-if="filteredStudents.length === 0 && (rosterError || classDetailError)">
-                <td colspan="6" class="empty-row">Couldn't load roster. {{ rosterError || classDetailError }}</td>
+                <td colspan="6" class="empty-row">{{ t('schools.classDetail.rosterLoadError', "Couldn't load roster. {error}").replace('{error}', rosterError || classDetailError || '') }}</td>
               </tr>
             </tbody>
           </table>
@@ -1330,20 +1352,20 @@ const deleteImpactLines = computed(() => {
              Worth knowing. The class average is the honest number for planning a
              lesson. The belt spread is the one that tells you whether the class is
              holding together or pulling apart.
-             checked: a95511dd.c7baf113
+             checked: 6c1128ac.c7baf113
         -->
         <div class="schools-card schools-card-pad rail-card" data-walk="class-journey">
-          <div class="schools-kicker rail-kicker">Course Journey</div>
-          <JourneyBar :done="journeyDone" :total="journeyTotal" label="Course Journey" />
+          <div class="schools-kicker rail-kicker">{{ t('schools.classDetail.courseJourneyKicker', 'Course Journey') }}</div>
+          <JourneyBar :done="journeyDone" :total="journeyTotal" />
           <p class="rail-note">
-            {{ classAvgLegos }} LEGOs mastered avg across the class.<br />
-            <template v-if="nextBeltInfo">{{ nextBeltInfo.remaining }} more to {{ nextBeltInfo.name }} belt.</template>
-            <template v-else>Reached Black belt — top of the ladder.</template>
+            {{ t('schools.classDetail.classAvgLegosLabel', '{n} LEGOs mastered avg across the class.').replace('{n}', String(classAvgLegos)) }}<br />
+            <template v-if="nextBeltInfo">{{ t('schools.classDetail.moreToNextBelt', '{n} more to {belt} belt.').replace('{n}', String(nextBeltInfo.remaining)).replace('{belt}', nextBeltInfo.name) }}</template>
+            <template v-else>{{ t('schools.classDetail.reachedBlackBelt', 'Reached Black belt — top of the ladder.') }}</template>
           </p>
         </div>
 
         <div class="schools-card schools-card-pad rail-card">
-          <div class="schools-kicker rail-kicker">Belt distribution</div>
+          <div class="schools-kicker rail-kicker">{{ t('schools.classDetail.beltDistributionKicker', 'Belt distribution') }}</div>
           <BeltStrip
             v-if="students.length > 0"
             :distribution="beltDistribution"
@@ -1360,28 +1382,28 @@ const deleteImpactLines = computed(() => {
               <div class="belt-legend-label">{{ row.belt }}</div>
             </div>
           </div>
-          <p v-else-if="classDetailLoading" class="rail-note schools-subtle">Loading…</p>
-          <p v-else-if="rosterError || classDetailError" class="rail-note schools-subtle">Couldn't load the roster, so this is unknown.</p>
-          <p v-else class="rail-note schools-subtle">No students enrolled yet.</p>
+          <p v-else-if="classDetailLoading" class="rail-note schools-subtle">{{ t('schools.classDetail.loadingLabel', 'Loading…') }}</p>
+          <p v-else-if="rosterError || classDetailError" class="rail-note schools-subtle">{{ t('schools.classDetail.rosterUnknownError', "Couldn't load the roster, so this is unknown.") }}</p>
+          <p v-else class="rail-note schools-subtle">{{ t('schools.classDetail.noStudentsEnrolled', 'No students enrolled yet.') }}</p>
         </div>
 
         <div class="schools-card schools-card-pad rail-card">
-          <div class="schools-kicker rail-kicker">Practice min/student/week</div>
+          <div class="schools-kicker rail-kicker">{{ t('schools.classDetail.practiceBenchKicker', 'Practice min/student/week') }}</div>
           <Bench v-if="classReport" :data="benchData" unit="m" />
-          <p v-else-if="reportResolved" class="rail-note schools-subtle">Benchmark unavailable for this class.</p>
-          <p v-else class="rail-note schools-subtle">Benchmark loading...</p>
+          <p v-else-if="reportResolved" class="rail-note schools-subtle">{{ t('schools.classDetail.benchmarkUnavailable', 'Benchmark unavailable for this class.') }}</p>
+          <p v-else class="rail-note schools-subtle">{{ t('schools.classDetail.benchmarkLoading', 'Benchmark loading...') }}</p>
         </div>
 
 
         <div v-if="!isAdminView" class="schools-card schools-card-pad rail-card join-card" :class="{ 'join-card-first': rosterObservedEmpty }">
-          <div class="schools-kicker join-kicker">Invite students</div>
+          <div class="schools-kicker join-kicker">{{ t('schools.classDetail.inviteStudentsLabel', 'Invite students') }}</div>
 
           <!-- Nothing copyable exists until the code does: a link with the code
                missing gets handed to a class of pupils before anyone finds out
                it goes nowhere (production, 2026-08-07). -->
           <template v-if="joinPanel.state === 'ready'">
             <p class="join-help">
-              Share this link — students click it, sign up, and land straight in the class.
+              {{ t('schools.classDetail.shareLinkHelp', 'Share this link — students click it, sign up, and land straight in the class.') }}
             </p>
             <!-- HANDBOOK How students join a class
                  section: getting-people-in
@@ -1415,33 +1437,32 @@ const deleteImpactLines = computed(() => {
               data-walk="class-join-code"
               @click="showCode = true"
             >
-              Show code instead
+              {{ t('schools.classDetail.showCodeInstead', 'Show code instead') }}
             </button>
             <template v-else>
               <div class="join-code" data-walk="class-join-code">{{ joinPanel.code }}</div>
-              <p class="join-help join-help-small">
-                For writing on a whiteboard — students enter it at
-                <strong>saysomethingin.com/redeem</strong>.
-              </p>
+              <p
+                class="join-help join-help-small"
+                v-html="t('schools.classDetail.whiteboardHint', 'For writing on a whiteboard — students enter it at {url}.').replace('{url}', '<strong>saysomethingin.com/redeem</strong>')"
+              ></p>
               <button
                 type="button"
                 class="btn-ghost btn-small join-copy"
                 :class="{ copied: codeCopySuccess }"
                 @click="copyJoinCode"
               >
-                {{ codeCopySuccess ? 'Copied' : 'Copy code' }}
+                {{ codeCopySuccess ? t('schools.classDetail.copiedLabel', 'Copied') : t('schools.classDetail.copyCodeLabel', 'Copy code') }}
               </button>
             </template>
           </template>
           <p v-else-if="joinPanel.state === 'loading'" class="join-help schools-subtle">
-            Loading this class's invite link…
+            {{ t('schools.classDetail.loadingJoinLink', "Loading this class's invite link…") }}
           </p>
           <p v-else-if="joinPanel.state === 'error'" class="join-help schools-subtle">
-            Couldn't load this class's invite link. Refresh before sharing anything — don't hand
-            out a link from this page until it appears.
+            {{ t('schools.classDetail.joinLinkError', "Couldn't load this class's invite link. Refresh before sharing anything — don't hand out a link from this page until it appears.") }}
           </p>
           <p v-else class="join-help schools-subtle">
-            This class has no join code yet.
+            {{ t('schools.classDetail.noJoinCodeYet', 'This class has no join code yet.') }}
           </p>
         </div>
       </aside>
@@ -1449,7 +1470,7 @@ const deleteImpactLines = computed(() => {
 
     <ConfirmDeleteModal
       :is-open="showDeleteModal"
-      title="Delete class"
+      :title="t('schools.classDetail.deleteClassLabel', 'Delete class')"
       :target-name="classData.class_name"
       :impact-lines="deleteImpactLines"
       :require-typed-confirm="!!deleteImpact?.hasRealActivity"

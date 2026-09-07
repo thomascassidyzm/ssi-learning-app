@@ -17,6 +17,9 @@ import { readDuplicateWarning } from '@/utils/duplicateNameWarning'
 import { useOrgLeadership } from '@/composables/useOrgLeadership'
 import FrostSelect from '@/components/FrostSelect.vue'
 import { hasPasswordFlag, needsPasswordGate } from '@/composables/useManagerOnboarding'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 interface NodeShape {
   id: string
@@ -186,19 +189,19 @@ async function submitPerson(): Promise<void> {
     const emailed = data.emailed as { sent?: boolean; to?: string; via?: 'link' | 'code' } | undefined
     const message = emailed?.sent
       ? emailed.via === 'code'
-        ? `${name} is in — ${emailed.to} already has an account, so we sent a sign-in code. Send them this link too.`
-        : `Invite sent to ${emailed.to} — ${name} is in.`
+        ? t('org.ui.nodeActionBar.inSignInCode', '{name} is in — {email} already has an account, so we sent a sign-in code. Send them this link too.').replace('{name}', name).replace('{email}', emailed.to || '')
+        : t('org.ui.nodeActionBar.inviteSentIn', 'Invite sent to {email} — {name} is in.').replace('{email}', emailed.to || '').replace('{name}', name)
       : emailed
-        ? `${name} is in, but we couldn't email the invite — send them this link.`
-        : `Personal link created for ${name}`
+        ? t('org.ui.nodeActionBar.inNoEmail', '{name} is in, but we couldn\'t email the invite — send them this link.').replace('{name}', name)
+        : t('org.ui.nodeActionBar.personalLinkCreatedFor', 'Personal link created for {name}').replace('{name}', name)
     announce(
       message,
       data.url
         ? {
             url: data.url,
             hint: emailed?.sent
-              ? 'Same link, if you\'d rather send it yourself too — clicking it signs them straight in.'
-              : 'Send this to them — clicking it signs them straight in.',
+              ? t('org.ui.nodeActionBar.sameLinkHint', 'Same link, if you\'d rather send it yourself too — clicking it signs them straight in.')
+              : t('org.ui.nodeActionBar.sendLinkHint', 'Send this to them — clicking it signs them straight in.'),
           }
         : null,
     )
@@ -206,7 +209,7 @@ async function submitPerson(): Promise<void> {
     personEmail.value = ''
     emit('minted')
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to create the personal link'
+    error.value = err instanceof Error ? err.message : t('org.ui.nodeActionBar.failedCreatePersonalLink', 'Failed to create the personal link')
   } finally {
     isInvitingPerson.value = false
   }
@@ -224,12 +227,12 @@ watch(defaultRole, (r) => {
   inviteRole.value = r
 })
 const isInviting = ref(false)
-const inviteHintByRole: Record<string, string> = {
-  teacher: 'Share this with the teacher it\'s for.',
-  leader: 'Share this with the leader it\'s for.',
-  school_leader: 'Share this with the school leader it\'s for.',
-  student: 'Anyone with this link joins as a learner.',
-}
+const inviteHintByRole = computed<Record<string, string>>(() => ({
+  teacher: t('org.ui.nodeActionBar.hintShareTeacher', 'Share this with the teacher it\'s for.'),
+  leader: t('org.ui.nodeActionBar.hintShareLeader', 'Share this with the leader it\'s for.'),
+  school_leader: t('org.ui.nodeActionBar.hintShareSchoolLeader', 'Share this with the school leader it\'s for.'),
+  student: t('org.ui.nodeActionBar.hintAnyoneJoinsLearner', 'Anyone with this link joins as a learner.'),
+}))
 async function submitInvite(): Promise<void> {
   if (isInviting.value) return
   isInviting.value = true
@@ -257,12 +260,12 @@ async function submitInvite(): Promise<void> {
     openForm.value = null
     try { if (link?.url) await navigator.clipboard.writeText(link.url) } catch { /* clipboard unavailable */ }
     announce(
-      `Shareable link for "${props.node.name}" — copied.`,
-      link?.url ? { url: link.url, hint: inviteHintByRole[inviteRole.value] || 'Share this invite link.' } : null,
+      t('org.ui.nodeActionBar.shareableLinkFor', 'Shareable link for "{name}" — copied.').replace('{name}', props.node.name),
+      link?.url ? { url: link.url, hint: inviteHintByRole.value[inviteRole.value] || t('org.ui.nodeActionBar.hintShareInviteLink', 'Share this invite link.') } : null,
     )
     emit('minted')
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to create invite'
+    error.value = err instanceof Error ? err.message : t('org.ui.nodeActionBar.failedCreateInvite', 'Failed to create invite')
   } finally {
     isInviting.value = false
   }
@@ -297,13 +300,13 @@ async function submitGroup(confirmDuplicate = false): Promise<void> {
       return
     }
     if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
-    announce(`"${newChildName.value.trim()}" added.`)
+    announce(t('org.ui.nodeActionBar.namedAdded', '"{name}" added.').replace('{name}', newChildName.value.trim()))
     newChildName.value = ''
     childDuplicateWarning.value = null
     openForm.value = null
     emit('changed')
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to add group'
+    error.value = err instanceof Error ? err.message : t('org.ui.nodeActionBar.failedAddGroup', 'Failed to add group')
   } finally {
     isAddingChild.value = false
   }
@@ -320,12 +323,12 @@ async function submitSchool(): Promise<void> {
     })
     const data = await resp.json().catch(() => ({}))
     if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
-    announce(`School "${newChildName.value.trim()}" added.`)
+    announce(t('org.ui.nodeActionBar.schoolNamedAdded', 'School "{name}" added.').replace('{name}', newChildName.value.trim()))
     newChildName.value = ''
     openForm.value = null
     emit('changed')
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to add school'
+    error.value = err instanceof Error ? err.message : t('org.ui.nodeActionBar.failedAddSchool', 'Failed to add school')
   } finally {
     isAddingChild.value = false
   }
@@ -386,12 +389,12 @@ async function submitClass(): Promise<void> {
     })
     const data = await resp.json().catch(() => ({}))
     if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
-    announce(`Class "${newClassName.value.trim()}" added — assign a teacher whenever you're ready.`)
+    announce(t('org.ui.nodeActionBar.classNamedAdded', 'Class "{name}" added — assign a teacher whenever you\'re ready.').replace('{name}', newClassName.value.trim()))
     newClassName.value = ''
     openForm.value = null
     emit('changed')
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to add class'
+    error.value = err instanceof Error ? err.message : t('org.ui.nodeActionBar.failedAddClass', 'Failed to add class')
   } finally {
     isAddingClass.value = false
   }
@@ -420,14 +423,14 @@ async function submitDemo(): Promise<void> {
     const leaderLink = Array.isArray(data.links) ? data.links.find((l: any) => l.role === 'leader') : null
     openForm.value = null
     announce(
-      `Demo org "${demoName.value.trim()}" minted.`,
-      leaderLink?.url ? { url: leaderLink.url, hint: 'Share this with the demo leader.' } : null,
+      t('org.ui.nodeActionBar.demoOrgMinted', 'Demo org "{name}" minted.').replace('{name}', demoName.value.trim()),
+      leaderLink?.url ? { url: leaderLink.url, hint: t('org.ui.nodeActionBar.hintShareDemoLeader', 'Share this with the demo leader.') } : null,
     )
     demoName.value = ''
     demoLeaderEmail.value = ''
     emit('changed')
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to mint demo org'
+    error.value = err instanceof Error ? err.message : t('org.ui.nodeActionBar.failedMintDemo', 'Failed to mint demo org')
   } finally {
     isMinting.value = false
   }
@@ -472,13 +475,13 @@ async function submitRename(confirmDuplicate = false): Promise<void> {
       return
     }
     if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
-    announce(`Renamed to "${name}".`)
+    announce(t('org.ui.nodeActionBar.renamedTo', 'Renamed to "{name}".').replace('{name}', name))
     renameDuplicateWarning.value = null
     openForm.value = null
     emit('renamed', name)
     emit('changed')
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to rename'
+    error.value = err instanceof Error ? err.message : t('org.ui.nodeActionBar.failedRename', 'Failed to rename')
   } finally {
     isRenaming.value = false
   }
@@ -500,11 +503,14 @@ async function refreshDemo(): Promise<void> {
     const data = await resp.json().catch(() => ({}))
     if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
     announce(data.noop
-      ? 'Nothing to refresh — no demo learners below this node yet.'
-      : `Fresh activity for ${data.learnersTouched} learners — ${data.sessionsWritten} practice sessions, ${data.speakingRowsWritten ?? 0} daily rollups.`)
+      ? t('org.ui.nodeActionBar.nothingToRefresh', 'Nothing to refresh — no demo learners below this node yet.')
+      : t('org.ui.nodeActionBar.freshActivitySummary', 'Fresh activity for {learners} learners — {sessions} practice sessions, {rollups} daily rollups.')
+          .replace('{learners}', String(data.learnersTouched))
+          .replace('{sessions}', String(data.sessionsWritten))
+          .replace('{rollups}', String(data.speakingRowsWritten ?? 0)))
     emit('changed')
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to refresh demo activity'
+    error.value = err instanceof Error ? err.message : t('org.ui.nodeActionBar.failedRefreshDemo', 'Failed to refresh demo activity')
   } finally {
     isRefreshing.value = false
   }
@@ -516,7 +522,9 @@ const deleteOpen = ref(false)
 const deleteImpact = ref<DeleteImpact | null>(null)
 const deleteSubmitting = ref(false)
 const deleteError = ref('')
-const deleteTitle = computed(() => (props.node.commercial ? 'Delete school' : 'Delete group'))
+const deleteTitle = computed(() => (props.node.commercial
+  ? t('org.ui.nodeActionBar.deleteSchool', 'Delete school')
+  : t('org.ui.nodeActionBar.deleteGroup', 'Delete group')))
 const deleteImpactLines = computed(() => formatDeleteImpactLines(deleteImpact.value))
 async function requestDelete(): Promise<void> {
   deleteImpact.value = null
@@ -529,10 +537,10 @@ async function requestDelete(): Promise<void> {
       : `/api/groups/${props.node.id}`
     const resp = await fetch(url, { method: 'GET', headers: authHeaders(token) })
     const data = await resp.json().catch(() => ({}))
-    if (!resp.ok) throw new Error(data.error || 'Failed to load deletion impact')
+    if (!resp.ok) throw new Error(data.error || t('org.ui.nodeActionBar.failedLoadDeleteImpact', 'Failed to load deletion impact'))
     deleteImpact.value = data.impact
   } catch (err) {
-    deleteError.value = err instanceof Error ? err.message : 'Failed to load deletion impact'
+    deleteError.value = err instanceof Error ? err.message : t('org.ui.nodeActionBar.failedLoadDeleteImpact', 'Failed to load deletion impact')
   }
 }
 async function confirmDelete(typedName: string): Promise<void> {
@@ -546,17 +554,17 @@ async function confirmDelete(typedName: string): Promise<void> {
       if (typedName) params.set('confirm_name', typedName)
       const resp = await fetch(`/api/admin/update-school?${params.toString()}`, { method: 'DELETE', headers })
       const data = await resp.json().catch(() => ({}))
-      if (!resp.ok) throw new Error(data.error || 'Failed to delete school')
+      if (!resp.ok) throw new Error(data.error || t('org.ui.nodeActionBar.failedDeleteSchool', 'Failed to delete school'))
     } else {
       const qp = typedName ? `?confirm_name=${encodeURIComponent(typedName)}` : ''
       const resp = await fetch(`/api/groups/${props.node.id}${qp}`, { method: 'DELETE', headers })
       const data = await resp.json().catch(() => ({}))
-      if (!resp.ok) throw new Error(data.error || 'Failed to delete group')
+      if (!resp.ok) throw new Error(data.error || t('org.ui.nodeActionBar.failedDeleteGroup', 'Failed to delete group'))
     }
     deleteOpen.value = false
     emit('changed')
   } catch (err) {
-    deleteError.value = err instanceof Error ? err.message : 'Failed to delete'
+    deleteError.value = err instanceof Error ? err.message : t('org.ui.nodeActionBar.failedDelete', 'Failed to delete')
   } finally {
     deleteSubmitting.value = false
   }
@@ -596,9 +604,9 @@ function closeDelete(): void {
            Worth knowing. One student at a time, on purpose — the link is theirs alone
            and carries the class with it. The **Students** page's **+ Invite students**
            button brings you here for exactly this reason.
-           checked: aa3e5463.68bb21d6
+           checked: 86c44e8f.68bb21d6
       -->
-      <button v-if="classMode" type="button" class="verb" :class="{ 'is-open': openForm === 'person' }" data-walk="verb-invite-student" @click="toggle('person')">Invite students</button>
+      <button v-if="classMode" type="button" class="verb" :class="{ 'is-open': openForm === 'person' }" data-walk="verb-invite-student" @click="toggle('person')">{{ t('org.ui.nodeActionBar.inviteStudents', 'Invite students') }}</button>
       <template v-else>
       <!-- HANDBOOK Bring your first person in
            section: getting-people-in
@@ -618,9 +626,9 @@ function closeDelete(): void {
            5. Copy the minted link and send it.
            Worth knowing. Nothing is created until you submit. Every link you mint lands
            in **Ways in**.
-           checked: e35d11f4.52963dcb
+           checked: 2886d113.52963dcb
       -->
-      <button type="button" class="verb" :class="{ 'is-open': openForm === 'person' }" data-walk="verb-invite-person" @click="toggle('person')">Invite a person</button>
+      <button type="button" class="verb" :class="{ 'is-open': openForm === 'person' }" data-walk="verb-invite-person" @click="toggle('person')">{{ t('org.ui.nodeActionBar.inviteAPerson', 'Invite a person') }}</button>
       <!-- HANDBOOK Make a link anyone can use
            section: getting-people-in
            roles: admin, leader, school_admin
@@ -638,13 +646,13 @@ function closeDelete(): void {
            Worth knowing. It is open to anyone holding it, so when a link has travelled
            further than you meant, revoke it in **Ways in** and make a fresh one. Use
            **Invite a person** instead when you can name who is coming.
-           checked: 9c63d409.855a3e42
+           checked: 90c5fe0a.855a3e42
       -->
-      <button type="button" class="verb" :class="{ 'is-open': openForm === 'invite' }" data-walk="verb-shareable-link" @click="toggle('invite')">Get a shareable link</button>
+      <button type="button" class="verb" :class="{ 'is-open': openForm === 'invite' }" data-walk="verb-shareable-link" @click="toggle('invite')">{{ t('org.ui.nodeActionBar.getShareableLink', 'Get a shareable link') }}</button>
       <!-- Add a group is for LEADERS too (founder ruling 2026-08-02: any
            group can contain subgroups — the endpoint authorizes a leader on
            their own subtree). Add a school is education-dressing-only. -->
-      <button type="button" class="verb" :class="{ 'is-open': openForm === 'group' }" @click="toggle('group')">Add a group</button>
+      <button type="button" class="verb" :class="{ 'is-open': openForm === 'group' }" @click="toggle('group')">{{ t('org.ui.nodeActionBar.addAGroup', 'Add a group') }}</button>
       <!-- HANDBOOK Add a school under a group
            section: your-school
            roles: admin
@@ -662,9 +670,9 @@ function closeDelete(): void {
            Worth knowing. The verb only shows on a plain group. A school cannot contain
            another school, and an organisation using the neutral wording has groups
            rather than schools all the way down.
-           checked: 5641ca01.410c0ecd
+           checked: 99a1fcbe.410c0ecd
       -->
-      <button v-if="!member && !node.commercial && !neutral" type="button" class="verb" :class="{ 'is-open': openForm === 'school' }" data-walk="verb-add-school" @click="toggle('school')">Add a school</button>
+      <button v-if="!member && !node.commercial && !neutral" type="button" class="verb" :class="{ 'is-open': openForm === 'school' }" data-walk="verb-add-school" @click="toggle('school')">{{ t('org.ui.nodeActionBar.addASchool', 'Add a school') }}</button>
       <!-- Add a class is for LEADERS too (founder ruling 2026-09-07: a class
            belongs to a group, even when that group is the org itself, and it
            needs no teacher to exist). Education dressing only. -->
@@ -687,9 +695,9 @@ function closeDelete(): void {
            5. Tap **Add**.
            Worth knowing. A class needs no teacher to exist. It sits under the group
            waiting, and you put a teacher on it whenever you are ready.
-           checked: 0b14ec1f.32cb8fc5
+           checked: 6d513232.32cb8fc5
       -->
-      <button v-if="!neutral" type="button" class="verb" :class="{ 'is-open': openForm === 'class' }" data-walk="verb-add-class" @click="toggle('class')">Add a class</button>
+      <button v-if="!neutral" type="button" class="verb" :class="{ 'is-open': openForm === 'class' }" data-walk="verb-add-class" @click="toggle('class')">{{ t('org.ui.nodeActionBar.addAClass', 'Add a class') }}</button>
       <!-- HANDBOOK Set up a demo organisation
            section: your-school
            roles: admin
@@ -708,9 +716,9 @@ function closeDelete(): void {
            Worth knowing. A demo org's own page grows a **Refresh demo activity** button,
            which moves its learners on so a demo you minted weeks ago does not look
            abandoned when you next open it.
-           checked: 09ac296d.e86abc2e
+           checked: 3b0a49fe.e86abc2e
       -->
-      <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'demo' }" data-walk="verb-mint-demo" @click="toggle('demo')">Mint a demo org</button>
+      <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'demo' }" data-walk="verb-mint-demo" @click="toggle('demo')">{{ t('org.ui.nodeActionBar.mintADemoOrg', 'Mint a demo org') }}</button>
       <!-- HANDBOOK Choose which courses a school can use
            section: courses-and-content
            roles: admin
@@ -729,9 +737,9 @@ function closeDelete(): void {
            Worth knowing. A trial runs for thirty days on a paid course and a year on a
            free or community one, and the server works the dates out on save — what you
            see before saving is a preview.
-           checked: bf4ae0a1.cd89c135
+           checked: 3a31c89c.cd89c135
       -->
-      <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'courses' }" data-walk="verb-courses" @click="toggle('courses')">Courses</button>
+      <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'courses' }" data-walk="verb-courses" @click="toggle('courses')">{{ t('org.ui.nodeActionBar.courses', 'Courses') }}</button>
       <!-- HANDBOOK Rename a school or group
            section: your-school
            roles: admin
@@ -749,11 +757,11 @@ function closeDelete(): void {
            Worth knowing. If the new name matches something else already sitting beside
            it you are warned and asked to confirm, because two identical names in one
            list is usually a mistake rather than a plan.
-           checked: c3b0189b.1ab1b0b4
+           checked: 6926fba3.1ab1b0b4
       -->
-      <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'rename' }" data-walk="verb-rename" @click="openRename">Rename</button>
+      <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'rename' }" data-walk="verb-rename" @click="openRename">{{ t('org.ui.nodeActionBar.rename', 'Rename') }}</button>
       <button v-if="!member && node.is_demo" type="button" class="verb verb-demo" :disabled="isRefreshing" @click="refreshDemo">
-        {{ isRefreshing ? 'Refreshing…' : 'Refresh demo activity' }}
+        {{ isRefreshing ? t('org.ui.nodeActionBar.refreshing', 'Refreshing…') : t('org.ui.nodeActionBar.refreshDemoActivity', 'Refresh demo activity') }}
       </button>
       <!-- HANDBOOK Delete a school or group
            section: your-school
@@ -774,9 +782,9 @@ function closeDelete(): void {
            Worth knowing. You are only asked to type the name when there is real activity
            underneath, which is the signal to stop and check. An empty shell deletes on a
            single confirm.
-           checked: 9ffcd50a.fdd02145
+           checked: bbc6b74d.fdd02145
       -->
-      <button v-if="!member" type="button" class="verb verb-danger" data-walk="verb-delete" @click="requestDelete">Delete</button>
+      <button v-if="!member" type="button" class="verb verb-danger" data-walk="verb-delete" @click="requestDelete">{{ t('org.ui.nodeActionBar.delete', 'Delete') }}</button>
       </template>
     </div>
 
@@ -805,96 +813,96 @@ function closeDelete(): void {
              checked: 8119168f.215b02bb
         -->
         <select v-if="!classMode" v-model="personRole" class="frost-select" data-walk="invite-form-role">
-          <option v-if="!neutral" value="teacher">Teacher</option>
-          <option value="leader">Group leader</option>
-          <option v-if="!neutral && node.commercial" value="school_leader">School leader</option>
-          <option value="student">Learner</option>
+          <option v-if="!neutral" value="teacher">{{ t('org.ui.nodeActionBar.roleTeacher', 'Teacher') }}</option>
+          <option value="leader">{{ t('org.ui.nodeActionBar.roleGroupLeader', 'Group leader') }}</option>
+          <option v-if="!neutral && node.commercial" value="school_leader">{{ t('org.ui.nodeActionBar.roleSchoolLeader', 'School leader') }}</option>
+          <option value="student">{{ t('org.ui.nodeActionBar.roleLearner', 'Learner') }}</option>
         </select>
-        <input v-model="personName" type="text" class="frost-input" :placeholder="classMode ? 'Student\'s name' : 'Their name'" @keyup.enter="submitPerson" />
-        <input v-model="personEmail" type="email" class="frost-input" placeholder="Their email — we'll send the invite" />
+        <input v-model="personName" type="text" class="frost-input" :placeholder="classMode ? t('org.ui.nodeActionBar.studentsName', 'Student\'s name') : t('org.ui.nodeActionBar.theirName', 'Their name')" @keyup.enter="submitPerson" />
+        <input v-model="personEmail" type="email" class="frost-input" :placeholder="t('org.ui.nodeActionBar.theirEmailWeSend', 'Their email — we\'ll send the invite')" />
         <button class="btn-primary-sm" data-walk="invite-form-submit" :disabled="isInvitingPerson || !personName.trim()" @click="submitPerson">
-          {{ isInvitingPerson ? (personEmail.trim() ? 'Sending…' : 'Creating…') : (personEmail.trim() ? 'Send their invite' : 'Create their link') }}
+          {{ isInvitingPerson ? (personEmail.trim() ? t('org.ui.nodeActionBar.sending', 'Sending…') : t('org.ui.nodeActionBar.creating', 'Creating…')) : (personEmail.trim() ? t('org.ui.nodeActionBar.sendTheirInvite', 'Send their invite') : t('org.ui.nodeActionBar.createTheirLink', 'Create their link')) }}
         </button>
       </div>
-      <p v-if="classMode" class="kind-hint">One student at a time — their link puts them straight into this class, no screens. Give an email and we send it for you; leave it blank and you get a link to share.</p>
-      <p v-else class="kind-hint">Named invite — goes straight in, no screens. Give an email and we send it for you; leave it blank and you get a link to share.</p>
+      <p v-if="classMode" class="kind-hint">{{ t('org.ui.nodeActionBar.hintOneStudentAtATime', 'One student at a time — their link puts them straight into this class, no screens. Give an email and we send it for you; leave it blank and you get a link to share.') }}</p>
+      <p v-else class="kind-hint">{{ t('org.ui.nodeActionBar.hintNamedInvite', 'Named invite — goes straight in, no screens. Give an email and we send it for you; leave it blank and you get a link to share.') }}</p>
     </div>
     <div v-else-if="openForm === 'invite'" class="verb-form-block">
       <div class="verb-form">
         <select v-model="inviteRole" class="frost-select">
-          <option v-if="!neutral" value="teacher">Teacher</option>
-          <option value="leader">Group leader</option>
-          <option v-if="!neutral && node.commercial" value="school_leader">School leader</option>
-          <option value="student">Learner</option>
+          <option v-if="!neutral" value="teacher">{{ t('org.ui.nodeActionBar.roleTeacher', 'Teacher') }}</option>
+          <option value="leader">{{ t('org.ui.nodeActionBar.roleGroupLeader', 'Group leader') }}</option>
+          <option v-if="!neutral && node.commercial" value="school_leader">{{ t('org.ui.nodeActionBar.roleSchoolLeader', 'School leader') }}</option>
+          <option value="student">{{ t('org.ui.nodeActionBar.roleLearner', 'Learner') }}</option>
         </select>
         <button class="btn-primary-sm" :disabled="isInviting" @click="submitInvite">
-          {{ isInviting ? 'Creating…' : 'Create invite link' }}
+          {{ isInviting ? t('org.ui.nodeActionBar.creating', 'Creating…') : t('org.ui.nodeActionBar.createInviteLink', 'Create invite link') }}
         </button>
       </div>
-      <p class="kind-hint">Shareable — new arrivals enter their name before they're in.</p>
+      <p class="kind-hint">{{ t('org.ui.nodeActionBar.hintShareableNewArrivals', 'Shareable — new arrivals enter their name before they\'re in.') }}</p>
     </div>
     <div v-else-if="openForm === 'group'" class="verb-form-block">
       <div class="verb-form">
-        <input v-model="newChildName" type="text" class="frost-input" placeholder="Group name" @keyup.enter="submitGroup()" />
+        <input v-model="newChildName" type="text" class="frost-input" :placeholder="t('org.ui.nodeActionBar.groupName', 'Group name')" @keyup.enter="submitGroup()" />
         <button class="btn-primary-sm" :disabled="isAddingChild || !newChildName.trim()" @click="submitGroup()">
-          {{ isAddingChild ? 'Adding…' : 'Add' }}
+          {{ isAddingChild ? t('org.ui.nodeActionBar.adding', 'Adding…') : t('org.ui.nodeActionBar.add', 'Add') }}
         </button>
       </div>
       <div v-if="childDuplicateWarning" class="duplicate-warning" role="alert">
         <p class="duplicate-warning-text">{{ childDuplicateWarning }}</p>
         <div class="duplicate-warning-actions">
-          <button type="button" class="btn-ghost-sm" @click="childDuplicateWarning = null">Change the name</button>
+          <button type="button" class="btn-ghost-sm" @click="childDuplicateWarning = null">{{ t('org.ui.nodeActionBar.changeTheName', 'Change the name') }}</button>
           <button type="button" class="btn-primary-sm" :disabled="isAddingChild" @click="submitGroup(true)">
-            {{ isAddingChild ? 'Adding…' : 'Go ahead anyway' }}
+            {{ isAddingChild ? t('org.ui.nodeActionBar.adding', 'Adding…') : t('org.ui.nodeActionBar.goAheadAnyway', 'Go ahead anyway') }}
           </button>
         </div>
       </div>
     </div>
     <div v-else-if="openForm === 'school'" class="verb-form">
-      <input v-model="newChildName" type="text" class="frost-input" placeholder="School name" @keyup.enter="submitSchool" />
+      <input v-model="newChildName" type="text" class="frost-input" :placeholder="t('org.ui.nodeActionBar.schoolName', 'School name')" @keyup.enter="submitSchool" />
       <button class="btn-primary-sm" :disabled="isAddingChild || !newChildName.trim()" @click="submitSchool">
-        {{ isAddingChild ? 'Adding…' : 'Add' }}
+        {{ isAddingChild ? t('org.ui.nodeActionBar.adding', 'Adding…') : t('org.ui.nodeActionBar.add', 'Add') }}
       </button>
     </div>
     <div v-else-if="openForm === 'class'" class="verb-form-block">
       <div class="verb-form">
-        <input v-model="newClassName" type="text" class="frost-input" placeholder="Class name" data-walk="add-class-name" @keyup.enter="submitClass" />
+        <input v-model="newClassName" type="text" class="frost-input" :placeholder="t('org.ui.nodeActionBar.className', 'Class name')" data-walk="add-class-name" @keyup.enter="submitClass" />
         <span class="course-select-wrap">
           <FrostSelect
             v-model="newClassCourse"
             :options="courseOptions"
             filterable
-            filter-placeholder="Search courses…"
-            placeholder="Choose course"
-            aria-label="Course for this class"
+            :filter-placeholder="t('org.ui.nodeActionBar.searchCourses', 'Search courses…')"
+            :placeholder="t('org.ui.nodeActionBar.chooseCourse', 'Choose course')"
+            :aria-label="t('org.ui.nodeActionBar.courseForThisClass', 'Course for this class')"
           />
         </span>
         <button class="btn-primary-sm" data-walk="add-class-submit" :disabled="isAddingClass || !newClassName.trim() || !newClassCourse" @click="submitClass">
-          {{ isAddingClass ? 'Adding…' : 'Add' }}
+          {{ isAddingClass ? t('org.ui.nodeActionBar.adding', 'Adding…') : t('org.ui.nodeActionBar.add', 'Add') }}
         </button>
       </div>
-      <p class="kind-hint">No teacher needed yet — the class exists on its own, and you can put a teacher on it any time from your staff list.</p>
+      <p class="kind-hint">{{ t('org.ui.nodeActionBar.hintNoTeacherNeeded', 'No teacher needed yet — the class exists on its own, and you can put a teacher on it any time from your staff list.') }}</p>
     </div>
     <div v-else-if="openForm === 'demo'" class="verb-form">
-      <input v-model="demoName" type="text" class="frost-input" placeholder="Demo org name" @keyup.enter="submitDemo" />
-      <input v-model="demoLeaderEmail" type="email" class="frost-input" placeholder="Leader email (optional)" />
+      <input v-model="demoName" type="text" class="frost-input" :placeholder="t('org.ui.nodeActionBar.demoOrgName', 'Demo org name')" @keyup.enter="submitDemo" />
+      <input v-model="demoLeaderEmail" type="email" class="frost-input" :placeholder="t('org.ui.nodeActionBar.leaderEmailOptional', 'Leader email (optional)')" />
       <button class="btn-primary-sm" :disabled="isMinting || !demoName.trim()" @click="submitDemo">
-        {{ isMinting ? 'Minting…' : 'Mint' }}
+        {{ isMinting ? t('org.ui.nodeActionBar.minting', 'Minting…') : t('org.ui.nodeActionBar.mint', 'Mint') }}
       </button>
     </div>
     <div v-else-if="openForm === 'rename'" class="verb-form-block">
       <div class="verb-form">
-        <input v-model="renameValue" type="text" class="frost-input" placeholder="New name" @keyup.enter="submitRename()" @keyup.escape="openForm = null" />
+        <input v-model="renameValue" type="text" class="frost-input" :placeholder="t('org.ui.nodeActionBar.newName', 'New name')" @keyup.enter="submitRename()" @keyup.escape="openForm = null" />
         <button class="btn-primary-sm" :disabled="isRenaming || !renameValue.trim()" @click="submitRename()">
-          {{ isRenaming ? 'Saving…' : 'Save' }}
+          {{ isRenaming ? t('org.ui.nodeActionBar.saving', 'Saving…') : t('org.ui.nodeActionBar.save', 'Save') }}
         </button>
       </div>
       <div v-if="renameDuplicateWarning" class="duplicate-warning" role="alert">
         <p class="duplicate-warning-text">{{ renameDuplicateWarning }}</p>
         <div class="duplicate-warning-actions">
-          <button type="button" class="btn-ghost-sm" @click="renameDuplicateWarning = null">Change the name</button>
+          <button type="button" class="btn-ghost-sm" @click="renameDuplicateWarning = null">{{ t('org.ui.nodeActionBar.changeTheName', 'Change the name') }}</button>
           <button type="button" class="btn-primary-sm" :disabled="isRenaming" @click="submitRename(true)">
-            {{ isRenaming ? 'Saving…' : 'Go ahead anyway' }}
+            {{ isRenaming ? t('org.ui.nodeActionBar.saving', 'Saving…') : t('org.ui.nodeActionBar.goAheadAnyway', 'Go ahead anyway') }}
           </button>
         </div>
       </div>
@@ -909,7 +917,7 @@ function closeDelete(): void {
       <span>{{ notice }}</span>
       <button
         v-if="shareUrl" type="button" class="share-chip" :class="{ 'is-copied': copied }" @click="copyShare"
-      >{{ copied ? 'Copied!' : shareUrl.url }}</button>
+      >{{ copied ? t('org.ui.nodeActionBar.copied', 'Copied!') : shareUrl.url }}</button>
       <span v-if="shareUrl" class="share-hint">{{ shareUrl.hint }}</span>
     </div>
 

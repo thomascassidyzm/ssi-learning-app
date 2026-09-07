@@ -1,4 +1,14 @@
 /**
+ * @vitest-environment node
+ *
+ * A filesystem test, not a DOM one. Under the project default (happy-dom) the
+ * `url` module is shimmed and `fileURLToPath` is not a function, so this file
+ * threw before a single assertion ran — the suite reported one failed FILE and
+ * zero failed tests, which reads like an infrastructure blip rather than an
+ * unguarded gate. Found 2026-09-07 while localising the schools surface: both
+ * i18n gates had been silently inert.
+ */
+/**
  * Every interface language must carry every UI string English carries.
  *
  * eng.json is both the source of truth and the runtime fallback, so a key

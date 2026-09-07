@@ -1,6 +1,8 @@
 <script setup>
 import { computed } from 'vue'
-import { getLanguageFlag } from '@/composables/useI18n'
+import { getLanguageFlag, useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 import { extractVariantKey, extractBaseLanguage, variantFlagKey } from '@/utils/variantFlag'
 
 // Circle-flags (MIT licensed, https://github.com/HatScripts/circle-flags)
@@ -214,7 +216,7 @@ const dimensions = computed(() => ({
     class="language-flag"
     :style="{ width: dimensions.width, height: dimensions.height }"
   >
-    <img :src="flagSrc" :alt="code + ' flag'" :width="size" :height="size" />
+    <img :src="flagSrc" :alt="t('schools.ui.languageFlag.altSuffix', '{code} flag').replace('{code}', code)" :width="size" :height="size" />
   </span>
   <span
     v-else-if="emojiFlag"

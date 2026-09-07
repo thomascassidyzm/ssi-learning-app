@@ -16,6 +16,14 @@ export const UNTRANSLATABLE: readonly string[] = [
   'SaySomethingIn',
   'SSi',
 
+  // Product tier names built on the brand mark. "SSi Premium" and "SSi
+  // Schools" name a thing you buy; translating the noun beside a brand mark
+  // invents a different product name in every market, which is the same
+  // reasoning as the wordmark two lines up. Keyed in the templates so a
+  // locale COULD carry them, and copied verbatim into every locale by
+  // tools/i18n/fill.mjs because of this entry.
+  'SSi Premium',
+
   // Registered company name and address. A legal address is an address; it is
   // the same characters in Hindi as in English or the post does not arrive.
   '© 2026 SaySomethingIn Cyf · Glaslyn, Ffordd y Parc, Bangor, Gwynedd LL57 4FE, Wales',
@@ -39,6 +47,27 @@ export const UNTRANSLATABLE: readonly string[] = [
   // (letters-digits, four-four); the letters carry no meaning to translate.
   'ABC-123',
   'ABCD-EFGH',
+
+  // IANA timezone identifiers in the school's Localisation picker. They are
+  // machine identifiers with a fixed spelling — a school in Tokyo picks
+  // "Europe/London" by those exact characters, and a translated one selects
+  // nothing.
+  'Europe/London',
+  'Europe/Paris',
+  'Europe/Dublin',
+  'America/New York',
+  'America/Los Angeles',
+
+  // Database table and cron-job names, shown in <code> on the insights panels
+  // so a leader can quote the exact identifier when asking us about a gap.
+  // Translate one and the name no longer names anything.
+  'insight-discovery',
+  'cycle_prosody',
+  'player_events',
+
+  // The decibel unit symbol. An SI-style symbol, the same characters in every
+  // language — and the number beside it is meaningless if it moves.
+  'dB',
 
   // The text-size control's glyph. "Aa" is a typographic specimen, drawn to be
   // looked at rather than read, and it is the same glyph in every Latin locale.

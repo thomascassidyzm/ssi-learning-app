@@ -7,10 +7,12 @@ import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useStudentsData } from '@/composables/schools/useStudentsData'
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 import { deriveBelt, type Belt } from '@/composables/schools/belts'
+import { useI18n } from '@/composables/useI18n'
 
 type Health = 'excellent' | 'good' | 'needs-attention' | 'inactive'
 
 const router = useRouter()
+const { t } = useI18n()
 const isAdminView = inject<boolean>('isAdminView', false)
 const { schoolsLink } = useSchoolsNav()
 const { currentUser: selectedUser } = useSchoolContext()
@@ -35,17 +37,17 @@ function deriveHealth(seeds: number, lastActiveAt: string | null, classAvg: numb
 }
 
 function formatLastActive(dateStr: string | null): string {
-  if (!dateStr) return 'Never'
+  if (!dateStr) return t('schools.students.lastActiveNever', 'Never')
   const date = new Date(dateStr)
   const diffMs = Date.now() - date.getTime()
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
-  if (diffHours < 1) return 'now'
-  if (diffHours < 24) return `${diffHours}h ago`
+  if (diffHours < 1) return t('schools.students.lastActiveNow', 'now')
+  if (diffHours < 24) return t('schools.students.lastActiveHoursAgo', '{n}h ago').replace('{n}', String(diffHours))
   const diffDays = Math.floor(diffHours / 24)
-  if (diffDays === 1) return 'Yesterday'
-  if (diffDays < 7) return `${diffDays}d ago`
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`
-  return `${Math.floor(diffDays / 30)}mo ago`
+  if (diffDays === 1) return t('schools.students.lastActiveYesterday', 'Yesterday')
+  if (diffDays < 7) return t('schools.students.lastActiveDaysAgo', '{n}d ago').replace('{n}', String(diffDays))
+  if (diffDays < 30) return t('schools.students.lastActiveWeeksAgo', '{n}w ago').replace('{n}', String(Math.floor(diffDays / 7)))
+  return t('schools.students.lastActiveMonthsAgo', '{n}mo ago').replace('{n}', String(Math.floor(diffDays / 30)))
 }
 
 const classAvgByClass = computed(() => {
@@ -113,9 +115,25 @@ const needsAttention = computed(() =>
   filtered.value.filter(s => s.health === 'needs-attention').length,
 )
 
-const headlineSubtitle = computed(() =>
-  `${totalCount.value} ${totalCount.value === 1 ? 'student' : 'students'} · ${activeThisWeek.value} active this week · ${needsAttention.value} need attention`,
-)
+const headlineSubtitle = computed(() => {
+  const studentWord = totalCount.value === 1
+    ? t('schools.students.studentSingular', 'student')
+    : t('schools.students.studentsPlural', 'students')
+  return t('schools.students.headlineSubtitle', '{count} {studentWord} · {active} active this week · {needs} need attention')
+    .replace('{count}', String(totalCount.value))
+    .replace('{studentWord}', studentWord)
+    .replace('{active}', String(activeThisWeek.value))
+    .replace('{needs}', String(needsAttention.value))
+})
+
+function healthLabel(health: Health): string {
+  switch (health) {
+    case 'excellent': return t('schools.students.healthExcellent', 'excellent')
+    case 'good': return t('schools.students.healthGood', 'good')
+    case 'needs-attention': return t('schools.students.healthNeedsAttention', 'needs attention')
+    case 'inactive': return t('schools.students.healthInactive', 'inactive')
+  }
+}
 
 function viewStudent(s: { learner_id: string; name?: string }) {
   // Open the teacher Rate-compare insight pre-scoped to THIS learner, IN-SHELL
@@ -168,7 +186,7 @@ watch(selectedUser, (newUser) => {
   <main class="students">
     <div class="page-head">
       <div class="page-head-text">
-        <h1 class="arsenal page-title">Students</h1>
+        <h1 class="arsenal page-title">{{ t('schools.students.pageTitle', 'Students') }}</h1>
         <p class="page-subtitle schools-subtle">{{ headlineSubtitle }}</p>
       </div>
       <div class="page-head-actions">
@@ -192,20 +210,20 @@ watch(selectedUser, (newUser) => {
              Worth knowing. The export follows your filters, not the whole school — so
              a filtered list gives you a filtered file. Clear the filters first if you
              want everybody.
-             checked: 4c2a8130.3f2fd968
+             checked: f934ca25.3f2fd968
         -->
         <button data-walk="students-export" v-if="enrichedStudents.length > 0" type="button" class="btn-ghost" @click="exportCsv">
-          Export CSV
+          {{ t('schools.students.exportCsv', 'Export CSV') }}
         </button>
         <button v-if="!isAdminView" type="button" class="btn-play" @click="handleInvite">
-          + Invite students
+          + {{ t('schools.students.inviteStudents', 'Invite students') }}
         </button>
       </div>
     </div>
 
     <div v-if="studentsError" class="fetch-error-banner">
-      <span>Couldn't refresh this list — showing the last data loaded. {{ studentsError }}</span>
-      <button type="button" class="btn-ghost" @click="fetchStudents()">Retry</button>
+      <span>{{ t('schools.students.refreshError', "Couldn't refresh this list — showing the last data loaded. {error}").replace('{error}', studentsError) }}</span>
+      <button type="button" class="btn-ghost" @click="fetchStudents()">{{ t('schools.students.retryLabel', 'Retry') }}</button>
     </div>
 
     <div class="filters-bar schools-card">
@@ -213,35 +231,35 @@ watch(selectedUser, (newUser) => {
         v-model="searchQuery"
         type="search"
         class="filters-search"
-        placeholder="Search by name..."
+        :placeholder="t('schools.students.searchByNamePlaceholder', 'Search by name...')"
       />
       <label class="filter">
-        <span class="filter-label">Class</span>
+        <span class="filter-label">{{ t('schools.students.classFilterLabel', 'Class') }}</span>
         <select v-model="classFilter" class="filter-select">
-          <option value="all">All classes</option>
+          <option value="all">{{ t('schools.students.allClassesOption', 'All classes') }}</option>
           <option v-for="opt in classOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
         </select>
       </label>
       <label class="filter">
-        <span class="filter-label">Belt</span>
+        <span class="filter-label">{{ t('schools.students.beltFilterLabel', 'Belt') }}</span>
         <select v-model="beltFilter" class="filter-select">
-          <option value="all">All</option>
-          <option value="white">White</option>
-          <option value="yellow">Yellow</option>
-          <option value="orange">Orange</option>
-          <option value="green">Green</option>
-          <option value="blue">Blue</option>
-          <option value="black">Black</option>
+          <option value="all">{{ t('schools.students.allOption', 'All') }}</option>
+          <option value="white">{{ t('schools.students.beltWhite', 'White') }}</option>
+          <option value="yellow">{{ t('schools.students.beltYellow', 'Yellow') }}</option>
+          <option value="orange">{{ t('schools.students.beltOrange', 'Orange') }}</option>
+          <option value="green">{{ t('schools.students.beltGreen', 'Green') }}</option>
+          <option value="blue">{{ t('schools.students.beltBlue', 'Blue') }}</option>
+          <option value="black">{{ t('schools.students.beltBlack', 'Black') }}</option>
         </select>
       </label>
       <label class="filter">
-        <span class="filter-label">Health</span>
+        <span class="filter-label">{{ t('schools.students.healthFilterLabel', 'Health') }}</span>
         <select v-model="healthFilter" class="filter-select">
-          <option value="all">All</option>
-          <option value="excellent">Excellent</option>
-          <option value="good">Good</option>
-          <option value="needs-attention">Needs attention</option>
-          <option value="inactive">Inactive</option>
+          <option value="all">{{ t('schools.students.allOption', 'All') }}</option>
+          <option value="excellent">{{ t('schools.students.healthExcellentOption', 'Excellent') }}</option>
+          <option value="good">{{ t('schools.students.healthGoodOption', 'Good') }}</option>
+          <option value="needs-attention">{{ t('schools.students.healthNeedsAttentionOption', 'Needs attention') }}</option>
+          <option value="inactive">{{ t('schools.students.healthInactiveOption', 'Inactive') }}</option>
         </select>
       </label>
     </div>
@@ -250,13 +268,13 @@ watch(selectedUser, (newUser) => {
       <table class="ssi-table">
         <thead>
           <tr>
-            <th>Student</th>
-            <th>Class</th>
-            <th>Belt</th>
-            <th>LEGOs</th>
-            <th>Hours/wk</th>
-            <th>Health</th>
-            <th>Last active</th>
+            <th>{{ t('schools.students.studentColumn', 'Student') }}</th>
+            <th>{{ t('schools.students.classFilterLabel', 'Class') }}</th>
+            <th>{{ t('schools.students.beltFilterLabel', 'Belt') }}</th>
+            <th>{{ t('schools.students.legosColumn', 'LEGOs') }}</th>
+            <th>{{ t('schools.students.hoursPerWeekColumn', 'Hours/wk') }}</th>
+            <th>{{ t('schools.students.healthFilterLabel', 'Health') }}</th>
+            <th>{{ t('schools.students.lastActiveColumn', 'Last active') }}</th>
             <th></th>
           </tr>
         </thead>
@@ -267,7 +285,7 @@ watch(selectedUser, (newUser) => {
                 <div class="avatar">{{ s.initials }}</div>
                 <div class="student-info">
                   <div class="student-name">{{ s.name }}</div>
-                  <div class="student-sub schools-subtle">{{ s.legos_mastered }} LEGOs mastered</div>
+                  <div class="student-sub schools-subtle">{{ t('schools.students.legosMasteredLabel', '{n} LEGOs mastered').replace('{n}', String(s.legos_mastered)) }}</div>
                 </div>
               </div>
             </td>
@@ -293,7 +311,7 @@ watch(selectedUser, (newUser) => {
             <td>
               <span class="health-cell">
                 <HealthDot :health="s.health" />
-                <span class="health-label">{{ s.health.replace('-', ' ') }}</span>
+                <span class="health-label">{{ healthLabel(s.health) }}</span>
               </span>
             </td>
             <td><span class="schools-subtle">{{ s.last_active_display }}</span></td>
@@ -319,9 +337,9 @@ watch(selectedUser, (newUser) => {
                    how they sit against their own class, so a learner marked as
                    needing attention is one who has gone quiet or fallen behind
                    the people beside them.
-                   checked: 7abab547.47acab15
+                   checked: b95b92b8.47acab15
               -->
-              <a href="#" class="cell-link" data-walk="student-view-link" @click.prevent="viewStudent(s)">View &rarr;</a>
+              <a href="#" class="cell-link" data-walk="student-view-link" @click.prevent="viewStudent(s)">{{ t('schools.students.viewLabel', 'View') }} &rarr;</a>
             </td>
           </tr>
         </tbody>
@@ -329,30 +347,30 @@ watch(selectedUser, (newUser) => {
     </div>
 
     <div v-else-if="enrichedStudents.length > 0" class="empty-state schools-card schools-card-pad">
-      <h3 class="arsenal empty-title">No students match those filters</h3>
-      <p class="empty-text schools-subtle">Try widening the class, belt or health filter.</p>
+      <h3 class="arsenal empty-title">{{ t('schools.students.noFilterMatchTitle', 'No students match those filters') }}</h3>
+      <p class="empty-text schools-subtle">{{ t('schools.students.noFilterMatchHint', 'Try widening the class, belt or health filter.') }}</p>
       <button
         type="button"
         class="btn-ghost"
         @click="() => { searchQuery = ''; classFilter = 'all'; beltFilter = 'all'; healthFilter = 'all' }"
       >
-        Reset filters
+        {{ t('schools.students.resetFiltersLabel', 'Reset filters') }}
       </button>
     </div>
 
     <div v-else-if="studentsLoading" class="empty-state schools-card schools-card-pad">
-      <p class="schools-subtle">Loading students…</p>
+      <p class="schools-subtle">{{ t('schools.students.loadingStudents', 'Loading students…') }}</p>
     </div>
 
     <div v-else-if="studentsError" class="empty-state schools-card schools-card-pad">
-      <h3 class="arsenal empty-title">Couldn't load students</h3>
+      <h3 class="arsenal empty-title">{{ t('schools.students.loadStudentsError', "Couldn't load students") }}</h3>
       <p class="empty-text schools-subtle">{{ studentsError }}</p>
     </div>
 
     <div v-else class="empty-state schools-card schools-card-pad">
-      <h3 class="arsenal empty-title">No students yet</h3>
+      <h3 class="arsenal empty-title">{{ t('schools.students.noStudentsYetTitle', 'No students yet') }}</h3>
       <p class="empty-text schools-subtle">
-        Once students join your classes via their invite link, they'll appear here.
+        {{ t('schools.students.noStudentsYetHint', "Once students join your classes via their invite link, they'll appear here.") }}
       </p>
     </div>
   </main>

@@ -17,10 +17,12 @@ const seatPurchaseAvailable = computed(() => institutionalPurchaseAvailable())
 import { TEACHER_COURSES, labelForCourse } from '@/lib/teacherCourses'
 import { courseLabel, isFreeTier, type LiveCourse } from '@/lib/onboardingTracks'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
+import { useI18n } from '@/composables/useI18n'
 
 const router = useRouter()
 const supabase = inject('supabase', ref(null)) as any
 const { switchActiveCourseTo } = usePlayAsClass()
+const { t } = useI18n()
 
 interface Teacher {
   id: string
@@ -208,11 +210,11 @@ function statementMonthLabel(serviceMonth: string): string {
   return d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' })
 }
 function statementLineStatus(line: StatementLine): string {
-  if (line.amount_pence < 0) return 'Reversed'
-  if (!line.hold_until) return 'Held'
+  if (line.amount_pence < 0) return t('teach.dashboard.statementReversed', 'Reversed')
+  if (!line.hold_until) return t('teach.dashboard.statementHeld', 'Held')
   const release = new Date(line.hold_until)
-  if (release.getTime() <= Date.now()) return 'Released'
-  return `Held until ${release.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
+  if (release.getTime() <= Date.now()) return t('teach.dashboard.statementReleased', 'Released')
+  return t('teach.dashboard.statementHeldUntil', 'Held until {date}').replace('{date}', release.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }))
 }
 function statementPounds(pence: number): string {
   const sign = pence < 0 ? '−' : ''
@@ -249,14 +251,14 @@ async function playAsClass(cls: TeacherClass) {
 }
 
 function formatLastActive(dateStr: string | null): string {
-  if (!dateStr) return 'Never'
+  if (!dateStr) return t('teach.dashboard.lastActiveNever', 'Never')
   const date = new Date(dateStr)
   const diffDays = Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24))
-  if (diffDays === 0) return 'Today'
-  if (diffDays === 1) return 'Yesterday'
-  if (diffDays < 7) return `${diffDays} days ago`
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`
-  return `${Math.floor(diffDays / 30)} months ago`
+  if (diffDays === 0) return t('teach.dashboard.lastActiveToday', 'Today')
+  if (diffDays === 1) return t('teach.dashboard.lastActiveYesterday', 'Yesterday')
+  if (diffDays < 7) return t('teach.dashboard.lastActiveDaysAgo', '{n} days ago').replace('{n}', String(diffDays))
+  if (diffDays < 30) return t('teach.dashboard.lastActiveWeeksAgo', '{n} weeks ago').replace('{n}', String(Math.floor(diffDays / 7)))
+  return t('teach.dashboard.lastActiveMonthsAgo', '{n} months ago').replace('{n}', String(Math.floor(diffDays / 30)))
 }
 
 async function getAuthToken(): Promise<string | null> {
@@ -277,7 +279,7 @@ async function loadTeacher(token: string): Promise<boolean> {
 
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
-    errorMessage.value = data.error || `Error ${res.status}`
+    errorMessage.value = data.error || t('teach.dashboard.errorWithStatus', 'Error {status}').replace('{status}', String(res.status))
     return false
   }
 
@@ -386,7 +388,7 @@ async function loadAll() {
 
   const token = await getAuthToken()
   if (!token) {
-    errorMessage.value = 'Not signed in'
+    errorMessage.value = t('teach.dashboard.notSignedIn', 'Not signed in')
     isLoading.value = false
     return
   }
@@ -402,7 +404,7 @@ async function loadAll() {
       ])
     }
   } catch (err: any) {
-    errorMessage.value = err.message || 'Failed to load'
+    errorMessage.value = err.message || t('teach.dashboard.failedToLoad', 'Failed to load')
   } finally {
     isLoading.value = false
   }
@@ -430,12 +432,12 @@ async function startTrial() {
   // not present yet, block rather than send a null teacher_id.
   const teacherId = teacher.value?.id ?? null
   if (!teacherId) {
-    checkoutError.value = 'Still loading your tutor account — try again in a moment'
+    checkoutError.value = t('teach.dashboard.stillLoadingTutorAccount', 'Still loading your tutor account — try again in a moment')
     return
   }
   const priceId = paddleConfig.teacherMonthlyPriceId
   if (!priceId) {
-    checkoutError.value = 'Teacher plan price not configured'
+    checkoutError.value = t('teach.dashboard.teacherPlanPriceNotConfigured', 'Teacher plan price not configured')
     return
   }
 
@@ -446,7 +448,7 @@ async function startTrial() {
     const email = session?.user?.email
     const userId = session?.user?.id
     if (!email) {
-      checkoutError.value = 'Sign in again to start checkout'
+      checkoutError.value = t('teach.dashboard.signInAgainToStartCheckout', 'Sign in again to start checkout')
       return
     }
     const paddle = await getPaddle()
@@ -467,7 +469,7 @@ async function startTrial() {
       },
     })
   } catch (err: any) {
-    checkoutError.value = err?.message || 'Failed to open checkout'
+    checkoutError.value = err?.message || t('teach.dashboard.failedToOpenCheckout', 'Failed to open checkout')
   } finally {
     isStartingTrial.value = false
   }
@@ -482,7 +484,7 @@ async function openPortal() {
   try {
     const token = await getAuthToken()
     if (!token) {
-      checkoutError.value = 'Sign in again to manage your subscription'
+      checkoutError.value = t('teach.dashboard.signInAgainToManageSubscription', 'Sign in again to manage your subscription')
       return
     }
     const res = await fetch('/api/teacher/portal', {
@@ -497,7 +499,7 @@ async function openPortal() {
     }
     // Surface the failure — a silent no-op here left declined-card tutors
     // clicking "Update payment method" into the void.
-    checkoutError.value = 'Could not open the billing portal — try again or contact us'
+    checkoutError.value = t('teach.dashboard.couldNotOpenBillingPortal', 'Could not open the billing portal — try again or contact us')
   } finally {
     isOpeningPortal.value = false
   }
@@ -517,7 +519,7 @@ async function copyShareLink(cls: TeacherClass) {
 
 function openAddClass() {
   if (atClassCap.value) {
-    createClassError.value = `You've reached the ${MAX_CLASSES}-class maximum. Archive a class to add another.`
+    createClassError.value = t('teach.dashboard.classCapReached', "You've reached the {max}-class maximum. Archive a class to add another.").replace('{max}', String(MAX_CLASSES))
     return
   }
   newClassName.value = ''
@@ -537,7 +539,7 @@ async function submitAddClass() {
   try {
     const token = await getAuthToken()
     if (!token) {
-      createClassError.value = 'Not signed in'
+      createClassError.value = t('teach.dashboard.notSignedIn', 'Not signed in')
       return
     }
     const res = await fetch('/api/teacher/classes', {
@@ -553,13 +555,13 @@ async function submitAddClass() {
     })
     const data = await res.json()
     if (!res.ok) {
-      createClassError.value = data.error || 'Failed to create class'
+      createClassError.value = data.error || t('teach.dashboard.failedToCreateClass', 'Failed to create class')
       return
     }
     classes.value = [...classes.value, data.class]
     closeAddClass()
   } catch (err: any) {
-    createClassError.value = err?.message || 'Something went wrong'
+    createClassError.value = err?.message || t('teach.dashboard.somethingWentWrong', 'Something went wrong')
   } finally {
     isCreatingClass.value = false
   }
@@ -586,7 +588,7 @@ async function requestPayout() {
     }
     payoutQueued.value = true
   } catch (err: any) {
-    payoutError.value = err?.message || 'Something went wrong'
+    payoutError.value = err?.message || t('teach.dashboard.somethingWentWrong', 'Something went wrong')
   } finally {
     isRequestingPayout.value = false
   }
@@ -598,7 +600,7 @@ async function submitRecipient() {
   const sortCode = recipientForm.value.sortCode.replace(/\D/g, '')
   const accountNumber = recipientForm.value.accountNumber.replace(/\D/g, '')
   if (!name || sortCode.length !== 6 || accountNumber.length !== 8) {
-    payoutError.value = 'Enter a name, 6-digit sort code and 8-digit account number.'
+    payoutError.value = t('teach.dashboard.enterBankDetails', 'Enter a name, 6-digit sort code and 8-digit account number.')
     return
   }
   isSavingRecipient.value = true
@@ -621,13 +623,13 @@ async function submitRecipient() {
     })
     const data = await res.json()
     if (!res.ok) {
-      payoutError.value = data.error || 'Failed to save payout details'
+      payoutError.value = data.error || t('teach.dashboard.failedToSavePayoutDetails', 'Failed to save payout details')
       return
     }
     payoutRecipient.value = data
     showRecipientForm.value = false
   } catch (err: any) {
-    payoutError.value = err?.message || 'Something went wrong'
+    payoutError.value = err?.message || t('teach.dashboard.somethingWentWrong', 'Something went wrong')
   } finally {
     isSavingRecipient.value = false
   }
@@ -647,15 +649,15 @@ async function submitRecipient() {
     <!-- Page header -->
     <header class="page-header">
       <div class="title-block">
-        <h1 class="frost-display">Welcome, {{ teacher.display_name }}.</h1>
+        <h1 class="frost-display">{{ t('teach.dashboard.welcome', 'Welcome, {name}.').replace('{name}', teacher.display_name) }}</h1>
         <div class="metrics">
           <span class="metric">
             <span class="metric-value frost-mono-nums">{{ classes.length }}</span>
-            of {{ MAX_CLASSES }} classes used
+            {{ t('teach.dashboard.ofMaxClassesUsed', 'of {max} classes used').replace('{max}', String(MAX_CLASSES)) }}
           </span>
           <span class="metric">
             <span class="metric-value frost-mono-nums">{{ totalStudents }}</span>
-            paying students
+            {{ t('teach.dashboard.payingStudents', 'paying students') }}
           </span>
         </div>
       </div>
@@ -665,33 +667,32 @@ async function submitRecipient() {
           :disabled="atClassCap"
           @click="openAddClass"
         >
-          + New class
+          + {{ t('teach.dashboard.newClass', 'New class') }}
         </Button>
       </div>
     </header>
 
     <!-- At-cap notice -->
     <FrostCard v-if="atClassCap" variant="panel" class="cap-notice">
-      You've reached the {{ MAX_CLASSES }}-class maximum included in your teacher
-      plan. Archive a class to add another.
+      {{ t('teach.dashboard.classCapNotice', "You've reached the {max}-class maximum included in your teacher plan. Archive a class to add another.").replace('{max}', String(MAX_CLASSES)) }}
     </FrostCard>
 
     <!-- Stones row: classes used / students / monthly estimate / accrued -->
     <div class="stone-row">
       <FrostCard variant="stone" tone="blue">
-        <span class="stone-label">Classes</span>
+        <span class="stone-label">{{ t('teach.dashboard.classesLabel', 'Classes') }}</span>
         <span class="stone-value frost-mono-nums">{{ classes.length }}<span class="stone-suffix">/ {{ MAX_CLASSES }}</span></span>
       </FrostCard>
       <FrostCard variant="stone" tone="green">
-        <span class="stone-label">Paying students</span>
+        <span class="stone-label">{{ t('teach.dashboard.payingStudentsLabel', 'Paying students') }}</span>
         <span class="stone-value frost-mono-nums">{{ totalStudents }}</span>
       </FrostCard>
       <FrostCard variant="stone" tone="gold">
-        <span class="stone-label">Earning rate</span>
-        <span class="stone-value frost-mono-nums">£{{ monthlyEarningsEstimate }}<span class="stone-suffix">/ mo</span></span>
+        <span class="stone-label">{{ t('teach.dashboard.earningRate', 'Earning rate') }}</span>
+        <span class="stone-value frost-mono-nums">£{{ monthlyEarningsEstimate }}<span class="stone-suffix">/ {{ t('teach.dashboard.perMonthAbbrev', 'mo') }}</span></span>
       </FrostCard>
       <FrostCard variant="stone" tone="gold">
-        <span class="stone-label">Accrued balance</span>
+        <span class="stone-label">{{ t('teach.dashboard.accruedBalance', 'Accrued balance') }}</span>
         <span class="stone-value frost-mono-nums">£{{ accruedPounds }}</span>
       </FrostCard>
     </div>
@@ -719,29 +720,29 @@ async function submitRecipient() {
     <!-- Inline create-class panel (§5.4: 2-field form = inline panel) -->
     <FrostCard v-if="isAddingClass" variant="panel" class="section-panel inline-form-panel">
       <div class="section-head">
-        <span class="frost-section-title">New class</span>
-        <p class="section-sub">Each class gets its own share link and roster.</p>
+        <span class="frost-section-title">{{ t('teach.dashboard.newClass', 'New class') }}</span>
+        <p class="section-sub">{{ t('teach.dashboard.newClassSub', 'Each class gets its own share link and roster.') }}</p>
       </div>
 
       <form class="inline-form" @submit.prevent="submitAddClass">
         <div class="inline-fields">
           <div class="field">
-            <label for="new-class-name">Class name</label>
+            <label for="new-class-name">{{ t('teach.dashboard.className', 'Class name') }}</label>
             <input
               id="new-class-name"
               v-model="newClassName"
               type="text"
-              placeholder="e.g. Tuesday Beginners"
+              :placeholder="t('teach.dashboard.classNamePlaceholder', 'e.g. Tuesday Beginners')"
               required
               autofocus
             />
           </div>
           <div class="field">
-            <label for="new-class-course">Course</label>
+            <label for="new-class-course">{{ t('teach.dashboard.course', 'Course') }}</label>
             <!-- On trial: locked to the one signed-up language. Subscribe to unlock all. -->
             <p v-if="courseLocked" class="locked-course">
               {{ courseLabelFor(newClassCourse) }}
-              <span class="locked-hint">{{ seatPurchaseAvailable ? 'Subscribe to teach more languages' : 'Not included in your current plan' }}</span>
+              <span class="locked-hint">{{ seatPurchaseAvailable ? t('teach.dashboard.subscribeToTeachMore', 'Subscribe to teach more languages') : t('teach.dashboard.notInCurrentPlan', 'Not included in your current plan') }}</span>
             </p>
             <select v-else id="new-class-course" v-model="newClassCourse" required>
               <option v-for="c in availableCourses" :key="c.code" :value="c.code">
@@ -754,14 +755,14 @@ async function submitRecipient() {
         <div v-if="createClassError" class="error">{{ createClassError }}</div>
 
         <div class="inline-actions">
-          <Button type="button" variant="ghost" @click="closeAddClass">Cancel</Button>
+          <Button type="button" variant="ghost" @click="closeAddClass">{{ t('teach.dashboard.cancel', 'Cancel') }}</Button>
           <Button
             type="submit"
             variant="primary"
             :loading="isCreatingClass"
             :disabled="!newClassName.trim() || !newClassCourse || isCreatingClass"
           >
-            Create class
+            {{ t('teach.dashboard.createClass', 'Create class') }}
           </Button>
         </div>
       </form>
@@ -785,7 +786,7 @@ async function submitRecipient() {
               <span class="class-stat-value frost-mono-nums">
                 {{ rosterByClass[cls.id]?.length || 0 }}
               </span>
-              of {{ MAX_STUDENTS_PER_CLASS }} students
+              {{ t('teach.dashboard.ofMaxStudents', 'of {max} students').replace('{max}', String(MAX_STUDENTS_PER_CLASS)) }}
             </span>
           </div>
           <Button
@@ -794,7 +795,7 @@ async function submitRecipient() {
             class="class-play-btn"
             @click="playAsClass(cls)"
           >
-            ▶ Play as class
+            ▶ {{ t('teach.dashboard.playAsClass', 'Play as class') }}
           </Button>
         </header>
 
@@ -810,7 +811,7 @@ async function submitRecipient() {
             size="sm"
             @click="copyShareLink(cls)"
           >
-            {{ copiedClassId === cls.id ? 'Copied' : 'Copy link' }}
+            {{ copiedClassId === cls.id ? t('teach.dashboard.copied', 'Copied') : t('teach.dashboard.copyLink', 'Copy link') }}
           </Button>
         </div>
 
@@ -819,10 +820,10 @@ async function submitRecipient() {
           <table class="roster-table">
             <thead>
               <tr>
-                <th>Student</th>
-                <th>Seeds</th>
-                <th>LEGOs mastered</th>
-                <th>Last active</th>
+                <th>{{ t('teach.dashboard.student', 'Student') }}</th>
+                <th>{{ t('teach.dashboard.seeds', 'Seeds') }}</th>
+                <th>{{ t('teach.dashboard.legosMastered', 'LEGOs mastered') }}</th>
+                <th>{{ t('teach.dashboard.lastActive', 'Last active') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -838,10 +839,10 @@ async function submitRecipient() {
 
         <!-- Empty roster (per-class) -->
         <div v-else class="empty">
-          <div class="empty-ghost">students</div>
+          <div class="empty-ghost">{{ t('teach.dashboard.students', 'students') }}</div>
           <div class="empty-copy">
-            <strong>No students yet</strong>
-            <p>Share the link above to start filling this roster.</p>
+            <strong>{{ t('teach.dashboard.noStudentsYet', 'No students yet') }}</strong>
+            <p>{{ t('teach.dashboard.shareLinkToFillRoster', 'Share the link above to start filling this roster.') }}</p>
           </div>
         </div>
       </FrostCard>
@@ -850,44 +851,41 @@ async function submitRecipient() {
     <!-- Empty state when no classes at all -->
     <FrostCard v-else variant="panel" class="section-panel">
       <div class="empty">
-        <div class="empty-ghost">classes</div>
+        <div class="empty-ghost">{{ t('teach.dashboard.classes', 'classes') }}</div>
         <div class="empty-copy">
-          <strong>No classes yet</strong>
+          <strong>{{ t('teach.dashboard.noClassesYet', 'No classes yet') }}</strong>
           <p>
-            Create your first class to get a share link. Every student who joins
-            via that link earns you £{{ COMMISSION_PER_STUDENT }}/month.
+            {{ t('teach.dashboard.noClassesBlurb', 'Create your first class to get a share link. Every student who joins via that link earns you £{commission}/month.').replace('{commission}', String(COMMISSION_PER_STUDENT)) }}
           </p>
         </div>
-        <Button variant="primary" @click="openAddClass">+ New class</Button>
+        <Button variant="primary" @click="openAddClass">+ {{ t('teach.dashboard.newClass', 'New class') }}</Button>
       </div>
     </FrostCard>
 
     <!-- Earnings -->
     <FrostCard variant="panel" class="section-panel earnings-panel">
       <div class="section-head">
-        <span class="frost-section-title">Earnings</span>
+        <span class="frost-section-title">{{ t('teach.dashboard.earnings', 'Earnings') }}</span>
         <p class="section-sub">
-          You earn £{{ COMMISSION_PER_STUDENT }}/student/month. Paid monthly by Wise
-          once your balance passes £{{ payoutThresholdPounds }} and the refund period
-          has completed.
+          {{ t('teach.dashboard.earningsBlurb', 'You earn £{commission}/student/month. Paid monthly by Wise once your balance passes £{threshold} and the refund period has completed.').replace('{commission}', String(COMMISSION_PER_STUDENT)).replace('{threshold}', payoutThresholdPounds) }}
         </p>
       </div>
 
       <div class="earnings-grid">
         <div class="earnings-block">
-          <span class="earnings-label">Accrued balance</span>
+          <span class="earnings-label">{{ t('teach.dashboard.accruedBalance', 'Accrued balance') }}</span>
           <span class="earnings-amount frost-mono-nums">£{{ accruedPounds }}</span>
         </div>
         <div class="earnings-block">
-          <span class="earnings-label">Pending payout</span>
+          <span class="earnings-label">{{ t('teach.dashboard.pendingPayout', 'Pending payout') }}</span>
           <span class="earnings-amount frost-mono-nums">£{{ pendingPounds }}</span>
         </div>
         <div class="earnings-block">
-          <span class="earnings-label">Lifetime paid</span>
+          <span class="earnings-label">{{ t('teach.dashboard.lifetimePaid', 'Lifetime paid') }}</span>
           <span class="earnings-amount frost-mono-nums">£{{ lifetimePaidPounds }}</span>
         </div>
         <div class="earnings-block">
-          <span class="earnings-label">Threshold to payout</span>
+          <span class="earnings-label">{{ t('teach.dashboard.thresholdToPayout', 'Threshold to payout') }}</span>
           <span class="earnings-amount frost-mono-nums">£{{ payoutThresholdPounds }}</span>
         </div>
       </div>
@@ -898,14 +896,14 @@ async function submitRecipient() {
 
       <!-- Per-student-month rebate statement (hidden until the ledger has lines) -->
       <div v-if="statement && statement.length" class="statement">
-        <span class="statement-title">Statement</span>
+        <span class="statement-title">{{ t('teach.dashboard.statement', 'Statement') }}</span>
         <div v-for="month in statement" :key="month.service_month" class="statement-month">
           <div class="statement-month-head">
             <span>{{ statementMonthLabel(month.service_month) }}</span>
             <span class="frost-mono-nums">{{ statementPounds(month.total_pence) }}</span>
           </div>
           <div v-for="(line, i) in month.lines" :key="i" class="statement-line">
-            <span class="statement-line-who">{{ line.learner_display || 'Student' }}</span>
+            <span class="statement-line-who">{{ line.learner_display || t('teach.dashboard.studentFallback', 'Student') }}</span>
             <span class="statement-line-status">{{ statementLineStatus(line) }}</span>
             <span class="frost-mono-nums">{{ statementPounds(line.amount_pence) }}</span>
           </div>
@@ -914,9 +912,7 @@ async function submitRecipient() {
 
       <div v-if="payoutError" class="error">{{ payoutError }}</div>
       <div v-if="payoutQueued" class="payout-queued">
-        Payout queued for the next monthly run. We'll send the part of your
-        balance whose refund period has completed to your Wise account. Anything
-        still inside its refund period stays held and goes out on a later run.
+        {{ t('teach.dashboard.payoutQueuedBlurb', "Payout queued for the next monthly run. We'll send the part of your balance whose refund period has completed to your Wise account. Anything still inside its refund period stays held and goes out on a later run.") }}
       </div>
 
       <div class="payout-actions">
@@ -926,31 +922,30 @@ async function submitRecipient() {
           :loading="isRequestingPayout"
           @click="requestPayout"
         >
-          {{ payoutRecipient ? 'Request Wise payout' : 'Set up Wise payout' }}
+          {{ payoutRecipient ? t('teach.dashboard.requestWisePayout', 'Request Wise payout') : t('teach.dashboard.setUpWisePayout', 'Set up Wise payout') }}
         </Button>
         <p v-if="!canRequestPayout" class="payout-hint">
-          Paid monthly once your balance passes £{{ payoutThresholdPounds }} and
-          the refund period has completed.
+          {{ t('teach.dashboard.payoutHint', 'Paid monthly once your balance passes £{threshold} and the refund period has completed.').replace('{threshold}', payoutThresholdPounds) }}
         </p>
       </div>
 
       <form v-if="showRecipientForm" class="recipient-form" @submit.prevent="submitRecipient">
         <p class="section-sub">
-          Enter your UK bank details. Payouts are sent in GBP via Wise.
+          {{ t('teach.dashboard.enterUkBankDetails', 'Enter your UK bank details. Payouts are sent in GBP via Wise.') }}
         </p>
         <div class="field">
-          <label for="rcp-name">Account holder name</label>
+          <label for="rcp-name">{{ t('teach.dashboard.accountHolderName', 'Account holder name') }}</label>
           <input
             id="rcp-name"
             v-model="recipientForm.account_holder_name"
             type="text"
-            placeholder="As it appears on your account"
+            :placeholder="t('teach.dashboard.accountHolderPlaceholder', 'As it appears on your account')"
             required
           />
         </div>
         <div class="inline-fields">
           <div class="field">
-            <label for="rcp-sort">Sort code</label>
+            <label for="rcp-sort">{{ t('teach.dashboard.sortCode', 'Sort code') }}</label>
             <input
               id="rcp-sort"
               v-model="recipientForm.sortCode"
@@ -961,7 +956,7 @@ async function submitRecipient() {
             />
           </div>
           <div class="field">
-            <label for="rcp-acct">Account number</label>
+            <label for="rcp-acct">{{ t('teach.dashboard.accountNumber', 'Account number') }}</label>
             <input
               id="rcp-acct"
               v-model="recipientForm.accountNumber"
@@ -973,8 +968,8 @@ async function submitRecipient() {
           </div>
         </div>
         <div class="inline-actions">
-          <Button type="button" variant="ghost" @click="showRecipientForm = false">Cancel</Button>
-          <Button type="submit" variant="primary" :loading="isSavingRecipient">Save payout details</Button>
+          <Button type="button" variant="ghost" @click="showRecipientForm = false">{{ t('teach.dashboard.cancel', 'Cancel') }}</Button>
+          <Button type="submit" variant="primary" :loading="isSavingRecipient">{{ t('teach.dashboard.savePayoutDetails', 'Save payout details') }}</Button>
         </div>
       </form>
     </FrostCard>

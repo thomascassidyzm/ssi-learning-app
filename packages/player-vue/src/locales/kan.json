@@ -641,16 +641,8 @@
     "familyMonthly": "£25/ತಿಂಗಳು",
     "familyAnnual": "£250/ವರ್ಷ",
     "cancelAnytime": "ಯಾವಾಗ ಬೇಕಾದರೂ ರದ್ದುಗೊಳಿಸಿ.",
-    "yourDetails": "ನಿಮ್ಮ ವಿವರಗಳು",
     "confirmEmail": "ಇಮೇಲ್ ದೃಢೀಕರಿಸಿ",
-    "setPasswordOptional": "ಪಾಸ್‌ವರ್ಡ್ ಹೊಂದಿಸಿ (ಐಚ್ಛಿಕ)",
-    "confirmPassword": "ಪಾಸ್‌ವರ್ಡ್ ದೃಢೀಕರಿಸಿ",
-    "continueToPayment": "ಪಾವತಿಗೆ ಮುಂದುವರಿಸಿ",
     "emailsMustMatch": "ಈ ಎರಡು ಇಮೇಲ್‌ಗಳು ಹೊಂದಿಕೆಯಾಗುತ್ತಿಲ್ಲ.",
-    "passwordsMustMatch": "ಈ ಎರಡು ಪಾಸ್‌ವರ್ಡ್‌ಗಳು ಹೊಂದಿಕೆಯಾಗುತ್ತಿಲ್ಲ.",
-    "receiptNote": "ಪಡೆಯಲು ಯಾವುದೇ ಕೋಡ್ ಇಲ್ಲ. ನಿಮ್ಮ ರಸೀದಿ ಈ ವಿಳಾಸಕ್ಕೆ ಹೋಗುತ್ತದೆ, ಮತ್ತು ನೀವು ಯಾವಾಗ ಬೇಕಾದರೂ ಅದನ್ನು ದೃಢೀಕರಿಸಬಹುದು.",
-    "signInAndContinue": "ಸೈನ್ ಇನ್ ಮಾಡಿ ಮತ್ತು ಮುಂದುವರಿಸಿ",
-    "emailMeACode": "ಬದಲಿಗೆ ನನಗೆ ಕೋಡ್ ಇಮೇಲ್ ಮಾಡಿ",
     "backToPlans": "ಯೋಜನೆಗಳಿಗೆ ಹಿಂತಿರುಗಿ"
   },
   "family": {
@@ -810,5 +802,206 @@
     "loadingCourses": "ನಿಮ್ಮ ಕೋರ್ಸ್‌ಗಳು ಲೋಡ್ ಆಗುತ್ತಿವೆ...",
     "linkNotValid": "ಲಿಂಕ್ ಮಾನ್ಯವಲ್ಲ",
     "visitSaysomethingin": "SaySomethingin ಗೆ ಭೇಟಿ ನೀಡಿ"
+  },
+  "explainer": {
+    "howThisWorks": {
+      "linkLabel": "ಇದು ಹೇಗೆ ಕೆಲಸ ಮಾಡುತ್ತದೆ"
+    },
+    "figures": {
+      "spacingReturns": {
+        "new": "ಹೊಸತು"
+      }
+    }
+  },
+  "walkthrough": {
+    "save-your-progress": {
+      "title": "ನಿಮ್ಮ ಪ್ರಗತಿಯನ್ನು ಉಳಿಸಿ"
+    }
+  },
+  "schools": {
+    "setup": {
+      "back": "ಹಿಂದೆ",
+      "breadcrumbSettings": "ಸೆಟ್ಟಿಂಗ್‌ಗಳು",
+      "continue": "ಮುಂದುವರಿಸಿ"
+    },
+    "dashboard": {
+      "code": "ಕೋಡ್",
+      "retry": "ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ"
+    },
+    "teacherDashboard": {
+      "allCourses": "ಎಲ್ಲಾ ಕೋರ್ಸ್‌ಗಳು",
+      "allFilterOption": "ಎಲ್ಲಾ",
+      "coursePlural": "ಕೋರ್ಸ್‌ಗಳು",
+      "healthLabel": "ಆರೋಗ್ಯ",
+      "retry": "ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ",
+      "tableHeaderActivity": "ಚಟುವಟಿಕೆ",
+      "tableHeaderBelt": "ಬೆಲ್ಟ್",
+      "tableHeaderHealth": "ಆರೋಗ್ಯ"
+    },
+    "teachers": {
+      "accessCode": "ಪ್ರವೇಶ ಕೋಡ್",
+      "done": "ಮುಗಿಯಿತು",
+      "remove": "ತೆಗೆದುಹಾಕಿ",
+      "retry": "ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ",
+      "statusActive": "ಸಕ್ರಿಯ"
+    },
+    "schoolSettings": {
+      "about": "ಕುರಿತು",
+      "cancel": "ರದ್ದುಮಾಡಿ",
+      "langEnglish": "ಇಂಗ್ಲಿಷ್",
+      "title": "ಸೆಟ್ಟಿಂಗ್‌ಗಳು"
+    },
+    "schoolsList": {
+      "cancel": "ರದ್ದುಮಾಡಿ",
+      "done": "ಮುಗಿಯಿತು",
+      "kpiSchools": "ಶಾಲೆಗಳು",
+      "retry": "ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ"
+    },
+    "upgrade": {
+      "loading": "ಲೋಡ್ ಆಗುತ್ತಿದೆ…",
+      "manageSubscription": "ಚಂದಾದಾರಿಕೆ ನಿರ್ವಹಿಸಿ",
+      "ssiPremium": "SSi ಪ್ರೀಮಿಯಂ"
+    },
+    "classDetail": {
+      "addLabel": "ಸೇರಿಸಿ",
+      "beltColumn": "ಬೆಲ್ಟ್",
+      "cancelLabel": "ರದ್ದುಮಾಡಿ",
+      "doneLabel": "ಮುಗಿಯಿತು",
+      "loadingLabel": "ಲೋಡ್ ಆಗುತ್ತಿದೆ…",
+      "removeLabel": "ತೆಗೆದುಹಾಕಿ"
+    },
+    "studentProgress": {
+      "allCoursesTitle": "ಎಲ್ಲಾ ಕೋರ್ಸ್‌ಗಳು"
+    },
+    "students": {
+      "allOption": "ಎಲ್ಲಾ",
+      "beltBlack": "ಕಪ್ಪು",
+      "beltBlue": "ನೀಲಿ",
+      "beltFilterLabel": "ಬೆಲ್ಟ್",
+      "beltGreen": "ಹಸಿರು",
+      "beltOrange": "ಕಿತ್ತಳೆ",
+      "beltWhite": "ಬಿಳಿ",
+      "beltYellow": "ಹಳದಿ",
+      "healthFilterLabel": "ಆರೋಗ್ಯ",
+      "lastActiveNow": "ಈಗ",
+      "retryLabel": "ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ"
+    },
+    "ui": {
+      "assignClasses": {
+        "cancel": "ರದ್ದುಮಾಡಿ",
+        "done": "ಮುಗಿಯಿತು",
+        "verbAdd": "ಸೇರಿಸಿ",
+        "verbRemove": "ತೆಗೆದುಹಾಕಿ"
+      },
+      "classCreated": {
+        "done": "ಮುಗಿಯಿತು"
+      },
+      "confirmDelete": {
+        "cancel": "ರದ್ದುಮಾಡಿ"
+      },
+      "createClass": {
+        "cancel": "ರದ್ದುಮಾಡಿ"
+      },
+      "filterDropdown": {
+        "placeholderAll": "ಎಲ್ಲಾ"
+      },
+      "nodeEntitlement": {
+        "coursesKicker": "ಕೋರ್ಸ್‌ಗಳು",
+        "loading": "ಲೋಡ್ ಆಗುತ್ತಿದೆ…"
+      },
+      "passwordPrompt": {
+        "notNow": "ಈಗ ಬೇಡ"
+      },
+      "topBar": {
+        "brandTailSchools": "ಶಾಲೆಗಳು",
+        "menuSignOut": "ಸೈನ್ ಔಟ್",
+        "tabSchools": "ಶಾಲೆಗಳು",
+        "tabUpgrade": "ಅಪ್‌ಗ್ರೇಡ್",
+        "youFallback": "ನೀವು"
+      },
+      "topNav": {
+        "logoSchoolsTail": "ಶಾಲೆಗಳು",
+        "menuSettings": "ಸೆಟ್ಟಿಂಗ್‌ಗಳು",
+        "menuSignOut": "ಸೈನ್ ಔಟ್",
+        "schoolsDashboardFallback": "ಶಾಲೆಗಳ ಡ್ಯಾಶ್‌ಬೋರ್ಡ್",
+        "signIn": "ಸೈನ್ ಇನ್",
+        "tabSchools": "ಶಾಲೆಗಳು",
+        "tabUpgrade": "ಅಪ್‌ಗ್ರೇಡ್"
+      }
+    }
+  },
+  "teach": {
+    "billing": {
+      "active": "ಸಕ್ರಿಯ",
+      "manageSubscription": "ಚಂದಾದಾರಿಕೆ ನಿರ್ವಹಿಸಿ"
+    },
+    "dashboard": {
+      "cancel": "ರದ್ದುಮಾಡಿ",
+      "lastActiveToday": "ಇಂದು",
+      "seeds": "ಬೀಜಗಳು"
+    },
+    "withTeacher": {
+      "back": "ಹಿಂದೆ",
+      "cancel": "ರದ್ದುಮಾಡಿ",
+      "free": "ಉಚಿತ",
+      "startLearning": "ಕಲಿಕೆ ಪ್ರಾರಂಭಿಸಿ"
+    }
+  },
+  "org": {
+    "nodeHome": {
+      "accessCode": "ಪ್ರವೇಶ ಕೋಡ್",
+      "done": "ಮುಗಿಯಿತು",
+      "loading": "ಲೋಡ್ ಆಗುತ್ತಿದೆ…"
+    },
+    "ui": {
+      "howThisWorks": {
+        "close": "ಮುಚ್ಚಿ",
+        "howThisWorks": "ಇದು ಹೇಗೆ ಕೆಲಸ ಮಾಡುತ್ತದೆ"
+      },
+      "managerOnboardingGate": {
+        "confirmPassword": "ಪಾಸ್‌ವರ್ಡ್ ದೃಢೀಕರಿಸಿ",
+        "done": "ಮುಗಿಯಿತು",
+        "newPassword": "ಹೊಸ ಪಾಸ್‌ವರ್ಡ್",
+        "next": "ಮುಂದೆ",
+        "notNow": "ಈಗ ಬೇಡ",
+        "typeItAgain": "ಮತ್ತೆ ಟೈಪ್ ಮಾಡಿ"
+      },
+      "nodeActionBar": {
+        "add": "ಸೇರಿಸಿ",
+        "changeTheName": "ಹೆಸರು ಬದಲಾಯಿಸಿ",
+        "courses": "ಕೋರ್ಸ್‌ಗಳು",
+        "goAheadAnyway": "ಹಾಗಿದ್ದರೂ ಮುಂದುವರಿಸಿ"
+      },
+      "nodeChildrenList": {
+        "wordBelt": "ಬೆಲ್ಟ್"
+      },
+      "noticingInvitations": {
+        "dismiss": "ವಜಾಗೊಳಿಸಿ"
+      },
+      "walkCard": {
+        "back": "ಹಿಂದೆ",
+        "next": "ಮುಂದೆ"
+      },
+      "waysInLedger": {
+        "copy": "ನಕಲಿಸಿ",
+        "loading": "ಲೋಡ್ ಆಗುತ್ತಿದೆ…",
+        "statusActive": "ಸಕ್ರಿಯ"
+      },
+      "yourAccount": {
+        "close": "ಮುಚ್ಚಿ",
+        "confirmPassword": "ಪಾಸ್‌ವರ್ಡ್ ದೃಢೀಕರಿಸಿ",
+        "newPassword": "ಹೊಸ ಪಾಸ್‌ವರ್ಡ್",
+        "password": "ಪಾಸ್‌ವರ್ಡ್",
+        "typeItAgain": "ಮತ್ತೆ ಟೈಪ್ ಮಾಡಿ"
+      }
+    }
+  },
+  "insights": {
+    "rateEngine": {
+      "loading": "ಲೋಡ್ ಆಗುತ್ತಿದೆ…"
+    },
+    "widget": {
+      "loading": "ಲೋಡ್ ಆಗುತ್ತಿದೆ…"
+    }
   }
 }

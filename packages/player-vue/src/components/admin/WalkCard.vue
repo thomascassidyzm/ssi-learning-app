@@ -14,6 +14,9 @@
  * about the walkthrough pack — the caller drives it.
  */
 import { computed } from 'vue'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const props = withDefaults(
   defineProps<{
@@ -39,7 +42,7 @@ const props = withDefaults(
      */
     dismissible?: boolean
   }>(),
-  { showBack: false, showNext: true, nextLabel: 'Next', allDone: false, dismissible: true },
+  { showBack: false, showNext: true, nextLabel: undefined, allDone: false, dismissible: true },
 )
 
 defineEmits<{ back: []; next: []; skip: [] }>()
@@ -60,7 +63,7 @@ const rendered = computed(() => {
     <div class="walk-card-head">
       <span class="walk-kicker">{{ kicker }}</span>
       <button
-        v-if="dismissible" type="button" class="walk-close" aria-label="Skip tour"
+        v-if="dismissible" type="button" class="walk-close" :aria-label="t('org.ui.walkCard.skipTour', 'Skip tour')"
         @click="$emit('skip')"
       >×</button>
     </div>
@@ -80,11 +83,11 @@ const rendered = computed(() => {
         ></span>
       </div>
       <div class="walk-nav">
-        <button v-if="showBack" type="button" class="walk-btn" @click="$emit('back')">Back</button>
+        <button v-if="showBack" type="button" class="walk-btn" @click="$emit('back')">{{ t('org.ui.walkCard.back', 'Back') }}</button>
         <button
           v-if="showNext" type="button" class="walk-btn walk-btn-primary"
           @click="$emit('next')"
-        >{{ nextLabel }}</button>
+        >{{ nextLabel || t('org.ui.walkCard.next', 'Next') }}</button>
       </div>
     </div>
   </div>

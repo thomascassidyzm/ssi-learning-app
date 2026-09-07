@@ -22,7 +22,10 @@
 import { onMounted, ref, computed } from 'vue'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { tone as toneColor } from './theme'
+import { useI18n } from '@/composables/useI18n'
 import type { Tone } from './spec'
+
+const { t } = useI18n()
 
 interface FeedAction {
   tier?: string
@@ -70,13 +73,15 @@ const relativeTime = computed<string>(() => {
   const then = new Date(row.value.generated_at).getTime()
   if (Number.isNaN(then)) return ''
   const secs = Math.round((Date.now() - then) / 1000)
-  if (secs < 60) return 'just now'
+  if (secs < 60) return t('insights.feed.justNow', 'just now')
   const mins = Math.round(secs / 60)
-  if (mins < 60) return `${mins} min ago`
+  if (mins < 60) return t('insights.feed.minsAgo', '{n} min ago').replace('{n}', String(mins))
   const hrs = Math.round(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
+  if (hrs < 24) return t('insights.feed.hoursAgo', '{n}h ago').replace('{n}', String(hrs))
   const days = Math.round(hrs / 24)
-  return days === 1 ? 'yesterday' : `${days} days ago`
+  return days === 1
+    ? t('insights.feed.yesterday', 'yesterday')
+    : t('insights.feed.daysAgo', '{n} days ago').replace('{n}', String(days))
 })
 
 // The generation job is nightly — two missed nights (36h) means the cron is
@@ -99,10 +104,10 @@ const absoluteGeneratedAt = computed<string>(() => {
 
 const headerLine = computed<string>(() => {
   const n = findings.value.length
-  const noun = n === 1 ? 'finding' : 'findings'
+  const noun = n === 1 ? t('insights.feed.findingSingular', 'finding') : t('insights.feed.findingPlural', 'findings')
   const excl = excludedDemo.value != null
-    ? ` · real self-serve learners, ${excludedDemo.value} school demos excluded`
-    : ' · real self-serve learners, school demos excluded'
+    ? t('insights.feed.exclDemoCount', ' · real self-serve learners, {n} school demos excluded').replace('{n}', String(excludedDemo.value))
+    : t('insights.feed.exclDemoNone', ' · real self-serve learners, school demos excluded')
   return `${relativeTime.value} · ${n} ${noun}${excl}`
 })
 
@@ -110,17 +115,17 @@ const headerLine = computed<string>(() => {
 function stripeColor(t?: Tone): string {
   return toneColor(t ?? 'neutral')
 }
-function toneLabel(t?: Tone): string {
-  switch (t) {
-    case 'good': return 'good'
-    case 'warn': return 'watch'
-    case 'alarm': return 'alarm'
-    default: return 'note'
+function toneLabel(tone?: Tone): string {
+  switch (tone) {
+    case 'good': return t('insights.feed.toneGood', 'good')
+    case 'warn': return t('insights.feed.toneWarn', 'watch')
+    case 'alarm': return t('insights.feed.toneAlarm', 'alarm')
+    default: return t('insights.feed.toneNote', 'note')
   }
 }
 
 function actionChip(a: FeedAction): string {
-  const tier = a.tier || 'note'
+  const tier = a.tier || t('insights.feed.actionTierDefault', 'note')
   const owner = a.owner || '—'
   return `[${tier} · ${owner}] ${a.text || ''}`
 }
@@ -148,29 +153,29 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="discovery-feed" aria-label="Discovery feed">
+  <section class="discovery-feed" :aria-label="t('insights.feed.sectionAriaLabel', 'Discovery feed')">
     <!-- stale generation banner — the nightly cron missed 2+ runs; make it impossible to miss -->
     <div v-if="!isLoading && row && isStale" class="disc-stale-banner" role="alert">
-      <span class="disc-stale-badge">Generation stale</span>
+      <span class="disc-stale-badge">{{ t('insights.feed.staleBadge', 'Generation stale') }}</span>
       <span class="disc-stale-text">
-        Last generated {{ absoluteGeneratedAt }} ({{ relativeTime }}) — expected nightly. Check the
-        <code>insight-discovery</code> cron.
+        {{ t('insights.feed.staleTextPart1', 'Last generated {date} ({relative}) — expected nightly. Check the').replace('{date}', absoluteGeneratedAt).replace('{relative}', relativeTime) }}
+        <code>insight-discovery</code> {{ t('insights.feed.staleTextPart2', 'cron.') }}
       </span>
     </div>
 
     <!-- loading -->
-    <div v-if="isLoading" class="disc-quiet">Loading the latest discovery run…</div>
+    <div v-if="isLoading" class="disc-quiet">{{ t('insights.feed.loading', 'Loading the latest discovery run…') }}</div>
 
     <!-- empty / errored — quiet, non-alarming -->
     <div v-else-if="errored || !row || findings.length === 0" class="disc-quiet">
-      No discovery run yet — the nightly pass will populate this.
+      {{ t('insights.feed.noRunYet', 'No discovery run yet — the nightly pass will populate this.') }}
     </div>
 
     <!-- populated -->
     <template v-else>
       <header class="disc-header">
-        <span class="disc-kicker">Discovery</span>
-        <h2 class="disc-title">What Claude surfaced</h2>
+        <span class="disc-kicker">{{ t('insights.feed.kicker', 'Discovery') }}</span>
+        <h2 class="disc-title">{{ t('insights.feed.title', 'What Claude surfaced') }}</h2>
         <p class="disc-sub">{{ headerLine }}</p>
       </header>
 
