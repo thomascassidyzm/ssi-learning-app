@@ -640,7 +640,18 @@
     "familyDesc": "プレミアムのすべてを、ご自身を含む{seats}アカウントで。それぞれが自分の進捗を保てます。",
     "familyMonthly": "月額25ポンド",
     "familyAnnual": "年額250ポンド",
-    "cancelAnytime": "いつでも解約できます。"
+    "cancelAnytime": "いつでも解約できます。",
+    "yourDetails": "あなたの情報",
+    "confirmEmail": "メールアドレスを確認",
+    "setPasswordOptional": "パスワードを設定（任意）",
+    "confirmPassword": "パスワードを確認",
+    "continueToPayment": "支払いに進む",
+    "emailsMustMatch": "2つのメールアドレスが一致しません。",
+    "passwordsMustMatch": "2つのパスワードが一致しません。",
+    "receiptNote": "取得するコードはありません。領収書はこのアドレスに届き、いつでも確認できます。",
+    "signInAndContinue": "ログインして続ける",
+    "emailMeACode": "代わりにコードをメールで受け取る",
+    "backToPlans": "プランに戻る"
   },
   "family": {
     "family": "ファミリー",

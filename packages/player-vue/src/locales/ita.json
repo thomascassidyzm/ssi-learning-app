@@ -640,7 +640,18 @@
     "familyDesc": "Tutto quello che c'è in Premium, per {seats} account incluso il tuo. Ognuno mantiene i propri progressi.",
     "familyMonthly": "£25/mese",
     "familyAnnual": "£250/anno",
-    "cancelAnytime": "Puoi annullare quando vuoi."
+    "cancelAnytime": "Puoi annullare quando vuoi.",
+    "yourDetails": "I tuoi dati",
+    "confirmEmail": "Conferma email",
+    "setPasswordOptional": "Imposta una password (facoltativo)",
+    "confirmPassword": "Conferma password",
+    "continueToPayment": "Continua al pagamento",
+    "emailsMustMatch": "Queste due email non corrispondono.",
+    "passwordsMustMatch": "Queste due password non corrispondono.",
+    "receiptNote": "Nessun codice da recuperare. La tua ricevuta arriverà a questo indirizzo e potrai confermarla quando vuoi.",
+    "signInAndContinue": "Accedi e continua",
+    "emailMeACode": "Inviami invece un codice via email",
+    "backToPlans": "Torna ai piani"
   },
   "family": {
     "family": "Famiglia",

@@ -640,7 +640,18 @@
     "familyDesc": "Alles aus Premium, für {seats} Konten einschließlich deinem. Jeder behält seinen eigenen Fortschritt.",
     "familyMonthly": "£25/Monat",
     "familyAnnual": "£250/Jahr",
-    "cancelAnytime": "Jederzeit kündbar."
+    "cancelAnytime": "Jederzeit kündbar.",
+    "yourDetails": "Ihre Angaben",
+    "confirmEmail": "E-Mail bestätigen",
+    "setPasswordOptional": "Passwort festlegen (optional)",
+    "confirmPassword": "Passwort bestätigen",
+    "continueToPayment": "Weiter zur Zahlung",
+    "emailsMustMatch": "Diese beiden E-Mail-Adressen stimmen nicht überein.",
+    "passwordsMustMatch": "Diese beiden Passwörter stimmen nicht überein.",
+    "receiptNote": "Kein Code zum Abrufen. Ihre Quittung geht an diese Adresse, und Sie können sie jederzeit bestätigen.",
+    "signInAndContinue": "Anmelden und fortfahren",
+    "emailMeACode": "Stattdessen einen Code per E-Mail senden",
+    "backToPlans": "Zurück zu den Tarifen"
   },
   "family": {
     "family": "Familie",

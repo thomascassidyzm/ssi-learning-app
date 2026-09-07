@@ -640,7 +640,18 @@
     "familyDesc": "高级版的全部内容，{seats} 个账户，包括你自己。每个人各自记录进度。",
     "familyMonthly": "£25/月",
     "familyAnnual": "£250/年",
-    "cancelAnytime": "随时可取消。"
+    "cancelAnytime": "随时可取消。",
+    "yourDetails": "您的信息",
+    "confirmEmail": "确认邮箱",
+    "setPasswordOptional": "设置密码（可选）",
+    "confirmPassword": "确认密码",
+    "continueToPayment": "继续付款",
+    "emailsMustMatch": "这两个邮箱不一致。",
+    "passwordsMustMatch": "这两个密码不一致。",
+    "receiptNote": "无需获取验证码。您的收据将发送到此地址，您可以随时确认。",
+    "signInAndContinue": "登录并继续",
+    "emailMeACode": "改为给我发送邮件验证码",
+    "backToPlans": "返回方案"
   },
   "family": {
     "family": "家庭",

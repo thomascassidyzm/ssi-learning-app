@@ -640,7 +640,18 @@
     "familyDesc": "پریمیم کی ہر چیز، آپ سمیت {seats} اکاؤنٹس کے لیے۔ ہر ایک کی اپنی پیش رفت الگ رہتی ہے۔",
     "familyMonthly": "£25/ماہ",
     "familyAnnual": "£250/سال",
-    "cancelAnytime": "کسی بھی وقت منسوخ کریں۔"
+    "cancelAnytime": "کسی بھی وقت منسوخ کریں۔",
+    "yourDetails": "آپ کی تفصیلات",
+    "confirmEmail": "ای میل کی تصدیق کریں",
+    "setPasswordOptional": "پاس ورڈ سیٹ کریں (اختیاری)",
+    "confirmPassword": "پاس ورڈ کی تصدیق کریں",
+    "continueToPayment": "ادائیگی کی طرف جاری رکھیں",
+    "emailsMustMatch": "یہ دونوں ای میلز مماثل نہیں ہیں۔",
+    "passwordsMustMatch": "یہ دونوں پاس ورڈز مماثل نہیں ہیں۔",
+    "receiptNote": "حاصل کرنے کے لیے کوئی کوڈ نہیں ہے۔ آپ کی رسید اس پتے پر جائے گی، اور آپ اسے جب چاہیں تصدیق کر سکتے ہیں۔",
+    "signInAndContinue": "سائن ان کریں اور جاری رکھیں",
+    "emailMeACode": "اس کے بجائے مجھے ای میل کے ذریعے کوڈ بھیجیں",
+    "backToPlans": "پلانز کی طرف واپس"
   },
   "family": {
     "family": "خاندان",

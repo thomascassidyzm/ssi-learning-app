@@ -640,7 +640,18 @@
     "familyDesc": "Gach rud atá i bPremium, do {seats} cuntas, do cheann féin san áireamh. Coinníonn gach duine a dhul chun cinn féin.",
     "familyMonthly": "£25/mí",
     "familyAnnual": "£250/bliain",
-    "cancelAnytime": "Cealaigh am ar bith."
+    "cancelAnytime": "Cealaigh am ar bith.",
+    "yourDetails": "Do shonraí",
+    "confirmEmail": "Deimhnigh ríomhphost",
+    "setPasswordOptional": "Socraigh focal faire (roghnach)",
+    "confirmPassword": "Deimhnigh focal faire",
+    "continueToPayment": "Lean ar aghaidh chuig an íocaíocht",
+    "emailsMustMatch": "Níl an dá sheoladh ríomhphoist sin ag teacht le chéile.",
+    "passwordsMustMatch": "Níl an dá fhocal faire sin ag teacht le chéile.",
+    "receiptNote": "Níl aon chód le fáil. Rachaidh d'admháil chuig an seoladh seo, agus is féidir leat í a dheimhniú am ar bith is mian leat.",
+    "signInAndContinue": "Sínigh isteach agus lean ar aghaidh",
+    "emailMeACode": "Seol cód chugam trí ríomhphost ina áit",
+    "backToPlans": "Ar ais chuig na pleananna"
   },
   "family": {
     "family": "Teaghlach",
