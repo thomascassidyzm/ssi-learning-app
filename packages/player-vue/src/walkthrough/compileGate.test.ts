@@ -419,3 +419,47 @@ describe('runtime lockstep (sections, role badges, place links)', () => {
     expect(HANDBOOK_SECTIONS.length).toBe(6)
   })
 })
+
+// A GATE MUST TEACH ITS OWN REPAIR (Aran's ruling, 2026-09-07, promoting the
+// Handbook to main): somebody fixing a live money-path bug at speed hits a
+// build failure about prose, and the message alone has to unblock them. So the
+// failure names WHERE — file and line — and the repair is one command.
+describe('the handbook gates say where the problem is', () => {
+  const entries = parseHandbookBlocks('F.vue', SFC).entries
+
+  it('an uncovered anchor is reported at file:line, not as a bare id', () => {
+    const { failures } = gateHandbookCoverage(
+      [{ id: 'verb-mystery', path: 'packages/player-vue/src/views/schools/StudentsView.vue', line: 200 }],
+      entries,
+      [],
+    )
+    expect(failures).toHaveLength(1)
+    expect(failures[0]).toContain('packages/player-vue/src/views/schools/StudentsView.vue:200')
+    expect(failures[0]).toContain('data-walk="verb-mystery"')
+  })
+
+  it('still accepts a bare id, so nothing that passes ids breaks', () => {
+    const { failures } = gateHandbookCoverage(['verb-mystery'], entries, [])
+    expect(failures).toHaveLength(1)
+    expect(failures[0]).toContain('verb-mystery')
+  })
+
+  it('a never-pinned description names its own line and its own anchor', () => {
+    const e = { ...entries[0], checked: null, line: 42, anchor: 'verb-invite-person', path: 'F.vue' }
+    const { failures } = gateHandbookFreshness([e], () => 'abc123')
+    expect(failures[0]).toContain('F.vue:42')
+    expect(failures[0]).toContain('--reconfirm "verb-invite-person"')
+  })
+
+  it('a stale description names its own line and its own anchor', () => {
+    const e = { ...entries[0], checked: 'old', line: 42, anchor: 'verb-invite-person', path: 'F.vue' }
+    const { failures } = gateHandbookFreshness([e], () => 'new')
+    expect(failures[0]).toContain('F.vue:42')
+    expect(failures[0]).toContain('--reconfirm "verb-invite-person"')
+  })
+
+  it('parsed blocks carry the line the description starts on', () => {
+    const parsed = parseHandbookBlocks('F.vue', SFC).entries
+    expect(parsed.every((p: { line: number }) => typeof p.line === 'number' && p.line > 0)).toBe(true)
+  })
+})

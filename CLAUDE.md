@@ -36,13 +36,14 @@ the same change.** You are already looking at it; that is the whole point of it 
 
 ```bash
 node tools/walkthrough/compile.mjs --reconfirm   # or --reconfirm "<anchor-id>" for the one you touched
-node tools/walkthrough/compile.mjs --check       # must exit 0 — the vite build runs this too
 ```
 
-`--reconfirm` re-pins each description to a fingerprint of the thing it describes: the gate, the
-handler, the label, and the handler's own source. It does not fire on a restyle. If you change
-behaviour and forget the sentence, the build fails naming the capability — that is a backstop for
-the case where somebody didn't, not the way this is meant to work.
+**That is the whole repair — one command.** `--reconfirm` re-pins each description to a fingerprint
+of the thing it describes — the gate, the handler, the label, and the handler's own source — and
+then recompiles the pack the Handbook page renders, so the page can never sit on a sentence the
+build has already accepted. It does not fire on a restyle. If you change behaviour and forget the
+sentence, the build fails naming the capability, the file and the line, and quotes a good entry to
+copy — that is a backstop for the case where somebody didn't, not the way this is meant to work.
 
 Three rules the compiler enforces, all of them build failures:
 - a `data-walk` anchor with no description and no walkthrough clip — no silent blanks;

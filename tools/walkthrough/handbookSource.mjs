@@ -71,6 +71,9 @@ export function parseHandbookBlocks(path, src) {
       title, path, section: '', personas: [], place: '', keywords: [], walk: null, parts: [],
       what: '', where: '', how: [], note: '', checked: null,
       blockStart: start, blockEnd: start + raw.length, raw,
+      // 1-indexed line of the HANDBOOK comment, so a gate failure can say
+      // file:line and land the reader on the sentence rather than the file.
+      line: src.slice(0, start).split('\n').length,
     }
     let field = null
     for (const line of lines) {

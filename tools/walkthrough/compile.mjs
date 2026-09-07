@@ -12,6 +12,7 @@
  *   node tools/walkthrough/compile.mjs --check   # validate only, no writes
  */
 import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -72,7 +73,34 @@ if (RECONFIRM) {
   console.log(stamped
     ? `[walkthrough] ${stamped} description${stamped === 1 ? '' : 's'} re-pinned to the code they describe.`
     : '[walkthrough] nothing to re-pin — every description is already pinned to its current capability.')
-  process.exit(0)
+  // ONE COMMAND, NOT TWO. Re-pinning without recompiling leaves pack.json —
+  // which IS what the Handbook page renders — holding the old sentence, so the
+  // build goes green while the page still lies. Recompile in the same breath;
+  // a repair that needs a second command someone has to remember is a repair
+  // that will be half-done at 3am.
+  const self = fileURLToPath(import.meta.url)
+  const res = spawnSync(process.execPath, [self], { encoding: 'utf8', stdio: 'inherit' })
+  process.exit(res.status ?? 1)
+}
+
+// A gate that fails without showing the shape of a good answer teaches nothing.
+// This quotes a REAL entry — the shortest complete one in the tree — so the
+// example can never drift from what the compiler actually accepts.
+function exampleBlock() {
+  const complete = entries.filter((e) => e.what && e.where && e.how.length && e.checked)
+  if (!complete.length) return ''
+  const e = complete.reduce((a, b) => (b.raw.length < a.raw.length ? b : a))
+  // Dedent to the block's own left edge first — an example that arrives with
+  // somebody else's indentation reads as a mess rather than as a template.
+  const rawLines = e.raw.split('\n')
+  const pad = Math.min(...rawLines.slice(1).filter((l) => l.trim()).map((l) => l.match(/^ */)[0].length))
+  const quoted = rawLines.map((l, i) => `     ${i === 0 ? l : l.slice(pad)}`).join('\n')
+  return (
+    `\nA GOOD ONE, quoted verbatim from ${e.path}:${e.line} — copy this shape:\n\n` +
+    quoted + '\n\n' +
+    `     …and the element it sits above carries data-walk="${e.anchor}".\n` +
+    '     The checked: line is not yours to write — --reconfirm stamps it.\n'
+  )
 }
 
 const walksDir = join(HERE, 'walks')
@@ -96,9 +124,15 @@ if (failures.length) {
   console.error('\n[walkthrough] COMPILE FAILED — a walk would lie about the product:')
   for (const f of failures) console.error(`  ✗ ${f}`)
   console.error(
-    '\nFix the anchor, the role, the place — or the SENTENCE. A description lives in an\n' +
-    'HTML comment directly above the element it describes; if the capability changed,\n' +
-    'rewrite the sentence there and then run: node tools/walkthrough/compile.mjs --reconfirm'
+    '\nHOW TO FIX THIS, if you have never seen this gate before:\n' +
+    '  1. Open the file:line named above. The description of a capability lives in an\n' +
+    '     HTML comment directly above the element that IS the capability.\n' +
+    '  2. Write it, or rewrite it so it tells the truth about what the code now does.\n' +
+    '     British English, mechanism only, no parentheses.\n' +
+    '  3. Run ONE command — it re-pins the sentence to the code and recompiles the pack:\n' +
+    '       node tools/walkthrough/compile.mjs --reconfirm\n' +
+    '     Add an anchor id to re-pin just one: --reconfirm "your-anchor-id"\n' +
+    exampleBlock()
   )
   process.exit(1)
 }

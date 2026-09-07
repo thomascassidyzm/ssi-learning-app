@@ -130,13 +130,17 @@ export function validateHandbookEntry(entry) {
  * itself as a capability and then has nothing to say about itself is exactly
  * the silent blank this page exists to abolish.
  */
-export function gateHandbookCoverage(anchorIds, entries, walks) {
+export function gateHandbookCoverage(anchors, entries, walks) {
   const failures = []
   const described = new Set(entries.flatMap((e) => [e.anchor, ...(e.parts ?? [])]))
   const stepped = new Set(walks.flatMap((w) => (w.steps ?? []).map((s) => s.anchor)))
-  for (const id of anchorIds) {
+  for (const a of anchors) {
+    // Accepts a bare id or a { id, path, line } location; the location form is
+    // what the CLI passes, so the message can send someone straight to the spot.
+    const id = typeof a === 'string' ? a : a.id
     if (described.has(id) || stepped.has(id)) continue
-    failures.push(`COVERAGE: data-walk="${id}" declares a capability with no handbook description — write a HANDBOOK comment above it, list it as a part of the capability it belongs to, or delete the anchor`)
+    const at = typeof a === 'string' ? '' : `${a.path}:${a.line} — `
+    failures.push(`COVERAGE: ${at}data-walk="${id}" declares a capability with nothing said about it. Write a HANDBOOK comment directly above that element (see the worked example below), or add "${id}" to the parts: line of the capability it belongs to, or delete the anchor`)
   }
   const ids = new Set(walks.map((w) => w.id))
   for (const e of entries) {
@@ -166,12 +170,14 @@ export function gateHandbookFreshness(entries, fingerprintOf) {
   const failures = []
   for (const e of entries) {
     const now = fingerprintOf(e)
+    // file:line of the description itself, so the message opens the right spot.
+    const at = e.line ? `${e.path}:${e.line}` : e.path
     if (!e.checked) {
-      failures.push(`STALE: ${e.path}: HANDBOOK "${e.title}" has never been pinned to what it describes — read the sentence against the code, then run: node tools/walkthrough/compile.mjs --reconfirm`)
+      failures.push(`STALE: ${at} — HANDBOOK "${e.title}" has never been pinned to what it describes. Read the sentence there against the code, then run: node tools/walkthrough/compile.mjs --reconfirm "${e.anchor}"`)
       continue
     }
     if (e.checked !== now) {
-      failures.push(`STALE: ${e.path}: "${e.title}" — the capability changed since this description was last read. Re-read the sentence against the code, fix it if it now lies, then run: node tools/walkthrough/compile.mjs --reconfirm "${e.anchor}"`)
+      failures.push(`STALE: ${at} — "${e.title}": the capability changed since this description was last read. Re-read the sentence there against the code, fix it if it now lies, then run: node tools/walkthrough/compile.mjs --reconfirm "${e.anchor}"`)
     }
   }
   return { failures }
@@ -457,9 +463,18 @@ export function runGates({ walks, vueFiles, runtimeSrc, rulesJson, evaluateRules
     failures.push(...validateHandbookEntry(e))
     if (!KNOWN_PLACES_CACHE.has(e.place)) failures.push(`${e.path}: HANDBOOK "${e.title}" — place "${e.place}" is not one the runtime knows`)
   }
-  const anchorIds = [...new Set(vueFiles.flatMap(({ src }) =>
-    [...src.matchAll(/\bdata-walk="([a-z0-9-]+)"/g)].map((m) => m[1])))]
-  failures.push(...gateHandbookCoverage(anchorIds, entries, walks).failures)
+  // Locations, not bare ids: an uncovered anchor is reported as file:line so
+  // the person who added the button is taken to it, not sent hunting.
+  const seenAnchor = new Set()
+  const anchorLocations = []
+  for (const { path, src } of vueFiles) {
+    for (const m of src.matchAll(/\bdata-walk="([a-z0-9-]+)"/g)) {
+      if (seenAnchor.has(m[1])) continue
+      seenAnchor.add(m[1])
+      anchorLocations.push({ id: m[1], path, line: src.slice(0, m.index).split('\n').length })
+    }
+  }
+  failures.push(...gateHandbookCoverage(anchorLocations, entries, walks).failures)
   if (fingerprintOf) failures.push(...gateHandbookFreshness(entries, fingerprintOf).failures)
   return { failures, warnings }
 }
