@@ -12,8 +12,10 @@
  *                    (subtree school_summary sum PLUS directly group-attached
  *                    people's sessions — a group with no school still has
  *                    practice, and learnerCount already counts those people)
- *   - CHILDREN     → children (direct child nodes, each with rollups), or the
- *                    subtree-wide lens payload when ?lens= is set
+ *   - BELOW THIS   → tree {nodes, classes, staff} — the containment structure
+ *                    under this node, drawn nested by the client; plus
+ *                    children (direct child nodes) for the rail. A ?lens=
+ *                    request returns the legacy flat slice instead.
  *   - VERBS        → client-side, calling the existing invite/create endpoints
  *
  * Lenses (?lens=groups|schools|teachers|classes) are FILTERS over the one
@@ -51,6 +53,20 @@ interface GroupRow {
 }
 
 interface NodeRef { id: string; name: string; label: string; is_demo: boolean; hasSchool: boolean }
+
+/**
+ * A class row as the subtree fetch reads it. The BELOW-THIS tree draws classes
+ * as leaves of the containment structure, so the one subtree fetch carries the
+ * columns that draw them rather than only the ids the rollups need.
+ */
+const SUBTREE_CLASS_COLUMNS = 'id, class_name, school_id, group_id, teacher_user_id'
+interface SubtreeClassRow {
+  id: string
+  class_name: string
+  school_id: string | null
+  group_id: string | null
+  teacher_user_id: string | null
+}
 
 function toRef(g: GroupRow, schoolNodeIds: Set<string>): NodeRef {
   return { id: g.id, name: g.name, label: g.type, is_demo: g.is_demo, hasSchool: schoolNodeIds.has(g.id) }
@@ -169,6 +185,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const subtreeIds = descendantIds(allGroups, nodeId)
     const subtreeIdSet = new Set(subtreeIds)
 
+    // BELOW THIS is DRAWN, not filtered (founder ruling 2026-09-07): a node
+    // home renders the containment structure beneath it — child nodes nested,
+    // their classes as leaves, staff with no class of their own — instead of
+    // one flat filtered slice at a time. Lens payloads stay for the legacy
+    // ?lens= URLs; the tree is what the page itself asks for.
+    const drawsTree = !lens && !classRow
+
     const childRows = sortByName(
       allGroups.filter((g) => g.parent_id === nodeId),
       (g) => g.name,
@@ -189,22 +212,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         }
       }
     })
-    // Subtree class ids — node-attached (group_id) ∪ legacy school-attached.
-    // Shared by the class-practice rollup and the direct-member practice term.
-    const classIdsPromise = schoolsPromise.then(async () => {
-      const classIds = new Set<string>()
+    // Subtree classes — node-attached (group_id) ∪ legacy school-attached.
+    // Shared by the class-practice rollup, the direct-member practice term and
+    // the BELOW-THIS tree (a class is a leaf of the containment structure, so
+    // the rows come off this one fetch rather than a second pass).
+    const subtreeClassesPromise = schoolsPromise.then(async () => {
+      const byId = new Map<string, SubtreeClassRow>()
+      const add = (rows: any[] | null) => {
+        for (const c of rows ?? []) if (!byId.has(c.id)) byId.set(c.id, c as SubtreeClassRow)
+      }
       await Promise.all([
         ...chunk(subtreeIds).map(async (batch) => {
-          const { data } = await svc.from('classes').select('id').in('group_id', batch).eq('is_active', true)
-          for (const c of data ?? []) classIds.add((c as any).id)
+          const { data } = await svc.from('classes').select(SUBTREE_CLASS_COLUMNS).in('group_id', batch).eq('is_active', true)
+          add(data)
         }),
         ...chunk(schoolRows.map((s) => s.id)).map(async (batch) => {
-          const { data } = await svc.from('classes').select('id').in('school_id', batch).eq('is_active', true)
-          for (const c of data ?? []) classIds.add((c as any).id)
+          const { data } = await svc.from('classes').select(SUBTREE_CLASS_COLUMNS).in('school_id', batch).eq('is_active', true)
+          add(data)
         }),
       ])
-      return classIds
+      return [...byId.values()]
     })
+    const classIdsPromise = subtreeClassesPromise.then((rows) => new Set(rows.map((c) => c.id)))
     // PRACTICE HOURS — subtree school_summary sum PLUS the practice of people
     // attached directly to the group nodes with no school/class under them.
     // Without that second term an org whose people were invited straight into
@@ -260,7 +289,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const leadersPromise = leadersForNodes(svc, [nodeId])
     const [, extras, practiceHours, classPractice, leadersByNode] = await Promise.all([
       schoolsPromise,
-      computeNodeExtras(svc, [nodeId, ...childRows.map((c) => c.id)], allGroups),
+      // The BELOW-THIS tree draws every node in the subtree, so it needs
+      // their rollups; a lens request (or a class home) still pays only for
+      // this node and its direct children.
+      computeNodeExtras(svc, drawsTree ? subtreeIds : [nodeId, ...childRows.map((c) => c.id)], allGroups),
       practiceHoursPromise,
       classPracticePromise,
       leadersPromise,
@@ -478,6 +510,125 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return
     }
 
+    // ─── BELOW THIS, DRAWN — the containment structure under this node.
+    // Flat arrays keyed by the node they hang under; the client nests them
+    // (components/admin/belowTree.ts). Three kinds of row, and that is the
+    // whole model: NODES (groups/schools, each with its subtree rollup),
+    // CLASSES (leaves, on the node that holds them), STAFF (people in the
+    // subtree who teach no class — drawn so an invited teacher with nothing
+    // to teach yet is visible rather than missing). Learners are counts on
+    // the nodes, never rows: a 400-pupil school is a number, not a list. ───
+    let treePayload: Record<string, unknown> | null = null
+    if (drawsTree) {
+      const subtreeClasses = await subtreeClassesPromise
+      const classIds = subtreeClasses.map((c) => c.id)
+      const schoolById = new Map(schoolRows.map((s) => [s.id, s]))
+      // A class hangs under its own group node, or under the node its school
+      // bridges to (schools.node_group_id ?? schools.group_id). Anything that
+      // resolves outside this subtree hangs under the node being viewed.
+      const nodeForClass = (c: SubtreeClassRow): string => {
+        if (c.group_id && subtreeIdSet.has(c.group_id)) return c.group_id
+        const sch = c.school_id ? schoolById.get(c.school_id) : undefined
+        const viaSchool = sch?.node_group_id || sch?.group_id || null
+        if (viaSchool && subtreeIdSet.has(viaSchool)) return viaSchool
+        return nodeId!
+      }
+
+      const teachersByClass = new Map<string, Set<string>>()
+      const studentCountByClass = new Map<string, number>()
+      const staffNodeByUid = new Map<string, string>()
+      await Promise.all([
+        ...chunk(classIds).map(async (batch) => {
+          const { data } = await svc.from('class_teachers').select('class_id, teacher_user_id').in('class_id', batch)
+          for (const t of data ?? []) {
+            const cid = (t as any).class_id as string
+            if (!teachersByClass.has(cid)) teachersByClass.set(cid, new Set())
+            teachersByClass.get(cid)!.add((t as any).teacher_user_id)
+          }
+        }),
+        ...chunk(classIds).map(async (batch) => {
+          const { data } = await svc.from('class_student_progress').select('class_id').in('class_id', batch)
+          for (const r of data ?? []) {
+            const cid = (r as any).class_id as string
+            studentCountByClass.set(cid, (studentCountByClass.get(cid) || 0) + 1)
+          }
+        }),
+        // Staff tags — the same union the teachers lens reads (school staff =
+        // teacher OR admin), remembered against the node they sit on.
+        ...chunk(subtreeSchoolIds).map(async (batch) => {
+          const { data } = await svc
+            .from('user_tags').select('user_id, tag_value')
+            .eq('tag_type', 'school').in('role_in_context', SCHOOL_STAFF_ROLES).is('removed_at', null)
+            .in('tag_value', batch.map((id) => `SCHOOL:${id}`))
+          for (const t of data ?? []) {
+            const schoolId = String((t as any).tag_value).replace('SCHOOL:', '')
+            const sch = schoolById.get(schoolId)
+            const node = sch?.node_group_id || sch?.group_id || null
+            if (node && subtreeIdSet.has(node)) staffNodeByUid.set((t as any).user_id, node)
+          }
+        }),
+        ...chunk(subtreeIds).map(async (batch) => {
+          const { data } = await svc
+            .from('user_tags').select('user_id, tag_value')
+            .eq('tag_type', 'group').eq('role_in_context', 'teacher').is('removed_at', null)
+            .in('tag_value', batch.map((id) => `GROUP:${id}`))
+          for (const t of data ?? []) {
+            const node = String((t as any).tag_value).replace('GROUP:', '')
+            if (subtreeIdSet.has(node)) staffNodeByUid.set((t as any).user_id, node)
+          }
+        }),
+      ])
+      // The class's own lead pointer counts as a teacher of it.
+      for (const c of subtreeClasses) {
+        if (c.teacher_user_id) {
+          if (!teachersByClass.has(c.id)) teachersByClass.set(c.id, new Set())
+          teachersByClass.get(c.id)!.add(c.teacher_user_id)
+        }
+      }
+      // Every teacher below, on the node they sit on — a teacher with classes
+      // sits on the node of the first class they teach, one without classes on
+      // the node they were tagged into. The tree draws them as people because
+      // the verbs that belong to a person (assign to a class, mint an access
+      // code) need a row to live on.
+      for (const c of subtreeClasses) {
+        for (const uid of teachersByClass.get(c.id) || []) {
+          if (!staffNodeByUid.has(uid)) staffNodeByUid.set(uid, nodeForClass(c))
+        }
+      }
+      const staffUids = [...staffNodeByUid.keys()]
+      const names = await namesForAuthUids(svc, staffUids)
+
+      treePayload = {
+        tree: {
+          nodes: sortByName(
+            allGroups.filter((g) => subtreeIdSet.has(g.id) && g.id !== nodeId),
+            (g) => g.name,
+          ).map((g) => ({
+            ...toRef(g, schoolNodeIds),
+            parentId: g.parent_id,
+            rollup: extras[g.id]?.rollup ?? null,
+            commercial: extras[g.id]?.commercial ?? null,
+          })),
+          classes: subtreeClasses
+            .map((c) => ({
+              id: c.id,
+              name: c.class_name,
+              nodeId: nodeForClass(c),
+              teachers: [...(teachersByClass.get(c.id) || [])].map((uid) => names.get(uid) || 'Unnamed').sort(),
+              studentCount: studentCountByClass.get(c.id) || 0,
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name)),
+          staff: staffUids
+            .map((uid) => ({
+              user_id: uid,
+              name: names.get(uid) || 'Unnamed',
+              nodeId: staffNodeByUid.get(uid)!,
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name)),
+        },
+      }
+    }
+
     // ─── Lens payloads (subtree-wide filters over the one view) ───
     let lensPayload: Record<string, unknown> | null = null
 
@@ -690,6 +841,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       practiceHours: Math.round(practiceHours * 10) / 10,
       leaders,
       classPractice,
+      ...(treePayload || {}),
       ...(lensPayload || {}),
     })
   } catch (error) {

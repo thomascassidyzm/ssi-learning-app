@@ -3,9 +3,9 @@
  * (archive/docs-retired-2026-08-24/THE-VIEW.md). Pins the founder ruling: the SAME page grammar at
  * every level (org root / mid group / school / class) — map rail with
  * you-are-here, identity header, stats row, children list — plus the two
- * navigation rules: lenses are filters over the one view (query-driven,
- * never separate pages) and clicking any node name lands on that node's
- * home.
+ * navigation rules: BELOW THIS is DRAWN as the containment tree (founder
+ * ruling 2026-09-07 — the five filter chips are gone, one structure replaces
+ * them) and clicking any node name lands on that node's home.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
@@ -40,6 +40,13 @@ function nodePayload(overrides: Record<string, any> = {}) {
       { id: 'school-node', name: 'Sunrise Public School', label: 'school', hasSchool: true, is_demo: true, rollup: { childGroupCount: 0, teacherCount: 3, classCount: 4, learnerCount: 42 }, commercial: { schoolId: 'school-1', platformStatus: 'trial', trialCourseCode: 'hin_for_eng' } },
     ],
     practiceHours: 266.4,
+    tree: {
+      nodes: [
+        { id: 'school-node', name: 'Sunrise Public School', label: 'school', hasSchool: true, is_demo: true, parentId: 'programme', rollup: { childGroupCount: 0, teacherCount: 3, classCount: 4, learnerCount: 42 }, commercial: null },
+      ],
+      classes: [{ id: 'class-1', name: 'Year 6 Hindi', nodeId: 'school-node', teachers: ['Ms Mehta'], studentCount: 2 }],
+      staff: [{ user_id: 't1', name: 'Ms Mehta', nodeId: 'school-node' }],
+    },
     ...overrides,
   }
 }
@@ -117,11 +124,110 @@ describe('NodeHomeView — one grammar at every level', () => {
     // Stats row — subtree totals + hours
     expect(text).toContain('80')
     expect(text).toContain('266.4h')
-    // Children list — school child with the same row grammar
-    expect(wrapper.find('.child-name').text()).toBe('Sunrise Public School')
-    // Lens chips present (filters over the one view)
-    expect(text).toContain('All schools')
-    expect(text).toContain('All teachers')
+    // BELOW THIS — the containment structure, drawn: this node as the trunk,
+    // its school nested under it, that school's class nested under THAT, and
+    // its teacher as a person row. No chips: the tree says all of it at once.
+    const treeNames = wrapper.findAll('.tree-name').map((n) => n.text())
+    expect(treeNames).toEqual(['IME Demo Programme', 'Sunrise Public School', 'Year 6 Hindi', 'Ms Mehta'])
+    expect(wrapper.findAll('.chip')).toHaveLength(0)
+    expect(text).not.toContain('All schools')
+    expect(text).not.toContain('All teachers')
+    expect(text).not.toContain('Directly below')
+  })
+
+  it('THE DEFECT (founder, live NPTC page 2026-09-07): a school whose classes hang off itself is NOT "nothing below this"', async () => {
+    routeMock.params = { id: 'nptc' }
+    setupFetch({
+      kind: 'node',
+      node: { id: 'nptc', name: 'NPTC Group', label: 'school', is_demo: false, hasSchool: true, rollup: { childGroupCount: 0, teacherCount: 1, classCount: 2, learnerCount: 0 }, commercial: null },
+      ancestors: [],
+      siblings: [],
+      // Exactly the payload that used to render "Nothing below this yet":
+      // no child NODES at all, everything hanging off the school itself.
+      children: [],
+      tree: {
+        nodes: [],
+        classes: [
+          { id: 'c1', name: 'All Learners', nodeId: 'nptc', teachers: ['karen.jones'], studentCount: 0 },
+          { id: 'c2', name: 'AS Tutorial 1', nodeId: 'nptc', teachers: ['karen.jones'], studentCount: 0 },
+        ],
+        staff: [{ user_id: 'u-karen', name: 'karen.jones', nodeId: 'nptc' }],
+      },
+      practiceHours: 0,
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    const text = wrapper.text()
+    expect(text).not.toContain('Nothing below this yet')
+    expect(wrapper.findAll('.tree-name').map((n) => n.text()))
+      .toEqual(['NPTC Group', 'All Learners', 'AS Tutorial 1', 'karen.jones'])
+  })
+
+  it('SHAPE FIRST: the top two levels open themselves, deeper ones wait for a tap', async () => {
+    routeMock.params = { id: 'nation2' }
+    setupFetch({
+      kind: 'node',
+      node: { id: 'nation2', name: 'Nation', label: 'nation', is_demo: false, hasSchool: false, rollup: { childGroupCount: 1, teacherCount: 0, classCount: 1, learnerCount: 9 }, commercial: null },
+      ancestors: [], siblings: [], children: [],
+      tree: {
+        nodes: [
+          { id: 'region', name: 'Region', label: 'region', parentId: 'nation2', rollup: { childGroupCount: 1, learnerCount: 9 } },
+          { id: 'school', name: 'A School', label: 'school', parentId: 'region', hasSchool: true, rollup: { childGroupCount: 0, learnerCount: 9 } },
+        ],
+        classes: [{ id: 'c1', name: 'Year 5', nodeId: 'school', teachers: [], studentCount: 9 }],
+        staff: [],
+      },
+      practiceHours: 0,
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    // Depth 0 and 1 draw themselves; the school at depth 2 is closed, so its
+    // class waits behind one tap.
+    expect(wrapper.findAll('.tree-name').map((n) => n.text())).toEqual(['Nation', 'Region', 'A School'])
+    const schoolCaret = wrapper.findAll('.tree-caret').filter((c) => c.attributes('aria-expanded') === 'false')[0]
+    await schoolCaret.trigger('click')
+    expect(wrapper.findAll('.tree-name').map((n) => n.text())).toEqual(['Nation', 'Region', 'A School', 'Year 5'])
+  })
+
+  it('SCALE (the biggest real structures): 49 classes and 39 staff on one node degrade by cap-and-reveal, not by scroll', async () => {
+    routeMock.params = { id: 'big' }
+    setupFetch({
+      kind: 'node',
+      node: { id: 'big', name: 'Ysgol Gyfun Tredegar', label: 'school', is_demo: false, hasSchool: true, rollup: { childGroupCount: 0, teacherCount: 6, classCount: 49, learnerCount: 0 }, commercial: null },
+      ancestors: [], siblings: [], children: [],
+      tree: {
+        nodes: [],
+        classes: Array.from({ length: 49 }, (_, i) => ({ id: `c${i}`, name: `Class ${String(i).padStart(2, '0')}`, nodeId: 'big', teachers: [], studentCount: 0 })),
+        staff: Array.from({ length: 39 }, (_, i) => ({ user_id: `u${i}`, name: `Teacher ${String(i).padStart(2, '0')}`, nodeId: 'big' })),
+      },
+      practiceHours: 0,
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    // Trunk + 8 classes + 8 people, and the rest one tap away.
+    expect(wrapper.findAll('.tree-name')).toHaveLength(17)
+    const more = wrapper.findAll('.tree-more-btn').map((b) => b.text())
+    expect(more).toEqual(['41 more classes', '31 more people'])
+    await wrapper.findAll('.tree-more-btn')[0].trigger('click')
+    expect(wrapper.findAll('.tree-name')).toHaveLength(58)
+  })
+
+  it('an org with nothing below it says so once, and draws no phantom rows', async () => {
+    routeMock.params = { id: 'empty' }
+    setupFetch({
+      kind: 'node',
+      node: { id: 'empty', name: 'Brand New Org', label: 'group', is_demo: false, hasSchool: false, rollup: { childGroupCount: 0, teacherCount: 0, classCount: 0, learnerCount: 0 }, commercial: null },
+      ancestors: [], siblings: [], children: [],
+      tree: { nodes: [], classes: [], staff: [] },
+      practiceHours: 0,
+    })
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.text()).toContain('Nothing below this yet')
+    expect(wrapper.findAll('.tree-name')).toHaveLength(1)
   })
 
   it('org-root level: renders with no ancestors and no siblings', async () => {
@@ -194,26 +300,19 @@ describe('NodeHomeView — one grammar at every level', () => {
     expect(text).not.toContain('All schools')
   })
 
-  it('lens chips are filters over the one view: chip → query update → lens payload rendered', async () => {
+  it('TAP IS THE ONLY AFFORDANCE: a caret opens and closes a branch; a name goes there', async () => {
     setupFetch(nodePayload())
     const wrapper = mountView()
     await flushPromises()
 
-    setupFetch(nodePayload({
-      schools: [
-        { schoolId: 'school-1', nodeId: 'school-node', name: 'Sunrise Public School', teacherCount: 3, classCount: 4, studentCount: 42, practiceHours: 135.1, hasAdmin: true, teachers: ['Ms Mehta', 'Mr Rao'] },
-        { schoolId: 'school-2', nodeId: 'school-node-2', name: 'St Mary\'s Academy', teacherCount: 3, classCount: 2, studentCount: 38, practiceHours: 131.3, hasAdmin: false, teachers: [] },
-      ],
-    }))
-    const chips = wrapper.findAll('.chip')
-    await chips.find((c) => c.text() === 'All schools')!.trigger('click')
-    await flushPromises()
+    const school = wrapper.findAll('.tree-name').find((n) => n.text() === 'Sunrise Public School')!
+    await school.trigger('click')
+    expect(pushMock).toHaveBeenCalledWith('/admin/groups/school-node')
 
-    expect(replaceMock).toHaveBeenCalled()
-    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('lens=schools'), expect.anything())
-    const names = wrapper.findAll('.child-name').map((n) => n.text())
-    expect(names).toEqual(['Sunrise Public School', "St Mary's Academy"])
-    expect(wrapper.text()).toContain('Awaiting admin')
+    // The school's caret closes its branch — its class goes with it.
+    const caret = wrapper.findAll('.tree-caret').filter((c) => c.attributes('aria-expanded') === 'true')[1]
+    await caret.trigger('click')
+    expect(wrapper.findAll('.tree-name').map((n) => n.text())).toEqual(['IME Demo Programme', 'Sunrise Public School'])
   })
 
   it('NAVIGATION PIN: clicking a child name goes to that node\'s home; rail ancestors do too', async () => {
@@ -221,7 +320,7 @@ describe('NodeHomeView — one grammar at every level', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    await wrapper.find('.child-btn').trigger('click')
+    await wrapper.findAll('.tree-name').find((n) => n.text() === 'Sunrise Public School')!.trigger('click')
     expect(pushMock).toHaveBeenCalledWith('/admin/groups/school-node')
 
     await wrapper.find('.rail-link').trigger('click')
@@ -336,9 +435,9 @@ describe('NodeHomeView — one grammar at every level', () => {
     expect(text).toContain('Learners')
     expect(text).not.toContain('Teachers')
     expect(text).not.toContain('Classes')
-    // Lenses: only the structural pair.
-    const chips = wrapper.findAll('.chip').map((c) => c.text())
-    expect(chips).toEqual(['Directly below', 'All groups'])
+    // No lenses at all: BELOW THIS is drawn, and the drawn tree carries no
+    // school/teacher/class word for a council either.
+    expect(wrapper.findAll('.chip')).toHaveLength(0)
     // Verbs: Add a group yes; Add a school never.
     const verbs = wrapper.findAll('.verb').map((v) => v.text())
     expect(verbs).toContain('Add a group')
@@ -401,7 +500,9 @@ describe('NodeHomeView — one grammar at every level', () => {
     await flushPromises()
     const text = wrapper.text()
     expect(text).toContain('Teachers')
-    expect(text).toContain('All schools')
+    // The drawn tree keeps the school vocabulary too — its classes are
+    // classes and their rows count students, not "members".
+    expect(text).toContain('2 students')
     const verbs = wrapper.findAll('.verb').map((v) => v.text())
     expect(verbs).toContain('Add a school')
   })
@@ -439,7 +540,7 @@ describe('NodeHomeView — one grammar at every level', () => {
     // Rail rooted at the leader's scope: no "All organisations" admin escape
     expect(wrapper.text()).not.toContain('All organisations')
     // Navigation stays inside /org — child row and rail ancestor
-    await wrapper.find('.child-btn').trigger('click')
+    await wrapper.findAll('.tree-name').find((n) => n.text() === 'Sunrise Public School')!.trigger('click')
     expect(pushMock).toHaveBeenCalledWith('/org/school-node')
     await wrapper.find('.rail-link').trigger('click')
     expect(pushMock).toHaveBeenCalledWith('/org/nation')
