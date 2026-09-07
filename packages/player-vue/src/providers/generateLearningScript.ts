@@ -534,6 +534,14 @@ export async function generateLearningScript(
           supabase
             .from('listening_pod_sentences')
             .select('global_order, target_text, known_text, target_audio_id, known_audio_id')
+            // BASE ROWS ONLY. This lane builds a LINEAR script and has no way to
+            // offer a branch, so a continuation here would simply become an extra
+            // line of everybody's walk. Filtered in the query rather than after
+            // it: the rows never need to travel, and there is no client-side
+            // classification to get wrong. (The branch-capable readers —
+            // useListeningPods, usePodLapScheduler — fetch both and partition
+            // with composables/podSlate.ts.)
+            .is('variant_key', null)
             .eq('pod_id', podId)
             .order('global_order', { ascending: true }),
         )

@@ -17,6 +17,7 @@
 import { ref, watch, inject, type Ref } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { splitRowUnits } from './podSentenceSplit'
+import { baseSlate, continuationsByBranch, type SlateRow, type PodContinuation } from './podSlate'
 import { getCachedListeningMeta, retryListeningReadOrThrow, clearCachedListeningPodRows } from './listeningMetaCache'
 import { resolveServedPod } from './servedPod'
 import { buildFusionGroups, type FusionGroup } from '@ssi/core/pods'
@@ -126,6 +127,12 @@ export interface UseListeningPodsReturn {
   scenes: Ref<PodScene[]>
   isLoading: Ref<boolean>
   error: Ref<string | null>
+  /**
+   * The pod's continuations, indexed by branch point (`podSlate.branchKey`).
+   * Empty for a pod with none, which is every pod today. The CAPABILITY to
+   * serve a recovery in the moment; the policy for when it fires is not here.
+   */
+  continuations: Ref<Map<string, Array<PodContinuation<SlateRow>>>>
 }
 
 export function useListeningPods(
@@ -134,6 +141,14 @@ export function useListeningPods(
   const supabaseRef = inject<{ value: SupabaseClient | null }>('supabase')
 
   const scenes = ref<PodScene[]>([])
+  /**
+   * The pod's continuations, indexed by the branch point they attach to
+   * (`podSlate.branchKey(scene, sentence)`). THE CAPABILITY, NOT THE POLICY:
+   * a recovery is servable at the coordinate it belongs to, in the moment the
+   * learner is in trouble. WHEN one fires is Tom's call and is not decided here.
+   * Empty for every pod that carries no continuation, which is all of them today.
+   */
+  const continuationIndex = ref<Map<string, Array<PodContinuation<SlateRow>>>>(new Map())
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
@@ -176,7 +191,7 @@ export function useListeningPods(
       const { podId } = await resolveServedPod(supabase, course)
       const { data, error: fetchErr } = await supabase
         .from('listening_pod_sentences')
-        .select('id, scene_number, sentence_number, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, sentence_audio_ids, sentence_known_audio_ids, atom_map_fine, window_known_map, takeg_audio_ids')
+        .select('id, scene_number, sentence_number, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, sentence_audio_ids, sentence_known_audio_ids, atom_map_fine, window_known_map, takeg_audio_ids, variant_key, attach_sentence_number')
         .eq('pod_id', podId)
         .order('global_order', { ascending: true })
 
@@ -266,13 +281,22 @@ export function useListeningPods(
       // PER SENTENCE — the unit is the sentence (Tom 2026-06-16). Otherwise the
       // row is one PodSentence as before. The split itself lives in the shared
       // splitRowUnits helper so the overlay + the main-flow scheduler never drift.
+      // A pod's WALK is its base rows. A row carrying variant_key is a
+      // CONTINUATION attached to a coordinate — a second thing that can happen
+      // where the learner is in trouble — and it must never take a position in
+      // the scene list, or a learner who never branches would walk lines that
+      // are not CORE's. Indexed separately below so it stays reachable AT its
+      // branch point. Tom, 2026-09-04: "A RECOVERY ATTACHES, IT DOES NOT APPEND."
+      const walkRows = baseSlate(data || [])
+      continuationIndex.value = continuationsByBranch(data || [])
+
       const buckets = new Map<number, PodSentence[]>()
       // Running ordinal on the SCHEDULER's flatten (splitRowUnits WITHOUT the
       // textById oracle — the scheduler doesn't apply it, and the two doors'
       // derived maturity must count the same sequence). Rows arrive in
       // global_order, which is the scheduler's fetch order too.
       let podOrdinal = 1
-      for (const row of data || []) {
+      for (const row of walkRows) {
         const list = buckets.get(row.scene_number) || []
         const bareCount = splitRowUnits(row).length
         const units = splitRowUnits(row, textById)
@@ -462,6 +486,7 @@ export function useListeningPods(
     (course) => {
       if (!course) {
         scenes.value = []
+        continuationIndex.value = new Map()
         error.value = null
         isLoading.value = false
         return
@@ -471,5 +496,5 @@ export function useListeningPods(
     { immediate: true },
   )
 
-  return { scenes, isLoading, error }
+  return { scenes, isLoading, error, continuations: continuationIndex }
 }

@@ -1,0 +1,18 @@
+[
+  {
+    "name": "admin_user_course_stats",
+    "reason": "Takes p_learner_id but the first line is `IF NOT public.is_ssi_admin() THEN RAISE EXCEPTION`, unconditional for every call — is_ssi_admin() itself checks learners.platform_role against auth.uid(). The check's rule is literal on this function's own body (deliberately, see the comment above evaluate()), so an indirect but unconditional gate like this one earns an allowlist entry rather than a silent pass."
+  },
+  {
+    "name": "admin_user_navigation",
+    "reason": "Same shape and same unconditional is_ssi_admin() gate as admin_user_course_stats, checked first line before any use of p_learner_id."
+  },
+  {
+    "name": "analytics_friction_extended",
+    "reason": "Unconditional `IF NOT is_ssi_admin() THEN RAISE EXCEPTION` before any use of p_course_id; p_course_id is a course code, not personal data, and the admin gate applies regardless."
+  },
+  {
+    "name": "analytics_friction_map",
+    "reason": "Unconditional `IF NOT is_ssi_admin() THEN RAISE EXCEPTION` before any use of p_course_id, same shape as analytics_friction_extended."
+  }
+]

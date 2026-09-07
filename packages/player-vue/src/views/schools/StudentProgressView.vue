@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { getSchoolsClient } from '@/composables/schools/client'
+import { fetchPracticeByCourse } from '@/composables/practiceByCourse'
 import { getLanguageName, useI18n } from '@/composables/useI18n'
 import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
 import Sparkline from '@/components/schools/shared/Sparkline.vue'
@@ -74,11 +75,14 @@ async function fetchProgress() {
 
     // Practice minutes per course from the player_events rollup RPC —
     // course_enrollments.total_practice_minutes is no longer maintained.
-    const { data: minutesRows } = await client
-      .rpc('admin_practice_minutes_by_course', { p_learner_ids: [currentUser.value.learner_id] })
+    // Server-mediated: /api/school/practice-by-course. Self is always in the
+    // caller's own scope; a staff caller reading someone else's row is checked
+    // server-side against resolveVisibleScope and refused loudly if it is not
+    // theirs to read.
+    const minutesRows = await fetchPracticeByCourse(client, [currentUser.value.learner_id])
     const minutesByCourse = new Map<string, number>()
     const minutesEstimatedByCourse = new Map<string, boolean>()
-    ;(minutesRows as Array<{ course_code: string; practice_minutes: number; is_estimated: boolean }> | null)?.forEach(r => {
+    minutesRows.forEach(r => {
       if (r.course_code) {
         minutesByCourse.set(r.course_code, r.practice_minutes || 0)
         minutesEstimatedByCourse.set(r.course_code, !!r.is_estimated)
