@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 interface FilterOption {
   value: string | number
@@ -24,7 +27,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   modelValue: null,
-  placeholder: 'All',
+  placeholder: () => t('schools.ui.filterDropdown.placeholderAll', 'All'),
   showFilterIcon: false,
   disabled: false,
   size: 'md',
@@ -138,7 +141,7 @@ const classes = computed(() => [
         type="button"
         class="filter-clear"
         @click="clearSelection"
-        aria-label="Clear filter"
+        :aria-label="t('schools.ui.filterDropdown.clearFilterAriaLabel', 'Clear filter')"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="18" y1="6" x2="6" y2="18"/>

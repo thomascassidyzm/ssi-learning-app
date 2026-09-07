@@ -7,6 +7,9 @@
 // means the NEXT one shows a recoverable card instead of a blank screen.
 import { ref, watch, onErrorCaptured } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const route = useRoute()
 const caughtError = ref<Error | null>(null)
@@ -30,9 +33,9 @@ function reload() {
 
 <template>
   <div v-if="caughtError" class="schools-error-card" role="alert">
-    <h2 class="arsenal">Something went wrong</h2>
-    <p>This page hit an error and couldn't finish loading. Your data is safe.</p>
-    <button type="button" class="btn-play" @click="reload">Reload</button>
+    <h2 class="arsenal">{{ t('schools.ui.errorBoundary.title', 'Something went wrong') }}</h2>
+    <p>{{ t('schools.ui.errorBoundary.body', "This page hit an error and couldn't finish loading. Your data is safe.") }}</p>
+    <button type="button" class="btn-play" @click="reload">{{ t('schools.ui.errorBoundary.reload', 'Reload') }}</button>
   </div>
   <slot v-else />
 </template>

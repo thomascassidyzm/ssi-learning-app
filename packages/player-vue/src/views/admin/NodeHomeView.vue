@@ -971,9 +971,8 @@ const listPayload = computed(() => {
                 v-if="journey && journey.source === 'class-play'"
                 :done="journey.done"
                 :total="Math.max(journey.total, journey.done)"
-                label="Course Journey"
               />
-              <JourneyBar v-else-if="journey" :done="classAvgLegos" :total="Math.max(journey.total, classAvgLegos)" label="Course Journey" />
+              <JourneyBar v-else-if="journey" :done="classAvgLegos" :total="Math.max(journey.total, classAvgLegos)" />
               <p class="class-card-note">
                 <template v-if="journey && journey.source === 'class-play'">
                   {{ t('org.nodeHome.classTravelled', 'The class has travelled {done} of {total} LEGOs together.').replace('{done}', String(journey.done)).replace('{total}', String(journey.total)) }}

@@ -48,6 +48,16 @@ export const UNTRANSLATABLE: readonly string[] = [
   'ABC-123',
   'ABCD-EFGH',
 
+  // IANA timezone identifiers in the school's Localisation picker. They are
+  // machine identifiers with a fixed spelling — a school in Tokyo picks
+  // "Europe/London" by those exact characters, and a translated one selects
+  // nothing.
+  'Europe/London',
+  'Europe/Paris',
+  'Europe/Dublin',
+  'America/New York',
+  'America/Los Angeles',
+
   // The text-size control's glyph. "Aa" is a typographic specimen, drawn to be
   // looked at rather than read, and it is the same glyph in every Latin locale.
   'Aa',

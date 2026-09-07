@@ -3,6 +3,9 @@
 // selectable text (monospace + copy button) — not just a bare Copy button.
 // One shared component instead of five near-duplicate markup blocks.
 import { ref } from 'vue'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const props = withDefaults(defineProps<{
   url: string
@@ -10,7 +13,7 @@ const props = withDefaults(defineProps<{
   copyLabel?: string
 }>(), {
   label: '',
-  copyLabel: 'Copy invite link',
+  copyLabel: () => t('schools.ui.inviteLinkField.copyLabel', 'Copy invite link'),
 })
 
 const copied = ref(false)
@@ -30,7 +33,7 @@ async function copy() {
   <div class="invite-link-field">
     <div v-if="label" class="invite-link-label">{{ label }}</div>
     <div class="invite-link-row">
-      <code class="invite-link-url">{{ url || 'Link will appear here once ready.' }}</code>
+      <code class="invite-link-url">{{ url || t('schools.ui.inviteLinkField.linkPending', 'Link will appear here once ready.') }}</code>
       <button
         type="button"
         class="btn-ghost btn-small invite-link-copy"
@@ -38,7 +41,7 @@ async function copy() {
         :disabled="!url"
         @click="copy"
       >
-        {{ copied ? 'Copied' : copyLabel }}
+        {{ copied ? t('schools.ui.inviteLinkField.copied', 'Copied') : copyLabel }}
       </button>
     </div>
   </div>

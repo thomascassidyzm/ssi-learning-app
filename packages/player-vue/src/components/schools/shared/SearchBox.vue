@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 interface Props {
   /** v-model value */
@@ -18,7 +21,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   modelValue: '',
-  placeholder: 'Search...',
+  placeholder: () => t('schools.ui.searchBox.defaultPlaceholder', 'Search...'),
   block: false,
   size: 'md',
   autofocus: false,
@@ -101,7 +104,7 @@ const classes = computed(() => [
       type="button"
       class="search-clear"
       @click="handleClear"
-      aria-label="Clear search"
+      :aria-label="t('schools.ui.searchBox.clearSearchAriaLabel', 'Clear search')"
     >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <line x1="18" y1="6" x2="6" y2="18"/>

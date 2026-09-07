@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const props = withDefaults(defineProps<{
   done: number
@@ -8,7 +11,7 @@ const props = withDefaults(defineProps<{
   label?: string
 }>(), {
   color: 'var(--schools-red)',
-  label: 'Course Journey',
+  label: () => t('schools.ui.journeyBar.defaultLabel', 'Course Journey'),
 })
 
 const pct = computed(() => {
