@@ -439,7 +439,7 @@ onMounted(() => {
                    will not be asked to confirm your school's name again
                    afterwards. To change it later, use School profile in
                    Settings.
-                   checked: ad8fa59c
+                   checked: ad8fa59c.c31f39bc
               -->
               <input
                 v-model="schoolName"
@@ -484,7 +484,7 @@ onMounted(() => {
                   who is in.
                Worth knowing. A teacher does not need to speak the language. The app
                does the teaching, so anyone on your staff can run a class.
-               checked: 3c797dab
+               checked: 3c797dab.62e5508c
           -->
           <div v-if="teacherJoinCode" class="join-code-callout" data-walk="setup-staff-links">
             <InviteLinkField label="Teacher invite link" :url="inviteUrl(teacherJoinCode)" />
@@ -539,7 +539,7 @@ onMounted(() => {
                what your school has access to, and it takes nothing away from anyone.
                A school on a trial sees its one trial course here; a subscribed
                school sees the whole catalogue.
-               checked: c7090f3e
+               checked: c7090f3e.78222465
           -->
           <div v-else class="course-grid" data-walk="setup-course-picker">
             <label
@@ -633,7 +633,7 @@ onMounted(() => {
                    Worth knowing. The list here is whatever you left ticked at
                    the Choose courses step. If a course you expect is missing, go
                    back a step and tick it.
-                   checked: 32d3a7b2
+                   checked: 32d3a7b2.767f089b
               -->
               <span class="select-wrap field-input-flex" data-walk="setup-class-course">
                 <FrostSelect
@@ -685,7 +685,7 @@ onMounted(() => {
                  rows, so running the wizard twice will not duplicate them.
                  Students are added from each class's own page whenever you are
                  ready.
-                 checked: 15048309
+                 checked: 15048309.725c800f
             -->
             <button type="button" class="btn-ghost btn-add" data-walk="setup-add-class-row" @click="addClassRow">
               + Add another class
@@ -731,7 +731,7 @@ onMounted(() => {
                  Worth knowing. Nothing here is a one-shot. Everything the wizard
                  sets up — the school name, the invite links, the classes — can
                  also be changed later from Settings and from your class pages.
-                 checked: 784d6038
+                 checked: 784d6038.4b848014
             -->
             <button type="button" class="btn-ghost" data-walk="setup-save-exit" @click="handleSaveExit">
               Save &amp; exit

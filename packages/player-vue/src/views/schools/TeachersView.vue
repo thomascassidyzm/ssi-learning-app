@@ -406,7 +406,7 @@ watch(selectedUser, (newUser) => {
                    Worth knowing. A class with nobody on it says so in the list,
                    and the teacher you tick will lead it. Tick a class that
                    already has a teacher and yours joins as a co-teacher instead.
-                   checked: fda2b356
+                   checked: fda2b356.d5378b72
               -->
               <button
                 v-if="canAssignClasses"
@@ -444,7 +444,7 @@ watch(selectedUser, (newUser) => {
                    whoever uses it becomes that teacher — so give it to them
                    directly and never post it anywhere shared. Need another? Tap
                    **Access code** again.
-                   checked: 3ee8a11e
+                   checked: 3ee8a11e.10716eae
               -->
               <button
                 v-if="canManageStaff"
@@ -477,7 +477,7 @@ watch(selectedUser, (newUser) => {
                    Worth knowing. An admin's row carries no **Remove** button, so
                    a school can never lose its own admin through this list.
                    Change their role first if that is really what you want.
-                   checked: 19a44d46
+                   checked: 19a44d46.324451a9
               -->
               <button
                 v-if="canManageStaff && t.role !== 'Admin'"
@@ -554,7 +554,7 @@ watch(selectedUser, (newUser) => {
              Worth knowing. If you are standing in front of them rather than sending
              anything, **Show code instead** gives you a short code to read out or
              write on a whiteboard, and they type it in at saysomethingin.com/redeem.
-             checked: 45f0541c
+             checked: 45f0541c.205d0aa0
         -->
         <InviteLinkField :url="teacherJoinLink" data-walk="teachers-invite-link" />
 

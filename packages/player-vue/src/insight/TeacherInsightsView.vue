@@ -220,7 +220,7 @@ const requestedLearnerName = computed(() => {
              5. Read the comparison block for your class's rate beside that average.
              Worth knowing. A class with too few sessions to compare honestly says so
              rather than showing a number built from nothing.
-             checked: 3e0c2b26
+             checked: 3e0c2b26.9b5b0d86
         -->
         <label class="tiv-field tiv-field-wide" data-walk="teacher-insights-class">
           <span class="tiv-field-label">Your classes</span>

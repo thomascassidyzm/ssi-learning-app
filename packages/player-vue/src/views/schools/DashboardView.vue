@@ -490,7 +490,7 @@ async function handlePlayClass(cls: ClassInfo) {
                   does together.
                Worth knowing. A brand new account shows a single button to create
                your first class instead of the list.
-               checked: fb0e12ae
+               checked: fb0e12ae.aef59826
           -->
           <router-link :to="schoolsLink('class-detail', { classId: cls.id })" class="class-link" data-walk="dash-class-card">
             <BeltDot belt="white" :size="28" ring />
@@ -521,7 +521,7 @@ async function handlePlayClass(cls: ClassInfo) {
                   figure itself.
                Worth knowing. A class with too little recorded activity shows a dash
                rather than an invented bar.
-               checked: 8f36867c
+               checked: 8f36867c.46d20570
           -->
           <div data-walk="dash-class-bench">
             <Bench v-if="benchFor(classReports.get(cls.id))" :data="benchFor(classReports.get(cls.id))!" unit="c" />
@@ -607,7 +607,7 @@ async function handlePlayClass(cls: ClassInfo) {
            4. **Sessions** is how many class sessions have been run.
            Worth knowing. The line only appears once you have at least one class — there
            is nothing to total before that.
-           checked: 4ec80f25
+           checked: 4ec80f25.f3a99573
       -->
       <div v-if="teacherClasses.length" class="teacher-stat-line schools-subtle" data-walk="dash-teacher-stats">
         <span><strong class="arsenal stat-line-value">{{ teacherStats.students }}</strong> students</span>

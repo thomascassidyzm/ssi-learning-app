@@ -228,7 +228,7 @@ watch(currentUser, (u) => {
              Worth knowing. There is no separate onboarding step to remember. Both
              links live on the school's row from then on, so you can fetch them again
              any time.
-             checked: 2006c633
+             checked: 2006c633.1822d897
         -->
         <button v-if="!isAdminView" type="button" class="btn-play" data-walk="verb-add-school" @click="openAddModal">+ Add school</button>
       </div>
@@ -314,7 +314,7 @@ watch(currentUser, (u) => {
            screen will not change under you while you are reading. If a refresh fails you
            are told plainly rather than being shown stale figures as if they were
            current.
-           checked: b6977247
+           checked: b6977247.d0c9d611
       -->
       <table class="ssi-table" data-walk="schools-list-table">
         <thead>
@@ -375,7 +375,7 @@ watch(currentUser, (u) => {
                  Worth knowing. Tapping a link chip does not open the school — the
                  rest of the row does that. A school still flagged as awaiting
                  admin is one whose admin link nobody has opened yet.
-                 checked: 81dd9258
+                 checked: 81dd9258.65d4ce09
             -->
             <td class="links-cell" data-walk="schools-list-link-chips" @click.stop>
               <button

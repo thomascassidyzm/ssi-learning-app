@@ -7,6 +7,7 @@
  * like the explainer pack's gate. Kept pure (no fs) so the gates unit-test
  * with fixtures; compile.mjs is the CLI shell that feeds it real files.
  */
+import { checkedCode } from './handbookSource.mjs'
 
 export const PERSONAS = ['admin', 'leader', 'school_admin', 'teacher', 'learner']
 export const ADVANCE_KINDS = ['next', 'click', 'visible']
@@ -176,7 +177,7 @@ export function gateHandbookFreshness(entries, fingerprintOf) {
       failures.push(`STALE: ${at} — HANDBOOK "${e.title}" has never been pinned to what it describes. Read the sentence there against the code, then run: node tools/walkthrough/compile.mjs --reconfirm "${e.anchor}"`)
       continue
     }
-    if (e.checked !== now) {
+    if (checkedCode(e.checked) !== now) {
       failures.push(`STALE: ${at} — "${e.title}": the capability changed since this description was last read. Re-read the sentence there against the code, fix it if it now lies, then run: node tools/walkthrough/compile.mjs --reconfirm "${e.anchor}"`)
     }
   }
@@ -438,6 +439,46 @@ export function assemblePack(walks, entries = []) {
       ...(e.note ? { note: e.note } : {}),
     }))
   return { walks: sortedWalks, handbook }
+}
+
+/**
+ * Gate 12 — THE SERVED PACK IS THE COMPILED PACK.
+ *
+ * The defect this exists for, found by cross-model review within thirty
+ * minutes of the gate shipping (job #288): --check compiled a hypothetical
+ * pack, announced how many entries it WOULD have, and exited without ever
+ * looking at packages/player-vue/src/walkthrough/pack.json — the file the
+ * Handbook page actually imports. Source had 77 capabilities, the page served
+ * 76, and the gate said OK. Two things that must agree, with nothing
+ * comparing them, inside the tool built to stop exactly that.
+ *
+ * So: content, not counts. A count matching is not agreement. Compare every
+ * field of every walk and every handbook entry, and name what differs.
+ */
+export function comparePack(compiled, served) {
+  const failures = []
+  if (!served) return ['SERVED: packages/player-vue/src/walkthrough/pack.json is missing or unreadable — the page imports it, so it must exist']
+
+  const compare = (kind, keyOf, a, b) => {
+    const left = new Map(a.map((x) => [keyOf(x), x]))
+    const right = new Map(b.map((x) => [keyOf(x), x]))
+    for (const key of left.keys()) {
+      if (!right.has(key)) failures.push(`SERVED: ${kind} "${key}" is in the source but NOT in pack.json — the page does not show it`)
+    }
+    for (const key of right.keys()) {
+      if (!left.has(key)) failures.push(`SERVED: ${kind} "${key}" is in pack.json but no longer in the source — the page shows something that is gone`)
+    }
+    for (const [key, l] of left) {
+      const r = right.get(key)
+      if (!r) continue
+      const fields = [...new Set([...Object.keys(l), ...Object.keys(r)])]
+        .filter((f) => JSON.stringify(l[f]) !== JSON.stringify(r[f]))
+      if (fields.length) failures.push(`SERVED: ${kind} "${key}" differs from pack.json — ${fields.join(', ')}`)
+    }
+  }
+  compare('handbook entry', (e) => e.id ?? e.title, compiled.handbook ?? [], served.handbook ?? [])
+  compare('walk', (w) => w.id, compiled.walks ?? [], served.walks ?? [])
+  return failures
 }
 
 /** Run every gate; returns { failures, warnings }. */

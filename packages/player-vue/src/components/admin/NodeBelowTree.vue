@@ -130,7 +130,7 @@ function openClass(id: string): void {
            Worth knowing. The top two levels open themselves and deeper ones wait to be
            tapped, so a large organisation shows you its shape instead of eighty-five
            rows.
-           checked: 5d58fdb7
+           checked: 5d58fdb7.a8f31ff5
       -->
       <button
         type="button"

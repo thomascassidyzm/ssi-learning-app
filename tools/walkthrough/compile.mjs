@@ -9,19 +9,29 @@
  * FAILS the compile. Zero runtime tokens; this CLI is the only refresh path.
  *
  *   node tools/walkthrough/compile.mjs           # write pack.json + docs render
- *   node tools/walkthrough/compile.mjs --check   # validate only, no writes
+ *   node tools/walkthrough/compile.mjs --check   # gate: source vs the SERVED pack, no writes
+ *   node tools/walkthrough/compile.mjs --build   # always writes, never fails on prose
+ *   node tools/walkthrough/compile.mjs --reconfirm ["<anchor>" [--unchanged]]
  */
 import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { runGates, assemblePack } from './lib.mjs'
-import { parseHandbookBlocks, fingerprintCapability, stampChecked } from './handbookSource.mjs'
+import { runGates, assemblePack, comparePack } from './lib.mjs'
+import { parseHandbookBlocks, fingerprintCapability, stampChecked, proseFingerprint, checkedCode, checkedProse } from './handbookSource.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(HERE, '..', '..')
 const CHECK_ONLY = process.argv.includes('--check')
+// --build is the mode the Vercel build runs in: it ALWAYS writes the pack, and
+// it never fails on prose. That inversion is the point (job #289). The pack is
+// generated from source at build time, so the page can no longer serve a stale
+// artefact at all — the whole staleness class is gone rather than gated. What
+// prose gates remain are advisory here and hard in --check, because a sentence
+// somebody forgot to rewrite must never be what stops a fix reaching learners
+// on a Monday morning.
+const BUILD = process.argv.includes('--build')
 // --reconfirm is the REPAIR TOOL for the freshness gate. A gate with no
 // one-step repair gets routed around, so this is one command: re-read the
 // sentence against the code, then stamp it. With an anchor id it re-pins one
@@ -30,6 +40,14 @@ const RECONFIRM = process.argv.includes('--reconfirm')
 const RECONFIRM_ONLY = process.argv[process.argv.indexOf('--reconfirm') + 1]?.startsWith('-') === false
   ? process.argv[process.argv.indexOf('--reconfirm') + 1]
   : null
+// --unchanged is the ONLY way to re-pin a capability whose sentence you did
+// not touch, and it takes one anchor at a time. Before job #289 a bare
+// --reconfirm stamped every stale capability in the tree in one keystroke,
+// with no sentence anywhere required to change: a gate with a silent bulk
+// mute is not a gate. Now the stamp records the prose it was made against, so
+// the tool can tell "I rewrote it" from "I read it and it still holds" — and
+// the second one has to be said out loud, per capability.
+const UNCHANGED = process.argv.includes('--unchanged')
 
 function vueFilesUnder(dir) {
   const out = []
@@ -56,15 +74,29 @@ const fingerprintOf = (e) => fingerprintCapability(srcByPath.get(e.path), e.tag,
 
 if (RECONFIRM) {
   let stamped = 0
+  const refused = []
   for (const { path, entries: fileEntries } of parsed) {
-    const targets = fileEntries
+    const stale = fileEntries
       .filter((e) => !RECONFIRM_ONLY || e.anchor === RECONFIRM_ONLY)
-      .filter((e) => e.checked !== fingerprintOf(e))
+      // Stale code, or a one-part stamp from before the prose half existed —
+      // the second is a free migration: the capability has not changed, so
+      // recording the prose alongside it asks nobody to decide anything.
+      .filter((e) => checkedCode(e.checked) !== fingerprintOf(e) || (e.checked && !checkedProse(e.checked)))
+    // INTENT, PER CAPABILITY. A stale entry whose prose is byte-identical to
+    // the prose the last stamp was made against is somebody silencing the
+    // gate, not somebody repairing it — unless they name that one anchor and
+    // say --unchanged, which is the assertion "I read it and it still holds".
+    const targets = []
+    for (const e of stale) {
+      const untouched = checkedProse(e.checked) && checkedProse(e.checked) === proseFingerprint(e)
+      if (untouched && !(RECONFIRM_ONLY === e.anchor && UNCHANGED)) refused.push(e)
+      else targets.push(e)
+    }
     if (!targets.length) continue
     let src = readFileSync(join(ROOT, path), 'utf8')
     // Back to front, so earlier offsets stay valid.
     for (const e of [...targets].sort((a, b) => b.blockStart - a.blockStart)) {
-      src = stampChecked(src, e, fingerprintOf(e))
+      src = stampChecked(src, e, `${fingerprintOf(e)}.${proseFingerprint(e)}`)
       console.log(`  ✓ re-pinned "${e.title}" — ${path}`)
       stamped += 1
     }
@@ -73,6 +105,16 @@ if (RECONFIRM) {
   console.log(stamped
     ? `[walkthrough] ${stamped} description${stamped === 1 ? '' : 's'} re-pinned to the code they describe.`
     : '[walkthrough] nothing to re-pin — every description is already pinned to its current capability.')
+  if (refused.length) {
+    console.error(`\n[walkthrough] NOT RE-PINNED — ${refused.length} capabilit${refused.length === 1 ? 'y' : 'ies'} changed and ${refused.length === 1 ? 'its sentence' : 'their sentences'} did not:`)
+    for (const e of refused) console.error(`  ✗ ${e.path}:${e.line} — "${e.title}"`)
+    console.error(
+      '\nRead each sentence against the code it now sits above, and either:\n' +
+      '  - rewrite it, then run: node tools/walkthrough/compile.mjs --reconfirm\n' +
+      '  - or, if it is still true as written, say so for that one capability:\n' +
+      '      node tools/walkthrough/compile.mjs --reconfirm "<anchor-id>" --unchanged\n'
+    )
+  }
   // ONE COMMAND, NOT TWO. Re-pinning without recompiling leaves pack.json —
   // which IS what the Handbook page renders — holding the old sentence, so the
   // build goes green while the page still lies. Recompile in the same breath;
@@ -80,7 +122,7 @@ if (RECONFIRM) {
   // that will be half-done at 3am.
   const self = fileURLToPath(import.meta.url)
   const res = spawnSync(process.execPath, [self], { encoding: 'utf8', stdio: 'inherit' })
-  process.exit(res.status ?? 1)
+  process.exit(refused.length ? 1 : res.status ?? 1)
 }
 
 // A gate that fails without showing the shape of a good answer teaches nothing.
@@ -120,6 +162,12 @@ const { failures, warnings } = runGates({
 
 for (const w of warnings) console.log(`  ⚠ ${w}`)
 failures.unshift(...parseErrors)
+if (failures.length && BUILD) {
+  console.error(`\n[walkthrough] HANDBOOK NOT VERIFIED — ${failures.length} gate failure${failures.length === 1 ? '' : 's'}, building anyway:`)
+  for (const f of failures) console.error(`  ⚠ ${f}`)
+  console.error('  These are advisory during a build. Run `node tools/walkthrough/compile.mjs --check` to see them fail properly.\n')
+  failures.length = 0
+}
 if (failures.length) {
   console.error('\n[walkthrough] COMPILE FAILED — a walk would lie about the product:')
   for (const f of failures) console.error(`  ✗ ${f}`)
@@ -145,12 +193,29 @@ const versioned = {
   ...pack,
 }
 
+const PACK_PATH = join(ROOT, 'packages/player-vue/src/walkthrough/pack.json')
+
 if (CHECK_ONLY) {
-  console.log(`[walkthrough] check OK — pack version would be ${versioned.version} (${pack.walks.length} walks · ${pack.walks.reduce((n, w) => n + w.steps.length, 0)} steps · ${pack.handbook.length} handbook entries)`)
+  // COMPARE WHAT IS SERVED. Compiling a hypothetical pack and announcing its
+  // size proves nothing about the file the page imports — that was the hollow
+  // middle of this gate until job #289.
+  let served = null
+  try { served = JSON.parse(readFileSync(PACK_PATH, 'utf8')) } catch { served = null }
+  const drift = comparePack(pack, served)
+  if (drift.length) {
+    console.error('\n[walkthrough] CHECK FAILED — the Handbook page is serving something the source does not say:')
+    for (const d of drift) console.error(`  ✗ ${d}`)
+    console.error(
+      '\nThe page imports packages/player-vue/src/walkthrough/pack.json. Regenerate and commit it:\n' +
+      '    node tools/walkthrough/compile.mjs\n'
+    )
+    process.exit(1)
+  }
+  console.log(`[walkthrough] check OK — served pack ${served.version} matches the source (${pack.walks.length} walks · ${pack.walks.reduce((n, w) => n + w.steps.length, 0)} steps · ${pack.handbook.length} handbook entries)`)
   process.exit(0)
 }
 
-writeFileSync(join(ROOT, 'packages/player-vue/src/walkthrough/pack.json'), JSON.stringify(versioned, null, 2) + '\n')
+writeFileSync(PACK_PATH, JSON.stringify(versioned, null, 2) + '\n')
 
 const md = [
   '# Walkthrough pack — compiled render',

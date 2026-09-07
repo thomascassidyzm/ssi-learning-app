@@ -691,7 +691,7 @@ const listPayload = computed(() => {
              4. The page rebuilds around the new level and the map redraws with it.
              Worth knowing. A leader only ever sees their own part of the organisation
              — the map is trimmed by the server, not hidden in the page.
-             checked: ddf17908
+             checked: ddf17908.2e27bf3c
         -->
         <aside class="rail-col schools-card" data-walk="node-map-rail">
           <NodeMapRail
@@ -836,7 +836,7 @@ const listPayload = computed(() => {
                Worth knowing. Nothing is shown until the first load has genuinely
                succeeded, so an empty stamp means the numbers have not arrived rather
                than that they are old.
-               checked: 66198dfa
+               checked: 66198dfa.48a17ea7
           -->
           <div class="stats-updated" data-walk="node-updated"><UpdatedStamp /></div>
           <!-- HANDBOOK The numbers on any level
@@ -862,7 +862,7 @@ const listPayload = computed(() => {
                   week, its practice hours, its students and its teachers.
                Worth knowing. An organisation that is not school-shaped sees the same
                row worded as practice hours, groups and learners instead.
-               checked: b278e3a1
+               checked: b278e3a1.b7def846
           -->
           <div class="stats-row" data-walk="node-stats">
             <div v-for="s in stats" :key="s.word" class="stat-card schools-card">
@@ -906,7 +906,7 @@ const listPayload = computed(() => {
                  Worth knowing. A class that has never played together says so
                  plainly and names the teacher's **Play as class** button as the
                  thing that starts the first one.
-                 checked: 2423aa12
+                 checked: 2423aa12.0aca4ce8
             -->
             <div class="schools-card class-card" data-walk="class-practice">
               <span class="schools-kicker">Class practice</span>
@@ -942,7 +942,7 @@ const listPayload = computed(() => {
                  Worth knowing. A class that has never played together has no
                  shared position, so the bar falls back to the students' own
                  average and says so.
-                 checked: 37cd9c93
+                 checked: 37cd9c93.325026db
             -->
             <div class="schools-card class-card" data-walk="class-journey">
               <span class="schools-kicker">Course journey</span>
@@ -990,7 +990,7 @@ const listPayload = computed(() => {
                     completed sentences.
                  Worth knowing. Every screen in the product uses that one ladder,
                  so a student never shows a different belt in two places.
-                 checked: fa2db137
+                 checked: fa2db137.ed26d442
             -->
             <div class="schools-card class-card" data-walk="class-belts">
               <span class="schools-kicker">Belt distribution</span>
@@ -1027,7 +1027,7 @@ const listPayload = computed(() => {
                     figures.
                  Worth knowing. A class with too little practice recorded shows a
                  plain line saying so rather than a bar built from almost nothing.
-                 checked: 3079497c
+                 checked: 3079497c.7623dd0e
             -->
             <div class="schools-card class-card" data-walk="class-benchmark">
               <span class="schools-kicker">Practice min/student/week</span>
@@ -1091,7 +1091,7 @@ const listPayload = computed(() => {
                    Worth knowing. Needing attention means either nothing for a
                    fortnight or less than half the class average, so it is a
                    prompt to look rather than a verdict.
-                   checked: fd291729
+                   checked: fd291729.2581504f
               -->
               <NodeChildrenList
                 v-else

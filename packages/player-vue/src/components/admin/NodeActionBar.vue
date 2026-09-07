@@ -596,7 +596,7 @@ function closeDelete(): void {
            Worth knowing. One student at a time, on purpose — the link is theirs alone
            and carries the class with it. The **Students** page's **+ Invite students**
            button brings you here for exactly this reason.
-           checked: aa3e5463
+           checked: aa3e5463.68bb21d6
       -->
       <button v-if="classMode" type="button" class="verb" :class="{ 'is-open': openForm === 'person' }" data-walk="verb-invite-student" @click="toggle('person')">Invite students</button>
       <template v-else>
@@ -618,7 +618,7 @@ function closeDelete(): void {
            5. Copy the minted link and send it.
            Worth knowing. Nothing is created until you submit. Every link you mint lands
            in **Ways in**.
-           checked: e35d11f4
+           checked: e35d11f4.52963dcb
       -->
       <button type="button" class="verb" :class="{ 'is-open': openForm === 'person' }" data-walk="verb-invite-person" @click="toggle('person')">Invite a person</button>
       <!-- HANDBOOK Make a link anyone can use
@@ -638,7 +638,7 @@ function closeDelete(): void {
            Worth knowing. It is open to anyone holding it, so when a link has travelled
            further than you meant, revoke it in **Ways in** and make a fresh one. Use
            **Invite a person** instead when you can name who is coming.
-           checked: 9c63d409
+           checked: 9c63d409.855a3e42
       -->
       <button type="button" class="verb" :class="{ 'is-open': openForm === 'invite' }" data-walk="verb-shareable-link" @click="toggle('invite')">Get a shareable link</button>
       <!-- Add a group is for LEADERS too (founder ruling 2026-08-02: any
@@ -662,7 +662,7 @@ function closeDelete(): void {
            Worth knowing. The verb only shows on a plain group. A school cannot contain
            another school, and an organisation using the neutral wording has groups
            rather than schools all the way down.
-           checked: 5641ca01
+           checked: 5641ca01.410c0ecd
       -->
       <button v-if="!member && !node.commercial && !neutral" type="button" class="verb" :class="{ 'is-open': openForm === 'school' }" data-walk="verb-add-school" @click="toggle('school')">Add a school</button>
       <!-- Add a class is for LEADERS too (founder ruling 2026-09-07: a class
@@ -687,7 +687,7 @@ function closeDelete(): void {
            5. Tap **Add**.
            Worth knowing. A class needs no teacher to exist. It sits under the group
            waiting, and you put a teacher on it whenever you are ready.
-           checked: 0b14ec1f
+           checked: 0b14ec1f.32cb8fc5
       -->
       <button v-if="!neutral" type="button" class="verb" :class="{ 'is-open': openForm === 'class' }" data-walk="verb-add-class" @click="toggle('class')">Add a class</button>
       <!-- HANDBOOK Set up a demo organisation
@@ -708,7 +708,7 @@ function closeDelete(): void {
            Worth knowing. A demo org's own page grows a **Refresh demo activity** button,
            which moves its learners on so a demo you minted weeks ago does not look
            abandoned when you next open it.
-           checked: 09ac296d
+           checked: 09ac296d.e86abc2e
       -->
       <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'demo' }" data-walk="verb-mint-demo" @click="toggle('demo')">Mint a demo org</button>
       <!-- HANDBOOK Choose which courses a school can use
@@ -729,7 +729,7 @@ function closeDelete(): void {
            Worth knowing. A trial runs for thirty days on a paid course and a year on a
            free or community one, and the server works the dates out on save — what you
            see before saving is a preview.
-           checked: bf4ae0a1
+           checked: bf4ae0a1.cd89c135
       -->
       <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'courses' }" data-walk="verb-courses" @click="toggle('courses')">Courses</button>
       <!-- HANDBOOK Rename a school or group
@@ -749,7 +749,7 @@ function closeDelete(): void {
            Worth knowing. If the new name matches something else already sitting beside
            it you are warned and asked to confirm, because two identical names in one
            list is usually a mistake rather than a plan.
-           checked: c3b0189b
+           checked: c3b0189b.1ab1b0b4
       -->
       <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'rename' }" data-walk="verb-rename" @click="openRename">Rename</button>
       <button v-if="!member && node.is_demo" type="button" class="verb verb-demo" :disabled="isRefreshing" @click="refreshDemo">
@@ -774,7 +774,7 @@ function closeDelete(): void {
            Worth knowing. You are only asked to type the name when there is real activity
            underneath, which is the signal to stop and check. An empty shell deletes on a
            single confirm.
-           checked: 9ffcd50a
+           checked: 9ffcd50a.fdd02145
       -->
       <button v-if="!member" type="button" class="verb verb-danger" data-walk="verb-delete" @click="requestDelete">Delete</button>
       </template>
@@ -802,7 +802,7 @@ function closeDelete(): void {
              Worth knowing. The place matters as much as the role — a group leader
              invited on a group leads that group and everything under it, so invite
              people on the node whose shape you actually mean.
-             checked: 8119168f
+             checked: 8119168f.215b02bb
         -->
         <select v-if="!classMode" v-model="personRole" class="frost-select" data-walk="invite-form-role">
           <option v-if="!neutral" value="teacher">Teacher</option>

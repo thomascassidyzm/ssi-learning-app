@@ -432,7 +432,7 @@ function toggleDataItem(id: string) {
                  Worth knowing. Only a school admin can edit this. A teacher
                  opening the same page sees the details but cannot change them.
                  Your school's type is set by your group administrator, not here.
-                 checked: 2aee237d
+                 checked: 2aee237d.51c105f3
             -->
             <button type="button" class="btn-play" data-walk="settings-save-profile" :disabled="profileSaveStatus === 'saving'" @click="saveSchoolProfile">
               {{ profileSaveStatus === 'saving' ? 'Saving…' : profileSaveStatus === 'saved' ? 'Saved' : 'Save changes' }}
@@ -504,7 +504,7 @@ function toggleDataItem(id: string) {
                  Worth knowing. This is remembered on the device you set it on.
                  Teachers and students each choose their own, so setting it here
                  does not change what anybody else sees.
-                 checked: 1bcc02fa
+                 checked: 1bcc02fa.ca2221e1
             -->
             <button type="button" class="btn-play" data-walk="settings-localisation-save" :disabled="localizationSaveStatus === 'saving'" @click="saveLocalization">
               {{ localizationSaveStatus === 'saving' ? 'Saving…' : localizationSaveStatus === 'saved' ? 'Saved' : 'Save changes' }}
@@ -554,7 +554,7 @@ function toggleDataItem(id: string) {
                  Worth knowing. It is a snapshot of the moment you press the
                  button, not a live link. Download it again whenever you need
                  current figures.
-                 checked: 5d883f51
+                 checked: 5d883f51.bdde1e52
             -->
             <button type="button" class="btn-ghost" data-walk="settings-export-data" :disabled="isExporting" @click="handleExportData">
               {{ isExporting ? 'Preparing…' : 'Download all data (.csv)' }}
@@ -593,7 +593,7 @@ function toggleDataItem(id: string) {
                    and only by its admin. A school with nothing in it deletes
                    without the typed confirmation; one with students and sessions
                    always asks for it.
-                   checked: 79dfa3af
+                   checked: 79dfa3af.1ba6f4b2
               -->
               <button type="button" class="btn-danger" data-walk="settings-delete-school" @click="openDeleteSchoolModal">Delete school</button>
             </div>

@@ -50,7 +50,7 @@ const initialWho = computed(() => (typeof route.query.who === 'string' ? route.q
            4. Use the active toggle to read live invites rather than spent ones.
            Worth knowing. This is the operator's desk, not a school's. A school brings
            its own people in from its own home page.
-           checked: 1590d7cf
+           checked: 1590d7cf.59d2d9b1
       -->
       <div class="mode-toggle" role="tablist" data-walk="invites-mode-strip">
         <button
