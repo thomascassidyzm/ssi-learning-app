@@ -118,7 +118,8 @@
     "practisingBannerNote": "New material comes back when your connection does.",
     "subscriptionsNotAvailableHere": "Subscriptions aren't available in this version of the app yet.",
     "beltStillDownloading": "{belt} isn't on this device yet — it'll open as soon as it comes through.",
-    "contentStillDownloading": "That isn't on this device yet — it'll open as soon as it comes through."
+    "contentStillDownloading": "That isn't on this device yet — it'll open as soon as it comes through.",
+    "choosePlanCancel": "Two plans, from £15/month. Cancel anytime."
   },
   "home": {
     "goodMorning": "Good morning",
@@ -309,8 +310,8 @@
     "addHomeScreenFaster": "Add to your home screen for faster, offline access",
     "subscriptionsNotAvailableHere": "Subscriptions aren't available in this version of the app yet.",
     "manageSubscriptionOnComputer": "Manage or cancel this subscription from your account on a computer.",
-    "seePlans": "See plans",
-    "plansFromMonth": "£15/month for one account, £25/month for up to 6"
+    "plansFromMonth": "£15/month for one account, £25/month for six",
+    "upgrade": "Upgrade"
   },
   "belt": {
     "yourProgress": "Your progress",

@@ -89,7 +89,7 @@ onBeforeUnmount(() => {
           <section v-if="showFamily" class="plan">
             <h3 class="plan-name">SSi Family</h3>
             <p class="plan-desc">
-              Everything in Premium, for up to {{ FAMILY_SEAT_CAP }} accounts including yours.
+              Everything in Premium, for {{ FAMILY_SEAT_CAP }} accounts including yours.
               Everyone keeps their own progress.
             </p>
             <div class="plan-prices">

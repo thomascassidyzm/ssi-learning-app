@@ -2270,16 +2270,16 @@ const scriptBaseOffset = ref(0)  // Base offset for script loading
 const entitlementComposable = useEntitlement()
 const showPaywall = ref(false)
 
-// The upgrade trigger. Opens the plan picker (Premium or Family, monthly or
-// annual); the picker then opens the matching Paddle checkout. The
-// money-capture backend is untouched.
-const { openPlans, isOpeningCheckout } = useCheckout()
+// The upgrade trigger. Naming no plan means the plan picker opens first
+// (Premium or Family, monthly or annual) and it opens the matching Paddle
+// checkout. The money-capture backend is untouched.
+const { startCheckout, isOpeningCheckout } = useCheckout()
 // platform/paymentRoute: the wall still explains why play stopped, but it only
 // offers a Subscribe button when there is a route that can honour it.
 const purchaseAvailable = computed(() => canTakePayment())
 function handleSubscribe() {
-  // Plan first, Paddle second — see PlanPicker.vue.
-  openPlans(courseCode.value || null)
+  // No plan named, so this opens the picker first — see useCheckout.startCheckout.
+  startCheckout({ courseCode: courseCode.value || null })
 }
 
 // "Maybe later" / backdrop click / Escape all do the same thing: dismiss the
@@ -16978,7 +16978,7 @@ defineExpose({
     <div v-if="showPaywall" class="paywall-overlay" @click.self="dismissPaywall">
       <div class="paywall-card">
         <h2 class="paywall-title">{{ t('player.youveReachedEndFree') }}</h2>
-        <p class="paywall-subtitle">{{ t('player.goPremiumMonthCancel') }}</p>
+        <p class="paywall-subtitle">{{ t('player.choosePlanCancel') }}</p>
         <ul class="paywall-benefits">
           <li>{{ t('player.everyCourseLanguagesFully') }}</li>
           <li>{{ t('player.downloadCoursesOfflineLearning') }}</li>

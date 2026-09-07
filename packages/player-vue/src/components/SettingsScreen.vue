@@ -645,12 +645,12 @@ async function confirmCancel() {
     cancelError.value = res.error || 'Could not cancel. Please try Payment & invoices instead.'
   }
 }
-const { openPlans } = useCheckout()
+const { startCheckout } = useCheckout()
 function goPlans() {
-  // Open the plan picker (Premium or Family, monthly or annual). It then opens
-  // the matching Paddle checkout; signed-out users get the auth modal after
-  // choosing. No marketing page.
-  openPlans(props.course?.course_code || null)
+  // No plan named, so the plan picker opens first (Premium or Family, monthly
+  // or annual) and it opens the matching Paddle checkout; signed-out users get
+  // the auth modal after choosing. No marketing page.
+  startCheckout({ courseCode: props.course?.course_code || null })
 }
 
 // SSi Family (FAMILY-PLAN-SPEC.md §4) is offered inside the plan picker, which
@@ -2303,7 +2303,7 @@ const confirmReset = async () => {
                  Premium or Family, monthly or annual. -->
             <div v-else class="setting-row clickable" @click="goPlans">
               <div class="setting-info">
-                <span class="setting-label">{{ t('settings.seePlans') }}</span>
+                <span class="setting-label">{{ t('settings.upgrade') }}</span>
                 <span class="setting-desc">{{ t('settings.plansFromMonth') }}</span>
               </div>
               <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

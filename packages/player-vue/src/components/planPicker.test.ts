@@ -38,14 +38,23 @@ const supabase = ref({
   },
 })
 
+// The host mounts the picker AND hands back a useCheckout() bound inside a real
+// setup(), so `supabase` is injected exactly as it is in the app. Calling
+// startCheckout from outside setup would fail for a reason that has nothing to
+// do with what these tests are asserting.
 function mountPicker() {
-  const Host = defineComponent({ setup: () => () => h(PlanPicker) })
+  const Host = defineComponent({
+    setup(_, { expose }) {
+      expose({ checkout: useCheckout() })
+      return () => h(PlanPicker)
+    },
+  })
   return mount(Host, { global: { provide: { supabase } } })
 }
 
 async function chosenPriceId(label: string): Promise<string | undefined> {
   const wrapper = mountPicker()
-  const { openPlans } = useCheckout()
+  const { openPlans } = (wrapper.vm as any).checkout
   openPlans(null)
   await wrapper.vm.$nextTick()
   const btn = document.body.querySelectorAll('.plan-btn')
@@ -69,16 +78,29 @@ describe('plan picker', () => {
     useCheckout().closeCheckout()
   })
 
+  // THE DERIVATION: the choice step lives inside startCheckout, so an entry
+  // point that names no plan can never reach Paddle without it — including any
+  // entry point added later. This is what stops the bug repeating.
+  it('startCheckout with no plan opens the picker instead of Paddle', async () => {
+    const wrapper = mountPicker()
+    const { startCheckout, plansOpen } = (wrapper.vm as any).checkout
+    await startCheckout({ courseCode: 'spa_for_eng' })
+    await new Promise((r) => setTimeout(r, 0))
+    expect(plansOpen.value).toBe(true)
+    expect(checkoutOpen).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
   it('offers Premium and Family, monthly and annual', async () => {
     const wrapper = mountPicker()
-    useCheckout().openPlans(null)
+    ;(wrapper.vm as any).checkout.openPlans(null)
     await wrapper.vm.$nextTick()
     const labels = Array.from(document.body.querySelectorAll('.plan-btn')).map((b) => b.textContent?.trim())
     expect(labels).toEqual(['£15/month', '£150/year', '£25/month', '£250/year'])
     const text = document.body.textContent || ''
     expect(text).toContain('SSi Premium')
     expect(text).toContain('SSi Family')
-    expect(text).toContain('up to 6 accounts')
+    expect(text).toContain('6 accounts including yours')
     wrapper.unmount()
   })
 
