@@ -234,7 +234,7 @@ const homeLink = computed(() => {
         <!-- VOICE & PAUSE — the same renderer the admin board uses, scoped to
              this node by the server. Uptake first, denominators everywhere:
              a learner with no mic data is absent here, never a zero. -->
-        <section class="vad-section">
+        <section class="vad-section" data-walk="insights-voice-pause">
           <header class="vad-section-head">
             <span class="schools-kicker">Attention · voice</span>
             <h2 class="vad-section-title arsenal">Voice &amp; pause</h2>

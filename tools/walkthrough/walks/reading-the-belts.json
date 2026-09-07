@@ -1,0 +1,34 @@
+{
+  "id": "reading-the-belts",
+  "title": "Reading the belts",
+  "section": "seeing-progress",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "anchor": "class-belts",
+  "keywords": [
+    "belt",
+    "belts",
+    "white",
+    "black",
+    "distribution",
+    "spread",
+    "seeds"
+  ],
+  "handbook": {
+    "what": "How a class is spread across the eight belts, from white to black. A belt is earned by completing whole sentences of the course, so it is a coarse, honest badge of distance travelled rather than a score or a grade.",
+    "where": "The **Belt distribution** card on a class page.",
+    "how": [
+      "Open a class.",
+      "Read the coloured strip for the shape of the class — a wide band of one colour means everyone is together.",
+      "The list underneath names each belt and how many students hold it.",
+      "The ladder runs white, yellow, orange, green, blue, purple, brown, black, reached at 8, 20, 40, 80, 150, 280 and 400 completed sentences."
+    ],
+    "note": "Every screen in the product uses that one ladder, so a student never shows a different belt in two places."
+  }
+}

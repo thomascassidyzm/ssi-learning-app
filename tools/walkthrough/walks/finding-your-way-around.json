@@ -1,0 +1,34 @@
+{
+  "id": "finding-your-way-around",
+  "title": "Finding your way around the organisation",
+  "section": "seeing-progress",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "anchor": "node-map-rail",
+  "keywords": [
+    "map",
+    "rail",
+    "navigate",
+    "where am i",
+    "ancestors",
+    "siblings",
+    "orientation"
+  ],
+  "handbook": {
+    "what": "A standing map down the side of every level, showing where you are: the levels above you, the level you are on, its neighbours and what sits under it. It never disappears, so you can always tell how deep into the organisation you have gone.",
+    "where": "The column on the left of any group, school or class page.",
+    "how": [
+      "Open any level of your organisation.",
+      "Read down the map to see the path from your top level to here.",
+      "Tap any name in it to move straight there.",
+      "The page rebuilds around the new level and the map redraws with it."
+    ],
+    "note": "A leader only ever sees their own part of the organisation — the map is trimmed by the server, not hidden in the page."
+  }
+}

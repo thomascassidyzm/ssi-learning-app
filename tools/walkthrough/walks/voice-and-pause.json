@@ -1,0 +1,35 @@
+{
+  "id": "voice-and-pause",
+  "title": "Voice and pause",
+  "section": "seeing-progress",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-insights"
+  },
+  "anchor": "insights-voice-pause",
+  "keywords": [
+    "voice",
+    "pause",
+    "microphone",
+    "mic",
+    "speaking",
+    "uptake",
+    "prosody",
+    "adaptive"
+  ],
+  "handbook": {
+    "what": "What the microphone is actually giving us below this level: how many learners have any mic-derived data at all, and for those who do, how the pause the app leaves them to speak in is settling, and how they sound when they speak.",
+    "where": "The **Voice and pause** section at the bottom of any level's insights page.",
+    "how": [
+      "Open a level and tap **See insights**.",
+      "Scroll past the rate comparison to the voice section.",
+      "Read the uptake figure first — it is how many learners this is based on.",
+      "Open a class or a learner within it to see the same reading at a smaller scope."
+    ],
+    "note": "A learner with no microphone data is absent from these figures rather than counted as a zero, so the denominator is always stated."
+  }
+}

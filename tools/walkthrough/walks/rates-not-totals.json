@@ -1,0 +1,35 @@
+{
+  "id": "rates-not-totals",
+  "title": "Why the insights show a rate, not a total",
+  "section": "seeing-progress",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-insights"
+  },
+  "anchor": "insights-rate-widget",
+  "keywords": [
+    "rate",
+    "total",
+    "per week",
+    "fair",
+    "compare",
+    "average",
+    "pace",
+    "denominator"
+  ],
+  "handbook": {
+    "what": "Everything on the insights page is a rate — an amount per learner per week — rather than a running total. A total only ever says how big and how old something is, so a large school always beats a small one. A rate says how fast it is moving, which is the thing you can actually act on.",
+    "where": "The comparison block under the pickers on any level's insights page.",
+    "how": [
+      "Open a level and tap **See insights**.",
+      "Read the line under the pickers — it says in words what the current measure counts.",
+      "The block below puts this level's rate beside whatever you are comparing it to.",
+      "Change the window to compute the same rate over a shorter or longer period."
+    ],
+    "note": "A pace matters more than a position: a class three sentences behind but climbing fast is healthier than one parked far ahead."
+  }
+}

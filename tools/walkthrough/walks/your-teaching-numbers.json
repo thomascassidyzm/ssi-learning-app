@@ -1,0 +1,31 @@
+{
+  "id": "your-teaching-numbers",
+  "title": "Your own teaching numbers",
+  "section": "seeing-progress",
+  "personas": [
+    "teacher"
+  ],
+  "place": {
+    "route": "dashboard"
+  },
+  "anchor": "dash-teacher-stats",
+  "keywords": [
+    "numbers",
+    "totals",
+    "students",
+    "hours",
+    "sessions",
+    "practice"
+  ],
+  "handbook": {
+    "what": "One quiet line totalling your whole teaching load — how many students you have across every class, how many hours they have practised between them, and how many sessions have been run. It is a record of what has happened, never a target.",
+    "where": "Underneath your classes on the schools dashboard.",
+    "how": [
+      "Open the schools dashboard and scroll past your classes.",
+      "**Students** counts every pupil in every class you teach, each person once.",
+      "**Hours practised** is real practice time those pupils have logged.",
+      "**Sessions** is how many class sessions have been run."
+    ],
+    "note": "The line only appears once you have at least one class — there is nothing to total before that."
+  }
+}

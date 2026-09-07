@@ -470,7 +470,7 @@ async function handlePlayClass(cls: ClassInfo) {
           :key="cls.id"
           :class="['teacher-compact-row', { last: i === teacherClasses.length - 1 }]"
         >
-          <router-link :to="schoolsLink('class-detail', { classId: cls.id })" class="class-link">
+          <router-link :to="schoolsLink('class-detail', { classId: cls.id })" class="class-link" data-walk="dash-class-card">
             <BeltDot belt="white" :size="28" ring />
             <div class="class-link-text">
               <div class="class-name">{{ cls.class_name }}</div>
@@ -478,7 +478,7 @@ async function handlePlayClass(cls: ClassInfo) {
             </div>
           </router-link>
           <div class="schools-subtle">{{ courseDisplayName(cls.course_code) }}</div>
-          <div>
+          <div data-walk="dash-class-bench">
             <Bench v-if="benchFor(classReports.get(cls.id))" :data="benchFor(classReports.get(cls.id))!" unit="c" />
             <span v-else class="schools-subtle">—</span>
           </div>
@@ -506,7 +506,7 @@ async function handlePlayClass(cls: ClassInfo) {
         >
           <div class="panel-head">
             <div class="course-eyebrow">{{ courseDisplayName(cls.course_code) }}</div>
-            <router-link :to="schoolsLink('class-detail', { classId: cls.id })" class="panel-title-link">
+            <router-link :to="schoolsLink('class-detail', { classId: cls.id })" class="panel-title-link" data-walk="dash-class-card">
               <h2 class="arsenal panel-title">{{ cls.class_name }}</h2>
             </router-link>
             <div class="panel-meta">
@@ -523,7 +523,7 @@ async function handlePlayClass(cls: ClassInfo) {
             @click="handlePlayClass(cls)"
           >▶ Play as class</button>
 
-          <div v-if="benchFor(classReports.get(cls.id))" class="panel-bench">
+          <div v-if="benchFor(classReports.get(cls.id))" class="panel-bench" data-walk="dash-class-bench">
             <div class="schools-kicker bench-kicker">Cycles · class vs school vs global</div>
             <Bench :data="benchFor(classReports.get(cls.id))!" unit="c" />
           </div>
@@ -545,7 +545,7 @@ async function handlePlayClass(cls: ClassInfo) {
 
       <!-- Stats, demoted: one quiet line under the classes (founder ruling
            2026-07-30 — classes lead, numbers follow). -->
-      <div v-if="teacherClasses.length" class="teacher-stat-line schools-subtle">
+      <div v-if="teacherClasses.length" class="teacher-stat-line schools-subtle" data-walk="dash-teacher-stats">
         <span><strong class="arsenal stat-line-value">{{ teacherStats.students }}</strong> students</span>
         <span class="dot-sep">·</span>
         <span><strong class="arsenal stat-line-value">{{ teacherStats.hours }}h</strong> practised</span>

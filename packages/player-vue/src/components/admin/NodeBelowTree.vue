@@ -111,6 +111,7 @@ function openClass(id: string): void {
       <button
         type="button"
         class="tree-name"
+        data-walk="below-tree-name"
         :class="{ 'is-here': isRoot }"
         :disabled="isRoot"
         @click="openNode"

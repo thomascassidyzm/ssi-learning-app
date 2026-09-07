@@ -1,0 +1,31 @@
+{
+  "id": "your-classes-at-a-glance",
+  "title": "Your classes at a glance",
+  "section": "seeing-progress",
+  "personas": [
+    "teacher"
+  ],
+  "place": {
+    "route": "dashboard"
+  },
+  "anchor": "dash-class-card",
+  "keywords": [
+    "classes",
+    "dashboard",
+    "overview",
+    "students",
+    "join code",
+    "course"
+  ],
+  "handbook": {
+    "what": "Your teaching dashboard, with your classes first. Every class you teach is a row or a card carrying its course, how many students are in it, their average practice, and the join code you read out to get a new pupil in.",
+    "where": "The schools dashboard you land on, above everything else on the page.",
+    "how": [
+      "Open the schools dashboard.",
+      "Read down the list — one entry per class you teach.",
+      "Tap a class name to open its own page, with the roster and its settings.",
+      "**Play as class** on any entry starts a session the whole class does together."
+    ],
+    "note": "A brand new account shows a single button to create your first class instead of the list."
+  }
+}

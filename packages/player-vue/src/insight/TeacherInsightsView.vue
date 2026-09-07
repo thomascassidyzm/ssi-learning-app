@@ -200,7 +200,7 @@ const requestedLearnerName = computed(() => {
       </header>
 
       <div v-if="classSelectOptions.length > 1" class="tiv-controls">
-        <label class="tiv-field tiv-field-wide">
+        <label class="tiv-field tiv-field-wide" data-walk="teacher-insights-class">
           <span class="tiv-field-label">Your classes</span>
           <FrostSelect v-model="selectedClassId" :options="classSelectOptions" aria-label="Your classes" />
         </label>
