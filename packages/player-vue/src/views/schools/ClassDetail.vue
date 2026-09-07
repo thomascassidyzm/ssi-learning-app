@@ -681,6 +681,15 @@ async function openAddStudent(): Promise<void> {
   await loadCandidates()
 }
 
+// On a COLD load of the class URL the class id arrives after the page paints —
+// the same late arrival that once left the co-teacher-link button sitting dead.
+// A picker opened in that window has no class to ask about, so it waits here
+// and asks the moment the class lands, rather than reading "looking up…"
+// forever (walked on a real class page, 2026-09-07).
+watch(() => classData.value.id, (id) => {
+  if (id && showAddStudent.value && !candidatesLoaded.value) void loadCandidates()
+})
+
 function closeAddStudent(): void {
   showAddStudent.value = false
   addStudentSearch.value = ''
@@ -689,7 +698,7 @@ function closeAddStudent(): void {
 
 async function loadCandidates(): Promise<void> {
   const classId = classData.value.id
-  if (!classId) return
+  if (!classId) return  // the watcher above calls back when the class arrives
   candidatesLoaded.value = false
   addStudentError.value = ''
   const { candidates, error } = await fetchAddableStudents(classId)
@@ -713,6 +722,10 @@ async function addStudent(candidate: StudentCandidate): Promise<void> {
   // page never leaves you guessing whether the tap landed.
   justAddedName.value = candidate.display_name
   studentCandidates.value = studentCandidates.value.filter(c => c.user_id !== candidate.user_id)
+  // The search has done its job. Left standing it says "nobody matches aadhya"
+  // directly under "Aadhya Verma is in this class now", which reads as a
+  // contradiction of itself.
+  addStudentSearch.value = ''
   await fetchClassDetail(classData.value.id)
 }
 
@@ -1078,9 +1091,10 @@ const deleteImpactLines = computed(() => {
         <header class="roster-head">
           <h3 class="arsenal roster-title">Roster</h3>
           <div class="roster-tools">
-            <!-- Nothing to search in an empty class, so the box isn't there. -->
+            <!-- One search at a time: nothing to search in an empty class, and
+                 while the picker is open ITS box is the one you mean. -->
             <input
-              v-if="!rosterObservedEmpty"
+              v-if="!rosterObservedEmpty && !showAddStudent"
               v-model="searchQuery"
               type="search"
               placeholder="Search students..."
@@ -1274,7 +1288,12 @@ const deleteImpactLines = computed(() => {
         </div>
       </section>
 
-      <aside class="rail" :class="{ 'rail-first': rosterObservedEmpty }">
+      <!-- The rail used to jump ABOVE the roster on an empty class, because the
+           invite link was the only thing worth doing and it was the bottom of
+           the page. The roster now carries the doing itself — the empty places,
+           "Add students", and a pointer at the invite card — so it stays first
+           and the rail stays a rail. The join card still rises to the top of it. -->
+      <aside class="rail">
         <!-- HANDBOOK Where the class has got to
              section: seeing-progress
              roles: admin, leader, school_admin, teacher
@@ -1551,8 +1570,21 @@ const deleteImpactLines = computed(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
   padding: 12px 16px;
   border-bottom: 1px solid var(--schools-border);
+}
+
+/* Search and "Add students" sit on ONE line beside the title, and drop to a
+   line of their own on a narrow phone rather than stacking on top of each
+   other in the corner. */
+.roster-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 220px;
+  justify-content: flex-end;
 }
 
 .roster-title { font-size: 17px; }
@@ -1898,9 +1930,6 @@ const deleteImpactLines = computed(() => {
 @media (max-width: 960px) {
   .detail { padding: 16px; }
   .body-grid { grid-template-columns: 1fr; }
-  /* One column: the rail stacks BELOW the roster, so on an empty class the
-     invite link would be the bottom of the page. Lift it above the roster. */
-  .rail-first { order: -1; }
   .roster { max-height: none; }
   .roster-scroll { overflow-x: auto; }
   .ssi-table { min-width: 640px; }

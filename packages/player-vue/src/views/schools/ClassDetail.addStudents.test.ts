@@ -151,6 +151,12 @@ describe('ClassDetail — putting students into the class', () => {
     expect(posted).toBeTruthy()
     expect(JSON.parse((posted as any)[1].body)).toEqual({ class_id: 'c1', target_user_id: 'u-ana' })
     expect(wrapper.text()).toContain('Ana Lewis is in this class now')
+    // The filter that found them is spent — left standing it reads as
+    // "nobody matches ana" directly under "Ana Lewis is in this class now".
+    expect(wrapper.text()).not.toContain('Nobody in your school matches')
+    // And one search box at a time: while the picker is open, its box is the
+    // one the teacher means.
+    expect(wrapper.findAll('.roster input[type="search"]').length).toBe(1)
   })
 
   it('never says the school is exhausted when the lookup FAILED', async () => {
@@ -161,6 +167,28 @@ describe('ClassDetail — putting students into the class', () => {
 
     expect(wrapper.text()).not.toContain('Everyone in your school is already in this class')
     expect(wrapper.text()).toContain("Couldn't load the school's students")
+  })
+
+  // Walked on a real class page, 2026-09-07: on a COLD load the class id lands
+  // after the first paint, and a picker opened in that window sat on "Looking
+  // up your school's students…" for ever. It now asks the moment the class
+  // arrives — the same late-arrival trap the co-teacher-link button already had.
+  it('asks for the candidates once a late-arriving class id lands', async () => {
+    const { classes, currentClass } = useClassesData()
+    const cls = classes.value[0]
+    classes.value = []
+    currentClass.value = null as any
+
+    const wrapper = await mountAsTeacher()
+    await wrapper.find('[data-walk="class-student-add"]').trigger('click')
+    await flushPromises()
+    expect(fetchMock.mock.calls.some(([u]: any[]) => String(u).startsWith('/api/teacher/class-students'))).toBe(false)
+
+    currentClass.value = cls as any
+    await flushPromises()
+
+    expect(fetchMock.mock.calls.some(([u]: any[]) => String(u).startsWith('/api/teacher/class-students'))).toBe(true)
+    expect(wrapper.find('[data-walk="class-student-picker"]').text()).toContain('Ana Lewis')
   })
 
   it('draws an empty class as empty, with the way in inside it', async () => {
@@ -176,6 +204,21 @@ describe('ClassDetail — putting students into the class', () => {
     // Both doors, in the empty class itself.
     expect(empty.text()).toContain('Add students')
     expect(empty.text()).toContain('Invite students')
+  })
+
+  // The roster now carries the doing, so it must not be pushed below the rail
+  // on an empty class the way it used to be — on a phone the grid collapses to
+  // one column and document order IS reading order.
+  it('keeps the roster ABOVE the rail on an empty class', async () => {
+    useStudentsData().students.value = [] as any
+    const wrapper = await mountAsTeacher()
+
+    const roster = wrapper.find('.roster')
+    const rail = wrapper.find('.rail')
+    expect(roster.exists()).toBe(true)
+    expect(rail.exists()).toBe(true)
+    expect(rail.classes()).not.toContain('rail-first')
+    expect(roster.element.compareDocumentPosition(rail.element) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('keeps the roster table when the class HAS students', async () => {
