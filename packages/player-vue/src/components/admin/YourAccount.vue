@@ -114,7 +114,7 @@ function openGuide(): void {
 
     <!-- HANDBOOK Set or change your password
          section: your-own-account
-         roles: leader
+         roles: leader, school_admin
          place: node-home
          keywords: password, sign in, login, account, security
          walk: set-your-password
@@ -163,7 +163,7 @@ function openGuide(): void {
 
     <!-- HANDBOOK Put the app on your device
          section: your-own-account
-         roles: leader
+         roles: leader, school_admin
          place: node-home
          keywords: install, app, phone, device, home screen, pwa
          walk: install-the-app
