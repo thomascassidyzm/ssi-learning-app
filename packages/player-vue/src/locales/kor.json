@@ -640,7 +640,18 @@
     "familyDesc": "프리미엄의 모든 기능을 본인 포함 {seats}개 계정에서. 각자 자신의 진행 상황을 유지합니다.",
     "familyMonthly": "월 25파운드",
     "familyAnnual": "연 250파운드",
-    "cancelAnytime": "언제든 해지할 수 있습니다."
+    "cancelAnytime": "언제든 해지할 수 있습니다.",
+    "yourDetails": "내 정보",
+    "confirmEmail": "이메일 확인",
+    "setPasswordOptional": "비밀번호 설정 (선택 사항)",
+    "confirmPassword": "비밀번호 확인",
+    "continueToPayment": "결제로 계속하기",
+    "emailsMustMatch": "두 이메일이 일치하지 않습니다.",
+    "passwordsMustMatch": "두 비밀번호가 일치하지 않습니다.",
+    "receiptNote": "받을 코드가 없습니다. 영수증은 이 주소로 전송되며, 언제든지 확인할 수 있습니다.",
+    "signInAndContinue": "로그인하고 계속하기",
+    "emailMeACode": "대신 코드를 이메일로 받기",
+    "backToPlans": "요금제로 돌아가기"
   },
   "family": {
     "family": "가족",

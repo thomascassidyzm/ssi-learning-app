@@ -640,7 +640,18 @@
     "familyDesc": "ਪ੍ਰੀਮੀਅਮ ਦਾ ਸਭ ਕੁਝ, ਤੁਹਾਡੇ ਸਮੇਤ {seats} ਖਾਤਿਆਂ ਲਈ। ਹਰ ਕੋਈ ਆਪਣੀ ਤਰੱਕੀ ਵੱਖਰੀ ਰੱਖਦਾ ਹੈ।",
     "familyMonthly": "£25/ਮਹੀਨਾ",
     "familyAnnual": "£250/ਸਾਲ",
-    "cancelAnytime": "ਕਿਸੇ ਵੀ ਵੇਲੇ ਰੱਦ ਕਰੋ।"
+    "cancelAnytime": "ਕਿਸੇ ਵੀ ਵੇਲੇ ਰੱਦ ਕਰੋ।",
+    "yourDetails": "ਤੁਹਾਡੀ ਜਾਣਕਾਰੀ",
+    "confirmEmail": "ਈਮੇਲ ਦੀ ਪੁਸ਼ਟੀ ਕਰੋ",
+    "setPasswordOptional": "ਪਾਸਵਰਡ ਸੈੱਟ ਕਰੋ (ਵਿਕਲਪਿਕ)",
+    "confirmPassword": "ਪਾਸਵਰਡ ਦੀ ਪੁਸ਼ਟੀ ਕਰੋ",
+    "continueToPayment": "ਭੁਗਤਾਨ ਵੱਲ ਜਾਰੀ ਰੱਖੋ",
+    "emailsMustMatch": "ਇਹ ਦੋਵੇਂ ਈਮੇਲ ਮੇਲ ਨਹੀਂ ਖਾਂਦੀਆਂ।",
+    "passwordsMustMatch": "ਇਹ ਦੋਵੇਂ ਪਾਸਵਰਡ ਮੇਲ ਨਹੀਂ ਖਾਂਦੇ।",
+    "receiptNote": "ਪ੍ਰਾਪਤ ਕਰਨ ਲਈ ਕੋਈ ਕੋਡ ਨਹੀਂ ਹੈ। ਤੁਹਾਡੀ ਰਸੀਦ ਇਸ ਪਤੇ 'ਤੇ ਜਾਵੇਗੀ, ਅਤੇ ਤੁਸੀਂ ਇਸਨੂੰ ਜਦੋਂ ਚਾਹੋ ਪੁਸ਼ਟੀ ਕਰ ਸਕਦੇ ਹੋ।",
+    "signInAndContinue": "ਸਾਈਨ ਇਨ ਕਰੋ ਅਤੇ ਜਾਰੀ ਰੱਖੋ",
+    "emailMeACode": "ਇਸ ਦੀ ਬਜਾਏ ਮੈਨੂੰ ਈਮੇਲ ਰਾਹੀਂ ਕੋਡ ਭੇਜੋ",
+    "backToPlans": "ਪਲਾਨਾਂ ਵੱਲ ਵਾਪਸ"
   },
   "family": {
     "family": "ਪਰਿਵਾਰ",
