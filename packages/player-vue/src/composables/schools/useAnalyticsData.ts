@@ -8,6 +8,7 @@ import { ref, computed } from 'vue'
 import { getSchoolsClient } from './client'
 import { useSchoolContext } from './useSchoolContext'
 import { isDemoMode } from '../demo/demoMode'
+import { fetchPracticeByCourse } from '../practiceByCourse'
 
 export interface DailyActivity {
   date: string
@@ -192,10 +193,13 @@ export function useAnalyticsData() {
       // course_enrollments.total_practice_minutes counter is no longer
       // maintained. Returns per-course TOTALS across the scoped learners; we
       // divide by enrolled_count below for the average.
-      const { data: minutesRows } = await client
-        .rpc('admin_practice_minutes_by_course', { p_learner_ids: learnerIds })
+      // Server-mediated: /api/school/practice-by-course intersects these ids
+      // with the caller's own resolveVisibleScope and refuses out-of-scope ids
+      // LOUDLY. The old direct RPC took any learner UUID from any signed-in
+      // caller.
+      const minutesRows = await fetchPracticeByCourse(client, learnerIds)
       const minutesByCourse = new Map<string, number>()
-      ;(minutesRows as Array<{ course_code: string; practice_minutes: number }> | null)?.forEach(r => {
+      minutesRows.forEach(r => {
         if (r.course_code) minutesByCourse.set(r.course_code, r.practice_minutes || 0)
       })
 
