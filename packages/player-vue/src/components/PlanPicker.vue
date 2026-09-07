@@ -26,6 +26,7 @@ import { computed, ref, watch, onBeforeUnmount } from 'vue'
 import { useCheckout } from '@/composables/useCheckout'
 import { useI18n } from '@/composables/useI18n'
 import { paddleConfig } from '@/lib/paddle'
+import { paddleBillingAvailable } from '@/platform/paymentRoute'
 import { FAMILY_SEAT_CAP } from '@/constants/family'
 
 const {
@@ -42,6 +43,9 @@ const {
   emailMeACodeInstead,
   closeDetails,
   openPlans,
+  alreadySubscribedOpen,
+  closeAlreadySubscribed,
+  openSubscriptionPortal,
 } = useCheckout()
 const { t } = useI18n()
 
@@ -120,11 +124,26 @@ const familyDesc = computed(() =>
 
 // One overlay, two steps — so the Escape/scroll-lock wiring keys off "either
 // step is open" rather than off the plans list alone.
-const anyStepOpen = computed(() => plansOpen.value || detailsOpen.value)
+const anyStepOpen = computed(() => plansOpen.value || detailsOpen.value || alreadySubscribedOpen.value)
+
+// The manage-subscription route offered alongside the block, so an existing
+// subscriber is told something true AND has somewhere to go. Hidden in a store
+// shell, where Paddle's hosted portal is not theirs to open.
+const canManageBilling = computed(() => paddleBillingAvailable())
+const portalBusy = ref(false)
+async function onManageSubscription() {
+  portalBusy.value = true
+  try {
+    await openSubscriptionPortal()
+  } finally {
+    portalBusy.value = false
+  }
+}
 
 function onKeydown(e: KeyboardEvent) {
   if (e.key !== 'Escape') return
-  if (detailsOpen.value) closeDetails()
+  if (alreadySubscribedOpen.value) closeAlreadySubscribed()
+  else if (detailsOpen.value) closeDetails()
   else closePlans()
 }
 
@@ -288,6 +307,46 @@ onBeforeUnmount(() => {
 
           <button type="button" class="text-btn" @click="backToPlans">{{ t('plans.backToPlans') }}</button>
         </form>
+      </div>
+    </div>
+
+    <!-- STEP 3 — ALREADY SUBSCRIBED (#255). Not a step forward: a stop. This
+         person is already paying, so opening a second Paddle subscription
+         would charge them twice and give them nothing. Say that plainly, and
+         leave the manage-subscription route open so it is not a dead end. -->
+    <div
+      v-if="alreadySubscribedOpen"
+      class="plans-overlay"
+      role="dialog"
+      aria-modal="true"
+      :aria-label="t('plans.alreadySubscribedTitle')"
+      @click.self="closeAlreadySubscribed"
+    >
+      <div class="plans-card" @click.stop>
+        <header class="plans-bar">
+          <span class="plans-title">{{ t('plans.alreadySubscribedTitle') }}</span>
+          <button
+            type="button"
+            class="plans-close"
+            :aria-label="t('plans.close')"
+            @click="closeAlreadySubscribed"
+          >✕</button>
+        </header>
+
+        <div class="plans-scroll">
+          <p class="plan-desc">{{ t('plans.alreadySubscribedBody') }}</p>
+          <p class="plan-desc">{{ t('plans.alreadySubscribedChangeComing') }}</p>
+
+          <button
+            v-if="canManageBilling"
+            type="button"
+            class="plan-btn"
+            :disabled="portalBusy"
+            @click="onManageSubscription"
+          >{{ portalBusy ? t('plans.opening') : t('plans.manageSubscription') }}</button>
+
+          <button type="button" class="text-btn" @click="closeAlreadySubscribed">{{ t('plans.close') }}</button>
+        </div>
       </div>
     </div>
   </Teleport>

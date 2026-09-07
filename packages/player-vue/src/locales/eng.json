@@ -657,7 +657,12 @@
     "receiptNote": "No code to fetch. Your receipt goes to this address, and you can confirm it whenever you like.",
     "signInAndContinue": "Sign in and continue",
     "emailMeACode": "Email me a code instead",
-    "backToPlans": "Back to plans"
+    "backToPlans": "Back to plans",
+    "alreadySubscribedTitle": "You already have a subscription",
+    "alreadySubscribedBody": "Your SSi subscription is active, so we have not opened a new checkout — that would have charged you twice and given you nothing extra.",
+    "alreadySubscribedChangeComing": "Changing your plan from inside the app is coming soon. Until then, get in touch and we will move you over.",
+    "manageSubscription": "Payment & invoices",
+    "opening": "Opening…"
   },
   "family": {
     "family": "Family",

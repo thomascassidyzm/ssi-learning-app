@@ -34,11 +34,16 @@ import { ref, inject, nextTick, type Ref } from 'vue'
 import { getPaddle, paddleConfig } from '@/lib/paddle'
 import { canTakePayment } from '@/platform/paymentRoute'
 import { useAuthModal } from './useAuthModal'
+import { useSharedSubscription } from './useSubscription'
 import { resolveSupabase } from './schools/client'
 
 // The class name the inline Paddle frame mounts into. The CheckoutOverlay host
 // element MUST carry this exact class (Paddle frameTarget is a class name).
 export const CHECKOUT_FRAME_TARGET = 'consumer-checkout-frame'
+
+// How long the pre-checkout "are you already subscribed?" fetch may take before
+// we fall back to whatever we already knew. Short: it sits in front of a tap.
+const SUBSCRIPTION_CHECK_TIMEOUT_MS = 5000
 
 // Module-level so the auth-success handler (wired once, app-wide) can complete a
 // checkout that began before sign-in, and the single global overlay can reflect
@@ -80,6 +85,17 @@ const detailsError = ref('')
 // The one branch that still needs a real sign-in: this address already has an
 // account, and minting a session for it unasked would be account takeover.
 const detailsExistingAccount = ref(false)
+// Drives the ALREADY-SUBSCRIBED step of the plan picker overlay.
+//
+// WHY IT EXISTS (#255, 2026-09-07): nothing stopped a learner who was ALREADY
+// paying for Premium from tapping Family and opening a SECOND, independent
+// Paddle subscription. They would then be charged £15 + £25 a month, hold two
+// live subscriptions, and get no Family plan at all — because the webhook's
+// wouldStealLiveSubscriptionRow() correctly refuses to overwrite a live
+// subscription row under a different provider_subscription_id, logs
+// "REFUSED subscription-row write" and stops. Money in, nothing out.
+// The block is the fix; this ref is the honest thing we say in its place.
+const alreadySubscribedOpen = ref(false)
 
 export type CheckoutPlan = 'premium' | 'family'
 
@@ -110,12 +126,65 @@ export function useCheckout() {
   const supabase = () => resolveSupabase(injected)
   const { open: openAuth } = useAuthModal()
 
+  /**
+   * Is this person ALREADY paying? The one question that must be answered
+   * before any door opens a checkout.
+   *
+   * Always re-fetches rather than trusting the 5-minute cache, because the
+   * cache is wrong in both directions that matter: a stale `true` would block a
+   * genuine new purchase (lost sale), and a stale `false` would let the
+   * double-buy through (the whole defect). The fetch is bounded so a dead
+   * network cannot hang the buy button.
+   *
+   * FAILS OPEN, deliberately. If the API never answers, `subscription` keeps
+   * whatever value it already had — so a known subscriber is still blocked and
+   * an unknown person can still buy. We refuse a sale only on a positive
+   * "you are subscribed", never on ignorance.
+   */
+  async function hasLiveSubscription(): Promise<boolean> {
+    const sub = useSharedSubscription()
+    try {
+      await Promise.race([
+        sub.refresh(),
+        new Promise<void>((resolve) => setTimeout(resolve, SUBSCRIPTION_CHECK_TIMEOUT_MS)),
+      ])
+    } catch {
+      // refresh() swallows its own errors; this is belt and braces.
+    }
+    return sub.isSubscribed.value
+  }
+
+  /** Block the door and say why. Returns true if the caller must stop. */
+  async function blockedByExistingSubscription(): Promise<boolean> {
+    if (!(await hasLiveSubscription())) return false
+    plansOpen.value = false
+    detailsOpen.value = false
+    pendingAfterAuth.value = false
+    alreadySubscribedOpen.value = true
+    return true
+  }
+
+  function closeAlreadySubscribed(): void {
+    alreadySubscribedOpen.value = false
+  }
+
+  /** The manage-subscription route, offered from the notice so the block is
+   *  never a dead end. Same hosted portal Settings uses. */
+  async function openSubscriptionPortal(): Promise<void> {
+    await useSharedSubscription().openPortal()
+  }
+
   async function openPaddleCheckout(
     courseCode?: string | null,
     plan: CheckoutPlan = 'premium',
     billingPeriod: 'monthly' | 'annual' = 'monthly',
   ): Promise<void> {
     if (isOpeningCheckout.value) return
+    // THE BACKSTOP. Every route to Paddle passes through here — the picker, the
+    // buyer-details step, the 409 already_registered sign-in, and the OTP
+    // resume (completePendingCheckout). Guarding the funnel is what makes the
+    // 409 re-entry path safe rather than a second door onto the same trap.
+    if (await blockedByExistingSubscription()) return
     const priceId =
       plan === 'family'
         ? (billingPeriod === 'annual' ? paddleConfig.familyAnnualPriceId : paddleConfig.familyMonthlyPriceId)
@@ -224,6 +293,10 @@ export function useCheckout() {
     // but this is the backstop that makes a missed one inert rather than a
     // dead button — and, in a store build, a review failure.
     if (!canTakePayment()) return
+    // THE FRONT DOOR. Checked before the picker opens, so an existing
+    // subscriber never sees a price they cannot buy — in-player paywall,
+    // belt-map lock, course picker and Settings all enter here.
+    if (await blockedByExistingSubscription()) return
     const courseCode = opts.courseCode ?? null
     // No plan named = an upgrade tap = show the plans. This is the line that
     // makes the picker unskippable.
@@ -257,6 +330,14 @@ export function useCheckout() {
    */
   function openPlans(courseCode?: string | null): void {
     if (!canTakePayment()) return
+    // Sync, so it uses only what is already known — the authoritative check
+    // lives in startCheckout and openPaddleCheckout, which every price button
+    // goes through. This just stops a subscriber being shown the prices at all
+    // when we already know the answer.
+    if (useSharedSubscription().isSubscribed.value) {
+      alreadySubscribedOpen.value = true
+      return
+    }
     plansCourseCode.value = courseCode ?? null
     checkoutError.value = ''
     plansOpen.value = true
@@ -428,5 +509,8 @@ export function useCheckout() {
     startCheckout,
     completePendingCheckout,
     closeCheckout,
+    alreadySubscribedOpen,
+    closeAlreadySubscribed,
+    openSubscriptionPortal,
   }
 }
