@@ -20,6 +20,7 @@ import {
   FAMILY_SEAT_CAP,
 } from '../_utils/familyMembership'
 import { applyCors } from '../_utils/cors'
+import { safeInviterName, sendFamilyInviteEmail } from '../_utils/familyInviteEmail'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -69,7 +70,7 @@ export default async function handler(
   // server-side too (matches spec §4.3).
   const { data: ownerLearner } = await supabase
     .from('learners')
-    .select('verified_emails')
+    .select('verified_emails, display_name')
     .eq('id', ownerLearnerId)
     .maybeSingle()
   const ownerEmails: string[] = (ownerLearner?.verified_emails as string[] | null) || []
@@ -128,5 +129,30 @@ export default async function handler(
     console.error('[family/invite] immediate attach failed (non-fatal):', attachErr)
   }
 
-  res.status(200).json({ invite: inserted, attachedNow })
+  // Tell the person they have been invited. Until this existed the owner had
+  // to phone them and explain that they should go and sign in with that exact
+  // address — the whole point of the address-based seat was that they need do
+  // nothing unusual, and nothing said so. The two states get different words:
+  // an existing account is already attached, a new one attaches on first
+  // sign-in (familyInviteEmail.ts).
+  //
+  // Best-effort: the seat is real whether or not the mail goes, so a send
+  // failure is reported, never thrown. Child seats never reach here —
+  // create-child.ts mints a synthetic address and hands over a QR code.
+  let emailed = false
+  let emailError: string | undefined
+  try {
+    const sendResult = await sendFamilyInviteEmail({
+      address: normalizedEmail,
+      inviterName: safeInviterName(ownerLearner?.display_name as string | null),
+      hasAccount: attachedNow,
+    })
+    emailed = sendResult.sent
+    if (!sendResult.sent) emailError = sendResult.error
+  } catch (mailErr) {
+    emailError = mailErr instanceof Error ? mailErr.message : 'send failed'
+  }
+  if (!emailed) console.error('[family/invite] invite email not sent:', emailError)
+
+  res.status(200).json({ invite: inserted, attachedNow, emailed })
 }
