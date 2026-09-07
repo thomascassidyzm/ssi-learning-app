@@ -1,33 +1,76 @@
 {
   "id": "ways-in",
   "title": "Ways in — who can get in, and how to change it",
-  "personas": ["admin", "leader", "school_admin"],
-  "place": { "route": "node-home", "kinds": ["org", "group", "school"] },
+  "section": "getting-people-in",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home",
+    "kinds": [
+      "org",
+      "group",
+      "school"
+    ]
+  },
+  "keywords": [
+    "ways in",
+    "links",
+    "revoke",
+    "re-mint",
+    "access",
+    "ledger",
+    "shareable"
+  ],
+  "handbook": {
+    "what": "The ledger of every way into this part of the tree — who has a live link, what it lets them do, and how to change your mind.",
+    "where": "The node's home page, the **Ways in** section below the lists.",
+    "how": [
+      "Open the node's home page and scroll to **Ways in**.",
+      "Read the rows: each one is a live way in, personal or shareable.",
+      "**Copy** hands you the link again.",
+      "**Re-mint** issues a fresh link and kills the old one on the spot.",
+      "**Revoke** closes that way in entirely."
+    ],
+    "note": "A shareable link is open to anyone who holds it, so revoke is the tool when a link has travelled further than you meant."
+  },
   "steps": [
     {
       "anchor": "ways-in-ledger",
       "say": "Every way in, in one ledger: personal sign-in links and shareable join links, for everywhere below here. Filter by role or by place with the chips.",
-      "advance": { "on": "next" }
+      "advance": {
+        "on": "next"
+      }
     },
     {
       "anchor": "ways-in-copy",
       "say": "**Copy** re-shares the same live link — always safe, nothing changes.",
-      "advance": { "on": "next" }
+      "advance": {
+        "on": "next"
+      }
     },
     {
       "anchor": "ways-in-remint",
       "say": "**Re-mint** sits on a person's OWN sign-in link, and only there: it makes that person a new link and the old one stops working the moment you tap — if they bookmarked the old one they are locked out until you send them the new one. A shareable link has no Re-mint, because there is nobody to re-bind it to.",
-      "advance": { "on": "next" }
+      "advance": {
+        "on": "next"
+      }
     },
     {
       "anchor": "ways-in-revoke",
       "say": "**Revoke** switches a link off. It's undoable — a revoked row grows a **Put back** button. For a shareable link this is how you retire it: revoke the old one, then make a fresh one.",
-      "advance": { "on": "next" }
+      "advance": {
+        "on": "next"
+      }
     },
     {
       "anchor": "verb-shareable-link",
       "say": "And this is where a brand-new shareable link comes from — **Get a shareable link** at the top of this page, one per role. **Invite a person** next to it makes a personal link for someone you can name.",
-      "advance": { "on": "next" },
+      "advance": {
+        "on": "next"
+      },
       "terminal": "The short version: copy is safe, revoke can always be undone, re-mint is for one person's own link — and a new shareable link is made at the top of the page, not in the ledger."
     }
   ]

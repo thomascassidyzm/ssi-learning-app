@@ -11,6 +11,29 @@
 export const PERSONAS = ['admin', 'leader', 'school_admin', 'teacher', 'learner']
 export const ADVANCE_KINDS = ['next', 'click', 'visible']
 
+// HANDBOOK (2026-09-07) — the six sections the Handbook page groups entries
+// under. Lockstep-checked against the runtime's own list, exactly like
+// KNOWN_PLACES: a section renamed in one place and not the other FAILS the
+// build rather than dropping entries off the page silently.
+export const HANDBOOK_SECTIONS = [
+  'getting-people-in',
+  'running-classes',
+  'seeing-progress',
+  'courses-and-content',
+  'your-school',
+  'your-own-account',
+]
+
+// The handbook is the NON-LEARNER map: a leader, school admin, teacher or
+// tutor looking at what the dashboard can do. Learner-only walks belong to
+// the learner hub and are exempt from the handbook requirement.
+export const HANDBOOK_PERSONAS = ['admin', 'leader', 'school_admin', 'teacher']
+
+/** True for an entry the Handbook page must carry prose for. */
+export function isHandbookEntry(walk) {
+  return (walk?.personas ?? []).some((p) => HANDBOOK_PERSONAS.includes(p))
+}
+
 // Member personas — anyone who is NOT ssi_admin. A walk offered to any of
 // these must never anchor to an element behind the admin-only marker.
 // 'learner' (A-159) is the furthest of all from admin, so it belongs here.
@@ -51,7 +74,19 @@ export function validateWalkSchema(walk) {
   }
   if (!walk.place || typeof walk.place.route !== 'string') at('place.route is required')
   if (walk.place?.kinds && !Array.isArray(walk.place.kinds)) at('place.kinds must be an array')
-  if (!Array.isArray(walk.steps) || !walk.steps.length) at('steps[] must be non-empty')
+  // steps[] is OPTIONAL since the handbook (2026-09-07): an entry with prose
+  // and no clip is a first-class capability, it just has no "Show me". When
+  // present it must still be a real walk.
+  if (walk.steps !== undefined && (!Array.isArray(walk.steps) || !walk.steps.length)) {
+    at('steps[] must be non-empty when present')
+  }
+  if (!Array.isArray(walk.steps) && walk.anchor === undefined) {
+    at('an entry with no steps[] must name an anchor')
+  }
+  if (walk.anchor !== undefined && !/^[a-z0-9-]+$/.test(String(walk.anchor))) {
+    at('anchor must be kebab-case')
+  }
+  errors.push(...validateHandbookBlock(walk))
   walk.steps?.forEach((s, i) => {
     if (!s.anchor || !/^[a-z0-9-]+$/.test(s.anchor)) at(`step ${i + 1}: anchor must be kebab-case`)
     if (!s.say || typeof s.say !== 'string') at(`step ${i + 1}: say is required`)
@@ -63,6 +98,120 @@ export function validateWalkSchema(walk) {
   const seen = new Set()
   for (const w of [walk.id]) { if (seen.has(w)) dupes.add(w); seen.add(w) }
   return errors
+}
+
+/**
+ * Gate 9 — the handbook block. Every non-learner entry carries prose that
+ * reads standalone: what it is for, where it is, and the numbered steps. An
+ * entry without prose does not compile, because the page's whole claim is
+ * that it is the complete map.
+ *
+ * Prose laws are the explainer's own (tools/explainer/rulings/*.md and the
+ * header of explainer/learnerExplainers.ts): no parentheses anywhere, since
+ * an aside is an explanation and this product explains by example.
+ */
+export function validateHandbookBlock(walk) {
+  const errors = []
+  const at = (msg) => errors.push(`walk "${walk?.id ?? '?'}": ${msg}`)
+  if (!isHandbookEntry(walk)) {
+    if (walk?.handbook) at('learner-only entries carry no handbook block')
+    return errors
+  }
+  if (!HANDBOOK_SECTIONS.includes(walk.section)) {
+    at(`section "${walk.section ?? ''}" is not one of ${HANDBOOK_SECTIONS.join(', ')}`)
+  }
+  const hb = walk.handbook
+  if (!hb || typeof hb !== 'object') {
+    at('handbook block is required — a capability with no prose is a hole in the page')
+    return errors
+  }
+  for (const field of ['what', 'where']) {
+    if (typeof hb[field] !== 'string' || !hb[field].trim()) at(`handbook.${field} must be non-empty prose`)
+  }
+  if (!Array.isArray(hb.how) || !hb.how.length) at('handbook.how must be a non-empty array of steps')
+  else hb.how.forEach((step, i) => {
+    if (typeof step !== 'string' || !step.trim()) at(`handbook.how step ${i + 1} must be non-empty prose`)
+  })
+  if (hb.note !== undefined && (typeof hb.note !== 'string' || !hb.note.trim())) {
+    at('handbook.note must be non-empty prose when present')
+  }
+  const prose = [hb.what, hb.where, hb.note, ...(Array.isArray(hb.how) ? hb.how : [])]
+    .filter((x) => typeof x === 'string').join(' ')
+  if (/[()]/.test(prose)) at('handbook prose contains parentheses — zero-explanation ruling: say it in the sentence')
+  return errors
+}
+
+/**
+ * Gate 10 — section lockstep with the runtime, the same shape gatePlaces
+ * uses for KNOWN_PLACES. The page reads its sections from the runtime list;
+ * if the two drift, entries silently vanish from the page, so they can't.
+ */
+export function gateSections(handbookSrc) {
+  const failures = []
+  const m = handbookSrc.match(/HANDBOOK_SECTIONS\s*=\s*\[([\s\S]*?)\]/)
+  if (!m) return { failures: ['LOCKSTEP: handbook.ts no longer declares HANDBOOK_SECTIONS'] }
+  const runtime = [...m[1].matchAll(/id:\s*'([^']+)'/g)].map((x) => x[1])
+  for (const id of HANDBOOK_SECTIONS) {
+    if (!runtime.includes(id)) failures.push(`LOCKSTEP: handbook.ts is missing section "${id}"`)
+  }
+  for (const id of runtime) {
+    if (!HANDBOOK_SECTIONS.includes(id)) failures.push(`LOCKSTEP: handbook.ts declares unknown section "${id}"`)
+  }
+  return { failures }
+}
+
+/**
+ * Gate 11 — role lockstep. The page badges every entry with whose capability
+ * it is, so the badge vocabulary has to be the SAME set of roles the engine
+ * and the runtime already police: the compiler's PERSONAS, the runtime's
+ * WalkPersona union, and a label for each. A role added, renamed or dropped
+ * in any one of the three fails the build rather than rendering a blank pill.
+ */
+export function gateRoleBadges(runtimeSrc, handbookSrc) {
+  const failures = []
+  const m = runtimeSrc.match(/export type WalkPersona\s*=([^\n]*(?:\n\s*\|[^\n]*)*)/)
+  if (!m) return { failures: ['LOCKSTEP: useWalkthrough.ts no longer declares the WalkPersona union'] }
+  const union = [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1])
+  for (const p of PERSONAS) {
+    if (!union.includes(p)) failures.push(`LOCKSTEP: WalkPersona union is missing persona "${p}"`)
+  }
+  for (const p of union) {
+    if (!PERSONAS.includes(p)) failures.push(`LOCKSTEP: WalkPersona union declares unknown persona "${p}"`)
+  }
+  const b = handbookSrc.match(/ROLE_BADGES[^=]*=\s*\{([\s\S]*?)\n\}/)
+  if (!b) return { failures: [...failures, 'LOCKSTEP: handbook.ts no longer declares ROLE_BADGES'] }
+  const labelled = [...b[1].matchAll(/(\w+):\s*'([^']*)'/g)].map((x) => [x[1], x[2]])
+  const byRole = new Map(labelled)
+  for (const p of PERSONAS) {
+    if (!byRole.has(p)) failures.push(`LOCKSTEP: ROLE_BADGES has no label for persona "${p}" — an unbadged capability`)
+    else if (!byRole.get(p).trim()) failures.push(`LOCKSTEP: ROLE_BADGES label for "${p}" is blank`)
+  }
+  for (const [role] of labelled) {
+    if (!PERSONAS.includes(role)) failures.push(`LOCKSTEP: ROLE_BADGES labels unknown persona "${role}"`)
+  }
+  return { failures }
+}
+
+/**
+ * Gate 12 — place-link lockstep. The Handbook's "Take me there" resolves a
+ * place to a router target; every place the runtime knows must have one, or
+ * a capability lands the reader nowhere.
+ */
+export function gatePlaceLinks(runtimeSrc, handbookSrc) {
+  const failures = []
+  const m = runtimeSrc.match(/KNOWN_PLACES\s*=\s*\[([^\]]*)\]/)
+  if (!m) return { failures: ['LOCKSTEP: useWalkthrough.ts no longer declares KNOWN_PLACES'] }
+  const places = [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1])
+  const b = handbookSrc.match(/PLACE_LINKS[^=]*=\s*\{([\s\S]*?)\n\}/)
+  if (!b) return { failures: ['LOCKSTEP: handbook.ts no longer declares PLACE_LINKS'] }
+  const mapped = [...b[1].matchAll(/^\s*'?([a-z-]+)'?:/gm)].map((x) => x[1])
+  for (const place of places) {
+    if (!mapped.includes(place)) failures.push(`LOCKSTEP: handbook.ts PLACE_LINKS has no target for place "${place}"`)
+  }
+  for (const place of mapped) {
+    if (!places.includes(place)) failures.push(`LOCKSTEP: handbook.ts PLACE_LINKS targets unknown place "${place}"`)
+  }
+  return { failures }
 }
 
 /**
@@ -89,15 +238,22 @@ export function gateAnchors(walks, vueFiles) {
   const referenced = new Set()
   for (const walk of walks) {
     const memberOffered = walk.personas.some((p) => MEMBER_PERSONAS.includes(p))
-    for (const step of walk.steps) {
-      referenced.add(step.anchor)
-      const sites = anchorTags.get(step.anchor)
+    // The entry's own anchor counts exactly like a step's: this is what
+    // extends the no-drift property to the prose-only handbook entries —
+    // delete the button in the .vue source and the page stops building.
+    const anchors = [
+      ...(walk.anchor ? [walk.anchor] : []),
+      ...(walk.steps ?? []).map((s) => s.anchor),
+    ]
+    for (const anchor of anchors) {
+      referenced.add(anchor)
+      const sites = anchorTags.get(anchor)
       if (!sites) {
-        failures.push(`ANCHOR: walk "${walk.id}" step anchor "${step.anchor}" has no data-walk="${step.anchor}" in any .vue source`)
+        failures.push(`ANCHOR: walk "${walk.id}" anchor "${anchor}" has no data-walk="${anchor}" in any .vue source`)
         continue
       }
       if (memberOffered && sites.every(({ tag }) => /v-if="[^"]*!member/.test(tag))) {
-        failures.push(`PERSONA: walk "${walk.id}" is offered to member personas but anchor "${step.anchor}" only exists behind an admin-only v-if="!member" guard`)
+        failures.push(`PERSONA: walk "${walk.id}" is offered to member personas but anchor "${anchor}" only exists behind an admin-only v-if="!member" guard`)
       }
     }
   }
@@ -146,7 +302,7 @@ export function gateOffers(walks, rulesJson, evaluateRulesSrc) {
 export function gateSafety(walks) {
   const failures = []
   for (const walk of walks) {
-    for (const step of walk.steps) {
+    for (const step of walk.steps ?? []) {
       if (step.advance?.on !== 'click') continue
       if (DESTRUCTIVE_ANCHOR_PATTERNS.some((re) => re.test(step.anchor))) {
         failures.push(`SAFETY: walk "${walk.id}" click-advance step anchors "${step.anchor}" — destructive/minting verbs are show-and-point ONLY (advance.on: next)`)
@@ -207,14 +363,35 @@ export function gateUniqueIds(walks) {
   return { failures }
 }
 
-/** Deterministic pack assembly (version = content hash, stamped by the CLI). */
-export function assemblePack(walks) {
-  const sorted = [...walks].sort((a, b) => a.id.localeCompare(b.id))
-  return { walks: sorted }
+/**
+ * Deterministic pack assembly (version = content hash, stamped by the CLI).
+ *
+ * TWO readings of ONE source. `walks` is the just-in-time engine's list and
+ * only ever holds entries that actually have steps, so the overlay's
+ * contract is unchanged. `handbook` is the map: every non-learner entry,
+ * clip or no clip, in section order, carrying its prose and the personas
+ * the page badges it with.
+ */
+export function assemblePack(entries) {
+  const sorted = [...entries].sort((a, b) => a.id.localeCompare(b.id))
+  const walks = sorted.filter((e) => Array.isArray(e.steps) && e.steps.length)
+    .map(({ handbook: _handbook, section: _section, anchor: _anchor, ...walk }) => walk)
+  const handbook = sorted.filter(isHandbookEntry).map((e) => ({
+    id: e.id,
+    title: e.title,
+    section: e.section,
+    personas: e.personas,
+    keywords: e.keywords ?? [],
+    place: e.place,
+    anchor: e.anchor ?? e.steps?.[0]?.anchor,
+    walk: Array.isArray(e.steps) && e.steps.length ? e.id : null,
+    ...e.handbook,
+  }))
+  return { walks, handbook }
 }
 
 /** Run every gate; returns { failures, warnings }. */
-export function runGates({ walks, vueFiles, runtimeSrc, rulesJson, evaluateRulesSrc }) {
+export function runGates({ walks, vueFiles, runtimeSrc, rulesJson, evaluateRulesSrc, handbookSrc }) {
   const failures = []
   const warnings = []
   for (const w of walks) failures.push(...validateWalkSchema(w))
@@ -227,5 +404,10 @@ export function runGates({ walks, vueFiles, runtimeSrc, rulesJson, evaluateRules
   failures.push(...gateSafety(walks).failures)
   failures.push(...gateNoAutoPlay(vueFiles).failures)
   failures.push(...gateRuntimeDenylist(runtimeSrc).failures)
+  if (handbookSrc !== undefined) {
+    failures.push(...gateSections(handbookSrc).failures)
+    failures.push(...gateRoleBadges(runtimeSrc, handbookSrc).failures)
+    failures.push(...gatePlaceLinks(runtimeSrc, handbookSrc).failures)
+  }
   return { failures, warnings }
 }

@@ -1,5 +1,5 @@
 {
-  "version": "9a63d35d43be",
+  "version": "bfb3d0b67082",
   "generatedAt": "2026-09-07",
   "walks": [
     {
@@ -112,6 +112,13 @@
       "place": {
         "route": "class-detail"
       },
+      "keywords": [
+        "lead",
+        "hand over",
+        "class",
+        "teacher",
+        "transfer"
+      ],
       "steps": [
         {
           "anchor": "class-teachers",
@@ -151,6 +158,14 @@
           "school"
         ]
       },
+      "keywords": [
+        "install",
+        "app",
+        "phone",
+        "device",
+        "home screen",
+        "pwa"
+      ],
       "steps": [
         {
           "anchor": "account-card",
@@ -185,6 +200,14 @@
       "place": {
         "route": "class-detail"
       },
+      "keywords": [
+        "supply",
+        "cover",
+        "teacher",
+        "invite",
+        "class",
+        "link"
+      ],
       "steps": [
         {
           "anchor": "class-teachers",
@@ -223,6 +246,14 @@
           "org"
         ]
       },
+      "keywords": [
+        "invite",
+        "person",
+        "link",
+        "join",
+        "leader",
+        "learner"
+      ],
       "steps": [
         {
           "anchor": "verb-invite-person",
@@ -269,6 +300,13 @@
           "school"
         ]
       },
+      "keywords": [
+        "teacher",
+        "invite",
+        "staff",
+        "colleague",
+        "link"
+      ],
       "steps": [
         {
           "anchor": "verb-invite-person",
@@ -310,6 +348,14 @@
       "place": {
         "route": "admin-invites"
       },
+      "keywords": [
+        "invites",
+        "desk",
+        "codes",
+        "admin",
+        "mint",
+        "org"
+      ],
       "steps": [
         {
           "anchor": "invites-mode-strip",
@@ -351,6 +397,13 @@
       "place": {
         "route": "class-detail"
       },
+      "keywords": [
+        "move",
+        "teacher",
+        "classes",
+        "assign",
+        "timetable"
+      ],
       "steps": [
         {
           "anchor": "class-teachers",
@@ -401,6 +454,14 @@
       "place": {
         "route": "node-insights"
       },
+      "keywords": [
+        "insights",
+        "numbers",
+        "rate",
+        "compare",
+        "measure",
+        "window"
+      ],
       "steps": [
         {
           "anchor": "insights-measure",
@@ -503,6 +564,14 @@
       "place": {
         "route": "class-detail"
       },
+      "keywords": [
+        "session",
+        "play",
+        "class",
+        "run",
+        "join",
+        "code"
+      ],
       "steps": [
         {
           "anchor": "class-join-link",
@@ -589,6 +658,13 @@
           "school"
         ]
       },
+      "keywords": [
+        "password",
+        "sign in",
+        "login",
+        "account",
+        "security"
+      ],
       "steps": [
         {
           "anchor": "account-card",
@@ -623,6 +699,13 @@
       "place": {
         "route": "class-detail"
       },
+      "keywords": [
+        "class",
+        "share",
+        "co-teacher",
+        "colleague",
+        "teachers"
+      ],
       "steps": [
         {
           "anchor": "class-teachers",
@@ -671,6 +754,15 @@
           "school"
         ]
       },
+      "keywords": [
+        "ways in",
+        "links",
+        "revoke",
+        "re-mint",
+        "access",
+        "ledger",
+        "shareable"
+      ],
       "steps": [
         {
           "anchor": "ways-in-ledger",
@@ -815,6 +907,394 @@
           "terminal": "That's your position. Close this whenever you like and press play — it always picks up exactly where you left off."
         }
       ]
+    }
+  ],
+  "handbook": [
+    {
+      "id": "hand-over-the-lead",
+      "title": "Hand a class over to another teacher",
+      "section": "running-classes",
+      "personas": [
+        "teacher"
+      ],
+      "keywords": [
+        "lead",
+        "hand over",
+        "class",
+        "teacher",
+        "transfer"
+      ],
+      "place": {
+        "route": "class-detail"
+      },
+      "anchor": "class-teachers",
+      "walk": "hand-over-the-lead",
+      "what": "Passing the lead of a class to another teacher who already teaches it — for a maternity cover, a term swap, or a permanent handover.",
+      "where": "The class page, the **Teachers** section.",
+      "how": [
+        "Open the class from My Classes.",
+        "Scroll to **Teachers**.",
+        "Find the colleague who should lead it.",
+        "Tap **Make lead** on their row."
+      ],
+      "note": "You stay on the class as a teacher. Only the lead changes."
+    },
+    {
+      "id": "install-the-app",
+      "title": "Put the app on your device",
+      "section": "your-own-account",
+      "personas": [
+        "leader"
+      ],
+      "keywords": [
+        "install",
+        "app",
+        "phone",
+        "device",
+        "home screen",
+        "pwa"
+      ],
+      "place": {
+        "route": "node-home",
+        "kinds": [
+          "org",
+          "group",
+          "school"
+        ]
+      },
+      "anchor": "account-card",
+      "walk": "install-the-app",
+      "what": "Putting SSi on your phone or tablet as an app, so it opens from the home screen and works without a browser tab.",
+      "where": "Your node's home page, **Your account**.",
+      "how": [
+        "Open your home page on the device you want it on.",
+        "Scroll to **Your account**.",
+        "Tap the install row and follow the prompt your device gives you."
+      ],
+      "note": "Install it on the device you actually teach from — the install belongs to the device, not to your account."
+    },
+    {
+      "id": "invite-a-supply-teacher",
+      "title": "Invite a teacher who isn't here yet",
+      "section": "running-classes",
+      "personas": [
+        "teacher"
+      ],
+      "keywords": [
+        "supply",
+        "cover",
+        "teacher",
+        "invite",
+        "class",
+        "link"
+      ],
+      "place": {
+        "route": "class-detail"
+      },
+      "anchor": "class-teachers",
+      "walk": "invite-a-supply-teacher",
+      "what": "Getting a teacher who has no account yet into one class of yours, without going through the school admin.",
+      "where": "The class page, the **Teachers** section.",
+      "how": [
+        "Open the class from My Classes.",
+        "Scroll to **Teachers**.",
+        "Take the co-teacher link.",
+        "Send it to them — opening it puts them on this class as a teacher."
+      ],
+      "note": "The link is scoped to this one class, so a cover teacher never lands in the rest of the school."
+    },
+    {
+      "id": "invite-first-person",
+      "title": "Bring your first person in",
+      "section": "getting-people-in",
+      "personas": [
+        "admin",
+        "leader"
+      ],
+      "keywords": [
+        "invite",
+        "person",
+        "link",
+        "join",
+        "leader",
+        "learner"
+      ],
+      "place": {
+        "route": "node-home",
+        "kinds": [
+          "org"
+        ]
+      },
+      "anchor": "verb-invite-person",
+      "walk": "invite-first-person",
+      "what": "Bringing anyone into this part of the tree — a leader, a teacher or a learner — with a personal link that is their login.",
+      "where": "The node's home page, the buttons along the top, **Invite a person**.",
+      "how": [
+        "Open the group, school or organisation you want them to belong to.",
+        "Tap **Invite a person**.",
+        "Pick the role they arrive as.",
+        "Type their name and submit.",
+        "Copy the minted link and send it."
+      ],
+      "note": "Nothing is created until you submit. Every link you mint lands in **Ways in**."
+    },
+    {
+      "id": "invite-first-teacher",
+      "title": "Bring your first teacher in",
+      "section": "getting-people-in",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "keywords": [
+        "teacher",
+        "invite",
+        "staff",
+        "colleague",
+        "link"
+      ],
+      "place": {
+        "route": "node-home",
+        "kinds": [
+          "school"
+        ]
+      },
+      "anchor": "verb-invite-person",
+      "walk": "invite-first-teacher",
+      "what": "Getting a colleague into the school with a teacher's view, without them signing up for anything.",
+      "where": "Your school's home page, the buttons along the top, **Invite a person**.",
+      "how": [
+        "Open your school's home page.",
+        "Tap **Invite a person**.",
+        "Pick **Teacher** as the role — the link carries the role with it, so whoever opens it arrives as a teacher of this school.",
+        "Type their name and submit. The account exists the moment you tap.",
+        "Copy the link and send it to them any way you like."
+      ],
+      "note": "The link IS their login. It lands in **Ways in**, where you can re-mint or revoke it — re-minting kills the old link on the spot."
+    },
+    {
+      "id": "invites-desk",
+      "title": "The invites desk",
+      "section": "getting-people-in",
+      "personas": [
+        "admin"
+      ],
+      "keywords": [
+        "invites",
+        "desk",
+        "codes",
+        "admin",
+        "mint",
+        "org"
+      ],
+      "place": {
+        "route": "admin-invites"
+      },
+      "anchor": "invites-mode-strip",
+      "walk": "invites-desk",
+      "what": "The platform-wide desk where SSi mints and manages invites across every organisation at once.",
+      "where": "The admin area, **Invites**.",
+      "how": [
+        "Open the invites desk from the admin area.",
+        "Pick the mode from the strip along the top — the mode decides what kind of invite you are minting.",
+        "Fill in who it is for and submit.",
+        "Use the active toggle to read live invites rather than spent ones."
+      ],
+      "note": "This is the operator's desk, not a school's. A school brings its own people in from its own home page."
+    },
+    {
+      "id": "move-a-teacher-between-classes",
+      "title": "Move a teacher to another class",
+      "section": "running-classes",
+      "personas": [
+        "teacher"
+      ],
+      "keywords": [
+        "move",
+        "teacher",
+        "classes",
+        "assign",
+        "timetable"
+      ],
+      "place": {
+        "route": "class-detail"
+      },
+      "anchor": "class-teachers",
+      "walk": "move-a-teacher-between-classes",
+      "what": "Changing which classes a teacher is on, in one pass, without visiting each class in turn.",
+      "where": "The class page, the **Teachers** section, a teacher's other classes.",
+      "how": [
+        "Open a class the teacher is on.",
+        "Scroll to **Teachers** and open their other classes.",
+        "Tick the classes they should be on and untick the ones they should not.",
+        "Save."
+      ],
+      "note": "Untick and save is how you take a teacher off a class — there is no separate remove."
+    },
+    {
+      "id": "reading-insights",
+      "title": "Reading your insights",
+      "section": "seeing-progress",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "keywords": [
+        "insights",
+        "numbers",
+        "rate",
+        "compare",
+        "measure",
+        "window"
+      ],
+      "place": {
+        "route": "node-insights"
+      },
+      "anchor": "insights-measure",
+      "walk": "reading-insights",
+      "what": "Reading the pace of learning at this level — what is being counted, over what period, and against what.",
+      "where": "The node's home page, **See insights**.",
+      "how": [
+        "Open the node's home page and tap **See insights**.",
+        "Pick the **measure** — progress, practice, or class sessions. The line underneath says exactly what it means.",
+        "Pick the **window** — the period the rate is computed over. Shorter reacts faster, longer smooths the noise.",
+        "Use **Compare to** to put an average alongside.",
+        "**Overview** takes you back to the same place's home page."
+      ],
+      "note": "Everything here is a rate, not a raw total, so groups of very different sizes still compare fairly."
+    },
+    {
+      "id": "run-class-session",
+      "title": "Run your first class session",
+      "section": "running-classes",
+      "personas": [
+        "teacher"
+      ],
+      "keywords": [
+        "session",
+        "play",
+        "class",
+        "run",
+        "join",
+        "code"
+      ],
+      "place": {
+        "route": "class-detail"
+      },
+      "anchor": "class-join-link",
+      "walk": "run-class-session",
+      "what": "Running a live practice session with a class in the room, everyone hearing the same thing at the same time.",
+      "where": "The class page, the join link and the play button.",
+      "how": [
+        "Open the class from My Classes.",
+        "Put the join link or the join code on the screen for the room.",
+        "Wait for the students to arrive on their own devices.",
+        "Tap play to start the session."
+      ],
+      "note": "The join code is the same code all lesson, so a student arriving late still gets in."
+    },
+    {
+      "id": "set-your-password",
+      "title": "Set or change your password",
+      "section": "your-own-account",
+      "personas": [
+        "leader"
+      ],
+      "keywords": [
+        "password",
+        "sign in",
+        "login",
+        "account",
+        "security"
+      ],
+      "place": {
+        "route": "node-home",
+        "kinds": [
+          "org",
+          "group",
+          "school"
+        ]
+      },
+      "anchor": "account-card",
+      "walk": "set-your-password",
+      "what": "Giving yourself a password so you can sign back in without waiting for a link in your email.",
+      "where": "Your node's home page, **Your account**.",
+      "how": [
+        "Open your home page and scroll to **Your account**.",
+        "Tap the password row.",
+        "Type the password you want and save."
+      ],
+      "note": "Your original invite link keeps working. A password is a second door, not a replacement."
+    },
+    {
+      "id": "share-a-class",
+      "title": "Share a class with a colleague",
+      "section": "running-classes",
+      "personas": [
+        "teacher"
+      ],
+      "keywords": [
+        "class",
+        "share",
+        "co-teacher",
+        "colleague",
+        "teachers"
+      ],
+      "place": {
+        "route": "class-detail"
+      },
+      "anchor": "class-teachers",
+      "walk": "share-a-class",
+      "what": "Adding another teacher to a class you already run, so you both see the same roster and the same progress.",
+      "where": "The class page, the **Teachers** section.",
+      "how": [
+        "Open the class from My Classes.",
+        "Scroll to **Teachers**.",
+        "Tap **Add a teacher**.",
+        "Pick your colleague from the list."
+      ],
+      "note": "Both of you are teachers of the class. One of you is the lead, and the lead is the one the school's lists show first."
+    },
+    {
+      "id": "ways-in",
+      "title": "Ways in — who can get in, and how to change it",
+      "section": "getting-people-in",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "keywords": [
+        "ways in",
+        "links",
+        "revoke",
+        "re-mint",
+        "access",
+        "ledger",
+        "shareable"
+      ],
+      "place": {
+        "route": "node-home",
+        "kinds": [
+          "org",
+          "group",
+          "school"
+        ]
+      },
+      "anchor": "ways-in-ledger",
+      "walk": "ways-in",
+      "what": "The ledger of every way into this part of the tree — who has a live link, what it lets them do, and how to change your mind.",
+      "where": "The node's home page, the **Ways in** section below the lists.",
+      "how": [
+        "Open the node's home page and scroll to **Ways in**.",
+        "Read the rows: each one is a live way in, personal or shareable.",
+        "**Copy** hands you the link again.",
+        "**Re-mint** issues a fresh link and kills the old one on the spot.",
+        "**Revoke** closes that way in entirely."
+      ],
+      "note": "A shareable link is open to anyone who holds it, so revoke is the tool when a link has travelled further than you meant."
     }
   ]
 }

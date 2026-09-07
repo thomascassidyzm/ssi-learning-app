@@ -1,23 +1,52 @@
 {
   "id": "hand-over-the-lead",
   "title": "Hand a class over to another teacher",
-  "personas": ["teacher"],
-  "place": { "route": "class-detail" },
+  "section": "running-classes",
+  "personas": [
+    "teacher"
+  ],
+  "place": {
+    "route": "class-detail"
+  },
+  "keywords": [
+    "lead",
+    "hand over",
+    "class",
+    "teacher",
+    "transfer"
+  ],
+  "handbook": {
+    "what": "Passing the lead of a class to another teacher who already teaches it — for a maternity cover, a term swap, or a permanent handover.",
+    "where": "The class page, the **Teachers** section.",
+    "how": [
+      "Open the class from My Classes.",
+      "Scroll to **Teachers**.",
+      "Find the colleague who should lead it.",
+      "Tap **Make lead** on their row."
+    ],
+    "note": "You stay on the class as a teacher. Only the lead changes."
+  },
   "steps": [
     {
       "anchor": "class-teachers",
       "say": "One teacher on a class is the **lead** — the one the class is listed under, and the one a school admin comes to about it. When you move on from a class, that name should move too.",
-      "advance": { "on": "next" }
+      "advance": {
+        "on": "next"
+      }
     },
     {
       "anchor": "class-teacher-make-lead",
       "say": "**Make lead** hands it to a colleague already on the class. It takes effect straight away, so add them first and hand over once you have.",
-      "advance": { "on": "next" }
+      "advance": {
+        "on": "next"
+      }
     },
     {
       "anchor": "class-teachers",
       "say": "Nothing else moves. The pupils, their progress and every session stay exactly where they are, and you stay on the class as a teacher — you have passed the lead, not left.",
-      "advance": { "on": "next" },
+      "advance": {
+        "on": "next"
+      },
       "terminal": "That's handover — the lead is a name, not a wall. Nothing changed while you read this; only your own taps do."
     }
   ]

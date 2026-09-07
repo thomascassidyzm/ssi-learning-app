@@ -31,6 +31,15 @@ const props = withDefaults(defineProps<{
 // (archive/docs-retired-2026-08-24/walkthrough-engine-scout.md §3.4) — launched by tap only, never auto.
 const walks = computed(() => walksFor(props.persona, 'node-home', props.kind))
 
+// HANDBOOK (founder ruling 2026-09-07) — the louder door. This panel is the
+// just-in-time answer for the place you are standing on; the Handbook is the
+// map of everything, for the leader who does this once a term and cannot
+// search for a capability they do not know exists. The chip sits beside the
+// quiet link rather than replacing this panel, because the panel is also the
+// single surfacing point for the noticing invitations (ruling 2026-07-29).
+const handbookTo = computed(() =>
+  props.persona === 'leader' && props.nodeId ? `/org/${props.nodeId}/handbook` : '/schools/handbook')
+
 const open = ref(false)
 const text = computed<string | null>(() => {
   const byKind = (pack.explanations as Record<string, Record<string, string>>)[props.persona]
@@ -73,10 +82,13 @@ const html = computed(() => {
 
 <template>
   <div v-if="text" class="htw">
-    <button type="button" class="htw-toggle" :class="{ 'is-armed': throbbing && !open }" @click="toggle">
-      <span v-if="throbbing && !open" class="htw-dot" aria-hidden="true"></span>
-      {{ open ? 'Close' : 'How this works' }}
-    </button>
+    <div class="htw-doors">
+      <router-link class="btn-ghost htw-handbook" :to="handbookTo">Handbook</router-link>
+      <button type="button" class="htw-toggle" :class="{ 'is-armed': throbbing && !open }" @click="toggle">
+        <span v-if="throbbing && !open" class="htw-dot" aria-hidden="true"></span>
+        {{ open ? 'Close' : 'How this works' }}
+      </button>
+    </div>
     <transition name="htw-fade">
       <div v-if="open" class="htw-card schools-card">
         <span class="schools-kicker">How this works</span>
@@ -103,8 +115,9 @@ const html = computed(() => {
 
 <style scoped>
 .htw { display: flex; flex-direction: column; gap: var(--space-3); }
-.htw-toggle {
-  align-self: flex-end; background: none; border: none; cursor: pointer; padding: 2px 4px;
+.htw-doors { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); }
+.htw-handbook { text-decoration: none; }
+.htw-toggle { background: none; border: none; cursor: pointer; padding: 2px 4px;
   display: inline-flex; align-items: center; gap: 6px;
   font: inherit; font-size: var(--text-xs); color: var(--schools-fg-3, #8A8078);
   text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(44, 38, 34, 0.25);

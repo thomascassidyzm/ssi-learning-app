@@ -42,6 +42,7 @@ const { failures, warnings } = runGates({
   runtimeSrc: readFileSync(join(ROOT, 'packages/player-vue/src/walkthrough/useWalkthrough.ts'), 'utf8'),
   rulesJson: JSON.parse(readFileSync(join(ROOT, 'tools/explainer/rules.json'), 'utf8')),
   evaluateRulesSrc: readFileSync(join(ROOT, 'packages/player-vue/src/explainer/evaluateRules.ts'), 'utf8'),
+  handbookSrc: readFileSync(join(ROOT, 'packages/player-vue/src/walkthrough/handbook.ts'), 'utf8'),
 })
 
 for (const w of warnings) console.log(`  ⚠ ${w}`)
@@ -61,7 +62,7 @@ const versioned = {
 }
 
 if (CHECK_ONLY) {
-  console.log(`[walkthrough] check OK — pack version would be ${versioned.version} (${walks.length} walks · ${walks.reduce((n, w) => n + w.steps.length, 0)} steps)`)
+  console.log(`[walkthrough] check OK — pack version would be ${versioned.version} (${pack.walks.length} walks · ${pack.walks.reduce((n, w) => n + w.steps.length, 0)} steps · ${pack.handbook.length} handbook entries)`)
   process.exit(0)
 }
 
@@ -83,6 +84,28 @@ const md = [
 ].join('\n')
 writeFileSync(join(ROOT, 'docs/walkthrough-pack.md'), md)
 
-console.log(`[walkthrough] pack ${versioned.version} written — ${walks.length} walks`)
+const handbookMd = [
+  '# Handbook — compiled render',
+  '',
+  `**Version \`${versioned.version}\` · generated ${versioned.generatedAt} by \`tools/walkthrough/compile.mjs\`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**`,
+  '',
+  ...versioned.handbook.flatMap((e) => [
+    `## ${e.title}`,
+    '',
+    `Section: ${e.section} · roles: ${e.personas.join(', ')} · anchor: \`${e.anchor}\`${e.walk ? ' · has a walk' : ''}`,
+    '',
+    `**What it's for.** ${e.what}`,
+    '',
+    `**Where it is.** ${e.where}`,
+    '',
+    ...e.how.map((h, i) => `${i + 1}. ${h}`),
+    '',
+    ...(e.note ? [`**Worth knowing.** ${e.note}`, ''] : []),
+  ]),
+].join('\n')
+writeFileSync(join(ROOT, 'docs/handbook-pack.md'), handbookMd)
+
+console.log(`[walkthrough] pack ${versioned.version} written — ${pack.walks.length} walks · ${pack.handbook.length} handbook entries`)
 console.log('  → packages/player-vue/src/walkthrough/pack.json')
 console.log('  → docs/walkthrough-pack.md')
+console.log('  → docs/handbook-pack.md')

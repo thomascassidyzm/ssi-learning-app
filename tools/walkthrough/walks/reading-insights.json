@@ -1,28 +1,63 @@
 {
   "id": "reading-insights",
   "title": "Reading your insights",
-  "personas": ["admin", "leader", "school_admin"],
-  "place": { "route": "node-insights" },
+  "section": "seeing-progress",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-insights"
+  },
+  "keywords": [
+    "insights",
+    "numbers",
+    "rate",
+    "compare",
+    "measure",
+    "window"
+  ],
+  "handbook": {
+    "what": "Reading the pace of learning at this level — what is being counted, over what period, and against what.",
+    "where": "The node's home page, **See insights**.",
+    "how": [
+      "Open the node's home page and tap **See insights**.",
+      "Pick the **measure** — progress, practice, or class sessions. The line underneath says exactly what it means.",
+      "Pick the **window** — the period the rate is computed over. Shorter reacts faster, longer smooths the noise.",
+      "Use **Compare to** to put an average alongside.",
+      "**Overview** takes you back to the same place's home page."
+    ],
+    "note": "Everything here is a rate, not a raw total, so groups of very different sizes still compare fairly."
+  },
   "steps": [
     {
       "anchor": "insights-measure",
       "say": "The **measure** picks what's being counted — progress, practice, class sessions. The line underneath the pickers says exactly what the current one means.",
-      "advance": { "on": "next" }
+      "advance": {
+        "on": "next"
+      }
     },
     {
       "anchor": "insights-window",
       "say": "The **window** is the period the rate is computed over — shorter windows react faster, longer ones smooth the noise.",
-      "advance": { "on": "next" }
+      "advance": {
+        "on": "next"
+      }
     },
     {
       "anchor": "insights-compare",
       "say": "**Compare to** puts an average alongside. Everything here is a rate, not a raw total — so groups of different sizes compare fairly.",
-      "advance": { "on": "next" }
+      "advance": {
+        "on": "next"
+      }
     },
     {
       "anchor": "insights-overview",
       "say": "**Overview** takes you back to the same place's home — insights is a lens on where you already are, not a different page to get lost in.",
-      "advance": { "on": "next" },
+      "advance": {
+        "on": "next"
+      },
       "terminal": "Rates lead, position is context — and the picker text always says what a measure means."
     }
   ]

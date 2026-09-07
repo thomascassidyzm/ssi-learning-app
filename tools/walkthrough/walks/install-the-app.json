@@ -1,23 +1,57 @@
 {
   "id": "install-the-app",
   "title": "Put the app on your device",
-  "personas": ["leader"],
-  "place": { "route": "node-home", "kinds": ["org", "group", "school"] },
+  "section": "your-own-account",
+  "personas": [
+    "leader"
+  ],
+  "place": {
+    "route": "node-home",
+    "kinds": [
+      "org",
+      "group",
+      "school"
+    ]
+  },
+  "keywords": [
+    "install",
+    "app",
+    "phone",
+    "device",
+    "home screen",
+    "pwa"
+  ],
+  "handbook": {
+    "what": "Putting SSi on your phone or tablet as an app, so it opens from the home screen and works without a browser tab.",
+    "where": "Your node's home page, **Your account**.",
+    "how": [
+      "Open your home page on the device you want it on.",
+      "Scroll to **Your account**.",
+      "Tap the install row and follow the prompt your device gives you."
+    ],
+    "note": "Install it on the device you actually teach from — the install belongs to the device, not to your account."
+  },
   "steps": [
     {
       "anchor": "account-card",
       "say": "**Your account** holds the two things that are about you rather than your organisation: your sign-in, and the app on the device you are holding.",
-      "advance": { "on": "next" }
+      "advance": {
+        "on": "next"
+      }
     },
     {
       "anchor": "account-install",
       "say": "This row already knows what device you are on. On a computer it offers to install the app in its own window; on a phone it offers to add it to your home screen. Same organisation either way — it just saves you finding the tab.",
-      "advance": { "on": "next" }
+      "advance": {
+        "on": "next"
+      }
     },
     {
       "anchor": "account-install",
       "say": "If your browser can do it in one tap, the button does it. If it cannot, the button walks you through your browser's own menu instead — and you can remove the app again any time, like any other app.",
-      "advance": { "on": "next" },
+      "advance": {
+        "on": "next"
+      },
       "terminal": "Nothing here is one-time — if you said no on your first visit, this row is still waiting whenever you change your mind."
     }
   ]

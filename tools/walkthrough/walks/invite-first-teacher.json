@@ -1,28 +1,65 @@
 {
   "id": "invite-first-teacher",
   "title": "Bring your first teacher in",
-  "personas": ["admin", "leader", "school_admin"],
-  "place": { "route": "node-home", "kinds": ["school"] },
+  "section": "getting-people-in",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home",
+    "kinds": [
+      "school"
+    ]
+  },
+  "keywords": [
+    "teacher",
+    "invite",
+    "staff",
+    "colleague",
+    "link"
+  ],
+  "handbook": {
+    "what": "Getting a colleague into the school with a teacher's view, without them signing up for anything.",
+    "where": "Your school's home page, the buttons along the top, **Invite a person**.",
+    "how": [
+      "Open your school's home page.",
+      "Tap **Invite a person**.",
+      "Pick **Teacher** as the role — the link carries the role with it, so whoever opens it arrives as a teacher of this school.",
+      "Type their name and submit. The account exists the moment you tap.",
+      "Copy the link and send it to them any way you like."
+    ],
+    "note": "The link IS their login. It lands in **Ways in**, where you can re-mint or revoke it — re-minting kills the old link on the spot."
+  },
   "steps": [
     {
       "anchor": "verb-invite-person",
       "say": "People join through here — tap **Invite a person**. Nothing is created until you submit the form.",
-      "advance": { "on": "click" }
+      "advance": {
+        "on": "click"
+      }
     },
     {
       "anchor": "invite-form-role",
       "say": "Pick **Teacher** — the link carries the role with it, so whoever clicks it arrives as a teacher of this school.",
-      "advance": { "on": "next" }
+      "advance": {
+        "on": "next"
+      }
     },
     {
       "anchor": "invite-form-submit",
       "say": "With their name filled in, this mints their own sign-in link — the account exists the moment you tap, and the link IS their login. Send it any way you like.",
-      "advance": { "on": "next" }
+      "advance": {
+        "on": "next"
+      }
     },
     {
       "anchor": "ways-in-ledger",
       "say": "Every link you mint lands here in **Ways in** — you can revoke it or re-mint it any time. Re-minting kills the old link on the spot.",
-      "advance": { "on": "next" },
+      "advance": {
+        "on": "next"
+      },
       "terminal": "That's the whole flow — the link is their login. This tour minted nothing; only your own taps do."
     }
   ]

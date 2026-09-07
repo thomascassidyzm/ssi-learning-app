@@ -44,6 +44,16 @@ const { isPlayingAsClass, isOnPlayerRoute, className, exitClassSession } = usePl
 
 const auth = inject<any>('auth', null)
 
+// HANDBOOK (founder ruling 2026-09-07) — the map of everything the dashboard
+// can do. It lives in the user menu, not the tabs, by the bar's own rule:
+// tabs are daily destinations and a handbook is a once-a-term thing, the same
+// reason Settings sits here. Leaders read it in their own lane so they are
+// never shown a /schools URL.
+const handbookTo = computed(() => {
+  const node = currentUser.value?.group_id || currentUser.value?.school_id
+  return node && String(route.path).startsWith('/org') ? `/org/${node}/handbook` : '/schools/handbook'
+})
+
 const tabs = computed<NavTab[]>(() => {
   // Until the school context resolves (ctx.loadFromAuth is async), the role
   // is unknown — render NO tabs rather than the teacher fallback set. The
@@ -324,6 +334,7 @@ if (typeof document !== 'undefined') {
           <span class="caret">▾</span>
         </button>
         <div v-if="menuOpen" class="user-menu-pop">
+          <router-link :to="handbookTo" class="menu-item" @click="closeMenu">Handbook</router-link>
           <router-link v-if="isSchoolAdmin" to="/schools/settings" class="menu-item" @click="closeMenu">School settings</router-link>
           <!-- Roles are additive facets of ONE account — leaving the schools
                surface is a NAVIGATION, not an identity sign-out. Before this

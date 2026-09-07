@@ -1,28 +1,60 @@
 {
   "id": "invites-desk",
   "title": "The invites desk",
-  "personas": ["admin"],
-  "place": { "route": "admin-invites" },
+  "section": "getting-people-in",
+  "personas": [
+    "admin"
+  ],
+  "place": {
+    "route": "admin-invites"
+  },
+  "keywords": [
+    "invites",
+    "desk",
+    "codes",
+    "admin",
+    "mint",
+    "org"
+  ],
+  "handbook": {
+    "what": "The platform-wide desk where SSi mints and manages invites across every organisation at once.",
+    "where": "The admin area, **Invites**.",
+    "how": [
+      "Open the invites desk from the admin area.",
+      "Pick the mode from the strip along the top — the mode decides what kind of invite you are minting.",
+      "Fill in who it is for and submit.",
+      "Use the active toggle to read live invites rather than spent ones."
+    ],
+    "note": "This is the operator's desk, not a school's. A school brings its own people in from its own home page."
+  },
   "steps": [
     {
       "anchor": "invites-mode-strip",
       "say": "Three ways to mint access, one form: **Into an organisation** (role links into the tree), **Direct access** (codes and magic links), **New demo org** (a full practice tree).",
-      "advance": { "on": "next" }
+      "advance": {
+        "on": "next"
+      }
     },
     {
       "anchor": "invites-org-who",
       "say": "**Who** silently changes what the submit button does: some options mint a FRESH link, others surface the STANDING link that already exists. Watch the button label switch as you change this.",
-      "advance": { "on": "next" }
+      "advance": {
+        "on": "next"
+      }
     },
     {
       "anchor": "invites-org-submit",
       "say": "Every submit on this desk mints REAL access the moment you tap — a leaked leader link makes a stranger a group leader. This tour never taps it for you.",
-      "advance": { "on": "next" }
+      "advance": {
+        "on": "next"
+      }
     },
     {
       "anchor": "invites-active-toggle",
       "say": "This pill is not just a badge — tapping it is a live kill-switch. It disables or re-enables the link across all four underlying access mechanisms at once.",
-      "advance": { "on": "next" },
+      "advance": {
+        "on": "next"
+      },
       "terminal": "Rule of the desk: look before you mint — everything here is live the moment it exists."
     }
   ]
