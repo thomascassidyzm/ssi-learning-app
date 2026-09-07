@@ -13,6 +13,9 @@
  * product decision and it is not in question here. What was missing is the
  * other end of it: NOTHING HAPPENED WHEN THE REAL MAILBOX OWNER TURNED UP.
  *
+ * api/auth/possession-redeem.ts stamps the same marker, but its mints are NOT
+ * swept — see PROVENANCE below.
+ *
  * So: type a stranger's address, choose a password, get a session, walk away.
  * The address's real owner later signs in with a mailed code — into the SAME
  * account, because it already exists — and the squatter's password and
@@ -45,6 +48,31 @@
  *
  * A claim is therefore only ever made by somebody holding the mailbox, and it
  * only ever DESTROYS access. There is no branch here that grants anything.
+ *
+ * PROVENANCE — WHOSE CREDENTIALS THIS IS ALLOWED TO DESTROY (job #354, live
+ * breakage, 2026-09-07). The paragraph above said this rule covers
+ * possession-redeem too. IT MUST NOT, and shipping it that way broke real
+ * teachers within hours.
+ *
+ * The two paths are not the same shape, and the difference is whose password
+ * it is:
+ *   - PURCHASE (`buyer_account`). The address was typed by a stranger and the
+ *     password was planted by that stranger. Destroying it costs the squatter
+ *     nothing they were entitled to.
+ *   - SCHOOLS (`possession_redeem`, `possession_adopt`). A teacher spends an
+ *     invite code, and the flow mints IMMEDIATELY and invites a password up
+ *     front — precisely because school mail gateways quarantine our codes, so
+ *     a password is the teacher's only reliable way back in. That password is
+ *     THEIRS. Rotating it, silently, on a routine second-device sign-in by
+ *     code, is a total lockout the first time a gateway eats a code — and
+ *     nothing visible goes wrong at the moment it happens.
+ *
+ * So `minted_by` is load-bearing: `mayClaim` fires only for the paths in
+ * REVOCABLE_MINTS, and FAILS CLOSED on anything absent or unrecognised.
+ * Destroying a real user's credential is far worse than leaving a squatted
+ * purchase account revocable one beat longer — and the census of job #345
+ * found zero accounts had ever been squatted, so the cost of the safe side is
+ * currently nil.
  */
 
 /** The `app_metadata` key the marker lives under. Service-role-writable only. */
@@ -54,10 +82,29 @@ export const UNCLAIMED_MINT_KEY = 'unclaimed_mint'
  *  `password` is deliberately absent — see the header. */
 const POSSESSION_METHODS = new Set(['otp', 'magiclink', 'email', 'emailotp', 'email_otp'])
 
+/** THE MINTING PATHS WHOSE CREDENTIALS MAY BE DESTROYED. See the PROVENANCE
+ *  section of the header: revocation exists for the purchase path, where the
+ *  password on an unproven address was planted by whoever typed the address.
+ *  It must never fire on a schools mint, where the password is the teacher's
+ *  own and losing it is a lockout. Anything not named here is NOT revocable —
+ *  the set is an allowlist and the default is to leave credentials alone. */
+const REVOCABLE_MINTS = new Set(['buyer_account'])
+
+/** Was this mint made by a path whose credentials revocation may destroy?
+ *  False for a schools mint, and false for an absent or unrecognised
+ *  provenance — fail closed, because destroying a real credential is worse
+ *  than leaving a squatted purchase account revocable one beat longer. */
+export function mintIsRevocable(mintedBy: string | null | undefined): boolean {
+  return typeof mintedBy === 'string' && REVOCABLE_MINTS.has(mintedBy)
+}
+
 export interface UnclaimedMint {
   /** The `session_id` of the session the minting path handed out. */
   session_id: string
-  /** Which endpoint minted it — audit only, never a decision. */
+  /** Which endpoint minted it. A DECISION INPUT, not audit — `mayClaim`
+   *  revokes only the paths named in REVOCABLE_MINTS below, and refuses on
+   *  anything it does not recognise. See the PROVENANCE section of the
+   *  header before changing this or the set. */
   minted_by: string
   /** ISO timestamp of the mint. Audit only; this marker has no TTL, because
    *  an unproven address does not become proven by the passage of time. */
@@ -110,11 +157,13 @@ export function provedMailbox(amr: unknown): boolean {
 /**
  * MAY THIS SESSION CLAIM THIS ACCOUNT?
  *
- * True only when there is a marker, this is NOT the session the mint handed
- * out, and this session proved the mailbox. Every other shape — no marker
- * (nothing to claim), the mint's own session (the squatter, asking to be let
- * off), a password sign-in (the planted credential, asking to legitimise
- * itself) — is false, by construction.
+ * True only when there is a marker FROM A REVOCABLE PATH, this is NOT the
+ * session the mint handed out, and this session proved the mailbox. Every
+ * other shape — no marker (nothing to claim), a schools mint or an
+ * unrecognised provenance (nothing this rule is allowed to destroy), the
+ * mint's own session (the squatter, asking to be let off), a password sign-in
+ * (the planted credential, asking to legitimise itself) — is false, by
+ * construction.
  */
 export function mayClaim(
   marker: UnclaimedMint | null,
@@ -122,6 +171,9 @@ export function mayClaim(
   callerAmr: unknown,
 ): boolean {
   if (!marker) return false
+  // PROVENANCE FIRST. A schools mint carries the teacher's own password and
+  // must never be swept; so must anything whose provenance we cannot read.
+  if (!mintIsRevocable(marker.minted_by)) return false
   if (!callerSessionId) return false
   if (callerSessionId === marker.session_id) return false
   return provedMailbox(callerAmr)
