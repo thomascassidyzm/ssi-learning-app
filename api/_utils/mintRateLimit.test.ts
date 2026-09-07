@@ -44,8 +44,14 @@ function makeChainable() {
 
 const supabase: any = { from: () => makeChainable() }
 
+/**
+ * The bucket key is the PLATFORM-ATTESTED peer, so the fixture states it the
+ * way Vercel's edge does — `x-vercel-forwarded-for`, which the edge overwrites
+ * rather than appends. A client-settable `x-forwarded-for` is deliberately NOT
+ * what a normal request here carries; see the spoofing block at the bottom.
+ */
 function makeReq(ip = '1.2.3.4'): VercelRequest {
-  return { method: 'POST', query: {}, headers: { 'x-forwarded-for': ip }, body: {} } as unknown as VercelRequest
+  return { method: 'POST', query: {}, headers: { 'x-vercel-forwarded-for': ip }, body: {} } as unknown as VercelRequest
 }
 
 /** Responder that reports the same windowed count for every count SELECT. */
@@ -180,6 +186,43 @@ describe('enforceMintRateLimit', () => {
     }
     const result = await mod.enforceMintRateLimit(supabase, makeReq(), 'user-1', mod.CLASS_MINT_OUTCOME)
     expect(result.ok).toBe(true)
+  })
+
+  // ── SEC0901-A-04b: the per-IP bucket key must be unspoofable ────────────
+  //
+  // The school signup path is the one that makes this matter. A fresh-account
+  // farm creates exactly ONE school per account, so it never approaches the
+  // per-user limit — on that path the per-IP bucket IS the control, not a
+  // backstop to a stronger control. While this module hand-rolled its own
+  // `x-forwarded-for`-first getClientIp, one forged header put every mint in a
+  // bucket of the attacker's choosing and the control was free to defeat.
+  describe('the mint bucket key is platform-attested, never client-settable', () => {
+    const bucketFor = (headers: Record<string, string>, socketAddr?: string) =>
+      mod.mintIpHash({ method: 'POST', query: {}, headers, body: {},
+        socket: socketAddr ? { remoteAddress: socketAddr } : undefined } as unknown as VercelRequest)
+
+    it('a forged x-forwarded-for cannot move the bucket off the edge-attested peer', () => {
+      const attested = createHash('sha256').update('mint:9.9.9.9').digest('hex').slice(0, 16)
+      expect(bucketFor({ 'x-vercel-forwarded-for': '9.9.9.9' })).toBe(attested)
+      expect(bucketFor({ 'x-vercel-forwarded-for': '9.9.9.9', 'x-forwarded-for': '1.1.1.1' })).toBe(attested)
+      expect(bucketFor({ 'x-vercel-forwarded-for': '9.9.9.9', 'x-real-ip': '1.1.1.1' })).toBe(attested)
+    })
+
+    it('two forged headers from ONE real peer share one bucket, so the window still fills', () => {
+      const a = bucketFor({ 'x-vercel-forwarded-for': '9.9.9.9', 'x-forwarded-for': '1.1.1.1' })
+      const b = bucketFor({ 'x-vercel-forwarded-for': '9.9.9.9', 'x-forwarded-for': '2.2.2.2' })
+      expect(a).toBe(b)
+    })
+
+    it('off Vercel the bucket falls to the raw socket, which no header can override', () => {
+      const bySocket = bucketFor({ 'x-forwarded-for': '1.1.1.1' }, '10.0.0.7')
+      expect(bySocket).toBe(createHash('sha256').update('mint:10.0.0.7').digest('hex').slice(0, 16))
+    })
+
+    it('genuinely different peers still get genuinely different buckets', () => {
+      expect(bucketFor({ 'x-vercel-forwarded-for': '9.9.9.9' }))
+        .not.toBe(bucketFor({ 'x-vercel-forwarded-for': '8.8.8.8' }))
+    })
   })
 
   // Generosity is the whole point: a real teacher must never be blocked.

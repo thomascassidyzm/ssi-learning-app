@@ -133,7 +133,7 @@ describe('SEC0901-A-04 [SECURE-ASSERTION] — the code-throttle bucket key is pl
       expect(src, file).toMatch(/status\(429\)/)
     }
   })
-  it('no other .ts file under api/ hand-rolls the old x-forwarded-for-first bucket key, except the known mint-throttle gap below', () => {
+  it('no .ts file under api/ hand-rolls the old x-forwarded-for-first bucket key', () => {
     const offenders: string[] = []
     for (const rel of walk('api')) {
       if (rel.includes('/_security/') || rel === 'api/_utils/codeAttemptThrottle.ts') continue
@@ -142,38 +142,36 @@ describe('SEC0901-A-04 [SECURE-ASSERTION] — the code-throttle bucket key is pl
         offenders.push(rel)
       }
     }
-    expect(offenders).toEqual(['api/_utils/mintRateLimit.ts'])
+    expect(offenders).toEqual([])
   })
 })
 
-describe('SEC0901-A-04b [CHARACTERIZATION] — mintRateLimit.ts still hand-rolls the spoofable x-forwarded-for/x-real-ip bucket key', () => {
-  // The SAME bug class SEC25-A-01 fixed in codeAttemptThrottle.ts
-  // (getClientIp reading a client-writable header first) is still present,
-  // verbatim, in this sibling module — it was not part of the 08-25 pass and
-  // nothing here imports the shared, now-hardened getClientIp().
+describe('SEC0901-A-04b [SECURE-ASSERTION] — mintRateLimit.ts buckets on the platform-attested peer', () => {
+  // FIXED 2026-09-07 (school-signup bot-protection review). This module used to
+  // hand-roll the pre-fix getClientIp — the SAME bug class SEC25-A-01 fixed in
+  // codeAttemptThrottle.ts — so a client-writable header chose the bucket.
   //
-  // Impact is bounded, not absent: both callers (teacher/classes.ts,
-  // onboarding/provision.ts) require auth first and enforceMintRateLimit
-  // checks the PER-USER limit (keyed on the verified auth uid, unspoofable)
-  // before the per-IP one — the module's own docs call per-user "the one that
-  // does the real work" and per-IP "the backstop". So an attacker spoofing
-  // this header cannot exceed MINT_PER_USER_LIMIT (20/15min) on one account,
-  // only defeat the MINT_PER_IP_LIMIT (100/15min) backstop meant to slow a
-  // multi-account farm sharing one real IP. Rated MEDIUM, not the HIGH/
-  // CRITICAL the code-guessing oracles carry, because the primary control
-  // (per-user) is unaffected.
-  it('mintRateLimit.ts getClientIp is the pre-fix pattern, not the shared hardened one', () => {
+  // The old rating (MEDIUM: "the primary control, per-user, is unaffected")
+  // held for the CLASS mint path, where a real teacher makes many classes on
+  // one account. It did NOT hold for the SCHOOL signup path, which is the
+  // threat the per-IP limit was written for: a farm cycling fresh accounts
+  // creates exactly one school per account, touches the per-user limit never,
+  // and so met only the per-IP bucket — the one header spoofing moved for
+  // free. It now comes from the shared, hardened getClientIp.
+  it('mintRateLimit.ts imports the shared hardened getClientIp and hand-rolls nothing', () => {
     const src = read('api/_utils/mintRateLimit.ts')
-    expect(src).toContain("(req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||")
-    expect(src).toContain("(req.headers['x-real-ip'] as string) ||")
-    expect(src).not.toContain("from '../_utils/codeAttemptThrottle'")
+    expect(src).toContain("from './codeAttemptThrottle'")
+    expect(src).toContain('getClientIp(req)')
+    expect(src).not.toContain("req.headers['x-forwarded-for']")
+    expect(src).not.toContain("req.headers['x-real-ip']")
   })
-  it.todo('FIX: mintRateLimit.ts should import getClientIp from codeAttemptThrottle.ts instead of hand-rolling it')
-  it('both callers gate the mint throttle behind verifyAuthToken, so the per-user limit is the binding control', () => {
-    for (const file of ['api/teacher/classes.ts', 'api/onboarding/provision.ts']) {
+  it('all three mint callers gate the throttle behind a verified caller', () => {
+    for (const file of ['api/teacher/classes.ts', 'api/onboarding/provision.ts', 'api/school/create-class.ts']) {
       const src = read(file)
-      expect(src, file).toContain("from '../_utils/auth'")
-      expect(src.indexOf('verifyAuthToken'), file).toBeLessThan(src.indexOf('enforceMintRateLimit('))
+      expect(src, file).toContain('enforceMintRateLimit(')
+      // The verified uid is what is passed as the per-user key — either
+      // verifyAuthToken's own result or a caller resolved from it.
+      expect(src, file).toMatch(/enforceMintRateLimit\(\s*supabase,\s*req,\s*(auth|caller|authResult)\.userId/)
     }
   })
 })
