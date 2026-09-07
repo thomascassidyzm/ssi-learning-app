@@ -245,7 +245,7 @@ const handleSubmit = () => {
                    new class, which keeps the old one's records intact. A school
                    on a free trial is held to the one language it signed up for
                    until it subscribes.
-                   checked: 674a1caa
+                   checked: 674a1caa.ad8cb09b
               -->
               <div v-else class="course-picker" data-walk="create-class-course">
                 <button

@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "build:store": "VITE_APP_SHELL=webview vite build",
+    "build": "node ../../tools/walkthrough/compile.mjs --build && vite build",
+    "build:store": "node ../../tools/walkthrough/compile.mjs --build && VITE_APP_SHELL=webview vite build",
     "verify:payment-route": "node e2e/_payment-route-bundle-check.mjs && node e2e/_payment-route-envfile-check.mjs",
     "preview": "vite preview",
     "test": "vitest run",

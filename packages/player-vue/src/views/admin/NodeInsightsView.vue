@@ -255,7 +255,7 @@ const homeLink = computed(() => {
              Worth knowing. A learner with no microphone data is absent from these
              figures rather than counted as a zero, so the denominator is always
              stated.
-             checked: e009121e
+             checked: e009121e.3bd624f8
         -->
         <section class="vad-section" data-walk="insights-voice-pause">
           <header class="vad-section-head">

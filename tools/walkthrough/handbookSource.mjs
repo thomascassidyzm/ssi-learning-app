@@ -132,6 +132,27 @@ export function parseHandbookBlocks(path, src) {
 }
 
 /**
+ * THE PROSE FINGERPRINT — what the reader is being told, hashed.
+ *
+ * The `checked:` stamp is two parts, `<code>.<prose>`, because a stamp that
+ * only records the code lets `--reconfirm` bulk-silence every stale sentence
+ * in the tree without a single word changing (job #288 found exactly that
+ * hatch). Recording the prose the stamp was made against lets the repair tool
+ * tell the two cases apart: the sentence was rewritten, or it was not.
+ */
+export function proseFingerprint(entry) {
+  return createHash('sha256')
+    .update([entry.title, entry.what, entry.where, ...entry.how, entry.note ?? ''].join('\n'))
+    .digest('hex')
+    .slice(0, 8)
+}
+
+/** The code half of a `checked:` stamp. Legacy one-part stamps are all code. */
+export const checkedCode = (checked) => (checked ? String(checked).split('.')[0] : null)
+/** The prose half, or null for a legacy one-part stamp made before this existed. */
+export const checkedProse = (checked) => (checked ? String(checked).split('.')[1] ?? null : null)
+
+/**
  * THE FINGERPRINT — what actually changes when a capability's behaviour changes.
  *
  * Three things, and deliberately only three:
@@ -146,6 +167,15 @@ export function parseHandbookBlocks(path, src) {
  * Restyling does not trip it: class, :class and style are dropped, because a
  * guard that fires on a colour change gets routed around, and a guard that is
  * routed around protects nothing.
+ *
+ * WHAT IT CANNOT SEE, stated plainly because an overstated guarantee is worse
+ * than a stated limit: it reads ONE FILE — the .vue the anchor lives in. A
+ * handler that calls a composable, an API route, an RPC or a store action
+ * carries only the CALL into the fingerprint, never the callee. So rewriting
+ * what /api/classes/add-students actually does, or changing the composable
+ * behind useClassRoster, does NOT trip this gate, and the description can go
+ * quietly wrong. The primary mechanism remains the prose living beside the
+ * code; this is a backstop for same-file drift only.
  */
 const COSMETIC_ATTRS = /^(class|:class|style|:style)$/
 

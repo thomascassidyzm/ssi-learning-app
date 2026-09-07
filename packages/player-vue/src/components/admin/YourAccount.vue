@@ -127,7 +127,7 @@ function openGuide(): void {
          3. Type the password you want and save.
          Worth knowing. Your original invite link keeps working. A password is a second
          door, not a replacement.
-         checked: e86f1422
+         checked: e86f1422.1b13967c
     -->
     <div class="account-row" data-walk="account-password">
       <div class="account-row-text">
@@ -176,7 +176,7 @@ function openGuide(): void {
          3. Tap the install row and follow the prompt your device gives you.
          Worth knowing. Install it on the device you actually teach from — the install
          belongs to the device, not to your account.
-         checked: b26b8ea2
+         checked: b26b8ea2.a36a5085
     -->
     <div class="account-row" data-walk="account-install">
       <div class="account-row-text">

@@ -194,7 +194,7 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
          5. **Revoke** closes that way in entirely.
          Worth knowing. A shareable link is open to anyone who holds it, so revoke is the
          tool when a link has travelled further than you meant.
-         checked: e47b054f
+         checked: e47b054f.886545b6
     -->
     <div class="ways-in-head" data-walk="ways-in-ledger">
       <span class="schools-kicker">Ways in</span>
@@ -269,7 +269,7 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
                  Worth knowing. Only rows for a named person with an email on file
                  carry this button. If our mail is being eaten by their school's
                  gateway, read them the link instead of sending it a third time.
-                 checked: ec078ac6
+                 checked: ec078ac6.718a020e
             -->
             <button v-if="l.status === 'active' && l.species === 'personal' && l.personalEmail" type="button" class="row-verb" :disabled="busyCode === l.code" :title="`Send the invite to ${l.personalEmail} again`" data-walk="ways-in-resend" @click="patch(l, 'resend')">Email again</button>
             <button v-if="l.status === 'active' && l.species === 'personal'" type="button" class="row-verb" :disabled="busyCode === l.code" data-walk="ways-in-remint" @click="patch(l, 'rotate')">Re-mint</button>

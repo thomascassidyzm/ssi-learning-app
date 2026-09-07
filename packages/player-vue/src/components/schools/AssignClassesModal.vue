@@ -96,7 +96,7 @@ function handleConfirm() {
            Worth knowing. If part of a change fails the panel stays open and names the
            class it could not do, and the ticks reset to what is actually true. Nothing
            is ever reported as saved when it was not.
-           checked: 8bfaece0
+           checked: 8bfaece0.585c1fc8
       -->
       <div v-if="isOpen" class="modal-overlay" data-walk="assign-classes-modal" @click="handleOverlayClick" @keydown.escape="handleClose">
         <div class="modal" role="dialog" aria-modal="true" aria-labelledby="assign-modal-title">

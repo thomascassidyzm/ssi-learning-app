@@ -252,7 +252,7 @@ const metricDesc = computed(() => {
            5. **Overview** takes you back to the same place's home page.
            Worth knowing. Everything here is a rate, not a raw total, so groups of very
            different sizes still compare fairly.
-           checked: a0b474a7
+           checked: a0b474a7.1e86d15d
       -->
       <label v-if="showMeasurePicker" class="nre-field nre-field-wide" data-walk="insights-measure">
         <span class="nre-field-label">Measure</span>
@@ -290,7 +290,7 @@ const metricDesc = computed(() => {
          4. Change the window to compute the same rate over a shorter or longer period.
          Worth knowing. A pace matters more than a position: a class three sentences behind
          but climbing fast is healthier than one parked far ahead.
-         checked: 921d5d96
+         checked: 921d5d96.19b67578
     -->
     <div v-if="comparison" class="nre-widget-card" data-walk="insights-rate-widget">
       <RateCompare :data="comparison" />

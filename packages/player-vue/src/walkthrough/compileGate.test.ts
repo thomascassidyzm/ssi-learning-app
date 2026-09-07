@@ -24,9 +24,11 @@ import {
   HANDBOOK_SECTIONS,
   PERSONAS,
   runGates,
+  comparePack,
 } from '../../../../tools/walkthrough/lib.mjs'
 import {
   parseHandbookBlocks, fingerprintCapability, stampChecked, declarationSource,
+  proseFingerprint, checkedCode, checkedProse,
 } from '../../../../tools/walkthrough/handbookSource.mjs'
 import { readFileSync } from 'node:fs'
 
@@ -461,5 +463,80 @@ describe('the handbook gates say where the problem is', () => {
   it('parsed blocks carry the line the description starts on', () => {
     const parsed = parseHandbookBlocks('F.vue', SFC).entries
     expect(parsed.every((p: { line: number }) => typeof p.line === 'number' && p.line > 0)).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// THE GATE'S OWN DEFECT (job #288 → #289). --check compiled a hypothetical
+// pack, announced how many entries it WOULD have, and never once looked at
+// pack.json — the file the page imports. Source said 77, the page served 76,
+// the gate said OK. These hold the two properties that fixes: the check
+// compares SERVED CONTENT, and re-pinning cannot be done in bulk without a
+// sentence changing.
+// ---------------------------------------------------------------------------
+
+describe('comparePack (the served pack IS the compiled pack)', () => {
+  const entry = (over: Record<string, unknown> = {}) => ({
+    id: 'add-students-to-a-class', title: 'Add students to a class', section: 'getting-people-in',
+    personas: ['teacher'], keywords: ['add'], place: { route: 'class-detail' },
+    anchor: 'class-student-add', source: 'F.vue', walk: null,
+    what: 'Putting a pupil into this class.', where: 'The class page.', how: ['Tap it.'], ...over,
+  })
+  const pack = (handbook: unknown[], walks: unknown[] = []) => ({ handbook, walks })
+
+  it('passes when the served pack is what the source compiles to', () => {
+    expect(comparePack(pack([entry()]), pack([entry()]))).toEqual([])
+  })
+
+  it('FAILS on the exact defect: a capability in the source and not in the served pack', () => {
+    const failures = comparePack(pack([entry(), entry({ id: 'other', title: 'Other' })]), pack([entry()]))
+    expect(failures).toHaveLength(1)
+    expect(failures[0]).toContain('"other" is in the source but NOT in pack.json')
+  })
+
+  it('FAILS on same-count drift — a count matching is not agreement', () => {
+    const failures = comparePack(pack([entry()]), pack([entry({ what: 'Something else entirely.' })]))
+    expect(failures).toHaveLength(1)
+    expect(failures[0]).toContain('differs from pack.json — what')
+  })
+
+  it('FAILS on an entry the served pack still shows after the source dropped it', () => {
+    const failures = comparePack(pack([]), pack([entry()]))
+    expect(failures[0]).toContain('no longer in the source')
+  })
+
+  it('FAILS when there is no served pack at all', () => {
+    expect(comparePack(pack([entry()]), null)).toHaveLength(1)
+  })
+})
+
+describe('the two-part stamp (no silent bulk re-pin)', () => {
+  const parse = (src: string) => parseHandbookBlocks('F.vue', src).entries[0]
+
+  it('the stamp records the prose it was made against, and the code half still gates', () => {
+    const e = parse(SFC)
+    const stamp = `${fingerprintCapability(SFC, e.tag, e.tagStart)}.${proseFingerprint(e)}`
+    const stampedSrc = stampChecked(SFC, e, stamp)
+    const pinned = parse(stampedSrc)
+    const fp = (x: any) => fingerprintCapability(stampedSrc, x.tag, x.tagStart)
+    expect(checkedCode(pinned.checked)).toBe(fp(pinned))
+    expect(checkedProse(pinned.checked)).toBe(proseFingerprint(pinned))
+    expect(gateHandbookFreshness([pinned], fp).failures).toEqual([])
+  })
+
+  it('says whether the sentence changed since the stamp — the thing --reconfirm now asks', () => {
+    const e = parse(SFC)
+    const pinned = parse(stampChecked(SFC, e, `${fingerprintCapability(SFC, e.tag, e.tagStart)}.${proseFingerprint(e)}`))
+    // The prose half is what --reconfirm compares; the code half is the gate's.
+    // Untouched prose: the tool refuses to re-pin without --unchanged.
+    expect(checkedProse(pinned.checked)).toBe(proseFingerprint(pinned))
+    // Rewritten prose: the tool re-pins, because a sentence actually changed.
+    const rewritten = { ...pinned, what: 'Something the button now genuinely does.' }
+    expect(checkedProse(pinned.checked)).not.toBe(proseFingerprint(rewritten))
+  })
+
+  it('a legacy one-part stamp reads as code-only, so nothing pinned before this breaks', () => {
+    expect(checkedCode('e36b80b5')).toBe('e36b80b5')
+    expect(checkedProse('e36b80b5')).toBe(null)
   })
 })

@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `ea01810ea071` · generated 2026-09-07 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `a88e812f05a4` · generated 2026-09-07 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## Add a class to a group
 
@@ -64,6 +64,22 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `ver
 5. Submit, and repeat for the next student.
 
 **Worth knowing.** One student at a time, on purpose — the link is theirs alone and carries the class with it. The **Students** page's **+ Invite students** button brings you here for exactly this reason.
+
+## Add students to a class
+
+Section: getting-people-in · roles: leader, school_admin, teacher · anchor: `class-student-add` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
+
+**What it's for.** Putting a pupil who is already in your school into this class, for a pupil who has changed set or landed in the wrong class.
+
+**Where it is.** The class page, the **Add students** button at the top of the roster.
+
+1. Open the class from **My Classes**.
+2. Tap **Add students** above the roster.
+3. Type a few letters of the name to narrow the list.
+4. Tap the pupil. They appear on the roster straight away.
+5. Add as many as you need, then tap **Done**.
+
+**Worth knowing.** The list holds the pupils in your school who are not in this class yet, and shows the class each of them is in now. A pupil brings everything they have already learned with them. For a pupil with no account at all, use the class link in **Invite students** instead.
 
 ## Bring your first person in
 
@@ -210,8 +226,8 @@ Section: running-classes · roles: school_admin · anchor: `setup-add-class-row`
 **Where it is.** Step four of first-time setup, under **Create classes**. **+ Add another class** sits below the rows.
 
 1. Open step four of first-time setup.
-2. Type a class name in the first row and choose its course.
-3. Tap **+ Add another class** for each further class and fill the row in the same way.
+2. Type a class name in the first row. Its course is already set to the language you signed your school up with — change it if this class is learning something else.
+3. Tap **+ Add another class** for each further class; every new row starts on that same language, and fills in the same way.
 4. Remove a row you no longer want with the cross at its end.
 5. Tap **Finish setup** — every filled-in row is created, and each one is marked Added as it saves.
 
@@ -345,12 +361,13 @@ Section: courses-and-content · roles: school_admin · anchor: `setup-class-cour
 
 **What it's for.** Picking the language a class is learning. This is how a course reaches learners at all — a course does not belong to a person, it belongs to a class, and everybody in that class practises it.
 
-**Where it is.** On each class row, the **Choose course** picker beside the class name.
+**Where it is.** On each class row, the course picker beside the class name. It already holds the language you chose when you signed your school up, so most classes need nothing done here.
 
-1. Tap **Choose course** on the class row.
-2. Start typing a language to narrow the list — the catalogue runs to dozens of courses.
-3. Pick the one you want. Where a language offers more than one version, the versions differ by region or accent.
-4. Save the class, and everyone who joins it lands in that course.
+1. Leave it as it is to teach the language you signed up with.
+2. To teach something else, tap the picker on the class row.
+3. Start typing a language to narrow the list — the catalogue runs to dozens of courses.
+4. Pick the one you want. Where a language offers more than one version, the versions differ by region or accent.
+5. Save the class, and everyone who joins it lands in that course.
 
 **Worth knowing.** The list here is whatever you left ticked at the Choose courses step. If a course you expect is missing, go back a step and tick it.
 
@@ -958,7 +975,7 @@ Section: seeing-progress · roles: leader, school_admin, teacher · anchor: `cla
 3. Type a name into the search box to jump to one student.
 4. Compare a student's practice against the class average shown in the rail beside the table.
 
-**Worth knowing.** A student who has never started shows as inactive rather than as behind, because nothing has happened yet to judge.
+**Worth knowing.** A student who has never started shows as inactive rather than as behind, because nothing has happened yet to judge. A class nobody has joined yet shows its empty places instead of a table, with **Add students** in it.
 
 ## The invites desk
 

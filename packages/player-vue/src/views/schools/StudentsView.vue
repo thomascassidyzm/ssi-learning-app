@@ -192,7 +192,7 @@ watch(selectedUser, (newUser) => {
              Worth knowing. The export follows your filters, not the whole school — so
              a filtered list gives you a filtered file. Clear the filters first if you
              want everybody.
-             checked: 4c2a8130
+             checked: 4c2a8130.3f2fd968
         -->
         <button data-walk="students-export" v-if="enrichedStudents.length > 0" type="button" class="btn-ghost" @click="exportCsv">
           Export CSV
@@ -319,7 +319,7 @@ watch(selectedUser, (newUser) => {
                    how they sit against their own class, so a learner marked as
                    needing attention is one who has gone quiet or fallen behind
                    the people beside them.
-                   checked: 7abab547
+                   checked: 7abab547.47acab15
               -->
               <a href="#" class="cell-link" data-walk="student-view-link" @click.prevent="viewStudent(s)">View &rarr;</a>
             </td>
