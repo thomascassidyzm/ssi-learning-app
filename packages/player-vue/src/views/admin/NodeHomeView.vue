@@ -7,6 +7,7 @@
 import { ref, computed, watch, nextTick, defineAsyncComponent } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
+import { useI18n } from '@/composables/useI18n'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { useClassesData } from '@/composables/schools/useClassesData'
@@ -57,6 +58,7 @@ import { timeAgo } from '@/composables/admin/adminUtils'
 
 const route = useRoute()
 const { getClient, getAuthToken } = useAdminClient()
+const { t } = useI18n()
 
 // Member mount (/org/:id — a leader inside the /schools shell) vs the
 // admin mount. Same page, same endpoint; the server scopes a leader to their
@@ -175,14 +177,14 @@ async function fetchHome(): Promise<void> {
     if (!resp.ok) {
       // Access lost or node gone — a cached rail must not outlive it.
       dropCachedNode(id)
-      throw new Error(data.error || 'Failed to load')
+      throw new Error(data.error || t('org.nodeHome.failedToLoad', 'Failed to load'))
     }
     home.value = data
     loadedId.value = id
     cacheNodeHome(id, data, '')
     markUpdated()
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to load'
+    error.value = err instanceof Error ? err.message : t('org.nodeHome.failedToLoad', 'Failed to load')
   } finally {
     isLoading.value = false
   }
@@ -253,11 +255,13 @@ const setupBannerDone = computed(() => (home.value?.node?.rollup?.classCount ?? 
 const setupBannerTo = computed(() => (setupBannerDone.value ? '/schools/classes' : '/schools/setup'))
 const setupBannerCopy = computed(() =>
   setupBannerDone.value
-    ? 'Your classes are ready. The last step is your pupils — open a class and share its join link with them.'
-    : 'Set up your school in four quick steps — name it, invite your teachers, choose your courses and get your pupils into a class.',
+    ? t('org.nodeHome.setupBannerCopyDone', 'Your classes are ready. The last step is your pupils — open a class and share its join link with them.')
+    : t('org.nodeHome.setupBannerCopyStart', 'Set up your school in four quick steps — name it, invite your teachers, choose your courses and get your pupils into a class.'),
 )
 const setupBannerCta = computed(() =>
-  setupBannerDone.value ? 'Go to your classes →' : 'Start setup →',
+  setupBannerDone.value
+    ? t('org.nodeHome.setupBannerCtaDone', 'Go to your classes →')
+    : t('org.nodeHome.setupBannerCtaStart', 'Start setup →'),
 )
 
 const showConfirmName = computed(
@@ -284,7 +288,7 @@ async function saveSchoolName(): Promise<void> {
     // page doesn't keep showing the old one after a successful save.
     await Promise.all([schoolData.fetchSchools(), fetchHome()])
   } else {
-    schoolNameError.value = 'Could not save — try again.'
+    schoolNameError.value = t('org.nodeHome.schoolNameSaveError', 'Could not save — try again.')
   }
 }
 
@@ -313,10 +317,10 @@ const rail = computed(() => {
 const stateBadge = computed(() => {
   const n = home.value?.node
   if (!n) return null
-  if (n.is_demo) return { word: 'Demo', tone: 'amber' }
+  if (n.is_demo) return { word: t('org.nodeHome.badgeDemo', 'Demo'), tone: 'amber' }
   const status = n.commercial?.platformStatus
   if (!status) return null
-  if (status === 'active' || status === 'paid') return { word: 'Paid — all courses', tone: 'green' }
+  if (status === 'active' || status === 'paid') return { word: t('org.nodeHome.badgePaid', 'Paid — all courses'), tone: 'green' }
   if (status.startsWith('trial')) {
     // Name the language, never the raw code (founder report 2026-08-07: this
     // read a bare "Trial" because the school's trial_course_code was null, and
@@ -328,7 +332,12 @@ const stateBadge = computed(() => {
     // "Trial" is the honest reading of "trialling, nothing committed yet"
     // rather than the permanent blank it used to be.
     const course = courseShortName(n.commercial?.trialCourseCode)
-    return { word: course ? `Trial — ${course}` : 'Trial', tone: 'amber' }
+    return {
+      word: course
+        ? t('org.nodeHome.badgeTrialWithCourse', 'Trial — {course}').replace('{course}', course)
+        : t('org.nodeHome.badgeTrial', 'Trial'),
+      tone: 'amber',
+    }
   }
   return { word: status.replace(/_/g, ' '), tone: 'grey' }
 })
@@ -336,7 +345,7 @@ const stateBadge = computed(() => {
 const labelWord = computed(() => {
   const n = home.value?.node
   if (!n) return ''
-  if (isClass.value) return 'Class'
+  if (isClass.value) return t('org.nodeHome.labelClass', 'Class')
   // Label-not-type (THE-MODEL §2.1): the node's OWN label is the display
   // word. Only when a node carries no label do we fall back to what its
   // attachments suggest. (Founder-reported wart 2026-07-20: the IME
@@ -344,8 +353,8 @@ const labelWord = computed(() => {
   // school row made `commercial` truthy — the attachment must never outvote
   // the label.)
   if (n.label) return n.label[0].toUpperCase() + n.label.slice(1)
-  if (n.commercial || n.hasSchool) return 'School'
-  return 'Group'
+  if (n.commercial || n.hasSchool) return t('org.nodeHome.labelSchool', 'School')
+  return t('org.nodeHome.labelGroup', 'Group')
 })
 
 // ─── Stats row (same cards at every level, subtree totals). CLASS PRACTICE
@@ -363,25 +372,25 @@ const stats = computed(() => {
   const cp = classPractice.value
   if (isClass.value) {
     return [
-      { value: cp?.weekSessions ?? 0, word: 'Class sessions this week' },
-      { value: `${cp?.hours ?? 0}h`, word: 'Class practice' },
-      { value: r.learnerCount ?? 0, word: 'Students' },
-      { value: r.teacherCount ?? 0, word: 'Teachers' },
+      { value: cp?.weekSessions ?? 0, word: t('org.nodeHome.statClassSessionsThisWeek', 'Class sessions this week') },
+      { value: `${cp?.hours ?? 0}h`, word: t('org.nodeHome.statClassPractice', 'Class practice') },
+      { value: r.learnerCount ?? 0, word: t('org.nodeHome.statStudents', 'Students') },
+      { value: r.teacherCount ?? 0, word: t('org.nodeHome.statTeachers', 'Teachers') },
     ]
   }
   // Neutral dressing: no class/teacher words — practice, groups, learners.
   if (neutral.value) {
     return [
-      { value: `${home.value?.practiceHours ?? 0}h`, word: 'Practice hours' },
-      { value: r.childGroupCount ?? 0, word: 'Groups' },
-      { value: r.learnerCount ?? 0, word: 'Learners' },
+      { value: `${home.value?.practiceHours ?? 0}h`, word: t('org.nodeHome.statPracticeHours', 'Practice hours') },
+      { value: r.childGroupCount ?? 0, word: t('org.nodeHome.statGroups', 'Groups') },
+      { value: r.learnerCount ?? 0, word: t('org.nodeHome.statLearners', 'Learners') },
     ]
   }
   return [
-    { value: cp ? `${cp.hours}h` : `${home.value?.practiceHours ?? 0}h`, word: 'Class practice' },
-    { value: cp ? `${cp.activeClasses7d}/${cp.classCount || r.classCount || 0}` : (r.classCount ?? 0), word: cp ? 'Classes practising this week' : 'Classes' },
-    { value: r.teacherCount ?? 0, word: 'Teachers' },
-    { value: r.learnerCount ?? 0, word: 'Learners' },
+    { value: cp ? `${cp.hours}h` : `${home.value?.practiceHours ?? 0}h`, word: t('org.nodeHome.statClassPractice', 'Class practice') },
+    { value: cp ? `${cp.activeClasses7d}/${cp.classCount || r.classCount || 0}` : (r.classCount ?? 0), word: cp ? t('org.nodeHome.statClassesPractisingThisWeek', 'Classes practising this week') : t('org.nodeHome.statClasses', 'Classes') },
+    { value: r.teacherCount ?? 0, word: t('org.nodeHome.statTeachers', 'Teachers') },
+    { value: r.learnerCount ?? 0, word: t('org.nodeHome.statLearners', 'Learners') },
   ]
 })
 
@@ -537,7 +546,7 @@ const assignClasses = computed<AssignableClass[]>(() => {
 
 const assignLoadError = computed(() =>
   classesData?.error.value
-    ? `Couldn't load this school's classes, so this list may be incomplete. ${classesData.error.value}`
+    ? t('org.nodeHome.assignLoadError', "Couldn't load this school's classes, so this list may be incomplete. {error}").replace('{error}', classesData.error.value)
     : ''
 )
 
@@ -554,14 +563,14 @@ const signinLinkCopied = ref(false)
 
 async function openSigninLink(person: { user_id: string; name: string }): Promise<void> {
   const userId = person.user_id
-  const name = person.name || 'this teacher'
+  const name = person.name || t('org.nodeHome.thisTeacherFallback', 'this teacher')
   signinLinkBusy.value = userId
   signinLinkError.value = ''
   signinLinkCopied.value = false
   const result = await createStaffSigninLink(userId)
   signinLinkBusy.value = ''
   if (result.code && result.joinUrl) signinLinkFor.value = { name, code: result.code, joinUrl: result.joinUrl }
-  else signinLinkError.value = `Couldn't create an access code for ${name}: ${result.error}`
+  else signinLinkError.value = t('org.nodeHome.signinLinkCreateError', "Couldn't create an access code for {name}: {error}").replace('{name}', name).replace('{error}', result.error)
   // The panel renders below a long page; without this the admin taps and
   // nothing appears to happen.
   await nextTick()
@@ -637,14 +646,14 @@ const listPayload = computed(() => {
        per-school wall). Replaces the whole node home for this leader. -->
   <div v-if="showOrgExpiredWall" class="org-expired">
     <div class="org-expired-card schools-card">
-      <span class="org-expired-pill">● Trial ended</span>
-      <h1 class="arsenal org-expired-headline">Your organisation's free trial has ended</h1>
+      <span class="org-expired-pill">● {{ t('org.nodeHome.trialEndedPill', 'Trial ended') }}</span>
+      <h1 class="arsenal org-expired-headline">{{ t('org.nodeHome.trialEndedHeadline', "Your organisation's free trial has ended") }}</h1>
       <p class="org-expired-lede">
-        Subscribe below to keep every member, group and team in your organisation. Your data is safe — nothing is deleted.
+        {{ t('org.nodeHome.trialEndedLede', 'Subscribe below to keep every member, group and team in your organisation. Your data is safe — nothing is deleted.') }}
       </p>
       <UpgradeView v-if="UpgradeView && seatPurchaseAvailable" />
       <p v-else class="org-expired-lede">
-        Ask your organisation's administrator to renew the subscription.
+        {{ t('org.nodeHome.trialEndedAskAdmin', "Ask your organisation's administrator to renew the subscription.") }}
       </p>
     </div>
   </div>
@@ -658,14 +667,17 @@ const listPayload = computed(() => {
          expiry). -->
     <div v-if="showOrgTrialBanner && seatPurchaseAvailable" class="org-trial-banner schools-card">
       <span class="org-trial-copy">
-        {{ orgGate?.trial_days_remaining }} day{{ orgGate?.trial_days_remaining === 1 ? '' : 's' }} left in your organisation's free trial — every language included.
+        {{ (orgGate?.trial_days_remaining === 1
+              ? t('org.nodeHome.trialBannerSingular', "{n} day left in your organisation's free trial — every language included.")
+              : t('org.nodeHome.trialBannerPlural', "{n} days left in your organisation's free trial — every language included.")
+            ).replace('{n}', String(orgGate?.trial_days_remaining)) }}
       </span>
-      <router-link to="/org/upgrade" class="org-trial-cta">Upgrade →</router-link>
+      <router-link to="/org/upgrade" class="org-trial-cta">{{ t('org.nodeHome.upgradeCta', 'Upgrade →') }}</router-link>
     </div>
 
     <div v-if="isLoading && !home && !rail" class="node-loading">
       <div class="loading-spinner"></div>
-      <p>Loading…</p>
+      <p>{{ t('org.nodeHome.loading', 'Loading…') }}</p>
     </div>
     <div v-else-if="error && !home" class="node-loading"><p>{{ error }}</p></div>
 
@@ -708,7 +720,7 @@ const listPayload = computed(() => {
         <div v-if="!home" class="main-col">
           <div class="node-loading">
             <div class="loading-spinner"></div>
-            <p>Loading…</p>
+            <p>{{ t('org.nodeHome.loading', 'Loading…') }}</p>
           </div>
         </div>
         <div v-else class="main-col">
@@ -726,9 +738,9 @@ const listPayload = computed(() => {
               <p v-if="isClass && home.teachers?.length" class="identity-teachers">
                 <template v-if="switching">{{ NBSP }}</template>
                 <template v-else>
-                  Taught by
-                  <template v-for="(t, i) in home.teachers" :key="t.user_id">
-                    <strong>{{ t.name }}</strong><span v-if="t.is_lead" class="lead-tag"> (lead)</span><span v-if="i < home.teachers.length - 1">, </span>
+                  {{ t('org.nodeHome.taughtBy', 'Taught by') }}
+                  <template v-for="(tch, i) in home.teachers" :key="tch.user_id">
+                    <strong>{{ tch.name }}</strong><span v-if="tch.is_lead" class="lead-tag"> ({{ t('org.nodeHome.leadTag', 'lead') }})</span><span v-if="i < home.teachers.length - 1">, </span>
                   </template>
                 </template>
               </p>
@@ -741,7 +753,7 @@ const listPayload = computed(() => {
               <p v-else-if="!isClass && home.leaders?.length" class="identity-teachers">
                 <template v-if="switching">{{ NBSP }}</template>
                 <template v-else>
-                  Led by
+                  {{ t('org.nodeHome.ledBy', 'Led by') }}
                   <template v-for="(l, i) in home.leaders" :key="l.user_id">
                     <strong>{{ l.name }}</strong><span v-if="i < home.leaders.length - 1">, </span>
                   </template>
@@ -749,13 +761,13 @@ const listPayload = computed(() => {
               </p>
               <p v-else-if="!isClass && isRootNode" class="identity-teachers identity-noleader">
                 <template v-if="switching">{{ NBSP }}</template>
-                <template v-else>No group leader yet</template>
+                <template v-else>{{ t('org.nodeHome.noGroupLeaderYet', 'No group leader yet') }}</template>
               </p>
             </div>
 
             <!-- Lens/insight nav — same corner, every level -->
             <div class="verbs">
-              <router-link v-if="insightsLink" :to="insightsLink" class="verb-btn verb-btn-secondary">See insights</router-link>
+              <router-link v-if="insightsLink" :to="insightsLink" class="verb-btn verb-btn-secondary">{{ t('org.nodeHome.seeInsights', 'See insights') }}</router-link>
             </div>
           </header>
 
@@ -789,14 +801,14 @@ const listPayload = computed(() => {
                school-scoped admins were redirected here (2026-07-30).
                Own school node only; never a class, group, or the admin view. -->
           <div v-if="showConfirmName" class="schools-card first-run-card">
-            <h3 class="arsenal first-run-title">Confirm your school's name</h3>
-            <p class="first-run-note">This is what your teachers and students will see.</p>
+            <h3 class="arsenal first-run-title">{{ t('org.nodeHome.confirmNameTitle', "Confirm your school's name") }}</h3>
+            <p class="first-run-note">{{ t('org.nodeHome.confirmNameNote', 'This is what your teachers and students will see.') }}</p>
             <div class="first-run-row">
               <input
                 v-model="schoolNameDraft"
                 type="text"
                 class="frost-input"
-                placeholder="e.g. Ysgol y Garnedd"
+                :placeholder="t('org.nodeHome.confirmNamePlaceholder', 'e.g. Ysgol y Garnedd')"
                 :disabled="isSavingSchoolName"
                 @keyup.enter="saveSchoolName"
               />
@@ -804,14 +816,14 @@ const listPayload = computed(() => {
                 class="btn-primary-sm"
                 :disabled="isSavingSchoolName || !schoolNameDraft.trim()"
                 @click="saveSchoolName"
-              >{{ isSavingSchoolName ? 'Saving…' : 'Save' }}</button>
+              >{{ isSavingSchoolName ? t('org.nodeHome.saving', 'Saving…') : t('org.nodeHome.save', 'Save') }}</button>
             </div>
             <p v-if="schoolNameError" class="first-run-error">{{ schoolNameError }}</p>
           </div>
 
           <router-link v-if="showSetupBanner" :to="setupBannerTo" class="schools-card setup-banner">
             <span class="setup-banner-copy">
-              <span class="setup-banner-kicker">{{ setupBannerDone ? 'Last step' : 'Get started' }}</span>
+              <span class="setup-banner-kicker">{{ setupBannerDone ? t('org.nodeHome.setupKickerLastStep', 'Last step') : t('org.nodeHome.setupKickerGetStarted', 'Get started') }}</span>
               {{ setupBannerCopy }}
             </span>
             <span class="setup-banner-cta">{{ setupBannerCta }}</span>
@@ -909,17 +921,20 @@ const listPayload = computed(() => {
                  checked: 2423aa12.0aca4ce8
             -->
             <div class="schools-card class-card" data-walk="class-practice">
-              <span class="schools-kicker">Class practice</span>
+              <span class="schools-kicker">{{ t('org.nodeHome.statClassPractice', 'Class practice') }}</span>
               <template v-if="classPractice?.totalSessions">
                 <p class="class-practice-headline frost-mono-nums">
-                  {{ classPractice.weekSessions }}<span class="class-practice-unit"> {{ classPractice.weekSessions === 1 ? 'session' : 'sessions' }} this week</span>
+                  {{ classPractice.weekSessions }}<span class="class-practice-unit"> {{ classPractice.weekSessions === 1 ? t('org.nodeHome.sessionThisWeek', 'session this week') : t('org.nodeHome.sessionsThisWeek', 'sessions this week') }}</span>
                 </p>
                 <p class="class-card-note">
-                  Last class session {{ classPractice.lastSessionAt ? timeAgo(classPractice.lastSessionAt) : '—' }}.<br />
-                  {{ classPractice.hours }}h practised together over {{ classPractice.totalSessions }} {{ classPractice.totalSessions === 1 ? 'session' : 'sessions' }}.
+                  {{ t('org.nodeHome.lastClassSession', 'Last class session {time}.').replace('{time}', classPractice.lastSessionAt ? timeAgo(classPractice.lastSessionAt) : '—') }}<br />
+                  {{ (classPractice.totalSessions === 1
+                        ? t('org.nodeHome.practisedTogetherSingular', '{hours}h practised together over {total} session.')
+                        : t('org.nodeHome.practisedTogetherPlural', '{hours}h practised together over {total} sessions.')
+                      ).replace('{hours}', String(classPractice.hours)).replace('{total}', String(classPractice.totalSessions)) }}
                 </p>
               </template>
-              <p v-else class="class-card-note">No class practice yet — the teacher's Play as class button starts the first session.</p>
+              <p v-else class="class-card-note">{{ t('org.nodeHome.noClassPracticeYet', "No class practice yet — the teacher's Play as class button starts the first session.") }}</p>
             </div>
             <!-- HANDBOOK How far a class has travelled
                  section: seeing-progress
@@ -945,7 +960,7 @@ const listPayload = computed(() => {
                  checked: 37cd9c93.325026db
             -->
             <div class="schools-card class-card" data-walk="class-journey">
-              <span class="schools-kicker">Course journey</span>
+              <span class="schools-kicker">{{ t('org.nodeHome.courseJourney', 'Course journey') }}</span>
               <!-- The bar runs in LEGOs on both sides. journey.done is the
                    CLASS's own play-as-class position as a LEGO ordinal
                    (source 'class-play'); only classes that have never played
@@ -961,12 +976,12 @@ const listPayload = computed(() => {
               <JourneyBar v-else-if="journey" :done="classAvgLegos" :total="Math.max(journey.total, classAvgLegos)" label="Course Journey" />
               <p class="class-card-note">
                 <template v-if="journey && journey.source === 'class-play'">
-                  The class has travelled {{ journey.done }} of {{ journey.total }} LEGOs together.
-                  Students average {{ classAvgLegos }} LEGOs on their own.<br />
+                  {{ t('org.nodeHome.classTravelled', 'The class has travelled {done} of {total} LEGOs together.').replace('{done}', String(journey.done)).replace('{total}', String(journey.total)) }}
+                  {{ t('org.nodeHome.studentsAverageLegos', 'Students average {n} LEGOs on their own.').replace('{n}', String(classAvgLegos)) }}<br />
                 </template>
-                <template v-else>{{ classAvgLegos }} LEGOs mastered on average across the class.<br /></template>
-                <template v-if="nextBeltInfo">{{ nextBeltInfo.remaining }} more to {{ nextBeltInfo.name }} belt.</template>
-                <template v-else>Reached Black belt — top of the ladder.</template>
+                <template v-else>{{ t('org.nodeHome.legosMasteredAverage', '{n} LEGOs mastered on average across the class.').replace('{n}', String(classAvgLegos)) }}<br /></template>
+                <template v-if="nextBeltInfo">{{ t('org.nodeHome.moreToBelt', '{n} more to {belt} belt.').replace('{n}', String(nextBeltInfo.remaining)).replace('{belt}', nextBeltInfo.name) }}</template>
+                <template v-else>{{ t('org.nodeHome.reachedBlackBelt', 'Reached Black belt — top of the ladder.') }}</template>
               </p>
             </div>
             <!-- HANDBOOK Reading the belts
@@ -993,7 +1008,7 @@ const listPayload = computed(() => {
                  checked: fa2db137.ed26d442
             -->
             <div class="schools-card class-card" data-walk="class-belts">
-              <span class="schools-kicker">Belt distribution</span>
+              <span class="schools-kicker">{{ t('org.nodeHome.beltDistribution', 'Belt distribution') }}</span>
               <template v-if="enrichedStudents.length">
                 <BeltStrip :distribution="beltDistribution" :height="8" />
                 <div class="belt-legend">
@@ -1004,7 +1019,7 @@ const listPayload = computed(() => {
                   </div>
                 </div>
               </template>
-              <p v-else class="class-card-note">No students in this class yet.</p>
+              <p v-else class="class-card-note">{{ t('org.nodeHome.noStudentsYet', 'No students in this class yet.') }}</p>
             </div>
             <!-- HANDBOOK Practice per student per week
                  section: seeing-progress
@@ -1030,16 +1045,16 @@ const listPayload = computed(() => {
                  checked: 3079497c.7623dd0e
             -->
             <div class="schools-card class-card" data-walk="class-benchmark">
-              <span class="schools-kicker">Practice min/student/week</span>
+              <span class="schools-kicker">{{ t('org.nodeHome.practiceMinStudentWeek', 'Practice min/student/week') }}</span>
               <Bench v-if="benchmark" :data="benchmark" unit="m" />
-              <p v-else class="class-card-note">Not enough practice recorded yet.</p>
+              <p v-else class="class-card-note">{{ t('org.nodeHome.notEnoughPractice', 'Not enough practice recorded yet.') }}</p>
             </div>
           </div>
 
           <!-- CHILDREN LIST + lenses -->
           <section class="children-section schools-card">
             <div class="children-head">
-              <span class="schools-kicker">{{ isClass ? 'Students' : 'Below this' }}</span>
+              <span class="schools-kicker">{{ isClass ? t('org.nodeHome.statStudents', 'Students') : t('org.nodeHome.belowThis', 'Below this') }}</span>
             </div>
             <!-- The body holds its pre-load height while rows re-fetch (node
                  switch, lens change or refresh) — no collapse-to-spinner,
@@ -1049,7 +1064,7 @@ const listPayload = computed(() => {
               class="children-body"
               :style="isLoading && childrenHoldPx ? { minHeight: `${childrenHoldPx}px` } : undefined"
             >
-              <div v-if="isLoading" class="children-loading">Loading…</div>
+              <div v-if="isLoading" class="children-loading">{{ t('org.nodeHome.loading', 'Loading…') }}</div>
               <!-- BELOW THIS, drawn: this node and what hangs beneath it,
                    nested. A class home keeps its one flat list of students. -->
               <template v-else-if="!isClass">
@@ -1057,14 +1072,18 @@ const listPayload = computed(() => {
                   <NodeBelowTree
                     :node="belowTree"
                     is-root
-                    :person-action-label="canAssignTeachers ? 'Assign to a class' : undefined"
-                    :person-action2-label="canAssignTeachers ? 'Access code' : undefined"
+                    :person-action-label="canAssignTeachers ? t('org.nodeHome.assignToClass', 'Assign to a class') : undefined"
+                    :person-action2-label="canAssignTeachers ? t('org.nodeHome.accessCode', 'Access code') : undefined"
                     @person-action="openAssign"
                     @person-action-2="openSigninLink"
                   />
                 </div>
                 <p v-if="belowTree && belowTreeIsBare" class="children-bare">
-                  {{ neutral ? 'Nothing below this yet — add a group or invite people with the buttons above.' : (member ? 'Nothing below this yet.' : 'Nothing below this yet — use the buttons above to add a school or group.') }}
+                  {{ neutral
+                      ? t('org.nodeHome.bareNeutral', 'Nothing below this yet — add a group or invite people with the buttons above.')
+                      : (member
+                          ? t('org.nodeHome.bareMember', 'Nothing below this yet.')
+                          : t('org.nodeHome.bareAdmin', 'Nothing below this yet — use the buttons above to add a school or group.')) }}
                 </p>
               </template>
               <!-- HANDBOOK Reading one student's progress
@@ -1099,7 +1118,7 @@ const listPayload = computed(() => {
                 :lens="lens"
                 :payload="listPayload"
               >
-                <template #empty>No students in this class yet.</template>
+                <template #empty>{{ t('org.nodeHome.noStudentsYet', 'No students in this class yet.') }}</template>
               </NodeChildrenList>
             </div>
           </section>
@@ -1141,23 +1160,19 @@ const listPayload = computed(() => {
         <div v-if="signinLinkError" ref="signinLinkPanelEl" class="signin-link-error" role="alert">{{ signinLinkError }}</div>
 
     <div v-if="signinLinkFor" ref="signinLinkPanelEl" class="signin-link-panel">
-      <div class="signin-link-kicker">Access code for {{ signinLinkFor.name }}</div>
+      <div class="signin-link-kicker">{{ t('org.nodeHome.accessCodeFor', 'Access code for {name}').replace('{name}', signinLinkFor.name) }}</div>
       <p class="signin-link-body">
-        Read this out, write it down, or paste it into Teams &mdash; however you
-        normally reach {{ signinLinkFor.name }}. They go to
-        <strong>saysomethingin.app/join</strong> and type it in. No email needed.
+        {{ t('org.nodeHome.signinLinkBody', 'Read this out, write it down, or paste it into Teams — however you normally reach {name}. They go to saysomethingin.app/join and type it in. No email needed.').replace('{name}', signinLinkFor.name) }}
       </p>
       <div class="signin-link-code">{{ signinLinkFor.code }}</div>
       <div class="signin-link-row">
         <code class="signin-link-url">{{ signinLinkFor.joinUrl }}</code>
-        <button type="button" class="signin-link-copy" @click="copySigninLink">{{ signinLinkCopied ? 'Copied' : 'Copy link' }}</button>
+        <button type="button" class="signin-link-copy" @click="copySigninLink">{{ signinLinkCopied ? t('org.nodeHome.copied', 'Copied') : t('org.nodeHome.copyLink', 'Copy link') }}</button>
       </div>
       <p class="signin-link-caveat">
-        It works once, and lasts two days. Whoever uses it becomes
-        {{ signinLinkFor.name }}, so give it straight to them and don&rsquo;t post
-        it anywhere shared. You can make another any time.
+        {{ t('org.nodeHome.signinLinkCaveat', "It works once, and lasts two days. Whoever uses it becomes {name}, so give it straight to them and don't post it anywhere shared. You can make another any time.").replace('{name}', signinLinkFor.name) }}
       </p>
-      <button type="button" class="signin-link-done" @click="signinLinkFor = null">Done</button>
+      <button type="button" class="signin-link-done" @click="signinLinkFor = null">{{ t('org.nodeHome.done', 'Done') }}</button>
     </div>
 
 <AssignClassesModal
