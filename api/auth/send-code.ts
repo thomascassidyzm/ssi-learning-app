@@ -130,12 +130,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const addressCount = await countSince('email', email)
   if (addressCount !== null && addressCount >= SEND_CODE_PER_ADDRESS_LIMIT) {
     await log(RATE_LIMITED_ADDRESS)
-    return res.status(429).json({ error: 'We have sent several codes to that address already. Please wait a few minutes and try again.' })
+    return res.status(429).json({ error: "We've sent a few codes to that address already, and the last one may still be on its way. Give it a couple of minutes, then try again." })
   }
   const ipCount = await countSince('ip_hash', ipHash)
   if (ipCount !== null && ipCount >= SEND_CODE_PER_IP_LIMIT) {
     await log(RATE_LIMITED_IP)
-    return res.status(429).json({ error: 'Too many codes have been sent from this network just now. Please wait a few minutes and try again.' })
+    return res.status(429).json({ error: 'A lot of codes have gone out from this network in the last few minutes. Give it a couple of minutes, then try again.' })
   }
 
   // Mint the code without sending. No Supabase template is involved.

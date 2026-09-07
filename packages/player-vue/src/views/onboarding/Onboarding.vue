@@ -10,6 +10,7 @@ import { useUserRole } from '@/composables/useUserRole'
 import { readLastKnownIdentity, writeLastKnownIdentity } from '@/composables/lastKnownIdentity'
 import { readDuplicateWarning } from '@/utils/duplicateNameWarning'
 import { hasLiveSessionFor, useLoginCodeAudit } from '@/auth/loginCode'
+import { friendlySendCodeError } from '@/auth/sendCodeMessage'
 import {
   TRACKS,
   coursesForTrack,
@@ -604,7 +605,7 @@ async function sendCode() {
   try {
     const { error: e } = await sendSignInCode(supabase.value, email.value)
     if (e) {
-      error.value = e.message || 'Could not send your code'
+      error.value = friendlySendCodeError(e.message)
       return
     }
     step.value = 'otp'
@@ -616,7 +617,7 @@ async function sendCode() {
       deliveryHintTimer = setTimeout(() => { showDeliveryHint.value = true }, 20000)
     }
   } catch (e: any) {
-    error.value = e?.message || 'Could not send your code'
+    error.value = friendlySendCodeError(e?.message)
   } finally {
     busy.value = false
   }
@@ -1205,7 +1206,8 @@ async function continueIn() {
           <p class="ob-trial ob-trial-quiet">{{ t('onboarding.almostThere') }}</p>
           <h1 class="ob-title">{{ t('onboarding.checkEmail') }}</h1>
           <p class="ob-sub">
-            Enter the 6-digit code we sent to <strong>{{ email }}</strong>.
+            Enter the 6-digit code we sent to <strong>{{ email }}</strong>. It can take a
+            couple of minutes to arrive.
           </p>
 
           <div class="ob-field">
