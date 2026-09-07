@@ -138,6 +138,87 @@ function existingPremiumRow(calls: any[][]) {
   }
 }
 
+/** The row a Family owner already has, on the SAME subscription id. */
+function existingFamilyRow(calls: any[][]) {
+  if (calls.some((c) => c[0] === 'upsert')) return { data: { id: 'sub-1' }, error: null }
+  return {
+    data: {
+      id: 'sub-1',
+      learner_id: 'learner-1',
+      plan_name: 'SSi Family',
+      status: 'active',
+      provider_subscription_id: 'psub_live_1',
+    },
+    error: null,
+  }
+}
+
+/** A Family row owned by a DIFFERENT, still-live subscription. */
+function familyRowOwnedByAnotherSubscription(calls: any[][]) {
+  if (calls.some((c) => c[0] === 'upsert')) return { data: { id: 'sub-1' }, error: null }
+  return {
+    data: {
+      id: 'sub-1',
+      learner_id: 'learner-1',
+      plan_name: 'SSi Family',
+      status: 'active',
+      provider_subscription_id: 'psub_someone_elses',
+    },
+    error: null,
+  }
+}
+
+describe('paddle-webhook: a subscription is authoritative over its OWN row', () => {
+  let handler: typeof import('./paddle-webhook').default
+
+  beforeEach(async () => {
+    vi.resetModules()
+    writes = {}
+    responders = { processed_webhook_events: defaultDedupResponder }
+    dedupSeen = new Set()
+    currentEvent = null
+    evtCounter = 0
+    handler = (await import('./paddle-webhook')).default
+  })
+
+  // FAILS before the same-subscription carve-out in wouldDowngradePlan: the
+  // precedence guard sees 'SSi Family' (rank 4) outranking 'SSi Premium'
+  // (rank 2), skips the upsert, and our row keeps granting six seats the payer
+  // has stopped paying for. Observed live on 2026-09-07 23:40:25 — Paddle said
+  // Premium, our database said SSi Family.
+  it('writes a Family → Premium change back down when it is the same subscription', async () => {
+    responders.learners = () => ({ data: { id: 'learner-1' }, error: null })
+    responders.subscriptions = existingFamilyRow
+    currentEvent = updatedEvent(PREMIUM_PRICE, { kind: 'premium', supabase_user_id: 'user-x' })
+
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    expect(res._status).toBe(200)
+    const up = writes.subscriptions?.find((w) => w.op === 'upsert')
+    expect(up, 'the subscription that owns the row must be allowed to rewrite it').toBeTruthy()
+    expect(up!.payload).toMatchObject({
+      learner_id: 'learner-1',
+      plan_name: 'SSi Premium',
+      plan_id: PREMIUM_PRICE,
+      provider_subscription_id: 'psub_live_1',
+    })
+  })
+
+  // The cross-subscription case the guard was written for is untouched.
+  it('still refuses a lower-ranked write from a DIFFERENT live subscription', async () => {
+    responders.learners = () => ({ data: { id: 'learner-1' }, error: null })
+    responders.subscriptions = familyRowOwnedByAnotherSubscription
+    currentEvent = updatedEvent(PREMIUM_PRICE, { kind: 'premium', supabase_user_id: 'user-x' })
+
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    expect(res._status).toBe(200)
+    expect(writes.subscriptions?.some((w) => w.op === 'upsert')).toBeFalsy()
+  })
+})
+
 describe('paddle-webhook: Premium → Family plan change', () => {
   let handler: typeof import('./paddle-webhook').default
 

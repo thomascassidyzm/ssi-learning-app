@@ -168,18 +168,34 @@ const NON_TERMINAL_SUB_STATUSES = new Set(['active', 'past_due'])
 // an existing higher-ranked, still-active plan — in which case the caller
 // must skip the upsert (leaving the higher-ranked row untouched) rather than
 // clobber it.
+//
+// A SUBSCRIPTION IS ALWAYS AUTHORITATIVE OVER ITS OWN ROW (2026-09-07).
+// The guard exists to stop a DIFFERENT, lower-ranked subscription clobbering
+// a higher-ranked one — the gift/attack shape wouldStealLiveSubscriptionRow
+// describes. It was never meant to police a subscription's own plan changes,
+// and doing so made our database lie: observed live tonight, a Family
+// subscription moved back to Premium in Paddle left `plan_name = 'SSi Family'`
+// standing in our row, so we kept granting six seats nobody was paying for.
+// A plan change is exactly what `subscription.updated` is for, and it can go
+// down as legitimately as it goes up — Paddle's own portal offers it. So when
+// the incoming event carries the SAME provider_subscription_id the row already
+// holds, this guard stands aside; the cross-subscription case it was written
+// for is untouched, and wouldStealLiveSubscriptionRow still covers it.
 export async function wouldDowngradePlan(
   supabase: any,
   learnerId: string,
-  incomingPlanName: string
+  incomingPlanName: string,
+  incomingSubscriptionId?: string | null
 ): Promise<boolean> {
   const { data: existing, error } = await supabase
     .from('subscriptions')
-    .select('plan_name, status')
+    .select('plan_name, status, provider_subscription_id')
     .eq('learner_id', learnerId)
     .maybeSingle()
   if (error || !existing?.plan_name) return false // no existing row → nothing to downgrade
   if (!NON_TERMINAL_SUB_STATUSES.has(existing.status)) return false // terminal (cancelled/none) → grants nothing, never blocks
+  // Same subscription → it owns this row and may rewrite its own plan.
+  if (incomingSubscriptionId && existing.provider_subscription_id === incomingSubscriptionId) return false
 
   const incomingRank = PLAN_PRECEDENCE[incomingPlanName] ?? 0
   const existingRank = PLAN_PRECEDENCE[existing.plan_name] ?? 0
@@ -1149,7 +1165,7 @@ async function grantLearnerPremium(
   // Skip the row write when the incoming plan would downgrade a live higher
   // plan, OR when it would steal a live binding from another subscription.
   if (
-    (await wouldDowngradePlan(supabase, learnerId, planName)) ||
+    (await wouldDowngradePlan(supabase, learnerId, planName, data.id)) ||
     (await wouldStealLiveSubscriptionRow(supabase, learnerId, data.id))
   ) {
     const { data: existingRow } = await supabase
@@ -1247,7 +1263,7 @@ export async function handlePremiumSubscription(
   // premium checkout still paid Paddle and still needs those effects to run
   // against their EXISTING (higher-ranked) subscription row.
   const skipRowWrite =
-    (await wouldDowngradePlan(supabase, learnerId, 'SSi Premium')) ||
+    (await wouldDowngradePlan(supabase, learnerId, 'SSi Premium', data.id)) ||
     (await wouldStealLiveSubscriptionRow(supabase, learnerId, data.id))
   let subRow: { id: string } | null = null
 
@@ -1406,7 +1422,7 @@ async function writeFamilyRow(supabase: any, learnerId: string, data: any): Prom
   // when the owner's row is ALREADY 'SSi Family' — i.e. never a downgrade,
   // just the same guard every handler uses for renewals/status updates.
   const skipRowWrite =
-    (await wouldDowngradePlan(supabase, learnerId, 'SSi Family')) ||
+    (await wouldDowngradePlan(supabase, learnerId, 'SSi Family', data.id)) ||
     (await wouldStealLiveSubscriptionRow(supabase, learnerId, data.id))
   if (skipRowWrite) {
     console.log('[paddle-webhook] Family subscription row write skipped (existing row already outranks — unexpected, Family is top rank):', data.id)
@@ -1543,7 +1559,7 @@ export async function handleStudentSubscription(
   // enrollment/tagging must always run or the payment is silently lost
   // (webhook 200s, Paddle collected, learner never enrolled).
   const skipRowWrite =
-    (await wouldDowngradePlan(supabase, learner.id, 'SSi Student Access')) ||
+    (await wouldDowngradePlan(supabase, learner.id, 'SSi Student Access', data.id)) ||
     (await wouldStealLiveSubscriptionRow(supabase, learner.id, data.id))
   let subRow: { id: string } | null = null
 
