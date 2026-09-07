@@ -166,7 +166,7 @@ export default async function handler(
     // £25/month conversion that would otherwise dead-end. Everything that
     // succeeds today is untouched — this branch runs only where the
     // alternative is an error.
-    const updated = await updateWithSmallProrationFallback(
+    const { updated, prorationBillingModeUsed } = await updateWithSmallProrationFallback(
       sub.provider_subscription_id,
       priceId,
       prorationBillingMode
@@ -188,7 +188,10 @@ export default async function handler(
       planName: 'SSi Family',
       billingPeriod: period,
       status: updated.status,
-      prorationBillingMode,
+      // What ACTUALLY ran, not what we asked for — the fallback below can
+      // change it, and a money endpoint that misreports itself is a trap for
+      // whoever reads the response next.
+      prorationBillingMode: prorationBillingModeUsed,
     })
   } catch (err: any) {
     // Surface the common Paddle states in language the payer can act on.
@@ -214,22 +217,24 @@ async function updateWithSmallProrationFallback(
   subscriptionId: string,
   priceId: string,
   prorationBillingMode: 'do_not_bill' | 'prorated_immediately'
-): Promise<any> {
+): Promise<{ updated: any; prorationBillingModeUsed: 'do_not_bill' | 'prorated_immediately' }> {
   try {
-    return await paddle.subscriptions.update(subscriptionId, {
+    const updated = await paddle.subscriptions.update(subscriptionId, {
       items: [{ priceId, quantity: 1 }],
       prorationBillingMode,
     })
+    return { updated, prorationBillingModeUsed: prorationBillingMode }
   } catch (err: any) {
     const code = err?.code || err?.error?.code || ''
     const message = String(err?.message || err?.detail || '')
     const belowMinimum = code === PRORATION_BELOW_MINIMUM || message.includes(PRORATION_BELOW_MINIMUM)
     if (!belowMinimum || prorationBillingMode === 'do_not_bill') throw err
     console.warn('[subscription/change-plan] proration below Paddle minimum; changing plan unbilled')
-    return await paddle.subscriptions.update(subscriptionId, {
+    const updated = await paddle.subscriptions.update(subscriptionId, {
       items: [{ priceId, quantity: 1 }],
       prorationBillingMode: 'do_not_bill',
     })
+    return { updated, prorationBillingModeUsed: 'do_not_bill' }
   }
 }
 
