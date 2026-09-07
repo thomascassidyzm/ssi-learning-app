@@ -4,6 +4,8 @@ import { useRouter } from 'vue-router'
 import CreateClassModal from '@/components/schools/CreateClassModal.vue'
 import SchoolsPasswordPrompt from '@/components/schools/SchoolsPasswordPrompt.vue'
 import ClassCreatedModal from '@/components/schools/ClassCreatedModal.vue'
+import MailboxCheckPrompt from '@/components/schools/MailboxCheckPrompt.vue'
+import { useMailboxPrompt } from '@/composables/useMailboxPrompt'
 import BeltDot from '@/components/schools/shared/BeltDot.vue'
 import Sparkline from '@/components/schools/shared/Sparkline.vue'
 import HealthDot from '@/components/schools/shared/HealthDot.vue'
@@ -296,9 +298,16 @@ function handleGoToCreatedClass() {
   }
 }
 
+// The mailbox moment. A class has just been created and the teacher is about
+// to send its link to real learners — the one beat where "make sure you can
+// always get back to this" is true rather than administrative. See
+// composables/useMailboxPrompt.ts for the rule about when this stays shut.
+const mailboxPrompt = useMailboxPrompt()
+
 function closeCreatedModal() {
   isCreatedModalOpen.value = false
   createdClass.value = null
+  mailboxPrompt.noteKeepWorthyMoment()
 }
 
 function openClass(cls: { id: string; class_name: string; course_code: string; current_seed: number; join_code: string; class_learner_id?: string | null }) {
@@ -726,6 +735,13 @@ function exportCsv() {
       :classData="createdClass"
       @close="closeCreatedModal"
       @goToClass="handleGoToCreatedClass"
+    />
+
+    <MailboxCheckPrompt
+      :isOpen="mailboxPrompt.isOpen.value"
+      :primaryEmail="mailboxPrompt.primaryEmail.value"
+      @close="mailboxPrompt.dismiss()"
+      @proved="mailboxPrompt.markProved()"
     />
   </main>
 </template>

@@ -16,6 +16,8 @@ import { getLanguageName, useI18n } from '@/composables/useI18n'
 import CreateClassModal from '@/components/schools/CreateClassModal.vue'
 import SchoolsPasswordPrompt from '@/components/schools/SchoolsPasswordPrompt.vue'
 import ClassCreatedModal from '@/components/schools/ClassCreatedModal.vue'
+import MailboxCheckPrompt from '@/components/schools/MailboxCheckPrompt.vue'
+import { useMailboxPrompt } from '@/composables/useMailboxPrompt'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
@@ -250,9 +252,16 @@ function handleGoToCreatedClass() {
   }
 }
 
+// The mailbox moment. A class has just been created and the teacher is about
+// to send its link to real learners — the one beat where "make sure you can
+// always get back to this" is true rather than administrative. See
+// composables/useMailboxPrompt.ts for the rule about when this stays shut.
+const mailboxPrompt = useMailboxPrompt()
+
 function closeCreatedModal() {
   isCreatedModalOpen.value = false
   createdClass.value = null
+  mailboxPrompt.noteKeepWorthyMoment()
 }
 
 // The ONE refresh protocol: one role-aware loader for the whole dashboard,
@@ -1039,6 +1048,13 @@ async function handlePlayClass(cls: ClassInfo) {
       :classData="createdClass"
       @close="closeCreatedModal"
       @goToClass="handleGoToCreatedClass"
+    />
+
+    <MailboxCheckPrompt
+      :isOpen="mailboxPrompt.isOpen.value"
+      :primaryEmail="mailboxPrompt.primaryEmail.value"
+      @close="mailboxPrompt.dismiss()"
+      @proved="mailboxPrompt.markProved()"
     />
   </div>
 </template>

@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `0d8d03eef1bc` · generated 2026-09-07 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `3e92675a34d3` · generated 2026-09-07 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## Add a class to a group
 
@@ -628,6 +628,19 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class
 4. Compare the lengths — the numbers at the end give the exact figures.
 
 **Worth knowing.** A class with too little practice recorded shows a plain line saying so rather than a bar built from almost nothing.
+
+## Prove your mailbox reaches you
+
+Section: getting-people-in · roles: school_admin, teacher · anchor: `mailbox-check-send` · in `packages/player-vue/src/components/schools/MailboxCheckPrompt.vue`
+
+**What it's for.** School mail gateways are ferocious, and a code that never arrives is only discovered on the day you need it. This asks once, at the moment you have just made something worth keeping, and settles it.
+
+**Where it is.** A card that appears right after you create a class or copy a class join link, for as long as your address is unproven.
+
+1. Tap **Send me a code**, or nominate a different address if your school one eats our mail.
+2. Type the six digits we send, and tap **That's the one**.
+
+**Worth knowing.** Close it and it stays closed. It never comes back on a timer.
 
 ## Put the app on your device
 

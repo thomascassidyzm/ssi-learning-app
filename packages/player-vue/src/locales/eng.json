@@ -2017,6 +2017,28 @@
       "languageFlag": {
         "altSuffix": "{code} flag"
       },
+      "mailboxCheck": {
+        "alreadyLinked": "That one's already on your account, so you're covered.",
+        "checkFailed": "That code didn't work. Check it and try again.",
+        "codeLabel": "Your code",
+        "codeSent": "Pop in the code we've just sent to {email} and you're sorted for good.",
+        "codeTooShort": "The code is six digits.",
+        "confirmCta": "That's the one",
+        "confirming": "Checking…",
+        "dismiss": "Not now",
+        "invalidEmail": "That doesn't look like an email address.",
+        "lead": "Quick one — schools' spam filters are ferocious, and we'd rather find out now than the day you need to get back in.",
+        "notConnected": "Not connected — try again in a moment.",
+        "otherAddress": "Send it to a different address instead",
+        "otherLabel": "Which address should we use?",
+        "otherSendCta": "Send it there",
+        "reason": "It also means nothing about your learners ever goes to a mailbox that isn't yours.",
+        "sendCta": "Send me a code",
+        "sendFailed": "Couldn't send the code. Try again in a moment.",
+        "sending": "Sending…",
+        "success": "Lovely — that mailbox reaches you. You are sorted for good.",
+        "title": "Can we reach you here?"
+      },
       "nodeEntitlement": {
         "autoExpiryPreview": "Auto-expiry: {n} days from save",
         "coursesKicker": "Courses",
