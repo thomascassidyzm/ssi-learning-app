@@ -1,0 +1,33 @@
+{
+  "id": "email-someone-their-invite-again",
+  "title": "Email someone their invite again",
+  "section": "getting-people-in",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "anchor": "ways-in-resend",
+  "keywords": [
+    "resend",
+    "email",
+    "invite",
+    "again",
+    "lost",
+    "ways in"
+  ],
+  "handbook": {
+    "what": "Sending the same invite email a second time to somebody who never found the first one. Nothing changes and no new link is made, so the one they may yet dig out of a spam folder still works.",
+    "where": "The node's home page, the **Ways in** section, **Email again** on their row.",
+    "how": [
+      "Scroll to **Ways in** on the node's home page.",
+      "Find the person's row.",
+      "Tap **Email again**.",
+      "The note above the table names the address it went to."
+    ],
+    "note": "Only rows for a named person with an email on file carry this button. If our mail is being eaten by their school's gateway, read them the link instead of sending it a third time."
+  }
+}

@@ -585,18 +585,18 @@ function closeDelete(): void {
            group can contain subgroups — the endpoint authorizes a leader on
            their own subtree). Add a school is education-dressing-only. -->
       <button type="button" class="verb" :class="{ 'is-open': openForm === 'group' }" @click="toggle('group')">Add a group</button>
-      <button v-if="!member && !node.commercial && !neutral" type="button" class="verb" :class="{ 'is-open': openForm === 'school' }" @click="toggle('school')">Add a school</button>
+      <button v-if="!member && !node.commercial && !neutral" type="button" class="verb" :class="{ 'is-open': openForm === 'school' }" data-walk="verb-add-school" @click="toggle('school')">Add a school</button>
       <!-- Add a class is for LEADERS too (founder ruling 2026-09-07: a class
            belongs to a group, even when that group is the org itself, and it
            needs no teacher to exist). Education dressing only. -->
       <button v-if="!neutral" type="button" class="verb" :class="{ 'is-open': openForm === 'class' }" data-walk="verb-add-class" @click="toggle('class')">Add a class</button>
-      <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'demo' }" @click="toggle('demo')">Mint a demo org</button>
-      <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'courses' }" @click="toggle('courses')">Courses</button>
-      <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'rename' }" @click="openRename">Rename</button>
+      <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'demo' }" data-walk="verb-mint-demo" @click="toggle('demo')">Mint a demo org</button>
+      <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'courses' }" data-walk="verb-courses" @click="toggle('courses')">Courses</button>
+      <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'rename' }" data-walk="verb-rename" @click="openRename">Rename</button>
       <button v-if="!member && node.is_demo" type="button" class="verb verb-demo" :disabled="isRefreshing" @click="refreshDemo">
         {{ isRefreshing ? 'Refreshing…' : 'Refresh demo activity' }}
       </button>
-      <button v-if="!member" type="button" class="verb verb-danger" @click="requestDelete">Delete</button>
+      <button v-if="!member" type="button" class="verb verb-danger" data-walk="verb-delete" @click="requestDelete">Delete</button>
       </template>
     </div>
 

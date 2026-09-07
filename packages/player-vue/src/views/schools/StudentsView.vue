@@ -172,7 +172,10 @@ watch(selectedUser, (newUser) => {
         <p class="page-subtitle schools-subtle">{{ headlineSubtitle }}</p>
       </div>
       <div class="page-head-actions">
-        <button v-if="enrichedStudents.length > 0" type="button" class="btn-ghost" @click="exportCsv">
+        <!-- data-walk sits BEFORE v-if here on purpose: the walkthrough
+             compiler scans the opening tag with a no-'>' regex, and the
+             "> 0" inside this condition would hide the anchor from it. -->
+        <button data-walk="students-export" v-if="enrichedStudents.length > 0" type="button" class="btn-ghost" @click="exportCsv">
           Export CSV
         </button>
         <button v-if="!isAdminView" type="button" class="btn-play" @click="handleInvite">
@@ -276,7 +279,7 @@ watch(selectedUser, (newUser) => {
             </td>
             <td><span class="schools-subtle">{{ s.last_active_display }}</span></td>
             <td class="cell-action">
-              <a href="#" class="cell-link" @click.prevent="viewStudent(s)">View &rarr;</a>
+              <a href="#" class="cell-link" data-walk="student-view-link" @click.prevent="viewStudent(s)">View &rarr;</a>
             </td>
           </tr>
         </tbody>

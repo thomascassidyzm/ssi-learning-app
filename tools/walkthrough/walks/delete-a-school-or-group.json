@@ -1,0 +1,30 @@
+{
+  "id": "delete-a-school-or-group",
+  "title": "Delete a school or group",
+  "section": "your-school",
+  "personas": [
+    "admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "anchor": "verb-delete",
+  "keywords": [
+    "delete",
+    "remove",
+    "school",
+    "group",
+    "close"
+  ],
+  "handbook": {
+    "what": "Removing a school or group that should never have existed, or has been wound up. It is the one verb here that takes everything below it with it.",
+    "where": "The node's home page, **Delete** at the end of the row of buttons.",
+    "how": [
+      "Open the home page of the school or group.",
+      "Tap **Delete**.",
+      "Read the summary of what goes with it — classes, people and links are counted for you.",
+      "Type the name back when asked, and confirm."
+    ],
+    "note": "You are only asked to type the name when there is real activity underneath, which is the signal to stop and check. An empty shell deletes on a single confirm."
+  }
+}

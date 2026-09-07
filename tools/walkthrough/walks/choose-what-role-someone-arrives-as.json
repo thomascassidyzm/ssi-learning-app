@@ -1,0 +1,33 @@
+{
+  "id": "choose-what-role-someone-arrives-as",
+  "title": "Choose what role someone arrives as",
+  "section": "getting-people-in",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "anchor": "invite-form-role",
+  "keywords": [
+    "role",
+    "teacher",
+    "leader",
+    "learner",
+    "invite",
+    "permissions"
+  ],
+  "handbook": {
+    "what": "The role you pick on an invite is the role the person lands in, and it travels with the link rather than being set afterwards. Teacher sees their own classes, group leader sees everything below their node, learner just learns.",
+    "where": "Any node's home page, **Invite a person**, the role dropdown on the left of the form.",
+    "how": [
+      "Tap **Invite a person** on the node you want them to belong to.",
+      "Open the role dropdown.",
+      "Pick the role they should hold in this place.",
+      "Fill in their name and submit."
+    ],
+    "note": "The place matters as much as the role — a group leader invited on a group leads that group and everything under it, so invite people on the node whose shape you actually mean."
+  }
+}
