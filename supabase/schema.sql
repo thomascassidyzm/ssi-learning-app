@@ -3287,14 +3287,20 @@ CREATE FUNCTION public.find_learner_by_email(lookup_email text) RETURNS TABLE(id
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public', 'pg_temp'
     AS $$
-    SELECT l.id, l.user_id, l.display_name,
-  l.platform_role,
-           l.educational_role, l.preferences,
-  l.created_at, l.updated_at
-    FROM learners l
-    WHERE lookup_email = ANY(l.verified_emails)
-    LIMIT 1;
-  $$;
+  SELECT l.id, l.user_id, l.display_name,
+         l.platform_role, l.educational_role, l.preferences,
+         l.created_at, l.updated_at
+  FROM public.learners l
+  WHERE auth.uid() IS NOT NULL
+    AND nullif(lower(coalesce(auth.jwt() ->> 'email', '')), '') IS NOT NULL
+    -- the parameter may only ever be the caller's OWN token email
+    AND lower(trim(lookup_email)) = lower(coalesce(auth.jwt() ->> 'email', ''))
+    -- and that address must be verified on the learner row being returned
+    AND lower(trim(lookup_email)) IN (
+          SELECT lower(e)
+          FROM unnest(coalesce(l.verified_emails, ARRAY[]::text[])) e)
+  LIMIT 1;
+$$;
 
 
 --
