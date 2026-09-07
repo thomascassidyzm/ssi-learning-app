@@ -1,5 +1,5 @@
 {
-  "version": "a88e812f05a4",
+  "version": "f11a9bd87113",
   "generatedAt": "2026-09-07",
   "walks": [
     {
@@ -3349,10 +3349,10 @@
         "Open the wizard and work down the steps on the left — your school, your staff, your courses, your classes.",
         "**Continue** saves the step you are on and moves you to the next one.",
         "Tap any step in the left-hand list to jump straight to it, forwards or back.",
-        "**Save & exit** puts you back on your dashboard with everything you have entered kept.",
+        "**Save & exit** saves the step you are on and puts you back on your dashboard. If something cannot be saved it stays put and tells you why, so you never leave work behind without knowing.",
         "Come back to Settings and First-time setup whenever you want to carry on."
       ],
-      "note": "Nothing here is a one-shot. Everything the wizard sets up — the school name, the invite links, the classes — can also be changed later from Settings and from your class pages."
+      "note": "Nothing here is a one-shot. Everything the wizard sets up — the school name, the invite links, the classes — can also be changed later from Settings and from your class pages. The course ticks on step three are only a filter for the class list on step four, so they are not kept when you leave."
     },
     {
       "id": "your-class-against-the-average",

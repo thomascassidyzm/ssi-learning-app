@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `a88e812f05a4` · generated 2026-09-07 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `f11a9bd87113` · generated 2026-09-07 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## Add a class to a group
 
@@ -1125,10 +1125,10 @@ Section: your-school · roles: school_admin · anchor: `setup-save-exit` · in `
 1. Open the wizard and work down the steps on the left — your school, your staff, your courses, your classes.
 2. **Continue** saves the step you are on and moves you to the next one.
 3. Tap any step in the left-hand list to jump straight to it, forwards or back.
-4. **Save & exit** puts you back on your dashboard with everything you have entered kept.
+4. **Save & exit** saves the step you are on and puts you back on your dashboard. If something cannot be saved it stays put and tells you why, so you never leave work behind without knowing.
 5. Come back to Settings and First-time setup whenever you want to carry on.
 
-**Worth knowing.** Nothing here is a one-shot. Everything the wizard sets up — the school name, the invite links, the classes — can also be changed later from Settings and from your class pages.
+**Worth knowing.** Nothing here is a one-shot. Everything the wizard sets up — the school name, the invite links, the classes — can also be changed later from Settings and from your class pages. The course ticks on step three are only a filter for the class list on step four, so they are not kept when you leave.
 
 ## Your class against the average
 
