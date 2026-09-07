@@ -20222,8 +20222,6 @@ GRANT ALL ON FUNCTION public.accrue_teacher_commission(p_teacher_id uuid, p_peri
 --
 
 REVOKE ALL ON FUNCTION public.accrue_teacher_commission_held(p_teacher_id uuid, p_period_start date, p_period_end date, p_pence integer, p_hold_until timestamp with time zone) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.accrue_teacher_commission_held(p_teacher_id uuid, p_period_start date, p_period_end date, p_pence integer, p_hold_until timestamp with time zone) TO anon;
-GRANT ALL ON FUNCTION public.accrue_teacher_commission_held(p_teacher_id uuid, p_period_start date, p_period_end date, p_pence integer, p_hold_until timestamp with time zone) TO authenticated;
 GRANT ALL ON FUNCTION public.accrue_teacher_commission_held(p_teacher_id uuid, p_period_start date, p_period_end date, p_pence integer, p_hold_until timestamp with time zone) TO service_role;
 
 
@@ -20387,8 +20385,6 @@ GRANT ALL ON FUNCTION public.analytics_health(p_days integer) TO service_role;
 --
 
 REVOKE ALL ON FUNCTION public.analytics_learner_progress_rate(p_learner_id uuid, p_course_id text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.analytics_learner_progress_rate(p_learner_id uuid, p_course_id text) TO anon;
-GRANT ALL ON FUNCTION public.analytics_learner_progress_rate(p_learner_id uuid, p_course_id text) TO authenticated;
 GRANT ALL ON FUNCTION public.analytics_learner_progress_rate(p_learner_id uuid, p_course_id text) TO service_role;
 
 
@@ -20531,8 +20527,7 @@ GRANT ALL ON FUNCTION public.audit_content_change() TO service_role;
 -- Name: FUNCTION audit_log_prune(retention_days integer); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.audit_log_prune(retention_days integer) TO anon;
-GRANT ALL ON FUNCTION public.audit_log_prune(retention_days integer) TO authenticated;
+REVOKE ALL ON FUNCTION public.audit_log_prune(retention_days integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.audit_log_prune(retention_days integer) TO service_role;
 
 
@@ -21296,8 +21291,6 @@ GRANT ALL ON FUNCTION public.relink_user_tags(old_user_id text) TO service_role;
 --
 
 REVOKE ALL ON FUNCTION public.reverse_teacher_commission(p_teacher_id uuid, p_period_start date, p_pence integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.reverse_teacher_commission(p_teacher_id uuid, p_period_start date, p_pence integer) TO anon;
-GRANT ALL ON FUNCTION public.reverse_teacher_commission(p_teacher_id uuid, p_period_start date, p_pence integer) TO authenticated;
 GRANT ALL ON FUNCTION public.reverse_teacher_commission(p_teacher_id uuid, p_period_start date, p_pence integer) TO service_role;
 
 
