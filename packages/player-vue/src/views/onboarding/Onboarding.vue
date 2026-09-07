@@ -680,6 +680,19 @@ async function finishProvisioning(confirmDuplicate = false) {
   trial.value = data.platform_trial || data.trial
   isReturning.value = !!data.existing
   redirectTo.value = data.redirect || '/'
+  // THE SCHOOL DOOR ENDS ON THE SCHOOL DASHBOARD (founder ruling 2026-09-07).
+  // A head who signed up used to stop here on a "couple of details (optional)"
+  // screen, and the only ways on from it were a Continue button or — as
+  // actually happened in production — hunting Settings > Schools dashboard
+  // from inside the LEARNER app, a path no new user would ever find. Nothing
+  // is lost by skipping it: a self-serve school is created name_confirmed:false
+  // (provision.ts), so the node home asks "what's your school called?" in
+  // place, and the display name stays editable in the profile. The tutor and
+  // org doors keep the finishing step until their own owner says otherwise.
+  if (props.track === 'school') {
+    enterDashboard()
+    return
+  }
   step.value = 'done'
 }
 
@@ -731,6 +744,16 @@ function goToDashboard() {
   window.location.href = props.track === 'tutor' ? '/tutors/dashboard' : '/schools'
 }
 
+// The one way OUT of this door and INTO the product, shared by the school
+// door's straight-through hop and the finishing-details Continue. Drops the
+// stale pre-signup role cache first — see continueIn's note: the /schools
+// guard reads it synchronously and would bounce a brand-new admin back to the
+// player on the strength of a "plain learner" entry written before signup.
+function enterDashboard() {
+  useUserRole().clear()
+  window.location.href = redirectTo.value
+}
+
 async function continueIn() {
   busy.value = true
   error.value = ''
@@ -774,8 +797,7 @@ async function continueIn() {
     // Clearing it makes the guard fall through to the container, which then
     // loads the just-written role authoritatively (same path as a normal reload
     // for an existing admin). Then full navigation re-initialises the app.
-    useUserRole().clear()
-    window.location.href = redirectTo.value
+    enterDashboard()
   } catch (e: any) {
     error.value = e?.message || 'Something went wrong'
     busy.value = false

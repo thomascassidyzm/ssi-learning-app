@@ -256,3 +256,90 @@ describe('Onboarding.vue — proof panel is dressing-aware', () => {
     expect(wrapper.find('.ob-creed').exists()).toBe(false)
   })
 })
+
+// Founder ruling, 2026-09-07: a school signup ENDS on the school dashboard.
+// Tom reached his own dashboard only via Settings → Schools dashboard from
+// inside the LEARNER app — a path a new head would never find. The door used
+// to stop on a "couple of details (optional)" screen whose Continue was the
+// only way through; now the school track hops straight to `data.redirect`.
+describe('Onboarding.vue — the school door lands ON the school dashboard', () => {
+  let hrefSpy: string[]
+
+  beforeEach(() => {
+    hrefSpy = []
+    Object.defineProperty(window, 'location', {
+      value: {
+        ...window.location,
+        set href(v: string) {
+          hrefSpy.push(v)
+        },
+        get href() {
+          return hrefSpy[hrefSpy.length - 1] ?? ''
+        },
+      },
+      writable: true,
+      configurable: true,
+    })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('goes straight to the dashboard after provisioning — no finishing-details screen', async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url === '/api/onboarding/provision') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            role: 'school_admin',
+            platform_trial: { track: 'school', kind: 'trial', expires_at: '2027-09-01T00:00:00.000Z', days: 365 },
+            existing: false,
+            redirect: '/schools',
+          }),
+        })
+      }
+      return Promise.resolve({ ok: true, json: async () => LIVE_COURSES })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const auth = { isAuthenticated: ref(true), user: ref({ email: 'head@example.com' } as any) }
+    const supabase = ref({
+      auth: {
+        getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 'tok' } } }),
+        signOut: vi.fn().mockResolvedValue({}),
+        signInWithOtp: vi.fn().mockResolvedValue({ error: null }),
+        verifyOtp: vi.fn().mockResolvedValue({ error: null }),
+      },
+    })
+    const wrapper = mount(Onboarding, {
+      props: { track: 'school' },
+      global: {
+        provide: { supabase, auth },
+        stubs: {
+          AtmosphereBackdrop: true,
+          FrostCard: { template: '<div><slot /></div>' },
+          Button: {
+            props: ['disabled', 'loading'],
+            emits: ['click'],
+            template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>',
+          },
+        },
+      },
+    })
+    await flushAsync()
+
+    const continueButton = wrapper.findAll('button').find((b) => b.text() === 'Continue')!
+    await continueButton.trigger('click')
+    await flushAsync()
+
+    // Provisioned...
+    expect(
+      fetchMock.mock.calls.some(([url]: [string]) => url === '/api/onboarding/provision')
+    ).toBe(true)
+    // ...and the very next thing that happens is the dashboard.
+    expect(hrefSpy).toEqual(['/schools'])
+    // No interstitial: the optional school-name field must never have rendered.
+    expect(wrapper.find('#ob-inst').exists()).toBe(false)
+  })
+})
