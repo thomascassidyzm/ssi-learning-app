@@ -15,6 +15,7 @@ import ManagerOnboardingGate from '@/components/admin/ManagerOnboardingGate.vue'
 import { formatDeleteImpactLines, type DeleteImpact } from '@/components/admin/deleteImpact'
 import { readDuplicateWarning } from '@/utils/duplicateNameWarning'
 import { useOrgLeadership } from '@/composables/useOrgLeadership'
+import FrostSelect from '@/components/FrostSelect.vue'
 import { hasPasswordFlag, needsPasswordGate } from '@/composables/useManagerOnboarding'
 
 interface NodeShape {
@@ -52,7 +53,7 @@ const emit = defineEmits<{ changed: []; renamed: [name: string]; minted: [] }>()
 
 const neutral = computed(() => props.preset === 'neutral')
 
-const { getAuthToken } = useAdminClient()
+const { getClient, getAuthToken } = useAdminClient()
 function authHeaders(token: string | null): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
@@ -78,7 +79,7 @@ async function copyShare(): Promise<void> {
 }
 
 // One inline form open at a time.
-type Form = 'person' | 'invite' | 'group' | 'school' | 'demo' | 'courses' | 'rename' | null
+type Form = 'person' | 'invite' | 'group' | 'school' | 'class' | 'demo' | 'courses' | 'rename' | null
 const openForm = ref<Form>(null)
 
 // ─── Password before the first add (Deborah, 2026-08-06; Tom's ruling
@@ -95,7 +96,7 @@ const auth = inject<any>('auth', null)
 const { leadsOrg, ensureLoaded } = useOrgLeadership()
 onMounted(() => { if (props.member) void ensureLoaded() })
 
-const GATED_VERBS: ReadonlyArray<Exclude<Form, null>> = ['person', 'invite', 'group']
+const GATED_VERBS: ReadonlyArray<Exclude<Form, null>> = ['person', 'invite', 'group', 'class']
 const gateOpen = ref(false)
 const pendingVerb = ref<Exclude<Form, null> | null>(null)
 
@@ -330,6 +331,76 @@ async function submitSchool(): Promise<void> {
   }
 }
 
+// ─── Add a class (founder ruling 2026-09-07) ───
+// "can a class exist without a teacher? I think it can - but someone has to
+// create it, so the class has to belong to a group somehow, even if the group
+// is the root group - the org itself." So the verb lives HERE, on the node
+// the leader is already standing on, and the class it makes carries that
+// node's group_id and no teacher at all. A teacher is attached afterwards
+// through the existing "Assign to a class" tick-list on the staff surface.
+//
+// Authority is NOT re-derived here: /api/school/create-class authorizes with
+// the same subtree predicate the other node verbs use, so this button is
+// simply hidden work, never the check itself.
+const newClassName = ref('')
+const newClassCourse = ref('')
+const isAddingClass = ref(false)
+const courses = ref<{ course_code: string; display_name: string | null }[]>([])
+const courseOptions = computed(() =>
+  courses.value.map((c) => ({ value: c.course_code, label: c.display_name || c.course_code.replace(/_/g, ' ') })),
+)
+
+// The live/beta catalogue — the SAME list NodeEntitlementControl and the
+// school setup wizard read (schools stopped holding per-course
+// entitlement_grants rows in the 2026-07-15 commercial model). Read through
+// this bar's OWN client rather than the schools composable: the bar mounts on
+// admin pages where the schools client is never initialised.
+async function fetchCourses(): Promise<void> {
+  if (courses.value.length) return
+  try {
+    const { data, error: fetchErr } = await getClient()
+      .from('courses')
+      .select('course_code, display_name')
+      .in('new_app_status', ['live', 'beta'])
+      .order('display_name')
+    if (fetchErr) throw fetchErr
+    courses.value = data || []
+  } catch (err) {
+    console.error('[NodeActionBar] fetch courses failed:', err)
+  }
+}
+
+async function submitClass(): Promise<void> {
+  if (!newClassName.value.trim() || !newClassCourse.value || isAddingClass.value) return
+  isAddingClass.value = true
+  try {
+    const token = await getAuthToken()
+    const resp = await fetch('/api/school/create-class', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
+      body: JSON.stringify({
+        group_id: props.node.id,
+        class_name: newClassName.value.trim(),
+        course_code: newClassCourse.value,
+      }),
+    })
+    const data = await resp.json().catch(() => ({}))
+    if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
+    announce(`Class "${newClassName.value.trim()}" added — assign a teacher whenever you're ready.`)
+    newClassName.value = ''
+    openForm.value = null
+    emit('changed')
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to add class'
+  } finally {
+    isAddingClass.value = false
+  }
+}
+
+// The catalogue is fetched only when the form is actually opened — the bar
+// renders on every node page and most visits never reach for this verb.
+watch(openForm, (f) => { if (f === 'class') void fetchCourses() })
+
 // ─── Mint a demo org ───
 const demoName = ref('')
 const demoLeaderEmail = ref('')
@@ -515,6 +586,10 @@ function closeDelete(): void {
            their own subtree). Add a school is education-dressing-only. -->
       <button type="button" class="verb" :class="{ 'is-open': openForm === 'group' }" @click="toggle('group')">Add a group</button>
       <button v-if="!member && !node.commercial && !neutral" type="button" class="verb" :class="{ 'is-open': openForm === 'school' }" @click="toggle('school')">Add a school</button>
+      <!-- Add a class is for LEADERS too (founder ruling 2026-09-07: a class
+           belongs to a group, even when that group is the org itself, and it
+           needs no teacher to exist). Education dressing only. -->
+      <button v-if="!neutral" type="button" class="verb" :class="{ 'is-open': openForm === 'class' }" data-walk="verb-add-class" @click="toggle('class')">Add a class</button>
       <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'demo' }" @click="toggle('demo')">Mint a demo org</button>
       <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'courses' }" @click="toggle('courses')">Courses</button>
       <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'rename' }" @click="openRename">Rename</button>
@@ -579,6 +654,25 @@ function closeDelete(): void {
       <button class="btn-primary-sm" :disabled="isAddingChild || !newChildName.trim()" @click="submitSchool">
         {{ isAddingChild ? 'Adding…' : 'Add' }}
       </button>
+    </div>
+    <div v-else-if="openForm === 'class'" class="verb-form-block">
+      <div class="verb-form">
+        <input v-model="newClassName" type="text" class="frost-input" placeholder="Class name" data-walk="add-class-name" @keyup.enter="submitClass" />
+        <span class="course-select-wrap">
+          <FrostSelect
+            v-model="newClassCourse"
+            :options="courseOptions"
+            filterable
+            filter-placeholder="Search courses…"
+            placeholder="Choose course"
+            aria-label="Course for this class"
+          />
+        </span>
+        <button class="btn-primary-sm" data-walk="add-class-submit" :disabled="isAddingClass || !newClassName.trim() || !newClassCourse" @click="submitClass">
+          {{ isAddingClass ? 'Adding…' : 'Add' }}
+        </button>
+      </div>
+      <p class="kind-hint">No teacher needed yet — the class exists on its own, and you can put a teacher on it any time from your staff list.</p>
     </div>
     <div v-else-if="openForm === 'demo'" class="verb-form">
       <input v-model="demoName" type="text" class="frost-input" placeholder="Demo org name" @keyup.enter="submitDemo" />
@@ -654,6 +748,18 @@ function closeDelete(): void {
 
 .verb-form { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 .verb-form-block { display: block; }
+
+/* The course picker on Add-a-class. ~74 live courses is far too long a list
+   to scan, so it's the shared filterable FrostSelect rather than a native
+   select; these vars are how that control wears this bar's typography (same
+   pattern as SetupView's .select-wrap). */
+.course-select-wrap {
+  position: relative; display: flex; min-width: 200px;
+  --fs-font: inherit; --fs-font-size: var(--text-sm); --fs-radius: var(--radius-lg);
+  --fs-bg: rgba(255, 255, 255, 0.7); --fs-border: rgba(44, 38, 34, 0.12);
+  --rc-entity: var(--tone-red); --rc-entity-ink: var(--schools-red);
+}
+.course-select-wrap > * { flex: 1; min-width: 0; }
 
 /* Duplicate-name warning — information, not an error. Nothing has gone
    wrong; there is just a choice to make. */
