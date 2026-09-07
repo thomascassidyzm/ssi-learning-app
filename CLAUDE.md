@@ -40,14 +40,34 @@ node tools/walkthrough/compile.mjs --reconfirm   # or --reconfirm "<anchor-id>" 
 
 **That is the whole repair — one command.** `--reconfirm` re-pins each description to a fingerprint
 of the thing it describes — the gate, the handler, the label, and the handler's own source — and
-then recompiles the pack the Handbook page renders, so the page can never sit on a sentence the
-build has already accepted. It does not fire on a restyle. If you change behaviour and forget the
-sentence, the build fails naming the capability, the file and the line, and quotes a good entry to
-copy — that is a backstop for the case where somebody didn't, not the way this is meant to work.
+then recompiles the pack the Handbook page renders. It does not fire on a restyle. It re-pins the
+capabilities whose **sentence you rewrote**; for one whose sentence you read and found still true,
+say so for that capability alone:
 
-Three rules the compiler enforces, all of them build failures:
+```bash
+node tools/walkthrough/compile.mjs --reconfirm "<anchor-id>" --unchanged
+```
+
+There is no way to re-pin the whole tree without a word changing. There used to be, and it made the
+gate decorative.
+
+**What this actually guarantees, and what it does not** — job #289, after the gate shipped hollow
+and the page served 76 of 77 capabilities for a morning:
+
+- **Guaranteed.** The Handbook page cannot serve a stale pack. `pack.json` is regenerated from the
+  .vue sources by `player-vue`'s own build script before Vite runs, so what deploys is what the
+  code says. Every capability has a description or a clip; a description whose anchor is gone fails
+  `--check`; and `--check` compares the compiled pack **field by field** against the committed
+  `pack.json`, so source and served can no longer drift apart silently.
+- **NOT guaranteed.** That a description is TRUE. The freshness fingerprint reads one file — the
+  .vue the anchor sits in — so a change inside an API route, a composable or a store action does
+  not trip it, and the sentence can go quietly wrong. Nor does prose block a deploy: during a build
+  the gates print and carry on, deliberately, so a forgotten sentence never stops a fix reaching
+  learners. The hard gate is `--check`, run locally and by `pnpm --filter player-vue test`.
+
+Three rules `--check` enforces, all of them failures:
 - a `data-walk` anchor with no description and no walkthrough clip — no silent blanks;
-- a description whose anchor no longer exists — delete the button, the build tells you;
+- a description whose anchor no longer exists — delete the button, the check tells you;
 - a description that has not been re-read since the capability changed.
 
 New capability? Put a `data-walk="<kebab-id>"` on the element and write the comment above it. No
