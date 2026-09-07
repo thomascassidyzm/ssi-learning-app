@@ -26,7 +26,10 @@ import FrostSelect from '@/components/FrostSelect.vue'
 import TopNav from '@/components/schools/shared/TopNav.vue'
 import { getSchoolsClient } from '@/composables/schools/client'
 import { isDemoMode } from '@/composables/demo/demoMode'
+import { useI18n } from '@/composables/useI18n'
 import '@/styles/schools-tokens.css'
+
+const { t } = useI18n()
 
 // When `embedded`, this view renders INSIDE the schools shell (SchoolsContainer
 // provides the SchoolsTopBar + the page scroll), so it must NOT render its own
@@ -162,40 +165,38 @@ const requestedLearnerName = computed(() => {
     <div class="tiv schools-surface">
     <!-- ── Honest states before there's anything to show ── -->
     <div v-if="isLoadingContext" class="tiv-status-card">
-      <p>Loading your classes…</p>
+      <p>{{ t('insights.teacher.loadingClasses', 'Loading your classes…') }}</p>
     </div>
     <!-- Demo mode (guided missions): no session, but "sign in" would be a
          dead end here — say honestly what this view is and isn't yet. -->
     <div v-else-if="authMissing && isDemoMode" class="tiv-status-card">
       <p v-if="isLearnerDeepLink && requestedLearnerName">
-        Opened for <strong>{{ requestedLearnerName }}</strong> — per-learner rate insights are still
-        being wired up. In the live app, this is where their pace would sit against the class.
+        {{ t('insights.teacher.learnerDeepLinkDemoNote', 'Opened for {name} — per-learner rate insights are still being wired up. In the live app, this is where their pace would sit against the class.').replace('{name}', requestedLearnerName) }}
       </p>
-      <p v-else>Demo mode — live class rates need a signed-in teacher.</p>
+      <p v-else>{{ t('insights.teacher.demoModeNeedsSignIn', 'Demo mode — live class rates need a signed-in teacher.') }}</p>
     </div>
     <div v-else-if="authMissing" class="tiv-status-card">
-      <p>Sign in to see your class's rate.</p>
+      <p>{{ t('insights.teacher.signInToSeeRate', "Sign in to see your class's rate.") }}</p>
     </div>
     <div v-else-if="fetchFailed" class="tiv-status-card">
-      <p>Couldn't load your classes just now — try again shortly.</p>
+      <p>{{ t('insights.teacher.fetchFailed', "Couldn't load your classes just now — try again shortly.") }}</p>
     </div>
     <div v-else-if="hasNoClasses" class="tiv-status-card">
-      <p>No classes yet — once you have a class with sessions, it compares here.</p>
+      <p>{{ t('insights.teacher.noClassesYet', 'No classes yet — once you have a class with sessions, it compares here.') }}</p>
     </div>
 
     <!-- ── Calm, minimal teacher header + the engine ── -->
     <template v-else>
       <header class="tiv-head">
         <div class="tiv-head-top">
-          <span class="tiv-kicker">Your class</span>
+          <span class="tiv-kicker">{{ t('insights.teacher.yourClassKicker', 'Your class') }}</span>
         </div>
         <h1 class="tiv-title">{{ headerTitle }}</h1>
         <p class="tiv-sub">
-          How your class is doing, compared with the average.
+          {{ t('insights.teacher.subHeading', 'How your class is doing, compared with the average.') }}
         </p>
         <p v-if="isLearnerDeepLink && requestedLearnerName" class="tiv-preview-note">
-          Opened for <strong>{{ requestedLearnerName }}</strong> — per-learner rates aren't available
-          yet, so this shows the whole class instead.
+          {{ t('insights.teacher.learnerDeepLinkPreviewNote', "Opened for {name} — per-learner rates aren't available yet, so this shows the whole class instead.").replace('{name}', requestedLearnerName) }}
         </p>
       </header>
 
@@ -220,11 +221,11 @@ const requestedLearnerName = computed(() => {
              5. Read the comparison block for your class's rate beside that average.
              Worth knowing. A class with too few sessions to compare honestly says so
              rather than showing a number built from nothing.
-             checked: 3e0c2b26.9b5b0d86
+             checked: 6f6f8d61.9b5b0d86
         -->
         <label class="tiv-field tiv-field-wide" data-walk="teacher-insights-class">
-          <span class="tiv-field-label">Your classes</span>
-          <FrostSelect v-model="selectedClassId" :options="classSelectOptions" aria-label="Your classes" />
+          <span class="tiv-field-label">{{ t('insights.teacher.yourClassesLabel', 'Your classes') }}</span>
+          <FrostSelect v-model="selectedClassId" :options="classSelectOptions" :aria-label="t('insights.teacher.yourClassesLabel', 'Your classes')" />
         </label>
       </div>
 

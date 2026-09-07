@@ -58,6 +58,17 @@ export const UNTRANSLATABLE: readonly string[] = [
   'America/New York',
   'America/Los Angeles',
 
+  // Database table and cron-job names, shown in <code> on the insights panels
+  // so a leader can quote the exact identifier when asking us about a gap.
+  // Translate one and the name no longer names anything.
+  'insight-discovery',
+  'cycle_prosody',
+  'player_events',
+
+  // The decibel unit symbol. An SI-style symbol, the same characters in every
+  // language — and the number beside it is meaningless if it moves.
+  'dB',
+
   // The text-size control's glyph. "Aa" is a typographic specimen, drawn to be
   // looked at rather than read, and it is the same glyph in every Latin locale.
   'Aa',

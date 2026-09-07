@@ -31,6 +31,9 @@ import {
 } from '@/composables/useManagerOnboarding'
 import { detectFromBrowser, installFraming } from '@/utils/installPlatform'
 import { isPlaceholderEmail } from '@/utils/placeholderEmail'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const auth = inject<any>('auth', null)
 const installPrompt = inject<{ value: any } | null>('installPrompt', null)
@@ -77,7 +80,7 @@ async function savePassword(): Promise<void> {
     password.value = ''
     confirm.value = ''
   } catch {
-    error.value = 'Could not save that password. Try again.'
+    error.value = t('org.ui.yourAccount.couldNotSavePassword', 'Could not save that password. Try again.')
   } finally {
     saving.value = false
   }
@@ -108,7 +111,7 @@ function openGuide(): void {
 <template>
   <section class="your-account schools-card schools-card-pad">
     <div class="account-head" data-walk="account-card">
-      <span class="schools-kicker">Your account</span>
+      <span class="schools-kicker">{{ t('org.ui.yourAccount.yourAccount', 'Your account') }}</span>
       <span v-if="email" class="account-email">{{ email }}</span>
     </div>
 
@@ -131,35 +134,35 @@ function openGuide(): void {
     -->
     <div class="account-row" data-walk="account-password">
       <div class="account-row-text">
-        <span class="account-row-title">{{ hasPassword ? 'Password' : 'No password yet' }}</span>
+        <span class="account-row-title">{{ hasPassword ? t('org.ui.yourAccount.password', 'Password') : t('org.ui.yourAccount.noPasswordYet', 'No password yet') }}</span>
         <span class="account-row-note">
           {{ hasPassword
-            ? 'You can sign in with your email address and your password, on any device.'
-            : 'You got in through a link. A password is how you get back in from a new laptop or phone.' }}
+            ? t('org.ui.yourAccount.hintCanSignInAnyDevice', 'You can sign in with your email address and your password, on any device.')
+            : t('org.ui.yourAccount.hintGotInThroughLink', 'You got in through a link. A password is how you get back in from a new laptop or phone.') }}
         </span>
       </div>
       <button type="button" class="account-verb" @click="togglePassword">
-        {{ open ? 'Close' : (hasPassword ? 'Change it' : 'Set a password') }}
+        {{ open ? t('org.ui.yourAccount.close', 'Close') : (hasPassword ? t('org.ui.yourAccount.changeIt', 'Change it') : t('org.ui.yourAccount.setAPassword', 'Set a password')) }}
       </button>
     </div>
 
     <form v-if="open" class="account-form" @submit.prevent="savePassword">
-      <label class="account-label" for="account-password-new">New password</label>
+      <label class="account-label" for="account-password-new">{{ t('org.ui.yourAccount.newPassword', 'New password') }}</label>
       <input
         id="account-password-new" v-model="password" type="password" class="frost-input"
-        autocomplete="new-password" :placeholder="`At least ${MIN_PASSWORD_LENGTH} characters`"
+        autocomplete="new-password" :placeholder="t('org.ui.yourAccount.atLeastNCharacters', 'At least {n} characters').replace('{n}', String(MIN_PASSWORD_LENGTH))"
       />
-      <label class="account-label" for="account-password-confirm">Confirm password</label>
+      <label class="account-label" for="account-password-confirm">{{ t('org.ui.yourAccount.confirmPassword', 'Confirm password') }}</label>
       <input
         id="account-password-confirm" v-model="confirm" type="password" class="frost-input"
-        autocomplete="new-password" placeholder="Type it again"
+        autocomplete="new-password" :placeholder="t('org.ui.yourAccount.typeItAgain', 'Type it again')"
       />
       <p v-if="error" class="account-error" role="alert">{{ error }}</p>
       <button type="submit" class="account-save" :disabled="saving || !password || !confirm">
-        {{ saving ? 'Saving…' : 'Save password' }}
+        {{ saving ? t('org.ui.yourAccount.saving', 'Saving…') : t('org.ui.yourAccount.savePassword', 'Save password') }}
       </button>
     </form>
-    <p v-else-if="saved" class="account-saved" role="status">Password saved.</p>
+    <p v-else-if="saved" class="account-saved" role="status">{{ t('org.ui.yourAccount.passwordSaved', 'Password saved.') }}</p>
 
     <!-- HANDBOOK Put the app on your device
          section: your-own-account
@@ -181,11 +184,11 @@ function openGuide(): void {
     <div class="account-row" data-walk="account-install">
       <div class="account-row-text">
         <span class="account-row-title">
-          {{ platform.isStandalone ? 'The app is installed' : framing.title }}
+          {{ platform.isStandalone ? t('org.ui.yourAccount.theAppIsInstalled', 'The app is installed') : framing.title }}
         </span>
         <span class="account-row-note">
           {{ platform.isStandalone
-            ? 'You are using the installed app right now — nothing more to do.'
+            ? t('org.ui.yourAccount.hintUsingInstalledApp', 'You are using the installed app right now — nothing more to do.')
             : framing.blurb }}
         </span>
       </div>

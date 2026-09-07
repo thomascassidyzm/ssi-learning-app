@@ -44,17 +44,27 @@ import BASELINE from './bare-english-baseline.json'
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 /**
- * The learner-facing surface: what a Hindi speaker learning English actually
- * looks at. Directories, not a file list, so a NEW screen dropped into any of
- * them is policed from its first commit — which is the whole point.
+ * The localised surface: what somebody reading the app in Hindi or Welsh
+ * actually looks at. Directories, not a file list, so a NEW screen dropped
+ * into any of them is policed from its first commit — which is the whole
+ * point.
  *
- * Deliberately OUT: components/admin, components/schools, views/admin,
- * views/schools, views/teach, views/marketing, views/methodology. Those are
- * staff and teacher surfaces, in English by current product decision, and a
- * gate that lit up several hundred of their literals on day one would be
- * switched off within the week. Widen this list when those surfaces are
- * localised, not before.
+ * It said "learner-facing" until 2026-09-07, and named the teacher and school
+ * directories as deliberately out: "in English by current product decision...
+ * Widen this list when those surfaces are localised, not before." They are
+ * localised now — 652 bare literals keyed across the schools, teach and org
+ * node surfaces — so the list is widened, which is that sentence being obeyed
+ * rather than overruled.
+ *
+ * Still deliberately OUT, and these ARE staff surfaces: the Admin*.vue screens
+ * in views/admin, components/admin/invites, views/marketing and
+ * views/methodology. A school leader never reaches any of them. Note that
+ * views/admin is NOT excluded as a whole — NodeHomeView and NodeInsightsView
+ * live there and are exactly where a school admin lands, which is why the
+ * exclusion below is by file prefix rather than by directory.
  */
+const STAFF_ONLY = /^(views\/admin\/Admin|views\/admin\/BoardReport|components\/admin\/(AdminTopBar|BoardInlineSegments|GroupTreeNode|StructureTreeNode))/
+
 const LEARNER_FACING = [
   'components',
   'components/auth',
@@ -64,6 +74,14 @@ const LEARNER_FACING = [
   'views',
   'views/me',
   'views/onboarding',
+  // Teacher, school-leader and tutor surfaces — localised 2026-09-07.
+  'views/schools',
+  'views/teach',
+  'views/admin',
+  'components/schools',
+  'components/schools/shared',
+  'components/admin',
+  'insight',
 ]
 
 const baseline = (BASELINE as { files: Record<string, string[]> }).files
@@ -83,6 +101,7 @@ function scanAll(): Hit[] {
     for (const name of readdirSync(full)) {
       if (!name.endsWith('.vue')) continue
       const rel = `${dir}/${name}`
+      if (STAFF_ONLY.test(rel)) continue
       const source = readFileSync(join(full, name), 'utf8')
       for (const lit of scanTemplateLiterals(source)) {
         if (isUntranslatable(lit.text)) continue

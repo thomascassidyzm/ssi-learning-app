@@ -10,6 +10,9 @@
 // Frostwell Courtyard canon · desktop-first.
 // ============================================================================
 import DiscoveryFeed from './DiscoveryFeed.vue'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 </script>
 
 <template>
@@ -17,16 +20,14 @@ import DiscoveryFeed from './DiscoveryFeed.vue'
     <!-- ── Frostwell page header ── -->
     <header class="page-header">
       <div class="title-block">
-        <span class="schools-kicker">Insight Engine · Discovery</span>
-        <h1 class="arsenal">Insights</h1>
+        <span class="schools-kicker">{{ t('insights.view.kicker', 'Insight Engine · Discovery') }}</span>
+        <h1 class="arsenal">{{ t('insights.view.title', 'Insights') }}</h1>
         <p class="subtitle">
-          What Claude surfaced — the proactive read of what moved this week, what's
-          anomalous, and what's worth your eye. Each finding carries its interpretation
-          and a graded, owned action. Drive the data yourself on the
-          <router-link to="/admin/stats" class="inline-link">Stats</router-link> boards —
-          including
-          <router-link to="/admin/stats?board=vad" class="inline-link">Voice &amp; pause</router-link>,
-          the VAD / prosody read by class and school.
+          {{ t('insights.view.introPart1', "What Claude surfaced — the proactive read of what moved this week, what's anomalous, and what's worth your eye. Each finding carries its interpretation and a graded, owned action. Drive the data yourself on the") }}
+          <router-link to="/admin/stats" class="inline-link">{{ t('insights.view.statsLinkLabel', 'Stats') }}</router-link>
+          {{ t('insights.view.introPart2', 'boards — including') }}
+          <router-link to="/admin/stats?board=vad" class="inline-link">{{ t('insights.view.vadLinkLabel', 'Voice & pause') }}</router-link>,
+          {{ t('insights.view.introPart3', 'the VAD / prosody read by class and school.') }}
         </p>
       </div>
     </header>

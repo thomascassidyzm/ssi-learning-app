@@ -9,6 +9,9 @@
 // Plain words only — "Ways in", never token/species jargon on screen.
 import { ref, computed, watch } from 'vue'
 import { useAdminClient } from '@/composables/useAdminClient'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 interface LedgerLink {
   role: 'leader' | 'school_leader' | 'teacher' | 'student'
@@ -59,7 +62,7 @@ async function load(): Promise<void> {
     if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
     links.value = data.links || []
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to load links'
+    error.value = err instanceof Error ? err.message : t('org.ui.waysInLedger.failedLoadLinks', 'Failed to load links')
   } finally {
     isLoading.value = false
   }
@@ -72,17 +75,23 @@ const scoped = computed(() =>
 )
 
 // ─── Filters: role chips + where chips (mirrors the children-list chips) ───
-const ROLE_WORD: Record<string, string> = {
-  leader: 'Group leader',
-  school_leader: 'School leader',
-  teacher: 'Teacher',
-  student: 'Learner',
-}
+const ROLE_WORD = computed<Record<string, string>>(() => ({
+  leader: t('org.ui.waysInLedger.roleGroupLeader', 'Group leader'),
+  school_leader: t('org.ui.waysInLedger.roleSchoolLeader', 'School leader'),
+  teacher: t('org.ui.waysInLedger.roleTeacher', 'Teacher'),
+  student: t('org.ui.waysInLedger.roleLearner', 'Learner'),
+}))
+const STATUS_WORD = computed<Record<string, string>>(() => ({
+  active: t('org.ui.waysInLedger.statusActive', 'active'),
+  revoked: t('org.ui.waysInLedger.statusRevoked', 'revoked'),
+  expired: t('org.ui.waysInLedger.statusExpired', 'expired'),
+  exhausted: t('org.ui.waysInLedger.statusExhausted', 'exhausted'),
+}))
 const roleFilter = ref<string>('all')
 const whereFilter = ref<string>('all')
 const roleChips = computed(() => {
   const present = [...new Set(scoped.value.map((l) => l.role))]
-  return present.map((r) => ({ value: r, word: ROLE_WORD[r] || r }))
+  return present.map((r) => ({ value: r, word: ROLE_WORD.value[r] || r }))
 })
 // Class rows roll up to their school for filtering — a root node would
 // otherwise grow one chip per class (30+ at the IME programme), which is
@@ -114,20 +123,23 @@ function when(iso: string): string {
 // number, and say "Not yet" rather than a bare "0", which read as "this link
 // isn't working" when in fact it just hadn't been opened.
 function usesText(l: LedgerLink): string {
-  if (l.uses.kind === 'signin') return l.uses.count === 0 ? 'Not yet' : String(l.uses.count)
+  if (l.uses.kind === 'signin') return l.uses.count === 0 ? t('org.ui.waysInLedger.notYet', 'Not yet') : String(l.uses.count)
   return `${l.uses.count}${l.uses.max ? ` / ${l.uses.max}` : ''}`
 }
 
 function usesTitle(l: LedgerLink): string {
   if (l.uses.kind !== 'signin') {
-    return `${l.uses.count} ${l.uses.count === 1 ? 'person has' : 'people have'} joined with this link`
+    return (l.uses.count === 1
+      ? t('org.ui.waysInLedger.personJoinedWithLink', '{n} person has joined with this link')
+      : t('org.ui.waysInLedger.peopleJoinedWithLink', '{n} people have joined with this link')
+    ).replace('{n}', String(l.uses.count))
   }
-  const who = l.personalName || 'They'
-  if (l.uses.count === 0) return `${who} hasn't opened this link yet`
-  const times = l.uses.count === 1 ? 'once' : `${l.uses.count} times`
+  const who = l.personalName || t('org.ui.waysInLedger.they', 'They')
+  if (l.uses.count === 0) return t('org.ui.waysInLedger.hasNotOpenedYet', '{who} hasn\'t opened this link yet').replace('{who}', who)
+  const times = l.uses.count === 1 ? t('org.ui.waysInLedger.once', 'once') : t('org.ui.waysInLedger.nTimes', '{n} times').replace('{n}', String(l.uses.count))
   return l.uses.lastAt
-    ? `${who} has signed in with this link ${times} — last on ${when(l.uses.lastAt)}`
-    : `${who} has signed in with this link ${times}`
+    ? t('org.ui.waysInLedger.signedInTimesLastOn', '{who} has signed in with this link {times} — last on {date}').replace('{who}', who).replace('{times}', times).replace('{date}', when(l.uses.lastAt))
+    : t('org.ui.waysInLedger.signedInTimes', '{who} has signed in with this link {times}').replace('{who}', who).replace('{times}', times)
 }
 
 // ─── Verbs ───
@@ -156,17 +168,18 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
     if (action === 'resend') {
       const to = data.emailed?.to || l.personalEmail
       notice.value = data.emailed?.via === 'code'
-        ? `${to} already has an account, so we sent a sign-in code rather than a link. Copy the link and send it if they need the one-click way in.`
-        : `Invite emailed again to ${to}.`
+        ? t('org.ui.waysInLedger.alreadyHasAccountSentCode', '{email} already has an account, so we sent a sign-in code rather than a link. Copy the link and send it if they need the one-click way in.').replace('{email}', to)
+        : t('org.ui.waysInLedger.inviteEmailedAgainTo', 'Invite emailed again to {email}.').replace('{email}', to)
     } else if (action === 'rotate' && data.url) {
       try { await navigator.clipboard.writeText(data.url) } catch { /* clipboard unavailable */ }
+      const forWho = l.personalName || t('org.ui.waysInLedger.thisPerson', 'this person')
       notice.value = data.emailed?.sent
-        ? `New link for ${l.personalName || 'this person'} — emailed to ${data.emailed.to} and copied. The old one no longer works.`
-        : `New link for ${l.personalName || 'this person'} — copied. The old one no longer works.`
+        ? t('org.ui.waysInLedger.newLinkEmailedAndCopied', 'New link for {who} — emailed to {email} and copied. The old one no longer works.').replace('{who}', forWho).replace('{email}', data.emailed.to)
+        : t('org.ui.waysInLedger.newLinkCopied', 'New link for {who} — copied. The old one no longer works.').replace('{who}', forWho)
     }
     await load()
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'That didn\'t work — try again'
+    error.value = err instanceof Error ? err.message : t('org.ui.waysInLedger.didntWorkTryAgain', 'That didn\'t work — try again')
   } finally {
     busyCode.value = null
   }
@@ -194,15 +207,15 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
          5. **Revoke** closes that way in entirely.
          Worth knowing. A shareable link is open to anyone who holds it, so revoke is the
          tool when a link has travelled further than you meant.
-         checked: e47b054f.886545b6
+         checked: 9e409c9a.886545b6
     -->
     <div class="ways-in-head" data-walk="ways-in-ledger">
-      <span class="schools-kicker">Ways in</span>
-      <span v-if="!isLoading" class="ways-in-count">{{ visible.length }} link{{ visible.length === 1 ? '' : 's' }}</span>
+      <span class="schools-kicker">{{ t('org.ui.waysInLedger.waysIn', 'Ways in') }}</span>
+      <span v-if="!isLoading" class="ways-in-count">{{ visible.length === 1 ? t('org.ui.waysInLedger.oneLink', '1 link') : t('org.ui.waysInLedger.nLinks', '{n} links').replace('{n}', String(visible.length)) }}</span>
     </div>
 
     <div v-if="scoped.length && !classId" class="ways-in-chips">
-      <button type="button" class="chip" :class="{ 'is-on': roleFilter === 'all' }" @click="roleFilter = 'all'">All roles</button>
+      <button type="button" class="chip" :class="{ 'is-on': roleFilter === 'all' }" @click="roleFilter = 'all'">{{ t('org.ui.waysInLedger.allRoles', 'All roles') }}</button>
       <button
         v-for="c in roleChips" :key="c.value" type="button" class="chip"
         :class="{ 'is-on': roleFilter === c.value }"
@@ -210,7 +223,7 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
       >{{ c.word }}</button>
       <span v-if="whereChips.length > 1" class="chip-gap" />
       <template v-if="whereChips.length > 1">
-        <button type="button" class="chip" :class="{ 'is-on': whereFilter === 'all' }" @click="whereFilter = 'all'">Everywhere</button>
+        <button type="button" class="chip" :class="{ 'is-on': whereFilter === 'all' }" @click="whereFilter = 'all'">{{ t('org.ui.waysInLedger.everywhere', 'Everywhere') }}</button>
         <button
           v-for="w in whereChips" :key="w" type="button" class="chip"
           :class="{ 'is-on': whereFilter === w }"
@@ -222,34 +235,34 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
     <p v-if="error" class="ways-in-note is-error">{{ error }}</p>
     <p v-else-if="notice" class="ways-in-note is-ok">{{ notice }}</p>
 
-    <p v-if="isLoading && !scoped.length" class="ways-in-empty">Loading…</p>
-    <p v-else-if="!scoped.length" class="ways-in-empty">{{ classId ? 'No links for this class yet — use “Invite students” above.' : 'No links yet — use “Invite a person” or “Get a shareable link” above.' }}</p>
+    <p v-if="isLoading && !scoped.length" class="ways-in-empty">{{ t('org.ui.waysInLedger.loading', 'Loading…') }}</p>
+    <p v-else-if="!scoped.length" class="ways-in-empty">{{ classId ? t('org.ui.waysInLedger.noLinksClass', 'No links for this class yet — use “Invite students” above.') : t('org.ui.waysInLedger.noLinksNode', 'No links yet — use “Invite a person” or “Get a shareable link” above.') }}</p>
 
     <table v-else class="ways-in-table">
       <thead>
         <tr>
-          <th>Who / what</th>
-          <th v-if="!classId">Where</th>
-          <th>Link</th>
-          <th class="num">Uses</th>
-          <th>Status</th>
-          <th>Created</th>
+          <th>{{ t('org.ui.waysInLedger.whoWhat', 'Who / what') }}</th>
+          <th v-if="!classId">{{ t('org.ui.waysInLedger.where', 'Where') }}</th>
+          <th>{{ t('org.ui.waysInLedger.link', 'Link') }}</th>
+          <th class="num">{{ t('org.ui.waysInLedger.uses', 'Uses') }}</th>
+          <th>{{ t('org.ui.waysInLedger.status', 'Status') }}</th>
+          <th>{{ t('org.ui.waysInLedger.created', 'Created') }}</th>
           <th class="verbs-col"></th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="l in visible" :key="l.code" :class="{ 'is-dead': l.status !== 'active' }">
           <td>
-            <span class="row-role">{{ l.species === 'personal' ? (l.personalName || 'Personal link') : `Anyone — joins as ${(ROLE_WORD[l.role] || l.role).toLowerCase()}` }}</span>
-            <span class="row-kind">{{ l.species === 'personal' ? `${ROLE_WORD[l.role] || l.role} · their own sign-in link, goes straight in` : 'shareable · new arrivals enter their name' }}</span>
+            <span class="row-role">{{ l.species === 'personal' ? (l.personalName || t('org.ui.waysInLedger.personalLink', 'Personal link')) : t('org.ui.waysInLedger.anyoneJoinsAs', 'Anyone — joins as {role}').replace('{role}', (ROLE_WORD[l.role] || l.role).toLowerCase()) }}</span>
+            <span class="row-kind">{{ l.species === 'personal' ? t('org.ui.waysInLedger.ownSignInLinkGoesStraightIn', '{role} · their own sign-in link, goes straight in').replace('{role}', ROLE_WORD[l.role] || l.role) : t('org.ui.waysInLedger.shareableNewArrivalsEnterName', 'shareable · new arrivals enter their name') }}</span>
           </td>
           <td v-if="!classId">{{ l.where.name }}</td>
           <td class="mono">{{ l.code }}</td>
           <td class="num frost-mono-nums" :class="{ 'is-not-yet': l.uses.kind === 'signin' && l.uses.count === 0 }" :title="usesTitle(l)">{{ usesText(l) }}</td>
-          <td><span class="status-pill" :class="`is-${l.status}`">{{ l.status }}</span></td>
+          <td><span class="status-pill" :class="`is-${l.status}`">{{ STATUS_WORD[l.status] || l.status }}</span></td>
           <td class="muted">{{ when(l.createdAt) }}{{ l.createdBy ? ` · ${l.createdBy}` : '' }}</td>
           <td class="verbs-col">
-            <button v-if="l.status === 'active'" type="button" class="row-verb" :class="{ 'is-copied': copiedCode === l.code }" data-walk="ways-in-copy" @click="copyLink(l)">{{ copiedCode === l.code ? 'Copied!' : 'Copy' }}</button>
+            <button v-if="l.status === 'active'" type="button" class="row-verb" :class="{ 'is-copied': copiedCode === l.code }" data-walk="ways-in-copy" @click="copyLink(l)">{{ copiedCode === l.code ? t('org.ui.waysInLedger.copied', 'Copied!') : t('org.ui.waysInLedger.copy', 'Copy') }}</button>
             <!-- HANDBOOK Email someone their invite again
                  section: getting-people-in
                  roles: admin, leader, school_admin
@@ -269,12 +282,12 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
                  Worth knowing. Only rows for a named person with an email on file
                  carry this button. If our mail is being eaten by their school's
                  gateway, read them the link instead of sending it a third time.
-                 checked: ec078ac6.718a020e
+                 checked: 90255865.718a020e
             -->
-            <button v-if="l.status === 'active' && l.species === 'personal' && l.personalEmail" type="button" class="row-verb" :disabled="busyCode === l.code" :title="`Send the invite to ${l.personalEmail} again`" data-walk="ways-in-resend" @click="patch(l, 'resend')">Email again</button>
-            <button v-if="l.status === 'active' && l.species === 'personal'" type="button" class="row-verb" :disabled="busyCode === l.code" data-walk="ways-in-remint" @click="patch(l, 'rotate')">Re-mint</button>
-            <button v-if="l.status === 'active'" type="button" class="row-verb is-danger" :disabled="busyCode === l.code" data-walk="ways-in-revoke" @click="patch(l, 'revoke')">Revoke</button>
-            <button v-else-if="l.status === 'revoked'" type="button" class="row-verb" :disabled="busyCode === l.code" @click="patch(l, 'reactivate')">Put back</button>
+            <button v-if="l.status === 'active' && l.species === 'personal' && l.personalEmail" type="button" class="row-verb" :disabled="busyCode === l.code" :title="t('org.ui.waysInLedger.sendInviteToAgain', 'Send the invite to {email} again').replace('{email}', l.personalEmail)" data-walk="ways-in-resend" @click="patch(l, 'resend')">{{ t('org.ui.waysInLedger.emailAgain', 'Email again') }}</button>
+            <button v-if="l.status === 'active' && l.species === 'personal'" type="button" class="row-verb" :disabled="busyCode === l.code" data-walk="ways-in-remint" @click="patch(l, 'rotate')">{{ t('org.ui.waysInLedger.remint', 'Re-mint') }}</button>
+            <button v-if="l.status === 'active'" type="button" class="row-verb is-danger" :disabled="busyCode === l.code" data-walk="ways-in-revoke" @click="patch(l, 'revoke')">{{ t('org.ui.waysInLedger.revoke', 'Revoke') }}</button>
+            <button v-else-if="l.status === 'revoked'" type="button" class="row-verb" :disabled="busyCode === l.code" @click="patch(l, 'reactivate')">{{ t('org.ui.waysInLedger.putBack', 'Put back') }}</button>
           </td>
         </tr>
       </tbody>
