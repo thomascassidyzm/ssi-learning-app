@@ -11552,7 +11552,11 @@ CREATE TABLE public.possession_mint_attempts (
     outcome text NOT NULL,
     auth_user_id uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    error_detail text
+    error_detail text,
+    resend_message_id text,
+    delivered_at timestamp with time zone,
+    delivery_delayed_at timestamp with time zone,
+    bounced_at timestamp with time zone
 );
 
 
@@ -15995,6 +15999,9 @@ CREATE INDEX idx_possession_mint_attempts_code_time ON public.possession_mint_at
 --
 
 CREATE INDEX idx_possession_mint_attempts_ip_time ON public.possession_mint_attempts USING btree (ip_hash, created_at DESC);
+
+
+CREATE INDEX idx_possession_mint_attempts_resend_message_id ON public.possession_mint_attempts USING btree (resend_message_id) WHERE (resend_message_id IS NOT NULL);
 
 
 --
