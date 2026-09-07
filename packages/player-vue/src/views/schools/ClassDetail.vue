@@ -656,7 +656,7 @@ const candidatesLoaded = ref(false)
 const addStudentError = ref('')
 const addStudentSearch = ref('')
 const addingStudentId = ref('')
-const justAddedName = ref('')
+const justAdded = ref<{ name: string; still_in: Array<{ id: string; name: string }> } | null>(null)
 
 const filteredCandidates = computed(() => {
   const q = addStudentSearch.value.trim().toLowerCase()
@@ -677,7 +677,7 @@ const candidateListState = computed<'loading' | 'error' | 'empty' | 'ready'>(() 
 async function openAddStudent(): Promise<void> {
   showAddStudent.value = true
   addStudentSearch.value = ''
-  justAddedName.value = ''
+  justAdded.value = null
   await loadCandidates()
 }
 
@@ -693,7 +693,7 @@ watch(() => classData.value.id, (id) => {
 function closeAddStudent(): void {
   showAddStudent.value = false
   addStudentSearch.value = ''
-  justAddedName.value = ''
+  justAdded.value = null
 }
 
 async function loadCandidates(): Promise<void> {
@@ -719,8 +719,11 @@ async function addStudent(candidate: StudentCandidate): Promise<void> {
   }
   // The panel stays open — a teacher moving a set adds several in a row — but
   // the person who has just moved leaves the list and is named above it, so the
-  // page never leaves you guessing whether the tap landed.
-  justAddedName.value = candidate.display_name
+  // page never leaves you guessing whether the tap landed. It also names the
+  // classes they are STILL in, and each name is the way to the Remove button on
+  // that class's own roster: adding does not take anybody out of anywhere, and
+  // a page that let a teacher assume otherwise would have moved nobody.
+  justAdded.value = { name: candidate.display_name, still_in: result.still_in }
   studentCandidates.value = studentCandidates.value.filter(c => c.user_id !== candidate.user_id)
   // The search has done its job. Left standing it says "nobody matches aadhya"
   // directly under "Aadhya Verma is in this class now", which reads as a
@@ -1117,12 +1120,17 @@ const deleteImpactLines = computed(() => {
                  3. Type a few letters of the name to narrow the list.
                  4. Tap the pupil. They appear on the roster straight away.
                  5. Add as many as you need, then tap **Done**.
-                 Worth knowing. The list holds the pupils in your school who are
-                 not in this class yet, and shows the class each of them is in
-                 now. A pupil brings everything they have already learned with
-                 them. For a pupil with no account at all, use the class link in
+                 Worth knowing. The list holds the pupils in your school who
+                 are not in this class yet, and under each name are the classes
+                 they are in now, or **In no class**. Adding does not take them
+                 out of those classes — a pupil can be in more than one, one for
+                 each course they are doing. If you meant to move them, the
+                 message that confirms the add names the class they are still in
+                 and takes you to it, where their row has a **Remove** button. A
+                 pupil brings everything they have already learned with them.
+                 For a pupil with no account at all, use the class link in
                  **Invite students** instead.
-                 checked: e36b80b5.8096ea88
+                 checked: c0267e28.e2daca58
             -->
             <button
               v-if="!isAdminView"
@@ -1147,8 +1155,15 @@ const deleteImpactLines = computed(() => {
             placeholder="Search your school's students..."
           />
 
-          <p v-if="justAddedName" class="add-student-note add-student-done">
-            {{ justAddedName }} is in this class now.
+          <p v-if="justAdded" class="add-student-note add-student-done">
+            {{ justAdded.name }} is in this class now.
+            <template v-if="justAdded.still_in.length">
+              Still in
+              <template v-for="(cl, i) in justAdded.still_in" :key="cl.id">
+                <router-link class="add-student-link" :to="{ name: 'class-detail', params: { id: cl.id } }">{{ cl.name }}</router-link><span v-if="i < justAdded.still_in.length - 1">, </span>
+              </template>
+              — open it to take them off that roster.
+            </template>
           </p>
 
           <ul v-if="candidateListState === 'ready'" class="add-student-list">
@@ -1162,7 +1177,7 @@ const deleteImpactLines = computed(() => {
                 <span class="avatar avatar-small">{{ getInitials(c.display_name) }}</span>
                 <span class="add-student-name">
                   {{ c.display_name }}
-                  <span v-if="c.current_class_name" class="add-student-where">{{ c.current_class_name }}</span>
+                  <span class="add-student-where">{{ c.current_classes.length ? c.current_classes.map(cl => cl.name).join(', ') : 'In no class' }}</span>
                 </span>
                 <span class="add-student-verb">{{ addingStudentId === c.user_id ? 'Adding…' : 'Add' }}</span>
               </button>
@@ -1644,6 +1659,7 @@ const deleteImpactLines = computed(() => {
   font-size: 12px;
   color: var(--schools-fg-3);
 }
+.add-student-link { color: inherit; text-decoration: underline; }
 .add-student-verb {
   font-size: 13px;
   color: var(--schools-fg-3);

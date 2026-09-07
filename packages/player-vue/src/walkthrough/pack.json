@@ -1,5 +1,5 @@
 {
-  "version": "f11a9bd87113",
+  "version": "0d8d03eef1bc",
   "generatedAt": "2026-09-07",
   "walks": [
     {
@@ -1072,7 +1072,7 @@
         "Tap the pupil. They appear on the roster straight away.",
         "Add as many as you need, then tap **Done**."
       ],
-      "note": "The list holds the pupils in your school who are not in this class yet, and shows the class each of them is in now. A pupil brings everything they have already learned with them. For a pupil with no account at all, use the class link in **Invite students** instead."
+      "note": "The list holds the pupils in your school who are not in this class yet, and under each name are the classes they are in now, or **In no class**. Adding does not take them out of those classes — a pupil can be in more than one, one for each course they are doing. If you meant to move them, the message that confirms the add names the class they are still in and takes you to it, where their row has a **Remove** button. A pupil brings everything they have already learned with them. For a pupil with no account at all, use the class link in **Invite students** instead."
     },
     {
       "id": "bring-your-first-person-in",

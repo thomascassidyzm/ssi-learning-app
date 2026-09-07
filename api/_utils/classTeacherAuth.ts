@@ -49,16 +49,24 @@ export interface ClassAuthRow {
   group_id: string | null
 }
 
-/** The class row every predicate here needs. Null when the class does not exist. */
+/**
+ * The class row every predicate here needs. Null when the class does not exist.
+ *
+ * A read that FAILS throws rather than returning null: null is the caller's cue
+ * to answer "Class not found", and telling a teacher their class does not exist
+ * because the database blinked is a false statement they cannot detect. Every
+ * caller answers a thrown error with a 500, which is the truth.
+ */
 export async function fetchClassAuthRow(
   svc: SupabaseClient,
   classId: string,
 ): Promise<ClassAuthRow | null> {
-  const { data } = await svc
+  const { data, error } = await svc
     .from('classes')
     .select('id, teacher_user_id, school_id, group_id')
     .eq('id', classId)
     .maybeSingle()
+  if (error) throw new Error(`Could not read the class (${error.message})`)
   return (data as unknown as ClassAuthRow) ?? null
 }
 
