@@ -640,7 +640,18 @@
     "familyDesc": "Popeth sydd yn Premiwm, ar gyfer {seats} cyfrif gan gynnwys eich un chi. Mae pawb yn cadw eu cynnydd eu hunain.",
     "familyMonthly": "£25/mis",
     "familyAnnual": "£250/flwyddyn",
-    "cancelAnytime": "Diddymwch unrhyw bryd."
+    "cancelAnytime": "Diddymwch unrhyw bryd.",
+    "yourDetails": "Eich manylion",
+    "confirmEmail": "Cadarnhau e-bost",
+    "setPasswordOptional": "Gosod cyfrinair (dewisol)",
+    "confirmPassword": "Cadarnhau cyfrinair",
+    "continueToPayment": "Parhau i dalu",
+    "emailsMustMatch": "Dyw'r ddau e-bost ddim yn cyfateb.",
+    "passwordsMustMatch": "Dyw'r ddau gyfrinair ddim yn cyfateb.",
+    "receiptNote": "Does dim cod i'w nôl. Bydd eich derbynneb yn mynd i'r cyfeiriad hwn, a gallwch ei gadarnhau unrhyw bryd.",
+    "signInAndContinue": "Mewngofnodi a pharhau",
+    "emailMeACode": "E-bostiwch god i mi yn lle hynny",
+    "backToPlans": "Yn ôl i'r cynlluniau"
   },
   "family": {
     "family": "Teulu",
