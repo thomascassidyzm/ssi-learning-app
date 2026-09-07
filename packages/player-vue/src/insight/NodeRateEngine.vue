@@ -251,7 +251,7 @@ const metricDesc = computed(() => {
     <p class="nre-metric-desc">{{ metricDesc }}</p>
 
     <!-- ── The widget — or an honest state, never a fabricated number ── -->
-    <div v-if="comparison" class="nre-widget-card">
+    <div v-if="comparison" class="nre-widget-card" data-walk="insights-rate-widget">
       <RateCompare :data="comparison" />
     </div>
     <div v-else-if="isLoading" class="nre-widget-card nre-status"><p>Loading…</p></div>

@@ -674,7 +674,7 @@ const listPayload = computed(() => {
         <!-- MAP RAIL — always the whole column; a cold load without cached
              ancestry gets the quiet skeleton, never a text flash and never
              the main pane sliding into this column. -->
-        <aside class="rail-col schools-card">
+        <aside class="rail-col schools-card" data-walk="node-map-rail">
           <NodeMapRail
             v-if="rail"
             :ancestors="(rail.ancestors as any) || []"
@@ -799,8 +799,8 @@ const listPayload = computed(() => {
           </router-link>
 
           <!-- STATS ROW -->
-          <div class="stats-updated"><UpdatedStamp /></div>
-          <div class="stats-row">
+          <div class="stats-updated" data-walk="node-updated"><UpdatedStamp /></div>
+          <div class="stats-row" data-walk="node-stats">
             <div v-for="s in stats" :key="s.word" class="stat-card schools-card">
               <span class="stat-value frost-mono-nums">{{ switching ? NBSP : s.value }}</span>
               <span class="stat-word">{{ s.word }}</span>
@@ -823,7 +823,7 @@ const listPayload = computed(() => {
             <!-- CLASS PRACTICE leads — the class practising together IS the
                  primary metric (founder ruling). Students are the bonus layer
                  below. -->
-            <div class="schools-card class-card">
+            <div class="schools-card class-card" data-walk="class-practice">
               <span class="schools-kicker">Class practice</span>
               <template v-if="classPractice?.totalSessions">
                 <p class="class-practice-headline frost-mono-nums">
@@ -836,7 +836,7 @@ const listPayload = computed(() => {
               </template>
               <p v-else class="class-card-note">No class practice yet — the teacher's Play as class button starts the first session.</p>
             </div>
-            <div class="schools-card class-card">
+            <div class="schools-card class-card" data-walk="class-journey">
               <span class="schools-kicker">Course journey</span>
               <!-- The bar runs in LEGOs on both sides. journey.done is the
                    CLASS's own play-as-class position as a LEGO ordinal
@@ -861,7 +861,7 @@ const listPayload = computed(() => {
                 <template v-else>Reached Black belt — top of the ladder.</template>
               </p>
             </div>
-            <div class="schools-card class-card">
+            <div class="schools-card class-card" data-walk="class-belts">
               <span class="schools-kicker">Belt distribution</span>
               <template v-if="enrichedStudents.length">
                 <BeltStrip :distribution="beltDistribution" :height="8" />
@@ -875,7 +875,7 @@ const listPayload = computed(() => {
               </template>
               <p v-else class="class-card-note">No students in this class yet.</p>
             </div>
-            <div class="schools-card class-card">
+            <div class="schools-card class-card" data-walk="class-benchmark">
               <span class="schools-kicker">Practice min/student/week</span>
               <Bench v-if="benchmark" :data="benchmark" unit="m" />
               <p v-else class="class-card-note">Not enough practice recorded yet.</p>
@@ -915,6 +915,7 @@ const listPayload = computed(() => {
               </template>
               <NodeChildrenList
                 v-else
+                data-walk="class-students"
                 :lens="lens"
                 :payload="listPayload"
               >

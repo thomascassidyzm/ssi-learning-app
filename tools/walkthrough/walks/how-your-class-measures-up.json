@@ -1,0 +1,33 @@
+{
+  "id": "how-your-class-measures-up",
+  "title": "How your class measures up",
+  "section": "seeing-progress",
+  "personas": [
+    "teacher"
+  ],
+  "place": {
+    "route": "dashboard"
+  },
+  "anchor": "dash-class-bench",
+  "keywords": [
+    "benchmark",
+    "compare",
+    "cycles",
+    "school",
+    "global",
+    "average",
+    "bench"
+  ],
+  "handbook": {
+    "what": "A three-bar benchmark on each class, showing the cycles that class has done against the average for your school and the average across everyone learning that course anywhere. It answers the question a total cannot: is this normal.",
+    "where": "On each class on the schools dashboard, under the heading naming class, school and global.",
+    "how": [
+      "Open the schools dashboard and find the class you want to read.",
+      "The top bar is **Class** — your own class's figure.",
+      "**School** underneath it is the average across the other classes in your school.",
+      "**Global** is the average across every class doing that course.",
+      "Longer bars mean more; the number at the end of each bar is the figure itself."
+    ],
+    "note": "A class with too little recorded activity shows a dash rather than an invented bar."
+  }
+}
