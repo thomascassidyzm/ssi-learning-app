@@ -1,0 +1,238 @@
+/**
+ * Buyer account minting — POST /api/auth/buyer-account
+ *
+ * WHY THIS EXISTS (Tom, 2026-09-07, walking the live Family purchase himself):
+ *
+ *   "clicked upgrade / Selected family plan / was asked to create an account /
+ *    was sent an email / verified email with code / then got nothing"
+ *   "if they opt to pay for a family account, they could then be asked for
+ *    their email - but they shouldn't have to verify their email account yet -
+ *    that's messy"
+ *
+ * Email verification was standing between a person who wanted to pay and
+ * paying. This endpoint removes it: the buyer types their address (and, if
+ * they want, a password), and gets an account and a real session back with NO
+ * mail sent and no code to fetch. Paddle opens next, on the plan they already
+ * chose.
+ *
+ * The mechanism is the one api/auth/possession-redeem.ts already proved in
+ * production, minus the invite code:
+ *   1. auth.admin.createUser({ email, email_confirm: false })  — sends nothing
+ *   2. auth.admin.generateLink({ type: 'magiclink' })          — sends nothing
+ *   3. an ANON-key client calls verifyOtp({ token_hash })      — a real session
+ * The browser then calls supabase.auth.setSession(...) with the returned pair.
+ *
+ * VERIFICATION HAPPENS AFTER, NOT BEFORE. The account is stamped
+ * user_metadata.onboarded_via = 'possession' and its learner row carries
+ * needs_verification = true — the exact pair the existing add-and-verify
+ * apparatus (useAuth, SettingsScreen's add-email prompt, api/email/verify.ts)
+ * already keys off. Nothing on the money path is told this address is proven:
+ * the webhook's payer-resolution rail (SEC15-04) requires
+ * learner_emails.verified = true, and this endpoint never writes that row.
+ *
+ * Security rails, all carried over from possession-redeem:
+ *   - AN ADDRESS THAT ALREADY HAS AN ACCOUNT IS NEVER MINTED A SESSION. That
+ *     would be account takeover by anyone who can type an email. It comes back
+ *     as 409 { reason: 'already_registered' } and the client offers a real
+ *     sign-in (password, or the OTP modal) with the plan choice preserved.
+ *   - real-email enforcement: format + disposable-domain blocklist are hard
+ *     rejects; MX lookup is a SOFT signal (a definitive "no mail exchanger"
+ *     blocks; DNS flakiness fails open).
+ *   - rate limiting + audit through the shared possession_mint_attempts
+ *     apparatus (api/_utils/mintRateLimit.ts), on its own namespaced IP hash
+ *     and its own outcome, so it cannot eat anyone else's budget and no new
+ *     table is needed.
+ *   - a password, when given, is set at creation so it is a real credential
+ *     the buyer holds next time. It is never logged.
+ */
+
+import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { applyCors } from '../_utils/cors'
+import { isValidEmailFormat, isDisposableEmailDomain, hasMxRecord } from '../_utils/emailValidation'
+import {
+  enforceMintRateLimit,
+  logMintAttempt,
+  mintIpHash,
+} from '../_utils/mintRateLimit'
+
+const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
+const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
+const supabaseAnonKey = (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim()
+
+/** Outcome written for a buyer-account mint. Its own value, so the existing
+ *  limiters and dashboards can tell this traffic apart from class/school mints. */
+export const BUYER_MINT_OUTCOME = 'buyer_account_mint'
+
+/** Supabase's own floor is 6; we do not add a policy of our own on top of it. */
+const MIN_PASSWORD_LENGTH = 6
+
+function isAlreadyRegisteredError(error: any): boolean {
+  if (!error) return false
+  if (error.code === 'email_exists') return true
+  const msg = String(error.message || '').toLowerCase()
+  return (
+    msg.includes('already been registered') ||
+    msg.includes('already registered') ||
+    msg.includes('already exists')
+  )
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  if (applyCors(req, res, { methods: 'POST' })) return
+
+  if (req.method !== 'POST') {
+    res.status(405).json({ success: false, error: 'Method not allowed' })
+    return
+  }
+  if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
+    res.status(500).json({ success: false, error: 'Server misconfigured' })
+    return
+  }
+
+  const body = (req.body || {}) as { email?: unknown; password?: unknown }
+  const rawEmail = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+  const password = typeof body.password === 'string' && body.password ? body.password : undefined
+
+  if (!isValidEmailFormat(rawEmail)) {
+    res.status(400).json({ success: false, error: 'Please check that email address.' })
+    return
+  }
+  if (isDisposableEmailDomain(rawEmail)) {
+    res.status(400).json({
+      success: false,
+      error: 'Please use an email address you can receive mail at — your receipt goes there.',
+    })
+    return
+  }
+  if (password !== undefined && password.length < MIN_PASSWORD_LENGTH) {
+    res.status(400).json({
+      success: false,
+      error: `A password needs at least ${MIN_PASSWORD_LENGTH} characters.`,
+    })
+    return
+  }
+
+  const supabase: SupabaseClient = createClient(supabaseUrl, supabaseServiceKey)
+  const ipHash = mintIpHash(req)
+
+  // MX is a soft signal: only a definitive "this domain accepts no mail" blocks.
+  const mx = await hasMxRecord(rawEmail, 2000, ipHash)
+  if (mx === false) {
+    await logMintAttempt(supabase, { ipHash, outcome: 'buyer_account_no_mx' })
+    res.status(400).json({ success: false, error: 'That email domain does not accept mail. Please check it.' })
+    return
+  }
+
+  // Last gate before the expensive admin calls — and it writes this attempt's
+  // own audit row, so the throttle counts real mints rather than its refusals.
+  const limit = await enforceMintRateLimit(supabase, req, null, BUYER_MINT_OUTCOME)
+  if (!limit.ok) {
+    res.status(limit.status).json({ success: false, error: limit.error })
+    return
+  }
+
+  const { data: created, error: createError } = await supabase.auth.admin.createUser({
+    email: rawEmail,
+    email_confirm: false, // nothing is sent, and nothing downstream trusts this address yet
+    ...(password ? { password } : {}),
+    user_metadata: {
+      // 'possession' is deliberate and load-bearing: useAuth, SettingsScreen's
+      // add-email prompt and api/code/redeem.ts all key the needs-a-real-email
+      // nudge off this exact value. A buyer who never verified needs that
+      // nudge more than anyone, not less. `purchase_intent` is analytics only.
+      onboarded_via: 'possession',
+      purchase_intent: true,
+    },
+  })
+
+  if (createError || !created?.user) {
+    if (isAlreadyRegisteredError(createError)) {
+      // NEVER mint a session for a live pre-existing account on an
+      // unauthenticated path — that is account takeover by anyone who can
+      // type somebody's email. The client offers a real sign-in instead, and
+      // the plan they chose survives it.
+      await logMintAttempt(supabase, { ipHash, outcome: 'buyer_account_already_registered' })
+      res.status(409).json({
+        success: false,
+        reason: 'already_registered',
+        error: 'You already have an account with this email.',
+      })
+      return
+    }
+    console.error('[BuyerAccount] createUser failed:', createError)
+    await logMintAttempt(supabase, { ipHash, outcome: 'buyer_account_error' })
+    res.status(500).json({ success: false, error: 'We could not set up your account. Please try again.' })
+    return
+  }
+
+  const newUserId = created.user.id
+
+  // The learner row is created HERE rather than left to the client's
+  // ensureLearnerExists, because the Paddle webhook resolves the payer by
+  // customData.supabase_user_id → learners.user_id. A purchase whose learner
+  // row was still racing into existence would be a subscription written
+  // nowhere. needs_verification is the durable "never proved mailbox receipt"
+  // record — the same value the client would have computed from
+  // onboarded_via: 'possession'.
+  const { error: learnerError } = await supabase.from('learners').insert({
+    user_id: newUserId,
+    display_name: rawEmail.split('@')[0] || 'Learner',
+    verified_emails: [],
+    needs_verification: true,
+  })
+  if (learnerError) {
+    console.error('[BuyerAccount] learner row creation failed:', learnerError)
+    await supabase.auth.admin.deleteUser(newUserId).catch(() => {})
+    await logMintAttempt(supabase, { ipHash, outcome: 'buyer_account_error' })
+    res.status(500).json({ success: false, error: 'We could not set up your account. Please try again.' })
+    return
+  }
+
+  // Roll back BOTH rows on a later failure. learners.user_id is a plain TEXT
+  // column with no FK to auth.users, so deleting the auth user alone would
+  // strand a learner row that every future sign-in on this address would then
+  // silently adopt.
+  const rollback = async () => {
+    await supabase.from('learners').delete().eq('user_id', newUserId).then(undefined, () => {})
+    await supabase.auth.admin.deleteUser(newUserId).catch(() => {})
+  }
+
+  // Mint a link and redeem it here — no email is sent at any point.
+  const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+    type: 'magiclink',
+    email: rawEmail,
+  })
+  const hashedToken = (linkData as any)?.properties?.hashed_token as string | undefined
+  if (linkError || !hashedToken) {
+    console.error('[BuyerAccount] generateLink failed:', linkError)
+    await rollback()
+    await logMintAttempt(supabase, { ipHash, outcome: 'buyer_account_error' })
+    res.status(500).json({ success: false, error: 'We could not set up your account. Please try again.' })
+    return
+  }
+
+  // Anon-key client mints the session. GoTrue rejects `email` alongside
+  // `token_hash` ("Only the token_hash and type should be provided") —
+  // confirmed live 2026-07-15 on the possession path.
+  const anonClient = createClient(supabaseUrl, supabaseAnonKey)
+  const { data: verifyData, error: verifyError } = await anonClient.auth.verifyOtp({
+    token_hash: hashedToken,
+    type: 'magiclink',
+  })
+  if (verifyError || !verifyData?.session) {
+    console.error('[BuyerAccount] verifyOtp (session mint) failed:', verifyError)
+    await rollback()
+    await logMintAttempt(supabase, { ipHash, outcome: 'buyer_account_mint_failed' })
+    res.status(500).json({ success: false, error: 'We could not sign you in. Please try again.' })
+    return
+  }
+
+  res.status(200).json({
+    success: true,
+    session: {
+      access_token: verifyData.session.access_token,
+      refresh_token: verifyData.session.refresh_token,
+    },
+  })
+}

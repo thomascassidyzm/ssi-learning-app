@@ -24,6 +24,7 @@ import { useAuthModal } from './composables/useAuthModal'
 import { useSharedUserEntitlements } from './composables/useUserEntitlements'
 import { hasTryEntitlement } from './composables/useEntitlement'
 import { useSharedSubscription } from './composables/useSubscription'
+import { useFamilyModal } from './composables/useFamilyModal'
 import { useOfflineLease } from './composables/useOfflineLease'
 import {
   withNetworkTimeout,
@@ -49,6 +50,7 @@ import { setSchoolsClient } from './composables/schools/client'
 import AppEscape from './components/AppEscape.vue'
 import CheckoutOverlay from './components/CheckoutOverlay.vue'
 import PlanPicker from './components/PlanPicker.vue'
+import FamilyManagementModal from './components/FamilyManagementModal.vue'
 // In-app browser — renders nothing until a link asks to open a page inside the
 // app rather than throwing the learner out to a browser tab.
 const InAppBrowser = defineAsyncComponent(() => import('./components/InAppBrowser.vue'))
@@ -788,6 +790,10 @@ const fetchEnrolledCourses = async () => {
 }
 
 // Provide stores and state to child components
+// The family-management surface (mounted below) — opened either by Settings
+// or by the Paddle success redirect for the Family plan.
+const { isOpen: familyModalOpen, open: openFamilyModal, close: closeFamilyModal } = useFamilyModal()
+
 provide('progressStore', progressStore)
 provide('sessionStore', sessionStore)
 provide('courseDataProvider', courseDataProvider)
@@ -862,6 +868,27 @@ onMounted(async () => {
       const { initialize: initEntitlements } = useSharedUserEntitlements()
       const { initialize: initSubscription } = useSharedSubscription()
       const entitlementsReady = Promise.all([initEntitlements(), initSubscription()]).catch(() => {})
+
+      // WHERE A FAMILY PAYER LANDS. Paddle's success redirect for the Family
+      // plan carries ?family=1, and initSubscription already polls until the
+      // activating webhook has landed (just_subscribed=1). So the moment the
+      // subscription is real, open the surface that lets them add their
+      // family — rather than dropping them on a course list with no sign the
+      // six seats they just bought exist (Tom, 2026-09-07).
+      void entitlementsReady.then(() => {
+        try {
+          const params = new URLSearchParams(window.location.search)
+          if (params.get('family') !== '1') return
+          // Clean the flag off the URL so a refresh doesn't reopen it.
+          const url = new URL(window.location.href)
+          url.searchParams.delete('family')
+          url.searchParams.delete('just_subscribed')
+          history.replaceState(null, '', url.toString())
+          if (useSharedSubscription().isSubscribed.value) openFamilyModal()
+        } catch (e) {
+          console.warn('[App] Family landing check failed (non-fatal):', e)
+        }
+      })
 
       // 30-day offline lease (the "Spotify handshake"). Wire boot/reconnect/timer
       // renewals AFTER subscription resolves, so the first renew sees the
@@ -984,6 +1011,9 @@ onMounted(async () => {
     <WalkOverlay />
     <PlanPicker />
     <CheckoutOverlay />
+    <!-- Where a Family payer lands. One instance, two doors: the Paddle
+         success redirect (?family=1) and Settings → Manage family. -->
+    <FamilyManagementModal :is-open="familyModalOpen" @close="closeFamilyModal" />
     <InAppBrowser />
     <!--
       Shown only on a FIRST cold visit whose catalogue has not arrived yet.
