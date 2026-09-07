@@ -25,6 +25,13 @@ vi.mock('../_utils/auth', () => ({
 
 let insertCalls: any[] = []
 let govtAdminRow: any
+// A SCHOOL-track owner (no govt_admins row): her authority over her own tree
+// is derived from educational_role + the school she administers, whose own
+// node is `school-node`. Null by default so every pre-existing test is
+// unchanged — a caller who is nobody stays nobody.
+let learnerRow: any
+let schoolAdminTagRow: any
+let schoolRow: any
 // Tree fixture for isStrictDescendantGroup (parent_id walk since 2026-08-06):
 // 'leader-group' is the leader's own governed group; 'leader-sub' is a real
 // sub-group of it; 'other-group' is unrelated.
@@ -32,7 +39,16 @@ let groupPaths: Record<string, string> = { 'leader-group': 'L', 'leader-sub': 'L
 // Rows the duplicate-name lookup (findSiblingSlugCollisions) reads back. Empty
 // by default so every pre-existing test keeps the exact behaviour it asserted.
 let existingGroups: any[] = []
-const GROUP_PARENTS: Record<string, string | null> = { 'leader-group': null, 'leader-sub': 'leader-group', 'other-group': null }
+const GROUP_PARENTS: Record<string, string | null> = {
+  'leader-group': null,
+  'leader-sub': 'leader-group',
+  'other-group': null,
+  // A school-track org: the school's own node, one sub-group inside it, and a
+  // DIFFERENT school's node that must stay untouchable.
+  'school-node': null,
+  'school-sub': 'school-node',
+  'other-school-node': null,
+}
 const forestRows = () => Object.entries(GROUP_PARENTS).map(([id, parent_id]) => ({ id, parent_id }))
 
 function makeChainable(table: string) {
@@ -44,10 +60,20 @@ function makeChainable(table: string) {
     not: () => builder,
     eq: (_col: string, val: unknown) => { eqVal = val; return builder },
     is: () => builder,
+    limit: () => builder,
     insert: (obj: unknown) => { insertCalls.push({ table, obj }); return builder },
     single: () => Promise.resolve({ data: { id: 'group-new', ...(insertCalls[insertCalls.length - 1]?.obj || {}) }, error: null }),
     maybeSingle: () => {
       if (table === 'govt_admins') return Promise.resolve({ data: govtAdminRow, error: null })
+      if (table === 'learners') return Promise.resolve({ data: learnerRow, error: null })
+      if (table === 'schools') return Promise.resolve({ data: schoolRow, error: null })
+      // Two readers hit user_tags with maybeSingle: schoolIdForAdmin (selects
+      // tag_value) and ensureGroupLeaderTag's idempotence probe (selects id).
+      // Only the first one is fixture-driven; the second must stay empty or
+      // the leader tag would never be written.
+      if (table === 'user_tags') {
+        return Promise.resolve({ data: selectCols.includes('tag_value') ? schoolAdminTagRow : null, error: null })
+      }
       if (table === 'groups') {
         const path = groupPaths[eqVal as string]
         return Promise.resolve({ data: path ? { path } : null, error: null })
@@ -87,7 +113,10 @@ beforeEach(async () => {
   verifyAdminResult = { userId: 'admin-1' }
   verifyAuthTokenResult = { valid: true, userId: 'leader-1' }
   govtAdminRow = null
-  groupPaths = { 'leader-group': 'L', 'leader-sub': 'L.1', 'other-group': 'X' }
+  learnerRow = null
+  schoolAdminTagRow = null
+  schoolRow = null
+  groupPaths = { 'leader-group': 'L', 'leader-sub': 'L.1', 'other-group': 'X', 'school-node': 'S', 'school-sub': 'S.1', 'other-school-node': 'Y' }
   existingGroups = []
   vi.resetModules()
   handler = (await import('./index')).default
@@ -348,5 +377,63 @@ describe('POST /api/groups — duplicate-name WARNING (Deborah, 2026-08-06)', ()
     expect(res.body.error).toContain('a group called "Year 7"')
     expect(res.body.duplicates[0]).toMatchObject({ id: 'y7' })
     expect(insertCalls).toHaveLength(0)
+  })
+})
+
+/**
+ * LIVE BUG, 2026-09-07: the owner of a school-track org (karen.jones@nptcgroup)
+ * created her org, minted a class in it, and was then refused a GROUP inside
+ * her own org — "You may only add a sub-group within your own governed group".
+ * She holds no govt_admins row (school track never mints one) and this write
+ * path asked for nothing else, while every READ surface already derived her
+ * authority from the school she administers (leaderGroupIdFor).
+ *
+ * FOUNDER RULING: the person who created the school owns it and may create any
+ * group within it. Authority is DERIVED from what she owns — not a list.
+ */
+describe('POST /api/groups — a school OWNER creates a group inside her own org (live bug 2026-09-07)', () => {
+  beforeEach(() => {
+    verifyAdminResult = { error: 'Requires SSi admin access', status: 403 }
+    verifyAuthTokenResult = { valid: true, userId: 'karen' }
+    govtAdminRow = null // school track mints no leader row — this is correct
+    learnerRow = { educational_role: 'school_admin' }
+    schoolAdminTagRow = { tag_value: 'SCHOOL:school-1' }
+    schoolRow = { id: 'school-1', school_name: 'NPTC Group', group_id: null, node_group_id: 'school-node' }
+  })
+
+  it('may add a group directly under her OWN school node', async () => {
+    const res = makeRes()
+    await handler(makeReq('POST', { name: 'Engineering', type: 'group', parent_id: 'school-node' }), res)
+    expect(res.statusCode).toBe(201)
+    expect(insertCalls[0].obj).toMatchObject({ name: 'Engineering', parent_id: 'school-node' })
+  })
+
+  it('may add a group deeper inside her own subtree', async () => {
+    const res = makeRes()
+    await handler(makeReq('POST', { name: 'Year 1', type: 'group', parent_id: 'school-sub' }), res)
+    expect(res.statusCode).toBe(201)
+    expect(insertCalls[0].obj).toMatchObject({ parent_id: 'school-sub' })
+  })
+
+  it('STILL 403s her on ANOTHER school\'s node — ownership is a subtree, not a blanket', async () => {
+    const res = makeRes()
+    await handler(makeReq('POST', { name: 'Sneaky', type: 'group', parent_id: 'other-school-node' }), res)
+    expect(res.statusCode).toBe(403)
+    expect(insertCalls).toHaveLength(0)
+  })
+
+  it('STILL 403s a plain TEACHER of the same school — the role, not mere membership', async () => {
+    learnerRow = { educational_role: 'teacher' }
+    const res = makeRes()
+    await handler(makeReq('POST', { name: 'Not mine', type: 'group', parent_id: 'school-node' }), res)
+    expect(res.statusCode).toBe(403)
+    expect(insertCalls).toHaveLength(0)
+  })
+
+  it('a school owner with no govt_admins row may still create a ROOT org (one-org-per-leader is unchanged)', async () => {
+    const res = makeRes()
+    await handler(makeReq('POST', { name: 'Karen Consortium' }), res)
+    expect(res.statusCode).toBe(201)
+    expect(insertCalls.find((c) => c.table === 'govt_admins')).toBeTruthy()
   })
 })
