@@ -7,8 +7,10 @@
  *   VITE_PADDLE_TEACHER_PRICE_MONTHLY — pri_… for £15/mo SSi Premium
  *   VITE_PADDLE_TEACHER_PRICE_ANNUAL  — pri_… for £150/yr SSi Premium (tutor + school annual)
  *   VITE_PADDLE_SCHOOL_TEACHER_PRICE_ANNUAL — pri_… for £150/yr/teacher SCHOOL PLATFORM
- *                                              (per-seat; quantity = seats). Falls back to
- *                                              the tutor annual price when unset.
+ *                                              (per-seat; quantity = seats). OPTIONAL OVERRIDE
+ *                                              ONLY — see the monthly entry below; falls
+ *                                              through the tutor annual env var and then onto
+ *                                              SSI_PREMIUM_ANNUAL_PRICE_ID.
  *   VITE_PADDLE_STUDENT_PRICE_MONTHLY        — pri_… for £10/mo student-via-TUTOR (ACT)
  *   VITE_PADDLE_STUDENT_SCHOOL_PRICE_MONTHLY — pri_… for £5/mo student-via-SCHOOL (no commission)
  *   VITE_PADDLE_STUDENT_SCHOOL_PRICE_ANNUAL  — pri_… for £50/yr student-via-SCHOOL (no commission)
@@ -19,7 +21,20 @@
  *    but nothing in the app can start a new one. School students keep annual.)
  *   VITE_PADDLE_SCHOOL_TEACHER_PRICE_MONTHLY — pri_… for £15/teacher/mo SCHOOL PLATFORM
  *                                              (per-seat; checkout sends quantity = teacher seats).
- *                                              ⚠️ Tom must create this price in Paddle + set the env.
+ *                                              Founder ruling 2026-09-07: "Teacher prices are
+ *                                              in there. Teachers are just regular users" — no
+ *                                              separate school-teacher Paddle product exists or
+ *                                              should exist, and NOTHING has to be created by
+ *                                              hand. A school is quantity>1 of the existing
+ *                                              per-seat SSi Premium price; the webhook tells the
+ *                                              lanes apart by customData.kind ('school_platform'
+ *                                              vs 'org_platform' vs 'tutor_platform'), never by
+ *                                              price id. Same reasoning as the org-seat ruling of
+ *                                              2026-08-02 below. Both school env vars are
+ *                                              OPTIONAL OVERRIDES: unset, they fall through the
+ *                                              tutor env vars and land on the in-repo
+ *                                              SSI_PREMIUM_*_PRICE_ID constants, so school
+ *                                              checkout resolves with zero Vercel env config.
  *   VITE_PADDLE_EXTRA_CLASS_MONTHLY   — pri_… (optional, future)
  *   VITE_PADDLE_EXTRA_CLASS_ANNUAL    — pri_… (optional, future)
  *   VITE_PADDLE_FAMILY_PRICE_MONTHLY  — pri_… for £25/mo SSi Family (up to 6 accounts)
