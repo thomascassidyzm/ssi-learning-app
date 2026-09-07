@@ -151,10 +151,26 @@ export default async function handler(
     // now. Same rules the seat lanes already run on.
     const prorationBillingMode = live.status === 'trialing' ? 'do_not_bill' : 'prorated_immediately'
 
-    const updated = await paddle.subscriptions.update(sub.provider_subscription_id, {
-      items: [{ priceId, quantity: 1 }],
-      prorationBillingMode,
-    })
+    // THE LAST-FEW-DAYS CASE. Verified against the live Paddle API on
+    // 2026-09-07, on a real Premium subscription two days from renewal: the
+    // prorated £15 → £25 delta came to 53p, Paddle's minimum chargeable amount
+    // is 55p, and it REFUSED the whole update with
+    // subscription_update_transaction_balance_less_than_charge_limit. Not a
+    // charge that fails — the plan change never happens at all, and the payer
+    // sees a 500. prorated_next_billing_period fails identically; only
+    // do_not_bill is accepted.
+    //
+    // So when, and only when, Paddle says the delta is too small to bill, we
+    // ask again without billing it. The concession is bounded by construction:
+    // it is at most Paddle's own minimum, well under a pound, and it buys a
+    // £25/month conversion that would otherwise dead-end. Everything that
+    // succeeds today is untouched — this branch runs only where the
+    // alternative is an error.
+    const updated = await updateWithSmallProrationFallback(
+      sub.provider_subscription_id,
+      priceId,
+      prorationBillingMode
+    )
 
     // Optimistic mirror; the subscription.updated webhook re-applies the same
     // absolute values (idempotent convergence).
@@ -184,6 +200,36 @@ export default async function handler(
     }
     console.error('[subscription/change-plan] Error:', err)
     res.status(500).json({ error: message })
+  }
+}
+
+/**
+ * Paddle refuses an update outright when the prorated balance is below its
+ * minimum chargeable amount — see the call site. Retry once, unbilled, and
+ * only for that one error.
+ */
+const PRORATION_BELOW_MINIMUM = 'subscription_update_transaction_balance_less_than_charge_limit'
+
+async function updateWithSmallProrationFallback(
+  subscriptionId: string,
+  priceId: string,
+  prorationBillingMode: 'do_not_bill' | 'prorated_immediately'
+): Promise<any> {
+  try {
+    return await paddle.subscriptions.update(subscriptionId, {
+      items: [{ priceId, quantity: 1 }],
+      prorationBillingMode,
+    })
+  } catch (err: any) {
+    const code = err?.code || err?.error?.code || ''
+    const message = String(err?.message || err?.detail || '')
+    const belowMinimum = code === PRORATION_BELOW_MINIMUM || message.includes(PRORATION_BELOW_MINIMUM)
+    if (!belowMinimum || prorationBillingMode === 'do_not_bill') throw err
+    console.warn('[subscription/change-plan] proration below Paddle minimum; changing plan unbilled')
+    return await paddle.subscriptions.update(subscriptionId, {
+      items: [{ priceId, quantity: 1 }],
+      prorationBillingMode: 'do_not_bill',
+    })
   }
 }
 
