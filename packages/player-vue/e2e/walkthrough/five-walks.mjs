@@ -152,6 +152,12 @@ if (LEGS.includes('A')) {
   await nextBtn(p).click()
   await assertStep(p, 'ways-in', 3, 'ways-in-revoke', 'w3-step3-revoke')
   await nextBtn(p).click()
+  // Step 5 (2026-09-07): the walk now ends by POINTING AT the verb that really
+  // mints a new shareable link, because Re-mint only exists on a personal
+  // link's row — a shareable-only ledger showed none, and the walk still
+  // talked about it.
+  await assertStep(p, 'ways-in', 4, 'verb-shareable-link', 'w3-step4-shareable-verb')
+  await nextBtn(p).click()
   await finishWalk(p, 'ways-in')
   check('ways-in: zero mutating requests during walk', mutations.length === mutStart3, mutations.slice(mutStart3).join(', '))
 
