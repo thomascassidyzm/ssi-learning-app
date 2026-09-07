@@ -341,5 +341,11 @@ describe('Onboarding.vue — the school door lands ON the school dashboard', () 
     expect(hrefSpy).toEqual(['/schools'])
     // No interstitial: the optional school-name field must never have rendered.
     expect(wrapper.find('#ob-inst').exists()).toBe(false)
+    // ...and it lands as a MEMBER. Clearing the role cache is not enough: the
+    // /schools guard reads a cached role synchronously, and a cleared (or
+    // pre-signup) one makes it bounce a brand-new admin into the learner app —
+    // which is what "there is no route to the dashboard" actually was. The
+    // role provision just returned must be in the cache before we navigate.
+    expect(localStorage.getItem('ssi-user-role')).toContain('school_admin')
   })
 })
