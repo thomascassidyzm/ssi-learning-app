@@ -164,6 +164,30 @@ describe('NodeHomeView — one grammar at every level', () => {
       .toEqual(['NPTC Group', 'All Learners', 'AS Tutorial 1', 'karen.jones'])
   })
 
+  it('SCALE (the biggest real structures): 49 classes and 39 staff on one node degrade by cap-and-reveal, not by scroll', async () => {
+    routeMock.params = { id: 'big' }
+    setupFetch({
+      kind: 'node',
+      node: { id: 'big', name: 'Ysgol Gyfun Tredegar', label: 'school', is_demo: false, hasSchool: true, rollup: { childGroupCount: 0, teacherCount: 6, classCount: 49, learnerCount: 0 }, commercial: null },
+      ancestors: [], siblings: [], children: [],
+      tree: {
+        nodes: [],
+        classes: Array.from({ length: 49 }, (_, i) => ({ id: `c${i}`, name: `Class ${String(i).padStart(2, '0')}`, nodeId: 'big', teachers: [], studentCount: 0 })),
+        staff: Array.from({ length: 39 }, (_, i) => ({ user_id: `u${i}`, name: `Teacher ${String(i).padStart(2, '0')}`, nodeId: 'big' })),
+      },
+      practiceHours: 0,
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    // Trunk + 8 classes + 8 people, and the rest one tap away.
+    expect(wrapper.findAll('.tree-name')).toHaveLength(17)
+    const more = wrapper.findAll('.tree-more-btn').map((b) => b.text())
+    expect(more).toEqual(['41 more classes', '31 more people'])
+    await wrapper.findAll('.tree-more-btn')[0].trigger('click')
+    expect(wrapper.findAll('.tree-name')).toHaveLength(58)
+  })
+
   it('an org with nothing below it says so once, and draws no phantom rows', async () => {
     routeMock.params = { id: 'empty' }
     setupFetch({

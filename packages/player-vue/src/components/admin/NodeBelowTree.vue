@@ -55,7 +55,11 @@ const member = computed(() => isMemberNodeSurface(route.path))
 // How many rows this node would draw if opened. A node that would unroll a
 // long list starts closed; the root always starts open, because a card that
 // opens shut says nothing.
+// Long lists degrade by cap-and-reveal, never by scroll: the biggest real
+// structures are 49 classes flat on one node (Ysgol Gyfun Tredegar) and 39
+// staff on another (Chepstow), and either would bury the shape.
 const CLASS_CAP = 8
+const STAFF_CAP = 8
 const OPEN_ROWS = 12
 const rowCount = computed(() => props.node.children.length + props.node.classes.length + props.node.staff.length)
 const hasBelow = computed(() => rowCount.value > 0 || props.node.hiddenGroups > 0)
@@ -64,6 +68,9 @@ const showAllClasses = ref(false)
 const shownClasses = computed(() =>
   showAllClasses.value ? props.node.classes : props.node.classes.slice(0, CLASS_CAP))
 const hiddenClasses = computed(() => props.node.classes.length - shownClasses.value.length)
+const showAllStaff = ref(false)
+const shownStaff = computed(() => (showAllStaff.value ? props.node.staff : props.node.staff.slice(0, STAFF_CAP)))
+const hiddenStaff = computed(() => props.node.staff.length - shownStaff.value.length)
 
 const childLabelsMixed = computed(() => new Set(props.node.children.map((c) => c.label)).size > 1)
 const showDemoBadge = computed(() => props.node.isDemo && !props.parentIsDemo)
@@ -149,7 +156,7 @@ function openClass(id: string): void {
 
       <!-- People in this node who teach no class. Drawn, so an invited
            teacher with nothing to teach yet is visible rather than missing. -->
-      <div v-for="p in node.staff" :key="p.user_id" class="tree-row is-person" :class="`depth-${Math.min(depth + 1, 3)}`">
+      <div v-for="p in shownStaff" :key="p.user_id" class="tree-row is-person" :class="`depth-${Math.min(depth + 1, 3)}`">
         <span class="tree-rails" aria-hidden="true">
           <span v-for="i in depth + 1" :key="i" class="rail"></span>
         </span>
@@ -169,6 +176,15 @@ function openClass(id: string): void {
           data-walk="teacher-signin-link"
           @click="emit('person-action-2', p)"
         >{{ personAction2Label }}</button>
+      </div>
+
+      <div v-if="hiddenStaff > 0" class="tree-more" :class="`depth-${Math.min(depth + 1, 3)}`">
+        <span class="tree-rails" aria-hidden="true">
+          <span v-for="i in depth + 1" :key="i" class="rail"></span>
+        </span>
+        <button type="button" class="tree-more-btn" @click="showAllStaff = true">
+          {{ hiddenStaff }} more <template v-if="hiddenStaff === 1">person</template><template v-else>people</template>
+        </button>
       </div>
 
       <div v-if="node.hiddenGroups > 0" class="tree-more" :class="`depth-${Math.min(depth + 1, 3)}`">
