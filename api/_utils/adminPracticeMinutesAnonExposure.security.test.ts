@@ -32,16 +32,24 @@
  *   - EXECUTE revoked from PUBLIC/anon on both. `admin_practice_minutes` is now
  *     service_role only (its only callers are service-role server handlers
  *     behind verifyAdmin).
- *   - `admin_practice_minutes_by_course` keeps `authenticated` because four
- *     browser callers depend on it, and instead gates its NULL-argument
- *     (platform-wide aggregate) path on is_ssi_admin()/service_role.
+ *   - `admin_practice_minutes_by_course` kept `authenticated` at that point,
+ *     because four browser callers depended on it, and gated only its
+ *     NULL-argument (platform-wide aggregate) path on is_ssi_admin().
+ *
+ * RESIDUAL CLOSED 2026-09-07 by 20260907_practice_minutes_scope_repoint_revoke.sql.
+ * The August pass left the NAMED-LEARNER path open to any signed-in caller who
+ * knew a learner UUID — reproduced live that day against a stranger's row, 33
+ * courses returned. All four browser callers were repointed at
+ * POST /api/school/practice-by-course (resolveVisibleScope, loud 403 on an
+ * out-of-scope id) FIRST, and only then was `authenticated` revoked: the
+ * function is now service_role only.
  * It reads supabase/schema.sql and the calling source files only — no DB or
  * network contact.
  */
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { dirname, resolve } from 'node:path'
+import { dirname, resolve, join } from 'node:path'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const schemaPath = resolve(here, '../../supabase/schema.sql')
@@ -75,7 +83,12 @@ describe('SEC25-D-02: admin_practice_minutes(_by_course) — DEFINER, anon-grant
     )
   })
 
-  it('SECURE: EXECUTE on admin_practice_minutes_by_course() is revoked from anon (authenticated kept for the browser callers)', () => {
+  it('PENDING REVOKE: _by_course still carries `authenticated` in the snapshot until the migration is applied live', () => {
+    // The client repoint ships FIRST and the revoke follows once it is live in
+    // production — a revoke ahead of its callers is the blanking failure. This
+    // assertion therefore pins the CURRENT live truth; the commit that applies
+    // 20260907_practice_minutes_scope_repoint_revoke.sql and re-snapshots
+    // schema.sql flips it to service_role-only.
     expect(schema).toContain(
       'REVOKE ALL ON FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[]) FROM PUBLIC;',
     )
@@ -83,7 +96,7 @@ describe('SEC25-D-02: admin_practice_minutes(_by_course) — DEFINER, anon-grant
       'GRANT ALL ON FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[]) TO anon;',
     )
     expect(schema).toContain(
-      'GRANT ALL ON FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[]) TO authenticated;',
+      'GRANT ALL ON FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[]) TO service_role;',
     )
   })
 
@@ -121,22 +134,44 @@ describe('SEC25-D-02: admin_practice_minutes(_by_course) — DEFINER, anon-grant
 
   // ── the blast radius: called from BROWSER code with the anon/authenticated key ──
 
-  it('is called client-side via supabase.rpc(...) from a browser-injected Supabase client', () => {
-    const analyticsData = readFileSync(
-      resolve(here, '../../packages/player-vue/src/composables/schools/useAnalyticsData.ts'),
-      'utf8',
-    )
-    expect(analyticsData).toContain("getSchoolsClient()")
-    expect(analyticsData).toContain(".rpc('admin_practice_minutes_by_course'")
+  it('NO browser caller of the RPC remains — every one was repointed before the revoke', () => {
+    const srcRoot = resolve(here, '../../packages/player-vue/src')
+    const offenders: string[] = []
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name)
+        if (entry.isDirectory()) walk(full)
+        else if (/\.(ts|vue|js)$/.test(entry.name)) {
+          const text = readFileSync(full, 'utf8')
+          if (text.includes(".rpc('admin_practice_minutes")) offenders.push(full)
+        }
+      }
+    }
+    walk(srcRoot)
+    expect(offenders, 'browser code must go through /api/school/practice-by-course').toEqual([])
+  })
 
-    const clientBridge = readFileSync(
-      resolve(here, '../../packages/player-vue/src/composables/schools/client.ts'),
+  it('the repointed callers all go through the scoped endpoint helper', () => {
+    const files = [
+      '../../packages/player-vue/src/composables/admin/useAdminCourses.ts',
+      '../../packages/player-vue/src/composables/admin/useAdminUserDetail.ts',
+      '../../packages/player-vue/src/composables/schools/useAnalyticsData.ts',
+      '../../packages/player-vue/src/views/schools/StudentProgressView.vue',
+    ]
+    for (const f of files) {
+      expect(readFileSync(resolve(here, f), 'utf8'), f).toContain('fetchPracticeByCourse')
+    }
+    const helper = readFileSync(resolve(here, '../../packages/player-vue/src/composables/practiceByCourse.ts'), 'utf8')
+    expect(helper).toContain('/api/school/practice-by-course')
+  })
+
+  it('the revoke ships as its own migration, after the repoint, and reloads the schema cache', () => {
+    const migration = readFileSync(
+      resolve(here, '../../supabase/migrations/20260907_practice_minutes_scope_repoint_revoke.sql'),
       'utf8',
     )
-    // getSchoolsClient() returns whatever App.vue injected at boot — the
-    // browser's anon/authenticated Supabase client, not a service-role one.
-    expect(clientBridge).toContain('let _client: SupabaseClient | null = null')
-    expect(clientBridge).toContain('export function getSchoolsClient')
+    expect(migration).toContain('revoke all on function public.admin_practice_minutes_by_course(uuid[]) from authenticated;')
+    expect(migration).toContain("notify pgrst, 'reload schema';")
   })
 
   it('the server-side caller (api/admin/attention.ts) is not the only path — RPC has no gate of its own', () => {

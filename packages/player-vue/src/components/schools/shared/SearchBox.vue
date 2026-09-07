@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 interface Props {
   /** v-model value */
@@ -18,12 +21,19 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   modelValue: '',
-  placeholder: 'Search...',
   block: false,
   size: 'md',
   autofocus: false,
   disabled: false,
 })
+
+/**
+ * The default label is resolved in a computed, not in withDefaults. A
+ * defineProps default is hoisted outside setup(), so it cannot call t() at
+ * all — and even where the compiler allows it, a default evaluated once would
+ * freeze in English, because on boot the locale chunk is still in flight.
+ */
+const placeholderText = computed(() => props.placeholder ?? t('schools.ui.searchBox.defaultPlaceholder', 'Search...'))
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
@@ -85,7 +95,7 @@ const classes = computed(() => [
       ref="inputRef"
       type="text"
       :value="modelValue"
-      :placeholder="placeholder"
+      :placeholder="placeholderText"
       :disabled="disabled"
       :autofocus="autofocus"
       class="search-input"
@@ -101,7 +111,7 @@ const classes = computed(() => [
       type="button"
       class="search-clear"
       @click="handleClear"
-      aria-label="Clear search"
+      :aria-label="t('schools.ui.searchBox.clearSearchAriaLabel', 'Clear search')"
     >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <line x1="18" y1="6" x2="6" y2="18"/>

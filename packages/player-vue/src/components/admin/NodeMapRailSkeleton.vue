@@ -4,11 +4,14 @@
 // own geometry — never explainer text, never an empty column (founder finding
 // 2026-07-30: intermediate text flashing in the WHERE-YOU-ARE column read as a
 // fake page load). Warm hops render the real rail from nodeHomeCache instead.
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 </script>
 
 <template>
   <div class="rail-skel" aria-hidden="true">
-    <span class="schools-kicker rail-skel-kicker">Where you are</span>
+    <span class="schools-kicker rail-skel-kicker">{{ t('org.ui.nodeMapRail.whereYouAre', 'Where you are') }}</span>
     <div class="rail-skel-bar" style="width: 62%"></div>
     <div class="rail-skel-bar is-here" style="width: 78%"></div>
     <div class="rail-skel-bar is-deep" style="width: 54%"></div>

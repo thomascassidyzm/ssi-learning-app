@@ -13,6 +13,9 @@
  */
 import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import Button from '@/components/schools/shared/Button.vue'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 defineProps<{
   hasSubscription: boolean
@@ -37,14 +40,12 @@ const emit = defineEmits<{
 <template>
   <FrostCard variant="panel" class="section-panel">
     <div class="section-head">
-      <span class="frost-section-title">Teacher plan</span>
+      <span class="frost-section-title">{{ t('teach.billing.title', 'Teacher plan') }}</span>
       <p v-if="!hasSubscription" class="section-sub">
-        You're on your 1 month free trial. Then it's £{{ TEACHER_MONTHLY_PRICE }}/month —
-        your dashboard pauses if the trial lapses. Cancel anytime.
+        {{ t('teach.billing.trialBlurb', "You're on your 1 month free trial. Then it's £{price}/month — your dashboard pauses if the trial lapses. Cancel anytime.").replace('{price}', String(TEACHER_MONTHLY_PRICE)) }}
       </p>
       <p v-else class="section-sub">
-        £{{ TEACHER_MONTHLY_PRICE }}/month — up to {{ MAX_CLASSES }} classes,
-        unlimited students per class up to {{ MAX_STUDENTS_PER_CLASS }} each.
+        {{ t('teach.billing.activeBlurb', '£{price}/month — up to {classes} classes, unlimited students per class up to {students} each.').replace('{price}', String(TEACHER_MONTHLY_PRICE)).replace('{classes}', String(MAX_CLASSES)).replace('{students}', String(MAX_STUDENTS_PER_CLASS)) }}
       </p>
     </div>
 
@@ -53,15 +54,13 @@ const emit = defineEmits<{
     <div v-if="!hasSubscription" class="subscription-cta">
       <div class="price-block">
         <span class="price-amount frost-mono-nums">£{{ TEACHER_MONTHLY_PRICE }}</span>
-        <span class="price-period">/ month</span>
+        <span class="price-period">{{ t('teach.billing.perMonth', '/ month') }}</span>
       </div>
       <p class="sub-blurb">
-        You earn £{{ COMMISSION_PER_STUDENT }} per student — three paying
-        students cover your £{{ TEACHER_MONTHLY_PRICE }} subscription. Every
-        student after that is profit.
+        {{ t('teach.billing.commissionBlurb', 'You earn £{commission} per student — three paying students cover your £{price} subscription. Every student after that is profit.').replace('{commission}', String(COMMISSION_PER_STUDENT)).replace('{price}', String(TEACHER_MONTHLY_PRICE)) }}
       </p>
       <Button variant="primary" :loading="isStartingTrial" :disabled="!teacher?.id" @click="emit('start-trial')">
-        Subscribe — £{{ TEACHER_MONTHLY_PRICE }}/month
+        {{ t('teach.billing.subscribeButton', 'Subscribe — £{price}/month').replace('{price}', String(TEACHER_MONTHLY_PRICE)) }}
       </Button>
     </div>
 
@@ -73,35 +72,35 @@ const emit = defineEmits<{
       class="sub-status-row past-due"
     >
       <div>
-        <p class="sub-status-label">Payment failed</p>
-        <p class="sub-status-sub">Your card was declined. Please update your payment method.</p>
+        <p class="sub-status-label">{{ t('teach.billing.paymentFailed', 'Payment failed') }}</p>
+        <p class="sub-status-sub">{{ t('teach.billing.paymentFailedBlurb', 'Your card was declined. Please update your payment method.') }}</p>
       </div>
       <Button variant="primary" :loading="isOpeningPortal" @click="emit('open-portal')">
-        Update payment method
+        {{ t('teach.billing.updatePaymentMethod', 'Update payment method') }}
       </Button>
     </div>
 
     <div v-else-if="subscriptionStatus === 'cancelled'" class="sub-status-row">
       <div>
-        <p class="sub-status-label">Cancelled</p>
+        <p class="sub-status-label">{{ t('teach.billing.cancelled', 'Cancelled') }}</p>
         <p v-if="nextChargeDate" class="sub-status-sub">
-          Access continues until <strong>{{ nextChargeDate }}</strong>.
+          {{ t('teach.billing.accessContinuesUntil', 'Access continues until') }} <strong>{{ nextChargeDate }}</strong>.
         </p>
       </div>
       <Button variant="ghost" :loading="isOpeningPortal" @click="emit('open-portal')">
-        Manage subscription
+        {{ t('teach.billing.manageSubscription', 'Manage subscription') }}
       </Button>
     </div>
 
     <div v-else class="sub-status-row">
       <div>
-        <p class="sub-status-label">Active</p>
+        <p class="sub-status-label">{{ t('teach.billing.active', 'Active') }}</p>
         <p v-if="nextChargeDate" class="sub-status-sub">
-          Next charge: <strong>{{ nextChargeDate }}</strong>
+          {{ t('teach.billing.nextCharge', 'Next charge:') }} <strong>{{ nextChargeDate }}</strong>
         </p>
       </div>
       <Button variant="ghost" :loading="isOpeningPortal" @click="emit('open-portal')">
-        Manage subscription
+        {{ t('teach.billing.manageSubscription', 'Manage subscription') }}
       </Button>
     </div>
   </FrostCard>

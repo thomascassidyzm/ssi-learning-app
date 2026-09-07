@@ -22,6 +22,9 @@
 import { computed, defineAsyncComponent, type Component } from 'vue'
 import type { AnyInsightSpec, ResolvedInsight, Action, Annotation, SovereignComparisonData } from './spec'
 import { frameTag, tone } from './theme'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   spec: AnyInsightSpec
@@ -76,8 +79,8 @@ const sovereignNamed = computed(() => {
 const sovereignCaption = computed(() => {
   if (!isSovereignFrame.value) return ''
   return sovereignNamed.value
-    ? `identified · admin visibility · k≥${sovereignty.value.kFloor}`
-    : `vs aggregate · anonymised · k≥${sovereignty.value.kFloor}`
+    ? t('insights.widget.sovereignCaptionIdentified', 'identified · admin visibility · k≥{floor}').replace('{floor}', String(sovereignty.value.kFloor))
+    : t('insights.widget.sovereignCaptionAggregate', 'vs aggregate · anonymised · k≥{floor}').replace('{floor}', String(sovereignty.value.kFloor))
 })
 // Only the sovereign-comparison widget receives :named — every other widget's API stays
 // exactly { data, annotations } (no stray DOM attribute falls through on the 12 others).
@@ -133,23 +136,23 @@ function noteColor(t: Annotation['tone']) { return tone(t) }
     <header class="fig-head">
       <span class="fig-q">{{ spec.title }}</span>
       <!-- BEHAVIOUR 2: a single quiet why? — the wrapper owns it, no widget renders its own -->
-      <button class="why-btn" type="button" @click="onInterrogate">why? ↗</button>
+      <button class="why-btn" type="button" @click="onInterrogate">{{ t('insights.widget.whyLink', 'why?') }} ↗</button>
       <span class="fig-tag" :class="tagClass">{{ tagLabel }}</span>
     </header>
 
     <!-- ---- chart body: loading / error / empty / sovereign-suppressed / the widget ---- -->
     <div class="fig-body">
       <div v-if="resolved.isLoading" class="fig-state">
-        <span class="spinner" /> Loading…
+        <span class="spinner" /> {{ t('insights.widget.loading', 'Loading…') }}
       </div>
       <div v-else-if="resolved.error" class="fig-state is-error">
         {{ resolved.error }}
       </div>
       <div v-else-if="sovereignSuppressed" class="fig-state is-private">
-        Too few to compare privately — a band of fewer than {{ sovereignty.kFloor }} stays unshown.
+        {{ t('insights.widget.tooFewToCompare', 'Too few to compare privately — a band of fewer than {floor} stays unshown.').replace('{floor}', String(sovereignty.kFloor)) }}
       </div>
       <div v-else-if="isEmpty" class="fig-state">
-        No data in this window yet.
+        {{ t('insights.widget.noDataInWindow', 'No data in this window yet.') }}
       </div>
       <component
         v-else-if="showWidget"
@@ -159,7 +162,7 @@ function noteColor(t: Annotation['tone']) { return tone(t) }
         v-bind="sovereignProps"
       />
       <div v-else class="fig-state is-error">
-        Widget “{{ spec.widget }}” not found.
+        {{ t('insights.widget.widgetNotFound', 'Widget "{widget}" not found.').replace('{widget}', spec.widget) }}
       </div>
     </div>
 

@@ -28,7 +28,10 @@ import WindowChips from './components/WindowChips.vue'
 import FrostSelect from '@/components/FrostSelect.vue'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { courseDisplayName, courseShortName } from '@ssi/core'
+import { useI18n } from '@/composables/useI18n'
 import type { RateComparisonData } from './spec'
+
+const { t } = useI18n()
 
 interface CourseOption { code: string; classCount: number; hasData?: boolean }
 interface CompareOption { value: string; label: string; word: string }
@@ -115,7 +118,7 @@ async function fetchComparison(): Promise<void> {
     if (json.applied.window && json.applied.window !== props.window) emit('update:window', json.applied.window)
     if (json.applied.measure && json.applied.measure !== props.measure) emit('update:measure', json.applied.measure)
     if (json.insufficientData) {
-      insufficientReason.value = json.reason || 'Not enough data to compare fairly yet.'
+      insufficientReason.value = json.reason || t('insights.rateEngine.notEnoughData', 'Not enough data to compare fairly yet.')
     } else {
       comparison.value = json as RateComparisonData
     }
@@ -160,14 +163,16 @@ watch(
 const courseSelectOptions = computed(() =>
   (engineState.value?.options.courses ?? []).map((c) => ({
     value: c.code,
-    label: c.hasData === false ? `${courseDisplayName(c.code)} — no practice here` : courseDisplayName(c.code),
+    label: c.hasData === false
+      ? t('insights.rateEngine.courseNoPracticeHere', '{course} — no practice here').replace('{course}', courseDisplayName(c.code))
+      : courseDisplayName(c.code),
   })))
 
 function compareWord(o: CompareOption): string {
   if (!props.plainWords) return o.label
-  if (o.value === 'global') return 'Everyone on this course'
-  if (o.value === 'global_all_courses') return 'All SSi learners · all courses'
-  if (o.word === 'school') return 'School average'
+  if (o.value === 'global') return t('insights.rateEngine.compareEveryoneOnCourse', 'Everyone on this course')
+  if (o.value === 'global_all_courses') return t('insights.rateEngine.compareAllLearnersAllCourses', 'All SSi learners · all courses')
+  if (o.word === 'school') return t('insights.rateEngine.compareSchoolAverage', 'School average')
   return o.label // "<Name> average" — already plain language
 }
 const compareSelectOptions = computed(() =>
@@ -206,9 +211,10 @@ const measureModel = computed({
 // The legacy fixed metric — kept as the fallback when the server hasn't (yet)
 // sent options.measures (the admin Stats boards carry the browsable metric
 // set; this page is the scoped door, not a fork).
-const LEGACY_METRIC_DESC = 'New LEGOs reached per week — the headline rate. Rate of progress '
-  + 'matters more than position: a learner three seeds back but climbing fast is '
-  + 'healthier than one parked far ahead.'
+const LEGACY_METRIC_DESC = t(
+  'insights.rateEngine.legacyMetricDesc',
+  'New LEGOs reached per week — the headline rate. Rate of progress matters more than position: a learner three seeds back but climbing fast is healthier than one parked far ahead.',
+)
 const metricDesc = computed(() => {
   const selected = measureOptions.value.find((m) => m.value === measureModel.value)
   return selected?.desc || LEGACY_METRIC_DESC
@@ -220,16 +226,16 @@ const metricDesc = computed(() => {
     <!-- ── Controls ── -->
     <div v-if="engineState" class="nre-controls">
       <div v-if="showWindowChips" class="nre-field" data-walk="insights-window">
-        <span class="nre-field-label">Window</span>
-        <WindowChips v-model="windowModel" :options="windowOptions" aria-label="Time window" />
+        <span class="nre-field-label">{{ t('insights.rateEngine.windowLabel', 'Window') }}</span>
+        <WindowChips v-model="windowModel" :options="windowOptions" :aria-label="t('insights.rateEngine.timeWindowAriaLabel', 'Time window')" />
       </div>
 
       <label v-if="showCoursePicker" class="nre-field nre-field-wide">
-        <span class="nre-field-label">Course</span>
-        <FrostSelect v-model="courseModel" :options="courseSelectOptions" aria-label="Course" />
+        <span class="nre-field-label">{{ t('insights.rateEngine.courseLabel', 'Course') }}</span>
+        <FrostSelect v-model="courseModel" :options="courseSelectOptions" :aria-label="t('insights.rateEngine.courseLabel', 'Course')" />
       </label>
       <div v-else-if="engineState.applied.course_code" class="nre-field">
-        <span class="nre-field-label">Course</span>
+        <span class="nre-field-label">{{ t('insights.rateEngine.courseLabel', 'Course') }}</span>
         <p class="nre-fixed">{{ courseShortName(engineState.applied.course_code) }}</p>
       </div>
 
@@ -252,20 +258,20 @@ const metricDesc = computed(() => {
            5. **Overview** takes you back to the same place's home page.
            Worth knowing. Everything here is a rate, not a raw total, so groups of very
            different sizes still compare fairly.
-           checked: a0b474a7.1e86d15d
+           checked: d02609b0.1e86d15d
       -->
       <label v-if="showMeasurePicker" class="nre-field nre-field-wide" data-walk="insights-measure">
-        <span class="nre-field-label">Measure</span>
-        <FrostSelect v-model="measureModel" :options="measureSelectOptions" aria-label="Measure" />
+        <span class="nre-field-label">{{ t('insights.rateEngine.measureLabel', 'Measure') }}</span>
+        <FrostSelect v-model="measureModel" :options="measureSelectOptions" :aria-label="t('insights.rateEngine.measureLabel', 'Measure')" />
       </label>
       <div v-else class="nre-field" data-walk="insights-measure">
-        <span class="nre-field-label">Measure</span>
-        <p class="nre-fixed">Rate of progress (LEGOs / week)</p>
+        <span class="nre-field-label">{{ t('insights.rateEngine.measureLabel', 'Measure') }}</span>
+        <p class="nre-fixed">{{ t('insights.rateEngine.rateOfProgressFixed', 'Rate of progress (LEGOs / week)') }}</p>
       </div>
 
       <label class="nre-field nre-field-wide" data-walk="insights-compare">
-        <span class="nre-field-label">Compare to</span>
-        <FrostSelect v-model="compareModel" :options="compareSelectOptions" aria-label="Compare to" />
+        <span class="nre-field-label">{{ t('insights.rateEngine.compareToLabel', 'Compare to') }}</span>
+        <FrostSelect v-model="compareModel" :options="compareSelectOptions" :aria-label="t('insights.rateEngine.compareToLabel', 'Compare to')" />
       </label>
     </div>
 
@@ -295,15 +301,15 @@ const metricDesc = computed(() => {
     <div v-if="comparison" class="nre-widget-card" data-walk="insights-rate-widget">
       <RateCompare :data="comparison" />
     </div>
-    <div v-else-if="isLoading" class="nre-widget-card nre-status"><p>Loading…</p></div>
+    <div v-else-if="isLoading" class="nre-widget-card nre-status"><p>{{ t('insights.rateEngine.loading', 'Loading…') }}</p></div>
     <div v-else-if="authMissing" class="nre-widget-card nre-status">
-      <p>Your session has expired — sign in again to see these numbers.</p>
+      <p>{{ t('insights.rateEngine.sessionExpired', 'Your session has expired — sign in again to see these numbers.') }}</p>
     </div>
     <div v-else-if="insufficientReason" class="nre-widget-card nre-status">
       <p>{{ insufficientReason }}</p>
     </div>
     <div v-else-if="fetchFailed" class="nre-widget-card nre-status">
-      <p>Couldn't load these numbers just now — try again shortly.</p>
+      <p>{{ t('insights.rateEngine.fetchFailed', "Couldn't load these numbers just now — try again shortly.") }}</p>
     </div>
   </div>
 </template>

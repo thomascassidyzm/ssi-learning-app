@@ -3,7 +3,8 @@ import { ref, computed, onMounted, watch, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { getSchoolsClient } from '@/composables/schools/client'
-import { getLanguageName } from '@/composables/useI18n'
+import { fetchPracticeByCourse } from '@/composables/practiceByCourse'
+import { getLanguageName, useI18n } from '@/composables/useI18n'
 import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
 import Sparkline from '@/components/schools/shared/Sparkline.vue'
 import { BELTS, type BeltName } from '@/composables/schools/belts'
@@ -24,6 +25,7 @@ interface CourseProgress {
 const { currentUser } = useSchoolContext()
 const client = getSchoolsClient()
 const router = useRouter()
+const { t } = useI18n()
 const isAdminView = inject<boolean>('isAdminView', false)
 
 const courses = ref<CourseProgress[]>([])
@@ -73,11 +75,14 @@ async function fetchProgress() {
 
     // Practice minutes per course from the player_events rollup RPC —
     // course_enrollments.total_practice_minutes is no longer maintained.
-    const { data: minutesRows } = await client
-      .rpc('admin_practice_minutes_by_course', { p_learner_ids: [currentUser.value.learner_id] })
+    // Server-mediated: /api/school/practice-by-course. Self is always in the
+    // caller's own scope; a staff caller reading someone else's row is checked
+    // server-side against resolveVisibleScope and refused loudly if it is not
+    // theirs to read.
+    const minutesRows = await fetchPracticeByCourse(client, [currentUser.value.learner_id])
     const minutesByCourse = new Map<string, number>()
     const minutesEstimatedByCourse = new Map<string, boolean>()
-    ;(minutesRows as Array<{ course_code: string; practice_minutes: number; is_estimated: boolean }> | null)?.forEach(r => {
+    minutesRows.forEach(r => {
       if (r.course_code) {
         minutesByCourse.set(r.course_code, r.practice_minutes || 0)
         minutesEstimatedByCourse.set(r.course_code, !!r.is_estimated)
@@ -157,7 +162,7 @@ function formatCourseName(courseId: string): string {
 }
 
 const primaryCourseName = computed(() =>
-  primaryCourse.value ? formatCourseName(primaryCourse.value.course_id) : 'your course',
+  primaryCourse.value ? formatCourseName(primaryCourse.value.course_id) : t('schools.studentProgress.yourCourseFallback', 'your course'),
 )
 
 const legosRetired = computed(() => primaryCourse.value?.legos_retired || 0)
@@ -225,37 +230,39 @@ const avgSessionMins = computed(() => {
 const lastSessionAt = computed(() => recentSessions.value[0]?.started_at || null)
 
 const lastSessionLabel = computed(() => {
-  if (!lastSessionAt.value) return 'No sessions yet'
+  if (!lastSessionAt.value) return t('schools.studentProgress.noSessionsYet', 'No sessions yet')
   const last = new Date(lastSessionAt.value)
   const now = new Date()
   const diffMs = now.getTime() - last.getTime()
   const mins = Math.floor(diffMs / 60000)
-  if (mins < 60) return `${mins}m ago`
+  if (mins < 60) return t('schools.studentProgress.minutesAgo', '{n}m ago').replace('{n}', String(mins))
   const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
+  if (hours < 24) return t('schools.studentProgress.hoursAgo', '{n}h ago').replace('{n}', String(hours))
   const days = Math.floor(hours / 24)
-  return `${days}d ago`
+  return t('schools.studentProgress.daysAgo', '{n}d ago').replace('{n}', String(days))
 })
 
 const subtitle = computed(() => {
   if (!primaryCourse.value) {
-    return isAdminView ? 'Not yet enrolled in a course.' : 'Enrol in a course to start your journey.'
+    return isAdminView
+      ? t('schools.studentProgress.notEnrolled', 'Not yet enrolled in a course.')
+      : t('schools.studentProgress.enrolToStart', 'Enrol in a course to start your journey.')
   }
   const remaining = Math.max(0, belt.value.total - belt.value.done)
   const beltLabel = belt.value.next?.name ?? belt.value.current.name
   const parts: string[] = []
   if (isAdminView) {
-    parts.push(`Retired ${legosRetired.value} LEGOs in ${primaryCourseName.value}.`)
+    parts.push(t('schools.studentProgress.adminRetiredLegos', 'Retired {n} LEGOs in {course}.').replace('{n}', String(legosRetired.value)).replace('{course}', primaryCourseName.value))
     parts.push(belt.value.next
-      ? `${remaining} more to ${beltLabel} belt.`
-      : `Reached ${beltLabel} belt.`)
-    if (lastSessionAt.value) parts.push(`Last session ${lastSessionLabel.value}.`)
+      ? t('schools.studentProgress.adminMoreToBelt', '{n} more to {belt} belt.').replace('{n}', String(remaining)).replace('{belt}', beltLabel)
+      : t('schools.studentProgress.adminReachedBelt', 'Reached {belt} belt.').replace('{belt}', beltLabel))
+    if (lastSessionAt.value) parts.push(t('schools.studentProgress.adminLastSession', 'Last session {when}.').replace('{when}', lastSessionLabel.value))
   } else {
-    parts.push(`You've retired ${legosRetired.value} LEGOs in ${primaryCourseName.value}.`)
+    parts.push(t('schools.studentProgress.retiredLegos', "You've retired {n} LEGOs in {course}.").replace('{n}', String(legosRetired.value)).replace('{course}', primaryCourseName.value))
     parts.push(belt.value.next
-      ? `${remaining} more to your ${beltLabel} belt.`
-      : `You've reached ${beltLabel} belt — keep going.`)
-    if (lastSessionAt.value) parts.push(`Your last session was ${lastSessionLabel.value} — pick up where you left off?`)
+      ? t('schools.studentProgress.moreToBelt', '{n} more to your {belt} belt.').replace('{n}', String(remaining)).replace('{belt}', beltLabel)
+      : t('schools.studentProgress.reachedBelt', "You've reached {belt} belt — keep going.").replace('{belt}', beltLabel))
+    if (lastSessionAt.value) parts.push(t('schools.studentProgress.lastSession', 'Your last session was {when} — pick up where you left off?').replace('{when}', lastSessionLabel.value))
   }
   return parts.join(' ')
 })
@@ -273,7 +280,7 @@ const journeyTotal = computed(() => {
 
 <template>
   <div class="progress-page">
-    <div v-if="isLoading" class="state-msg schools-subtle">{{ isAdminView ? 'Loading progress…' : 'Loading your progress…' }}</div>
+    <div v-if="isLoading" class="state-msg schools-subtle">{{ isAdminView ? t('schools.studentProgress.loadingProgressAdmin', 'Loading progress…') : t('schools.studentProgress.loadingProgress', 'Loading your progress…') }}</div>
 
     <div v-else-if="error" class="state-msg schools-subtle">{{ error }}</div>
 
@@ -283,13 +290,13 @@ const journeyTotal = computed(() => {
         <section class="left-col">
           <div class="schools-kicker">{{ dateLine }}</div>
           <h1 class="arsenal page-title">
-            Demat, {{ greetingName }}.
+            {{ t('schools.studentProgress.greeting', 'Demat, {name}.').replace('{name}', greetingName) }}
           </h1>
           <p class="page-sub schools-subtle">{{ subtitle }}</p>
 
           <div v-if="!isAdminView" class="cta-row">
             <button type="button" class="btn-play" @click="handleKeepGoing">
-              ▶ Keep going — LEGO {{ nextLegoNumber }}
+              ▶ {{ t('schools.studentProgress.keepGoingLabel', 'Keep going — LEGO {n}').replace('{n}', String(nextLegoNumber)) }}
             </button>
           </div>
 
@@ -314,19 +321,19 @@ const journeyTotal = computed(() => {
               :style="{ background: `var(--schools-belt-${belt.current.key})` }"
             />
             <div>
-              <div class="schools-kicker">Current belt</div>
+              <div class="schools-kicker">{{ t('schools.studentProgress.currentBeltKicker', 'Current belt') }}</div>
               <div class="arsenal belt-name">{{ belt.current.name }}</div>
               <div class="schools-subtle belt-note">
                 <template v-if="belt.next">
-                  {{ Math.max(0, belt.total - belt.done) }} LEGOs to {{ belt.next.name }}
+                  {{ t('schools.studentProgress.legosToNextBelt', '{n} LEGOs to {belt}').replace('{n}', String(Math.max(0, belt.total - belt.done))).replace('{belt}', belt.next.name) }}
                 </template>
-                <template v-else>You've reached the top belt</template>
+                <template v-else>{{ t('schools.studentProgress.reachedTopBelt', "You've reached the top belt") }}</template>
               </div>
             </div>
           </div>
 
           <div class="schools-card schools-card-pad journey-card">
-            <div class="schools-kicker">Your journey</div>
+            <div class="schools-kicker">{{ t('schools.studentProgress.yourJourneyKicker', 'Your journey') }}</div>
             <JourneyBar
               :done="journeyDone"
               :total="journeyTotal"
@@ -337,19 +344,19 @@ const journeyTotal = computed(() => {
                    2026-07-19, docs/gamification-done-right.md). -->
               <div class="stat">
                 <div class="arsenal stat-val">{{ hoursThisWeek }}h</div>
-                <div class="schools-subtle stat-label">This week</div>
+                <div class="schools-subtle stat-label">{{ t('schools.studentProgress.thisWeekLabel', 'This week') }}</div>
               </div>
               <div class="stat">
                 <div class="arsenal stat-val">{{ avgSessionMins }}m</div>
-                <div class="schools-subtle stat-label">Avg / day</div>
+                <div class="schools-subtle stat-label">{{ t('schools.studentProgress.avgPerDayLabel', 'Avg / day') }}</div>
               </div>
             </div>
           </div>
 
           <div class="schools-card schools-card-pad spark-card">
-            <div class="schools-kicker">Last 7 days</div>
+            <div class="schools-kicker">{{ t('schools.studentProgress.last7DaysKicker', 'Last 7 days') }}</div>
             <Sparkline :data="last7Hours" :width="260" :height="42" />
-            <div class="schools-subtle spark-foot">Sun – Sat · hours practised</div>
+            <div class="schools-subtle spark-foot">{{ t('schools.studentProgress.sparkFootLabel', 'Sun – Sat · hours practised') }}</div>
           </div>
         </aside>
       </div>
@@ -357,16 +364,16 @@ const journeyTotal = computed(() => {
       <!-- Course list (only when learner has more than one enrolment) -->
       <section v-if="courses.length > 1" class="schools-card courses-card">
         <div class="courses-head">
-          <h3 class="arsenal section-title">All courses</h3>
+          <h3 class="arsenal section-title">{{ t('schools.studentProgress.allCoursesTitle', 'All courses') }}</h3>
         </div>
         <table class="ssi-table">
           <thead>
             <tr>
-              <th>Course</th>
-              <th>LEGOs retired</th>
-              <th>Seeds covered</th>
-              <th>Practice time</th>
-              <th>Last session</th>
+              <th>{{ t('schools.studentProgress.courseColumn', 'Course') }}</th>
+              <th>{{ t('schools.studentProgress.legosRetiredColumn', 'LEGOs retired') }}</th>
+              <th>{{ t('schools.studentProgress.seedsCoveredColumn', 'Seeds covered') }}</th>
+              <th>{{ t('schools.studentProgress.practiceTimeColumn', 'Practice time') }}</th>
+              <th>{{ t('schools.studentProgress.lastSessionColumn', 'Last session') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -374,12 +381,12 @@ const journeyTotal = computed(() => {
               <td>{{ formatCourseName(c.course_id) }}</td>
               <td>{{ c.legos_retired }}</td>
               <td>{{ c.seeds_completed }}</td>
-              <td :title="c.total_practice_minutes_estimated ? 'Approximate — no session logs for this course, derived from course position' : undefined">{{ c.total_practice_minutes_estimated ? '~' : '' }}{{ c.total_practice_minutes }}m</td>
+              <td :title="c.total_practice_minutes_estimated ? t('schools.studentProgress.approximateTimeTitle', 'Approximate — no session logs for this course, derived from course position') : undefined">{{ c.total_practice_minutes_estimated ? '~' : '' }}{{ c.total_practice_minutes }}m</td>
               <td>
                 {{
                   c.last_practiced_at
                     ? new Date(c.last_practiced_at).toLocaleDateString('en-GB')
-                    : 'Never'
+                    : t('schools.studentProgress.neverLabel', 'Never')
                 }}
               </td>
             </tr>
@@ -388,9 +395,9 @@ const journeyTotal = computed(() => {
       </section>
 
       <div v-if="courses.length === 0" class="schools-card schools-card-pad empty-card">
-        <h3 class="arsenal section-title">No courses yet</h3>
+        <h3 class="arsenal section-title">{{ t('schools.studentProgress.noCoursesTitle', 'No courses yet') }}</h3>
         <p class="schools-subtle">
-          You haven't enrolled in any courses yet. Ask your teacher for a class join code.
+          {{ t('schools.studentProgress.noCoursesHint', "You haven't enrolled in any courses yet. Ask your teacher for a class join code.") }}
         </p>
       </div>
     </template>

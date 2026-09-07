@@ -53,7 +53,9 @@ import { useOrgCheckout } from '@/composables/useOrgCheckout'
 import { useTeachersData } from '@/composables/schools/useTeachersData'
 import { getPaddle, paddleConfig } from '@/lib/paddle'
 import { institutionalPurchaseAvailable, paddleBillingAvailable } from '@/platform/paymentRoute'
+import { useI18n } from '@/composables/useI18n'
 
+const { t } = useI18n()
 const supabase = inject<Ref<any>>('supabase', ref(null))
 const { currentUser, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
 
@@ -161,7 +163,7 @@ const monthlyTotalGbp = computed(() => seats.value * PRICE_PER_SEAT_GBP)
 const annualTotalGbp = computed(() => seats.value * ANNUAL_PRICE_PER_SEAT_GBP)
 // The headline total for the currently-selected period (school lane).
 const schoolTotalGbp = computed(() => (isAnnual.value ? annualTotalGbp.value : monthlyTotalGbp.value))
-const periodSuffix = computed(() => (isAnnual.value ? '/yr' : '/mo'))
+const periodSuffix = computed(() => (isAnnual.value ? t('schools.upgrade.perYear', '/yr') : t('schools.upgrade.perMonth', '/mo')))
 function setSeats(n: number) {
   seatCountTouched.value = true
   seatCount.value = Math.max(1, Math.floor(n) || 1)
@@ -252,18 +254,18 @@ async function updateSeats() {
   seatsMessage.value = ''
   try {
     const headers = await authHeaders()
-    if (!headers) { seatsMessage.value = 'Sign in again to change seats'; return }
+    if (!headers) { seatsMessage.value = t('schools.upgrade.signInAgainSeats', 'Sign in again to change seats'); return }
     const res = await fetch('/api/school/update-seats', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ seats: seatCount.value }),
     })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) { seatsMessage.value = data?.error || 'Could not update seats'; return }
+    if (!res.ok) { seatsMessage.value = data?.error || t('schools.upgrade.couldNotUpdateSeats', 'Could not update seats'); return }
     paidSeats.value = data?.seats ?? seatCount.value
-    seatsMessage.value = data?.unchanged ? 'No change' : `Updated to ${paidSeats.value} seats`
+    seatsMessage.value = data?.unchanged ? t('schools.upgrade.noChange', 'No change') : t('schools.upgrade.updatedToSeats', 'Updated to {n} seats').replace('{n}', String(paidSeats.value))
   } catch {
-    seatsMessage.value = 'Could not update seats'
+    seatsMessage.value = t('schools.upgrade.couldNotUpdateSeats', 'Could not update seats')
   } finally {
     isUpdatingSeats.value = false
   }
@@ -366,18 +368,18 @@ async function updateOrgSeats() {
   orgSeatsMessage.value = ''
   try {
     const headers = await authHeaders()
-    if (!headers) { orgSeatsMessage.value = 'Sign in again to change seats'; return }
+    if (!headers) { orgSeatsMessage.value = t('schools.upgrade.signInAgainSeats', 'Sign in again to change seats'); return }
     const res = await fetch('/api/org/update-seats', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ seats: orgSeatCount.value }),
     })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) { orgSeatsMessage.value = data?.error || 'Could not update seats'; return }
+    if (!res.ok) { orgSeatsMessage.value = data?.error || t('schools.upgrade.couldNotUpdateSeats', 'Could not update seats'); return }
     orgPaidSeats.value = data?.seats ?? orgSeatCount.value
-    orgSeatsMessage.value = data?.unchanged ? 'No change' : `Updated to ${orgPaidSeats.value} seats`
+    orgSeatsMessage.value = data?.unchanged ? t('schools.upgrade.noChange', 'No change') : t('schools.upgrade.updatedToSeats', 'Updated to {n} seats').replace('{n}', String(orgPaidSeats.value))
   } catch {
-    orgSeatsMessage.value = 'Could not update seats'
+    orgSeatsMessage.value = t('schools.upgrade.couldNotUpdateSeats', 'Could not update seats')
   } finally {
     isUpdatingOrgSeats.value = false
   }
@@ -453,7 +455,7 @@ async function openTutorPortal(): Promise<void> {
   // Paddle's hosted portal is the web rail's own machinery (platform/paymentRoute).
   if (!paddleBillingAvailable()) return
   const headers = await authHeaders()
-  if (!headers) { tutorError.value = 'Sign in again to manage your subscription'; return }
+  if (!headers) { tutorError.value = t('schools.upgrade.signInAgainManage', 'Sign in again to manage your subscription'); return }
   try {
     const res = await fetch('/api/teacher/portal', { headers })
     if (res.ok) {
@@ -461,7 +463,7 @@ async function openTutorPortal(): Promise<void> {
       if (data?.portalUrl) { window.location.href = data.portalUrl; return }
     }
   } catch { /* fall through to error */ }
-  tutorError.value = 'Could not open the billing portal — try again'
+  tutorError.value = t('schools.upgrade.couldNotOpenPortal', 'Could not open the billing portal — try again')
 }
 
 async function subscribeTutor() {
@@ -480,22 +482,22 @@ async function subscribeTutor() {
     : paddleConfig.teacherMonthlyPriceId
   if (!priceId) {
     tutorError.value = isAnnual.value
-      ? 'Annual plan not configured — choose monthly'
-      : 'Teacher plan price not configured'
+      ? t('schools.upgrade.annualNotConfigured', 'Annual plan not configured — choose monthly')
+      : t('schools.upgrade.teacherPlanNotConfigured', 'Teacher plan price not configured')
     return
   }
-  if (!supabase.value) { tutorError.value = 'Sign in again to start checkout'; return }
+  if (!supabase.value) { tutorError.value = t('schools.upgrade.signInAgainCheckout', 'Sign in again to start checkout'); return }
   tutorBusy.value = true
   tutorError.value = ''
   try {
     const { data: { session } } = await supabase.value.auth.getSession()
     const email = session?.user?.email
     const userId = session?.user?.id
-    if (!email) { tutorError.value = 'Sign in again to start checkout'; return }
+    if (!email) { tutorError.value = t('schools.upgrade.signInAgainCheckout', 'Sign in again to start checkout'); return }
     // Resolve the tutor's teachers-row id (webhook keys the subscription on it).
     const teacherId = await resolveTutorTeacherId()
     if (!teacherId) {
-      tutorError.value = 'Still loading your tutor account — try again in a moment'
+      tutorError.value = t('schools.upgrade.stillLoadingTutorAccount', 'Still loading your tutor account — try again in a moment')
       return
     }
     checkoutOpen.value = true
@@ -523,7 +525,7 @@ async function subscribeTutor() {
       },
     })
   } catch (err: any) {
-    tutorError.value = err?.message || 'Failed to open checkout'
+    tutorError.value = err?.message || t('schools.upgrade.failedToOpenCheckout', 'Failed to open checkout')
     checkoutOpen.value = false
   } finally {
     tutorBusy.value = false
@@ -557,20 +559,18 @@ watch(currentUser, (user) => {
 <template>
   <div class="upgrade-page">
     <div class="upgrade-card schools-card">
-      <span class="schools-kicker">SSi Premium</span>
+      <span class="schools-kicker">{{ t('schools.upgrade.ssiPremium', 'SSi Premium') }}</span>
 
       <!-- ── Org lane: per-seat (govt_admin group-leader) ── -->
       <template v-if="isOrgLane">
         <h1 class="upgrade-title arsenal">
-          {{ isOrgSubscribed ? 'Manage your seats' : 'Subscribe your organisation' }}
+          {{ isOrgSubscribed ? t('schools.upgrade.manageYourSeats', 'Manage your seats') : t('schools.upgrade.subscribeYourOrganisation', 'Subscribe your organisation') }}
         </h1>
         <p class="upgrade-lede">
-          £{{ PRICE_PER_SEAT_GBP }} per learner seat / month (or £{{ ANNUAL_PRICE_PER_SEAT_GBP }}/year).
-          One subscription covers every seat and every language. Add seats any time — each seat
-          belongs to one named learner for the period you've paid for.
+          {{ t('schools.upgrade.orgLede', "£{price} per learner seat / month (or £{annualPrice}/year). One subscription covers every seat and every language. Add seats any time — each seat belongs to one named learner for the period you've paid for.").replace('{price}', String(PRICE_PER_SEAT_GBP)).replace('{annualPrice}', String(ANNUAL_PRICE_PER_SEAT_GBP)) }}
         </p>
 
-        <div v-if="!isOrgSubscribed" class="billing-toggle" role="tablist" aria-label="Billing period">
+        <div v-if="!isOrgSubscribed" class="billing-toggle" role="tablist" :aria-label="t('schools.upgrade.billingPeriod', 'Billing period')">
           <button
             type="button"
             class="billing-opt"
@@ -578,7 +578,7 @@ watch(currentUser, (user) => {
             role="tab"
             :aria-selected="!isAnnual"
             @click="setBilling('monthly')"
-          >Monthly</button>
+          >{{ t('schools.upgrade.monthly', 'Monthly') }}</button>
           <button
             type="button"
             class="billing-opt"
@@ -586,16 +586,16 @@ watch(currentUser, (user) => {
             role="tab"
             :aria-selected="isAnnual"
             :disabled="!annualAvailable"
-            :title="annualAvailable ? '' : 'Annual billing not available yet'"
+            :title="annualAvailable ? '' : t('schools.upgrade.annualNotAvailableYet', 'Annual billing not available yet')"
             @click="setBilling('annual')"
           >
-            Annual
-            <span v-if="annualAvailable && ANNUAL_MONTHS_FREE > 0" class="billing-badge">{{ ANNUAL_MONTHS_FREE }} months free</span>
+            {{ t('schools.upgrade.annual', 'Annual') }}
+            <span v-if="annualAvailable && ANNUAL_MONTHS_FREE > 0" class="billing-badge">{{ t('schools.upgrade.monthsFree', '{n} months free').replace('{n}', String(ANNUAL_MONTHS_FREE)) }}</span>
           </button>
         </div>
 
         <div class="seat-row">
-          <span class="field-label">Learner seats</span>
+          <span class="field-label">{{ t('schools.upgrade.learnerSeats', 'Learner seats') }}</span>
           <div class="seat-stepper">
             <button type="button" class="seat-btn" :disabled="orgSeatCount <= 1 || checkoutOpen" @click="setOrgSeats(orgSeatCount - 1)">−</button>
             <input
@@ -633,19 +633,21 @@ watch(currentUser, (user) => {
              checked: 14c138d5.a64118c2
         -->
         <p v-if="isOrgSubscribed" class="upgrade-note seats-actual-note" data-walk="upgrade-seats-actual">
-          {{ orgMemberCount ?? 0 }} learner{{ (orgMemberCount ?? 0) === 1 ? '' : 's' }} joined ·
-          {{ orgPaidSeats ?? orgSeatCount }} seat{{ (orgPaidSeats ?? orgSeatCount) === 1 ? '' : 's' }} paid
+          {{ t('schools.upgrade.learnersJoinedSeatsPaid', '{joined} learner{joinedS} joined · {paid} seat{paidS} paid')
+            .replace('{joined}', String(orgMemberCount ?? 0)).replace('{joinedS}', (orgMemberCount ?? 0) === 1 ? '' : 's')
+            .replace('{paid}', String(orgPaidSeats ?? orgSeatCount)).replace('{paidS}', (orgPaidSeats ?? orgSeatCount) === 1 ? '' : 's') }}
           <span v-if="orgPaidSeats !== null && (orgMemberCount ?? 0) > orgPaidSeats" class="seats-over-note">
-            — {{ (orgMemberCount ?? 0) - orgPaidSeats }} more learner{{ (orgMemberCount ?? 0) - orgPaidSeats === 1 ? '' : 's' }} joined than paid seats
+            — {{ t('schools.upgrade.moreLearnersJoinedThanPaidSeats', '{n} more learner{s} joined than paid seats').replace('{n}', String((orgMemberCount ?? 0) - orgPaidSeats)).replace('{s}', (orgMemberCount ?? 0) - orgPaidSeats === 1 ? '' : 's') }}
           </span>
         </p>
         <!-- Not yet subscribed: the same honesty, against what's ABOUT to be
              billed — the stepper seeded from the real member count. -->
         <p v-else-if="(orgMemberCount ?? 0) > 0" class="upgrade-note seats-actual-note" data-walk="upgrade-seats-actual">
-          {{ orgMemberCount }} learner{{ orgMemberCount === 1 ? '' : 's' }} joined ·
-          subscribing for {{ orgSeats }} seat{{ orgSeats === 1 ? '' : 's' }}
+          {{ t('schools.upgrade.learnersJoinedSubscribingForSeats', '{joined} learner{joinedS} joined · subscribing for {seats} seat{seatsS}')
+            .replace('{joined}', String(orgMemberCount)).replace('{joinedS}', orgMemberCount === 1 ? '' : 's')
+            .replace('{seats}', String(orgSeats)).replace('{seatsS}', orgSeats === 1 ? '' : 's') }}
           <span v-if="orgSeats < (orgMemberCount ?? 0)" class="seats-over-note">
-            — {{ (orgMemberCount ?? 0) - orgSeats }} learner{{ (orgMemberCount ?? 0) - orgSeats === 1 ? '' : 's' }} without a seat
+            — {{ t('schools.upgrade.learnersWithoutSeat', '{n} learner{s} without a seat').replace('{n}', String((orgMemberCount ?? 0) - orgSeats)).replace('{s}', (orgMemberCount ?? 0) - orgSeats === 1 ? '' : 's') }}
           </span>
         </p>
 
@@ -671,7 +673,7 @@ watch(currentUser, (user) => {
              Worth knowing. While the count matches what you already pay for, the
              button simply says current and does nothing, so you cannot double-bill
              yourself by tapping it twice.
-             checked: 95e23d49.019cc784
+             checked: 83d2f470.019cc784
         -->
         <button
           v-if="isOrgSubscribed"
@@ -681,7 +683,11 @@ watch(currentUser, (user) => {
           data-walk="upgrade-update-seats"
           @click="updateOrgSeats"
         >
-          {{ isUpdatingOrgSeats ? 'Updating…' : orgSeatCount === orgPaidSeats ? `${orgSeatCount} seats (current)` : `Update to ${orgSeatCount} seats — £${orgMonthlyTotalGbp}/mo` }}
+          {{ isUpdatingOrgSeats
+            ? t('schools.upgrade.updating', 'Updating…')
+            : orgSeatCount === orgPaidSeats
+              ? t('schools.upgrade.seatsCurrent', '{n} seats (current)').replace('{n}', String(orgSeatCount))
+              : t('schools.upgrade.updateToSeats', 'Update to {n} seats — £{total}/mo').replace('{n}', String(orgSeatCount)).replace('{total}', String(orgMonthlyTotalGbp)) }}
         </button>
         <!-- Else → open the INITIAL inline checkout. -->
         <!-- HANDBOOK Subscribe your organisation
@@ -705,7 +711,7 @@ watch(currentUser, (user) => {
              you have paid for, so plan the count against the people you expect rather
              than swapping seats between them mid-term. You can add more seats at any
              time.
-             checked: 44ff210e.c1902157
+             checked: 140f6550.c1902157
         -->
         <button
           v-else-if="!checkoutOpen"
@@ -715,24 +721,27 @@ watch(currentUser, (user) => {
           data-walk="upgrade-subscribe-org"
           @click="subscribeOrg"
         >
-          {{ !orgSubLoaded ? 'Loading…' : isOpeningOrgCheckout ? 'Opening…' : `Subscribe — £${orgTotalGbp}${periodSuffix}` }}
+          {{ !orgSubLoaded
+            ? t('schools.upgrade.loading', 'Loading…')
+            : isOpeningOrgCheckout
+              ? t('schools.upgrade.opening', 'Opening…')
+              : t('schools.upgrade.subscribeTotal', 'Subscribe — £{total}{suffix}').replace('{total}', String(orgTotalGbp)).replace('{suffix}', periodSuffix) }}
         </button>
       </template>
 
       <!-- ── School lane: per-seat ── -->
       <template v-else-if="isSchoolLane">
         <h1 class="upgrade-title arsenal">
-          {{ isSubscribed ? 'Manage your seats' : 'Subscribe your school' }}
+          {{ isSubscribed ? t('schools.upgrade.manageYourSeats', 'Manage your seats') : t('schools.upgrade.subscribeYourSchool', 'Subscribe your school') }}
         </h1>
         <p class="upgrade-lede">
-          £{{ PRICE_PER_SEAT_GBP }} per teacher seat / month (or £{{ ANNUAL_PRICE_PER_SEAT_GBP }}/year).
-          One subscription covers every teacher seat — add or remove seats any time.
+          {{ t('schools.upgrade.schoolLede', '£{price} per teacher seat / month (or £{annualPrice}/year). One subscription covers every teacher seat — add or remove seats any time.').replace('{price}', String(PRICE_PER_SEAT_GBP)).replace('{annualPrice}', String(ANNUAL_PRICE_PER_SEAT_GBP)) }}
         </p>
 
         <!-- Monthly / annual toggle. Stays usable WHILE the inline checkout is
              open (switching re-prices it in place); only hidden for the
              already-subscribed seat-edit path. -->
-        <div v-if="!isSubscribed" class="billing-toggle" role="tablist" aria-label="Billing period">
+        <div v-if="!isSubscribed" class="billing-toggle" role="tablist" :aria-label="t('schools.upgrade.billingPeriod', 'Billing period')">
           <button
             type="button"
             class="billing-opt"
@@ -740,7 +749,7 @@ watch(currentUser, (user) => {
             role="tab"
             :aria-selected="!isAnnual"
             @click="setBilling('monthly')"
-          >Monthly</button>
+          >{{ t('schools.upgrade.monthly', 'Monthly') }}</button>
           <button
             type="button"
             class="billing-opt"
@@ -748,16 +757,16 @@ watch(currentUser, (user) => {
             role="tab"
             :aria-selected="isAnnual"
             :disabled="!annualAvailable"
-            :title="annualAvailable ? '' : 'Annual billing not available yet'"
+            :title="annualAvailable ? '' : t('schools.upgrade.annualNotAvailableYet', 'Annual billing not available yet')"
             @click="setBilling('annual')"
           >
-            Annual
-            <span v-if="annualAvailable && ANNUAL_MONTHS_FREE > 0" class="billing-badge">{{ ANNUAL_MONTHS_FREE }} months free</span>
+            {{ t('schools.upgrade.annual', 'Annual') }}
+            <span v-if="annualAvailable && ANNUAL_MONTHS_FREE > 0" class="billing-badge">{{ t('schools.upgrade.monthsFree', '{n} months free').replace('{n}', String(ANNUAL_MONTHS_FREE)) }}</span>
           </button>
         </div>
 
         <div class="seat-row">
-          <span class="field-label">Teacher seats</span>
+          <span class="field-label">{{ t('schools.upgrade.teacherSeats', 'Teacher seats') }}</span>
           <div class="seat-stepper">
             <button type="button" class="seat-btn" :disabled="seatCount <= 1 || checkoutOpen" @click="setSeats(seatCount - 1)">−</button>
             <input
@@ -775,20 +784,22 @@ watch(currentUser, (user) => {
 
         <!-- Honest seats-vs-actual display (no gating — just self-correction). -->
         <p v-if="isSubscribed" class="upgrade-note seats-actual-note" data-walk="upgrade-seats-actual">
-          {{ joinedTeacherCount }} teacher{{ joinedTeacherCount === 1 ? '' : 's' }} joined ·
-          {{ paidSeats ?? seatCount }} seat{{ (paidSeats ?? seatCount) === 1 ? '' : 's' }} paid
+          {{ t('schools.upgrade.teachersJoinedSeatsPaid', '{joined} teacher{joinedS} joined · {paid} seat{paidS} paid')
+            .replace('{joined}', String(joinedTeacherCount)).replace('{joinedS}', joinedTeacherCount === 1 ? '' : 's')
+            .replace('{paid}', String(paidSeats ?? seatCount)).replace('{paidS}', (paidSeats ?? seatCount) === 1 ? '' : 's') }}
           <span v-if="paidSeats !== null && joinedTeacherCount > paidSeats" class="seats-over-note">
-            — {{ joinedTeacherCount - paidSeats }} more teacher{{ joinedTeacherCount - paidSeats === 1 ? '' : 's' }} joined than paid seats
+            — {{ t('schools.upgrade.moreTeachersJoinedThanPaidSeats', '{n} more teacher{s} joined than paid seats').replace('{n}', String(joinedTeacherCount - paidSeats)).replace('{s}', joinedTeacherCount - paidSeats === 1 ? '' : 's') }}
           </span>
         </p>
         <!-- Not yet subscribed: same honesty, against what's ABOUT to be billed
              — the stepper is seeded from this joined count, and the admin can
              still step it anywhere they like. -->
         <p v-else-if="joinedTeacherCount > 0" class="upgrade-note seats-actual-note" data-walk="upgrade-seats-actual">
-          {{ joinedTeacherCount }} teacher{{ joinedTeacherCount === 1 ? '' : 's' }} joined ·
-          subscribing for {{ seats }} seat{{ seats === 1 ? '' : 's' }}
+          {{ t('schools.upgrade.teachersJoinedSubscribingForSeats', '{joined} teacher{joinedS} joined · subscribing for {seats} seat{seatsS}')
+            .replace('{joined}', String(joinedTeacherCount)).replace('{joinedS}', joinedTeacherCount === 1 ? '' : 's')
+            .replace('{seats}', String(seats)).replace('{seatsS}', seats === 1 ? '' : 's') }}
           <span v-if="seats < joinedTeacherCount" class="seats-over-note">
-            — {{ joinedTeacherCount - seats }} teacher{{ joinedTeacherCount - seats === 1 ? '' : 's' }} without a seat
+            — {{ t('schools.upgrade.teachersWithoutSeat', '{n} teacher{s} without a seat').replace('{n}', String(joinedTeacherCount - seats)).replace('{s}', joinedTeacherCount - seats === 1 ? '' : 's') }}
           </span>
         </p>
 
@@ -804,7 +815,11 @@ watch(currentUser, (user) => {
           data-walk="upgrade-update-seats"
           @click="updateSeats"
         >
-          {{ isUpdatingSeats ? 'Updating…' : seatCount === paidSeats ? `${seatCount} seats (current)` : `Update to ${seatCount} seats — £${monthlyTotalGbp}/mo` }}
+          {{ isUpdatingSeats
+            ? t('schools.upgrade.updating', 'Updating…')
+            : seatCount === paidSeats
+              ? t('schools.upgrade.seatsCurrent', '{n} seats (current)').replace('{n}', String(seatCount))
+              : t('schools.upgrade.updateToSeats', 'Update to {n} seats — £{total}/mo').replace('{n}', String(seatCount)).replace('{total}', String(monthlyTotalGbp)) }}
         </button>
         <!-- Else → open the INITIAL inline checkout. -->
         <!-- HANDBOOK Subscribe your school
@@ -828,7 +843,7 @@ watch(currentUser, (user) => {
              5. You come back to the dashboard with the subscription live.
              Worth knowing. Seats are teacher seats, not student seats. Your students
              do not each need one.
-             checked: 033171bf.0d701bd3
+             checked: 91d17c54.0d701bd3
         -->
         <button
           v-else-if="!checkoutOpen"
@@ -838,20 +853,23 @@ watch(currentUser, (user) => {
           data-walk="upgrade-subscribe-school"
           @click="subscribeSchool"
         >
-          {{ !schoolSubLoaded ? 'Loading…' : isOpeningCheckout ? 'Opening…' : `Subscribe — £${schoolTotalGbp}${periodSuffix}` }}
+          {{ !schoolSubLoaded
+            ? t('schools.upgrade.loading', 'Loading…')
+            : isOpeningCheckout
+              ? t('schools.upgrade.opening', 'Opening…')
+              : t('schools.upgrade.subscribeTotal', 'Subscribe — £{total}{suffix}').replace('{total}', String(schoolTotalGbp)).replace('{suffix}', periodSuffix) }}
         </button>
       </template>
 
       <!-- ── Tutor lane: single seat ── -->
       <template v-else>
-        <h1 class="upgrade-title arsenal">Subscribe</h1>
+        <h1 class="upgrade-title arsenal">{{ t('schools.upgrade.subscribe', 'Subscribe') }}</h1>
         <p class="upgrade-lede">
-          £{{ PRICE_PER_SEAT_GBP }} / month (or £{{ ANNUAL_PRICE_PER_SEAT_GBP }}/year) for your
-          tutoring dashboard. Your students pay separately — three paying students cover your subscription.
+          {{ t('schools.upgrade.tutorLede', '£{price} / month (or £{annualPrice}/year) for your tutoring dashboard. Your students pay separately — three paying students cover your subscription.').replace('{price}', String(PRICE_PER_SEAT_GBP)).replace('{annualPrice}', String(ANNUAL_PRICE_PER_SEAT_GBP)) }}
         </p>
 
         <!-- Toggle stays usable while the inline checkout is open (re-prices it). -->
-        <div class="billing-toggle" role="tablist" aria-label="Billing period">
+        <div class="billing-toggle" role="tablist" :aria-label="t('schools.upgrade.billingPeriod', 'Billing period')">
           <button
             type="button"
             class="billing-opt"
@@ -859,7 +877,7 @@ watch(currentUser, (user) => {
             role="tab"
             :aria-selected="!isAnnual"
             @click="setBilling('monthly')"
-          >Monthly</button>
+          >{{ t('schools.upgrade.monthly', 'Monthly') }}</button>
           <button
             type="button"
             class="billing-opt"
@@ -867,16 +885,16 @@ watch(currentUser, (user) => {
             role="tab"
             :aria-selected="isAnnual"
             :disabled="!annualAvailable"
-            :title="annualAvailable ? '' : 'Annual billing not available yet'"
+            :title="annualAvailable ? '' : t('schools.upgrade.annualNotAvailableYet', 'Annual billing not available yet')"
             @click="setBilling('annual')"
           >
-            Annual
-            <span v-if="annualAvailable && ANNUAL_MONTHS_FREE > 0" class="billing-badge">{{ ANNUAL_MONTHS_FREE }} months free</span>
+            {{ t('schools.upgrade.annual', 'Annual') }}
+            <span v-if="annualAvailable && ANNUAL_MONTHS_FREE > 0" class="billing-badge">{{ t('schools.upgrade.monthsFree', '{n} months free').replace('{n}', String(ANNUAL_MONTHS_FREE)) }}</span>
           </button>
         </div>
 
         <div class="seat-row seat-row--single">
-          <span class="field-label">Your subscription</span>
+          <span class="field-label">{{ t('schools.upgrade.yourSubscription', 'Your subscription') }}</span>
           <span class="seat-total">£{{ tutorTotalGbp }}<span class="seat-per">{{ periodSuffix }}</span></span>
         </div>
         <p v-if="tutorError" class="upgrade-error">{{ tutorError }}</p>
@@ -887,7 +905,7 @@ watch(currentUser, (user) => {
           class="btn-play btn-play--block upgrade-cta"
           @click="openTutorPortal"
         >
-          Manage subscription
+          {{ t('schools.upgrade.manageSubscription', 'Manage subscription') }}
         </button>
         <!-- HANDBOOK Subscribe as a tutor
              section: your-school
@@ -906,7 +924,7 @@ watch(currentUser, (user) => {
                 invoices and cancellation.
              Worth knowing. Your students pay for their own learning separately, so
              three paying students cover what your dashboard costs.
-             checked: 7ec1f6dc.96d00595
+             checked: 2d745438.96d00595
         -->
         <button
           v-else-if="!checkoutOpen"
@@ -916,7 +934,11 @@ watch(currentUser, (user) => {
           data-walk="upgrade-subscribe-tutor"
           @click="subscribeTutor"
         >
-          {{ tutorBusy ? 'Opening…' : (!tutorTeacherId || !tutorSubLoaded) ? 'Loading…' : `Subscribe — £${tutorTotalGbp}${periodSuffix}` }}
+          {{ tutorBusy
+            ? t('schools.upgrade.opening', 'Opening…')
+            : (!tutorTeacherId || !tutorSubLoaded)
+              ? t('schools.upgrade.loading', 'Loading…')
+              : t('schools.upgrade.subscribeTotal', 'Subscribe — £{total}{suffix}').replace('{total}', String(tutorTotalGbp)).replace('{suffix}', periodSuffix) }}
         </button>
       </template>
 

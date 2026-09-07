@@ -1206,8 +1206,12 @@ async function continueIn() {
           <p class="ob-trial ob-trial-quiet">{{ t('onboarding.almostThere') }}</p>
           <h1 class="ob-title">{{ t('onboarding.checkEmail') }}</h1>
           <p class="ob-sub">
-            Enter the 6-digit code we sent to <strong>{{ email }}</strong>. It can take a
-            couple of minutes to arrive.
+            {{
+              t(
+                'onboarding.enterCodeSentTo',
+                'Enter the 6-digit code we sent to {email}. It can take a couple of minutes to arrive.',
+              ).replace('{email}', email)
+            }}
           </p>
 
           <div class="ob-field">

@@ -8,6 +8,10 @@
  * Pure presentation. SettingsView keeps the billing logic and imports this
  * only on the web rail (platform/paymentRoute).
  */
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
+
 defineProps<{
   planLine: string
   PRICE_PER_SEAT_GBP: number
@@ -21,7 +25,7 @@ const emit = defineEmits<{ (e: 'open-portal'): void }>()
 
 <template>
   <section class="schools-card schools-card-pad panel">
-          <h2 class="arsenal panel-title">Billing</h2>
+          <h2 class="arsenal panel-title">{{ t('schools.billing.title', 'Billing') }}</h2>
           <!-- HANDBOOK See what your school pays
                section: your-school
                roles: school_admin
@@ -43,19 +47,19 @@ const emit = defineEmits<{ (e: 'open-portal'): void }>()
                so there is a single place to go and no second checkout to get
                confused with. The invoices button appears once a subscription is
                running.
-               checked: 94d6a6af.6d43376c
+               checked: 565562e0.6d43376c
           -->
           <div class="plan-card" data-walk="settings-billing-plan">
-            <div class="schools-kicker plan-kicker">Current plan</div>
+            <div class="schools-kicker plan-kicker">{{ t('schools.billing.currentPlan', 'Current plan') }}</div>
             <div class="arsenal plan-title">{{ planLine }}</div>
-            <div class="plan-meta">£{{ PRICE_PER_SEAT_GBP }} per teacher seat / month.</div>
+            <div class="plan-meta">{{ t('schools.billing.pricePerSeat', '£{price} per teacher seat / month.').replace('{price}', String(PRICE_PER_SEAT_GBP)) }}</div>
           </div>
 
           <!-- Subscription + seats are managed on the canonical Upgrade page so
                there's a single payment surface (no duplicated checkout logic). -->
           <div class="panel-actions">
             <router-link to="/schools/upgrade" class="btn-play">
-              {{ isSubscribed ? 'Manage subscription & seats →' : 'Subscribe / choose seats →' }}
+              {{ isSubscribed ? t('schools.billing.manageSubscription', 'Manage subscription & seats →') : t('schools.billing.subscribeChooseSeats', 'Subscribe / choose seats →') }}
             </router-link>
             <!-- Paddle portal: invoices, card updates, cancellation. -->
             <button
@@ -65,7 +69,7 @@ const emit = defineEmits<{ (e: 'open-portal'): void }>()
               :disabled="isOpeningPortal"
               @click="emit('open-portal')"
             >
-              {{ isOpeningPortal ? 'Opening…' : 'Billing & invoices' }}
+              {{ isOpeningPortal ? t('schools.billing.opening', 'Opening…') : t('schools.billing.billingAndInvoices', 'Billing & invoices') }}
             </button>
           </div>
           <p v-if="portalError" class="portal-error" role="alert">{{ portalError }}</p>

@@ -11,6 +11,9 @@ import FrostCard from './shared/FrostCard.vue'
 import Button from './shared/Button.vue'
 import SearchBox from './shared/SearchBox.vue'
 import Badge from './shared/Badge.vue'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 type NodeType = 'group' | 'school' | 'class'
 type EntitlementState = 'trial' | 'paid'
@@ -129,7 +132,7 @@ function selectTrialCourse(code: string): void {
 }
 
 function formatExpiry(iso: string | null): string {
-  if (!iso) return 'no expiry'
+  if (!iso) return t('schools.ui.nodeEntitlement.noExpiry', 'no expiry')
   return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
@@ -162,7 +165,7 @@ async function fetchGrant(): Promise<void> {
     const data = await response.json()
     currentGrant.value = data.grants?.[0] ?? null
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to load course access'
+    error.value = err instanceof Error ? err.message : t('schools.ui.nodeEntitlement.errorLoad', 'Failed to load course access')
   } finally {
     isLoading.value = false
   }
@@ -170,7 +173,7 @@ async function fetchGrant(): Promise<void> {
 
 async function save(): Promise<void> {
   if (pendingState.value === 'trial' && !pendingCourseCode.value) {
-    error.value = 'Pick a course for the trial'
+    error.value = t('schools.ui.nodeEntitlement.errorPickCourse', 'Pick a course for the trial')
     return
   }
   isSaving.value = true
@@ -192,7 +195,7 @@ async function save(): Promise<void> {
     const result = await response.json()
     currentGrant.value = result.grant
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to save course access'
+    error.value = err instanceof Error ? err.message : t('schools.ui.nodeEntitlement.errorSave', 'Failed to save course access')
   } finally {
     isSaving.value = false
   }
@@ -207,21 +210,21 @@ onMounted(() => {
 <template>
   <FrostCard variant="panel" class="node-entitlement">
     <div class="facet-head">
-      <span class="schools-kicker">Courses</span>
-      <span v-if="displayState === 'trial'" class="status-pill tone-gold"><span class="status-dot"></span>Trial</span>
-      <span v-else-if="displayState === 'paid'" class="status-pill tone-green"><span class="status-dot"></span>Paid</span>
-      <span v-else class="status-pill tone-muted"><span class="status-dot"></span>Not set</span>
+      <span class="schools-kicker">{{ t('schools.ui.nodeEntitlement.coursesKicker', 'Courses') }}</span>
+      <span v-if="displayState === 'trial'" class="status-pill tone-gold"><span class="status-dot"></span>{{ t('schools.ui.nodeEntitlement.trialBadge', 'Trial') }}</span>
+      <span v-else-if="displayState === 'paid'" class="status-pill tone-green"><span class="status-dot"></span>{{ t('schools.ui.nodeEntitlement.paidBadge', 'Paid') }}</span>
+      <span v-else class="status-pill tone-muted"><span class="status-dot"></span>{{ t('schools.ui.nodeEntitlement.notSetBadge', 'Not set') }}</span>
     </div>
 
-    <p v-if="isLoading" class="facet-hint">Loading…</p>
+    <p v-if="isLoading" class="facet-hint">{{ t('schools.ui.nodeEntitlement.loading', 'Loading…') }}</p>
     <template v-else>
       <p v-if="displayState === 'trial' && currentTrialCourse" class="current-summary">
-        {{ currentTrialCourse.label }} — expires {{ formatExpiry(currentGrant?.expires_at ?? null) }}
+        {{ t('schools.ui.nodeEntitlement.trialSummary', '{label} — expires {expiry}').replace('{label}', currentTrialCourse.label).replace('{expiry}', formatExpiry(currentGrant?.expires_at ?? null)) }}
       </p>
-      <p v-else-if="displayState === 'paid'" class="current-summary">All courses, no expiry.</p>
-      <p v-else class="facet-hint">No course access set yet.</p>
+      <p v-else-if="displayState === 'paid'" class="current-summary">{{ t('schools.ui.nodeEntitlement.paidSummary', 'All courses, no expiry.') }}</p>
+      <p v-else class="facet-hint">{{ t('schools.ui.nodeEntitlement.noneSummary', 'No course access set yet.') }}</p>
 
-      <div class="state-toggle" role="radiogroup" aria-label="Course access state">
+      <div class="state-toggle" role="radiogroup" :aria-label="t('schools.ui.nodeEntitlement.stateGroupAriaLabel', 'Course access state')">
         <button
           type="button"
           class="state-option"
@@ -230,7 +233,7 @@ onMounted(() => {
           :aria-checked="pendingState === 'trial'"
           @click="pendingState = 'trial'"
         >
-          Trial
+          {{ t('schools.ui.nodeEntitlement.trialBadge', 'Trial') }}
         </button>
         <button
           type="button"
@@ -240,12 +243,12 @@ onMounted(() => {
           :aria-checked="pendingState === 'paid'"
           @click="pendingState = 'paid'"
         >
-          Paid
+          {{ t('schools.ui.nodeEntitlement.paidBadge', 'Paid') }}
         </button>
       </div>
 
       <div v-if="pendingState === 'trial'" class="trial-picker">
-        <SearchBox v-model="courseSearch" placeholder="Search courses…" size="sm" block />
+        <SearchBox v-model="courseSearch" :placeholder="t('schools.ui.nodeEntitlement.searchCoursesPlaceholder', 'Search courses…')" size="sm" block />
         <div class="course-list">
           <button
             v-for="c in filteredCourses"
@@ -257,19 +260,19 @@ onMounted(() => {
           >
             {{ courseLabel(c) }}
           </button>
-          <p v-if="filteredCourses.length === 0" class="facet-hint">No courses match.</p>
+          <p v-if="filteredCourses.length === 0" class="facet-hint">{{ t('schools.ui.nodeEntitlement.noCoursesMatch', 'No courses match.') }}</p>
         </div>
         <p v-if="pendingCourseCode && courseByCode.get(pendingCourseCode)" class="expiry-preview">
-          Auto-expiry: {{ trialDaysFor(courseByCode.get(pendingCourseCode)!) }} days from save
+          {{ t('schools.ui.nodeEntitlement.autoExpiryPreview', 'Auto-expiry: {n} days from save').replace('{n}', String(trialDaysFor(courseByCode.get(pendingCourseCode)!))) }}
         </p>
       </div>
-      <p v-else class="facet-hint">Every live course, no per-course selection.</p>
+      <p v-else class="facet-hint">{{ t('schools.ui.nodeEntitlement.everyCourseHint', 'Every live course, no per-course selection.') }}</p>
 
       <p v-if="error" class="form-error">{{ error }}</p>
 
       <div class="facet-actions">
         <Button variant="primary" size="sm" :loading="isSaving" :disabled="isSaving" @click="save">
-          {{ isSaving ? 'Saving…' : 'Save' }}
+          {{ isSaving ? t('schools.ui.nodeEntitlement.saving', 'Saving…') : t('schools.ui.nodeEntitlement.save', 'Save') }}
         </Button>
       </div>
     </template>
