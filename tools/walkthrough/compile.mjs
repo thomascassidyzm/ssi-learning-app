@@ -137,12 +137,12 @@ writeFileSync(join(ROOT, 'docs/walkthrough-pack.md'), md)
 const handbookMd = [
   '# Handbook — compiled render',
   '',
-  `**Version \`${versioned.version}\` · generated ${versioned.generatedAt} by \`tools/walkthrough/compile.mjs\`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**`,
+  `**Version \`${versioned.version}\` · generated ${versioned.generatedAt} by \`tools/walkthrough/compile.mjs\`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**`,
   '',
   ...versioned.handbook.flatMap((e) => [
     `## ${e.title}`,
     '',
-    `Section: ${e.section} · roles: ${e.personas.join(', ')} · anchor: \`${e.anchor}\`${e.walk ? ' · has a walk' : ''}`,
+    `Section: ${e.section} · roles: ${e.personas.join(', ')} · anchor: \`${e.anchor}\` · in \`${e.source}\`${e.walk ? ' · has a walk' : ''}`,
     '',
     `**What it's for.** ${e.what}`,
     '',
