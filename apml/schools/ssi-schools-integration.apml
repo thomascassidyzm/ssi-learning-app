@@ -3,8 +3,8 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.12.0"
-  date: "2026-08-18"   # SEC-AUDIT findings 1+2: CSPRNG-minted codes, redeem throttled
+  version: "1.13.0"
+  date: "2026-09-07"   # setup step 4 course picker is filterable (FrostSelect)
   author: "Tom Cassidy"
   status: "draft"
 
@@ -385,6 +385,17 @@ principle SingleAuthOnboarding:
         read off the node payload's rollup.learnerCount.
     Rule: one enrolled student retires every banner, so a school that IS
     running is never nagged.
+
+  first_run_course_picker: |
+    Step 4 (Create classes) picks a course per class out of the LIVE
+    catalogue — 79 courses on 2026-09-07, in several scripts. That was a
+    native <select>: an OS-rendered list a head had to scan by eye, with no
+    way to type. Standing estate rule — dropdowns are always filterable — so
+    it is now the shared FrostSelect with `filterable`, i.e. a search box
+    pinned at the top of the open panel that narrows the list as you type.
+    `filterable` is OPT-IN: the insight boards' 3-4 option pickers keep the
+    plain menu, because a search box on a list you can already see is noise.
+    Order, wording and the set of courses offered are untouched.
 
 principle SignInCodeIdempotence:
   statement: "A resubmitted login code never tells a signed-in person they failed — and every real failure leaves a trace"

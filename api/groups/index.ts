@@ -5,11 +5,13 @@
  * POST: Create a new group.
  *   · ssi_admin/god: any parent, or a root org (no leader row minted — admins
  *     assign leadership via invite links).
- *   · a group-LEADER (govt_admin) adding a SUB-group within their own governed
- *     subtree (founder ruling 2026-08-01: a leader has "full authority over
- *     everything below them"). parent_id is validated SERVER-SIDE against
- *     their own govt_admins.group_id (self or strict descendant) — never taken
- *     on trust from the client.
+ *   · a NODE OWNER adding a SUB-group within their own governed subtree
+ *     (founder ruling 2026-08-01: a leader has "full authority over
+ *     everything below them"). Who counts as an owner is DERIVED, never
+ *     listed — leaderGroupIdFor (_utils/groupTreeAuth.ts): a govt_admin's own
+ *     governed group, else a school_admin's own school NODE. parent_id is
+ *     validated SERVER-SIDE against that derived root (self or strict
+ *     descendant) — never taken on trust from the client.
  *   · ANY authenticated user creating a ROOT org (founder ruling 2026-08-02,
  *     groups all the way down: "anyone who creates one becomes its GROUP
  *     LEADER by default") — the caller's govt_admins row AND their leader
@@ -25,6 +27,7 @@ import { verifyAdmin, verifyAuthToken } from '../_utils/auth'
 import { orgTrialStamp } from '../_utils/orgPlatform'
 import { isMissingPlatformSchema } from '../_utils/schoolPlatformTrial'
 import { isWithinLeaderSubtree } from '../_utils/orgLeader'
+import { leaderGroupIdFor } from '../_utils/groupTreeAuth'
 import { createRootOrgAndLeader } from '../_utils/rootOrgProvision'
 import { findSiblingSlugCollisions, duplicateNameBody } from '../_utils/groupSlug'
 import { ensureGroupLeaderTag } from '../_utils/groupLeaderTag'
@@ -50,23 +53,36 @@ async function resolveAdminOrLeaderForParent(
     res.status(401).json({ error: authResult.error || 'Unauthorized' })
     return null
   }
-  const { data: govtAdmin } = await supabase
-    .from('govt_admins')
-    .select('group_id')
-    .eq('user_id', authResult.userId)
-    .maybeSingle()
-  const ownGroupId = (govtAdmin as any)?.group_id as string | undefined
   if (!parentId) {
     // Root org creation (founder ruling 2026-08-02): open to any signed-in
     // user — the creator becomes the org's group leader. One org per leader:
     // govt_admins is one-row-per-user across the org stack, so an existing
-    // leadership can't be silently re-pointed by creating a second root.
-    if (ownGroupId) {
+    // leadership can't be silently re-pointed by creating a second root. This
+    // one branch reads govt_admins DIRECTLY and deliberately: the limit it
+    // enforces is a property of that table's unique key, not of authority in
+    // general, so a school owner (who holds no govt_admins row) may still
+    // create a root org exactly as they always could.
+    const { data: govtAdmin } = await supabase
+      .from('govt_admins')
+      .select('group_id')
+      .eq('user_id', authResult.userId)
+      .maybeSingle()
+    if ((govtAdmin as any)?.group_id) {
       res.status(409).json({ error: 'You already lead a group — one organisation per leader for now' })
       return null
     }
     return { userId: authResult.userId, isAdmin: false, becomesLeader: true }
   }
+  // Authority INSIDE an existing tree is DERIVED from what the caller owns,
+  // never from a list of privileged rows. leaderGroupIdFor is the one rule the
+  // node READ surfaces already use: a govt_admin's own governed group, else a
+  // school_admin's own school NODE (schools.node_group_id). Hand-rolling the
+  // govt_admins half here is what refused the owner of a school-track org a
+  // group inside her own org (live customer, 2026-09-07): she governs her node
+  // on every read surface and could mint classes in it, but this write path
+  // could not see her authority at all. It is still a SUBTREE rule — her root
+  // is her own node, so another school's tree stays as closed as it ever was.
+  const ownGroupId = await leaderGroupIdFor(supabase, authResult.userId)
   if (!(await isWithinLeaderSubtree(supabase, ownGroupId, parentId))) {
     res.status(403).json({ error: 'You may only add a sub-group within your own governed group' })
     return null

@@ -7,6 +7,7 @@ import AtmosphereBackdrop from '@/components/schools/shared/AtmosphereBackdrop.v
 import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import Button from '@/components/schools/shared/Button.vue'
 import { useUserRole } from '@/composables/useUserRole'
+import { readLastKnownIdentity, writeLastKnownIdentity } from '@/composables/lastKnownIdentity'
 import { readDuplicateWarning } from '@/utils/duplicateNameWarning'
 import { hasLiveSessionFor, useLoginCodeAudit } from '@/auth/loginCode'
 import {
@@ -429,6 +430,9 @@ const requiresCheckout = ref(false)
 // done-step state
 const trial = ref<{ course_code: string; expires_at: string; days: number } | null>(null)
 const redirectTo = ref('/')
+// The educational role provision.ts just assigned this session — carried to
+// enterDashboard() so the surface we land on already knows who arrived.
+const provisionedRole = ref<string | null>(null)
 const displayName = ref('')
 const institution = ref('')
 // Returning user (already had an account for this track) — skip the
@@ -679,7 +683,21 @@ async function finishProvisioning(confirmDuplicate = false) {
   // days) on the success screen — that's the one that decides when they pay.
   trial.value = data.platform_trial || data.trial
   isReturning.value = !!data.existing
+  provisionedRole.value = data.role || null
   redirectTo.value = data.redirect || '/'
+  // THE SCHOOL DOOR ENDS ON THE SCHOOL DASHBOARD (founder ruling 2026-09-07).
+  // A head who signed up used to stop here on a "couple of details (optional)"
+  // screen, and the only ways on from it were a Continue button or — as
+  // actually happened in production — hunting Settings > Schools dashboard
+  // from inside the LEARNER app, a path no new user would ever find. Nothing
+  // is lost by skipping it: a self-serve school is created name_confirmed:false
+  // (provision.ts), so the node home asks "what's your school called?" in
+  // place, and the display name stays editable in the profile. The tutor and
+  // org doors keep the finishing step until their own owner says otherwise.
+  if (props.track === 'school') {
+    enterDashboard(data.role)
+    return
+  }
   step.value = 'done'
 }
 
@@ -731,6 +749,37 @@ function goToDashboard() {
   window.location.href = props.track === 'tutor' ? '/tutors/dashboard' : '/schools'
 }
 
+// The one way OUT of this door and INTO the product, shared by the school
+// door's straight-through hop and the finishing-details Continue.
+//
+// CLEARING THE ROLE CACHE IS NOT ENOUGH, and this is why signup appeared to
+// have "no route" to the dashboard (verified live 2026-09-07: provision 200,
+// then /schools1 -> /schools -> /, dumping a brand-new head in the LEARNER
+// app). TWO snapshots of "who is this" survive the navigation, and the
+// /schools guard reads them synchronously before any fetch can correct them:
+//   1. the role cache (useUserRole/localStorage) — clear() handles this, and
+//   2. the last-known identity (lastKnownIdentity.ts), which useAuth adopts
+//      on boot via setAuthoritative(...). It was written BEFORE signup, so it
+//      says "plain learner" — educationalRole null. Adopting it marks the role
+//      cache INITIALIZED with no school role, which is precisely the state
+//      memberSurfaceGuard bounces to '/' on. The authoritative school_admin
+//      write lands milliseconds later, and loses.
+// So write the role the server has JUST returned into both, and the guard sees
+// a member. Nothing here invents a role: `role` is provision.ts's own answer
+// for this session.
+function enterDashboard(role?: string | null) {
+  if (role) {
+    // initialize(), not setAuthoritative(): null platform means "not my
+    // business", so an ssi_admin signing a school up keeps their platform role.
+    useUserRole().initialize(null, role)
+    const remembered = readLastKnownIdentity()
+    if (remembered) writeLastKnownIdentity({ ...remembered, educationalRole: role })
+  } else {
+    useUserRole().clear()
+  }
+  window.location.href = redirectTo.value
+}
+
 async function continueIn() {
   busy.value = true
   error.value = ''
@@ -774,8 +823,7 @@ async function continueIn() {
     // Clearing it makes the guard fall through to the container, which then
     // loads the just-written role authoritatively (same path as a normal reload
     // for an existing admin). Then full navigation re-initialises the app.
-    useUserRole().clear()
-    window.location.href = redirectTo.value
+    enterDashboard(provisionedRole.value)
   } catch (e: any) {
     error.value = e?.message || 'Something went wrong'
     busy.value = false

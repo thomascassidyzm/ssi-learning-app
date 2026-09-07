@@ -6,8 +6,11 @@
  *   (region-tier-design.md §1d — "name your group"; extended 2026-08-01 to
  *   the leader's whole subtree, "full authority over everything below them",
  *   same scope DELETE already uses). The leader path is a SERVER-DERIVED
- *   check via isStrictDescendantGroup(their own govt_admins.group_id, target
- *   id) — never trust a client claim of which group they lead. type/parent_id
+ *   check via isStrictDescendantGroup(leaderGroupIdFor(caller), target
+ *   id) — never trust a client claim of which group they lead. "Leader" is
+ *   DERIVED (_utils/groupTreeAuth.ts): a govt_admin's governed group, else a
+ *   school_admin's own school NODE, so the owner of a school-track org
+ *   governs her own tree here exactly as she does on every read surface. type/parent_id
  *   stay ssi_admin-only: a leader must never re-parent a group up the tree.
  *   A rename that would leave two siblings with the same slug answers 409
  *   `duplicate_name` and writes nothing — the same WARNING POST /api/groups
@@ -23,7 +26,7 @@
  *   leader deleting a SUB-group in their own subtree ("every level can
  *   delete the things it created and everything below them", founder
  *   ruling) — a SERVER-DERIVED path-prefix check via
- *   isStrictDescendantGroup(their own govt_admins.group_id, target id),
+ *   isStrictDescendantGroup(leaderGroupIdFor(caller), target id),
  *   never a client claim. A leader can never delete their OWN governed
  *   group (that would delete their own seat) or a sideways/ancestor group.
  *   Cleans up invite_codes/govt_admins referencing the group first — those
@@ -42,6 +45,7 @@ import { computeGroupImpact, deleteGroupCascade } from '../_utils/schoolGroupDel
 import { auditAdminDelete } from '../_utils/auditAdminDelete'
 import { isStrictDescendantGroup } from '../_utils/schoolScope'
 import { isWithinLeaderSubtree } from '../_utils/orgLeader'
+import { leaderGroupIdFor } from '../_utils/groupTreeAuth'
 import { findSiblingSlugCollisions, duplicateNameBody } from '../_utils/groupSlug'
 import { syncSchoolNameForNode } from '../_utils/schoolNodeName'
 import { applyCors } from '../_utils/cors'
@@ -69,12 +73,12 @@ async function resolveAdminOrSubtreeLeader(
     res.status(401).json({ error: authResult.error || 'Unauthorized' })
     return null
   }
-  const { data: govtAdmin } = await supabase
-    .from('govt_admins')
-    .select('group_id')
-    .eq('user_id', authResult.userId)
-    .maybeSingle()
-  const ownGroupId = (govtAdmin as any)?.group_id as string | undefined
+  // Derived, not listed: leaderGroupIdFor resolves a govt_admin's own governed
+  // group, else a school_admin's own school NODE — the same rule the node read
+  // surfaces run, so a school owner may act on the sub-groups she made inside
+  // her own org. Still STRICT descendant: nobody deletes their own seat, and
+  // another org's tree is as unreachable as it ever was.
+  const ownGroupId = await leaderGroupIdFor(supabase, authResult.userId)
   if (!ownGroupId || !(await isStrictDescendantGroup(supabase, ownGroupId, groupId))) {
     res.status(403).json({ error: 'You do not govern this group' })
     return null
@@ -145,12 +149,9 @@ export default async function handler(
         res.status(403).json({ error: 'Only SSi admins can change group type or parent' })
         return
       }
-      const { data: govtAdmin } = await supabase
-        .from('govt_admins')
-        .select('group_id')
-        .eq('user_id', authResult.userId)
-        .maybeSingle()
-      const ownGroupId = (govtAdmin as any)?.group_id as string | undefined
+      // Same derived authority as the create path (leaderGroupIdFor): a
+      // govt_admin's governed group, else a school_admin's own school node.
+      const ownGroupId = await leaderGroupIdFor(supabase, authResult.userId)
       if (!(await isWithinLeaderSubtree(supabase, ownGroupId, groupId))) {
         res.status(403).json({ error: 'You do not govern this group' })
         return
