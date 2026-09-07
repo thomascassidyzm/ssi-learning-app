@@ -115,7 +115,8 @@
     "keepLearningReachNext": "Lean ort ag foghlaim chun an chéad leibhéal eile a bhaint amach!",
     "progressLoadFailed": "Níorbh fhéidir linn an áit ar stad tú a lódáil. Tá do dhul chun cinn slán — bain triail eile as.",
     "practisingBanner": "Ag cleachtadh",
-    "practisingBannerNote": "Tiocfaidh ábhar nua ar ais nuair a thiocfaidh do cheangal ar ais."
+    "practisingBannerNote": "Tiocfaidh ábhar nua ar ais nuair a thiocfaidh do cheangal ar ais.",
+    "choosePlanCancel": "Dhá phlean, ó £15/mí. Cealaigh am ar bith."
   },
   "home": {
     "goodMorning": "Maidin mhaith",
@@ -302,7 +303,9 @@
     "practisingModeOnlyAlready": "Tá Mód Cleachtaidh ANN — níl ach ábhar a bhfuil tú tar éis castáil leis á sheinm.",
     "reloadsNewestVersionDownloads": "Athlódálann sé leis an leagan is nuaí. Coinnítear do chuid íoslódálacha agus dul chun cinn.",
     "fixesMostAudioLoading": "Réitíonn sé formhór na bhfadhbanna fuaime agus lódála. Fanann tú sínithe isteach.",
-    "addHomeScreenFaster": "Cuir leis do scáileán baile le haghaidh rochtain as líne níos tapúla"
+    "addHomeScreenFaster": "Cuir leis do scáileán baile le haghaidh rochtain as líne níos tapúla",
+    "plansFromMonth": "£15/mí do chuntas amháin, £25/mí do sé cinn",
+    "upgrade": "Uasghrádaigh"
   },
   "belt": {
     "yourProgress": "Do dhul chun cinn",
@@ -626,6 +629,19 @@
   "checkout": {
     "closeCheckout": "Dún an seiceáil amach"
   },
+  "plans": {
+    "chooseAPlan": "Roghnaigh plean",
+    "close": "Dún",
+    "premiumName": "SSi Premium",
+    "premiumDesc": "Cuntas amháin. Gach cúrsa agus gach teanga, agus íoslódálacha as líne.",
+    "premiumMonthly": "£15/mí",
+    "premiumAnnual": "£150/bliain",
+    "familyName": "Teaghlach SSi",
+    "familyDesc": "Gach rud atá i bPremium, do {seats} cuntas, do cheann féin san áireamh. Coinníonn gach duine a dhul chun cinn féin.",
+    "familyMonthly": "£25/mí",
+    "familyAnnual": "£250/bliain",
+    "cancelAnytime": "Cealaigh am ar bith."
+  },
   "family": {
     "family": "Teaghlach",
     "signQrCode": "Cód QR sínithe isteach",
@@ -639,6 +655,7 @@
     "inviteByEmail": "+ Tabhair cuireadh trí ríomhphost"
   },
   "common": {
+    "noMatchesFor": "Gan torthaí ar “{query}”",
     "oneOpensBrowser": "Osclóidh an ceann seo i do bhrabhsálaí.",
     "refreshData": "Athnuaigh sonraí",
     "tryAgain": "Bain triail eile as"

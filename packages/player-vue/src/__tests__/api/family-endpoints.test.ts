@@ -11,6 +11,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 process.env.SUPABASE_URL = 'http://localhost:54321'
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-key'
 process.env.SUPABASE_ANON_KEY = 'test-anon-key'
+process.env.RESEND_API_KEY = 'test-resend-key'
 
 interface QueryResult<T> {
   data: T | null
@@ -91,11 +92,20 @@ function makeReq(body: any = {}): any {
   return { method: 'POST', headers: { authorization: 'Bearer test-token' }, body }
 }
 
+// Every mail this API sends goes out through one POST to Resend, so stubbing
+// fetch is how a test sees whether anybody was actually told anything.
+let mailSent: Array<{ to: string[]; subject: string; text: string }> = []
+
 beforeEach(() => {
   tableQueues = {}
   tableCursors = {}
   calls = []
+  mailSent = []
   authUserResponse = { data: { user: { id: 'owner-user-1' } }, error: null }
+  vi.stubGlobal('fetch', vi.fn(async (_url: string, init: any) => {
+    mailSent.push(JSON.parse(init.body))
+    return { ok: true, status: 200, json: async () => ({ id: 'msg-1' }), text: async () => '' } as any
+  }))
 })
 
 describe('POST /api/family/invite', () => {
@@ -164,6 +174,58 @@ describe('POST /api/family/invite', () => {
     await inviteHandler(makeReq({ email: 'grandpa@example.com' }), res as any)
     expect(res._status).toBe(200)
     expect((res._body as any).attachedNow).toBe(true)
+
+    // The gap this closed: the invite used to be written and NOBODY was told.
+    expect((res._body as any).emailed).toBe(true)
+    expect(mailSent.length).toBe(1)
+    expect(mailSent[0].to).toEqual(['grandpa@example.com'])
+    // Already has an account — "carry on as usual", never "sign up".
+    expect(mailSent[0].text).toContain('Sign in the way you normally do')
+    expect(mailSent[0].text).not.toMatch(/do not have an account/i)
+  })
+
+  it('emails a pending invitee the OTHER message: sign in with this address and the place attaches then', async () => {
+    tableQueues = {
+      learners: [
+        { data: { id: 'owner-learner-1' }, error: null }, // resolveLearnerId (owner)
+        { data: { verified_emails: [], display_name: 'Bethan' }, error: null }, // owner's own emails + name
+        { data: [], error: null }, // existing-account lookup: nobody has this address
+      ],
+      family_members: [
+        { data: [], error: null }, // seat count
+        { data: { id: 'invite-2', invited_email: 'newperson@example.com', status: 'invited' }, error: null }, // insert
+      ],
+    }
+    const res = makeRes()
+    await inviteHandler(makeReq({ email: 'newperson@example.com' }), res as any)
+
+    expect(res._status).toBe(200)
+    expect((res._body as any).attachedNow).toBe(false)
+    expect((res._body as any).emailed).toBe(true)
+    expect(mailSent.length).toBe(1)
+    expect(mailSent[0].subject).toBe('Bethan has added you to their SaySomethingin family plan')
+    expect(mailSent[0].text).toContain('You do not have an account yet')
+    expect(mailSent[0].text).toContain('newperson@example.com')
+  })
+
+  it('still creates the invite when the mail cannot be sent — the seat is real either way', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500, json: async () => ({}), text: async () => 'nope' }) as any))
+    tableQueues = {
+      learners: [
+        { data: { id: 'owner-learner-1' }, error: null },
+        { data: { verified_emails: [] }, error: null },
+        { data: [], error: null },
+      ],
+      family_members: [
+        { data: [], error: null },
+        { data: { id: 'invite-3', invited_email: 'newperson@example.com', status: 'invited' }, error: null },
+      ],
+    }
+    const res = makeRes()
+    await inviteHandler(makeReq({ email: 'newperson@example.com' }), res as any)
+    expect(res._status).toBe(200)
+    expect((res._body as any).invite.id).toBe('invite-3')
+    expect((res._body as any).emailed).toBe(false)
   })
 })
 
@@ -202,6 +264,23 @@ describe('POST /api/family/create-child', () => {
     expect((res._body as any).signInLink).toBe('https://example.com/magic')
     const insertCalls = calls.filter((c) => c.method === 'insert')
     expect(insertCalls.some((c) => c.table === 'family_members' && c.args[0].is_child_account === true)).toBe(true)
+  })
+
+  it('sends NO email for a child seat — the address is synthetic and the parent gets a QR code instead', async () => {
+    tableQueues = {
+      learners: [
+        { data: { id: 'owner-learner-1' }, error: null },
+        { data: { id: 'child-learner-1' }, error: null },
+      ],
+      family_members: [
+        { data: [], error: null },
+        { data: { id: 'member-1', is_child_account: true, status: 'active' }, error: null },
+      ],
+    }
+    const res = makeRes()
+    await createChildHandler(makeReq({ display_name: 'Dylan' }), res as any)
+    expect(res._status).toBe(200)
+    expect(mailSent).toEqual([])
   })
 })
 

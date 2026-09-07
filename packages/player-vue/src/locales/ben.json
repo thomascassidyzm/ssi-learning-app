@@ -115,7 +115,8 @@
     "keepLearningReachNext": "পরের স্তরে পৌঁছাতে শিখতে থাকুন!",
     "progressLoadFailed": "আপনি কোথায় ছিলেন তা লোড করা যায়নি। আপনার অগ্রগতি নিরাপদ — আবার চেষ্টা করুন।",
     "practisingBanner": "অনুশীলন চলছে",
-    "practisingBannerNote": "সংযোগ ফিরে এলে নতুন উপাদানও ফিরে আসবে।"
+    "practisingBannerNote": "সংযোগ ফিরে এলে নতুন উপাদানও ফিরে আসবে।",
+    "choosePlanCancel": "দুটি প্ল্যান, £15/মাস থেকে। যেকোনো সময় বাতিল করুন।"
   },
   "home": {
     "goodMorning": "শুভ সকাল",
@@ -302,7 +303,9 @@
     "practisingModeOnlyAlready": "প্র্যাকটিসিং মোড চালু আছে — শুধু আগে থেকে শেখা উপাদান চলছে।",
     "reloadsNewestVersionDownloads": "সর্বশেষ সংস্করণ দিয়ে রিলোড হয়। আপনার ডাউনলোড ও অগ্রগতি বজায় থাকে।",
     "fixesMostAudioLoading": "বেশিরভাগ অডিও ও লোডিং সমস্যা ঠিক করে দেয়। আপনি সাইন ইন থাকেন।",
-    "addHomeScreenFaster": "দ্রুত, অফলাইন অ্যাক্সেসের জন্য আপনার হোম স্ক্রিনে যোগ করুন"
+    "addHomeScreenFaster": "দ্রুত, অফলাইন অ্যাক্সেসের জন্য আপনার হোম স্ক্রিনে যোগ করুন",
+    "plansFromMonth": "একটি অ্যাকাউন্টের জন্য £15/মাস, ছয়টির জন্য £25/মাস",
+    "upgrade": "আপগ্রেড"
   },
   "belt": {
     "yourProgress": "আপনার অগ্রগতি",
@@ -626,6 +629,19 @@
   "checkout": {
     "closeCheckout": "চেকআউট বন্ধ করুন"
   },
+  "plans": {
+    "chooseAPlan": "একটি প্ল্যান বেছে নিন",
+    "close": "বন্ধ করুন",
+    "premiumName": "SSi প্রিমিয়াম",
+    "premiumDesc": "একটি অ্যাকাউন্ট। সব কোর্স ও ভাষা, এবং অফলাইনের জন্য ডাউনলোড।",
+    "premiumMonthly": "£15/মাস",
+    "premiumAnnual": "£150/বছর",
+    "familyName": "SSi ফ্যামিলি",
+    "familyDesc": "প্রিমিয়ামের সবকিছু, আপনারটি সহ {seats}টি অ্যাকাউন্টের জন্য। প্রত্যেকে নিজের অগ্রগতি রাখেন।",
+    "familyMonthly": "£25/মাস",
+    "familyAnnual": "£250/বছর",
+    "cancelAnytime": "যেকোনো সময় বাতিল করুন।"
+  },
   "family": {
     "family": "পরিবার",
     "signQrCode": "সাইন-ইন QR কোড",
@@ -639,6 +655,7 @@
     "inviteByEmail": "+ ইমেইলে ইনভাইট করুন"
   },
   "common": {
+    "noMatchesFor": "“{query}”-এর জন্য কোনো মিল নেই",
     "oneOpensBrowser": "এটি আপনার ব্রাউজারে খোলে।",
     "refreshData": "ডেটা রিফ্রেশ করুন",
     "tryAgain": "আবার চেষ্টা করুন"

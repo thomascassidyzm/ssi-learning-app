@@ -115,7 +115,8 @@
     "keepLearningReachNext": "اگلے درجے تک پہنچنے کے لیے سیکھتے رہیں!",
     "progressLoadFailed": "آپ کہاں تک پہنچے تھے، یہ لوڈ نہیں ہو سکا۔ آپ کی پیش رفت محفوظ ہے — دوبارہ کوشش کریں۔",
     "practisingBanner": "مشق جاری ہے",
-    "practisingBannerNote": "جیسے ہی آپ کا کنکشن واپس آئے گا، نیا مواد بھی واپس آ جائے گا۔"
+    "practisingBannerNote": "جیسے ہی آپ کا کنکشن واپس آئے گا، نیا مواد بھی واپس آ جائے گا۔",
+    "choosePlanCancel": "دو پلان، £15/ماہ سے۔ کسی بھی وقت منسوخ کریں۔"
   },
   "home": {
     "goodMorning": "صبح بخیر",
@@ -302,7 +303,9 @@
     "practisingModeOnlyAlready": "مشق موڈ آن ہے — صرف وہ مواد چل رہا ہے جو آپ پہلے ہی سیکھ چکے ہیں۔",
     "reloadsNewestVersionDownloads": "تازہ ترین ورژن کے ساتھ دوبارہ لوڈ ہوتا ہے۔ آپ کے ڈاؤن لوڈز اور پیش رفت محفوظ رہتی ہے۔",
     "fixesMostAudioLoading": "زیادہ تر آڈیو اور لوڈنگ کے مسائل حل کرتا ہے۔ آپ سائن ان رہتے ہیں۔",
-    "addHomeScreenFaster": "تیز، آف لائن رسائی کے لیے اپنی ہوم اسکرین پر شامل کریں"
+    "addHomeScreenFaster": "تیز، آف لائن رسائی کے لیے اپنی ہوم اسکرین پر شامل کریں",
+    "plansFromMonth": "ایک اکاؤنٹ کے لیے £15/ماہ، چھ کے لیے £25/ماہ",
+    "upgrade": "اپ گریڈ"
   },
   "belt": {
     "yourProgress": "آپ کی پیش رفت",
@@ -626,6 +629,19 @@
   "checkout": {
     "closeCheckout": "چیک آؤٹ بند کریں"
   },
+  "plans": {
+    "chooseAPlan": "پلان منتخب کریں",
+    "close": "بند کریں",
+    "premiumName": "SSi پریمیم",
+    "premiumDesc": "ایک اکاؤنٹ۔ تمام کورسز اور زبانیں، اور آف لائن کے لیے ڈاؤن لوڈ۔",
+    "premiumMonthly": "£15/ماہ",
+    "premiumAnnual": "£150/سال",
+    "familyName": "SSi فیملی",
+    "familyDesc": "پریمیم کی ہر چیز، آپ سمیت {seats} اکاؤنٹس کے لیے۔ ہر ایک کی اپنی پیش رفت الگ رہتی ہے۔",
+    "familyMonthly": "£25/ماہ",
+    "familyAnnual": "£250/سال",
+    "cancelAnytime": "کسی بھی وقت منسوخ کریں۔"
+  },
   "family": {
     "family": "خاندان",
     "signQrCode": "سائن ان QR کوڈ",
@@ -639,6 +655,7 @@
     "inviteByEmail": "+ ای میل کے ذریعے دعوت دیں"
   },
   "common": {
+    "noMatchesFor": "”{query}“ کے لیے کوئی نتیجہ نہیں",
     "oneOpensBrowser": "یہ آپ کے براؤزر میں کھلتا ہے۔",
     "refreshData": "ڈیٹا تازہ کریں",
     "tryAgain": "دوبارہ کوشش"

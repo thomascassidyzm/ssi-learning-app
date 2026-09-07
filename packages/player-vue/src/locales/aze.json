@@ -115,7 +115,8 @@
     "keepLearningReachNext": "Növbəti səviyyəyə çatmaq üçün öyrənməyə davam edin!",
     "progressLoadFailed": "Harada qaldığınızı yükləyə bilmədik. İrəliləyişiniz təhlükəsizdir — bir də cəhd edin.",
     "practisingBanner": "Məşq edilir",
-    "practisingBannerNote": "Bağlantı qayıdanda yeni material da qayıdacaq."
+    "practisingBannerNote": "Bağlantı qayıdanda yeni material da qayıdacaq.",
+    "choosePlanCancel": "İki plan, £15/aydan. İstənilən vaxt ləğv edin."
   },
   "home": {
     "goodMorning": "Sabahınız xeyir",
@@ -302,7 +303,9 @@
     "practisingModeOnlyAlready": "Məşq rejimi AÇIQDIR — yalnız artıq keçdiyiniz material oxudulur.",
     "reloadsNewestVersionDownloads": "Ən yeni versiya ilə yenidən yüklənir. Yükləmələriniz və irəliləyişiniz saxlanılır.",
     "fixesMostAudioLoading": "Əksər səs və yükləmə problemlərini həll edir. Siz daxil olmuş qalırsınız.",
-    "addHomeScreenFaster": "Daha sürətli, oflayn giriş üçün əsas ekranınıza əlavə edin"
+    "addHomeScreenFaster": "Daha sürətli, oflayn giriş üçün əsas ekranınıza əlavə edin",
+    "plansFromMonth": "bir hesab üçün £15/ay, altı hesab üçün £25/ay",
+    "upgrade": "Yüksəlt"
   },
   "belt": {
     "yourProgress": "İrəliləyişiniz",
@@ -626,6 +629,19 @@
   "checkout": {
     "closeCheckout": "Ödənişi bağla"
   },
+  "plans": {
+    "chooseAPlan": "Bir plan seçin",
+    "close": "Bağla",
+    "premiumName": "SSi Premium",
+    "premiumDesc": "Bir hesab. Bütün kurslar və dillər, oflayn üçün yükləmələr.",
+    "premiumMonthly": "£15/ay",
+    "premiumAnnual": "£150/il",
+    "familyName": "SSi Ailəsi",
+    "familyDesc": "Premium-un hər şeyi, sizinki daxil olmaqla {seats} hesab üçün. Hər kəs öz irəliləyişini saxlayır.",
+    "familyMonthly": "£25/ay",
+    "familyAnnual": "£250/il",
+    "cancelAnytime": "İstənilən vaxt ləğv edin."
+  },
   "family": {
     "family": "Ailə",
     "signQrCode": "Giriş QR kodu",
@@ -639,6 +655,7 @@
     "inviteByEmail": "+ E-poçtla dəvət et"
   },
   "common": {
+    "noMatchesFor": "“{query}” üçün uyğunluq yoxdur",
     "oneOpensBrowser": "Bu, brauzerinizdə açılacaq.",
     "refreshData": "Məlumatları yenilə",
     "tryAgain": "Yenidən cəhd edin"

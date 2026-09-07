@@ -48,6 +48,7 @@ const WalkOverlay = defineAsyncComponent(() => import('./components/admin/WalkOv
 import { setSchoolsClient } from './composables/schools/client'
 import AppEscape from './components/AppEscape.vue'
 import CheckoutOverlay from './components/CheckoutOverlay.vue'
+import PlanPicker from './components/PlanPicker.vue'
 // In-app browser — renders nothing until a link asks to open a page inside the
 // app rather than throwing the learner out to a browser tab.
 const InAppBrowser = defineAsyncComponent(() => import('./components/InAppBrowser.vue'))
@@ -981,6 +982,7 @@ onMounted(async () => {
     <InstallBanner />
     <TesterFeedback />
     <WalkOverlay />
+    <PlanPicker />
     <CheckoutOverlay />
     <InAppBrowser />
     <!--

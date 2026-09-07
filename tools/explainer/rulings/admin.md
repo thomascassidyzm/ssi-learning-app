@@ -31,9 +31,10 @@ their login — email it and they're in, no sign-up, no password. **Get a sharea
 open link for a role — anyone who taps it joins here. **Mint a demo org** builds a working demo
 school under this group in one gesture. **Courses** is one switch: a trial teaches one course, a
 paid group has every course. **See insights** compares this group's pace with the levels above it.
-**Add a group** and **Add a school** grow the tree; **Rename** and **Delete** reshape it — delete
-always shows you exactly what would go before it goes. **Refresh demo activity** keeps a demo
-org's numbers looking freshly practised.
+**Add a group**, **Add a school** and **Add a class** grow the tree — a class belongs to a group,
+even when that group is the org itself, and needs no teacher to exist; **Rename** and **Delete**
+reshape it — delete always shows you exactly what would go before it goes. **Refresh demo
+activity** keeps a demo org's numbers looking freshly practised.
 
 ## school
 
@@ -50,3 +51,5 @@ pressing **Play as class**. That shared journey is the headline; each student's 
 the layer below. The belt strip shows where the class sits on the course; each student row
 carries their own belt, practice hours and last-active — a quiet flag marks anyone drifting.
 **See insights** compares this class's pace with its school and everywhere above it.
+**Invite students** is the class page's own verb: one personal link per student that IS their
+login and puts them in this class.

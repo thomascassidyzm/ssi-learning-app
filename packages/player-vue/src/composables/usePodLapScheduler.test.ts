@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ref } from 'vue'
-import { usePodLapScheduler, podStageFor, DEFAULT_STAGE_DURATIONS } from './usePodLapScheduler'
+import {
+  usePodLapScheduler,
+  podStageFor,
+  podCohortHasCompleted,
+  podLadderTotalRounds,
+  DEFAULT_STAGE_DURATIONS,
+} from './usePodLapScheduler'
 import { resetServedPodCache } from './servedPod'
 import {
   DEFAULT_FAST_BELT_CEILINGS,
@@ -143,14 +149,19 @@ describe('podStageFor', () => {
     expect(podStageFor(1, 6)?.stage).toBe(2)
     expect(podStageFor(1, 10)?.stage).toBe(2)
   })
-  it('stage 9 is the eternal hold for alive >= 41 (default 9-stage playlist, uniform durations)', () => {
-    // 8 transitional stages × 5 rounds = 40 alive; stage 9 = eternal.
+  it('stage 9 is the TOP RUNG for alive >= 41 (default 9-stage playlist, uniform durations)', () => {
+    // 8 transitional stages × 5 rounds = 40 alive; stage 9 from 41.
+    // FLIPPED DELIBERATELY (Tom, 2026-09-06): stage 9 used to be described as
+    // the ETERNAL HOLD. It is no longer eternal — a cohort serves it for its
+    // own dwell and then COMPLETES and disappears from the sequence
+    // (podCohortHasCompleted). podStageFor itself is the stage MAP and is
+    // unchanged, so the assertions below still hold.
     expect(podStageFor(1, 40)?.stage).toBe(8)
     expect(podStageFor(1, 41)?.stage).toBe(9)
     expect(podStageFor(1, 100)?.stage).toBe(9)
   })
   it('honours a custom totalStages so admins can add or remove stages', () => {
-    // With totalStages=4, stage 4 is eternal at alive >= 16 (3 × 5).
+    // With totalStages=4, stage 4 is the top rung at alive >= 16 (3 × 5).
     expect(podStageFor(1, 16, 5, 4)?.stage).toBe(4)
     expect(podStageFor(1, 15, 5, 4)?.stage).toBe(3)
   })
@@ -163,7 +174,7 @@ describe('podStageFor', () => {
     expect(podStageFor(1, 4, 5, 9, d)).toEqual({ stage: 2, iter: 3 })
     expect(podStageFor(1, 5, 5, 9, d)).toEqual({ stage: 3, iter: 1 })
     expect(podStageFor(1, 9, 5, 9, d)).toEqual({ stage: 3, iter: 5 })
-    // Transitional total = 1 + 3 + 6×5 = 34 → eternal stage 9 from alive 35.
+    // Transitional total = 1 + 3 + 6×5 = 34 → top-rung stage 9 from alive 35.
     expect(podStageFor(1, 34, 5, 9, d)?.stage).toBe(8)
     expect(podStageFor(1, 35, 5, 9, d)?.stage).toBe(9)
   })
@@ -985,5 +996,112 @@ describe('usePodLapScheduler — work-debt cadence', () => {
     expect(s.shouldFireLapAt(5)).toBe(true)
     expect(s.shouldFireLapAt(9)).toBe(false)
     expect(s.shouldFireLapAt(10)).toBe(true)
+  })
+})
+
+/**
+ * TOP OF THE LADDER COMPLETES (Tom, 2026-09-06): "top of the ladder it then
+ * goes - compeltes, disappears, is no longer in the sequence - the PODS are
+ * all always available in the listening mode section".
+ *
+ * Default 9-stage config with DEFAULT_STAGE_DURATIONS {1:1, 2:3}: the ladder
+ * is 1 + 3 + 5×7 = 39 pod-rounds long (top rung included — the cohort SERVES
+ * the top rung, it does not graduate on arrival at it), so a cohort completes
+ * once its alive count passes 39.
+ *
+ * Fixtures here use three sentences → cold-start cohorts [{0,2},{2,1}], total
+ * 3 sentences, so for stored ≥ 3 the cohort-round equals the stored ratchet.
+ * Cohort 1's alive = round; cohort 2's alive = round − 1.
+ */
+describe('usePodLapScheduler — the ladder completes (Tom 2026-09-06)', () => {
+  const LADDER = 39 // 1 + 3 + 5×7, DEFAULT_STAGE_PLAYLIST + DEFAULT_STAGE_DURATIONS
+
+  const stateAt = (stored: number): MockState => ({
+    podSentences: [podSentence(1), podSentence(2), podSentence(3)],
+    bookends: [bookendIntro, bookendOutro],
+    enrollment: { completed_pod_rounds: stored, rounds_since_pod: 5 },
+    enrollmentUpdates: [],
+  })
+
+  it('the ladder length counts the TOP rung too — arrival is not completion', () => {
+    expect(podLadderTotalRounds(5, 9, DEFAULT_STAGE_DURATIONS)).toBe(LADDER)
+    // alive 35..39 = stage 9, the top rung, still served.
+    expect(podStageFor(1, 39, 5, 9, DEFAULT_STAGE_DURATIONS)?.stage).toBe(9)
+    expect(podCohortHasCompleted(39, 5, 9, DEFAULT_STAGE_DURATIONS)).toBe(false)
+    expect(podCohortHasCompleted(40, 5, 9, DEFAULT_STAGE_DURATIONS)).toBe(true)
+  })
+
+  it('a single-stage config has no ladder to climb, so nothing ever completes', () => {
+    expect(podLadderTotalRounds(5, 1)).toBe(Infinity)
+    expect(podCohortHasCompleted(10_000, 5, 1)).toBe(false)
+  })
+
+  it('a cohort past the top of the ladder is GONE from the lap; the one below it still plays', async () => {
+    // round 40: cohort 1 alive 40 (completed), cohort 2 alive 39 (top rung).
+    const state = stateAt(LADDER + 1)
+    const s = usePodLapScheduler({ supabase: makeMockSupabase(state), courseCode: 'c', learnerId: 'u' })
+    await s.initialize()
+    const lap = s.nextLap()
+    expect(lap).not.toBeNull()
+    // Cohort 1 is sentences 1-2 (cold-start window), cohort 2 is sentence 3.
+    expect(new Set(lap!.plays.map((p) => p.sentenceIdx))).toEqual(new Set([3]))
+  })
+
+  it('one rung below the top, every cohort is still in the sequence', async () => {
+    const state = stateAt(LADDER) // round 39 → cohort 1 alive 39, cohort 2 alive 38
+    const s = usePodLapScheduler({ supabase: makeMockSupabase(state), courseCode: 'c', learnerId: 'u' })
+    await s.initialize()
+    const lap = s.nextLap()
+    expect(new Set(lap!.plays.map((p) => p.sentenceIdx))).toEqual(new Set([1, 2, 3]))
+  })
+
+  it('an all-completed course yields no lap, claims no boundary, and throws nothing', async () => {
+    const state = stateAt(LADDER + 2) // round 41 → both cohorts past the ladder
+    const s = usePodLapScheduler({ supabase: makeMockSupabase(state), courseCode: 'c', learnerId: 'u' })
+    await s.initialize()
+    expect(s.nextLap()).toBeNull()
+    // The debt is standing (rounds_since_pod 5 ≥ interval) but the pod track is
+    // finished, so it stops claiming listening boundaries — the learner falls
+    // through to the Layer-1 seed cup instead of a boundary that composes
+    // nothing every five rounds.
+    expect(s.isLapDue()).toBe(false)
+    expect(s.shouldFireLapAt(100)).toBe(false)
+    expect(() => s.prefetchLap()).not.toThrow()
+  })
+
+  it('intake keeps advancing after a graduation — the ratchet never rewinds', async () => {
+    const state = stateAt(LADDER + 1)
+    const s = usePodLapScheduler({ supabase: makeMockSupabase(state), courseCode: 'c', learnerId: 'real-uuid' })
+    await s.initialize()
+    expect(s.isLapDue()).toBe(true) // cohort 2 still has rungs to serve
+    await s.markLapCompleted()
+    expect(s.completedPodRounds.value).toBe(LADDER + 2)
+    expect(state.enrollmentUpdates).toContainEqual({
+      completed_pod_rounds: LADDER + 2,
+      rounds_since_pod: 0,
+    })
+  })
+
+  it('completion applies on the stage-playlist escape hatch too — the ruling is about the sequence, not the pattern', async () => {
+    const state = stateAt(LADDER + 2)
+    const s = usePodLapScheduler({
+      supabase: makeMockSupabase(state),
+      courseCode: 'c',
+      learnerId: 'u',
+      listeningPolicy: STAGE_LADDER_POLICY,
+    })
+    await s.initialize()
+    expect(s.nextLap()).toBeNull()
+  })
+
+  it('a completed pod is still previewable — the Pods tab half of the ruling, at the scheduler', async () => {
+    const state = stateAt(LADDER + 2)
+    const s = usePodLapScheduler({ supabase: makeMockSupabase(state), courseCode: 'c', learnerId: 'u' })
+    await s.initialize()
+    // nextLapPreviewFallback ignores the ratchet window entirely and composes
+    // any sentence in the course, so completed content stays reachable.
+    const lap = s.nextLapPreviewFallback()
+    expect(lap).not.toBeNull()
+    expect(lap!.plays.length).toBeGreaterThan(0)
   })
 })

@@ -15,7 +15,7 @@ import { useUserRole } from '@/composables/useUserRole'
 import { useResolvedSession } from '@/composables/useResolvedSession'
 import { useSharedSubscription } from '@/composables/useSubscription'
 import { useSharedUserEntitlements } from '@/composables/useUserEntitlements'
-import { clearAllCachedBundles } from '@/composables/useCourseBundle'
+import { clearAllCachedBundles, revalidateCachedBundles } from '@/composables/useCourseBundle'
 import { reconcileAudioCacheOwner } from '@/cache/audioCacheOwner'
 import { isPlaceholderEmail } from '@/utils/placeholderEmail'
 import { useAccessClaim } from '@/composables/useAccessClaim'
@@ -528,6 +528,15 @@ export function useAuth(): AuthState & AuthActions {
     // auth path should wait on IndexedDB.
     if (user) void reconcileAudioCacheOwner(user.id)
 
+    // An identity ARRIVING is the moment every cached bundle on this device
+    // becomes checkable. The first course the app names is fetched before this
+    // point — before the session has restored — so its stored bundle is the
+    // anonymous 19-seed preview, and nothing short of a reload ever re-asked
+    // (#676's pole-position race; measured on a poisoned profile in #685).
+    // Silent, backgrounded, never blocks auth: it refetches only what
+    // disagrees, and a failure leaves the cached bundle serving.
+    if (user) void revalidateCachedBundles()
+
     if (user && !previousUser) {
       // User just signed in
       isLoading.value = true
@@ -625,6 +634,10 @@ export function useAuth(): AuthState & AuthActions {
         // Restored session: onAuthStateChange may not fire for it, so reconcile
         // the audio-cache owner here too (idempotent — see handleAuthChange).
         void reconcileAudioCacheOwner(result.data.session.user.id)
+        // Same reason as the audio-cache reconcile above: a RESTORED session
+        // may never fire onAuthStateChange, and a restored session is exactly
+        // the case that loses the race with the boot-time bundle fetch.
+        void revalidateCachedBundles()
         // ensureLearnerExists handles the syncRealRoleCache call internally
         // (it has the raw DB row with platform_role / educational_role).
         // toLearnerRecord strips those fields from the returned object, so

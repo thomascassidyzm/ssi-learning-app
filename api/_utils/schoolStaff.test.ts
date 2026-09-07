@@ -6,8 +6,14 @@
  * CLAIM path ever wrote an admin's user_tags SCHOOL: row, so a school's
  * FOUNDING admin was invisible to every staff-keyed number in her own school.
  */
-import { describe, it, expect, vi } from 'vitest'
-import { ensureSchoolAdminTag, schoolMembershipsOf, schoolReachOf, SCHOOL_STAFF_ROLES } from './schoolStaff'
+import { describe, it, expect } from 'vitest'
+import {
+  ensureSchoolAdminTag,
+  isSchoolAdminOf,
+  schoolMembershipsOf,
+  schoolReachOf,
+  SCHOOL_STAFF_ROLES,
+} from './schoolStaff'
 
 /**
  * `existingRow` models what the post-23505 re-read finds: the row that already
@@ -132,6 +138,21 @@ describe('ensureSchoolAdminTag', () => {
     expect(client.updates[0].payload.role_in_context).toBe('admin')
     expect(client.updates[0].payload.added_by).toBe('inviter-uid')
     expect(typeof client.updates[0].payload.added_at).toBe('string')
+  })
+
+  it('23505 with no row found at all is a no-op — parity with redeem.ts insertTagReactivating', async () => {
+    // The key was taken at INSERT time but the re-read finds nothing: a raced
+    // concurrent delete, or a 23505 raised by some other constraint. The
+    // reactivating shape used across the estate (api/code/redeem.ts's
+    // insertTagReactivating, api/_utils/classTeacherTag.ts) treats this as a
+    // no-op rather than inventing a second convention here. Before 2026-09-07
+    // this branch ALSO covered the re-invite case, which is the bug the test
+    // above now pins: a removed row holding the key is reactivated, not
+    // reported as either success or failure.
+    const client = fakeClient({ error: { code: '23505', message: 'duplicate key value' } }, null)
+    const err = await ensureSchoolAdminTag(client, { userId: 'admin-uid', schoolId: 'school-1' })
+    expect(err).toBeNull()
+    expect(client.updates).toEqual([])
   })
 
   it('reports a real failure', async () => {
@@ -292,5 +313,93 @@ describe('schoolReachOf', () => {
 
   it('returns nothing for an empty uid, without querying', async () => {
     expect(await schoolReachOf(reachClient({ owned: [{ id: 'school-1' }] }), '')).toEqual([])
+  })
+})
+
+/**
+ * AGREEMENT TEST — the admin predicate is implemented TWICE, in two languages,
+ * and both are live authority:
+ *
+ *   TS : isSchoolAdminOf() in this module (every API-route authz decision)
+ *   SQL: public.is_school_admin_of(uuid) in supabase/schema.sql (RLS on
+ *        classes_select, class_sessions, invite_codes INSERT)
+ *
+ * The SQL, verbatim in behaviour (schema.sql:4340):
+ *   EXISTS (schools s WHERE s.id = p_school_id AND s.admin_user_id = auth.uid()::text)
+ *   OR EXISTS (user_tags ut WHERE ut.user_id = auth.uid()::text
+ *              AND ut.tag_type='school' AND ut.role_in_context='admin'
+ *              AND ut.removed_at IS NULL AND ut.tag_value = 'SCHOOL:'||p_school_id)
+ *
+ * The only structural difference is WHOSE identity is asked about: SQL takes it
+ * implicitly from auth.uid(), TS takes an explicit userId. Both hold the AUTH
+ * UID (not the learner PK) — CLAUDE.md's identity table. Everything else must
+ * match, over BOTH spellings, in every combination. When these two drift, reads
+ * work and writes do not (or the reverse) — the estate's 2026-08-08 Harbour View
+ * defect, where the DB knew the tag spelling and the API did not.
+ */
+const sqlIsSchoolAdminOf = (s: { pointerMatches: boolean; activeAdminTag: boolean }) =>
+  s.pointerMatches || s.activeAdminTag
+
+function adminFakeClient(state: {
+  adminUserId: string | null
+  tag: { role: string; removed: boolean } | null
+}) {
+  return {
+    from: (table: string) => {
+      if (table === 'schools') {
+        const b: any = {
+          select: () => b,
+          eq: () => b,
+          maybeSingle: () => Promise.resolve({ data: { admin_user_id: state.adminUserId }, error: null }),
+        }
+        return b
+      }
+      // user_tags — the TS query filters role_in_context='admin' AND
+      // removed_at IS NULL, exactly as the SQL does.
+      const b: any = {
+        select: () => b,
+        eq: () => b,
+        is: () => b,
+        maybeSingle: () =>
+          Promise.resolve({
+            data: state.tag && state.tag.role === 'admin' && !state.tag.removed ? { id: 't1' } : null,
+            error: null,
+          }),
+      }
+      return b
+    },
+  } as any
+}
+
+describe('isSchoolAdminOf — TS agrees with SQL is_school_admin_of on every case', () => {
+  const CASES: Array<{
+    name: string
+    adminUserId: string | null
+    tag: { role: string; removed: boolean } | null
+  }> = [
+    { name: 'neither spelling', adminUserId: null, tag: null },
+    { name: 'pointer only (founding admin, never tagged)', adminUserId: 'me', tag: null },
+    { name: 'active admin tag only (invited/claimed admin)', adminUserId: 'someone-else', tag: { role: 'admin', removed: false } },
+    { name: 'both spellings', adminUserId: 'me', tag: { role: 'admin', removed: false } },
+    { name: 'tag REVOKED, no pointer — must be false', adminUserId: null, tag: { role: 'admin', removed: true } },
+    { name: 'tag revoked but pointer still mine — still true', adminUserId: 'me', tag: { role: 'admin', removed: true } },
+    { name: 'teacher tag only — not an admin', adminUserId: null, tag: { role: 'teacher', removed: false } },
+    { name: 'pointer is another user', adminUserId: 'someone-else', tag: null },
+  ]
+
+  for (const c of CASES) {
+    it(`agrees: ${c.name}`, async () => {
+      const ts = await isSchoolAdminOf(adminFakeClient(c), 'me', 'school-1')
+      const sql = sqlIsSchoolAdminOf({
+        pointerMatches: c.adminUserId === 'me',
+        activeAdminTag: !!c.tag && c.tag.role === 'admin' && !c.tag.removed,
+      })
+      expect(ts).toBe(sql)
+    })
+  }
+
+  it('an empty userId or schoolId is never an admin (TS guard, no query fired)', async () => {
+    expect(await isSchoolAdminOf(adminFakeClient(CASES[3]), '', 'school-1')).toBe(false)
+    expect(await isSchoolAdminOf(adminFakeClient(CASES[3]), 'me', '')).toBe(false)
   })
 })

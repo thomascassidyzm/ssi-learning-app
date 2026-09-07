@@ -137,6 +137,7 @@ import { bundleFullScriptSliced } from '../providers/bundleFullScript'
 import { backendCyclesToRounds, infPlayCyclesToRounds } from '../providers/backendCyclesToRounds'
 import { setIntroAudioTelemetrySink } from '../playback/introAudioTelemetry'
 import { setBundlePathTelemetrySink, reportBundlePath } from '../playback/bundlePathTelemetry'
+import { setBundleTierTelemetrySink } from '../playback/bundleTierTelemetry'
 import { shouldShowInterjection, type CommentaryDisplayType } from '../playback/interjectionDisplay'
 import type { Round as PlayerRound } from '../playback/SimplePlayer'
 import { getAudioCache } from '../cache/createAudioCache'
@@ -1867,6 +1868,25 @@ setBundlePathTelemetrySink((e) => {
   })
 })
 onUnmounted(() => setBundlePathTelemetrySink(null))
+
+// A stored bundle that disagreed with the learner's real entitlement, and what
+// happened when we re-asked (#685). The repair is silent by ruling — no toast,
+// no banner — so this event is the ONLY place it announces itself, and the only
+// way to count how many devices are carrying a poisoned preview. Not deduped:
+// the sweep fires at most once per course per identity per session anyway, and
+// each course is its own fact.
+setBundleTierTelemetrySink((e) => {
+  logEvent('bundle_tier_heal', {
+    bundle_course_code: e.courseCode,
+    stored_tier: e.storedTier,
+    stored_with_auth: e.storedWithAuth,
+    resolved_tier: e.resolvedTier ?? null,
+    outcome: e.outcome,
+    tookMs: e.tookMs,
+    detail: e.detail ?? null,
+  })
+})
+onUnmounted(() => setBundleTierTelemetrySink(null))
 // Expose audio_failed banner state at top level so the template can
 // use it directly (refs nested inside a plain object aren't auto-unwrapped).
 const audioFailedBanner = simplePlayer.audioFailed
@@ -2034,6 +2054,30 @@ const highestCompletedLegoId = ref<string | null>(null)
  *  acting on the second would hand an existing learner the new-learner default.
  *  Consumed only by applyNewLearnerModeDefault() further down. */
 const progressHistoryResolved = ref(false)
+
+/** Should a guest be shown the "Save Progress" ask?
+ *
+ *  Only once there IS progress. The nudge used to render on `isGuestLearner`
+ *  alone, so on a cold first boot it was on screen from second zero — a filled
+ *  navy button, the highest-contrast thing in the frame, sitting directly under
+ *  the prompt card and out-shouting Play itself, asking a person to sign up
+ *  before they had heard a single word. It also wasn't true: there was nothing
+ *  to save. Now it appears once the learner has finished their first ROUND —
+ *  one round is one LEGO, so that is exactly "they have played something",
+ *  and by then the ask has been earned and the sentence is true.
+ *
+ *  The signal is the LIVE round cursor, deliberately, and not
+ *  `highestCompletedLegoId`: every writer of that ceiling sits behind an
+ *  `isGuestLearner` early-return, because it is the PERSISTED-progress
+ *  ceiling and guests persist nothing. Gating on it suppressed the sign-in
+ *  ask for guests permanently — the one audience it exists for. (Caught by
+ *  walking the built branch, not by reading the code.) The ceiling stays in
+ *  the test as the resumed-position case. */
+const showGuestSaveNudge = computed(
+  () =>
+    isGuestLearner.value &&
+    (simplePlayer.roundIndex.value > 0 || !!highestCompletedLegoId.value),
+)
 // Cursor LEGO ID from the enrollment row (last_completed_lego_id).
 // Reactive copy of the DB value — the canonical "where is the cursor"
 // signal for the resting-state journey-bar comparison. DON'T derive
@@ -2226,13 +2270,15 @@ const scriptBaseOffset = ref(0)  // Base offset for script loading
 const entitlementComposable = useEntitlement()
 const showPaywall = ref(false)
 
-// The single checkout trigger (Paddle £15/mo Premium). Used by the in-player
-// paywall overlay; the money-capture backend is untouched.
+// The upgrade trigger. Naming no plan means the plan picker opens first
+// (Premium or Family, monthly or annual) and it opens the matching Paddle
+// checkout. The money-capture backend is untouched.
 const { startCheckout, isOpeningCheckout } = useCheckout()
 // platform/paymentRoute: the wall still explains why play stopped, but it only
 // offers a Subscribe button when there is a route that can honour it.
 const purchaseAvailable = computed(() => canTakePayment())
 function handleSubscribe() {
+  // No plan named, so this opens the picker first — see useCheckout.startCheckout.
   startCheckout({ courseCode: courseCode.value || null })
 }
 
@@ -16932,7 +16978,7 @@ defineExpose({
     <div v-if="showPaywall" class="paywall-overlay" @click.self="dismissPaywall">
       <div class="paywall-card">
         <h2 class="paywall-title">{{ t('player.youveReachedEndFree') }}</h2>
-        <p class="paywall-subtitle">{{ t('player.goPremiumMonthCancel') }}</p>
+        <p class="paywall-subtitle">{{ t('player.choosePlanCancel') }}</p>
         <ul class="paywall-benefits">
           <li>{{ t('player.everyCourseLanguagesFully') }}</li>
           <li>{{ t('player.downloadCoursesOfflineLearning') }}</li>
@@ -16944,7 +16990,7 @@ defineExpose({
             class="paywall-btn paywall-btn-primary"
             :disabled="isOpeningCheckout"
             @click="handleSubscribe"
-          >{{ isOpeningCheckout ? 'Opening checkout…' : 'Subscribe — £15/month' }}</button>
+          >{{ isOpeningCheckout ? 'Opening checkout…' : 'See plans' }}</button>
           <!-- Store shell with no wired billing route: an honest sentence. No
                button, no link, no price — a dead Pay control is a broken promise
                to the learner and a rejection at store review. -->
@@ -17041,12 +17087,17 @@ defineExpose({
     </div>
   </Transition>
 
-  <!-- A belt-skip the device can't honour, said in one line. Reuses the
-       between-rounds tip toast: it sits above the nav, clears itself, and
-       never takes the screen — the learner asked for something, they get told
-       why not, and play carries on underneath. -->
+  <!-- A belt-skip the device can't honour yet, said in one line. Borrows the
+       between-rounds tip's shell but NOT its position: this one lives near the
+       TOP of the screen (Tom, 2026-09-06 — "there's plenty of screen space for
+       a 'no content' warning higher up"). At the bottom it landed in the
+       busiest strip on the player — belt pill, Easy/Fast, bottom nav — and on
+       his phone it rendered under the Easy/Fast control, clipped to "Orange
+       Belt isn't on th…". The empty middle of the screen has room for the
+       whole sentence, and the layer it now sits on is above everything else
+       the player draws, so this is not a dodge around one collision. -->
   <Transition name="fade">
-    <div v-if="beltBlockedMessage" class="mode-tip" role="status" aria-live="polite">
+    <div v-if="beltBlockedMessage" class="mode-tip belt-waiting-tip" role="status" aria-live="polite">
       <span>{{ beltBlockedMessage }}</span>
     </div>
   </Transition>
@@ -17337,7 +17388,7 @@ defineExpose({
 
       <!-- Guest save progress button -->
       <Transition name="nudge-fade">
-        <button v-if="isGuestLearner" class="guest-progress-nudge" @click="openAuth()">
+        <button v-if="showGuestSaveNudge" class="guest-progress-nudge" @click="openAuth()">
           {{ t('player.saveProgress') }}
         </button>
       </Transition>
@@ -17783,7 +17834,7 @@ defineExpose({
         </div>
 
         <!-- Guest progress warning -->
-        <div v-if="isGuestLearner" class="guest-progress-nudge" :class="{ expanded: !isAudioPlaying }" @click="openAuth()">
+        <div v-if="showGuestSaveNudge" class="guest-progress-nudge" :class="{ expanded: !isAudioPlaying }" @click="openAuth()">
           <svg class="nudge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
             <line x1="12" y1="9" x2="12" y2="13"/>
@@ -20946,6 +20997,45 @@ button.phase-segment:active:not(.is-active) {
   cursor: default;
 }
 
+/* "{belt} isn't on this device yet" — the ONE sentence a belt jump may show
+   while it keeps trying. It rides the mode-tip shell but overrides the two
+   things that made it unreadable on Tom's phone (2026-09-06):
+
+   POSITION. The bottom strip is the busiest part of the player — belt pill,
+   Easy/Fast, bottom nav — so the tip landed under the Easy/Fast control. It
+   moves up into the one genuinely empty band on the player: below the prompt
+   card, above the course flag. 38% of the viewport puts it there on a phone
+   and keeps it there on a tall or a short one, because everything it has to
+   avoid is anchored to the same two ends. Nothing is drawn in that band, so
+   this is the "plenty of screen space" Tom pointed at rather than a nudge
+   past today's one overlap.
+
+   LAYER. z-index above every overlay this screen can draw (belt-skip and
+   paywall at 3000, the offline picker backdrop at 3100), so it is above
+   whatever else is up — a general rule, not a dodge around one collision.
+
+   And it WRAPS. The old single-line flex clipped the sentence to "Orange Belt
+   isn't on th…"; shortening the words was never the fix. Horizontal padding
+   respects the landscape notch per the repo's safe-area rule. */
+.belt-waiting-tip {
+  top: max(38%, calc(96px + env(safe-area-inset-top, 0px)));
+  bottom: auto;
+  transform: translate(-50%, -50%);
+  z-index: 3200;
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
+  line-height: 1.35;
+  cursor: default;
+  padding: 0.75rem 1rem;
+  width: max-content;
+  max-width: min(
+    28rem,
+    calc(100vw - 2rem - max(0px, env(safe-area-inset-left, 0px)) - max(0px, env(safe-area-inset-right, 0px)))
+  );
+}
+
 .mode-tip__body {
   display: flex;
   flex-direction: column;
@@ -21301,6 +21391,13 @@ button.phase-segment:active:not(.is-active) {
   border-color: rgba(0, 0, 0, 0.18);
   color: var(--text-muted);
   box-shadow: none;
+  /* The scoped rule already says opacity 0.25 for :disabled, but the mist
+     base rule above sets opacity: 1 at equal specificity and later in the
+     sheet, so it won. Result on a phone: the dead back-chevron rendered as
+     the same crisp white circle as its live twin, and a brand-new learner's
+     tap on it landed on nothing with no signal at all. Restated here so the
+     dimming survives the theme. */
+  opacity: 0.35;
 }
 
 /* --- INF-PLAY state for the CENTRAL belt-progress pill (mist theme).

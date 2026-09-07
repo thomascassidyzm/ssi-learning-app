@@ -115,7 +115,8 @@
     "keepLearningReachNext": "Daliwch ati i ddysgu i gyrraedd y lefel nesaf!",
     "progressLoadFailed": "Ni allem lwytho ble roeddech chi wedi cyrraedd. Mae eich cynnydd yn ddiogel — rhowch gynnig arall arni.",
     "practisingBanner": "Ymarfer",
-    "practisingBannerNote": "Bydd deunydd newydd yn dod yn ôl pan ddaw eich cysylltiad yn ôl."
+    "practisingBannerNote": "Bydd deunydd newydd yn dod yn ôl pan ddaw eich cysylltiad yn ôl.",
+    "choosePlanCancel": "Dau gynllun, o £15/mis. Diddymwch unrhyw bryd."
   },
   "home": {
     "goodMorning": "Bore da",
@@ -302,7 +303,9 @@
     "practisingModeOnlyAlready": "Mae Modd Ymarfer YMLAEN — dim ond deunydd rwyt ti eisoes wedi'i weld sy'n chwarae.",
     "reloadsNewestVersionDownloads": "Yn ailwefru gyda'r fersiwn ddiweddaraf. Mae'ch llwythi i lawr a'ch cynnydd yn cael eu cadw.",
     "fixesMostAudioLoading": "Yn datrys y rhan fwyaf o broblemau sain a llwytho. Rydych chi'n aros wedi mewngofnodi.",
-    "addHomeScreenFaster": "Ychwanegwch at eich sgrin gartref am fynediad cyflymach, all-lein"
+    "addHomeScreenFaster": "Ychwanegwch at eich sgrin gartref am fynediad cyflymach, all-lein",
+    "plansFromMonth": "£15/mis am un cyfrif, £25/mis am chwech",
+    "upgrade": "Uwchraddio"
   },
   "belt": {
     "yourProgress": "Dy gynnydd",
@@ -626,6 +629,19 @@
   "checkout": {
     "closeCheckout": "Cau'r man talu"
   },
+  "plans": {
+    "chooseAPlan": "Dewiswch gynllun",
+    "close": "Cau",
+    "premiumName": "SSi Premiwm",
+    "premiumDesc": "Un cyfrif. Pob cwrs a phob iaith, a lawrlwythiadau ar gyfer defnydd all-lein.",
+    "premiumMonthly": "£15/mis",
+    "premiumAnnual": "£150/flwyddyn",
+    "familyName": "Teulu SSi",
+    "familyDesc": "Popeth sydd yn Premiwm, ar gyfer {seats} cyfrif gan gynnwys eich un chi. Mae pawb yn cadw eu cynnydd eu hunain.",
+    "familyMonthly": "£25/mis",
+    "familyAnnual": "£250/flwyddyn",
+    "cancelAnytime": "Diddymwch unrhyw bryd."
+  },
   "family": {
     "family": "Teulu",
     "signQrCode": "Cod QR mewngofnodi",
@@ -639,6 +655,7 @@
     "inviteByEmail": "+ Gwahodd drwy e-bost"
   },
   "common": {
+    "noMatchesFor": "Dim canlyniadau ar gyfer “{query}”",
     "oneOpensBrowser": "Mae hwn yn agor yn eich porwr.",
     "refreshData": "Adnewyddu data",
     "tryAgain": "Ail-geisio"

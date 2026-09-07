@@ -241,7 +241,8 @@ Phase 9: Manifest
 
 ```
 ssi-learning-app/
-├── packages/
+├── packages/                    # ONLY two packages exist: core and player-vue
+│   │                             # (no apps/*, no packages/ui, no packages/demo — verified 2026-09-04)
 │   ├── core/                    # @ssi/core - Framework-agnostic TypeScript
 │   │   ├── src/
 │   │   │   ├── engine/          # Cycle types & interfaces (CyclePhase, ICycleOrchestrator)
@@ -251,22 +252,17 @@ ssi-learning-app/
 │   │   │   ├── cache/           # (stale — does NOT exist; real offline stack is in player-vue: cache/AudioCache.ts, composables/useScriptCache.ts, useOfflineDownloadStatus.ts, useOfflineLease.ts)
 │   │   │   └── persistence/     # ProgressStore, SessionStore, SyncService
 │   │   └── package.json
-│   ├── player-vue/              # Vue 3 unified SPA (learning + schools)
-│   │   ├── src/
-│   │   │   ├── components/
-│   │   │   │   ├── LearningPlayer.vue   # Main player component
-│   │   │   │   ├── SessionComplete.vue  # Session summary screen
-│   │   │   │   └── schools/             # 21 schools UI components
-│   │   │   ├── views/schools/           # 12 schools dashboard views
-│   │   │   ├── composables/schools/     # 16 schools composables
-│   │   │   ├── containers/SchoolsContainer.vue  # Schools layout + auth
-│   │   │   └── App.vue
-│   │   └── public/audio/        # Demo audio files (bundled)
-│   ├── ui/                      # Shared UI components
-│   └── demo/                    # Demo content
-├── apps/
-│   ├── web/                     # PWA for community courses (TODO — not yet created)
-│   └── schools-dashboard/       # Doc-only dir (schools live in player-vue/src/views/schools/)
+│   └── player-vue/              # Vue 3 unified SPA (learning + schools)
+│       ├── src/
+│       │   ├── components/
+│       │   │   ├── LearningPlayer.vue   # Main player component
+│       │   │   ├── SessionComplete.vue  # Session summary screen
+│       │   │   └── schools/             # 21 schools UI components
+│       │   ├── views/schools/           # 12 schools dashboard views
+│       │   ├── composables/schools/     # 16 schools composables
+│       │   ├── containers/SchoolsContainer.vue  # Schools layout + auth
+│       │   └── App.vue
+│       └── public/audio/        # Demo audio files (bundled)
 ├── apml/                        # APML specifications
 │   ├── core/                    # Core data types
 │   ├── engine/                  # Cycle-orchestration spec (historical — no such class ships)
@@ -1118,5 +1114,5 @@ First run (2026-01-22): Completed 7 items in ~4 minutes, 10 tests passing, clean
 
 ---
 
-*Last updated: 2026-07-21 (added PlayerConductor — the single owner of SimplePlayer transitions)*
+*Last updated: 2026-09-04 (corrected repo structure diagram — no apps/*, no packages/ui or packages/demo; only packages/core and packages/player-vue exist)*
 *Status: v2.3.0 - Lazy loading for instant startup | Schools dashboard fully implemented at /schools*

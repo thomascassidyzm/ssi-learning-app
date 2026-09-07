@@ -115,7 +115,8 @@
     "keepLearningReachNext": "Mokykitės toliau, kad pasiektumėte kitą lygį!",
     "progressLoadFailed": "Nepavyko įkelti, kur sustojote. Jūsų pažanga išsaugota — bandykite dar kartą.",
     "practisingBanner": "Kartojama",
-    "practisingBannerNote": "Nauja medžiaga sugrįš, kai atsinaujins ryšys."
+    "practisingBannerNote": "Nauja medžiaga sugrįš, kai atsinaujins ryšys.",
+    "choosePlanCancel": "Du planai, nuo £15/mėn. Atšaukti galite bet kada."
   },
   "home": {
     "goodMorning": "Labas rytas",
@@ -302,7 +303,9 @@
     "practisingModeOnlyAlready": "Praktikos režimas ĮJUNGTAS — groja tik jau išmokta medžiaga.",
     "reloadsNewestVersionDownloads": "Įkelia iš naujo su naujausia versija. Jūsų atsisiuntimai ir pažanga išsaugomi.",
     "fixesMostAudioLoading": "Išsprendžia daugumą garso ir įkėlimo problemų. Liksite prisijungę.",
-    "addHomeScreenFaster": "Pridėkite prie pagrindinio ekrano greitesnei prieigai neprisijungus"
+    "addHomeScreenFaster": "Pridėkite prie pagrindinio ekrano greitesnei prieigai neprisijungus",
+    "plansFromMonth": "£15/mėn. vienai paskyrai, £25/mėn. šešioms",
+    "upgrade": "Atnaujinti"
   },
   "belt": {
     "yourProgress": "Tavo pažanga",
@@ -626,6 +629,19 @@
   "checkout": {
     "closeCheckout": "Uždaryti atsiskaitymą"
   },
+  "plans": {
+    "chooseAPlan": "Pasirinkite planą",
+    "close": "Uždaryti",
+    "premiumName": "SSi Premium",
+    "premiumDesc": "Viena paskyra. Visi kursai ir kalbos, su atsisiuntimais neprisijungus.",
+    "premiumMonthly": "£15/mėn.",
+    "premiumAnnual": "£150/metus",
+    "familyName": "SSi šeima",
+    "familyDesc": "Viskas, kas yra Premium, {seats} paskyroms, įskaitant jūsų. Kiekvienas išlaiko savo pažangą.",
+    "familyMonthly": "£25/mėn.",
+    "familyAnnual": "£250/metus",
+    "cancelAnytime": "Atšaukti galite bet kada."
+  },
   "family": {
     "family": "Šeima",
     "signQrCode": "Prisijungimo QR kodas",
@@ -639,6 +655,7 @@
     "inviteByEmail": "+ Pakviesti el. paštu"
   },
   "common": {
+    "noMatchesFor": "Nėra atitikmenų užklausai „{query}“",
     "oneOpensBrowser": "Šis atsidarys jūsų naršyklėje.",
     "refreshData": "Atnaujinti duomenis",
     "tryAgain": "Bandyti dar kartą"

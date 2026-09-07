@@ -1,0 +1,83 @@
+{
+  "job": 656,
+  "ruling": "Tom, 2026-09-05: give Beuno back the listening-pod lap he was actually at",
+  "generated_at": "2026-09-05T20:25:59.614Z",
+  "learner_id": "884a23bf-b5ca-4558-b297-c826b04c6dc7",
+  "display_name": "beunollyn",
+  "course_id": "deu_for_eng",
+  "before": {
+    "completed_pod_rounds": 0,
+    "pod_activation_round": null,
+    "rounds_since_pod": 5,
+    "updated_at": "2026-09-05T19:11:04.008Z"
+  },
+  "telemetry": {
+    "events": 6,
+    "completedEvents": [
+      {
+        "id": "618362",
+        "occurred_at": "2026-08-06T13:10:38.281Z",
+        "podRound": 1,
+        "abortReason": "completed",
+        "playsExpected": 12,
+        "playsCompleted": 14
+      },
+      {
+        "id": "633929",
+        "occurred_at": "2026-08-07T12:03:02.334Z",
+        "podRound": 2,
+        "abortReason": "completed",
+        "playsExpected": 32,
+        "playsCompleted": 34
+      },
+      {
+        "id": "649686",
+        "occurred_at": "2026-08-08T15:59:32.155Z",
+        "podRound": 3,
+        "abortReason": "completed",
+        "playsExpected": 44,
+        "playsCompleted": 46
+      }
+    ],
+    "laps": 3,
+    "distinctPodRounds": [
+      1,
+      2,
+      3
+    ]
+  },
+  "live_pod": {
+    "pod_id": "deu_for_eng:pod-1",
+    "turn_rows": 231,
+    "sentences": 389,
+    "cohorts": 388
+  },
+  "ladder": [
+    {
+      "lap": 1,
+      "storedAfter": 2,
+      "roundNow": 2
+    },
+    {
+      "lap": 2,
+      "storedAfter": 3,
+      "roundNow": 3
+    },
+    {
+      "lap": 3,
+      "storedAfter": 4,
+      "roundNow": 4
+    }
+  ],
+  "target_completed_pod_rounds": 4,
+  "target_round": 4,
+  "applied": true,
+  "after": {
+    "completed_pod_rounds": 4,
+    "pod_activation_round": null,
+    "rounds_since_pod": 5,
+    "updated_at": "2026-09-05T20:25:59.637Z"
+  },
+  "rounds_since_pod_unchanged": true,
+  "no_op": false
+}

@@ -23,6 +23,10 @@ vi.mock('../_utils/schoolNode', () => ({
 
 let writes: Record<string, any[]>
 let tagError: { code?: string; message?: string } | null
+// What the 23505 re-read finds (see ensureSchoolAdminTag): an ACTIVE row
+// holding the key is the idempotent no-op; a REMOVED one is the re-invite case
+// and gets reactivated.
+let existingTagAfter23505: { id: string; removed_at: string | null } | null
 
 function makeChainable(table: string) {
   const builder: any = {
@@ -35,15 +39,16 @@ function makeChainable(table: string) {
     delete: () => { writes[table] = writes[table] || []; writes[table].push({ op: 'delete' }); return builder },
     select: () => builder,
     eq: () => builder,
+    is: () => builder,
     update: (payload: unknown) => {
       writes[table] = writes[table] || []
       writes[table].push({ op: 'update', payload })
       return builder
     },
-    // ensureSchoolAdminTag's post-23505 re-read: which row holds the unique
-    // key, an active one or a soft-removed one. Null here = nothing found, the
-    // idempotent no-op this test asserts.
-    maybeSingle: () => Promise.resolve({ data: null, error: null }),
+    maybeSingle: () =>
+      Promise.resolve(
+        table === 'user_tags' ? { data: existingTagAfter23505, error: null } : { data: null, error: null },
+      ),
     single: () =>
       Promise.resolve(
         table === 'schools'
@@ -74,6 +79,7 @@ beforeEach(async () => {
   vi.resetModules()
   writes = {}
   tagError = null
+  existingTagAfter23505 = { id: 'tag-1', removed_at: null }
   handler = (await import('./create-school')).default
 })
 
@@ -107,10 +113,26 @@ describe('POST /api/admin/create-school', () => {
     expect((writes.schools || []).some((w) => w.op === 'delete')).toBe(false)
   })
 
-  it('a 23505 on the tag is an idempotent no-op, not a failure', async () => {
+  it('a 23505 on the tag with an ACTIVE tag already present is an idempotent no-op, not a failure', async () => {
     tagError = { code: '23505', message: 'duplicate key value' }
     const res = makeRes()
     await handler(req, res)
     expect(res._status).toBe(200)
+  })
+
+  it('a 23505 where a REMOVED tag holds the key reactivates that tag', async () => {
+    // ensureSchoolAdminTag now revives the soft-removed row instead of either
+    // silently claiming success or merely reporting the failure. The school is
+    // created and its admin genuinely holds an active membership tag again.
+    tagError = { code: '23505', message: 'duplicate key value' }
+    existingTagAfter23505 = { id: 'tag-removed', removed_at: '2026-09-01T10:00:00.000Z' }
+    const res = makeRes()
+    await handler(req, res)
+    expect(res._status).toBe(200)
+    expect((writes.schools || []).some((w) => w.op === 'delete')).toBe(false)
+    const update = (writes.user_tags || []).find((w) => w.op === 'update')
+    expect(update).toBeTruthy()
+    expect(update.payload.removed_at).toBeNull()
+    expect(update.payload.role_in_context).toBe('admin')
   })
 })
