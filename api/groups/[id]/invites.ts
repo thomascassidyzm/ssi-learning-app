@@ -366,24 +366,31 @@ export default async function handler(
         .map((row: any) => {
           const role = ROLE_BY_CODE_TYPE[row.code_type as string]
           if (!role) return null
-          let where: { nodeId: string | null; name: string; kind: 'group' | 'school' | 'class' }
+          // `classId` is what makes a class-scoped row identifiable to a
+          // client: `nodeId` for a class row is its SCHOOL's node (the ledger
+          // rolls classes up to their school for filtering), so a class page
+          // showing only its own links has nothing else to key on.
+          let where: { nodeId: string | null; classId: string | null; name: string; kind: 'group' | 'school' | 'class' }
           if (row.grants_class_id) {
             const cls = classById.get(row.grants_class_id)
             const schoolName = cls ? nameBySchool.get(cls.school_id) : null
             where = {
               nodeId: cls ? (nodeBySchool.get(cls.school_id) as string | null) : null,
+              classId: row.grants_class_id,
               name: cls ? `${cls.class_name}${schoolName ? ` — ${schoolName}` : ''}` : 'a class',
               kind: 'class',
             }
           } else if (row.grants_school_id) {
             where = {
               nodeId: (nodeBySchool.get(row.grants_school_id) as string | null) ?? null,
+              classId: null,
               name: nameBySchool.get(row.grants_school_id) || 'a school',
               kind: 'school',
             }
           } else {
             where = {
               nodeId: row.grants_group_id,
+              classId: null,
               name: nameByGroup.get(row.grants_group_id) || 'a group',
               kind: 'group',
             }

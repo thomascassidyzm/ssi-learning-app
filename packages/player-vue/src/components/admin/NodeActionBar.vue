@@ -36,10 +36,18 @@ interface NodeShape {
 // the way down): 'neutral' hides every school/teacher word — no Add-a-school
 // verb, invites default to Group leader. Defaults to 'education' so mounts
 // that don't pass it (legacy school surfaces) keep their vocabulary.
+// `classId` = CLASS MODE (founder ruling 2026-09-07: "we need it to be easy
+// to see how to add students to a class"). The bar is mounted on a class page
+// with `node` set to the class's SCHOOL node — which is where the invite
+// endpoint authorizes and where the class must live — and the class itself
+// carried in `classId`. It collapses to ONE verb, Invite students, minting the
+// same personal link the school page mints, scoped by personal.class_id so the
+// student lands in this class. No other verb belongs on a class.
 const props = withDefaults(
-  defineProps<{ node: NodeShape; member?: boolean; preset?: 'education' | 'neutral' }>(),
+  defineProps<{ node: NodeShape; member?: boolean; preset?: 'education' | 'neutral'; classId?: string }>(),
   { preset: 'education' },
 )
+const classMode = computed(() => !!props.classId)
 const emit = defineEmits<{ changed: []; renamed: [name: string]; minted: [] }>()
 
 const neutral = computed(() => props.preset === 'neutral')
@@ -148,9 +156,15 @@ async function submitPerson(): Promise<void> {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
       body: JSON.stringify({
-        role: personRole.value,
+        role: classMode.value ? 'student' : personRole.value,
         limits: {},
-        personal: { name: personName.value.trim(), ...(personEmail.value.trim() ? { email: personEmail.value.trim() } : {}) },
+        personal: {
+          name: personName.value.trim(),
+          ...(personEmail.value.trim() ? { email: personEmail.value.trim() } : {}),
+          // Class mode: the server binds the new account to this class and
+          // mints the code with grants_class_id (api/groups/[id]/invites.ts).
+          ...(props.classId ? { class_id: props.classId } : {}),
+        },
       }),
     })
     const data = await resp.json().catch(() => ({}))
@@ -491,6 +505,9 @@ function closeDelete(): void {
       <!-- Two link species, two verbs (founder-ruled 2026-07-20): a personal
            link for a known person, or a shareable link by role — the old
            learner-only "Get join link" folded into the shareable menu. -->
+      <!-- Class mode: one verb, and it says what it does. -->
+      <button v-if="classMode" type="button" class="verb" :class="{ 'is-open': openForm === 'person' }" data-walk="verb-invite-student" @click="toggle('person')">Invite students</button>
+      <template v-else>
       <button type="button" class="verb" :class="{ 'is-open': openForm === 'person' }" data-walk="verb-invite-person" @click="toggle('person')">Invite a person</button>
       <button type="button" class="verb" :class="{ 'is-open': openForm === 'invite' }" @click="toggle('invite')">Get a shareable link</button>
       <!-- Add a group is for LEADERS too (founder ruling 2026-08-02: any
@@ -505,24 +522,26 @@ function closeDelete(): void {
         {{ isRefreshing ? 'Refreshing…' : 'Refresh demo activity' }}
       </button>
       <button v-if="!member" type="button" class="verb verb-danger" @click="requestDelete">Delete</button>
+      </template>
     </div>
 
     <!-- Inline forms (one at a time) -->
     <div v-if="openForm === 'person'" class="verb-form-block">
       <div class="verb-form">
-        <select v-model="personRole" class="frost-select" data-walk="invite-form-role">
+        <select v-if="!classMode" v-model="personRole" class="frost-select" data-walk="invite-form-role">
           <option v-if="!neutral" value="teacher">Teacher</option>
           <option value="leader">Group leader</option>
           <option v-if="!neutral && node.commercial" value="school_leader">School leader</option>
           <option value="student">Learner</option>
         </select>
-        <input v-model="personName" type="text" class="frost-input" placeholder="Their name" @keyup.enter="submitPerson" />
+        <input v-model="personName" type="text" class="frost-input" :placeholder="classMode ? 'Student\'s name' : 'Their name'" @keyup.enter="submitPerson" />
         <input v-model="personEmail" type="email" class="frost-input" placeholder="Their email — we'll send the invite" />
         <button class="btn-primary-sm" data-walk="invite-form-submit" :disabled="isInvitingPerson || !personName.trim()" @click="submitPerson">
           {{ isInvitingPerson ? (personEmail.trim() ? 'Sending…' : 'Creating…') : (personEmail.trim() ? 'Send their invite' : 'Create their link') }}
         </button>
       </div>
-      <p class="kind-hint">Named invite — goes straight in, no screens. Give an email and we send it for you; leave it blank and you get a link to share.</p>
+      <p v-if="classMode" class="kind-hint">One student at a time — their link puts them straight into this class, no screens. Give an email and we send it for you; leave it blank and you get a link to share.</p>
+      <p v-else class="kind-hint">Named invite — goes straight in, no screens. Give an email and we send it for you; leave it blank and you get a link to share.</p>
     </div>
     <div v-else-if="openForm === 'invite'" class="verb-form-block">
       <div class="verb-form">
