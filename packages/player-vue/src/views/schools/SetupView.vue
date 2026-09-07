@@ -263,6 +263,18 @@ async function persistClasses(): Promise<boolean> {
     return false
   }
   error.value = null
+
+  // A row with a name but no course was silently skipped — the head typed
+  // "Blwyddyn 7" and it went nowhere, on Continue AND on Save & exit. Nothing
+  // gets dropped without being said out loud.
+  const unfinished = draftClasses.value.find(
+    (d) => !d.saved && d.class_name.trim() && !d.course_code,
+  )
+  if (unfinished) {
+    error.value = `Pick a course for "${unfinished.class_name.trim()}" — or clear the name — and we'll save the rest.`
+    return false
+  }
+
   let allOk = true
   for (const draft of draftClasses.value) {
     if (draft.saved) continue
@@ -330,13 +342,22 @@ async function jumpToStep(n: 1 | 2 | 3 | 4) {
   error.value = null
 }
 
+/**
+ * Save & exit means SAVED and exit. It used to call persistClasses() and
+ * navigate regardless of the answer, so a class that failed to save took the
+ * head to a dashboard that did not have it, with nothing said — the button's
+ * own promise, false at the moment it mattered. A failure now keeps her on the
+ * step, with what she typed still in front of her and the reason on screen.
+ */
 async function handleSaveExit() {
+  error.value = null
   if (step.value === 1) {
     const ok = await saveSchool()
     if (!ok) return
   }
   if (step.value === 4) {
-    await persistClasses()
+    const ok = await persistClasses()
+    if (!ok) return
   }
   router.push('/schools')
 }
@@ -724,14 +745,17 @@ onMounted(() => {
                     next one.
                  3. Tap any step in the left-hand list to jump straight to it,
                     forwards or back.
-                 4. **Save & exit** puts you back on your dashboard with everything
-                    you have entered kept.
+                 4. **Save & exit** saves the step you are on and puts you back on
+                    your dashboard. If something cannot be saved it stays put and
+                    tells you why, so you never leave work behind without knowing.
                  5. Come back to Settings and First-time setup whenever you want to
                     carry on.
                  Worth knowing. Nothing here is a one-shot. Everything the wizard
                  sets up — the school name, the invite links, the classes — can
-                 also be changed later from Settings and from your class pages.
-                 checked: 784d6038.4b848014
+                 also be changed later from Settings and from your class pages. The
+                 course ticks on step three are only a filter for the class list on
+                 step four, so they are not kept when you leave.
+                 checked: 87b14c3e.52f1bfb1
             -->
             <button type="button" class="btn-ghost" data-walk="setup-save-exit" @click="handleSaveExit">
               Save &amp; exit

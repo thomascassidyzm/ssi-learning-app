@@ -40,6 +40,7 @@ import { createHash } from 'crypto'
 import { getClientIp } from '../_utils/codeAttemptThrottle'
 import { renderSignInCodeEmail } from '../_utils/signInCodeEmail'
 import { postResendEmail } from '../_utils/resendMail'
+import { retryAfterMs, describeWait } from '../_utils/sendCodeWait'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -57,6 +58,9 @@ const SIGNIN_REPLY_TO = (process.env.SIGNIN_EMAIL_REPLY_TO || 'admin@saysomethin
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
+/** The rolling window every limit below is counted over. The refusal sentence
+ *  QUOTES this rather than restating it in prose — retune it here and the words
+ *  a person reads move with it (sendCodeWait.ts). */
 const WINDOW_MS = 15 * 60 * 1000
 /** Per address: a person who genuinely lost the mail asks two or three times, not six. */
 export const SEND_CODE_PER_ADDRESS_LIMIT = 5
@@ -102,14 +106,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ipHash = signInCodeHash(getClientIp(req))
   const since = new Date(Date.now() - WINDOW_MS).toISOString()
 
-  const countSince = async (column: 'ip_hash' | 'email', value: string): Promise<number | null> => {
-    const { count, error } = await svc
+  /**
+   * How many sends are in the window, and WHEN the oldest of them happened —
+   * the oldest is the one that ages out, so it is the moment the door reopens.
+   * One round trip, same query, one extra column: the refusal can quote a real
+   * number instead of a hand-written guess (see sendCodeWait.ts).
+   */
+  const attemptsSince = async (
+    column: 'ip_hash' | 'email',
+    value: string,
+  ): Promise<{ count: number; oldestAt: number | null } | null> => {
+    const { data, count, error } = await svc
       .from('possession_mint_attempts')
-      .select('id', { count: 'exact', head: true })
+      .select('created_at', { count: 'exact' })
       .eq(column, value)
       .in('outcome', [SEND_OUTCOME])
       .gte('created_at', since)
-    return error ? null : (count ?? 0)
+      .order('created_at', { ascending: true })
+      .limit(1)
+    if (error) return null
+    const oldest = (data as { created_at?: string }[] | null)?.[0]?.created_at
+    const oldestAt = oldest ? Date.parse(oldest) : null
+    return { count: count ?? 0, oldestAt: oldestAt !== null && Number.isFinite(oldestAt) ? oldestAt : null }
+  }
+
+  /** 429 with the wait quoted from the window itself, plus the machine-readable header. */
+  const refuse = (oldestAt: number | null, sentence: (wait: string) => string) => {
+    const waitMs = retryAfterMs(oldestAt, WINDOW_MS)
+    const seconds = Math.max(1, Math.ceil(waitMs / 1000))
+    res.setHeader('Retry-After', String(seconds))
+    return res.status(429).json({ error: sentence(describeWait(waitMs)), retryAfterSeconds: seconds })
   }
 
   const log = async (outcome: string, resendMessageId?: string): Promise<void> => {
@@ -127,15 +153,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Counting failures fail OPEN — an infra blip on the audit table must not
   // stop a teacher signing in — but a real over-limit is refused.
-  const addressCount = await countSince('email', email)
-  if (addressCount !== null && addressCount >= SEND_CODE_PER_ADDRESS_LIMIT) {
+  const address = await attemptsSince('email', email)
+  if (address !== null && address.count >= SEND_CODE_PER_ADDRESS_LIMIT) {
     await log(RATE_LIMITED_ADDRESS)
-    return res.status(429).json({ error: "We've sent a few codes to that address already, and the last one may still be on its way. Give it a couple of minutes, then try again." })
+    return refuse(address.oldestAt, (wait) =>
+      `We've sent a few codes to that address already, and the last one may still be on its way. Look for that one first — we can send another ${wait}.`)
   }
-  const ipCount = await countSince('ip_hash', ipHash)
-  if (ipCount !== null && ipCount >= SEND_CODE_PER_IP_LIMIT) {
+  const network = await attemptsSince('ip_hash', ipHash)
+  if (network !== null && network.count >= SEND_CODE_PER_IP_LIMIT) {
     await log(RATE_LIMITED_IP)
-    return res.status(429).json({ error: 'A lot of codes have gone out from this network in the last few minutes. Give it a couple of minutes, then try again.' })
+    return refuse(network.oldestAt, (wait) =>
+      `A lot of codes have gone out from this network already. We can send another ${wait}.`)
   }
 
   // Mint the code without sending. No Supabase template is involved.

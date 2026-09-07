@@ -14,6 +14,8 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key'
 process.env.RESEND_API_KEY = 'test-resend-key'
 
 let inserted: any[] = []
+/** What the audit table answers for "sends in the window": how many, and the oldest. */
+let attempts: { count: number; created_at: string | null } = { count: 0, created_at: null }
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
@@ -22,7 +24,13 @@ vi.mock('@supabase/supabase-js', () => ({
         select: () => builder,
         eq: () => builder,
         in: () => builder,
-        gte: () => Promise.resolve({ count: 0, error: null }),
+        gte: () => builder,
+        order: () => builder,
+        limit: () => Promise.resolve({
+          data: attempts.created_at ? [{ created_at: attempts.created_at }] : [],
+          count: attempts.count,
+          error: null,
+        }),
         insert: (row: any) => {
           inserted.push(row)
           return Promise.resolve({ error: null })
@@ -39,10 +47,10 @@ vi.mock('@supabase/supabase-js', () => ({
 }))
 
 function makeRes() {
-  const res: any = { statusCode: 0, body: null }
+  const res: any = { statusCode: 0, body: null, headers: {} as Record<string, string> }
   res.status = (c: number) => { res.statusCode = c; return res }
   res.json = (b: any) => { res.body = b; return res }
-  res.setHeader = () => res
+  res.setHeader = (k: string, v: string) => { res.headers[k] = v; return res }
   res.end = () => res
   return res as VercelResponse & { statusCode: number; body: any }
 }
@@ -57,6 +65,7 @@ const req = (email: string) => ({
 describe('send-code delivery instrumentation', () => {
   beforeEach(() => {
     inserted = []
+    attempts = { count: 0, created_at: null }
     vi.restoreAllMocks()
   })
 
@@ -95,5 +104,49 @@ describe('send-code delivery instrumentation', () => {
     const sent = inserted.find(r => r.outcome === 'signin_code_sent')
     expect(sent).toBeTruthy()
     expect(sent.resend_message_id).toBeNull()
+  })
+})
+
+/**
+ * THE REFUSAL MUST QUOTE THE REAL WINDOW.
+ *
+ * This shipped saying "Give it a couple of minutes, then try again" on top of a
+ * fifteen-minute rolling limit. Someone who waits the couple of minutes they
+ * were promised is refused again and concludes sign-in is broken — the precise
+ * belief the sentence existed to prevent. The wait is now derived from the
+ * oldest counted send, so it moves with WINDOW_MS instead of drifting from it.
+ */
+describe('send-code refusal tells the truth about the wait', () => {
+  beforeEach(() => {
+    inserted = []
+    attempts = { count: 0, created_at: null }
+    vi.restoreAllMocks()
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ id: 'x' }), text: async () => '' })))
+  })
+
+  it('quotes the minutes left on the window, not a hand-written number', async () => {
+    // Five sends in the window, the oldest three minutes ago: twelve to go.
+    attempts = { count: 5, created_at: new Date(Date.now() - 3 * 60_000).toISOString() }
+
+    const { default: handler } = await import('./send-code')
+    const res = makeRes()
+    await handler(req('busy@example.com'), res)
+
+    expect(res.statusCode).toBe(429)
+    expect(res.body.error).toContain('in about 12 minutes')
+    expect(res.body.error).not.toContain('couple of minutes')
+    expect(res.body.retryAfterSeconds).toBe(12 * 60)
+    expect(res.headers['Retry-After']).toBe(String(12 * 60))
+  })
+
+  it('falls back to the whole window when the oldest send is unknown', async () => {
+    attempts = { count: 5, created_at: null }
+
+    const { default: handler } = await import('./send-code')
+    const res = makeRes()
+    await handler(req('busy2@example.com'), res)
+
+    expect(res.statusCode).toBe(429)
+    expect(res.body.error).toContain('in about 15 minutes')
   })
 })
