@@ -43,6 +43,7 @@ import { useSchoolCourseCatalogue, type CatalogueCourse } from '@/composables/sc
 import { useTeachersData } from '@/composables/schools/useTeachersData'
 import { getLanguageName } from '@/composables/useI18n'
 import { courseShortName } from '@ssi/core'
+import FrostSelect from '@/components/FrostSelect.vue'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 
 const router = useRouter()
@@ -227,6 +228,12 @@ const availableCoursesForClass = computed<CatalogueCourse[]>(() => {
   if (selectedCourses.value.size === 0) return effectiveCourseGrants.value
   return effectiveCourseGrants.value.filter(g => selectedCourses.value.has(g.course_code))
 })
+
+// The catalogue runs to ~74 courses, so the picker is a filterable FrostSelect
+// rather than a native <select> the user has to scan. Order is untouched.
+const courseSelectOptions = computed(() =>
+  availableCoursesForClass.value.map(g => ({ value: g.course_code, label: courseDisplayName(g) })),
+)
 
 async function persistClasses(): Promise<boolean> {
   const school = activeSchool.value || currentSchool.value
@@ -510,20 +517,15 @@ onMounted(() => {
                 :disabled="draft.saved"
               />
               <span class="select-wrap field-input-flex">
-                <select
+                <FrostSelect
                   v-model="draft.course_code"
-                  class="field-input field-select"
+                  :options="courseSelectOptions"
                   :disabled="draft.saved"
-                >
-                  <option value="" disabled>Choose course</option>
-                  <option
-                    v-for="g in availableCoursesForClass"
-                    :key="g.course_code"
-                    :value="g.course_code"
-                  >
-                    {{ courseDisplayName(g) }}
-                  </option>
-                </select>
+                  filterable
+                  filter-placeholder="Search courses…"
+                  placeholder="Choose course"
+                  aria-label="Course for this class"
+                />
               </span>
               <span v-if="draft.saved" class="class-draft-saved">Added&nbsp;✓</span>
               <button
@@ -818,23 +820,20 @@ onMounted(() => {
 .select-wrap {
   position: relative;
   display: flex;
+  /* FrostSelect reads these; they make the shared control wear this page's
+     field typography and red focus accent instead of the insight-board mono. */
+  --fs-font: var(--font-body);
+  --fs-font-size: 14px;
+  --fs-radius: 8px;
+  --fs-bg: #fff;
+  --fs-border: var(--schools-border-strong);
+  --rc-entity: 219 30 23;
+  --rc-entity-ink: var(--schools-red);
 }
 
-.field-select {
-  /* Inherits .field-input; real <select> semantics for free keyboard/screen-
-     reader support — only the chrome is swapped for our own chevron. */
-  appearance: none;
-  width: 100%;
-  padding-right: 34px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%232C2622' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
-  cursor: pointer;
-}
-
-.field-select:disabled {
-  cursor: not-allowed;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23a8a29a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+.select-wrap > * {
+  flex: 1;
+  min-width: 0;
 }
 
 /* Step 2 — invites */
