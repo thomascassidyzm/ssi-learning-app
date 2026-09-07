@@ -2270,13 +2270,15 @@ const scriptBaseOffset = ref(0)  // Base offset for script loading
 const entitlementComposable = useEntitlement()
 const showPaywall = ref(false)
 
-// The single checkout trigger (Paddle £15/mo Premium). Used by the in-player
-// paywall overlay; the money-capture backend is untouched.
+// The upgrade trigger. Naming no plan means the plan picker opens first
+// (Premium or Family, monthly or annual) and it opens the matching Paddle
+// checkout. The money-capture backend is untouched.
 const { startCheckout, isOpeningCheckout } = useCheckout()
 // platform/paymentRoute: the wall still explains why play stopped, but it only
 // offers a Subscribe button when there is a route that can honour it.
 const purchaseAvailable = computed(() => canTakePayment())
 function handleSubscribe() {
+  // No plan named, so this opens the picker first — see useCheckout.startCheckout.
   startCheckout({ courseCode: courseCode.value || null })
 }
 
@@ -16976,7 +16978,7 @@ defineExpose({
     <div v-if="showPaywall" class="paywall-overlay" @click.self="dismissPaywall">
       <div class="paywall-card">
         <h2 class="paywall-title">{{ t('player.youveReachedEndFree') }}</h2>
-        <p class="paywall-subtitle">{{ t('player.goPremiumMonthCancel') }}</p>
+        <p class="paywall-subtitle">{{ t('player.choosePlanCancel') }}</p>
         <ul class="paywall-benefits">
           <li>{{ t('player.everyCourseLanguagesFully') }}</li>
           <li>{{ t('player.downloadCoursesOfflineLearning') }}</li>
@@ -16988,7 +16990,7 @@ defineExpose({
             class="paywall-btn paywall-btn-primary"
             :disabled="isOpeningCheckout"
             @click="handleSubscribe"
-          >{{ isOpeningCheckout ? 'Opening checkout…' : 'Subscribe — £15/month' }}</button>
+          >{{ isOpeningCheckout ? 'Opening checkout…' : 'See plans' }}</button>
           <!-- Store shell with no wired billing route: an honest sentence. No
                button, no link, no price — a dead Pay control is a broken promise
                to the learner and a rejection at store review. -->

@@ -115,7 +115,8 @@
     "keepLearningReachNext": "واصل التعلّم للوصول إلى المستوى التالي!",
     "progressLoadFailed": "تعذّر تحميل الموضع الذي وصلت إليه. تقدّمك محفوظ — حاول مرة أخرى.",
     "practisingBanner": "تدريب",
-    "practisingBannerNote": "ستعود المواد الجديدة عند عودة الاتصال."
+    "practisingBannerNote": "ستعود المواد الجديدة عند عودة الاتصال.",
+    "choosePlanCancel": "باقتان، ابتداءً من £15/شهريًا. يمكنك الإلغاء في أي وقت."
   },
   "home": {
     "goodMorning": "صباح الخير",
@@ -302,7 +303,9 @@
     "practisingModeOnlyAlready": "وضع التدريب مفعّل — يتم تشغيل المواد التي تعلّمتها من قبل فقط.",
     "reloadsNewestVersionDownloads": "يعيد التحميل بأحدث إصدار. تُحفظ تنزيلاتك وتقدّمك.",
     "fixesMostAudioLoading": "يحل معظم مشاكل الصوت والتحميل. تبقى مسجّل الدخول.",
-    "addHomeScreenFaster": "أضفه إلى شاشتك الرئيسية لوصول أسرع ودون اتصال"
+    "addHomeScreenFaster": "أضفه إلى شاشتك الرئيسية لوصول أسرع ودون اتصال",
+    "plansFromMonth": "£15/شهريًا لحساب واحد، £25/شهريًا لستة حسابات",
+    "upgrade": "ترقية"
   },
   "belt": {
     "yourProgress": "تقدّمك",
@@ -626,6 +629,19 @@
   "checkout": {
     "closeCheckout": "إغلاق الدفع"
   },
+  "plans": {
+    "chooseAPlan": "اختر باقة",
+    "close": "إغلاق",
+    "premiumName": "SSi بريميوم",
+    "premiumDesc": "حساب واحد. كل الدورات واللغات، مع التنزيل للاستخدام دون اتصال.",
+    "premiumMonthly": "£15/شهريًا",
+    "premiumAnnual": "£150/سنويًا",
+    "familyName": "عائلة SSi",
+    "familyDesc": "كل مزايا بريميوم، لـ {seats} حسابات بما فيها حسابك. لكل شخص تقدّمه الخاص.",
+    "familyMonthly": "£25/شهريًا",
+    "familyAnnual": "£250/سنويًا",
+    "cancelAnytime": "يمكنك الإلغاء في أي وقت."
+  },
   "family": {
     "family": "العائلة",
     "signQrCode": "رمز QR لتسجيل الدخول",
@@ -639,6 +655,7 @@
     "inviteByEmail": "+ دعوة عبر البريد الإلكتروني"
   },
   "common": {
+    "noMatchesFor": "لا نتائج لـ ”{query}“",
     "oneOpensBrowser": "سيُفتح هذا في متصفحك.",
     "refreshData": "تحديث البيانات",
     "tryAgain": "إعادة المحاولة"

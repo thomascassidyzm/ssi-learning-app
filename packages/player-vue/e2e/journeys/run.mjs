@@ -42,7 +42,28 @@ const RUNS = Number(process.env.RUNS || 5)
 const BUDGET = Number(process.env.BUDGET_MS || 120000)
 const SCRATCH = process.env.CS_SCRATCH || '/tmp'
 const OUT = process.env.OUT_DIR || `${SCRATCH}/journeys/${JOURNEY}-${NETNAME}/`
-const TESTER = process.env.TESTER_EMAIL || 'thomas.cassidy+ssi@gmail.com'
+
+// GUARD (2026-09-07): this harness signs in as TESTER and actually PLAYS the
+// course — warmProfile presses transport and lets audio run for real seconds,
+// which writes real progress. It used to default TESTER to the founder's own
+// real account and entered progress on it, unasked, five weeks ago. There is
+// no safe default for "which human's account should this machine touch", so
+// there isn't one: no TESTER_EMAIL means refuse to run, and a handful of
+// known real accounts are refused even if passed explicitly.
+const REAL_ACCOUNT_DENYLIST = new Set([
+  'thomas.cassidy+ssi@gmail.com', // this file's old unguarded default
+  'thomas.cassidy@gmail.com',
+  'tomcassidy@mac.com',
+])
+if (!process.env.TESTER_EMAIL) {
+  console.error('TESTER_EMAIL is required. This harness refuses to run without an explicit target account — it plays real audio and writes real progress. Pass a disposable test-account email, e.g. TESTER_EMAIL=thomas.cassidy+bumface@gmail.com.')
+  process.exit(1)
+}
+const TESTER = process.env.TESTER_EMAIL
+if (REAL_ACCOUNT_DENYLIST.has(TESTER.toLowerCase())) {
+  console.error(`TESTER_EMAIL "${TESTER}" is a real human account, not a test account. This harness refuses to enter progress on it. Use a disposable test alias instead.`)
+  process.exit(1)
+}
 // Course A = the one the learner already has. Course B = the new one.
 const COURSE_A = process.env.COURSE_A || 'Spanish'
 const COURSE_B = process.env.COURSE_B || 'Italian'

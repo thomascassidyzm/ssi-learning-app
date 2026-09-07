@@ -115,7 +115,8 @@
     "keepLearningReachNext": "Lerne weiter, um die nächste Stufe zu erreichen!",
     "progressLoadFailed": "Wir konnten nicht laden, wo du warst. Dein Fortschritt ist sicher — versuch es noch einmal.",
     "practisingBanner": "Üben",
-    "practisingBannerNote": "Neues Material kommt zurück, sobald deine Verbindung wieder da ist."
+    "practisingBannerNote": "Neues Material kommt zurück, sobald deine Verbindung wieder da ist.",
+    "choosePlanCancel": "Zwei Tarife, ab £15/Monat. Jederzeit kündbar."
   },
   "home": {
     "goodMorning": "Guten Morgen",
@@ -302,7 +303,9 @@
     "practisingModeOnlyAlready": "Übungsmodus ist AN — es läuft nur bereits bekanntes Material.",
     "reloadsNewestVersionDownloads": "Lädt mit der neuesten Version neu. Deine Downloads und dein Fortschritt bleiben erhalten.",
     "fixesMostAudioLoading": "Behebt die meisten Audio- und Ladeprobleme. Du bleibst angemeldet.",
-    "addHomeScreenFaster": "Zum Home-Bildschirm hinzufügen für schnelleren Offline-Zugriff"
+    "addHomeScreenFaster": "Zum Home-Bildschirm hinzufügen für schnelleren Offline-Zugriff",
+    "plansFromMonth": "£15/Monat für ein Konto, £25/Monat für sechs",
+    "upgrade": "Upgrade"
   },
   "belt": {
     "yourProgress": "Dein Fortschritt",
@@ -626,6 +629,19 @@
   "checkout": {
     "closeCheckout": "Kasse schließen"
   },
+  "plans": {
+    "chooseAPlan": "Tarif wählen",
+    "close": "Schließen",
+    "premiumName": "SSi Premium",
+    "premiumDesc": "Ein Konto. Alle Kurse und Sprachen, mit Downloads für offline.",
+    "premiumMonthly": "£15/Monat",
+    "premiumAnnual": "£150/Jahr",
+    "familyName": "SSi-Familie",
+    "familyDesc": "Alles aus Premium, für {seats} Konten einschließlich deinem. Jeder behält seinen eigenen Fortschritt.",
+    "familyMonthly": "£25/Monat",
+    "familyAnnual": "£250/Jahr",
+    "cancelAnytime": "Jederzeit kündbar."
+  },
   "family": {
     "family": "Familie",
     "signQrCode": "QR-Code zum Anmelden",
@@ -639,6 +655,7 @@
     "inviteByEmail": "+ Per E-Mail einladen"
   },
   "common": {
+    "noMatchesFor": "Keine Treffer für „{query}“",
     "oneOpensBrowser": "Das hier öffnet sich in deinem Browser.",
     "refreshData": "Daten aktualisieren",
     "tryAgain": "Erneut versuchen"

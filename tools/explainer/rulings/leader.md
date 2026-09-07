@@ -26,7 +26,8 @@ Individual student practice sits underneath it as the bonus.
 
 You can bring people in from right here. **Invite a person** makes a personal link that IS their
 login — email it to a school leader or teacher and they're in, nothing to set up. **Get a
-shareable link** makes an open link anyone can use to join this level in a given role. **See
+shareable link** makes an open link anyone can use to join this level in a given role. **Add a
+class** creates a class here — a class belongs to a group and needs no teacher to exist. **See
 insights** shows the pace here against the levels above, over the window you choose.
 
 ## school
@@ -41,3 +42,5 @@ A class page is where the teaching shows. The class travels the course **togethe
 position is the headline, moved every time its teacher runs a class session. Each student row
 underneath carries their own pace, practice and last-active, with a quiet flag for anyone
 drifting. **See insights** compares this class's pace fairly with its school and the levels above.
+**Invite students** is the class page's own verb: one personal link per student that IS their
+login and puts them in this class.

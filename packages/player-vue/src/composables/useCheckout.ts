@@ -51,6 +51,13 @@ const overlayOpen = ref(false)
 // Which plan is open, so CheckoutOverlay can show the right title ("SSi Premium"
 // vs "SSi Family") without re-deriving it from checkout internals.
 const overlayPlan = ref<CheckoutPlan>('premium')
+// Drives the global PlanPicker (App.vue) — the plan-selection step that now sits
+// in front of Paddle. Every upgrade tap used to jump straight into a hardcoded
+// £15 Premium checkout, so SSi Family (live in Paddle since 2026-09-07) was
+// unreachable for every customer. The picker is the choice; nothing about the
+// checkout below it changed.
+const plansOpen = ref(false)
+const plansCourseCode = ref<string | null>(null)
 
 export type CheckoutPlan = 'premium' | 'family'
 
@@ -59,9 +66,11 @@ export interface StartCheckoutOptions {
    *  and to drop them back into it after the success redirect. Ignored for
    *  the Family plan (checkout stays dumb — FAMILY-PLAN-SPEC.md §2.2). */
   courseCode?: string | null
-  /** Which product to open. Defaults to 'premium' (today's only option). */
+  /** Which product to open. OMIT IT to show the plan picker — that is the
+   *  path every upgrade entry point takes. Name it only when the choice has
+   *  already been made (the picker does). */
   plan?: CheckoutPlan
-  /** Family only — Premium checkout is monthly-only today. */
+  /** Monthly (default) or annual. Both plans offer both. */
   billingPeriod?: 'monthly' | 'annual'
 }
 
@@ -78,7 +87,11 @@ export function useCheckout() {
     const priceId =
       plan === 'family'
         ? (billingPeriod === 'annual' ? paddleConfig.familyAnnualPriceId : paddleConfig.familyMonthlyPriceId)
-        : paddleConfig.teacherMonthlyPriceId
+        // Premium annual (£150/yr) is the same SSi Premium product as the £15/mo
+        // price — already in the webhook's PRICE_CATALOG as tier 'premium', and
+        // handlePremiumSubscription reads the period off Paddle's payload, so it
+        // needs nothing else. The monthly path is byte-for-byte what it was.
+        : (billingPeriod === 'annual' ? paddleConfig.teacherAnnualPriceId : paddleConfig.teacherMonthlyPriceId)
     if (!priceId) {
       checkoutError.value = plan === 'family' ? 'Family price not configured yet' : 'Premium price not configured'
       return
@@ -156,9 +169,14 @@ export function useCheckout() {
   }
 
   /**
-   * Start the subscription flow. Signed-out users get the auth modal first
-   * (then auto-continue into Paddle via completePendingCheckout on success);
-   * signed-in users go straight to Paddle.
+   * Start the subscription flow. THE CHOICE STEP LIVES HERE, not in the
+   * callers: a caller that names no plan gets the picker, so every upgrade
+   * entry point — today's three and any added tomorrow — inherits it and none
+   * can silently reopen the old hardcoded-Premium path. Only a caller that
+   * names a plan explicitly (the picker itself) goes straight to Paddle.
+   *
+   * Signed-out users get the auth modal after choosing (then auto-continue into
+   * Paddle via completePendingCheckout on success).
    */
   async function startCheckout(opts: StartCheckoutOptions = {}): Promise<void> {
     // Route gate (platform/paymentRoute). Paddle is the WEB rail; a native
@@ -167,7 +185,13 @@ export function useCheckout() {
     // dead button — and, in a store build, a review failure.
     if (!canTakePayment()) return
     const courseCode = opts.courseCode ?? null
-    const plan = opts.plan ?? 'premium'
+    // No plan named = an upgrade tap = show the plans. This is the line that
+    // makes the picker unskippable.
+    if (!opts.plan) {
+      openPlans(courseCode)
+      return
+    }
+    const plan = opts.plan
     const billingPeriod = opts.billingPeriod ?? 'monthly'
     const isAuthed = await isSignedIn()
     if (!isAuthed) {
@@ -179,6 +203,30 @@ export function useCheckout() {
       return
     }
     await openPaddleCheckout(courseCode, plan, billingPeriod)
+  }
+
+  /**
+   * Open the plan picker. startCheckout() calls this itself when no plan was
+   * named, so an entry point never has to know the picker exists; it stays
+   * exported for a caller that wants the plans without a checkout intent.
+   */
+  function openPlans(courseCode?: string | null): void {
+    if (!canTakePayment()) return
+    plansCourseCode.value = courseCode ?? null
+    checkoutError.value = ''
+    plansOpen.value = true
+  }
+
+  function closePlans(): void {
+    plansOpen.value = false
+  }
+
+  /** Picker → Paddle. Closes the picker, then opens the chosen checkout. The
+   *  plan is named here, so startCheckout does not bounce back to the picker. */
+  async function choosePlan(plan: CheckoutPlan, billingPeriod: 'monthly' | 'annual'): Promise<void> {
+    const courseCode = plansCourseCode.value
+    plansOpen.value = false
+    await startCheckout({ courseCode, plan, billingPeriod })
   }
 
   async function isSignedIn(): Promise<boolean> {
@@ -213,6 +261,10 @@ export function useCheckout() {
     checkoutError,
     overlayOpen,
     overlayPlan,
+    plansOpen,
+    openPlans,
+    closePlans,
+    choosePlan,
     startCheckout,
     completePendingCheckout,
     closeCheckout,

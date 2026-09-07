@@ -1,3 +1,32 @@
+## 2026-09-06 — a stale characterization is the test's bug, not the code's (#912)
+
+The 2026-09-05 security audit (cs/551 and its 552-555 family) was merged into dev by the #900 sweep,
+went red on eight tests, and was reverted whole (20dcce04) rather than guessed at. Reconciled here.
+
+**The rule this settles.** A characterization test pins TODAY's behaviour so it goes red when the
+behaviour changes — going red is the design, not a defect, and the correct response is to read WHY.
+Where dev had since FIXED the very finding the characterization documented, the test is what moves:
+it is rewritten as a secure-assertion of the shipped fix, so it now guards the fix instead of the
+bug. Reverting a shipped security fix to make an older test green would be the exact inversion.
+
+**What the eight reds actually were.** Six were characterizations of two findings dev had already
+closed: A-02 account pre-hijacking (fixed by #557's `shellClaim` invite-binding) and A-01
+staff-signin-link containment (fixed by #565's `schoolReachOf` union). Two were machinery going
+stale as the file set changed — the pinned `*.security.test.ts` roster, and a literal-string
+assertion on `vitest.api.config.ts`'s `include` that dev had widened. None of the eight was a
+finding dev is still missing.
+
+**The one residual.** A-03: `staff_access_codes` exists in production and is now recorded in
+`supabase/schema.sql` with RLS on and a `service_role`-only grant (regenerated in `a7384811`), but
+NO migration file creates it. The repo cannot build the table from scratch. That half of the finding
+is still open and is left pinned by its test rather than papered over.
+
+**Also landed:** cs/595's school-authority agreement tests, hand-merged against the schoolReachOf
+suite they collided with, carrying a genuinely new finding — `ensureSchoolAdminTag` treated `23505`
+as proof of a grant, when the live constraint has no `WHERE removed_at IS NULL`, so a revoked tag
+holds the key and re-granting admin to a removed person silently did nothing. It now fails loudly,
+which turns `code/redeem`'s school_admin_join branch from a silent 200 into a 500 in that case.
+
 ## 2026-09-05 — pod delivery is a work DEBT, not a position schedule (#646 → #649)
 
 Tom ruled yes to both of #646's questions: switch the cadence, and keep Welsh North/South and the

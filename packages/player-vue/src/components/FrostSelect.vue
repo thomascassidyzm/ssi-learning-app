@@ -5,6 +5,7 @@
 // glass panel with a checkmark on the selection. Keyboard + click-outside +
 // ARIA listbox semantics included.
 import { ref, computed, nextTick, onBeforeUnmount } from 'vue'
+import { useI18n } from '../composables/useI18n'
 
 interface Option { value: string; label: string }
 
@@ -113,6 +114,8 @@ function watchOutside(on: boolean) {
 // keep the listener in sync with open state
 import { watch } from 'vue'
 watch(open, watchOutside)
+
+const { t } = useI18n()
 onBeforeUnmount(() => watchOutside(false))
 </script>
 
@@ -165,7 +168,7 @@ onBeforeUnmount(() => watchOutside(false))
           </button>
         </li>
         <li v-if="filterable && visibleOptions.length === 0" class="fs-empty" role="presentation">
-          No matches for &ldquo;{{ query.trim() }}&rdquo;
+          {{ t('common.noMatchesFor').replace('{query}', query.trim()) }}
         </li>
       </ul>
     </Transition>

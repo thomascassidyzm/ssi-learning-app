@@ -115,7 +115,8 @@
     "keepLearningReachNext": "Continuez à apprendre pour atteindre le niveau suivant !",
     "progressLoadFailed": "Nous n'avons pas pu charger où vous en étiez. Votre progression est bien sauvegardée — réessayez.",
     "practisingBanner": "Entraînement",
-    "practisingBannerNote": "Le nouveau contenu reviendra dès que votre connexion sera rétablie."
+    "practisingBannerNote": "Le nouveau contenu reviendra dès que votre connexion sera rétablie.",
+    "choosePlanCancel": "Deux formules, à partir de £15/mois. Annulez à tout moment."
   },
   "home": {
     "goodMorning": "Bonjour",
@@ -302,7 +303,9 @@
     "practisingModeOnlyAlready": "Le mode Entraînement est ACTIVÉ — seul le contenu déjà rencontré est joué.",
     "reloadsNewestVersionDownloads": "Recharge avec la version la plus récente. Vos téléchargements et votre progression sont conservés.",
     "fixesMostAudioLoading": "Résout la plupart des problèmes d'audio et de chargement. Vous restez connecté.",
-    "addHomeScreenFaster": "Ajoutez à votre écran d'accueil pour un accès plus rapide et hors ligne"
+    "addHomeScreenFaster": "Ajoutez à votre écran d'accueil pour un accès plus rapide et hors ligne",
+    "plansFromMonth": "£15/mois pour un compte, £25/mois pour six",
+    "upgrade": "Passer à Premium"
   },
   "belt": {
     "yourProgress": "Votre progrès",
@@ -626,6 +629,19 @@
   "checkout": {
     "closeCheckout": "Fermer le paiement"
   },
+  "plans": {
+    "chooseAPlan": "Choisissez une formule",
+    "close": "Fermer",
+    "premiumName": "SSi Premium",
+    "premiumDesc": "Un compte. Tous les cours et toutes les langues, avec téléchargement hors ligne.",
+    "premiumMonthly": "£15/mois",
+    "premiumAnnual": "£150/an",
+    "familyName": "Famille SSi",
+    "familyDesc": "Tout Premium, pour {seats} comptes, le vôtre compris. Chacun garde sa propre progression.",
+    "familyMonthly": "£25/mois",
+    "familyAnnual": "£250/an",
+    "cancelAnytime": "Annulez à tout moment."
+  },
   "family": {
     "family": "Famille",
     "signQrCode": "Code QR de connexion",
@@ -639,6 +655,7 @@
     "inviteByEmail": "+ Inviter par e-mail"
   },
   "common": {
+    "noMatchesFor": "Aucun résultat pour « {query} »",
     "oneOpensBrowser": "Celui-ci s'ouvre dans votre navigateur.",
     "refreshData": "Actualiser les données",
     "tryAgain": "Réessayer"

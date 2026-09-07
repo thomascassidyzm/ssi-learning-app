@@ -41,6 +41,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { PERSONA_EMAIL_DOMAIN } from './provisionPersona'
 import { renderInviteEmail } from './inviteEmailTemplate'
+import { postResendEmail } from './resendMail'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseAnonKey = (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim()
@@ -194,18 +195,9 @@ async function sendViaResend(
   }
 
   const { subject, html, text } = renderInviteEmail(actionLink)
-  try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: INVITE_FROM, to: [address], subject, html, text }),
-    })
-    if (!res.ok) {
-      const body = await res.text().catch(() => '')
-      return { sent: false, error: `email provider refused the send (${res.status}) ${body}`.trim(), url }
-    }
-    return { sent: true, via: 'link', url }
-  } catch (err) {
-    return { sent: false, error: err instanceof Error ? err.message : 'send failed', url }
-  }
+  // The POST itself lives in resendMail.ts — one place in the estate knows
+  // Resend's URL and body shape (this route, send-code.ts, familyInviteEmail.ts).
+  const posted = await postResendEmail(resendKey, { from: INVITE_FROM, to: address, subject, html, text })
+  if (!posted.sent) return { sent: false, error: posted.error, url }
+  return { sent: true, via: 'link', url }
 }

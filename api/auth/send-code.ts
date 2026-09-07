@@ -39,6 +39,7 @@ import { createClient } from '@supabase/supabase-js'
 import { createHash } from 'crypto'
 import { getClientIp } from '../_utils/codeAttemptThrottle'
 import { renderSignInCodeEmail } from '../_utils/signInCodeEmail'
+import { postResendEmail } from '../_utils/resendMail'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -149,27 +150,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const { subject, html, text } = renderSignInCodeEmail(code, email)
-  let resendMessageId = ''
-  try {
-    const r = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: SIGNIN_FROM, to: [email], reply_to: SIGNIN_REPLY_TO, subject, html, text }),
-    })
-    if (!r.ok) {
-      const body = await r.text().catch(() => '')
-      // The code is already minted and valid, but the mail did not go. The
-      // fallback re-mints and sends via Supabase — the old ugly mail beats none.
-      return res.status(502).json({ error: `Email provider refused the send (${r.status}) ${body}`.trim(), fallback: true })
-    }
-    // Resend's accept response carries the message id. It is the ONLY join key
-    // between our audit row and Resend's later delivered/delayed/bounced
-    // webhooks, so record it — but never fail a send over a surprising body.
-    const accepted = await r.json().catch(() => null) as { id?: unknown } | null
-    if (accepted && typeof accepted.id === 'string') resendMessageId = accepted.id
-  } catch (err) {
-    return res.status(502).json({ error: err instanceof Error ? err.message : 'send failed', fallback: true })
+  // The POST lives in resendMail.ts, shared with the invite senders. It also
+  // returns Resend's message id, the ONLY join key between our audit row and
+  // Resend's later delivered/delayed/bounced webhooks — recorded below, but
+  // never allowed to fail a send over a surprising accept body.
+  const posted = await postResendEmail(resendKey, {
+    from: SIGNIN_FROM, to: email, replyTo: SIGNIN_REPLY_TO, subject, html, text,
+  })
+  if (!posted.sent) {
+    // The code is already minted and valid, but the mail did not go. The
+    // fallback re-mints and sends via Supabase — the old ugly mail beats none.
+    return res.status(502).json({ error: posted.error || 'send failed', fallback: true })
   }
+  const resendMessageId = posted.id || ''
 
   await log(SEND_OUTCOME, resendMessageId || undefined)
   return res.status(200).json({ sent: true })

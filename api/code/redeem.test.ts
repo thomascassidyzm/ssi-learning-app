@@ -1469,7 +1469,13 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
   // A duplicate active tag from a concurrent/retried redemption must not 500;
   // the redemption is idempotent (the winner's tag grants the same membership).
 
-  function inviteTagRedeemTest(codeType: 'teacher' | 'school_admin_join' | 'student') {
+  function inviteTagRedeemTest(
+    codeType: 'teacher' | 'school_admin_join' | 'student',
+    // Models what ensureSchoolAdminTag's post-23505 re-read finds: an ACTIVE
+    // tag holding the unique key (the raced winner's — idempotent success) or a
+    // REMOVED one holding it (the re-invite case, which must be reactivated).
+    existingTagAfter23505: { id: string; removed_at: string | null } = { id: 'tag-1', removed_at: null },
+  ) {
     return async () => {
       const grantsSchoolId = codeType === 'student' ? null : 'school-x'
       const grantsClassId = codeType === 'student' ? 'class-x' : null
@@ -1504,6 +1510,17 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
         if (isInsert) {
           return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "user_tags_active_natural_key"' } }
         }
+        // ensureSchoolAdminTag's post-23505 re-read reads user_tags with the
+        // same chain as the earlier "already redeemed?" dedup check, so shape
+        // alone cannot tell them apart — ORDER can: the dedup runs before any
+        // insert (and must read null, or redemption short-circuits), the re-read
+        // only after the insert has been attempted.
+        const isAdminTagReread =
+          (writes.user_tags || []).some((w) => w.op === 'insert') &&
+          calls.some((c) => c[0] === 'eq' && c[1] === 'tag_type' && c[2] === 'school')
+        if (isAdminTagReread) {
+          return { data: existingTagAfter23505, error: null }
+        }
         return { data: null, error: null }
       }
       responders.classes = () => ({ data: { course_code: 'cym_for_eng' }, error: null })
@@ -1511,6 +1528,17 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
       const res = makeRes()
       await handler(makeReq({ body: { code: 'TAG-DUP', codeKind: 'invite' } }), res)
 
+      if (existingTagAfter23505.removed_at) {
+        // The key is held by a REMOVED tag — the re-invite case. The tag is
+        // REACTIVATED, so the admin seat this redemption asked for genuinely
+        // exists afterwards, and the caller is told the truth.
+        expect(res._status).toBe(200)
+        const update = (writes.user_tags || []).find((w) => w.op === 'update')
+        expect(update).toBeTruthy()
+        expect((update as any).payload.removed_at).toBeNull()
+        expect((update as any).payload.role_in_context).toBe('admin')
+        return
+      }
       // 23505 is treated as success — the redemption is idempotent, NOT a 500.
       expect(res._status).toBe(200)
       expect(res._json.success).toBe(true)
@@ -1521,6 +1549,10 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
   it('teacher branch: a 23505 on the user_tags insert is idempotent success, not a 500', inviteTagRedeemTest('teacher'))
   it('school_admin_join branch: a 23505 on the user_tags insert is idempotent success, not a 500', inviteTagRedeemTest('school_admin_join'))
   it('student branch: a 23505 on the user_tags insert is idempotent success, not a 500', inviteTagRedeemTest('student'))
+  it(
+    'school_admin_join branch: a 23505 where a REMOVED tag holds the key REACTIVATES it (re-invite)',
+    inviteTagRedeemTest('school_admin_join', { id: 'tag-removed', removed_at: '2026-09-01T10:00:00.000Z' }),
+  )
 })
 
 describe('POST /api/code/redeem (entitlement codes)', () => {

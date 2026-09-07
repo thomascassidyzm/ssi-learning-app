@@ -118,7 +118,8 @@
     "practisingBannerNote": "New material comes back when your connection does.",
     "subscriptionsNotAvailableHere": "Subscriptions aren't available in this version of the app yet.",
     "beltStillDownloading": "{belt} isn't on this device yet — it'll open as soon as it comes through.",
-    "contentStillDownloading": "That isn't on this device yet — it'll open as soon as it comes through."
+    "contentStillDownloading": "That isn't on this device yet — it'll open as soon as it comes through.",
+    "choosePlanCancel": "Two plans, from £15/month. Cancel anytime."
   },
   "home": {
     "goodMorning": "Good morning",
@@ -308,7 +309,9 @@
     "fixesMostAudioLoading": "Fixes most audio and loading problems. You stay signed in.",
     "addHomeScreenFaster": "Add to your home screen for faster, offline access",
     "subscriptionsNotAvailableHere": "Subscriptions aren't available in this version of the app yet.",
-    "manageSubscriptionOnComputer": "Manage or cancel this subscription from your account on a computer."
+    "manageSubscriptionOnComputer": "Manage or cancel this subscription from your account on a computer.",
+    "plansFromMonth": "£15/month for one account, £25/month for six",
+    "upgrade": "Upgrade"
   },
   "belt": {
     "yourProgress": "Your progress",
@@ -632,6 +635,19 @@
   "checkout": {
     "closeCheckout": "Close checkout"
   },
+  "plans": {
+    "chooseAPlan": "Choose a plan",
+    "close": "Close",
+    "premiumName": "SSi Premium",
+    "premiumDesc": "One account. Every course and language, and downloads for offline.",
+    "premiumMonthly": "£15/month",
+    "premiumAnnual": "£150/year",
+    "familyName": "SSi Family",
+    "familyDesc": "Everything in Premium, for {seats} accounts including yours. Everyone keeps their own progress.",
+    "familyMonthly": "£25/month",
+    "familyAnnual": "£250/year",
+    "cancelAnytime": "Cancel anytime."
+  },
   "family": {
     "family": "Family",
     "signQrCode": "Sign-in QR code",
@@ -645,6 +661,7 @@
     "inviteByEmail": "+ Invite by email"
   },
   "common": {
+    "noMatchesFor": "No matches for “{query}”",
     "oneOpensBrowser": "This one opens in your browser.",
     "refreshData": "Refresh data",
     "tryAgain": "Try again"
