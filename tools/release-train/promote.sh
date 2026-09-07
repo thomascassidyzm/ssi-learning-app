@@ -92,11 +92,19 @@ if ! node "$REPO/tools/release-train/release-notes.mjs" "${NOTES_ARGS[@]}"; then
   NOTES_OK=0
 fi
 
-if [[ "$NOTES_OK" -eq 1 ]] && ! git -C "$WT" diff --quiet -- tools/release-train/notes/; then
-  git -C "$WT" add -- tools/release-train/notes/
-  git -C "$WT" commit --quiet \
-    -m "release-notes: the notes for this ship, on main where the build reads them"
-  echo "Release notes committed onto the merge — they ship WITH the build that they describe."
+if [[ "$NOTES_OK" -eq 1 ]]; then
+  # NOTES-COMMIT-BEGIN
+  # STAGE FIRST, THEN ASK. `git diff --quiet -- <path>` is blind to an UNTRACKED file, and the notes
+  # file for a NEW ship date is always untracked in a worktree cut from main — on 2026-09-07 that
+  # dropped the whole file and production's "What's new" stayed a ship behind. Staging first makes
+  # a new file and an edited one look the same to the check. Pinned by promote-notes-commit.test.mjs.
+  git -C "$WT" add -A -- tools/release-train/notes/
+  if ! git -C "$WT" diff --cached --quiet -- tools/release-train/notes/; then
+    git -C "$WT" commit --quiet \
+      -m "release-notes: the notes for this ship, on main where the build reads them"
+    echo "Release notes committed onto the merge — they ship WITH the build that they describe."
+  fi
+  # NOTES-COMMIT-END
 fi
 
 git -C "$WT" push origin HEAD:main
