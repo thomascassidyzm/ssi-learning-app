@@ -61,7 +61,7 @@ try {
     await p.locator('.checkout-close').first().click().catch(() => {})
     await p.waitForTimeout(2000)
   }
-  await readPrice('£15/month', 'premium-monthly')
+  await readPrice('£25/month', 'family-monthly')
 } catch (e) { console.error('PROBE FAILED:', e) }
 finally {
   if (browser) await browser.close().catch(() => {})
