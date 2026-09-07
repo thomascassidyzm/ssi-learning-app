@@ -308,7 +308,9 @@
     "fixesMostAudioLoading": "Fixes most audio and loading problems. You stay signed in.",
     "addHomeScreenFaster": "Add to your home screen for faster, offline access",
     "subscriptionsNotAvailableHere": "Subscriptions aren't available in this version of the app yet.",
-    "manageSubscriptionOnComputer": "Manage or cancel this subscription from your account on a computer."
+    "manageSubscriptionOnComputer": "Manage or cancel this subscription from your account on a computer.",
+    "seePlans": "See plans",
+    "plansFromMonth": "£15/month for one account, £25/month for up to 6"
   },
   "belt": {
     "yourProgress": "Your progress",

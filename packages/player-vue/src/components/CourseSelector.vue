@@ -119,13 +119,14 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'selectCourse'])
 
-// "Go Premium" CTA — open the single Premium checkout directly (no marketing
-// page). Signed-out users get the auth modal first, then auto-continue to Paddle.
-const { startCheckout } = useCheckout()
+// "Go Premium" CTA — open the plan picker (Premium or Family, monthly or
+// annual), which then opens the matching Paddle checkout. Signed-out users get
+// the auth modal after choosing, then auto-continue to Paddle.
+const { openPlans } = useCheckout()
 // The one payment-route question (platform/paymentRoute). No route, no CTA.
 const purchaseAvailable = computed(() => canTakePayment())
 function goPremium() {
-  startCheckout()
+  openPlans()
   emit('close')
 }
 

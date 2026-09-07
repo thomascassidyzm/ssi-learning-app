@@ -2270,14 +2270,16 @@ const scriptBaseOffset = ref(0)  // Base offset for script loading
 const entitlementComposable = useEntitlement()
 const showPaywall = ref(false)
 
-// The single checkout trigger (Paddle £15/mo Premium). Used by the in-player
-// paywall overlay; the money-capture backend is untouched.
-const { startCheckout, isOpeningCheckout } = useCheckout()
+// The upgrade trigger. Opens the plan picker (Premium or Family, monthly or
+// annual); the picker then opens the matching Paddle checkout. The
+// money-capture backend is untouched.
+const { openPlans, isOpeningCheckout } = useCheckout()
 // platform/paymentRoute: the wall still explains why play stopped, but it only
 // offers a Subscribe button when there is a route that can honour it.
 const purchaseAvailable = computed(() => canTakePayment())
 function handleSubscribe() {
-  startCheckout({ courseCode: courseCode.value || null })
+  // Plan first, Paddle second — see PlanPicker.vue.
+  openPlans(courseCode.value || null)
 }
 
 // "Maybe later" / backdrop click / Escape all do the same thing: dismiss the
@@ -16988,7 +16990,7 @@ defineExpose({
             class="paywall-btn paywall-btn-primary"
             :disabled="isOpeningCheckout"
             @click="handleSubscribe"
-          >{{ isOpeningCheckout ? 'Opening checkout…' : 'Subscribe — £15/month' }}</button>
+          >{{ isOpeningCheckout ? 'Opening checkout…' : 'See plans' }}</button>
           <!-- Store shell with no wired billing route: an honest sentence. No
                button, no link, no price — a dead Pay control is a broken promise
                to the learner and a rejection at store review. -->

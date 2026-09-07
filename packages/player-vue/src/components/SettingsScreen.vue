@@ -15,7 +15,6 @@ import { getLanguageName, getLanguageEndonym, setLocale, useI18n } from '../comp
 import { courseTargetName } from '../utils/courseDisplayName'
 import { useSharedSubscription } from '../composables/useSubscription'
 import { useCheckout } from '../composables/useCheckout'
-import { paddleConfig } from '../lib/paddle'
 // The ONE payment-route declaration (platform/paymentRoute). Every control in
 // this file that starts or manages a payment asks it — never the platform.
 import { canTakePayment, paddleBillingAvailable } from '../platform/paymentRoute'
@@ -646,27 +645,23 @@ async function confirmCancel() {
     cancelError.value = res.error || 'Could not cancel. Please try Payment & invoices instead.'
   }
 }
-const { startCheckout } = useCheckout()
-function goPremium() {
-  // Open the single Premium checkout directly (signed-out users get the auth
-  // modal first, then auto-continue into Paddle). No marketing page.
-  startCheckout({ courseCode: props.course?.course_code || null })
+const { openPlans } = useCheckout()
+function goPlans() {
+  // Open the plan picker (Premium or Family, monthly or annual). It then opens
+  // the matching Paddle checkout; signed-out users get the auth modal after
+  // choosing. No marketing page.
+  openPlans(props.course?.course_code || null)
 }
 
-// SSi Family (FAMILY-PLAN-SPEC.md §4). The paywall option only appears once
-// Tom has created the Paddle product and set the price env vars — hidden
-// (not a broken button) until then, same pattern as the annual-price-unset
-// case elsewhere in this file.
+// SSi Family (FAMILY-PLAN-SPEC.md §4) is offered inside the plan picker, which
+// hides it until Tom's Paddle price env vars are set — hidden, not a broken
+// button, same pattern as the annual-price-unset case elsewhere in this file.
 // Can this build actually complete a purchase? False in a store shell until
 // Play Billing is wired — so the CTA is not rendered at all rather than
 // rendered dead.
 const purchaseAvailable = computed(() => canTakePayment())
 // Paddle's hosted portal / in-app cancel. Meaningless in a store shell.
 const webBillingAvailable = computed(() => paddleBillingAvailable())
-const familyPlanAvailable = computed(() => !!paddleConfig.familyMonthlyPriceId && purchaseAvailable.value)
-function goFamily() {
-  startCheckout({ plan: 'family', billingPeriod: 'monthly' })
-}
 
 // A member's own subscription row is virtual ('SSi Family (member)' —
 // api/subscription/index.ts) so the UI never offers a Paddle portal they
@@ -2304,27 +2299,17 @@ const confirmReset = async () => {
                 <span class="setting-desc">{{ t('settings.subscriptionsNotAvailableHere') }}</span>
               </div>
             </div>
-            <div v-else class="setting-row clickable" @click="goPremium">
+            <!-- One row, because the choice now lives in the plan picker:
+                 Premium or Family, monthly or annual. -->
+            <div v-else class="setting-row clickable" @click="goPlans">
               <div class="setting-info">
-                <span class="setting-label">{{ t('settings.goPremium') }}</span>
-                <span class="setting-desc">{{ t('settings.monthUnlimitedAccessAll') }}</span>
+                <span class="setting-label">{{ t('settings.seePlans') }}</span>
+                <span class="setting-desc">{{ t('settings.plansFromMonth') }}</span>
               </div>
               <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M9 18l6-6-6-6"/>
               </svg>
             </div>
-            <template v-if="familyPlanAvailable">
-              <div class="divider"></div>
-              <div class="setting-row clickable" @click="goFamily">
-                <div class="setting-info">
-                  <span class="setting-label">{{ t('settings.goFamily') }}</span>
-                  <span class="setting-desc">{{ t('settings.monthUpAccountsEveryones') }}</span>
-                </div>
-                <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M9 18l6-6-6-6"/>
-                </svg>
-              </div>
-            </template>
           </template>
         </div>
       </section>

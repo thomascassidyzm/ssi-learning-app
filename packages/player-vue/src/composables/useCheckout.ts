@@ -51,6 +51,13 @@ const overlayOpen = ref(false)
 // Which plan is open, so CheckoutOverlay can show the right title ("SSi Premium"
 // vs "SSi Family") without re-deriving it from checkout internals.
 const overlayPlan = ref<CheckoutPlan>('premium')
+// Drives the global PlanPicker (App.vue) — the plan-selection step that now sits
+// in front of Paddle. Every upgrade tap used to jump straight into a hardcoded
+// £15 Premium checkout, so SSi Family (live in Paddle since 2026-09-07) was
+// unreachable for every customer. The picker is the choice; nothing about the
+// checkout below it changed.
+const plansOpen = ref(false)
+const plansCourseCode = ref<string | null>(null)
 
 export type CheckoutPlan = 'premium' | 'family'
 
@@ -61,7 +68,7 @@ export interface StartCheckoutOptions {
   courseCode?: string | null
   /** Which product to open. Defaults to 'premium' (today's only option). */
   plan?: CheckoutPlan
-  /** Family only — Premium checkout is monthly-only today. */
+  /** Monthly (default) or annual. Both plans offer both. */
   billingPeriod?: 'monthly' | 'annual'
 }
 
@@ -78,7 +85,11 @@ export function useCheckout() {
     const priceId =
       plan === 'family'
         ? (billingPeriod === 'annual' ? paddleConfig.familyAnnualPriceId : paddleConfig.familyMonthlyPriceId)
-        : paddleConfig.teacherMonthlyPriceId
+        // Premium annual (£150/yr) is the same SSi Premium product as the £15/mo
+        // price — already in the webhook's PRICE_CATALOG as tier 'premium', and
+        // handlePremiumSubscription reads the period off Paddle's payload, so it
+        // needs nothing else. The monthly path is byte-for-byte what it was.
+        : (billingPeriod === 'annual' ? paddleConfig.teacherAnnualPriceId : paddleConfig.teacherMonthlyPriceId)
     if (!priceId) {
       checkoutError.value = plan === 'family' ? 'Family price not configured yet' : 'Premium price not configured'
       return
@@ -181,6 +192,30 @@ export function useCheckout() {
     await openPaddleCheckout(courseCode, plan, billingPeriod)
   }
 
+  /**
+   * Open the plan picker. This is what an upgrade tap calls now: the user picks
+   * plan + billing period, and the picker then calls startCheckout() with the
+   * matching price. Sign-in is still handled inside startCheckout, so a
+   * signed-out user chooses first and authenticates second.
+   */
+  function openPlans(courseCode?: string | null): void {
+    if (!canTakePayment()) return
+    plansCourseCode.value = courseCode ?? null
+    checkoutError.value = ''
+    plansOpen.value = true
+  }
+
+  function closePlans(): void {
+    plansOpen.value = false
+  }
+
+  /** Picker → Paddle. Closes the picker, then opens the chosen checkout. */
+  async function choosePlan(plan: CheckoutPlan, billingPeriod: 'monthly' | 'annual'): Promise<void> {
+    const courseCode = plansCourseCode.value
+    plansOpen.value = false
+    await startCheckout({ courseCode, plan, billingPeriod })
+  }
+
   async function isSignedIn(): Promise<boolean> {
     if (!supabase.value) return false
     try {
@@ -213,6 +248,10 @@ export function useCheckout() {
     checkoutError,
     overlayOpen,
     overlayPlan,
+    plansOpen,
+    openPlans,
+    closePlans,
+    choosePlan,
     startCheckout,
     completePendingCheckout,
     closeCheckout,
