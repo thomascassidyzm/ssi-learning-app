@@ -1,5 +1,5 @@
 {
-  "version": "ea01810ea071",
+  "version": "e3e4b3ea6fce",
   "generatedAt": "2026-09-07",
   "walks": [
     {
@@ -1041,6 +1041,40 @@
       "note": "One student at a time, on purpose — the link is theirs alone and carries the class with it. The **Students** page's **+ Invite students** button brings you here for exactly this reason."
     },
     {
+      "id": "add-students-to-a-class",
+      "title": "Add students to a class",
+      "section": "getting-people-in",
+      "personas": [
+        "leader",
+        "school_admin",
+        "teacher"
+      ],
+      "keywords": [
+        "add",
+        "student",
+        "class",
+        "roster",
+        "move",
+        "join"
+      ],
+      "place": {
+        "route": "class-detail"
+      },
+      "anchor": "class-student-add",
+      "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
+      "walk": null,
+      "what": "Putting a pupil who is already in your school into this class, for a pupil who has changed set or landed in the wrong class.",
+      "where": "The class page, the **Add students** button at the top of the roster.",
+      "how": [
+        "Open the class from **My Classes**.",
+        "Tap **Add students** above the roster.",
+        "Type a few letters of the name to narrow the list.",
+        "Tap the pupil. They appear on the roster straight away.",
+        "Add as many as you need, then tap **Done**."
+      ],
+      "note": "The list holds the pupils in your school who are not in this class yet, and under each name are the classes they are in now, or **In no class**. Adding does not take them out of those classes — a pupil can be in more than one, one for each course they are doing. If you meant to move them, the message that confirms the add names the class they are still in and takes you to it, where their row has a **Remove** button. A pupil brings everything they have already learned with them. For a pupil with no account at all, use the class link in **Invite students** instead."
+    },
+    {
       "id": "bring-your-first-person-in",
       "title": "Bring your first person in",
       "section": "getting-people-in",
@@ -1367,8 +1401,8 @@
       "where": "Step four of first-time setup, under **Create classes**. **+ Add another class** sits below the rows.",
       "how": [
         "Open step four of first-time setup.",
-        "Type a class name in the first row and choose its course.",
-        "Tap **+ Add another class** for each further class and fill the row in the same way.",
+        "Type a class name in the first row. Its course is already set to the language you signed your school up with — change it if this class is learning something else.",
+        "Tap **+ Add another class** for each further class; every new row starts on that same language, and fills in the same way.",
         "Remove a row you no longer want with the cross at its end.",
         "Tap **Finish setup** — every filled-in row is created, and each one is marked Added as it saves."
       ],
@@ -1658,9 +1692,10 @@
       "source": "packages/player-vue/src/views/schools/SetupView.vue",
       "walk": null,
       "what": "Picking the language a class is learning. This is how a course reaches learners at all — a course does not belong to a person, it belongs to a class, and everybody in that class practises it.",
-      "where": "On each class row, the **Choose course** picker beside the class name.",
+      "where": "On each class row, the course picker beside the class name. It already holds the language you chose when you signed your school up, so most classes need nothing done here.",
       "how": [
-        "Tap **Choose course** on the class row.",
+        "Leave it as it is to teach the language you signed up with.",
+        "To teach something else, tap the picker on the class row.",
         "Start typing a language to narrow the list — the catalogue runs to dozens of courses.",
         "Pick the one you want. Where a language offers more than one version, the versions differ by region or accent.",
         "Save the class, and everyone who joins it lands in that course."
@@ -2974,7 +3009,7 @@
         "Type a name into the search box to jump to one student.",
         "Compare a student's practice against the class average shown in the rail beside the table."
       ],
-      "note": "A student who has never started shows as inactive rather than as behind, because nothing has happened yet to judge."
+      "note": "A student who has never started shows as inactive rather than as behind, because nothing has happened yet to judge. A class nobody has joined yet shows its empty places instead of a table, with **Add students** in it."
     },
     {
       "id": "the-invites-desk",

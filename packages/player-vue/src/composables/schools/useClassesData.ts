@@ -107,16 +107,28 @@ export interface ClassTeacherWriteResult {
   error: string | null
 }
 
+/** Adding a pupil to a class — `still_in` are the classes they remain in. */
+export interface AddStudentResult extends ClassTeacherWriteResult {
+  still_in: Array<{ id: string; name: string }>
+}
+
 /**
  * A pupil who is in this class's school but not in this class — the pool the
- * "Add students" control on the class page draws from. `current_class_name` is
- * the class they are in NOW, so putting them here reads as the move it is.
+ * "Add students" control on the class page draws from.
+ *
+ * `current_classes` is every class they are in NOW, and it is a LIST because a
+ * pupil can be in more than one: a class carries a course, and doing Welsh in
+ * one set and Spanish in another is two memberships, which is why the join
+ * link adds a class tag without touching the others. So adding a pupil here is
+ * an add, not a move, and the list is what lets the page say so. Empty means
+ * they are in no class at all — usually because they were taken out of the only
+ * one they were in, which is precisely when a teacher comes looking for them.
  */
 export interface StudentCandidate {
   user_id: string
   learner_id: string
   display_name: string
-  current_class_name: string | null
+  current_classes: Array<{ id: string; name: string }>
 }
 
 /** A minted class-scoped co-teacher link — `code` is null whenever `ok` is false. */
@@ -911,26 +923,29 @@ export function useClassesData() {
    * through the service-role route, which re-checks that the caller teaches
    * the class and that the pupil is in its school.
    */
-  async function addClassStudent(classId: string, targetUserId: string): Promise<ClassTeacherWriteResult> {
+  async function addClassStudent(classId: string, targetUserId: string): Promise<AddStudentResult> {
     try {
       const { data: { session } } = await client.auth.getSession()
       const token = session?.access_token
-      if (!token) return { ok: false, error: 'You are not signed in.' }
+      if (!token) return { ok: false, error: 'You are not signed in.', still_in: [] }
       const resp = await fetch('/api/teacher/class-students', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ class_id: classId, target_user_id: targetUserId }),
       })
+      const data = await resp.json().catch(() => ({}))
       if (!resp.ok) {
-        const data = await resp.json().catch(() => ({}))
         const message = data.error || `Request failed: ${resp.status}`
         console.error('[ClassesData] add-student write failed:', message)
-        return { ok: false, error: message }
+        return { ok: false, error: message, still_in: [] }
       }
-      return { ok: true, error: null }
+      // The classes this pupil is STILL in. The server is the only thing that
+      // knows, and the page has to say it — an add leaves the old membership
+      // standing, and a teacher who assumes otherwise has moved nobody.
+      return { ok: true, error: null, still_in: (data.still_in ?? []) as Array<{ id: string; name: string }> }
     } catch (err) {
       console.error('[ClassesData] add-student fetch error:', err)
-      return { ok: false, error: err instanceof Error ? err.message : 'Failed to reach the server' }
+      return { ok: false, error: err instanceof Error ? err.message : 'Failed to reach the server', still_in: [] }
     }
   }
 
