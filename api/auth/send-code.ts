@@ -111,7 +111,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return error ? null : (count ?? 0)
   }
 
-  const log = async (outcome: string): Promise<void> => {
+  const log = async (outcome: string, resendMessageId?: string): Promise<void> => {
     try {
       await svc.from('possession_mint_attempts').insert({
         invite_code_id: null,
@@ -119,6 +119,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         email,
         auth_user_id: null,
         outcome,
+        resend_message_id: resendMessageId ?? null,
       })
     } catch { /* observability must never break a sign-in */ }
   }
@@ -148,6 +149,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const { subject, html, text } = renderSignInCodeEmail(code, email)
+  let resendMessageId = ''
   try {
     const r = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -160,10 +162,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // fallback re-mints and sends via Supabase — the old ugly mail beats none.
       return res.status(502).json({ error: `Email provider refused the send (${r.status}) ${body}`.trim(), fallback: true })
     }
+    // Resend's accept response carries the message id. It is the ONLY join key
+    // between our audit row and Resend's later delivered/delayed/bounced
+    // webhooks, so record it — but never fail a send over a surprising body.
+    const accepted = await r.json().catch(() => null) as { id?: unknown } | null
+    if (accepted && typeof accepted.id === 'string') resendMessageId = accepted.id
   } catch (err) {
     return res.status(502).json({ error: err instanceof Error ? err.message : 'send failed', fallback: true })
   }
 
-  await log(SEND_OUTCOME)
+  await log(SEND_OUTCOME, resendMessageId || undefined)
   return res.status(200).json({ sent: true })
 }
