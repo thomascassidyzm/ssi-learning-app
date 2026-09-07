@@ -180,6 +180,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   const newUserId = created.user.id
 
+  // Roll back BOTH rows on a later failure. learners.user_id is a plain TEXT
+  // column with no FK to auth.users, so deleting the auth user alone would
+  // strand a learner row that every future sign-in on this address would then
+  // silently adopt.
+  const rollback = async () => {
+    await supabase.from('learners').delete().eq('user_id', newUserId).then(undefined, () => {})
+    await supabase.auth.admin.deleteUser(newUserId).catch(() => {})
+  }
+
   // THE LEARNER ROW ALREADY EXISTS. The `on_auth_user_created` trigger on
   // auth.users inserts it (display_name = the address's local part), so this
   // stamps the one field the trigger cannot know: that nobody has ever proved
@@ -199,19 +208,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     .maybeSingle()
   if (learnerError || !learnerRow) {
     console.error('[BuyerAccount] learner row not settled:', learnerError)
-    await supabase.auth.admin.deleteUser(newUserId).catch(() => {})
+    await rollback()
     await logMintAttempt(supabase, { ipHash, outcome: 'buyer_account_error' })
     res.status(500).json({ success: false, error: 'We could not set up your account. Please try again.' })
     return
-  }
-
-  // Roll back BOTH rows on a later failure. learners.user_id is a plain TEXT
-  // column with no FK to auth.users, so deleting the auth user alone would
-  // strand a learner row that every future sign-in on this address would then
-  // silently adopt.
-  const rollback = async () => {
-    await supabase.from('learners').delete().eq('user_id', newUserId).then(undefined, () => {})
-    await supabase.auth.admin.deleteUser(newUserId).catch(() => {})
   }
 
   // Mint a link and redeem it here — no email is sent at any point.

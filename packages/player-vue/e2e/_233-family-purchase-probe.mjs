@@ -94,14 +94,18 @@ try {
   log('\nIS THIS THE FAMILY PRICE?', /25/.test(paid.frameText) ? 'frame mentions 25' : 'no 25 in frame text')
   log('OVERLAY TITLE SAYS FAMILY?', /family/i.test(paid.title))
 
-  const created = (await svc.auth.admin.listUsers({ perPage: 200 })).data.users.find(u => u.email === EMAIL)
+  // Look the account up through learners, not listUsers — there are ~480
+  // users and page 1 of listUsers is not a lookup.
+  const { data: lrow } = await svc.from('learners').select('id, user_id, needs_verification, display_name').eq('display_name', EMAIL.split('@')[0]).maybeSingle()
+  const created = lrow ? (await svc.auth.admin.getUserById(lrow.user_id)).data?.user : null
   if (created) {
     madeUsers.push(created.id)
     log('\nACCOUNT MINTED SERVER-SIDE:', created.email,
         '| email_confirmed_at:', created.email_confirmed_at,
         '| onboarded_via:', created.user_metadata?.onboarded_via)
-    const { data: lrn } = await svc.from('learners').select('id, needs_verification').eq('user_id', created.id).maybeSingle()
-    log('LEARNER ROW:', JSON.stringify(lrn))
+    log('LEARNER ROW:', JSON.stringify(lrow))
+    const { data: le } = await svc.from('learner_emails').select('email, verified').eq('learner_id', lrow.id)
+    log('LEARNER_EMAILS:', JSON.stringify(le))
   } else {
     log('\nNO ACCOUNT FOUND for', EMAIL, '— the details step did not mint one')
   }
@@ -129,7 +133,7 @@ try {
   // minted account the subscription row a completed Family purchase would
   // have written, then open the redirect Paddle is configured to send them to.
   if (created) {
-    const { data: lrn } = await svc.from('learners').select('id').eq('user_id', created.id).maybeSingle()
+    const lrn = lrow
     if (lrn) {
       await svc.from('subscriptions').insert({
         learner_id: lrn.id,
