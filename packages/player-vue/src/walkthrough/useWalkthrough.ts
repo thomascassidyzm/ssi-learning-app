@@ -21,7 +21,15 @@ import { localiseWalk } from './localiseWalk'
 
 // Semantic places a walk can live — the compiler gate checks every walk's
 // place.route against this list (lockstep, like the explainer's KNOWN_TARGETS).
-export const KNOWN_PLACES = ['node-home', 'class-detail', 'node-insights', 'admin-invites', 'library']
+// The flat schools views joined the list with the Handbook (2026-09-07):
+// most non-learner capability has moved to the node surface, but the flat
+// views are the residue AND the uncovered first-run path, so the map has to
+// span both while that migration finishes.
+export const KNOWN_PLACES = [
+  'node-home', 'class-detail', 'node-insights', 'admin-invites', 'library',
+  'dashboard', 'teachers', 'students', 'classes', 'settings', 'setup',
+  'schools-list', 'analytics', 'upgrade',
+]
 
 // 'learner' (A-159, 2026-08-18) — the engine's first non-dashboard persona.
 // A learner is emphatically not an admin: it is a MEMBER persona in the
