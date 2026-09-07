@@ -170,4 +170,43 @@ describe('leadersForNodes', () => {
     expect(byNode.size).toBe(0)
     expect(from).not.toHaveBeenCalled()
   })
+
+  // Live, 2026-09-07: NPTC Group's owner minted four invite links from her own
+  // org page while that same page said "No group leader yet". She holds
+  // schools.admin_user_id and nothing else — no govt_admins row (the school
+  // signup track mints none) and no GROUP: tag. Founder ruling that day: "she
+  // is the top-level admin in an org."
+  it('names the SCHOOL OWNER as the leader of her own school node — no govt_admins row, no tag', async () => {
+    const { svc } = makeSvc({
+      govt_admins: [],
+      user_tags: [],
+      schools: [{ id: 'school-1', admin_user_id: 'karen-uid', node_group_id: 'node-1' }],
+    })
+    const byNode = await leadersForNodes(svc, ['node-1'])
+    expect([...(byNode.get('node-1') || [])]).toEqual(['karen-uid'])
+  })
+
+  it('does not invent a leader for an unclaimed school node', async () => {
+    const { svc } = makeSvc({
+      govt_admins: [],
+      user_tags: [],
+      schools: [{ id: 'school-1', admin_user_id: null, node_group_id: 'node-1' }],
+    })
+    const byNode = await leadersForNodes(svc, ['node-1'])
+    expect(byNode.get('node-1')).toBeUndefined()
+  })
+
+  it('does not leak one school\'s owner onto another school\'s node', async () => {
+    const { svc } = makeSvc({
+      govt_admins: [],
+      user_tags: [],
+      schools: [
+        { id: 'school-1', admin_user_id: 'karen-uid', node_group_id: 'node-1' },
+        { id: 'school-2', admin_user_id: 'someone-else', node_group_id: 'node-2' },
+      ],
+    })
+    const byNode = await leadersForNodes(svc, ['node-1'])
+    expect([...(byNode.get('node-1') || [])]).toEqual(['karen-uid'])
+    expect(byNode.get('node-2')).toBeUndefined()
+  })
 })

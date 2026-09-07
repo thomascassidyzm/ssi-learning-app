@@ -759,6 +759,25 @@ const listPayload = computed(() => {
                a mid-switch click must never act on the PREVIOUS node. -->
           <NodeActionBar v-if="!isClass && home.node" :node="home.node" :member="member" :preset="preset" :style="switching ? { visibility: 'hidden' } : undefined" @changed="fetchHome" @minted="ledgerEl?.load()" />
 
+          <!-- CLASS INVITE VERB (founder ruling 2026-09-07: "we need it to be
+               easy to see how to add students to a class"). The SAME action
+               bar, in class mode: one verb, minting the same personal link the
+               school page mints, scoped to this class. Mounted on the class's
+               SCHOOL node — that is where the invites endpoint authorizes and
+               where the class must belong. A class with no school (group-
+               attached) cannot carry a class-scoped link, so it gets nothing
+               rather than a button that 400s. -->
+          <NodeActionBar
+            v-if="isClass && home.node && home.nodeId && home.schoolId"
+            :node="{ id: home.nodeId, name: home.node.name, label: 'school' }"
+            :member="member"
+            :preset="preset"
+            :class-id="home.node.id"
+            :style="switching ? { visibility: 'hidden' } : undefined"
+            @changed="fetchHome"
+            @minted="ledgerEl?.load()"
+          />
+
           <!-- SCHOOL-ADMIN FIRST RUN — the two affordances that used to live
                on /schools (DashboardView) and became unreachable when
                school-scoped admins were redirected here (2026-07-30).
@@ -928,6 +947,15 @@ const listPayload = computed(() => {
                every link minted anywhere in this subtree, with copy /
                revoke / re-mint. The management face of the link system. -->
           <WaysInLedger v-if="!isClass && home.node" ref="ledgerEl" :node-id="home.node.id" />
+          <!-- The same ledger on a class, filtered to this class's own links —
+               so the leader who just minted one can copy, re-mint or revoke it
+               without going up to the school. -->
+          <WaysInLedger
+            v-if="isClass && home.node && home.nodeId && home.schoolId"
+            ref="ledgerEl"
+            :node-id="home.nodeId"
+            :class-id="home.node.id"
+          />
 
           <!-- YOUR ACCOUNT — the leader's own sign-in and their own device
                (founder ruling 2026-08-06). Ways in is how OTHER people get

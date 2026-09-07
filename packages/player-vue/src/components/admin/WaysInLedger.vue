@@ -18,7 +18,7 @@ interface LedgerLink {
   personalEmail?: string | null
   code: string
   url: string
-  where: { nodeId: string | null; name: string; kind: 'group' | 'school' | 'class' }
+  where: { nodeId: string | null; classId?: string | null; name: string; kind: 'group' | 'school' | 'class' }
   /**
    * Two different kinds of number, deliberately labelled apart (2026-08-06):
    * 'redemption' = people who joined through a shareable code (invite_codes
@@ -33,7 +33,11 @@ interface LedgerLink {
   createdBy: string | null
 }
 
-const props = defineProps<{ nodeId: string }>()
+// `classId` = CLASS MODE: the ledger is mounted on a class page with the
+// class's SCHOOL node as `nodeId` (that is the scope the endpoint answers on)
+// and shows only the links minted for THIS class. Same ledger, same verbs,
+// one filter — a leader standing on a class sees that class's ways in.
+const props = defineProps<{ nodeId: string; classId?: string }>()
 
 const { getAuthToken } = useAdminClient()
 const links = ref<LedgerLink[]>([])
@@ -63,6 +67,10 @@ async function load(): Promise<void> {
 watch(() => props.nodeId, () => { void load() }, { immediate: true })
 defineExpose({ load })
 
+const scoped = computed(() =>
+  props.classId ? links.value.filter((l) => l.where.classId === props.classId) : links.value,
+)
+
 // ─── Filters: role chips + where chips (mirrors the children-list chips) ───
 const ROLE_WORD: Record<string, string> = {
   leader: 'Group leader',
@@ -73,7 +81,7 @@ const ROLE_WORD: Record<string, string> = {
 const roleFilter = ref<string>('all')
 const whereFilter = ref<string>('all')
 const roleChips = computed(() => {
-  const present = [...new Set(links.value.map((l) => l.role))]
+  const present = [...new Set(scoped.value.map((l) => l.role))]
   return present.map((r) => ({ value: r, word: ROLE_WORD[r] || r }))
 })
 // Class rows roll up to their school for filtering — a root node would
@@ -86,10 +94,10 @@ function chipKey(l: LedgerLink): string {
 }
 const whereChips = computed(() => {
   const seen = new Set<string>()
-  for (const l of links.value) seen.add(chipKey(l))
+  for (const l of scoped.value) seen.add(chipKey(l))
   return [...seen]
 })
-const visible = computed(() => links.value.filter((l) =>
+const visible = computed(() => scoped.value.filter((l) =>
   (roleFilter.value === 'all' || l.role === roleFilter.value) &&
   (whereFilter.value === 'all' || chipKey(l) === whereFilter.value)
 ))
@@ -174,7 +182,7 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
       <span v-if="!isLoading" class="ways-in-count">{{ visible.length }} link{{ visible.length === 1 ? '' : 's' }}</span>
     </div>
 
-    <div v-if="links.length" class="ways-in-chips">
+    <div v-if="scoped.length && !classId" class="ways-in-chips">
       <button type="button" class="chip" :class="{ 'is-on': roleFilter === 'all' }" @click="roleFilter = 'all'">All roles</button>
       <button
         v-for="c in roleChips" :key="c.value" type="button" class="chip"
@@ -195,14 +203,14 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
     <p v-if="error" class="ways-in-note is-error">{{ error }}</p>
     <p v-else-if="notice" class="ways-in-note is-ok">{{ notice }}</p>
 
-    <p v-if="isLoading && !links.length" class="ways-in-empty">Loading…</p>
-    <p v-else-if="!links.length" class="ways-in-empty">No links yet — use “Invite a person” or “Get a shareable link” above.</p>
+    <p v-if="isLoading && !scoped.length" class="ways-in-empty">Loading…</p>
+    <p v-else-if="!scoped.length" class="ways-in-empty">{{ classId ? 'No links for this class yet — use “Invite students” above.' : 'No links yet — use “Invite a person” or “Get a shareable link” above.' }}</p>
 
     <table v-else class="ways-in-table">
       <thead>
         <tr>
           <th>Who / what</th>
-          <th>Where</th>
+          <th v-if="!classId">Where</th>
           <th>Link</th>
           <th class="num">Uses</th>
           <th>Status</th>
@@ -216,7 +224,7 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
             <span class="row-role">{{ l.species === 'personal' ? (l.personalName || 'Personal link') : `Anyone — joins as ${(ROLE_WORD[l.role] || l.role).toLowerCase()}` }}</span>
             <span class="row-kind">{{ l.species === 'personal' ? `${ROLE_WORD[l.role] || l.role} · their own sign-in link, goes straight in` : 'shareable · new arrivals enter their name' }}</span>
           </td>
-          <td>{{ l.where.name }}</td>
+          <td v-if="!classId">{{ l.where.name }}</td>
           <td class="mono">{{ l.code }}</td>
           <td class="num frost-mono-nums" :class="{ 'is-not-yet': l.uses.kind === 'signin' && l.uses.count === 0 }" :title="usesTitle(l)">{{ usesText(l) }}</td>
           <td><span class="status-pill" :class="`is-${l.status}`">{{ l.status }}</span></td>

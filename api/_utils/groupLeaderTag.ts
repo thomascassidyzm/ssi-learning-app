@@ -107,8 +107,15 @@ export async function ensureGroupLeaderTag(
 
 /**
  * Leader auth-uids per node, unioning the authz table with the membership tag
- * so pre-ruling orgs still name their leader. Returns a Map keyed by node id;
- * nodes with no leader are simply absent.
+ * AND the school owner, so every kind of org names its leader. Returns a Map
+ * keyed by node id; nodes with no leader are simply absent.
+ *
+ * THE THIRD ARM (2026-09-07, live): a school-track org's owner holds
+ * `schools.admin_user_id` and no govt_admins row and no GROUP: tag, so her own
+ * org page read "No group leader yet" while she stood on it holding every
+ * verb. Founder ruling the same day: "she is the top-level admin in an org."
+ * She IS the leader of her school's node — derived from the school she owns,
+ * not from a list. Display only: nothing authorizes off this function.
  */
 export async function leadersForNodes(
   svc: SupabaseClient,
@@ -137,6 +144,18 @@ export async function leadersForNodes(
         .in('tag_value', batch.map((id) => `GROUP:${id}`))
       for (const r of data ?? []) {
         add(((r as { tag_value: string }).tag_value).replace('GROUP:', ''), (r as { user_id: string }).user_id)
+      }
+    }),
+    // The school owner IS the leader of her school's own node.
+    ...chunk(nodeIds).map(async (batch) => {
+      const { data } = await svc
+        .from('schools')
+        .select('admin_user_id, node_group_id')
+        .in('node_group_id', batch)
+      for (const r of data ?? []) {
+        // `add` already ignores a null/empty uid — an unclaimed school node
+        // simply has no leader to name.
+        add((r as { node_group_id: string }).node_group_id, (r as { admin_user_id: string }).admin_user_id)
       }
     }),
   ])
