@@ -1,5 +1,5 @@
 /**
- * useAdminCourses - Course overview with enrollment counts, active learners, average progress
+ * useAdminCourses - Course overview with enrollment counts, active learners, practice minutes
  */
 
 import { ref, computed } from 'vue'
@@ -19,7 +19,6 @@ interface CourseStats {
   course_code: string
   enrolled_count: number
   active_30d: number
-  avg_seeds_introduced: number
   total_practice_minutes: number
   /** True when total_practice_minutes includes a position-derived estimate
    *  for at least one learner (no session logs for that learner+course). */
@@ -78,12 +77,26 @@ export function useAdminCourses(client: SupabaseClient) {
       if (courseErr) throw courseErr
       courses.value = courseData || []
 
-      // Fetch all enrollments (for per-course enrolled counts)
-      const { data: enrollData, error: enrollErr } = await client
-        .from('course_enrollments')
-        .select('learner_id, course_id')
+      // Each stat below is fetched independently and degrades on its own
+      // failure — a slow/failing query (e.g. a full-table-scan timeout) must
+      // never wipe out stats that already loaded successfully from other
+      // queries. A missing stat renders as its own zero (not a false "this
+      // course really has 0"), and `error.value` records that a load was
+      // partial so the gap is visible rather than a confident wrong number.
+      const partialFailures: string[] = []
 
-      if (enrollErr) throw enrollErr
+      // Enrollments (for per-course enrolled counts)
+      let enrollData: Array<{ learner_id: string; course_id: string }> | null = null
+      try {
+        const { data, error: enrollErr } = await client
+          .from('course_enrollments')
+          .select('learner_id, course_id')
+        if (enrollErr) throw enrollErr
+        enrollData = data
+      } catch (enrollErr) {
+        console.error('[AdminCourses] enrollments fetch error:', enrollErr)
+        partialFailures.push('enrolments')
+      }
 
       // Practice minutes per course, derived from telemetry (player_events) —
       // the SSoT. course_enrollments.total_practice_minutes is a dead counter
@@ -96,27 +109,30 @@ export function useAdminCourses(client: SupabaseClient) {
       try {
         practiceData = await fetchPracticeByCourse(client, null)
       } catch (practiceErr) {
-        console.warn('[AdminCourses] practice fetch error:', practiceErr)
+        console.error('[AdminCourses] practice fetch error:', practiceErr)
+        partialFailures.push('practice minutes')
       }
 
-      // Fetch sessions in last 30 days for active learner count
+      // Sessions in last 30 days, for active-learner count
       const thirtyDaysAgo = new Date()
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
-      const { data: sessionData, error: sessErr } = await client
-        .from('sessions')
-        .select('learner_id, course_id')
-        .gte('started_at', thirtyDaysAgo.toISOString())
+      let sessionData: Array<{ learner_id: string; course_id: string }> | null = null
+      try {
+        const { data, error: sessErr } = await client
+          .from('sessions')
+          .select('learner_id, course_id')
+          .gte('started_at', thirtyDaysAgo.toISOString())
+        if (sessErr) throw sessErr
+        sessionData = data
+      } catch (sessErr) {
+        console.error('[AdminCourses] sessions fetch error:', sessErr)
+        partialFailures.push('active learners')
+      }
 
-      if (sessErr) throw sessErr
-
-      // Fetch seed progress for average seeds per course
-      const { data: seedData, error: seedErr } = await client
-        .from('seed_progress')
-        .select('learner_id, course_id')
-        .eq('is_introduced', true)
-
-      if (seedErr) throw seedErr
+      if (partialFailures.length > 0) {
+        error.value = `Some stats failed to load (${partialFailures.join(', ')}) — figures below may be incomplete.`
+      }
 
       // Build stats per course
       const statsMap = new Map<string, CourseStats>()
@@ -146,32 +162,12 @@ export function useAdminCourses(client: SupabaseClient) {
         activeByCourse.get(s.course_id)!.add(s.learner_id)
       })
 
-      // Average seeds introduced per learner per course
-      const seedsByCourseLearner = new Map<string, Map<string, number>>()
-      seedData?.forEach(s => {
-        if (!seedsByCourseLearner.has(s.course_id)) {
-          seedsByCourseLearner.set(s.course_id, new Map())
-        }
-        const learnerMap = seedsByCourseLearner.get(s.course_id)!
-        learnerMap.set(s.learner_id, (learnerMap.get(s.learner_id) || 0) + 1)
-      })
-
       courses.value.forEach(c => {
         const code = c.course_code
-        const enrolled = enrollByCourse.get(code)?.size || 0
-        const seedLearners = seedsByCourseLearner.get(code)
-        let avgSeeds = 0
-        if (seedLearners && seedLearners.size > 0) {
-          let totalSeeds = 0
-          seedLearners.forEach(count => { totalSeeds += count })
-          avgSeeds = Math.round(totalSeeds / seedLearners.size)
-        }
-
         statsMap.set(code, {
           course_code: code,
-          enrolled_count: enrolled,
+          enrolled_count: enrollByCourse.get(code)?.size || 0,
           active_30d: activeByCourse.get(code)?.size || 0,
-          avg_seeds_introduced: avgSeeds,
           total_practice_minutes: practiceByCourse.get(code) || 0,
           total_practice_minutes_estimated: practiceEstimatedByCourse.get(code) || false,
         })
@@ -191,7 +187,6 @@ export function useAdminCourses(client: SupabaseClient) {
       course_code: courseCode,
       enrolled_count: 0,
       active_30d: 0,
-      avg_seeds_introduced: 0,
       total_practice_minutes: 0,
       total_practice_minutes_estimated: false,
     }
