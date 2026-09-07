@@ -3,14 +3,17 @@ import { ref, computed, onMounted, watch, inject, defineAsyncComponent } from 'v
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 type SectionId = 'profile' | 'locale' | 'data' | 'billing'
 
 const SECTIONS: { id: SectionId; label: string }[] = [
-  { id: 'profile', label: 'School profile' },
-  { id: 'locale', label: 'Localisation' },
-  { id: 'data', label: 'Data & privacy' },
-  { id: 'billing', label: 'Billing' },
+  { id: 'profile', label: t('schools.schoolSettings.sectionProfile', 'School profile') },
+  { id: 'locale', label: t('schools.schoolSettings.sectionLocalisation', 'Localisation') },
+  { id: 'data', label: t('schools.schoolSettings.sectionDataPrivacy', 'Data & privacy') },
+  { id: 'billing', label: t('schools.schoolSettings.sectionBilling', 'Billing') },
 ]
 
 const isAdminView = inject<boolean>('isAdminView', false)
@@ -50,31 +53,43 @@ const weekStart = ref('Monday')
 const showFlags = ref(true)
 const localizationSaveStatus = ref<'idle' | 'saving' | 'saved'>('idle')
 
-// Data & privacy toggles (visual placeholders — no DB column yet)
-const dataToggles = ref<{ id: string; title: string; desc: string; value: boolean }[]>([
+// Data & privacy toggles (visual placeholders — no DB column yet).
+//
+// State and labels are deliberately separate. t() inside a ref() initialiser
+// runs ONCE, during setup — and on boot the non-English locale chunk is still
+// being fetched at that moment, so a ref would freeze these four rows in
+// English for the whole session. The labels are a computed, which re-reads t()
+// when the chunk lands; only the on/off value is state.
+const dataToggleValues = ref<Record<string, boolean>>({
+  analytics: true,
+  messaging: false,
+  realnames: true,
+  retention: false,
+})
+const dataToggles = computed(() => [
   {
     id: 'analytics',
-    title: 'Share anonymised analytics with the SSi team',
-    desc: 'Helps us improve recommendations across schools.',
-    value: true,
+    title: t('schools.schoolSettings.toggleAnalyticsTitle', 'Share anonymised analytics with the SSi team'),
+    desc: t('schools.schoolSettings.toggleAnalyticsDesc', 'Helps us improve recommendations across schools.'),
+    value: dataToggleValues.value.analytics,
   },
   {
     id: 'messaging',
-    title: 'Allow students to message each other',
-    desc: 'Disabled by default in school accounts.',
-    value: false,
+    title: t('schools.schoolSettings.toggleMessagingTitle', 'Allow students to message each other'),
+    desc: t('schools.schoolSettings.toggleMessagingDesc', 'Disabled by default in school accounts.'),
+    value: dataToggleValues.value.messaging,
   },
   {
     id: 'realnames',
-    title: 'Show student real names to other students',
-    desc: 'When off, only first name + initial is shown.',
-    value: true,
+    title: t('schools.schoolSettings.toggleRealnamesTitle', 'Show student real names to other students'),
+    desc: t('schools.schoolSettings.toggleRealnamesDesc', 'When off, only first name + initial is shown.'),
+    value: dataToggleValues.value.realnames,
   },
   {
     id: 'retention',
-    title: 'Retain inactive accounts after 12 months',
-    desc: 'Otherwise we delete them automatically.',
-    value: false,
+    title: t('schools.schoolSettings.toggleRetentionTitle', 'Retain inactive accounts after 12 months'),
+    desc: t('schools.schoolSettings.toggleRetentionDesc', 'Otherwise we delete them automatically.'),
+    value: dataToggleValues.value.retention,
   },
 ])
 const isExporting = ref(false)
@@ -150,7 +165,7 @@ async function openBillingPortal() {
   try {
     const headers = await authHeaders()
     if (!headers) {
-      portalError.value = 'Sign in again to open billing'
+      portalError.value = t('schools.schoolSettings.signInAgainBilling', 'Sign in again to open billing')
       return
     }
     const res = await fetch('/api/school/portal', { headers })
@@ -159,9 +174,9 @@ async function openBillingPortal() {
       window.location.href = data.portalUrl
       return
     }
-    portalError.value = data?.error || 'Could not open the billing portal — try again'
+    portalError.value = data?.error || t('schools.schoolSettings.couldNotOpenPortal', 'Could not open the billing portal — try again')
   } catch {
-    portalError.value = 'Could not open the billing portal — try again'
+    portalError.value = t('schools.schoolSettings.couldNotOpenPortal', 'Could not open the billing portal — try again')
   } finally {
     isOpeningPortal.value = false
   }
@@ -206,7 +221,7 @@ async function confirmDeleteSchool(typedName: string) {
   const headers = await authHeaders()
   const schoolId = activeSchool.value?.id
   if (!headers || !schoolId) {
-    deleteSchoolError.value = 'Sign in again to delete your school'
+    deleteSchoolError.value = t('schools.schoolSettings.signInAgainDelete', 'Sign in again to delete your school')
     return
   }
   isDeletingSchool.value = true
@@ -220,7 +235,7 @@ async function confirmDeleteSchool(typedName: string) {
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
       if (data.impact) deleteSchoolImpact.value = data.impact
-      deleteSchoolError.value = data.error || 'Failed to delete school'
+      deleteSchoolError.value = data.error || t('schools.schoolSettings.failedToDeleteSchool', 'Failed to delete school')
       return
     }
     // The admin's own school is gone — sign out to a clean slate, same
@@ -228,7 +243,7 @@ async function confirmDeleteSchool(typedName: string) {
     await supabase.value?.auth?.signOut()
     window.location.href = '/schools'
   } catch {
-    deleteSchoolError.value = 'Failed to delete school'
+    deleteSchoolError.value = t('schools.schoolSettings.failedToDeleteSchool', 'Failed to delete school')
   } finally {
     isDeletingSchool.value = false
   }
@@ -238,10 +253,10 @@ const deleteSchoolImpactLines = computed(() => {
   const impact = deleteSchoolImpact.value
   if (!impact) return []
   const lines: string[] = []
-  if (impact.classCount) lines.push(`${impact.classCount} class${impact.classCount === 1 ? '' : 'es'}`)
-  if (impact.learnerCount) lines.push(`${impact.learnerCount} student${impact.learnerCount === 1 ? '' : 's'}`)
-  if (impact.teacherCount) lines.push(`${impact.teacherCount} teacher${impact.teacherCount === 1 ? '' : 's'}`)
-  if (impact.sessionCount) lines.push(`${impact.sessionCount} recorded session${impact.sessionCount === 1 ? '' : 's'}`)
+  if (impact.classCount) lines.push(t('schools.schoolSettings.impactClasses', '{n} class{es}').replace('{n}', String(impact.classCount)).replace('{es}', impact.classCount === 1 ? '' : 'es'))
+  if (impact.learnerCount) lines.push(t('schools.schoolSettings.impactStudents', '{n} student{s}').replace('{n}', String(impact.learnerCount)).replace('{s}', impact.learnerCount === 1 ? '' : 's'))
+  if (impact.teacherCount) lines.push(t('schools.schoolSettings.impactTeachers', '{n} teacher{s}').replace('{n}', String(impact.teacherCount)).replace('{s}', impact.teacherCount === 1 ? '' : 's'))
+  if (impact.sessionCount) lines.push(t('schools.schoolSettings.impactSessions', '{n} recorded session{s}').replace('{n}', String(impact.sessionCount)).replace('{s}', impact.sessionCount === 1 ? '' : 's'))
   return lines
 })
 
@@ -347,24 +362,23 @@ async function handleExportData() {
 }
 
 const planLine = computed(() => {
-  const name = (activeSchool.value || currentSchool.value)?.school_name || currentUser.value?.school_name || 'Your school'
+  const name = (activeSchool.value || currentSchool.value)?.school_name || currentUser.value?.school_name || t('schools.schoolSettings.yourSchool', 'Your school')
   // When subscribed, anchor on what's actually PAID (DB), not the local stepper.
   const n = isSubscribed.value && paidSeats.value != null ? paidSeats.value : seatCount.value
-  const seatWord = `teacher ${n === 1 ? 'seat' : 'seats'}`
+  const seatWord = t('schools.schoolSettings.teacherSeatWord', 'teacher {seatOrSeats}').replace('{seatOrSeats}', n === 1 ? t('schools.schoolSettings.seat', 'seat') : t('schools.schoolSettings.seats', 'seats'))
   return isSubscribed.value
-    ? `${name} — ${n} ${seatWord} (active)`
-    : `${name} — ${n} ${seatWord}`
+    ? t('schools.schoolSettings.planLineActive', '{name} — {n} {seatWord} (active)').replace('{name}', name).replace('{n}', String(n)).replace('{seatWord}', seatWord)
+    : t('schools.schoolSettings.planLine', '{name} — {n} {seatWord}').replace('{name}', name).replace('{n}', String(n)).replace('{seatWord}', seatWord)
 })
 
 function toggleDataItem(id: string) {
-  const item = dataToggles.value.find((t) => t.id === id)
-  if (item) item.value = !item.value
+  if (id in dataToggleValues.value) dataToggleValues.value[id] = !dataToggleValues.value[id]
 }
 </script>
 
 <template>
   <main class="settings-screen">
-    <h1 class="arsenal page-title">Settings</h1>
+    <h1 class="arsenal page-title">{{ t('schools.schoolSettings.title', 'Settings') }}</h1>
 
     <div class="settings-layout">
       <aside class="schools-card section-nav">
@@ -382,35 +396,35 @@ function toggleDataItem(id: string) {
 
       <div class="settings-content">
         <section v-if="activeSection === 'profile'" class="schools-card schools-card-pad panel">
-          <h2 class="arsenal panel-title">School profile</h2>
+          <h2 class="arsenal panel-title">{{ t('schools.schoolSettings.sectionProfile', 'School profile') }}</h2>
           <label class="field">
-            <span class="field-label">School name</span>
+            <span class="field-label">{{ t('schools.schoolSettings.schoolName', 'School name') }}</span>
             <input v-model="schoolNameEdit" class="field-input" type="text" :readonly="!canEditSchool" />
           </label>
           <label class="field">
-            <span class="field-label">Type</span>
-            <input value="Bilingual immersion · primary + lower secondary" class="field-input" type="text" readonly />
-            <span class="field-hint">Type is set by your group administrator.</span>
+            <span class="field-label">{{ t('schools.schoolSettings.type', 'Type') }}</span>
+            <input :value="t('schools.schoolSettings.typeValue', 'Bilingual immersion · primary + lower secondary')" class="field-input" type="text" readonly />
+            <span class="field-hint">{{ t('schools.schoolSettings.typeHint', 'Type is set by your group administrator.') }}</span>
           </label>
           <div class="field-row">
             <label class="field">
-              <span class="field-label">City</span>
+              <span class="field-label">{{ t('schools.schoolSettings.city', 'City') }}</span>
               <input v-model="city" class="field-input" type="text" placeholder="—" :readonly="!canEditSchool" />
             </label>
             <label class="field">
-              <span class="field-label">Region</span>
+              <span class="field-label">{{ t('schools.schoolSettings.region', 'Region') }}</span>
               <input v-model="region" class="field-input" type="text" placeholder="—" :readonly="!canEditSchool" />
             </label>
           </div>
           <label class="field">
-            <span class="field-label">Contact email</span>
+            <span class="field-label">{{ t('schools.schoolSettings.contactEmail', 'Contact email') }}</span>
             <input v-model="schoolEmailEdit" class="field-input" type="email" :readonly="!canEditSchool" />
           </label>
           <label class="field">
-            <span class="field-label">About</span>
-            <textarea v-model="about" rows="3" class="field-input field-textarea" placeholder="A short description of your school." :readonly="!canEditSchool" />
+            <span class="field-label">{{ t('schools.schoolSettings.about', 'About') }}</span>
+            <textarea v-model="about" rows="3" class="field-input field-textarea" :placeholder="t('schools.schoolSettings.aboutPlaceholder', 'A short description of your school.')" :readonly="!canEditSchool" />
           </label>
-          <p v-if="!canEditSchool" class="field-hint">Only a school admin can edit the school profile.</p>
+          <p v-if="!canEditSchool" class="field-hint">{{ t('schools.schoolSettings.onlyAdminCanEditProfile', 'Only a school admin can edit the school profile.') }}</p>
           <div v-if="canEditSchool" class="panel-actions">
             <!-- HANDBOOK Change your school's name and details
                  section: your-school
@@ -435,26 +449,26 @@ function toggleDataItem(id: string) {
                  checked: 2aee237d.51c105f3
             -->
             <button type="button" class="btn-play" data-walk="settings-save-profile" :disabled="profileSaveStatus === 'saving'" @click="saveSchoolProfile">
-              {{ profileSaveStatus === 'saving' ? 'Saving…' : profileSaveStatus === 'saved' ? 'Saved' : 'Save changes' }}
+              {{ profileSaveStatus === 'saving' ? t('schools.schoolSettings.saving', 'Saving…') : profileSaveStatus === 'saved' ? t('schools.schoolSettings.saved', 'Saved') : t('schools.schoolSettings.saveChanges', 'Save changes') }}
             </button>
-            <button type="button" class="btn-ghost">Cancel</button>
+            <button type="button" class="btn-ghost">{{ t('schools.schoolSettings.cancel', 'Cancel') }}</button>
           </div>
         </section>
 
         <section v-else-if="activeSection === 'locale'" class="schools-card schools-card-pad panel">
-          <h2 class="arsenal panel-title">Localisation</h2>
+          <h2 class="arsenal panel-title">{{ t('schools.schoolSettings.sectionLocalisation', 'Localisation') }}</h2>
           <label class="field">
-            <span class="field-label">Default interface language</span>
+            <span class="field-label">{{ t('schools.schoolSettings.defaultInterfaceLanguage', 'Default interface language') }}</span>
             <select v-model="language" class="field-input">
-              <option value="en">English</option>
-              <option value="cy">Cymraeg (Welsh)</option>
-              <option value="es">Español (Spanish)</option>
-              <option value="br">Brezhoneg (Breton)</option>
+              <option value="en">{{ t('schools.schoolSettings.langEnglish', 'English') }}</option>
+              <option value="cy">{{ t('schools.schoolSettings.langWelsh', 'Cymraeg (Welsh)') }}</option>
+              <option value="es">{{ t('schools.schoolSettings.langSpanish', 'Español (Spanish)') }}</option>
+              <option value="br">{{ t('schools.schoolSettings.langBreton', 'Brezhoneg (Breton)') }}</option>
             </select>
-            <span class="field-hint">Teachers and students can override individually.</span>
+            <span class="field-hint">{{ t('schools.schoolSettings.languageOverrideHint', 'Teachers and students can override individually.') }}</span>
           </label>
           <label class="field">
-            <span class="field-label">Time zone</span>
+            <span class="field-label">{{ t('schools.schoolSettings.timeZone', 'Time zone') }}</span>
             <select v-model="timezone" class="field-input">
               <option value="Europe/London">Europe/London</option>
               <option value="Europe/Paris">Europe/Paris</option>
@@ -464,16 +478,16 @@ function toggleDataItem(id: string) {
             </select>
           </label>
           <label class="field">
-            <span class="field-label">Week starts on</span>
+            <span class="field-label">{{ t('schools.schoolSettings.weekStartsOn', 'Week starts on') }}</span>
             <select v-model="weekStart" class="field-input">
-              <option value="Monday">Monday</option>
-              <option value="Sunday">Sunday</option>
+              <option value="Monday">{{ t('schools.schoolSettings.monday', 'Monday') }}</option>
+              <option value="Sunday">{{ t('schools.schoolSettings.sunday', 'Sunday') }}</option>
             </select>
           </label>
           <div class="toggle-row">
             <div>
-              <div class="toggle-title">Show flags on courses</div>
-              <div class="toggle-desc">Display country flags next to course names.</div>
+              <div class="toggle-title">{{ t('schools.schoolSettings.showFlagsTitle', 'Show flags on courses') }}</div>
+              <div class="toggle-desc">{{ t('schools.schoolSettings.showFlagsDesc', 'Display country flags next to course names.') }}</div>
             </div>
             <button
               type="button"
@@ -507,28 +521,28 @@ function toggleDataItem(id: string) {
                  checked: 1bcc02fa.ca2221e1
             -->
             <button type="button" class="btn-play" data-walk="settings-localisation-save" :disabled="localizationSaveStatus === 'saving'" @click="saveLocalization">
-              {{ localizationSaveStatus === 'saving' ? 'Saving…' : localizationSaveStatus === 'saved' ? 'Saved' : 'Save changes' }}
+              {{ localizationSaveStatus === 'saving' ? t('schools.schoolSettings.saving', 'Saving…') : localizationSaveStatus === 'saved' ? t('schools.schoolSettings.saved', 'Saved') : t('schools.schoolSettings.saveChanges', 'Save changes') }}
             </button>
           </div>
         </section>
 
         <section v-else-if="activeSection === 'data'" class="schools-card schools-card-pad panel">
-          <h2 class="arsenal panel-title">Data &amp; privacy</h2>
+          <h2 class="arsenal panel-title">{{ t('schools.schoolSettings.sectionDataPrivacy', 'Data & privacy') }}</h2>
           <div
-            v-for="t in dataToggles"
-            :key="t.id"
+            v-for="toggle in dataToggles"
+            :key="toggle.id"
             class="toggle-row toggle-row-bordered"
           >
             <div>
-              <div class="toggle-title">{{ t.title }}</div>
-              <div class="toggle-desc">{{ t.desc }}</div>
+              <div class="toggle-title">{{ toggle.title }}</div>
+              <div class="toggle-desc">{{ toggle.desc }}</div>
             </div>
             <button
               type="button"
               class="toggle"
-              :class="{ on: t.value }"
-              :aria-pressed="t.value"
-              @click="toggleDataItem(t.id)"
+              :class="{ on: toggle.value }"
+              :aria-pressed="toggle.value"
+              @click="toggleDataItem(toggle.id)"
             >
               <span class="toggle-thumb" />
             </button>
@@ -557,16 +571,16 @@ function toggleDataItem(id: string) {
                  checked: 5d883f51.bdde1e52
             -->
             <button type="button" class="btn-ghost" data-walk="settings-export-data" :disabled="isExporting" @click="handleExportData">
-              {{ isExporting ? 'Preparing…' : 'Download all data (.csv)' }}
+              {{ isExporting ? t('schools.schoolSettings.preparing', 'Preparing…') : t('schools.schoolSettings.downloadAllData', 'Download all data (.csv)') }}
             </button>
           </div>
 
           <div v-if="canEditSchool" class="danger-zone">
-            <h3 class="danger-zone-title">Danger zone</h3>
+            <h3 class="danger-zone-title">{{ t('schools.schoolSettings.dangerZone', 'Danger zone') }}</h3>
             <div class="toggle-row toggle-row-bordered">
               <div>
-                <div class="toggle-title">Delete this school</div>
-                <div class="toggle-desc">Permanently deletes the school, its classes and enrolments. Cannot be undone.</div>
+                <div class="toggle-title">{{ t('schools.schoolSettings.deleteThisSchool', 'Delete this school') }}</div>
+                <div class="toggle-desc">{{ t('schools.schoolSettings.deleteThisSchoolDesc', 'Permanently deletes the school, its classes and enrolments. Cannot be undone.') }}</div>
               </div>
               <!-- HANDBOOK Delete your school
                    section: your-school
@@ -595,7 +609,7 @@ function toggleDataItem(id: string) {
                    always asks for it.
                    checked: 79dfa3af.1ba6f4b2
               -->
-              <button type="button" class="btn-danger" data-walk="settings-delete-school" @click="openDeleteSchoolModal">Delete school</button>
+              <button type="button" class="btn-danger" data-walk="settings-delete-school" @click="openDeleteSchoolModal">{{ t('schools.schoolSettings.deleteSchool', 'Delete school') }}</button>
             </div>
           </div>
         </section>
@@ -616,7 +630,7 @@ function toggleDataItem(id: string) {
 
     <ConfirmDeleteModal
       :is-open="showDeleteSchoolModal"
-      title="Delete school"
+      :title="t('schools.schoolSettings.deleteSchool', 'Delete school')"
       :target-name="deleteSchoolImpact?.schoolName || activeSchool?.school_name || ''"
       :impact-lines="deleteSchoolImpactLines"
       :require-typed-confirm="!!deleteSchoolImpact?.hasRealActivity"
