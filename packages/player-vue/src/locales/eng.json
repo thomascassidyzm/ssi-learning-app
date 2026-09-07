@@ -311,7 +311,12 @@
     "subscriptionsNotAvailableHere": "Subscriptions aren't available in this version of the app yet.",
     "manageSubscriptionOnComputer": "Manage or cancel this subscription from your account on a computer.",
     "plansFromMonth": "£15/month for one account, £25/month for six",
-    "upgrade": "Upgrade"
+    "upgrade": "Upgrade",
+    "upgradeToFamily": "Upgrade to SSi Family",
+    "upgradeToFamilyDesc": "Up to 6 accounts, £25/month",
+    "upgradeToFamilyExplain": "Your plan changes to SSi Family straight away, on the subscription you already have. We charge only the difference for the rest of this period, and your renewal date stays the same.",
+    "upgradeToFamilyConfirm": "Upgrade",
+    "upgradeToFamilyBusy": "Upgrading..."
   },
   "belt": {
     "yourProgress": "Your progress",

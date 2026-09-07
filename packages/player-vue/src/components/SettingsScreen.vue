@@ -645,7 +645,37 @@ async function confirmCancel() {
     cancelError.value = res.error || 'Could not cancel. Please try Payment & invoices instead.'
   }
 }
-const { startCheckout } = useCheckout()
+const {
+  startCheckout,
+  canUpgradeToFamily,
+  upgradeToFamily,
+  clearFamilyUpgrade,
+  familyUpgradeBusy,
+  familyUpgradeError,
+} = useCheckout()
+
+// The upgrade door only appears for somebody on plain Premium who can actually
+// be billed on the web rail — a store shell has no route to Paddle, and store
+// review forbids a link or a price there.
+const canOfferFamilyUpgrade = computed(
+  () => webBillingAvailable.value && purchaseAvailable.value && canUpgradeToFamily()
+)
+const showFamilyUpgradeConfirm = ref(false)
+function openFamilyUpgradeConfirm() {
+  clearFamilyUpgrade()
+  showFamilyUpgradeConfirm.value = true
+}
+function dismissFamilyUpgradeConfirm() {
+  showFamilyUpgradeConfirm.value = false
+}
+async function confirmFamilyUpgrade() {
+  const ok = await upgradeToFamily()
+  if (ok) {
+    showFamilyUpgradeConfirm.value = false
+    await refreshSubscription()
+  }
+}
+
 function goPlans() {
   // No plan named, so the plan picker opens first (Premium or Family, monthly
   // or annual) and it opens the matching Paddle checkout; signed-out users get
@@ -1707,6 +1737,25 @@ const confirmReset = async () => {
       </div>
     </Transition>
 
+    <!-- Upgrade to SSi Family Confirmation Dialog -->
+    <Transition name="fade">
+      <div v-if="showFamilyUpgradeConfirm" class="reset-overlay">
+        <div class="reset-dialog">
+          <h3 class="reset-title">{{ t('settings.upgradeToFamily') }}</h3>
+          <p class="reset-desc">{{ t('settings.upgradeToFamilyExplain') }}</p>
+          <p v-if="familyUpgradeError" class="reset-error">{{ familyUpgradeError }}</p>
+          <div class="reset-actions">
+            <button class="reset-btn reset-btn--cancel" @click="dismissFamilyUpgradeConfirm" :disabled="familyUpgradeBusy">
+              {{ t('settings.cancel') }}
+            </button>
+            <button class="reset-btn reset-btn--confirm" @click="confirmFamilyUpgrade" :disabled="familyUpgradeBusy">
+              {{ familyUpgradeBusy ? t('settings.upgradeToFamilyBusy') : t('settings.upgradeToFamilyConfirm') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Header -->
     <header class="header">
       <div class="header-spacer" />
@@ -2250,6 +2299,21 @@ const confirmReset = async () => {
                 <div class="setting-info">
                   <span class="setting-label">{{ t('settings.manageFamily') }}</span>
                   <span class="setting-desc">{{ t('settings.addRemoveMembersUp') }}</span>
+                </div>
+                <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 18l6-6-6-6"/>
+                </svg>
+              </div>
+            </template>
+            <!-- Premium → Family, in place. Paddle changes the price on the
+                 subscription they already have and prorates the difference, so
+                 this is a plan change and never a second subscription. -->
+            <template v-if="canOfferFamilyUpgrade">
+              <div class="divider"></div>
+              <div class="setting-row clickable" @click="openFamilyUpgradeConfirm">
+                <div class="setting-info">
+                  <span class="setting-label">{{ t('settings.upgradeToFamily') }}</span>
+                  <span class="setting-desc">{{ t('settings.upgradeToFamilyDesc') }}</span>
                 </div>
                 <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M9 18l6-6-6-6"/>

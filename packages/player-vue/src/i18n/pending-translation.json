@@ -140,6 +140,11 @@
     "walkthrough.where-you-are-in-this-course.steps.3.say",
     "walkthrough.where-you-are-in-this-course.steps.3.terminal",
     "walkthrough.where-you-are-in-this-course.title",
-    "walkthrough.where-you-are-in-this-course.topic"
+    "walkthrough.where-you-are-in-this-course.topic",
+    "settings.upgradeToFamily",
+    "settings.upgradeToFamilyDesc",
+    "settings.upgradeToFamilyExplain",
+    "settings.upgradeToFamilyConfirm",
+    "settings.upgradeToFamilyBusy"
   ]
 }

@@ -95,7 +95,19 @@ const detailsExistingAccount = ref(false)
 // subscription row under a different provider_subscription_id, logs
 // "REFUSED subscription-row write" and stops. Money in, nothing out.
 // The block is the fix; this ref is the honest thing we say in its place.
+//
+// IT IS NO LONGER THE WHOLE ANSWER (2026-09-07). Premium → Family is a genuine
+// upgrade, and it now runs as a Paddle PLAN CHANGE on the existing subscription
+// (api/subscription/change-plan) rather than as a second checkout. The notice
+// still catches every other case the guard was protecting — a second Premium, a
+// second Family, a resumed checkout by somebody already paying.
 const alreadySubscribedOpen = ref(false)
+
+// The Premium → Family upgrade, in flight. Module-level for the same reason as
+// everything above: whichever door started it, the app shows one truth.
+const familyUpgradeBusy = ref(false)
+const familyUpgradeError = ref('')
+const familyUpgradeDone = ref(false)
 
 export type CheckoutPlan = 'premium' | 'family'
 
@@ -154,18 +166,99 @@ export function useCheckout() {
     return sub.isSubscribed.value
   }
 
-  /** Block the door and say why. Returns true if the caller must stop. */
-  async function blockedByExistingSubscription(): Promise<boolean> {
-    if (!(await hasLiveSubscription())) return false
+  /**
+   * What should this tap actually do? One authoritative read of "are you
+   * already paying?", three answers:
+   *
+   *   buy      — not subscribed. Open Paddle, as always.
+   *   upgrade  — on Premium, asking for Family. A PLAN CHANGE on the
+   *              subscription they already hold, not a second one.
+   *   blocked  — anything else a subscriber could tap. The notice, as before.
+   *
+   * The guard it replaces (#255) is intact: 'blocked' still catches a second
+   * Premium, a second Family, and a checkout resumed by somebody who turns out
+   * to be paying already. Only the one case that has a correct answer now gets
+   * that answer instead of a dead end.
+   */
+  async function routeForPlan(plan?: CheckoutPlan): Promise<'buy' | 'upgrade' | 'blocked'> {
+    if (!(await hasLiveSubscription())) return 'buy'
+    if (plan === 'family' && canUpgradeToFamily()) return 'upgrade'
     plansOpen.value = false
     detailsOpen.value = false
     pendingAfterAuth.value = false
     alreadySubscribedOpen.value = true
-    return true
+    return 'blocked'
   }
 
   function closeAlreadySubscribed(): void {
     alreadySubscribedOpen.value = false
+  }
+
+  /**
+   * Is this person on plain Premium, and therefore able to MOVE to Family
+   * rather than buy it again? Read off the subscription's own plan name.
+   *
+   * Deliberately narrow. A family member's row is virtual ('SSi Family
+   * (member)' — api/subscription/index.ts), an owner is already there, and the
+   * tutor bundle is a different product with a dashboard grant hanging off it.
+   * The server refuses all three too; this only keeps the door from appearing.
+   */
+  function canUpgradeToFamily(): boolean {
+    const sub = useSharedSubscription()
+    return sub.isSubscribed.value && sub.subscription.value?.planName === 'SSi Premium'
+  }
+
+  /**
+   * THE UPGRADE. One POST; Paddle changes the price on the subscription they
+   * already have, prorates the difference and keeps their billing anniversary.
+   * No checkout, no second subscription, no gap in access.
+   *
+   * The price id lives on the server. All we send is monthly or annual, and
+   * even that is optional — the endpoint matches whatever period they are on.
+   */
+  async function upgradeToFamily(billingPeriod?: 'monthly' | 'annual'): Promise<boolean> {
+    if (familyUpgradeBusy.value) return false
+    const client = supabase()
+    if (!client) {
+      familyUpgradeError.value = 'Sign in again to change your plan'
+      return false
+    }
+    familyUpgradeBusy.value = true
+    familyUpgradeError.value = ''
+    familyUpgradeDone.value = false
+    try {
+      const { data: { session } } = await client.auth.getSession()
+      const token = session?.access_token
+      if (!token) {
+        familyUpgradeError.value = 'Sign in again to change your plan'
+        return false
+      }
+      const response = await fetch('/api/subscription/change-plan', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: 'family', ...(billingPeriod ? { billingPeriod } : {}) }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        familyUpgradeError.value = data?.error || 'Could not change your plan'
+        return false
+      }
+      familyUpgradeDone.value = true
+      // Re-read so the app reflects SSi Family at once — the endpoint has
+      // already mirrored plan_name, and the webhook converges behind us.
+      await useSharedSubscription().refresh()
+      return true
+    } catch (err: any) {
+      familyUpgradeError.value = err?.message || 'Could not change your plan'
+      return false
+    } finally {
+      familyUpgradeBusy.value = false
+    }
+  }
+
+  function clearFamilyUpgrade(): void {
+    familyUpgradeError.value = ''
+    familyUpgradeDone.value = false
   }
 
   /** The manage-subscription route, offered from the notice so the block is
@@ -184,7 +277,14 @@ export function useCheckout() {
     // buyer-details step, the 409 already_registered sign-in, and the OTP
     // resume (completePendingCheckout). Guarding the funnel is what makes the
     // 409 re-entry path safe rather than a second door onto the same trap.
-    if (await blockedByExistingSubscription()) return
+    const route = await routeForPlan(plan)
+    if (route === 'blocked') return
+    if (route === 'upgrade') {
+      // Premium → Family never reaches Paddle's checkout: it is a change to
+      // the subscription they already have.
+      await upgradeToFamily(billingPeriod)
+      return
+    }
     const priceId =
       plan === 'family'
         ? (billingPeriod === 'annual' ? paddleConfig.familyAnnualPriceId : paddleConfig.familyMonthlyPriceId)
@@ -295,8 +395,14 @@ export function useCheckout() {
     if (!canTakePayment()) return
     // THE FRONT DOOR. Checked before the picker opens, so an existing
     // subscriber never sees a price they cannot buy — in-player paywall,
-    // belt-map lock, course picker and Settings all enter here.
-    if (await blockedByExistingSubscription()) return
+    // belt-map lock, course picker and Settings all enter here. A Premium
+    // subscriber who names Family goes to the plan change instead.
+    const front = await routeForPlan(opts.plan)
+    if (front === 'blocked') return
+    if (front === 'upgrade') {
+      await upgradeToFamily(opts.billingPeriod)
+      return
+    }
     const courseCode = opts.courseCode ?? null
     // No plan named = an upgrade tap = show the plans. This is the line that
     // makes the picker unskippable.
@@ -512,5 +618,11 @@ export function useCheckout() {
     alreadySubscribedOpen,
     closeAlreadySubscribed,
     openSubscriptionPortal,
+    canUpgradeToFamily,
+    upgradeToFamily,
+    clearFamilyUpgrade,
+    familyUpgradeBusy,
+    familyUpgradeError,
+    familyUpgradeDone,
   }
 }
