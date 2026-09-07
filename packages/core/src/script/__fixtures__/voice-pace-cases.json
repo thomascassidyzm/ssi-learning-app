@@ -1,0 +1,165 @@
+{
+  "_comment": [
+    "SHARED CASE TABLE for the per-voice pace rule (Tom, 2026-08-29, plate S-345).",
+    "",
+    "One rule, two implementations: ssi-dashboard-v7-clean/services/shared/voice-pace.cjs",
+    "and packages/core/src/script/voicePace.ts. Two copies of one rule is a bug waiting to",
+    "happen, so both must be asserted against THIS file rather than against each other's",
+    "behaviour. `voicePace.test.ts` next to the TS port does that side.",
+    "",
+    "AS OF 2026-09-07 THE DASHBOARD SIDE HAS NO MIRROR TEST. Adding one there is the",
+    "open half of this pairing.",
+    "",
+    "Every `voice` below is the pace fields off a real or realistic `voices` row.",
+    "`expected.speed` is what playbackSpeed(voice, role, mode) must return.",
+    "MIN_SPEED = 0.7, MAX_SPEED = 1.0."
+  ],
+  "minSpeed": 0.7,
+  "maxSpeed": 1.0,
+  "cases": [
+    {
+      "name": "target on Easy, voice exactly at its language reference",
+      "voice": { "natural_pace_ratio": 1.0 },
+      "role": "target", "mode": "easy",
+      "expected": { "speed": 0.8, "corrected": true, "clamped": false }
+    },
+    {
+      "name": "target on Fast, voice exactly at its language reference",
+      "voice": { "natural_pace_ratio": 1.0 },
+      "role": "target", "mode": "fast",
+      "expected": { "speed": 0.9, "corrected": true, "clamped": false }
+    },
+    {
+      "name": "es-ES-ElviraNeural (0.985) on Easy — spa_for_eng target1, live 2026-09-07",
+      "voice": { "natural_pace_ratio": 0.985 },
+      "role": "target1", "mode": "easy",
+      "expected": { "speed": 0.812, "corrected": true, "clamped": false }
+    },
+    {
+      "name": "es-ES-AlvaroNeural (1.000) on Easy — spa_for_eng target2, live 2026-09-07",
+      "voice": { "natural_pace_ratio": 1.0 },
+      "role": "target2", "mode": "easy",
+      "expected": { "speed": 0.8, "corrected": true, "clamped": false }
+    },
+    {
+      "name": "the briskest voice measured clamps at the floor and is only PARTIALLY corrected",
+      "voice": { "natural_pace_ratio": 1.241 },
+      "role": "target", "mode": "easy",
+      "expected": { "speed": 0.7, "corrected": true, "clamped": true }
+    },
+    {
+      "name": "a slow voice is not sped UP past its own rendering — MAX_SPEED is 1.0 on purpose",
+      "voice": { "natural_pace_ratio": 0.5 },
+      "role": "target", "mode": "fast",
+      "expected": { "speed": 1.0, "corrected": true, "clamped": true }
+    },
+    {
+      "name": "the human nudge multiplies the measurement",
+      "voice": { "natural_pace_ratio": 1.0, "natural_pace_nudge": 1.1 },
+      "role": "target", "mode": "easy",
+      "expected": { "speed": 0.727, "corrected": true, "clamped": false }
+    },
+    {
+      "name": "a zero or absent nudge is ignored, not treated as a multiplier",
+      "voice": { "natural_pace_ratio": 0.985, "natural_pace_nudge": 0 },
+      "role": "target", "mode": "easy",
+      "expected": { "speed": 0.812, "corrected": true, "clamped": false }
+    },
+    {
+      "name": "UNMEASURED VOICE on Easy — the target number itself, uncorrected",
+      "voice": { "natural_pace_ratio": null },
+      "role": "target", "mode": "easy",
+      "expected": { "speed": 0.8, "corrected": false, "clamped": false }
+    },
+    {
+      "name": "UNMEASURED VOICE on Fast — the target number itself, uncorrected",
+      "voice": { "natural_pace_ratio": null },
+      "role": "target", "mode": "fast",
+      "expected": { "speed": 0.9, "corrected": false, "clamped": false }
+    },
+    {
+      "name": "no voice at all behaves exactly like an unmeasured one",
+      "voice": null,
+      "role": "target", "mode": "easy",
+      "expected": { "speed": 0.8, "corrected": false, "clamped": false }
+    },
+    {
+      "name": "a ratio of 0 is an absence, not a measurement",
+      "voice": { "natural_pace_ratio": 0 },
+      "role": "target", "mode": "easy",
+      "expected": { "speed": 0.8, "corrected": false, "clamped": false }
+    },
+    {
+      "name": "known language is never slowed, however brisk the voice",
+      "voice": { "natural_pace_ratio": 1.241 },
+      "role": "known", "mode": "easy",
+      "expected": { "speed": 1.0, "corrected": false, "clamped": false }
+    },
+    {
+      "name": "presentation speaks the known language, so it is never slowed either",
+      "voice": { "natural_pace_ratio": 1.241 },
+      "role": "presentation", "mode": "easy",
+      "expected": { "speed": 1.0, "corrected": false, "clamped": false }
+    },
+    {
+      "name": "known language is not sped UP either, however slow the voice",
+      "voice": { "natural_pace_ratio": 0.832 },
+      "role": "known", "mode": "fast",
+      "expected": { "speed": 1.0, "corrected": false, "clamped": false }
+    },
+    {
+      "name": "listening is full speed on Easy — it trains them for everyday life",
+      "voice": { "natural_pace_ratio": 1.241 },
+      "role": "listening", "mode": "easy",
+      "expected": { "speed": 1.0, "corrected": false, "clamped": false }
+    },
+    {
+      "name": "listening is full speed on Fast too",
+      "voice": { "natural_pace_ratio": 0.832 },
+      "role": "listening", "mode": "fast",
+      "expected": { "speed": 1.0, "corrected": false, "clamped": false }
+    },
+    {
+      "name": "an unrecognised role is played as rendered rather than guessed at",
+      "voice": { "natural_pace_ratio": 1.241 },
+      "role": "chorus", "mode": "easy",
+      "expected": { "speed": 1.0, "corrected": false, "clamped": false, "role": null }
+    },
+    {
+      "name": "anything that is not 'fast' is treated as easy — the cautious of the two",
+      "voice": { "natural_pace_ratio": 1.0 },
+      "role": "target", "mode": null,
+      "expected": { "speed": 0.8, "corrected": true, "clamped": false }
+    },
+    {
+      "name": "mode is case-insensitive",
+      "voice": { "natural_pace_ratio": 1.0 },
+      "role": "target", "mode": "FAST",
+      "expected": { "speed": 0.9, "corrected": true, "clamped": false }
+    },
+    {
+      "name": "EASY IS ALWAYS SLOWER THAN FAST for the same voice — the 2026-08-07 inversion cannot recur",
+      "voice": { "natural_pace_ratio": 1.114 },
+      "role": "target", "mode": "easy",
+      "expected": { "speed": 0.718, "corrected": true, "clamped": false }
+    },
+    {
+      "name": "…and its Fast twin, to make the pair readable in one place",
+      "voice": { "natural_pace_ratio": 1.114 },
+      "role": "target", "mode": "fast",
+      "expected": { "speed": 0.808, "corrected": true, "clamped": false }
+    },
+    {
+      "name": "a numeric-string ratio off a numeric DB column is a measurement, not junk",
+      "voice": { "natural_pace_ratio": "0.985" },
+      "role": "target", "mode": "easy",
+      "expected": { "speed": 0.812, "corrected": true, "clamped": false }
+    },
+    {
+      "name": "the pre-multiplied effectivePaceRatio the bundle ships is used as-is",
+      "voice": { "effectivePaceRatio": 1.25 },
+      "role": "target", "mode": "easy",
+      "expected": { "speed": 0.7, "corrected": true, "clamped": true }
+    }
+  ]
+}

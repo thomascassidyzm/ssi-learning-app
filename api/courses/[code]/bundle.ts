@@ -55,6 +55,7 @@ import type {
 import { resolveServerCourseAccess } from '../../_utils/courseAccess'
 import { applyAudioRef, fetchRevisedAudioRefs, stampRowAudioRefs } from '../../_utils/audioAccess'
 import { authoredGlossSegments } from '../../_utils/glossSegments'
+import { fetchCourseVoicePace } from '../../_utils/courseVoicePace'
 
 /**
  * Identifies the shared generator's assembly-algorithm CODE version, echoed
@@ -419,10 +420,15 @@ export default async function handler(
       return
     }
 
-    // 8 queries in parallel. Each Vercel→Supabase round-trip is ~100-150ms
+    // 9 queries in parallel. Each Vercel→Supabase round-trip is ~100-150ms
     // of physics; collapsing into Promise.all keeps the whole bundle
-    // assemble at ~150-300ms instead of 8× that.
-    const [courseRes, shapeRes, legosRes, phrasesRes, roundsRes, seedsRes, podsRes, bookendsRes] = await Promise.all([
+    // assemble at ~150-300ms instead of 9× that.
+    //
+    // The 9th is the per-voice pace derivation (plate S-345). It rides here
+    // rather than in its own endpoint so a course load costs ONE round trip,
+    // and it is time-boxed inside `fetchCourseVoicePace` so a slow derivation
+    // can never delay the other eight — see that file for why the box is small.
+    const [courseRes, shapeRes, legosRes, phrasesRes, roundsRes, seedsRes, podsRes, bookendsRes, voicePace] = await Promise.all([
       supabase
         .from('courses')
         .select('content_version, target_lang, pricing_tier, is_community')
@@ -535,6 +541,9 @@ export default async function handler(
         .select('id, role, duration_ms')
         .eq('course_code', code)
         .in('role', ['bookend_listen_intro', 'bookend_listen_outro']),
+      // Facts only. The rule that turns them into a speed lives in
+      // `@ssi/core`'s script/voicePace.ts, and nowhere else.
+      fetchCourseVoicePace(supabase, code),
     ])
 
     if (courseRes.error) {
@@ -906,6 +915,9 @@ export default async function handler(
       seeds,
       roundMap,
       pods,
+      // Course-wide, so a preview caller gets the same facts as a full one:
+      // the voice that speaks seed 1 is the voice that speaks seed 400.
+      voicePace,
     }
     if (previewOnly) bundle.previewOnly = true
 
