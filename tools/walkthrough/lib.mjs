@@ -114,7 +114,11 @@ export function validateHandbookBlock(walk) {
   const errors = []
   const at = (msg) => errors.push(`walk "${walk?.id ?? '?'}": ${msg}`)
   if (!isHandbookEntry(walk)) {
-    if (walk?.handbook) at('learner-only entries carry no handbook block')
+    // A learner-only entry with prose would be written and never rendered —
+    // the page is the non-learner map. Only said where the personas are
+    // themselves valid, so an unknown persona reports once, not twice.
+    const learnerOnly = (walk?.personas ?? []).every((p) => p === 'learner')
+    if (learnerOnly && walk?.handbook) at('learner-only entries carry no handbook block')
     return errors
   }
   if (!HANDBOOK_SECTIONS.includes(walk.section)) {

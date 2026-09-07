@@ -14,15 +14,28 @@ import {
   gateSafety,
   gateNoAutoPlay,
   gateRuntimeDenylist,
+  validateHandbookBlock,
+  gateSections,
+  gateRoleBadges,
+  gatePlaceLinks,
+  isHandbookEntry,
   DESTRUCTIVE_ANCHOR_PATTERNS,
+  HANDBOOK_SECTIONS,
+  PERSONAS,
   runGates,
 } from '../../../../tools/walkthrough/lib.mjs'
+import { readFileSync } from 'node:fs'
 
+// Every non-learner entry now carries its handbook block and section — the
+// Handbook page's completeness claim (2026-09-07) is a schema rule, so the
+// baseline fixture states it rather than the old tests being exempted from it.
 const walk = (over: Record<string, unknown> = {}) => ({
   id: 'test-walk',
   title: 'Test walk',
+  section: 'getting-people-in',
   personas: ['admin'],
   place: { route: 'node-home' },
+  handbook: { what: 'What it is for.', where: 'The node home page.', how: ['Tap it.'] },
   steps: [{ anchor: 'verb-invite-person', say: 'Tap it.', advance: { on: 'next' } }],
   ...over,
 })
@@ -38,7 +51,7 @@ describe('validateWalkSchema', () => {
     expect(validateWalkSchema(walk())).toEqual([])
   })
   it('rejects unknown personas, bad advance kinds, empty steps', () => {
-    expect(validateWalkSchema(walk({ personas: ['pupil'] }))).toHaveLength(1)
+    expect(validateWalkSchema(walk({ personas: ['pupil'] }))).toHaveLength(1)  // unknown persona
     expect(validateWalkSchema(walk({ steps: [] }))).toHaveLength(1)
     expect(validateWalkSchema(walk({ steps: [{ anchor: 'a', say: 'x', advance: { on: 'timer' } }] }))).toHaveLength(1)
   })
@@ -206,5 +219,133 @@ describe('the real pack (live drift gate)', () => {
     const cli = join(process.cwd(), '..', '..', 'tools', 'walkthrough', 'compile.mjs')
     const res = spawnSync(process.execPath, [cli, '--check'], { encoding: 'utf8' })
     expect(res.status, res.stderr || res.stdout).toBe(0)
+  })
+})
+
+
+// ---------------------------------------------------------------------------
+// HANDBOOK (2026-09-07). The page's whole claim is that it is the complete,
+// never-stale map — so a capability with no prose, a section only one side
+// knows about, or a role with no badge are all build failures.
+// ---------------------------------------------------------------------------
+
+const entry = (over: Record<string, unknown> = {}) => ({
+  id: 'test-entry',
+  title: 'Test entry',
+  section: 'getting-people-in',
+  personas: ['teacher'],
+  place: { route: 'teachers' },
+  anchor: 'teacher-signin-link',
+  handbook: {
+    what: 'What it is for.',
+    where: 'The Teachers page.',
+    how: ['Open Teachers.', 'Tap the row.'],
+  },
+  ...over,
+})
+
+// happy-dom breaks fileURLToPath(import.meta.url) under vitest, so these
+// anchor on the runner's cwd (packages/player-vue) like the live-CLI test below.
+const HANDBOOK_SRC = readFileSync(join(process.cwd(), 'src/walkthrough/handbook.ts'), 'utf8')
+const REAL_RUNTIME_SRC = readFileSync(join(process.cwd(), 'src/walkthrough/useWalkthrough.ts'), 'utf8')
+
+describe('validateHandbookBlock', () => {
+  it('accepts a well-formed prose-only entry', () => {
+    expect(validateHandbookBlock(entry())).toEqual([])
+  })
+  it('FAILS a non-learner entry with no handbook block — a hole in the page', () => {
+    const errs = validateHandbookBlock(entry({ handbook: undefined }))
+    expect(errs.some((e: string) => e.includes('handbook block is required'))).toBe(true)
+  })
+  it('fails an unknown section', () => {
+    const errs = validateHandbookBlock(entry({ section: 'making-tea' }))
+    expect(errs.some((e: string) => e.includes('making-tea'))).toBe(true)
+  })
+  it('fails empty what / where / how', () => {
+    expect(validateHandbookBlock(entry({ handbook: { what: ' ', where: 'x', how: ['y'] } }))).toHaveLength(1)
+    expect(validateHandbookBlock(entry({ handbook: { what: 'x', where: '', how: ['y'] } }))).toHaveLength(1)
+    expect(validateHandbookBlock(entry({ handbook: { what: 'x', where: 'y', how: [] } }))).toHaveLength(1)
+  })
+  // Zero-explanation ruling: the product explains by example, never in an aside.
+  it('fails prose carrying parentheses', () => {
+    const errs = validateHandbookBlock(entry({
+      handbook: { what: 'A link (their login).', where: 'x', how: ['y'] },
+    }))
+    expect(errs.some((e: string) => e.includes('parentheses'))).toBe(true)
+  })
+  it('exempts learner-only entries, which belong to the learner hub', () => {
+    expect(isHandbookEntry({ personas: ['learner'] })).toBe(false)
+    expect(validateHandbookBlock({ id: 'l', personas: ['learner'] })).toEqual([])
+  })
+})
+
+describe('validateWalkSchema with handbook entries', () => {
+  it('accepts an entry with no steps but an anchor', () => {
+    expect(validateWalkSchema(entry())).toEqual([])
+  })
+  it('fails an entry with neither steps nor an anchor', () => {
+    const errs = validateWalkSchema(entry({ anchor: undefined }))
+    expect(errs.some((e: string) => e.includes('no steps'))).toBe(true)
+  })
+})
+
+describe('gateAnchors covers a prose-only entry', () => {
+  it('FAILS when the entry anchor is gone from the source — the deleted-button case', () => {
+    const { failures } = gateAnchors([entry()], [{ path: 'f.vue', src: '<div />' }])
+    expect(failures.some((f: string) => f.includes('teacher-signin-link'))).toBe(true)
+  })
+  it('passes when the anchor is live', () => {
+    const { failures } = gateAnchors(
+      [entry()],
+      [{ path: 'f.vue', src: '<button data-walk="teacher-signin-link">Access code</button>' }],
+    )
+    expect(failures).toEqual([])
+  })
+})
+
+describe('gateSections (lockstep with the runtime section list)', () => {
+  it('passes against the real handbook.ts', () => {
+    expect(gateSections(HANDBOOK_SRC).failures).toEqual([])
+  })
+  it('fails when the runtime drops a section the compiler knows', () => {
+    const dropped = HANDBOOK_SRC.replace(/\{ id: 'your-school'[^}]*\},\n/, '')
+    expect(gateSections(dropped).failures.some((f: string) => f.includes('your-school'))).toBe(true)
+  })
+  it('fails when the runtime declares a section the compiler has never heard of', () => {
+    const extra = HANDBOOK_SRC.replace(
+      "{ id: 'your-school', title: 'Your school' },",
+      "{ id: 'your-school', title: 'Your school' },\n  { id: 'making-tea', title: 'Making tea' },",
+    )
+    expect(gateSections(extra).failures.some((f: string) => f.includes('making-tea'))).toBe(true)
+  })
+})
+
+describe('gateRoleBadges (whose capability is it)', () => {
+  it('passes against the real runtime and handbook', () => {
+    expect(gateRoleBadges(REAL_RUNTIME_SRC, HANDBOOK_SRC).failures).toEqual([])
+  })
+  it('FAILS when a persona has no badge label — an unbadged capability', () => {
+    const dropped = HANDBOOK_SRC.replace(/\n\s*teacher: 'Teacher',/, '')
+    expect(gateRoleBadges(REAL_RUNTIME_SRC, dropped).failures.some((f: string) => f.includes('teacher'))).toBe(true)
+  })
+  it('fails when the WalkPersona union and the compiler disagree', () => {
+    const renamed = REAL_RUNTIME_SRC.replace("'school_admin'", "'head_teacher'")
+    const { failures } = gateRoleBadges(renamed, HANDBOOK_SRC)
+    expect(failures.some((f: string) => f.includes('school_admin'))).toBe(true)
+    expect(failures.some((f: string) => f.includes('head_teacher'))).toBe(true)
+  })
+  it('knows every persona the compiler declares', () => {
+    expect(PERSONAS.length).toBeGreaterThan(0)
+    expect(HANDBOOK_SECTIONS.length).toBe(6)
+  })
+})
+
+describe('gatePlaceLinks (every place has somewhere to go)', () => {
+  it('passes against the real runtime and handbook', () => {
+    expect(gatePlaceLinks(REAL_RUNTIME_SRC, HANDBOOK_SRC).failures).toEqual([])
+  })
+  it('fails when the runtime learns a place the page cannot link to', () => {
+    const extra = REAL_RUNTIME_SRC.replace("'library',", "'library', 'moon-base',")
+    expect(gatePlaceLinks(extra, HANDBOOK_SRC).failures.some((f: string) => f.includes('moon-base'))).toBe(true)
   })
 })
