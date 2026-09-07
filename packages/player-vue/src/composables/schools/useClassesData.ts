@@ -107,6 +107,18 @@ export interface ClassTeacherWriteResult {
   error: string | null
 }
 
+/**
+ * A pupil who is in this class's school but not in this class — the pool the
+ * "Add students" control on the class page draws from. `current_class_name` is
+ * the class they are in NOW, so putting them here reads as the move it is.
+ */
+export interface StudentCandidate {
+  user_id: string
+  learner_id: string
+  display_name: string
+  current_class_name: string | null
+}
+
 /** A minted class-scoped co-teacher link — `code` is null whenever `ok` is false. */
 export interface CoTeacherLinkResult {
   ok: boolean
@@ -862,6 +874,67 @@ export function useClassesData() {
   }
 
   /**
+   * The pupils this class could take: everyone in its school who is not on it
+   * already. Server-mediated, because a teacher's RLS view of `user_tags`
+   * covers only their own classes — they cannot see the pupil in the class
+   * next door, which is precisely the one they are looking for.
+   *
+   * An unreadable list and an empty one are different answers and are reported
+   * differently: `error` is set only when the lookup actually failed.
+   */
+  async function fetchAddableStudents(
+    classId: string,
+  ): Promise<{ candidates: StudentCandidate[]; error: string | null }> {
+    try {
+      const { data: { session } } = await client.auth.getSession()
+      const token = session?.access_token
+      if (!token) return { candidates: [], error: 'You are not signed in.' }
+      const resp = await fetch(`/api/teacher/class-students?class_id=${encodeURIComponent(classId)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) {
+        const message = data.error || `Request failed: ${resp.status}`
+        console.error('[ClassesData] addable-student lookup failed:', message)
+        return { candidates: [], error: message }
+      }
+      return { candidates: (data.candidates ?? []) as StudentCandidate[], error: null }
+    } catch (err) {
+      console.error('[ClassesData] addable-student fetch error:', err)
+      return { candidates: [], error: err instanceof Error ? err.message : 'Failed to reach the server' }
+    }
+  }
+
+  /**
+   * Put a pupil on this class's roster. The client cannot write this row —
+   * `user_tags_insert` lets a signed-in user tag only themselves — so it goes
+   * through the service-role route, which re-checks that the caller teaches
+   * the class and that the pupil is in its school.
+   */
+  async function addClassStudent(classId: string, targetUserId: string): Promise<ClassTeacherWriteResult> {
+    try {
+      const { data: { session } } = await client.auth.getSession()
+      const token = session?.access_token
+      if (!token) return { ok: false, error: 'You are not signed in.' }
+      const resp = await fetch('/api/teacher/class-students', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ class_id: classId, target_user_id: targetUserId }),
+      })
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}))
+        const message = data.error || `Request failed: ${resp.status}`
+        console.error('[ClassesData] add-student write failed:', message)
+        return { ok: false, error: message }
+      }
+      return { ok: true, error: null }
+    } catch (err) {
+      console.error('[ClassesData] add-student fetch error:', err)
+      return { ok: false, error: err instanceof Error ? err.message : 'Failed to reach the server' }
+    }
+  }
+
+  /**
    * Mint a CLASS-SCOPED co-teacher link (A-74) — the supply-teacher lane.
    *
    * The invite/redeem half shipped 2026-08-06 (api/invite/create.ts teacher +
@@ -1069,6 +1142,8 @@ export function useClassesData() {
     deleteClass,
     addClassTeacher,
     removeClassTeacher,
+    fetchAddableStudents,
+    addClassStudent,
     createCoTeacherLink,
     startClassSession,
     endClassSession,
