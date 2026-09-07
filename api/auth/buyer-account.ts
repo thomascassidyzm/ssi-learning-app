@@ -26,9 +26,21 @@
  * user_metadata.onboarded_via = 'possession' and its learner row carries
  * needs_verification = true — the exact pair the existing add-and-verify
  * apparatus (useAuth, SettingsScreen's add-email prompt, api/email/verify.ts)
- * already keys off. Nothing on the money path is told this address is proven:
- * the webhook's payer-resolution rail (SEC15-04) requires
- * learner_emails.verified = true, and this endpoint never writes that row.
+ * already keys off, and the durable record that this mailbox was never proved.
+ *
+ * BE CLEAR ABOUT WHAT learner_emails SAYS. The `sync_email_on_auth_user`
+ * trigger writes learner_emails on every auth.users insert with
+ * `verified = email_confirmed_at IS NOT NULL`, and this project's GoTrue
+ * stamps email_confirmed_at at creation regardless of email_confirm:false —
+ * measured live 2026-09-07. So an account minted here reads verified=true in
+ * that table without anybody having proved receipt. That is NOT new: it is
+ * exactly what api/auth/possession-redeem has done in production since July,
+ * for the same reason and through the same trigger. It does mean the
+ * webhook's email-based payer-resolution rail (SEC15-04) is weaker than its
+ * own comment claims for possession-class accounts. Nothing in THIS flow
+ * relies on it — the Family and Premium checkouts always carry
+ * customData.supabase_user_id — but it is logged as an open question rather
+ * than papered over. `needs_verification` is the field that tells the truth.
  *
  * Security rails, all carried over from possession-redeem:
  *   - AN ADDRESS THAT ALREADY HAS AN ACCOUNT IS NEVER MINTED A SESSION. That
@@ -168,21 +180,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   const newUserId = created.user.id
 
-  // The learner row is created HERE rather than left to the client's
-  // ensureLearnerExists, because the Paddle webhook resolves the payer by
-  // customData.supabase_user_id → learners.user_id. A purchase whose learner
-  // row was still racing into existence would be a subscription written
-  // nowhere. needs_verification is the durable "never proved mailbox receipt"
-  // record — the same value the client would have computed from
-  // onboarded_via: 'possession'.
-  const { error: learnerError } = await supabase.from('learners').insert({
-    user_id: newUserId,
-    display_name: rawEmail.split('@')[0] || 'Learner',
-    verified_emails: [],
-    needs_verification: true,
-  })
-  if (learnerError) {
-    console.error('[BuyerAccount] learner row creation failed:', learnerError)
+  // THE LEARNER ROW ALREADY EXISTS. The `on_auth_user_created` trigger on
+  // auth.users inserts it (display_name = the address's local part), so this
+  // stamps the one field the trigger cannot know: that nobody has ever proved
+  // this mailbox. Verified live 2026-09-07 — an INSERT here fails 23505 on
+  // learners_user_id_key every time, which is exactly how the first staging
+  // walk of this endpoint died.
+  //
+  // It matters that the row is settled BEFORE Paddle opens: the webhook
+  // resolves the payer by customData.supabase_user_id → learners.user_id, so
+  // a purchase racing the row's creation would be a subscription written
+  // nowhere.
+  const { data: learnerRow, error: learnerError } = await supabase
+    .from('learners')
+    .update({ needs_verification: true })
+    .eq('user_id', newUserId)
+    .select('id')
+    .maybeSingle()
+  if (learnerError || !learnerRow) {
+    console.error('[BuyerAccount] learner row not settled:', learnerError)
     await supabase.auth.admin.deleteUser(newUserId).catch(() => {})
     await logMintAttempt(supabase, { ipHash, outcome: 'buyer_account_error' })
     res.status(500).json({ success: false, error: 'We could not set up your account. Please try again.' })
