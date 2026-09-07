@@ -64,24 +64,76 @@ try {
   await p.waitForTimeout(4000)
   log('BUILD:', await p.evaluate(() => fetch('/version.json').then(r => r.text())))
 
-  // Settings (the gear in the player's bottom bar) → Subscription → See plans.
+  const pickerOf = async (tag) => {
+    const text = (await p.locator('.plans-card').innerText().catch(() => '(NO PICKER)')).replace(/\s+/g, ' ')
+    await p.screenshot({ path: `${OUT}/177-picker-${tag}.png` })
+    log(`\nPICKER via ${tag}: ${text}`)
+    return text
+  }
+  const closePicker = async () => { await p.locator('.plans-close').first().click().catch(() => {}); await p.waitForTimeout(800) }
+
+  // ENTRY POINT 1 — Settings → Subscription → Upgrade.
   await p.locator('.bottom-nav button, footer button, [aria-label*="ettings"]').last().click().catch(() => {})
   await p.waitForTimeout(3000)
-  let seePlans = p.getByText(/see plans/i).first()
-  for (let i = 0; i < 25 && !(await seePlans.isVisible().catch(() => false)); i++) {
-    await p.mouse.wheel(0, 900)
-    await p.waitForTimeout(400)
-    seePlans = p.getByText(/see plans/i).first()
+  let upgrade = p.getByText(/^upgrade$/i).first()
+  for (let i = 0; i < 25 && !(await upgrade.isVisible().catch(() => false)); i++) {
+    await p.mouse.wheel(0, 900); await p.waitForTimeout(400); upgrade = p.getByText(/^upgrade$/i).first()
   }
-  log('SEE PLANS row visible:', await seePlans.isVisible().catch(() => false))
+  log('SETTINGS: one Upgrade row visible:', await upgrade.isVisible().catch(() => false))
+  log('SETTINGS: old separate rows gone:',
+      !(await p.getByText(/^go premium$/i).first().isVisible().catch(() => false)) &&
+      !(await p.getByText(/^go family$/i).first().isVisible().catch(() => false)))
   await p.screenshot({ path: `${OUT}/177-1-settings.png`, fullPage: true })
-  await seePlans.click()
+  await upgrade.click()
   await p.waitForTimeout(1200)
+  const pickerText = await pickerOf('settings')
+  await closePicker()
 
-  const pickerText = (await p.locator('.plans-card').innerText().catch(() => '(no picker)')).replace(/\s+/g, ' ')
-  log('\nPICKER:', pickerText)
-  await p.screenshot({ path: `${OUT}/177-2-picker.png` })
+  // ENTRY POINT 2 — the course picker's upgrade CTA. ?openCourses=1 is the
+  // app's own way in (it is the Paddle success redirect), so no guessing.
+  await p.goto(`${BASE}/?openCourses=1`, { waitUntil: 'domcontentloaded' }).catch(() => {})
+  await p.waitForTimeout(7000)
+  const cta = p.locator('.section-header__cta').first()
+  const ctaSeen = await cta.isVisible().catch(() => false)
+  log('\nCOURSE PICKER: upgrade CTA visible:', ctaSeen, '| label:', ctaSeen ? await cta.innerText() : '(none)')
+  let pickerFromCourses = '(CTA not reached)'
+  if (ctaSeen) {
+    await cta.click()
+    await p.waitForTimeout(1500)
+    pickerFromCourses = await pickerOf('course-picker')
+    await closePicker()
+  }
 
+  // ENTRY POINT 3 — the in-player paywall, the real conversion moment. Raised
+  // the way a learner raises it without playing for an hour: the belt map's
+  // padlocked belt runs the same entitlement gate (gateSeed) that seed 20 does.
+  const COURSE = 'spa_for_eng'
+  await p.goto(`${BASE}/?course=${COURSE}`, { waitUntil: 'domcontentloaded' }).catch(() => {})
+  await p.waitForTimeout(12000)
+  await p.locator('[aria-label*="Tap to jump to a belt"]').first().click().catch(() => {})
+  await p.waitForTimeout(3000)
+  const locked = p.locator('.map-chip.is-paywalled')
+  const lockedCount = await locked.count().catch(() => 0)
+  log('\nBELT MAP: padlocked belts:', lockedCount)
+  let pickerFromWall = '(paywall not reached)'
+  if (lockedCount) {
+    await locked.last().click().catch(() => {})
+    await p.waitForTimeout(4000)
+  }
+  const wall = p.locator('.paywall-card')
+  const wallUp = await wall.isVisible().catch(() => false)
+  log('IN-PLAYER PAYWALL raised:', wallUp)
+  if (wallUp) {
+    log('PAYWALL TEXT:', (await wall.innerText()).replace(/\s+/g, ' ').slice(0, 240))
+    await p.screenshot({ path: `${OUT}/177-3-paywall.png` })
+    await p.locator('.paywall-btn-primary').first().click()
+    await p.waitForTimeout(1500)
+    pickerFromWall = await pickerOf('in-player-paywall')
+    await closePicker()
+  }
+
+  // Tap a price and read what Paddle renders. On the dev alias Paddle refuses
+  // the domain, so this reads the overlay title and whatever the frame says.
   const tap = async (label, tag) => {
     const btn = p.locator('.plan-btn', { hasText: label }).first()
     await btn.click()
@@ -91,16 +143,30 @@ try {
     return r
   }
 
+  const reopen = async () => {
+    // Back to a known page first — entry point 3 left us in the player.
+    await p.goto(BASE, { waitUntil: 'domcontentloaded' }).catch(() => {})
+    await p.waitForTimeout(6000)
+    await p.locator('.bottom-nav button, footer button, [aria-label*="ettings"]').last().click().catch(() => {})
+    await p.waitForTimeout(2500)
+    let u = p.getByText(/^upgrade$/i).first()
+    for (let i = 0; i < 25 && !(await u.isVisible().catch(() => false)); i++) {
+      await p.mouse.wheel(0, 900); await p.waitForTimeout(400); u = p.getByText(/^upgrade$/i).first()
+    }
+    await u.click().catch(() => {})
+    await p.waitForTimeout(1200)
+  }
+  await reopen()
   const fam = await tap('£25/month', '3-family-monthly')
-  await p.getByText(/see plans/i).first().click().catch(() => {})
-  await p.waitForTimeout(1200)
+  await reopen()
   const famY = await tap('£250/year', '4-family-annual')
-  await p.getByText(/see plans/i).first().click().catch(() => {})
-  await p.waitForTimeout(1200)
+  await reopen()
   const prem = await tap('£15/month', '5-premium-monthly')
 
   log('\n=== VERDICT ===')
-  log('picker offers:', pickerText.slice(0, 200))
+  log('picker via Settings        :', pickerText.slice(0, 120))
+  log('picker via course picker    :', pickerFromCourses.slice(0, 120))
+  log('picker via in-player paywall:', pickerFromWall.slice(0, 120))
   log('family monthly →', fam.title, '|', /25/.test(fam.frameText) ? 'shows 25' : 'NO 25 SEEN')
   log('family annual  →', famY.title, '|', /250/.test(famY.frameText) ? 'shows 250' : 'NO 250 SEEN')
   log('premium monthly→', prem.title, '|', /15/.test(prem.frameText) ? 'shows 15' : 'NO 15 SEEN')
