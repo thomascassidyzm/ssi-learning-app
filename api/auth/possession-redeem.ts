@@ -52,6 +52,8 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { randomUUID } from 'crypto'
 import { isValidEmailFormat, isDisposableEmailDomain, hasMxRecord } from '../_utils/emailValidation'
 import { buildShellClaim, clearedShellClaim, shellClaimMatches } from '../_utils/shellClaim'
+import { buildUnclaimedMint } from '../_utils/unclaimedMint'
+import { readSessionId } from './buyer-account'
 import {
   getClientIp,
   hashIp,
@@ -177,10 +179,19 @@ async function tryAdoptShellAccount(
     // Carry the same "never proved mailbox receipt" marker a fresh possession
     // account gets, so the add-your-email nudge behaves identically.
     // Spend the claim in the same patch: one shell, adopted once.
+    //
+    // AND mark the mint unclaimed (job #345). This session was handed to
+    // whoever spent the invite code, on an address nobody has proved — so it
+    // dies the moment the address's real owner signs in by receiving mail.
+    // See api/_utils/unclaimedMint.ts.
+    const adoptedSessionId = readSessionId(verifyData.session.access_token)
     await supabase.auth.admin
       .updateUserById(existingId, {
         user_metadata: { ...(user.user_metadata || {}), onboarded_via: 'possession' },
-        app_metadata: clearedShellClaim(user.app_metadata as Record<string, unknown> | null),
+        app_metadata: {
+          ...clearedShellClaim(user.app_metadata as Record<string, unknown> | null),
+          ...(adoptedSessionId ? buildUnclaimedMint(adoptedSessionId, 'possession_adopt') : {}),
+        },
       })
       .catch(() => {})
 
@@ -506,6 +517,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         authUserId: newUserId,
         errorDetail: verifyError?.message ?? 'verifyOtp returned no session',
       })
+      res.status(500).json({ success: false, error: 'Could not sign you in. Please try again.' })
+      return
+    }
+
+    // Mark the mint unclaimed before handing the session over (job #345).
+    // Nothing in this flow proved the typed address — only that somebody held
+    // a shared invite code — so this session is provisional and dies when the
+    // address's real owner signs in by receiving mail at it. A stamp that
+    // fails takes the account with it rather than shipping an unmarked mint.
+    const mintSessionId = readSessionId(verifyData.session.access_token)
+    const { error: markError } = mintSessionId
+      ? await supabase.auth.admin.updateUserById(newUserId, {
+          app_metadata: {
+            ...((created.user.app_metadata as Record<string, unknown>) || {}),
+            ...buildUnclaimedMint(mintSessionId, 'possession_redeem'),
+          },
+        })
+      : { error: new Error('access token carried no session_id') as any }
+    if (markError) {
+      console.error('[PossessionRedeem] could not mark the mint unclaimed:', markError)
+      await supabase.from('learners').delete().eq('user_id', newUserId).then(undefined, () => {})
+      await supabase.auth.admin.deleteUser(newUserId).catch(() => {})
+      await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: normalizedEmail, ipHash, outcome: 'error', authUserId: newUserId, errorDetail: 'unclaimed-mint stamp failed' })
       res.status(500).json({ success: false, error: 'Could not sign you in. Please try again.' })
       return
     }

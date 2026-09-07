@@ -19,6 +19,7 @@ import { clearAllCachedBundles, revalidateCachedBundles } from '@/composables/us
 import { reconcileAudioCacheOwner } from '@/cache/audioCacheOwner'
 import { isPlaceholderEmail } from '@/utils/placeholderEmail'
 import { useAccessClaim } from '@/composables/useAccessClaim'
+import { claimAccountIfNeeded } from '../auth/claimAccount'
 import { writeAuthHandoff, readAndConsumeAuthHandoff, isStandalone } from '@/utils/authHandoff'
 import { withNetworkTimeout, NETWORK_TIMEOUT } from '@/config/networkGate'
 import {
@@ -613,6 +614,13 @@ export function useAuth(): AuthState & AuthActions {
       // Idempotent and best-effort — never blocks or breaks the auth flow.
       if (event === 'SIGNED_IN' && session?.access_token) {
         void useAccessClaim().claimAccess(session.access_token)
+        // And take ownership of the account itself, if this is the sign-in
+        // that first proves the address (job #345). The purchase and invite
+        // flows hand out a session on an UNPROVEN address; whatever was
+        // minted before the mailbox owner arrived dies here. This is the one
+        // call site for all six code-sign-in screens — see
+        // src/auth/claimAccount.ts for why it is not six.
+        void claimAccountIfNeeded(supabaseClient, session.access_token)
       }
     })
 

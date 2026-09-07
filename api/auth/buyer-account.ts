@@ -56,6 +56,15 @@
  *     table is needed.
  *   - a password, when given, is set at creation so it is a real credential
  *     the buyer holds next time. It is never logged.
+ *   - THE ACCOUNT IS MINTED UNCLAIMED. Nothing above proves the address, so
+ *     everything minted here — the password and this very session — is marked
+ *     provisional in `app_metadata` and DIES the moment somebody signs in by
+ *     receiving mail at it (api/_utils/unclaimedMint.ts,
+ *     api/auth/claim-account.ts). Without that, typing a stranger's address
+ *     planted a password and a session on it that survived the real owner's
+ *     own sign-in for the life of the account — reproduced live, job #345,
+ *     2026-09-07. The 409 below stops a squatter taking a LIVE account; this
+ *     stops them holding one they got to first.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -67,6 +76,7 @@ import {
   logMintAttempt,
   mintIpHash,
 } from '../_utils/mintRateLimit'
+import { buildUnclaimedMint } from '../_utils/unclaimedMint'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -244,6 +254,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     return
   }
 
+  // MARK THE MINT UNCLAIMED, naming the session we are about to hand out.
+  // `app_metadata` because only the service role may write it — a marker the
+  // account holder could clear through supabase.auth.updateUser() would be
+  // cleared first by the one person it exists to stop.
+  //
+  // It has to happen HERE rather than at createUser: the id of the session
+  // does not exist until the line above mints it. If the stamp fails we roll
+  // the whole account back rather than return an UNMARKED session — an
+  // unmarked mint is exactly the defect this closes.
+  const mintSessionId = readSessionId(verifyData.session.access_token)
+  const { error: markError } = mintSessionId
+    ? await supabase.auth.admin.updateUserById(newUserId, {
+        app_metadata: {
+          ...((created.user.app_metadata as Record<string, unknown>) || {}),
+          ...buildUnclaimedMint(mintSessionId, 'buyer_account'),
+        },
+      })
+    : { error: new Error('access token carried no session_id') as any }
+  if (markError) {
+    console.error('[BuyerAccount] could not mark the mint unclaimed:', markError)
+    await rollback()
+    await logMintAttempt(supabase, { ipHash, outcome: 'buyer_account_error' })
+    res.status(500).json({ success: false, error: 'We could not set up your account. Please try again.' })
+    return
+  }
+
   res.status(200).json({
     success: true,
     session: {
@@ -251,4 +287,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       refresh_token: verifyData.session.refresh_token,
     },
   })
+}
+
+/** The `session_id` GoTrue stamps on every access token. Verified live
+ *  2026-09-07: present on this project's tokens and stable across refresh. */
+export function readSessionId(accessToken: string): string | null {
+  try {
+    const payload = JSON.parse(Buffer.from(accessToken.split('.')[1] || '', 'base64').toString('utf8'))
+    return typeof payload?.session_id === 'string' && payload.session_id ? payload.session_id : null
+  } catch {
+    return null
+  }
 }

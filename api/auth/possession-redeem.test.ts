@@ -4,6 +4,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { fakeAccessToken } from '../_utils/testTokens'
 
 process.env.SUPABASE_URL = 'https://example.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key'
@@ -177,7 +178,7 @@ describe('POST /api/auth/possession-redeem', () => {
     }
     createUserResult = { data: { user: { id: 'auth-user-1' } }, error: null }
     generateLinkResult = { data: { properties: { hashed_token: 'hashed-token-123' } }, error: null }
-    verifyOtpResult = { data: { session: { access_token: 'at-1', refresh_token: 'rt-1' } }, error: null }
+    verifyOtpResult = { data: { session: { access_token: fakeAccessToken({ session_id: 'session-mint-1' }), refresh_token: 'rt-1' } }, error: null }
     handler = (await import('./possession-redeem')).default
   })
 
@@ -187,7 +188,7 @@ describe('POST /api/auth/possession-redeem', () => {
 
     expect(res._status).toBe(200)
     expect(res._json.success).toBe(true)
-    expect(res._json.session).toEqual({ access_token: 'at-1', refresh_token: 'rt-1' })
+    expect(res._json.session).toEqual({ access_token: fakeAccessToken({ session_id: 'session-mint-1' }), refresh_token: 'rt-1' })
     expect(attempts.some((a) => a.outcome === 'minted' && a.auth_user_id === 'auth-user-1')).toBe(true)
   })
 
@@ -318,7 +319,7 @@ describe('POST /api/auth/possession-redeem', () => {
 
       expect(res._status).toBe(200)
       expect(res._json.success).toBe(true)
-      expect(res._json.session).toEqual({ access_token: 'at-1', refresh_token: 'rt-1' })
+      expect(res._json.session).toEqual({ access_token: fakeAccessToken({ session_id: 'session-mint-1' }), refresh_token: 'rt-1' })
     })
 
     it('mints the account against a unique placeholder address flagged link_auth, carrying the captured name', async () => {
@@ -405,7 +406,7 @@ describe('POST /api/auth/possession-redeem', () => {
       expect(res._status).toBe(200)
       expect(res._json.success).toBe(true)
       expect(res._json.personal).toBe(true)
-      expect(res._json.session).toEqual({ access_token: 'at-1', refresh_token: 'rt-1' })
+      expect(res._json.session).toEqual({ access_token: fakeAccessToken({ session_id: 'session-mint-1' }), refresh_token: 'rt-1' })
       // The session is for the stored user's own email — bound server-side.
       expect(getUserByIdArg).toBe('persona-77')
       expect(generateLinkArg.email).toBe('persona-77@invite.saysomethingin.app')
@@ -483,7 +484,7 @@ describe('POST /api/auth/possession-redeem', () => {
       }
       shellLearnerRow = null
       shellLearnerErr = null
-      verifyOtpResult = { data: { session: { access_token: 'shell-at', refresh_token: 'shell-rt' } }, error: null }
+      verifyOtpResult = { data: { session: { access_token: fakeAccessToken({ session_id: 'session-shell' }), refresh_token: 'shell-rt' } }, error: null }
     })
 
     it('ADOPTS a shell this invite itself created: 200, adopted:true, a session, and an adopted_shell audit outcome', async () => {
@@ -493,7 +494,7 @@ describe('POST /api/auth/possession-redeem', () => {
       expect(res._status).toBe(200)
       expect(res._json.success).toBe(true)
       expect(res._json.adopted).toBe(true)
-      expect(res._json.session).toEqual({ access_token: 'shell-at', refresh_token: 'shell-rt' })
+      expect(res._json.session).toEqual({ access_token: fakeAccessToken({ session_id: 'session-shell' }), refresh_token: 'shell-rt' })
       expect(attempts.some((a) => a.outcome === 'adopted_shell' && a.auth_user_id === 'shell-user-1')).toBe(true)
     })
 
@@ -635,7 +636,7 @@ describe('POST /api/auth/possession-redeem', () => {
         error: null,
       }
       shellLearnerRow = null
-      verifyOtpResult = { data: { session: { access_token: 'victim-at', refresh_token: 'victim-rt' } }, error: null }
+      verifyOtpResult = { data: { session: { access_token: fakeAccessToken({ session_id: 'session-victim' }), refresh_token: 'victim-rt' } }, error: null }
     })
 
     it('a shared STUDENT join code cannot adopt a send-code shell for a staff address', async () => {

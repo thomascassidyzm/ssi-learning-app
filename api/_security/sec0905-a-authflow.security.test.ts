@@ -78,7 +78,12 @@ describe('SEC0905-A-02: possession-redeem.ts shell adoption is bound to the invi
     // adopted at most once.
     expect(src).toMatch(/import \{ buildShellClaim, clearedShellClaim, shellClaimMatches \} from '\.\.\/_utils\/shellClaim'/)
     expect(src).toMatch(/app_metadata: buildShellClaim\(inviteRow\.id as string\)/)
-    expect(src).toMatch(/app_metadata: clearedShellClaim\(/)
+    // Job #345 spread the unclaimed-mint marker into the same patch, so the
+    // clear is no longer the whole value of app_metadata. What must still hold
+    // is that adoption SPENDS the shell claim — assert the call, not its
+    // position in an object literal, or the next honest edit breaks this again.
+    expect(src).toMatch(/clearedShellClaim\(user\.app_metadata as Record<string, unknown> \| null\)/)
+    expect(src).toMatch(/app_metadata: \{[\s\S]{0,200}?clearedShellClaim\(/)
     // The eligible-code-type set is still the single shared gate — the
     // narrowing that closed the finding is the claim, not the code type.
     expect(src).toMatch(

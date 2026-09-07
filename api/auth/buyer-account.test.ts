@@ -11,6 +11,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { fakeAccessToken } from '../_utils/testTokens'
 
 process.env.SUPABASE_URL = 'https://example.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key'
@@ -33,6 +34,8 @@ vi.mock('dns', () => ({
 
 let createUserResult: any
 let createUserArg: any
+let updateUserCalls: Array<{ id: string; patch: any }>
+let updateUserResult: any
 let generateLinkResult: any
 let verifyOtpResult: any
 let deleteUserCalls: string[]
@@ -99,6 +102,10 @@ vi.mock('@supabase/supabase-js', () => ({
             return Promise.resolve(createUserResult)
           },
           generateLink: () => Promise.resolve(generateLinkResult),
+          updateUserById: (id: string, patch: any) => {
+            updateUserCalls.push({ id, patch })
+            return Promise.resolve(updateUserResult)
+          },
           deleteUser: (id: string) => {
             deleteUserCalls.push(id)
             return Promise.resolve({ error: null })
@@ -152,10 +159,12 @@ describe('POST /api/auth/buyer-account', () => {
     learnerDeletes = []
     deleteUserCalls = []
     createUserArg = undefined
-    createUserResult = { data: { user: { id: 'user-new' } }, error: null }
+    updateUserCalls = []
+    updateUserResult = { error: null }
+    createUserResult = { data: { user: { id: 'user-new', app_metadata: {} } }, error: null }
     generateLinkResult = { data: { properties: { hashed_token: 'hashed-abc' } }, error: null }
     verifyOtpResult = {
-      data: { session: { access_token: 'at-1', refresh_token: 'rt-1' } },
+      data: { session: { access_token: fakeAccessToken({ session_id: 'session-mint-1' }), refresh_token: 'rt-1' } },
       error: null,
     }
   })
@@ -167,7 +176,7 @@ describe('POST /api/auth/buyer-account', () => {
     expect(res.statusCode).toBe(200)
     expect(res.body).toMatchObject({
       success: true,
-      session: { access_token: 'at-1', refresh_token: 'rt-1' },
+      session: { access_token: fakeAccessToken({ session_id: 'session-mint-1' }), refresh_token: 'rt-1' },
     })
     // Nothing is sent, and nothing downstream is told this address is proven.
     expect(createUserArg.email_confirm).toBe(false)
@@ -179,6 +188,35 @@ describe('POST /api/auth/buyer-account', () => {
     // the trigger cannot know.
     expect(learnerInserts).toEqual([{ needs_verification: true }])
     expect(learnerUpdateTargets).toEqual(['user-new'])
+  })
+
+  it('MARKS THE MINT UNCLAIMED, naming the session it hands out', async () => {
+    // The whole of job #345 turns on this stamp. Without it, whoever typed a
+    // stranger's address keeps the password and the session they planted even
+    // after the real mailbox owner signs in — reproduced live 2026-09-07.
+    const res = makeRes()
+    await handler(makeReq({ email: 'buyer@example.com', password: 'hunter22' }), res)
+
+    expect(res.statusCode).toBe(200)
+    const stamp = updateUserCalls.find((c) => c.patch?.app_metadata?.unclaimed_mint)
+    expect(stamp, 'the mint must be marked unclaimed').toBeTruthy()
+    expect(stamp!.id).toBe('user-new')
+    // Named by SESSION, not by account: the session id is what stops the
+    // squatter clearing their own marker later.
+    expect(stamp!.patch.app_metadata.unclaimed_mint.session_id).toBe('session-mint-1')
+    expect(stamp!.patch.app_metadata.unclaimed_mint.minted_by).toBe('buyer_account')
+  })
+
+  it('rolls the whole account back rather than return an UNMARKED session', async () => {
+    // An unmarked mint is exactly the defect, so a stamp that fails must not
+    // ship a session anyway.
+    updateUserResult = { error: { message: 'metadata write failed' } }
+    const res = makeRes()
+    await handler(makeReq({ email: 'buyer@example.com' }), res)
+
+    expect(res.statusCode).toBe(500)
+    expect(res.body.success).toBe(false)
+    expect(deleteUserCalls).toContain('user-new')
   })
 
   it('sets the password when one is given, and never demands one', async () => {
