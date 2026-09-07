@@ -45,13 +45,14 @@ import { getLanguageName } from '@/composables/useI18n'
 import { courseShortName } from '@ssi/core'
 import FrostSelect from '@/components/FrostSelect.vue'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
+import { preselectedCourseCode } from './setupCoursePreselect'
 
 const router = useRouter()
 const supabase = inject('supabase', ref(null)) as any
 const { currentUser } = useSchoolContext()
 const { activeSchool, currentSchool, fetchSchools } = useSchoolData()
 const { classes, fetchClasses, createClass, error: classesError } = useClassesData()
-const { availableCourses: effectiveCourseGrants, fetchCatalogue, loadSchoolPlatformState } = useSchoolCourseCatalogue()
+const { availableCourses: effectiveCourseGrants, schoolTrialCourse, fetchCatalogue, loadSchoolPlatformState } = useSchoolCourseCatalogue()
 const { teachers, fetchTeachers } = useTeachersData()
 
 interface Step {
@@ -212,7 +213,7 @@ const draftClasses = ref<DraftClass[]>([
 ])
 
 function addClassRow() {
-  draftClasses.value.push({ class_name: '', course_code: '', saved: false })
+  draftClasses.value.push({ class_name: '', course_code: signupCourseCode.value || '', saved: false })
 }
 
 function removeClassRow(index: number) {
@@ -234,6 +235,26 @@ const availableCoursesForClass = computed<CatalogueCourse[]>(() => {
 const courseSelectOptions = computed(() =>
   availableCoursesForClass.value.map(g => ({ value: g.course_code, label: courseDisplayName(g) })),
 )
+
+// The language this school chose at sign-up, read back from the one place it
+// was stored (schools.trial_course_code). The wizard opened its course picker
+// empty and asked "Choose course" of a head who answered that question at the
+// door ten minutes earlier (founder report, 2026-09-07). Preselected, never
+// locked: the picker still carries every course the school can use, filterable,
+// because a school on its free year will want other languages too.
+const signupCourseCode = computed(() =>
+  preselectedCourseCode(schoolTrialCourse.value, availableCoursesForClass.value),
+)
+
+// Fill only rows the head has not answered for themselves, and never touch a
+// saved one — a preselection that overwrites a real choice is worse than no
+// preselection at all.
+watch(signupCourseCode, (code) => {
+  if (!code) return
+  for (const draft of draftClasses.value) {
+    if (!draft.saved && !draft.course_code) draft.course_code = code
+  }
+}, { immediate: true })
 
 async function persistClasses(): Promise<boolean> {
   const school = activeSchool.value || currentSchool.value
@@ -597,15 +618,17 @@ onMounted(() => {
                    is how a course reaches learners at all — a course does not
                    belong to a person, it belongs to a class, and everybody in
                    that class practises it.
-                   Where it is. On each class row, the **Choose course** picker
-                   beside the class name.
+                   Where it is. On each class row, the course picker beside the
+                   class name. It already holds the language you chose when you
+                   signed your school up, so most classes need nothing done here.
                    How you do it.
-                   1. Tap **Choose course** on the class row.
-                   2. Start typing a language to narrow the list — the catalogue
+                   1. Leave it as it is to teach the language you signed up with.
+                   2. To teach something else, tap the picker on the class row.
+                   3. Start typing a language to narrow the list — the catalogue
                       runs to dozens of courses.
-                   3. Pick the one you want. Where a language offers more than
+                   4. Pick the one you want. Where a language offers more than
                       one version, the versions differ by region or accent.
-                   4. Save the class, and everyone who joins it lands in that
+                   5. Save the class, and everyone who joins it lands in that
                       course.
                    Worth knowing. The list here is whatever you left ticked at
                    the Choose courses step. If a course you expect is missing, go
@@ -650,9 +673,11 @@ onMounted(() => {
                  classes**. **+ Add another class** sits below the rows.
                  How you do it.
                  1. Open step four of first-time setup.
-                 2. Type a class name in the first row and choose its course.
-                 3. Tap **+ Add another class** for each further class and fill the
-                    row in the same way.
+                 2. Type a class name in the first row. Its course is already
+                    set to the language you signed your school up with — change it
+                    if this class is learning something else.
+                 3. Tap **+ Add another class** for each further class; every new
+                    row starts on that same language, and fills in the same way.
                  4. Remove a row you no longer want with the cross at its end.
                  5. Tap **Finish setup** — every filled-in row is created, and each
                     one is marked Added as it saves.
@@ -660,7 +685,7 @@ onMounted(() => {
                  rows, so running the wizard twice will not duplicate them.
                  Students are added from each class's own page whenever you are
                  ready.
-                 checked: 88185ef6
+                 checked: 15048309
             -->
             <button type="button" class="btn-ghost btn-add" data-walk="setup-add-class-row" @click="addClassRow">
               + Add another class
