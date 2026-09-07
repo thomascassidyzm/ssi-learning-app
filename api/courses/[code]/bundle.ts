@@ -921,9 +921,19 @@ export default async function handler(
     }
     if (previewOnly) bundle.previewOnly = true
 
+    // A bundle that is COMPLETE gets the full day at the edge. A bundle that
+    // is missing its pace facts must NOT: the derivation is time-boxed and a
+    // cold-buffer run can lose that race (Supabase pins statement_timeout=8s
+    // on `authenticator`, and our own box is tighter still), so caching the
+    // hole for a day would punish every learner of that course for one
+    // unlucky first request. Five minutes lets it heal on the next miss while
+    // still absorbing a burst.
+    const paceMissing = voicePace.unavailable === true
     res.setHeader(
       'Cache-Control',
-      'private, max-age=300, s-maxage=86400, stale-while-revalidate=86400',
+      paceMissing
+        ? 'private, max-age=60, s-maxage=300, stale-while-revalidate=300'
+        : 'private, max-age=300, s-maxage=86400, stale-while-revalidate=86400',
     )
     res.status(200).json(bundle)
   } catch (err) {

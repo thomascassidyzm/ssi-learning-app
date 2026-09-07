@@ -61,36 +61,53 @@ PARALLEL SAFE
 SET search_path TO 'public'
 AS $function$
 WITH referenced AS MATERIALIZED (
-  -- Every audio id this course's content actually points at. UNION ALL, not
-  -- UNION: a clip reused by twenty phrases is twenty clips the learner hears,
-  -- and the tally is about what they hear.
+  -- Every audio id this course's content actually points at, TAGGED WITH THE
+  -- SLOT IT IS PLAYED IN. The slot comes from the CONTENT column
+  -- (target1_audio_id is a target1 clip), not from `course_audio.role`, so the
+  -- tally answers the question the player is actually asking: "what will I be
+  -- playing in the voice-1 phase?" It also means the join reads only
+  -- `voice_id` off course_audio, which the covering index below carries.
   --
-  -- MATERIALIZED is load-bearing, not decoration. Inlined, the planner picked a
-  -- nested loop and probed `course_audio` once per reference — 52k index probes,
-  -- 260k buffers, 9.5s on fra_for_eng. Materialising the CTE and folding
-  -- duplicate ids first (`ref` below) lets it hash-join the distinct set:
-  -- ~400ms warm on the three largest courses, measured 2026-09-07.
-  -- One scan per content table via unnest, rather than six via UNION ALL.
-  SELECT unnest(ARRAY[l.known_audio_id, l.target1_audio_id, l.target2_audio_id]) AS id
-    FROM course_legos l WHERE l.course_code = p_course_code
+  -- UNION ALL, not UNION: a clip reused by twenty phrases is twenty clips the
+  -- learner hears, and the tally is about what they hear.
+  --
+  -- MATERIALIZED is load-bearing. Inlined, the planner picked a nested loop and
+  -- probed `course_audio` once per reference — 52k index probes, 260k buffers,
+  -- ~9.5s on fra_for_eng. Materialised, with duplicate ids folded first
+  -- (`ref`), it hash-joins the distinct set: ~420ms warm on the three largest
+  -- courses, measured 2026-09-07.
+  SELECT 'known'::text AS role, l.known_audio_id AS id FROM course_legos l
+    WHERE l.course_code = p_course_code AND l.known_audio_id IS NOT NULL
   UNION ALL
-  SELECT unnest(ARRAY[p.known_audio_id, p.target1_audio_id, p.target2_audio_id])
-    FROM course_practice_phrases p WHERE p.course_code = p_course_code
+  SELECT 'target1', l.target1_audio_id FROM course_legos l
+    WHERE l.course_code = p_course_code AND l.target1_audio_id IS NOT NULL
+  UNION ALL
+  SELECT 'target2', l.target2_audio_id FROM course_legos l
+    WHERE l.course_code = p_course_code AND l.target2_audio_id IS NOT NULL
+  UNION ALL
+  SELECT 'known', p.known_audio_id FROM course_practice_phrases p
+    WHERE p.course_code = p_course_code AND p.known_audio_id IS NOT NULL
+  UNION ALL
+  SELECT 'target1', p.target1_audio_id FROM course_practice_phrases p
+    WHERE p.course_code = p_course_code AND p.target1_audio_id IS NOT NULL
+  UNION ALL
+  SELECT 'target2', p.target2_audio_id FROM course_practice_phrases p
+    WHERE p.course_code = p_course_code AND p.target2_audio_id IS NOT NULL
 ),
 ref AS MATERIALIZED (
-  SELECT id, count(*)::bigint AS n FROM referenced WHERE id IS NOT NULL GROUP BY id
+  SELECT role, id, count(*)::bigint AS n FROM referenced GROUP BY role, id
 ),
 tally AS MATERIALIZED (
   SELECT
-    ca.role,
+    ref.role,
     ca.voice_id,
     sum(ref.n)::bigint AS clips,
-    row_number() OVER (PARTITION BY ca.role ORDER BY sum(ref.n) DESC, ca.voice_id) AS rk
+    row_number() OVER (PARTITION BY ref.role ORDER BY sum(ref.n) DESC, ca.voice_id) AS rk
   FROM course_audio ca
   JOIN ref ON ref.id = ca.id
   WHERE ca.course_code = p_course_code
     AND ca.voice_id IS NOT NULL
-  GROUP BY ca.role, ca.voice_id
+  GROUP BY ref.role, ca.voice_id
 ),
 facts AS MATERIALIZED (
   SELECT
@@ -161,5 +178,24 @@ COMMENT ON FUNCTION public.course_voice_pace(text) IS
 -- CLAUDE.md's RLS doctrine rule 2 — the grants ship in the same file).
 REVOKE ALL ON FUNCTION public.course_voice_pace(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.course_voice_pace(text) TO service_role;
+
+-- THE COVERING INDEX, and it is a SWAP rather than an addition.
+--
+-- The join above needs `voice_id` for ~26k clip ids out of a 3.4 GB, 2.6M-row
+-- table. Without a covering index that is 26k random heap fetches and the query
+-- misses the 8s statement_timeout Supabase pins on `authenticator` (measured
+-- 2026-09-07: the first live run of this RPC came back "canceling statement due
+-- to statement timeout"). `idx_course_audio_course_id_revision` was already
+-- (course_code, id) INCLUDE (audio_revision); this is the same index with
+-- `voice_id` added to the INCLUDE, so every existing consumer keeps its plan.
+--
+-- It is not bigger: 189 MB against the old index's 212 MB, built live
+-- 2026-09-07 (the old one carried bloat). CONCURRENTLY so it never takes a
+-- write lock on a table the audio pipeline is writing to.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_course_audio_course_id_pace
+  ON public.course_audio USING btree (course_code, id)
+  INCLUDE (audio_revision, voice_id);
+
+DROP INDEX CONCURRENTLY IF EXISTS public.idx_course_audio_course_id_revision;
 
 NOTIFY pgrst, 'reload schema';
