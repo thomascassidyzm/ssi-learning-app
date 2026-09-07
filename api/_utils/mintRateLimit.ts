@@ -46,6 +46,7 @@
 import type { VercelRequest } from '@vercel/node'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createHash } from 'crypto'
+import { getClientIp } from './codeAttemptThrottle'
 
 export const MINT_RATE_WINDOW_MS = 15 * 60 * 1000
 
@@ -79,18 +80,22 @@ export const SCHOOL_MINT_OUTCOME = 'school_mint_attempt'
 export const RATE_LIMITED_MINT_IP = 'rate_limited_mint_ip'
 export const RATE_LIMITED_MINT_USER = 'rate_limited_mint_user'
 
-function getClientIp(req: VercelRequest): string {
-  return (
-    (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-    (req.headers['x-real-ip'] as string) ||
-    'unknown'
-  )
-}
-
 /**
- * Namespaced, truncated sha256 of the caller IP. Raw IPs are never stored.
- * The `mint:` prefix is what keeps mint rows out of the redemption limiters'
- * counts (and vice versa) — see the header.
+ * Namespaced, truncated sha256 of the PLATFORM-ATTESTED caller IP. Raw IPs are
+ * never stored. The `mint:` prefix is what keeps mint rows out of the
+ * redemption limiters' counts (and vice versa) — see the header.
+ *
+ * The IP comes from the SHARED getClientIp (codeAttemptThrottle.ts), which
+ * reads `x-vercel-forwarded-for` — a header the Vercel edge OVERWRITES rather
+ * than appends — then the raw socket, and never consults a client-settable
+ * `x-forwarded-for` / `x-real-ip`. This module used to hand-roll the pre-fix
+ * pattern (SEC0901-A-04b), which meant one forged header put every mint in a
+ * bucket of the attacker's choosing and the per-IP backstop below — the one
+ * whose whole job is bounding an attacker cycling FRESH accounts from one
+ * network — could be defeated for free. The per-user limit was unaffected, but
+ * a fresh-account farm never touches the per-user limit: it creates exactly one
+ * school per account. So on the school signup path, the per-IP bucket IS the
+ * control, and it now holds.
  */
 export function mintIpHash(req: VercelRequest): string {
   return createHash('sha256').update(`mint:${getClientIp(req)}`).digest('hex').slice(0, 16)
