@@ -602,7 +602,7 @@ function closeDelete(): void {
       <template v-else>
       <!-- HANDBOOK Bring your first person in
            section: getting-people-in
-           roles: admin, leader
+           roles: admin, leader, school_admin
            place: node-home
            keywords: invite, person, link, join, leader, learner
            walk: invite-first-person
@@ -671,7 +671,7 @@ function closeDelete(): void {
       <!-- HANDBOOK Add a class to a group
            parts: add-class-name, add-class-submit
            section: running-classes
-           roles: admin, leader
+           roles: admin, leader, school_admin
            place: node-home
            keywords: class, add, group, org, leader
            What it's for. Creating a class underneath a group you lead, before anyone is

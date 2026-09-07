@@ -751,7 +751,7 @@ const deleteImpactLines = computed(() => {
         <WalkOffer v-if="!isAdminView" persona="teacher" place="class-detail" />
         <!-- HANDBOOK Run your first class session
              section: running-classes
-             roles: teacher
+             roles: school_admin, teacher
              place: class-detail
              keywords: session, play, class, run, join, code
              walk: run-class-session
@@ -798,7 +798,7 @@ const deleteImpactLines = computed(() => {
                    another is one untick and one tick in here. -->
               <!-- HANDBOOK Move a teacher to another class
                    section: running-classes
-                   roles: teacher
+                   roles: leader, school_admin, teacher
                    place: class-detail
                    keywords: move, teacher, classes, assign, timetable
                    walk: move-a-teacher-between-classes
@@ -828,7 +828,7 @@ const deleteImpactLines = computed(() => {
               </button>
               <!-- HANDBOOK Hand a class over to another teacher
                    section: running-classes
-                   roles: teacher
+                   roles: leader, school_admin, teacher
                    place: class-detail
                    keywords: lead, hand over, class, teacher, transfer
                    walk: hand-over-the-lead
@@ -886,7 +886,7 @@ const deleteImpactLines = computed(() => {
                English rather than leaving a head to infer it. -->
           <!-- HANDBOOK Share a class with a colleague
                section: running-classes
-               roles: teacher
+               roles: leader, school_admin, teacher
                place: class-detail
                keywords: class, share, co-teacher, colleague, teachers
                walk: share-a-class
@@ -933,7 +933,7 @@ const deleteImpactLines = computed(() => {
 
         <!-- HANDBOOK Invite a teacher who isn't here yet
              section: running-classes
-             roles: teacher
+             roles: leader, school_admin, teacher
              place: class-detail
              keywords: supply, cover, teacher, invite, class, link
              walk: invite-a-supply-teacher
@@ -975,7 +975,7 @@ const deleteImpactLines = computed(() => {
     <div class="body-grid">
       <!-- HANDBOOK The class roster
            section: seeing-progress
-           roles: admin, leader, school_admin, teacher
+           roles: leader, school_admin, teacher
            place: class-detail
            keywords: roster, students, progress, belt, last active
            What it's for. Everyone in the class, one row each, with their belt, how much
@@ -1094,7 +1094,7 @@ const deleteImpactLines = computed(() => {
       <aside class="rail" :class="{ 'rail-first': rosterObservedEmpty }">
         <!-- HANDBOOK Where the class has got to
              section: seeing-progress
-             roles: admin, leader, school_admin, teacher
+             roles: leader, school_admin, teacher
              place: class-detail
              keywords: progress, journey, belt, position, course
              What it's for. How far the class has travelled through its course, as a
