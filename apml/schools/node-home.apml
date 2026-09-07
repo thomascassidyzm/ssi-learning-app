@@ -1,5 +1,6 @@
 # APML: Node Home — THE VIEW's one recursive dashboard
-# Last updated: 2026-08-07 (state_badge: a trial names its LANGUAGE, not the raw course code,
+# Last updated: 2026-09-07 (class-level Invite students verb + class-scoped ways-in ledger;
+#               2026-08-07: state_badge: a trial names its LANGUAGE, not the raw course code,
 #               and a trial school records that language at its first class — B1;
 #               school-admin first-run affordances on the member mount;
 #               creator becomes first manager; the node names its leader;
@@ -83,6 +84,17 @@ grammar:  # the same five parts, every level (THE-VIEW §1)
   stats_row: learners · teachers · classes · practice hours — SUBTREE totals via groupRollups.computeNodeExtras
   children_list: NodeChildrenList.vue # one row grammar for every lens payload
   verbs: invite someone (role × node) · see insights · quick actions (Structure flyout)
+  # CLASS LEVEL carries ONE verb — "Invite students" (founder ruling 2026-09-07:
+  # "we need it to be easy to see how to add students to a class"). It is the
+  # SAME NodeActionBar in class mode (prop `classId`), mounted on the class's
+  # SCHOOL node (payload `nodeId`, where /api/groups/:id/invites authorizes),
+  # posting the ordinary personal-link body with `personal.class_id` — the
+  # server binds the account to the class and mints the code with
+  # grants_class_id. No shareable species: a shareable link is node-scoped, so
+  # there is no class-scoped one to mint. A class with no school (payload
+  # schoolId null) shows no verb rather than a button the server would 400.
+  # WaysInLedger mounts alongside it with the same `classId`, filtered to that
+  # class's own links (rows carry where.classId) with the Where column dropped.
   # Add-a-group WARNS on a duplicate name (2026-08-06). A sibling under THIS
   # node whose name slugs to the same string makes POST /api/groups answer 409
   # { code: 'duplicate_name' } and create nothing; NodeActionBar shows which

@@ -453,6 +453,12 @@ describe('GET ?scope=subtree — the link ledger (founder scope-add 2026-07-20)'
     expect(byCode['SCH-A']).toMatchObject({ role: 'school_leader', status: 'revoked', where: { name: 'School One', kind: 'school' } })
     expect(byCode['CLS-S']).toMatchObject({ role: 'student', status: 'exhausted', uses: { count: 5, max: 5 }, where: { kind: 'class' } })
     expect(byCode['CLS-S'].where.name).toContain('Grade 6A')
+    // A class row's `nodeId` is its SCHOOL's node — the ledger rolls classes
+    // up to their school for filtering — so `classId` is the only thing a
+    // class page can key its own links on (2026-09-07 class invite verb).
+    expect(byCode['CLS-S'].where).toMatchObject({ classId: 'class-1', nodeId: '22222222-2222-4222-8222-222222222222' })
+    expect(byCode['SCH-A'].where.classId).toBeNull()
+    expect(byCode['ROOT-L'].where.classId).toBeNull()
   })
 
   // TENANCY-01 (fixed 2026-08-25): subtree membership is the parent_id
