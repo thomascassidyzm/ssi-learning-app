@@ -9,6 +9,8 @@
 //
 // It creates users on @ssi-probe.invalid and deletes each one at the end.
 
+import { createClient } from '@supabase/supabase-js'
+
 const URL = process.env.SB_URL, SRK = process.env.SB_SRK, ANON = process.env.SB_ANON
 const BASE = process.env.BASE // e.g. https://saysomethingin.app
 const admin = createClient(URL, SRK, { auth: { persistSession: false, autoRefreshToken: false } })
