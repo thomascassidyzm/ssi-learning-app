@@ -11,13 +11,18 @@
  * hardcoded £15/mo Premium checkout. SSi Family was live in Paddle and fully
  * wired in code, and no customer could reach it.
  *
- * TWO STEPS, one overlay. A signed-out buyer who has chosen a plan gets the
- * DETAILS step here rather than the sign-in modal: email, confirm, an optional
- * password, and on to Paddle. Tom walked the old flow on 2026-09-07 and was
- * sent to his mailbox for a six-digit code before he was allowed to reach a
- * card field — "they shouldn't have to verify their email account yet - that's
- * messy". Verification is not a gate in front of a purchase; it happens after,
- * through the needs_verification nudge the account is stamped with.
+ * THREE STEPS, one overlay: choose a plan, create your account, type the code.
+ * A signed-out buyer who has chosen a plan stays right here rather than being
+ * handed to the sign-in modal.
+ *
+ * VERIFY, THEN PAY (Tom's ruling, 2026-09-07). For a few hours this step
+ * created the account outright from a typed address and an optional password.
+ * That was a confirmed account takeover — anyone could type a stranger's
+ * address, plant a password and hold a session for it (job #345). His ruling:
+ * ask for the account first, SAY WHY, and hand them straight back to the
+ * payment page they clicked once the code checks out. The plan they chose is
+ * written to storage before the round-trip so it survives reading an email on
+ * a phone; see src/checkout/pendingIntent.ts.
  *
  * Same overlay shell as CheckoutOverlay (safe-area padding, close button,
  * Escape, backdrop tap) so the steps feel like one flow.
@@ -37,10 +42,13 @@ const {
   detailsOpen,
   detailsBusy,
   detailsError,
-  detailsExistingAccount,
-  submitBuyerDetails,
-  signInAndPay,
-  emailMeACodeInstead,
+  detailsStep,
+  detailsEmail,
+  sendBuyerCode,
+  verifyBuyerCode,
+  resendBuyerCode,
+  editBuyerEmail,
+  signInInstead,
   closeDetails,
   openPlans,
   alreadySubscribedOpen,
@@ -49,12 +57,10 @@ const {
 } = useCheckout()
 const { t } = useI18n()
 
-// ── The details step ──
+// ── The account step ──
 const email = ref('')
 const emailConfirm = ref('')
-const wantsPassword = ref(false)
-const password = ref('')
-const passwordConfirm = ref('')
+const code = ref('')
 // Local, form-level complaint (mismatches). Server-side problems come back on
 // detailsError so the two never fight over the same line.
 const formError = ref('')
@@ -65,43 +71,37 @@ watch(detailsOpen, (open) => {
   if (!open) return
   email.value = ''
   emailConfirm.value = ''
-  wantsPassword.value = false
-  password.value = ''
-  passwordConfirm.value = ''
+  code.value = ''
   formError.value = ''
+})
+
+// Coming back to the address step to fix a typo keeps the address, and drops
+// the code that was typed against the old one.
+watch(detailsStep, (step) => {
+  formError.value = ''
+  if (step === 'email') code.value = ''
 })
 
 const emailLooksValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim()))
 
 const canSubmitDetails = computed(() => {
   if (detailsBusy.value) return false
+  if (detailsStep.value === 'code') return code.value.trim().length >= 6
   if (!emailLooksValid.value) return false
-  if (detailsExistingAccount.value) return password.value.length > 0
-  if (email.value.trim().toLowerCase() !== emailConfirm.value.trim().toLowerCase()) return false
-  if (wantsPassword.value && (password.value.length < 6 || password.value !== passwordConfirm.value)) return false
-  return true
+  return email.value.trim().toLowerCase() === emailConfirm.value.trim().toLowerCase()
 })
 
 async function onDetailsSubmit() {
   formError.value = ''
-  // The already-registered branch: they are signing IN, so only the password
-  // matters and the confirm fields are gone from the form.
-  if (detailsExistingAccount.value) {
-    await signInAndPay({ email: email.value.trim(), password: password.value })
+  if (detailsStep.value === 'code') {
+    await verifyBuyerCode({ code: code.value })
     return
   }
   if (email.value.trim().toLowerCase() !== emailConfirm.value.trim().toLowerCase()) {
     formError.value = t('plans.emailsMustMatch')
     return
   }
-  if (wantsPassword.value && password.value !== passwordConfirm.value) {
-    formError.value = t('plans.passwordsMustMatch')
-    return
-  }
-  await submitBuyerDetails({
-    email: email.value.trim(),
-    password: wantsPassword.value ? password.value : undefined,
-  })
+  await sendBuyerCode({ email: email.value.trim() })
 }
 
 function backToPlans() {
@@ -120,6 +120,14 @@ const showFamily = computed(() => familyMonthly.value || familyAnnual.value)
 // already uses for `{date}`.
 const familyDesc = computed(() =>
   t('plans.familyDesc').replace('{seats}', String(FAMILY_SEAT_CAP)),
+)
+
+// t()'s second argument is a FALLBACK STRING, not interpolation params — so a
+// slot has to be filled here, the same way familyDesc fills {seats}. Passing
+// `{ email }` to t() reads like it works and silently renders the literal
+// "{email}" at somebody mid-purchase.
+const codeSentLine = computed(() =>
+  t('plans.codeSentTo').replace('{email}', detailsEmail.value),
 )
 
 // One overlay, two steps — so the Escape/scroll-lock wiring keys off "either
@@ -227,85 +235,98 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <!-- STEP 2 — the buyer's details. No email round-trip stands between
-         this form and the card field. -->
+    <!-- STEP 2 — the account. It SAYS WHY it is asking, because being sent to
+         your mailbox without a reason is the bit that feels like a wall. -->
     <div
       v-if="detailsOpen"
       class="plans-overlay"
       role="dialog"
       aria-modal="true"
-      :aria-label="t('plans.yourDetails')"
+      :aria-label="t('plans.createAccount')"
       @click.self="closeDetails"
     >
       <div class="plans-card" @click.stop>
         <header class="plans-bar">
-          <span class="plans-title">{{ t('plans.yourDetails') }}</span>
+          <span class="plans-title">
+            {{ detailsStep === 'code' ? t('plans.checkYourEmail') : t('plans.createAccount') }}
+          </span>
           <button type="button" class="plans-close" :aria-label="t('plans.close')" @click="closeDetails">✕</button>
         </header>
 
         <form class="plans-scroll" @submit.prevent="onDetailsSubmit">
-          <label class="field">
-            <span class="field-label">{{ t('auth.email') }}</span>
-            <input
-              v-model="email"
-              type="email"
-              class="field-input"
-              autocomplete="email"
-              inputmode="email"
-              required
-            />
-          </label>
+          <!-- ── Face one: the address ── -->
+          <template v-if="detailsStep === 'email'">
+            <p class="plans-why">{{ t('plans.whyAccountFirst') }}</p>
 
-          <!-- The confirm fields disappear once we know the account exists:
-               at that point they are signing IN, not creating anything. -->
-          <label v-if="!detailsExistingAccount" class="field">
-            <span class="field-label">{{ t('plans.confirmEmail') }}</span>
-            <input
-              v-model="emailConfirm"
-              type="email"
-              class="field-input"
-              autocomplete="email"
-              inputmode="email"
-              required
-            />
-          </label>
+            <label class="field">
+              <span class="field-label">{{ t('auth.email') }}</span>
+              <input
+                v-model="email"
+                type="email"
+                class="field-input"
+                autocomplete="email"
+                inputmode="email"
+                required
+              />
+            </label>
 
-          <label v-if="!detailsExistingAccount" class="opt-row">
-            <input v-model="wantsPassword" type="checkbox" />
-            <span>{{ t('plans.setPasswordOptional') }}</span>
-          </label>
+            <label class="field">
+              <span class="field-label">{{ t('plans.confirmEmail') }}</span>
+              <input
+                v-model="emailConfirm"
+                type="email"
+                class="field-input"
+                autocomplete="email"
+                inputmode="email"
+                required
+              />
+            </label>
 
-          <label v-if="wantsPassword || detailsExistingAccount" class="field">
-            <span class="field-label">{{ t('auth.password') }}</span>
-            <input
-              v-model="password"
-              type="password"
-              class="field-input"
-              :autocomplete="detailsExistingAccount ? 'current-password' : 'new-password'"
-            />
-          </label>
+            <p v-if="formError || detailsError" class="field-error">{{ formError || detailsError }}</p>
 
-          <label v-if="wantsPassword && !detailsExistingAccount" class="field">
-            <span class="field-label">{{ t('plans.confirmPassword') }}</span>
-            <input v-model="passwordConfirm" type="password" class="field-input" autocomplete="new-password" />
-          </label>
+            <button type="submit" class="plan-btn submit-btn" :disabled="!canSubmitDetails">
+              {{ detailsBusy ? t('plans.sending') : t('plans.emailMyCode') }}
+            </button>
 
-          <p v-if="formError || detailsError" class="field-error">{{ formError || detailsError }}</p>
+            <!-- The door for somebody who already has an account. On screen for
+                 everybody, in the same words, so it cannot be read as an answer
+                 about the address they typed. -->
+            <button type="button" class="text-btn" @click="signInInstead">{{ t('plans.alreadyHaveAccount') }}</button>
+            <button type="button" class="text-btn" @click="backToPlans">{{ t('plans.backToPlans') }}</button>
+          </template>
 
-          <button type="submit" class="plan-btn submit-btn" :disabled="!canSubmitDetails">
-            {{ detailsExistingAccount ? t('plans.signInAndContinue') : t('plans.continueToPayment') }}
-          </button>
+          <!-- ── Face two: the code. Nothing here mentions whether the address
+               already had an account: both cases look and behave the same, so
+               the form cannot be used to ask who banks with us. ── -->
+          <template v-else>
+            <p class="plans-why">{{ codeSentLine }}</p>
 
-          <button
-            v-if="detailsExistingAccount"
-            type="button"
-            class="text-btn"
-            @click="emailMeACodeInstead"
-          >{{ t('plans.emailMeACode') }}</button>
+            <label class="field">
+              <span class="field-label">{{ t('plans.yourCode') }}</span>
+              <input
+                v-model="code"
+                type="text"
+                class="field-input"
+                autocomplete="one-time-code"
+                inputmode="numeric"
+                maxlength="8"
+                required
+              />
+            </label>
 
-          <p v-if="!detailsExistingAccount" class="plans-note">{{ t('plans.receiptNote') }}</p>
+            <p v-if="formError || detailsError" class="field-error">{{ formError || detailsError }}</p>
 
-          <button type="button" class="text-btn" @click="backToPlans">{{ t('plans.backToPlans') }}</button>
+            <button type="submit" class="plan-btn submit-btn" :disabled="!canSubmitDetails">
+              {{ detailsBusy ? t('plans.checking') : t('plans.verifyAndPay') }}
+            </button>
+
+            <p class="plans-note">{{ t('plans.planIsHeld') }}</p>
+
+            <button type="button" class="text-btn" :disabled="detailsBusy" @click="resendBuyerCode">
+              {{ t('plans.sendAnotherCode') }}
+            </button>
+            <button type="button" class="text-btn" @click="editBuyerEmail">{{ t('plans.useADifferentEmail') }}</button>
+          </template>
         </form>
       </div>
     </div>
@@ -481,14 +502,14 @@ onBeforeUnmount(() => {
   font-family: var(--font-body);
   font-size: 1rem; /* 16px — anything smaller makes iOS Safari zoom on focus */
 }
-.opt-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.85rem;
-  font-size: 0.875rem;
+/* The line that says WHY we are asking for an account before a card. It reads
+   before the first field rather than under the button, because a reason given
+   after the ask is an excuse. */
+.plans-why {
+  margin: 0 0 1rem;
+  font-size: 0.9375rem;
+  line-height: 1.45;
   color: var(--text-secondary, #64748b);
-  cursor: pointer;
 }
 .field-error {
   margin: 0 0 0.75rem;

@@ -641,16 +641,8 @@
     "familyMonthly": "£25/महिना",
     "familyAnnual": "£250/वर्ष",
     "cancelAnytime": "कधीही रद्द करा.",
-    "yourDetails": "तुमचे तपशील",
     "confirmEmail": "ईमेलची पुष्टी करा",
-    "setPasswordOptional": "पासवर्ड सेट करा (ऐच्छिक)",
-    "confirmPassword": "पासवर्डची पुष्टी करा",
-    "continueToPayment": "पेमेंटसाठी पुढे जा",
     "emailsMustMatch": "ही दोन्ही ईमेल जुळत नाहीत.",
-    "passwordsMustMatch": "हे दोन्ही पासवर्ड जुळत नाहीत.",
-    "receiptNote": "मिळवण्यासाठी कोणताही कोड नाही. तुमची पावती या पत्त्यावर जाईल, आणि तुम्ही ती कधीही पुष्टी करू शकता.",
-    "signInAndContinue": "साइन इन करा आणि पुढे जा",
-    "emailMeACode": "त्याऐवजी मला कोड ईमेल करा",
     "backToPlans": "प्लॅनकडे परत जा"
   },
   "family": {
