@@ -22,12 +22,17 @@ vi.mock('../_utils/auth', () => ({
 let liveSub: any
 let updateCalls: any[] = []
 let cancelCalls: any[] = []
+// Errors Paddle should throw, one per update() call, in order. An entry of
+// null means that call succeeds.
+let updateErrors: any[] = []
 vi.mock('../_utils/paddle', () => ({
   paddle: {
     subscriptions: {
       get: vi.fn(async () => liveSub),
       update: vi.fn(async (id: string, opts: any) => {
         updateCalls.push({ id, opts })
+        const err = updateErrors.shift()
+        if (err) throw err
         return { status: 'active', items: [{ price: { id: opts.items[0].priceId } }] }
       }),
       cancel: vi.fn(async (id: string) => { cancelCalls.push(id) }),
@@ -91,6 +96,7 @@ describe('POST /api/subscription/change-plan', () => {
     writes = {}
     responders = {}
     updateCalls = []
+    updateErrors = []
     cancelCalls = []
     authResult = { valid: true, userId: 'auth-user-1' }
     liveSub = premiumMonthly()
@@ -151,6 +157,35 @@ describe('POST /api/subscription/change-plan', () => {
     const res = makeRes()
     await handler(makeReq({ body: { plan: 'family', priceId: 'pri_attacker_1p' } as any }), res)
     expect(updateCalls[0].opts.items[0].priceId).toBe('pri_family_monthly')
+  })
+
+  it('a proration too small for Paddle to bill still changes the plan, unbilled', async () => {
+    // Real, reproduced against live Paddle on 2026-09-07: two days from
+    // renewal the £15 → £25 delta was 53p against a 55p minimum, and Paddle
+    // refused the entire update. Before this fallback the payer got a 500 and
+    // stayed on Premium.
+    updateErrors = [
+      Object.assign(new Error('Unable to charge for Subscription update: Transaction balance is less than what we can charge.'), {
+        code: 'subscription_update_transaction_balance_less_than_charge_limit',
+      }),
+    ]
+    const res = makeRes()
+    await handler(makeReq(), res)
+    expect(res._status).toBe(200)
+    expect(res._json).toMatchObject({ ok: true, planName: 'SSi Family' })
+    expect(updateCalls).toHaveLength(2)
+    expect(updateCalls[0].opts.prorationBillingMode).toBe('prorated_immediately')
+    expect(updateCalls[1].opts.prorationBillingMode).toBe('do_not_bill')
+    expect(updateCalls[1].opts.items[0].priceId).toBe('pri_family_monthly')
+    expect(cancelCalls).toHaveLength(0)
+  })
+
+  it('any other Paddle failure is surfaced, never retried unbilled', async () => {
+    updateErrors = [Object.assign(new Error('Something else went wrong'), { code: 'some_other_error' })]
+    const res = makeRes()
+    await handler(makeReq(), res)
+    expect(res._status).toBe(500)
+    expect(updateCalls).toHaveLength(1)
   })
 
   it('a trialing subscription is not billed for the change', async () => {
