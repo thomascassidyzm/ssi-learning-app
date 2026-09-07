@@ -6,6 +6,9 @@ import { usePlayAsClassContext } from '@/composables/schools/usePlayAsClassConte
 import { leaderRoleLabel } from '@/composables/nodeTerminology'
 import PlayAsClassIdentity from './PlayAsClassIdentity.vue'
 import RefreshButton from '@/components/shared/RefreshButton.vue'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 type NavTab = {
   label: string
@@ -25,7 +28,7 @@ import { institutionalPurchaseAvailable } from '@/platform/paymentRoute'
 // constant. One declaration, three tab sets.
 const upgradeTab = computed<NavTab[]>(() =>
   institutionalPurchaseAvailable()
-    ? [{ label: 'Upgrade', to: '/schools/upgrade', routeName: 'schools-upgrade' }]
+    ? [{ label: t('schools.ui.topBar.tabUpgrade', 'Upgrade'), to: '/schools/upgrade', routeName: 'schools-upgrade' }]
     : []
 )
 const route = useRoute()
@@ -77,16 +80,16 @@ const tabs = computed<NavTab[]>(() => {
       // makes no school claim). Lands on the node home, whose lens chips give
       // an education-dressed leader All-schools in one tap.
       return [
-        { label: 'Organisation', to: `/org/${groupId}`, routeName: 'org-node-home' },
-        { label: 'Insights', to: `/org/${groupId}/insights`, routeName: 'org-node-insights' },
+        { label: t('schools.ui.topBar.tabOrganisation', 'Organisation'), to: `/org/${groupId}`, routeName: 'org-node-home' },
+        { label: t('schools.ui.topBar.tabInsights', 'Insights'), to: `/org/${groupId}/insights`, routeName: 'org-node-insights' },
       ]
     }
     // Legacy leaders with no group (region_code-only govt_admin rows) have
     // no node to scope to — they keep the flat views until migrated (same
     // fallback DashboardView documents for its node-home redirect).
     return [
-      { label: 'Schools',   to: '/schools/all',       routeName: 'schools-list' },
-      { label: 'Analytics', to: '/schools/analytics', routeName: 'analytics' },
+      { label: t('schools.ui.topBar.tabSchools', 'Schools'),   to: '/schools/all',       routeName: 'schools-list' },
+      { label: t('schools.ui.topBar.tabAnalytics', 'Analytics'), to: '/schools/analytics', routeName: 'analytics' },
     ]
   }
   if (isSchoolAdmin.value) {
@@ -105,24 +108,24 @@ const tabs = computed<NavTab[]>(() => {
     const schoolId = currentUser.value.school_id
     if (schoolId) {
       return [
-        { label: 'Dashboard', to: `/org/${schoolId}`, routeName: 'org-node-home' },
-        { label: 'Classes',   to: '/schools/classes',   routeName: 'classes' },
-        { label: 'Students',  to: '/schools/students',  routeName: 'students' },
-        { label: 'Insights',  to: `/org/${schoolId}/insights`, routeName: 'org-node-insights' },
+        { label: t('schools.ui.topBar.tabDashboard', 'Dashboard'), to: `/org/${schoolId}`, routeName: 'org-node-home' },
+        { label: t('schools.ui.topBar.tabClasses', 'Classes'),   to: '/schools/classes',   routeName: 'classes' },
+        { label: t('schools.ui.topBar.tabStudents', 'Students'),  to: '/schools/students',  routeName: 'students' },
+        { label: t('schools.ui.topBar.tabInsights', 'Insights'),  to: `/org/${schoolId}/insights`, routeName: 'org-node-insights' },
         ...upgradeTab.value,
       ]
     }
     // Legacy school_admin rows with no resolvable school keep the flat set
     // (same fallback shape as the no-group govt_admin above).
     return [
-      { label: 'Dashboard', to: '/schools',           routeName: 'schools-dashboard' },
-      { label: 'Classes',   to: '/schools/classes',   routeName: 'classes' },
-      { label: 'Students',  to: '/schools/students',  routeName: 'students' },
-      { label: 'Teachers',  to: '/schools/teachers',  routeName: 'teachers' },
+      { label: t('schools.ui.topBar.tabDashboard', 'Dashboard'), to: '/schools',           routeName: 'schools-dashboard' },
+      { label: t('schools.ui.topBar.tabClasses', 'Classes'),   to: '/schools/classes',   routeName: 'classes' },
+      { label: t('schools.ui.topBar.tabStudents', 'Students'),  to: '/schools/students',  routeName: 'students' },
+      { label: t('schools.ui.topBar.tabTeachers', 'Teachers'),  to: '/schools/teachers',  routeName: 'teachers' },
       // "Insights" is the one word for the Insight Engine door everywhere
       // (govt tabs, node "See insights") — the destination is already THE
       // LENS's teacher wrapper, only the label was still the old generation.
-      { label: 'Insights',  to: '/schools/analytics', routeName: 'analytics' },
+      { label: t('schools.ui.topBar.tabInsights', 'Insights'),  to: '/schools/analytics', routeName: 'analytics' },
       ...upgradeTab.value,
     ]
   }
@@ -133,10 +136,10 @@ const tabs = computed<NavTab[]>(() => {
   // lane (isSchoolLane false) already resolves their own teacher-billing
   // record via /api/teacher/me. Structure-gated, never on the 'tutor' label.
   const teacherTabs: NavTab[] = [
-    { label: 'Dashboard', to: '/schools',           routeName: 'schools-dashboard' },
-    { label: 'Students',  to: '/schools/students',  routeName: 'students' },
+    { label: t('schools.ui.topBar.tabDashboard', 'Dashboard'), to: '/schools',           routeName: 'schools-dashboard' },
+    { label: t('schools.ui.topBar.tabStudents', 'Students'),  to: '/schools/students',  routeName: 'students' },
     // Same "Insights" unification as the school_admin set above.
-    { label: 'Insights',  to: '/schools/analytics', routeName: 'analytics' },
+    { label: t('schools.ui.topBar.tabInsights', 'Insights'),  to: '/schools/analytics', routeName: 'analytics' },
   ]
   if (!currentUser.value.school_id) {
     teacherTabs.push(...upgradeTab.value)
@@ -154,7 +157,7 @@ function isActive(tab: NavTab): boolean {
   return false
 }
 
-const displayName = computed(() => currentUser.value?.display_name || 'You')
+const displayName = computed(() => currentUser.value?.display_name || t('schools.ui.topBar.youFallback', 'You'))
 const initials = computed(() =>
   displayName.value.split(/\s+/).filter(Boolean).map((p) => p[0]).join('').slice(0, 2).toUpperCase() || 'SS',
 )
@@ -162,8 +165,8 @@ const roleLabel = computed(() => {
   // Routed through the terminology dressing (neutral default) — 'Govt Admin'
   // was a dressing leak on org leaders (founder bug 2026-08-02).
   if (isGovtAdmin.value) return leaderRoleLabel()
-  if (isSchoolAdmin.value) return 'School Admin'
-  return 'Teacher'
+  if (isSchoolAdmin.value) return t('schools.ui.topBar.roleSchoolAdmin', 'School Admin')
+  return t('schools.ui.topBar.roleTeacher', 'Teacher')
 })
 const roleAvatarColor = computed(() => {
   if (isGovtAdmin.value) return 'var(--schools-role-govt)'
@@ -181,14 +184,15 @@ const schoolLabel = computed(() => currentUser.value?.school_name || '')
 const onOrgSurface = computed(
   () => isGovtAdmin.value && (route.path === '/org' || route.path.startsWith('/org/')),
 )
-const brandTail = computed(() => (onOrgSurface.value ? '' : 'Schools'))
+const brandTail = computed(() => (onOrgSurface.value ? '' : t('schools.ui.topBar.brandTailSchools', 'Schools')))
 const brandTo = computed(() => {
   if (!onOrgSurface.value) return '/schools'
   const groupId = currentUser.value?.group_id
   return groupId ? `/org/${groupId}` : '/'
 })
+// The wordmark ("SaySomethingin") is never translated — only the tail is.
 const brandAria = computed(() =>
-  onOrgSurface.value ? 'SaySomethingin' : 'SaySomethingin · Schools',
+  onOrgSurface.value ? 'SaySomethingin' : `SaySomethingin · ${brandTail.value}`,
 )
 
 // User menu
@@ -244,7 +248,7 @@ if (typeof document !== 'undefined') {
       <button
         type="button"
         class="nav-toggle"
-        aria-label="Menu"
+        :aria-label="t('schools.ui.topBar.menuAriaLabel', 'Menu')"
         aria-haspopup="true"
         :aria-expanded="mobileNavOpen"
         @click="toggleMobileNav"
@@ -277,26 +281,26 @@ if (typeof document !== 'undefined') {
            the standalone label yields its space to the chip. -->
       <span v-if="!isPlayingAsClass && schoolLabel" class="context-name" :title="schoolLabel">{{ schoolLabel }}</span>
 
-      <nav class="tabs" aria-label="Schools sections">
+      <nav class="tabs" :aria-label="t('schools.ui.topBar.navSectionsAriaLabel', 'Schools sections')">
         <router-link
-          v-for="t in tabs"
-          :key="t.to"
-          :to="t.to"
-          :class="['tab', { active: isActive(t) }]"
+          v-for="tab in tabs"
+          :key="tab.to"
+          :to="tab.to"
+          :class="['tab', { active: isActive(tab) }]"
         >
-          {{ t.label }}
+          {{ tab.label }}
         </router-link>
       </nav>
 
-      <nav v-if="mobileNavOpen" class="mobile-nav" aria-label="Schools sections">
+      <nav v-if="mobileNavOpen" class="mobile-nav" :aria-label="t('schools.ui.topBar.navSectionsAriaLabel', 'Schools sections')">
         <router-link
-          v-for="t in tabs"
-          :key="t.to"
-          :to="t.to"
-          :class="['mobile-nav-item', { active: isActive(t) }]"
+          v-for="tab in tabs"
+          :key="tab.to"
+          :to="tab.to"
+          :class="['mobile-nav-item', { active: isActive(tab) }]"
           @click="closeMobileNav"
         >
-          {{ t.label }}
+          {{ tab.label }}
         </router-link>
       </nav>
     </div>
@@ -315,13 +319,13 @@ if (typeof document !== 'undefined') {
         v-if="!isOnPlayerRoute"
         to="/"
         class="learn-btn"
-        title="Learn — your own practice"
-        aria-label="Learn — your own practice"
+        :title="t('schools.ui.topBar.learnBtnTitle', 'Learn — your own practice')"
+        :aria-label="t('schools.ui.topBar.learnBtnTitle', 'Learn — your own practice')"
       >
         <svg class="learn-btn__icon" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
           <path d="M2.5 1.2 10 6 2.5 10.8Z" fill="currentColor" />
         </svg>
-        <span class="learn-btn__label">Learn</span>
+        <span class="learn-btn__label">{{ t('schools.ui.topBar.learnBtnLabel', 'Learn') }}</span>
       </router-link>
 
       <div class="user-menu">
@@ -334,8 +338,8 @@ if (typeof document !== 'undefined') {
           <span class="caret">▾</span>
         </button>
         <div v-if="menuOpen" class="user-menu-pop">
-          <router-link :to="handbookTo" class="menu-item" @click="closeMenu">Handbook</router-link>
-          <router-link v-if="isSchoolAdmin" to="/schools/settings" class="menu-item" @click="closeMenu">School settings</router-link>
+          <router-link :to="handbookTo" class="menu-item" @click="closeMenu">{{ t('schools.ui.topBar.menuHandbook', 'Handbook') }}</router-link>
+          <router-link v-if="isSchoolAdmin" to="/schools/settings" class="menu-item" @click="closeMenu">{{ t('schools.ui.topBar.menuSchoolSettings', 'School settings') }}</router-link>
           <!-- Roles are additive facets of ONE account — leaving the schools
                surface is a NAVIGATION, not an identity sign-out. Before this
                existed, the only exit in the menu was "Sign out", which reads
@@ -343,8 +347,8 @@ if (typeof document !== 'undefined') {
                session (founder incident, 2026-07-18). -->
           <!-- Same affordance as the Learn button, so it follows the same rule:
                not offered while you're already in the player (2026-08-06). -->
-          <router-link v-if="!isOnPlayerRoute" to="/" class="menu-item" @click="closeMenu">My player</router-link>
-          <button type="button" class="menu-item" @click="signOut">Sign out</button>
+          <router-link v-if="!isOnPlayerRoute" to="/" class="menu-item" @click="closeMenu">{{ t('schools.ui.topBar.menuMyPlayer', 'My player') }}</router-link>
+          <button type="button" class="menu-item" @click="signOut">{{ t('schools.ui.topBar.menuSignOut', 'Sign out') }}</button>
         </div>
       </div>
     </div>

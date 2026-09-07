@@ -7,6 +7,9 @@
 import { computed, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { groupHomePath, isMemberNodeSurface } from '@/composables/nodeSurfacePaths'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 // Siblings-open state survives the rail remounting across sibling views of
 // the same node (Overview <-> Insights) — part of the WHERE-YOU-ARE
@@ -59,13 +62,13 @@ function open(ref_: RailRef): void {
 }
 
 function labelWord(r: RailRef): string {
-  if (r.hasSchool || r.label === 'school') return 'school'
-  return r.label || 'group'
+  if (r.hasSchool || r.label === 'school') return t('org.ui.nodeMapRail.school', 'school')
+  return r.label || t('org.ui.nodeMapRail.group', 'group')
 }
 </script>
 
 <template>
-  <nav class="map-rail" aria-label="Organisation map">
+  <nav class="map-rail" :aria-label="t('org.ui.nodeMapRail.organisationMap', 'Organisation map')">
     <!-- The way UP and OUT (founder pass C, 2026-07-19): from any depth,
          one obvious control back to the Structure overview — the rail's
          ancestors go up the tree; this goes up out of it. -->
@@ -75,9 +78,9 @@ function labelWord(r: RailRef): string {
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
       </svg>
-      <span>All organisations</span>
+      <span>{{ t('org.ui.nodeMapRail.allOrganisations', 'All organisations') }}</span>
     </router-link>
-    <span class="schools-kicker rail-kicker">Where you are</span>
+    <span class="schools-kicker rail-kicker">{{ t('org.ui.nodeMapRail.whereYouAre', 'Where you are') }}</span>
     <ol class="rail-list">
       <li v-for="(a, i) in props.ancestors" :key="a.id" class="rail-row is-ancestor" :style="{ '--depth': i }">
         <span v-if="a.inert" class="rail-link is-inert">
@@ -92,12 +95,12 @@ function labelWord(r: RailRef): string {
       <li class="rail-row is-here" :style="{ '--depth': props.ancestors.length }" aria-current="page">
         <span class="rail-here">
           <span class="rail-name">{{ props.node.name }}</span>
-          <span class="rail-label">you're here</span>
+          <span class="rail-label">{{ t('org.ui.nodeMapRail.youreHere', 'you\'re here') }}</span>
         </span>
       </li>
       <li v-if="props.siblings.length" class="rail-row is-siblings" :style="{ '--depth': props.ancestors.length }">
         <button type="button" class="rail-toggle" @click="showSiblings = !showSiblings">
-          {{ showSiblings ? '▾' : '▸' }} {{ props.siblings.length }} other{{ props.siblings.length === 1 ? '' : 's' }} at this level
+          {{ showSiblings ? '▾' : '▸' }} {{ props.siblings.length === 1 ? t('org.ui.nodeMapRail.otherAtThisLevelOne', '{n} other at this level').replace('{n}', String(props.siblings.length)) : t('org.ui.nodeMapRail.othersAtThisLevelMany', '{n} others at this level').replace('{n}', String(props.siblings.length)) }}
         </button>
         <ul v-if="showSiblings" class="rail-sublist">
           <li v-for="s in props.siblings" :key="s.id">

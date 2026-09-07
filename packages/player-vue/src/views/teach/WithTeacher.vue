@@ -10,10 +10,12 @@ import { canTakePayment } from '@/platform/paymentRoute'
 import { hasLiveSessionFor, useLoginCodeAudit } from '@/auth/loginCode'
 import '@/styles/schools-tokens.css'
 import { sendSignInCode } from '../../auth/sendSignInCode'
+import { useI18n } from '@/composables/useI18n'
 
 const route = useRoute()
 const supabase = inject('supabase', ref(null)) as any
 const loginCodeAudit = useLoginCodeAudit('with-teacher')
+const { t } = useI18n()
 
 interface PublicTeacher {
   id: string
@@ -145,7 +147,7 @@ async function loadClass() {
       // their link is wrong when it isn't.
       const body = await res.json().catch(() => null)
       if (body?.reason === 'unavailable') {
-        unavailableMessage.value = body.message || 'This teacher link is temporarily unavailable.'
+        unavailableMessage.value = body.message || t('teach.withTeacher.linkUnavailable', 'This teacher link is temporarily unavailable.')
       } else {
         notFound.value = true
       }
@@ -229,7 +231,7 @@ async function linkLearnerToClass(): Promise<boolean> {
   if (!classInfo.value || !userId.value || !supabase.value) return false
   const learnerId = await resolveLearnerId()
   if (!learnerId) {
-    checkoutError.value = 'Could not set up your account. Please try again.'
+    checkoutError.value = t('teach.withTeacher.couldNotSetUpAccount', 'Could not set up your account. Please try again.')
     return false
   }
 
@@ -275,7 +277,7 @@ async function joinFree() {
       goToPlayer()
     }
   } catch (err: any) {
-    checkoutError.value = err?.message || 'Could not join the class'
+    checkoutError.value = err?.message || t('teach.withTeacher.couldNotJoinClass', 'Could not join the class')
   } finally {
     isOpeningCheckout.value = false
   }
@@ -304,7 +306,7 @@ async function openCheckout() {
   if (isOpeningCheckout.value) return
 
   if (!studentPriceId.value) {
-    checkoutError.value = 'Student plan price not configured'
+    checkoutError.value = t('teach.withTeacher.priceNotConfigured', 'Student plan price not configured')
     return
   }
 
@@ -321,7 +323,7 @@ async function openCheckout() {
       try {
         await linkLearnerToClass()
       } catch (err: any) {
-        checkoutError.value = err?.message || 'Could not join the class'
+        checkoutError.value = err?.message || t('teach.withTeacher.couldNotJoinClass', 'Could not join the class')
       }
       alreadySubscribed.value = true
       isOpeningCheckout.value = false
@@ -335,7 +337,7 @@ async function openCheckout() {
     // guard, which takes no money at all. Gating the whole function refused an
     // already-paying learner the class they had already bought (2026-09-05).
     if (!canTakePayment()) {
-      checkoutError.value = "Joining a paid class isn't available in this version of the app yet."
+      checkoutError.value = t('teach.withTeacher.paidJoinUnavailableInApp', "Joining a paid class isn't available in this version of the app yet.")
       return
     }
     const paddle = await getPaddle()
@@ -354,7 +356,7 @@ async function openCheckout() {
       },
     })
   } catch (err: any) {
-    checkoutError.value = err?.message || 'Failed to open checkout'
+    checkoutError.value = err?.message || t('teach.withTeacher.failedToOpenCheckout', 'Failed to open checkout')
   } finally {
     isOpeningCheckout.value = false
   }
@@ -368,12 +370,12 @@ async function handleSendOtp() {
   try {
     const { error } = await sendSignInCode(supabase.value, loginEmail.value)
     if (error) {
-      loginError.value = error.message || 'Unable to send code'
+      loginError.value = error.message || t('teach.withTeacher.unableToSendCode', 'Unable to send code')
       return
     }
     loginStep.value = 'otp'
   } catch (err: any) {
-    loginError.value = err.message || 'Unable to send code'
+    loginError.value = err.message || t('teach.withTeacher.unableToSendCode', 'Unable to send code')
   } finally {
     isAuthLoading.value = false
   }
@@ -403,14 +405,14 @@ async function handleVerifyOtp() {
         return
       }
       loginCodeAudit.failed(loginEmail.value, error.message)
-      loginError.value = error.message || 'Invalid code'
+      loginError.value = error.message || t('teach.withTeacher.invalidCode', 'Invalid code')
       return
     }
     await refreshSession()
     showLogin.value = false
     await proceedAfterAuth()
   } catch (err: any) {
-    loginError.value = err.message || 'Verification failed'
+    loginError.value = err.message || t('teach.withTeacher.verificationFailed', 'Verification failed')
   } finally {
     isAuthLoading.value = false
   }
@@ -441,34 +443,32 @@ function cancelLogin() {
       </div>
 
       <FrostCard v-else-if="unavailableMessage" variant="panel" class="join-card not-found">
-        <h1 class="frost-display">This link is temporarily unavailable.</h1>
+        <h1 class="frost-display">{{ t('teach.withTeacher.linkUnavailableTitle', 'This link is temporarily unavailable.') }}</h1>
         <p class="not-found-copy">
-          {{ unavailableMessage }} Your teacher may have paused new sign-ups —
-          check back later, or ask them to re-open the class.
+          {{ unavailableMessage }} {{ t('teach.withTeacher.linkUnavailableCopy', 'Your teacher may have paused new sign-ups — check back later, or ask them to re-open the class.') }}
         </p>
         <router-link to="/" class="home-link">
-          <Button variant="primary">Go to SaySomethingin</Button>
+          <Button variant="primary">{{ t('teach.withTeacher.goToSaySomethingin', 'Go to SaySomethingin') }}</Button>
         </router-link>
       </FrostCard>
 
       <FrostCard v-else-if="notFound" variant="panel" class="join-card not-found">
-        <h1 class="frost-display">We couldn't find that class.</h1>
+        <h1 class="frost-display">{{ t('teach.withTeacher.classNotFoundTitle', "We couldn't find that class.") }}</h1>
         <p class="not-found-copy">
-          Double-check the link your teacher gave you, or head to the
-          SaySomethingin home page.
+          {{ t('teach.withTeacher.classNotFoundCopy', 'Double-check the link your teacher gave you, or head to the SaySomethingin home page.') }}
         </p>
         <router-link to="/" class="home-link">
-          <Button variant="primary">Go to SaySomethingin</Button>
+          <Button variant="primary">{{ t('teach.withTeacher.goToSaySomethingin', 'Go to SaySomethingin') }}</Button>
         </router-link>
       </FrostCard>
 
       <FrostCard v-else-if="teacher && classInfo" variant="panel" class="join-card">
-        <span class="frost-eyebrow">You're joining</span>
+        <span class="frost-eyebrow">{{ t('teach.withTeacher.youreJoining', "You're joining") }}</span>
         <h1 class="class-name frost-display">{{ classInfo.class_name }}</h1>
         <p class="course-label">{{ courseLabel }}</p>
 
         <p class="with-line">
-          with <strong>{{ teacher.display_name }}</strong>
+          {{ t('teach.withTeacher.withLine', 'with') }} <strong>{{ teacher.display_name }}</strong>
         </p>
 
         <div v-if="teacher.photo_url" class="photo">
@@ -479,22 +479,20 @@ function cancelLogin() {
 
         <div v-if="isFreeCourse" class="price-block free-block">
           <div class="price-row">
-            <span class="price-amount frost-mono-nums">Free</span>
+            <span class="price-amount frost-mono-nums">{{ t('teach.withTeacher.free', 'Free') }}</span>
           </div>
           <p class="price-pitch">
-            This course is <strong>free</strong> — no card needed. Join the class
-            and start learning straight away.
+            {{ t('teach.withTeacher.freeCoursePitch', 'This course is free — no card needed. Join the class and start learning straight away.') }}
           </p>
           <p class="price-hint">
-            You'll have your own SaySomethingin account to practise between live
-            sessions with <strong>{{ teacher.display_name }}</strong>.
+            {{ t('teach.withTeacher.freeCourseHintPrefix', "You'll have your own SaySomethingin account to practise between live sessions with") }} <strong>{{ teacher.display_name }}</strong>.
           </p>
         </div>
 
         <div v-else class="price-block">
           <!-- Tutor classes are monthly-only (founder ruling 2026-08-02) — the
                toggle only renders for school classes, which keep £5/mo + £50/yr. -->
-          <div v-if="allowAnnual" class="billing-toggle" role="tablist" aria-label="Billing period">
+          <div v-if="allowAnnual" class="billing-toggle" role="tablist" :aria-label="t('teach.withTeacher.billingPeriod', 'Billing period')">
             <button
               type="button"
               role="tab"
@@ -502,7 +500,7 @@ function cancelLogin() {
               :class="{ 'is-active': !isAnnual }"
               :aria-selected="!isAnnual"
               @click="setBilling('monthly')"
-            >Monthly</button>
+            >{{ t('teach.withTeacher.monthly', 'Monthly') }}</button>
             <button
               type="button"
               role="tab"
@@ -511,33 +509,31 @@ function cancelLogin() {
               :aria-selected="isAnnual"
               @click="setBilling('annual')"
             >
-              Annual
-              <span class="billing-badge">{{ ANNUAL_MONTHS_FREE }} months free</span>
+              {{ t('teach.withTeacher.annual', 'Annual') }}
+              <span class="billing-badge">{{ t('teach.withTeacher.monthsFree', '{n} months free').replace('{n}', String(ANNUAL_MONTHS_FREE)) }}</span>
             </button>
           </div>
 
           <div class="price-row">
             <span v-if="!isAnnual" class="price-amount frost-mono-nums">£{{ STUDENT_MONTHLY_PRICE }}</span>
             <span v-else class="price-amount frost-mono-nums">£{{ STUDENT_ANNUAL_PRICE }}</span>
-            <span class="price-period">{{ isAnnual ? '/ year' : '/ month' }}</span>
+            <span class="price-period">{{ isAnnual ? t('teach.withTeacher.perYear', '/ year') : t('teach.withTeacher.perMonth', '/ month') }}</span>
           </div>
           <p v-if="!isAnnual" class="price-pitch">
-            That's <strong>£{{ STANDARD_SSI_PRICE - STUDENT_MONTHLY_PRICE }} off</strong>
-            the regular SaySomethingin price (£{{ STANDARD_SSI_PRICE }}/month) —
-            unlocked by your teacher's class.
+            {{ t('teach.withTeacher.monthlyPitchPrefix', "That's") }} <strong>{{ t('teach.withTeacher.poundsOff', '£{amount} off').replace('{amount}', String(STANDARD_SSI_PRICE - STUDENT_MONTHLY_PRICE)) }}</strong>
+            {{ t('teach.withTeacher.monthlyPitchSuffix', "the regular SaySomethingin price (£{price}/month) — unlocked by your teacher's class.").replace('{price}', String(STANDARD_SSI_PRICE)) }}
           </p>
           <p v-else class="price-pitch">
-            That's <strong>{{ ANNUAL_MONTHS_FREE }} months free</strong> versus paying
-            £{{ STUDENT_MONTHLY_PRICE }}/month — unlocked by your teacher's class.
+            {{ t('teach.withTeacher.annualPitchPrefix', "That's") }} <strong>{{ t('teach.withTeacher.monthsFree', '{n} months free').replace('{n}', String(ANNUAL_MONTHS_FREE)) }}</strong>
+            {{ t('teach.withTeacher.annualPitchSuffix', "versus paying £{price}/month — unlocked by your teacher's class.").replace('{price}', String(STUDENT_MONTHLY_PRICE)) }}
           </p>
           <p class="price-hint">
-            You'll have your own SaySomethingin account to practise between live sessions.
-            Your subscription supports <strong>{{ teacher.display_name }}</strong>.
+            {{ t('teach.withTeacher.paidCourseHint', "You'll have your own SaySomethingin account to practise between live sessions. Your subscription supports") }} <strong>{{ teacher.display_name }}</strong>.
           </p>
         </div>
 
         <div v-if="isFull" class="error">
-          This class is full. Ask your teacher to open another class.
+          {{ t('teach.withTeacher.classFull', 'This class is full. Ask your teacher to open another class.') }}
         </div>
 
         <div v-else-if="checkoutError" class="error">{{ checkoutError }}</div>
@@ -545,11 +541,10 @@ function cancelLogin() {
         <!-- Already-subscribed: never open a second checkout, send to the player. -->
         <template v-if="alreadySubscribed">
           <p class="price-hint">
-            You already have an active SaySomethingin subscription — no need to pay
-            again. You're all set to start this class.
+            {{ t('teach.withTeacher.alreadySubscribed', "You already have an active SaySomethingin subscription — no need to pay again. You're all set to start this class.") }}
           </p>
           <Button variant="primary" size="lg" @click="goToPlayer">
-            Continue to SaySomethingin
+            {{ t('teach.withTeacher.continueToSaySomethingin', 'Continue to SaySomethingin') }}
           </Button>
         </template>
 
@@ -561,12 +556,12 @@ function cancelLogin() {
           :loading="isOpeningCheckout"
           @click="handleStartLearning"
         >
-          {{ isFreeCourse ? 'Join free' : 'Start learning' }}
+          {{ isFreeCourse ? t('teach.withTeacher.joinFree', 'Join free') : t('teach.withTeacher.startLearning', 'Start learning') }}
         </Button>
 
         <!-- Inline OTP login -->
         <div v-else class="login-block">
-          <p class="login-intro">Sign in or create your SaySomethingin account to continue.</p>
+          <p class="login-intro">{{ t('teach.withTeacher.signInIntro', 'Sign in or create your SaySomethingin account to continue.') }}</p>
 
           <div v-if="loginError" class="error">{{ loginError }}</div>
 
@@ -574,7 +569,7 @@ function cancelLogin() {
             <input
               v-model="loginEmail"
               type="email"
-              placeholder="you@example.com"
+              :placeholder="t('teach.withTeacher.emailPlaceholder', 'you@example.com')"
               autocomplete="email"
               autofocus
               class="login-input"
@@ -585,14 +580,14 @@ function cancelLogin() {
               :disabled="!isEmailValid || isAuthLoading"
               :loading="isAuthLoading"
             >
-              Send code
+              {{ t('teach.withTeacher.sendCode', 'Send code') }}
             </Button>
-            <Button type="button" variant="ghost" size="sm" @click="cancelLogin">Cancel</Button>
+            <Button type="button" variant="ghost" size="sm" @click="cancelLogin">{{ t('teach.withTeacher.cancel', 'Cancel') }}</Button>
           </form>
 
           <form v-else class="login-form" @submit.prevent="handleVerifyOtp">
             <p class="otp-info">
-              We've emailed a 6-digit code to <strong>{{ loginEmail }}</strong>.
+              {{ t('teach.withTeacher.emailedCode', "We've emailed a 6-digit code to") }} <strong>{{ loginEmail }}</strong>.
             </p>
             <input
               v-model="loginOtp"
@@ -611,14 +606,14 @@ function cancelLogin() {
               :disabled="loginOtp.length < 6 || isAuthLoading"
               :loading="isAuthLoading"
             >
-              Verify and continue to payment
+              {{ t('teach.withTeacher.verifyAndContinue', 'Verify and continue to payment') }}
             </Button>
-            <Button type="button" variant="ghost" size="sm" @click="handleBackToEmail">Back</Button>
+            <Button type="button" variant="ghost" size="sm" @click="handleBackToEmail">{{ t('teach.withTeacher.back', 'Back') }}</Button>
           </form>
         </div>
 
         <p class="trial-note">
-          Same SaySomethingin account, same ten languages, same method.
+          {{ t('teach.withTeacher.trialNote', 'Same SaySomethingin account, same ten languages, same method.') }}
         </p>
       </FrostCard>
     </div>

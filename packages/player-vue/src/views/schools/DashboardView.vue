@@ -12,7 +12,7 @@ import { useClassesData, type ClassInfo, type ClassReport } from '@/composables/
 import { useSchoolsDensity } from '@/composables/schools/useSchoolsDensity'
 import { useGovtAdminActions } from '@/composables/schools/useGovtAdminActions'
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
-import { getLanguageName } from '@/composables/useI18n'
+import { getLanguageName, useI18n } from '@/composables/useI18n'
 import CreateClassModal from '@/components/schools/CreateClassModal.vue'
 import SchoolsPasswordPrompt from '@/components/schools/SchoolsPasswordPrompt.vue'
 import ClassCreatedModal from '@/components/schools/ClassCreatedModal.vue'
@@ -22,6 +22,7 @@ import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
 import { missionsEnabled, startMission, useMission } from '@/missions/useMission'
 import { redeemLink } from '@/composables/schools/inviteLink'
 
+const { t } = useI18n()
 const router = useRouter()
 const { schoolsLink, isAdminView } = useSchoolsNav()
 const { currentUser, isTeacher, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
@@ -113,7 +114,7 @@ async function saveGroupName() {
   if (ok) {
     await fetchSchools()
   } else {
-    groupNameError.value = 'Could not save — try again.'
+    groupNameError.value = t('schools.dashboard.couldNotSaveTryAgain', 'Could not save — try again.')
   }
 }
 
@@ -140,7 +141,7 @@ async function saveSchoolName() {
   schoolNameError.value = null
   const ok = await confirmSchoolName(schoolId, name)
   isSavingSchoolName.value = false
-  if (!ok) schoolNameError.value = 'Could not save — try again.'
+  if (!ok) schoolNameError.value = t('schools.dashboard.couldNotSaveTryAgain', 'Could not save — try again.')
 }
 
 // ---------- Govt admin: create school directly (the only creation
@@ -217,7 +218,7 @@ async function handleCreateClass(params: { class_name: string; course_code: stri
   // is a genuine data problem. A teacher with no school_id is a groupless
   // tutor (THE-MODEL §1.3/I5), not an error.
   if (!schoolId && isSchoolAdmin.value) {
-    createClassError.value = 'No school found for your account. Please contact an administrator.'
+    createClassError.value = t('schools.dashboard.noSchoolFoundForAccount', 'No school found for your account. Please contact an administrator.')
     return
   }
   isCreatingClass.value = true
@@ -232,10 +233,10 @@ async function handleCreateClass(params: { class_name: string; course_code: stri
       createdClass.value = newClass
       isCreatedModalOpen.value = true
     } else {
-      createClassError.value = 'Failed to create class. Please try again.'
+      createClassError.value = t('schools.dashboard.failedToCreateClass', 'Failed to create class. Please try again.')
     }
   } catch {
-    createClassError.value = 'Failed to create class. Please try again.'
+    createClassError.value = t('schools.dashboard.failedToCreateClass', 'Failed to create class. Please try again.')
   } finally {
     isCreatingClass.value = false
   }
@@ -309,7 +310,9 @@ const firstName = computed(() => {
 })
 
 const greetingName = computed(() =>
-  firstName.value ? `Welcome back, ${firstName.value}.` : 'Welcome back.')
+  firstName.value
+    ? t('schools.dashboard.welcomeBackName', 'Welcome back, {name}.').replace('{name}', firstName.value)
+    : t('schools.dashboard.welcomeBack', 'Welcome back.'))
 
 const todayLabel = computed(() => {
   const parts = new Date().toLocaleDateString('en-GB', {
@@ -322,7 +325,7 @@ const todayLabel = computed(() => {
 const schoolName = computed(() => {
   if (isViewingSchool.value && viewingSchool.value) return viewingSchool.value.school_name
   if (isGovtAdmin.value && groupSummary.value) return groupSummary.value.group_name
-  return currentSchool.value?.school_name || currentUser.value?.school_name || 'Your School'
+  return currentSchool.value?.school_name || currentUser.value?.school_name || t('schools.dashboard.yourSchool', 'Your School')
 })
 
 function courseDisplayName(code: string): string {
@@ -352,9 +355,13 @@ const teacherStats = computed(() => {
 
 const greetingLines = computed(() => {
   const n = teacherClasses.value.length
-  if (!n) return 'No classes yet — create one to get your students playing.'
-  if (n === 1) return `One class on the go, ${teacherStats.value.students} students across it.`
-  return `${n} classes on the go, ${teacherStats.value.students} students total.`
+  if (!n) return t('schools.dashboard.noClassesYetCreateOne', 'No classes yet — create one to get your students playing.')
+  if (n === 1) {
+    return t('schools.dashboard.oneClassOnTheGo', 'One class on the go, {n} students across it.')
+      .replace('{n}', String(teacherStats.value.students))
+  }
+  return t('schools.dashboard.classesOnTheGo', '{n} classes on the go, {students} students total.')
+    .replace('{n}', String(n)).replace('{students}', String(teacherStats.value.students))
 })
 
 // Minutes-first headline formatting (founder ruling 2026-07-18): never render a
@@ -372,18 +379,22 @@ function formatPracticeHours(hours: number): string {
 const staffPracticeNote = computed(() => {
   const minutes = Math.round((totalStaffPracticeHours.value || 0) * 60)
   if (minutes <= 0) return ''
-  return `incl. ${formatPracticeHours(totalStaffPracticeHours.value)} staff practice`
+  return t('schools.dashboard.inclStaffPractice', 'incl. {hours} staff practice')
+    .replace('{hours}', formatPracticeHours(totalStaffPracticeHours.value))
 })
 
 const adminGreetingLines = computed(() => {
-  return `${totalStudents.value} students across ${totalClasses.value} classes — ${formatPracticeHours(totalPracticeHours.value)} practised all-time.`
+  return t('schools.dashboard.adminGreetingLine', '{students} students across {classes} classes — {hours} practised all-time.')
+    .replace('{students}', String(totalStudents.value))
+    .replace('{classes}', String(totalClasses.value))
+    .replace('{hours}', formatPracticeHours(totalPracticeHours.value))
 })
 
 const breadcrumb = computed(() => {
   if (!isViewingSchool.value) return null
   return {
-    group: groupSummary.value?.group_name || 'Group',
-    school: viewingSchool.value?.school_name || 'School',
+    group: groupSummary.value?.group_name || t('schools.dashboard.group', 'Group'),
+    school: viewingSchool.value?.school_name || t('schools.dashboard.school', 'School'),
   }
 })
 
@@ -422,8 +433,8 @@ async function handlePlayClass(cls: ClassInfo) {
     </nav>
 
     <div v-if="dashboardFetchError" class="fetch-error-banner">
-      <span>Couldn't refresh this dashboard — showing the last data loaded. {{ dashboardFetchError }}</span>
-      <button type="button" class="btn-ghost" @click="refresh">Retry</button>
+      <span>{{ t('schools.dashboard.couldntRefreshDashboard', "Couldn't refresh this dashboard — showing the last data loaded. {error}").replace('{error}', String(dashboardFetchError)) }}</span>
+      <button type="button" class="btn-ghost" @click="refresh">{{ t('schools.dashboard.retry', 'Retry') }}</button>
     </div>
     <div v-if="playError" class="fetch-error-banner">
       <span>{{ playError }}</span>
@@ -445,9 +456,9 @@ async function handlePlayClass(cls: ClassInfo) {
           <!-- "Guided look", never "mission" — mission framing is deprecated
                in user-facing copy (founder ruling, 2026-07-30). -->
           <button v-if="showMissionAffordance" type="button" class="btn-ghost" @click="handleTryMission">
-            Take a guided look
+            {{ t('schools.dashboard.takeAGuidedLook', 'Take a guided look') }}
           </button>
-          <button v-if="!isAdminView" type="button" class="btn-ghost" @click="isCreateModalOpen = true">+ Create class</button>
+          <button v-if="!isAdminView" type="button" class="btn-ghost" @click="isCreateModalOpen = true">{{ t('schools.dashboard.createClass', '+ Create class') }}</button>
         </template>
       </Greeting>
 
@@ -459,10 +470,10 @@ async function handlePlayClass(cls: ClassInfo) {
       <!-- Compact: dense table -->
       <div v-if="density === 'compact'" class="schools-card teacher-compact">
         <div class="teacher-compact-head">
-          <div>Class</div>
-          <div>Course</div>
-          <div>Benchmarks (cycles vs school · global)</div>
-          <div>Code</div>
+          <div>{{ t('schools.dashboard.class', 'Class') }}</div>
+          <div>{{ t('schools.dashboard.course', 'Course') }}</div>
+          <div>{{ t('schools.dashboard.benchmarksCyclesVsSchoolGlobal', 'Benchmarks (cycles vs school · global)') }}</div>
+          <div>{{ t('schools.dashboard.code', 'Code') }}</div>
           <div></div>
         </div>
         <div
@@ -496,7 +507,7 @@ async function handlePlayClass(cls: ClassInfo) {
             <BeltDot belt="white" :size="28" ring />
             <div class="class-link-text">
               <div class="class-name">{{ cls.class_name }}</div>
-              <div class="class-meta">{{ cls.student_count }} students</div>
+              <div class="class-meta">{{ t('schools.dashboard.nStudents', '{n} students').replace('{n}', String(cls.student_count)) }}</div>
             </div>
           </router-link>
           <div class="schools-subtle">{{ courseDisplayName(cls.course_code) }}</div>
@@ -529,16 +540,16 @@ async function handlePlayClass(cls: ClassInfo) {
           </div>
           <div class="join-code">{{ cls.student_join_code }}</div>
           <div class="row-cta">
-            <button v-if="canPlayAsClass" class="btn-play" @click="handlePlayClass(cls)">▶ Play as class</button>
+            <button v-if="canPlayAsClass" class="btn-play" @click="handlePlayClass(cls)">{{ t('schools.dashboard.playAsClass', '▶ Play as class') }}</button>
           </div>
         </div>
 
         <div v-if="classesLoading && !teacherClasses.length" class="empty-state">
-          <p class="schools-subtle">Loading your classes…</p>
+          <p class="schools-subtle">{{ t('schools.dashboard.loadingYourClasses', 'Loading your classes…') }}</p>
         </div>
         <div v-else-if="!teacherClasses.length" class="empty-state">
-          <p>No classes yet.</p>
-          <button v-if="!isAdminView" type="button" class="btn-play empty-hero-cta" @click="isCreateModalOpen = true">Create your first class</button>
+          <p>{{ t('schools.dashboard.noClassesYet', 'No classes yet.') }}</p>
+          <button v-if="!isAdminView" type="button" class="btn-play empty-hero-cta" @click="isCreateModalOpen = true">{{ t('schools.dashboard.createYourFirstClass', 'Create your first class') }}</button>
         </div>
       </div>
 
@@ -556,9 +567,9 @@ async function handlePlayClass(cls: ClassInfo) {
             </router-link>
             <div class="panel-meta">
               <BeltDot belt="white" :size="14" ring />
-              <span>{{ cls.student_count }} students</span>
+              <span>{{ t('schools.dashboard.nStudents', '{n} students').replace('{n}', String(cls.student_count)) }}</span>
               <span class="dot-sep">·</span>
-              <span>{{ Math.round(cls.avg_practice_minutes || 0) }}m avg practice</span>
+              <span>{{ t('schools.dashboard.nMinAvgPractice', '{n}m avg practice').replace('{n}', String(Math.round(cls.avg_practice_minutes || 0))) }}</span>
             </div>
           </div>
 
@@ -566,25 +577,25 @@ async function handlePlayClass(cls: ClassInfo) {
             v-if="canPlayAsClass"
             class="btn-play pac-hero"
             @click="handlePlayClass(cls)"
-          >▶ Play as class</button>
+          >{{ t('schools.dashboard.playAsClass', '▶ Play as class') }}</button>
 
           <div v-if="benchFor(classReports.get(cls.id))" class="panel-bench" data-walk="dash-class-bench">
-            <div class="schools-kicker bench-kicker">Cycles · class vs school vs global</div>
+            <div class="schools-kicker bench-kicker">{{ t('schools.dashboard.cyclesClassVsSchoolVsGlobal', 'Cycles · class vs school vs global') }}</div>
             <Bench :data="benchFor(classReports.get(cls.id))!" unit="c" />
           </div>
 
           <div class="panel-footer">
-            <span class="schools-subtle">Join code</span>
+            <span class="schools-subtle">{{ t('schools.dashboard.joinCode', 'Join code') }}</span>
             <span class="join-code">{{ cls.student_join_code }}</span>
           </div>
         </article>
 
         <div v-if="classesLoading && !teacherClasses.length" class="empty-state full">
-          <p class="schools-subtle">Loading your classes…</p>
+          <p class="schools-subtle">{{ t('schools.dashboard.loadingYourClasses', 'Loading your classes…') }}</p>
         </div>
         <div v-else-if="!teacherClasses.length" class="empty-state full">
-          <p>No classes yet — create one to get your students playing.</p>
-          <button v-if="!isAdminView" type="button" class="btn-play empty-hero-cta" @click="isCreateModalOpen = true">Create your first class</button>
+          <p>{{ t('schools.dashboard.noClassesYetCreateOne', 'No classes yet — create one to get your students playing.') }}</p>
+          <button v-if="!isAdminView" type="button" class="btn-play empty-hero-cta" @click="isCreateModalOpen = true">{{ t('schools.dashboard.createYourFirstClass', 'Create your first class') }}</button>
         </div>
       </div>
 
@@ -610,11 +621,11 @@ async function handlePlayClass(cls: ClassInfo) {
            checked: 4ec80f25.f3a99573
       -->
       <div v-if="teacherClasses.length" class="teacher-stat-line schools-subtle" data-walk="dash-teacher-stats">
-        <span><strong class="arsenal stat-line-value">{{ teacherStats.students }}</strong> students</span>
+        <span><strong class="arsenal stat-line-value">{{ teacherStats.students }}</strong> {{ t('schools.dashboard.students', 'students') }}</span>
         <span class="dot-sep">·</span>
-        <span><strong class="arsenal stat-line-value">{{ teacherStats.hours }}h</strong> practised</span>
+        <span><strong class="arsenal stat-line-value">{{ teacherStats.hours }}h</strong> {{ t('schools.dashboard.practised', 'practised') }}</span>
         <span class="dot-sep">·</span>
-        <span><strong class="arsenal stat-line-value">{{ teacherStats.sessions }}</strong> sessions</span>
+        <span><strong class="arsenal stat-line-value">{{ teacherStats.sessions }}</strong> {{ t('schools.dashboard.sessions', 'sessions') }}</span>
       </div>
     </template>
 
@@ -630,8 +641,8 @@ async function handlePlayClass(cls: ClassInfo) {
       >
         <template #action>
           <div v-if="!isAdminView" class="action-row">
-            <router-link to="/schools/teachers" class="btn-ghost">+ Invite teacher</router-link>
-            <router-link to="/schools/settings" class="btn-play">School settings</router-link>
+            <router-link to="/schools/teachers" class="btn-ghost">{{ t('schools.dashboard.inviteTeacher', '+ Invite teacher') }}</router-link>
+            <router-link to="/schools/settings" class="btn-play">{{ t('schools.dashboard.schoolSettings', 'School settings') }}</router-link>
           </div>
         </template>
       </Greeting>
@@ -643,14 +654,14 @@ async function handlePlayClass(cls: ClassInfo) {
            mutually exclusive, so it was dead for every school admin on prod
            (Chepstow, 2026-08-06). It belongs here, in the school-admin lane. -->
       <div v-if="showNameSchoolCard" class="schools-card schools-card-pad name-group-card">
-        <h3 class="arsenal card-header-title">Confirm your school's name</h3>
-        <p class="schools-subtle">This is what your teachers and students will see.</p>
+        <h3 class="arsenal card-header-title">{{ t('schools.dashboard.confirmYourSchoolsName', "Confirm your school's name") }}</h3>
+        <p class="schools-subtle">{{ t('schools.dashboard.whatTeachersAndStudentsWillSee', 'This is what your teachers and students will see.') }}</p>
         <div class="name-group-row">
           <input
             v-model="schoolNameDraft"
             type="text"
             class="field-input"
-            placeholder="e.g. Ysgol y Garnedd"
+            :placeholder="t('schools.dashboard.egYsgolYGarnedd', 'e.g. Ysgol y Garnedd')"
             :disabled="isSavingSchoolName"
             @keyup.enter="saveSchoolName"
           />
@@ -659,7 +670,7 @@ async function handlePlayClass(cls: ClassInfo) {
             :disabled="isSavingSchoolName || !schoolNameDraft.trim()"
             @click="saveSchoolName"
           >
-            {{ isSavingSchoolName ? 'Saving…' : 'Save' }}
+            {{ isSavingSchoolName ? t('schools.dashboard.saving', 'Saving…') : t('schools.dashboard.save', 'Save') }}
           </button>
         </div>
         <p v-if="schoolNameError" class="name-group-error">{{ schoolNameError }}</p>
@@ -681,58 +692,57 @@ async function handlePlayClass(cls: ClassInfo) {
         class="schools-card schools-card-pad setup-banner"
       >
         <div>
-          <div class="schools-kicker">Get started</div>
+          <div class="schools-kicker">{{ t('schools.dashboard.getStarted', 'Get started') }}</div>
           <p class="setup-banner-text">
-            Set up your school in four quick steps — name it, invite your
-            teachers, choose your courses and get your pupils into a class.
+            {{ t('schools.dashboard.setupFourStepsBody', 'Set up your school in four quick steps — name it, invite your teachers, choose your courses and get your pupils into a class.') }}
           </p>
         </div>
-        <span class="btn-play setup-banner-cta">Start setup →</span>
+        <span class="btn-play setup-banner-cta">{{ t('schools.dashboard.startSetup', 'Start setup →') }}</span>
       </router-link>
 
       <div class="stat-strip stat-strip--5">
         <div class="stat-card">
           <span class="arsenal stat-value">{{ totalStudents }}</span>
-          <span class="stat-label">Students</span>
+          <span class="stat-label">{{ t('schools.dashboard.studentsLabel', 'Students') }}</span>
         </div>
         <div class="stat-card">
           <span class="arsenal stat-value">{{ totalTeachers }}</span>
-          <span class="stat-label">Teachers</span>
+          <span class="stat-label">{{ t('schools.dashboard.teachersLabel', 'Teachers') }}</span>
         </div>
         <div class="stat-card">
           <span class="arsenal stat-value">{{ totalClasses }}</span>
-          <span class="stat-label">Classes</span>
+          <span class="stat-label">{{ t('schools.dashboard.classesLabel', 'Classes') }}</span>
         </div>
         <div class="stat-card">
           <span class="arsenal stat-value">{{ formatPracticeHours(totalPracticeHours) }}</span>
-          <span class="stat-label">Hours practised</span>
+          <span class="stat-label">{{ t('schools.dashboard.hoursPractised', 'Hours practised') }}</span>
           <span v-if="staffPracticeNote" class="stat-subnote">{{ staffPracticeNote }}</span>
         </div>
         <div class="stat-card">
           <span class="arsenal stat-value">{{ teacherClasses.length }}</span>
-          <span class="stat-label">Your classes</span>
+          <span class="stat-label">{{ t('schools.dashboard.yourClasses', 'Your classes') }}</span>
         </div>
       </div>
 
       <div class="admin-grid">
         <div class="schools-card">
           <header class="card-header-row">
-            <h3 class="arsenal card-header-title">Classes</h3>
+            <h3 class="arsenal card-header-title">{{ t('schools.dashboard.classesLabel', 'Classes') }}</h3>
             <button
               v-if="!isAdminView && teacherClasses.length"
               type="button"
               class="card-header-link card-header-btn"
               @click="isCreateModalOpen = true"
-            >+ Create class</button>
-            <router-link :to="schoolsLink('classes')" class="card-header-link">View all →</router-link>
+            >{{ t('schools.dashboard.createClass', '+ Create class') }}</button>
+            <router-link :to="schoolsLink('classes')" class="card-header-link">{{ t('schools.dashboard.viewAll', 'View all →') }}</router-link>
           </header>
           <table class="ssi-table">
             <thead>
               <tr>
-                <th>Class</th>
-                <th>Course</th>
-                <th>Students</th>
-                <th>Avg practice</th>
+                <th>{{ t('schools.dashboard.class', 'Class') }}</th>
+                <th>{{ t('schools.dashboard.course', 'Course') }}</th>
+                <th>{{ t('schools.dashboard.studentsLabel', 'Students') }}</th>
+                <th>{{ t('schools.dashboard.avgPractice', 'Avg practice') }}</th>
                 <!-- Play-as-class is a school-STAFF capability (owner ruling
                      2026-07-16) — the admin lane gets the same action the
                      teacher lane's cards carry. Header stays empty; the cell
@@ -755,19 +765,19 @@ async function handlePlayClass(cls: ClassInfo) {
                 <td>{{ cls.student_count }}</td>
                 <td>{{ Math.round(cls.avg_practice_minutes || 0) }}m</td>
                 <td v-if="canPlayAsClass" class="row-cta">
-                  <button class="btn-play" @click="handlePlayClass(cls)">▶ Play as class</button>
+                  <button class="btn-play" @click="handlePlayClass(cls)">{{ t('schools.dashboard.playAsClass', '▶ Play as class') }}</button>
                 </td>
               </tr>
               <tr v-if="classesLoading && !teacherClasses.length">
                 <td :colspan="canPlayAsClass ? 5 : 4" class="empty-row">
-                  <p class="empty-row-text schools-subtle">Loading your classes…</p>
+                  <p class="empty-row-text schools-subtle">{{ t('schools.dashboard.loadingYourClasses', 'Loading your classes…') }}</p>
                 </td>
               </tr>
               <tr v-else-if="!teacherClasses.length">
                 <td :colspan="canPlayAsClass ? 5 : 4" class="empty-row">
-                  <p class="empty-row-text">No classes yet — create one to get your students playing.</p>
+                  <p class="empty-row-text">{{ t('schools.dashboard.noClassesYetCreateOne', 'No classes yet — create one to get your students playing.') }}</p>
                   <button v-if="!isAdminView" type="button" class="btn-play empty-row-cta" @click="isCreateModalOpen = true">
-                    + Create your first class
+                    {{ t('schools.dashboard.createYourFirstClassPlus', '+ Create your first class') }}
                   </button>
                 </td>
               </tr>
@@ -776,31 +786,31 @@ async function handlePlayClass(cls: ClassInfo) {
         </div>
 
         <aside class="schools-card schools-card-pad attention-panel">
-          <h3 class="arsenal attention-title">Quick links</h3>
+          <h3 class="arsenal attention-title">{{ t('schools.dashboard.quickLinks', 'Quick links') }}</h3>
           <div class="attention-list">
             <router-link :to="schoolsLink('students')" class="attention-row">
-              <div class="attention-tag">Students</div>
-              <div class="attention-body">View and manage all student progress</div>
-              <span class="attention-cta">Open →</span>
+              <div class="attention-tag">{{ t('schools.dashboard.studentsLabel', 'Students') }}</div>
+              <div class="attention-body">{{ t('schools.dashboard.viewManageStudentProgress', 'View and manage all student progress') }}</div>
+              <span class="attention-cta">{{ t('schools.dashboard.open', 'Open →') }}</span>
             </router-link>
             <router-link :to="schoolsLink('teachers')" class="attention-row">
-              <div class="attention-tag">Teachers</div>
-              <div class="attention-body">Invite or manage teaching staff</div>
-              <span class="attention-cta">Open →</span>
+              <div class="attention-tag">{{ t('schools.dashboard.teachersLabel', 'Teachers') }}</div>
+              <div class="attention-body">{{ t('schools.dashboard.inviteOrManageTeachingStaff', 'Invite or manage teaching staff') }}</div>
+              <span class="attention-cta">{{ t('schools.dashboard.open', 'Open →') }}</span>
             </router-link>
             <router-link :to="schoolsLink('analytics')" class="attention-row">
-              <div class="attention-tag">Analytics</div>
-              <div class="attention-body">Weekly activity and per-class breakdown</div>
-              <span class="attention-cta">Open →</span>
+              <div class="attention-tag">{{ t('schools.dashboard.analytics', 'Analytics') }}</div>
+              <div class="attention-body">{{ t('schools.dashboard.weeklyActivityBreakdown', 'Weekly activity and per-class breakdown') }}</div>
+              <span class="attention-cta">{{ t('schools.dashboard.open', 'Open →') }}</span>
             </router-link>
             <!-- The wizard's only permanent home. /schools/setup has no nav
                  tab, so once the first-run banner above retires it would
                  otherwise be unreachable. Quiet, never a nag. Write flow —
                  hidden in the ssi_admin read-only view. -->
             <router-link v-if="!isAdminView" to="/schools/setup" class="attention-row">
-              <div class="attention-tag">Setup</div>
-              <div class="attention-body">Walk through school setup again, step by step</div>
-              <span class="attention-cta">Open →</span>
+              <div class="attention-tag">{{ t('schools.dashboard.setup', 'Setup') }}</div>
+              <div class="attention-body">{{ t('schools.dashboard.walkThroughSetupAgain', 'Walk through school setup again, step by step') }}</div>
+              <span class="attention-cta">{{ t('schools.dashboard.open', 'Open →') }}</span>
             </router-link>
           </div>
         </aside>
@@ -814,26 +824,32 @@ async function handlePlayClass(cls: ClassInfo) {
       <Greeting
         :name="`${schoolName}`"
         :lines="isViewingSchool
-          ? `${totalClasses} classes · ${totalStudents} students · ${formatPracticeHours(totalPracticeHours)} practised${staffPracticeNote ? ` (${staffPracticeNote})` : ''}`
-          : `${schools.length} schools · ${totalStudents} students · ${formatPracticeHours(totalPracticeHours)} practised${staffPracticeNote ? ` (${staffPracticeNote})` : ''}`"
+          ? t('schools.dashboard.classesStudentsPractisedGovt', '{classes} classes · {students} students · {hours} practised{staffNote}')
+              .replace('{classes}', String(totalClasses)).replace('{students}', String(totalStudents))
+              .replace('{hours}', formatPracticeHours(totalPracticeHours))
+              .replace('{staffNote}', staffPracticeNote ? ` (${staffPracticeNote})` : '')
+          : t('schools.dashboard.schoolsStudentsPractisedGovt', '{schoolCount} schools · {students} students · {hours} practised{staffNote}')
+              .replace('{schoolCount}', String(schools.length)).replace('{students}', String(totalStudents))
+              .replace('{hours}', formatPracticeHours(totalPracticeHours))
+              .replace('{staffNote}', staffPracticeNote ? ` (${staffPracticeNote})` : '')"
         :date="todayLabel"
         :dense="density === 'compact'"
       >
         <template #action>
-          <router-link :to="schoolsLink('schools-list')" class="btn-ghost">Full schools list →</router-link>
+          <router-link :to="schoolsLink('schools-list')" class="btn-ghost">{{ t('schools.dashboard.fullSchoolsList', 'Full schools list →') }}</router-link>
         </template>
       </Greeting>
 
       <!-- First-run: name your group (design §1d) -->
       <div v-if="showNameGroupCard" class="schools-card schools-card-pad name-group-card">
-        <h3 class="arsenal card-header-title">Name your group</h3>
-        <p class="schools-subtle">This is what schools will see when they join.</p>
+        <h3 class="arsenal card-header-title">{{ t('schools.dashboard.nameYourGroup', 'Name your group') }}</h3>
+        <p class="schools-subtle">{{ t('schools.dashboard.whatSchoolsWillSeeWhenJoin', 'This is what schools will see when they join.') }}</p>
         <div class="name-group-row">
           <input
             v-model="groupNameDraft"
             type="text"
             class="field-input"
-            placeholder="e.g. Gwynedd Education Authority"
+            :placeholder="t('schools.dashboard.egGwyneddEducationAuthority', 'e.g. Gwynedd Education Authority')"
             :disabled="isSavingGroupName"
             @keyup.enter="saveGroupName"
           />
@@ -842,7 +858,7 @@ async function handlePlayClass(cls: ClassInfo) {
             :disabled="isSavingGroupName || !groupNameDraft.trim()"
             @click="saveGroupName"
           >
-            {{ isSavingGroupName ? 'Saving…' : 'Save' }}
+            {{ isSavingGroupName ? t('schools.dashboard.saving', 'Saving…') : t('schools.dashboard.save', 'Save') }}
           </button>
         </div>
         <p v-if="groupNameError" class="name-group-error">{{ groupNameError }}</p>
@@ -859,7 +875,7 @@ async function handlePlayClass(cls: ClassInfo) {
            outstanding links to show — otherwise it would be an empty header. -->
       <div v-if="!isViewingSchool && (!isAdminView || schoolLinks.length)" class="schools-card schools-card-pad add-schools-card">
         <header class="card-header-row">
-          <h3 class="arsenal card-header-title">Schools in your group</h3>
+          <h3 class="arsenal card-header-title">{{ t('schools.dashboard.schoolsInYourGroup', 'Schools in your group') }}</h3>
         </header>
         <!-- Creating a school is a write — hidden in the ssi_admin read-only
              View-as (isAdminView). The read-only outstanding-links table below
@@ -869,16 +885,16 @@ async function handlePlayClass(cls: ClassInfo) {
             v-model="newSchoolLabel"
             type="text"
             class="field-input field-input-flex"
-            placeholder="School name"
+            :placeholder="t('schools.dashboard.schoolName', 'School name')"
             @keyup.enter="handleCreateSchool"
           />
           <button class="btn-play" :disabled="isCreatingSchool || !newSchoolLabel.trim()" @click="handleCreateSchool">
-            {{ isCreatingSchool ? 'Creating…' : 'Create school' }}
+            {{ isCreatingSchool ? t('schools.dashboard.creating', 'Creating…') : t('schools.dashboard.createSchool', 'Create school') }}
           </button>
         </div>
         <div v-if="!isAdminView && createdSchoolLinks" class="created-links">
-          <InviteLinkField v-if="schoolInviteUrl(createdSchoolLinks.admin_join_code)" label="Admin" :url="schoolInviteUrl(createdSchoolLinks.admin_join_code)!" />
-          <InviteLinkField v-if="schoolInviteUrl(createdSchoolLinks.teacher_join_code)" label="Teacher" :url="schoolInviteUrl(createdSchoolLinks.teacher_join_code)!" />
+          <InviteLinkField v-if="schoolInviteUrl(createdSchoolLinks.admin_join_code)" :label="t('schools.dashboard.inviteLabelAdmin', 'Admin')" :url="schoolInviteUrl(createdSchoolLinks.admin_join_code)!" />
+          <InviteLinkField v-if="schoolInviteUrl(createdSchoolLinks.teacher_join_code)" :label="t('schools.dashboard.inviteLabelTeacher', 'Teacher')" :url="schoolInviteUrl(createdSchoolLinks.teacher_join_code)!" />
         </div>
 
         <!-- Outstanding links minted before the one-primitive change
@@ -887,8 +903,8 @@ async function handlePlayClass(cls: ClassInfo) {
         <table v-if="schoolLinks.length" class="ssi-table">
           <thead>
             <tr>
-              <th>Link</th>
-              <th>State</th>
+              <th>{{ t('schools.dashboard.link', 'Link') }}</th>
+              <th>{{ t('schools.dashboard.state', 'State') }}</th>
               <th></th>
             </tr>
           </thead>
@@ -896,13 +912,13 @@ async function handlePlayClass(cls: ClassInfo) {
             <tr v-for="link in schoolLinks" :key="link.id">
               <td>{{ link.label || link.code }}</td>
               <td class="schools-subtle">
-                <span v-if="link.redeemed">Redeemed — {{ link.school?.school_name }}</span>
-                <span v-else-if="!link.is_active">Deactivated</span>
-                <span v-else>Pending</span>
+                <span v-if="link.redeemed">{{ t('schools.dashboard.redeemedBy', 'Redeemed — {school}').replace('{school}', String(link.school?.school_name)) }}</span>
+                <span v-else-if="!link.is_active">{{ t('schools.dashboard.deactivated', 'Deactivated') }}</span>
+                <span v-else>{{ t('schools.dashboard.pending', 'Pending') }}</span>
               </td>
               <td>
                 <button v-if="!link.redeemed" class="btn-ghost" @click="copyLink(link.id, link.code)">
-                  {{ copiedLinkId === link.id ? 'Copied!' : 'Copy link' }}
+                  {{ copiedLinkId === link.id ? t('schools.dashboard.copied', 'Copied!') : t('schools.dashboard.copyLink', 'Copy link') }}
                 </button>
               </td>
             </tr>
@@ -922,7 +938,7 @@ async function handlePlayClass(cls: ClassInfo) {
             <div class="govt-tile-info">
               <h4>{{ school.school_name }}</h4>
               <span class="schools-subtle">
-                {{ school.teacher_count }} teachers · {{ school.class_count }} classes
+                {{ t('schools.dashboard.teacherCountClassCount', '{teachers} teachers · {classes} classes').replace('{teachers}', String(school.teacher_count)).replace('{classes}', String(school.class_count)) }}
               </span>
             </div>
             <HealthDot :health="school.health" />
@@ -930,11 +946,11 @@ async function handlePlayClass(cls: ClassInfo) {
           <div class="govt-tile-stats">
             <div>
               <div class="arsenal govt-tile-stat">{{ school.student_count }}</div>
-              <div class="schools-subtle">Students</div>
+              <div class="schools-subtle">{{ t('schools.dashboard.studentsLabel', 'Students') }}</div>
             </div>
             <div>
               <div class="arsenal govt-tile-stat">{{ formatPracticeHours(school.total_practice_hours) }}</div>
-              <div class="schools-subtle">Hours</div>
+              <div class="schools-subtle">{{ t('schools.dashboard.hours', 'Hours') }}</div>
             </div>
           </div>
         </button>
@@ -945,33 +961,33 @@ async function handlePlayClass(cls: ClassInfo) {
         <div class="stat-strip">
           <div class="stat-card">
             <span class="arsenal stat-value">{{ totalStudents }}</span>
-            <span class="stat-label">Students</span>
+            <span class="stat-label">{{ t('schools.dashboard.studentsLabel', 'Students') }}</span>
           </div>
           <div class="stat-card">
             <span class="arsenal stat-value">{{ totalTeachers }}</span>
-            <span class="stat-label">Teachers</span>
+            <span class="stat-label">{{ t('schools.dashboard.teachersLabel', 'Teachers') }}</span>
           </div>
           <div class="stat-card">
             <span class="arsenal stat-value">{{ totalClasses }}</span>
-            <span class="stat-label">Classes</span>
+            <span class="stat-label">{{ t('schools.dashboard.classesLabel', 'Classes') }}</span>
           </div>
           <div class="stat-card">
             <span class="arsenal stat-value">{{ Math.round(totalPracticeHours) }}h</span>
-            <span class="stat-label">Hours practised</span>
+            <span class="stat-label">{{ t('schools.dashboard.hoursPractised', 'Hours practised') }}</span>
           </div>
         </div>
 
         <div class="schools-card">
           <header class="card-header-row">
-            <h3 class="arsenal card-header-title">Classes</h3>
+            <h3 class="arsenal card-header-title">{{ t('schools.dashboard.classesLabel', 'Classes') }}</h3>
           </header>
           <table class="ssi-table">
             <thead>
               <tr>
-                <th>Class</th>
-                <th>Course</th>
-                <th>Students</th>
-                <th>Avg practice</th>
+                <th>{{ t('schools.dashboard.class', 'Class') }}</th>
+                <th>{{ t('schools.dashboard.course', 'Course') }}</th>
+                <th>{{ t('schools.dashboard.studentsLabel', 'Students') }}</th>
+                <th>{{ t('schools.dashboard.avgPractice', 'Avg practice') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -993,10 +1009,10 @@ async function handlePlayClass(cls: ClassInfo) {
                 <td>{{ Math.round(cls.avg_practice_minutes || 0) }}m</td>
               </tr>
               <tr v-if="classesLoading && !teacherClasses.length">
-                <td colspan="4" class="empty-row schools-subtle">Loading classes…</td>
+                <td colspan="4" class="empty-row schools-subtle">{{ t('schools.dashboard.loadingClasses', 'Loading classes…') }}</td>
               </tr>
               <tr v-else-if="!teacherClasses.length">
-                <td colspan="4" class="empty-row">No classes in this school yet.</td>
+                <td colspan="4" class="empty-row">{{ t('schools.dashboard.noClassesInThisSchoolYet', 'No classes in this school yet.') }}</td>
               </tr>
             </tbody>
           </table>

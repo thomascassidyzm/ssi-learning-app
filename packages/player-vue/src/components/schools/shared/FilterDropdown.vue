@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 interface FilterOption {
   value: string | number
@@ -24,11 +27,18 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   modelValue: null,
-  placeholder: 'All',
   showFilterIcon: false,
   disabled: false,
   size: 'md',
 })
+
+/**
+ * The default label is resolved in a computed, not in withDefaults. A
+ * defineProps default is hoisted outside setup(), so it cannot call t() at
+ * all — and even where the compiler allows it, a default evaluated once would
+ * freeze in English, because on boot the locale chunk is still in flight.
+ */
+const placeholderText = computed(() => props.placeholder ?? t('schools.ui.filterDropdown.placeholderAll', 'All'))
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string | number | null): void
@@ -44,7 +54,7 @@ const selectedOption = computed(() =>
 )
 
 const displayText = computed(() =>
-  selectedOption.value?.label || props.placeholder
+  selectedOption.value?.label || placeholderText.value
 )
 
 const toggle = () => {
@@ -138,7 +148,7 @@ const classes = computed(() => [
         type="button"
         class="filter-clear"
         @click="clearSelection"
-        aria-label="Clear filter"
+        :aria-label="t('schools.ui.filterDropdown.clearFilterAriaLabel', 'Clear filter')"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="18" y1="6" x2="6" y2="18"/>

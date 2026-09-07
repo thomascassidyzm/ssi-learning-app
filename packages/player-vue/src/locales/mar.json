@@ -810,5 +810,206 @@
     "loadingCourses": "तुमचे कोर्स लोड होत आहेत...",
     "visitSaysomethingin": "SaySomethingin ला भेट द्या",
     "welcomeSaysomethingin": "SaySomethingin मध्ये स्वागत आहे"
+  },
+  "explainer": {
+    "howThisWorks": {
+      "linkLabel": "हे कसं चालतं"
+    },
+    "figures": {
+      "spacingReturns": {
+        "new": "नवीन"
+      }
+    }
+  },
+  "walkthrough": {
+    "save-your-progress": {
+      "title": "तुमची प्रगती जपा"
+    }
+  },
+  "schools": {
+    "setup": {
+      "back": "मागे",
+      "breadcrumbSettings": "सेटिंग्ज",
+      "continue": "पुढे चालू ठेवा"
+    },
+    "dashboard": {
+      "code": "कोड",
+      "retry": "पुन्हा प्रयत्न करा"
+    },
+    "teacherDashboard": {
+      "allCourses": "सर्व कोर्स",
+      "allFilterOption": "सर्व",
+      "coursePlural": "कोर्स",
+      "healthLabel": "आरोग्य",
+      "retry": "पुन्हा प्रयत्न करा",
+      "tableHeaderActivity": "क्रियाकलाप",
+      "tableHeaderBelt": "बेल्ट",
+      "tableHeaderHealth": "आरोग्य"
+    },
+    "teachers": {
+      "accessCode": "अ‍ॅक्सेस कोड",
+      "done": "पूर्ण झालं",
+      "remove": "काढून टाका",
+      "retry": "पुन्हा प्रयत्न करा",
+      "statusActive": "सक्रिय"
+    },
+    "schoolSettings": {
+      "about": "विषयी",
+      "cancel": "रद्द करा",
+      "langEnglish": "इंग्रजी",
+      "title": "सेटिंग्ज"
+    },
+    "schoolsList": {
+      "cancel": "रद्द करा",
+      "done": "पूर्ण झालं",
+      "kpiSchools": "शाळा",
+      "retry": "पुन्हा प्रयत्न करा"
+    },
+    "upgrade": {
+      "loading": "लोड होत आहे…",
+      "manageSubscription": "सबस्क्रिप्शन सांभाळा",
+      "ssiPremium": "SSi प्रीमियम"
+    },
+    "classDetail": {
+      "addLabel": "जोडा",
+      "beltColumn": "बेल्ट",
+      "cancelLabel": "रद्द करा",
+      "doneLabel": "पूर्ण झालं",
+      "loadingLabel": "लोड होत आहे…",
+      "removeLabel": "काढून टाका"
+    },
+    "studentProgress": {
+      "allCoursesTitle": "सर्व कोर्स"
+    },
+    "students": {
+      "allOption": "सर्व",
+      "beltBlack": "काळा",
+      "beltBlue": "निळा",
+      "beltFilterLabel": "बेल्ट",
+      "beltGreen": "हिरवा",
+      "beltOrange": "नारिंगी",
+      "beltWhite": "पांढरा",
+      "beltYellow": "पिवळा",
+      "healthFilterLabel": "आरोग्य",
+      "lastActiveNow": "आत्ता",
+      "retryLabel": "पुन्हा प्रयत्न करा"
+    },
+    "ui": {
+      "assignClasses": {
+        "cancel": "रद्द करा",
+        "done": "पूर्ण झालं",
+        "verbAdd": "जोडा",
+        "verbRemove": "काढून टाका"
+      },
+      "classCreated": {
+        "done": "पूर्ण झालं"
+      },
+      "confirmDelete": {
+        "cancel": "रद्द करा"
+      },
+      "createClass": {
+        "cancel": "रद्द करा"
+      },
+      "filterDropdown": {
+        "placeholderAll": "सर्व"
+      },
+      "nodeEntitlement": {
+        "coursesKicker": "कोर्स",
+        "loading": "लोड होत आहे…"
+      },
+      "passwordPrompt": {
+        "notNow": "आत्ता नको"
+      },
+      "topBar": {
+        "brandTailSchools": "शाळा",
+        "menuSignOut": "साइन आउट करा",
+        "tabSchools": "शाळा",
+        "tabUpgrade": "अपग्रेड",
+        "youFallback": "तुम्ही"
+      },
+      "topNav": {
+        "logoSchoolsTail": "शाळा",
+        "menuSettings": "सेटिंग्ज",
+        "menuSignOut": "साइन आउट करा",
+        "schoolsDashboardFallback": "शाळांचा डॅशबोर्ड",
+        "signIn": "साइन इन करा",
+        "tabSchools": "शाळा",
+        "tabUpgrade": "अपग्रेड"
+      }
+    }
+  },
+  "teach": {
+    "billing": {
+      "active": "सक्रिय",
+      "manageSubscription": "सबस्क्रिप्शन सांभाळा"
+    },
+    "dashboard": {
+      "cancel": "रद्द करा",
+      "lastActiveToday": "आज",
+      "seeds": "बीजं"
+    },
+    "withTeacher": {
+      "back": "मागे",
+      "cancel": "रद्द करा",
+      "free": "मोफत",
+      "startLearning": "शिकायला सुरुवात करा"
+    }
+  },
+  "org": {
+    "nodeHome": {
+      "accessCode": "अ‍ॅक्सेस कोड",
+      "done": "पूर्ण झालं",
+      "loading": "लोड होत आहे…"
+    },
+    "ui": {
+      "howThisWorks": {
+        "close": "बंद करा",
+        "howThisWorks": "हे कसं चालतं"
+      },
+      "managerOnboardingGate": {
+        "confirmPassword": "पासवर्डची पुष्टी करा",
+        "done": "पूर्ण झालं",
+        "newPassword": "नवीन पासवर्ड",
+        "next": "पुढे",
+        "notNow": "आत्ता नको",
+        "typeItAgain": "पुन्हा टाका"
+      },
+      "nodeActionBar": {
+        "add": "जोडा",
+        "changeTheName": "नाव बदला",
+        "courses": "कोर्स",
+        "goAheadAnyway": "तरीही पुढे जा"
+      },
+      "nodeChildrenList": {
+        "wordBelt": "बेल्ट"
+      },
+      "noticingInvitations": {
+        "dismiss": "रद्द करा"
+      },
+      "walkCard": {
+        "back": "मागे",
+        "next": "पुढे"
+      },
+      "waysInLedger": {
+        "copy": "कॉपी करा",
+        "loading": "लोड होत आहे…",
+        "statusActive": "सक्रिय"
+      },
+      "yourAccount": {
+        "close": "बंद करा",
+        "confirmPassword": "पासवर्डची पुष्टी करा",
+        "newPassword": "नवीन पासवर्ड",
+        "password": "पासवर्ड",
+        "typeItAgain": "पुन्हा टाका"
+      }
+    }
+  },
+  "insights": {
+    "rateEngine": {
+      "loading": "लोड होत आहे…"
+    },
+    "widget": {
+      "loading": "लोड होत आहे…"
+    }
   }
 }

@@ -25,6 +25,9 @@ import { computed } from 'vue'
 import InsightWidget from './InsightWidget.vue'
 import { summariseVad, latencyBins, type VadSummary, type MetricRow, type ProsodyAgg } from './data/vadUptake'
 import type { InsightSpec, ResolvedInsight, RankedBarData, DistributionData, TableData } from './spec'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 /** A class row for the class-by-class breakdown. Omit to hide that table. */
 export interface VadPanelClass {
@@ -71,14 +74,15 @@ const masterySpec = computed((): InsightSpec<'ranked-bar'> => ({
   widget: 'ranked-bar',
   query: { metric: 'vadMastery', frame: 'world' },
   frame: 'world',
-  title: 'Adaptive pause mastery, across the learners who have mic data',
-  story:
-    `Each bar counts (learner, LEGO) pairs the adaptive pause engine has a state for, ` +
-    `over the ${props.summary?.withData ?? 0} learner${(props.summary?.withData ?? 0) === 1 ? '' : 's'} ` +
-    `in ${props.scopeLabel} carrying mic-derived data — not all ${props.summary?.total ?? 0} on the roster. ` +
-    `A LEGO climbs acquisition → consolidating → confident → mastered as the learner's ` +
-    `responses come back smooth and fast enough, run after run.`,
-  tag: 'attention · voice',
+  title: t('insights.vad.masteryTitle', 'Adaptive pause mastery, across the learners who have mic data'),
+  story: t(
+    'insights.vad.masteryStory',
+    "Each bar counts (learner, LEGO) pairs the adaptive pause engine has a state for, over the {withData} learners in {scope} carrying mic-derived data — not all {total} on the roster. A LEGO climbs acquisition → consolidating → confident → mastered as the learner's responses come back smooth and fast enough, run after run.",
+  )
+    .replace('{withData}', String(props.summary?.withData ?? 0))
+    .replace('{scope}', props.scopeLabel)
+    .replace('{total}', String(props.summary?.total ?? 0)),
+  tag: t('insights.vad.tagAttentionVoice', 'attention · voice'),
   actions: [],
 }))
 const masteryResolved = computed((): ResolvedInsight => {
@@ -89,10 +93,10 @@ const masteryResolved = computed((): ResolvedInsight => {
     horizontal: true,
     bars: m
       ? [
-          { id: 'mastered', label: 'Mastered', value: m.mastered, tone: 'good' },
-          { id: 'confident', label: 'Confident', value: m.confident, tone: 'good' },
-          { id: 'consolidating', label: 'Consolidating', value: m.consolidating, tone: 'neutral' },
-          { id: 'acquisition', label: 'Acquisition', value: m.acquisition, tone: 'warn' },
+          { id: 'mastered', label: t('insights.vad.masteryMastered', 'Mastered'), value: m.mastered, tone: 'good' },
+          { id: 'confident', label: t('insights.vad.masteryConfident', 'Confident'), value: m.confident, tone: 'good' },
+          { id: 'consolidating', label: t('insights.vad.masteryConsolidating', 'Consolidating'), value: m.consolidating, tone: 'neutral' },
+          { id: 'acquisition', label: t('insights.vad.masteryAcquisition', 'Acquisition'), value: m.acquisition, tone: 'warn' },
         ]
       : [],
   }
@@ -104,14 +108,12 @@ const latencySpec = computed((): InsightSpec<'distribution'> => ({
   widget: 'distribution',
   query: { metric: 'vadLatency', frame: 'world' },
   frame: 'world',
-  title: 'How long they take to start speaking',
-  story:
-    `One point per learner: their mean response latency NORMALISED by phrase length — ` +
-    `milliseconds per character of the target, which is how the engine compares a short ` +
-    `word against a long sentence. Higher is slower. Over ` +
-    `${props.summary?.learnerLatencies.length ?? 0} learner${(props.summary?.learnerLatencies.length ?? 0) === 1 ? '' : 's'} ` +
-    `with a latency series, not the whole roster.`,
-  tag: 'attention · voice',
+  title: t('insights.vad.latencyTitle', 'How long they take to start speaking'),
+  story: t(
+    'insights.vad.latencyStory',
+    'One point per learner: their mean response latency NORMALISED by phrase length — milliseconds per character of the target, which is how the engine compares a short word against a long sentence. Higher is slower. Over {n} learners with a latency series, not the whole roster.',
+  ).replace('{n}', String(props.summary?.learnerLatencies.length ?? 0)),
+  tag: t('insights.vad.tagAttentionVoice', 'attention · voice'),
   actions: [],
 }))
 const latencyResolved = computed((): ResolvedInsight => {
@@ -131,22 +133,24 @@ const classTableSpec = computed((): InsightSpec<'table'> => ({
   widget: 'table',
   query: { metric: 'vadUptake', frame: 'world' },
   frame: 'world',
-  title: 'Uptake, class by class',
-  story:
-    `"With mic data" is how many learners in the class have ANY row in the VAD-fed ` +
-    `tables. The rest have none at all — no account, no mic, or never a voiced cycle — ` +
-    `so they are counted here rather than averaged in as zeros anywhere else on this board.`,
-  tag: 'attention · voice',
+  title: t('insights.vad.classTableTitle', 'Uptake, class by class'),
+  story: t(
+    'insights.vad.classTableStory',
+    '"With mic data" is how many learners in the class have ANY row in the VAD-fed tables. The rest have none at all — no account, no mic, or never a voiced cycle — so they are counted here rather than averaged in as zeros anywhere else on this board.',
+  ),
+  tag: t('insights.vad.tagAttentionVoice', 'attention · voice'),
   actions: [],
 }))
-const CLASS_COLUMNS: TableData['columns'] = [
-  { key: 'cls', label: 'Class', align: 'left' },
-  { key: 'course', label: 'Course', align: 'left' },
-  { key: 'uptake', label: 'With mic data', align: 'left' },
-  { key: 'share', label: 'Share', align: 'right', format: 'percent' },
-  { key: 'legos', label: 'LEGO series', align: 'right', format: 'number' },
-  { key: 'latency', label: 'Median ms/char', align: 'right', format: 'number' },
-]
+// A computed, not a constant: read once at setup these six column headings
+// would freeze in English, because the locale chunk is still loading then.
+const CLASS_COLUMNS = computed<TableData['columns']>(() => [
+  { key: 'cls', label: t('insights.vad.columnClass', 'Class'), align: 'left' },
+  { key: 'course', label: t('insights.vad.columnCourse', 'Course'), align: 'left' },
+  { key: 'uptake', label: t('insights.vad.columnWithMicData', 'With mic data'), align: 'left' },
+  { key: 'share', label: t('insights.vad.columnShare', 'Share'), align: 'right', format: 'percent' },
+  { key: 'legos', label: t('insights.vad.columnLegoSeries', 'LEGO series'), align: 'right', format: 'number' },
+  { key: 'latency', label: t('insights.vad.columnMedianMsChar', 'Median ms/char'), align: 'right', format: 'number' },
+])
 const classTableResolved = computed((): ResolvedInsight => {
   const rows: TableData['rows'] = []
   const names = props.names
@@ -161,7 +165,7 @@ const classTableResolved = computed((): ResolvedInsight => {
         cells: {
           cls: cls.className,
           course: cls.courseCode ?? '—',
-          uptake: `${s.withData} of ${s.total}`,
+          uptake: t('insights.vad.classTableUptakeCell', '{withData} of {total}').replace('{withData}', String(s.withData)).replace('{total}', String(s.total)),
           share: s.uptake === null ? 0 : Math.round(s.uptake * 100),
           legos: s.legoSeries,
           latency: s.medianLatency === null ? 0 : Number(s.medianLatency.toFixed(1)),
@@ -171,7 +175,7 @@ const classTableResolved = computed((): ResolvedInsight => {
     rows.sort((a, b) => Number(b.cells.share) - Number(a.cells.share))
   }
   return {
-    data: { kind: 'table', columns: CLASS_COLUMNS, rows } as TableData,
+    data: { kind: 'table', columns: CLASS_COLUMNS.value, rows } as TableData,
     isLoading: props.isLoading,
     error: props.error,
   }
@@ -181,7 +185,7 @@ const classTableResolved = computed((): ResolvedInsight => {
 <template>
   <div class="vad-panel-root">
     <!-- ---- Loading / error ----------------------------------------------- -->
-    <p v-if="isLoading" class="vad-note">Reading the VAD tables…</p>
+    <p v-if="isLoading" class="vad-note">{{ t('insights.vad.readingTables', 'Reading the VAD tables…') }}</p>
     <p v-else-if="error" class="vad-note vad-note-err">{{ error }}</p>
 
     <template v-else-if="summary">
@@ -189,38 +193,34 @@ const classTableResolved = computed((): ResolvedInsight => {
       <div class="vad-uptake">
         <div class="vad-uptake-figure">
           <span class="vad-uptake-num">{{ summary.withData }}</span>
-          <span class="vad-uptake-of">of {{ summary.total }}</span>
+          <span class="vad-uptake-of">{{ t('insights.vad.ofTotal', 'of {total}').replace('{total}', String(summary.total)) }}</span>
           <span class="vad-uptake-pct" v-if="uptakePct !== null">{{ uptakePct }}%</span>
         </div>
         <p class="vad-uptake-read">
-          <strong>{{ summary.withData }} of the {{ summary.total }} learners</strong> in
-          {{ scopeLabel }} have mic-derived data. The other
-          {{ summary.total - summary.withData }} have no row at all in the VAD-fed
-          tables — not zeros, nothing.
+          {{ t('insights.vad.uptakeReadIntro', '{withData} of the {total} learners in {scope} have mic-derived data. The other {rest} have no row at all in the VAD-fed tables — not zeros, nothing.')
+            .replace('{withData}', String(summary.withData)).replace('{total}', String(summary.total))
+            .replace('{scope}', scopeLabel).replace('{rest}', String(summary.total - summary.withData)) }}
           <template v-if="hasAnyData">
-            They are never averaged into anything below: every figure here is
-            taken over the {{ summary.withData }} who do have data.
+            {{ t('insights.vad.uptakeReadHasData', 'They are never averaged into anything below: every figure here is taken over the {withData} who do have data.').replace('{withData}', String(summary.withData)) }}
           </template>
           <template v-else>
-            So there is nothing to average, and nothing below pretends otherwise.
+            {{ t('insights.vad.uptakeReadNoData', 'So there is nothing to average, and nothing below pretends otherwise.') }}
           </template>
         </p>
         <p class="vad-uptake-fine">
-          {{ summary.legoSeries }} per-LEGO latency series ·
-          {{ summary.prosody.events }} prosody events from
-          {{ summary.withProsody }} learner{{ summary.withProsody === 1 ? '' : 's' }}
-          <template v-if="truncated"> · capped read, so these are a floor, not a total</template>
+          {{ t('insights.vad.uptakeFine', '{legos} per-LEGO latency series · {events} prosody events from {withProsody} learners')
+            .replace('{legos}', String(summary.legoSeries)).replace('{events}', String(summary.prosody.events)).replace('{withProsody}', String(summary.withProsody)) }}
+          <template v-if="truncated"> {{ t('insights.vad.uptakeFineCapped', '· capped read, so these are a floor, not a total') }}</template>
         </p>
       </div>
 
       <!-- ---- Empty scope ------------------------------------------------ -->
       <div v-if="!hasAnyData" class="vad-empty">
         <p class="vad-empty-lead">
-          No learner in {{ scopeLabel }} has mic-derived data yet.
+          {{ t('insights.vad.emptyLead', 'No learner in {scope} has mic-derived data yet.').replace('{scope}', scopeLabel) }}
         </p>
         <p class="vad-empty-fine">
-          Nothing is broken and nothing is being hidden: no learner here has produced a
-          single voiced cycle the VAD could measure, so there is no distribution to draw.
+          {{ t('insights.vad.emptyFine', 'Nothing is broken and nothing is being hidden: no learner here has produced a single voiced cycle the VAD could measure, so there is no distribution to draw.') }}
         </p>
       </div>
 
@@ -234,48 +234,46 @@ const classTableResolved = computed((): ResolvedInsight => {
         <!-- ---- Prosody ------------------------------------------------- -->
         <section class="vad-panel">
           <header class="vad-panel-head">
-            <h3 class="vad-panel-title">How they sound</h3>
+            <h3 class="vad-panel-title">{{ t('insights.vad.howTheySound', 'How they sound') }}</h3>
             <p v-if="summary.prosody.available" class="vad-panel-sub">
-              Straight off the {{ summary.prosody.events }} <code>cycle_prosody</code>
-              events from {{ summary.prosody.learners }} learner{{ summary.prosody.learners === 1 ? '' : 's' }}.
-              Only what the envelope payload actually carries — nothing inferred.
+              {{ t('insights.vad.prosodyAvailablePart1', 'Straight off the {events}').replace('{events}', String(summary.prosody.events)) }}
+              <code>cycle_prosody</code>
+              {{ t('insights.vad.prosodyAvailablePart2', 'events from {learners} learners. Only what the envelope payload actually carries — nothing inferred.').replace('{learners}', String(summary.prosody.learners)) }}
             </p>
             <p v-else class="vad-panel-sub vad-panel-gap">
-              Prosody is unavailable right now — the server read didn't answer, and
-              <code>player_events</code> is own-row under RLS so the browser can't read
-              it directly. This is a stated gap, not a set of zeroes.
+              {{ t('insights.vad.prosodyUnavailablePart1', "Prosody is unavailable right now — the server read didn't answer, and") }}
+              <code>player_events</code>
+              {{ t('insights.vad.prosodyUnavailablePart2', "is own-row under RLS so the browser can't read it directly. This is a stated gap, not a set of zeroes.") }}
             </p>
           </header>
           <dl v-if="summary.prosody.available" class="vad-metrics">
             <div class="vad-metric">
-              <dt>Peak loudness</dt>
+              <dt>{{ t('insights.vad.peakLoudness', 'Peak loudness') }}</dt>
               <dd>{{ fmt1(summary.prosody.meanPeakEnergyDb) }} <span class="u">dB</span></dd>
-              <p class="vad-metric-fine">mean of each cycle's loudest moment</p>
+              <p class="vad-metric-fine">{{ t('insights.vad.peakLoudnessFine', "mean of each cycle's loudest moment") }}</p>
             </div>
             <div class="vad-metric">
-              <dt>Average loudness</dt>
+              <dt>{{ t('insights.vad.averageLoudness', 'Average loudness') }}</dt>
               <dd>{{ fmt1(summary.prosody.meanAverageEnergyDb) }} <span class="u">dB</span></dd>
-              <p class="vad-metric-fine">mean across the whole speaking window</p>
+              <p class="vad-metric-fine">{{ t('insights.vad.averageLoudnessFine', 'mean across the whole speaking window') }}</p>
             </div>
             <div class="vad-metric">
-              <dt>Bursts per cycle</dt>
+              <dt>{{ t('insights.vad.burstsPerCycle', 'Bursts per cycle') }}</dt>
               <dd>{{ fmt1(summary.prosody.meanPeakCount) }}</dd>
-              <p class="vad-metric-fine">separate peaks in the energy envelope</p>
+              <p class="vad-metric-fine">{{ t('insights.vad.burstsPerCycleFine', 'separate peaks in the energy envelope') }}</p>
             </div>
             <div class="vad-metric">
-              <dt>Jumped in early</dt>
+              <dt>{{ t('insights.vad.jumpedInEarly', 'Jumped in early') }}</dt>
               <dd>{{ pct(summary.prosody.startedDuringPromptRate) }}</dd>
               <p class="vad-metric-fine">
-                started speaking before the prompt finished · over
-                {{ summary.prosody.startedDuringPromptBase }} events
+                {{ t('insights.vad.jumpedInEarlyFine', 'started speaking before the prompt finished · over {n} events').replace('{n}', String(summary.prosody.startedDuringPromptBase)) }}
               </p>
             </div>
             <div class="vad-metric">
-              <dt>Still going at voice 1</dt>
+              <dt>{{ t('insights.vad.stillGoingAtVoice1', 'Still going at voice 1') }}</dt>
               <dd>{{ pct(summary.prosody.stillSpeakingRate) }}</dd>
               <p class="vad-metric-fine">
-                hadn't finished when the model spoke · over
-                {{ summary.prosody.stillSpeakingBase }} events
+                {{ t('insights.vad.stillGoingAtVoice1Fine', "hadn't finished when the model spoke · over {n} events").replace('{n}', String(summary.prosody.stillSpeakingBase)) }}
               </p>
             </div>
           </dl>
@@ -289,20 +287,20 @@ const classTableResolved = computed((): ResolvedInsight => {
         <!-- ---- Per-learner rows, click through ------------------------- -->
         <section class="vad-panel">
           <header class="vad-panel-head">
-            <h3 class="vad-panel-title">The learners who have data</h3>
+            <h3 class="vad-panel-title">{{ t('insights.vad.learnersWhoHaveData', 'The learners who have data') }}</h3>
             <p class="vad-panel-sub">
-              {{ summary.learners.length }} of {{ summary.total }} in {{ scopeLabel }}.
-              Click a row for that learner's own adaptive-pause read.
+              {{ t('insights.vad.learnersWhoHaveDataSub', "{n} of {total} in {scope}. Click a row for that learner's own adaptive-pause read.")
+                .replace('{n}', String(summary.learners.length)).replace('{total}', String(summary.total)).replace('{scope}', scopeLabel) }}
             </p>
           </header>
           <table class="vad-table">
             <thead>
               <tr>
-                <th>Learner</th>
-                <th class="r">LEGOs tracked</th>
-                <th class="r">Mastered</th>
-                <th class="r">ms/char</th>
-                <th class="r">Prosody events</th>
+                <th>{{ t('insights.vad.colLearner', 'Learner') }}</th>
+                <th class="r">{{ t('insights.vad.colLegosTracked', 'LEGOs tracked') }}</th>
+                <th class="r">{{ t('insights.vad.colMastered', 'Mastered') }}</th>
+                <th class="r">{{ t('insights.vad.colMsChar', 'ms/char') }}</th>
+                <th class="r">{{ t('insights.vad.colProsodyEvents', 'Prosody events') }}</th>
               </tr>
             </thead>
             <tbody>

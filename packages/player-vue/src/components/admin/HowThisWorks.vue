@@ -15,6 +15,9 @@ import pack from '@/explainer/pack.json'
 import { walksFor, startWalk } from '@/walkthrough/useWalkthrough'
 import type { Invitation } from '@/explainer/evaluateRules'
 import { shouldThrob, markSeen } from '@/explainer/howThisWorksThrob'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const props = withDefaults(defineProps<{
   persona: 'admin' | 'leader'
@@ -83,15 +86,15 @@ const html = computed(() => {
 <template>
   <div v-if="text" class="htw">
     <div class="htw-doors">
-      <router-link class="btn-ghost htw-handbook" :to="handbookTo">Handbook</router-link>
+      <router-link class="btn-ghost htw-handbook" :to="handbookTo">{{ t('org.ui.howThisWorks.handbook', 'Handbook') }}</router-link>
       <button type="button" class="htw-toggle" :class="{ 'is-armed': throbbing && !open }" @click="toggle">
         <span v-if="throbbing && !open" class="htw-dot" aria-hidden="true"></span>
-        {{ open ? 'Close' : 'How this works' }}
+        {{ open ? t('org.ui.howThisWorks.close', 'Close') : t('org.ui.howThisWorks.howThisWorks', 'How this works') }}
       </button>
     </div>
     <transition name="htw-fade">
       <div v-if="open" class="htw-card schools-card">
-        <span class="schools-kicker">How this works</span>
+        <span class="schools-kicker">{{ t('org.ui.howThisWorks.howThisWorks', 'How this works') }}</span>
         <!-- eslint-disable-next-line vue/no-v-html — pack content is compiled repo data, escaped above -->
         <div class="htw-body" v-html="html"></div>
         <div v-if="invitations.length" class="htw-invitations">
@@ -106,7 +109,7 @@ const html = computed(() => {
             v-for="w in walks" :key="w.id" type="button" class="htw-walk-link"
             :data-walk-offer="w.id"
             @click="startWalk(w.id)"
-          >Show me — {{ w.title }}</button>
+          >{{ t('org.ui.howThisWorks.showMe', 'Show me — {title}').replace('{title}', w.title) }}</button>
         </div>
       </div>
     </transition>

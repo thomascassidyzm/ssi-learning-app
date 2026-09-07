@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 type Health = 'excellent' | 'good' | 'needs-attention' | 'inactive'
 
@@ -14,7 +17,13 @@ const props = withDefaults(defineProps<{
 // fetchSchools() refetch) don't carry a health bucket yet — fall back to
 // "inactive" rather than throwing on `undefined.replace(...)`.
 const health = computed(() => props.health ?? 'inactive')
-const label = computed(() => health.value.replace('-', ' '))
+const HEALTH_LABELS: Record<Health, () => string> = {
+  excellent: () => t('schools.ui.healthDot.excellent', 'excellent'),
+  good: () => t('schools.ui.healthDot.good', 'good'),
+  'needs-attention': () => t('schools.ui.healthDot.needsAttention', 'needs attention'),
+  inactive: () => t('schools.ui.healthDot.inactive', 'inactive'),
+}
+const label = computed(() => HEALTH_LABELS[health.value]())
 </script>
 
 <template>

@@ -1,6 +1,7 @@
 // SimplePlayer.ts - Clean playback engine (~180 lines)
 
 import { buildSilentWavDataUri } from './silentWav'
+import { cyclePromptIdentity } from './capConsecutiveRepeats'
 
 // Cycle/Round moved to `@ssi/core` (bundle-cutover Phase 1,
 // archive/docs-retired-2026-08-24/bundle-cutover-design.md §3, §5 step 1) — canonical source is
@@ -359,6 +360,18 @@ const SELF_STOP_GRACE_MS = 400
  * doubled up is perfect". A runtime override asking for more is clamped here,
  * which is what keeps the live repeat and any repeat already baked into the
  * script from compounding into four plays.
+ *
+ * IT IS ALSO THE CEILING ON CONSECUTIVE IDENTICAL PLAYS ACROSS CYCLES, which
+ * is a different count and was unenforced until now (job #316, 2026-09-07). A
+ * BUILD phrase and a USE phrase carrying identical text are two lawful,
+ * adjacent items — `capRoundCycles` passes them, correctly, because the law
+ * caps three ITEMS. Since 2026-08-09 the repeat decision is the walker's, so
+ * Easy then gave each of the pair its own two plays and the learner heard the
+ * same prompt FOUR times: measured on the real round 2 of spa_for_eng, fra,
+ * deu, ita, tur and pol. The clamp could not see it because
+ * `currentCyclePlays` is reset on every cycle advance. `recentPlayIdentities`
+ * gives the walker the memory it lacked; the law is about what is HEARD, so
+ * the ceiling is counted in plays, not in cycles.
  */
 const MAX_CYCLE_PLAYS = 2
 
@@ -413,6 +426,12 @@ export class SimplePlayer {
   // reposition (cycleIndex/roundIndex move, jump, skip) so a repeat can never
   // leak across cycles; read only by advanceCycle's live repeat check.
   private currentCyclePlays: number = 0
+  // The prompt IDENTITIES of the last MAX_CYCLE_PLAYS plays this walker
+  // actually started, oldest first. currentCyclePlays above counts one CYCLE's
+  // hearings and is dropped on every advance; this survives the advance, which
+  // is the whole point — see the A-64 block on MAX_CYCLE_PLAYS. Cleared only on
+  // a reposition (jump/stop), where the learner's own move breaks the run.
+  private recentPlayIdentities: string[] = []
   private listeners: Map<EventName, Set<EventCallback>> = new Map()
 
   // Named handlers for cleanup in dispose()
@@ -1069,6 +1088,51 @@ export class SimplePlayer {
     return -1
   }
 
+  /**
+   * Record a play the walker has just STARTED, by the prompt the learner
+   * hears. Same identity function the build-time cap uses
+   * (`cyclePromptIdentity`) — normalised known|target text, falling back to the
+   * audio URLs for single-sided listening cycles — so the two enforcement
+   * points can never disagree about what "the same prompt" means.
+   */
+  private recordPlayIdentity(cycle: Cycle | null | undefined): void {
+    if (!cycle) return
+    this.recentPlayIdentities.push(cyclePromptIdentity(cycle))
+    if (this.recentPlayIdentities.length > MAX_CYCLE_PLAYS) {
+      this.recentPlayIdentities = this.recentPlayIdentities.slice(-MAX_CYCLE_PLAYS)
+    }
+  }
+
+  /** True when sounding this cycle now would be the MAX_CYCLE_PLAYS+1'th identical play in a row. */
+  private wouldBreachConsecutivePlays(cycle: Cycle | null | undefined): boolean {
+    if (!cycle) return false
+    if (this.recentPlayIdentities.length < MAX_CYCLE_PLAYS) return false
+    const id = cyclePromptIdentity(cycle)
+    return this.recentPlayIdentities.slice(-MAX_CYCLE_PLAYS).every((prev) => prev === id)
+  }
+
+  /**
+   * The next cycle that may actually SOUND from here: playable under the live
+   * cull AND not a third consecutive hearing of the prompt just heard.
+   *
+   * The floor for the case re-interleaving cannot reach — a duplicate arriving
+   * across a ROUND seam, or after a resume spent the pair's hearings. Nothing
+   * pedagogical is lost when one is stepped over: by definition its prompt is
+   * the one that has just sounded twice. The common in-round case never gets
+   * here, because advanceCycle declines the REPEAT instead and both cycles
+   * still play (see there).
+   */
+  private findNextSoundableCycleIndex(round: Round, fromIndex: number): number {
+    let from = fromIndex
+    for (;;) {
+      const idx = this.findNextPlayableCycleIndex(round, from)
+      if (idx === -1) return -1
+      if (!this.wouldBreachConsecutivePlays(round.cycles[idx])) return idx
+      console.debug(`[SimplePlayer] A-64: stepping over cycle ${idx} of round ${round.roundNumber} — its prompt has already sounded twice in a row`)
+      from = idx + 1
+    }
+  }
+
   private findNextPlayableCycleIndex(round: Round, fromIndex: number): number {
     const skip = this.runtimeOverrides.shouldSkipCycle
     if (!skip) return fromIndex < round.cycles.length ? fromIndex : -1
@@ -1141,7 +1205,7 @@ export class SimplePlayer {
     // Honour the runtime cull (adaptation v2's shouldSkipCycle) on the
     // round's leading cycles. If every cycle is skipped the round has nothing
     // left to play — advance to the next.
-    const startIdx = this.findNextPlayableCycleIndex(round, this.state.cycleIndex)
+    const startIdx = this.findNextSoundableCycleIndex(round, this.state.cycleIndex)
     if (startIdx === -1) {
       console.debug(`[SimplePlayer] Round ${round.roundNumber}: all cycles skipped by the runtime cull, advancing`)
       this.updateState({ isPlaying: true })
@@ -1208,6 +1272,14 @@ export class SimplePlayer {
     // repeated 3x would drive people nuts" — so the restart is counted here,
     // which spends exactly the repeat the learner has already been given.
     // Fast is untouched: its count of 1 never reaches the repeat branch.
+    //
+    // This restart is the ONE place a prompt can sound a third time in a row,
+    // and it is the learner's own doing: pausing on the second half of an
+    // identical BUILD/USE pair and resuming re-hears that cycle from the top.
+    // It is not refused — they asked for it, and the alternative is resuming
+    // onto a phrase they were not listening to. It cannot compound: the
+    // restart is recorded like any other play, so the walker then declines the
+    // repeat and steps over any further identical cycle.
     this.currentCyclePlays = Math.min(this.currentCyclePlays + 1, MAX_CYCLE_PLAYS)
     this.startPhase('prompt')
   }
@@ -1221,6 +1293,7 @@ export class SimplePlayer {
     this.clearSafetyTimer()
     this.clearLingerTimer()
     this.currentCyclePlays = 0
+    this.recentPlayIdentities = []
     this.updateState({ roundIndex: 0, cycleIndex: 0, phase: 'idle', isPlaying: false })
   }
 
@@ -1289,7 +1362,7 @@ export class SimplePlayer {
     if (!this.state.isPlaying) {
       this.updateState({ isPlaying: true })
     }
-    this.startPhase(phase)
+    this.startPhase(phase, { learnerSeek: true })
   }
 
   skipRound(): void {
@@ -1354,6 +1427,10 @@ export class SimplePlayer {
     // the header jumps, the mid-round resume) routes through here, and a move
     // WITHIN a cycle (skipToPhase, resume's restart) deliberately does not.
     this.currentCyclePlays = 0
+    // The run of identical hearings goes with it: the learner's own move is
+    // what breaks the run, and a jump BACK onto a phrase just heard is a
+    // deliberate request for it, not a third helping nobody asked for.
+    this.recentPlayIdentities = []
     // Must set isPlaying: false so play() doesn't early-return
     this.updateState({ roundIndex: landRound, cycleIndex: safeCycle, phase: 'idle', isPlaying: false })
     console.debug(`[SimplePlayer] jumpToRound: wasPlaying=${wasPlaying}, calling play()`)
@@ -1361,13 +1438,26 @@ export class SimplePlayer {
   }
 
   // Private methods
-  private async startPhase(phase: Phase): Promise<void> {
+  /**
+   * `learnerSeek` marks a play the LEARNER asked for by tapping the phase
+   * strip. Those are exempt from the consecutive-play cap in both directions:
+   * they are neither counted against it nor refused by it — exactly as they
+   * already neither spend nor add a hearing on `currentCyclePlays`. "Say that
+   * to me again" is a request; the cap exists to stop a MODE handing out
+   * repetition nobody asked for.
+   */
+  private async startPhase(phase: Phase, opts?: { learnerSeek?: boolean }): Promise<void> {
     this.updateState({ phase })
 
     // Log what's playing
     const cycle = this.currentCycle
     const round = this.currentRound
     if (phase === 'prompt' && cycle) {
+      // A play begins HERE, and this is the only door into one — the repeat,
+      // the advance, the round entry, the resume restart and every jump all
+      // arrive through it. So this is where the run of identical hearings is
+      // counted, against exactly the events job #316 measured.
+      if (!opts?.learnerSeek) this.recordPlayIdentity(cycle)
       console.log(`  [${this.state.cycleIndex + 1}/${round?.cycles.length}] "${cycle.known.text}" → "${cycle.target.text}"`)
     }
 
@@ -1990,6 +2080,20 @@ export class SimplePlayer {
     return transitions[this.state.phase]
   }
 
+  /**
+   * True when the next cycle this round will actually play carries the same
+   * prompt as the one just heard. Round-local by design: a cycle in the NEXT
+   * round is the seam case, and the floor in findNextSoundableCycleIndex owns
+   * that one.
+   */
+  private nextCycleRepeatsThisPrompt(justPlayed: Cycle): boolean {
+    const round = this.currentRound
+    if (!round?.cycles?.length) return false
+    const nextIdx = this.findNextPlayableCycleIndex(round, this.state.cycleIndex + 1)
+    if (nextIdx === -1) return false
+    return cyclePromptIdentity(round.cycles[nextIdx]) === cyclePromptIdentity(justPlayed)
+  }
+
   /** The active mode's repeat count for a cycle, read LIVE and clamped to 2. */
   private repeatCountFor(cycle: Cycle | null): number {
     if (!cycle) return 1
@@ -2011,7 +2115,19 @@ export class SimplePlayer {
     if (
       justPlayed &&
       this.currentCyclePlays < this.repeatCountFor(justPlayed) &&
-      !this.runtimeOverrides.shouldSkipCycle?.(justPlayed)
+      !this.runtimeOverrides.shouldSkipCycle?.(justPlayed) &&
+      // Two hearings of this prompt are already behind us — a repeat would be
+      // the third. Reachable across a cycle boundary (the previous cycle said
+      // the same thing) and after a resume, neither of which currentCyclePlays
+      // can see.
+      !this.wouldBreachConsecutivePlays(justPlayed) &&
+      // ... and DON'T spend the repeat if the next cycle says the same thing.
+      // The lawful BUILD/USE pair carrying identical text is the measured case
+      // (job #316). Taking the repeat here would force that next cycle to be
+      // stepped over entirely; declining it lets BOTH cycles play, once each —
+      // two hearings either way, but no cycle is lost, so progress and the UI
+      // still see the whole round.
+      !this.nextCycleRepeatsThisPrompt(justPlayed)
     ) {
       this.startPhase('prompt')
       return
@@ -2027,7 +2143,7 @@ export class SimplePlayer {
     // Find the next non-skipped cycle. Lets the runtime cull take effect
     // mid-round: the current cycle finishes, then the override jumps over
     // any cycles it now wants skipped before the next prompt.
-    const nextIdx = this.findNextPlayableCycleIndex(round, this.state.cycleIndex + 1)
+    const nextIdx = this.findNextSoundableCycleIndex(round, this.state.cycleIndex + 1)
     if (nextIdx !== -1) {
       this.currentCyclePlays = 0
       this.updateState({ cycleIndex: nextIdx })
@@ -2073,7 +2189,7 @@ export class SimplePlayer {
       // the entry point is DERIVED here, live, exactly as play() already
       // derived it from a standstill; and a round the mode empties entirely is
       // stepped over rather than stalled on.
-      const startIdx = this.findNextPlayableCycleIndex(nextRound, 0)
+      const startIdx = this.findNextSoundableCycleIndex(nextRound, 0)
       if (startIdx === -1) {
         console.debug(`[SimplePlayer] Round ${nextRound?.roundNumber}: every cycle selected out by the active mode, stepping over`)
         this.updateState({ roundIndex: nextIndex, cycleIndex: 0 })

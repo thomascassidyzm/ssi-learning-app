@@ -810,5 +810,206 @@
     "tapRelaunch": "మళ్ళీ ప్రారంభించడానికి ట్యాప్ చేయండి",
     "update": "అప్‌డేట్",
     "updateReady": "అప్‌డేట్ సిద్ధంగా ఉంది"
+  },
+  "explainer": {
+    "howThisWorks": {
+      "linkLabel": "ఇది ఎలా పనిచేస్తుంది"
+    },
+    "figures": {
+      "spacingReturns": {
+        "new": "కొత్తది"
+      }
+    }
+  },
+  "walkthrough": {
+    "save-your-progress": {
+      "title": "మీ పురోగతిని భద్రపరచండి"
+    }
+  },
+  "schools": {
+    "setup": {
+      "back": "వెనక్కి",
+      "breadcrumbSettings": "సెట్టింగ్‌లు",
+      "continue": "కొనసాగించండి"
+    },
+    "dashboard": {
+      "code": "కోడ్",
+      "retry": "మళ్ళీ ప్రయత్నించండి"
+    },
+    "teacherDashboard": {
+      "allCourses": "అన్ని కోర్సులు",
+      "allFilterOption": "అన్నీ",
+      "coursePlural": "కోర్సులు",
+      "healthLabel": "ఆరోగ్యం",
+      "retry": "మళ్ళీ ప్రయత్నించండి",
+      "tableHeaderActivity": "కార్యకలాపం",
+      "tableHeaderBelt": "బెల్ట్",
+      "tableHeaderHealth": "ఆరోగ్యం"
+    },
+    "teachers": {
+      "accessCode": "యాక్సెస్ కోడ్",
+      "done": "పూర్తయింది",
+      "remove": "తీసివేయండి",
+      "retry": "మళ్ళీ ప్రయత్నించండి",
+      "statusActive": "క్రియాశీలం"
+    },
+    "schoolSettings": {
+      "about": "గురించి",
+      "cancel": "రద్దు చేయండి",
+      "langEnglish": "ఇంగ్లిష్",
+      "title": "సెట్టింగ్‌లు"
+    },
+    "schoolsList": {
+      "cancel": "రద్దు చేయండి",
+      "done": "పూర్తయింది",
+      "kpiSchools": "పాఠశాలలు",
+      "retry": "మళ్ళీ ప్రయత్నించండి"
+    },
+    "upgrade": {
+      "loading": "లోడ్ అవుతోంది…",
+      "manageSubscription": "సబ్‌స్క్రిప్షన్ నిర్వహించండి",
+      "ssiPremium": "SSi ప్రీమియం"
+    },
+    "classDetail": {
+      "addLabel": "జోడించండి",
+      "beltColumn": "బెల్ట్",
+      "cancelLabel": "రద్దు చేయండి",
+      "doneLabel": "పూర్తయింది",
+      "loadingLabel": "లోడ్ అవుతోంది…",
+      "removeLabel": "తీసివేయండి"
+    },
+    "studentProgress": {
+      "allCoursesTitle": "అన్ని కోర్సులు"
+    },
+    "students": {
+      "allOption": "అన్నీ",
+      "beltBlack": "నలుపు",
+      "beltBlue": "నీలం",
+      "beltFilterLabel": "బెల్ట్",
+      "beltGreen": "ఆకుపచ్చ",
+      "beltOrange": "నారింజ",
+      "beltWhite": "తెలుపు",
+      "beltYellow": "పసుపు",
+      "healthFilterLabel": "ఆరోగ్యం",
+      "lastActiveNow": "ఇప్పుడు",
+      "retryLabel": "మళ్ళీ ప్రయత్నించండి"
+    },
+    "ui": {
+      "assignClasses": {
+        "cancel": "రద్దు చేయండి",
+        "done": "పూర్తయింది",
+        "verbAdd": "జోడించండి",
+        "verbRemove": "తీసివేయండి"
+      },
+      "classCreated": {
+        "done": "పూర్తయింది"
+      },
+      "confirmDelete": {
+        "cancel": "రద్దు చేయండి"
+      },
+      "createClass": {
+        "cancel": "రద్దు చేయండి"
+      },
+      "filterDropdown": {
+        "placeholderAll": "అన్నీ"
+      },
+      "nodeEntitlement": {
+        "coursesKicker": "కోర్సులు",
+        "loading": "లోడ్ అవుతోంది…"
+      },
+      "passwordPrompt": {
+        "notNow": "ఇప్పుడు కాదు"
+      },
+      "topBar": {
+        "brandTailSchools": "పాఠశాలలు",
+        "menuSignOut": "సైన్ అవుట్",
+        "tabSchools": "పాఠశాలలు",
+        "tabUpgrade": "అప్‌గ్రేడ్",
+        "youFallback": "మీరు"
+      },
+      "topNav": {
+        "logoSchoolsTail": "పాఠశాలలు",
+        "menuSettings": "సెట్టింగ్‌లు",
+        "menuSignOut": "సైన్ అవుట్",
+        "schoolsDashboardFallback": "పాఠశాలల డ్యాష్‌బోర్డ్",
+        "signIn": "సైన్ ఇన్ చేయండి",
+        "tabSchools": "పాఠశాలలు",
+        "tabUpgrade": "అప్‌గ్రేడ్"
+      }
+    }
+  },
+  "teach": {
+    "billing": {
+      "active": "క్రియాశీలం",
+      "manageSubscription": "సబ్‌స్క్రిప్షన్ నిర్వహించండి"
+    },
+    "dashboard": {
+      "cancel": "రద్దు చేయండి",
+      "lastActiveToday": "ఈ రోజు",
+      "seeds": "విత్తనాలు"
+    },
+    "withTeacher": {
+      "back": "వెనక్కి",
+      "cancel": "రద్దు చేయండి",
+      "free": "ఉచితం",
+      "startLearning": "నేర్చుకోవడం ప్రారంభించండి"
+    }
+  },
+  "org": {
+    "nodeHome": {
+      "accessCode": "యాక్సెస్ కోడ్",
+      "done": "పూర్తయింది",
+      "loading": "లోడ్ అవుతోంది…"
+    },
+    "ui": {
+      "howThisWorks": {
+        "close": "మూసేయండి",
+        "howThisWorks": "ఇది ఎలా పనిచేస్తుంది"
+      },
+      "managerOnboardingGate": {
+        "confirmPassword": "పాస్‌వర్డ్‌ను నిర్ధారించండి",
+        "done": "పూర్తయింది",
+        "newPassword": "కొత్త పాస్‌వర్డ్",
+        "next": "తర్వాత",
+        "notNow": "ఇప్పుడు కాదు",
+        "typeItAgain": "దాన్ని మళ్ళీ టైప్ చేయండి"
+      },
+      "nodeActionBar": {
+        "add": "జోడించండి",
+        "changeTheName": "పేరును మార్చండి",
+        "courses": "కోర్సులు",
+        "goAheadAnyway": "అయినా కొనసాగించండి"
+      },
+      "nodeChildrenList": {
+        "wordBelt": "బెల్ట్"
+      },
+      "noticingInvitations": {
+        "dismiss": "విస్మరించండి"
+      },
+      "walkCard": {
+        "back": "వెనక్కి",
+        "next": "తర్వాత"
+      },
+      "waysInLedger": {
+        "copy": "కాపీ చేయండి",
+        "loading": "లోడ్ అవుతోంది…",
+        "statusActive": "క్రియాశీలం"
+      },
+      "yourAccount": {
+        "close": "మూసేయండి",
+        "confirmPassword": "పాస్‌వర్డ్‌ను నిర్ధారించండి",
+        "newPassword": "కొత్త పాస్‌వర్డ్",
+        "password": "పాస్‌వర్డ్",
+        "typeItAgain": "దాన్ని మళ్ళీ టైప్ చేయండి"
+      }
+    }
+  },
+  "insights": {
+    "rateEngine": {
+      "loading": "లోడ్ అవుతోంది…"
+    },
+    "widget": {
+      "loading": "లోడ్ అవుతోంది…"
+    }
   }
 }

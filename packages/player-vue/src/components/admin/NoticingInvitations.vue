@@ -7,6 +7,9 @@
 // Invitations, not missions.
 import type { Invitation } from '@/explainer/evaluateRules'
 import { startWalk } from '@/walkthrough/useWalkthrough'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 defineProps<{ invitations: Invitation[] }>()
 const emit = defineEmits<{ dismiss: [key: string] }>()
@@ -19,7 +22,7 @@ const emit = defineEmits<{ dismiss: [key: string] }>()
       <span class="notice-actions">
         <button v-if="inv.walk" type="button" class="notice-cta notice-cta-walk" :data-walk-cta="inv.walk" @click="startWalk(inv.walk)">{{ inv.ctaLabel }}</button>
         <router-link v-else-if="inv.to" :to="inv.to" class="notice-cta">{{ inv.ctaLabel }}</router-link>
-        <button type="button" class="notice-dismiss" aria-label="Dismiss" @click="emit('dismiss', inv.key)">×</button>
+        <button type="button" class="notice-dismiss" :aria-label="t('org.ui.noticingInvitations.dismiss', 'Dismiss')" @click="emit('dismiss', inv.key)">×</button>
       </span>
     </div>
   </transition-group>
