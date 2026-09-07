@@ -14,6 +14,7 @@ import { useRouter } from 'vue-router'
 import { getLanguageName, getLanguageEndonym, setLocale, useI18n } from '../composables/useI18n'
 import { courseTargetName } from '../utils/courseDisplayName'
 import { useSharedSubscription } from '../composables/useSubscription'
+import { useFamilyModal } from '@/composables/useFamilyModal'
 import { useCheckout } from '../composables/useCheckout'
 // The ONE payment-route declaration (platform/paymentRoute). Every control in
 // this file that starts or manages a payment asks it — never the platform.
@@ -22,7 +23,6 @@ import { platform } from '../platform/capabilities'
 import { insetDiagnosticLine } from '../platform/shellSafeArea'
 import { appIsStale, checkAppStaleness } from '../composables/useAppStaleness'
 import { shaPrefixEq } from '../platform/buildStaleness'
-import FamilyManagementModal from './FamilyManagementModal.vue'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useReleaseNotes } from '../composables/useReleaseNotes'
 import { openInApp } from '../composables/useInAppBrowser'
@@ -668,7 +668,10 @@ const webBillingAvailable = computed(() => paddleBillingAvailable())
 // don't own (spec §4.3). The owner's row reads the real plan_name.
 const isFamilyMember = computed(() => subscription.value?.planName === 'SSi Family (member)')
 const isFamilyOwner = computed(() => subscription.value?.planName === 'SSi Family')
-const showFamilyModal = ref(false)
+// The modal itself lives in App.vue now (one instance, two doors — see
+// composables/useFamilyModal.ts). Settings opens it; the Paddle success
+// redirect for the Family plan opens the same one.
+const { open: openFamilyModal } = useFamilyModal()
 
 // Account management state
 const showDeleteConfirm = ref(false)
@@ -2243,7 +2246,7 @@ const confirmReset = async () => {
             <!-- Family owner: manage members (list/add/QR/remove) -->
             <template v-if="isFamilyOwner">
               <div class="divider"></div>
-              <div class="setting-row clickable" @click="showFamilyModal = true">
+              <div class="setting-row clickable" @click="openFamilyModal()">
                 <div class="setting-info">
                   <span class="setting-label">{{ t('settings.manageFamily') }}</span>
                   <span class="setting-desc">{{ t('settings.addRemoveMembersUp') }}</span>
@@ -2597,7 +2600,6 @@ const confirmReset = async () => {
       </footer>
     </main>
 
-    <FamilyManagementModal :is-open="showFamilyModal" @close="showFamilyModal = false" />
   </div>
 </template>
 

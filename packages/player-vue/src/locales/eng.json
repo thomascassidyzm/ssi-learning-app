@@ -646,7 +646,18 @@
     "familyDesc": "Everything in Premium, for {seats} accounts including yours. Everyone keeps their own progress.",
     "familyMonthly": "£25/month",
     "familyAnnual": "£250/year",
-    "cancelAnytime": "Cancel anytime."
+    "cancelAnytime": "Cancel anytime.",
+    "yourDetails": "Your details",
+    "confirmEmail": "Confirm email",
+    "setPasswordOptional": "Set a password (optional)",
+    "confirmPassword": "Confirm password",
+    "continueToPayment": "Continue to payment",
+    "emailsMustMatch": "Those two emails don't match.",
+    "passwordsMustMatch": "Those two passwords don't match.",
+    "receiptNote": "No code to fetch. Your receipt goes to this address, and you can confirm it whenever you like.",
+    "signInAndContinue": "Sign in and continue",
+    "emailMeACode": "Email me a code instead",
+    "backToPlans": "Back to plans"
   },
   "family": {
     "family": "Family",
