@@ -41,7 +41,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { applyCors } from '../_utils/cors'
 import { verifyAuthToken } from '../_utils/auth'
 import { affiliateToGroupNode } from '../_utils/groupAffiliation'
-import { getClientIp, hashIp, isIpOverLimit, logAttempt, PER_IP_LIMIT } from '../_utils/codeAttemptThrottle'
+import { getClientIp, hashIp, isIpOverLimit, logAttempt, REDEEM_PER_IP_LIMIT } from '../_utils/codeAttemptThrottle'
 import { canonicalEmail } from '../_utils/identity/emailCanon'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -105,6 +105,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   // read what they are agreeing to before creating an account. Public, and
   // therefore carrying the SAME per-IP limiter as api/code/validate.ts, since
   // any public code lookup is an enumeration oracle if it is not throttled.
+  //
+  // The budget is the WIDE one (REDEEM_PER_IP_LIMIT, 120/15min), not
+  // PER_IP_LIMIT — and for the reason that limit exists. A whole class opens
+  // one Canolfan link from one room's NAT, and opening the link is what calls
+  // this endpoint, so at 10 the eleventh learner was told the link was not
+  // found while holding a perfectly good one. Same number, same window, same
+  // table as api/code/validate.ts and api/try-link/validate.ts.
   if (req.method === 'GET') {
     const svc = createClient(supabaseUrl, supabaseServiceKey)
     const code = normalizeCode(String(req.query.code || ''))
@@ -113,7 +120,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       res.status(400).json({ error: 'code is required' })
       return
     }
-    if (await isIpOverLimit(svc, ipHash, PER_IP_LIMIT)) {
+    if (await isIpOverLimit(svc, ipHash, REDEEM_PER_IP_LIMIT)) {
       res.status(429).json({ error: 'Too many attempts. Please try again later.' })
       return
     }
