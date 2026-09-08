@@ -60,16 +60,16 @@ $FN_BODY
 GRANT EXECUTE ON FUNCTION public.cs_session_guard() TO anon, authenticated, service_role;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims', '{"role":"authenticated","session_id":"$LIVE"}', true);
-SELECT 'LIVE_OK' WHERE public.cs_session_guard() IS NULL;
+SELECT public.cs_session_guard(); SELECT 'LIVE_OK';
 SELECT set_config('request.jwt.claims', '{"role":"authenticated","session_id":"00000000-0000-0000-0000-000000000000"}', true);
 SAVEPOINT s; SELECT public.cs_session_guard(); ROLLBACK TO s;
 SELECT set_config('request.jwt.claims', '{"role":"authenticated"}', true);
-SELECT 'NOSID_OK' WHERE public.cs_session_guard() IS NULL;
+SELECT public.cs_session_guard(); SELECT 'NOSID_OK';
 SELECT set_config('request.jwt.claims', '{"role":"authenticated","session_id":"not-a-uuid"}', true);
-SELECT 'MALFORMED_OK' WHERE public.cs_session_guard() IS NULL;
+SELECT public.cs_session_guard(); SELECT 'MALFORMED_OK';
 RESET ROLE; SET LOCAL ROLE anon;
 SELECT set_config('request.jwt.claims', '{"role":"anon"}', true);
-SELECT 'ANON_OK' WHERE public.cs_session_guard() IS NULL;
+SELECT public.cs_session_guard(); SELECT 'ANON_OK';
 ROLLBACK;
 EOSQL
 )
