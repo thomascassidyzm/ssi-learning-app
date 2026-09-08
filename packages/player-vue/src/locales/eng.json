@@ -65,6 +65,8 @@
     "forSpeakers": "for {lang} speakers",
     "searchPlaceholder": "Search for any language...",
     "moUnlimitedAccessAll": "£15/mo — unlimited access to all languages",
+    "freeUntil": "Free until",
+    "freeAlready": "Your access is already free",
     "free": "Free",
     "freeForever": "Free forever"
   },

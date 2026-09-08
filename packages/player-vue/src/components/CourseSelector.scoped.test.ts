@@ -17,7 +17,11 @@ vi.mock('../composables/useUserEntitlements', () => ({
 }))
 vi.mock('../composables/useEntitlement', () => ({ hasTryEntitlement: () => false }))
 vi.mock('../composables/useSubscription', () => ({
-  useSharedSubscription: () => ({ isSubscribed: ref(false) }),
+  useSharedSubscription: () => ({
+    isSubscribed: ref(false),
+    freeAccess: ref(null),
+    hasFreeAccess: ref(false),
+  }),
 }))
 vi.mock('../composables/useCheckout', () => ({ useCheckout: () => ({ startCheckout: vi.fn() }) }))
 vi.mock('../platform/paymentRoute', () => ({ canTakePayment: () => false }))

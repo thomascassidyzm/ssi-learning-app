@@ -65,6 +65,8 @@
     "forSpeakers": "i siaradwyr {lang}",
     "searchPlaceholder": "Chwiliwch am unrhyw iaith...",
     "moUnlimitedAccessAll": "£15/mis — mynediad diderfyn i bob iaith",
+    "freeUntil": "Am ddim tan",
+    "freeAlready": "Mae eich mynediad eisoes am ddim",
     "free": "Am ddim",
     "freeForever": "Am ddim am byth"
   },

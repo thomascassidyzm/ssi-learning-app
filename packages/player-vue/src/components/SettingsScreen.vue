@@ -626,9 +626,31 @@ const {
   error: portalError,
   subscription,
   isSubscribed,
+  hasFreeAccess,
+  freeAccess,
   cancelSubscription,
   refresh: refreshSubscription,
 } = useSharedSubscription()
+
+// FUNDED FREE ACCESS (the Canolfan free year). Not a subscription — there is
+// no payment, no portal, nothing to cancel — but equally not somebody to sell
+// to. They get a plain statement of what they have and when it ends, in the
+// place the Upgrade row used to sit. Access to the courses themselves rides
+// on their user_entitlements row, not on this.
+const freeAccessEndsAt = computed(() => {
+  const until = freeAccess.value?.until
+  if (!until) return null
+  const when = new Date(until)
+  if (Number.isNaN(when.getTime())) return null
+  return when.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+})
+const freeAccessLine = computed(() => {
+  const org = freeAccess.value?.orgName
+  const ends = freeAccessEndsAt.value
+  if (ends && org) return `Free until ${ends}, through ${org}`
+  if (ends) return `Free until ${ends}`
+  return t('settings.active')
+})
 const portalFeedback = ref('')
 
 // This is the screen a buyer opens to check what they bought, so it is the one
@@ -2649,6 +2671,18 @@ const confirmReset = async () => {
                 </div>
               </div>
             </template>
+          </template>
+          <!-- FREE THROUGH A FUNDED ORG (Canolfan). Never the Upgrade row:
+               offering a £15 subscription to somebody whose year is already
+               paid for is the whole of the defect this replaces — and to a
+               nervous learner a payment prompt reads as a bill they missed. -->
+          <template v-else-if="hasFreeAccess">
+            <div class="setting-row">
+              <div class="setting-info">
+                <span class="setting-label">{{ t('settings.subscription') }}</span>
+                <span class="setting-desc">{{ freeAccessLine }}</span>
+              </div>
+            </div>
           </template>
           <!-- Not subscribed -->
           <template v-else>

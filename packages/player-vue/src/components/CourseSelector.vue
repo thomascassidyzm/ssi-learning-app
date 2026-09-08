@@ -44,7 +44,7 @@ watch(iSpeak, (v) => {
 
 // Entitlement + subscription singletons (initialized by App.vue)
 const { entitlements: userEntitlements } = useSharedUserEntitlements()
-const { isSubscribed: hasActiveSubscription } = useSharedSubscription()
+const { isSubscribed: hasActiveSubscription, hasFreeAccess, freeAccess } = useSharedSubscription()
 const { platformRole } = useUserRole()
 
 // Check if user has full access to a course (not just preview)
@@ -132,7 +132,25 @@ const emit = defineEmits(['close', 'selectCourse'])
 // Signed-out users get the auth modal after choosing, then continue to Paddle.
 const { startCheckout } = useCheckout()
 // The one payment-route question (platform/paymentRoute). No route, no CTA.
-const purchaseAvailable = computed(() => canTakePayment())
+// NEVER SELL TO SOMEBODY WHOSE ACCESS IS ALREADY PAID FOR. A learner on a
+// funded org enrolment (the Canolfan free year) is a subscriber in every way
+// that matters to this screen — the price line and the Upgrade button are
+// both wrong in front of them, and the welcome pack should not have to warn
+// them to ignore it. Access itself comes from their user_entitlements row.
+const purchaseAvailable = computed(() => canTakePayment() && !hasFreeAccess.value)
+// "Free until 8 September 2027" — the same place the price used to be, so the
+// section still says what their access costs. It costs nothing.
+const freeAccessLine = computed(() => {
+  if (!hasFreeAccess.value) return ''
+  const until = freeAccess.value?.until
+  const when = until ? new Date(until) : null
+  const date = when && !Number.isNaN(when.getTime())
+    ? when.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+    : ''
+  return date
+    ? `${t('courseSelector.freeUntil', 'Free until')} ${date}`
+    : t('courseSelector.freeAlready', 'Your access is already free')
+})
 function goPremium() {
   startCheckout()
   emit('close')
@@ -549,7 +567,7 @@ onMounted(() => {
             <div class="section-header section-header--premium">
               <div class="section-header__text">
                 <span class="section-header__title">{{ t('browse.premium') }}</span>
-                <span class="section-header__sub">{{ t('courseSelector.moUnlimitedAccessAll') }}</span>
+                <span class="section-header__sub">{{ hasFreeAccess ? freeAccessLine : t('courseSelector.moUnlimitedAccessAll') }}</span>
               </div>
               <button v-if="purchaseAvailable" class="section-header__cta" @click="goPremium()">
                 {{ t('settings.upgrade') }}

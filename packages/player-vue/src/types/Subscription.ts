@@ -96,6 +96,22 @@ export interface PortalResponse {
 }
 
 /**
+ * A learner's access is paid for by a funded organisation rather than by
+ * themselves — the Canolfan free year (org_enrolments.free_access_until).
+ * Reported by /api/subscription so that "should this person be shown a price?"
+ * is answered from ONE place, whether the answer comes from a payment or from
+ * a grant.
+ */
+export interface OrgFreeAccess {
+  /** The org's `groups` row. */
+  groupId: string
+  /** Funder's display name, e.g. 'National Centre for Learning Welsh'. */
+  orgName: string | null
+  /** ISO timestamp the free period ends. */
+  until: string
+}
+
+/**
  * Subscription API response
  */
 export interface SubscriptionResponse {
@@ -105,6 +121,9 @@ export interface SubscriptionResponse {
    *  email of their own and no way to pay, so no checkout is ever offered
    *  to them (job #376·F, D7). */
   isChildAccount?: boolean
+  /** Non-null when this learner's access is already free through a funded org
+   *  enrolment. Suppresses every paid-upgrade prompt (see useSubscription). */
+  freeAccess?: OrgFreeAccess | null
 }
 
 /**
