@@ -43,6 +43,13 @@ const REVISED: Record<string, number> = {
  * name plus the presence of the `audio_revision` filter decides the payload,
  * which is exactly how the real lanes distinguish their content walk from the
  * revised-ref lookup.
+ *
+ * Every filter a lane may call has to be here. A missing one is not an inert
+ * gap: the lane throws `chain.x is not a function`, its own try/catch swallows
+ * that into an error string, and the lane returns EMPTY — which reads as "the
+ * stamping is broken" when the stamping was never reached. That is exactly how
+ * `.is('variant_key', null)` (added to usePodStage0 by 5e3139f6, base rows
+ * only) turned this file red on the 2026-09-08 nightly.
  */
 function makeSupabase(tables: Record<string, any[]>) {
   const calls: string[] = []
@@ -52,6 +59,7 @@ function makeSupabase(tables: Record<string, any[]>) {
       select: () => chain,
       eq: () => chain,
       in: () => chain,
+      is: () => chain,
       like: () => chain,
       lt: () => chain,
       lte: () => chain,
@@ -321,6 +329,10 @@ describe('lane: usePodStage0', () => {
     app.provide('supabase', { value: client })
     const stage = app.runWithContext(() => usePodStage0(ref(COURSE)))
     await stage.load()
+
+    // Say WHY if the walk fell over — load() swallows its own throw into
+    // `error`, and without this the next missing filter reads as a null deref.
+    expect(stage.error.value).toBeNull()
 
     const main = stage.mainAudioFor(`${COURSE}:pod-0:1`)!
     expect(main.targetAudioId).toBe('clip-t1.v3')

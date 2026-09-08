@@ -14,6 +14,16 @@ process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://example.supabase
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'service-role-key'
 process.env.SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'anon-key'
 
+// The handler reads VITE_SUPABASE_ANON_KEY first, then SUPABASE_ANON_KEY. A
+// developer with a real .env.local supplies both, so the key reaching verifyOtp
+// is theirs, not the literal above — pin the expectation to whichever this
+// process actually has rather than to a string only a bare checkout produces.
+const EXPECTED_ANON_KEY = (
+  process.env.VITE_SUPABASE_ANON_KEY ||
+  process.env.SUPABASE_ANON_KEY ||
+  ''
+).trim()
+
 let overLimit: boolean
 let loggedAttempts: any[]
 vi.mock('../_utils/codeAttemptThrottle', async (importOriginal) => {
@@ -152,7 +162,10 @@ describe('POST /api/auth/access-code-redeem', () => {
     // drag a redirect_to origin in with it.
     expect(verifyOtpArg).toMatchObject({ token_hash: 'hashed-abc', type: 'magiclink' })
     expect(verifyOtpArg.email).toBeUndefined()
-    expect(verifyOtpArg.key).toBe('anon-key')
+    expect(verifyOtpArg.key).toBe(EXPECTED_ANON_KEY)
+    // The point of the assertion: it is the ANON key that mints here, never the
+    // service-role key the same handler holds for its own privileged reads.
+    expect(verifyOtpArg.key).not.toBe(process.env.SUPABASE_SERVICE_ROLE_KEY)
   })
 
   it('claims the row atomically: unredeemed AND unexpired, in the UPDATE itself', async () => {

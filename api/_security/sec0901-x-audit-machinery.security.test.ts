@@ -113,28 +113,34 @@ describe('SEC0901-X-02 [SECURE-ASSERTION] — SEC29-X-02 is closed: the schema d
   })
 })
 
-describe('SEC0901-X-03 [CHARACTERIZATION] — the SEC25-D-02 residual is still open', () => {
-  // Recorded deliberately by the 2026-08-25 remediation rather than papered
-  // over: closing the NULL path left the SCOPED path open. Any signed-in user
-  // may still call `admin_practice_minutes_by_course(<uuid[]>)` with learner
-  // UUIDs they have merely seen — a SECURITY DEFINER read that bypasses RLS —
-  // and get those learners' per-course practice minutes back. It is `authenticated`
-  // rather than `anon` and it needs a known UUID, which is why it was accepted;
-  // it is not closed, and the migration says the fix is repointing the four
-  // browser callers at a server endpoint on the resolveVisibleScope pattern.
+describe('SEC0901-X-03 [SECURE-ASSERTION] — the SEC25-D-02 residual is CLOSED', () => {
+  // This was a characterization: closing the NULL path left the SCOPED path
+  // open, so any signed-in user could call
+  // `admin_practice_minutes_by_course(<uuid[]>)` with learner UUIDs they had
+  // merely seen — a SECURITY DEFINER read that bypasses RLS — and get those
+  // learners' per-course practice minutes back. Its own note said "red =
+  // FINDING CLOSED", and that is what happened: e27d0fef (2026-09-07) revoked
+  // EXECUTE from `authenticated` on the live database, canaried in one
+  // transaction, after the four browser callers were repointed at a server
+  // endpoint on the resolveVisibleScope pattern.
   //
-  // Goes red when EXECUTE is revoked from `authenticated` or an in-body scope
-  // check is added to the non-NULL path. Red = FINDING CLOSED.
+  // The characterization is therefore promoted to the assertion it was waiting
+  // for. Its sibling in api/_utils/adminPracticeMinutesAnonExposure.security
+  // .test.ts was flipped in the same commit; this one was missed, which is why
+  // it went red on the 2026-09-08 nightly.
   const schema = read('supabase/schema.sql')
 
-  it('EXECUTE is still held by authenticated', () => {
+  it('EXECUTE is service_role only — anon and authenticated both hold nothing', () => {
     const acl = schema
       .split('\n')
       .filter((l) => /ON FUNCTION public\.admin_practice_minutes_by_course\(p_learner_ids uuid\[\]\)/.test(l))
-    expect(acl.some((l) => /GRANT .* TO authenticated/.test(l))).toBe(true)
+    expect(acl.some((l) => /^REVOKE ALL .* FROM PUBLIC;/.test(l))).toBe(true)
+    expect(acl.some((l) => /GRANT .* TO authenticated/.test(l))).toBe(false)
+    expect(acl.some((l) => /GRANT .* TO anon/.test(l))).toBe(false)
+    expect(acl.some((l) => /GRANT .* TO service_role/.test(l))).toBe(true)
   })
 
-  it('and the body gates only the NULL argument, never the supplied ids', () => {
+  it('[CHARACTERIZATION] the body still gates only the NULL argument, never the supplied ids', () => {
     const body = schema.slice(schema.indexOf('CREATE FUNCTION public.admin_practice_minutes_by_course'))
     const decl = body.slice(0, body.indexOf('$$;'))
     // The one guard is conditioned on p_learner_ids IS NULL...
@@ -144,7 +150,7 @@ describe('SEC0901-X-03 [CHARACTERIZATION] — the SEC25-D-02 residual is still o
     expect(decl).not.toMatch(/= any\(p_learner_ids\)[\s\S]*is_ssi_admin/)
   })
 
-  it('the residual is documented where a reader will find it', () => {
+  it('the migration that accepted the residual still says so, where a reader will find it', () => {
     const mig = read('supabase/migrations/20260825_sec25_d02_practice_minutes_gate.sql')
     expect(mig).toContain('RESIDUAL')
     expect(mig).toContain('learner UUID they already know')

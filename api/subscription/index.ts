@@ -75,6 +75,19 @@ export default async function handler(
       return
     }
 
+    // A CHILD ACCOUNT IS NEVER OFFERED A CHECKOUT (job #376·F, D7). A child
+    // signs in on a synthetic address a parent never sees; binding a Paddle
+    // customer to that address is a trap. The client uses this to say "ask
+    // your grown-up about the family plan" instead of opening a price.
+    const { data: childRow } = await supabase
+      .from('family_members')
+      .select('id')
+      .eq('member_learner_id', learner.id)
+      .eq('is_child_account', true)
+      .limit(1)
+      .maybeSingle()
+    const isChildAccount = !!childRow
+
     // Get subscription — own row, or (member of an active family) the owner's.
     const { sub: subscription, viaFamily } = await resolveEffectiveSubscription(supabase, learner.id)
 
@@ -82,6 +95,7 @@ export default async function handler(
       res.status(200).json({
         subscription: null,
         isSubscribed: false,
+        isChildAccount,
       })
       return
     }
@@ -108,6 +122,7 @@ export default async function handler(
         provider: sub.provider,
       },
       isSubscribed,
+      isChildAccount,
     })
   } catch (err) {
     console.error('[subscription] Error:', err)

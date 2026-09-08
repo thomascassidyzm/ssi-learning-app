@@ -178,6 +178,12 @@ const detailsEmail = ref('')
 // second Family, a resumed checkout by somebody already paying.
 const alreadySubscribedOpen = ref(false)
 
+// A CHILD ACCOUNT IS NEVER OFFERED A CHECKOUT (job #376·F, D7). A child signs
+// in on a synthetic address their parent never sees and has no way to pay; a
+// Paddle customer bound to that address is a trap. Every door that would open
+// a price for them says one thing instead: ask your grown-up.
+const childAccountOpen = ref(false)
+
 // The Premium → Family upgrade, in flight. Module-level for the same reason as
 // everything above: whichever door started it, the app shows one truth.
 const familyUpgradeBusy = ref(false)
@@ -267,6 +273,16 @@ export function useCheckout() {
 
   function closeAlreadySubscribed(): void {
     alreadySubscribedOpen.value = false
+  }
+
+  /** Is the person tapping a price a parent-minted child? Read off the shared
+   *  subscription state, which carries the server's own answer. */
+  function isChildAccount(): boolean {
+    return !!useSharedSubscription().isChildAccount?.value
+  }
+
+  function closeChildAccount(): void {
+    childAccountOpen.value = false
   }
 
   /**
@@ -478,6 +494,7 @@ export function useCheckout() {
     // but this is the backstop that makes a missed one inert rather than a
     // dead button — and, in a store build, a review failure.
     if (!canTakePayment()) return
+    if (isChildAccount()) { childAccountOpen.value = true; return }
     // A purchase for this account is already paid for and settling. Every door
     // is shut until it resolves — see openPaddleCheckout.
     if (usePendingPurchase().isPending.value) return
@@ -530,6 +547,7 @@ export function useCheckout() {
    */
   function openPlans(courseCode?: string | null): void {
     if (!canTakePayment()) return
+    if (isChildAccount()) { childAccountOpen.value = true; return }
     if (usePendingPurchase().isPending.value) return
     // Sync, so it uses only what is already known — the authoritative check
     // lives in startCheckout and openPaddleCheckout, which every price button
@@ -763,6 +781,8 @@ export function useCheckout() {
     closeCheckout,
     alreadySubscribedOpen,
     closeAlreadySubscribed,
+    childAccountOpen,
+    closeChildAccount,
     openSubscriptionPortal,
     canUpgradeToFamily,
     upgradeToFamily,

@@ -156,3 +156,67 @@ Report-Only to enforced would have blocked the very shim that lets Android WebVi
 **The word that reverts it:** detach. If keeping the sentinel's checkout on a branch ever costs more
 than it is worth, the change is three lines in `tools/deploy-sentinel/run.sh` and one field in
 `command-surface/ops/serving-refs.json`.
+
+## 2026-09-08 — school identity on the domain (job #371)
+
+Tom's commission, verbatim: *"A school top level admin can invite teachers with one link and other
+admins with a separate link. So they are multiple use links. But they can only be verified by a
+domain level similarity maybe? Also the very first admin person to sign up a school therefore claims
+the domain for the school and mints the school and is top level admin. Working first time is most
+important. Being secure is secondary in chronology but no less important."*
+
+**What already existed, read from the code.** Every school carries `teacher_join_code` and
+`admin_join_code`, minted by a CSPRNG trigger at insert and registered into `invite_codes` with
+`max_uses` NULL and no expiry — the two multi-use links Tom described are the shape the code has
+had since July. Nothing recorded which email domain a school lives on. The first admin already mints
+the school on two paths: self-serve `/schools1` (mailbox proved by OTP before provisioning) and a
+leader-minted `school_admin` invite (vouched by the leader, address unproven).
+
+**The domain claim.** One table, `school_identity_claims`: rows of `kind='domain'` and
+`kind='address'` owned by a school. The founding admin's own domain is claimed at school creation on
+both minting paths, and never for a public mail domain (`api/_utils/schoolDomain.ts` carries the one
+declared list, beside the existing disposable-domain list). A claim is per school, not global: a
+second head at an already-claimed domain is told which school holds it and pointed at that school's
+links (that is "joins rather than mints"), with an explicit confirm to mint a second school on a
+shared domain — the multi-academy-trust case, same 409-then-confirm shape the org door uses for
+duplicate names. A school may claim several domains, and an arrival matches if its domain is claimed
+by the link's school **or by any sibling school in the same group** — a trust sharing one domain
+needs no second claim.
+
+**"Domain level similarity" means exact-or-subdomain.** `staff.example.sch.uk` is under
+`example.sch.uk`; `example-sch.uk` is not. Fuzzy similarity would be a way to be wrong quietly.
+
+**An arrival on the link at a matching domain is the ordinary path and is one tap.** No code, no
+mail, no waiting — exactly today's possession mint. The match is recorded as an attestation on the
+account: `learners.needs_verification` is false from birth and the address goes into
+`verified_emails`, so the teacher is never nudged to verify. The mailbox-reach card of job #358 is
+left alone: it asks whether our mail *arrives*, which the domain says nothing about.
+
+**An off-domain arrival is the contested case.** It still gets in first time — Tom's ordering —
+but it stays `needs_verification=true`, so the existing Settings "Verify now" code path is its
+route to becoming proven, and the admin sees an "unverified" mark on the Teachers row. Supply staff
+and personal addresses are put on the school's address allowlist by the admin beforehand, and then
+behave as on-domain. No route here is "email support".
+
+**Contested versus uncontested, made computable.** Job #354 proved the server cannot tell "the
+teacher's own second device signing in by code" from "the real owner arriving at a squatted
+account" — the two event sequences are identical. So the one party who knows is asked, once: when a
+session that proved the mailbox by code arrives at a schools-minted account from a different session,
+the app shows one card — was the earlier sign-in you? *That was me* records the address proved and
+retires the marker for good; *Not me* revokes every credential and session on the account and hands
+the owner a fresh one. The purchase-path sweep stays automatic, because there the password was
+planted by a stranger by construction. `mayClaim` keeps its home and its fail-closed default; the
+schools mints are `CONTESTABLE`, never `AUTO`.
+
+**The token layer.** Measured live 2026-09-08: after a global sign-out GoTrue reports the session
+dead, and the same access token still reads rows through PostgREST until its `exp` — 3600 seconds
+on this project. PostgREST checks signature and expiry locally and never asks GoTrue. The close is a
+PostgREST pre-request guard (`supabase/secfix-toolkit/session_guard.sql`) that refuses a token whose
+`session_id` no longer exists in `auth.sessions`, failing open on any other error. It is a change
+to every API request on the one shared database, so it is staged and canaried, not applied — Tom's
+call, one command, reversible in one statement. The probe asserts at the PostgREST layer and is red
+until it is applied; that red is the truth.
+
+**The word that reverts it:** claims. Drop the `school_identity_claims` table and the arrival check
+in `api/auth/possession-redeem.ts` becomes a no-op; the contest card keys off `unclaimedMint.ts`
+alone and survives either way.

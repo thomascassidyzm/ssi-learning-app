@@ -53,6 +53,8 @@ const {
   openPlans,
   alreadySubscribedOpen,
   closeAlreadySubscribed,
+  childAccountOpen,
+  closeChildAccount,
   openSubscriptionPortal,
 } = useCheckout()
 const { t } = useI18n()
@@ -132,7 +134,7 @@ const codeSentLine = computed(() =>
 
 // One overlay, two steps — so the Escape/scroll-lock wiring keys off "either
 // step is open" rather than off the plans list alone.
-const anyStepOpen = computed(() => plansOpen.value || detailsOpen.value || alreadySubscribedOpen.value)
+const anyStepOpen = computed(() => plansOpen.value || detailsOpen.value || alreadySubscribedOpen.value || childAccountOpen.value)
 
 // The manage-subscription route offered alongside the block, so an existing
 // subscriber is told something true AND has somewhere to go. Hidden in a store
@@ -150,7 +152,8 @@ async function onManageSubscription() {
 
 function onKeydown(e: KeyboardEvent) {
   if (e.key !== 'Escape') return
-  if (alreadySubscribedOpen.value) closeAlreadySubscribed()
+  if (childAccountOpen.value) closeChildAccount()
+  else if (alreadySubscribedOpen.value) closeAlreadySubscribed()
   else if (detailsOpen.value) closeDetails()
   else closePlans()
 }
@@ -367,6 +370,35 @@ onBeforeUnmount(() => {
           >{{ portalBusy ? t('plans.opening') : t('plans.manageSubscription') }}</button>
 
           <button type="button" class="text-btn" @click="closeAlreadySubscribed">{{ t('plans.close') }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- A child account is never offered a checkout (job #376·F, D7). They have
+         no email of their own and no way to pay; the plan is their grown-up's
+         to buy. One sentence, and a way out. -->
+    <div
+      v-if="childAccountOpen"
+      class="plans-overlay"
+      role="dialog"
+      aria-modal="true"
+      :aria-label="t('plans.childAccountTitle')"
+      @click.self="closeChildAccount"
+    >
+      <div class="plans-card" @click.stop>
+        <header class="plans-bar">
+          <span class="plans-title">{{ t('plans.childAccountTitle') }}</span>
+          <button
+            type="button"
+            class="plans-close"
+            :aria-label="t('plans.close')"
+            @click="closeChildAccount"
+          >✕</button>
+        </header>
+
+        <div class="plans-scroll">
+          <p class="plan-desc">{{ t('plans.childAccountBody') }}</p>
+          <button type="button" class="text-btn" @click="closeChildAccount">{{ t('plans.close') }}</button>
         </div>
       </div>
     </div>

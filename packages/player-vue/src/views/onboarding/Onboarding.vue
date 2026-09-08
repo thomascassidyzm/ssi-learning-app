@@ -643,6 +643,25 @@ async function confirmDuplicateOrg() {
 // from the server, never a stale confirmation.
 watch(orgName, () => { orgDuplicateWarning.value = null })
 
+// Domain-claimed notice at the /schools1 door (409 `domain_claimed`, job #371).
+// Nothing was created; the domain of the address they just proved already
+// belongs to a school. Join it through its links, or confirm this is a
+// different school on a shared domain.
+const domainClaimedBy = ref<{ domain: string; schoolName: string } | null>(null)
+
+async function confirmSharedDomainSchool() {
+  busy.value = true
+  error.value = ''
+  domainClaimedBy.value = null
+  try {
+    await finishProvisioning(false, true)
+  } catch (e: any) {
+    error.value = e?.message || 'Something went wrong'
+  } finally {
+    busy.value = false
+  }
+}
+
 function renameOrgFromWarning() {
   orgDuplicateWarning.value = null
   error.value = ''
@@ -653,12 +672,13 @@ function renameOrgFromWarning() {
 // flow (verify(), below) and the already-signed-in shortcut (continueSignedIn()
 // in the session-awareness block above) — both land here once there's a real
 // Supabase Auth session to provision against.
-async function finishProvisioning(confirmDuplicate = false) {
+async function finishProvisioning(confirmDuplicate = false, confirmSharedDomain = false) {
   const token = await authToken()
   const body: Record<string, unknown> = isOrgDoor.value
     ? { track: props.track, org_name: orgName.value.trim() }
     : { track: props.track, course_code: selectedCourse.value }
   if (confirmDuplicate) body.confirm_duplicate = true
+  if (confirmSharedDomain) body.confirm_shared_domain = true
   const res = await fetch('/api/onboarding/provision', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -675,6 +695,18 @@ async function finishProvisioning(confirmDuplicate = false) {
     return
   }
   orgDuplicateWarning.value = null
+  // The school door's own 409 (job #371): this email domain already belongs
+  // to a school. Nothing was created. The ordinary way forward is to JOIN that
+  // school through its links; the honest exception — a different school in a
+  // trust sharing one mail domain — is one explicit tap.
+  if (res.status === 409 && data?.code === 'domain_claimed') {
+    domainClaimedBy.value = {
+      domain: String(data.domain || ''),
+      schoolName: String(data.schools?.[0]?.school_name || t('onboarding.aSchool', 'a school')),
+    }
+    return
+  }
+  domainClaimedBy.value = null
   if (!res.ok) {
     error.value = data.error || 'We could not finish setting up your account'
     requiresCheckout.value = !!data.requires_checkout
@@ -1259,6 +1291,19 @@ async function continueIn() {
             <div class="ob-warning-actions">
               <Button variant="secondary" size="md" :disabled="busy" @click="renameOrgFromWarning">{{ t('onboarding.changeName') }}</Button>
               <Button variant="primary" size="md" :loading="busy" @click="confirmDuplicateOrg">{{ t('onboarding.goAheadAnyway') }}</Button>
+            </div>
+          </div>
+
+          <!-- Domain already claimed (job #371): the email domain they proved
+               belongs to a school already. Nothing was created. Join it through
+               its links — or, for a different school in a trust that shares one
+               mail domain, go ahead deliberately. -->
+          <div v-if="domainClaimedBy" class="ob-warning" role="alert">
+            <p class="ob-warning-text">
+              {{ t('onboarding.domainClaimedBody', 'Addresses at {domain} already belong to {school}. If that is your school, ask its admin for the teacher or admin link and you will be in with one tap. If yours is a different school that shares the same email domain, go ahead.').replace('{domain}', domainClaimedBy.domain).replace('{school}', domainClaimedBy.schoolName) }}
+            </p>
+            <div class="ob-warning-actions">
+              <Button variant="primary" size="md" :loading="busy" @click="confirmSharedDomainSchool">{{ t('onboarding.differentSchoolSameDomain', 'It is a different school — go ahead') }}</Button>
             </div>
           </div>
 
