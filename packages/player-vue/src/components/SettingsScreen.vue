@@ -25,6 +25,7 @@ import { canTakePayment, paddleBillingAvailable } from '../platform/paymentRoute
 import { platform } from '../platform/capabilities'
 import { insetDiagnosticLine } from '../platform/shellSafeArea'
 import { appIsStale, checkAppStaleness } from '../composables/useAppStaleness'
+import { nothingSavedOnThisOrigin } from '../platform/shellOriginState'
 import { shaPrefixEq } from '../platform/buildStaleness'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useReleaseNotes } from '../composables/useReleaseNotes'
@@ -380,6 +381,18 @@ const stalenessLine = computed(() => {
   if (!appIsStale.value || !buildDateWords.value) return ''
   return t('settings.appBehindLive').replace('{date}', buildDateWords.value)
 })
+
+// NOTHING CAME ACROSS WITH THE APP — see platform/shellOriginState.ts.
+//
+// The shell used to serve the app from https://localhost, so everything the
+// device saved was keyed to that origin. It now loads the deployment, a
+// different origin, and none of the old install's position, sign-in or
+// downloaded audio is visible here. Tom, before the switch: "it's the kind of
+// failure that looks like progress." So it is said out loud, once, in the
+// app's provenance corner, and it goes away by itself the moment anything is
+// saved on this origin.
+const freshStorageLine = computed(() =>
+  nothingSavedOnThisOrigin() ? t('settings.nothingSavedYet') : '')
 
 // What's new — latest curated release notes from Supabase
 const { notes: releaseNotes, isLoading: notesLoading, load: loadReleaseNotes } = useReleaseNotes()
@@ -1971,6 +1984,11 @@ const confirmReset = async () => {
            gate: plain text, nothing tappable, no modal, and absent entirely
            whenever the app is current or we cannot tell. -->
       <p v-if="stalenessLine" class="build-stale" role="status">{{ stalenessLine }}</p>
+
+      <!-- Nothing is saved on this origin yet. A DESCRIPTION, like the line
+           above: plain text, nothing tappable, gone as soon as anything is
+           saved. See freshStorageLine. -->
+      <p v-if="freshStorageLine" class="build-stale" role="status">{{ freshStorageLine }}</p>
 
       <!-- Measured system-bar insets. Native shell only; see readInsetLine. -->
       <p v-if="insetLine" class="build-insets">{{ insetLine }}</p>

@@ -1,9 +1,13 @@
 /**
- * The staleness signal, from the shell's point of view. The comparison itself
- * is proven in platform/buildStaleness.test.ts; what is tested here is the two
- * things only this layer can get wrong — firing on the WEB, where the sentence
- * it drives would be false, and reading the wrong origin's version.json, which
- * is the whole defect.
+ * The staleness signal, from the shell's point of view.
+ *
+ * FLIPPED DELIBERATELY, 2026-09-08. This file used to prove the opposite: that
+ * a bundled shell fired when it was provably behind, and asked the API origin
+ * rather than its own frozen /version.json. Both were right while the APK
+ * carried the web app. It is now a window onto the deployment, so the running
+ * code IS the live code, `shouldDescribeStaleness()` answers NO everywhere,
+ * and what this layer must not do is speak at all. The comparison machinery
+ * stays proven in platform/buildStaleness.test.ts.
  */
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { configurePlatform, resetPlatform } from '../platform/capabilities'
@@ -25,35 +29,22 @@ afterEach(() => {
 })
 
 describe('checkAppStaleness — inside the native shell', () => {
-  beforeEach(() => {
-    configurePlatform({ shell: 'webview', apiOrigin: 'https://ssi-learning-app-git-dev-zenjin.vercel.app' })
-  })
-
-  it('asks the API ORIGIN for version.json, not its own frozen copy', async () => {
+  it('never fetches and never fires, however stale the stamp looks', async () => {
+    // The shell shows the deployment's own code. There is no second build to
+    // be behind, and the update banner owns the case where a newer one is
+    // waiting.
+    configurePlatform({ shell: 'webview', apiOrigin: '' })
     stubVersion(LIVE)
-    await checkAppStaleness(OLD)
-    expect(fetch).toHaveBeenCalledWith(
-      'https://ssi-learning-app-git-dev-zenjin.vercel.app/version.json',
-      { cache: 'no-store' },
-    )
-  })
-
-  it('fires when the bundled build is provably behind the live one', async () => {
-    stubVersion(LIVE)
-    expect(await checkAppStaleness(OLD)).toBe(true)
-    expect(appIsStale.value).toBe(true)
-  })
-
-  it('stays quiet on the build that is live', async () => {
-    stubVersion(LIVE)
-    expect(await checkAppStaleness({ buildNumber: 'local-bb0dffd', buildTime: LIVE.buildTime })).toBe(false)
-    expect(appIsStale.value).toBe(false)
-  })
-
-  it('stays quiet when the network is gone', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
     expect(await checkAppStaleness(OLD)).toBe(false)
     expect(appIsStale.value).toBe(false)
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('stays silent on a shell that still stamps an API origin', async () => {
+    configurePlatform({ shell: 'webview', apiOrigin: 'https://ssi-learning-app-git-dev-zenjin.vercel.app' })
+    stubVersion(LIVE)
+    expect(await checkAppStaleness(OLD)).toBe(false)
+    expect(fetch).not.toHaveBeenCalled()
   })
 })
 

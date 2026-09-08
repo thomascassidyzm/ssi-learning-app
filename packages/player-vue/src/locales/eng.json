@@ -262,6 +262,7 @@
     "closeSettings": "Close settings",
     "updateAvailable": "Update available",
     "appBehindLive": "This app is from {date}. A newer version is available — install it from popty.app/builds.",
+    "nothingSavedYet": "Nothing is saved on this device yet. If you used an earlier version of this app, your place and your downloads stayed with it. Sign in and your progress comes back from your account.",
     "tapUpdate": "Tap to update",
     "latestVersionTapVersion": "✦ In the latest version — tap the version above to update.",
     "loading": "Loading…",
