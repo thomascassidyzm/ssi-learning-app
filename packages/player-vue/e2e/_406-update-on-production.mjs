@@ -105,6 +105,26 @@ try {
     console.log(`\n  warmed on ${running}. Land a deploy, wait for /version.json to move, then run PHASE=apply.`)
   } else {
     const state = JSON.parse(readFileSync(STATE, 'utf8'))
+    // A restarted browser's FIRST navigation can outrun the registration being
+    // read back off disk, and an uncontrolled navigation comes straight from
+    // the network — which would hand this probe the new code before any update
+    // had been applied and prove nothing. So take control first, explicitly,
+    // and only then ask what the page is running. On the handset this is the
+    // ordinary case rather than a special one: the app was opened before, so
+    // the worker is already there when it opens again.
+    const took = await page.evaluate(async () => {
+      await navigator.serviceWorker.ready
+      return !!navigator.serviceWorker.controller
+    })
+    if (!took) {
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.locator('.mode-trigger').waitFor({ state: 'visible', timeout: 60_000 })
+    }
+    check('the warmed service worker is controlling the page', await page.evaluate(async () => {
+      await navigator.serviceWorker.ready
+      for (let i = 0; i < 60 && !navigator.serviceWorker.controller; i++) await new Promise((r) => setTimeout(r, 500))
+      return !!navigator.serviceWorker.controller
+    }))
     const before = await runningBuild(page)
     const served = await servedBuild(page)
     check('the shell opened on the build it was warmed on', before === state.build, `${before} (warmed on ${state.build})`)
