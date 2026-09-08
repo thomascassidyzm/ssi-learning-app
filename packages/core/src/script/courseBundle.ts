@@ -43,6 +43,8 @@
  *   - 503: round-index materialised view empty (operator action needed)
  */
 
+import type { CourseVoicePace } from './voicePace'
+
 // ============================================================================
 // LIFECYCLE
 // ============================================================================
@@ -383,6 +385,28 @@ export interface CourseBundle {
    * Absent/false = the full course.
    */
   previewOnly?: boolean
+  /**
+   * PER-VOICE PACE, derived from the clips this course actually ships
+   * (plate S-345, Tom 2026-08-29). Facts only: for each audio role, the voice
+   * that rendered most of the course's referenced clips, its measured natural
+   * pace, and an EXPLICIT `measured` flag. The rule that turns those facts into
+   * a playback speed is `voicePace.ts` in this same directory.
+   *
+   * Derived from `course_audio.voice_id` — the rendered ARTEFACT — rather than
+   * from `courses.voice_config`, so casting and pace cannot disagree. They do
+   * disagree today: `deu_at_for_eng` target2 is cast as a human voice in
+   * voice_config while 13,279 of its 13,808 referenced clips were rendered by
+   * `azure_de-AT-JonasNeural` (live, 2026-09-07).
+   *
+   * OPTIONAL ON PURPOSE, in three senses, all of which mean the same thing to a
+   * learner: a bundle cached before this shipped has no `voicePace`; the server
+   * omits it rather than delay a course load if the derivation is slow (it
+   * carries `unavailable` when it does); and a voice with no measurement comes
+   * back `measured: false`. In every one of those cases the player plays the
+   * target number uncorrected — exactly as it behaved before per-voice pace
+   * existed. Never a stand-in 1.0.
+   */
+  voicePace?: CourseVoicePace
 }
 
 // ============================================================================

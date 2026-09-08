@@ -32,6 +32,7 @@
  */
 
 import type { CourseBundle } from '@ssi/core'
+import { setCourseVoicePace } from '../playback/voicePaceStore'
 import { reportBundleTier } from '../playback/bundleTierTelemetry'
 
 const DB_NAME = 'ssi-bundle-cache'
@@ -465,6 +466,12 @@ export async function getCourseBundle(
   try {
     const bundle = await run
     session.set(courseCode, bundle)
+    // Seat the per-voice pace facts where the speed path can reach them
+    // (plate S-345). Both the fresh and the cached-hit branch resolve through
+    // `run`, so this one line covers both. A bundle stored before pace shipped
+    // carries none, which CLEARS the entry rather than leaving a stale one —
+    // the fallback is "uncorrected", and it has to be reachable.
+    setCourseVoicePace(courseCode, bundle.voicePace)
     return bundle
   } finally {
     inflight.delete(courseCode)
@@ -572,5 +579,7 @@ export async function getCachedCourseBundle(courseCode: string): Promise<CourseB
   // Same ownership rule as getCourseBundle — an offline fast path must not be
   // the way round the guard (SEC0901-D-02).
   if (!cached.bundle.previewOnly && !cachedOwnerMatches(cached, await currentIdentityId())) return null
+  // The offline fast path is a real course load and gets the same pace facts.
+  setCourseVoicePace(courseCode, cached.bundle.voicePace)
   return cached.bundle
 }

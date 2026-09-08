@@ -33,11 +33,13 @@
  *     four-phase Cycle; the type string is what lets the mode runtime
  *     (adaptationOverrides' spacedRepCap, Easy's cycle repetition) see them
  *   - playbackSpeed is baked here too, via the shared `computeCycleSpeed`
- *     curve from `toSimpleRounds`. It MUST be: the runtime override in
- *     LearningPlayer only ever CANCELS a baked ramp (Easy does), it never
- *     applies one — and the runtime pause override reads
- *     `cycle.playbackSpeed` as its belt proxy. See the note on
- *     `computeCycleSpeed`
+ *     from `toSimpleRounds` — the one decider, so the two round-builders
+ *     cannot drift apart again. `voice2PlaybackSpeed` rides alongside it when
+ *     the second target voice measures differently (plate S-345). The old
+ *     "cycle.playbackSpeed is also the pause's belt proxy" reason for baking
+ *     here is GONE — computePauseDuration takes no speed argument since
+ *     2026-08-29 — but baking is still right: a play-time-only multiplier
+ *     would have to be re-derived at every call site
  *   - listening / pod cycles are NOT emitted: the backend doesn't return
  *     them today (see INSTANT_PLAYBACK_SPEC.md §"Open questions").
  *     Round-end listening fires via the existing
@@ -252,9 +254,13 @@ export function toPlayerCycle(
   const isIntro = bc.type === 'intro'
   const isListening = bc.type === 'listening'
 
-  // Baked target-voice speed for this cycle's belt band. Drives BOTH the
-  // voice speed and (as the belt proxy) the pause taper below.
-  const speed = computeCycleSpeed(seedNumber, targetSpeed)
+  // Baked target-voice speed. Since plate S-345 this is the role+mode rule
+  // corrected for the voice that rendered the slot — no belt band, and no
+  // longer a proxy for anything: `computePauseDuration` stopped deriving belt
+  // progress from playback speed on 2026-08-29 and takes no speed argument.
+  // target1 and target2 are different voices, so slot 2 is asked separately.
+  const speed = computeCycleSpeed(seedNumber, targetSpeed, 'target1')
+  const speed2 = computeCycleSpeed(seedNumber, targetSpeed, 'target2')
 
   // Intro uses presentation audio as the prompt ("The X for Y is..."),
   // debut/build/use use the known-language audio.
@@ -379,6 +385,7 @@ export function toPlayerCycle(
     // matches `toSimpleRounds` (which also only sets it when != 1.0) and
     // the modes' `target / baked` cancellation reads the same default.
     ...(speed !== 1.0 ? { playbackSpeed: speed } : {}),
+    ...(speed2 !== speed ? { voice2PlaybackSpeed: speed2 } : {}),
   }
 
   return cycle
