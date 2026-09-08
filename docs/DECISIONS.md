@@ -46,11 +46,13 @@ after a price swap. Still open: whether Paddle sends the customer an email on a 
 (Tom's `+family_002` inbox knows), and whether a prorated downgrade credits the balance (never run,
 by rule).
 
-**The one thing that must be true before 7 October.** Paddle notifies exactly one destination, the
-production webhook. A downgrade scheduled from any deployment moves Paddle's price at once; the
-flip at renewal is done by the webhook that receives the renewal. Until the webhook change is on
-`main`, a scheduled downgrade would renew at £15 and leave the row frozen at Family with a stale
-period end — the very failure this job removes. "Keep Family" reverts cleanly at any point.
+**The one thing that must be true before 7 October.** Paddle notifies exactly one active
+destination, and it is `staging.saysomethingin.app/api/teacher/paddle-webhook` (read from the live
+notification settings, 2026-09-08). A downgrade scheduled from any deployment moves Paddle's price
+at once; the flip at renewal is done by whichever webhook receives the renewal. Until the webhook
+change is promoted `dev → staging`, a scheduled downgrade would renew at £15 and leave the row
+frozen at Family with a stale period end — the very failure this job removes. "Keep Family"
+reverts cleanly at any point.
 
 ## 2026-09-06 — a stale characterization is the test's bug, not the code's (#912)
 
