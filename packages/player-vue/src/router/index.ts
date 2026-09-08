@@ -5,6 +5,7 @@ import {
   type RouteRecordRaw,
 } from 'vue-router'
 import { useUserRole } from '@/composables/useUserRole'
+import { isChunkLoadError } from './staleChunkError'
 import { prepareMissionFromRoute } from '@/missions/useMission'
 // Build-time: seat/institutional purchase is a WEB-ONLY rail. In a store build
 // this folds to false, the three upgrade routes below are never constructed,
@@ -895,12 +896,7 @@ const router = createRouter({
 // old hashed chunk URLs that no longer exist on the CDN. Reload to the
 // target path so the browser fetches a fresh index.html + current chunks.
 router.onError((err, to) => {
-  const msg = err instanceof Error ? err.message : String(err)
-  if (
-    msg.includes('Failed to fetch dynamically imported module') ||
-    msg.includes('error loading dynamically imported module') ||
-    msg.includes('Importing a module script failed')
-  ) {
+  if (isChunkLoadError(err)) {
     // Guard against a reload loop: if the fresh index.html STILL can't load the
     // chunk (CDN not yet propagated, or a genuine error), reloading to the same
     // path would loop forever. Only auto-reload once per target per session;

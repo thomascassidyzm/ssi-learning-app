@@ -628,6 +628,7 @@ const {
   isSubscribed,
   cancelSubscription,
   refresh: refreshSubscription,
+  isPlatformAdmin,
 } = useSharedSubscription()
 const portalFeedback = ref('')
 
@@ -2524,7 +2525,24 @@ const confirmReset = async () => {
         <div class="card">
           <!-- Family member — covered by someone else's plan. Never a Paddle
                portal they don't own (spec §4.3): no cancel, no "payment & invoices". -->
-          <template v-if="isFamilyMember">
+          <!-- A PLATFORM ADMIN IS NEVER SOLD A PLAN (Tom, 2026-09-08: "I'm
+               being shown an upgrade button, which I probably shouldn't be
+               shown as I am a platform admin"). He holds no Paddle
+               subscription, so he fell into the not-subscribed branch below
+               and was offered £15 a month. One plain row naming his access
+               and no billing action of any kind: a portal link or a cancel
+               button would error against a subscription that does not exist.
+               `isPlatformAdmin` comes from /api/subscription, which reads
+               platform_role off the learner row — NOT from useUserRole, whose
+               cache is localStorage and is writable by anybody. -->
+          <template v-if="isPlatformAdmin">
+            <div class="setting-row">
+              <div class="setting-info">
+                <span class="setting-label">{{ t('settings.platformAdmin') }}</span>
+              </div>
+            </div>
+          </template>
+          <template v-else-if="isFamilyMember">
             <div class="setting-row">
               <div class="setting-info">
                 <span class="setting-label">{{ t('settings.ssiFamily') }}</span>
