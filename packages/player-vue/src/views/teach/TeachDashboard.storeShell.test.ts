@@ -60,17 +60,26 @@ async function render() {
     },
   })
   const TeachDashboard = (await import('./TeachDashboard.vue')).default
+  // Warm the panel's module BEFORE mounting. defineAsyncComponent resolves
+  // through a real dynamic import that Vitest transforms on demand, and that
+  // transform is where the time goes — a fixed flush loop here was a race the
+  // whole suite lost under load (2026-09-08: green alone, red at maxWorkers=2).
+  // Importing it first puts it in the module cache, so the async component then
+  // resolves on plain microtasks.
+  await import('./TutorBillingPanel.vue')
   const wrapper = mount(TeachDashboard, {
     global: { provide: { supabase }, stubs: { RouterLink: true, teleport: true } },
   })
-  // defineAsyncComponent resolves on its own microtask chain — flush until the
-  // lazily-imported billing panel has had every chance to appear.
-  // defineAsyncComponent resolves through a real dynamic import, which Vitest
-  // transforms on demand — a microtask flush alone can land before it.
-  for (let i = 0; i < 10; i++) {
+  // Wait on the thing both cases share — the /api/teacher/me render — rather
+  // than on the panel, which one case expects to be absent and so could only
+  // ever be waited out by a timeout. Bounded, and it is a real signal.
+  const deadline = Date.now() + 5000
+  while (Date.now() < deadline && !/Welcome, Aran/.test(wrapper.text())) {
     await new Promise((r) => setTimeout(r, 20))
     await flushPromises()
   }
+  // The panel is one microtask behind that, now its module is warm.
+  for (let i = 0; i < 5; i++) await flushPromises()
   return wrapper
 }
 
