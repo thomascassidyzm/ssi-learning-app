@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>The India funnel — landing page to payment</title>
+<!--
+  A PICTURE, NOT A SYSTEM. This page reads nothing, writes nothing and is
+  imported by no application code. It is a static file under public/, so it is
+  served verbatim by Vercel with no router, no auth guard and no build step.
+
+  THE DIAGRAM SOURCE IS THE <pre class="mermaid"> BLOCK BELOW. Edit that text to
+  change the diagram. Mermaid is loaded from a CDN at runtime, so it is a
+  runtime dependency of this one unlinked page and NOT a build-time dependency
+  of the app: pnpm install does not change, the Vite build does not change, and
+  if the CDN is down only this page degrades.
+
+  Unlinked from everywhere and noindexed. Shareable by URL.
+-->
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #f3f0ec;
+    color: #22201d;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.55;
+    padding: 1.25rem max(1.1rem, env(safe-area-inset-left, 0px))
+             calc(3rem + env(safe-area-inset-bottom, 0px))
+             max(1.1rem, env(safe-area-inset-right, 0px));
+    padding-top: calc(1.5rem + env(safe-area-inset-top, 0px));
+  }
+  main { max-width: 46rem; margin: 0 auto; }
+  h1 { font-size: 1.5rem; line-height: 1.25; margin: 0 0 .4rem; }
+  h2 { font-size: 1.15rem; margin: 2.5rem 0 .6rem; }
+  h3 { font-size: 1rem; margin: 1.6rem 0 .3rem; }
+  p, li { font-size: 1.02rem; }
+  .dateline { font-size: .95rem; color: #5b554e; margin: 0 0 .2rem; }
+  .unlisted { font-size: .9rem; color: #6d675f; margin: 0 0 2rem; }
+  .lede { font-size: 1.08rem; background: #fff; border-left: 4px solid #4a6fa5;
+          padding: .9rem 1rem; border-radius: 0 8px 8px 0; margin: 0 0 2rem; }
+  .card { background: #fff; border: 1px solid #ddd7cf; border-radius: 10px;
+          padding: 1rem 1.1rem; margin: 1rem 0; }
+  .card h3 { margin-top: 0; }
+  .diagram { background: #fff; border: 1px solid #ddd7cf; border-radius: 10px;
+             padding: .75rem .4rem; margin: 1rem 0 .5rem; overflow-x: auto; }
+  .diagram svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+  pre.mermaid { visibility: hidden; }
+  .cost-key { list-style: none; padding: 0; margin: 1rem 0 0; }
+  .cost-key li { display: flex; gap: .6rem; align-items: baseline;
+                 padding: .45rem .6rem; border-radius: 6px; margin-bottom: .35rem; }
+  .cost-key b { font-size: .82rem; letter-spacing: .06em; text-transform: uppercase;
+                min-width: 6.6rem; }
+  .c0 { background: #e8f1e6; } .c1 { background: #e6eef6; }
+  .c2 { background: #f4ecdf; } .c3 { background: #f6e4e2; }
+  .undecided { background: #fff6d9; border: 2px solid #c9922a; border-radius: 10px;
+               padding: 1rem 1.1rem; margin: 1rem 0; }
+  .undecided h3 { margin-top: 0; }
+  .tag { display: inline-block; font-size: .75rem; letter-spacing: .08em;
+         text-transform: uppercase; font-weight: 700; background: #c9922a;
+         color: #fff; padding: .12rem .5rem; border-radius: 4px; }
+  .rail { background: #fff; border: 1px dashed #b9b1a7; border-radius: 10px;
+          padding: 1rem 1.1rem; margin: 1rem 0; }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #ddd7cf;
+           font-size: .88rem; color: #6d675f; }
+  code { background: #eae5df; padding: .1rem .3rem; border-radius: 4px; font-size: .92em; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>The India funnel: landing page to payment</h1>
+<p class="dateline">The flow as Tom ruled it, 8 September 2026.</p>
+<p class="unlisted">Unlisted page, shareable by URL. Not linked from anywhere and not indexed.</p>
+
+<p class="lede">Nobody is asked for anything before the thing that makes the ask reasonable exists.
+Play costs nothing. The account arrives when there is progress worth keeping. The install arrives
+when there is something worth buying. Money arrives last, in the app.</p>
+
+<div class="diagram">
+<pre class="mermaid">
+graph TD
+  A["<b>1. Hindi landing page</b><br/>on the marketing site<br/>App embedded in the page<br/>One door: PLAY"]
+  B["<b>2. Web trial</b><br/>The web app, in Hindi<br/>No card, no email, no sign-up"]
+  C["<b>3. Create account</b><br/>Triggered by progress<br/>worth keeping<br/>Google preferred,<br/>email as fallback"]
+  D["<b>4. The padlock</b><br/>The only place the<br/>Play Store appears<br/>Link carries course code<br/>+ one-time account token"]
+  E["<b>5. Android app opens</b><br/>Reads the install referrer once<br/>Right language, signed in silently"]
+  F["<b>6. In-app purchase</b><br/>Play billing, UPI, rupees<br/>₹299 a month<br/>Entitlement joined server-side"]
+  G["<b>Institutions</b><br/>Separate rail<br/>Invoice or card, Paddle<br/>Never in-app"]
+
+  A --> B --> C --> D --> E --> F
+  A -.-> G
+
+  A:::free
+  B:::free
+  C:::acct
+  D:::install
+  E:::install
+  F:::money
+  G:::rail
+
+  classDef free fill:#e8f1e6,stroke:#6d9c66,stroke-width:2px,color:#22201d;
+  classDef acct fill:#e6eef6,stroke:#4a6fa5,stroke-width:2px,color:#22201d;
+  classDef install fill:#f4ecdf,stroke:#c9922a,stroke-width:2px,color:#22201d;
+  classDef money fill:#f6e4e2,stroke:#b2564c,stroke-width:2px,color:#22201d;
+  classDef rail fill:#ffffff,stroke:#b9b1a7,stroke-width:2px,stroke-dasharray:4 3,color:#22201d;
+</pre>
+</div>
+
+<h2>Where each cost arrives</h2>
+<ul class="cost-key">
+  <li class="c0"><b>Nothing</b><span>Stages 1 and 2. Play, in the page, with no account. Costs the visitor nothing, not even a name.</span></li>
+  <li class="c1"><b>An account</b><span>Stage 3. Asked for when there is progress worth keeping. The reason is progress, not the store.</span></li>
+  <li class="c2"><b>An install</b><span>Stages 4 and 5. Asked for at the padlock, once they have played enough to want to keep it.</span></li>
+  <li class="c3"><b>Money</b><span>Stage 6. ₹299 a month, through Play billing, inside the app.</span></li>
+</ul>
+
+<h2>The stages, in words</h2>
+
+<div class="card">
+<h3>1. The Hindi landing page, with the app embedded</h3>
+<p>The marketing site carries the lesson player as a web component inside the page. Not an iframe, not
+a deep link. Embedded, so back, scroll, the keyboard and the safe area all belong to one document.</p>
+<p>There is one door on that page and it is <b>Play</b>. No account. No store link. No download button.
+No store badge. Nothing to type.</p>
+<p>Tom, on why: <i>"I don't think people are going to download an app they haven't played with. Not these
+days."</i> And on why the store link does not belong at the top: <i>"there is a big delay between clicking
+on the link and just being able to play it, which they don't even need an account for."</i></p>
+<p>The copy line that nothing needs installing stays, and stays true. It is true of the play. It was
+only ever wrong about the purchase, and that is fixed by adding the upgrade story lower down the
+page, not by softening the line.</p>
+</div>
+
+<div class="card">
+<h3>2. The web trial, still no account</h3>
+<p>The trial is the web app in Hindi, and it is gate-free. No card, no email, no sign-up.</p>
+</div>
+
+<div class="card">
+<h3>3. Progress worth keeping triggers create-account</h3>
+<p>The account arrives when there is something worth keeping, and that something is progress. The
+reason for the account is not that the store needs one. It is that progress needs one.</p>
+<p>Identity is <b>Google sign-in preferred, email as fallback</b>. Google is preferred because on Android
+the person already has a Google account, Play billing will use it whatever you do, it requires no
+typing in Hindi or English, and, unlike Apple's relay address or a passwordless magic link, it
+returns a real, writable email address.</p>
+</div>
+
+<div class="card">
+<h3>4. The padlock, and the only place the Play Store appears</h3>
+<p>The store link appears once, at the padlock, after they have played enough to want to keep it.</p>
+<p>The link carries two things in the Play install referrer string: the <b>course code</b>, so the Android
+app opens in the right language on first launch with no language question asked, and a <b>one-time,
+short-lived account token</b> bound to the web account, so the app signs them in silently the first time
+it opens. One mechanism, both doors.</p>
+<p>Read the referrer once, early, on first launch, and store what you found. Fall back to one tap on a
+language if the referrer is empty. A sideload or another store hands the app nothing, and India is
+Play, so that is a corner.</p>
+<p>This is deferred deep linking. It is what removes the manual sign-in step and guarantees the
+purchase attaches to the right account.</p>
+</div>
+
+<div class="card">
+<h3>5 and 6. In-app purchase through Play</h3>
+<p>Rupees, UPI, ₹299 a month. The entitlement is joined <b>server-side</b> from the Play purchase token to
+the account.</p>
+<p>Google's rule is satisfied: the web sends people to the store, the app sells in-app, and nothing
+inside the app links out to a web till.</p>
+</div>
+
+<div class="rail">
+<h3>Institutions are a separate rail</h3>
+<p>Invoice or card through Paddle, never in-app. It leaves the same landing page, but it is a parallel
+rail rather than a branch of the consumer funnel.</p>
+</div>
+
+<h2>How we identify someone who writes to support</h2>
+<p>Tom's objection, verbatim: <i>"Identifying them is a nightmare now. How can we know who they are when
+or if they contact support? This is the utter ball ache we have right now with all these super easy
+sign in with methods."</i></p>
+<p>The answer: <b>the lookup key is a property of the account, shown to the customer. It is never a
+property of how they signed in.</b> Concretely, three things, attached to the account stage and the
+purchase stage:</p>
+<ul>
+  <li>A short code on the account screen, with the line <i>quote this if you write to us</i>.</li>
+  <li>A contact-support affordance inside the app that sends the account id, so the artefact declares
+  who they are rather than the person having to remember.</li>
+  <li>For a paying customer, the Play order number on their receipt. That resolves them with no
+  identity question at all, because the server stores the purchase token against the account anyway.</li>
+</ul>
+
+<div class="undecided">
+<h3><span class="tag">Undecided — Tom's</span></h3>
+<p><b>The Android package id: the existing a3f listing that Indian users already have, versus a fresh
+package id.</b></p>
+<p>It is permanent and irreversible, and it is the one piece of this flow that is not detectable at the
+moment of violation. Nothing will tell you a fresh id was the wrong call until an existing a3f user
+cannot find their subscription.</p>
+<p>It is also the only thing that can make the referrer link land in the wrong app, so it blocks
+end-to-end testing of stages 4 and 5.</p>
+</div>
+
+<footer>
+<p>Footnote on the store listing: the Play store page itself is shown in the phone's locale. The
+referrer fixes the app's language, but not the store page. Nine localised store listings are copy
+work that has not been done, so a Hindi visitor would currently read an English store page between
+two Hindi screens.</p>
+</footer>
+
+</main>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({
+    startOnLoad: false,
+    securityLevel: 'loose',
+    theme: 'base',
+    themeVariables: {
+      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+      fontSize: '15px',
+      lineColor: '#8a8279',
+      primaryTextColor: '#22201d'
+    },
+    flowchart: { htmlLabels: true, useMaxWidth: true, nodeSpacing: 26, rankSpacing: 34 }
+  });
+  const block = document.querySelector('pre.mermaid');
+  try {
+    await mermaid.run({ nodes: [block] });
+    block.style.visibility = 'visible';
+  } catch (e) {
+    // The diagram is a summary of the prose below it, so a CDN failure loses
+    // nothing that is not also written out in words.
+    block.remove();
+    document.querySelector('.diagram').remove();
+  }
+</script>
+</body>
+</html>
