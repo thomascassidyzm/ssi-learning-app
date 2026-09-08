@@ -1,3 +1,185 @@
+## 2026-09-08 — Family to Premium: what happens today, and what should (job #376·F)
+
+Tom's commission, verbatim: *"Ok so also can we have a look at downgrading the Family to premium
+plans and what happens?"* The named failure mode, in his words: *"a parent downgrades to save money
+and silently destroys four peoples learning, or a child is stranded with no way to sign in or pay."*
+
+Two parts, kept apart on purpose. Part one is what the running system does, read from `origin/dev`
+at `4dfb8f40`, the live Paddle account and the live database on 2026-09-08. Part two is the design,
+every call decided. Nothing here is built; a following job builds it from this record.
+
+### Part one — what is TRUE today
+
+**A Family owner cannot start a downgrade anywhere a customer can reach.**
+- In the app: `api/subscription/change-plan.ts` returns 400 to anything but `plan:'family'`, and
+  `useCheckout.canUpgradeToFamily()` only opens that door for a plain Premium row. There is no
+  downgrade control in `SettingsScreen.vue`, `FamilyManagementModal.vue` or the plan picker.
+- In the Paddle customer portal: the live subscription's `management_urls` carry exactly two
+  actions, `update_payment_method` and `cancel`. Paddle's portal offers no plan switch.
+- The only hands that can move a Family subscription onto the Premium price are ours: the Paddle
+  dashboard or the API. So today the question is not "what does a parent see" but "what would the
+  system do if we did it for them".
+
+**If the price were swapped in Paddle, our record would freeze and the whole family, owner
+included, would go dark at the end of the current period while the owner keeps paying £15.**
+The brief's reading of the precedence guard is right for one of the two ways a Family subscription
+can have been born, and there is a second, worse path it did not name:
+- *Born as a Family checkout* — the live case, `custom_data.kind='family_plan'`. Paddle keeps
+  `custom_data` across a price change. `handleSubscriptionEvent` routes on `kind`, reaches the
+  `family_plan` branch, finds the billed price is the Premium tier and REJECTS the event with
+  `REJECTED family_plan subscription: billed price is not the family tier`. Nothing is written.
+- *Born as Premium, upgraded in place* — `kind='learner_premium'`. The tier check passes,
+  `handlePremiumSubscription` runs, and `wouldDowngradePlan()` sees the existing `SSi Family` row
+  outranking `SSi Premium` and skips the write. Nothing is written.
+- Either way the owner's `subscriptions` row stays `plan_name='SSi Family'`, `status='active'`,
+  with `current_period_end` frozen at the old period end. Every later event on that subscription
+  takes the same path, so renewals never advance the period end, and cancellation never lands.
+  `resolveEffectiveSubscription` and every entitlement reader then fail closed on the stale
+  `current_period_end`: members lose access at that date, and so does the owner, who is by then
+  paying £15 a month for nothing. No cron or reconciliation job exists to repair it, only a hand
+  edit. The identity record at /d/c55e4b2d called this "Paddle moves back, our record refuses to";
+  the refusal is real and the consequence is worse than a disagreement.
+
+**Members hold no rows, so their access moves with one write and no notice.** If a downgrade
+ever did reach the row, `familyAccess.ts` requires the owner's row to say `SSi Family`, so every
+member stops resolving at the next server call. Every gate is server-side per request
+(`courseAccess`, `audioAccess`, `offline-lease`, `/api/subscription`), so no token is revoked and
+nobody is signed out; a running session keeps playing whatever the script and audio caches already
+hold, new content past the free preview stops loading, and the app's subscription state changes on
+its next fetch. An offline lease already granted keeps its recorded `expires_at`, up to 30 days,
+and the next validation as a non-payer honours that date rather than sliding it.
+
+**Progress is safe on every path, because no path touches it.** The downgrade path writes only
+the owner's `subscriptions` row; `family/remove` and `family/leave` stamp `status='removed'` and
+`removed_at` and nothing else. No code on any of these paths deletes or edits `seed_progress`,
+`lego_progress`, belts, streaks or `offline_leases`. The governing rule holds today by absence of
+any code to break it, not by design of the downgrade path, which does not exist.
+
+**The owner is told nothing, because there is nothing to tell them from.** No confirm screen, no
+consequence list, no member email. `family.planNotActive` in the family page is the only copy that
+would ever say the family had stopped being covered.
+
+**The child.** A child is a real auth user on a synthetic address, reachable only by a parent-
+minted magic link. `api/family/signin-link.ts` requires the caller to own the membership row and
+the row to be unremoved; it does NOT require a Family plan. So after any downgrade the parent can
+still mint a link, the child can still sign in, and the child's account drops to the free tier
+with everything learned intact. The stranding mechanism is not the downgrade, it is **Remove**: the
+moment a parent frees a child's seat with `family/remove`, `signin-link` answers 404 for that row,
+`invite` cannot re-add a child because it is email-only, and `create-child` makes a brand new
+account. A removed child is unreachable forever and their progress is orphaned in an account nobody
+can open. That is live today and it will be the first thing a parent does after a downgrade if the
+design does not stop them. No graduation path exists yet for a child to attach a real email.
+
+**Live scale: nobody real is on this yet.** Paddle holds exactly one subscription on either Family
+price: `sub_01m1z3z0k2b6htg77tctxwa5ty`, monthly, active, started 2026-09-07 23:41 UTC, owned by
+Tom's own `thomas.cassidy+family_002` account, one child seat named Lewis, one pending invite, two
+removed rows. The database agrees: one `SSi Family` row, four active and twelve cancelled
+`SSi Premium` rows. The migration story is therefore nil, and the build can change the webhook's
+behaviour without a backfill.
+
+**Paddle's own shape at the boundary, read from the API reference and the live account.** An
+items change on `subscriptions.update` applies at once; `proration_billing_mode` only decides what
+is billed and when, across `prorated_immediately`, `prorated_next_billing_period`,
+`full_immediately`, `full_next_billing_period` and `do_not_bill`. `scheduled_change` holds only
+`cancel`, `pause` and `resume`, so Paddle cannot schedule a price change for the period end; any
+end-of-period downgrade is ours to hold. The 55p minimum that refuses a whole update below it, met
+live on 2026-09-07 on the upgrade, applies to any prorated mode and never to `do_not_bill`. The
+webhook destination subscribes to `subscription.updated`, which is the event a price change fires.
+
+**Explicit gaps.** Not verified, because each would need a real money movement or a Paddle write:
+whether a `do_not_bill` downgrade produces any customer-facing Paddle email or receipt; whether a
+prorated downgrade credits the customer balance as the docs imply; and the exact behaviour of a
+`subscription.updated` payload after a price swap on this account. The build's first real
+downgrade on Tom's own family subscription is the shakedown for all three.
+
+### Part two — the design, every call decided
+
+The tie-break, from the commission: works first time for the person it happens to, who is the
+displaced member and not the owner, then better × simpler × cheaper. The governing rule: membership
+is an access grant, progress is theirs and kept indefinitely.
+
+**D1. The owner keeps the Premium seat.** The subscription is bound to the payer's learner row, the
+resolver already reads it own-row-first, and every other answer needs fan-out writes this system
+deliberately has none of. Taste-safe default taken; overturn cost is high, so say so early.
+
+**D2. It takes effect at the end of the paid period, and the period is held by us, not Paddle.**
+Paddle cannot schedule a price change, so the change-plan endpoint gains `plan:'premium'`: it
+writes `scheduled_plan_name='SSi Premium'` and `scheduled_plan_at=current_period_end` on the
+owner's row, then calls `subscriptions.update` onto the Premium price with `do_not_bill`. Paddle's
+items change now, no money moves, and the next renewal bills £15. Our row keeps
+`plan_name='SSi Family'` until the flip, so every member is covered for exactly what was paid.
+Two columns on `subscriptions`, no new table, no cron. The delay is also the window in which every
+displaced person can act. Reasons in order: nobody loses something already bought; `do_not_bill`
+never meets the 55p refusal; no refund or credit arithmetic exists to go wrong.
+
+**D3. The flip is the renewal webhook, and the webhook stops freezing.** Plan changes are filed
+off the BILLED price in both directions, replacing the Family-only `handlePlanChangeToFamily`: an
+event whose subscription id already owns a row is a plan change on that row, whatever `kind` says.
+The precedence guard applies only across DIFFERENT subscription ids; a price change on the same
+subscription is Paddle's truth and is never "clobbering". With a pending schedule whose date is
+still ahead, the handler updates period and status but holds `plan_name`; once an event's billing
+period starts on or after `scheduled_plan_at`, it writes `SSi Premium` and clears the schedule.
+If the renewal event is late, the existing `current_period_end` check already fails closed for
+everyone, exactly as any late renewal does today. An unscheduled swap made by hand in the Paddle
+dashboard flips at once, members dark immediately; that is acceptable because the app door is the
+only customer path and it always schedules.
+
+**D4. The owner sees named people before confirming, and the confirm sentence names them.** The
+confirm screen lists every live member by display name, a pending invite by its address, a child
+marked as a child, and says in one sentence what changes on the date: "On 7 October Lewis and
+Ffion lose Premium. Everything they have learned stays. You keep Premium at £15 a month." The
+button reads "Change to Premium on 7 October". If the family has no live members the screen is
+just the price and date. With a cancellation already scheduled the downgrade door is hidden;
+cancel wins. Annual Family goes to annual Premium; the interval is preserved as on the upgrade.
+
+**D5. Nobody is removed by a downgrade, ever.** The endpoint touches the owner's row only.
+Membership rows stay `active` and simply stop resolving after the flip, which is what makes a
+later re-upgrade one write with everyone back where they were. The family page shows the existing
+`planNotActive` line plus the date.
+
+**D6. Displaced adults are told at confirm, by email, with their own door in it.** One email
+through the invite mail path already reaching them, sent when the owner confirms, not at the flip:
+the date, that their progress is safe, and a link to buy their own Premium. In-app, `/api/subscription`
+adds `familyEndsAt` for a member so the banner reads "Your family Premium ends 7 October. Keep
+going for £15 a month" with the ordinary checkout behind it. Their membership row stays; when they
+buy, their own row resolves first and nothing else changes. A pending invitee gets no mail; they
+never joined.
+
+**D7. The child, in full.** Three facts to work with: no email, no way to pay, no way in except a
+parent-minted link.
+- *Never stranded:* `signin-link` will mint for any child row the caller owns, removed or not. The
+  parent can always get the child back in, for as long as the account exists.
+- *Remove warns:* the Remove control on a child row says the account keeps everything and that a
+  sign-in link stays available on this page; there is no path by which a child becomes unreachable.
+- *What the child gets:* the same account on the free tier, no migration. A child account, known
+  by its synthetic address, is never offered a checkout; the paywall on a child account says "Ask
+  your grown-up about the family plan" and nothing else, because a Paddle customer bound to a
+  synthetic address is a trap.
+- *What the parent is handed at confirm:* the confirm screen says per child "Lewis keeps his
+  account and everything he has learned, and can keep using the free part of the course. You can
+  always get a new sign-in link for him here." Nothing further needs handing over at the flip,
+  because the link is mintable any day.
+- *Graduation* to a real email, which the identity record wants, is not built and is not needed
+  for any of the above to hold; it stays a separate job.
+
+**D8. The displaced adult's route to paying for themselves is the ordinary checkout.** No grace
+discount, no special price; the end-of-period window is the grace.
+
+**D9. Reverting is one tap.** "Keep Family" clears the two columns and calls `subscriptions.update`
+back onto the Family price with `do_not_bill`; the period was paid at £25 either way.
+
+**Taste-safe defaults taken, flagged so one can be overturned cheaply:** D1 owner keeps the seat;
+D2 end of period; D4 named people on the confirm; D6 told before, not after. No genuine taste
+fork was found; every remaining call was decided by the tie-break.
+
+**What the build job carries from this record.** Two columns; `change-plan` accepting `premium`
+with the schedule-then-`do_not_bill` order; the webhook filing plan changes off the billed price in
+both directions with the same-subscription carve-out on the precedence guard; the member
+`familyEndsAt` field; the confirm screen; the member email; `signin-link` for removed child rows;
+the child paywall. Proof: one webhook test that fails on today's code by leaving the row `SSi
+Family` after a scheduled flip and passes after; one `signin-link` test on a removed child row.
+Shakedown on Tom's own family subscription before any real family exists.
+
 ## 2026-09-06 — a stale characterization is the test's bug, not the code's (#912)
 
 The 2026-09-05 security audit (cs/551 and its 552-555 family) was merged into dev by the #900 sweep,
