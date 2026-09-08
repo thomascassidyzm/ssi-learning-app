@@ -2261,7 +2261,7 @@ const confirmReset = async () => {
             @click="router.push(orgDashboardPath)"
           >
             <div class="setting-info">
-              <span class="setting-label">{{ t('browse.organisationDashboard') }}</span>
+              <span class="setting-label">{{ t('settings.adminDashboard') }}</span>
               <span class="setting-desc">{{ t('settings.peopleInvitesProgress') }}</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2271,10 +2271,14 @@ const confirmReset = async () => {
 
           <div v-if="leadsOrg && (showSchoolsLink || hasAdminRole)" class="divider"></div>
 
-          <!-- Schools Dashboard -->
+          <!-- The dashboard, school lane. Same in-app name as the org lane
+               above — "Admin dashboard" (Tom, 2026-09-08, #409: "calling it a
+               dashboard in general, pointing to it in-app as admin
+               dashboard"). The description is what tells the two apart
+               for the rare account that holds both doors. -->
           <div v-if="showSchoolsLink" class="setting-row clickable" @click="router.push('/schools')">
             <div class="setting-info">
-              <span class="setting-label">{{ t('settings.schoolsDashboard') }}</span>
+              <span class="setting-label">{{ t('settings.adminDashboard') }}</span>
               <span class="setting-desc">{{ t('settings.manageClassesStudents') }}</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2284,10 +2288,11 @@ const confirmReset = async () => {
 
           <div v-if="showSchoolsLink && hasAdminRole" class="divider"></div>
 
-          <!-- Admin Dashboard -->
+          <!-- Platform admin (ssi_admin only). Was also titled "Admin
+               Dashboard" until the org and school doors took that name. -->
           <div v-if="hasAdminRole" class="setting-row clickable" @click="router.push('/admin')">
             <div class="setting-info">
-              <span class="setting-label">{{ t('settings.adminDashboard') }}</span>
+              <span class="setting-label">{{ t('settings.platformAdmin') }}</span>
               <span class="setting-desc">{{ t('settings.platformUsersActivityCourse') }}</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

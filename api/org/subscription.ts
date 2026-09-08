@@ -14,8 +14,16 @@
  *
  * Returns:
  *   {
- *     org: { id, name, type, platform_status, platform_expires_at, seats, member_count } | null,
+ *     org: { id, name, type, platform_status, platform_expires_at, seats, member_count,
+ *            structure: { hasSchool, childGroupCount, teacherCount, classCount, learnerCount } } | null,
  *     gate: { active: boolean, trial_days_remaining: number },
+ *   }
+ *
+ * `structure` is what the client derives the KIND of the institution from
+ * (Tom's ruling 2026-09-08, #409: teachers or classes established means
+ * school, groups with neither means org — never a label). `type` is still
+ * returned as the node's own display word, and nothing branches on it.
+ *   {
  *   }
  *
  * FAILS OPEN: no org resolved, or the platform-billing migration unapplied →
@@ -29,6 +37,8 @@ import { verifyAuthToken } from '../_utils/auth'
 import { applyCors } from '../_utils/cors'
 import { isPlatformActive } from '../_utils/platformStatus'
 import { leaderGroupId, readOrgPlatformState, countSubtreeMembers } from '../_utils/orgPlatform'
+import { computeNodeExtras, type GroupPathRow } from '../_utils/groupRollups'
+import { descendantIds } from '../_utils/groupSubtree'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -109,6 +119,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // leader to buy too few seats.
     const memberCount = await countSubtreeMembers(supabase, groupId)
 
+    // STRUCTURE — the honest source of the institution's kind. The same
+    // subtree rollup the node home draws (teachers / classes established
+    // across the subtree) plus whether any `schools` row hangs anywhere in
+    // it. The client reads the kind off this, never off `type`.
+    const { data: forest } = await supabase.from('groups').select('id, path, parent_id')
+    const forestRows = (forest ?? []) as GroupPathRow[]
+    const subtreeIds = descendantIds(forestRows, groupId)
+    const [extras, { data: subtreeSchools }] = await Promise.all([
+      computeNodeExtras(supabase, [groupId], forestRows),
+      supabase.from('schools').select('id').in('node_group_id', subtreeIds),
+    ])
+    const rollup = extras[groupId]?.rollup ?? { childGroupCount: 0, teacherCount: 0, classCount: 0, learnerCount: 0 }
+    const structure = { hasSchool: (subtreeSchools ?? []).length > 0, ...rollup }
+
     const status = platformState?.platform_status ?? null
     const expiresAt = platformState?.platform_expires_at ?? null
     const active = isPlatformActive(status, expiresAt)
@@ -117,12 +141,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       org: {
         id: group.id,
         name: (group as any).name ?? null,
-        // The node's kind — 'organisation' for the org lane, 'region' /
-        // 'programme' for the government/schools lane. `educational_role`
-        // is 'govt_admin' for BOTH, so this is the only honest way the
-        // client can tell an org leader from a schools admin and offer the
-        // right dashboard door (useOrgLeadership.ts, 2026-08-06).
+        // The node's own display word ('organisation', 'region', 'council'
+        // ...). SUPERSEDED HISTORY: from 2026-08-06 this was how the client
+        // told an org leader from a schools admin (useOrgLeadership.ts).
+        // Since 2026-09-08 (#409) the kind is derived from `structure`
+        // below and nothing branches on this word.
         type: (group as any).type ?? null,
+        structure,
         platform_status: status,
         platform_expires_at: expiresAt,
         seats: platformState?.seats ?? null,
