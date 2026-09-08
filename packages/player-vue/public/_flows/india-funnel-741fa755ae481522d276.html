@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
-<title>The India funnel — landing page to payment</title>
+<title>The India funnel — one flow, all nine Indian-language landing pages</title>
 <!--
   A PICTURE, NOT A SYSTEM. This page reads nothing, writes nothing and is
   imported by no application code. It is a static file under public/, so it is
@@ -39,6 +39,7 @@
   p, li { font-size: 1.02rem; }
   .dateline { font-size: .95rem; color: #5b554e; margin: 0 0 .2rem; }
   .unlisted { font-size: .9rem; color: #6d675f; margin: 0 0 2rem; }
+  .scope { font-size: 1.02rem; color: #3a352f; margin: 0 0 1.4rem; }
   .lede { font-size: 1.08rem; background: #fff; border-left: 4px solid #4a6fa5;
           padding: .9rem 1rem; border-radius: 0 8px 8px 0; margin: 0 0 2rem; }
   .card { background: #fff; border: 1px solid #ddd7cf; border-radius: 10px;
@@ -63,6 +64,20 @@
          color: #fff; padding: .12rem .5rem; border-radius: 4px; }
   .rail { background: #fff; border: 1px dashed #b9b1a7; border-radius: 10px;
           padding: 1rem 1.1rem; margin: 1rem 0; }
+  .shot { margin: 1.1rem 0 0; }
+  .shot img { display: block; width: 100%; max-width: 390px; height: auto;
+              border: 1px solid #ddd7cf; border-radius: 10px; background: #fff; }
+  .shot figcaption { font-size: .92rem; color: #4a453f; margin: .5rem 0 0; }
+  .shots-2 { display: flex; flex-wrap: wrap; gap: 1rem; margin: 1.1rem 0 0; }
+  .shots-2 .shot { flex: 1 1 240px; min-width: 0; margin: 0; }
+  .notbuilt { width: 100%; max-width: 390px; aspect-ratio: 390 / 500;
+              border: 2px dashed #b9b1a7; border-radius: 10px; background: #fbf9f6;
+              display: flex; flex-direction: column; align-items: center;
+              justify-content: center; text-align: center; padding: 1.2rem;
+              color: #6d675f; }
+  .notbuilt b { display: block; font-size: .8rem; letter-spacing: .1em;
+                text-transform: uppercase; color: #8a8279; margin-bottom: .6rem; }
+  .notbuilt span { font-size: .98rem; line-height: 1.5; }
   footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #ddd7cf;
            font-size: .88rem; color: #6d675f; }
   code { background: #eae5df; padding: .1rem .3rem; border-radius: 4px; font-size: .92em; }
@@ -71,9 +86,13 @@
 <body>
 <main>
 
-<h1>The India funnel: landing page to payment</h1>
+<h1>The India funnel: one flow, all nine Indian-language landing pages</h1>
 <p class="dateline">The flow as Tom ruled it, 8 September 2026.</p>
 <p class="unlisted">Unlisted page, shareable by URL. Not linked from anywhere and not indexed.</p>
+
+<p class="scope">This is the same flow for every one of the nine Indian-language landing pages — Hindi, Urdu, Bengali, Marathi, Gujarati, Punjabi, Tamil, Telugu and Kannada. Hindi is shown throughout as the worked example; read every Hindi screen below as "the learner’s own language".</p>
+
+<p class="scope">The pictures below are real captures of the screens as they are today, taken at phone width. Two steps of this flow do not exist yet, and those two carry a plain frame saying so rather than a drawing of what they might look like.</p>
 
 <p class="lede">Nobody is asked for anything before the thing that makes the ask reasonable exists.
 Play costs nothing. The account arrives when there is progress worth keeping. The install arrives
@@ -82,7 +101,7 @@ when there is something worth buying. Money arrives last, in the app.</p>
 <div class="diagram">
 <pre class="mermaid">
 graph TD
-  A["<b>1. Hindi landing page</b><br/>on the marketing site<br/>App embedded in the page<br/>One door: PLAY"]
+  A["<b>1. The language landing page</b><br/>Hindi shown<br/>on the marketing site<br/>App embedded in the page<br/>One door: PLAY"]
   B["<b>2. Web trial</b><br/>The web app, in Hindi<br/>No card, no email, no sign-up"]
   C["<b>3. Create account</b><br/>Triggered by progress<br/>worth keeping<br/>Google preferred,<br/>email as fallback"]
   D["<b>4. The padlock</b><br/>The only place the<br/>Play Store appears<br/>Link carries course code<br/>+ one-time account token"]
@@ -120,8 +139,8 @@ graph TD
 <h2>The stages, in words</h2>
 
 <div class="card">
-<h3>1. The Hindi landing page, with the app embedded</h3>
-<p>The marketing site carries the lesson player as a web component inside the page. Not an iframe, not
+<h3>1. The language landing page, with the app embedded</h3>
+<p>Each language has its own landing page on the marketing site, and every one of the nine works the same way. Hindi is shown here. The marketing site carries the lesson player as a web component inside the page. Not an iframe, not
 a deep link. Embedded, so back, scroll, the keyboard and the safe area all belong to one document.</p>
 <p>There is one door on that page and it is <b>Play</b>. No account. No store link. No download button.
 No store badge. Nothing to type.</p>
@@ -131,11 +150,40 @@ on the link and just being able to play it, which they don't even need an accoun
 <p>The copy line that nothing needs installing stays, and stays true. It is true of the play. It was
 only ever wrong about the purchase, and that is fixed by adding the upgrade story lower down the
 page, not by softening the line.</p>
+<div class="shots-2">
+  <figure class="shot">
+    <img src="india-funnel-shots/1-landing-hindi.png" width="390" height="844"
+         alt="The Hindi landing page at phone width, with a free-start button and a demo button.">
+    <figcaption>The Hindi landing page at <code>/eng/hindi</code>, as it is today. Two doors at the top: start free, and listen to the demo.</figcaption>
+  </figure>
+  <figure class="shot">
+    <img src="india-funnel-shots/1b-landing-hindi2.png" width="390" height="844" loading="lazy"
+         alt="A second Hindi landing page design, red, with a start-free button and a demo section.">
+    <figcaption>The second Hindi page at <code>/eng/hindi2</code>. A genuinely different design, live alongside the first. Which one wins is copy work, not flow work.</figcaption>
+  </figure>
+</div>
 </div>
 
 <div class="card">
 <h3>2. The web trial, still no account</h3>
-<p>The trial is the web app in Hindi, and it is gate-free. No card, no email, no sign-up.</p>
+<p>The trial is the web app in the learner’s own language, Hindi here, and it is gate-free. No card, no email, no sign-up.</p>
+<div class="shots-2">
+  <figure class="shot">
+    <img src="india-funnel-shots/2a-demo-in-page.png" width="390" height="844" loading="lazy"
+         alt="The lesson player sitting inside the Hindi landing page, waiting for a tap.">
+    <figcaption>The player embedded in the landing page itself, waiting for a tap. Same document, no store link, nothing to type.</figcaption>
+  </figure>
+  <figure class="shot">
+    <img src="india-funnel-shots/2b-demo-playing.png" width="390" height="844" loading="lazy"
+         alt="The demo mid-cycle, showing a Hindi sentence with its English gloss underneath.">
+    <figcaption>The demo mid-cycle, captured from its own route at <code>/embed/demo</code> because it will not start under a headless browser on the marketing page. Same component, and the same screen a visitor sees inside the page.</figcaption>
+  </figure>
+</div>
+<figure class="shot">
+  <img src="india-funnel-shots/3-web-trial-hindi.jpg" width="390" height="844" loading="lazy"
+       alt="The web app playing the English-for-Hindi course, with the whole interface in Hindi.">
+  <figcaption>The web trial in the app itself, thirty seconds in, every word of the interface in Hindi. The save-progress nudge above the artwork is stage 3 arriving on its own.</figcaption>
+</figure>
 </div>
 
 <div class="card">
@@ -146,6 +194,11 @@ reason for the account is not that the store needs one. It is that progress need
 the person already has a Google account, Play billing will use it whatever you do, it requires no
 typing in Hindi or English, and, unlike Apple's relay address or a passwordless magic link, it
 returns a real, writable email address.</p>
+<figure class="shot">
+  <img src="india-funnel-shots/4-account-screen.png" width="390" height="844" loading="lazy"
+       alt="The app's sign-in panel, asking for an email address and offering a password instead.">
+  <figcaption>The account screen the app has today: an email address and a code, with a password as the alternative. Google sign-in is not on it yet, so the ruled preference for Google with email as the fallback is still to build.</figcaption>
+</figure>
 </div>
 
 <div class="card">
@@ -160,6 +213,10 @@ language if the referrer is empty. A sideload or another store hands the app not
 Play, so that is a corner.</p>
 <p>This is deferred deep linking. It is what removes the manual sign-in step and guarantees the
 purchase attaches to the right account.</p>
+<figure class="shot">
+  <div class="notbuilt"><b>Not built yet</b><span>There is no padlock in the app and no link out to the store. When it exists it will be one screen at the point the free content runs out, carrying the course code and a one-time account token into the Play referrer.</span></div>
+  <figcaption>No screenshot, because there is no screen. Nothing here is a mock-up.</figcaption>
+</figure>
 </div>
 
 <div class="card">
@@ -168,6 +225,22 @@ purchase attaches to the right account.</p>
 the account.</p>
 <p>Google's rule is satisfied: the web sends people to the store, the app sells in-app, and nothing
 inside the app links out to a web till.</p>
+<div class="shots-2">
+  <figure class="shot">
+    <img src="india-funnel-shots/5-play-store-a3f.png" width="390" height="844" loading="lazy"
+         alt="The Google Play listing for SaySomethingin, package com.automagic.a3f, showing 50K downloads.">
+    <figcaption>The current India listing, live today at <code>com.automagic.a3f</code> with fifty thousand downloads behind it. It is the old app, and the new one replaces it. Both of those are true at once, which is why the package id is still undecided below.</figcaption>
+  </figure>
+  <figure class="shot">
+    <img src="india-funnel-shots/6-android-first-open.jpg" width="390" height="844" loading="lazy"
+         alt="The web app on a fresh first open, having picked a course by itself.">
+    <figcaption>What the wrapped Android app shows on first open, captured from the web app it wraps rather than from a phone. With no referrer to read it has to guess a course, and here it guessed Chinese. Removing that guess is the whole job of the referrer link.</figcaption>
+  </figure>
+</div>
+<figure class="shot">
+  <div class="notbuilt"><b>Not built yet</b><span>Play billing is not wired. When it is, the purchase happens inside the app in rupees through UPI, and the server joins the Play purchase token to the account.</span></div>
+  <figcaption>No screenshot, because there is no screen. Nothing here is a mock-up.</figcaption>
+</figure>
 </div>
 
 <div class="rail">
