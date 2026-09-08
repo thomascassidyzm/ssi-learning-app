@@ -29,6 +29,23 @@ describe('nodeKindOf', () => {
     expect(nodeKindOf(groupHome({ node: { id: 's', name: 'S', commercial: { schoolId: 'x' } } }))).toBe('school')
     expect(nodeKindOf(classHome())).toBe('class')
   })
+
+  // Tom's ruling 2026-09-08 (job #409): the kind is derived from structure,
+  // never from a label anyone picks. This pin FAILED on the label-first code.
+  it('reads structure, never the label', () => {
+    // Label says school, structure says groups-only → group.
+    expect(nodeKindOf(groupHome({
+      node: { id: 's', name: 'S', label: 'school', commercial: null, hasSchool: false, rollup: { childGroupCount: 2, teacherCount: 0, classCount: 0, learnerCount: 8 } },
+    }))).toBe('group')
+    // Label says organisation, but it has grown its own classes → school.
+    expect(nodeKindOf(groupHome({
+      node: { id: 'o', name: 'O', label: 'organisation', commercial: null, hasSchool: false, rollup: { childGroupCount: 0, teacherCount: 1, classCount: 3, learnerCount: 30 } },
+    }))).toBe('school')
+    // A council OVER schools is a group in education dressing, not a school.
+    expect(nodeKindOf(groupHome({
+      node: { id: 'c', name: 'Council', label: 'programme', commercial: null, hasSchool: false, rollup: { childGroupCount: 3, teacherCount: 12, classCount: 40, learnerCount: 900 } },
+    }))).toBe('group')
+  })
 })
 
 describe('shipped rules', () => {

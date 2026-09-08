@@ -11,6 +11,7 @@
  * a lockstep the compile fails on if either side drifts.
  */
 import { groupHomePath, nodeInsightsPath, schoolHomePath } from '@/composables/nodeSurfacePaths'
+import { isSchoolNode } from '@/composables/nodeTerminology'
 
 export interface RuleCondition {
   path: string
@@ -77,17 +78,24 @@ function interpolate(template: string, scope: unknown, count?: number): string {
 }
 
 /**
- * The node kind for rule/explanation scoping: the payload's own kind
- * ('class'); else the node's OWN label decides — a school attachment never
- * outvotes the label (label-not-type, THE-MODEL §2.1; same founder-reported
- * wart as the IME programme kicker reading "School", 2026-07-20). Only an
- * unlabelled node falls back to what its attachments suggest.
+ * The node kind for rule/explanation scoping, DERIVED FROM STRUCTURE: the
+ * payload's own kind ('class'); else 'school' when the node itself carries
+ * school structure (a schools row attached, or its own teachers/classes —
+ * nodeTerminology.isSchoolNode); else 'group'. The node's label is never
+ * read (Tom's ruling 2026-09-08, job #409: the kind is derived from teachers
+ * and classes established, never from a label anyone picks).
+ *
+ * SUPERSEDED HISTORY, kept legible: until 2026-09-08 the node's OWN label
+ * decided here — "a school attachment never outvotes the label (label-not-
+ * type, THE-MODEL §2.1; same founder-reported wart as the IME programme
+ * kicker reading 'School', 2026-07-20)", with structure only as the fallback
+ * for an unlabelled node. That ordering was overturned deliberately: a node
+ * labelled "school" with no teachers or classes is a group, and a council
+ * that has grown classes is a school whatever its label says.
  */
 export function nodeKindOf(home: any): string {
   if (home?.kind === 'class') return 'class'
-  const n = home?.node
-  if (n?.label) return n.label === 'school' ? 'school' : 'group'
-  return n?.commercial || n?.hasSchool ? 'school' : 'group'
+  return isSchoolNode(home?.node) ? 'school' : 'group'
 }
 
 /** Semantic CTA target → concrete path, member/admin-correct. */
