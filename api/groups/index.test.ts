@@ -24,6 +24,9 @@ vi.mock('../_utils/auth', () => ({
 }))
 
 let insertCalls: any[] = []
+// Role writes, recorded the same way inserts are: the self-serve root lane
+// must set learners.educational_role, or its leader can't open the org.
+let updateCalls: any[] = []
 let govtAdminRow: any
 // A SCHOOL-track owner (no govt_admins row): her authority over her own tree
 // is derived from educational_role + the school she administers, whose own
@@ -62,6 +65,7 @@ function makeChainable(table: string) {
     is: () => builder,
     limit: () => builder,
     insert: (obj: unknown) => { insertCalls.push({ table, obj }); return builder },
+    update: (obj: unknown) => { updateCalls.push({ table, obj }); return builder },
     single: () => Promise.resolve({ data: { id: 'group-new', ...(insertCalls[insertCalls.length - 1]?.obj || {}) }, error: null }),
     maybeSingle: () => {
       if (table === 'govt_admins') return Promise.resolve({ data: govtAdminRow, error: null })
@@ -110,6 +114,7 @@ let handler: typeof import('./index').default
 
 beforeEach(async () => {
   insertCalls = []
+  updateCalls = []
   verifyAdminResult = { userId: 'admin-1' }
   verifyAuthTokenResult = { valid: true, userId: 'leader-1' }
   govtAdminRow = null
@@ -152,6 +157,24 @@ describe('POST /api/groups', () => {
       tag_value: 'GROUP:group-new',
       role_in_context: 'admin',
     })
+  })
+
+  // ─── The THIRD write. The server resolves a leader from govt_admins, but the
+  // BROWSER routes on learners.educational_role (useUserRole.hasSchoolRole →
+  // memberSurfaceGuard), so a root org created with only the authz row leaves
+  // its creator on the "no school access yet" wall on their own org's page.
+  // Probed live on dev 2026-09-08 with a throwaway leader: role NULL → that
+  // wall, role 'govt_admin' → the node home, same account and URL. The /orgs
+  // signup track did this write itself; this lane did not. ───
+  it('SELF-SERVE ROOT: the creator also gets the educational_role the browser routes on, or they cannot open their own org', async () => {
+    verifyAdminResult = { error: 'Requires SSi admin access', status: 403 }
+    govtAdminRow = null
+    const res = makeRes()
+    await handler(makeReq('POST', { name: 'Cardiff Council' }), res)
+    expect(res.statusCode).toBe(201)
+    const roleWrite = updateCalls.find((c) => c.table === 'learners')
+    expect(roleWrite).toBeTruthy()
+    expect(roleWrite.obj).toEqual({ educational_role: 'govt_admin' })
   })
 
   it('CREATOR IS FIRST MANAGER: a leader creating a SUB-group becomes its manager too', async () => {
