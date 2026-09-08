@@ -70,14 +70,50 @@
   .shot figcaption { font-size: .92rem; color: #4a453f; margin: .5rem 0 0; }
   .shots-2 { display: flex; flex-wrap: wrap; gap: 1rem; margin: 1.1rem 0 0; }
   .shots-2 .shot { flex: 1 1 240px; min-width: 0; margin: 0; }
-  .notbuilt { width: 100%; max-width: 390px; aspect-ratio: 390 / 500;
-              border: 2px dashed #b9b1a7; border-radius: 10px; background: #fbf9f6;
-              display: flex; flex-direction: column; align-items: center;
-              justify-content: center; text-align: center; padding: 1.2rem;
-              color: #6d675f; }
-  .notbuilt b { display: block; font-size: .8rem; letter-spacing: .1em;
-                text-transform: uppercase; color: #8a8279; margin-bottom: .6rem; }
-  .notbuilt span { font-size: .98rem; line-height: 1.5; }
+  /* MOCK-UPS. Drawings of ruled steps, in the new app's Mist palette. They are
+     deliberately unlike the real captures: dashed border, warm-grey canvas and a
+     MOCK-UP badge on the frame itself, so nobody reads one as a screenshot. */
+  .mock { position: relative; width: 100%; max-width: 390px;
+          border: 2px dashed #b9b1a7; border-radius: 10px; background: #e8e3dd;
+          padding: 1.6rem .9rem 1.2rem; overflow: hidden; }
+  .mock .badge { position: absolute; top: .5rem; right: .5rem; font-size: .7rem;
+                 letter-spacing: .12em; text-transform: uppercase; font-weight: 700;
+                 color: #6d675f; background: #f3f0ec; border: 1px solid #b9b1a7;
+                 padding: .1rem .45rem; border-radius: 4px; }
+  .mock .surface { background: #fff; border-radius: 14px; padding: 1.1rem 1rem;
+                   box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+  .mock .lock { width: 44px; height: 44px; margin: .2rem auto .8rem; display: block; }
+  .mock .mk-h { font-size: 1.05rem; font-weight: 700; margin: 0 0 .45rem; text-align: center;
+                color: #22201d; }
+  .mock .mk-p { font-size: .9rem; color: #4a453f; margin: 0 0 .9rem; text-align: center;
+                line-height: 1.5; }
+  .mock .mk-btn { display: block; background: #c23a3a; color: #fff; font-weight: 600;
+                  font-size: .95rem; text-align: center; border-radius: 999px;
+                  padding: .65rem 1rem; }
+  .mock .mk-small { font-size: .78rem; color: #6d675f; text-align: center; margin: .7rem 0 0; }
+  .mock .mk-progress { height: 6px; border-radius: 3px; background: #e8e3dd; margin: 0 0 .9rem; }
+  .mock .mk-progress i { display: block; height: 100%; width: 100%; border-radius: 3px;
+                         background: #d4a853; }
+  .mock.sheeted { padding-bottom: 0; }
+  .mock .dim { opacity: .45; }
+  /* Google's chrome, not ours: the sheet is drawn plain and neutral on purpose. */
+  .mock .sheet { background: #fff; border-radius: 16px 16px 0 0; margin: 1rem -.9rem 0;
+                 padding: .9rem 1rem 1.1rem; border-top: 1px solid #dcd8d2;
+                 box-shadow: 0 -2px 8px rgba(0,0,0,.08); }
+  .mock .sheet-grab { width: 34px; height: 4px; border-radius: 2px; background: #d5d1cb;
+                      margin: 0 auto .8rem; }
+  .mock .sheet-row { display: flex; align-items: center; justify-content: space-between;
+                     gap: .6rem; font-size: .92rem; color: #22201d; }
+  .mock .sheet-row + .sheet-row { margin-top: .7rem; padding-top: .7rem;
+                                  border-top: 1px solid #eceae6; }
+  .mock .sheet-app { font-weight: 600; }
+  .mock .sheet-sub { font-size: .8rem; color: #6d675f; }
+  .mock .upi { display: inline-flex; align-items: center; gap: .4rem; font-weight: 600; }
+  .mock .upi em { font-style: normal; background: #22201d; color: #fff; font-size: .7rem;
+                  letter-spacing: .06em; padding: .1rem .35rem; border-radius: 3px; }
+  .mock .sheet-btn { display: block; margin-top: .9rem; background: #1a73e8; color: #fff;
+                     font-weight: 600; font-size: .95rem; text-align: center;
+                     border-radius: 999px; padding: .6rem 1rem; }
   footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #ddd7cf;
            font-size: .88rem; color: #6d675f; }
   code { background: #eae5df; padding: .1rem .3rem; border-radius: 4px; font-size: .92em; }
@@ -92,7 +128,7 @@
 
 <p class="scope">This is the same flow for every one of the nine Indian-language landing pages — Hindi, Urdu, Bengali, Marathi, Gujarati, Punjabi, Tamil, Telugu and Kannada. Hindi is shown throughout as the worked example; read every Hindi screen below as "the learner’s own language".</p>
 
-<p class="scope">The pictures below are real captures of the screens as they are today, taken at phone width. Two steps of this flow do not exist yet, and those two carry a plain frame saying so rather than a drawing of what they might look like.</p>
+<p class="scope">Most of the pictures below are real captures of the screens as they are today, taken at phone width. Two of them are not: the padlock and the Play purchase sheet are <b>mock-ups</b>, drawn here, each on a dashed frame with a MOCK-UP badge on it and a caption saying so. The padlock is a drawing because it is not built yet. The purchase sheet is a drawing because it needs a signed-in Android phone to appear on, which is not something a headless browser can produce.</p>
 
 <p class="lede">Nobody is asked for anything before the thing that makes the ask reasonable exists.
 Play costs nothing. The account arrives when there is progress worth keeping. The install arrives
@@ -214,32 +250,61 @@ Play, so that is a corner.</p>
 <p>This is deferred deep linking. It is what removes the manual sign-in step and guarantees the
 purchase attaches to the right account.</p>
 <figure class="shot">
-  <div class="notbuilt"><b>Not built yet</b><span>There is no padlock in the app and no link out to the store. When it exists it will be one screen at the point the free content runs out, carrying the course code and a one-time account token into the Play referrer.</span></div>
-  <figcaption>No screenshot, because there is no screen. Nothing here is a mock-up.</figcaption>
+  <div class="mock">
+    <span class="badge">Mock-up</span>
+    <div class="surface">
+      <div class="mk-progress"><i></i></div>
+      <svg class="lock" viewBox="0 0 24 24" fill="none" stroke="#c23a3a" stroke-width="1.6"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="4" y="10.5" width="16" height="11" rx="2.5"></rect>
+        <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"></path>
+        <circle cx="12" cy="16" r="1.3" fill="#c23a3a" stroke="none"></circle>
+      </svg>
+      <p class="mk-h">You have finished the free part</p>
+      <p class="mk-p">Your progress is saved. Carry on in the app.</p>
+      <span class="mk-btn">Get the app on Google Play</span>
+      <p class="mk-small">Opens in your language, already signed in.</p>
+    </div>
+  </div>
+  <figcaption>A mock-up, not a screenshot: this screen is not built. It draws the ruled step — the moment the free content runs out, one screen carrying a padlock and a single link out to the Play Store, with the course code and a one-time account token riding out in the install referrer string.</figcaption>
 </figure>
 </div>
 
 <div class="card">
 <h3>5 and 6. In-app purchase through Play</h3>
-<p>Rupees, UPI, ₹299 a month. The entitlement is joined <b>server-side</b> from the Play purchase token to
-the account.</p>
+<p>Rupees, UPI, ₹299 a month. Play billing is wired and works: Tom watched it on the IME call, when
+they went to buy the old app at the old fee and Play offered UPI as a payment option. The entitlement
+is joined <b>server-side</b> from the Play purchase token to the account.</p>
 <p>Google's rule is satisfied: the web sends people to the store, the app sells in-app, and nothing
 inside the app links out to a web till.</p>
-<div class="shots-2">
-  <figure class="shot">
-    <img src="india-funnel-shots/5-play-store-a3f.png" width="390" height="844" loading="lazy"
-         alt="The Google Play listing for SaySomethingin, package com.automagic.a3f, showing 50K downloads.">
-    <figcaption>The current India listing, live today at <code>com.automagic.a3f</code> with fifty thousand downloads behind it. It is the old app, and the new one replaces it. Both of those are true at once, which is why the package id is still undecided below.</figcaption>
-  </figure>
-  <figure class="shot">
-    <img src="india-funnel-shots/6-android-first-open.jpg" width="390" height="844" loading="lazy"
-         alt="The web app on a fresh first open, having picked a course by itself.">
-    <figcaption>What the wrapped Android app shows on first open, captured from the web app it wraps rather than from a phone. With no referrer to read it has to guess a course, and here it guessed Chinese. Removing that guess is the whole job of the referrer link.</figcaption>
-  </figure>
-</div>
 <figure class="shot">
-  <div class="notbuilt"><b>Not built yet</b><span>Play billing is not wired. When it is, the purchase happens inside the app in rupees through UPI, and the server joins the Play purchase token to the account.</span></div>
-  <figcaption>No screenshot, because there is no screen. Nothing here is a mock-up.</figcaption>
+  <img src="india-funnel-shots/6-android-first-open.jpg" width="390" height="844" loading="lazy"
+       alt="The web app on a fresh first open, having picked a course by itself.">
+  <figcaption>What the wrapped Android app shows on first open, captured from the web app it wraps rather than from a phone. With no referrer to read it has to guess a course, and here it guessed Chinese. Removing that guess is the whole job of the referrer link.</figcaption>
+</figure>
+<figure class="shot">
+  <div class="mock sheeted">
+    <span class="badge">Mock-up</span>
+    <div class="surface dim">
+      <div class="mk-progress"><i></i></div>
+      <p class="mk-h">Carry on learning</p>
+      <p class="mk-p">₹299 a month. Cancel any time in Play.</p>
+      <span class="mk-btn">Subscribe</span>
+    </div>
+    <div class="sheet">
+      <div class="sheet-grab"></div>
+      <div class="sheet-row">
+        <span><span class="sheet-app">SaySomethingin</span><br><span class="sheet-sub">Monthly subscription</span></span>
+        <span class="sheet-app">₹299<span class="sheet-sub">/month</span></span>
+      </div>
+      <div class="sheet-row">
+        <span class="upi"><em>UPI</em> Pay by UPI</span>
+        <span class="sheet-sub">Change</span>
+      </div>
+      <span class="sheet-btn">Subscribe</span>
+    </div>
+  </div>
+  <figcaption>A mock-up, not a screenshot. Play billing does exist and does offer UPI — Tom saw it on the IME call. There is no capture because Play's purchase sheet only appears on a signed-in Android phone with the app installed, which a headless browser on a Linux box cannot produce. The app's own screen behind is in the app's colours; the sheet in front is Google's chrome, so it is drawn plain.</figcaption>
 </figure>
 </div>
 
