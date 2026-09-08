@@ -31,9 +31,11 @@ export interface FamilyState {
    * sign-in link stays available for them here, forever (job #376·F, D7).
    */
   removedChildren: FamilyMember[]
+  /** When the family cover ends, if the owner has scheduled a change or a cancellation (job #376·F, D5). */
+  familyEndsAt: string | null
 }
 
-const EMPTY_STATE: FamilyState = { isOwner: false, hasFamilyPlan: false, seatsUsed: 0, seatCap: 6, members: [], removedChildren: [] }
+const EMPTY_STATE: FamilyState = { isOwner: false, hasFamilyPlan: false, seatsUsed: 0, seatCap: 6, members: [], removedChildren: [], familyEndsAt: null }
 
 export function useFamilyManagement() {
   const supabase = inject<Ref<any>>('supabase', ref(null))
@@ -59,7 +61,7 @@ export function useFamilyManagement() {
       const res = await fetch('/api/family', { headers })
       if (!res.ok) throw new Error('We could not load your family just now. Please try again in a moment.')
       const body = await res.json()
-      state.value = { ...body, removedChildren: body.removedChildren ?? [] }
+      state.value = { ...body, removedChildren: body.removedChildren ?? [], familyEndsAt: body.familyEndsAt ?? null }
     } catch (e: any) {
       error.value = e?.message || 'We could not load your family just now. Please try again in a moment.'
     } finally {

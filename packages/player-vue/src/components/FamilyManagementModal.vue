@@ -43,6 +43,12 @@ const seatsLine = computed(() =>
   t('family.placesUsed').replace('{used}', String(state.value.seatsUsed)).replace('{cap}', String(state.value.seatCap)),
 )
 const fullLine = computed(() => t('family.familyFull').replace('{cap}', String(state.value.seatCap)))
+const familyEndsLine = computed(() => {
+  const at = state.value.familyEndsAt
+  if (!at) return ''
+  const date = new Date(at).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })
+  return t('family.planEndsOn').replace('{date}', date)
+})
 
 // One line of good news under the seats count — "invite sent to X", "we sent
 // it again", "they already had an account". Cleared by the next action.
@@ -200,6 +206,9 @@ async function confirmRemove(m: FamilyMember) {
         <div class="family-scroll">
           <p class="family-seats">{{ seatsLine }}</p>
           <p v-if="!isLoading && !state.hasFamilyPlan" class="family-warn">{{ t('family.planNotActive') }}</p>
+          <!-- A change the owner has scheduled (job #376·F, D5): the places
+               stay covered until the date, and nobody is removed. -->
+          <p v-else-if="!isLoading && familyEndsLine" class="family-warn">{{ familyEndsLine }}</p>
           <p v-if="error" class="family-error" role="alert">{{ error }}</p>
           <p v-else-if="notice" class="family-notice" role="status">{{ notice }}</p>
 

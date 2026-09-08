@@ -39,6 +39,11 @@ export interface Subscription {
   cancelAtPeriodEnd: boolean
   /** Payment provider */
   provider: PaymentProvider
+  /** A change the owner has scheduled for the end of the paid period (job #376·F, D2). */
+  scheduledPlanName?: string | null
+  scheduledPlanAt?: string | null
+  /** For a family MEMBER: when their family cover ends (D6). Null while nothing ends. */
+  familyEndsAt?: string | null
 }
 
 /**

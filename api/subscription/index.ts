@@ -26,6 +26,8 @@ interface SubscriptionRow {
   current_period_end: string | null
   cancel_at_period_end: boolean
   provider: string
+  scheduled_plan_name?: string | null
+  scheduled_plan_at?: string | null
 }
 
 export default async function handler(
@@ -120,6 +122,21 @@ export default async function handler(
         currentPeriodEnd: sub.current_period_end,
         cancelAtPeriodEnd: sub.cancel_at_period_end,
         provider: sub.provider,
+        // A change the owner has scheduled for the end of the paid period
+        // (job #376·F, D2): what the plan becomes, and when. Null = none.
+        scheduledPlanName: sub.scheduled_plan_name ?? null,
+        scheduledPlanAt: sub.scheduled_plan_at ?? null,
+        // FOR A MEMBER (D6): when their family cover ends — the owner's
+        // scheduled change, or the owner's cancellation. The banner reads
+        // "Your family Premium ends 7 October. Keep going for £15 a month"
+        // with the ordinary checkout behind it. Null while nothing ends.
+        familyEndsAt: viaFamily
+          ? (sub.scheduled_plan_name && sub.scheduled_plan_at
+              ? sub.scheduled_plan_at
+              : sub.cancel_at_period_end
+                ? sub.current_period_end
+                : null)
+          : null,
       },
       isSubscribed,
       isChildAccount,
