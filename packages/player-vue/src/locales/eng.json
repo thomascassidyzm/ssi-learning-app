@@ -2102,6 +2102,7 @@
       "nodeEntitlement": {
         "autoExpiryPreview": "Auto-expiry: {n} days from save",
         "coursesKicker": "Courses",
+        "enrolmentBadge": "Granted at sign-up",
         "errorLoad": "Failed to load course access",
         "errorPickCourse": "Pick a course for the trial",
         "errorSave": "Failed to save course access",
@@ -2111,6 +2112,8 @@
         "noExpiry": "no expiry",
         "noneSummary": "No course access set yet.",
         "notSetBadge": "Not set",
+        "orgPolicyHint": "Given to each learner as they enrol, not held on the organisation. Change it on the enrolment policy, not here.",
+        "orgPolicySummary": "{org} gives every learner {months} months free on sign-up:",
         "paidBadge": "Paid",
         "paidSummary": "All courses, no expiry.",
         "save": "Save",

@@ -546,7 +546,15 @@ onMounted(() => {
 
           <!-- Premium section -->
           <template v-if="premiumGroups.length > 0">
-            <div class="section-header section-header--premium">
+            <!--
+              No Premium header, and no Upgrade button, in a scoped picker.
+              A Canolfan learner has just been told their Welsh year is free
+              and is choosing between the two dialects their org granted;
+              '£15/mo — unlimited access to all languages' sitting directly
+              above those two rows contradicts that, and there is nothing in
+              a two-option scoped picker to upgrade TO.
+            -->
+            <div v-if="!isRestricted" class="section-header section-header--premium">
               <div class="section-header__text">
                 <span class="section-header__title">{{ t('browse.premium') }}</span>
                 <span class="section-header__sub">{{ t('courseSelector.moUnlimitedAccessAll') }}</span>
@@ -612,7 +620,7 @@ onMounted(() => {
 
           <!-- Free section -->
           <template v-if="freeGroups.length > 0">
-            <div class="section-header">
+            <div v-if="!isRestricted" class="section-header">
               <div class="section-header__text">
                 <span class="section-header__title">{{ t('courseSelector.free') }}</span>
                 <span class="section-header__sub">{{ t('courseSelector.freeForever') }}</span>

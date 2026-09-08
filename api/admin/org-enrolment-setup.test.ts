@@ -55,6 +55,8 @@ function makeRes(): VercelResponse & { statusCode?: number; body?: any } {
 }
 const post = (body: Record<string, unknown>): VercelRequest =>
   ({ method: 'POST', query: {}, body, headers: { authorization: 'Bearer t' } }) as any
+const get = (query: Record<string, unknown>): VercelRequest =>
+  ({ method: 'GET', query, body: undefined, headers: { authorization: 'Bearer t' } }) as any
 
 const ASK = {
   orgName: 'Dysgu Cymraeg',
@@ -128,5 +130,47 @@ describe('standing the org up', () => {
     await handler(post({ orgName: 'Dysgu Cymraeg' }), bad)
     expect(bad.statusCode).toBe(400)
     expect(DB.groups).toHaveLength(0)
+  })
+})
+
+// Kai, 2026-09-08: the admin Courses panel showed the Canolfan granting no
+// courses, because it reads entitlement_grants and this org grants through its
+// policy row instead. The policy table is revoked from `authenticated`, so the
+// panel needs a server read — this one.
+describe('reading the policy back', () => {
+  it('returns the granted courses for a group that has a policy', async () => {
+    await handler(post(ASK), makeRes())
+    const groupId = DB.groups[0].id
+
+    const res = makeRes()
+    await handler(get({ groupId }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.policy).toMatchObject({
+      group_id: groupId,
+      org_display_name: 'Dysgu Cymraeg',
+      free_months: 12,
+      granted_courses: ['cym_n_for_eng', 'cym_s_for_eng'],
+      is_active: true,
+    })
+  })
+
+  it('returns null for a group with no policy', async () => {
+    const res = makeRes()
+    await handler(get({ groupId: 'nobody' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.policy).toBeNull()
+  })
+
+  it('needs a groupId', async () => {
+    const res = makeRes()
+    await handler(get({}), res)
+    expect(res.statusCode).toBe(400)
+  })
+
+  it('is ssi_admin only', async () => {
+    isAdmin = false
+    const res = makeRes()
+    await handler(get({ groupId: 'g1' }), res)
+    expect(res.statusCode).toBe(403)
   })
 })

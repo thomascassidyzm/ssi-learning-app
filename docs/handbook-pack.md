@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `bde7bc24ff1d` · generated 2026-09-08 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `70e1e050bdb1` · generated 2026-09-08 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## Add a class to a group
 
@@ -867,6 +867,20 @@ Section: seeing-progress · roles: leader · anchor: `schools-list-table` · in 
 6. Tap **Export** for the same table as a spreadsheet file.
 
 **Worth knowing.** The list holds still until you refresh it, so a number on screen will not change under you while you are reading. If a refresh fails you are told plainly rather than being shown stale figures as if they were current.
+
+## See what a funded organisation gives its learners
+
+Section: courses-and-content · roles: admin · anchor: `org-enrolment-courses` · in `packages/player-vue/src/components/schools/NodeEntitlementControl.vue`
+
+**What it's for.** Showing the courses an organisation hands out through its own sign-up page, which are given to each learner as they join rather than held on the organisation itself.
+
+**Where it is.** The organisation's home page, **Courses** along the top, at the head of the panel.
+
+1. Open the organisation's home page.
+2. Tap **Courses**.
+3. Read the courses listed under the organisation's name, and the length of the free period beside them.
+
+**Worth knowing.** Changing that list is a change to the organisation's enrolment policy, so it is not editable here — everyone who has already signed up keeps what they were given.
 
 ## See what your school pays
 

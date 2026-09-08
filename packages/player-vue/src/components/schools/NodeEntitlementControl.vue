@@ -138,6 +138,52 @@ function formatExpiry(iso: string | null): string {
 
 const nodeQueryKey = computed(() => `${props.nodeType}_id`)
 
+// ── THE OTHER WAY AN ORG GRANTS COURSES ────────────────────────────────────
+//
+// A funded org (the Canolfan) hands its courses out through its enrolment
+// policy, per learner, at sign-up — never through an entitlement_grants row on
+// the group. So this panel read its own table honestly and reported "No course
+// access set yet" for an org that grants two Welsh courses to everyone who
+// signs up (Kai, 2026-09-08). The grant is real; nothing showed it. This reads
+// the policy alongside the grant and says so in plain words. Read-only: the
+// courses a policy grants are changed by an UPDATE to the policy row, not here.
+interface OrgPolicy {
+  org_display_name: string
+  free_months: number
+  granted_courses: string[]
+  is_active: boolean
+}
+const orgPolicy = ref<OrgPolicy | null>(null)
+
+const orgPolicyCourses = computed(() => {
+  const p = orgPolicy.value
+  if (!p) return []
+  return (p.granted_courses || []).map((code) => {
+    const c = courseByCode.value.get(code)
+    return c ? courseXForY(c) : formatCourseCode(code)
+  })
+})
+
+async function fetchOrgPolicy(): Promise<void> {
+  if (props.nodeType !== 'group') return
+  try {
+    const token = await getAuthToken()
+    const headers: Record<string, string> = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    const response = await fetch(
+      `/api/admin/org-enrolment-setup?groupId=${encodeURIComponent(props.nodeId)}`,
+      { headers },
+    )
+    if (!response.ok) return
+    const data = await response.json()
+    orgPolicy.value = data.policy ?? null
+  } catch (err) {
+    // Silent: an org without an enrolment policy is the normal case, and a
+    // failed extra read must never blank the grant control beside it.
+    console.error('[NodeEntitlementControl] fetch org policy error:', err)
+  }
+}
+
 async function fetchCourses(): Promise<void> {
   try {
     const client = getClient()
@@ -204,6 +250,7 @@ async function save(): Promise<void> {
 onMounted(() => {
   fetchGrant()
   fetchCourses()
+  fetchOrgPolicy()
 })
 </script>
 
@@ -213,6 +260,7 @@ onMounted(() => {
       <span class="schools-kicker">{{ t('schools.ui.nodeEntitlement.coursesKicker', 'Courses') }}</span>
       <span v-if="displayState === 'trial'" class="status-pill tone-gold"><span class="status-dot"></span>{{ t('schools.ui.nodeEntitlement.trialBadge', 'Trial') }}</span>
       <span v-else-if="displayState === 'paid'" class="status-pill tone-green"><span class="status-dot"></span>{{ t('schools.ui.nodeEntitlement.paidBadge', 'Paid') }}</span>
+      <span v-else-if="orgPolicy?.is_active && orgPolicyCourses.length" class="status-pill tone-green"><span class="status-dot"></span>{{ t('schools.ui.nodeEntitlement.enrolmentBadge', 'Granted at sign-up') }}</span>
       <span v-else class="status-pill tone-muted"><span class="status-dot"></span>{{ t('schools.ui.nodeEntitlement.notSetBadge', 'Not set') }}</span>
     </div>
 
@@ -222,7 +270,39 @@ onMounted(() => {
         {{ t('schools.ui.nodeEntitlement.trialSummary', '{label} — expires {expiry}').replace('{label}', currentTrialCourse.label).replace('{expiry}', formatExpiry(currentGrant?.expires_at ?? null)) }}
       </p>
       <p v-else-if="displayState === 'paid'" class="current-summary">{{ t('schools.ui.nodeEntitlement.paidSummary', 'All courses, no expiry.') }}</p>
-      <p v-else class="facet-hint">{{ t('schools.ui.nodeEntitlement.noneSummary', 'No course access set yet.') }}</p>
+      <p v-else-if="!(orgPolicy?.is_active && orgPolicyCourses.length)" class="facet-hint">{{ t('schools.ui.nodeEntitlement.noneSummary', 'No course access set yet.') }}</p>
+
+      <!-- HANDBOOK See what a funded organisation gives its learners
+           section: courses-and-content
+           roles: admin
+           place: node-home
+           keywords: courses, enrolment, free year, organisation, canolfan, granted, sign-up
+           What it's for. Showing the courses an organisation hands out through its own
+           sign-up page, which are given to each learner as they join rather than held
+           on the organisation itself.
+           Where it is. The organisation's home page, **Courses** along the top, at the
+           head of the panel.
+           How you do it.
+           1. Open the organisation's home page.
+           2. Tap **Courses**.
+           3. Read the courses listed under the organisation's name, and the length of
+              the free period beside them.
+           Worth knowing. Changing that list is a change to the organisation's enrolment
+           policy, so it is not editable here — everyone who has already signed up keeps
+           what they were given.
+           checked: 033e83e4.1b03ff7a
+      -->
+      <div v-if="orgPolicy?.is_active && orgPolicyCourses.length" class="org-policy" data-walk="org-enrolment-courses">
+        <p class="current-summary">
+          {{ t('schools.ui.nodeEntitlement.orgPolicySummary', '{org} gives every learner {months} months free on sign-up:')
+            .replace('{org}', orgPolicy.org_display_name)
+            .replace('{months}', String(orgPolicy.free_months)) }}
+        </p>
+        <ul class="org-policy-courses">
+          <li v-for="label in orgPolicyCourses" :key="label">{{ label }}</li>
+        </ul>
+        <p class="facet-hint">{{ t('schools.ui.nodeEntitlement.orgPolicyHint', 'Given to each learner as they enrol, not held on the organisation. Change it on the enrolment policy, not here.') }}</p>
+      </div>
 
       <div class="state-toggle" role="radiogroup" :aria-label="t('schools.ui.nodeEntitlement.stateGroupAriaLabel', 'Course access state')">
         <button
@@ -280,6 +360,18 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.org-policy {
+  margin: 0 0 0.75rem;
+}
+.org-policy-courses {
+  margin: 0.25rem 0 0.4rem;
+  padding-left: 1.1rem;
+  list-style: disc;
+}
+.org-policy-courses li {
+  font-size: 0.9rem;
+}
+
 .node-entitlement {
   padding: var(--space-5);
   display: flex;
