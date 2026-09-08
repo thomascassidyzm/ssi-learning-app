@@ -76,6 +76,8 @@
     { "source": "/methodology", "destination": "/methodology/index.html" },
     { "source": "/methodology/", "destination": "/methodology/index.html" },
     { "source": "/paddle-review", "destination": "/paddle-review/index.html" },
+    { "source": "/croeso", "destination": "/croeso/index.html" },
+    { "source": "/croeso/", "destination": "/croeso/index.html" },
     { "source": "/terms", "destination": "/terms/index.html" },
     { "source": "/privacy", "destination": "/privacy/index.html" },
     { "source": "/refunds", "destination": "/refunds/index.html" },
