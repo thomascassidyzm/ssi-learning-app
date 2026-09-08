@@ -73,8 +73,8 @@ export const WELSH_DIALECT_FAMILIES: Record<string, string> = {
 export const WELSH_GRANTED_COURSES = ['cym_n_for_eng', 'cym_s_for_eng']
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
-  if (applyCors(req, res, { methods: 'POST' })) return
-  if (req.method !== 'POST') {
+  if (applyCors(req, res, { methods: 'GET, POST' })) return
+  if (req.method !== 'POST' && req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' })
     return
   }
@@ -85,6 +85,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const admin = await verifyAdmin(req)
   if ('error' in admin) {
     res.status(admin.status).json({ error: admin.error })
+    return
+  }
+
+  // ── READING THE POLICY BACK ────────────────────────────────────────────
+  //
+  // An org that grants its courses through THIS table grants nothing through
+  // entitlement_grants, so the admin Courses panel — which reads only that
+  // table — showed the Canolfan as having no course access at all while its
+  // learners were being given two Welsh courses each at sign-up (Kai, 2026-09-08).
+  // The data was never wrong; nothing read it. The policy table is revoked
+  // from `authenticated` by design (20260908f), so the read has to come
+  // through a server endpoint, and it belongs on the endpoint that writes it
+  // rather than in a new file of its own.
+  if (req.method === 'GET') {
+    const groupId = String((req.query || {}).groupId || '').trim()
+    if (!groupId) {
+      res.status(400).json({ error: 'groupId is required' })
+      return
+    }
+    const reader: SupabaseClient = createClient(supabaseUrl, supabaseServiceKey)
+    const { data, error } = await reader
+      .from('org_enrolment_policies')
+      .select('group_id, org_display_name, free_months, warn_days_before, granted_courses, is_active, link_expires_at')
+      .eq('group_id', groupId)
+      .maybeSingle()
+    if (error) {
+      console.error('[org-enrolment-setup] policy read failed:', error)
+      res.status(500).json({ error: 'Could not read the enrolment policy' })
+      return
+    }
+    res.status(200).json({ policy: data ?? null })
     return
   }
 
