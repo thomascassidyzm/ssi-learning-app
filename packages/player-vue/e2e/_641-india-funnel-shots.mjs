@@ -85,12 +85,6 @@ await shot('4-account-screen', async (p) => {
   await settle(p, 5000)
 })
 
-// 5 — the live public Play Store listing for the old India app.
-await shot('5-play-store-a3f', async (p) => {
-  await p.goto('https://play.google.com/store/apps/details?id=com.automagic.a3f', { waitUntil: 'load' })
-  await settle(p, 7000)
-})
-
 // 6 — the web app's first-open screen, which is what the Capacitor wrap shows.
 await shot('6-android-first-open', async (p) => {
   await p.goto(DEV + '/?reset=1', { waitUntil: 'load' })
