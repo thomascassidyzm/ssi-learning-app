@@ -7,18 +7,39 @@
  * Welsh. These tests hold the picker to those two, and to showing them as
  * two tappable dialects rather than one collapsed "Welsh" row.
  */
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('../composables/useUserEntitlements', () => ({
   useSharedUserEntitlements: () => ({ entitlements: ref([]) }),
 }))
 vi.mock('../composables/useEntitlement', () => ({ hasTryEntitlement: () => false }))
+// The funder's grant, as /api/subscription reports it. Null unless a test
+// gives the learner one — an ordinary learner has none.
+const freeAccess = ref<{ groupId: string; orgName: string | null; until: string; courses: string[] } | null>(null)
 vi.mock('../composables/useSubscription', () => ({
-  useSharedSubscription: () => ({ isSubscribed: ref(false) }),
+  useSharedSubscription: () => ({
+    isSubscribed: ref(false),
+    freeAccess,
+    hasFreeAccess: computed(() => freeAccess.value !== null),
+  }),
 }))
+
+/** Give the learner a live grant over exactly these courses. */
+function grant(courses: string[]) {
+  freeAccess.value = {
+    groupId: 'g1',
+    orgName: 'National Centre for Learning Welsh',
+    until: '2027-09-08T00:00:00Z',
+    courses,
+  }
+}
+/** An expired year, or one that was never there: the server reports nothing. */
+function noGrant() {
+  freeAccess.value = null
+}
 vi.mock('../composables/useCheckout', () => ({ useCheckout: () => ({ startCheckout: vi.fn() }) }))
 // Payment route is on unless a test turns it off — the Upgrade CTA only
 // renders when a purchase can actually be taken.
@@ -76,7 +97,17 @@ describe('CourseSelector scoped to granted courses', () => {
 })
 
 /**
- * The Premium header, in a picker where there is nothing to upgrade to.
+ * The Premium header, reconciled.
+ *
+ * Two fixes met here and disagreed. One hid the header whenever the picker was
+ * scoped, because a Canolfan learner choosing between two granted Welsh
+ * dialects has nothing to upgrade TO. The other suppressed the price per
+ * course, from the grant /api/subscription reports. Merged naively the first
+ * won outright, so the header stayed hidden even when the funded year had run
+ * out and there really was something to sell again.
+ *
+ * The grant is the ground truth. 'Scoped' only predicts 'all paid for', and
+ * when the two disagree the grant decides.
  *
  * FAILURE MODE (staging, 2026-09-08): the scoped sheet read 'Choose Your
  * Course / Premium — £15/mo — unlimited access to all languages — Upgrade'
@@ -84,8 +115,13 @@ describe('CourseSelector scoped to granted courses', () => {
  * their Welsh year is free.
  */
 describe('CourseSelector premium header', () => {
-  it('FAILURE MODE: no Premium header and no Upgrade CTA when the picker is scoped', () => {
+  beforeEach(() => {
     canPay = true
+    noGrant()
+  })
+
+  it('FAILURE MODE: scoped, and every course on screen is granted — no header, no CTA', () => {
+    grant(['cym_n_for_eng', 'cym_s_for_eng'])
     const w = mountPicker(['cym_n_for_eng', 'cym_s_for_eng'])
     expect(w.find('.section-header--premium').exists()).toBe(false)
     expect(w.find('.section-header__cta').exists()).toBe(false)
@@ -93,8 +129,44 @@ describe('CourseSelector premium header', () => {
     expect(rowNames(w)).toContain('Northern')
   })
 
-  it('unscoped, the Premium header and its Upgrade CTA are still there', () => {
-    canPay = true
+  it('FAILURE MODE: scoped, but one course on screen is NOT granted — header back at full strength', () => {
+    grant(['cym_n_for_eng'])
+    const w = mountPicker(['cym_n_for_eng', 'cym_s_for_eng'])
+    expect(w.find('.section-header--premium').exists()).toBe(true)
+    expect(w.find('.section-header__cta').exists()).toBe(true)
+    expect(w.find('.section-header__sub').text()).toContain('£15')
+  })
+
+  it('FAILURE MODE: scoped, but the funded year has expired — header back at full strength', () => {
+    noGrant()
+    const w = mountPicker(['cym_n_for_eng', 'cym_s_for_eng'])
+    expect(w.find('.section-header--premium').exists()).toBe(true)
+    expect(w.find('.section-header__cta').exists()).toBe(true)
+  })
+
+  it('unscoped, with a grant covering everything premium on screen — header stays as the section label, but it states the cover and never sells', () => {
+    grant(['cym_n_for_eng', 'cym_s_for_eng', 'spa_for_eng'])
+    const w = mountPicker([])
+    // Unscoped, the header is doing a second job: it labels the premium block
+    // in a full catalogue. It keeps that job, and swaps the price for the
+    // truth — which is what the per-course suppression fix intended.
+    expect(w.find('.section-header--premium').exists()).toBe(true)
+    expect(w.find('.section-header__cta').exists()).toBe(false)
+    const sub = w.find('.section-header__sub').text()
+    expect(sub).toContain('free')
+    expect(sub).not.toContain('£15')
+  })
+
+  it('unscoped, with an ungranted premium course on screen — the ordinary offer, unchanged', () => {
+    grant(['cym_n_for_eng', 'cym_s_for_eng'])
+    const w = mountPicker([])
+    expect(w.find('.section-header--premium').exists()).toBe(true)
+    expect(w.find('.section-header__cta').exists()).toBe(true)
+    expect(w.find('.section-header__sub').text()).toContain('£15')
+  })
+
+  it('unscoped, no grant at all — the Premium header and its Upgrade CTA are still there', () => {
+    noGrant()
     const w = mountPicker([])
     expect(w.find('.section-header--premium').exists()).toBe(true)
     expect(w.find('.section-header__cta').exists()).toBe(true)
