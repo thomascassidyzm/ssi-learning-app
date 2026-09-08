@@ -52,6 +52,11 @@ function makeSupabase(tables: Record<string, any[]>) {
       select: () => chain,
       eq: () => chain,
       in: () => chain,
+      // `is` is how a NULL filter is spelled — usePodStage0 uses
+      // `.is('variant_key', null)` to take base rows only. Like every other
+      // filter here it is a pass-through: these lanes are about which audio
+      // refs get stamped, not about which rows the server returns.
+      is: () => chain,
       like: () => chain,
       lt: () => chain,
       lte: () => chain,
@@ -321,6 +326,11 @@ describe('lane: usePodStage0', () => {
     app.provide('supabase', { value: client })
     const stage = app.runWithContext(() => usePodStage0(ref(COURSE)))
     await stage.load()
+
+    // load() swallows its own throw into `error`, so assert that FIRST: without
+    // this, a filter the double does not implement surfaces only as a null
+    // deref three lines down, which is what it did on 2026-09-08.
+    expect(stage.error.value).toBeNull()
 
     const main = stage.mainAudioFor(`${COURSE}:pod-0:1`)!
     expect(main.targetAudioId).toBe('clip-t1.v3')
