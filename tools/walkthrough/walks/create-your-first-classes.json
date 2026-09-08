@@ -1,0 +1,51 @@
+{
+  "id": "create-your-first-classes",
+  "title": "Create your first classes",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "setup"
+  },
+  "keywords": [
+    "class",
+    "classes",
+    "create",
+    "new",
+    "first",
+    "setup",
+    "step 4",
+    "group"
+  ],
+  "steps": [
+    {
+      "anchor": "setup-add-class-row",
+      "say": "A class is a name, a course and the students who join it, and it is the thing every progress figure in your dashboard is eventually counted against. Step four is where the first ones are made.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "setup-class-course",
+      "say": "Type a class name in the first row. Its course is already set to the language you signed your school up with, so most rows need nothing done here.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "setup-add-class-row",
+      "say": "**+ Add another class** gives you a further row, starting on that same language. The cross at the end of a row removes one you no longer want.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "setup-add-class-row",
+      "say": "Tap **Finish setup** and every filled-in row is created, each marked Added as it saves. Classes you made earlier are listed above the rows, so running the wizard twice will not duplicate them.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That is step four — your classes exist, and students join them from each class page. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

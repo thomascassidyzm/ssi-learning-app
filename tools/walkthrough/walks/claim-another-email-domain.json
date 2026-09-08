@@ -1,0 +1,43 @@
+{
+  "id": "claim-another-email-domain",
+  "title": "Claim another email domain for your school",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "settings"
+  },
+  "keywords": [
+    "domain",
+    "email",
+    "claim",
+    "trust",
+    "links",
+    "identity",
+    "sch.uk"
+  ],
+  "steps": [
+    {
+      "anchor": "settings-identity-add-domain",
+      "say": "Your own domain was claimed when you signed up. This field is for the others — a second site, a federation, a domain the office still uses.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "settings-identity-add-domain",
+      "say": "Type only the part after the @, such as example.sch.uk, then tap **Add domain**. Anyone arriving on your invite links from that domain is in with one tap.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "settings-identity-add-domain",
+      "say": "Public providers such as gmail.com cannot be claimed, because they do not identify a school. For a colleague on one of those, add their address by itself in the field below.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That is a claimed domain — one rule, no list of names to keep. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "id": "when-more-people-join-than-seats",
+  "title": "When more people join than you have seats",
+  "personas": [
+    "school_admin",
+    "leader"
+  ],
+  "place": {
+    "route": "upgrade"
+  },
+  "keywords": [
+    "seats",
+    "over",
+    "run out",
+    "exceeded",
+    "too many",
+    "joined",
+    "paid",
+    "limit",
+    "blocked",
+    "locked"
+  ],
+  "steps": [
+    {
+      "anchor": "upgrade-seats-actual",
+      "say": "This line under the stepper is the honest count: how many people have actually joined, and how many seats you are paying for.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "upgrade-seats-actual",
+      "say": "When more have joined than you pay for, the line says so and names the difference. Nothing is blocked, nobody is locked out, and no lesson stops — we would rather show you the gap than shut a class out mid-lesson.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "upgrade-update-seats",
+      "say": "Putting it right is the stepper above and this button. Step the seat count up to match what the line says, and the button offers to update to it.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That is the seat gap — a truthful number rather than a locked door. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

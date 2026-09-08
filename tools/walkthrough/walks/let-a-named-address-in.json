@@ -1,0 +1,44 @@
+{
+  "id": "let-a-named-address-in",
+  "title": "Let a named address in through your links",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "settings"
+  },
+  "keywords": [
+    "supply",
+    "personal",
+    "address",
+    "allow",
+    "invite",
+    "links",
+    "identity",
+    "gmail"
+  ],
+  "steps": [
+    {
+      "anchor": "settings-identity-add-address",
+      "say": "This is the exception to the domain rule: one named person, let in by their own address. A supply teacher here for a fortnight, or a colleague who only uses a personal email.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "settings-identity-add-address",
+      "say": "Type the address exactly as they will use it and tap **Add address**. Then send them your usual teacher link.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "settings-identity-add-address",
+      "say": "Without this they can still get in, but they show as **Unverified address** on the Teachers page until they confirm their email. Adding them here first skips that.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That is a named address let through — the smallest door you can open. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

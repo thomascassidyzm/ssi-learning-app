@@ -1,7 +1,101 @@
 {
-  "version": "0553521c275f",
+  "version": "f22c43cb6903",
   "generatedAt": "2026-09-08",
   "walks": [
+    {
+      "id": "change-how-many-seats-you-pay-for",
+      "title": "Change how many seats you pay for",
+      "personas": [
+        "school_admin",
+        "leader"
+      ],
+      "place": {
+        "route": "upgrade"
+      },
+      "keywords": [
+        "seats",
+        "add",
+        "remove",
+        "more",
+        "fewer",
+        "change",
+        "update",
+        "billing",
+        "staff",
+        "grow"
+      ],
+      "steps": [
+        {
+          "anchor": "upgrade-update-seats",
+          "say": "Once you are subscribed, the seat count is edited in place. Step it up or down with the stepper above, or type the number straight into the box.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "upgrade-update-seats",
+          "say": "This button then reads Update, with the new monthly total on it. Tapping it changes your existing subscription — no second checkout, no new card details.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "upgrade-update-seats",
+          "say": "While the count matches what you already pay for, the button simply says current and does nothing, so you cannot double-bill yourself by tapping it twice.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That is seat editing — grow or shrink as staff come and go. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "change-your-school-details",
+      "title": "Change your school's name and details",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "settings"
+      },
+      "keywords": [
+        "rename",
+        "name",
+        "profile",
+        "school",
+        "details",
+        "contact",
+        "email",
+        "city",
+        "region",
+        "about",
+        "edit"
+      ],
+      "steps": [
+        {
+          "anchor": "settings-save-profile",
+          "say": "Everything above this button is editable: your school name, its city and region, the contact email, and a short description. Change as many of them as you like before you save.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "settings-save-profile",
+          "say": "**Save changes** writes the lot in one go. The button reads Saved when it has gone through, and the new name appears across the dashboard straight away.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "settings-save-profile",
+          "say": "Only a school admin sees this button. A teacher opening the same page reads the details but cannot change them, and your school type is set by your group administrator rather than here.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That is the school profile — edit freely, save once. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
     {
       "id": "choose-something-else-to-learn",
       "title": "Choose something else to learn",
@@ -53,6 +147,277 @@
       ]
     },
     {
+      "id": "choose-which-courses-your-school-uses",
+      "title": "Choose which courses your school uses",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "setup"
+      },
+      "keywords": [
+        "course",
+        "courses",
+        "language",
+        "languages",
+        "choose",
+        "pick",
+        "catalogue",
+        "setup",
+        "step 3"
+      ],
+      "steps": [
+        {
+          "anchor": "setup-course-picker",
+          "say": "Every course your school can teach is tiled here, and they all start ticked. Untick anything you do not plan to use.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "setup-course-picker",
+          "say": "This is a filter and nothing more. It does not change what your school has access to and it takes nothing away from anyone — it only shortens the list you pick from on the next step.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "setup-course-picker",
+          "say": "A school on a trial sees its one trial course here; a subscribed school sees the whole catalogue. Tap **Continue** when the ticks look right.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That is step three — a short list instead of a long one. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "claim-another-email-domain",
+      "title": "Claim another email domain for your school",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "settings"
+      },
+      "keywords": [
+        "domain",
+        "email",
+        "claim",
+        "trust",
+        "links",
+        "identity",
+        "sch.uk"
+      ],
+      "steps": [
+        {
+          "anchor": "settings-identity-add-domain",
+          "say": "Your own domain was claimed when you signed up. This field is for the others — a second site, a federation, a domain the office still uses.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "settings-identity-add-domain",
+          "say": "Type only the part after the @, such as example.sch.uk, then tap **Add domain**. Anyone arriving on your invite links from that domain is in with one tap.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "settings-identity-add-domain",
+          "say": "Public providers such as gmail.com cannot be claimed, because they do not identify a school. For a colleague on one of those, add their address by itself in the field below.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That is a claimed domain — one rule, no list of names to keep. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "create-your-first-classes",
+      "title": "Create your first classes",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "setup"
+      },
+      "keywords": [
+        "class",
+        "classes",
+        "create",
+        "new",
+        "first",
+        "setup",
+        "step 4",
+        "group"
+      ],
+      "steps": [
+        {
+          "anchor": "setup-add-class-row",
+          "say": "A class is a name, a course and the students who join it, and it is the thing every progress figure in your dashboard is eventually counted against. Step four is where the first ones are made.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "setup-class-course",
+          "say": "Type a class name in the first row. Its course is already set to the language you signed your school up with, so most rows need nothing done here.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "setup-add-class-row",
+          "say": "**+ Add another class** gives you a further row, starting on that same language. The cross at the end of a row removes one you no longer want.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "setup-add-class-row",
+          "say": "Tap **Finish setup** and every filled-in row is created, each marked Added as it saves. Classes you made earlier are listed above the rows, so running the wizard twice will not duplicate them.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That is step four — your classes exist, and students join them from each class page. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "delete-your-school",
+      "title": "Delete your school",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "settings"
+      },
+      "keywords": [
+        "delete",
+        "remove",
+        "close",
+        "school",
+        "danger",
+        "permanent",
+        "undo"
+      ],
+      "steps": [
+        {
+          "anchor": "settings-delete-school",
+          "say": "This is the Danger zone, and it is the one button on the dashboard that cannot be undone. It closes the school itself along with its classes and everybody's enrolment in them.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "settings-delete-school",
+          "say": "Tapping it does not delete anything yet. It opens a panel listing what would go — classes, students, teachers and recorded sessions, each counted for you.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "settings-delete-school",
+          "say": "If the school has real activity in it, you type its name exactly before the app will act. Confirm and you are signed out to a clean slate, because the account you were using belonged to a school that no longer exists.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That is the danger zone — read the counts, then decide. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "download-your-school-data",
+      "title": "Download your school's data",
+      "personas": [
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "settings"
+      },
+      "keywords": [
+        "export",
+        "download",
+        "csv",
+        "data",
+        "spreadsheet",
+        "report",
+        "records",
+        "progress"
+      ],
+      "steps": [
+        {
+          "anchor": "settings-export-data",
+          "say": "**Download all data** takes your school out of the app as a spreadsheet: every student, the class they are in, how far they have got, how long they have practised and when they were last active.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "settings-export-data",
+          "say": "The file lands in your downloads named after your school and today's date. Open it in any spreadsheet app to sort, filter or share it.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "settings-export-data",
+          "say": "It is a snapshot of the moment you press the button, not a live link. Download it again whenever you want current figures.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That is the export — your figures, in your hands, in one tap. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "give-a-class-its-course",
+      "title": "Give a class its course",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "setup"
+      },
+      "keywords": [
+        "course",
+        "class",
+        "assign",
+        "choose",
+        "language",
+        "which",
+        "search",
+        "picker"
+      ],
+      "steps": [
+        {
+          "anchor": "setup-class-course",
+          "say": "A course does not belong to a person, it belongs to a class — so this picker beside the class name is how a course reaches learners at all. It already holds the language you chose when you signed your school up.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "setup-class-course",
+          "say": "Leave it alone to teach that language. To teach something else, tap the picker and it opens.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "setup-class-course",
+          "say": "Start typing to narrow the list, because the catalogue runs to dozens of courses. Where a language offers more than one version, the versions differ by region or accent — pick the one you want and everybody who joins the class lands in it.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That is the course picker — one choice per class, changeable until you save. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
       "id": "go-back-over-something",
       "title": "Go back over something",
       "topic": "Going back over things",
@@ -100,6 +465,51 @@
             "on": "next"
           },
           "terminal": "If you land somewhere you did not mean to, come straight back in here and pick your way forward again. Nothing is lost by wandering."
+        }
+      ]
+    },
+    {
+      "id": "hand-out-your-staff-links",
+      "title": "Hand out your staff links",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "setup"
+      },
+      "keywords": [
+        "invite",
+        "teacher",
+        "staff",
+        "admin",
+        "link",
+        "join",
+        "colleague",
+        "setup",
+        "step 2"
+      ],
+      "steps": [
+        {
+          "anchor": "setup-staff-links",
+          "say": "Your school has two standing links, shown here in full with a copy button beside each. The **Teacher invite link** is for anyone who will run classes; the **Admin invite link** is for anyone who needs to manage the school itself.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "setup-staff-links",
+          "say": "Whoever opens one is signed in with that role, with no sign-up form to fill in. Send them however you normally reach staff — email, Teams, a message, or written on a board.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "setup-staff-links",
+          "say": "Anyone who has already joined is listed underneath, so you can see who is in. A teacher does not need to speak the language: the app does the teaching.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That is step two — copy, send, and watch the list fill. This tour changed nothing; only your own taps do."
         }
       ]
     },
@@ -389,6 +799,50 @@
       ]
     },
     {
+      "id": "let-a-named-address-in",
+      "title": "Let a named address in through your links",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "settings"
+      },
+      "keywords": [
+        "supply",
+        "personal",
+        "address",
+        "allow",
+        "invite",
+        "links",
+        "identity",
+        "gmail"
+      ],
+      "steps": [
+        {
+          "anchor": "settings-identity-add-address",
+          "say": "This is the exception to the domain rule: one named person, let in by their own address. A supply teacher here for a fortnight, or a colleague who only uses a personal email.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "settings-identity-add-address",
+          "say": "Type the address exactly as they will use it and tap **Add address**. Then send them your usual teacher link.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "settings-identity-add-address",
+          "say": "Without this they can still get in, but they show as **Unverified address** on the Teachers page until they confirm their email. Adding them here first skips that.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That is a named address let through — the smallest door you can open. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
       "id": "move-a-teacher-between-classes",
       "title": "Move a teacher to another class",
       "personas": [
@@ -440,6 +894,49 @@
             "on": "next"
           },
           "terminal": "That's moving a teacher — one untick, one tick, one save. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "name-your-school",
+      "title": "Name your school",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "setup"
+      },
+      "keywords": [
+        "school",
+        "name",
+        "rename",
+        "title",
+        "setup",
+        "step 1",
+        "first"
+      ],
+      "steps": [
+        {
+          "anchor": "setup-school-name",
+          "say": "Step one of setup asks for one thing. The name you type here is the one your teachers and students see on every page, on every invite link they open, and at the top of every report.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "setup-school-name",
+          "say": "Write it as you would on a letterhead, then tap **Continue** — the name is saved before the next step opens. If you have only just arrived and the box sits empty for a second, give it a moment and press **Continue** again.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "setup-school-name",
+          "say": "Typing it here counts as confirming it, so you are not asked again afterwards. To change it later, use School profile in Settings.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That is step one done — one box, and your school has a name. This tour changed nothing; only your own taps do."
         }
       ]
     },
@@ -645,6 +1142,99 @@
       ]
     },
     {
+      "id": "see-what-your-school-pays",
+      "title": "See what your school pays",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "settings"
+      },
+      "keywords": [
+        "billing",
+        "plan",
+        "pay",
+        "cost",
+        "price",
+        "seats",
+        "invoice",
+        "invoices",
+        "subscription",
+        "card",
+        "cancel"
+      ],
+      "steps": [
+        {
+          "anchor": "settings-billing-plan",
+          "say": "This is the whole of what your school pays, in one line: the plan it is on, how many teacher seats it covers, and whether the subscription is running.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "settings-billing-plan",
+          "say": "Underneath it the price per teacher seat is spelled out, so the number on your card statement is never a surprise.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "settings-billing-plan",
+          "say": "**Manage subscription & seats** takes you to the one Upgrade page where every payment change happens. **Billing & invoices** opens your invoices, your card and cancellation, and only appears once a subscription is running.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That is your plan, read from the top of the Billing panel. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "set-your-language-and-time-zone",
+      "title": "Set your language and time zone",
+      "personas": [
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "settings"
+      },
+      "keywords": [
+        "language",
+        "welsh",
+        "cymraeg",
+        "spanish",
+        "time zone",
+        "timezone",
+        "localisation",
+        "interface",
+        "week"
+      ],
+      "steps": [
+        {
+          "anchor": "settings-localisation-save",
+          "say": "Above this button, **Default interface language** sets the language the dashboard itself speaks to you in, and **Time zone** decides what your activity times are read against.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "settings-localisation-save",
+          "say": "**Week starts on** and the flags toggle are here too. Change whichever you want, then tap **Save changes** once.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "settings-localisation-save",
+          "say": "This is remembered on the device you set it on. Teachers and students each choose their own, so nothing you pick here changes what anybody else sees.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That is localisation — your dashboard, in your language, on your clock. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
       "id": "set-your-password",
       "title": "Set or change your password",
       "personas": [
@@ -735,6 +1325,185 @@
             "on": "next"
           },
           "terminal": "That's sharing a class — same class, two teachers, one lead. This tour added nobody; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "subscribe-as-a-tutor",
+      "title": "Subscribe as a tutor",
+      "personas": [
+        "teacher"
+      ],
+      "place": {
+        "route": "upgrade"
+      },
+      "keywords": [
+        "tutor",
+        "subscribe",
+        "pay",
+        "upgrade",
+        "freelance",
+        "single",
+        "monthly",
+        "annual",
+        "students"
+      ],
+      "steps": [
+        {
+          "anchor": "upgrade-subscribe-tutor",
+          "say": "Teaching on your own rather than inside a school means one seat, for you. Choose Monthly or Annual above — annual works out at two months free.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "upgrade-subscribe-tutor",
+          "say": "**Subscribe** opens the card panel on this page. Your students pay for their own learning separately, so three paying students cover what your dashboard costs.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "upgrade-subscribe-tutor",
+          "say": "Once it is running, this same button becomes **Manage subscription**, which is where invoices and cancellation live.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That is the tutor plan — a single seat, and it is yours. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "subscribe-your-organisation",
+      "title": "Subscribe your organisation",
+      "personas": [
+        "leader"
+      ],
+      "place": {
+        "route": "upgrade"
+      },
+      "keywords": [
+        "subscribe",
+        "pay",
+        "upgrade",
+        "organisation",
+        "org",
+        "seats",
+        "learner seats",
+        "group",
+        "monthly",
+        "annual"
+      ],
+      "steps": [
+        {
+          "anchor": "upgrade-subscribe-org",
+          "say": "An organisation pays per learner seat, and one subscription covers every seat and every language across the group. Above this button, choose Monthly or Annual — annual works out at two months free per seat.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "upgrade-subscribe-org",
+          "say": "The stepper sets how many learner seats you are buying. It opens at the number of people who have already joined, and the running total beside it moves as you step.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "upgrade-subscribe-org",
+          "say": "**Subscribe** opens the payment panel on this page rather than sending you elsewhere. A seat belongs to one named learner for the period you have paid for, so plan the count against the people you expect, and add more at any time.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That is the organisation plan — one subscription, every seat, every language. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "subscribe-your-school",
+      "title": "Subscribe your school",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "upgrade"
+      },
+      "keywords": [
+        "subscribe",
+        "pay",
+        "upgrade",
+        "seats",
+        "teacher seats",
+        "trial",
+        "monthly",
+        "annual",
+        "checkout",
+        "price"
+      ],
+      "steps": [
+        {
+          "anchor": "upgrade-subscribe-school",
+          "say": "This is how a trial becomes a paid school. You pay per teacher seat, and one subscription covers every language and every class those teachers run.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "upgrade-subscribe-school",
+          "say": "Choose Monthly or Annual above — annual works out at two months free per seat — then set the seat count with the stepper. It opens at the number of teachers who have actually joined.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "upgrade-subscribe-school",
+          "say": "**Subscribe** opens the card panel on this page, and you come back to your dashboard with the subscription live. Seats are teacher seats, not student seats: your students do not each need one.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That is the school plan — teacher seats, one subscription, no second checkout. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "take-a-domain-off-your-list",
+      "title": "Take a domain or address off your school's list",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "settings"
+      },
+      "keywords": [
+        "domain",
+        "address",
+        "remove",
+        "allow",
+        "links",
+        "identity"
+      ],
+      "steps": [
+        {
+          "anchor": "settings-identity-remove",
+          "say": "**Who your links let in** lists every email domain and named address your school waves straight through. **Remove** sits beside each one.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "settings-identity-remove",
+          "say": "Tapping it stops the next arrival from that domain or address being let in with one tap. They can still open your link — they simply show as an unverified address until they confirm their email.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "settings-identity-remove",
+          "say": "Nobody already in your school loses anything. Their account, their classes and their progress are untouched; this is only about who arrives next.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That is the un-claim — it changes the door, not the people already inside. This tour changed nothing; only your own taps do."
         }
       ]
     },
@@ -852,6 +1621,53 @@
       ]
     },
     {
+      "id": "when-more-people-join-than-seats",
+      "title": "When more people join than you have seats",
+      "personas": [
+        "school_admin",
+        "leader"
+      ],
+      "place": {
+        "route": "upgrade"
+      },
+      "keywords": [
+        "seats",
+        "over",
+        "run out",
+        "exceeded",
+        "too many",
+        "joined",
+        "paid",
+        "limit",
+        "blocked",
+        "locked"
+      ],
+      "steps": [
+        {
+          "anchor": "upgrade-seats-actual",
+          "say": "This line under the stepper is the honest count: how many people have actually joined, and how many seats you are paying for.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "upgrade-seats-actual",
+          "say": "When more have joined than you pay for, the line says so and names the difference. Nothing is blocked, nobody is locked out, and no lesson stops — we would rather show you the gap than shut a class out mid-lesson.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "upgrade-update-seats",
+          "say": "Putting it right is the stepper above and this button. Step the seat count up to match what the line says, and the button offers to update to it.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That is the seat gap — a truthful number rather than a locked door. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
       "id": "where-you-are-in-this-course",
       "title": "Where you are in this course",
       "topic": "Where you are",
@@ -905,6 +1721,52 @@
             "on": "next"
           },
           "terminal": "That's your position. Close this whenever you like and press play — it always picks up exactly where you left off."
+        }
+      ]
+    },
+    {
+      "id": "work-through-setup-at-your-own-pace",
+      "title": "Work through setup at your own pace",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "setup"
+      },
+      "keywords": [
+        "setup",
+        "wizard",
+        "first",
+        "start",
+        "onboarding",
+        "steps",
+        "later",
+        "finish",
+        "resume",
+        "save"
+      ],
+      "steps": [
+        {
+          "anchor": "setup-save-exit",
+          "say": "Setup is four short steps — your school, your staff, your courses, your classes — and it does not have to be done in one sitting. The steps are listed down the left and you can tap any of them to jump forwards or back.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "setup-save-exit",
+          "say": "**Continue** saves the step you are on and moves you along. **Save & exit** saves the step you are on and puts you back on your dashboard.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "setup-save-exit",
+          "say": "If something cannot be saved, it stays put and tells you why, so you never leave work behind without knowing. Come back through Settings and First-time setup whenever you want to carry on.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That is the wizard — nothing here is a one-shot, and everything it sets up can be changed later. This tour changed nothing; only your own taps do."
         }
       ]
     }
@@ -1133,7 +1995,7 @@
       },
       "anchor": "upgrade-update-seats",
       "source": "packages/player-vue/src/views/schools/UpgradeView.vue",
-      "walk": null,
+      "walk": "change-how-many-seats-you-pay-for",
       "what": "Growing or shrinking a live subscription as staff or learners come and go, without going through checkout a second time.",
       "where": "The Upgrade page, once you are already subscribed. The stepper sits beside the running total.",
       "how": [
@@ -1169,7 +2031,7 @@
       },
       "anchor": "settings-save-profile",
       "source": "packages/player-vue/src/views/schools/SettingsView.vue",
-      "walk": null,
+      "walk": "change-your-school-details",
       "what": "Correcting or updating what the app knows about your school — its name, its town, its contact email and a short description. The name is the one that shows on every page your staff and students see.",
       "where": "Settings, then School profile.",
       "how": [
@@ -1298,7 +2160,7 @@
       },
       "anchor": "setup-course-picker",
       "source": "packages/player-vue/src/views/schools/SetupView.vue",
-      "walk": null,
+      "walk": "choose-which-courses-your-school-uses",
       "what": "Narrowing the full list of courses your school can teach down to the handful you actually intend to use, so that choosing a course for a class is a short list rather than a long one.",
       "where": "Step three of first-time setup, the grid of tickable course tiles under **Choose courses**.",
       "how": [
@@ -1330,7 +2192,7 @@
       },
       "anchor": "settings-identity-add-domain",
       "source": "packages/player-vue/src/views/schools/SettingsView.vue",
-      "walk": null,
+      "walk": "claim-another-email-domain",
       "what": "Telling the app which email domains belong to your school, so staff arriving on your invite links from those addresses are in with one tap. Your own domain was claimed when you signed up; add the others if your school uses more than one.",
       "where": "Settings, the **Who your links let in** card, the **Add domain** field.",
       "how": [
@@ -1427,7 +2289,7 @@
       },
       "anchor": "setup-add-class-row",
       "source": "packages/player-vue/src/views/schools/SetupView.vue",
-      "walk": null,
+      "walk": "create-your-first-classes",
       "what": "Setting up the classes your school will actually teach. A class is a name, a course and the students who join it, and it is the thing every progress figure in the dashboard is eventually counted against.",
       "where": "Step four of first-time setup, under **Create classes**. **+ Add another class** sits below the rows.",
       "how": [
@@ -1523,7 +2385,7 @@
       },
       "anchor": "settings-delete-school",
       "source": "packages/player-vue/src/views/schools/SettingsView.vue",
-      "walk": null,
+      "walk": "delete-your-school",
       "what": "Closing your school down for good. It removes the school itself along with its classes and everybody's enrolment in them, and it cannot be undone.",
       "where": "Settings, then Data & privacy, at the bottom under Danger zone.",
       "how": [
@@ -1558,7 +2420,7 @@
       },
       "anchor": "settings-export-data",
       "source": "packages/player-vue/src/views/schools/SettingsView.vue",
-      "walk": null,
+      "walk": "download-your-school-data",
       "what": "Taking your school's progress figures out of the app as a spreadsheet file — every student, the class they are in, how far they have got, how long they have practised and when they were last active.",
       "where": "Settings, then Data & privacy, the button reading **Download all data**.",
       "how": [
@@ -1721,7 +2583,7 @@
       },
       "anchor": "setup-class-course",
       "source": "packages/player-vue/src/views/schools/SetupView.vue",
-      "walk": null,
+      "walk": "give-a-class-its-course",
       "what": "Picking the language a class is learning. This is how a course reaches learners at all — a course does not belong to a person, it belongs to a class, and everybody in that class practises it.",
       "where": "On each class row, the course picker beside the class name. It already holds the language you chose when you signed your school up, so most classes need nothing done here.",
       "how": [
@@ -1851,7 +2713,7 @@
       },
       "anchor": "setup-staff-links",
       "source": "packages/player-vue/src/views/schools/SetupView.vue",
-      "walk": null,
+      "walk": "hand-out-your-staff-links",
       "what": "Getting your colleagues in. Your school has a standing teacher link and a standing admin link — send either one and whoever opens it is signed in with that role, with no sign-up form to fill in.",
       "where": "Step two of first-time setup, under **Add your teachers**. The full links are shown as text with a copy button beside each.",
       "how": [
@@ -2082,7 +2944,7 @@
       },
       "anchor": "settings-identity-add-address",
       "source": "packages/player-vue/src/views/schools/SettingsView.vue",
-      "walk": null,
+      "walk": "let-a-named-address-in",
       "what": "Letting one named person in with one tap when their email is not at your school's domain: a supply teacher here for a fortnight, or a colleague who only uses a personal address.",
       "where": "Settings, the **Who your links let in** card, the **Add address** field.",
       "how": [
@@ -2243,7 +3105,7 @@
       },
       "anchor": "setup-school-name",
       "source": "packages/player-vue/src/views/schools/SetupView.vue",
-      "walk": null,
+      "walk": "name-your-school",
       "what": "Telling the app what your school is actually called. The name you type here is the one your teachers and students see on every page, on every invite link they open, and at the top of every report.",
       "where": "Step one of first-time setup, the box marked **School name**.",
       "how": [
@@ -2731,7 +3593,7 @@
       },
       "anchor": "settings-billing-plan",
       "source": "packages/player-vue/src/views/schools/SchoolBillingPanel.vue",
-      "walk": null,
+      "walk": "see-what-your-school-pays",
       "what": "The plain statement of your school's plan — its name, how many teacher seats it is paying for, and whether the subscription is live.",
       "where": "Settings, then Billing.",
       "how": [
@@ -2827,7 +3689,7 @@
       },
       "anchor": "settings-localisation-save",
       "source": "packages/player-vue/src/views/schools/SettingsView.vue",
-      "walk": null,
+      "walk": "set-your-language-and-time-zone",
       "what": "Choosing the language the dashboard itself speaks to you in, and the time zone your dates and times are read against.",
       "where": "Settings, then Localisation.",
       "how": [
@@ -2924,7 +3786,7 @@
       },
       "anchor": "upgrade-subscribe-tutor",
       "source": "packages/player-vue/src/views/schools/UpgradeView.vue",
-      "walk": null,
+      "walk": "subscribe-as-a-tutor",
       "what": "Paying for your own tutoring dashboard when you teach on your own rather than inside a school. It is one seat, for you.",
       "where": "The **Upgrade** button on your tutoring dashboard.",
       "how": [
@@ -2959,7 +3821,7 @@
       },
       "anchor": "upgrade-subscribe-org",
       "source": "packages/player-vue/src/views/schools/UpgradeView.vue",
-      "walk": null,
+      "walk": "subscribe-your-organisation",
       "what": "Putting your whole organisation on a paid plan. You pay per learner seat, and one subscription covers every seat and every language across the group.",
       "where": "The **Upgrade** button on your organisation's dashboard.",
       "how": [
@@ -2994,7 +3856,7 @@
       },
       "anchor": "upgrade-subscribe-school",
       "source": "packages/player-vue/src/views/schools/UpgradeView.vue",
-      "walk": null,
+      "walk": "subscribe-your-school",
       "what": "Turning a trial into a paid school. You pay per teacher seat, and one subscription covers every language and every class those teachers run.",
       "where": "The **Upgrade** button on your dashboard, or Settings then Billing then **Subscribe / choose seats**.",
       "how": [
@@ -3026,7 +3888,7 @@
       },
       "anchor": "settings-identity-remove",
       "source": "packages/player-vue/src/views/schools/SettingsView.vue",
-      "walk": null,
+      "walk": "take-a-domain-off-your-list",
       "what": "Stopping a domain or a named address from being waved straight in by your invite links.",
       "where": "Settings, the **Who your links let in** card, the **Remove** button beside the entry.",
       "how": [
@@ -3329,7 +4191,7 @@
       },
       "anchor": "upgrade-seats-actual",
       "source": "packages/player-vue/src/views/schools/UpgradeView.vue",
-      "walk": null,
+      "walk": "when-more-people-join-than-seats",
       "what": "What happens when your school or organisation outgrows the seats it is paying for. Nothing is blocked, nobody is locked out, and no lesson stops. The page simply tells you the truth so you can put it right.",
       "where": "The Upgrade page, the line directly under the seat stepper.",
       "how": [
@@ -3463,7 +4325,7 @@
       },
       "anchor": "setup-save-exit",
       "source": "packages/player-vue/src/views/schools/SetupView.vue",
-      "walk": null,
+      "walk": "work-through-setup-at-your-own-pace",
       "what": "The first-run wizard that takes a brand-new school from nothing to teachers, courses and classes. It is four short steps and it does not have to be done in one sitting.",
       "where": "Settings, then First-time setup. The steps are listed down the left, and **Save & exit** sits at the bottom of every one.",
       "how": [

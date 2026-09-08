@@ -1,0 +1,46 @@
+{
+  "id": "subscribe-your-organisation",
+  "title": "Subscribe your organisation",
+  "personas": [
+    "leader"
+  ],
+  "place": {
+    "route": "upgrade"
+  },
+  "keywords": [
+    "subscribe",
+    "pay",
+    "upgrade",
+    "organisation",
+    "org",
+    "seats",
+    "learner seats",
+    "group",
+    "monthly",
+    "annual"
+  ],
+  "steps": [
+    {
+      "anchor": "upgrade-subscribe-org",
+      "say": "An organisation pays per learner seat, and one subscription covers every seat and every language across the group. Above this button, choose Monthly or Annual — annual works out at two months free per seat.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "upgrade-subscribe-org",
+      "say": "The stepper sets how many learner seats you are buying. It opens at the number of people who have already joined, and the running total beside it moves as you step.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "upgrade-subscribe-org",
+      "say": "**Subscribe** opens the payment panel on this page rather than sending you elsewhere. A seat belongs to one named learner for the period you have paid for, so plan the count against the people you expect, and add more at any time.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That is the organisation plan — one subscription, every seat, every language. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

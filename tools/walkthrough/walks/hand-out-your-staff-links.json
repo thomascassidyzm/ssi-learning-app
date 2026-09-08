@@ -1,0 +1,45 @@
+{
+  "id": "hand-out-your-staff-links",
+  "title": "Hand out your staff links",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "setup"
+  },
+  "keywords": [
+    "invite",
+    "teacher",
+    "staff",
+    "admin",
+    "link",
+    "join",
+    "colleague",
+    "setup",
+    "step 2"
+  ],
+  "steps": [
+    {
+      "anchor": "setup-staff-links",
+      "say": "Your school has two standing links, shown here in full with a copy button beside each. The **Teacher invite link** is for anyone who will run classes; the **Admin invite link** is for anyone who needs to manage the school itself.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "setup-staff-links",
+      "say": "Whoever opens one is signed in with that role, with no sign-up form to fill in. Send them however you normally reach staff — email, Teams, a message, or written on a board.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "setup-staff-links",
+      "say": "Anyone who has already joined is listed underneath, so you can see who is in. A teacher does not need to speak the language: the app does the teaching.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That is step two — copy, send, and watch the list fill. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

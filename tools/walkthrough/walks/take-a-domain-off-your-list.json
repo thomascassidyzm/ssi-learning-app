@@ -1,0 +1,42 @@
+{
+  "id": "take-a-domain-off-your-list",
+  "title": "Take a domain or address off your school's list",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "settings"
+  },
+  "keywords": [
+    "domain",
+    "address",
+    "remove",
+    "allow",
+    "links",
+    "identity"
+  ],
+  "steps": [
+    {
+      "anchor": "settings-identity-remove",
+      "say": "**Who your links let in** lists every email domain and named address your school waves straight through. **Remove** sits beside each one.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "settings-identity-remove",
+      "say": "Tapping it stops the next arrival from that domain or address being let in with one tap. They can still open your link — they simply show as an unverified address until they confirm their email.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "settings-identity-remove",
+      "say": "Nobody already in your school loses anything. Their account, their classes and their progress are untouched; this is only about who arrives next.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That is the un-claim — it changes the door, not the people already inside. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

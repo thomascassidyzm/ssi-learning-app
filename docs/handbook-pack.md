@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `0553521c275f` · generated 2026-09-08 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `f22c43cb6903` · generated 2026-09-08 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## Add a class to a group
 
@@ -99,7 +99,7 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `ver
 
 ## Change how many seats you pay for
 
-Section: your-school · roles: school_admin, leader · anchor: `upgrade-update-seats` · in `packages/player-vue/src/views/schools/UpgradeView.vue` · no demo yet
+Section: your-school · roles: school_admin, leader · anchor: `upgrade-update-seats` · in `packages/player-vue/src/views/schools/UpgradeView.vue` · demo: change-how-many-seats-you-pay-for
 
 **What it's for.** Growing or shrinking a live subscription as staff or learners come and go, without going through checkout a second time.
 
@@ -114,7 +114,7 @@ Section: your-school · roles: school_admin, leader · anchor: `upgrade-update-s
 
 ## Change your school's name and details
 
-Section: your-school · roles: school_admin · anchor: `settings-save-profile` · in `packages/player-vue/src/views/schools/SettingsView.vue` · no demo yet
+Section: your-school · roles: school_admin · anchor: `settings-save-profile` · in `packages/player-vue/src/views/schools/SettingsView.vue` · demo: change-your-school-details
 
 **What it's for.** Correcting or updating what the app knows about your school — its name, its town, its contact email and a short description. The name is the one that shows on every page your staff and students see.
 
@@ -174,7 +174,7 @@ Section: courses-and-content · roles: admin · anchor: `verb-courses` · in `pa
 
 ## Choose which courses your school uses
 
-Section: courses-and-content · roles: school_admin · anchor: `setup-course-picker` · in `packages/player-vue/src/views/schools/SetupView.vue` · no demo yet
+Section: courses-and-content · roles: school_admin · anchor: `setup-course-picker` · in `packages/player-vue/src/views/schools/SetupView.vue` · demo: choose-which-courses-your-school-uses
 
 **What it's for.** Narrowing the full list of courses your school can teach down to the handful you actually intend to use, so that choosing a course for a class is a short list rather than a long one.
 
@@ -189,7 +189,7 @@ Section: courses-and-content · roles: school_admin · anchor: `setup-course-pic
 
 ## Claim another email domain for your school
 
-Section: getting-people-in · roles: school_admin · anchor: `settings-identity-add-domain` · in `packages/player-vue/src/views/schools/SettingsView.vue` · no demo yet
+Section: getting-people-in · roles: school_admin · anchor: `settings-identity-add-domain` · in `packages/player-vue/src/views/schools/SettingsView.vue` · demo: claim-another-email-domain
 
 **What it's for.** Telling the app which email domains belong to your school, so staff arriving on your invite links from those addresses are in with one tap. Your own domain was claimed when you signed up; add the others if your school uses more than one.
 
@@ -233,7 +233,7 @@ Section: getting-people-in · roles: leader · anchor: `schools-list-link-chips`
 
 ## Create your first classes
 
-Section: running-classes · roles: school_admin · anchor: `setup-add-class-row` · in `packages/player-vue/src/views/schools/SetupView.vue` · no demo yet
+Section: running-classes · roles: school_admin · anchor: `setup-add-class-row` · in `packages/player-vue/src/views/schools/SetupView.vue` · demo: create-your-first-classes
 
 **What it's for.** Setting up the classes your school will actually teach. A class is a name, a course and the students who join it, and it is the thing every progress figure in the dashboard is eventually counted against.
 
@@ -280,7 +280,7 @@ Section: your-school · roles: admin · anchor: `verb-delete` · in `packages/pl
 
 ## Delete your school
 
-Section: your-school · roles: school_admin · anchor: `settings-delete-school` · in `packages/player-vue/src/views/schools/SettingsView.vue` · no demo yet
+Section: your-school · roles: school_admin · anchor: `settings-delete-school` · in `packages/player-vue/src/views/schools/SettingsView.vue` · demo: delete-your-school
 
 **What it's for.** Closing your school down for good. It removes the school itself along with its classes and everybody's enrolment in them, and it cannot be undone.
 
@@ -296,7 +296,7 @@ Section: your-school · roles: school_admin · anchor: `settings-delete-school` 
 
 ## Download your school's data
 
-Section: seeing-progress · roles: school_admin, teacher · anchor: `settings-export-data` · in `packages/player-vue/src/views/schools/SettingsView.vue` · no demo yet
+Section: seeing-progress · roles: school_admin, teacher · anchor: `settings-export-data` · in `packages/player-vue/src/views/schools/SettingsView.vue` · demo: download-your-school-data
 
 **What it's for.** Taking your school's progress figures out of the app as a spreadsheet file — every student, the class they are in, how far they have got, how long they have practised and when they were last active.
 
@@ -371,7 +371,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-
 
 ## Give a class its course
 
-Section: courses-and-content · roles: school_admin · anchor: `setup-class-course` · in `packages/player-vue/src/views/schools/SetupView.vue` · no demo yet
+Section: courses-and-content · roles: school_admin · anchor: `setup-class-course` · in `packages/player-vue/src/views/schools/SetupView.vue` · demo: give-a-class-its-course
 
 **What it's for.** Picking the language a class is learning. This is how a course reaches learners at all — a course does not belong to a person, it belongs to a class, and everybody in that class practises it.
 
@@ -433,7 +433,7 @@ Section: getting-people-in · roles: school_admin · anchor: `teacher-signin-lin
 
 ## Hand out your staff links
 
-Section: getting-people-in · roles: school_admin · anchor: `setup-staff-links` · in `packages/player-vue/src/views/schools/SetupView.vue` · no demo yet
+Section: getting-people-in · roles: school_admin · anchor: `setup-staff-links` · in `packages/player-vue/src/views/schools/SetupView.vue` · demo: hand-out-your-staff-links
 
 **What it's for.** Getting your colleagues in. Your school has a standing teacher link and a standing admin link — send either one and whoever opens it is signed in with that role, with no sign-up form to fill in.
 
@@ -540,7 +540,7 @@ Section: running-classes · roles: leader, school_admin, teacher · anchor: `cla
 
 ## Let a named address in through your links
 
-Section: getting-people-in · roles: school_admin · anchor: `settings-identity-add-address` · in `packages/player-vue/src/views/schools/SettingsView.vue` · no demo yet
+Section: getting-people-in · roles: school_admin · anchor: `settings-identity-add-address` · in `packages/player-vue/src/views/schools/SettingsView.vue` · demo: let-a-named-address-in
 
 **What it's for.** Letting one named person in with one tap when their email is not at your school's domain: a supply teacher here for a fortnight, or a colleague who only uses a personal address.
 
@@ -615,7 +615,7 @@ Section: running-classes · roles: leader, school_admin, teacher · anchor: `cla
 
 ## Name your school
 
-Section: your-school · roles: school_admin · anchor: `setup-school-name` · in `packages/player-vue/src/views/schools/SetupView.vue` · no demo yet
+Section: your-school · roles: school_admin · anchor: `setup-school-name` · in `packages/player-vue/src/views/schools/SetupView.vue` · demo: name-your-school
 
 **What it's for.** Telling the app what your school is actually called. The name you type here is the one your teachers and students see on every page, on every invite link they open, and at the top of every report.
 
@@ -840,7 +840,7 @@ Section: seeing-progress · roles: leader · anchor: `schools-list-table` · in 
 
 ## See what your school pays
 
-Section: your-school · roles: school_admin · anchor: `settings-billing-plan` · in `packages/player-vue/src/views/schools/SchoolBillingPanel.vue` · no demo yet
+Section: your-school · roles: school_admin · anchor: `settings-billing-plan` · in `packages/player-vue/src/views/schools/SchoolBillingPanel.vue` · demo: see-what-your-school-pays
 
 **What it's for.** The plain statement of your school's plan — its name, how many teacher seats it is paying for, and whether the subscription is live.
 
@@ -884,7 +884,7 @@ Section: your-school · roles: admin · anchor: `verb-mint-demo` · in `packages
 
 ## Set your language and time zone
 
-Section: your-school · roles: school_admin, teacher · anchor: `settings-localisation-save` · in `packages/player-vue/src/views/schools/SettingsView.vue` · no demo yet
+Section: your-school · roles: school_admin, teacher · anchor: `settings-localisation-save` · in `packages/player-vue/src/views/schools/SettingsView.vue` · demo: set-your-language-and-time-zone
 
 **What it's for.** Choosing the language the dashboard itself speaks to you in, and the time zone your dates and times are read against.
 
@@ -929,7 +929,7 @@ Section: running-classes · roles: school_admin, teacher · anchor: `classes-row
 
 ## Subscribe as a tutor
 
-Section: your-school · roles: teacher · anchor: `upgrade-subscribe-tutor` · in `packages/player-vue/src/views/schools/UpgradeView.vue` · no demo yet
+Section: your-school · roles: teacher · anchor: `upgrade-subscribe-tutor` · in `packages/player-vue/src/views/schools/UpgradeView.vue` · demo: subscribe-as-a-tutor
 
 **What it's for.** Paying for your own tutoring dashboard when you teach on your own rather than inside a school. It is one seat, for you.
 
@@ -944,7 +944,7 @@ Section: your-school · roles: teacher · anchor: `upgrade-subscribe-tutor` · i
 
 ## Subscribe your organisation
 
-Section: your-school · roles: leader · anchor: `upgrade-subscribe-org` · in `packages/player-vue/src/views/schools/UpgradeView.vue` · no demo yet
+Section: your-school · roles: leader · anchor: `upgrade-subscribe-org` · in `packages/player-vue/src/views/schools/UpgradeView.vue` · demo: subscribe-your-organisation
 
 **What it's for.** Putting your whole organisation on a paid plan. You pay per learner seat, and one subscription covers every seat and every language across the group.
 
@@ -959,7 +959,7 @@ Section: your-school · roles: leader · anchor: `upgrade-subscribe-org` · in `
 
 ## Subscribe your school
 
-Section: your-school · roles: school_admin · anchor: `upgrade-subscribe-school` · in `packages/player-vue/src/views/schools/UpgradeView.vue` · no demo yet
+Section: your-school · roles: school_admin · anchor: `upgrade-subscribe-school` · in `packages/player-vue/src/views/schools/UpgradeView.vue` · demo: subscribe-your-school
 
 **What it's for.** Turning a trial into a paid school. You pay per teacher seat, and one subscription covers every language and every class those teachers run.
 
@@ -975,7 +975,7 @@ Section: your-school · roles: school_admin · anchor: `upgrade-subscribe-school
 
 ## Take a domain or address off your school's list
 
-Section: getting-people-in · roles: school_admin · anchor: `settings-identity-remove` · in `packages/player-vue/src/views/schools/SettingsView.vue` · no demo yet
+Section: getting-people-in · roles: school_admin · anchor: `settings-identity-remove` · in `packages/player-vue/src/views/schools/SettingsView.vue` · demo: take-a-domain-off-your-list
 
 **What it's for.** Stopping a domain or a named address from being waved straight in by your invite links.
 
@@ -1111,7 +1111,7 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `way
 
 ## When more people join than you have seats
 
-Section: your-school · roles: school_admin, leader · anchor: `upgrade-seats-actual` · in `packages/player-vue/src/views/schools/UpgradeView.vue` · no demo yet
+Section: your-school · roles: school_admin, leader · anchor: `upgrade-seats-actual` · in `packages/player-vue/src/views/schools/UpgradeView.vue` · demo: when-more-people-join-than-seats
 
 **What it's for.** What happens when your school or organisation outgrows the seats it is paying for. Nothing is blocked, nobody is locked out, and no lesson stops. The page simply tells you the truth so you can put it right.
 
@@ -1170,7 +1170,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `insig
 
 ## Work through setup at your own pace
 
-Section: your-school · roles: school_admin · anchor: `setup-save-exit` · in `packages/player-vue/src/views/schools/SetupView.vue` · no demo yet
+Section: your-school · roles: school_admin · anchor: `setup-save-exit` · in `packages/player-vue/src/views/schools/SetupView.vue` · demo: work-through-setup-at-your-own-pace
 
 **What it's for.** The first-run wizard that takes a brand-new school from nothing to teachers, courses and classes. It is four short steps and it does not have to be done in one sitting.
 
