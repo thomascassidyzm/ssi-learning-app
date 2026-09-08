@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `01e21ab6ca26` · generated 2026-09-08 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `888ae61baed4` · generated 2026-09-08 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## Add a class to a group
 
@@ -820,6 +820,21 @@ Section: running-classes · roles: school_admin, teacher · anchor: `class-play`
 4. Tap play to start the session.
 
 **Worth knowing.** The join code is the same code all lesson, so a student arriving late still gets in.
+
+## See and download your funder numbers
+
+Section: seeing-progress · roles: leader, admin · anchor: `funder-numbers` · in `packages/player-vue/src/components/admin/OrgFunderNumbers.vue`
+
+**What it's for.** The monthly return your funder asks for, on your own page, so you can read it or send it without asking us to pull it.
+
+**Where it is.** Your organisation's home page, the **Funder report** section.
+
+1. Open your organisation's home page.
+2. The month shown is the last complete one. Change it to report on another.
+3. Read the three blocks: the month, everything since people enrolled, and the funding year so far.
+4. Tap **Download spreadsheet** to get the same figures as a CSV.
+
+**Worth knowing.** Minutes here are minutes the app was actually speaking to a learner, never time a screen sat open. Somebody who has studied both Welsh dialects is counted once, at their higher dialect, never the two added up. There are no names in this report and there never will be — the age question is a tick precisely so nobody has to hold a birth date.
 
 ## See every school in your programme
 
