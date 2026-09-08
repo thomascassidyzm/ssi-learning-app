@@ -539,6 +539,14 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Invites', description: 'One primitive — who × where × what × limits; every link that lets someone in, real or demo' },
       },
       {
+        // HANDBOOK QUESTIONS (job #386) — the answering half of the schools
+        // Handbook's ask loop: what readers could not find, answered by hand.
+        path: 'handbook-questions',
+        name: 'admin-handbook-questions',
+        component: () => import('@/views/admin/AdminHandbookQuestions.vue'),
+        meta: { title: 'Handbook questions', description: 'What readers of the schools Handbook could not find, and the answers written back' },
+      },
+      {
         // Old paths — kept working, not just bookmark hygiene. Ways-in
         // management now lives on /admin/structure (THE-MODEL.md §1.10).
         path: 'access',

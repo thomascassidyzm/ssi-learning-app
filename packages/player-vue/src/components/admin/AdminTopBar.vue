@@ -94,6 +94,13 @@ const moreGroups: NavMenuGroup[] = [
     label: 'Platform',
     items: [
       {
+        label: 'Handbook questions',
+        to: '/admin/handbook-questions',
+        desc: 'What schools readers could not find in the Handbook, answered by hand',
+        iconPaths: ICONS.methodology,
+        match: (p) => p.startsWith('/admin/handbook-questions'),
+      },
+      {
         label: 'Methodology',
         to: '/admin/methodology',
         desc: 'Measuring-progress papers and demos',

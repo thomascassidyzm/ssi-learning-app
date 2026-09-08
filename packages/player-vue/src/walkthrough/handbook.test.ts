@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   HANDBOOK_SECTIONS, ROLE_BADGES, handbookEntries, handbookSections,
-  searchHandbook, viewerPersona, isMine, badgesFor, placeLink, demoLink, PLACE_LINKS,
+  searchHandbook, suggestHandbook, viewerPersona, isMine, badgesFor, placeLink, demoLink, PLACE_LINKS,
   type HandbookEntry,
 } from './handbook'
 
@@ -113,5 +113,21 @@ describe('demoLink (the Show me target)', () => {
     expect(demoLink(c, 'teacher', ['teacher'], '', 'class-9')).toBe('/schools/classes/class-9')
     // Take me there still has the list to fall back on.
     expect(placeLink(c, '')).toBe('/schools/classes')
+  })
+})
+
+// The free deflection behind the ask box (job #386).
+describe('suggestHandbook (a question typed as a sentence)', () => {
+  const remove = entry({ id: 'remove-a-teacher-from-your-school', title: 'Remove a teacher from your school', keywords: ['remove', 'teacher', 'leaver'], what: 'Taking a teacher off your school when they leave.' })
+  const invite = entry({ id: 'invite', title: 'Bring your first teacher in', keywords: ['teacher', 'invite'] })
+  it('finds the entry a natural question is about, ignoring the question words', () => {
+    expect(suggestHandbook('how do I remove a teacher from my school', [invite, remove])?.id).toBe('remove-a-teacher-from-your-school')
+  })
+  it('offers nothing when nothing is close', () => {
+    expect(suggestHandbook('purple elephants trampoline', [invite, remove])).toBe(null)
+    expect(suggestHandbook('how do I', [invite, remove])).toBe(null)
+  })
+  it('the strict page search still refuses the same sentence — that is why this exists', () => {
+    expect(searchHandbook('how do I remove a teacher from my school', [invite, remove])).toEqual([])
   })
 })

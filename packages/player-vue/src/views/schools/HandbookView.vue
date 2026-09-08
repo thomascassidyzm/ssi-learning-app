@@ -23,6 +23,7 @@ import {
   type HandbookEntry,
 } from '@/walkthrough/handbook'
 import { startWalkAt, walkById } from '@/walkthrough/useWalkthrough'
+import HandbookAsk from '@/components/schools/HandbookAsk.vue'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -107,6 +108,22 @@ function demoTo(entry: HandbookEntry): string | null {
   return demoLink(entry, persona.value, walk?.personas ?? null, nodeId.value, firstClassId.value)
 }
 
+// NOT IN HERE? (job #386) — the ask box lives at the bottom of the page, and
+// a search that finds nothing offers to carry its words down there: the point
+// of capture is where the failure to find happened.
+const askSeed = ref('')
+function askAbout(query: string): void {
+  askSeed.value = query.trim()
+  requestAnimationFrame(() => document.getElementById('hb-ask')?.scrollIntoView({ block: 'start', behavior: 'smooth' }))
+}
+function openEntry(id: string): void {
+  const entry = all.find((e) => e.id === id)
+  if (!entry) return
+  query.value = ''
+  open.value = new Set([...open.value, entry.id])
+  requestAnimationFrame(() => document.getElementById(`hb-${entry.id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }))
+}
+
 // A class-detail demo needs a real class to stand on. The reader's first
 // class is fetched once, lazily, the first time a class-detail entry opens —
 // the page itself stays a static read of the pack.
@@ -148,6 +165,7 @@ watch(open, (ids) => {
 
     <p v-if="!visible.length" class="handbook-empty">
       {{ t('schools.handbookPage.emptyState', 'Nothing in the handbook matches that yet.') }}
+      <button v-if="query.trim()" type="button" class="btn-ghost" data-handbook-ask-about @click="askAbout(query)">{{ t('schools.handbookPage.askAboutThis', 'Not in here? Ask') }}</button>
     </p>
 
     <section v-for="s in sections" :key="s.id" class="schools-card schools-card-pad handbook-section">
@@ -191,6 +209,8 @@ watch(open, (ids) => {
         </article>
       </div>
     </section>
+
+    <HandbookAsk :entries="all" :persona="persona" :node-id="nodeId" :route="route.path" :seed="askSeed" @open-entry="openEntry" />
   </main>
 </template>
 
@@ -218,7 +238,7 @@ watch(open, (ids) => {
 }
 .scope-option.is-on { background: var(--schools-red, #DB1E17); color: #fff; }
 
-.handbook-empty { color: var(--schools-fg-2, #555); font-size: var(--text-sm); }
+.handbook-empty { color: var(--schools-fg-2, #555); font-size: var(--text-sm); display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
 .handbook-section { display: flex; flex-direction: column; gap: var(--space-3); }
 .section-title { margin: 0; font-size: var(--text-lg); }
 .entry-list { display: flex; flex-direction: column; }

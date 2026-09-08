@@ -1533,7 +1533,22 @@
       "whereItIs": "Where it is",
       "worthKnowing": "Worth knowing",
       "showMe": "Show me",
-      "showMeHint": "Plays on the real screen and changes nothing."
+      "showMeHint": "Plays on the real screen and changes nothing.",
+      "notInHere": "Not in here?",
+      "askLede": "Ask, and the answer gets written into this page for the next person too.",
+      "askPlaceholder": "What were you trying to do?",
+      "askButton": "Ask",
+      "askAnyway": "Ask anyway",
+      "mightBeIt": "This might be it",
+      "openIt": "Open it",
+      "asked": "Asked. The answer gets written into this page, so it will be here for the next person too. Usually the next day.",
+      "askFailed": "That did not send. Try again in a moment.",
+      "yourQuestions": "Your questions",
+      "notAnsweredYet": "Asked on {date}. Not answered yet.",
+      "answeredInHandbook": "Answered in the handbook:",
+      "answeredNotChecked": "Answered on {date}, not yet checked into the handbook.",
+      "couldNotAnswer": "We could not answer this one.",
+      "askAboutThis": "Not in here? Ask"
     },
     "teacherDashboard": {
       "across": "Across",

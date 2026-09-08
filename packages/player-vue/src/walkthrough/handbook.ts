@@ -203,3 +203,42 @@ export function searchHandbook(query: string, list: HandbookEntry[] = handbookEn
   })
   return scored.filter((s) => s.score > 0).sort((a, b) => b.score - a.score).map((s) => s.e)
 }
+
+/**
+ * The words a question is made of that say nothing about WHICH capability:
+ * "how do I", "can we", "where is the". A reader types a sentence; the
+ * search above wants keywords and refuses on any word it cannot find.
+ */
+const QUESTION_WORDS = new Set([
+  'how', 'do', 'does', 'did', 'i', 'we', 'you', 'me', 'my', 'our', 'your', 'a', 'an', 'the', 'to', 'of', 'in',
+  'on', 'for', 'from', 'is', 'are', 'it', 'its', 'this', 'that', 'can', 'could', 'should', 'would', 'want',
+  'need', 'what', 'where', 'when', 'which', 'why', 'who', 'get', 'go', 'be', 'and', 'or', 'with', 'there',
+  'please', 'help', 'find', 'see', 'set', 'up', 'not', 'no', 'any', 'some', 'have', 'has', 'if', 'so',
+])
+
+/**
+ * The FREE deflection behind the ask box (job #386): the entry most likely
+ * to already answer a question typed as a sentence, or null when nothing is
+ * close. Content words only, and a hit on at least half of them — so
+ * "how do I remove a teacher from my school" finds "Remove a teacher from
+ * your school" while "purple elephants trampoline" finds nothing. Same
+ * scoring weights as searchHandbook; no index, no network, no tokens.
+ */
+export function suggestHandbook(question: string, list: HandbookEntry[] = handbookEntries()): HandbookEntry | null {
+  const words = [...new Set(question.toLowerCase().split(/[^a-z0-9']+/).filter((w) => w.length > 1 && !QUESTION_WORDS.has(w)))]
+  if (!words.length) return null
+  let best: { e: HandbookEntry; score: number; hits: number } | null = null
+  for (const e of list) {
+    const label = `${e.title} ${e.keywords.join(' ')}`.toLowerCase()
+    const body = `${e.what} ${e.where} ${e.how.join(' ')} ${e.note ?? ''}`.toLowerCase()
+    let score = 0
+    let hits = 0
+    for (const w of words) {
+      if (label.includes(w)) { score += 3; hits += 1 }
+      else if (body.includes(w)) { score += 1; hits += 1 }
+    }
+    if (hits * 2 < words.length || hits === 0) continue
+    if (!best || score > best.score) best = { e, score, hits }
+  }
+  return best?.e ?? null
+}
