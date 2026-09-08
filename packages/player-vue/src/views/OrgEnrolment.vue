@@ -238,8 +238,9 @@ const cancelNotice = computed(() => {
  *
  * One granted course means there is nothing to choose, so we go straight in.
  * Two — North and South Welsh — is a choice only the learner can make, so the
- * course picker opens instead of us guessing a dialect at them. Either way the
- * default is overwritten before the player resolves a course.
+ * course picker opens instead of us guessing a dialect at them, scoped to the
+ * granted courses and nothing else. Either way the default is overwritten
+ * before the player resolves a course.
  */
 function start(): void {
   const courses = grantedCourses.value
@@ -248,7 +249,10 @@ function start(): void {
     return
   }
   if (courses.length > 1) {
-    router.push({ path: '/', query: { openCourses: '1' } })
+    // The picker, scoped to what this org actually granted — the codes travel
+    // in the query so the modal opens on North and South Welsh alone rather
+    // than on the whole catalogue with Welsh somewhere below the fold.
+    router.push({ path: '/', query: { openCourses: courses.join(',') } })
     return
   }
   router.push('/')

@@ -2862,7 +2862,7 @@
     "errorConsentRequired": "We can only give you free access if you agree to the data-sharing statement.",
     "errorSubmitFailed": "We could not complete your enrolment. Try again.",
     "introTitle": "A free year of SaySomethingin",
-    "introBody": "Because you are on a {org}, your SaySomethingin subscription is free for a year. There are two questions to answer and then you are away.",
+    "introBody": "Because you are on a {org}, your SaySomethingin subscription is free for a year. There are a few questions to answer and then you are away.",
     "getStarted": "Get started",
     "emailTitle": "What is your email address?",
     "emailBody": "We will send you a six-digit code to sign in with. No password to remember.",
