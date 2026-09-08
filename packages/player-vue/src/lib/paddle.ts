@@ -66,6 +66,7 @@
  */
 
 import { initializePaddle, type Paddle } from '@paddle/paddle-js'
+import { CHECKOUT_COMPLETED_EVENT } from './checkoutEvents'
 
 function trimEnv(v: string | undefined): string | undefined {
   const t = v?.trim()
@@ -158,7 +159,45 @@ export async function getPaddle(): Promise<Paddle> {
   const environment = paddleConfig.env === 'production' ? 'production' : 'sandbox'
 
   loadingPromise = (async () => {
-    const instance = await initializePaddle({ token, environment })
+    const instance = await initializePaddle({
+      token,
+      environment,
+      // THE BUYER'S RECEIPT, IN-PAGE. Until this existed the app learnt about a
+      // completed purchase in exactly one way: Paddle redirecting the parent
+      // window to successUrl (?just_subscribed=1), which useSubscription then
+      // polls on. Every path where that redirect does not land — a blocked
+      // top-level navigation, a standalone PWA, the buyer closing the overlay
+      // on the receipt screen, an Apple Pay sheet that returns to the page it
+      // started on — left the app believing the person had no subscription,
+      // with their money already taken. Tom, 2026-09-07: a fresh account bought
+      // SSi Family for £25, the webhook wrote the row correctly one second
+      // later, and Settings still offered him the Upgrade row.
+      //
+      // Paddle tells us directly. Re-broadcast it as a DOM event so this module
+      // stays a pure loader with no app imports; useSubscription listens and
+      // polls until the webhook's row appears.
+      //
+      // IT CARRIES THE TRANSACTION ID (job #361). Two listeners want this one
+      // event: useSubscription drops its cached pre-purchase answer and
+      // converges silently, and useCheckout puts the buyer in a waiting state
+      // that says their payment is confirmed. The second one shows the payment
+      // reference on screen, so a person whose plan is slow to appear has the
+      // one fact that makes a support message answerable — and it is only ever
+      // available here, in Paddle's own event.
+      eventCallback: (event: { name?: string; data?: { transaction_id?: unknown; id?: unknown } }) => {
+        if (event?.name !== 'checkout.completed') return
+        try {
+          const raw = event.data?.transaction_id ?? event.data?.id
+          window.dispatchEvent(
+            new CustomEvent(CHECKOUT_COMPLETED_EVENT, {
+              detail: { transactionId: typeof raw === 'string' ? raw : null },
+            }),
+          )
+        } catch {
+          // A browser without CustomEvent still gets the successUrl redirect.
+        }
+      },
+    })
     if (!instance) throw new Error('Failed to initialize Paddle.js')
     paddleInstance = instance
     return instance

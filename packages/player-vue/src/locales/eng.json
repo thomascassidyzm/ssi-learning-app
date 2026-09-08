@@ -320,7 +320,8 @@
     "upgradeToFamilyBusy": "Upgrading...",
     "cancelStayOn": "You'll stay on {plan} until {date}, then it ends and you won't be charged again. You can re-subscribe any time.",
     "cancelRowDesc": "Stay on {plan} until {date}, then stop",
-    "periodEnd": "the end of your current period"
+    "periodEnd": "the end of your current period",
+    "keepMyPlan": "Keep my plan"
   },
   "belt": {
     "yourProgress": "Your progress",
@@ -2802,5 +2803,25 @@
       "invitation": "{count} of the students haven't practised on their own this week — the rows below show who.",
       "ctaLabel": "See the students"
     }
+  },
+  "purchasePending": {
+    "confirmingTitle": "Payment confirmed",
+    "confirmingBody": "Thank you. We have your payment and we are switching your plan on now. This usually takes a few seconds.",
+    "slowTitle": "Still switching your plan on",
+    "slowBody": "This is taking longer than usual. Your payment is safe and recorded, there is nothing more for you to do, and you should not pay again.",
+    "stalledTitle": "Your plan has not appeared yet",
+    "stalledBody": "Your payment is safe and recorded and nothing has been lost. Check again, or send us the reference below and we will switch your plan on by hand.",
+    "willAppear": "Your plan will appear here as soon as it is ready.",
+    "checking": "Checking",
+    "checkAgain": "Check again",
+    "reference": "Payment reference",
+    "emailUs": "Email us about this",
+    "carryOn": "Carry on without waiting",
+    "arrivedTitle": "Your plan is on",
+    "arrivedFamilyBody": "Six accounts, including yours. Next, add the people you want to share it with.",
+    "arrivedPremiumBody": "Every course is open to you.",
+    "addYourFamily": "Add your family",
+    "startLearning": "Start learning",
+    "settingsRow": "Your payment is recorded. We are switching this plan on now."
   }
 }
