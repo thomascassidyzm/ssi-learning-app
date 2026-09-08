@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { createClient } from '@supabase/supabase-js'
 import { lastDashboardPath } from './router'
 import { createProgressStore, createSessionStore } from '@ssi/core'
+import { pickFirstOpenDefaultCourse } from './containers/firstOpenDefaultCourse'
 import { createCourseDataProvider } from './providers/CourseDataProvider'
 import { loadConfig, isSupabaseConfigured, missingRequiredConfig } from './config/env'
 import { shouldOfferAppInstall } from './platform/capabilities'
@@ -785,13 +786,10 @@ const fetchEnrolledCourses = async () => {
       // is gated for this user), leave defaultCourse null so no premium
       // course gets auto-loaded; the CourseSelector picker will open.
       if (!defaultCourse) {
-        // Prefer Chinese as the first thing a fresh/anon visitor lands on,
-        // falling back to the first accessible course (now incl. previewable
-        // premium courses) if it isn't in the catalogue for this user.
-        const PREFERRED_DEFAULT = 'zho_for_eng'
-        defaultCourse =
-          data.find(c => c.course_code === PREFERRED_DEFAULT && canAccessCourse(c)) ||
-          data.find(c => canAccessCourse(c)) || null
+        // What a stranger sees in the first three seconds. This used to prefer
+        // a hardcoded Chinese course; a first open in India with no referrer
+        // landed there. The decision, and why, lives in the module.
+        defaultCourse = pickFirstOpenDefaultCourse(data, canAccessCourse)
         noPriorCourseSelection.value = true
         selectionOrigin = 'default'
       }
