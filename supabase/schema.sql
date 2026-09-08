@@ -11460,6 +11460,38 @@ COMMENT ON TABLE public.pod_legos IS 'Canonical pod-LEGO inventory (identity lay
 
 
 --
+-- Name: handbook_questions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.handbook_questions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    auth_user_id text NOT NULL,
+    node_id text,
+    persona text NOT NULL,
+    route text NOT NULL,
+    env text DEFAULT 'dev'::text NOT NULL,
+    question text NOT NULL,
+    deflected_entry_id text,
+    status text DEFAULT 'new'::text NOT NULL,
+    matched_entry_id text,
+    answer text,
+    answered_at timestamp with time zone,
+    answered_by text,
+    entry_id text,
+    CONSTRAINT handbook_questions_question_check CHECK (((char_length(question) >= 3) AND (char_length(question) <= 600))),
+    CONSTRAINT handbook_questions_status_check CHECK ((status = ANY (ARRAY['new'::text, 'duplicate'::text, 'answered'::text, 'in_page'::text, 'declined'::text])))
+);
+
+
+--
+-- Name: TABLE handbook_questions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.handbook_questions IS 'Questions readers asked on the schools Handbook and could not find an answer to, with the answer written back. Service-role-only: RLS on, no policies; the only door is api/handbook-questions.ts, which stamps auth_user_id from the verified bearer token (job #386, 2026-09-08).';
+
+
+--
 -- Name: pod_ratchet_reset_audit; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -13942,6 +13974,14 @@ ALTER TABLE ONLY public.pod_legos
 
 ALTER TABLE ONLY public.pod_legos
     ADD CONSTRAINT pod_legos_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: handbook_questions handbook_questions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.handbook_questions
+    ADD CONSTRAINT handbook_questions_pkey PRIMARY KEY (id);
 
 
 --
@@ -16540,6 +16580,20 @@ CREATE INDEX pod_legos_course_order_idx ON public.pod_legos USING btree (course_
 --
 
 CREATE INDEX pod_legos_needs_review_idx ON public.pod_legos USING btree (course_code) WHERE needs_review;
+
+
+--
+-- Name: handbook_questions_asker_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX handbook_questions_asker_idx ON public.handbook_questions USING btree (auth_user_id, created_at DESC);
+
+
+--
+-- Name: handbook_questions_status_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX handbook_questions_status_idx ON public.handbook_questions USING btree (status, created_at);
 
 
 --
@@ -19543,6 +19597,13 @@ ALTER TABLE public.pod_legos ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY pod_legos_public_read ON public.pod_legos FOR SELECT TO authenticated, anon USING (true);
+
+
+--
+-- Name: handbook_questions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.handbook_questions ENABLE ROW LEVEL SECURITY;
 
 
 --
@@ -22782,6 +22843,13 @@ GRANT ALL ON SEQUENCE public.player_events_id_seq TO service_role;
 GRANT SELECT,REFERENCES,TRIGGER,MAINTAIN ON TABLE public.pod_legos TO anon;
 GRANT SELECT,REFERENCES,TRIGGER,MAINTAIN ON TABLE public.pod_legos TO authenticated;
 GRANT ALL ON TABLE public.pod_legos TO service_role;
+
+
+--
+-- Name: TABLE handbook_questions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.handbook_questions TO service_role;
 
 
 --
