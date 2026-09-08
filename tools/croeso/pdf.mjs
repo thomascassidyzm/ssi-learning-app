@@ -64,9 +64,18 @@ await page.goto('file://' + PAGE, { waitUntil: 'networkidle' })
 
 // Nothing may be pending when the shutter falls. Images here are data: URIs
 // and nothing is lazy, but assert it rather than assume it.
+// UNIQUE sources, not placements. The same screenshot may appear twice — the
+// front page opens with the screen step 7 goes on to explain — and Chrome
+// stores one image object for both. Counting placements would then read as a
+// picture that had gone missing. Unique sources keeps the check's teeth: a
+// picture that really vanishes still takes the count down with it.
 const imgs = await page.evaluate(() => {
   const list = [...document.images]
-  return { count: list.length, broken: list.filter((i) => !i.naturalWidth).map((i) => i.alt) }
+  return {
+    count: new Set(list.map((i) => i.currentSrc || i.src)).size,
+    placements: list.length,
+    broken: list.filter((i) => !i.naturalWidth).map((i) => i.alt),
+  }
 })
 if (imgs.broken.length) {
   console.error('pictures did not decode:', imgs.broken)
@@ -107,7 +116,7 @@ const pdfBytes = fs.readFileSync(OUT)
 const embedded = (pdfBytes.toString('latin1').match(/\/Subtype\s*\/Image/g) || []).length
 const pages = (pdfBytes.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length
 if (embedded < imgs.count) {
-  console.error(`only ${embedded} of ${imgs.count} pictures reached the PDF`)
+  console.error(`only ${embedded} of ${imgs.count} distinct pictures reached the PDF`)
   process.exit(1)
 }
 // ONE SHEET, ONE PAGE — and that IS machine-checkable, because the print
@@ -123,4 +132,5 @@ if (pages !== sheets + 1) {
 }
 
 const bytes = fs.statSync(OUT).size
-console.log(`${OUT}\n${pages} A4 pages, ${embedded} pictures embedded, ${(bytes / 1024 / 1024).toFixed(2)} MB`)
+console.log(`${OUT}\n${pages} A4 pages, ${embedded} distinct pictures embedded across ` +
+  `${imgs.placements} placements, ${(bytes / 1024 / 1024).toFixed(2)} MB`)

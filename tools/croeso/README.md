@@ -58,6 +58,41 @@ showing too much, never showing English alone.
 and every `div.cy` is `display:block`. Verify it in the printed file, not in
 the template: `pdftotext` the PDF and check the Welsh is there.
 
+## The front page carries the app, not a decoration
+
+Kai, 2026-09-08: "the first page should have some sort of picture, it's looking
+pretty empty." It opens with `answer.jpg` — the player mid-session, the learner
+being asked "I want" and the Welsh answer up on the hillside. It is the same
+real screenshot step 7 goes on to explain, and it is the one screen that says
+what the whole ten minutes is like. **Nothing here is ever a mock-up or clip
+art**; if the front page needs a different picture, shoot one.
+
+Because that picture now appears TWICE, `pdf.mjs` counts **distinct image
+sources**, not placements: Chrome stores one image object for two identical
+`data:` URIs, and counting placements would read that as a picture gone
+missing. The check keeps its teeth — a picture that really vanishes still takes
+the distinct count down with it.
+
+## Step 6 is the SCOPED picker
+
+A Canolfan learner never sees the whole catalogue. `OrgEnrolment.vue` pushes
+`/?openCourses=cym_n_for_eng,cym_s_for_eng`, and `CourseSelector` renders that
+scoped: Welsh alone, its two dialects already expanded, and — since job #649 —
+no Premium header and no Upgrade button. The pack's older pictures showed the
+UNSCOPED picker (`?openCourses=1`): a search box, a long language list and a
+"£15/mo — Upgrade" banner over the Welsh row. They were wrong about the journey
+and they are gone.
+
+**The scoped picker needs no sign-in to shoot** — the codes travel in the query
+string — so re-shooting step 6 costs nothing and creates no learner rows.
+
+The Premium banner is **still live in the unscoped picker**, which is one tap
+from every learner's home screen (tap the course name). The gate is
+`v-if="!isRestricted"` — scope, not entitlement — so an entitled Canolfan
+learner still meets it that way. That is why the warning did not disappear: it
+moved to the "I have chosen the wrong dialect" question, which is the pack's
+own instruction to go there.
+
 ## One sheet, one page
 
 Every `section.sheet` is exactly one A4 page: `break-before` starts it on fresh

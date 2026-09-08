@@ -36,6 +36,19 @@ b,strong{font-weight:700}
 a{color:var(--red)}
 /* --- the masthead ------------------------------------------------------ */
 .masthead{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px 20px;margin-top:18px}
+/* Text and the app side by side while there is room, stacked on a phone.
+   The picture is what stops the first page reading like a form. */
+.masthead-cols{display:flex;gap:24px;align-items:flex-start}
+.masthead-text{flex:1 1 16rem;min-width:0}
+.masthead-shot{flex:0 0 11rem;margin:.2rem 0 0;text-align:center}
+.masthead-shot img{width:100%;max-width:11rem;height:auto;border:1px solid var(--line);
+  border-radius:14px;display:block;margin:0 auto;background:#fff}
+.masthead-shot figcaption{font-size:.82rem;color:var(--ink-soft);margin-top:.45rem;line-height:1.4}
+@media (max-width:560px){
+  .masthead-cols{display:block}
+  .masthead-shot{margin:1.3rem auto 0;max-width:14rem}
+  .masthead-shot img{max-width:14rem}
+}
 .masthead .kicker{font-size:.82rem;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-soft);margin:0}
 .masthead h1{margin:.3rem 0 .2rem}
 .masthead .sub{font-size:1.05rem;color:var(--ink-soft);margin:0 0 .6rem}
@@ -197,6 +210,12 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
   .shotgroup{break-inside:avoid;page-break-inside:avoid}
   :is(h1,h2,h3){break-after:avoid;page-break-after:avoid}
   .free{background:#fff;border:1px solid #6d8a5f;color:#2c4a24}
+  /* Page one has room to spare, so the app sits beside the title rather than
+     under it, and it is allowed to be taller than a mid-document figure. */
+  .masthead-cols{display:flex;gap:8mm}
+  .masthead-shot{flex:0 0 52mm;margin:0}
+  .masthead-shot img{max-width:52mm;max-height:112mm;border:1px solid #b4aea4;border-radius:2mm}
+  .masthead-shot figcaption{font-size:9pt;margin-top:2mm}
   /* The Welsh keeps its own ground on paper too — same size, same black
      ink, a tint and a rule so the eye can skip it or read it at will. */
   div.cy{background:#f1f4ee;border:none;border-left:1.5mm solid #6d8a5f;color:#000;
@@ -223,24 +242,34 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
 <div class="wrap">
 
 <header class="masthead">
-  <p class="kicker">Y Ganolfan Dysgu Cymraeg Genedlaethol</p>
-  <h1 class="ttl"><span class="cy-t">Pecyn Croeso</span><span class="en-t">Welcome Pack</span></h1>
-  <p class="sub">Say Something in Welsh</p>
-  <div class="free">
-    A free year of Say Something in Welsh.
-    <span class="cy">Blwyddyn o Say Something in Welsh, am ddim.</span>
+  <div class="masthead-cols">
+    <div class="masthead-text">
+      <p class="kicker">Y Ganolfan Dysgu Cymraeg Genedlaethol</p>
+      <h1 class="ttl"><span class="cy-t">Pecyn Croeso</span><span class="en-t">Welcome Pack</span></h1>
+      <p class="sub">Say Something in Welsh</p>
+      <div class="free">
+        A free year of Say Something in Welsh.
+        <span class="cy">Blwyddyn o Say Something in Welsh, am ddim.</span>
+      </div>
+      <p class="print-only xref">
+        This pack is also a web page, at <b>saysomethingin.app/croeso</b>.
+        <span class="cy">Mae&rsquo;r pecyn hwn ar gael fel tudalen we hefyd, ar
+        <b>saysomethingin.app/croeso</b>.</span>
+      </p>
+      <p class="screen-only xref">
+        A printable version is also available:
+        <a href="/croeso/Pecyn-Croeso.pdf">download the pack as a PDF</a>.
+        <span class="cy">Mae fersiwn i&rsquo;w hargraffu ar gael hefyd:
+        <a href="/croeso/Pecyn-Croeso.pdf">llwythwch y pecyn i lawr fel PDF</a>.</span>
+      </p>
+    </div>
+    <!-- The front page opens with the app ACTUALLY RUNNING, not with a
+         decoration: the learner is being asked "I want" and the Welsh answer
+         has just come up on the hillside. It is the one screen that says what
+         the whole ten minutes is like, and it is the same real screenshot
+         step 7 explains later. Nothing here is a mock-up. -->
+    <figure class="masthead-shot">{{img:answer}}<figcaption><span class="cy-i">Dyma sut olwg sydd ar wers</span> &middot; <span class="en-i">This is what a lesson looks like</span></figcaption></figure>
   </div>
-  <p class="print-only xref">
-    This pack is also a web page, at <b>saysomethingin.app/croeso</b>.
-    <span class="cy">Mae&rsquo;r pecyn hwn ar gael fel tudalen we hefyd, ar
-    <b>saysomethingin.app/croeso</b>.</span>
-  </p>
-  <p class="screen-only xref">
-    A printable version is also available:
-    <a href="/croeso/Pecyn-Croeso.pdf">download the pack as a PDF</a>.
-    <span class="cy">Mae fersiwn i&rsquo;w hargraffu ar gael hefyd:
-    <a href="/croeso/Pecyn-Croeso.pdf">llwythwch y pecyn i lawr fel PDF</a>.</span>
-  </p>
 </header>
 
 <div class="toggle"><button id="t" type="button" aria-pressed="false">Dangos y Gymraeg i gyd <span class="gloss">&middot; show all the Welsh</span></button></div>
@@ -288,7 +317,7 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
       <li>Eich ff&ocirc;n, neu&rsquo;ch cyfrifiadur.</li>
       <li>Y cyfeiriad e-bost lle cawsoch chi neges y Ganolfan.</li>
       <li>Clustffonau, os oes rhai gennych chi. Dydyn nhw ddim yn hanfodol.</li>
-      <li>Rhywle lle gallwch chi siarad allan yn uchel. Mae hynny&rsquo;n bwysicach na&rsquo;r clustffonau.</li>
+      <li>Rhywle lle gallwch chi ymarfer ar lafar. Mae hynny&rsquo;n bwysicach na&rsquo;r clustffonau.</li>
     </ul>
   </div>
 </section>
@@ -310,7 +339,7 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
     <p>Cwrs <b>siarad</b> ydy o. Nid llyfr, ac nid gwers ar sgrin. Dyma sy&rsquo;n digwydd, drosodd a throsodd:</p>
     <ol>
       <li>Rydych chi&rsquo;n clywed brawddeg fer yn Saesneg.</li>
-      <li>Mae bwlch tawel. <b>Chi</b> sy&rsquo;n dweud y Gymraeg, allan yn uchel.</li>
+      <li>Mae bwlch tawel. <b>Chi</b> sy&rsquo;n dweud y Gymraeg, ar lafar.</li>
       <li>Rydych chi&rsquo;n clywed yr ateb ddwywaith, gan ddau berson gwahanol.</li>
     </ol>
     <p>Dim ysgrifennu. Dim profion. Dim gwaith cartref.</p>
@@ -430,19 +459,14 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
   <span class="stepno">6</span>
   <h2 class="ttl"><span class="cy-t">Gogledd neu Dde</span><span class="en-t">North or South</span></h2>
   <div class="en">
-    <p>A long list of languages opens. Do not scroll through it &mdash; there is a quicker way.</p>
-    <p>In the search box at the top, type <b>Welsh</b>. The list shrinks to one row.</p>
-    <p>Tap <span class="btnname">2 variants</span>, then choose <span class="btnname">Northern</span> (Gogledd) or <span class="btnname">Southern</span> (De).</p>
+    <p>A short list opens with one thing on it: <b>Welsh</b> &mdash; the course your centre has paid for &mdash; with its two dialects underneath.</p>
+    <p>Tap <span class="btnname">Northern</span> (Gogledd) or <span class="btnname">Southern</span> (De).</p>
   </div>
   <div class="cy">
-    <p>Mae rhestr hir o ieithoedd yn agor. Peidiwch &acirc; sgrolio drwyddi &mdash; mae ffordd gyflymach.</p>
-    <p>Yn y blwch chwilio ar y top, teipiwch <b>Welsh</b>. Dim ond un rhes fydd ar &ocirc;l.</p>
-    <p>Tapiwch <span class="btnname">2 variants</span>, ac wedyn dewiswch <span class="btnname">Northern</span> (Gogledd) neu <span class="btnname">Southern</span> (De).</p>
+    <p>Mae rhestr fer yn agor ac un peth yn unig arni: <b>Cymraeg</b> &mdash; y cwrs mae&rsquo;ch canolfan wedi talu amdano &mdash; a&rsquo;i dwy dafodiaith oddi tano.</p>
+    <p>Tapiwch <span class="btnname">Northern</span> (Gogledd) neu <span class="btnname">Southern</span> (De).</p>
   </div>
-  <div class="shots">
-    <figure>{{img:search}}<figcaption><span class="cy-i">Teipiwch &ldquo;Welsh&rdquo;</span> &middot; <span class="en-i">Type &ldquo;Welsh&rdquo;</span></figcaption></figure>
-    <figure>{{img:variants}}<figcaption><span class="cy-i">Dewiswch Northern neu Southern</span> &middot; <span class="en-i">Choose Northern or Southern</span></figcaption></figure>
-  </div>
+  <figure>{{img:picker}}<figcaption><span class="cy-i">Dewiswch eich tafodiaith</span> &middot; <span class="en-i">Choose your dialect</span></figcaption></figure>
 </section>
 
 <section class="sheet" id="step6b">
@@ -454,10 +478,6 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
   <div class="cy">
     <p><b>Northern</b> ydy&rsquo;r <b>Gogledd</b>; <b>Southern</b> ydy&rsquo;r <b>De</b>. Dewiswch yr un sydd agosaf at y Gymraeg rydych chi&rsquo;n ei chlywed o&rsquo;ch cwmpas, neu Gymraeg eich tiwtor. Does dim ots mawr: mae&rsquo;r ddwy&rsquo;n Gymraeg go iawn, byddwch chi&rsquo;n deall y naill a&rsquo;r llall, a gallwch chi newid unrhyw bryd.</p>
   </div>
-  <div class="note">
-    <div class="en"><p><b>Important.</b> You may see &ldquo;Premium &pound;15/mo &mdash; Upgrade&rdquo; on that screen. <b>Ignore it.</b> Your year is already paid for, and you do not have to pay anything.</p></div>
-    <div class="cy"><p><b>Pwysig.</b> Efallai y gwelwch chi &ldquo;Premium &pound;15/mo &mdash; Upgrade&rdquo; ar y sgrin honno. <b>Anwybyddwch o.</b> Mae eich blwyddyn chi wedi&rsquo;i thalu amdani&rsquo;n barod, a does dim rhaid i chi dalu dim.</p></div>
-  </div>
 </section>
 
 <section class="sheet" id="step7">
@@ -467,7 +487,7 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
     <p>This is the screen you will see every time you open the app. Put your headphones on and tap the <b>big red button</b> at the bottom.</p>
   </div>
   <div class="cy">
-    <p>Dyma&rsquo;r sgrin y byddwch chi&rsquo;n ei gweld bob tro rydych chi&rsquo;n agor yr ap. Rhowch eich clustffonau am eich pen, a thapio&rsquo;r <b>botwm coch mawr</b> yn y gwaelod.</p>
+    <p>Dyma&rsquo;r sgrin y byddwch chi&rsquo;n ei gweld bob tro rydych chi&rsquo;n agor yr ap. Rhowch eich clustffonau am eich pen, a thapio&rsquo;r <b>botwm coch mawr</b> ar waelod y sgrin.</p>
   </div>
   <figure>{{img:ready}}<figcaption><span class="cy-i">Y botwm coch mawr</span> &middot; <span class="en-i">The big red button</span></figcaption></figure>
 </section>
@@ -480,7 +500,7 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
     <p>Then you hear the answer twice, and see it written under the picture. That is one go, and it takes about ten seconds. The next one starts on its own &mdash; you do not have to tap anything in between.</p>
   </div>
   <div class="cy">
-    <p>Byddwch chi&rsquo;n clywed brawddeg fer yn Saesneg, ac yn ei gweld ar y sgrin. Wedyn daw bwlch tawel, a&rsquo;r geiriau coch <b>&ldquo;YOU&rsquo;RE MEANT TO BE SPEAKING NOW&rdquo;</b> &mdash; &lsquo;eich tro chi ydy hi rŵan&rsquo;. Dywedwch y Gymraeg allan yn uchel, hyd yn oed os ydych chi&rsquo;n ansicr, hyd yn oed os ydych chi&rsquo;n anghywir.</p>
+    <p>Byddwch chi&rsquo;n clywed brawddeg fer yn Saesneg, ac yn ei gweld ar y sgrin. Wedyn daw bwlch tawel, a&rsquo;r geiriau coch <b>&ldquo;YOU&rsquo;RE MEANT TO BE SPEAKING NOW&rdquo;</b> &mdash; &lsquo;eich tro chi ydy hi rŵan&rsquo;. Dywedwch y Gymraeg ar lafar, hyd yn oed os ydych chi&rsquo;n ansicr, hyd yn oed os ydych chi&rsquo;n anghywir.</p>
     <p>Wedyn byddwch chi&rsquo;n clywed yr ateb ddwywaith, ac yn ei weld yn ysgrifenedig o dan y llun. Dyna un tro, ac mae&rsquo;n cymryd tua deg eiliad. Mae&rsquo;r nesaf yn dechrau ar ei ben ei hun &mdash; does dim rhaid i chi dapio dim byd rhwng un a&rsquo;r llall.</p>
   </div>
   <div class="shots">
@@ -517,7 +537,7 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
   </div>
   <div class="cy">
     <p>Mae hyn yn werth ei wneud unwaith. Wedyn mae eicon coch yn eistedd gyda&rsquo;ch apiau eraill, ac un tap sydd ei angen &mdash; dim chwilio, dim teipio cyfeiriad.</p>
-    <p>Mae&rsquo;r ap ei hun yn dangos y camau i chi. Tapiwch yr olwyn ddannedd yn y gwaelod, ac wedyn <span class="btnname">Install SaySomethingin</span>.</p>
+    <p>Mae&rsquo;r ap ei hun yn dangos y camau i chi. Tapiwch yr olwyn ddannedd ar waelod y sgrin, ac wedyn <span class="btnname">Install SaySomethingin</span>.</p>
   </div>
 </section>
 
@@ -606,7 +626,7 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
   </div>
   <div class="cy">
     <p class="q">Oes rhaid i mi dalu?</p>
-    <p>Nac oes. Mae&rsquo;n rhad ac am ddim i chi am 12 mis llawn. Does dim manylion cerdyn yn cael eu gofyn, a does dim byd yn dechrau codi t&acirc;l arnoch chi ar y diwedd. Byddwn ni&rsquo;n ysgrifennu atoch chi cyn i&rsquo;r flwyddyn ddod i ben.</p>
+    <p>Nac oes. Mae&rsquo;n rhad ac am ddim i chi am 12 mis llawn. Does neb yn gofyn am fanylion cerdyn, a does dim byd yn dechrau codi t&acirc;l arnoch chi ar y diwedd. Byddwn ni&rsquo;n ysgrifennu atoch chi cyn i&rsquo;r flwyddyn ddod i ben.</p>
     <p class="q">Beth os ydw i&rsquo;n talu am SaySomethingin yn barod?</p>
     <p>Bydd y sgrin yn dweud wrthych chi, ac yn dangos dyddiad diwedd eich blwyddyn am ddim. Chi sy&rsquo;n canslo&rsquo;r tanysgrifiad rydych chi&rsquo;n ei dalu &mdash; dydy&rsquo;r ap ddim yn ei ganslo drosoch chi.</p>
     <p class="q">Oes angen y rhyngrwyd?</p>
@@ -626,7 +646,7 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
   </div>
   <div class="cy">
     <p class="q">Oes rhaid cael clustffonau?</p>
-    <p>Nac oes. Mae seinydd y ff&ocirc;n yn iawn mewn lle tawel. Mae clustffonau&rsquo;n helpu mewn lle swnllyd, ac maen nhw&rsquo;n gwneud i siarad allan yn uchel deimlo&rsquo;n haws.</p>
+    <p>Nac oes. Mae seinydd y ff&ocirc;n yn iawn mewn lle tawel. Mae clustffonau&rsquo;n helpu mewn lle swnllyd, ac maen nhw&rsquo;n ei gwneud hi&rsquo;n haws siarad ar lafar.</p>
     <p class="q">Alla i wneud hyn yn y car?</p>
     <p>Gallwch, a dyma un o&rsquo;r ffyrdd gorau o&rsquo;i wneud. Does dim rhaid edrych ar y sgrin o gwbl &mdash; y clustiau a&rsquo;r geg sy&rsquo;n gweithio. Dechreuwch o cyn i chi gychwyn y car.</p>
     <p class="q">Dw i&rsquo;n clywed dim byd.</p>
@@ -659,12 +679,14 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
   <div class="en">
     <p class="q">I have chosen the wrong dialect.</p>
     <p>Tap the course name in the middle of the screen and pick the other one. Your progress is kept separately for each.</p>
+    <p>That list shows every language we teach, with a <b>Premium &pound;15/mo</b> offer near the top. <b>Ignore it.</b> Your Welsh year is already paid for, and you do not have to pay anything.</p>
     <p class="q">Can I use it on more than one device?</p>
     <p>Yes. Sign in with the same email address on your phone, tablet and computer, and your progress follows.</p>
   </div>
   <div class="cy">
     <p class="q">Dw i wedi dewis y dafodiaith anghywir.</p>
     <p>Tapiwch enw&rsquo;r cwrs ar ganol y sgrin, a dewis y llall. Mae&rsquo;ch cynnydd yn cael ei gadw ar wah&acirc;n ar gyfer y ddwy.</p>
+    <p>Mae&rsquo;r rhestr honno&rsquo;n dangos pob iaith rydyn ni&rsquo;n ei dysgu, gyda chynnig <b>Premium &pound;15/mo</b> yn agos at y brig. <b>Anwybyddwch o.</b> Mae eich blwyddyn Gymraeg wedi&rsquo;i thalu amdani&rsquo;n barod, a does dim rhaid i chi dalu dim.</p>
     <p class="q">Alla i ei ddefnyddio ar fwy nag un ddyfais?</p>
     <p>Gallwch. Mewngofnodwch gyda&rsquo;r un cyfeiriad e-bost ar y ff&ocirc;n, y llechen a&rsquo;r cyfrifiadur, ac mae&rsquo;ch cynnydd yn dilyn.</p>
   </div>
@@ -684,7 +706,7 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
       <li>Am eich <b>cwrs Dysgu Cymraeg</b> &mdash; eich tiwtor neu&rsquo;ch canolfan leol.</li>
       <li>Am yr <b>ap ei hun</b> &mdash; e-bostiwch <a href="mailto:admin@saysomethingin.com">admin@saysomethingin.com</a>. Dywedwch pa ff&ocirc;n sydd gennych chi a beth welsoch chi ar y sgrin; mae hynny&rsquo;n arbed neges yn &ocirc;l ac ymlaen.</li>
     </ul>
-    <p>A dyna&rsquo;r cyfan. Deg munud y dydd, allan yn uchel. Pob lwc &mdash; ac mwynhewch.</p>
+    <p>A dyna&rsquo;r cyfan. Deg munud y dydd, ar lafar. Pob lwc &mdash; ac mwynhewch.</p>
   </div>
   <footer>
     Say Something in Welsh &middot; saysomethingin.app<br>
