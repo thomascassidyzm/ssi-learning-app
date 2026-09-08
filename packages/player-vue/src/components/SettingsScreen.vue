@@ -407,10 +407,11 @@ function formatReleaseDate(iso: string): string {
 }
 
 // Per-note bullet expansion — a note can carry ~15 bullets and swamp the whole
-// screen, so each note collapses to the first few with its own Read-more toggle.
+// screen, so each note collapses to the three headlines with its own Read-more
+// toggle — Tom's ruling 2026-09-08: three headlines, then the read more.
 // State is keyed by note.id so expanding one note never expands another. This is
 // independent of showAllNotes (the earlier-updates toggle above).
-const BULLET_PREVIEW_COUNT = 4
+const BULLET_PREVIEW_COUNT = 3
 const expandedNoteIds = ref<Set<string>>(new Set())
 function isNoteExpanded(id: string): boolean {
   return expandedNoteIds.value.has(id)
