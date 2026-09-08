@@ -16,6 +16,11 @@
 -- lets the request through, because a guard that can take the whole API down is a worse fault
 -- than the hour it closes. PT401 is the PostgREST convention: sqlstate PTnnn maps to HTTP nnn.
 --
+-- SEARCH PATH. pg_catalog then pg_temp, explicit and last: an empty search_path still leaves
+-- pg_temp implicitly FIRST for relation lookups, which is the hole
+-- api/_utils/definerSearchPath.security.test.ts exists to close. The body qualifies auth.sessions
+-- anyway, so this is belt as well as braces.
+--
 -- COST. One primary-key lookup on auth.sessions per request. On this database that is
 -- sub-millisecond against a table of ~1,700 rows.
 --
@@ -30,7 +35,7 @@ BEGIN;
 CREATE OR REPLACE FUNCTION public.cs_session_guard() RETURNS void
     LANGUAGE plpgsql
     SECURITY DEFINER
-    SET search_path = ''
+    SET search_path = pg_catalog, pg_temp
     AS $$
 DECLARE
   sid text;

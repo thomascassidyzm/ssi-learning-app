@@ -3083,7 +3083,7 @@ COMMENT ON FUNCTION public.course_voice_pace(p_course_code text) IS 'Per-course,
 
 CREATE FUNCTION public.cs_session_guard() RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO ''
+    SET search_path TO 'pg_catalog', 'pg_temp'
     AS $$
 DECLARE
   sid text;
@@ -5218,7 +5218,7 @@ $$;
 
 CREATE FUNCTION public.log_pod_ratchet_reset() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'pg_catalog', 'public'
+    SET search_path TO 'pg_catalog', 'public', 'pg_temp'
     AS $$
 BEGIN
   BEGIN
