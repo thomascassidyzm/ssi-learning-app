@@ -160,7 +160,10 @@ const orgPolicyCourses = computed(() => {
   if (!p) return []
   return (p.granted_courses || []).map((code) => {
     const c = courseByCode.value.get(code)
-    return c ? courseXForY(c) : formatCourseCode(code)
+    // courseLabel, not courseXForY: an org's list is where two dialects of one
+    // language sit side by side, and "Welsh for English speakers" twice hides
+    // exactly the distinction the Canolfan cares about.
+    return c ? courseLabel(c) : formatCourseCode(code)
   })
 })
 
@@ -290,7 +293,7 @@ onMounted(() => {
            Worth knowing. Changing that list is a change to the organisation's enrolment
            policy, so it is not editable here — everyone who has already signed up keeps
            what they were given.
-           checked: 033e83e4.1b03ff7a
+           checked: ee85b6db.1b03ff7a
       -->
       <div v-if="orgPolicy?.is_active && orgPolicyCourses.length" class="org-policy" data-walk="org-enrolment-courses">
         <p class="current-summary">
