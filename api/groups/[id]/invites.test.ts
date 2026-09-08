@@ -55,6 +55,9 @@ let codeRows: any[] = []
 let subtreeGroupRows: { id: string; name: string }[] = []
 let classesRows: { id: string; class_name: string; school_id: string }[] = []
 let updatedRows: [string, any, [string, unknown][]][] = []
+// Funded-cohort policies, keyed by the group they belong to. Empty in every
+// test that isn't about the enrolment door — which is how it is live too.
+let policyRows: { group_id: string; granted_courses: string[]; is_active: boolean }[] = []
 
 function makeChainable(table: string) {
   let eqVal: unknown
@@ -117,6 +120,7 @@ function makeChainable(table: string) {
       if (table === 'schools') return resolve({ data: schoolsRows, error: null })
       if (table === 'classes') return resolve({ data: classesRows, error: null })
       if (table === 'learners') return resolve({ data: [], error: null })
+      if (table === 'org_enrolment_policies') return resolve({ data: policyRows, error: null })
       if (table !== 'invite_codes') return resolve({ data: [], error: null })
       let rows = codeRows.slice()
       for (const [col, val] of eqFilters) rows = rows.filter((r) => r[col] === val)
@@ -435,6 +439,7 @@ describe('GET ?scope=subtree — the link ledger (founder scope-add 2026-07-20)'
     ]
     schoolsRows = [{ id: 'school-1', node_group_id: '22222222-2222-4222-8222-222222222222', school_name: 'School One', group_id: '22222222-2222-4222-8222-222222222222' }]
     classesRows = [{ id: 'class-1', class_name: 'Grade 6A', school_id: 'school-1' }]
+    policyRows = []
   })
 
   it('lists links from the WHOLE subtree — node, descendant group, school, class — with status incl. revoked', async () => {
@@ -568,5 +573,59 @@ describe('PATCH /api/groups/:id/invites — ledger verbs', () => {
     await handler(patchReq({ code: 'OPEN-1', action: 'rotate' }), res)
     expect(res.statusCode).toBe(400)
     expect(insertedRows.length).toBe(0)
+  })
+})
+
+/**
+ * The funded-cohort door, in the ledger — job #615.
+ *
+ * A Canolfan sign-up code is a `student` code on the org's own node, and it is
+ * redeemed at /enrol/<code>, where the consent statement, the age tick and the
+ * free year are recorded. The ledger used to print /redeem/<code> for it, so a
+ * leader copying the link out of the ledger handed out a door that walks past
+ * all three. The courses ride along so the leader can hand out one link per
+ * dialect.
+ */
+describe('GET ?scope=subtree — a funded cohort’s sign-up link', () => {
+  const ORG = '11111111-1111-4111-8111-111111111111'
+  function ledgerReq(): VercelRequest {
+    return { method: 'GET', query: { id: ORG, scope: 'subtree' }, headers: { authorization: 'Bearer tok' } } as any
+  }
+
+  beforeEach(() => {
+    verifyAdminResult = { userId: 'admin-1' }
+    subtreeGroupRows = [{ id: ORG, name: 'Dysgu Cymraeg' }]
+    schoolsRows = []
+    classesRows = []
+    policyRows = [{ group_id: ORG, granted_courses: ['cym_n_for_eng', 'cym_s_for_eng'], is_active: true }]
+    codeRows = [
+      { code: 'CYM-001', code_type: 'student', grants_group_id: ORG, is_active: true, max_uses: null, use_count: 40, expires_at: null, created_at: 't', created_by: 'u1', metadata: { purpose: 'org-enrolment' } },
+    ]
+  })
+
+  it('points at /enrol, and carries the granted courses so the leader can hand out one link per dialect', async () => {
+    const res = makeRes()
+    await handler(ledgerReq(), res)
+    expect(res.statusCode).toBe(200)
+    const link = res.body.links.find((l: any) => l.code === 'CYM-001')
+    expect(link.url).toBe('https://saysomethingin.app/enrol/CYM-001')
+    expect(link.enrolmentCourses).toEqual(['cym_n_for_eng', 'cym_s_for_eng'])
+  })
+
+  it('leaves an ordinary student link alone — no policy, no enrolment door', async () => {
+    policyRows = []
+    const res = makeRes()
+    await handler(ledgerReq(), res)
+    const link = res.body.links.find((l: any) => l.code === 'CYM-001')
+    expect(link.url).toBe('https://saysomethingin.app/redeem/CYM-001')
+    expect(link.enrolmentCourses).toBeUndefined()
+  })
+
+  it('an inactive policy is not a door either', async () => {
+    policyRows = [{ group_id: ORG, granted_courses: ['cym_n_for_eng'], is_active: false }]
+    const res = makeRes()
+    await handler(ledgerReq(), res)
+    const link = res.body.links.find((l: any) => l.code === 'CYM-001')
+    expect(link.url).toBe('https://saysomethingin.app/redeem/CYM-001')
   })
 })

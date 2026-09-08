@@ -18,8 +18,11 @@ import { ref, nextTick } from 'vue'
 
 const { routerPush } = vi.hoisted(() => ({ routerPush: vi.fn() }))
 let routeCode = 'CYM-001'
+// The query on the enrolment link. `?course=` is the dialect hint (job #615) —
+// empty for every ordinary link, which is the default here too.
+let routeQuery: Record<string, string> = {}
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ name: 'org-enrolment', params: { code: routeCode }, query: {} }),
+  useRoute: () => ({ name: 'org-enrolment', params: { code: routeCode }, query: routeQuery }),
   useRouter: () => ({ push: routerPush }),
 }))
 vi.mock('../auth/sendSignInCode', () => ({ sendSignInCode: vi.fn(async () => ({ error: null })) }))
@@ -76,6 +79,7 @@ function lastButton(wrapper: ReturnType<typeof mountPage>['wrapper']) {
 beforeEach(() => {
   routeCode = 'CYM-001'
   routerPush.mockClear()
+  routeQuery = {}
 })
 
 describe('every step renders', () => {
@@ -255,8 +259,9 @@ describe("Kai's staging report", () => {
     await flush()
     await lastButton(wrapper).trigger('click')
     await flush()
-    // Two Welsh dialects: the picker, because the dialect is theirs to choose.
-    expect(routerPush).toHaveBeenCalledWith({ path: '/', query: { openCourses: '1' } })
+    // Two Welsh dialects: the picker, because the dialect is theirs to choose —
+    // and scoped to those two, not the whole catalogue (Kai, 2026-09-08).
+    expect(routerPush).toHaveBeenCalledWith({ path: '/', query: { openCourses: 'cym_n_for_eng,cym_s_for_eng' } })
     expect(routerPush).not.toHaveBeenCalledWith('/')
   })
 
@@ -279,5 +284,46 @@ describe("Kai's staging report", () => {
     await lastButton(wrapper).trigger('click')
     await flush()
     expect(routerPush).toHaveBeenCalledWith({ path: '/', query: { course: 'cym_n_for_eng' } })
+  })
+
+  /**
+   * The dialect on the link — job #615.
+   *
+   * Kai's cohorts are not mixed: a North Wales tutor's room wants North Welsh,
+   * and asking them is a question with a known answer. So the link can carry
+   * it, and the picker never opens. What the link cannot do is widen the free
+   * year — a hint naming a course the policy does not grant is dropped and the
+   * learner gets the ordinary picker.
+   */
+  it('a link that names a granted dialect lands there, and never opens the picker', async () => {
+    routeQuery = { course: 'cym_s_for_eng' }
+    const { wrapper } = mountPage()
+    await flush()
+    await wrapper.find('button').trigger('click')
+    await flush()
+    await wrapper.findAll('input[type="checkbox"]')[1].setValue(true)
+    await flush()
+    await lastButton(wrapper).trigger('click')
+    await flush()
+    await lastButton(wrapper).trigger('click')
+    await flush()
+    expect(routerPush).toHaveBeenCalledWith({ path: '/', query: { course: 'cym_s_for_eng' } })
+    expect(routerPush).not.toHaveBeenCalledWith({ path: '/', query: { openCourses: 'cym_n_for_eng,cym_s_for_eng' } })
+  })
+
+  it('SECURITY: a hint for a course the policy never granted is dropped, not honoured', async () => {
+    routeQuery = { course: 'spa_for_eng' }
+    const { wrapper } = mountPage()
+    await flush()
+    await wrapper.find('button').trigger('click')
+    await flush()
+    await wrapper.findAll('input[type="checkbox"]')[1].setValue(true)
+    await flush()
+    await lastButton(wrapper).trigger('click')
+    await flush()
+    await lastButton(wrapper).trigger('click')
+    await flush()
+    expect(routerPush).not.toHaveBeenCalledWith({ path: '/', query: { course: 'spa_for_eng' } })
+    expect(routerPush).toHaveBeenCalledWith({ path: '/', query: { openCourses: 'cym_n_for_eng,cym_s_for_eng' } })
   })
 })

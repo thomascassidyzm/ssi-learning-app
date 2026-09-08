@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `888ae61baed4` · generated 2026-09-08 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `bde7bc24ff1d` · generated 2026-09-08 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## Add a class to a group
 
@@ -430,6 +430,21 @@ Section: getting-people-in · roles: school_admin · anchor: `teacher-signin-lin
 5. Tap **Done** when they are through.
 
 **Worth knowing.** The code works once and lasts two days, and whoever uses it becomes that teacher — so give it to them directly and never post it anywhere shared. Need another? Tap **Access code** again.
+
+## Hand out a sign-up link for one course
+
+Section: getting-people-in · roles: admin, leader, school_admin · anchor: `ways-in-copy-course` · in `packages/player-vue/src/components/admin/WaysInLedger.vue`
+
+**What it's for.** Giving one group of learners a sign-up link that puts them straight into a named course, when your funded year covers more than one. A North Wales tutor hands out the North Welsh link and nobody in that room is asked which Welsh they meant.
+
+**Where it is.** The node's home page, the **Ways in** section, the course-named buttons on your sign-up link's row.
+
+1. Scroll to **Ways in** on the node's home page.
+2. Find the row for your sign-up link.
+3. Tap the button named after the course you want, and it is copied.
+4. Send that link to the learners who want that course.
+
+**Worth knowing.** It is the same link and the same cohort either way — the course name only decides where a learner lands. **Copy** still gives you the link that asks them to choose, and everyone gets the whole free year whichever link they came through.
 
 ## Hand out your staff links
 

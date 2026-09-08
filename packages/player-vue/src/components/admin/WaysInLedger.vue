@@ -9,6 +9,7 @@
 // Plain words only — "Ways in", never token/species jargon on screen.
 import { ref, computed, watch } from 'vue'
 import { useAdminClient } from '@/composables/useAdminClient'
+import { courseShortName } from '@ssi/core'
 import { useI18n } from '@/composables/useI18n'
 
 const { t } = useI18n()
@@ -31,6 +32,14 @@ interface LedgerLink {
    * confident "0" beside someone who had already signed in and practised.
    */
   uses: { count: number; max: number | null; kind: 'redemption' | 'signin'; lastAt: string | null }
+  /**
+   * Set only on a FUNDED-COHORT sign-up link (/enrol/<code>): the courses that
+   * cohort's free year unlocks. Two of them — the Canolfan grants North and
+   * South Welsh — means the leader can hand out a link per dialect, so each
+   * course gets its own copy verb. Absent everywhere else, which is every
+   * ordinary link.
+   */
+  enrolmentCourses?: string[]
   status: 'active' | 'revoked' | 'expired' | 'exhausted'
   createdAt: string
   createdBy: string | null
@@ -151,6 +160,36 @@ async function copyLink(l: LedgerLink): Promise<void> {
   } catch { /* clipboard unavailable */ }
 }
 
+// ─── Per-dialect enrolment links ───
+//
+// One code, one cohort, one enrolment record — and a query string that says
+// which of the cohort's courses the holder should land in. A North Wales
+// tutor gets a North Welsh link, and their class is never asked a question
+// they already know the answer to. The plain Copy above still hands out the
+// link that asks, and every link minted before this keeps working exactly as
+// it did, because a link with no `?course=` is the one that asks.
+//
+// Only offered where there is a real choice: one granted course means the
+// plain link already lands there.
+function dialectLinks(l: LedgerLink): { course: string; name: string; url: string }[] {
+  const courses = l.enrolmentCourses || []
+  if (courses.length < 2) return []
+  return courses.map((course) => ({
+    course,
+    name: courseShortName(course) || course,
+    url: `${l.url}?course=${encodeURIComponent(course)}`,
+  }))
+}
+
+const copiedDialect = ref<string | null>(null)
+async function copyDialect(l: LedgerLink, d: { course: string; url: string }): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(d.url)
+    copiedDialect.value = `${l.code}:${d.course}`
+    setTimeout(() => { if (copiedDialect.value === `${l.code}:${d.course}`) copiedDialect.value = null }, 2000)
+  } catch { /* clipboard unavailable */ }
+}
+
 async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' | 'resend'): Promise<void> {
   if (busyCode.value) return
   busyCode.value = l.code
@@ -263,6 +302,38 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
           <td class="muted">{{ when(l.createdAt) }}{{ l.createdBy ? ` · ${l.createdBy}` : '' }}</td>
           <td class="verbs-col">
             <button v-if="l.status === 'active'" type="button" class="row-verb" :class="{ 'is-copied': copiedCode === l.code }" data-walk="ways-in-copy" @click="copyLink(l)">{{ copiedCode === l.code ? t('org.ui.waysInLedger.copied', 'Copied!') : t('org.ui.waysInLedger.copy', 'Copy') }}</button>
+            <!-- HANDBOOK Hand out a sign-up link for one course
+                 section: getting-people-in
+                 roles: admin, leader, school_admin
+                 place: node-home
+                 keywords: dialect, course, link, enrol, north, south, welsh, cohort
+                 What it's for. Giving one group of learners a sign-up link that puts them
+                 straight into a named course, when your funded year covers more than one.
+                 A North Wales tutor hands out the North Welsh link and nobody in that room
+                 is asked which Welsh they meant.
+                 Where it is. The node's home page, the **Ways in** section, the course-named
+                 buttons on your sign-up link's row.
+                 How you do it.
+                 1. Scroll to **Ways in** on the node's home page.
+                 2. Find the row for your sign-up link.
+                 3. Tap the button named after the course you want, and it is copied.
+                 4. Send that link to the learners who want that course.
+                 Worth knowing. It is the same link and the same cohort either way — the
+                 course name only decides where a learner lands. **Copy** still gives you the
+                 link that asks them to choose, and everyone gets the whole free year
+                 whichever link they came through.
+                 checked: 6c50a4f5.ed924c89
+            -->
+            <button
+              v-for="d in (l.status === 'active' ? dialectLinks(l) : [])"
+              :key="`${l.code}:${d.course}`"
+              type="button"
+              class="row-verb"
+              :class="{ 'is-copied': copiedDialect === `${l.code}:${d.course}` }"
+              data-walk="ways-in-copy-course"
+              :title="t('org.ui.waysInLedger.copyCourseLinkTitle', 'Copy a sign-up link that lands the learner in {course}').replace('{course}', d.name)"
+              @click="copyDialect(l, d)"
+            >{{ copiedDialect === `${l.code}:${d.course}` ? t('org.ui.waysInLedger.copied', 'Copied!') : t('org.ui.waysInLedger.copyCourse', 'Copy {course}').replace('{course}', d.name) }}</button>
             <!-- HANDBOOK Email someone their invite again
                  section: getting-people-in
                  roles: admin, leader, school_admin

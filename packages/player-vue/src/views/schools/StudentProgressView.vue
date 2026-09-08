@@ -8,6 +8,7 @@ import { getLanguageName, useI18n } from '@/composables/useI18n'
 import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
 import Sparkline from '@/components/schools/shared/Sparkline.vue'
 import { BELTS, type BeltName } from '@/composables/schools/belts'
+import { rememberCourse } from '../../platform/courseChoice'
 
 interface CourseProgress {
   course_id: string
@@ -176,7 +177,7 @@ const nextLegoNumber = computed(() => legosRetired.value + 1)
 // never launch a live play session as them.
 function handleKeepGoing(): void {
   if (isAdminView || !primaryCourse.value) return
-  localStorage.setItem('ssi-last-course', primaryCourse.value.course_id)
+  rememberCourse(primaryCourse.value.course_id, 'chosen')
   router.push('/')
 }
 
