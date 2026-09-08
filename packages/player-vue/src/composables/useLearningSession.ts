@@ -49,6 +49,14 @@ export interface UseLearningSessionOptions {
    *  recycled round on the playhead. The caller composes both — see
    *  progressWritesSuppressed in LearningPlayer. */
   isPractising?: () => boolean
+  /**
+   * True while any audio path is sounding — cycles, pod laps, commentary,
+   * intros, welcome. The caller already computes this to drive
+   * markPlayStart/markPlayStop; the play timer needs it a second time, on
+   * return from the background, to know whether to re-arm. See
+   * handleVisibilityChange.
+   */
+  isAudioActive?: () => boolean
 }
 
 export interface LearningSessionState {
@@ -710,7 +718,31 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
     if (document.visibilityState === 'hidden') {
       markPlayStop()
       checkpointSession()
+      return
     }
+    // BACK IN THE FOREGROUND, AUDIO STILL SOUNDING — RE-ARM THE TIMER.
+    //
+    // Without this the play timer never restarted after a background. The
+    // only thing that opens a segment is the caller's watcher on "is any
+    // audio sounding", and that watcher fires on CHANGE. Lock the phone
+    // mid-session and playback continues on the lock screen, so the flag
+    // never goes false and never comes back true — but the hidden branch
+    // above has already closed the segment. Every second from that moment
+    // until the learner happened to pause and resume was banked nowhere.
+    //
+    // Measured against production, 2026-09-08: on the 222 learner-days since
+    // the 2026-08-20 fix carrying real audio, 49 banked LESS play time than
+    // the raw duration of the audio files they demonstrably played — which is
+    // arithmetically impossible for an accurate counter. On real learners
+    // that is 511 minutes of audio against 221 minutes banked. Those days
+    // carry roughly half the pause-taps of the healthy ones and more cold
+    // starts, which is the signature of exactly this path.
+    //
+    // Deliberately conservative: it re-arms on RETURN, so time spent listening
+    // while the app is in the background is still not counted. That under-
+    // counts, which is the safe direction and consistent with the founder
+    // ruling of 2026-08-19 — the number may be a floor, it may never inflate.
+    if (options.isAudioActive?.() === true) markPlayStart()
   }
 
   const handleBeforeUnload = () => {
