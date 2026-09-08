@@ -62,8 +62,12 @@ loadWebFonts()
 // was needed for. A dynamic import gets code-split into its own chunk that the
 // SW precaches (globPatterns **/*.js) — so once the app has been opened online
 // once, the console works fully offline. Loaded only when the debug gate is on.
+// NEVER in the framed demo. eruda is a developer's on-screen console; a
+// marketing visitor on a landing page is not a developer, and it writes six
+// localStorage keys of its own on an origin the demo promises to leave clean.
 const DEBUG_TOOLS =
   typeof location !== 'undefined' &&
+  !isEmbedContext() &&
   (location.hostname.includes('vercel.app') || location.search.includes('debug'))
 if (DEBUG_TOOLS && !window.eruda) {
   import('eruda').then(({ default: eruda }) => {
