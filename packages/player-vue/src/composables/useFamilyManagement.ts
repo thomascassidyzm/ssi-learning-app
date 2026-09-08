@@ -31,11 +31,17 @@ export interface FamilyState {
    * sign-in link stays available for them here, forever (job #376·F, D7).
    */
   removedChildren: FamilyMember[]
-  /** When the family cover ends, if the owner has scheduled a change or a cancellation (job #376·F, D5). */
+  /**
+   * When everybody's cover ends, if the owner has scheduled a change or a
+   * cancellation (job #376·F, D5). For a change to Premium this is 30 days
+   * after planChangesAt — the server does that arithmetic, never this client.
+   */
   familyEndsAt: string | null
+  /** When the plan itself becomes SSi Premium. Null unless a change is scheduled. */
+  planChangesAt: string | null
 }
 
-const EMPTY_STATE: FamilyState = { isOwner: false, hasFamilyPlan: false, seatsUsed: 0, seatCap: 6, members: [], removedChildren: [], familyEndsAt: null }
+const EMPTY_STATE: FamilyState = { isOwner: false, hasFamilyPlan: false, seatsUsed: 0, seatCap: 6, members: [], removedChildren: [], familyEndsAt: null, planChangesAt: null }
 
 export function useFamilyManagement() {
   const supabase = inject<Ref<any>>('supabase', ref(null))
@@ -61,7 +67,7 @@ export function useFamilyManagement() {
       const res = await fetch('/api/family', { headers })
       if (!res.ok) throw new Error('We could not load your family just now. Please try again in a moment.')
       const body = await res.json()
-      state.value = { ...body, removedChildren: body.removedChildren ?? [], familyEndsAt: body.familyEndsAt ?? null }
+      state.value = { ...body, removedChildren: body.removedChildren ?? [], familyEndsAt: body.familyEndsAt ?? null, planChangesAt: body.planChangesAt ?? null }
     } catch (e: any) {
       error.value = e?.message || 'We could not load your family just now. Please try again in a moment.'
     } finally {

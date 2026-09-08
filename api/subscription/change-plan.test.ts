@@ -8,6 +8,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { familyCoverEndsAt } from '../_utils/familyGrace'
 
 process.env.SUPABASE_URL = 'https://example.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key'
@@ -379,7 +380,15 @@ describe('POST /api/subscription/change-plan — Family → Premium, held for th
     await handler(makeReq({ body: { plan: 'premium' } }), res)
     expect(res._status).toBe(200)
     expect(endsMails).toHaveLength(1)
-    expect(endsMails[0]).toMatchObject({ address: 'ffion@example.com', inviterName: 'Tom', endsAt: PERIOD_END })
+    // THE DATE IN THE MAIL IS THE COVER END, NOT THE PLAN-CHANGE DATE (Tom's
+    // 30-day grace, 2026-09-08): the paid period plus 30 days, from the one
+    // helper, so the mail cannot name a different day from the app.
+    expect(endsMails[0]).toMatchObject({
+      address: 'ffion@example.com',
+      inviterName: 'Tom',
+      endsAt: familyCoverEndsAt(PERIOD_END),
+    })
+    expect(res._json.familyCoverEndsAt).toBe(familyCoverEndsAt(PERIOD_END))
     expect(res._json.emailed).toBe(1)
   })
 

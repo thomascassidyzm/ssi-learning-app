@@ -1,6 +1,6 @@
 # APML v2.0.0 - SSi Family Plan
 # SSI Learning App
-# Last Updated: 2026-07-29 (impl/family-plan landed on dev — the July 2026-07-10 build, rebased; design pack docs/family-plan-design-pack.md)
+# Last Updated: 2026-09-08 (the 30-day grace after a Family → Premium change — Tom's family identity model, superseding #376·F D8)
 # Source spec: FAMILY-PLAN-SPEC.md (repo root, founder-confirmed 2026-07-10: D1 seats=6 incl. payer, D2 annual £250)
 
 family_plan:
@@ -12,7 +12,15 @@ family_plan:
     (plan_name = 'SSi Family', PLAN_PRECEDENCE rank 4, top). Members have NO
     subscription row: every entitlement check resolves "own row first, else a
     live family membership whose owner's 'SSi Family' row is active" via ONE
-    server-side resolver. Lapse / refund / cancel / re-buy compose from the
+    server-side resolver. THE GRACE (Tom, 2026-09-08): a member's cover does
+    not stop when the owner changes to Premium and the plan name flips — it
+    runs to the end of the paid period PLUS 30 DAYS, per member, individually.
+    The cutoff is derived, never stored twice: scheduled_plan_at holds the end
+    of the paid Family period, the webhook clears only scheduled_plan_name when
+    it applies the change, and api/_utils/familyGrace.ts adds the 30 days once
+    for the resolver, the API responses, the app copy and the email alike. An
+    outright cancellation has no grace: nobody is paying afterwards, so cover
+    ends at the paid period. Lapse / refund / cancel / re-buy compose from the
     owner's row with zero fan-out writes. family_members is the ONLY new data
     surface (tutor-shaped group, learner-id UUID keys, RLS ON zero policies,
     service-role-only — deliberately NOT the schools org tables).

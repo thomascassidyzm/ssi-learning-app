@@ -12,6 +12,7 @@ import { createClient } from '@supabase/supabase-js'
 import { getAuthUserId } from '../_utils/auth'
 import { applyCors } from '../_utils/cors'
 import { resolveEffectiveSubscription } from '../_utils/familyAccess'
+import { familyCoverEndsAt } from '../_utils/familyGrace'
 
 // Supabase client with service role (to bypass RLS for reading)
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -91,7 +92,7 @@ export default async function handler(
     const isChildAccount = !!childRow
 
     // Get subscription — own row, or (member of an active family) the owner's.
-    const { sub: subscription, viaFamily } = await resolveEffectiveSubscription(supabase, learner.id)
+    const { sub: subscription, viaFamily, coverEndsAt } = await resolveEffectiveSubscription(supabase, learner.id)
 
     if (!subscription) {
       res.status(200).json({
@@ -126,17 +127,22 @@ export default async function handler(
         // (job #376·F, D2): what the plan becomes, and when. Null = none.
         scheduledPlanName: sub.scheduled_plan_name ?? null,
         scheduledPlanAt: sub.scheduled_plan_at ?? null,
-        // FOR A MEMBER (D6): when their family cover ends — the owner's
-        // scheduled change, or the owner's cancellation. The banner reads
-        // "Your family Premium ends 7 October. Keep going for £15 a month"
-        // with the ordinary checkout behind it. Null while nothing ends.
-        familyEndsAt: viaFamily
-          ? (sub.scheduled_plan_name && sub.scheduled_plan_at
-              ? sub.scheduled_plan_at
-              : sub.cancel_at_period_end
-                ? sub.current_period_end
-                : null)
-          : null,
+        // FOR A MEMBER (D6): when their family cover actually ends — the paid
+        // period PLUS the 30-day grace when the owner has changed to Premium,
+        // or the paid period itself when the owner has cancelled outright.
+        // Computed by the resolver, from familyGrace.ts, so this date and the
+        // date the resolver grants access to are the same date and cannot
+        // drift. The banner reads "Your family Premium ends 6 November. Keep
+        // going for £15 a month". Null while nothing ends.
+        familyEndsAt: viaFamily ? coverEndsAt : null,
+        // FOR THE OWNER: when the people on their plan would stop being
+        // covered — the same 30-day arithmetic, shown before they confirm as
+        // well as after, so the dialog never has to do its own. Null unless
+        // they hold the Family plan themselves.
+        familyCoverEndsAt:
+          !viaFamily && sub.plan_name === 'SSi Family'
+            ? familyCoverEndsAt(sub.scheduled_plan_at ?? sub.current_period_end)
+            : null,
       },
       isSubscribed,
       isChildAccount,

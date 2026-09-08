@@ -41,6 +41,12 @@
  * in which every displaced person can act. do_not_bill never meets Paddle's
  * 55p refusal and there is no refund arithmetic to go wrong.
  *
+ * THE 30-DAY GRACE (Tom, 2026-09-08, superseding D8). A member's cover does
+ * not stop when the plan name flips: it runs to the end of the paid period
+ * and then 30 days more, per member. The tail is derived from
+ * scheduled_plan_at — the one date on the row — by familyGrace.ts, and every
+ * place that states it, this endpoint's email included, reads that.
+ *
  * Nobody is removed by a downgrade, ever (D5): this endpoint touches the
  * owner's row only. Displaced adults are told at confirm, by email, with
  * their own door in it (D6). "Keep Family" (D9) is plan:'family' on a row
@@ -55,6 +61,7 @@ import { paddle } from '../_utils/paddle'
 import { applyCors } from '../_utils/cors'
 import { liveFamilyRows } from '../_utils/familyMembership'
 import { safeInviterName, sendFamilyEndsEmail } from '../_utils/familyInviteEmail'
+import { familyCoverEndsAt } from '../_utils/familyGrace'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -302,6 +309,7 @@ async function scheduleDowngradeToPremium(
       planName: 'SSi Family',
       scheduledPlanName: 'SSi Premium',
       scheduledPlanAt: sub.scheduled_plan_at,
+      familyCoverEndsAt: familyCoverEndsAt(sub.scheduled_plan_at),
     })
     return
   }
@@ -352,15 +360,22 @@ async function scheduleDowngradeToPremium(
     }
   }
 
-  // 3. Tell every displaced adult now, with their own door in it (D6).
+  // 3. Tell every displaced adult now, with their own door in it (D6) and the
+  // date their access really ends — the paid period plus the 30-day grace
+  // (Tom, 2026-09-08), from familyGrace.ts, the same date the resolver will
+  // grant access to and the same date the app shows them.
   // Best-effort: the change is made and true whether or not a mail sends.
-  const emailed = await tellDisplacedAdults(supabase, learnerId, scheduledPlanAt)
+  const coverEndsAt = familyCoverEndsAt(scheduledPlanAt) as string
+  const emailed = await tellDisplacedAdults(supabase, learnerId, coverEndsAt)
 
   res.status(200).json({
     ok: true,
     planName: 'SSi Family',
     scheduledPlanName: 'SSi Premium',
     scheduledPlanAt,
+    // When the people on the plan stop being covered — 30 days after the
+    // change. The UI reads this rather than adding days of its own.
+    familyCoverEndsAt: coverEndsAt,
     billingPeriod: period,
     prorationBillingMode: 'do_not_bill',
     emailed,
