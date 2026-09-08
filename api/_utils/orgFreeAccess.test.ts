@@ -18,11 +18,13 @@ import { resolveOrgFreeAccess } from './orgFreeAccess'
 
 const FUTURE = new Date(Date.now() + 300 * 24 * 3600 * 1000).toISOString()
 
-/** Minimal PostgREST-shaped stub: records the filters, returns the rows. */
+/** Minimal PostgREST-shaped stub: records the filters, returns the rows.
+ *  The entitlements query has no terminal call, so the chain is thenable. */
 function stubClient(opts: {
   enrolments?: unknown[]
   enrolmentError?: unknown
   policy?: unknown
+  entitlements?: unknown[]
   onFilter?: (f: { column: string; value: unknown; op: string }) => void
 }) {
   const from = (table: string) => {
@@ -35,22 +37,69 @@ function stubClient(opts: {
     chain.limit = () =>
       Promise.resolve({ data: opts.enrolments ?? [], error: opts.enrolmentError ?? null })
     chain.maybeSingle = () => Promise.resolve({ data: opts.policy ?? null, error: null })
+    // `await supabase.from('user_entitlements').select(...).eq(...)`
+    chain.then = (resolve: (v: unknown) => unknown) =>
+      Promise.resolve({ data: opts.entitlements ?? [], error: null }).then(resolve)
     void table
     return chain
   }
   return { from } as never
 }
 
+const WELSH = ['cym_n_for_eng', 'cym_s_for_eng']
+const canolfan = {
+  enrolments: [{ group_id: 'g1', free_access_until: FUTURE }],
+  policy: { org_display_name: 'National Centre for Learning Welsh', granted_courses: WELSH },
+  entitlements: [{ access_type: 'courses', granted_courses: WELSH, expires_at: FUTURE }],
+}
+
 describe('resolveOrgFreeAccess', () => {
-  it('reports the grant, with the funder named', async () => {
+  it('reports the grant, the funder, and the courses it actually covers', async () => {
+    const got = await resolveOrgFreeAccess(stubClient(canolfan), 'learner-1')
+    expect(got).toEqual({
+      groupId: 'g1',
+      orgName: 'National Centre for Learning Welsh',
+      until: FUTURE,
+      courses: WELSH,
+    })
+  })
+
+  it('THE SCOPE: a language the grant does not name is not covered', async () => {
+    const got = await resolveOrgFreeAccess(stubClient(canolfan), 'learner-1')
+    expect(got!.courses).not.toContain('spa_for_eng')
+  })
+
+  it('narrows to the intersection when the policy has moved on', async () => {
+    // The policy has since added Spanish; this learner's entitlement row, written
+    // at enrolment, has not. Quoting them a free Spanish they cannot play would
+    // wall them mid-lesson, so the narrower answer wins.
     const got = await resolveOrgFreeAccess(
       stubClient({
-        enrolments: [{ group_id: 'g1', free_access_until: FUTURE }],
-        policy: { org_display_name: 'National Centre for Learning Welsh' },
+        ...canolfan,
+        policy: { org_display_name: 'Canolfan', granted_courses: [...WELSH, 'spa_for_eng'] },
       }),
       'learner-1'
     )
-    expect(got).toEqual({ groupId: 'g1', orgName: 'National Centre for Learning Welsh', until: FUTURE })
+    expect(got!.courses).toEqual(WELSH)
+  })
+
+  it('a full-access entitlement covers everything the policy grants', async () => {
+    const got = await resolveOrgFreeAccess(
+      stubClient({ ...canolfan, entitlements: [{ access_type: 'full', granted_courses: null, expires_at: null }] }),
+      'learner-1'
+    )
+    expect(got!.courses).toEqual(WELSH)
+  })
+
+  it('an expired entitlement covers nothing, grant or no grant', async () => {
+    const got = await resolveOrgFreeAccess(
+      stubClient({
+        ...canolfan,
+        entitlements: [{ access_type: 'courses', granted_courses: WELSH, expires_at: '2020-01-01T00:00:00.000Z' }],
+      }),
+      'learner-1'
+    )
+    expect(got!.courses).toEqual([])
   })
 
   it('asks only for enrolments whose free period has not run out', async () => {
@@ -66,12 +115,13 @@ describe('resolveOrgFreeAccess', () => {
     expect(filters.map((f) => f.column)).not.toContain('cancellation_state')
   })
 
-  it('still frees the learner when the funder has no policy row', async () => {
+  it('still reports the grant when the funder has no policy row', async () => {
     const got = await resolveOrgFreeAccess(
       stubClient({ enrolments: [{ group_id: 'g1', free_access_until: FUTURE }], policy: null }),
       'learner-1'
     )
-    expect(got).toEqual({ groupId: 'g1', orgName: null, until: FUTURE })
+    // No policy = no course list = nothing suppressed. It sells as it always did.
+    expect(got).toEqual({ groupId: 'g1', orgName: null, until: FUTURE, courses: [] })
   })
 
   it('no enrolment is no grant', async () => {
@@ -101,7 +151,7 @@ describe('/api/subscription reports the grant', () => {
     }))
     vi.doMock('../_utils/familyGrace', () => ({ familyCoverEndsAt: () => null }))
     vi.doMock('../_utils/orgFreeAccess', () => ({
-      resolveOrgFreeAccess: async () => ({ groupId: 'g1', orgName: 'Canolfan', until: FUTURE }),
+      resolveOrgFreeAccess: async () => ({ groupId: 'g1', orgName: 'Canolfan', until: FUTURE, courses: ['cym_n_for_eng'] }),
     }))
     vi.doMock('@supabase/supabase-js', () => ({
       createClient: () => ({
@@ -130,7 +180,7 @@ describe('/api/subscription reports the grant', () => {
     await handler({ method: 'GET', headers: {}, query: {} } as never, res)
 
     expect(body.isSubscribed).toBe(false)
-    expect(body.freeAccess).toEqual({ groupId: 'g1', orgName: 'Canolfan', until: FUTURE })
+    expect(body.freeAccess).toEqual({ groupId: 'g1', orgName: 'Canolfan', until: FUTURE, courses: ['cym_n_for_eng'] })
     vi.doUnmock('@supabase/supabase-js')
   })
 })

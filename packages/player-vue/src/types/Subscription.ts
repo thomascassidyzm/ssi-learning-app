@@ -109,6 +109,10 @@ export interface OrgFreeAccess {
   orgName: string | null
   /** ISO timestamp the free period ends. */
   until: string
+  /** The course codes this grant covers. Suppression is PER COURSE: a premium
+   *  language outside this list is quoted the ordinary price, which is honest
+   *  (Kai, 2026-09-08). */
+  courses: string[]
 }
 
 /**

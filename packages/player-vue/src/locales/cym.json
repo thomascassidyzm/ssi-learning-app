@@ -65,8 +65,7 @@
     "forSpeakers": "i siaradwyr {lang}",
     "searchPlaceholder": "Chwiliwch am unrhyw iaith...",
     "moUnlimitedAccessAll": "£15/mis — mynediad diderfyn i bob iaith",
-    "freeUntil": "Am ddim tan",
-    "freeAlready": "Mae eich mynediad eisoes am ddim",
+    "freeThroughGroup": "Am ddim drwy eich grŵp",
     "free": "Am ddim",
     "freeForever": "Am ddim am byth"
   },
@@ -305,7 +304,9 @@
     "fixesMostAudioLoading": "Yn datrys y rhan fwyaf o broblemau sain a llwytho. Rydych chi'n aros wedi mewngofnodi.",
     "addHomeScreenFaster": "Ychwanegwch at eich sgrin gartref am fynediad cyflymach, all-lein",
     "plansFromMonth": "£15/mis am un cyfrif, £25/mis am chwech",
-    "upgrade": "Uwchraddio"
+    "upgrade": "Uwchraddio",
+    "freeThrough": "Am ddim drwy",
+    "otherLanguagesOwnSubscription": "Mae angen tanysgrifiad ei hun ar ieithoedd eraill."
   },
   "belt": {
     "yourProgress": "Dy gynnydd",

@@ -19,6 +19,7 @@ import LanguageFlag from './schools/shared/LanguageFlag.vue'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { hasTryEntitlement } from '../composables/useEntitlement'
 import { useSharedSubscription } from '../composables/useSubscription'
+import { useOrgFreeAccess } from '../composables/useOrgFreeAccess'
 import { useCheckout } from '../composables/useCheckout'
 import { canTakePayment } from '../platform/paymentRoute'
 import { useUserRole } from '../composables/useUserRole'
@@ -44,7 +45,8 @@ watch(iSpeak, (v) => {
 
 // Entitlement + subscription singletons (initialized by App.vue)
 const { entitlements: userEntitlements } = useSharedUserEntitlements()
-const { isSubscribed: hasActiveSubscription, hasFreeAccess, freeAccess } = useSharedSubscription()
+const { isSubscribed: hasActiveSubscription } = useSharedSubscription()
+const { coversCourse, coverLine, coveredCourses } = useOrgFreeAccess()
 const { platformRole } = useUserRole()
 
 // Check if user has full access to a course (not just preview)
@@ -132,25 +134,21 @@ const emit = defineEmits(['close', 'selectCourse'])
 // Signed-out users get the auth modal after choosing, then continue to Paddle.
 const { startCheckout } = useCheckout()
 // The one payment-route question (platform/paymentRoute). No route, no CTA.
-// NEVER SELL TO SOMEBODY WHOSE ACCESS IS ALREADY PAID FOR. A learner on a
-// funded org enrolment (the Canolfan free year) is a subscriber in every way
-// that matters to this screen — the price line and the Upgrade button are
-// both wrong in front of them, and the welcome pack should not have to warn
-// them to ignore it. Access itself comes from their user_entitlements row.
-const purchaseAvailable = computed(() => canTakePayment() && !hasFreeAccess.value)
-// "Free until 8 September 2027" — the same place the price used to be, so the
-// section still says what their access costs. It costs nothing.
-const freeAccessLine = computed(() => {
-  if (!hasFreeAccess.value) return ''
-  const until = freeAccess.value?.until
-  const when = until ? new Date(until) : null
-  const date = when && !Number.isNaN(when.getTime())
-    ? when.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
-    : ''
-  return date
-    ? `${t('courseSelector.freeUntil', 'Free until')} ${date}`
-    : t('courseSelector.freeAlready', 'Your access is already free')
-})
+// NEVER SELL SOMEBODY THE COURSE THEY ALREADY HAVE — and never pretend the
+// rest of the catalogue is theirs either. A funded learner's grant names
+// COURSES: Welsh is already paid for, Spanish is not. So the price and the
+// Upgrade button go only when everything premium on this screen is covered,
+// which is what a scoped picker shows a Canolfan learner; the moment a
+// language they have no grant for is in the list, the ordinary offer is the
+// honest one and it comes back (Kai, 2026-09-08). Their own rows say so for
+// themselves, one by one, below.
+const isOrgFree = (course) => coversCourse(course?.course_code)
+const allPremiumCoveredFree = computed(() =>
+  coveredCourses.value.length > 0 &&
+  premiumGroups.value.length > 0 &&
+  premiumGroups.value.every(g => g.courses.every(c => isOrgFree(c)))
+)
+const purchaseAvailable = computed(() => canTakePayment() && !allPremiumCoveredFree.value)
 function goPremium() {
   startCheckout()
   emit('close')
@@ -567,7 +565,7 @@ onMounted(() => {
             <div class="section-header section-header--premium">
               <div class="section-header__text">
                 <span class="section-header__title">{{ t('browse.premium') }}</span>
-                <span class="section-header__sub">{{ hasFreeAccess ? freeAccessLine : t('courseSelector.moUnlimitedAccessAll') }}</span>
+                <span class="section-header__sub">{{ allPremiumCoveredFree ? coverLine : t('courseSelector.moUnlimitedAccessAll') }}</span>
               </div>
               <button v-if="purchaseAvailable" class="section-header__cta" @click="goPremium()">
                 {{ t('settings.upgrade') }}
@@ -596,6 +594,12 @@ onMounted(() => {
                           <path d="M6 9l6 6 6-6" />
                         </svg>
                       </template>
+                      <!-- Already paid for by their funder, and nothing to
+                           report yet. Progress, once there is any, still wins
+                           this slot: it is what they came to see. -->
+                      <template v-else-if="isOrgFree(group.courses[0]) && !getProgress(group.courses[0].course_code)">
+                        <span class="org-free">{{ t('courseSelector.freeThroughGroup', 'Free through your group') }}</span>
+                      </template>
                       <template v-else-if="group.courses.some(c => isEnrolled(c.course_code))">
                         <span class="belt-dot" :style="{ background: getBeltColor(group.courses[0].course_code) }"></span>
                         {{ getProgress(group.courses[0].course_code) }}
@@ -618,7 +622,8 @@ onMounted(() => {
                       <LanguageFlag :code="course.course_code" :size="18" class="row-flag" />
                       <span class="row-name">{{ getVariantLabel(course) || course.display_name }}</span>
                       <span class="row-status">
-                        <template v-if="isEnrolled(course.course_code)"><span class="belt-dot" :style="{ background: getBeltColor(course.course_code) }"></span> {{ getProgress(course.course_code) }}</template>
+                        <template v-if="isOrgFree(course) && !getProgress(course.course_code)"><span class="org-free">{{ t('courseSelector.freeThroughGroup', 'Free through your group') }}</span></template>
+                        <template v-else-if="isEnrolled(course.course_code)"><span class="belt-dot" :style="{ background: getBeltColor(course.course_code) }"></span> {{ getProgress(course.course_code) }}</template>
                         <template v-else-if="isPreviewOnly(course)"><span class="try-free">{{ t('browse.tryFree') }}</span></template>
                       </span>
                     </button>
@@ -1428,6 +1433,15 @@ onMounted(() => {
 .row-status .try-free {
   color: #b8893c;
   font-weight: 700;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+}
+
+/* Already paid for by their funder. Deliberately quieter than .try-free:
+   it is a statement of fact, not an offer. */
+.row-status .org-free {
+  color: var(--text-muted);
+  font-weight: 600;
   font-family: var(--font-body);
   font-size: 0.75rem;
 }

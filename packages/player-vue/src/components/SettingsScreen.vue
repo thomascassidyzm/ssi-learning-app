@@ -14,6 +14,7 @@ import { useRouter } from 'vue-router'
 import { getLanguageName, getLanguageEndonym, setLocale, useI18n } from '../composables/useI18n'
 import { courseTargetName } from '../utils/courseDisplayName'
 import { useSharedSubscription } from '../composables/useSubscription'
+import { useOrgFreeAccess } from '../composables/useOrgFreeAccess'
 import { usePendingPurchase } from '../composables/usePendingPurchase'
 import { useFamilyModal } from '@/composables/useFamilyModal'
 import { useCheckout } from '../composables/useCheckout'
@@ -626,31 +627,29 @@ const {
   error: portalError,
   subscription,
   isSubscribed,
-  hasFreeAccess,
-  freeAccess,
   cancelSubscription,
   refresh: refreshSubscription,
 } = useSharedSubscription()
 
 // FUNDED FREE ACCESS (the Canolfan free year). Not a subscription — there is
 // no payment, no portal, nothing to cancel — but equally not somebody to sell
-// to. They get a plain statement of what they have and when it ends, in the
-// place the Upgrade row used to sit. Access to the courses themselves rides
-// on their user_entitlements row, not on this.
-const freeAccessEndsAt = computed(() => {
-  const until = freeAccess.value?.until
-  if (!until) return null
-  const when = new Date(until)
-  if (Number.isNaN(when.getTime())) return null
-  return when.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
-})
-const freeAccessLine = computed(() => {
-  const org = freeAccess.value?.orgName
-  const ends = freeAccessEndsAt.value
-  if (ends && org) return `Free until ${ends}, through ${org}`
-  if (ends) return `Free until ${ends}`
-  return t('settings.active')
-})
+// to. In the place the Upgrade row used to sit they get a plain statement of
+// WHICH languages their funder has bought and until when, because the grant
+// covers those and not the rest of the catalogue: a learner who later wants
+// Spanish should not read this line and think they already have it. Access to
+// the courses themselves rides on their user_entitlements row, not on this.
+const { coverLine: orgCoverLine, coveredCourses: orgCoveredCourses, orgName: orgFunderName } = useOrgFreeAccess()
+const showOrgFreeRow = computed(() => orgCoveredCourses.value.length > 0)
+const orgFreeLabel = computed(() =>
+  orgFunderName.value
+    ? `${t('settings.freeThrough', 'Free through')} ${orgFunderName.value}`
+    : t('settings.subscription')
+)
+const orgFreeLine = computed(() =>
+  orgCoverLine.value
+    ? `${orgCoverLine.value}. ${t('settings.otherLanguagesOwnSubscription', 'Other languages need their own subscription.')}`
+    : t('settings.active')
+)
 const portalFeedback = ref('')
 
 // This is the screen a buyer opens to check what they bought, so it is the one
@@ -2676,11 +2675,11 @@ const confirmReset = async () => {
                offering a £15 subscription to somebody whose year is already
                paid for is the whole of the defect this replaces — and to a
                nervous learner a payment prompt reads as a bill they missed. -->
-          <template v-else-if="hasFreeAccess">
+          <template v-else-if="showOrgFreeRow">
             <div class="setting-row">
               <div class="setting-info">
-                <span class="setting-label">{{ t('settings.subscription') }}</span>
-                <span class="setting-desc">{{ freeAccessLine }}</span>
+                <span class="setting-label">{{ orgFreeLabel }}</span>
+                <span class="setting-desc">{{ orgFreeLine }}</span>
               </div>
             </div>
           </template>
