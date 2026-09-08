@@ -3078,6 +3078,45 @@ COMMENT ON FUNCTION public.course_voice_pace(p_course_code text) IS 'Per-course,
 
 
 --
+-- Name: cs_session_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.cs_session_guard() RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+DECLARE
+  sid text;
+  alive boolean;
+BEGIN
+  sid := current_setting('request.jwt.claims', true)::json->>'session_id';
+  IF sid IS NULL OR sid = '' THEN
+    RETURN;
+  END IF;
+  SELECT EXISTS (SELECT 1 FROM auth.sessions s WHERE s.id = sid::uuid) INTO alive;
+  IF NOT alive THEN
+    RAISE SQLSTATE 'PT401' USING
+      message = 'Session revoked',
+      detail = 'This access token belongs to a session that has been signed out.';
+  END IF;
+EXCEPTION
+  WHEN SQLSTATE 'PT401' THEN
+    RAISE;
+  WHEN OTHERS THEN
+    -- fail open: the guard must never be the reason the API is down
+    RETURN;
+END;
+$$;
+
+
+--
+-- Name: FUNCTION cs_session_guard(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.cs_session_guard() IS 'PostgREST pre-request guard: refuses an access token whose session_id no longer exists in auth.sessions (global sign-out). Fails open on any other error. job #371.';
+
+
+--
 -- Name: current_learner_id(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -20648,6 +20687,16 @@ REVOKE ALL ON FUNCTION public.course_voice_pace(p_course_code text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.course_voice_pace(p_course_code text) TO anon;
 GRANT ALL ON FUNCTION public.course_voice_pace(p_course_code text) TO authenticated;
 GRANT ALL ON FUNCTION public.course_voice_pace(p_course_code text) TO service_role;
+
+
+--
+-- Name: FUNCTION cs_session_guard(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.cs_session_guard() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.cs_session_guard() TO anon;
+GRANT ALL ON FUNCTION public.cs_session_guard() TO authenticated;
+GRANT ALL ON FUNCTION public.cs_session_guard() TO service_role;
 
 
 --
