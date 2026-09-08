@@ -30,7 +30,16 @@ import { DEFAULT_FAST } from '../composables/useAlgorithmConfig'
 // coupling was removed on 2026-08-29 — speed no longer touches the gap at all.)
 //
 // These tests pin the invariant that actually broke: BOTH builders must bake
-// the SAME speed for the same course config and belt band.
+// the SAME speed for the same course config.
+//
+// FLIPPED 2026-09-07 (Tom's ruling of 2026-08-29, plate S-345). The BANDS
+// table below used to be belt bands — white 0.8, yellow 0.9, orange 0.95,
+// green 1.0 — and the tests asserted a cycle's speed rose with its seed. The
+// belt ramp is retired: speed is now role × mode, corrected by the pace of the
+// voice that rendered the clip, and is the SAME at seed 1 and seed 400. The
+// PARITY invariant these tests exist for is untouched and is what they still
+// assert; only the number they expect has moved. See perVoicePaceSpeed.test.ts
+// for the rule itself.
 
 const NATIVE_COURSE: TargetSpeedConfig = { globalSpeed: 1.0, nativeSpeed: true }
 /** fra_for_eng shape: voice_config.target_speed = { global_speed: 0.95 }. */
@@ -38,16 +47,21 @@ const FRENCH_COURSE: TargetSpeedConfig = { globalSpeed: 0.95, nativeSpeed: true 
 /** Legacy course recorded at a non-1.0 voice speed — ramp deliberately off. */
 const LEGACY_COURSE: TargetSpeedConfig = { globalSpeed: 0.9, nativeSpeed: false }
 
-/** One representative seed per belt band, with the speed the curve owes it. */
+/**
+ * The same seeds that used to name the four belt bands — kept deliberately, so
+ * this table now asserts the OPPOSITE of what it used to: every one of them
+ * bakes the SAME speed. An unmeasured voice on Easy is 0.8 flat, which is what
+ * a course with no pace facts gets, and that is the majority case today.
+ */
 const BANDS = [
-  { belt: 'white', seed: 1, expected: 0.8 },
-  { belt: 'white', seed: 7, expected: 0.8 },
-  { belt: 'yellow', seed: 8, expected: 0.9 },
-  { belt: 'yellow', seed: 19, expected: 0.9 },
-  { belt: 'orange', seed: 20, expected: 0.95 },
-  { belt: 'orange', seed: 39, expected: 0.95 },
-  { belt: 'green', seed: 40, expected: 1.0 },
-  { belt: 'green', seed: 400, expected: 1.0 },
+  { belt: 'was white', seed: 1, expected: 0.8 },
+  { belt: 'was white', seed: 7, expected: 0.8 },
+  { belt: 'was yellow', seed: 8, expected: 0.8 },
+  { belt: 'was yellow', seed: 19, expected: 0.8 },
+  { belt: 'was orange', seed: 20, expected: 0.8 },
+  { belt: 'was orange', seed: 39, expected: 0.8 },
+  { belt: 'was green', seed: 40, expected: 0.8 },
+  { belt: 'was green', seed: 400, expected: 0.8 },
 ] as const
 
 const T1_MS = 1400
@@ -115,7 +129,7 @@ describe('belt speed ramp — builder parity', () => {
   // must agree, cycle for cycle. Before the fix the instant column was
   // `undefined` for every band while the legacy column ran 0.8 → 1.0.
   it.each(BANDS)(
-    'both builders bake $expected× at seed $seed ($belt belt)',
+    'both builders bake $expected× at seed $seed ($belt)',
     ({ seed, expected }) => {
       const legacy = legacyCycleFor(seed, NATIVE_COURSE)
       const instant = instantCycleFor(seed, NATIVE_COURSE)
@@ -128,17 +142,26 @@ describe('belt speed ramp — builder parity', () => {
     },
   )
 
-  it('a White-belt beginner is NOT left at flat 1.0× on the instant path', () => {
+  it('a beginner is NOT left at flat 1.0× on the instant path', () => {
     // The literal symptom Kai reported: "the audio isn't being slowed down".
+    // Still the invariant — the reason has changed from belt to mode.
     const cycle = instantCycleFor(1, NATIVE_COURSE)
     expect(cycle.playbackSpeed).toBeDefined()
     expect(cycle.playbackSpeed).toBeLessThan(1.0)
   })
 
+  it('and neither is a learner at seed 400 — Easy is Easy the whole way up', () => {
+    const cycle = instantCycleFor(400, NATIVE_COURSE)
+    expect(cycle.playbackSpeed).toBe(0.8)
+  })
+
   it("honours the course's global_speed on the instant path", () => {
-    // fra_for_eng: global 0.95. White = 0.95 × 0.8 = 0.76; Green = flat 0.95.
+    // fra_for_eng shape: global 0.95 × the Easy target 0.8 = 0.76, at every
+    // seed now rather than only at white belt. The course/learner base is
+    // deliberately NOT retired with the belt ramp — it carries a per-course
+    // compensation and the learner's own Settings dial.
     expect(instantCycleFor(1, FRENCH_COURSE).playbackSpeed).toBe(0.76)
-    expect(instantCycleFor(40, FRENCH_COURSE).playbackSpeed).toBe(0.95)
+    expect(instantCycleFor(40, FRENCH_COURSE).playbackSpeed).toBe(0.76)
     expect(instantCycleFor(1, FRENCH_COURSE).playbackSpeed)
       .toBe(legacyCycleFor(1, FRENCH_COURSE).playbackSpeed)
   })
@@ -154,12 +177,13 @@ describe('belt speed ramp — builder parity', () => {
 
   it('defaults to flat 1.0× when no course config is supplied', () => {
     // Test/legacy callers that pass nothing keep the old shape — the default
-    // must stay inert, not accidentally ramp.
+    // must stay inert. `{}` has no `nativeSpeed`, so it takes the legacy guard
+    // and returns the base untouched, exactly as before.
     expect(instantCycleFor(1, {}).playbackSpeed).toBeUndefined()
     expect(computeCycleSpeed(1, {})).toBe(1.0)
   })
 
-  it('bakes the ramp on INF PLAY rounds too', () => {
+  it('bakes the same speed on INF PLAY rounds too', () => {
     const rounds = infPlayCyclesToRounds(
       [{ ...backendCycle(3), inf_round: 1 } as BackendCycle],
       100,
@@ -177,11 +201,25 @@ describe('gap model — playback speed is NOT an input', () => {
   // the time to build and say the TARGET sentence, which does not change
   // because the audio is played back slower. The gap is now
   // k × native answer duration + a reaction beat, and nothing else.
-  it('gives a White-belt and a Green-belt cycle the SAME pause', () => {
-    const white = instantCycleFor(1, NATIVE_COURSE)
-    const green = instantCycleFor(400, NATIVE_COURSE)
-    expect(white.playbackSpeed ?? 1).toBeLessThan(green.playbackSpeed ?? 1)
-    expect(white.pauseDuration).toBe(green.pauseDuration)
+  it('gives an early and a late cycle the SAME pause', () => {
+    // Since 2026-08-29 they also bake the same SPEED, so this test can no
+    // longer distinguish "the gap ignores speed" from "the speeds are equal".
+    // The assertion that still bites is the one below it and in
+    // perVoicePaceSpeed.test.ts: computePauseDuration takes no speed argument
+    // at all, so there is nothing left for a speed to influence.
+    const early = instantCycleFor(1, NATIVE_COURSE)
+    const late = instantCycleFor(400, NATIVE_COURSE)
+    expect(early.playbackSpeed ?? 1).toBe(late.playbackSpeed ?? 1)
+    expect(early.pauseDuration).toBe(late.pauseDuration)
+  })
+
+  it('gives two cycles at DIFFERENT speeds the same pause', () => {
+    // The real form of the old assertion, rebuilt on a difference that still
+    // exists: Easy and Fast bake different speeds and must share a gap model.
+    const easy = instantCycleFor(1, { ...NATIVE_COURSE, mode: 'easy' })
+    const fast = instantCycleFor(1, { ...NATIVE_COURSE, mode: 'fast' })
+    expect(easy.playbackSpeed).not.toBe(fast.playbackSpeed)
+    expect(easy.pauseDuration).toBe(fast.pauseDuration)
   })
 
   it('the runtime pause override ignores the baked speed entirely', () => {

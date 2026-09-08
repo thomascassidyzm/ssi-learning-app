@@ -469,6 +469,24 @@ export class SimplePlayer {
   private retryAttempted: boolean = false
   private retryUrl: string | null = null
   private retryIsTarget: boolean = false
+  /** Which target voice the retry buffer holds, so a retry replays at the
+   *  same rate the first attempt used. */
+  private retryTargetSlot: 1 | 2 = 1
+
+  /**
+   * The baked rate for one target slot of a cycle.
+   *
+   * target1 and target2 are different voices; since plate S-345 each may carry
+   * its own measured pace, so slot 2 reads `voice2PlaybackSpeed` when the bake
+   * produced one. Absent — every cycle built before this existed, and every
+   * course whose two target voices measure the same — falls back to
+   * `playbackSpeed`, which stays the whole truth for slot 1 and for everything
+   * else that reads a cycle's speed.
+   */
+  private targetRateFor(cycle: Cycle, slot: 1 | 2): number {
+    if (slot === 2 && typeof cycle.voice2PlaybackSpeed === 'number') return cycle.voice2PlaybackSpeed
+    return cycle.playbackSpeed ?? 1.0
+  }
   // The playGeneration that was current when the audio element's `.src` was
   // last assigned for real playback (playAudio / retryCurrentAudio /
   // startPausePhase). Lets onErrorHandler and handleAudioFailure recognise
@@ -761,6 +779,7 @@ export class SimplePlayer {
     const url = this.retryUrl
     if (!url) return
     const isTarget = this.retryIsTarget
+    const targetSlot = this.retryTargetSlot
     this.clearSafetyTimer()
     const gen = ++this.playGeneration
     this.lastAssignedSrcGen = gen
@@ -776,7 +795,7 @@ export class SimplePlayer {
     }
     let rate = 1.0
     if (isTarget && this.currentCycle) {
-      rate = this.currentCycle.playbackSpeed ?? 1.0
+      rate = this.targetRateFor(this.currentCycle, targetSlot)
     }
     this.audio.playbackRate = rate
     this.audio.play().catch((err) => {
@@ -1585,7 +1604,9 @@ export class SimplePlayer {
           const gen = this.playGeneration
           const url = await this.resolveUrl(currentCycle.target.voice2Url)
           if (gen !== this.playGeneration || this.currentCycle !== currentCycle || !this.state.isPlaying) return
-          this.playAudio(url, true)
+          // Slot 2: target2 is a DIFFERENT VOICE from target1 and may have its
+          // own baked speed (plate S-345). Absent ⇒ playbackSpeed, unchanged.
+          this.playAudio(url, true, 2)
         } else {
           if (!isSingleAudioCycle) {
             console.warn(`[SimplePlayer] No voice2 audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
@@ -1762,7 +1783,7 @@ export class SimplePlayer {
     return this.runtimeOverrides.isOfflinePlayback?.() === true && !this.isLocalUrl(url)
   }
 
-  private playAudio(url: string, isTarget = false): void {
+  private playAudio(url: string, isTarget = false, targetSlot: 1 | 2 = 1): void {
     if (this.unavailableOffline(url)) {
       const cycle = this.currentCycle
       console.warn(
@@ -1785,6 +1806,7 @@ export class SimplePlayer {
     this.retryAttempted = false
     this.retryUrl = url
     this.retryIsTarget = isTarget
+    this.retryTargetSlot = targetSlot
     this.markSelfAudioStop()
     this.audio.src = url
     // Only modulate target language audio — known language always plays at 1.0x.
@@ -1792,7 +1814,7 @@ export class SimplePlayer {
     // runtime-overrides note at the top of this file).
     let rate = 1.0
     if (isTarget && this.currentCycle) {
-      rate = this.currentCycle.playbackSpeed ?? 1.0
+      rate = this.targetRateFor(this.currentCycle, targetSlot)
     }
     // Speed >1.05× is unexpected on speaking cycles (neither Easy nor Fast
     // exceeds 1.0×) but expected on L1 ps2x and L2 pod-stage 2× plays.

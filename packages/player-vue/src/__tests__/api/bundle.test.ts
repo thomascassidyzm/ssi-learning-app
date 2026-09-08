@@ -49,6 +49,31 @@ let authUserResponse: { data: { user: { id: string } | null }; error: { message:
 }
 let rpcResponse: { data: unknown; error: unknown } = { data: null, error: null }
 
+// `course_voice_pace` is a SECOND rpc on this handler's path (plate S-345), and
+// it decides the Cache-Control the bundle ships with — so it needs its own
+// mock slot rather than sharing the cascade one. Default: pace facts present,
+// because that is the ordinary case a happy-path bundle should be asserting.
+const happyVoicePace = () => ({
+  courseCode: 'spa_for_eng_v2',
+  derivedFrom: 'public.course_voice_pace()',
+  roles: {
+    target1: {
+      primary: {
+        voiceId: 'azure_es-ES-ElviraNeural',
+        clips: 120,
+        naturalPaceRatio: 1.05,
+        naturalPaceNudge: 1,
+        effectivePaceRatio: 1.05,
+        measured: true,
+        knownVoice: true,
+      },
+      others: [],
+      totalClips: 120,
+    },
+  },
+})
+let voicePaceRpcResponse: { data: unknown; error: unknown } = { data: happyVoicePace(), error: null }
+
 function makeBuilder(table: string): unknown {
   const response = tableResponses[table] ?? { data: null, error: null }
   // bundle.ts paginates course_practice_phrases via a { count:'exact', head:true }
@@ -82,7 +107,7 @@ vi.mock('@supabase/supabase-js', () => ({
       return makeBuilder(table)
     },
     auth: { getUser: () => Promise.resolve(authUserResponse) },
-    rpc: () => Promise.resolve(rpcResponse),
+    rpc: (fn: string) => Promise.resolve(fn === 'course_voice_pace' ? voicePaceRpcResponse : rpcResponse),
   }),
 }))
 
@@ -309,6 +334,7 @@ describe('GET /api/courses/:code/bundle', () => {
     lastFilters = []
     authUserResponse = { data: { user: null }, error: null }
     rpcResponse = { data: null, error: null }
+    voicePaceRpcResponse = { data: happyVoicePace(), error: null }
   })
 
   it('returns a well-formed CourseBundle for the happy path', async () => {
@@ -446,6 +472,41 @@ describe('GET /api/courses/:code/bundle', () => {
     expect(pod.sentences[1].targetAudio.id).toBe('pod-s2-tgt')
     expect('knownAudio' in pod.sentences[1]).toBe(false)
     expect(pod.sentences[1].glueToNext).toBe(true)
+  })
+
+  // ── Per-voice pace (plate S-345) ────────────────────────────────────────
+  // The pace facts ride the bundle, and their PRESENCE decides how long the
+  // edge may keep the response. A bundle missing them must not be cached for
+  // a day, or one unlucky cold derivation punishes every learner of that
+  // course until the next day.
+  it('carries the per-voice pace facts and the full-day cache header when the derivation lands', async () => {
+    setupHappyFixture()
+    const res = makeRes()
+    await handler(makeReq({ code: 'spa_for_eng_v2' }), res as any)
+
+    expect(res._status).toBe(200)
+    expect((res._body as any).voicePace.unavailable).toBeUndefined()
+    expect((res._body as any).voicePace.roles.target1.primary.voiceId).toBe('azure_es-ES-ElviraNeural')
+    expect(res._headers['Cache-Control']).toBe(
+      'private, max-age=300, s-maxage=86400, stale-while-revalidate=86400',
+    )
+  })
+
+  it('still ships the bundle, but on a short cache, when the pace derivation fails', async () => {
+    setupHappyFixture()
+    voicePaceRpcResponse = { data: null, error: { message: 'boom' } }
+    const res = makeRes()
+    await handler(makeReq({ code: 'spa_for_eng_v2' }), res as any)
+
+    // The bundle is NOT lost — the learner plays, uncorrected, exactly as
+    // before per-voice pace existed — and the absence is explicit.
+    expect(res._status).toBe(200)
+    expect((res._body as any).legos).toHaveLength(2)
+    expect((res._body as any).voicePace.unavailable).toBe(true)
+    expect((res._body as any).voicePace.unavailableReason).toContain('boom')
+    expect(res._headers['Cache-Control']).toBe(
+      'private, max-age=60, s-maxage=300, stale-while-revalidate=300',
+    )
   })
 
   it('normalises legacy phrase roles (practice → build, eternal_eligible → use)', async () => {
@@ -593,6 +654,7 @@ describe('GET /api/courses/:code/bundle — script artifact identity', () => {
     lastFilters = []
     authUserResponse = { data: { user: null }, error: null }
     rpcResponse = { data: null, error: null }
+    voicePaceRpcResponse = { data: happyVoicePace(), error: null }
   })
 
   it('embeds the algorithm_config script_shape row and its version', async () => {
@@ -831,6 +893,7 @@ describe('GET /api/courses/:code/bundle — entitlement gating', () => {
     lastFilters = []
     authUserResponse = { data: { user: null }, error: null }
     rpcResponse = { data: null, error: null }
+    voicePaceRpcResponse = { data: happyVoicePace(), error: null }
   })
 
   it('slices a premium course down to the free-preview window for an unauthenticated caller', async () => {

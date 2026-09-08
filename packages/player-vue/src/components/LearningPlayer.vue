@@ -133,6 +133,7 @@ import { setCursorTelemetrySink } from '@ssi/core'
 import { useInstantPlayback, isBundleBootstrapEnabled, type RoundMap } from '../composables/useInstantPlayback'
 import type { CourseBundle } from '@ssi/core'
 import { getCourseBundle } from '../composables/useCourseBundle'
+import { getCourseVoicePace } from '../playback/voicePaceStore'
 import { bundleFullScriptSliced } from '../providers/bundleFullScript'
 import { backendCyclesToRounds, infPlayCyclesToRounds } from '../providers/backendCyclesToRounds'
 import { setIntroAudioTelemetrySink } from '../playback/introAudioTelemetry'
@@ -7929,10 +7930,27 @@ function currentTargetSpeedConfig(): TargetSpeedConfig {
     rampSeeds: dbSpeed?.ramp_seeds,
     rampStartSpeed: dbSpeed?.ramp_start_speed,
     beltRamp: dbSpeed?.belt_ramp ?? false,
-    // No mode term here on purpose. Listening is never slowed — not by belt,
-    // not by mode (Tom, 2026-08-16) — and the speaking side's Easy is longer
-    // thinking time and more reps, not a slower voice. Nothing in this config
-    // needs to know which mode the learner is on.
+
+    // THE MODE IS AN INPUT AGAIN, and only to the SPEAKING path (Tom,
+    // 2026-08-29, plate S-345): target language on Easy is 0.80 of the
+    // language's reference pace, on Fast 0.90. That supersedes the 2026-08-16
+    // note that stood here — which was true of the belt-ramp era, where Easy
+    // was a play-time multiplier ON TOP of the ramp and made the gentle mode
+    // sound faster than Fast. Under the new rule Easy is structurally the
+    // slower of the two for every voice.
+    //
+    // LISTENING IS UNAFFECTED: `computeListeningSpeed` never reads `mode` and
+    // never reads a belt, and nothing here changes that (Tom, 2026-08-16 —
+    // listening trains them for everyday life and is never slowed).
+    mode: learningMode.value,
+
+    // The pace of the voice that ACTUALLY RENDERED this course's clips,
+    // derived server-side and delivered on the bundle. Absent (a bundle cached
+    // before this shipped, a server-side timeout, a course whose voices have
+    // never been measured) ⇒ the mode's target pace is used UNCORRECTED, i.e.
+    // exactly what the player did before per-voice pace existed. Never 1.0
+    // standing in for "we have not looked".
+    voicePace: getCourseVoicePace(courseCode.value),
   }
 
   // Learner speed preference (from settings, stored in localStorage). A
