@@ -65,6 +65,13 @@ function mountPage(opts: { policy?: any; enrolResponse?: any; signedIn?: boolean
 
 const flush = async () => { await nextTick(); await nextTick(); await nextTick() }
 
+/** The page's action button is always the last one on screen. `Array.at` is
+ *  outside this package's TS lib target, so index the honest way. */
+function lastButton(wrapper: ReturnType<typeof mountPage>['wrapper']) {
+  const buttons = wrapper.findAll('button')
+  return buttons[buttons.length - 1]
+}
+
 beforeEach(() => {
   routeCode = 'CYM-001'
   routerPush.mockClear()
@@ -109,19 +116,19 @@ describe('the consent tick gates the button', () => {
     await wrapper.find('button').trigger('click')
     await flush()
 
-    const claim = wrapper.findAll('button').at(-1)!
+    const claim = lastButton(wrapper)
     expect(claim.attributes('disabled')).toBeDefined()
 
     // Ticking ONLY the age box does not open it.
     await wrapper.findAll('input[type="checkbox"]')[0].setValue(true)
     await flush()
-    expect(wrapper.findAll('button').at(-1)!.attributes('disabled')).toBeDefined()
+    expect(lastButton(wrapper).attributes('disabled')).toBeDefined()
     expect(posted).toHaveLength(0)
 
     // The consent box does.
     await wrapper.findAll('input[type="checkbox"]')[1].setValue(true)
     await flush()
-    expect(wrapper.findAll('button').at(-1)!.attributes('disabled')).toBeUndefined()
+    expect(lastButton(wrapper).attributes('disabled')).toBeUndefined()
   })
 
   it('sends exactly the two ticks and the code, and nothing else', async () => {
@@ -132,7 +139,7 @@ describe('the consent tick gates the button', () => {
     await wrapper.findAll('input[type="checkbox"]')[0].setValue(true)
     await wrapper.findAll('input[type="checkbox"]')[1].setValue(true)
     await flush()
-    await wrapper.findAll('button').at(-1)!.trigger('click')
+    await lastButton(wrapper).trigger('click')
     await flush()
 
     expect(posted).toHaveLength(1)
@@ -151,7 +158,7 @@ describe('the paying learner', () => {
     await flush()
     await wrapper.findAll('input[type="checkbox"]')[1].setValue(true)
     await flush()
-    await wrapper.findAll('button').at(-1)!.trigger('click')
+    await lastButton(wrapper).trigger('click')
     await flush()
     return wrapper
   }
