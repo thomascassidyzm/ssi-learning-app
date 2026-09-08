@@ -125,7 +125,7 @@
   .m-card { position: absolute; left: 5%; right: 5%; top: 22%; background: #fff;
             border-radius: 16px; padding: 1.1rem .95rem; text-align: center;
             box-shadow: 0 8px 26px rgba(0,0,0,.14); }
-  .m-lock { font-size: 30px; line-height: 1; }
+  .m-lock { width: 30px; height: 30px; display: block; margin: 0 auto; }
   .m-h { font-weight: 700; font-size: 16px; margin: .55rem 0 .3rem; }
   .m-sub { font-size: 13px; color: #5b554e; line-height: 1.45; margin: 0 0 .85rem; }
   .m-btn { background: #b2261e; color: #fff; font-weight: 700; font-size: 14px;
@@ -320,7 +320,12 @@ than a capture of a built one.</p>
       </div>
       <div class="m-hills"></div>
       <div class="m-card">
-        <div class="m-lock">🔒</div>
+        <svg class="m-lock" viewBox="0 0 24 24" fill="none" stroke="#b2261e" stroke-width="1.6"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="4" y="10.5" width="16" height="11" rx="2.5"></rect>
+          <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"></path>
+          <circle cx="12" cy="16" r="1.3" fill="#b2261e" stroke="none"></circle>
+        </svg>
         <div class="m-h">That is the free part done</div>
         <p class="m-sub">You have got through the free lessons. Keep going in the app — everything you have done comes with you.</p>
         <div class="m-btn">Get the app on Google Play</div>
