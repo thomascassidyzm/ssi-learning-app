@@ -113,41 +113,56 @@ describe('SEC0901-X-02 [SECURE-ASSERTION] — SEC29-X-02 is closed: the schema d
   })
 })
 
-describe('SEC0901-X-03 [CHARACTERIZATION] — the SEC25-D-02 residual is still open', () => {
-  // Recorded deliberately by the 2026-08-25 remediation rather than papered
-  // over: closing the NULL path left the SCOPED path open. Any signed-in user
-  // may still call `admin_practice_minutes_by_course(<uuid[]>)` with learner
-  // UUIDs they have merely seen — a SECURITY DEFINER read that bypasses RLS —
-  // and get those learners' per-course practice minutes back. It is `authenticated`
-  // rather than `anon` and it needs a known UUID, which is why it was accepted;
-  // it is not closed, and the migration says the fix is repointing the four
-  // browser callers at a server endpoint on the resolveVisibleScope pattern.
+describe('SEC0901-X-03 [SECURE-ASSERTION] — SEC25-D-02 is closed', () => {
+  // This block was a CHARACTERIZATION of an accepted residual: the 2026-08-25
+  // remediation closed the NULL (platform-wide) path of
+  // `admin_practice_minutes_by_course` with an in-body admin gate, but left the
+  // SCOPED path reachable by any signed-in user holding a learner UUID — a
+  // SECURITY DEFINER read straight past RLS. It was pinned open, deliberately,
+  // and carried the note "Red = FINDING CLOSED".
   //
-  // Goes red when EXECUTE is revoked from `authenticated` or an in-body scope
-  // check is added to the non-NULL path. Red = FINDING CLOSED.
+  // It went red on 2026-09-07 (e27d0fef), and closed is exactly what that meant.
+  // The four browser callers were repointed at a server endpoint on the
+  // resolveVisibleScope pattern and `authenticated` lost EXECUTE
+  // (supabase/migrations/20260907_practice_minutes_scope_repoint_revoke.sql,
+  // canaried live in one transaction). So the block is inverted here and kept:
+  // it now pins the CLOSED state, and goes red again if the grant comes back.
   const schema = read('supabase/schema.sql')
 
-  it('EXECUTE is still held by authenticated', () => {
-    const acl = schema
+  const aclLines = () =>
+    schema
       .split('\n')
       .filter((l) => /ON FUNCTION public\.admin_practice_minutes_by_course\(p_learner_ids uuid\[\]\)/.test(l))
-    expect(acl.some((l) => /GRANT .* TO authenticated/.test(l))).toBe(true)
+
+  it('authenticated no longer holds EXECUTE', () => {
+    expect(aclLines().some((l) => /GRANT .* TO authenticated/.test(l))).toBe(false)
   })
 
-  it('and the body gates only the NULL argument, never the supplied ids', () => {
+  it('the function is reachable by service_role alone, and PUBLIC is revoked', () => {
+    const acl = aclLines()
+    expect(acl.some((l) => /^REVOKE ALL .* FROM PUBLIC;/.test(l))).toBe(true)
+    expect(acl.some((l) => /GRANT ALL .* TO service_role;/.test(l))).toBe(true)
+    // Nothing else may hold it — anon included, which SEC0901-X-02 also pins.
+    expect(acl.some((l) => /GRANT .* TO anon/.test(l))).toBe(false)
+  })
+
+  it('the grant is what closes it — the body still gates only the NULL argument', () => {
+    // Recorded so the revoke above is understood as load-bearing rather than
+    // belt-and-braces. The scoped path has no in-body caller check; if EXECUTE
+    // is ever handed back to a browser role, the oracle reopens intact.
     const body = schema.slice(schema.indexOf('CREATE FUNCTION public.admin_practice_minutes_by_course'))
     const decl = body.slice(0, body.indexOf('$$;'))
-    // The one guard is conditioned on p_learner_ids IS NULL...
     expect(decl).toMatch(/IF\s+p_learner_ids IS NULL/)
-    // ...and nothing checks that the caller may see the ids they did supply.
     expect(decl).not.toMatch(/current_learner_id\(\)/)
     expect(decl).not.toMatch(/= any\(p_learner_ids\)[\s\S]*is_ssi_admin/)
   })
 
-  it('the residual is documented where a reader will find it', () => {
+  it('both migrations are on disk — the one that recorded the residual, and the one that closed it', () => {
     const mig = read('supabase/migrations/20260825_sec25_d02_practice_minutes_gate.sql')
     expect(mig).toContain('RESIDUAL')
     expect(mig).toContain('learner UUID they already know')
+    const close = read('supabase/migrations/20260907_practice_minutes_scope_repoint_revoke.sql')
+    expect(close).toMatch(/revoke[\s\S]*admin_practice_minutes_by_course[\s\S]*from authenticated/i)
   })
 })
 

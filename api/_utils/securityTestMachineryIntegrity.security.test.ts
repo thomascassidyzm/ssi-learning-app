@@ -100,7 +100,11 @@ const securityTestFiles = allApiFiles.filter((f) => f.endsWith('.security.test.t
 // exactly the behaviour it was written for. Do not replace it with a glob.
 describe('security-test machinery integrity — pinned roster', () => {
   // Pinned as of 2026-08-25; grown 2026-09-06 with the six sec0905 files
-  // (the 2026-09-05 audit, reconciled onto dev). A file dropping off either list — deleted,
+  // (the 2026-09-05 audit, reconciled onto dev); grown again 2026-09-08 with the
+  // three files the #317/#324 DEFINER-grant sweep brought — the self-only
+  // find_learner_by_email test (fa4269e3), the service-role-only grant test
+  // (d1e100c9), and the standing check that would have caught all eight
+  // findings (6e88db45). A file dropping off either list — deleted,
   // renamed to a non-matching suffix, or moved out of api/ — fails here.
   // Growing the list is fine (update the pin); shrinking it without a
   // corresponding entry in the area-d/area-audit report is the bug this test
@@ -127,7 +131,10 @@ describe('security-test machinery integrity — pinned roster', () => {
     'api/_utils/actAsGuard.advisory.security.test.ts',
     'api/_utils/adminPracticeMinutesAnonExposure.security.test.ts',
     'api/_utils/codeAttemptThrottle.security.test.ts',
+    'api/_utils/definerGrantStandingCheck.security.test.ts',
+    'api/_utils/definerGrantsServiceRoleOnly.security.test.ts',
     'api/_utils/definerSearchPath.security.test.ts',
+    'api/_utils/findLearnerByEmailSelfOnly.security.test.ts',
     'api/_utils/glossSegments.security.test.ts',
     'api/_utils/joinCodeEntropy.security.test.ts',
     'api/_utils/schoolSeats.security.test.ts',
