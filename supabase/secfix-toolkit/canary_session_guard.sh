@@ -86,7 +86,7 @@ echo "== 3. SMOKE through real PostgREST"
 fail=0
 code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
 c=$(code "$VITE_SUPABASE_URL/rest/v1/courses?select=course_code&limit=1" -H "apikey: $VITE_SUPABASE_ANON_KEY"); [ "$c" = 200 ] && echo "   PASS  anon reads the catalogue ($c)" || { echo "   FAIL  anon read ($c)"; fail=1; }
-c=$(code "$VITE_SUPABASE_URL/rest/v1/schools?select=id&limit=1" -H "apikey: $VITE_SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY"); [ "$c" = 200 ] && echo "   PASS  service role reads ($c)" || { echo "   FAIL  service role read ($c)"; fail=1; }
+c=$(code "$VITE_SUPABASE_URL/rest/v1/schools?select=id&limit=1" -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY"); [ "$c" = 200 ] && echo "   PASS  service role reads ($c)" || { echo "   FAIL  service role read ($c)"; fail=1; }
 # a fresh authenticated session, then the same token after a global sign-out
 PROBE=$(cd "$REPO" && node --input-type=module -e "
 import { createClient } from '@supabase/supabase-js'
