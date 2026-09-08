@@ -1,25 +1,47 @@
 /**
- * nodeTerminology — the DRESSING layer (founder ruling 2026-08-02: "orgs are
- * groups all the way down; the educational ontology stops being STRUCTURE and
- * becomes VOCABULARY").
+ * nodeTerminology — the ONE derivation of what kind of institution a node is,
+ * and the vocabulary that follows from it.
  *
- * A node home renders in one of two vocabularies:
- *   · 'neutral'   — group / group leader / learner. The DEFAULT for new orgs.
- *   · 'education' — school / teacher / class / student, layered over the SAME
- *     bones. A school IS a group whose subgroups are called classes and whose
- *     leaders are called teachers.
+ * Founder ruling 2026-08-02: "orgs are groups all the way down; the
+ * educational ontology stops being STRUCTURE and becomes VOCABULARY".
+ * Founder ruling 2026-09-08 (job #409): "ideally we will know the difference
+ * between a school and an org by the teachers and/or classes established —
+ * orgs will have groups but no teachers or classes". A class is a group that
+ * has a teacher.
  *
- * The preset is DERIVED from the data, not stored: a subtree carries the
- * education dressing iff it actually contains school DNA (a school attachment,
- * teachers or classes anywhere in the rollup, or a school above/below it in
- * the rail). Existing school-flavoured orgs therefore keep their vocabulary
- * with zero migration, and a fresh org — Cardiff Council — renders neutral
- * until the day a school genuinely exists inside it. An explicit stored
- * preset (org chooses its vocabulary before any school exists) is a known
- * follow-up, not built yet.
+ * So the KIND of a node is DERIVED FROM ITS STRUCTURE and never from a label
+ * anyone picks. There is no stored type that decides wording, no dropdown,
+ * no setup question. `groups.type` is a display word a node wears (its own
+ * name for itself — "college", "programme", "council"); it decides nothing.
+ *
+ * SUPERSEDED HISTORY, kept legible on purpose: until 2026-09-08 `schoolish()`
+ * also returned true on `label === 'school'` (label-not-type, THE-MODEL
+ * §2.1), so a node labelled "school" wore education vocabulary regardless of
+ * what it contained. Tom's ruling closes that leg: the label is now the one
+ * signal this file refuses to read.
+ *
+ * The two vocabularies:
+ *   · 'neutral'   — organisation / group / group leader / learner.
+ *   · 'education' — school / teacher / class / student, layered over the
+ *     SAME bones. A school IS a group whose subgroups are called classes and
+ *     whose leaders are called teachers.
+ *
+ * What counts as school STRUCTURE on a node:
+ *   · teachers or classes established anywhere in its rollup (Tom's rule);
+ *   · a school attachment — a `schools` row hangs off the node (`hasSchool`
+ *     / `commercial`). That row is what the schools signup door creates on
+ *     day one, before any teacher or class exists, so a school mid-setup
+ *     keeps school wording instead of reading as an org until its first
+ *     teacher arrives. It is a row, not a word anyone typed.
+ * A subtree carries the education vocabulary iff school structure exists on
+ * the node itself, on an ancestor, or on a child — a sibling org branch with
+ * groups and nothing else stays neutral (mixed subtrees).
  */
 
 export type TerminologyPreset = 'education' | 'neutral'
+
+/** What the structure says a node IS. */
+export type InstitutionKind = 'school' | 'org'
 
 /**
  * Chrome badge for a govt_admin (root group leader). 'Govt Admin' was a
@@ -33,25 +55,66 @@ export function leaderRoleLabel(_preset: TerminologyPreset = 'neutral'): string 
   return 'Group Leader'
 }
 
-function schoolish(x: unknown): boolean {
-  const n = x as { hasSchool?: boolean; commercial?: unknown; label?: string } | null
-  return !!(n && (n.hasSchool || n.commercial || n.label === 'school'))
+interface StructuralNode {
+  hasSchool?: boolean
+  commercial?: unknown
+  rollup?: { childGroupCount?: number; teacherCount?: number; classCount?: number } | null
 }
 
-/** Derive the vocabulary for a /api/groups/:id/home payload. */
-export function derivePreset(home: unknown): TerminologyPreset {
+/**
+ * Does this node carry school STRUCTURE — teachers or classes established in
+ * its subtree, or a schools row attached? Reads nothing else: not the label,
+ * not the name, not who is looking. The subtree rollup is what the home
+ * payload carries; ancestors in the map rail carry only the attachment flag,
+ * which is enough because an ancestor school makes the subtree educational
+ * either way.
+ */
+export function hasSchoolStructure(x: unknown): boolean {
+  const n = x as StructuralNode | null | undefined
+  if (!n) return false
+  if (n.hasSchool || n.commercial) return true
+  const r = n.rollup || {}
+  return (r.teacherCount ?? 0) > 0 || (r.classCount ?? 0) > 0
+}
+
+/**
+ * Is this node ITSELF a school, rather than a container whose subtree holds
+ * one? A schools row attached says yes outright. Otherwise a node with no
+ * child groups whose teachers or classes are therefore its own is a school by
+ * Tom's definition; a node with child groups and teachers somewhere beneath
+ * is a group in education dressing (a council over schools), not a school.
+ */
+export function isSchoolNode(x: unknown): boolean {
+  const n = x as StructuralNode | null | undefined
+  if (!n) return false
+  if (n.hasSchool || n.commercial) return true
+  const r = n.rollup || {}
+  const ownPeople = (r.teacherCount ?? 0) > 0 || (r.classCount ?? 0) > 0
+  return ownPeople && (r.childGroupCount ?? 0) === 0
+}
+
+/**
+ * The kind of institution a /api/groups/:id/home payload describes.
+ * 'school' when school structure exists on the node, above it or below it;
+ * 'org' when it is groups all the way down. A class home is school by
+ * definition (a class is a group that has a teacher).
+ */
+export function deriveInstitutionKind(home: unknown): InstitutionKind {
   const h = home as {
     kind?: string
-    node?: { rollup?: { teacherCount?: number; classCount?: number } } | null
+    node?: StructuralNode | null
     ancestors?: unknown[]
     children?: unknown[]
   } | null
-  if (!h?.node) return 'neutral'
-  if (h.kind === 'class') return 'education'
-  if (schoolish(h.node)) return 'education'
-  const r = h.node.rollup || {}
-  if ((r.teacherCount ?? 0) > 0 || (r.classCount ?? 0) > 0) return 'education'
-  if ((h.ancestors || []).some(schoolish)) return 'education'
-  if ((h.children || []).some(schoolish)) return 'education'
-  return 'neutral'
+  if (!h?.node) return 'org'
+  if (h.kind === 'class') return 'school'
+  if (hasSchoolStructure(h.node)) return 'school'
+  if ((h.ancestors || []).some(hasSchoolStructure)) return 'school'
+  if ((h.children || []).some(hasSchoolStructure)) return 'school'
+  return 'org'
+}
+
+/** The vocabulary a node home renders in — follows from the derived kind. */
+export function derivePreset(home: unknown): TerminologyPreset {
+  return deriveInstitutionKind(home) === 'school' ? 'education' : 'neutral'
 }
