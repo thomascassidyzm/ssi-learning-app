@@ -2600,6 +2600,8 @@
         "showMe": "Show me — {title}"
       },
       "waysInLedger": {
+        "copyCourse": "Copy {course}",
+        "copyCourseLinkTitle": "Copy a sign-up link that lands the learner in {course}",
         "allRoles": "All roles",
         "alreadyHasAccountSentCode": "{email} already has an account, so we sent a sign-in code rather than a link. Copy the link and send it if they need the one-click way in.",
         "anyoneJoinsAs": "Anyone — joins as {role}",

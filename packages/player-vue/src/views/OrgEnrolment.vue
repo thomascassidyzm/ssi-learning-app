@@ -27,6 +27,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { sendSignInCode } from '../auth/sendSignInCode'
 import { getLanguageName, t } from '../composables/useI18n'
 import { extractBaseLanguage } from '../utils/variantFlag'
+import { resolveHintedCourse } from './orgEnrolmentCourseHint'
 
 type Step = 'loading' | 'invalid' | 'intro' | 'email' | 'otp' | 'terms' | 'submitting' | 'done'
 
@@ -44,6 +45,11 @@ const askAgeBand = ref(true)
 const ageBandLabel = ref('I am aged 16 to 24')
 const freeMonths = ref(12)
 const grantedCourses = ref<string[]>([])
+// The dialect the LINK asked for, read once at mount and held here rather
+// than re-read from the route — the sign-in detour rewrites nothing today,
+// but a hint that survives whatever the router does later is one less way for
+// a learner to end up in the wrong Welsh. See orgEnrolmentCourseHint.ts.
+const courseHint = ref('')
 
 const email = ref('')
 const otp = ref('')
@@ -110,6 +116,7 @@ function normalise(v: string): string {
 
 onMounted(async () => {
   code.value = normalise(String(route.params.code || route.query.code || ''))
+  courseHint.value = String(route.query.course || '')
   if (!code.value) {
     step.value = 'invalid'
     error.value = t('enrol.errorNoCode')
@@ -236,6 +243,9 @@ const cancelNotice = computed(() => {
  * first-ever visit through an enrolment link is exactly that visitor. Kai hit
  * it on staging on 2026-09-08.
  *
+ * A link minted for one dialect says so in its own query string, and that
+ * settles it — the North Wales tutor's class never sees the question.
+ *
  * One granted course means there is nothing to choose, so we go straight in.
  * Two — North and South Welsh — is a choice only the learner can make, so the
  * course picker opens instead of us guessing a dialect at them, scoped to the
@@ -244,6 +254,14 @@ const cancelNotice = computed(() => {
  */
 function start(): void {
   const courses = grantedCourses.value
+  // The link named a dialect, and it is one this policy actually grants —
+  // straight in, no picker. A hint for anything else is dropped rather than
+  // honoured, so the query string can never widen the free year.
+  const hinted = resolveHintedCourse(courseHint.value, courses)
+  if (hinted) {
+    router.push({ path: '/', query: { course: hinted } })
+    return
+  }
   if (courses.length === 1) {
     router.push({ path: '/', query: { course: courses[0] } })
     return

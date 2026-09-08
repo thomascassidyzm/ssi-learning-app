@@ -349,6 +349,32 @@ export default async function handler(
         signins = tallyPersonalSignins((attempts || []) as any)
       }
 
+      // ─── Enrolment links are a different door ───
+      //
+      // A student code minted for a FUNDED COHORT (api/admin/org-enrolment-
+      // setup.ts) is redeemed at /enrol/<code>, not /redeem/<code>: that page
+      // is where the consent statement, the age tick and the free year live,
+      // and /redeem skips all three. Before this, the ledger printed the
+      // /redeem URL for those codes, so a leader copying the link out of the
+      // ledger handed out a door that walked straight past the record we are
+      // legally keeping.
+      //
+      // Recognition is by the POLICY, not by the code's metadata: the policy
+      // row is what makes a group a funded cohort, and a code minted by an
+      // older tool or edited by hand still points at one. The same read hands
+      // us `granted_courses`, which is what a per-dialect link is allowed to
+      // name — see the DIALECT LINKS note on the response below.
+      const enrolmentCourses = new Map<string, string[]>()
+      if (subtree.groupIds.length) {
+        const { data: policies } = await supabase
+          .from('org_enrolment_policies')
+          .select('group_id, granted_courses, is_active')
+          .in('group_id', subtree.groupIds)
+        for (const p of (policies || []) as any[]) {
+          if (p.is_active) enrolmentCourses.set(p.group_id, p.granted_courses ?? [])
+        }
+      }
+
       // Resolve creator display names in one query (auth uids → learners).
       const creatorIds = [...new Set((codeRows || []).map((r: any) => r.created_by).filter(Boolean))]
       const creatorName = new Map<string, string>()
@@ -404,6 +430,10 @@ export default async function handler(
           const expired = !!row.expires_at && new Date(row.expires_at).getTime() <= now
           const status = !row.is_active ? 'revoked' : expired ? 'expired' : exhausted ? 'exhausted' : 'active'
           const isPersonal = !!row.metadata?.personal_auth_user_id
+          // A shareable student code on a group that runs a funded cohort.
+          // Personal links and class/school-scoped codes are never that door.
+          const isEnrolment =
+            role === 'student' && !isPersonal && !!row.grants_group_id && enrolmentCourses.has(row.grants_group_id)
           return {
             role,
             species: isPersonal ? 'personal' : 'shareable',
@@ -412,7 +442,18 @@ export default async function handler(
             // ledger's "resend" affordance keys off it.
             personalEmail: row.metadata?.personal_email ?? null,
             code: row.code,
-            url: `${origin}/${redeemPathForRole(role)}/${row.code}`,
+            url: isEnrolment
+              ? `${origin}/enrol/${row.code}`
+              : `${origin}/${redeemPathForRole(role)}/${row.code}`,
+            // DIALECT LINKS. When a cohort's policy grants more than one
+            // course — the Canolfan grants North and South Welsh — the leader
+            // can hand out a link per dialect, and the courses travel here so
+            // the ledger can offer one copy verb each. The link is the same
+            // code with `?course=` on it: same cohort, same enrolment record,
+            // one fewer question for a class that already knows its answer.
+            // The learner-side rule is that the hint must BE one of these, so
+            // this list is the whole of what a link is allowed to say.
+            ...(isEnrolment ? { enrolmentCourses: enrolmentCourses.get(row.grants_group_id) ?? [] } : {}),
             where,
             uses: usesForLink(row, isPersonal, signins),
             status,
@@ -440,7 +481,7 @@ export default async function handler(
       const ownSchoolId = await ownSchoolIdForNode(supabase, groupId)
       let query = supabase
         .from('invite_codes')
-        .select('code, code_type, metadata, max_uses, use_count, expires_at, created_at')
+        .select('code, code_type, metadata, max_uses, use_count, expires_at, created_at, grants_group_id')
         .eq('is_active', true)
         .order('created_at', { ascending: false })
       query = ownSchoolId
@@ -449,14 +490,33 @@ export default async function handler(
       const { data, error } = await query
       if (error) throw error
 
+      // The same enrolment-door rule the ledger applies above: a shareable
+      // student code on a group that runs a funded cohort is redeemed at
+      // /enrol/<code>, where the consent and the free year are recorded.
+      const { data: ownPolicy } = await supabase
+        .from('org_enrolment_policies')
+        .select('granted_courses, is_active')
+        .eq('group_id', groupId)
+        .maybeSingle()
+      const enrolmentGroupCourses: string[] | null =
+        ownPolicy && (ownPolicy as any).is_active ? ((ownPolicy as any).granted_courses ?? []) : null
+
       const origin = getAppOrigin(req)
       const links = (data || [])
         .map((row: any) => {
           const role = ROLE_BY_CODE_TYPE[row.code_type as string]
           if (!role) return null
+          const isEnrolment =
+            role === 'student' &&
+            !row.metadata?.personal_auth_user_id &&
+            row.grants_group_id === groupId &&
+            enrolmentGroupCourses !== null
           return {
             role,
-            url: `${origin}/${redeemPathForRole(role)}/${row.code}`,
+            url: isEnrolment
+              ? `${origin}/enrol/${row.code}`
+              : `${origin}/${redeemPathForRole(role)}/${row.code}`,
+            ...(isEnrolment ? { enrolmentCourses: enrolmentGroupCourses } : {}),
             code: row.code,
             limits: { max_uses: row.max_uses, expires_at: row.expires_at },
             useCount: row.use_count,
