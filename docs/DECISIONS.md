@@ -1,3 +1,36 @@
+## 2026-09-08 — The 30-day grace: a family member's cover outlives the plan name (job #402)
+
+Tom's ruling, superseding #376·F **D8** ("no grace discount, the end-of-period window is the
+grace"). His family identity model of 01:50 that morning says the opposite and it wins: *full
+access continues to the end of the paid period, plus 30 days, applied to every member
+individually*. #397·F had found the build honouring the older rule — the moment the renewal webhook
+wrote `plan_name = 'SSi Premium'`, `familyAccess.ts` stopped returning the owner's row for every
+member, with no tail at all.
+
+- **The cutoff is derived from one date already on the row, not stored a second time.**
+  `scheduled_plan_at` is the end of the paid Family period, written by `change-plan` when the owner
+  confirms. The webhook now clears only `scheduled_plan_NAME` when it applies the change and
+  **keeps the date**, so after the flip that column reads as "when Family cover ended".
+  `api/_utils/familyGrace.ts` adds the 30 days — once, in one function. The alternative, a second
+  `family_ended_at` column, would have been a second date to keep in step with the first for no new
+  information; the alternative of inferring the date from the new billing period would have been
+  wrong for an annual plan and for any missed webhook.
+- **`scheduled_plan_name` alone now says whether a change is pending.** Every existing test of
+  "is something scheduled?" already read the name, so nothing had to change — but it is now the
+  rule rather than a coincidence, and the column comments say so.
+- **The resolver stopped filtering on the plan name and started reading it.** The `.eq('plan_name',
+  'SSi Family')` predicate WAS the cliff. The owner's row is fetched on `status = 'active'`, and
+  the plan name decides which branch runs: live family, or the grace tail.
+- **One computed date, everywhere.** `resolveEffectiveSubscription` returns `coverEndsAt` and
+  everything downstream states that: `/api/subscription`'s `familyEndsAt` for a member,
+  `familyCoverEndsAt` for the owner before and after they confirm, `/api/family`'s two dates
+  (`planChangesAt` and `familyEndsAt`), the confirm dialog, the family page and the member email.
+  Nothing but `familyGrace.ts` adds days to anything.
+- **A cancellation gets no grace, deliberately.** A downgrade leaves the owner paying and displaces
+  other people; a cancellation ends everything for everybody at the paid period, and there is
+  nobody left paying to hang a tail on. The family page says so in its own sentence rather than
+  borrowing the downgrade's.
+
 ## 2026-09-08 — Family to Premium: built as designed, and the calls the build had to make (job #383·F)
 
 Built from the #376·F record (D1–D9) on fable, as Tom asked: "Fable needs to execute it as well - it's

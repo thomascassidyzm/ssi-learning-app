@@ -737,11 +737,19 @@ function fillLine(key: string, vars: Record<string, string>): string {
   for (const [k, v] of Object.entries(vars)) out = out.split(`{${k}}`).join(v)
   return out
 }
+// WHEN THE PEOPLE ON THE PLAN STOP BEING COVERED — the paid period plus the
+// 30-day grace (Tom, 2026-09-08). The server computes it (familyGrace.ts) and
+// sends it as familyCoverEndsAt, before the change is confirmed as well as
+// after, so no screen here ever adds 30 days to anything itself.
+const familyCoverEndsAt = computed(() => subscription.value?.familyCoverEndsAt ?? null)
 const premiumDowngradeRowLine = computed(() =>
-  fillLine('settings.changeToPremiumDesc', { price: premiumPriceLabel.value, date: shortDate(subscription.value?.currentPeriodEnd) }),
+  fillLine('settings.changeToPremiumDesc', { price: premiumPriceLabel.value, date: shortDate(familyCoverEndsAt.value) }),
 )
 const premiumChangeScheduledLine = computed(() =>
-  fillLine('settings.changeToPremiumScheduled', { date: shortDate(premiumChangeAt.value) }),
+  fillLine('settings.changeToPremiumScheduled', {
+    date: shortDate(premiumChangeAt.value),
+    coverDate: shortDate(familyCoverEndsAt.value),
+  }),
 )
 const showPremiumDowngradeConfirm = ref(false)
 async function openPremiumDowngradeConfirm() {
@@ -776,9 +784,10 @@ function joinNames(names: string[]): string {
 }
 const downgradeSentence = computed(() => {
   const date = shortDate(subscription.value?.currentPeriodEnd)
+  const coverDate = shortDate(familyCoverEndsAt.value)
   const names = downgradeLiveMembers.value.map(familyMemberLabel)
   return names.length
-    ? fillLine('settings.changeToPremiumWho', { date, names: joinNames(names), price: premiumPriceLabel.value })
+    ? fillLine('settings.changeToPremiumWho', { date, coverDate, names: joinNames(names), price: premiumPriceLabel.value })
     : fillLine('settings.changeToPremiumAlone', { date, price: premiumPriceLabel.value })
 })
 const downgradeConfirmLabel = computed(() =>

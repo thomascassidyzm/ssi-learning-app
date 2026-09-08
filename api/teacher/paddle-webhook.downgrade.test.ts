@@ -190,7 +190,7 @@ describe('paddle-webhook: Family → Premium plan change, held for the period en
     expect(w[0].payload).not.toHaveProperty('scheduled_plan_name')
   })
 
-  it('THE FLIP: the renewal whose period starts at scheduled_plan_at writes SSi Premium and clears the schedule', async () => {
+  it('THE FLIP: the renewal whose period starts at scheduled_plan_at writes SSi Premium, clears the NAME and keeps the DATE', async () => {
     responders.subscriptions = familyRowWithSchedule()
     currentEvent = subscriptionEvent({
       priceId: PREMIUM_PRICE,
@@ -210,8 +210,14 @@ describe('paddle-webhook: Family → Premium plan change, held for the period en
       status: 'active',
       current_period_end: '2026-11-07T23:41:26.033896Z',
       scheduled_plan_name: null,
-      scheduled_plan_at: null,
     })
+    // THE DATE STAYS (Tom's 30-day grace, 2026-09-08). It is the record of when
+    // the paid Family period ended, and familyAccess.ts adds 30 days to it to
+    // keep every member covered. Clearing it here — as this webhook used to —
+    // leaves nothing on the row to derive the tail from, and the family goes
+    // dark the instant this write lands.
+    expect(w[0].payload).not.toHaveProperty('scheduled_plan_at', null)
+    expect(w[0].payload.scheduled_plan_at).toBeUndefined()
   })
 
   it('a hand swap in the Paddle dashboard, with no schedule, flips at once (accepted, D3)', async () => {
