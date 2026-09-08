@@ -59,6 +59,26 @@ describe('month windows', () => {
     expect(nextDay.toISOString().slice(0, 10)).toBe(may.from)
   })
 
+  it('FAILURE MODE: a month export that spills into the months either side of it', () => {
+    // The same learner plays on the last day of August, twice in September,
+    // and on the first day of October. September must see exactly the two
+    // September days — no leak forward, no leak back.
+    const roster = [learner('a', { reporting_from: '2026-01-01', enrolled_on: '2026-01-01' })]
+    const ledger = [
+      day('a', 'cym_s_for_eng', '2026-08-31', 100),
+      day('a', 'cym_s_for_eng', '2026-09-01', 7),
+      day('a', 'cym_s_for_eng', '2026-09-30', 5),
+      day('a', 'cym_s_for_eng', '2026-10-01', 100),
+    ]
+    const sept = secondsByLearner(ledger, roster, monthWindow('2026-09'), WELSH).seconds.get('a')
+    expect(sept).toBe(12 * 60)
+    // And every month's figure summed back over the four months recovers the
+    // whole: nothing counted twice, nothing lost between windows.
+    const months = ['2026-08', '2026-09', '2026-10']
+      .map((m) => secondsByLearner(ledger, roster, monthWindow(m), WELSH).seconds.get('a') ?? 0)
+    expect(months.reduce((x, y) => x + y, 0)).toBe(212 * 60)
+  })
+
   it('gets February right in a leap year and in an ordinary one', () => {
     expect(monthWindow('2028-02').to).toBe('2028-02-29')
     expect(monthWindow('2026-02').to).toBe('2026-02-28')

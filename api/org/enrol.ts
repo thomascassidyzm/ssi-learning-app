@@ -41,6 +41,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { applyCors } from '../_utils/cors'
 import { verifyAuthToken } from '../_utils/auth'
 import { affiliateToGroupNode } from '../_utils/groupAffiliation'
+import { getClientIp, hashIp, isIpOverLimit, logAttempt, PER_IP_LIMIT } from '../_utils/codeAttemptThrottle'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -85,13 +86,65 @@ export function rootOfPath(path: string | null | undefined, fallbackId: string):
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
-  if (applyCors(req, res, { methods: 'POST' })) return
-  if (req.method !== 'POST') {
+  if (applyCors(req, res, { methods: 'GET,POST' })) return
+  if (req.method !== 'GET' && req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' })
     return
   }
   if (!supabaseUrl || !supabaseServiceKey) {
     res.status(500).json({ error: 'Server configuration error' })
+    return
+  }
+
+  // ── GET: what does this link's enrolment step SAY? ──────────────────────
+  //
+  // The page needs the org's name, the consent sentence and the age question
+  // before anybody is signed in — a learner arriving from the Canolfan should
+  // read what they are agreeing to before creating an account. Public, and
+  // therefore carrying the SAME per-IP limiter as api/code/validate.ts, since
+  // any public code lookup is an enumeration oracle if it is not throttled.
+  if (req.method === 'GET') {
+    const svc = createClient(supabaseUrl, supabaseServiceKey)
+    const code = normalizeCode(String(req.query.code || ''))
+    const ipHash = hashIp(getClientIp(req))
+    if (!code) {
+      res.status(400).json({ error: 'code is required' })
+      return
+    }
+    if (await isIpOverLimit(svc, ipHash, PER_IP_LIMIT)) {
+      res.status(429).json({ error: 'Too many attempts. Please try again later.' })
+      return
+    }
+    const { data: inv } = await svc
+      .from('invite_codes')
+      .select('grants_group_id, is_active, expires_at')
+      .eq('code_normalized', code)
+      .maybeSingle()
+    const ok = !!inv && (inv as any).is_active && (inv as any).grants_group_id &&
+      (!(inv as any).expires_at || new Date((inv as any).expires_at) > new Date())
+    await logAttempt(svc, 'org-enrol-policy', { ipHash, outcome: ok ? 'valid' : 'invalid' })
+    if (!ok) {
+      res.status(200).json({ found: false })
+      return
+    }
+    const { data: pol } = await svc
+      .from('org_enrolment_policies')
+      .select('group_id, org_display_name, consent_statement, consent_version, ask_age_band, age_band_label, free_months, is_active')
+      .eq('group_id', (inv as any).grants_group_id)
+      .maybeSingle()
+    if (!pol || !(pol as any).is_active) {
+      res.status(200).json({ found: false })
+      return
+    }
+    const p = pol as any
+    res.status(200).json({
+      found: true,
+      orgName: p.org_display_name,
+      consentStatement: p.consent_statement,
+      askAgeBand: p.ask_age_band,
+      ageBandLabel: p.age_band_label,
+      freeMonths: p.free_months,
+    })
     return
   }
 
