@@ -6,6 +6,7 @@
 <title>Welcome Pack &middot; Pecyn Croeso &mdash; Say Something in Welsh</title>
 <meta name="description" content="Welcome Pack / Pecyn Croeso — Say Something in Welsh, free for a year to learners of the Ganolfan Dysgu Cymraeg Genedlaethol.">
 <meta name="robots" content="noindex">
+<script>document.documentElement.className='js'</script>
 <style>
 /* Everything is inline on purpose. No web fonts, no CDN, no scripts from
    anywhere else: on a weak signal a third-party stylesheet can hang forever
@@ -14,6 +15,7 @@
   --ink:#1b1a18; --ink-soft:#4a4741; --paper:#f4f1ec; --card:#ffffff;
   --red:#b5312c; --green-bg:#e8f0e4; --green-ink:#2c4a24; --line:#ddd7ce;
   --amber-bg:#fdf2dc; --amber-ink:#6b4c05;
+  --cy-bg:#edf2e9; --cy-rule:#7d9b6a; --cy-label:#3d5a2e;
 }
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
@@ -36,21 +38,78 @@ a{color:var(--red)}
 .masthead{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px 20px;margin-top:18px}
 .masthead .kicker{font-size:.82rem;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-soft);margin:0}
 .masthead h1{margin:.3rem 0 .2rem}
-.masthead .cy-title{font-size:1.3rem;color:var(--ink-soft);margin:0 0 .1rem}
 .masthead .sub{font-size:1.05rem;color:var(--ink-soft);margin:0 0 .6rem}
 .free{background:var(--green-bg);color:var(--green-ink);border-radius:12px;padding:14px 16px;font-weight:700;margin:.9rem 0 0}
 .free .cy{display:block;font-weight:400;margin-top:.35rem}
 .free .cy::before{content:none}
-/* --- language blocks ---------------------------------------------------
-   ENGLISH FIRST, WELSH SECOND, everywhere. This pack goes to people who are
-   LEARNING Welsh, often in their first weeks: a wall of Welsh at the top of
-   the page is a reason to close it. The Welsh stays — it is a Welsh course
-   and a Welsh centre — but the English is what meets them. */
+/* --- the two languages -------------------------------------------------
+   THE PROBLEM, in Kai’s words: Welsh first and shown no less favourably is
+   the standard a Welsh-language centre is held to — but these readers are
+   people LEARNING Welsh, often nervous, so the English has to be the thing
+   that is obvious; and the doubled text made every page look twice as long
+   as it is, which is its own reason to give up.
+
+   Three answers, one to each part of it.
+
+   1. THE WELSH LEADS EVERY TITLE. Masthead, contents, every step, every
+      caption: the Welsh comes first and at the SAME SIZE as the English.
+      What differs is weight, not prominence — the English is the bold line
+      the eye lands on. Order is where the norm is judged, and Welsh has it.
+   2. THE WELSH BODY WAITS BEHIND ITS OWN INVITATION — one control per block,
+      labelled in Welsh, rather than one switch at the top. An offer made at
+      the moment a learner has just read the step and feels able. That, and
+      not cutting a single word, is what halves the apparent length.
+   3. IT OPENS ONTO ITS OWN GROUND. Tinted panel, green rule, CYMRAEG over
+      it, so the eye reads “the same thing in Welsh” and skips it without
+      having to parse it as more instructions.
+
+   None of it touches paper: @media print opens every panel, hides every
+   control, and the printed pack carries both languages in full. Only
+   div.cy is a panel; the short inline span.cy lines are always visible. */
 .en{}
-.cy{color:var(--ink-soft)}
-.cy :is(h2,h3){color:var(--ink-soft);font-weight:600}
-.cy::before{content:"Cymraeg";display:block;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:#8d867c;margin:1.1rem 0 .25rem}
-body.en-only .cy{display:none}
+div.cy{
+  background:var(--cy-bg);border-left:5px solid var(--cy-rule);
+  border-radius:0 12px 12px 0;padding:12px 16px 14px;margin:1.1rem 0;
+  color:var(--ink);   /* same size, same darkness — no less favourably */
+}
+div.cy::before{content:"Cymraeg";display:block;font-size:.72rem;letter-spacing:.1em;
+  text-transform:uppercase;font-weight:700;color:var(--cy-label);margin:0 0 .35rem}
+div.cy>:first-child{margin-top:0}
+div.cy>:last-child{margin-bottom:0}
+.xref .cy{color:var(--ink-soft)}
+/* The invitation. The script puts one of these before every Welsh panel, so
+   WITHOUT JS nothing is hidden and no button appears: the pack degrades to
+   both languages in full, never to English alone. */
+.cy-open{display:flex;align-items:center;gap:.6rem;width:100%;text-align:left;font:inherit;
+  font-size:.95rem;line-height:1.35;color:var(--cy-label);background:var(--cy-bg);
+  border:1px solid var(--cy-rule);border-radius:12px;padding:11px 16px;margin:1.1rem 0 .45rem;
+  min-height:48px;cursor:pointer}
+.cy-open .txt{flex:1}
+.cy-open .plus{flex:0 0 auto;font-weight:700;font-size:1.25rem;line-height:1}
+.gloss{color:var(--ink-soft);font-weight:400}
+div.cy.open{margin-top:0}
+@media screen{
+  html.js div.cy{display:none}
+  html.js div.cy.open{display:block}
+  html:not(.js) .toggle{display:none}
+}
+/* Inside a coloured callout the green would fight the amber, so the panel
+   keeps its shape and borrows the callout’s ink instead. */
+.stuck .cy,.note .cy,.stuck .cy-open,.note .cy-open{background:rgba(255,255,255,.6);color:inherit}
+.stuck .cy,.stuck .cy-open{border-color:#c3a463;border-left-color:#c3a463}
+.note .cy,.note .cy-open{border-color:#d3a19e;border-left-color:var(--red)}
+.stuck .cy::before,.note .cy::before{color:inherit;opacity:.7}
+/* --- title pairs: Welsh first, English bold, both the same size -------- */
+.ttl{margin:0 0 .6rem}
+.ttl .cy-t{display:block;font-weight:400;color:var(--ink-soft)}
+.ttl .en-t{display:block;font-weight:700;color:var(--ink)}
+.ttl .paren{font-weight:400}
+h1.ttl{font-size:2rem;line-height:1.2;margin:.3rem 0 .3rem}
+h2.ttl{font-size:1.5rem;line-height:1.25;margin:0 0 .6rem}
+h3.ttl{font-size:1.12rem;line-height:1.3;margin:1.4rem 0 .4rem}
+/* --- short bilingual labels on one line: contents, captions ------------ */
+.cy-i{color:var(--ink-soft);font-weight:400}
+.en-i{color:var(--ink);font-weight:600}
 /* --- sheets ------------------------------------------------------------
    A sheet is ONE PAGE of the printed pack. Nothing runs over a fold: if a
    sheet is short the next one still starts fresh, because a step split down
@@ -61,10 +120,6 @@ body.en-only .cy{display:none}
 figure{margin:1.1rem 0 .4rem;text-align:center}
 figure img{width:100%;max-width:300px;height:auto;border:1px solid var(--line);border-radius:14px;display:block;margin:0 auto;background:#fff}
 figcaption{font-size:.86rem;color:var(--ink-soft);margin-top:.5rem;line-height:1.45}
-.pairhead{margin:1.6rem 0 .4rem}
-.pairhead .paren{font-weight:400}
-.pairhead .alt{display:block;font-size:.86em;font-weight:500;color:var(--ink-soft)}
-body.en-only .pairhead .alt{display:none}
 .shots{display:flex;flex-wrap:wrap;gap:14px;justify-content:center}
 .shots figure{flex:1 1 210px;max-width:250px;margin:.4rem 0}
 .shots figure img{max-width:100%}
@@ -72,15 +127,15 @@ body.en-only .pairhead .alt{display:none}
 .toc ol{list-style:none;padding-left:0;margin:.6rem 0 0}
 .toc li{margin:0;border-bottom:1px solid var(--line)}
 .toc li:last-child{border-bottom:0}
-.toc a{display:block;padding:.55rem .2rem;text-decoration:none;color:var(--ink)}
-.toc a .n{display:inline-block;min-width:2.1rem;color:var(--red);font-weight:700}
-.toc a .cyname{color:var(--ink-soft);font-weight:400}
-body.en-only .toc a .cyname{display:none}
+/* Two lines, Welsh over English — the same shape as every other title here.
+   One long line carrying both languages wrapped into a muddle. */
+.toc a{display:flex;gap:.5rem;padding:.55rem .2rem;text-decoration:none;color:var(--ink)}
+.toc a .n{flex:0 0 1.7rem;color:var(--red);font-weight:700}
+.toc a .lbl{flex:1}
+.toc .cy-i,.toc .en-i{display:block;line-height:1.35}
 /* --- callouts ---------------------------------------------------------- */
 .stuck{background:var(--amber-bg);color:var(--amber-ink);border-radius:14px;padding:16px 18px;margin:1.1rem 0}
 .stuck h3{margin-top:0;color:inherit}
-.stuck .cy::before{color:#9a7d3a}
-.stuck .cy{color:#7a5c15}
 .note{background:#f6f2ea;border-left:5px solid var(--red);border-radius:0 12px 12px 0;padding:14px 16px;margin:1.1rem 0}
 .btnname{font-weight:700;background:#f0ece4;border-radius:7px;padding:.05rem .38rem;white-space:nowrap}
 /* --- q and a ----------------------------------------------------------- */
@@ -91,8 +146,11 @@ body.en-only .toc a .cyname{display:none}
 .xref{font-size:.9rem;color:var(--ink-soft);margin:.9rem 0 0;line-height:1.5}
 .xref .cy{display:block;margin-top:.25rem}
 .xref .cy::before{content:none}
-.toggle button{font:inherit;font-size:1rem;font-weight:600;background:var(--card);color:var(--ink);
-  border:1px solid var(--line);border-radius:999px;padding:12px 22px;min-height:48px;cursor:pointer}
+.toggle button{font:inherit;font-size:.95rem;font-weight:600;background:var(--card);color:var(--ink);
+  border:1px solid var(--line);border-radius:999px;padding:10px 20px;min-height:48px;cursor:pointer}
+.toggle button .gloss{font-size:.86em}
+/* the sticky bar must not sit on top of the heading a contents link lands on */
+.sheet{scroll-margin-top:76px}
 footer .build{display:block;margin-top:.4rem;font-size:.8rem;opacity:.75}
 footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;line-height:1.6}
 /* --- print ------------------------------------------------------------- */
@@ -102,7 +160,10 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
      screen held against the page. Everything below serves those two things. */
   @page{size:A4 portrait;margin:14mm 14mm 18mm}
   body{background:#fff;color:#000;font-size:12pt;line-height:1.5;padding:0}
-  body.en-only .cy{display:block}          /* the paper copy always carries both */
+  /* THE PAPER COPY ALWAYS CARRIES BOTH, in full. Nobody can tap a printed
+     page, so every Welsh panel is open here and every control is gone. */
+  .cy-open{display:none}
+  div.cy{display:block}
   .wrap{max-width:none;padding:0}
   .toggle,.screen-only{display:none}
   .print-only{display:block}
@@ -135,10 +196,21 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
   .qa .q{break-after:avoid;page-break-after:avoid}
   .shotgroup{break-inside:avoid;page-break-inside:avoid}
   :is(h1,h2,h3){break-after:avoid;page-break-after:avoid}
-  body.en-only .pairhead .alt{display:block}
   .free{background:#fff;border:1px solid #6d8a5f;color:#2c4a24}
-  .cy{color:#333}
-  .cy::before{color:#666}
+  /* The Welsh keeps its own ground on paper too — same size, same black
+     ink, a tint and a rule so the eye can skip it or read it at will. */
+  div.cy{background:#f1f4ee;border:none;border-left:1.5mm solid #6d8a5f;color:#000;
+    border-radius:0 3mm 3mm 0;padding:4mm 5mm;margin:4mm 0;
+    break-inside:avoid;page-break-inside:avoid}
+  div.cy::before{color:#3d5a2e;margin-bottom:1.5mm}
+  .stuck .cy,.note .cy{background:#fff;border-left-color:#8a8378}
+  .ttl .cy-t{color:#333}
+  .cy-i{color:#444}
+  .en-i{color:#000}
+  h1.ttl{font-size:26pt}
+  h2.ttl{font-size:16pt;margin:0 0 2mm}
+  h3.ttl{font-size:12.5pt;margin:5mm 0 1.5mm}
+  .ttl{break-after:avoid;page-break-after:avoid}
   .btnname{background:#eee9e0;border:1px solid #cfc8bc}
   a{color:#000;text-decoration:none}
   .toc a{padding:1.6mm .2rem}
@@ -152,8 +224,7 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
 
 <header class="masthead">
   <p class="kicker">Y Ganolfan Dysgu Cymraeg Genedlaethol</p>
-  <h1>Welcome Pack</h1>
-  <p class="cy-title">Pecyn Croeso</p>
+  <h1 class="ttl"><span class="cy-t">Pecyn Croeso</span><span class="en-t">Welcome Pack</span></h1>
   <p class="sub">Say Something in Welsh</p>
   <div class="free">
     A free year of Say Something in Welsh.
@@ -172,32 +243,31 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
   </p>
 </header>
 
-<div class="toggle"><button id="t" type="button" aria-pressed="false">Hide the Welsh &middot; Cuddio&rsquo;r Gymraeg</button></div>
+<div class="toggle"><button id="t" type="button" aria-pressed="false">Dangos y Gymraeg i gyd <span class="gloss">&middot; show all the Welsh</span></button></div>
 
 <section class="sheet toc" id="contents">
-  <h2>Contents</h2>
-  <p class="cy-title" style="margin:0 0 .2rem;color:var(--ink-soft)">Cynnwys</p>
+  <h2 class="ttl"><span class="cy-t">Cynnwys</span><span class="en-t">Contents</span></h2>
   <ol>
-    <li><a href="#welcome"><span class="n">&bull;</span>Welcome &mdash; <span class="cyname">Croeso</span></a></li>
-    <li><a href="#what"><span class="n">&bull;</span>What is Say Something in Welsh? &mdash; <span class="cyname">Beth ydy Say Something in Welsh?</span></a></li>
-    <li><a href="#step1"><span class="n">1</span>Open the link &mdash; <span class="cyname">Agor y ddolen</span></a></li>
-    <li><a href="#step2"><span class="n">2</span>Your email address &mdash; <span class="cyname">Eich cyfeiriad e-bost</span></a></li>
-    <li><a href="#step3"><span class="n">3</span>The six-digit code &mdash; <span class="cyname">Y cod chwe digid</span></a></li>
-    <li><a href="#step4"><span class="n">4</span>Two questions &mdash; <span class="cyname">Dau gwestiwn</span></a></li>
-    <li><a href="#step5"><span class="n">5</span>You are in &mdash; <span class="cyname">Rydych chi i mewn</span></a></li>
-    <li><a href="#step6"><span class="n">6</span>North or South &mdash; <span class="cyname">Gogledd neu Dde</span></a></li>
-    <li><a href="#step7"><span class="n">7</span>Your first go &mdash; <span class="cyname">Eich tro cyntaf</span></a></li>
-    <li><a href="#step8"><span class="n">8</span>Put it on your phone&rsquo;s home screen &mdash; <span class="cyname">Rhowch o ar sgrin gartref eich ff&ocirc;n</span></a></li>
-    <li><a href="#step9"><span class="n">9</span>The app in Welsh &mdash; <span class="cyname">Yr ap yn Gymraeg</span></a></li>
-    <li><a href="#step10"><span class="n">10</span>If you close it and cannot find it again &mdash; <span class="cyname">Os ydych chi&rsquo;n ei gau ac yn methu dod o hyd iddo</span></a></li>
-    <li><a href="#questions"><span class="n">&bull;</span>Common questions &mdash; <span class="cyname">Cwestiynau cyffredin</span></a></li>
-    <li><a href="#help"><span class="n">&bull;</span>Need help? &mdash; <span class="cyname">Angen help?</span></a></li>
+    <li><a href="#welcome"><span class="n">&bull;</span><span class="lbl"><span class="cy-i">Croeso</span><span class="en-i">Welcome</span></span></a></li>
+    <li><a href="#what"><span class="n">&bull;</span><span class="lbl"><span class="cy-i">Beth ydy Say Something in Welsh?</span><span class="en-i">What is Say Something in Welsh?</span></span></a></li>
+    <li><a href="#step1"><span class="n">1</span><span class="lbl"><span class="cy-i">Agor y ddolen</span><span class="en-i">Open the link</span></span></a></li>
+    <li><a href="#step2"><span class="n">2</span><span class="lbl"><span class="cy-i">Eich cyfeiriad e-bost</span><span class="en-i">Your email address</span></span></a></li>
+    <li><a href="#step3"><span class="n">3</span><span class="lbl"><span class="cy-i">Y cod chwe digid</span><span class="en-i">The six-digit code</span></span></a></li>
+    <li><a href="#step4"><span class="n">4</span><span class="lbl"><span class="cy-i">Dau gwestiwn</span><span class="en-i">Two questions</span></span></a></li>
+    <li><a href="#step5"><span class="n">5</span><span class="lbl"><span class="cy-i">Rydych chi i mewn</span><span class="en-i">You are in</span></span></a></li>
+    <li><a href="#step6"><span class="n">6</span><span class="lbl"><span class="cy-i">Gogledd neu Dde</span><span class="en-i">North or South</span></span></a></li>
+    <li><a href="#step7"><span class="n">7</span><span class="lbl"><span class="cy-i">Eich tro cyntaf</span><span class="en-i">Your first go</span></span></a></li>
+    <li><a href="#step8"><span class="n">8</span><span class="lbl"><span class="cy-i">Rhowch o ar sgrin gartref eich ff&ocirc;n</span><span class="en-i">Put it on your phone&rsquo;s home screen</span></span></a></li>
+    <li><a href="#step9"><span class="n">9</span><span class="lbl"><span class="cy-i">Yr ap yn Gymraeg</span><span class="en-i">The app in Welsh</span></span></a></li>
+    <li><a href="#step10"><span class="n">10</span><span class="lbl"><span class="cy-i">Os ydych chi&rsquo;n ei gau ac yn methu dod o hyd iddo</span><span class="en-i">If you close it and cannot find it again</span></span></a></li>
+    <li><a href="#questions"><span class="n">&bull;</span><span class="lbl"><span class="cy-i">Cwestiynau cyffredin</span><span class="en-i">Common questions</span></span></a></li>
+    <li><a href="#help"><span class="n">&bull;</span><span class="lbl"><span class="cy-i">Angen help?</span><span class="en-i">Need help?</span></span></a></li>
   </ol>
 </section>
 
 <section class="sheet" id="welcome">
+  <h2 class="ttl"><span class="cy-t">Croeso</span><span class="en-t">Welcome</span></h2>
   <div class="en">
-    <h2>Welcome</h2>
     <p>Everyone enrolled on a Learn Welsh course can use <b>Say Something in Welsh</b> free for 12 months.</p>
     <p>This pack shows you, step by step, how to get going &mdash; with a picture of every screen you will meet on the way. There is no rush, and nothing here is too hard.</p>
     <p>The whole thing takes about <b>ten minutes</b>.</p>
@@ -210,7 +280,6 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
     </ul>
   </div>
   <div class="cy">
-    <h2>Croeso</h2>
     <p>Mae pob dysgwr sydd wedi cofrestru ar gwrs Dysgu Cymraeg yn cael defnyddio <b>Say Something in Welsh</b> am ddim am 12 mis.</p>
     <p>Mae&rsquo;r pecyn hwn yn dangos i chi, gam wrth gam, sut i gychwyn &mdash; gyda llun o bob sgrin y byddwch chi&rsquo;n ei gweld ar y ffordd. Does dim brys, a does dim byd yma sy&rsquo;n rhy anodd.</p>
     <p>Tua <b>deg munud</b> mae&rsquo;r cyfan yn ei gymryd.</p>
@@ -225,8 +294,8 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
 </section>
 
 <section class="sheet" id="what">
+  <h2 class="ttl"><span class="cy-t">Beth ydy Say Something in Welsh?</span><span class="en-t">What is Say Something in Welsh?</span></h2>
   <div class="en">
-    <h2>What is Say Something in Welsh?</h2>
     <p>It is a <b>speaking</b> course, not a book and not an on-screen lesson. This is what happens, over and over:</p>
     <ol>
       <li>You hear a short sentence in English.</li>
@@ -238,7 +307,6 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
     <p>Ten minutes a day is plenty.</p>
   </div>
   <div class="cy">
-    <h2>Beth ydy Say Something in Welsh?</h2>
     <p>Cwrs <b>siarad</b> ydy o. Nid llyfr, ac nid gwers ar sgrin. Dyma sy&rsquo;n digwydd, drosodd a throsodd:</p>
     <ol>
       <li>Rydych chi&rsquo;n clywed brawddeg fer yn Saesneg.</li>
@@ -253,56 +321,53 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
 
 <section class="sheet" id="step1">
   <span class="stepno">1</span>
+  <h2 class="ttl"><span class="cy-t">Agor y ddolen</span><span class="en-t">Open the link</span></h2>
   <div class="en">
-    <h2>Open the link</h2>
     <p>In the Canolfan&rsquo;s email, tap the registration link. This screen opens.</p>
     <p>Tap the red <span class="btnname">Get started</span> button.</p>
   </div>
   <div class="cy">
-    <h2>Agor y ddolen</h2>
     <p>Yn e-bost y Ganolfan, tapiwch y ddolen gofrestru. Bydd y sgrin yma&rsquo;n agor.</p>
     <p>Tapiwch y botwm coch <span class="btnname">Get started</span> &mdash; &lsquo;dechrau arni&rsquo;.</p>
   </div>
-  <figure>{{img:link}}<figcaption>The first screen &middot; Y sgrin gyntaf</figcaption></figure>
+  <figure>{{img:link}}<figcaption><span class="cy-i">Y sgrin gyntaf</span> &middot; <span class="en-i">The first screen</span></figcaption></figure>
 </section>
 
 <section class="sheet" id="step2">
   <span class="stepno">2</span>
+  <h2 class="ttl"><span class="cy-t">Eich cyfeiriad e-bost</span><span class="en-t">Your email address</span></h2>
   <div class="en">
-    <h2>Your email address</h2>
     <p>Type the email address the Canolfan&rsquo;s message came to, then tap <span class="btnname">Send my code</span>.</p>
     <p>There is no password to remember, ever. A short code by email is what gets you in, every time.</p>
   </div>
   <div class="cy">
-    <h2>Eich cyfeiriad e-bost</h2>
     <p>Teipiwch y cyfeiriad e-bost lle cawsoch chi neges y Ganolfan, ac wedyn tapiwch <span class="btnname">Send my code</span> &mdash; &lsquo;anfonwch fy nghod&rsquo;.</p>
     <p>Does dim cyfrinair i&rsquo;w gofio, byth. Cod byr drwy e-bost sy&rsquo;n eich cael chi i mewn bob tro.</p>
   </div>
-  <figure>{{img:email}}<figcaption>Type your email &middot; Teipiwch eich e-bost</figcaption></figure>
+  <figure>{{img:email}}<figcaption><span class="cy-i">Teipiwch eich e-bost</span> &middot; <span class="en-i">Type your email</span></figcaption></figure>
 </section>
 
 <section class="sheet" id="step3">
   <span class="stepno">3</span>
+  <h2 class="ttl"><span class="cy-t">Y cod chwe digid</span><span class="en-t">The six-digit code</span></h2>
   <div class="en">
-    <h2>The six-digit code</h2>
     <p>Go to your email. A message from <b>SaySomethingin</b> arrives with six numbers in it.</p>
     <p>Come back to this page, type the six numbers into the box, and tap <span class="btnname">Continue</span>.</p>
     <p><b>Do not close the page</b> while you go and look at your email. Switch between the two, and the page stays where it is.</p>
   </div>
   <div class="cy">
-    <h2>Y cod chwe digid</h2>
     <p>Ewch i&rsquo;ch e-bost. Bydd neges gan <b>SaySomethingin</b> yn cyrraedd gyda chwe rhif ynddi.</p>
     <p>Dewch yn &ocirc;l i&rsquo;r dudalen yma, teipiwch y chwe rhif yn y blwch, a thapio <span class="btnname">Continue</span> &mdash; &lsquo;ymlaen&rsquo;.</p>
     <p><b>Peidiwch &acirc; chau&rsquo;r dudalen</b> wrth fynd i edrych ar eich e-bost. Symudwch yn &ocirc;l ac ymlaen rhwng y ddau ap, ac mae&rsquo;r dudalen yn aros lle mae hi.</p>
   </div>
-  <figure>{{img:code}}<figcaption>The box for the code &middot; Y blwch ar gyfer y cod</figcaption></figure>
+  <figure>{{img:code}}<figcaption><span class="cy-i">Y blwch ar gyfer y cod</span> &middot; <span class="en-i">The box for the code</span></figcaption></figure>
 </section>
 
 <section class="sheet" id="step3b">
   <span class="stepno">3</span><span class="contd">continued &middot; parhad</span>
   <div class="stuck">
+    <h3 class="ttl"><span class="cy-t">Dydy&rsquo;r cod ddim wedi cyrraedd?</span><span class="en-t">Code not arrived?</span></h3>
     <div class="en">
-      <h3>Code not arrived?</h3>
       <ul>
         <li>Give it a minute or two. It usually arrives at once, but not always.</li>
         <li>Look in your <b>spam</b> or <b>junk</b> folder. That is where it goes most often.</li>
@@ -312,7 +377,6 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
       </ul>
     </div>
     <div class="cy">
-      <h3>Dydy&rsquo;r cod ddim wedi cyrraedd?</h3>
       <ul>
         <li>Rhowch funud neu ddwy iddo. Fel arfer mae&rsquo;n cyrraedd ar unwaith, ond nid bob tro.</li>
         <li>Edrychwch yn eich ffolder <b>sbam</b> neu <b>sothach</b>. Dyma lle mae&rsquo;n mynd amlaf.</li>
@@ -326,8 +390,8 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
 
 <section class="sheet" id="step4">
   <span class="stepno">4</span>
+  <h2 class="ttl"><span class="cy-t">Dau gwestiwn</span><span class="en-t">Two questions</span></h2>
   <div class="en">
-    <h2>Two questions</h2>
     <p>There are only two small boxes here.</p>
     <ul>
       <li><b>&ldquo;I am aged 16 to 24&rdquo;</b> &mdash; tick this only if you are between 16 and 24. Leave it blank if you are not. Nobody asks for your date of birth.</li>
@@ -336,7 +400,6 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
     <p>Then tap <span class="btnname">Claim my free year</span>.</p>
   </div>
   <div class="cy">
-    <h2>Dau gwestiwn</h2>
     <p>Dim ond dau flwch bach sydd yma.</p>
     <ul>
       <li><b>&ldquo;I am aged 16 to 24&rdquo;</b> &mdash; ticiwch hwn dim ond os ydych chi rhwng 16 a 24 oed. Gadewch o&rsquo;n wag os nad ydych chi. Does neb yn gofyn am eich dyddiad geni.</li>
@@ -344,54 +407,51 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
     </ul>
     <p>Wedyn tapiwch <span class="btnname">Claim my free year</span> &mdash; &lsquo;hawlio fy mlwyddyn am ddim&rsquo;.</p>
   </div>
-  <figure>{{img:ticks}}<figcaption>The two boxes &middot; Y ddau flwch</figcaption></figure>
+  <figure>{{img:ticks}}<figcaption><span class="cy-i">Y ddau flwch</span> &middot; <span class="en-i">The two boxes</span></figcaption></figure>
 </section>
 
 <section class="sheet" id="step5">
   <span class="stepno">5</span>
+  <h2 class="ttl"><span class="cy-t">Rydych chi i mewn</span><span class="en-t">You are in</span></h2>
   <div class="en">
-    <h2>You are in</h2>
     <p>The screen shows the date your free year ends. We will write to you a few weeks before then, so it does not come as a surprise.</p>
     <p>No card details have been asked for, and nothing starts automatically at the end.</p>
     <p>Tap <span class="btnname">Start learning</span>.</p>
   </div>
   <div class="cy">
-    <h2>Rydych chi i mewn</h2>
     <p>Mae&rsquo;r sgrin yn dangos y dyddiad y daw eich blwyddyn am ddim i ben. Byddwn ni&rsquo;n ysgrifennu atoch chi ychydig wythnosau cyn hynny, felly fydd hi ddim yn sioc.</p>
     <p>Does neb wedi gofyn am fanylion cerdyn, a does dim byd yn dechrau&rsquo;n awtomatig ar y diwedd.</p>
     <p>Tapiwch <span class="btnname">Start learning</span> &mdash; &lsquo;dechrau dysgu&rsquo;.</p>
   </div>
-  <figure>{{img:done}}<figcaption>The date your year ends &middot; Dyddiad diwedd eich blwyddyn</figcaption></figure>
+  <figure>{{img:done}}<figcaption><span class="cy-i">Dyddiad diwedd eich blwyddyn</span> &middot; <span class="en-i">The date your year ends</span></figcaption></figure>
 </section>
 
 <section class="sheet" id="step6">
   <span class="stepno">6</span>
+  <h2 class="ttl"><span class="cy-t">Gogledd neu Dde</span><span class="en-t">North or South</span></h2>
   <div class="en">
-    <h2>North or South &mdash; Gogledd neu Dde</h2>
     <p>A long list of languages opens. Do not scroll through it &mdash; there is a quicker way.</p>
     <p>In the search box at the top, type <b>Welsh</b>. The list shrinks to one row.</p>
     <p>Tap <span class="btnname">2 variants</span>, then choose <span class="btnname">Northern</span> (Gogledd) or <span class="btnname">Southern</span> (De).</p>
   </div>
   <div class="cy">
-    <h2>Gogledd neu Dde</h2>
     <p>Mae rhestr hir o ieithoedd yn agor. Peidiwch &acirc; sgrolio drwyddi &mdash; mae ffordd gyflymach.</p>
     <p>Yn y blwch chwilio ar y top, teipiwch <b>Welsh</b>. Dim ond un rhes fydd ar &ocirc;l.</p>
     <p>Tapiwch <span class="btnname">2 variants</span>, ac wedyn dewiswch <span class="btnname">Northern</span> (Gogledd) neu <span class="btnname">Southern</span> (De).</p>
   </div>
   <div class="shots">
-    <figure>{{img:search}}<figcaption>Type &ldquo;Welsh&rdquo; &middot; Teipiwch &ldquo;Welsh&rdquo;</figcaption></figure>
-    <figure>{{img:variants}}<figcaption>Choose Northern or Southern &middot; Dewiswch Northern neu Southern</figcaption></figure>
+    <figure>{{img:search}}<figcaption><span class="cy-i">Teipiwch &ldquo;Welsh&rdquo;</span> &middot; <span class="en-i">Type &ldquo;Welsh&rdquo;</span></figcaption></figure>
+    <figure>{{img:variants}}<figcaption><span class="cy-i">Dewiswch Northern neu Southern</span> &middot; <span class="en-i">Choose Northern or Southern</span></figcaption></figure>
   </div>
 </section>
 
 <section class="sheet" id="step6b">
   <span class="stepno">6</span><span class="contd">continued &middot; parhad</span>
+  <h3 class="ttl"><span class="cy-t">Pa un?</span><span class="en-t">Which one?</span></h3>
   <div class="en">
-    <h3>Which one?</h3>
     <p><b>Northern</b> is <b>Gogledd</b>; <b>Southern</b> is <b>De</b>. Choose whichever is closest to the Welsh you hear around you, or to your tutor&rsquo;s Welsh. It does not matter greatly: both are real Welsh, you will understand either, and you can change it at any time.</p>
   </div>
   <div class="cy">
-    <h3>Pa un?</h3>
     <p><b>Northern</b> ydy&rsquo;r <b>Gogledd</b>; <b>Southern</b> ydy&rsquo;r <b>De</b>. Dewiswch yr un sydd agosaf at y Gymraeg rydych chi&rsquo;n ei chlywed o&rsquo;ch cwmpas, neu Gymraeg eich tiwtor. Does dim ots mawr: mae&rsquo;r ddwy&rsquo;n Gymraeg go iawn, byddwch chi&rsquo;n deall y naill a&rsquo;r llall, a gallwch chi newid unrhyw bryd.</p>
   </div>
   <div class="note">
@@ -402,39 +462,37 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
 
 <section class="sheet" id="step7">
   <span class="stepno">7</span>
+  <h2 class="ttl"><span class="cy-t">Eich tro cyntaf</span><span class="en-t">Your first go</span></h2>
   <div class="en">
-    <h2>Your first go</h2>
     <p>This is the screen you will see every time you open the app. Put your headphones on and tap the <b>big red button</b> at the bottom.</p>
   </div>
   <div class="cy">
-    <h2>Eich tro cyntaf</h2>
     <p>Dyma&rsquo;r sgrin y byddwch chi&rsquo;n ei gweld bob tro rydych chi&rsquo;n agor yr ap. Rhowch eich clustffonau am eich pen, a thapio&rsquo;r <b>botwm coch mawr</b> yn y gwaelod.</p>
   </div>
-  <figure>{{img:ready}}<figcaption>The big red button &middot; Y botwm coch mawr</figcaption></figure>
+  <figure>{{img:ready}}<figcaption><span class="cy-i">Y botwm coch mawr</span> &middot; <span class="en-i">The big red button</span></figcaption></figure>
 </section>
 
 <section class="sheet" id="step7b">
   <span class="stepno">7</span><span class="contd">continued &middot; parhad</span>
+  <h3 class="ttl"><span class="cy-t">Beth sy&rsquo;n digwydd wedyn</span><span class="en-t">What happens next</span></h3>
   <div class="en">
-    <h3>What happens next</h3>
     <p>You hear a short sentence in English and see it on the screen. Then comes a silent gap, and the red words <b>&ldquo;YOU&rsquo;RE MEANT TO BE SPEAKING NOW&rdquo;</b>. Say the Welsh out loud, even if you are unsure, even if it is wrong.</p>
     <p>Then you hear the answer twice, and see it written under the picture. That is one go, and it takes about ten seconds. The next one starts on its own &mdash; you do not have to tap anything in between.</p>
   </div>
   <div class="cy">
-    <h3>Beth sy&rsquo;n digwydd wedyn</h3>
     <p>Byddwch chi&rsquo;n clywed brawddeg fer yn Saesneg, ac yn ei gweld ar y sgrin. Wedyn daw bwlch tawel, a&rsquo;r geiriau coch <b>&ldquo;YOU&rsquo;RE MEANT TO BE SPEAKING NOW&rdquo;</b> &mdash; &lsquo;eich tro chi ydy hi rŵan&rsquo;. Dywedwch y Gymraeg allan yn uchel, hyd yn oed os ydych chi&rsquo;n ansicr, hyd yn oed os ydych chi&rsquo;n anghywir.</p>
     <p>Wedyn byddwch chi&rsquo;n clywed yr ateb ddwywaith, ac yn ei weld yn ysgrifenedig o dan y llun. Dyna un tro, ac mae&rsquo;n cymryd tua deg eiliad. Mae&rsquo;r nesaf yn dechrau ar ei ben ei hun &mdash; does dim rhaid i chi dapio dim byd rhwng un a&rsquo;r llall.</p>
   </div>
   <div class="shots">
-    <figure>{{img:speak}}<figcaption>Your turn &middot; Eich tro chi</figcaption></figure>
-    <figure>{{img:answer}}<figcaption>The answer &middot; Yr ateb</figcaption></figure>
+    <figure>{{img:speak}}<figcaption><span class="cy-i">Eich tro chi</span> &middot; <span class="en-i">Your turn</span></figcaption></figure>
+    <figure>{{img:answer}}<figcaption><span class="cy-i">Yr ateb</span> &middot; <span class="en-i">The answer</span></figcaption></figure>
   </div>
 </section>
 
 <section class="sheet" id="step7c">
   <span class="stepno">7</span><span class="contd">continued &middot; parhad</span>
+  <h3 class="ttl"><span class="cy-t">Dau beth defnyddiol</span><span class="en-t">Two useful things</span></h3>
   <div class="en">
-    <h3>Two useful things</h3>
     <ul>
       <li><span class="btnname">Easy</span> and <span class="btnname">Fast</span>: <b>Easy</b> gives you a longer gap to think. Start with Easy, every time.</li>
       <li>To stop, tap the red button again. The app remembers exactly where you were, even if you close it completely.</li>
@@ -442,7 +500,6 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
     <p>If you miss a few, or say nothing at all for a minute &mdash; keep going. Everything comes back round again later. You do not have to get it right first time.</p>
   </div>
   <div class="cy">
-    <h3>Dau beth defnyddiol</h3>
     <ul>
       <li><span class="btnname">Easy</span> a <span class="btnname">Fast</span>: mae <b>Easy</b> yn rhoi bwlch hirach i chi feddwl. Dechreuwch gyda Easy, bob tro.</li>
       <li>I stopio, tapiwch y botwm coch eto. Mae&rsquo;r ap yn cofio&rsquo;n union ble roeddech chi, hyd yn oed os ydych chi&rsquo;n ei gau&rsquo;n llwyr.</li>
@@ -453,13 +510,12 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
 
 <section class="sheet" id="step8">
   <span class="stepno">8</span>
+  <h2 class="ttl"><span class="cy-t">Rhowch o ar sgrin gartref eich ff&ocirc;n</span><span class="en-t">Put it on your phone&rsquo;s home screen</span></h2>
   <div class="en">
-    <h2>Put it on your phone&rsquo;s home screen</h2>
     <p>This is worth doing once. After that a red icon sits with your other apps, and one tap is all it takes &mdash; no searching, no typing an address.</p>
     <p>The app shows you the steps itself. Tap the cog at the bottom, then <span class="btnname">Install SaySomethingin</span>.</p>
   </div>
   <div class="cy">
-    <h2>Rhowch o ar sgrin gartref eich ff&ocirc;n</h2>
     <p>Mae hyn yn werth ei wneud unwaith. Wedyn mae eicon coch yn eistedd gyda&rsquo;ch apiau eraill, ac un tap sydd ei angen &mdash; dim chwilio, dim teipio cyfeiriad.</p>
     <p>Mae&rsquo;r ap ei hun yn dangos y camau i chi. Tapiwch yr olwyn ddannedd yn y gwaelod, ac wedyn <span class="btnname">Install SaySomethingin</span>.</p>
   </div>
@@ -467,49 +523,48 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
 
 <section class="sheet" id="step8b">
   <span class="stepno">8</span><span class="contd">continued &middot; parhad</span>
-  <h3 class="pairhead">On an iPhone <span class="paren">(in Safari)</span><span class="alt">Ar iPhone (yn Safari)</span></h3>
+  <h3 class="ttl"><span class="cy-t">Ar iPhone <span class="paren">(yn Safari)</span></span><span class="en-t">On an iPhone <span class="paren">(in Safari)</span></span></h3>
   <div class="shots">
-    <figure>{{img:ios1}}<figcaption>1. The Share button, at the bottom of Safari &middot; Y botwm rhannu, ar waelod Safari</figcaption></figure>
-    <figure>{{img:ios2}}<figcaption>2. Scroll down to &ldquo;Add to Home Screen&rdquo; &middot; Sgroliwch i lawr at &ldquo;Add to Home Screen&rdquo;</figcaption></figure>
+    <figure>{{img:ios1}}<figcaption><span class="cy-i">1. Y botwm rhannu, ar waelod Safari</span> &middot; <span class="en-i">The Share button</span></figcaption></figure>
+    <figure>{{img:ios2}}<figcaption><span class="cy-i">2. Sgroliwch i lawr at &ldquo;Add to Home Screen&rdquo;</span> &middot; <span class="en-i">Scroll down to it</span></figcaption></figure>
   </div>
   <div class="shots">
-    <figure>{{img:ios3}}<figcaption>3. Tap &ldquo;Add&rdquo;, top right &middot; Tapiwch &ldquo;Add&rdquo; yn y gornel dde uchaf</figcaption></figure>
-    <figure>{{img:ios4}}<figcaption>4. That&rsquo;s it &middot; Dyna ni</figcaption></figure>
+    <figure>{{img:ios3}}<figcaption><span class="cy-i">3. Tapiwch &ldquo;Add&rdquo; yn y gornel dde uchaf</span> &middot; <span class="en-i">Tap &ldquo;Add&rdquo;, top right</span></figcaption></figure>
+    <figure>{{img:ios4}}<figcaption><span class="cy-i">4. Dyna ni</span> &middot; <span class="en-i">That&rsquo;s it</span></figcaption></figure>
   </div>
 </section>
 
 <section class="sheet" id="step8c">
   <span class="stepno">8</span><span class="contd">continued &middot; parhad</span>
-  <h3 class="pairhead">On an Android phone <span class="paren">(in Chrome)</span><span class="alt">Ar ff&ocirc;n Android (yn Chrome)</span></h3>
+  <h3 class="ttl"><span class="cy-t">Ar ff&ocirc;n Android <span class="paren">(yn Chrome)</span></span><span class="en-t">On an Android phone <span class="paren">(in Chrome)</span></span></h3>
   <div class="en"><p>Three taps: the Chrome menu, then &ldquo;Add to Home screen&rdquo;, then &ldquo;Add&rdquo;.</p></div>
   <div class="cy"><p>Tri thap: y ddewislen yn Chrome, wedyn &ldquo;Add to Home screen&rdquo;, wedyn &ldquo;Add&rdquo;.</p></div>
-  <figure>{{img:android}}<figcaption>Android &middot; three taps &middot; tri thap</figcaption></figure>
+  <figure>{{img:android}}<figcaption><span class="cy-i">Android &mdash; tri thap</span> &middot; <span class="en-i">three taps</span></figcaption></figure>
 </section>
 
 <section class="sheet" id="step9">
   <span class="stepno">9</span>
+  <h2 class="ttl"><span class="cy-t">Yr ap yn Gymraeg</span><span class="en-t">The app in Welsh</span></h2>
   <div class="en">
-    <h2>The app in Welsh</h2>
     <p>If you would rather, the app itself can speak Welsh to you.</p>
     <p>Tap the <b>cog</b> (&#9881;) at the bottom of the screen, then <span class="btnname">Interface Language</span>, then <span class="btnname">Cymraeg</span>.</p>
     <p>Note: the course itself still asks its questions in English, because English is what you are learning the Welsh from. It is the buttons and settings around the course that change.</p>
   </div>
   <div class="cy">
-    <h2>Yr ap yn Gymraeg</h2>
     <p>Os ydy&rsquo;n well gennych chi, gall yr ap ei hun siarad Cymraeg &acirc; chi.</p>
     <p>Tapiwch yr <b>olwyn ddannedd</b> (&#9881;) ar waelod y sgrin, wedyn <span class="btnname">Interface Language</span>, wedyn <span class="btnname">Cymraeg</span>.</p>
     <p>Sylwch: y cwrs ei hun sy&rsquo;n dal i ofyn y cwestiynau yn Saesneg, am mai o&rsquo;r Saesneg rydych chi&rsquo;n dysgu&rsquo;r Gymraeg. Y botymau a&rsquo;r gosodiadau o gwmpas y cwrs sy&rsquo;n newid.</p>
   </div>
   <div class="shots">
-    <figure>{{img:uilang}}<figcaption>Choose Cymraeg &middot; Dewiswch Cymraeg</figcaption></figure>
-    <figure>{{img:welshui}}<figcaption>The app in Welsh &middot; Yr ap yn Gymraeg</figcaption></figure>
+    <figure>{{img:uilang}}<figcaption><span class="cy-i">Dewiswch Cymraeg</span> &middot; <span class="en-i">Choose Cymraeg</span></figcaption></figure>
+    <figure>{{img:welshui}}<figcaption><span class="cy-i">Yr ap yn Gymraeg</span> &middot; <span class="en-i">The app in Welsh</span></figcaption></figure>
   </div>
 </section>
 
 <section class="sheet" id="step10">
   <span class="stepno">10</span>
+  <h2 class="ttl"><span class="cy-t">Os ydych chi&rsquo;n ei gau ac yn methu dod o hyd iddo</span><span class="en-t">If you close it and cannot find it again</span></h2>
   <div class="en">
-    <h2>If you close it and cannot find it again</h2>
     <p>This happens to everyone, and it is easy to put right.</p>
     <ul>
       <li>Look for the <b>red &lsquo;S&rsquo; icon</b> on your phone&rsquo;s home screen, if you did Step 8.</li>
@@ -520,7 +575,6 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
     <p><b>Nothing is lost.</b> Everything you have practised is safe, and your free year with it.</p>
   </div>
   <div class="cy">
-    <h2>Os ydych chi&rsquo;n ei gau ac yn methu dod o hyd iddo</h2>
     <p>Mae hyn yn digwydd i bawb, ac mae&rsquo;n hawdd ei ddatrys.</p>
     <ul>
       <li>Chwiliwch am yr <b>eicon coch &lsquo;S&rsquo;</b> ar sgrin gartref eich ff&ocirc;n, os gwnaethoch chi Gam 8.</li>
@@ -535,14 +589,14 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
 <section class="sheet" id="step10b">
   <span class="stepno">10</span><span class="contd">continued &middot; parhad</span>
   <div class="shots">
-    <figure>{{img:settings}}<figcaption>The cog &rarr; Sign in &middot; Yr olwyn ddannedd &rarr; Sign in</figcaption></figure>
-    <figure>{{img:signin}}<figcaption>Give your email again &middot; Rhowch eich e-bost eto</figcaption></figure>
+    <figure>{{img:settings}}<figcaption><span class="cy-i">Yr olwyn ddannedd &rarr; Sign in</span> &middot; <span class="en-i">The cog &rarr; Sign in</span></figcaption></figure>
+    <figure>{{img:signin}}<figcaption><span class="cy-i">Rhowch eich e-bost eto</span> &middot; <span class="en-i">Give your email again</span></figcaption></figure>
   </div>
 </section>
 
 <section class="sheet qa" id="questions">
+  <h2 class="ttl"><span class="cy-t">Cwestiynau cyffredin</span><span class="en-t">Common questions</span></h2>
   <div class="en">
-    <h2>Common questions</h2>
     <p class="q">Do I have to pay?</p>
     <p>No. It is free to you for a full 12 months. No card details are asked for, and nothing starts charging you at the end. We will write to you before the year runs out.</p>
     <p class="q">What if I already pay for SaySomethingin?</p>
@@ -551,7 +605,6 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
     <p>Yes, to start, and to load new audio. The app keeps recent audio on your phone, so a short drop &mdash; a tunnel, a lift &mdash; does not stop it.</p>
   </div>
   <div class="cy">
-    <h2>Cwestiynau cyffredin</h2>
     <p class="q">Oes rhaid i mi dalu?</p>
     <p>Nac oes. Mae&rsquo;n rhad ac am ddim i chi am 12 mis llawn. Does dim manylion cerdyn yn cael eu gofyn, a does dim byd yn dechrau codi t&acirc;l arnoch chi ar y diwedd. Byddwn ni&rsquo;n ysgrifennu atoch chi cyn i&rsquo;r flwyddyn ddod i ben.</p>
     <p class="q">Beth os ydw i&rsquo;n talu am SaySomethingin yn barod?</p>
@@ -562,8 +615,8 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
 </section>
 
 <section class="sheet qa" id="questions2">
+  <h2 class="ttl"><span class="cy-t">Cwestiynau cyffredin</span><span class="en-t">Common questions <span class="contd">continued &middot; parhad</span></span></h2>
   <div class="en">
-    <h2>Common questions <span class="contd">continued &middot; parhad</span></h2>
     <p class="q">Do I need headphones?</p>
     <p>No. The phone&rsquo;s speaker is fine somewhere quiet. Headphones help somewhere noisy, and make speaking out loud feel easier.</p>
     <p class="q">Can I do this in the car?</p>
@@ -572,7 +625,6 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
     <p>Turn the phone&rsquo;s volume up. On an iPhone, check the little switch on the side &mdash; if it shows orange, the phone is on silent. If you have wireless headphones, make sure they are connected.</p>
   </div>
   <div class="cy">
-    <h2>Cwestiynau cyffredin <span class="contd">parhad</span></h2>
     <p class="q">Oes rhaid cael clustffonau?</p>
     <p>Nac oes. Mae seinydd y ff&ocirc;n yn iawn mewn lle tawel. Mae clustffonau&rsquo;n helpu mewn lle swnllyd, ac maen nhw&rsquo;n gwneud i siarad allan yn uchel deimlo&rsquo;n haws.</p>
     <p class="q">Alla i wneud hyn yn y car?</p>
@@ -583,8 +635,8 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
 </section>
 
 <section class="sheet qa" id="questions3">
+  <h2 class="ttl"><span class="cy-t">Cwestiynau cyffredin</span><span class="en-t">Common questions <span class="contd">continued &middot; parhad</span></span></h2>
   <div class="en">
-    <h2>Common questions <span class="contd">continued &middot; parhad</span></h2>
     <p class="q">I cannot keep up.</p>
     <p>Choose <span class="btnname">Easy</span>. Nobody is marking you, there is no clock, and there is no penalty for missing. The speaking is what counts, not the speed.</p>
     <p class="q">Does the app record me?</p>
@@ -593,7 +645,6 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
     <p>Anonymous figures: how many minutes, and how far you have got. No names, no email addresses, and nothing you say.</p>
   </div>
   <div class="cy">
-    <h2>Cwestiynau cyffredin <span class="contd">parhad</span></h2>
     <p class="q">Dw i&rsquo;n methu cadw i fyny.</p>
     <p>Dewiswch <span class="btnname">Easy</span>. Does neb yn eich marcio chi, does dim cloc, a does dim cosb am fethu. Y siarad sy&rsquo;n cyfrif, nid y cyflymder.</p>
     <p class="q">Ydy&rsquo;r ap yn fy recordio i?</p>
@@ -604,15 +655,14 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
 </section>
 
 <section class="sheet qa" id="questions4">
+  <h2 class="ttl"><span class="cy-t">Cwestiynau cyffredin</span><span class="en-t">Common questions <span class="contd">continued &middot; parhad</span></span></h2>
   <div class="en">
-    <h2>Common questions <span class="contd">continued &middot; parhad</span></h2>
     <p class="q">I have chosen the wrong dialect.</p>
     <p>Tap the course name in the middle of the screen and pick the other one. Your progress is kept separately for each.</p>
     <p class="q">Can I use it on more than one device?</p>
     <p>Yes. Sign in with the same email address on your phone, tablet and computer, and your progress follows.</p>
   </div>
   <div class="cy">
-    <h2>Cwestiynau cyffredin <span class="contd">parhad</span></h2>
     <p class="q">Dw i wedi dewis y dafodiaith anghywir.</p>
     <p>Tapiwch enw&rsquo;r cwrs ar ganol y sgrin, a dewis y llall. Mae&rsquo;ch cynnydd yn cael ei gadw ar wah&acirc;n ar gyfer y ddwy.</p>
     <p class="q">Alla i ei ddefnyddio ar fwy nag un ddyfais?</p>
@@ -621,8 +671,8 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
 </section>
 
 <section class="sheet" id="help">
+  <h2 class="ttl"><span class="cy-t">Angen help?</span><span class="en-t">Need help?</span></h2>
   <div class="en">
-    <h2>Need help?</h2>
     <ul>
       <li>About your <b>Learn Welsh course</b> &mdash; your tutor or your local centre.</li>
       <li>About the <b>app itself</b> &mdash; email <a href="mailto:admin@saysomethingin.com">admin@saysomethingin.com</a>. Say which phone you have and what you saw on the screen; that saves a message back and forth.</li>
@@ -630,7 +680,6 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
     <p>And that is all of it. Ten minutes a day, out loud. Good luck &mdash; and enjoy it.</p>
   </div>
   <div class="cy">
-    <h2>Angen help?</h2>
     <ul>
       <li>Am eich <b>cwrs Dysgu Cymraeg</b> &mdash; eich tiwtor neu&rsquo;ch canolfan leol.</li>
       <li>Am yr <b>ap ei hun</b> &mdash; e-bostiwch <a href="mailto:admin@saysomethingin.com">admin@saysomethingin.com</a>. Dywedwch pa ff&ocirc;n sydd gennych chi a beth welsoch chi ar y sgrin; mae hynny&rsquo;n arbed neges yn &ocirc;l ac ymlaen.</li>
@@ -646,18 +695,53 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
 
 </div>
 <script>
-// One button, one class. Nothing here needs to run for the page to be readable.
-// It hides the WELSH, not the English: English is what a nervous learner needs
-// on the screen, and the Welsh is there for whoever wants it.
+// ONE INVITATION PER BLOCK, not one switch at the top. The switch was the
+// wrong instrument: it made the Welsh something you turn off wholesale, and
+// it asked the learner to decide about the whole document before reading a
+// word of it. A control on each block asks at the only moment the answer is
+// knowable — you have just read the step, do you fancy it in Welsh?
+//
+// Nothing here is needed for the page to be READABLE. If it does not run,
+// no panel is hidden and no button appears, and the reader gets both
+// languages in full — the same thing the printed pack gives them.
 (function () {
-  var b = document.getElementById('t');
-  if (!b) return;
-  b.addEventListener('click', function () {
-    var on = document.body.classList.toggle('en-only');
-    b.setAttribute('aria-pressed', on ? 'true' : 'false');
-    b.textContent = on ? 'Show the Welsh · Dangos y Gymraeg' : 'Hide the Welsh · Cuddio’r Gymraeg';
-  });
-})();
+  var panels = [].slice.call(document.querySelectorAll('div.cy'))
+  if (!panels.length) return
+  var buttons = []
+
+  function set(panel, b, on) {
+    panel.classList.toggle('open', on)
+    b.setAttribute('aria-expanded', on ? 'true' : 'false')
+    b.querySelector('.plus').textContent = on ? '\u2212' : '+'
+  }
+
+  panels.forEach(function (panel, i) {
+    var id = panel.id || (panel.id = 'cy' + (i + 1))
+    var b = document.createElement('button')
+    b.type = 'button'
+    b.className = 'cy-open'
+    b.setAttribute('aria-controls', id)
+    // Welsh first on the invitation itself, with an English gloss: a learner
+    // who is not sure what the button does should not have to find out by
+    // pressing it.
+    b.innerHTML = '<span class="txt"><b>Yn Gymraeg</b> <span class="gloss">&middot; the same thing in Welsh</span></span>' +
+                  '<span class="plus" aria-hidden="true">+</span>'
+    b.addEventListener('click', function () { set(panel, b, !panel.classList.contains('open')) })
+    panel.parentNode.insertBefore(b, panel)
+    buttons.push(b)
+  })
+
+  var all = document.getElementById('t')
+  if (!all) return
+  all.addEventListener('click', function () {
+    var on = all.getAttribute('aria-pressed') !== 'true'
+    panels.forEach(function (panel, i) { set(panel, buttons[i], on) })
+    all.setAttribute('aria-pressed', on ? 'true' : 'false')
+    all.innerHTML = on
+      ? 'Cuddio\u2019r Gymraeg <span class="gloss">&middot; hide the Welsh again</span>'
+      : 'Dangos y Gymraeg i gyd <span class="gloss">&middot; show all the Welsh</span>'
+  })
+})()
 </script>
 </body>
 </html>

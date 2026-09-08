@@ -22,14 +22,41 @@ against the other.
 - **Re-shoot** with `capture.mjs` when a screen changes; see its header for the
   environment variables headless Chrome needs here.
 
-## English first, Welsh second
+## The two languages
 
-Kai's ruling, 2026-09-08: the pack goes to people who are *learning* Welsh,
-often in their first nervous weeks, and a wall of Welsh at the top of the page
-is a reason to close it. So every block is English then Welsh — headings,
-prose, figure captions, the contents list, the dialect names ("Northern
-(Gogledd)"). The Welsh stays and stays simple; it just comes second. The screen
-toggle hides the WELSH, not the English; the printed copy always carries both.
+Kai set the problem on 2026-09-08, and all four parts of it are binding: Welsh
+first and shown **no less favourably** is the standard a Welsh-language centre
+is judged by; but the readers are people *learning* Welsh, often nervous, so
+the English has to be the thing that is obvious; and the doubled text made
+every page look twice as long as it is, which is its own reason to give up.
+
+Three mechanisms, one to each part:
+
+1. **The Welsh leads every title** — masthead, contents, every step, every
+   caption. Same size as the English, first in order. What differs is *weight*:
+   the English is the bold line the eye lands on. Order is where the norm is
+   judged, and Welsh has it.
+2. **The Welsh body waits behind its own invitation** — one control per block
+   (`.cy-open`, inserted by the page's own script), labelled in Welsh with an
+   English gloss, rather than one switch at the top. The switch was the wrong
+   instrument: it made the Welsh something you turn off wholesale, and asked
+   the learner to decide about the whole document before reading a word of it.
+   Nothing is cut; the page just stops *reading* as twice its length.
+3. **It opens onto its own ground** — tinted panel, green rule, CYMRAEG over
+   it, so the eye reads "the same thing in Welsh" and skips it without having
+   to parse it as more instructions.
+
+The one switch at the top survives as **open/close them all**, for a confident
+reader who wants the whole pack in Welsh.
+
+**Without JavaScript nothing is hidden and no control appears** — the reader
+gets both languages in full. That is deliberate: the safe way to fail is
+showing too much, never showing English alone.
+
+**The printed copy always carries both, in full.** Nobody can tap a page.
+`@media print` opens every panel and hides every control; `.cy-open` is gone
+and every `div.cy` is `display:block`. Verify it in the printed file, not in
+the template: `pdftotext` the PDF and check the Welsh is there.
 
 ## One sheet, one page
 
