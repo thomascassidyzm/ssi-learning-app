@@ -53,6 +53,19 @@ function bodyOf(fn: string): string {
   return end === -1 ? def : def.slice(0, end)
 }
 
+/** Body of the last migration in filename order that defines view `v`. */
+function latestViewDefinition(v: string): string {
+  const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith('.sql')).sort()
+  let found: string | null = null
+  for (const f of files) {
+    const sql = readFileSync(join(MIGRATIONS, f), 'utf8')
+    const m = new RegExp(`create\\s+or\\s+replace\\s+view\\s+public\\.${v}\\b`, 'i').exec(sql)
+    if (m) found = sql.slice(m.index)
+  }
+  if (!found) throw new Error(`no migration defines view public.${v}`)
+  return found
+}
+
 describe('practice minutes read the playback ledger, not wall-clock sessions', () => {
   for (const fn of ['admin_practice_minutes', 'admin_practice_minutes_by_course']) {
     it(`${fn} sums learner_speaking_opportunities.play_seconds`, () => {
@@ -67,6 +80,18 @@ describe('practice minutes read the playback ledger, not wall-clock sessions', (
       expect(body).not.toMatch(/duration_seconds/i)
     })
   }
+
+  it('the class roster reads practice seconds from the ledger too', () => {
+    // class_student_progress feeds the teacher dashboard and the teachers
+    // page. Left on sessions it recreates the very disagreement the rpcs
+    // above exist to end — a teacher reading a bigger number for a pupil
+    // than the pupil reads for themselves.
+    const def = latestViewDefinition('class_student_progress')
+    const practice = def.slice(0, def.indexOf('AS total_practice_seconds'))
+    const lastSum = practice.lastIndexOf('sum(')
+    expect(practice.slice(lastSum)).toMatch(/learner_speaking_opportunities/i)
+    expect(practice.slice(lastSum)).not.toMatch(/duration_seconds/i)
+  })
 
   it('the platform-wide by_course call keeps its ssi_admin guard', () => {
     expect(bodyOf('admin_practice_minutes_by_course')).toContain('public.is_ssi_admin()')
