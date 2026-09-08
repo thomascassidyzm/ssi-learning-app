@@ -1,0 +1,37 @@
+{
+  "id": "make-a-link-anyone-can-use",
+  "title": "Make a link anyone can use",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "keywords": [
+    "shareable",
+    "link",
+    "join",
+    "open",
+    "role",
+    "bulk"
+  ],
+  "steps": [
+    {
+      "anchor": "verb-shareable-link",
+      "say": "**Get a shareable link** is the one to reach for when you cannot name who is coming — a newsletter, a slide at the front of a hall, a whole staffroom. Tapping it opens a small form and mints nothing yet.",
+      "advance": {
+        "on": "click"
+      }
+    },
+    {
+      "anchor": "verb-shareable-link",
+      "say": "The dropdown sets the role everyone arriving on that link lands in, and **Create invite link** hands you the link itself. Because it is tied to nobody, new arrivals type their own name before they are in.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's a link a whole room can use — one role, one link, revocable in **Ways in** whenever it has travelled too far. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

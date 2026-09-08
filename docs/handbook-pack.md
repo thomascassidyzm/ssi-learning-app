@@ -1,10 +1,10 @@
 # Handbook — compiled render
 
-**Version `0553521c275f` · generated 2026-09-08 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `ceba798d6815` · generated 2026-09-08 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## Add a class to a group
 
-Section: running-classes · roles: admin, leader, school_admin · anchor: `verb-add-class` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · no demo yet
+Section: running-classes · roles: admin, leader, school_admin · anchor: `verb-add-class` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · demo: add-a-class-to-a-group
 
 **What it's for.** Creating a class underneath a group you lead, before anyone is teaching it. Useful when you are setting a term up in advance and will put a teacher on each class later.
 
@@ -20,7 +20,7 @@ Section: running-classes · roles: admin, leader, school_admin · anchor: `verb-
 
 ## Add a school to your programme
 
-Section: your-school · roles: leader · anchor: `verb-add-school` · in `packages/player-vue/src/views/schools/SchoolsView.vue` · no demo yet
+Section: your-school · roles: leader · anchor: `verb-add-school` · in `packages/player-vue/src/views/schools/SchoolsView.vue` · demo: add-a-school-under-a-group
 
 **What it's for.** Creating a new school inside your programme. The school exists the moment you name it, already attached to your group, with its admin link and teacher link ready to hand over.
 
@@ -36,7 +36,7 @@ Section: your-school · roles: leader · anchor: `verb-add-school` · in `packag
 
 ## Add a school under a group
 
-Section: your-school · roles: admin · anchor: `verb-add-school` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · no demo yet
+Section: your-school · roles: admin · anchor: `verb-add-school` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · demo: add-a-school-under-a-group
 
 **What it's for.** Creating a school inside a group, so it has its own home page, its own staff and its own learners while still rolling up into whatever sits above it.
 
@@ -51,7 +51,7 @@ Section: your-school · roles: admin · anchor: `verb-add-school` · in `package
 
 ## Add a student to a class
 
-Section: getting-people-in · roles: admin, leader, school_admin · anchor: `verb-invite-student` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · no demo yet
+Section: getting-people-in · roles: admin, leader, school_admin · anchor: `verb-invite-student` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · demo: add-a-student-to-a-class
 
 **What it's for.** Making one learner their own way into one class. The link puts them straight into that class with no forms and no sign-up, so a child can be learning within a minute of opening it.
 
@@ -144,7 +144,7 @@ Section: courses-and-content · roles: school_admin, teacher · anchor: `create-
 
 ## Choose what role someone arrives as
 
-Section: getting-people-in · roles: admin, leader, school_admin · anchor: `invite-form-role` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · demo: invite-first-teacher
+Section: getting-people-in · roles: admin, leader, school_admin · anchor: `invite-form-role` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · demo: choose-what-role-someone-arrives-as
 
 **What it's for.** The role you pick on an invite is the role the person lands in, and it travels with the link rather than being set afterwards. Teacher sees their own classes, group leader sees everything below their node, learner just learns.
 
@@ -159,7 +159,7 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `inv
 
 ## Choose which courses a school can use
 
-Section: courses-and-content · roles: admin · anchor: `verb-courses` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · no demo yet
+Section: courses-and-content · roles: admin · anchor: `verb-courses` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · demo: choose-which-courses-a-school-can-use
 
 **What it's for.** Setting what a school or group is allowed to learn: the whole catalogue when they are paid up, or a named course or two while they are trialling.
 
@@ -265,7 +265,7 @@ Section: running-classes · roles: leader, school_admin, teacher · anchor: `cla
 
 ## Delete a school or group
 
-Section: your-school · roles: admin · anchor: `verb-delete` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · no demo yet
+Section: your-school · roles: admin · anchor: `verb-delete` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · demo: delete-a-school-or-group
 
 **What it's for.** Removing a school or group that should never have existed, or has been wound up. It is the one verb here that takes everything below it with it.
 
@@ -311,7 +311,7 @@ Section: seeing-progress · roles: school_admin, teacher · anchor: `settings-ex
 
 ## Email someone their invite again
 
-Section: getting-people-in · roles: admin, leader, school_admin · anchor: `ways-in-resend` · in `packages/player-vue/src/components/admin/WaysInLedger.vue` · no demo yet
+Section: getting-people-in · roles: admin, leader, school_admin · anchor: `ways-in-resend` · in `packages/player-vue/src/components/admin/WaysInLedger.vue` · demo: email-someone-their-invite-again
 
 **What it's for.** Sending the same invite email a second time to somebody who never found the first one. Nothing changes and no new link is made, so the one they may yet dig out of a spam folder still works.
 
@@ -585,7 +585,7 @@ Section: running-classes · roles: school_admin, teacher · anchor: `verb-new-cl
 
 ## Make a link anyone can use
 
-Section: getting-people-in · roles: admin, leader, school_admin · anchor: `verb-shareable-link` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · demo: ways-in
+Section: getting-people-in · roles: admin, leader, school_admin · anchor: `verb-shareable-link` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · demo: make-a-link-anyone-can-use
 
 **What it's for.** One link, by role, that you can put in a newsletter or on a slide and let a whole room use. Unlike a personal invite it is not tied to anybody, so new arrivals type their own name before they are in.
 
@@ -793,7 +793,7 @@ Section: running-classes · roles: leader, school_admin, teacher · anchor: `cla
 
 ## Rename a school or group
 
-Section: your-school · roles: admin · anchor: `verb-rename` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · no demo yet
+Section: your-school · roles: admin · anchor: `verb-rename` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · demo: rename-a-school-or-group
 
 **What it's for.** Changing what a school or group is called everywhere it appears. Nothing else moves — the same people, classes and links carry on under the new name.
 
@@ -869,7 +869,7 @@ Section: your-own-account · roles: leader, school_admin · anchor: `account-pas
 
 ## Set up a demo organisation
 
-Section: your-school · roles: admin · anchor: `verb-mint-demo` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · no demo yet
+Section: your-school · roles: admin · anchor: `verb-mint-demo` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · demo: set-up-a-demo-organisation
 
 **What it's for.** Standing up a whole organisation with plausible people and activity already in it, for showing somebody what the product looks like once it is running rather than what it looks like empty.
 
@@ -1079,7 +1079,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `insig
 
 ## Walking down to a school, a class or a person
 
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `below-tree-name` · in `packages/player-vue/src/components/admin/NodeBelowTree.vue` · no demo yet
+Section: seeing-progress · roles: admin, leader, school_admin · anchor: `below-tree-name` · in `packages/player-vue/src/components/admin/NodeBelowTree.vue` · demo: walking-down-to-a-school-a-class-or-a-person
 
 **What it's for.** A drawn tree of everything hanging beneath the level you are on — groups inside groups, the classes in each, the teachers who take them and the staff who teach nothing yet. It is one picture of the shape of your organisation, not a list you have to filter.
 

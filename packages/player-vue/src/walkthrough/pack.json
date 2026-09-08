@@ -1,7 +1,128 @@
 {
-  "version": "0553521c275f",
+  "version": "ceba798d6815",
   "generatedAt": "2026-09-08",
   "walks": [
+    {
+      "id": "add-a-class-to-a-group",
+      "title": "Add a class to a group",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "keywords": [
+        "class",
+        "add",
+        "group",
+        "org",
+        "leader"
+      ],
+      "steps": [
+        {
+          "anchor": "verb-add-class",
+          "say": "**Add a class** builds a class underneath the group you are standing on, before anybody is teaching it. Tapping it opens the form and creates nothing.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "add-class-name",
+          "say": "The class name goes here, and the course beside it is what the class will learn. Both are needed before the button will do anything.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "add-class-submit",
+          "say": "**Add** creates it. A class needs no teacher to exist — it sits under the group waiting, and you put a teacher on it from your staff list whenever you are ready.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's a class set up in advance, teacher to follow. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "add-a-school-under-a-group",
+      "title": "Add a school under a group",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "keywords": [
+        "school",
+        "add",
+        "create",
+        "group",
+        "structure"
+      ],
+      "steps": [
+        {
+          "anchor": "verb-add-school",
+          "say": "**Add a school** only appears on a plain group, because a school cannot contain another school. Tapping it opens a name field and creates nothing.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "verb-add-school",
+          "say": "Type the school's name and tap **Add**. It appears in the list below with its own home page, its own staff and its own learners, still rolling up into whatever sits above it.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's a school inside a group — its own place, still part of yours. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "add-a-student-to-a-class",
+      "title": "Add a student to a class",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "keywords": [
+        "student",
+        "invite",
+        "class",
+        "learner",
+        "join",
+        "link"
+      ],
+      "steps": [
+        {
+          "anchor": "verb-invite-student",
+          "say": "On a class's own page the invite verb says **Invite students**, because a link minted here carries this class with it. Tapping it opens a form and creates nothing.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "invite-form-submit",
+          "say": "Type the student's name, then either add their email so we send the invite, or leave it blank and the button becomes **Create their link** for you to hand over yourself.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "verb-invite-student",
+          "say": "One student at a time is deliberate — the link is theirs alone and puts them straight into learning with no sign-up screens. Come back to this button for the next name.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's a student in a class — one name, one link, no forms for them. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
     {
       "id": "choose-something-else-to-learn",
       "title": "Choose something else to learn",
@@ -49,6 +170,156 @@
             "on": "next"
           },
           "terminal": "That's the Library. Close it and press play to carry on with the one you are in."
+        }
+      ]
+    },
+    {
+      "id": "choose-what-role-someone-arrives-as",
+      "title": "Choose what role someone arrives as",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "keywords": [
+        "role",
+        "teacher",
+        "leader",
+        "learner",
+        "invite",
+        "permissions"
+      ],
+      "steps": [
+        {
+          "anchor": "invite-form-role",
+          "say": "Open **Invite a person** and this dropdown is the first thing in the form. The role you pick travels with the link rather than being set afterwards, so it is the role they land in.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "invite-form-role",
+          "say": "Teacher sees their own classes. Group leader sees everything below this node. Learner just learns. The place matters as much as the role — a leader invited on a group leads that group and everything under it.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "invite-form-submit",
+          "say": "Name them, then submit. The role is fixed into the link at that moment, which is why it is worth picking the node before you pick the role.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's role and place decided together, at the point of invite. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "choose-which-courses-a-school-can-use",
+      "title": "Choose which courses a school can use",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "keywords": [
+        "courses",
+        "entitlement",
+        "trial",
+        "paid",
+        "access",
+        "catalogue"
+      ],
+      "steps": [
+        {
+          "anchor": "verb-courses",
+          "say": "**Courses** sets what this school or group is allowed to learn. Tapping it opens the picker and changes nothing until you save.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "verb-courses",
+          "say": "Choose the whole catalogue for a school that is paid up, or search out the one or two courses a trial should carry. Everyone below this node inherits whatever you save.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's a school's reading list set from one place — the server works the trial dates out on save. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "delete-a-school-or-group",
+      "title": "Delete a school or group",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "keywords": [
+        "delete",
+        "remove",
+        "school",
+        "group",
+        "close"
+      ],
+      "steps": [
+        {
+          "anchor": "verb-delete",
+          "say": "**Delete** sits on its own at the end of the row, in red, because it is the one verb here that takes everything below it with it. This tour points at it and will not tap it.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "verb-delete",
+          "say": "Tapping it shows you a summary first: the classes, people and links that go with it, counted for you. Where there is real activity underneath you are asked to type the name back before it will go, which is the signal to stop and check.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's the one door with a lock on it — an empty shell goes on a single confirm, a live school does not. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "email-someone-their-invite-again",
+      "title": "Email someone their invite again",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "keywords": [
+        "resend",
+        "email",
+        "invite",
+        "again",
+        "lost",
+        "ways in"
+      ],
+      "steps": [
+        {
+          "anchor": "ways-in-copy",
+          "say": "Every live way in has its own row down here in **Ways in**, with its verbs at the end of it. Find the row for the person who says they never got their invite.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "ways-in-resend",
+          "say": "**Email again** sends the same invite a second time. Nothing changes and no new link is made, so the one they may yet dig out of a spam folder still works. Only rows for a named person with an email on file carry this button.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's the same invite, sent again — and the note above the table names the address it went to. This tour changed nothing; only your own taps do."
         }
       ]
     },
@@ -389,6 +660,43 @@
       ]
     },
     {
+      "id": "make-a-link-anyone-can-use",
+      "title": "Make a link anyone can use",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "keywords": [
+        "shareable",
+        "link",
+        "join",
+        "open",
+        "role",
+        "bulk"
+      ],
+      "steps": [
+        {
+          "anchor": "verb-shareable-link",
+          "say": "**Get a shareable link** is the one to reach for when you cannot name who is coming — a newsletter, a slide at the front of a hall, a whole staffroom. Tapping it opens a small form and mints nothing yet.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "verb-shareable-link",
+          "say": "The dropdown sets the role everyone arriving on that link lands in, and **Create invite link** hands you the link itself. Because it is tied to nobody, new arrivals type their own name before they are in.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's a link a whole room can use — one role, one link, revocable in **Ways in** whenever it has travelled too far. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
       "id": "move-a-teacher-between-classes",
       "title": "Move a teacher to another class",
       "personas": [
@@ -556,6 +864,40 @@
       ]
     },
     {
+      "id": "rename-a-school-or-group",
+      "title": "Rename a school or group",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "keywords": [
+        "rename",
+        "name",
+        "change",
+        "school",
+        "group"
+      ],
+      "steps": [
+        {
+          "anchor": "verb-rename",
+          "say": "**Rename** changes what this school or group is called everywhere it appears. Tapping it opens a field holding the current name.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "verb-rename",
+          "say": "Type the new name and tap **Save**. Nothing else moves — the same people, classes and links carry on underneath it. If the new name matches something sitting beside it you are warned and asked to confirm.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's a new name and nothing else changed. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
       "id": "run-class-session",
       "title": "Run your first class session",
       "personas": [
@@ -641,6 +983,41 @@
             "on": "next"
           },
           "terminal": "Everything you have already done comes with you — signing in adds your account to it, it never starts you again."
+        }
+      ]
+    },
+    {
+      "id": "set-up-a-demo-organisation",
+      "title": "Set up a demo organisation",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "keywords": [
+        "demo",
+        "sales",
+        "pilot",
+        "mint",
+        "trial",
+        "prospect"
+      ],
+      "steps": [
+        {
+          "anchor": "verb-mint-demo",
+          "say": "**Mint a demo org** stands up a whole organisation with plausible people and activity already in it, so a prospect sees the product running rather than empty. Tapping it opens the form and mints nothing.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "verb-mint-demo",
+          "say": "Give it a name, and a leader's email if somebody is to be handed it. **Mint** builds it under the node you are standing on and gives you back a leader link to copy.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's a demo org ready to show — and its own page grows a **Refresh demo activity** button so it never looks abandoned. This tour changed nothing; only your own taps do."
         }
       ]
     },
@@ -735,6 +1112,52 @@
             "on": "next"
           },
           "terminal": "That's sharing a class — same class, two teachers, one lead. This tour added nobody; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "walking-down-to-a-school-a-class-or-a-person",
+      "title": "Walking down to a school, a class or a person",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "keywords": [
+        "tree",
+        "below",
+        "structure",
+        "drill down",
+        "school",
+        "class",
+        "teacher",
+        "nested"
+      ],
+      "steps": [
+        {
+          "anchor": "below-tree-name",
+          "say": "**Below this** draws everything hanging beneath the level you are on — groups inside groups, the classes in each, the teachers who take them and the staff who teach nothing yet. It is a picture of the shape, not a list to filter.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "below-tree-name",
+          "say": "The caret to the left of a name opens and closes what sits under it. The top two levels open themselves and deeper ones wait to be tapped, so a large organisation shows you its shape rather than eighty-five rows.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "below-tree-name",
+          "say": "Tapping a name walks you down to it, and the numbers above redraw for that level. A class row already names its teachers and its student count without you opening it; where there are more than eight, a **more** button reveals the rest.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's the whole tree, one tap per level down. This tour changed nothing; only your own taps do."
         }
       ]
     },
@@ -931,7 +1354,7 @@
       },
       "anchor": "verb-add-class",
       "source": "packages/player-vue/src/components/admin/NodeActionBar.vue",
-      "walk": null,
+      "walk": "add-a-class-to-a-group",
       "what": "Creating a class underneath a group you lead, before anyone is teaching it. Useful when you are setting a term up in advance and will put a teacher on each class later.",
       "where": "The group's own page, the **Add a class** button in the row of actions at the top.",
       "how": [
@@ -964,7 +1387,7 @@
       },
       "anchor": "verb-add-school",
       "source": "packages/player-vue/src/views/schools/SchoolsView.vue",
-      "walk": null,
+      "walk": "add-a-school-under-a-group",
       "what": "Creating a new school inside your programme. The school exists the moment you name it, already attached to your group, with its admin link and teacher link ready to hand over.",
       "where": "All schools, the **+ Add school** button at the top right.",
       "how": [
@@ -995,7 +1418,7 @@
       },
       "anchor": "verb-add-school",
       "source": "packages/player-vue/src/components/admin/NodeActionBar.vue",
-      "walk": null,
+      "walk": "add-a-school-under-a-group",
       "what": "Creating a school inside a group, so it has its own home page, its own staff and its own learners while still rolling up into whatever sits above it.",
       "where": "The group's home page, **Add a school** along the top.",
       "how": [
@@ -1028,7 +1451,7 @@
       },
       "anchor": "verb-invite-student",
       "source": "packages/player-vue/src/components/admin/NodeActionBar.vue",
-      "walk": null,
+      "walk": "add-a-student-to-a-class",
       "what": "Making one learner their own way into one class. The link puts them straight into that class with no forms and no sign-up, so a child can be learning within a minute of opening it.",
       "where": "The class's own page, **Invite students** along the top.",
       "how": [
@@ -1233,7 +1656,7 @@
       },
       "anchor": "invite-form-role",
       "source": "packages/player-vue/src/components/admin/NodeActionBar.vue",
-      "walk": "invite-first-teacher",
+      "walk": "choose-what-role-someone-arrives-as",
       "what": "The role you pick on an invite is the role the person lands in, and it travels with the link rather than being set afterwards. Teacher sees their own classes, group leader sees everything below their node, learner just learns.",
       "where": "Any node's home page, **Invite a person**, the role dropdown on the left of the form.",
       "how": [
@@ -1264,7 +1687,7 @@
       },
       "anchor": "verb-courses",
       "source": "packages/player-vue/src/components/admin/NodeActionBar.vue",
-      "walk": null,
+      "walk": "choose-which-courses-a-school-can-use",
       "what": "Setting what a school or group is allowed to learn: the whole catalogue when they are paid up, or a named course or two while they are trialling.",
       "where": "The node's home page, **Courses** along the top.",
       "how": [
@@ -1491,7 +1914,7 @@
       },
       "anchor": "verb-delete",
       "source": "packages/player-vue/src/components/admin/NodeActionBar.vue",
-      "walk": null,
+      "walk": "delete-a-school-or-group",
       "what": "Removing a school or group that should never have existed, or has been wound up. It is the one verb here that takes everything below it with it.",
       "where": "The node's home page, **Delete** at the end of the row of buttons.",
       "how": [
@@ -1591,7 +2014,7 @@
       },
       "anchor": "ways-in-resend",
       "source": "packages/player-vue/src/components/admin/WaysInLedger.vue",
-      "walk": null,
+      "walk": "email-someone-their-invite-again",
       "what": "Sending the same invite email a second time to somebody who never found the first one. Nothing changes and no new link is made, so the one they may yet dig out of a spam folder still works.",
       "where": "The node's home page, the **Ways in** section, **Email again** on their row.",
       "how": [
@@ -2179,7 +2602,7 @@
       },
       "anchor": "verb-shareable-link",
       "source": "packages/player-vue/src/components/admin/NodeActionBar.vue",
-      "walk": "ways-in",
+      "walk": "make-a-link-anyone-can-use",
       "what": "One link, by role, that you can put in a newsletter or on a slide and let a whole room use. Unlike a personal invite it is not tied to anybody, so new arrivals type their own name before they are in.",
       "where": "The node's home page, **Get a shareable link** along the top.",
       "how": [
@@ -2626,7 +3049,7 @@
       },
       "anchor": "verb-rename",
       "source": "packages/player-vue/src/components/admin/NodeActionBar.vue",
-      "walk": null,
+      "walk": "rename-a-school-or-group",
       "what": "Changing what a school or group is called everywhere it appears. Nothing else moves — the same people, classes and links carry on under the new name.",
       "where": "The node's home page, **Rename** along the top.",
       "how": [
@@ -2792,7 +3215,7 @@
       },
       "anchor": "verb-mint-demo",
       "source": "packages/player-vue/src/components/admin/NodeActionBar.vue",
-      "walk": null,
+      "walk": "set-up-a-demo-organisation",
       "what": "Standing up a whole organisation with plausible people and activity already in it, for showing somebody what the product looks like once it is running rather than what it looks like empty.",
       "where": "The home page of the node it should sit under, **Mint a demo org** along the top.",
       "how": [
@@ -3257,7 +3680,7 @@
       },
       "anchor": "below-tree-name",
       "source": "packages/player-vue/src/components/admin/NodeBelowTree.vue",
-      "walk": null,
+      "walk": "walking-down-to-a-school-a-class-or-a-person",
       "what": "A drawn tree of everything hanging beneath the level you are on — groups inside groups, the classes in each, the teachers who take them and the staff who teach nothing yet. It is one picture of the shape of your organisation, not a list you have to filter.",
       "where": "The **Below this** panel under the numbers on any group or school page.",
       "how": [

@@ -1,0 +1,43 @@
+{
+  "id": "add-a-class-to-a-group",
+  "title": "Add a class to a group",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "keywords": [
+    "class",
+    "add",
+    "group",
+    "org",
+    "leader"
+  ],
+  "steps": [
+    {
+      "anchor": "verb-add-class",
+      "say": "**Add a class** builds a class underneath the group you are standing on, before anybody is teaching it. Tapping it opens the form and creates nothing.",
+      "advance": {
+        "on": "click"
+      }
+    },
+    {
+      "anchor": "add-class-name",
+      "say": "The class name goes here, and the course beside it is what the class will learn. Both are needed before the button will do anything.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "add-class-submit",
+      "say": "**Add** creates it. A class needs no teacher to exist — it sits under the group waiting, and you put a teacher on it from your staff list whenever you are ready.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's a class set up in advance, teacher to follow. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

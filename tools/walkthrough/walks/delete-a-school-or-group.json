@@ -1,0 +1,34 @@
+{
+  "id": "delete-a-school-or-group",
+  "title": "Delete a school or group",
+  "personas": [
+    "admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "keywords": [
+    "delete",
+    "remove",
+    "school",
+    "group",
+    "close"
+  ],
+  "steps": [
+    {
+      "anchor": "verb-delete",
+      "say": "**Delete** sits on its own at the end of the row, in red, because it is the one verb here that takes everything below it with it. This tour points at it and will not tap it.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "verb-delete",
+      "say": "Tapping it shows you a summary first: the classes, people and links that go with it, counted for you. Where there is real activity underneath you are asked to type the name back before it will go, which is the signal to stop and check.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's the one door with a lock on it — an empty shell goes on a single confirm, a live school does not. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

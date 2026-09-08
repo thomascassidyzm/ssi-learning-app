@@ -1,0 +1,44 @@
+{
+  "id": "choose-what-role-someone-arrives-as",
+  "title": "Choose what role someone arrives as",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "keywords": [
+    "role",
+    "teacher",
+    "leader",
+    "learner",
+    "invite",
+    "permissions"
+  ],
+  "steps": [
+    {
+      "anchor": "invite-form-role",
+      "say": "Open **Invite a person** and this dropdown is the first thing in the form. The role you pick travels with the link rather than being set afterwards, so it is the role they land in.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "invite-form-role",
+      "say": "Teacher sees their own classes. Group leader sees everything below this node. Learner just learns. The place matters as much as the role — a leader invited on a group leads that group and everything under it.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "invite-form-submit",
+      "say": "Name them, then submit. The role is fixed into the link at that moment, which is why it is worth picking the node before you pick the role.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's role and place decided together, at the point of invite. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

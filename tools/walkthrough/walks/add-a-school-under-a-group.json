@@ -1,0 +1,34 @@
+{
+  "id": "add-a-school-under-a-group",
+  "title": "Add a school under a group",
+  "personas": [
+    "admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "keywords": [
+    "school",
+    "add",
+    "create",
+    "group",
+    "structure"
+  ],
+  "steps": [
+    {
+      "anchor": "verb-add-school",
+      "say": "**Add a school** only appears on a plain group, because a school cannot contain another school. Tapping it opens a name field and creates nothing.",
+      "advance": {
+        "on": "click"
+      }
+    },
+    {
+      "anchor": "verb-add-school",
+      "say": "Type the school's name and tap **Add**. It appears in the list below with its own home page, its own staff and its own learners, still rolling up into whatever sits above it.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's a school inside a group — its own place, still part of yours. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

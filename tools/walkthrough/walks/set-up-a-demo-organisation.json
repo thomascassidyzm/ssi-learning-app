@@ -1,0 +1,35 @@
+{
+  "id": "set-up-a-demo-organisation",
+  "title": "Set up a demo organisation",
+  "personas": [
+    "admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "keywords": [
+    "demo",
+    "sales",
+    "pilot",
+    "mint",
+    "trial",
+    "prospect"
+  ],
+  "steps": [
+    {
+      "anchor": "verb-mint-demo",
+      "say": "**Mint a demo org** stands up a whole organisation with plausible people and activity already in it, so a prospect sees the product running rather than empty. Tapping it opens the form and mints nothing.",
+      "advance": {
+        "on": "click"
+      }
+    },
+    {
+      "anchor": "verb-mint-demo",
+      "say": "Give it a name, and a leader's email if somebody is to be handed it. **Mint** builds it under the node you are standing on and gives you back a leader link to copy.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's a demo org ready to show — and its own page grows a **Refresh demo activity** button so it never looks abandoned. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

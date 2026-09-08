@@ -1,6 +1,32 @@
 # Walkthrough pack — compiled render
 
-**Version `0553521c275f` · generated 2026-09-08 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `ceba798d6815` · generated 2026-09-08 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+
+## add-a-class-to-a-group — Add a class to a group
+
+Personas: admin, leader, school_admin · place: node-home
+
+1. [`verb-add-class` · click] **Add a class** builds a class underneath the group you are standing on, before anybody is teaching it. Tapping it opens the form and creates nothing.
+2. [`add-class-name` · next] The class name goes here, and the course beside it is what the class will learn. Both are needed before the button will do anything.
+3. [`add-class-submit` · next] **Add** creates it. A class needs no teacher to exist — it sits under the group waiting, and you put a teacher on it from your staff list whenever you are ready.
+   - terminal: That's a class set up in advance, teacher to follow. This tour changed nothing; only your own taps do.
+
+## add-a-school-under-a-group — Add a school under a group
+
+Personas: admin · place: node-home
+
+1. [`verb-add-school` · click] **Add a school** only appears on a plain group, because a school cannot contain another school. Tapping it opens a name field and creates nothing.
+2. [`verb-add-school` · next] Type the school's name and tap **Add**. It appears in the list below with its own home page, its own staff and its own learners, still rolling up into whatever sits above it.
+   - terminal: That's a school inside a group — its own place, still part of yours. This tour changed nothing; only your own taps do.
+
+## add-a-student-to-a-class — Add a student to a class
+
+Personas: admin, leader, school_admin · place: node-home
+
+1. [`verb-invite-student` · click] On a class's own page the invite verb says **Invite students**, because a link minted here carries this class with it. Tapping it opens a form and creates nothing.
+2. [`invite-form-submit` · next] Type the student's name, then either add their email so we send the invite, or leave it blank and the button becomes **Create their link** for you to hand over yourself.
+3. [`verb-invite-student` · next] One student at a time is deliberate — the link is theirs alone and puts them straight into learning with no sign-up screens. Come back to this button for the next name.
+   - terminal: That's a student in a class — one name, one link, no forms for them. This tour changed nothing; only your own taps do.
 
 ## choose-something-else-to-learn — Choose something else to learn
 
@@ -10,6 +36,39 @@ Personas: learner · place: library
 2. [`library-course-grid` · next] Tap any one of these and you are straight into it — no setting up, no starting over.
 3. [`library-course-grid` · next] Your current course is not going anywhere. Each one keeps its own place, so you can have a poke at a second language and come back without losing an inch in the first.
    - terminal: That's the Library. Close it and press play to carry on with the one you are in.
+
+## choose-what-role-someone-arrives-as — Choose what role someone arrives as
+
+Personas: admin, leader, school_admin · place: node-home
+
+1. [`invite-form-role` · next] Open **Invite a person** and this dropdown is the first thing in the form. The role you pick travels with the link rather than being set afterwards, so it is the role they land in.
+2. [`invite-form-role` · next] Teacher sees their own classes. Group leader sees everything below this node. Learner just learns. The place matters as much as the role — a leader invited on a group leads that group and everything under it.
+3. [`invite-form-submit` · next] Name them, then submit. The role is fixed into the link at that moment, which is why it is worth picking the node before you pick the role.
+   - terminal: That's role and place decided together, at the point of invite. This tour changed nothing; only your own taps do.
+
+## choose-which-courses-a-school-can-use — Choose which courses a school can use
+
+Personas: admin · place: node-home
+
+1. [`verb-courses` · click] **Courses** sets what this school or group is allowed to learn. Tapping it opens the picker and changes nothing until you save.
+2. [`verb-courses` · next] Choose the whole catalogue for a school that is paid up, or search out the one or two courses a trial should carry. Everyone below this node inherits whatever you save.
+   - terminal: That's a school's reading list set from one place — the server works the trial dates out on save. This tour changed nothing; only your own taps do.
+
+## delete-a-school-or-group — Delete a school or group
+
+Personas: admin · place: node-home
+
+1. [`verb-delete` · next] **Delete** sits on its own at the end of the row, in red, because it is the one verb here that takes everything below it with it. This tour points at it and will not tap it.
+2. [`verb-delete` · next] Tapping it shows you a summary first: the classes, people and links that go with it, counted for you. Where there is real activity underneath you are asked to type the name back before it will go, which is the signal to stop and check.
+   - terminal: That's the one door with a lock on it — an empty shell goes on a single confirm, a live school does not. This tour changed nothing; only your own taps do.
+
+## email-someone-their-invite-again — Email someone their invite again
+
+Personas: admin, leader, school_admin · place: node-home
+
+1. [`ways-in-copy` · next] Every live way in has its own row down here in **Ways in**, with its verbs at the end of it. Find the row for the person who says they never got their invite.
+2. [`ways-in-resend` · next] **Email again** sends the same invite a second time. Nothing changes and no new link is made, so the one they may yet dig out of a spam folder still works. Only rows for a named person with an email on file carry this button.
+   - terminal: That's the same invite, sent again — and the note above the table names the address it went to. This tour changed nothing; only your own taps do.
 
 ## go-back-over-something — Go back over something
 
@@ -77,6 +136,14 @@ Personas: admin · place: admin-invites
 4. [`invites-active-toggle` · next] This pill is not just a badge — tapping it is a live kill-switch. It disables or re-enables the link across all four underlying access mechanisms at once.
    - terminal: Rule of the desk: look before you mint — everything here is live the moment it exists.
 
+## make-a-link-anyone-can-use — Make a link anyone can use
+
+Personas: admin, leader, school_admin · place: node-home
+
+1. [`verb-shareable-link` · click] **Get a shareable link** is the one to reach for when you cannot name who is coming — a newsletter, a slide at the front of a hall, a whole staffroom. Tapping it opens a small form and mints nothing yet.
+2. [`verb-shareable-link` · next] The dropdown sets the role everyone arriving on that link lands in, and **Create invite link** hands you the link itself. Because it is tied to nobody, new arrivals type their own name before they are in.
+   - terminal: That's a link a whole room can use — one role, one link, revocable in **Ways in** whenever it has travelled too far. This tour changed nothing; only your own taps do.
+
 ## move-a-teacher-between-classes — Move a teacher to another class
 
 Personas: teacher · place: class-detail
@@ -108,6 +175,14 @@ Personas: learner · place: library
 4. [`library-course-grid` · next] Some languages offer more than one card — a different region or accent of the same language. Pick whichever you would rather end up sounding like.
    - terminal: Nothing here commits you. Tapping a card takes you into it, and every course you have touched keeps its own place waiting.
 
+## rename-a-school-or-group — Rename a school or group
+
+Personas: admin · place: node-home
+
+1. [`verb-rename` · click] **Rename** changes what this school or group is called everywhere it appears. Tapping it opens a field holding the current name.
+2. [`verb-rename` · next] Type the new name and tap **Save**. Nothing else moves — the same people, classes and links carry on underneath it. If the new name matches something sitting beside it you are warned and asked to confirm.
+   - terminal: That's a new name and nothing else changed. This tour changed nothing; only your own taps do.
+
 ## run-class-session — Run your first class session
 
 Personas: teacher · place: class-detail
@@ -124,6 +199,14 @@ Personas: learner · place: library (guest)
 1. [`library-save-progress` · next] Right now everything you have done lives on this device alone. It works perfectly well — but a cleared browser or a new phone takes it with it.
 2. [`library-save-progress` · next] Tap this and you give us an email address, nothing more. We send you a code, you type it in, and your position is yours on any device you sign in on.
    - terminal: Everything you have already done comes with you — signing in adds your account to it, it never starts you again.
+
+## set-up-a-demo-organisation — Set up a demo organisation
+
+Personas: admin · place: node-home
+
+1. [`verb-mint-demo` · click] **Mint a demo org** stands up a whole organisation with plausible people and activity already in it, so a prospect sees the product running rather than empty. Tapping it opens the form and mints nothing.
+2. [`verb-mint-demo` · next] Give it a name, and a leader's email if somebody is to be handed it. **Mint** builds it under the node you are standing on and gives you back a leader link to copy.
+   - terminal: That's a demo org ready to show — and its own page grows a **Refresh demo activity** button so it never looks abandoned. This tour changed nothing; only your own taps do.
 
 ## set-your-password — Set or change your password
 
@@ -143,6 +226,15 @@ Personas: teacher · place: class-detail
 3. [`class-teacher-picker` · next] You can pick anyone already teaching at your school. If the list is empty, your colleague has not joined the school yet — the link underneath brings them straight in.
 4. [`class-teachers` · next] What they get is the whole class: the roster, the sessions, the progress, and the right to run a class session. What they do not get is the lead — that stays with you until you hand it over.
    - terminal: That's sharing a class — same class, two teachers, one lead. This tour added nobody; only your own taps do.
+
+## walking-down-to-a-school-a-class-or-a-person — Walking down to a school, a class or a person
+
+Personas: admin, leader, school_admin · place: node-home
+
+1. [`below-tree-name` · next] **Below this** draws everything hanging beneath the level you are on — groups inside groups, the classes in each, the teachers who take them and the staff who teach nothing yet. It is a picture of the shape, not a list to filter.
+2. [`below-tree-name` · next] The caret to the left of a name opens and closes what sits under it. The top two levels open themselves and deeper ones wait to be tapped, so a large organisation shows you its shape rather than eighty-five rows.
+3. [`below-tree-name` · next] Tapping a name walks you down to it, and the numbers above redraw for that level. A class row already names its teachers and its student count without you opening it; where there are more than eight, a **more** button reveals the rest.
+   - terminal: That's the whole tree, one tap per level down. This tour changed nothing; only your own taps do.
 
 ## ways-in — Ways in — who can get in, and how to change it
 
