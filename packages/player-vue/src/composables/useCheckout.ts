@@ -264,11 +264,23 @@ export function useCheckout() {
   async function routeForPlan(plan?: CheckoutPlan): Promise<'buy' | 'upgrade' | 'blocked'> {
     if (!(await hasLiveSubscription())) return 'buy'
     if (plan === 'family' && canUpgradeToFamily()) return 'upgrade'
+    // A DISPLACED FAMILY MEMBER BUYS THEIR OWN (job #376·F, D6/D8). They count
+    // as subscribed only through somebody else's plan, and that cover has an
+    // end date; their own row, once bought, resolves first and nothing else
+    // changes. Blocking them here would be a dead end for the one person the
+    // downgrade design exists to keep learning.
+    if (displacedFamilyMember()) return 'buy'
     plansOpen.value = false
     detailsOpen.value = false
     pendingAfterAuth.value = false
     alreadySubscribedOpen.value = true
     return 'blocked'
+  }
+
+  /** Covered by a family plan that is ending on a known date. */
+  function displacedFamilyMember(): boolean {
+    const row = useSharedSubscription().subscription.value
+    return row?.planName === 'SSi Family (member)' && !!row.familyEndsAt
   }
 
   function closeAlreadySubscribed(): void {
@@ -350,6 +362,81 @@ export function useCheckout() {
   function clearFamilyUpgrade(): void {
     familyUpgradeError.value = ''
     familyUpgradeDone.value = false
+  }
+
+  /**
+   * Is this person a Family OWNER who can schedule a change to Premium?
+   * Only a live Family row with nothing already set to end: a cancellation
+   * wins (job #376·F, D4) and a change already scheduled shows "Keep Family"
+   * instead. The server refuses all of those too; this keeps the door honest.
+   */
+  function canDowngradeToPremium(): boolean {
+    const sub = useSharedSubscription()
+    const row = sub.subscription.value
+    return (
+      sub.isSubscribed.value &&
+      row?.planName === 'SSi Family' &&
+      !row.cancelAtPeriodEnd &&
+      !row.scheduledPlanName
+    )
+  }
+
+  /** A change to Premium already scheduled on this owner's row: when. */
+  function scheduledPremiumAt(): string | null {
+    const row = useSharedSubscription().subscription.value
+    return row?.planName === 'SSi Family' && row.scheduledPlanName ? (row.scheduledPlanAt ?? null) : null
+  }
+
+  /**
+   * THE DOWNGRADE (job #376·F, D2). One POST; the server writes the schedule,
+   * moves Paddle's price with do_not_bill, and emails every displaced adult.
+   * The row stays SSi Family until the date, so nothing changes today except
+   * what Settings says will happen. Shares the upgrade's busy/error state:
+   * whichever door started it, the app shows one truth.
+   */
+  async function downgradeToPremium(): Promise<boolean> {
+    return postPlanChange('premium')
+  }
+
+  /** KEEP FAMILY (D9): one tap, Paddle back onto the Family price, unbilled. */
+  async function keepFamily(): Promise<boolean> {
+    return postPlanChange('family')
+  }
+
+  async function postPlanChange(plan: 'premium' | 'family'): Promise<boolean> {
+    if (familyUpgradeBusy.value) return false
+    const client = supabase()
+    if (!client) {
+      familyUpgradeError.value = 'Sign in again to change your plan'
+      return false
+    }
+    familyUpgradeBusy.value = true
+    familyUpgradeError.value = ''
+    try {
+      const { data: { session } } = await client.auth.getSession()
+      const token = session?.access_token
+      if (!token) {
+        familyUpgradeError.value = 'Sign in again to change your plan'
+        return false
+      }
+      const response = await fetch('/api/subscription/change-plan', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        familyUpgradeError.value = data?.error || 'Could not change your plan'
+        return false
+      }
+      await useSharedSubscription().refresh()
+      return true
+    } catch (err: any) {
+      familyUpgradeError.value = err?.message || 'Could not change your plan'
+      return false
+    } finally {
+      familyUpgradeBusy.value = false
+    }
   }
 
   /** The manage-subscription route, offered from the notice so the block is
@@ -790,5 +877,9 @@ export function useCheckout() {
     familyUpgradeBusy,
     familyUpgradeError,
     familyUpgradeDone,
+    canDowngradeToPremium,
+    scheduledPremiumAt,
+    downgradeToPremium,
+    keepFamily,
   }
 }

@@ -10901,6 +10901,8 @@ CREATE TABLE public.subscriptions (
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     signup_course_code text,
+    scheduled_plan_name text,
+    scheduled_plan_at timestamp with time zone,
     CONSTRAINT subscriptions_status_check CHECK ((status = ANY (ARRAY['active'::text, 'cancelled'::text, 'past_due'::text, 'none'::text])))
 );
 
@@ -10917,6 +10919,20 @@ COMMENT ON TABLE public.subscriptions IS 'User subscription status. Updated by L
 --
 
 COMMENT ON COLUMN public.subscriptions.signup_course_code IS 'Course the user was unlocking when they subscribed (conversion attribution). Set from checkout customData.course; null for pre-capture subscriptions.';
+
+
+--
+-- Name: COLUMN subscriptions.scheduled_plan_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.subscriptions.scheduled_plan_name IS 'The plan_name this row flips to at scheduled_plan_at (null: no change scheduled). Written by api/subscription/change-plan; applied and cleared by the Paddle webhook.';
+
+
+--
+-- Name: COLUMN subscriptions.scheduled_plan_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.subscriptions.scheduled_plan_at IS 'When scheduled_plan_name takes effect — the current_period_end at the time the owner confirmed. Members stay covered until then.';
 
 
 --

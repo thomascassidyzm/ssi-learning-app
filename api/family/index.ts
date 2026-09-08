@@ -45,13 +45,13 @@ export default async function handler(
 
   const learnerId = await resolveLearnerId(supabase, authResult.userId)
   if (!learnerId) {
-    res.status(200).json({ isOwner: false, hasFamilyPlan: false, seatsUsed: 0, seatCap: FAMILY_SEAT_CAP, members: [], removedChildren: [] })
+    res.status(200).json({ isOwner: false, hasFamilyPlan: false, seatsUsed: 0, seatCap: FAMILY_SEAT_CAP, members: [], removedChildren: [], familyEndsAt: null })
     return
   }
 
   const { data: ownSub } = await supabase
     .from('subscriptions')
-    .select('status, plan_name, current_period_end')
+    .select('status, plan_name, current_period_end, cancel_at_period_end, scheduled_plan_name, scheduled_plan_at')
     .eq('learner_id', learnerId)
     .maybeSingle()
   const hasFamilyPlan =
@@ -59,6 +59,17 @@ export default async function handler(
     ownSub.plan_name === 'SSi Family' &&
     ownSub.status === 'active' &&
     (!ownSub.current_period_end || new Date(ownSub.current_period_end) > new Date())
+
+  // When the family cover ends, if the owner has set it to: a scheduled change
+  // to Premium (job #376·F, D5 — the family page shows the date) or a
+  // cancellation. Null while nothing ends.
+  const familyEndsAt: string | null = !hasFamilyPlan
+    ? null
+    : ownSub!.scheduled_plan_name && ownSub!.scheduled_plan_at
+      ? (ownSub!.scheduled_plan_at as string)
+      : ownSub!.cancel_at_period_end
+        ? (ownSub!.current_period_end as string | null)
+        : null
 
   const rows = await liveFamilyRows(supabase, learnerId)
 
@@ -123,5 +134,6 @@ export default async function handler(
     seatCap: FAMILY_SEAT_CAP,
     members,
     removedChildren,
+    familyEndsAt,
   })
 }
