@@ -1,0 +1,50 @@
+{
+  "id": "read-your-class-list",
+  "title": "Read your class list",
+  "personas": [
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "classes"
+  },
+  "keywords": [
+    "classes",
+    "table",
+    "list",
+    "read",
+    "health",
+    "hours"
+  ],
+  "steps": [
+    {
+      "anchor": "classes-table",
+      "say": "The table is every class you teach, one to a row, with the numbers that tell you how each one is going.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "classes-table",
+      "say": "Read down the health column first, because that is where the app is pointing you. Health is worked out from how many of the last seven days the class practised on.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "classes-table",
+      "say": "The small chart in each row shows whether practice is steady or has stopped. A quiet week reads as needing eyes, which is a prompt for a word rather than a worry.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "classes-table",
+      "say": "Hours this week are worth comparing between classes taking the same course, where the same effort should look the same.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's reading your class list — health first, then the shape of the week. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "id": "where-the-class-has-got-to",
+  "title": "Where the class has got to",
+  "personas": [
+    "leader",
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "class-detail"
+  },
+  "keywords": [
+    "progress",
+    "journey",
+    "class",
+    "belt",
+    "average",
+    "course"
+  ],
+  "steps": [
+    {
+      "anchor": "class-journey",
+      "say": "**Course Journey** is how far the class has travelled through its course. The bar is the share of the course the class has covered together.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "class-journey",
+      "say": "The line under it gives the class average and how far it is to the next belt. That average is the honest number for planning a lesson.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "class-journey",
+      "say": "The belt spread underneath tells you the other half: whether the class is holding together or pulling apart.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's where the class has got to — how far, and how tightly. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

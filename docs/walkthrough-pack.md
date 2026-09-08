@@ -1,6 +1,16 @@
 # Walkthrough pack — compiled render
 
-**Version `0553521c275f` · generated 2026-09-08 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `4cfd7d9db934` · generated 2026-09-08 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+
+## add-students-to-a-class — Add students to a class
+
+Personas: leader, school_admin, teacher · place: class-detail
+
+1. [`class-student-add` · click] **Add students** puts a pupil who is already in your school into this class. Opening it changes nothing on its own.
+2. [`class-student-picker` · next] The list holds the pupils in your school who are not in this class yet, with the classes they are in now under each name. Type a few letters to narrow it.
+3. [`class-student-picker` · next] Tapping a name adds that pupil straight away, and they bring everything they have already learned with them. Adding does not take them out of any other class.
+4. [`class-student-add` · next] The same button reads **Done** while the list is open. For a pupil with no account at all, use the class link in **Invite students** instead.
+   - terminal: That's adding students — search, tap, done. This tour changed nothing; only your own taps do.
 
 ## choose-something-else-to-learn — Choose something else to learn
 
@@ -10,6 +20,54 @@ Personas: learner · place: library
 2. [`library-course-grid` · next] Tap any one of these and you are straight into it — no setting up, no starting over.
 3. [`library-course-grid` · next] Your current course is not going anywhere. Each one keeps its own place, so you can have a poke at a second language and come back without losing an inch in the first.
    - terminal: That's the Library. Close it and press play to carry on with the one you are in.
+
+## choose-what-a-class-learns — Choose what a class learns
+
+Personas: school_admin, teacher · place: classes
+
+1. [`verb-new-class` · click] **+ New class** opens the panel where a class is made. Nothing is created by opening it, so you can look and close it again.
+2. [`create-class-course` · next] The **Course** box is the one that matters here. Type a few letters and it searches the whole catalogue rather than making you scroll a list.
+3. [`create-class-course` · next] Pick the language the class is learning. That choice decides what the class practises and what students hear when they join.
+4. [`create-class-course` · next] The course stays with the class once it is made. A class that needs a different language is a new class, which leaves the old one's records untouched.
+   - terminal: That's choosing what a class learns — one box, searched, and set for good. This tour changed nothing; only your own taps do.
+
+## copy-a-class-link — Copy a class link without opening the class
+
+Personas: school_admin, teacher · place: classes
+
+1. [`classes-share-link` · next] **Copy link** in a class's row hands you that class's join link without opening the class at all.
+2. [`classes-share-link` · next] The button says it has copied, and the link is then yours to paste into an email or a lesson slide.
+3. [`classes-share-link` · next] It is the same link the class page offers, so a student who follows it lands in that class either way.
+   - terminal: That's copying a class link — one tap, from the list. This tour changed nothing; only your own taps do.
+
+## delete-a-class — Delete a class
+
+Personas: leader, school_admin, teacher · place: class-detail
+
+1. [`class-delete` · next] The small bin beside the class name deletes the class. It is here for a class set up by mistake or a group that has finished.
+2. [`class-delete` · next] Tapping it does not delete anything on the spot. It first shows you what would go with the class, so you are deciding with the facts in front of you.
+3. [`class-delete` · next] A class with real practice behind it asks you to type its name before it will go. That is the app making you say it twice on purpose.
+4. [`class-delete` · next] Students keep their own accounts and everything they have learned. What goes is the class itself, its roster and its join link.
+   - terminal: That's deleting a class — shown to you first, confirmed by you, then gone. This tour changed nothing; only your own taps do.
+
+## export-your-class-list — Export your class list
+
+Personas: school_admin, teacher · place: classes
+
+1. [`classes-export` · next] **Export CSV** takes the class list off the screen and into a spreadsheet, for a report or a register you keep elsewhere.
+2. [`classes-export` · next] What you export is what you can see, so filter the table down first if you only want part of it.
+3. [`classes-export` · next] The file downloads to your own device with today's date in its name.
+   - terminal: That's exporting your class list — what is on screen, in a file. This tour changed nothing; only your own taps do.
+
+## find-a-class-in-a-long-list — Find a class in a long list
+
+Personas: school_admin, teacher · place: classes
+
+1. [`classes-filters` · next] The strip above the table cuts a long list down to the question you are actually asking.
+2. [`classes-filters` · next] **Course** shows only the classes learning one language. **Health** pulls out the classes that need attention.
+3. [`classes-filters` · next] **Sort** reorders what is left by students, hours this week or progress.
+4. [`classes-filters` · next] The totals above the table follow the filter, so the student count and the hours are always the total of what you are looking at.
+   - terminal: That's finding a class — three pickers, and the totals keeping up. This tour changed nothing; only your own taps do.
 
 ## go-back-over-something — Go back over something
 
@@ -28,6 +86,16 @@ Personas: teacher · place: class-detail
 2. [`class-teacher-make-lead` · next] **Make lead** hands it to a colleague already on the class. It takes effect straight away, so add them first and hand over once you have.
 3. [`class-teachers` · next] Nothing else moves. The pupils, their progress and every session stay exactly where they are, and you stay on the class as a teacher — you have passed the lead, not left.
    - terminal: That's handover — the lead is a name, not a wall. Nothing changed while you read this; only your own taps do.
+
+## how-students-join-a-class — How students join a class
+
+Personas: leader, school_admin, teacher · place: class-detail
+
+1. [`class-join-link` · next] **Invite students** carries the one door into this class. A student who follows this link signs up and lands straight in the class, on the right course, with no code to type.
+2. [`class-join-code` · click] **Show code instead** is for a room where a link is awkward. It reveals a short code you can write on a whiteboard.
+3. [`class-join-code` · next] Students enter that code at saysomethingin.com/redeem and arrive in the same class.
+4. [`class-join-link` · next] The link and the code both stay valid, so the same one works in week one and in week six. If the card says it could not load, hand nothing out until it comes back.
+   - terminal: That's how students join — one link, one code, both lasting. This tour changed nothing; only your own taps do.
 
 ## install-the-app — Put the app on your device
 
@@ -77,6 +145,15 @@ Personas: admin · place: admin-invites
 4. [`invites-active-toggle` · next] This pill is not just a badge — tapping it is a live kill-switch. It disables or re-enables the link across all four underlying access mechanisms at once.
    - terminal: Rule of the desk: look before you mint — everything here is live the moment it exists.
 
+## make-a-class — Make a class
+
+Personas: school_admin, teacher · place: classes
+
+1. [`verb-new-class` · next] **+ New class** along the top of **My Classes** is where a class of your own starts. A class holds a roster, its own place on the course, and everything the class practises together.
+2. [`verb-new-class` · next] It asks for two things: a name you will recognise on a list, such as Year 7 Welsh, and the language the class is learning.
+3. [`verb-new-class` · next] The join link is made for you at the same moment as the class. Nothing else is needed to start teaching.
+   - terminal: That's making a class — a name, a language, and a link students join by. This tour changed nothing; only your own taps do.
+
 ## move-a-teacher-between-classes — Move a teacher to another class
 
 Personas: teacher · place: class-detail
@@ -87,6 +164,25 @@ Personas: teacher · place: class-detail
 4. [`assign-classes-list` · next] A move is just both at once: tick where they are going, untick where they are leaving. You are looking at the truth before you change it, so nothing here is a guess.
 5. [`assign-classes-save` · next] Saving applies only the boxes you actually changed. If one of them fails, it says which class failed and why, rather than claiming everything saved.
    - terminal: That's moving a teacher — one untick, one tick, one save. This tour changed nothing; only your own taps do.
+
+## open-a-class — Open a class
+
+Personas: school_admin, teacher · place: classes
+
+1. [`classes-row` · next] A whole row is the way in. Tapping anywhere on it opens that class, and the keyboard works too.
+2. [`classes-row` · next] The class page opens on its roster, which is where most of what you want to do with a class lives.
+3. [`classes-row` · next] The buttons at the right of the row do their own jobs and do not open the class.
+   - terminal: That's opening a class — tap the row, land on the roster. This tour changed nothing; only your own taps do.
+
+## read-your-class-list — Read your class list
+
+Personas: school_admin, teacher · place: classes
+
+1. [`classes-table` · next] The table is every class you teach, one to a row, with the numbers that tell you how each one is going.
+2. [`classes-table` · next] Read down the health column first, because that is where the app is pointing you. Health is worked out from how many of the last seven days the class practised on.
+3. [`classes-table` · next] The small chart in each row shows whether practice is steady or has stopped. A quiet week reads as needing eyes, which is a prompt for a word rather than a worry.
+4. [`classes-table` · next] Hours this week are worth comparing between classes taking the same course, where the same effort should look the same.
+   - terminal: That's reading your class list — health first, then the shape of the week. This tour changed nothing; only your own taps do.
 
 ## reading-insights — Reading your insights
 
@@ -107,6 +203,24 @@ Personas: learner · place: library
 3. [`library-course-card` · next] **Premium** with **Try free** next to it means the course is a paid one, and that you can properly get going in it first. You carry on until the app asks — nothing stops you mid-thought and nothing is taken before you have said yes.
 4. [`library-course-grid` · next] Some languages offer more than one card — a different region or accent of the same language. Pick whichever you would rather end up sounding like.
    - terminal: Nothing here commits you. Tapping a card takes you into it, and every course you have touched keeps its own place waiting.
+
+## remove-a-student-from-a-class — Remove a student from a class
+
+Personas: leader, school_admin, teacher · place: class-detail
+
+1. [`class-student-remove` · next] **Remove** at the end of a student's row takes that pupil off this roster. It is per pupil, so you are always removing the person you are looking at.
+2. [`class-student-remove` · next] It asks you to confirm before anything happens, which is your chance to check you are on the right row.
+3. [`class-student-remove` · next] The student keeps their account and everything they have learned, and can join another class straight away. Only their place on this roster goes.
+   - terminal: That's removing a student — one row, one confirmation, nothing lost. This tour changed nothing; only your own taps do.
+
+## rename-a-class — Rename a class
+
+Personas: leader, school_admin, teacher · place: class-detail
+
+1. [`class-rename` · next] The small pencil beside the class name is how a class gets renamed. It sits at the top of the class page, next to the name itself.
+2. [`class-rename` · next] Tapping it asks you for the new name and does nothing until you give it one. Closing the box leaves the class exactly as it was.
+3. [`class-rename` · next] Only the name changes. The roster, the join link, the join code and the class's place on the course all carry on as they were.
+   - terminal: That's renaming a class — a new label on the same class. This tour changed nothing; only your own taps do.
 
 ## run-class-session — Run your first class session
 
@@ -144,6 +258,25 @@ Personas: teacher · place: class-detail
 4. [`class-teachers` · next] What they get is the whole class: the roster, the sessions, the progress, and the right to run a class session. What they do not get is the lead — that stays with you until you hand it over.
    - terminal: That's sharing a class — same class, two teachers, one lead. This tour added nobody; only your own taps do.
 
+## start-a-class-session-from-the-list — Start a class session from the list
+
+Personas: school_admin, teacher · place: classes
+
+1. [`classes-row-play` · next] **Play as class** at the end of a row starts a shared practice session without opening the class first.
+2. [`classes-row-play` · next] Your device leads and the whole class moves together, from wherever the class last got to in its own course.
+3. [`classes-row-play` · next] It is the same session the class page starts, so it moves the class on for everyone on the roster. Only school staff see this button, and only on a live account.
+   - terminal: That's starting a session from the list — find the class, tap, teach. This tour changed nothing; only your own taps do.
+
+## the-class-roster — The class roster
+
+Personas: leader, school_admin, teacher · place: class-detail
+
+1. [`class-roster` · next] **Roster** is the class as a list of people. Every student in the class has a row here, and the rows are where you read the class one pupil at a time.
+2. [`class-roster` · next] Read the mark under each name first. It flags anyone falling behind the class or gone quiet for a while, so the table points before you go hunting.
+3. [`class-roster` · next] The search box jumps you to one student in a long roster. A pupil who has never started reads as inactive rather than behind, because nothing has happened yet to judge.
+4. [`class-roster` · next] The rail beside the table carries the class average, which is what a single row is worth comparing against. A class nobody has joined yet shows its empty places instead of a table.
+   - terminal: That's the roster — the class read pupil by pupil. This tour changed nothing; only your own taps do.
+
 ## ways-in — Ways in — who can get in, and how to change it
 
 Personas: admin, leader, school_admin · place: node-home (org/group/school)
@@ -163,6 +296,15 @@ Personas: learner · place: library
 2. [`library-stat-total-time` · next] Time is the time you have actually spent learning. If it ever shows a **~** in front of it, that is us working it out from how far along you are, because we have not logged the sessions themselves.
 3. [`library-stat-phrases-learnt` · next] Phrases learnt is how many separate phrases every one of your courses has introduced you to so far. It is added up across all of them, so it grows whichever language you pick up.
    - terminal: Nothing here changes what you get next. The course follows your position, not these numbers.
+
+## where-the-class-has-got-to — Where the class has got to
+
+Personas: leader, school_admin, teacher · place: class-detail
+
+1. [`class-journey` · next] **Course Journey** is how far the class has travelled through its course. The bar is the share of the course the class has covered together.
+2. [`class-journey` · next] The line under it gives the class average and how far it is to the next belt. That average is the honest number for planning a lesson.
+3. [`class-journey` · next] The belt spread underneath tells you the other half: whether the class is holding together or pulling apart.
+   - terminal: That's where the class has got to — how far, and how tightly. This tour changed nothing; only your own taps do.
 
 ## where-you-are-in-this-course — Where you are in this course
 

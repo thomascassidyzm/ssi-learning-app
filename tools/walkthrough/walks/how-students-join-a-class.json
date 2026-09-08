@@ -1,0 +1,51 @@
+{
+  "id": "how-students-join-a-class",
+  "title": "How students join a class",
+  "personas": [
+    "leader",
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "class-detail"
+  },
+  "keywords": [
+    "join",
+    "link",
+    "code",
+    "students",
+    "invite",
+    "class"
+  ],
+  "steps": [
+    {
+      "anchor": "class-join-link",
+      "say": "**Invite students** carries the one door into this class. A student who follows this link signs up and lands straight in the class, on the right course, with no code to type.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "class-join-code",
+      "say": "**Show code instead** is for a room where a link is awkward. It reveals a short code you can write on a whiteboard.",
+      "advance": {
+        "on": "click"
+      }
+    },
+    {
+      "anchor": "class-join-code",
+      "say": "Students enter that code at saysomethingin.com/redeem and arrive in the same class.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "class-join-link",
+      "say": "The link and the code both stay valid, so the same one works in week one and in week six. If the card says it could not load, hand nothing out until it comes back.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's how students join — one link, one code, both lasting. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

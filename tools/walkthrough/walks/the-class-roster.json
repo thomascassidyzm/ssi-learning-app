@@ -1,0 +1,50 @@
+{
+  "id": "the-class-roster",
+  "title": "The class roster",
+  "personas": [
+    "leader",
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "class-detail"
+  },
+  "keywords": [
+    "roster",
+    "class",
+    "students",
+    "list",
+    "search"
+  ],
+  "steps": [
+    {
+      "anchor": "class-roster",
+      "say": "**Roster** is the class as a list of people. Every student in the class has a row here, and the rows are where you read the class one pupil at a time.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "class-roster",
+      "say": "Read the mark under each name first. It flags anyone falling behind the class or gone quiet for a while, so the table points before you go hunting.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "class-roster",
+      "say": "The search box jumps you to one student in a long roster. A pupil who has never started reads as inactive rather than behind, because nothing has happened yet to judge.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "class-roster",
+      "say": "The rail beside the table carries the class average, which is what a single row is worth comparing against. A class nobody has joined yet shows its empty places instead of a table.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's the roster — the class read pupil by pupil. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

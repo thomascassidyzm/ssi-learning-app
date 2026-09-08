@@ -1,7 +1,58 @@
 {
-  "version": "0553521c275f",
+  "version": "4cfd7d9db934",
   "generatedAt": "2026-09-08",
   "walks": [
+    {
+      "id": "add-students-to-a-class",
+      "title": "Add students to a class",
+      "personas": [
+        "leader",
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "class-detail"
+      },
+      "keywords": [
+        "add",
+        "student",
+        "class",
+        "roster",
+        "move",
+        "join"
+      ],
+      "steps": [
+        {
+          "anchor": "class-student-add",
+          "say": "**Add students** puts a pupil who is already in your school into this class. Opening it changes nothing on its own.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "class-student-picker",
+          "say": "The list holds the pupils in your school who are not in this class yet, with the classes they are in now under each name. Type a few letters to narrow it.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-student-picker",
+          "say": "Tapping a name adds that pupil straight away, and they bring everything they have already learned with them. Adding does not take them out of any other class.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-student-add",
+          "say": "The same button reads **Done** while the list is open. For a pupil with no account at all, use the class link in **Invite students** instead.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's adding students — search, tap, done. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
     {
       "id": "choose-something-else-to-learn",
       "title": "Choose something else to learn",
@@ -49,6 +100,239 @@
             "on": "next"
           },
           "terminal": "That's the Library. Close it and press play to carry on with the one you are in."
+        }
+      ]
+    },
+    {
+      "id": "choose-what-a-class-learns",
+      "title": "Choose what a class learns",
+      "personas": [
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "classes"
+      },
+      "keywords": [
+        "course",
+        "language",
+        "choose",
+        "class",
+        "catalogue"
+      ],
+      "steps": [
+        {
+          "anchor": "verb-new-class",
+          "say": "**+ New class** opens the panel where a class is made. Nothing is created by opening it, so you can look and close it again.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "create-class-course",
+          "say": "The **Course** box is the one that matters here. Type a few letters and it searches the whole catalogue rather than making you scroll a list.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "create-class-course",
+          "say": "Pick the language the class is learning. That choice decides what the class practises and what students hear when they join.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "create-class-course",
+          "say": "The course stays with the class once it is made. A class that needs a different language is a new class, which leaves the old one's records untouched.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's choosing what a class learns — one box, searched, and set for good. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "copy-a-class-link",
+      "title": "Copy a class link without opening the class",
+      "personas": [
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "classes"
+      },
+      "keywords": [
+        "copy",
+        "link",
+        "share",
+        "class",
+        "invite"
+      ],
+      "steps": [
+        {
+          "anchor": "classes-share-link",
+          "say": "**Copy link** in a class's row hands you that class's join link without opening the class at all.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "classes-share-link",
+          "say": "The button says it has copied, and the link is then yours to paste into an email or a lesson slide.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "classes-share-link",
+          "say": "It is the same link the class page offers, so a student who follows it lands in that class either way.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's copying a class link — one tap, from the list. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "delete-a-class",
+      "title": "Delete a class",
+      "personas": [
+        "leader",
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "class-detail"
+      },
+      "keywords": [
+        "class",
+        "delete",
+        "remove",
+        "close",
+        "bin"
+      ],
+      "steps": [
+        {
+          "anchor": "class-delete",
+          "say": "The small bin beside the class name deletes the class. It is here for a class set up by mistake or a group that has finished.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-delete",
+          "say": "Tapping it does not delete anything on the spot. It first shows you what would go with the class, so you are deciding with the facts in front of you.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-delete",
+          "say": "A class with real practice behind it asks you to type its name before it will go. That is the app making you say it twice on purpose.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-delete",
+          "say": "Students keep their own accounts and everything they have learned. What goes is the class itself, its roster and its join link.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's deleting a class — shown to you first, confirmed by you, then gone. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "export-your-class-list",
+      "title": "Export your class list",
+      "personas": [
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "classes"
+      },
+      "keywords": [
+        "export",
+        "csv",
+        "classes",
+        "download",
+        "spreadsheet"
+      ],
+      "steps": [
+        {
+          "anchor": "classes-export",
+          "say": "**Export CSV** takes the class list off the screen and into a spreadsheet, for a report or a register you keep elsewhere.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "classes-export",
+          "say": "What you export is what you can see, so filter the table down first if you only want part of it.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "classes-export",
+          "say": "The file downloads to your own device with today's date in its name.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's exporting your class list — what is on screen, in a file. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "find-a-class-in-a-long-list",
+      "title": "Find a class in a long list",
+      "personas": [
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "classes"
+      },
+      "keywords": [
+        "filter",
+        "sort",
+        "classes",
+        "find",
+        "search",
+        "health"
+      ],
+      "steps": [
+        {
+          "anchor": "classes-filters",
+          "say": "The strip above the table cuts a long list down to the question you are actually asking.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "classes-filters",
+          "say": "**Course** shows only the classes learning one language. **Health** pulls out the classes that need attention.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "classes-filters",
+          "say": "**Sort** reorders what is left by students, hours this week or progress.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "classes-filters",
+          "say": "The totals above the table follow the filter, so the student count and the hours are always the total of what you are looking at.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's finding a class — three pickers, and the totals keeping up. This tour changed nothing; only your own taps do."
         }
       ]
     },
@@ -141,6 +425,57 @@
             "on": "next"
           },
           "terminal": "That's handover — the lead is a name, not a wall. Nothing changed while you read this; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "how-students-join-a-class",
+      "title": "How students join a class",
+      "personas": [
+        "leader",
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "class-detail"
+      },
+      "keywords": [
+        "join",
+        "link",
+        "code",
+        "students",
+        "invite",
+        "class"
+      ],
+      "steps": [
+        {
+          "anchor": "class-join-link",
+          "say": "**Invite students** carries the one door into this class. A student who follows this link signs up and lands straight in the class, on the right course, with no code to type.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-join-code",
+          "say": "**Show code instead** is for a room where a link is awkward. It reveals a short code you can write on a whiteboard.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "class-join-code",
+          "say": "Students enter that code at saysomethingin.com/redeem and arrive in the same class.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-join-link",
+          "say": "The link and the code both stay valid, so the same one works in week one and in week six. If the card says it could not load, hand nothing out until it comes back.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's how students join — one link, one code, both lasting. This tour changed nothing; only your own taps do."
         }
       ]
     },
@@ -389,6 +724,48 @@
       ]
     },
     {
+      "id": "make-a-class",
+      "title": "Make a class",
+      "personas": [
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "classes"
+      },
+      "keywords": [
+        "class",
+        "create",
+        "new",
+        "make",
+        "start"
+      ],
+      "steps": [
+        {
+          "anchor": "verb-new-class",
+          "say": "**+ New class** along the top of **My Classes** is where a class of your own starts. A class holds a roster, its own place on the course, and everything the class practises together.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "verb-new-class",
+          "say": "It asks for two things: a name you will recognise on a list, such as Year 7 Welsh, and the language the class is learning.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "verb-new-class",
+          "say": "The join link is made for you at the same moment as the class. Nothing else is needed to start teaching.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's making a class — a name, a language, and a link students join by. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
       "id": "move-a-teacher-between-classes",
       "title": "Move a teacher to another class",
       "personas": [
@@ -440,6 +817,98 @@
             "on": "next"
           },
           "terminal": "That's moving a teacher — one untick, one tick, one save. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "open-a-class",
+      "title": "Open a class",
+      "personas": [
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "classes"
+      },
+      "keywords": [
+        "open",
+        "class",
+        "row",
+        "tap",
+        "detail"
+      ],
+      "steps": [
+        {
+          "anchor": "classes-row",
+          "say": "A whole row is the way in. Tapping anywhere on it opens that class, and the keyboard works too.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "classes-row",
+          "say": "The class page opens on its roster, which is where most of what you want to do with a class lives.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "classes-row",
+          "say": "The buttons at the right of the row do their own jobs and do not open the class.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's opening a class — tap the row, land on the roster. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "read-your-class-list",
+      "title": "Read your class list",
+      "personas": [
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "classes"
+      },
+      "keywords": [
+        "classes",
+        "table",
+        "list",
+        "read",
+        "health",
+        "hours"
+      ],
+      "steps": [
+        {
+          "anchor": "classes-table",
+          "say": "The table is every class you teach, one to a row, with the numbers that tell you how each one is going.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "classes-table",
+          "say": "Read down the health column first, because that is where the app is pointing you. Health is worked out from how many of the last seven days the class practised on.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "classes-table",
+          "say": "The small chart in each row shows whether practice is steady or has stopped. A quiet week reads as needing eyes, which is a prompt for a word rather than a worry.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "classes-table",
+          "say": "Hours this week are worth comparing between classes taking the same course, where the same effort should look the same.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's reading your class list — health first, then the shape of the week. This tour changed nothing; only your own taps do."
         }
       ]
     },
@@ -552,6 +1021,92 @@
             "on": "next"
           },
           "terminal": "Nothing here commits you. Tapping a card takes you into it, and every course you have touched keeps its own place waiting."
+        }
+      ]
+    },
+    {
+      "id": "remove-a-student-from-a-class",
+      "title": "Remove a student from a class",
+      "personas": [
+        "leader",
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "class-detail"
+      },
+      "keywords": [
+        "remove",
+        "student",
+        "class",
+        "roster",
+        "leaver"
+      ],
+      "steps": [
+        {
+          "anchor": "class-student-remove",
+          "say": "**Remove** at the end of a student's row takes that pupil off this roster. It is per pupil, so you are always removing the person you are looking at.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-student-remove",
+          "say": "It asks you to confirm before anything happens, which is your chance to check you are on the right row.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-student-remove",
+          "say": "The student keeps their account and everything they have learned, and can join another class straight away. Only their place on this roster goes.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's removing a student — one row, one confirmation, nothing lost. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "rename-a-class",
+      "title": "Rename a class",
+      "personas": [
+        "leader",
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "class-detail"
+      },
+      "keywords": [
+        "class",
+        "rename",
+        "name",
+        "edit",
+        "title"
+      ],
+      "steps": [
+        {
+          "anchor": "class-rename",
+          "say": "The small pencil beside the class name is how a class gets renamed. It sits at the top of the class page, next to the name itself.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-rename",
+          "say": "Tapping it asks you for the new name and does nothing until you give it one. Closing the box leaves the class exactly as it was.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-rename",
+          "say": "Only the name changes. The roster, the join link, the join code and the class's place on the course all carry on as they were.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's renaming a class — a new label on the same class. This tour changed nothing; only your own taps do."
         }
       ]
     },
@@ -739,6 +1294,98 @@
       ]
     },
     {
+      "id": "start-a-class-session-from-the-list",
+      "title": "Start a class session from the list",
+      "personas": [
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "classes"
+      },
+      "keywords": [
+        "play",
+        "session",
+        "class",
+        "start",
+        "lesson"
+      ],
+      "steps": [
+        {
+          "anchor": "classes-row-play",
+          "say": "**Play as class** at the end of a row starts a shared practice session without opening the class first.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "classes-row-play",
+          "say": "Your device leads and the whole class moves together, from wherever the class last got to in its own course.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "classes-row-play",
+          "say": "It is the same session the class page starts, so it moves the class on for everyone on the roster. Only school staff see this button, and only on a live account.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's starting a session from the list — find the class, tap, teach. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "the-class-roster",
+      "title": "The class roster",
+      "personas": [
+        "leader",
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "class-detail"
+      },
+      "keywords": [
+        "roster",
+        "class",
+        "students",
+        "list",
+        "search"
+      ],
+      "steps": [
+        {
+          "anchor": "class-roster",
+          "say": "**Roster** is the class as a list of people. Every student in the class has a row here, and the rows are where you read the class one pupil at a time.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-roster",
+          "say": "Read the mark under each name first. It flags anyone falling behind the class or gone quiet for a while, so the table points before you go hunting.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-roster",
+          "say": "The search box jumps you to one student in a long roster. A pupil who has never started reads as inactive rather than behind, because nothing has happened yet to judge.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-roster",
+          "say": "The rail beside the table carries the class average, which is what a single row is worth comparing against. A class nobody has joined yet shows its empty places instead of a table.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's the roster — the class read pupil by pupil. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
       "id": "ways-in",
       "title": "Ways in — who can get in, and how to change it",
       "personas": [
@@ -848,6 +1495,50 @@
             "on": "next"
           },
           "terminal": "Nothing here changes what you get next. The course follows your position, not these numbers."
+        }
+      ]
+    },
+    {
+      "id": "where-the-class-has-got-to",
+      "title": "Where the class has got to",
+      "personas": [
+        "leader",
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "class-detail"
+      },
+      "keywords": [
+        "progress",
+        "journey",
+        "class",
+        "belt",
+        "average",
+        "course"
+      ],
+      "steps": [
+        {
+          "anchor": "class-journey",
+          "say": "**Course Journey** is how far the class has travelled through its course. The bar is the share of the course the class has covered together.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-journey",
+          "say": "The line under it gives the class average and how far it is to the next belt. That average is the honest number for planning a lesson.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-journey",
+          "say": "The belt spread underneath tells you the other half: whether the class is holding together or pulling apart.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's where the class has got to — how far, and how tightly. This tour changed nothing; only your own taps do."
         }
       ]
     },
@@ -1062,7 +1753,7 @@
       },
       "anchor": "class-student-add",
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
-      "walk": null,
+      "walk": "add-students-to-a-class",
       "what": "Putting a pupil who is already in your school into this class, for a pupil who has changed set or landed in the wrong class.",
       "where": "The class page, the **Add students** button at the top of the roster.",
       "how": [
@@ -1200,7 +1891,7 @@
       },
       "anchor": "create-class-course",
       "source": "packages/player-vue/src/components/schools/CreateClassModal.vue",
-      "walk": null,
+      "walk": "choose-what-a-class-learns",
       "what": "Setting the language a class learns. Every class carries one course, and it decides what the class practises, what students hear when they join, and where the class's shared position sits.",
       "where": "The **Create New Class** panel, the **Course / Language** picker.",
       "how": [
@@ -1360,7 +2051,7 @@
       },
       "anchor": "classes-share-link",
       "source": "packages/player-vue/src/views/schools/TeacherDashboard.vue",
-      "walk": null,
+      "walk": "copy-a-class-link",
       "what": "Grabbing a class's join link straight from the class list, for when you are sending links to several classes in one sitting.",
       "where": "**My Classes**, the **Copy link** button in each row.",
       "how": [
@@ -1460,7 +2151,7 @@
       },
       "anchor": "class-delete",
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
-      "walk": null,
+      "walk": "delete-a-class",
       "what": "Removing a class you no longer want, usually one set up by mistake or a group that has finished. Before anything is deleted the app tells you what goes with it.",
       "where": "The class page, the small bin beside the class name.",
       "how": [
@@ -1622,7 +2313,7 @@
       },
       "anchor": "classes-export",
       "source": "packages/player-vue/src/views/schools/TeacherDashboard.vue",
-      "walk": null,
+      "walk": "export-your-class-list",
       "what": "Taking the class list away as a spreadsheet, with the name, language, student count, belt, hours this week, sessions, health and join code for every class.",
       "where": "**My Classes**, the **Export CSV** button along the top.",
       "how": [
@@ -1654,7 +2345,7 @@
       },
       "anchor": "classes-filters",
       "source": "packages/player-vue/src/views/schools/TeacherDashboard.vue",
-      "walk": null,
+      "walk": "find-a-class-in-a-long-list",
       "what": "Narrowing a long list down to the classes you care about right now, by language or by how they are doing, and putting them in the order that answers your question.",
       "where": "**My Classes**, the strip of pickers above the table.",
       "how": [
@@ -1886,7 +2577,7 @@
       },
       "anchor": "class-journey",
       "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
-      "walk": null,
+      "walk": "where-the-class-has-got-to",
       "what": "A bar showing where a class has got to in its course, measured in LEGOs — the individual pieces of language the course teaches. The class's own shared position leads, and the average its students have reached on their own sits alongside it.",
       "where": "The **Course journey** card on a class page.",
       "how": [
@@ -1951,7 +2642,7 @@
       },
       "anchor": "class-join-link",
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
-      "walk": "run-class-session",
+      "walk": "how-students-join-a-class",
       "what": "The one door into a class. A student who follows the class link signs up and lands straight in the class, on the right course, with no code to type. The same class also has a short code for a room where a link is awkward.",
       "where": "The class page, the **Invite students** card.",
       "how": [
@@ -2145,7 +2836,7 @@
       },
       "anchor": "verb-new-class",
       "source": "packages/player-vue/src/views/schools/TeacherDashboard.vue",
-      "walk": null,
+      "walk": "make-a-class",
       "what": "Setting up a class of your own: a name, a language, and a link students use to join it. A class holds a roster, its own place on the course, and everything the class practises together.",
       "where": "**My Classes**, the **+ New class** button along the top of the page.",
       "how": [
@@ -2274,7 +2965,7 @@
       },
       "anchor": "classes-row",
       "source": "packages/player-vue/src/views/schools/TeacherDashboard.vue",
-      "walk": null,
+      "walk": "open-a-class",
       "what": "Going from the summary row into the class itself, where the roster, the teachers, the join link and the class's progress all live.",
       "where": "**My Classes**, anywhere on the class's row.",
       "how": [
@@ -2399,7 +3090,7 @@
       },
       "anchor": "classes-table",
       "source": "packages/player-vue/src/views/schools/TeacherDashboard.vue",
-      "walk": null,
+      "walk": "read-your-class-list",
       "what": "One row per class, showing at a glance how each one is doing: how many students, what belt the class has reached, hours practised this week, the shape of the last seven days, and a health mark for classes worth a look.",
       "where": "**My Classes**, the table filling most of the page.",
       "how": [
@@ -2534,7 +3225,7 @@
       },
       "anchor": "class-student-remove",
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
-      "walk": null,
+      "walk": "remove-a-student-from-a-class",
       "what": "Taking a student off a class roster, for a pupil who has changed set or joined the wrong class from a shared link.",
       "where": "The class page, the **Remove** button at the end of the student's row in the roster.",
       "how": [
@@ -2596,7 +3287,7 @@
       },
       "anchor": "class-rename",
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
-      "walk": null,
+      "walk": "rename-a-class",
       "what": "Changing what a class is called, for a name typed in a hurry or a group that has moved up a year.",
       "where": "The class page, the small pencil beside the class name.",
       "how": [
@@ -2890,7 +3581,7 @@
       },
       "anchor": "classes-row-play",
       "source": "packages/player-vue/src/views/schools/TeacherDashboard.vue",
-      "walk": null,
+      "walk": "start-a-class-session-from-the-list",
       "what": "Starting a shared practice session for a class without opening the class first. Your device leads and the whole class moves together from where the class last got to.",
       "where": "**My Classes**, the **Play as class** button at the end of the class's row.",
       "how": [
@@ -3121,7 +3812,7 @@
       },
       "anchor": "class-roster",
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
-      "walk": null,
+      "walk": "the-class-roster",
       "what": "Everyone in the class, one row each, with their belt, how much they have learned, how much they have practised and when they were last at it. This is the answer to who is quietly drifting.",
       "where": "The class page, the **Roster** table.",
       "how": [
@@ -3361,7 +4052,7 @@
       },
       "anchor": "class-journey",
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
-      "walk": null,
+      "walk": "where-the-class-has-got-to",
       "what": "How far the class has travelled through its course, as a bar with the class average behind it and the next belt named. A class carries its own place on the course, moved by the sessions you run together.",
       "where": "The class page, the **Course Journey** card in the column beside the roster.",
       "how": [

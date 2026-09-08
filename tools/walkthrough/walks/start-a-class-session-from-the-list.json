@@ -1,0 +1,42 @@
+{
+  "id": "start-a-class-session-from-the-list",
+  "title": "Start a class session from the list",
+  "personas": [
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "classes"
+  },
+  "keywords": [
+    "play",
+    "session",
+    "class",
+    "start",
+    "lesson"
+  ],
+  "steps": [
+    {
+      "anchor": "classes-row-play",
+      "say": "**Play as class** at the end of a row starts a shared practice session without opening the class first.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "classes-row-play",
+      "say": "Your device leads and the whole class moves together, from wherever the class last got to in its own course.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "classes-row-play",
+      "say": "It is the same session the class page starts, so it moves the class on for everyone on the roster. Only school staff see this button, and only on a live account.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's starting a session from the list — find the class, tap, teach. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

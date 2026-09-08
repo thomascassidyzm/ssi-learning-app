@@ -1,0 +1,43 @@
+{
+  "id": "rename-a-class",
+  "title": "Rename a class",
+  "personas": [
+    "leader",
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "class-detail"
+  },
+  "keywords": [
+    "class",
+    "rename",
+    "name",
+    "edit",
+    "title"
+  ],
+  "steps": [
+    {
+      "anchor": "class-rename",
+      "say": "The small pencil beside the class name is how a class gets renamed. It sits at the top of the class page, next to the name itself.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "class-rename",
+      "say": "Tapping it asks you for the new name and does nothing until you give it one. Closing the box leaves the class exactly as it was.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "class-rename",
+      "say": "Only the name changes. The roster, the join link, the join code and the class's place on the course all carry on as they were.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's renaming a class — a new label on the same class. This tour changed nothing; only your own taps do."
+    }
+  ]
+}
