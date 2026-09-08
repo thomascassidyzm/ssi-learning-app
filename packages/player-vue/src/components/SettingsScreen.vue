@@ -605,6 +605,14 @@ const {
 } = useSharedSubscription()
 const portalFeedback = ref('')
 
+// This is the screen a buyer opens to check what they bought, so it is the one
+// screen that must never show a stale answer. Boot's read can have failed
+// (fetchSubscription deliberately swallows a network error and leaves the state
+// untouched) or predated the purchase, and either way the Upgrade row would sit
+// there in front of somebody who has already paid — Tom, 2026-09-07. One read
+// on open, and the screen is always answering from the server.
+onMounted(() => { void refreshSubscription() })
+
 const handleManageSubscription = async () => {
   portalFeedback.value = ''
   try {
