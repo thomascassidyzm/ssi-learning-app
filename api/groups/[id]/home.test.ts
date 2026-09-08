@@ -85,6 +85,10 @@ function resetTables(): void {
     govt_admins: [
       { user_id: 'leader-1', group_id: 'programme' },
     ],
+    // A funded org's enrolment policy hangs off ONE node — 'programme' here.
+    org_enrolment_policies: [
+      { group_id: 'programme', org_display_name: 'Y Ganolfan Dysgu Cymraeg Genedlaethol', is_active: true },
+    ],
   }
 }
 
@@ -485,6 +489,31 @@ describe('GET /api/groups/:id/home', () => {
     expect(res.body.ancestors).toEqual([])
     expect(res.body.siblings).toEqual([])
     expect(res.body.children.map((c: any) => c.id)).toEqual(['school-node'])
+  })
+
+  // FUNDER REPORTING (job #572). The leader of a funded org must be able to
+  // find their own numbers without an ssi_admin pulling them, so the node home
+  // tells the client whether THIS node reports to a funder. The flag is what
+  // the panel renders off, and it must be absent everywhere else — a node that
+  // reports to nobody carries no chrome and pays for no extra request.
+  it('names the funder org on the node that carries the enrolment policy', async () => {
+    verifyAuthTokenResult = { valid: true, userId: 'leader-1' }
+    const res = makeRes()
+    await handler(makeReq('programme'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.funderReporting).toEqual({ orgName: 'Y Ganolfan Dysgu Cymraeg Genedlaethol' })
+  })
+
+  it('reports no funder on a child node, and none when the policy is switched off', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const child = makeRes()
+    await handler(makeReq('school-node'), child)
+    expect(child.body.funderReporting).toBeNull()
+
+    TABLES.org_enrolment_policies[0].is_active = false
+    const off = makeRes()
+    await handler(makeReq('programme'), off)
+    expect(off.body.funderReporting).toBeNull()
   })
 
   it('403s a leader asking for a group outside their subtree', async () => {
