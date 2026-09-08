@@ -1,5 +1,5 @@
 {
-  "version": "0553521c275f",
+  "version": "cac089f93656",
   "generatedAt": "2026-09-08",
   "walks": [
     {
@@ -49,6 +49,51 @@
             "on": "next"
           },
           "terminal": "That's the Library. Close it and press play to carry on with the one you are in."
+        }
+      ]
+    },
+    {
+      "id": "finding-your-way-around",
+      "title": "Finding your way around the organisation",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "keywords": [
+        "map",
+        "rail",
+        "navigate",
+        "where am i",
+        "ancestors",
+        "siblings",
+        "orientation"
+      ],
+      "steps": [
+        {
+          "anchor": "node-map-rail",
+          "say": "This column is the map, and it never goes away. Read down it for the path from your top level to the one you are standing on.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "node-map-rail",
+          "say": "Under your own level sit its neighbours and everything hanging beneath it, so you can always tell how deep into the organisation you have gone.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "node-map-rail",
+          "say": "Tap any name to move straight there. The page rebuilds around the new level and the map redraws with it. A leader only ever sees their own part of the organisation — the map is trimmed by the server, not hidden in the page.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's the map — one column that always answers where you are. This tour changed nothing; only your own taps do."
         }
       ]
     },
@@ -141,6 +186,88 @@
             "on": "next"
           },
           "terminal": "That's handover — the lead is a name, not a wall. Nothing changed while you read this; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "how-far-a-class-has-travelled",
+      "title": "How far a class has travelled",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "keywords": [
+        "journey",
+        "progress",
+        "legos",
+        "position",
+        "course",
+        "belt",
+        "how far"
+      ],
+      "steps": [
+        {
+          "anchor": "class-journey",
+          "say": "**Course journey** is where the class has got to, measured in LEGOs — the individual pieces of language the course teaches. The bar is how much of the course it has covered together.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-journey",
+          "say": "The line underneath gives both figures: the class's own shared position, and the average its students have reached learning alone. It then names the next belt and how many LEGOs are left to reach it.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-journey",
+          "say": "A class that has never played together has no shared position at all, so the bar falls back to the students' average and says as much.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's the distance travelled, class first and students alongside. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "how-fresh-these-numbers-are",
+      "title": "How fresh these numbers are",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "keywords": [
+        "updated",
+        "refresh",
+        "fresh",
+        "stale",
+        "time",
+        "reload"
+      ],
+      "steps": [
+        {
+          "anchor": "node-updated",
+          "say": "**Updated** and a time — that is when the figures below were last fetched, so you always know whether you are reading this morning or this minute.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "node-updated",
+          "say": "Pull the page down or reload it and the numbers are fetched again; the stamp moves with them. Nothing is shown until a load has genuinely succeeded, so an empty stamp means the numbers have not arrived rather than that they are old.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's the freshness of everything under it, in one line. This tour changed nothing; only your own taps do."
         }
       ]
     },
@@ -444,6 +571,51 @@
       ]
     },
     {
+      "id": "practice-per-student-per-week",
+      "title": "Practice per student per week",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "keywords": [
+        "benchmark",
+        "minutes",
+        "per student",
+        "per week",
+        "average",
+        "compare",
+        "rate"
+      ],
+      "steps": [
+        {
+          "anchor": "class-benchmark",
+          "say": "**Practice min/student/week** is the top bar: this class's own minutes of practice per student per week.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-benchmark",
+          "say": "The bars below it are the school average and the global average for the same course. Compare the lengths, and the numbers at the end give the exact figures.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-benchmark",
+          "say": "Dividing by students and by weeks is what lets a class of nine and a class of thirty be compared honestly. A class with too little practice recorded shows a plain line saying so rather than a bar built from almost nothing.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's this class's effort, put on the same footing as everyone else's. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
       "id": "reading-insights",
       "title": "Reading your insights",
       "personas": [
@@ -491,6 +663,96 @@
             "on": "next"
           },
           "terminal": "Rates lead, position is context — and the picker text always says what a measure means."
+        }
+      ]
+    },
+    {
+      "id": "reading-one-students-progress",
+      "title": "Reading one student's progress",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "keywords": [
+        "student",
+        "learner",
+        "progress",
+        "roster",
+        "last active",
+        "drifting",
+        "spark"
+      ],
+      "steps": [
+        {
+          "anchor": "class-students",
+          "say": "**Students** is every student in the class, one to a row. The bar on each row is that person's own position in the course, in LEGOs.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-students",
+          "say": "The small chart beside it is their practice over the past week, with the minutes named, and the dot and word at the start of the row say whether they are excellent, good, needing attention or inactive.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-students",
+          "say": "Needing attention means either nothing for a fortnight or less than half the class average, so it is a prompt to look rather than a verdict. Tap a row to open that person.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's the whole class read one learner at a time. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "reading-the-belts",
+      "title": "Reading the belts",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "keywords": [
+        "belt",
+        "belts",
+        "white",
+        "black",
+        "distribution",
+        "spread",
+        "seeds"
+      ],
+      "steps": [
+        {
+          "anchor": "class-belts",
+          "say": "**Belt distribution** is the shape of the class across the eight belts. A wide band of one colour means everyone is together; a long tail means they have spread out.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-belts",
+          "say": "The list underneath names each belt and how many students hold it.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-belts",
+          "say": "The ladder runs white, yellow, orange, green, blue, purple, brown, black, reached at 8, 20, 40, 80, 150, 280 and 400 completed sentences. Every screen in the product uses that one ladder, so a student never shows a different belt in two places.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "A belt is distance travelled, never a grade and nothing to pass. This tour changed nothing; only your own taps do."
         }
       ]
     },
@@ -739,6 +1001,97 @@
       ]
     },
     {
+      "id": "the-numbers-on-any-level",
+      "title": "The numbers on any level",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "keywords": [
+        "numbers",
+        "stats",
+        "practice hours",
+        "learners",
+        "teachers",
+        "classes",
+        "rollup"
+      ],
+      "steps": [
+        {
+          "anchor": "node-stats",
+          "say": "This row always counts everything below the level you are on, each person once. A group's figures already include every school, class and learner underneath it.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "node-stats",
+          "say": "**Class practice** is the hours classes have practised together beneath here, and **Classes practising this week** is how many of them have run a session in the last seven days.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "node-stats",
+          "say": "**Teachers** and **Learners** count the people below this level, each once however many classes they are in. Stand on a class and the same row switches to that class's own sessions this week, its practice hours, its students and its teachers.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "One row, the same grammar at every level. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "voice-and-pause",
+      "title": "Voice and pause",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "place": {
+        "route": "node-insights"
+      },
+      "keywords": [
+        "voice",
+        "pause",
+        "microphone",
+        "mic",
+        "speaking",
+        "uptake",
+        "prosody",
+        "adaptive"
+      ],
+      "steps": [
+        {
+          "anchor": "insights-voice-pause",
+          "say": "**Voice and pause** sits at the bottom of the insights page and says what the microphone is actually giving us below this level.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "insights-voice-pause",
+          "say": "Read the uptake figure first — it is how many learners have any mic-derived data at all, and everything beneath rests on it.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "insights-voice-pause",
+          "say": "Then comes how the pause the app leaves learners to speak in is settling, and how they sound when they speak. Open a class or a learner within it to read the same thing at a smaller scope.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "A learner with no microphone data is absent from these figures rather than counted as a zero, so the denominator is always stated. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
       "id": "ways-in",
       "title": "Ways in — who can get in, and how to change it",
       "personas": [
@@ -905,6 +1258,139 @@
             "on": "next"
           },
           "terminal": "That's your position. Close this whenever you like and press play — it always picks up exactly where you left off."
+        }
+      ]
+    },
+    {
+      "id": "whether-a-class-is-practising",
+      "title": "Whether a class is practising together",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "keywords": [
+        "class practice",
+        "sessions",
+        "together",
+        "this week",
+        "last session"
+      ],
+      "steps": [
+        {
+          "anchor": "class-practice",
+          "say": "**Class practice** leads the class page because practising together is what a language programme lives on. The big figure is sessions run this week.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-practice",
+          "say": "The line under it gives how long ago the last session was, and the running total of hours and sessions the class has practised together.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-practice",
+          "say": "A class that has never played together says so plainly, and names the teacher's **Play as class** button as the thing that starts the first one.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's the class's own pulse, ahead of anything students do alone. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "why-a-rate-not-a-total",
+      "title": "Why the insights show a rate, not a total",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "place": {
+        "route": "node-insights"
+      },
+      "keywords": [
+        "rate",
+        "total",
+        "per week",
+        "fair",
+        "compare",
+        "average",
+        "pace",
+        "denominator"
+      ],
+      "steps": [
+        {
+          "anchor": "insights-rate-widget",
+          "say": "This block is the whole argument of the page. It holds an amount per learner per week — a rate — and never a running total.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "insights-rate-widget",
+          "say": "A total only ever says how big and how old something is, so a large school beats a small one before anybody has done a thing. A rate says how fast it is moving, which is the part you can act on.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "insights-rate-widget",
+          "say": "Your level's rate sits beside whatever you are comparing it to, and the line above says in words what the current measure counts. Change the **window** and the same rate is computed over a shorter or a longer period.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "A pace matters more than a position — a class three sentences behind but climbing fast is healthier than one parked far ahead. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "your-class-against-the-average",
+      "title": "Your class against the average",
+      "personas": [
+        "teacher"
+      ],
+      "place": {
+        "route": "analytics"
+      },
+      "keywords": [
+        "analytics",
+        "insights",
+        "rate",
+        "compare",
+        "average",
+        "class",
+        "pace",
+        "window"
+      ],
+      "steps": [
+        {
+          "anchor": "teacher-insights-class",
+          "say": "**Your classes** picks which class you are reading. It only appears when you teach more than one, and switching it reloads everything below.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "insights-window",
+          "say": "Underneath sit the **measure**, the **window** the rate is computed over, and what to **compare to**. The line beneath the pickers says exactly what the current measure counts.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "insights-rate-widget",
+          "say": "This is the answer: your class's pace beside the average you chose. A class with too few sessions to compare honestly says so rather than showing a number built from nothing.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's your class read as a pace rather than a pile of totals. This tour changed nothing; only your own taps do."
         }
       ]
     }
@@ -1688,7 +2174,7 @@
       },
       "anchor": "node-map-rail",
       "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
-      "walk": null,
+      "walk": "finding-your-way-around",
       "what": "A standing map down the side of every level, showing where you are: the levels above you, the level you are on, its neighbours and what sits under it. It never disappears, so you can always tell how deep into the organisation you have gone.",
       "where": "The column on the left of any group, school or class page.",
       "how": [
@@ -1886,7 +2372,7 @@
       },
       "anchor": "class-journey",
       "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
-      "walk": null,
+      "walk": "how-far-a-class-has-travelled",
       "what": "A bar showing where a class has got to in its course, measured in LEGOs — the individual pieces of language the course teaches. The class's own shared position leads, and the average its students have reached on their own sits alongside it.",
       "where": "The **Course journey** card on a class page.",
       "how": [
@@ -1919,7 +2405,7 @@
       },
       "anchor": "node-updated",
       "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
-      "walk": null,
+      "walk": "how-fresh-these-numbers-are",
       "what": "A small time stamp saying when the figures on the page were last loaded, so you always know whether you are looking at this morning or this minute.",
       "where": "Just above the row of numbers, reading **Updated** and a time.",
       "how": [
@@ -2307,7 +2793,7 @@
       },
       "anchor": "class-benchmark",
       "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
-      "walk": null,
+      "walk": "practice-per-student-per-week",
       "what": "Minutes of practice per student per week for this class, set against the same figure for its school and for everyone doing the course. Dividing by students and by weeks is what lets a class of nine and a class of thirty be compared honestly.",
       "where": "The **Practice min/student/week** card on a class page.",
       "how": [
@@ -2433,7 +2919,7 @@
       },
       "anchor": "class-students",
       "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
-      "walk": null,
+      "walk": "reading-one-students-progress",
       "what": "Every student in a class, one to a row, each carrying their own position in the course, their belt, their practice over the last week and how recently they were active. A quiet coloured dot flags anyone who has gone quiet or fallen well behind the class.",
       "where": "The **Students** list at the bottom of a class page.",
       "how": [
@@ -2468,7 +2954,7 @@
       },
       "anchor": "class-belts",
       "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
-      "walk": null,
+      "walk": "reading-the-belts",
       "what": "How a class is spread across the eight belts, from white to black. A belt is earned by completing whole sentences of the course, so it is a coarse, honest badge of distance travelled rather than a score or a grade.",
       "where": "The **Belt distribution** card on a class page.",
       "how": [
@@ -3186,7 +3672,7 @@
       },
       "anchor": "node-stats",
       "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
-      "walk": null,
+      "walk": "the-numbers-on-any-level",
       "what": "The row of figures at the top of any level of your organisation. They always count everything below that level, each person once, so a group's numbers already include every school, class and learner underneath it.",
       "where": "Across the top of the page for a group, a school or a class, under the name.",
       "how": [
@@ -3222,7 +3708,7 @@
       },
       "anchor": "insights-voice-pause",
       "source": "packages/player-vue/src/views/admin/NodeInsightsView.vue",
-      "walk": null,
+      "walk": "voice-and-pause",
       "what": "What the microphone is actually giving us below this level: how many learners have any mic-derived data at all, and for those who do, how the pause the app leaves them to speak in is settling, and how they sound when they speak.",
       "where": "The **Voice and pause** section at the bottom of any level's insights page.",
       "how": [
@@ -3361,7 +3847,7 @@
       },
       "anchor": "class-journey",
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
-      "walk": null,
+      "walk": "how-far-a-class-has-travelled",
       "what": "How far the class has travelled through its course, as a bar with the class average behind it and the next belt named. A class carries its own place on the course, moved by the sessions you run together.",
       "where": "The class page, the **Course Journey** card in the column beside the roster.",
       "how": [
@@ -3394,7 +3880,7 @@
       },
       "anchor": "class-practice",
       "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
-      "walk": null,
+      "walk": "whether-a-class-is-practising",
       "what": "The headline card on a class: how many sessions it has run this week, how long ago the last one was, and the total hours it has practised together. Classes practising together is what a language programme lives on, so this leads over anything individual students do alone.",
       "where": "The **Class practice** card on a class page.",
       "how": [
@@ -3428,7 +3914,7 @@
       },
       "anchor": "insights-rate-widget",
       "source": "packages/player-vue/src/insight/NodeRateEngine.vue",
-      "walk": null,
+      "walk": "why-a-rate-not-a-total",
       "what": "Everything on the insights page is a rate — an amount per learner per week — rather than a running total. A total only ever says how big and how old something is, so a large school always beats a small one. A rate says how fast it is moving, which is the thing you can actually act on.",
       "where": "The comparison block under the pickers on any level's insights page.",
       "how": [
@@ -3497,7 +3983,7 @@
       },
       "anchor": "teacher-insights-class",
       "source": "packages/player-vue/src/insight/TeacherInsightsView.vue",
-      "walk": null,
+      "walk": "your-class-against-the-average",
       "what": "The teacher's own insight tool: pick one of your classes and see its pace set against the average, over the period and for the measure you choose. It answers whether a class is moving well, which a roster of totals cannot.",
       "where": "**Analytics** in the schools navigation.",
       "how": [

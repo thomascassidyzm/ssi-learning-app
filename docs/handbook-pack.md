@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `0553521c275f` · generated 2026-09-08 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `cac089f93656` · generated 2026-09-08 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## Add a class to a group
 
@@ -356,7 +356,7 @@ Section: running-classes · roles: school_admin, teacher · anchor: `classes-fil
 
 ## Finding your way around the organisation
 
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-map-rail` · in `packages/player-vue/src/views/admin/NodeHomeView.vue` · no demo yet
+Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-map-rail` · in `packages/player-vue/src/views/admin/NodeHomeView.vue` · demo: finding-your-way-around
 
 **What it's for.** A standing map down the side of every level, showing where you are: the levels above you, the level you are on, its neighbours and what sits under it. It never disappears, so you can always tell how deep into the organisation you have gone.
 
@@ -449,7 +449,7 @@ Section: getting-people-in · roles: school_admin · anchor: `setup-staff-links`
 
 ## How far a class has travelled
 
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-journey` · in `packages/player-vue/src/views/admin/NodeHomeView.vue` · no demo yet
+Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-journey` · in `packages/player-vue/src/views/admin/NodeHomeView.vue` · demo: how-far-a-class-has-travelled
 
 **What it's for.** A bar showing where a class has got to in its course, measured in LEGOs — the individual pieces of language the course teaches. The class's own shared position leads, and the average its students have reached on their own sits alongside it.
 
@@ -464,7 +464,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class
 
 ## How fresh these numbers are
 
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-updated` · in `packages/player-vue/src/views/admin/NodeHomeView.vue` · no demo yet
+Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-updated` · in `packages/player-vue/src/views/admin/NodeHomeView.vue` · demo: how-fresh-these-numbers-are
 
 **What it's for.** A small time stamp saying when the figures on the page were last loaded, so you always know whether you are looking at this morning or this minute.
 
@@ -644,7 +644,7 @@ Section: running-classes · roles: school_admin, teacher · anchor: `classes-row
 
 ## Practice per student per week
 
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-benchmark` · in `packages/player-vue/src/views/admin/NodeHomeView.vue` · no demo yet
+Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-benchmark` · in `packages/player-vue/src/views/admin/NodeHomeView.vue` · demo: practice-per-student-per-week
 
 **What it's for.** Minutes of practice per student per week for this class, set against the same figure for its school and for everyone doing the course. Dividing by students and by weeks is what lets a class of nine and a class of thirty be compared honestly.
 
@@ -701,7 +701,7 @@ Section: running-classes · roles: school_admin, teacher · anchor: `classes-tab
 
 ## Reading one student's progress
 
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-students` · in `packages/player-vue/src/views/admin/NodeHomeView.vue` · no demo yet
+Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-students` · in `packages/player-vue/src/views/admin/NodeHomeView.vue` · demo: reading-one-students-progress
 
 **What it's for.** Every student in a class, one to a row, each carrying their own position in the course, their belt, their practice over the last week and how recently they were active. A quiet coloured dot flags anyone who has gone quiet or fallen well behind the class.
 
@@ -717,7 +717,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class
 
 ## Reading the belts
 
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-belts` · in `packages/player-vue/src/views/admin/NodeHomeView.vue` · no demo yet
+Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-belts` · in `packages/player-vue/src/views/admin/NodeHomeView.vue` · demo: reading-the-belts
 
 **What it's for.** How a class is spread across the eight belts, from white to black. A belt is earned by completing whole sentences of the course, so it is a coarse, honest badge of distance travelled rather than a score or a grade.
 
@@ -1048,7 +1048,7 @@ Section: getting-people-in · roles: admin · anchor: `invites-mode-strip` · in
 
 ## The numbers on any level
 
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-stats` · in `packages/player-vue/src/views/admin/NodeHomeView.vue` · no demo yet
+Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-stats` · in `packages/player-vue/src/views/admin/NodeHomeView.vue` · demo: the-numbers-on-any-level
 
 **What it's for.** The row of figures at the top of any level of your organisation. They always count everything below that level, each person once, so a group's numbers already include every school, class and learner underneath it.
 
@@ -1064,7 +1064,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-
 
 ## Voice and pause
 
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `insights-voice-pause` · in `packages/player-vue/src/views/admin/NodeInsightsView.vue` · no demo yet
+Section: seeing-progress · roles: admin, leader, school_admin · anchor: `insights-voice-pause` · in `packages/player-vue/src/views/admin/NodeInsightsView.vue` · demo: voice-and-pause
 
 **What it's for.** What the microphone is actually giving us below this level: how many learners have any mic-derived data at all, and for those who do, how the pause the app leaves them to speak in is settling, and how they sound when they speak.
 
@@ -1126,7 +1126,7 @@ Section: your-school · roles: school_admin, leader · anchor: `upgrade-seats-ac
 
 ## Where the class has got to
 
-Section: seeing-progress · roles: leader, school_admin, teacher · anchor: `class-journey` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · no demo yet
+Section: seeing-progress · roles: leader, school_admin, teacher · anchor: `class-journey` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · demo: how-far-a-class-has-travelled
 
 **What it's for.** How far the class has travelled through its course, as a bar with the class average behind it and the next belt named. A class carries its own place on the course, moved by the sessions you run together.
 
@@ -1141,7 +1141,7 @@ Section: seeing-progress · roles: leader, school_admin, teacher · anchor: `cla
 
 ## Whether a class is practising together
 
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-practice` · in `packages/player-vue/src/views/admin/NodeHomeView.vue` · no demo yet
+Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-practice` · in `packages/player-vue/src/views/admin/NodeHomeView.vue` · demo: whether-a-class-is-practising
 
 **What it's for.** The headline card on a class: how many sessions it has run this week, how long ago the last one was, and the total hours it has practised together. Classes practising together is what a language programme lives on, so this leads over anything individual students do alone.
 
@@ -1155,7 +1155,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class
 
 ## Why the insights show a rate, not a total
 
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `insights-rate-widget` · in `packages/player-vue/src/insight/NodeRateEngine.vue` · no demo yet
+Section: seeing-progress · roles: admin, leader, school_admin · anchor: `insights-rate-widget` · in `packages/player-vue/src/insight/NodeRateEngine.vue` · demo: why-a-rate-not-a-total
 
 **What it's for.** Everything on the insights page is a rate — an amount per learner per week — rather than a running total. A total only ever says how big and how old something is, so a large school always beats a small one. A rate says how fast it is moving, which is the thing you can actually act on.
 
@@ -1186,7 +1186,7 @@ Section: your-school · roles: school_admin · anchor: `setup-save-exit` · in `
 
 ## Your class against the average
 
-Section: seeing-progress · roles: teacher · anchor: `teacher-insights-class` · in `packages/player-vue/src/insight/TeacherInsightsView.vue` · no demo yet
+Section: seeing-progress · roles: teacher · anchor: `teacher-insights-class` · in `packages/player-vue/src/insight/TeacherInsightsView.vue` · demo: your-class-against-the-average
 
 **What it's for.** The teacher's own insight tool: pick one of your classes and see its pace set against the average, over the period and for the measure you choose. It answers whether a class is moving well, which a roster of totals cannot.
 

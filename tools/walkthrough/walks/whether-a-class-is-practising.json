@@ -1,0 +1,43 @@
+{
+  "id": "whether-a-class-is-practising",
+  "title": "Whether a class is practising together",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "keywords": [
+    "class practice",
+    "sessions",
+    "together",
+    "this week",
+    "last session"
+  ],
+  "steps": [
+    {
+      "anchor": "class-practice",
+      "say": "**Class practice** leads the class page because practising together is what a language programme lives on. The big figure is sessions run this week.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "class-practice",
+      "say": "The line under it gives how long ago the last session was, and the running total of hours and sessions the class has practised together.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "class-practice",
+      "say": "A class that has never played together says so plainly, and names the teacher's **Play as class** button as the thing that starts the first one.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's the class's own pulse, ahead of anything students do alone. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

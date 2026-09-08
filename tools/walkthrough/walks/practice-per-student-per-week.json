@@ -1,0 +1,45 @@
+{
+  "id": "practice-per-student-per-week",
+  "title": "Practice per student per week",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "keywords": [
+    "benchmark",
+    "minutes",
+    "per student",
+    "per week",
+    "average",
+    "compare",
+    "rate"
+  ],
+  "steps": [
+    {
+      "anchor": "class-benchmark",
+      "say": "**Practice min/student/week** is the top bar: this class's own minutes of practice per student per week.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "class-benchmark",
+      "say": "The bars below it are the school average and the global average for the same course. Compare the lengths, and the numbers at the end give the exact figures.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "class-benchmark",
+      "say": "Dividing by students and by weeks is what lets a class of nine and a class of thirty be compared honestly. A class with too little practice recorded shows a plain line saying so rather than a bar built from almost nothing.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's this class's effort, put on the same footing as everyone else's. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `0553521c275f` · generated 2026-09-08 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `cac089f93656` · generated 2026-09-08 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## choose-something-else-to-learn — Choose something else to learn
 
@@ -10,6 +10,15 @@ Personas: learner · place: library
 2. [`library-course-grid` · next] Tap any one of these and you are straight into it — no setting up, no starting over.
 3. [`library-course-grid` · next] Your current course is not going anywhere. Each one keeps its own place, so you can have a poke at a second language and come back without losing an inch in the first.
    - terminal: That's the Library. Close it and press play to carry on with the one you are in.
+
+## finding-your-way-around — Finding your way around the organisation
+
+Personas: admin, leader, school_admin · place: node-home
+
+1. [`node-map-rail` · next] This column is the map, and it never goes away. Read down it for the path from your top level to the one you are standing on.
+2. [`node-map-rail` · next] Under your own level sit its neighbours and everything hanging beneath it, so you can always tell how deep into the organisation you have gone.
+3. [`node-map-rail` · next] Tap any name to move straight there. The page rebuilds around the new level and the map redraws with it. A leader only ever sees their own part of the organisation — the map is trimmed by the server, not hidden in the page.
+   - terminal: That's the map — one column that always answers where you are. This tour changed nothing; only your own taps do.
 
 ## go-back-over-something — Go back over something
 
@@ -28,6 +37,23 @@ Personas: teacher · place: class-detail
 2. [`class-teacher-make-lead` · next] **Make lead** hands it to a colleague already on the class. It takes effect straight away, so add them first and hand over once you have.
 3. [`class-teachers` · next] Nothing else moves. The pupils, their progress and every session stay exactly where they are, and you stay on the class as a teacher — you have passed the lead, not left.
    - terminal: That's handover — the lead is a name, not a wall. Nothing changed while you read this; only your own taps do.
+
+## how-far-a-class-has-travelled — How far a class has travelled
+
+Personas: admin, leader, school_admin · place: node-home
+
+1. [`class-journey` · next] **Course journey** is where the class has got to, measured in LEGOs — the individual pieces of language the course teaches. The bar is how much of the course it has covered together.
+2. [`class-journey` · next] The line underneath gives both figures: the class's own shared position, and the average its students have reached learning alone. It then names the next belt and how many LEGOs are left to reach it.
+3. [`class-journey` · next] A class that has never played together has no shared position at all, so the bar falls back to the students' average and says as much.
+   - terminal: That's the distance travelled, class first and students alongside. This tour changed nothing; only your own taps do.
+
+## how-fresh-these-numbers-are — How fresh these numbers are
+
+Personas: admin, leader, school_admin · place: node-home
+
+1. [`node-updated` · next] **Updated** and a time — that is when the figures below were last fetched, so you always know whether you are reading this morning or this minute.
+2. [`node-updated` · next] Pull the page down or reload it and the numbers are fetched again; the stamp moves with them. Nothing is shown until a load has genuinely succeeded, so an empty stamp means the numbers have not arrived rather than that they are old.
+   - terminal: That's the freshness of everything under it, in one line. This tour changed nothing; only your own taps do.
 
 ## install-the-app — Put the app on your device
 
@@ -88,6 +114,15 @@ Personas: teacher · place: class-detail
 5. [`assign-classes-save` · next] Saving applies only the boxes you actually changed. If one of them fails, it says which class failed and why, rather than claiming everything saved.
    - terminal: That's moving a teacher — one untick, one tick, one save. This tour changed nothing; only your own taps do.
 
+## practice-per-student-per-week — Practice per student per week
+
+Personas: admin, leader, school_admin · place: node-home
+
+1. [`class-benchmark` · next] **Practice min/student/week** is the top bar: this class's own minutes of practice per student per week.
+2. [`class-benchmark` · next] The bars below it are the school average and the global average for the same course. Compare the lengths, and the numbers at the end give the exact figures.
+3. [`class-benchmark` · next] Dividing by students and by weeks is what lets a class of nine and a class of thirty be compared honestly. A class with too little practice recorded shows a plain line saying so rather than a bar built from almost nothing.
+   - terminal: That's this class's effort, put on the same footing as everyone else's. This tour changed nothing; only your own taps do.
+
 ## reading-insights — Reading your insights
 
 Personas: admin, leader, school_admin · place: node-insights
@@ -97,6 +132,24 @@ Personas: admin, leader, school_admin · place: node-insights
 3. [`insights-compare` · next] **Compare to** puts an average alongside. Everything here is a rate, not a raw total — so groups of different sizes compare fairly.
 4. [`insights-overview` · next] **Overview** takes you back to the same place's home — insights is a lens on where you already are, not a different page to get lost in.
    - terminal: Rates lead, position is context — and the picker text always says what a measure means.
+
+## reading-one-students-progress — Reading one student's progress
+
+Personas: admin, leader, school_admin · place: node-home
+
+1. [`class-students` · next] **Students** is every student in the class, one to a row. The bar on each row is that person's own position in the course, in LEGOs.
+2. [`class-students` · next] The small chart beside it is their practice over the past week, with the minutes named, and the dot and word at the start of the row say whether they are excellent, good, needing attention or inactive.
+3. [`class-students` · next] Needing attention means either nothing for a fortnight or less than half the class average, so it is a prompt to look rather than a verdict. Tap a row to open that person.
+   - terminal: That's the whole class read one learner at a time. This tour changed nothing; only your own taps do.
+
+## reading-the-belts — Reading the belts
+
+Personas: admin, leader, school_admin · place: node-home
+
+1. [`class-belts` · next] **Belt distribution** is the shape of the class across the eight belts. A wide band of one colour means everyone is together; a long tail means they have spread out.
+2. [`class-belts` · next] The list underneath names each belt and how many students hold it.
+3. [`class-belts` · next] The ladder runs white, yellow, orange, green, blue, purple, brown, black, reached at 8, 20, 40, 80, 150, 280 and 400 completed sentences. Every screen in the product uses that one ladder, so a student never shows a different belt in two places.
+   - terminal: A belt is distance travelled, never a grade and nothing to pass. This tour changed nothing; only your own taps do.
 
 ## reading-the-course-list — Reading the course list
 
@@ -144,6 +197,24 @@ Personas: teacher · place: class-detail
 4. [`class-teachers` · next] What they get is the whole class: the roster, the sessions, the progress, and the right to run a class session. What they do not get is the lead — that stays with you until you hand it over.
    - terminal: That's sharing a class — same class, two teachers, one lead. This tour added nobody; only your own taps do.
 
+## the-numbers-on-any-level — The numbers on any level
+
+Personas: admin, leader, school_admin · place: node-home
+
+1. [`node-stats` · next] This row always counts everything below the level you are on, each person once. A group's figures already include every school, class and learner underneath it.
+2. [`node-stats` · next] **Class practice** is the hours classes have practised together beneath here, and **Classes practising this week** is how many of them have run a session in the last seven days.
+3. [`node-stats` · next] **Teachers** and **Learners** count the people below this level, each once however many classes they are in. Stand on a class and the same row switches to that class's own sessions this week, its practice hours, its students and its teachers.
+   - terminal: One row, the same grammar at every level. This tour changed nothing; only your own taps do.
+
+## voice-and-pause — Voice and pause
+
+Personas: admin, leader, school_admin · place: node-insights
+
+1. [`insights-voice-pause` · next] **Voice and pause** sits at the bottom of the insights page and says what the microphone is actually giving us below this level.
+2. [`insights-voice-pause` · next] Read the uptake figure first — it is how many learners have any mic-derived data at all, and everything beneath rests on it.
+3. [`insights-voice-pause` · next] Then comes how the pause the app leaves learners to speak in is settling, and how they sound when they speak. Open a class or a learner within it to read the same thing at a smaller scope.
+   - terminal: A learner with no microphone data is absent from these figures rather than counted as a zero, so the denominator is always stated. This tour changed nothing; only your own taps do.
+
 ## ways-in — Ways in — who can get in, and how to change it
 
 Personas: admin, leader, school_admin · place: node-home (org/group/school)
@@ -173,3 +244,30 @@ Personas: learner · place: library
 3. [`library-position-track` · next] The bar underneath lays the whole course out end to end, with each belt as its own band of colour. The marker on it is you — so it shows how far you have come rather than how far is left.
 4. [`library-belt-browser` · next] Tap the card itself to open the belts up. You can look through everything you have met so far, and start again from any point you fancy revisiting.
    - terminal: That's your position. Close this whenever you like and press play — it always picks up exactly where you left off.
+
+## whether-a-class-is-practising — Whether a class is practising together
+
+Personas: admin, leader, school_admin · place: node-home
+
+1. [`class-practice` · next] **Class practice** leads the class page because practising together is what a language programme lives on. The big figure is sessions run this week.
+2. [`class-practice` · next] The line under it gives how long ago the last session was, and the running total of hours and sessions the class has practised together.
+3. [`class-practice` · next] A class that has never played together says so plainly, and names the teacher's **Play as class** button as the thing that starts the first one.
+   - terminal: That's the class's own pulse, ahead of anything students do alone. This tour changed nothing; only your own taps do.
+
+## why-a-rate-not-a-total — Why the insights show a rate, not a total
+
+Personas: admin, leader, school_admin · place: node-insights
+
+1. [`insights-rate-widget` · next] This block is the whole argument of the page. It holds an amount per learner per week — a rate — and never a running total.
+2. [`insights-rate-widget` · next] A total only ever says how big and how old something is, so a large school beats a small one before anybody has done a thing. A rate says how fast it is moving, which is the part you can act on.
+3. [`insights-rate-widget` · next] Your level's rate sits beside whatever you are comparing it to, and the line above says in words what the current measure counts. Change the **window** and the same rate is computed over a shorter or a longer period.
+   - terminal: A pace matters more than a position — a class three sentences behind but climbing fast is healthier than one parked far ahead. This tour changed nothing; only your own taps do.
+
+## your-class-against-the-average — Your class against the average
+
+Personas: teacher · place: analytics
+
+1. [`teacher-insights-class` · next] **Your classes** picks which class you are reading. It only appears when you teach more than one, and switching it reloads everything below.
+2. [`insights-window` · next] Underneath sit the **measure**, the **window** the rate is computed over, and what to **compare to**. The line beneath the pickers says exactly what the current measure counts.
+3. [`insights-rate-widget` · next] This is the answer: your class's pace beside the average you chose. A class with too few sessions to compare honestly says so rather than showing a number built from nothing.
+   - terminal: That's your class read as a pace rather than a pile of totals. This tour changed nothing; only your own taps do.

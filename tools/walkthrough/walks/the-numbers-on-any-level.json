@@ -1,0 +1,45 @@
+{
+  "id": "the-numbers-on-any-level",
+  "title": "The numbers on any level",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "keywords": [
+    "numbers",
+    "stats",
+    "practice hours",
+    "learners",
+    "teachers",
+    "classes",
+    "rollup"
+  ],
+  "steps": [
+    {
+      "anchor": "node-stats",
+      "say": "This row always counts everything below the level you are on, each person once. A group's figures already include every school, class and learner underneath it.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "node-stats",
+      "say": "**Class practice** is the hours classes have practised together beneath here, and **Classes practising this week** is how many of them have run a session in the last seven days.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "node-stats",
+      "say": "**Teachers** and **Learners** count the people below this level, each once however many classes they are in. Stand on a class and the same row switches to that class's own sessions this week, its practice hours, its students and its teachers.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "One row, the same grammar at every level. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

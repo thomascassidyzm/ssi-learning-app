@@ -1,0 +1,44 @@
+{
+  "id": "your-class-against-the-average",
+  "title": "Your class against the average",
+  "personas": [
+    "teacher"
+  ],
+  "place": {
+    "route": "analytics"
+  },
+  "keywords": [
+    "analytics",
+    "insights",
+    "rate",
+    "compare",
+    "average",
+    "class",
+    "pace",
+    "window"
+  ],
+  "steps": [
+    {
+      "anchor": "teacher-insights-class",
+      "say": "**Your classes** picks which class you are reading. It only appears when you teach more than one, and switching it reloads everything below.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "insights-window",
+      "say": "Underneath sit the **measure**, the **window** the rate is computed over, and what to **compare to**. The line beneath the pickers says exactly what the current measure counts.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "insights-rate-widget",
+      "say": "This is the answer: your class's pace beside the average you chose. A class with too few sessions to compare honestly says so rather than showing a number built from nothing.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's your class read as a pace rather than a pile of totals. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

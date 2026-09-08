@@ -1,0 +1,46 @@
+{
+  "id": "why-a-rate-not-a-total",
+  "title": "Why the insights show a rate, not a total",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-insights"
+  },
+  "keywords": [
+    "rate",
+    "total",
+    "per week",
+    "fair",
+    "compare",
+    "average",
+    "pace",
+    "denominator"
+  ],
+  "steps": [
+    {
+      "anchor": "insights-rate-widget",
+      "say": "This block is the whole argument of the page. It holds an amount per learner per week — a rate — and never a running total.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "insights-rate-widget",
+      "say": "A total only ever says how big and how old something is, so a large school beats a small one before anybody has done a thing. A rate says how fast it is moving, which is the part you can act on.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "insights-rate-widget",
+      "say": "Your level's rate sits beside whatever you are comparing it to, and the line above says in words what the current measure counts. Change the **window** and the same rate is computed over a shorter or a longer period.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "A pace matters more than a position — a class three sentences behind but climbing fast is healthier than one parked far ahead. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

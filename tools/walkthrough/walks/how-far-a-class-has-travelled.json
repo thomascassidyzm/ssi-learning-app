@@ -1,0 +1,45 @@
+{
+  "id": "how-far-a-class-has-travelled",
+  "title": "How far a class has travelled",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "keywords": [
+    "journey",
+    "progress",
+    "legos",
+    "position",
+    "course",
+    "belt",
+    "how far"
+  ],
+  "steps": [
+    {
+      "anchor": "class-journey",
+      "say": "**Course journey** is where the class has got to, measured in LEGOs — the individual pieces of language the course teaches. The bar is how much of the course it has covered together.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "class-journey",
+      "say": "The line underneath gives both figures: the class's own shared position, and the average its students have reached learning alone. It then names the next belt and how many LEGOs are left to reach it.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "class-journey",
+      "say": "A class that has never played together has no shared position at all, so the bar falls back to the students' average and says as much.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's the distance travelled, class first and students alongside. This tour changed nothing; only your own taps do."
+    }
+  ]
+}
