@@ -4226,6 +4226,12 @@ const scriptItemToPlayableItem = async (scriptItem) => {
 }
 
 // Initialize learning session composable
+// True while ANY audio path is sounding. Set by the watcher near the bottom of
+// this file, which is the same place markPlayStart/markPlayStop are driven
+// from. It lives up here as a plain ref rather than the computed itself
+// because that computed's sources are declared far below this call.
+const audioAudible = ref(false)
+
 const learningSession = useLearningSession({
   // Class-aware wrapper — see activeProgressStore above. recordCycleComplete/
   // endSession call getLegoProgressById/saveLegoProgress/updateLegoProgress/
@@ -4250,6 +4256,10 @@ const learningSession = useLearningSession({
   // which can hold look-ahead material, and the mode is off on the slow-
   // connection and no-round-map paths. Same suppression, one predicate.
   isPractising: () => progressWritesSuppressed(),
+  // Lets the session re-arm the play timer when the app comes back to the
+  // foreground with audio still sounding. Without it a backgrounded session
+  // stopped counting for good — see handleVisibilityChange.
+  isAudioActive: () => audioAudible.value,
 })
 
 // Use items from session (will be demo items if database not available)
@@ -7717,6 +7727,7 @@ watch(
     || isPlayingIntroduction.value
     || isPlayingWelcome.value,
   (active) => {
+    audioAudible.value = active
     if (active) learningSession.markPlayStart()
     else learningSession.markPlayStop()
   },
