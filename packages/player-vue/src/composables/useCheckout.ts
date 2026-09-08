@@ -85,12 +85,13 @@ const overlayBillingPeriod = ref<'monthly' | 'annual'>('monthly')
  * ONE HOOK, TWO LISTENERS. Paddle takes exactly ONE `eventCallback`, handed to
  * it at initialisation, so it cannot be owned by whichever composable happens
  * to open a checkout. lib/paddle.ts owns it and re-broadcasts the completion as
- * the DOM event `CHECKOUT_COMPLETED_EVENT` (job #360). useSubscription listens
- * to drop its cached pre-purchase answer and converge silently; this listens to
+ * the DOM event CHECKOUT_COMPLETED_EVENT (job #360). useSubscription listens to
+ * drop its cached pre-purchase answer and converge silently; this listens to
  * put the buyer in a waiting state that tells them what happened. A second
- * eventCallback here would have replaced #360's and silently broken it — the
- * paying customer would see the Upgrade row again, and no test on this branch
- * would have caught it.
+ * eventCallback here would have REPLACED #360's and silently broken it — the
+ * paying customer would see the Upgrade row again — and no test on either
+ * branch would have caught it, because each branch only had its own. The
+ * contract is pinned by lib/paddle.checkoutCompleted.test.ts.
  *
  * Wired per checkout and torn down after one event, deliberately: the same
  * Paddle singleton also serves the school, org and tutor lanes, and a listener
@@ -118,6 +119,70 @@ function wirePaddleCompletion(plan: CheckoutPlan, billingPeriod: 'monthly' | 'an
   window.addEventListener(CHECKOUT_COMPLETED_EVENT, handler)
   unwirePaddleCompletion = () => window.removeEventListener(CHECKOUT_COMPLETED_EVENT, handler)
 }
+// Drives the global PlanPicker (App.vue) — the plan-selection step that now sits
+// in front of Paddle. Every upgrade tap used to jump straight into a hardcoded
+// £15 Premium checkout, so SSi Family (live in Paddle since 2026-09-07) was
+// unreachable for every customer. The picker is the choice; nothing about the
+// checkout below it changed.
+const plansOpen = ref(false)
+const plansCourseCode = ref<string | null>(null)
+// Drives the ACCOUNT step — the second page of the plan picker, shown to a
+// signed-out buyer once they have chosen a plan.
+//
+// VERIFY, THEN PAY (Tom, 2026-09-07, ruling on his own earlier decision).
+// For a few hours this step created the account outright from a typed address
+// and an optional password, and went straight to the card field. That was a
+// confirmed account takeover — anyone could type a stranger's address, plant a
+// password, and hold a session for it (job #345). Tom's ruling replaces it
+// rather than patching it:
+//
+//   "if they click upgrade and they haven't already got an account, once they
+//    then verify their account by emailed code, it should take them straight
+//    back to the payment page they previously clicked on. AND, when they click
+//    upgrade they should be TOLD, please create an account first so we can be
+//    sure you're a real person, or so we can make sure your payment links to
+//    your verified account"
+//
+// So: address → emailed code → verified → the SAME plan opens in Paddle. The
+// takeover has nowhere to live, because no account is ever created from an
+// unverified address with a caller-supplied password, and no session is handed
+// out until somebody has proved they read the mail.
+//
+// THE BALL-ACHE HE WAS AVOIDING WAS LOSING YOUR PLACE, not the verification —
+// so the chosen plan is written to storage before the round-trip starts, and
+// comes back with them. See src/checkout/pendingIntent.ts.
+const detailsOpen = ref(false)
+const detailsBusy = ref(false)
+const detailsError = ref('')
+// Which half of the account step is showing: type your address, or type the
+// code we just sent. One overlay, two faces.
+const detailsStep = ref<'email' | 'code'>('email')
+// The address the code went to. Shown back on the code step, and used to
+// verify. Restored from storage on a reload so the round-trip survives one.
+const detailsEmail = ref('')
+// Drives the ALREADY-SUBSCRIBED step of the plan picker overlay.
+//
+// WHY IT EXISTS (#255, 2026-09-07): nothing stopped a learner who was ALREADY
+// paying for Premium from tapping Family and opening a SECOND, independent
+// Paddle subscription. They would then be charged £15 + £25 a month, hold two
+// live subscriptions, and get no Family plan at all — because the webhook's
+// wouldStealLiveSubscriptionRow() correctly refuses to overwrite a live
+// subscription row under a different provider_subscription_id, logs
+// "REFUSED subscription-row write" and stops. Money in, nothing out.
+// The block is the fix; this ref is the honest thing we say in its place.
+//
+// IT IS NO LONGER THE WHOLE ANSWER (2026-09-07). Premium → Family is a genuine
+// upgrade, and it now runs as a Paddle PLAN CHANGE on the existing subscription
+// (api/subscription/change-plan) rather than as a second checkout. The notice
+// still catches every other case the guard was protecting — a second Premium, a
+// second Family, a resumed checkout by somebody already paying.
+const alreadySubscribedOpen = ref(false)
+
+// The Premium → Family upgrade, in flight. Module-level for the same reason as
+// everything above: whichever door started it, the app shows one truth.
+const familyUpgradeBusy = ref(false)
+const familyUpgradeError = ref('')
+const familyUpgradeDone = ref(false)
 
 export type CheckoutPlan = 'premium' | 'family'
 
@@ -283,11 +348,11 @@ export function useCheckout() {
     billingPeriod: 'monthly' | 'annual' = 'monthly',
   ): Promise<void> {
     if (isOpeningCheckout.value) return
-    // NO SECOND PURCHASE WHILE ONE IS IN FLIGHT. Tom paid, saw nothing, and
-    // was able to loop straight back into buying it again — which is how a
-    // person ends up holding two subscriptions for one intention. The waiting
-    // state is already on screen when this fires, so returning is not a dead
-    // end: it is the buyer being kept in the truthful screen.
+    // NO SECOND PURCHASE WHILE ONE IS IN FLIGHT. Tom paid, saw nothing, and was
+    // able to loop straight back into buying it again — which is how a person
+    // ends up holding two subscriptions for one intention. The waiting state is
+    // already on screen when this fires, so returning is not a dead end: it is
+    // the buyer being kept in the truthful screen.
     if (usePendingPurchase().isPending.value) return
     // THE BACKSTOP. Every route to Paddle passes through here — the picker, the
     // buyer-details step, the 409 already_registered sign-in, and the OTP
