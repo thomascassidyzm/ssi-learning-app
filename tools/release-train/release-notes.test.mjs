@@ -12,9 +12,12 @@ import { readFileSync } from 'node:fs'
 import { readdirSync } from 'node:fs'
 import {
   buildNotes, finalizeBody, isDraftBody, reconcile, render, renderFinal, FINAL_HEADER_RE,
-  bulletsUnder, assertRenderable, shippedBullets,
+  bulletsUnder, assertRenderable, assertShape, shippedBullets,
 } from './release-notes.mjs'
-import { extractBullets, unrenderableMarkup } from './notes-bullets.mjs'
+import {
+  extractBullets, unrenderableMarkup, isOneSentence, shapeProblems,
+  HEADLINE_MAX_CHARS, READMORE_MAX_CHARS, SHAPE_RULING_DATE,
+} from './notes-bullets.mjs'
 
 const commit = (subject) => ({ subject, sha: 'a'.repeat(40), date: '2026-07-30', author: 'x' })
 const notesFor = (subjects) => buildNotes({
@@ -447,5 +450,59 @@ test('EVERY shipped notes file is renderable by the panel, as it stands on disk'
       assert.ok(!/\s(and|the|a|to|of|in|on|so|that|it|is|was)$/i.test(b.trim()),
         `notes/${f}: bullet looks truncated mid-sentence: "${b}"`)
     }
+  }
+})
+
+// ── the SHAPE rule (Tom's ruling, 2026-09-08) ───────────────────────────────────────────────
+// "3x headines - no more than a sentence for each one / and then the read more, which is one
+// line on each thing deemed relevant". A convention drifts back to paragraphs; a gate does not.
+
+test('one sentence means one terminator, at the end', () => {
+  assert.ok(isOneSentence('Speaking speed now comes from the voice that is speaking.'))
+  assert.ok(isOneSentence('A dash joins two clauses — it is still one sentence.'))
+  assert.ok(isOneSentence('A semicolon joins them too; still one sentence.'))
+  assert.ok(isOneSentence('Downloads are 2.5 times smaller now.'), 'a decimal is not a full stop')
+  assert.ok(isOneSentence('The code can take a couple of minutes, e.g. on a slow network.'),
+    'an abbreviation is not a full stop')
+  assert.ok(!isOneSentence('You can buy Family. You can also change back.'))
+  assert.ok(!isOneSentence('No terminator at all'))
+  assert.ok(!isOneSentence('Two of these! And another one.'))
+})
+
+test('the shape predicate names what is wrong, per kind', () => {
+  assert.deepEqual(shapeProblems('Settings names the plan you actually hold.', 'headline'), [])
+  assert.deepEqual(shapeProblems('Settings names the plan you actually hold.', 'readmore'), [])
+  assert.ok(shapeProblems('One. Two.', 'headline').some((p) => /one sentence/.test(p)))
+  assert.ok(shapeProblems('x'.repeat(HEADLINE_MAX_CHARS + 1) + '.', 'headline')
+    .some((p) => new RegExp(`over ${HEADLINE_MAX_CHARS} characters`).test(p)))
+  // The read-more ceiling is tighter than the headline's — one line on a phone.
+  const midLength = 'a '.repeat(80) + 'end.'
+  assert.ok(midLength.length > READMORE_MAX_CHARS && midLength.length < HEADLINE_MAX_CHARS)
+  assert.deepEqual(shapeProblems(midLength, 'headline'), [])
+  assert.ok(shapeProblems(midLength, 'readmore').some((p) => /over 140/.test(p)))
+})
+
+test('the finalise gate REJECTS an off-shape note, naming the bullet', () => {
+  const twoSentences = `## What's new\n\n- SSi Family is here. You can invite people onto it.\n`
+  assert.throws(() => assertShape(twoSentences, 'notes/x.md'), /one sentence[\s\S]*SSi Family/)
+  const fourHeadlines = `## What's new\n\n- One.\n- Two.\n- Three.\n- Four.\n`
+  assert.throws(() => assertShape(fourHeadlines, 'notes/x.md'), /4 headlines/)
+  const longFix = `## Other stuff and bug fixes\n\n- ${'a '.repeat(80)}end.\n`
+  assert.throws(() => assertShape(longFix, 'notes/x.md'), /read-more[\s\S]*over 140/)
+  assert.doesNotThrow(() => assertShape(
+    `## What's new\n\n- SSi Family is here.\n\n## Other stuff and bug fixes\n\n- Easy is quieter.\n`,
+    'notes/x.md'))
+})
+
+test('every notes file from the ruling onward fits the shape, as it stands on disk', () => {
+  // Notes dated before SHAPE_RULING_DATE predate Tom's ruling and are deliberately grandfathered
+  // — rewriting the whole history of notes was not asked for. The real enforcement is the
+  // finalise gate above, which every NEW note passes through with no exemption.
+  const dir = new URL('./notes/', import.meta.url)
+  const files = readdirSync(dir).filter((n) => n.endsWith('.md') && n.slice(0, 10) >= SHAPE_RULING_DATE)
+  assert.ok(files.length >= 2, 'the sweep must actually be looking at the post-ruling notes')
+  for (const f of files) {
+    const body = readFileSync(new URL(f, dir), 'utf8')
+    assert.doesNotThrow(() => assertShape(body, `notes/${f}`))
   }
 })

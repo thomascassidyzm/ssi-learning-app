@@ -55,7 +55,7 @@ import { fileURLToPath } from 'node:url'
 import {
   candidate, condense, areaOf, publish, readOnDev, log, sh, GH_REPO,
 } from './lib.mjs'
-import { extractBullets, findUnrenderable } from './notes-bullets.mjs'
+import { extractBullets, findUnrenderable, findOffShape, MAX_HEADLINES } from './notes-bullets.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const NOTES_DIR = join(HERE, 'notes')
@@ -529,6 +529,38 @@ export function assertRenderable(body, rel = 'the notes') {
     `learners as literal punctuation. Rewrite these bullets in plain words:\n${lines.join('\n')}`)
 }
 
+/**
+ * THE SHAPE GATE (Tom's ruling, 2026-09-08): "we just need 3x headines - no more than a sentence
+ * for each one / and then the read more, which is one line on each thing deemed relevant".
+ *
+ * Three headlines, one sentence each; every read-more item one sentence and one line. The rule
+ * itself lives in notes-bullets.mjs beside the markup predicate — this is only its call site.
+ * Fails the same way assertRenderable does: loudly, naming the bullet and what is wrong with it,
+ * before anything is written, so an off-shape note is never shipped.
+ */
+export function assertShape(body, rel = 'the notes') {
+  const headlines = extractBullets(body, "What's new")
+  const readmore = [
+    ...extractBullets(body, 'Other stuff and bug fixes'),
+    ...extractBullets(body, 'Fixes'),
+  ]
+  const problems = []
+  if (headlines.length > MAX_HEADLINES) {
+    problems.push(`  - ${headlines.length} headlines under "What's new" — the shape is at most ${MAX_HEADLINES}`)
+  }
+  const show = (b) => (b.length > 120 ? b.slice(0, 119) + '\u2026' : b)
+  for (const { bullet, problems: p } of findOffShape(headlines, 'headline')) {
+    problems.push(`  - headline: ${p.join(', ')}: ${show(bullet)}`)
+  }
+  for (const { bullet, problems: p } of findOffShape(readmore, 'readmore')) {
+    problems.push(`  - read-more: ${p.join(', ')}: ${show(bullet)}`)
+  }
+  if (!problems.length) return
+  throw new Error(
+    `${rel} does not fit the release-notes shape — three one-sentence headlines, then one line ` +
+    `each for everything else. Rewrite these bullets shorter:\n${problems.join('\n')}`)
+}
+
 /** Is this notes body still an un-shipped draft? (Anything not stamped final counts as one.) */
 export function isDraftBody(body) {
   return !(body && FINAL_HEADER_RE.test(body))
@@ -620,6 +652,7 @@ async function main() {
     }
     // Gate BEFORE anything is written or printed: broken copy must not reach a notes file.
     assertRenderable(final, rel)
+    assertShape(final, rel)
 
     if (DRY) { process.stdout.write(final); return 0 }
     mkdirSync(NOTES_DIR, { recursive: true })
