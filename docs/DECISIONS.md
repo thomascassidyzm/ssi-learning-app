@@ -1,3 +1,57 @@
+## 2026-09-08 — Family to Premium: built as designed, and the calls the build had to make (job #383·F)
+
+Built from the #376·F record (D1–D9) on fable, as Tom asked: "Fable needs to execute it as well - it's
+a payment related issue". Part One, the removed-child sign-in-link fix, landed on `dev` on its own
+first (`f6d82c41`, merged at `61e0cefb`). Part Two is the downgrade: two columns, `change-plan`
+accepting `premium`, the webhook filing plan changes off the billed price in both directions, the
+confirm screen, the member email and `familyEndsAt`. D1–D9 were not reopened. These are the calls
+the design left to the build, each decided by the tie-break (works first time for the displaced
+member or the child; then better × simpler × cheaper; membership is access, progress is theirs).
+
+- **A displaced member's checkout route.** The checkout front door (`routeForPlan`) sent anyone
+  who counts as subscribed to the already-subscribed notice — and a family member counts as
+  subscribed through the owner's row. That dead-ended the one person D6/D8 exist for. A member
+  whose `familyEndsAt` is set now routes to `buy`; their own row, once bought, resolves first.
+  Members whose cover is not ending are still blocked, as before.
+- **`familyEndsAt` covers a cancellation too.** The field the member banner reads is the owner's
+  scheduled change when there is one, else the owner's cancellation date. One field, one banner;
+  the member is told either way and the cost is nil.
+- **`plan_id` is held with `plan_name` during the window.** Nothing reads `plan_id` for
+  entitlement, and a row saying Family by name but Premium by price id is a trap for the next
+  reader. Both flip together at the renewal.
+- **The price-first webhook path is scoped to the two tiers a Family subscription moves between.**
+  A premium-tier price is also the tutor and school platform unit; those rows are never Family and
+  keep their handlers and side effects. A Premium-priced event on a row that is not Family and holds
+  no schedule falls through to the ordinary path.
+- **Schedule first, Paddle second, and undo on refusal.** The columns are written before Paddle's
+  price moves, so the `subscription.updated` that follows within seconds finds the schedule and
+  holds. If Paddle refuses, the columns are cleared and the request fails; nothing has changed.
+  "Keep Family" runs the other way round, Paddle first, so a refusal leaves row and price agreeing.
+- **The member email's address.** The address the member joined on (`invited_email`, which the
+  claim path leaves on the row), else the first of the learner's verified emails. No address, no
+  mail, logged. Best-effort, never fails the change.
+- **Premium price ids on the server** come from `VITE_PADDLE_TEACHER_PRICE_*` with the in-repo
+  ids as fallback — the same two sources `PRICE_CATALOG` and `lib/paddle.ts` already agree on.
+- **Copy.** No parentheses anywhere; "Lewis · child" is a tag, not a bracket. The child line says
+  "their", not "his".
+
+**Shakedown, live, 2026-09-08 09:41 UTC, on `sub_01m1z3z0k2b6htg77tctxwa5ty` only, `do_not_bill`
+only.** Swapped to the Premium price and back through the Paddle API. Both updates applied at once;
+`next_billed_at` and `current_billing_period` did not move; no transaction was created (the only
+one on the subscription is still the original £25). `subscription.updated` fired within seconds
+with `custom_data.kind` still `family_plan` and the billing period unchanged — the exact shape the
+hold path reads. The deployed webhook, still on the old code, REJECTED the Premium-priced event and
+left the row untouched, as #376·F predicted; the revert event converged it. Gap closed: the payload
+after a price swap. Still open: whether Paddle sends the customer an email on a `do_not_bill` swap
+(Tom's `+family_002` inbox knows), and whether a prorated downgrade credits the balance (never run,
+by rule).
+
+**The one thing that must be true before 7 October.** Paddle notifies exactly one destination, the
+production webhook. A downgrade scheduled from any deployment moves Paddle's price at once; the
+flip at renewal is done by the webhook that receives the renewal. Until the webhook change is on
+`main`, a scheduled downgrade would renew at £15 and leave the row frozen at Family with a stale
+period end — the very failure this job removes. "Keep Family" reverts cleanly at any point.
+
 ## 2026-09-06 — a stale characterization is the test's bug, not the code's (#912)
 
 The 2026-09-05 security audit (cs/551 and its 552-555 family) was merged into dev by the #900 sweep,
