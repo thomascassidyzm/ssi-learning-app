@@ -261,7 +261,7 @@ function start(): void {
 
         <label class="enrol-tick">
           <input v-model="consentTicked" type="checkbox" />
-          <span>{{ consentStatement }}</span>
+          <span>{{ consentStatement }} <span class="enrol-required" aria-hidden="true">*</span></span>
         </label>
 
         <p class="enrol-note">{{ t('enrol.consentIsRequired') }}</p>
@@ -350,6 +350,11 @@ function start(): void {
   letter-spacing: 0.2em;
   text-align: center;
 }
+.enrol-title + .enrol-tick {
+  /* The "terms" step goes straight from the title to the first question,
+     with no lede paragraph to carry the usual gap. */
+  margin-top: 1rem;
+}
 .enrol-tick {
   display: flex;
   gap: 0.75rem;
@@ -359,6 +364,10 @@ function start(): void {
   line-height: 1.45;
   color: var(--text-primary, #1a1a1a);
   cursor: pointer;
+}
+.enrol-required {
+  color: var(--danger, #a33);
+  font-weight: 700;
 }
 .enrol-tick input {
   /* A tick a thumb can actually hit. */
