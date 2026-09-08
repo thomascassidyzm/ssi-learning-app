@@ -344,13 +344,14 @@ async function confirmRemove(m: FamilyMember) {
 
 .member-list { list-style: none; margin: 0 0 1rem; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
 .member-row {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.25rem 0.5rem;
   padding: 0.6rem 0.75rem; border-radius: 0.6rem; background: var(--bg-subtle, #f8fafc);
 }
-.member-info { display: flex; flex-direction: column; gap: 0.15rem; }
+.member-info { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; flex: 1 1 12rem; }
 .member-name { font-weight: 600; font-size: 0.9rem; color: var(--text-primary, #1e293b); }
 .member-status { font-size: 0.78rem; color: var(--text-secondary, #64748b); }
-.member-actions { display: flex; gap: 0.5rem; }
+.member-actions { display: flex; gap: 0.5rem; margin-left: auto; flex: 0 0 auto; }
+.member-actions .text-btn { white-space: nowrap; }
 
 .add-section { margin-bottom: 0.6rem; }
 .add-btn {
