@@ -67,8 +67,8 @@ export const WELSH_DIALECT_FAMILIES: Record<string, string> = {
  * draft, so neither is granted; both are still in the dialect map above so
  * that if one goes live mid-year its minutes still count.
  *
- * KAI TO CONFIRM these are the two he means. Changing them is an UPDATE to the
- * policy row, not a deploy.
+ * KAI CONFIRMED these are the two he means, on 2026-09-08. Changing them
+ * remains an UPDATE to the policy row, not a deploy.
  */
 export const WELSH_GRANTED_COURSES = ['cym_n_for_eng', 'cym_s_for_eng']
 
