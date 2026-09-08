@@ -25,6 +25,7 @@
 import { computed, inject, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { sendSignInCode } from '../auth/sendSignInCode'
+import { t } from '../composables/useI18n'
 
 type Step = 'loading' | 'invalid' | 'intro' | 'email' | 'otp' | 'terms' | 'submitting' | 'done'
 
@@ -61,6 +62,13 @@ const prettyEnd = computed(() =>
     : '',
 )
 
+/** t() with {placeholders} filled — the same shape SettingsScreen.vue uses. */
+function fill(key: string, vars: Record<string, string>): string {
+  let out = t(key)
+  for (const [k, v] of Object.entries(vars)) out = out.split(`{${k}}`).join(v)
+  return out
+}
+
 function normalise(v: string): string {
   return v.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
 }
@@ -69,7 +77,7 @@ onMounted(async () => {
   code.value = normalise(String(route.params.code || route.query.code || ''))
   if (!code.value) {
     step.value = 'invalid'
-    error.value = 'That link is missing its code.'
+    error.value = t('enrol.errorNoCode')
     return
   }
   try {
@@ -77,7 +85,7 @@ onMounted(async () => {
     const body = await res.json()
     if (!body?.found) {
       step.value = 'invalid'
-      error.value = 'We do not recognise that link. Check it with whoever sent it to you.'
+  error.value = t('enrol.errorUnknownLink')
       return
     }
     orgName.value = body.orgName
@@ -88,7 +96,7 @@ onMounted(async () => {
     step.value = 'intro'
   } catch {
     step.value = 'invalid'
-    error.value = 'We could not reach the server. Try again in a moment.'
+    error.value = t('enrol.errorNoServer')
   }
 })
 
@@ -107,7 +115,7 @@ async function sendCode(): Promise<void> {
   error.value = ''
   const { error: sendErr } = await sendSignInCode(client, email.value)
   if (sendErr) {
-    error.value = sendErr.message || 'We could not send that code. Try again.'
+    error.value = sendErr.message || t('enrol.errorSendFailed')
     return
   }
   step.value = 'otp'
@@ -119,7 +127,7 @@ async function verifyCode(): Promise<void> {
   error.value = ''
   const { error: verifyErr } = await client.auth.verifyOtp({ email: email.value, token: otp.value, type: 'email' })
   if (verifyErr) {
-    error.value = verifyErr.message || 'That code did not work. Try again.'
+    error.value = verifyErr.message || t('enrol.errorBadOtp')
     return
   }
   step.value = 'terms'
@@ -127,7 +135,7 @@ async function verifyCode(): Promise<void> {
 
 async function enrol(): Promise<void> {
   if (!consentTicked.value) {
-    error.value = 'We can only give you free access if you agree to the data-sharing statement.'
+    error.value = t('enrol.errorConsentRequired')
     return
   }
   const client = supabase.value
@@ -149,7 +157,7 @@ async function enrol(): Promise<void> {
     })
     const body = await res.json()
     if (!body?.success) {
-      error.value = body?.error || 'We could not complete your enrolment. Try again.'
+      error.value = body?.error || t('enrol.errorSubmitFailed')
       step.value = 'terms'
       return
     }
@@ -159,7 +167,7 @@ async function enrol(): Promise<void> {
     alreadyEnrolled.value = !!body.alreadyEnrolled
     step.value = 'done'
   } catch {
-    error.value = 'We could not reach the server. Your place is not lost — try again.'
+    error.value = t('enrol.errorNoServerMidFlow')
     step.value = 'terms'
   }
 }
@@ -173,102 +181,8 @@ function start(): void {
   <div class="enrol-page">
     <div class="enrol-card">
       <template v-if="step === 'loading'">
-        <p class="enrol-lede">One moment…</p>
+        <p class="enrol-lede">{{ t('enrol.loading') }}</p>
       </template>
-
-      <template v-else-if="step === 'invalid'">
-        <h1 class="enrol-title">That link did not work</h1>
-        <p class="enrol-lede">{{ error }}</p>
-      </template>
-
-      <template v-else-if="step === 'intro'">
-        <h1 class="enrol-title">A free year of SaySomethingin</h1>
-        <p class="enrol-lede">
-          Because you are on a {{ orgName }} course, your SaySomethingin
-          subscription is free for a year. There are two questions to answer and
-          then you are away.
-        </p>
-        <button class="enrol-primary" data-walk="org-enrol-begin" @click="begin">Get started</button>
-      </template>
-
-      <template v-else-if="step === 'email'">
-        <h1 class="enrol-title">What is your email address?</h1>
-        <p class="enrol-lede">We will send you a six-digit code to sign in with. No password to remember.</p>
-        <form class="enrol-form" @submit.prevent="sendCode">
-          <input v-model="email" class="enrol-input" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" />
-          <p v-if="error" class="enrol-error" role="alert">{{ error }}</p>
-          <button type="submit" class="enrol-primary" :disabled="!email.includes('@')">Send my code</button>
-        </form>
-      </template>
-
-      <template v-else-if="step === 'otp'">
-        <h1 class="enrol-title">Enter your code</h1>
-        <p class="enrol-lede">We sent six digits to {{ email }}.</p>
-        <form class="enrol-form" @submit.prevent="verifyCode">
-          <input v-model="otp" class="enrol-input enrol-input--code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" />
-          <p v-if="error" class="enrol-error" role="alert">{{ error }}</p>
-          <button type="submit" class="enrol-primary" :disabled="otp.length < 6">Continue</button>
-        </form>
-      </template>
-
-      <template v-else-if="step === 'terms' || step === 'submitting'">
-        <h1 class="enrol-title">Two questions</h1>
-
-        <label class="enrol-tick">
-          <input v-if="askAgeBand" v-model="ageTicked" type="checkbox" data-walk="org-enrol-age-tick" />
-          <span v-if="askAgeBand">{{ ageBandLabel }}</span>
-        </label>
-
-        <label class="enrol-tick">
-          <input v-model="consentTicked" type="checkbox" data-walk="org-enrol-consent-tick" />
-          <span>{{ consentStatement }}</span>
-        </label>
-
-        <p class="enrol-note">
-          The second one is not optional — we can only give you the free year if
-          you agree to it.
-        </p>
-
-        <p v-if="error" class="enrol-error" role="alert">{{ error }}</p>
-        <button
-          class="enrol-primary"
-          data-walk="org-enrol-submit"
-          :disabled="!canEnrol"
-          @click="enrol"
-        >
-          {{ step === 'submitting' ? 'Setting you up…' : 'Claim my free year' }}
-        </button>
-      </template>
-
-      <template v-else-if="step === 'done'">
-        <h1 class="enrol-title">{{ alreadyEnrolled ? 'You are already in' : 'You are in' }}</h1>
-        <p class="enrol-lede">
-          Your free year runs until <strong>{{ prettyEnd }}</strong>. We will
-          write to you a few weeks before then, never on the day.
-        </p>
-
-        <!--
-          The one thing on this page that costs somebody money if we get it
-          wrong. Said plainly, with the date beside it, and NOT acted on: we
-          do not touch anybody's subscription on their behalf.
-        -->
-        <div v-if="cancellationNeeded" class="enrol-warn" data-walk="org-enrol-cancel-notice">
-          <p>
-            You are already paying for SaySomethingin<span v-if="priorPlanName"> on the {{ priorPlanName }} plan</span>.
-            That subscription will keep charging you unless you cancel it — we
-            will not cancel it for you.
-          </p>
-          <p>
-            Cancel it from your account settings whenever you like. Your free
-            year is already running and lasts until {{ prettyEnd }} either way.
-          </p>
-        </div>
-
-        <button class="enrol-primary" @click="start">Start learning</button>
-      </template>
-    </div>
-  </div>
-</template>
 
 <style scoped>
 .enrol-page {
