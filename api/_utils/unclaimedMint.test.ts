@@ -130,3 +130,51 @@ describe('provenance — whose credentials this rule may destroy', () => {
     expect(mintIsRevocable(undefined)).toBe(false)
   })
 })
+
+/**
+ * CONTESTED VS UNCONTESTED — job #371, 2026-09-08. The two cases job #354 could
+ * not tell apart, now told apart by the one party who knows.
+ *
+ * The first test here FAILS on the pre-#371 code (mayClaim returned false for a
+ * schools mint whatever the caller said) and PASSES on this one.
+ */
+import { claimShape, mintIsContestable } from './unclaimedMint'
+
+describe('contested vs uncontested — the schools mint asks, and only a "not me" sweeps', () => {
+  const OWNER_OTP_SESSION = 'the-real-owner-signing-in-by-code'
+  const markerFrom = (mintedBy: string) =>
+    readUnclaimedMint({ app_metadata: buildUnclaimedMint(MINT_SESSION, mintedBy) })
+
+  it('THE FIX (Astra claim 1): the mailbox owner who says "not me" sweeps a schools mint', () => {
+    expect(mayClaim(markerFrom('possession_redeem'), OWNER_OTP_SESSION, OTP, { contested: true })).toBe(true)
+    expect(mayClaim(markerFrom('possession_adopt'), OWNER_OTP_SESSION, OTP, { contested: true })).toBe(true)
+  })
+
+  it('THE #354 PROPERTY, KEPT: without that word a schools mint is never swept', () => {
+    expect(mayClaim(markerFrom('possession_redeem'), OWNER_OTP_SESSION, OTP)).toBe(false)
+    expect(mayClaim(markerFrom('possession_redeem'), OWNER_OTP_SESSION, OTP, { contested: false })).toBe(false)
+  })
+
+  it('the shape is "ask" for a schools mint and "auto" for a purchase mint', () => {
+    expect(claimShape(markerFrom('possession_redeem'), OWNER_OTP_SESSION, OTP)).toBe('ask')
+    expect(claimShape(markerFrom('buyer_account'), OWNER_OTP_SESSION, OTP)).toBe('auto')
+  })
+
+  it('"contested" cannot be spoken by anyone but a mailbox-prover from another session', () => {
+    // the squatter, from the session the mint handed out
+    expect(mayClaim(markerFrom('possession_redeem'), MINT_SESSION, OTP, { contested: true })).toBe(false)
+    // the squatter, with the password they planted, from a fresh session
+    expect(mayClaim(markerFrom('possession_redeem'), 'squatter-new-session', PASSWORD, { contested: true })).toBe(false)
+    expect(claimShape(markerFrom('possession_redeem'), MINT_SESSION, OTP)).toBe('none')
+  })
+
+  it('unknown provenance is still "none" whatever anyone says', () => {
+    expect(mayClaim(markerFrom('something_new'), OWNER_OTP_SESSION, OTP, { contested: true })).toBe(false)
+    expect(claimShape(markerFrom('something_new'), OWNER_OTP_SESSION, OTP)).toBe('none')
+    expect(mintIsContestable(undefined)).toBe(false)
+  })
+
+  it('a purchase mint still sweeps without being asked', () => {
+    expect(mayClaim(markerFrom('buyer_account'), OWNER_OTP_SESSION, OTP)).toBe(true)
+  })
+})
