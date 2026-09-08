@@ -1,3 +1,47 @@
+## 2026-09-08 — a shared tenant is DERIVED from who lives on the domain, never listed (#385)
+
+Tom's commission, off the #375 write-up: close the hole where the first school to sign up on a
+national email tenant — hwbcymru.net, every school in Wales — claims it, and its teacher link then
+vouches for any Hwb address in the country with no code and no mail. His constraint: **a hardcoded
+list of shared tenants is refused**; derive it from the live data the way the backfill did, once, so
+the creation path and the backfill agree by construction. Ordering: a legitimate Welsh school must
+still get set up without emailing support; correctness is the second function of the same design.
+
+**The rule.** A domain is a SHARED TENANT for school S when another school, outside S's group, has
+its FOUNDING ADMIN living at that domain or beneath it. One async derivation in
+`api/_utils/schoolDomain.ts` — learner_emails (kept in step with auth by triggers) joined to
+`schools.admin_user_id` — and both sides call it: the creation path at claim time and at every
+arrival, and `tools/backfill-school-identity-claims.mjs`, whose own admin-loop test is deleted.
+
+**Three moments, one derivation.** CLAIM refuses `shared_tenant` when another household already
+lives there. ARRIVAL suppresses a domain row whose domain has since become shared — re-derived every
+time, never deleted, so accounts already born verified under it are untouched; suppression IS the
+un-claim and no delete path exists. DOOR names only an effective holder: the second head on a tenant
+is told who signed up first and carries on in one tap; the third sees nothing, because by then the
+domain belongs to nobody.
+
+**Better × simpler × cheaper.** Better: the hole closes the instant a second school proves an
+address on a tenant, and no legitimate school is ever stopped — a refused claim degrades to today's
+off-domain path. Simpler: no table, no column, no list, no migration; one function replaces the
+backfill's N-lookup loop. Cheaper: three indexed PostgREST reads per claim or arrival, and nothing to
+maintain when the next national tenant appears.
+
+**The floor, stated rather than papered over.** The FIRST school on a fresh tenant is
+indistinguishable from a school on its own domain — no evidence exists yet — so it claims, and its
+link vouches for that domain until a second school proves an address there. Without a list or an
+outside oracle the live data cannot know sooner. The window is bounded by the contest rule in
+`unclaimedMint.ts`, which stays armed, and it shrinks to zero the moment the second Welsh school
+signs up. Teachers who joined OTHER schools off-domain are deliberately not counted as evidence: an
+off-domain arrival is the unproved shape, and counting it would let a leaked link switch a real
+school's one-tap off.
+
+**Proven on the live data, read-only.** Residents of hwbcymru.net are the four Welsh schools; of
+chepstowschool.net, Chepstow alone; of schoolsedu.org.uk, two schools beneath it, so the parent can
+never be claimed either. The door names nobody for an Hwb address and names Chepstow for a Chepstow
+one. The repointed backfill's dry run reproduces the #375 distribution exactly — 42 schools, 6
+already claimed, 24 public mail, 10 shared tenant, 2 with no admin — with zero writes and the claims
+table unchanged at 6 rows.
+
 ## 2026-09-06 — a stale characterization is the test's bug, not the code's (#912)
 
 The 2026-09-05 security audit (cs/551 and its 552-555 family) was merged into dev by the #900 sweep,
