@@ -254,10 +254,10 @@ CREATE FUNCTION public.admin_practice_minutes(p_learner_ids uuid[]) RETURNS TABL
     SET search_path TO 'public', 'pg_temp'
     AS $$
   with logged as (
-    select s.learner_id, s.course_id, sum(s.duration_seconds) as seconds
-    from sessions s
-    where s.learner_id = any(p_learner_ids)
-    group by s.learner_id, s.course_id
+    select lso.learner_id, lso.course_code as course_id, sum(lso.play_seconds) as seconds
+    from learner_speaking_opportunities lso
+    where lso.learner_id = any(p_learner_ids)
+    group by lso.learner_id, lso.course_code
   ),
   lego_order as (
     select cl.course_code, cl.lego_id,
@@ -308,10 +308,10 @@ BEGIN
 
   RETURN QUERY
   with logged as (
-    select s.learner_id, s.course_id, sum(s.duration_seconds) as seconds
-    from sessions s
-    where (p_learner_ids is null or s.learner_id = any(p_learner_ids))
-    group by s.learner_id, s.course_id
+    select lso.learner_id, lso.course_code as course_id, sum(lso.play_seconds) as seconds
+    from learner_speaking_opportunities lso
+    where (p_learner_ids is null or lso.learner_id = any(p_learner_ids))
+    group by lso.learner_id, lso.course_code
   ),
   lego_order as (
     select cl.course_code, cl.lego_id,
@@ -7843,6 +7843,35 @@ CREATE TABLE public.class_sessions (
 
 
 --
+-- Name: learner_speaking_opportunities; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.learner_speaking_opportunities (
+    learner_id uuid NOT NULL,
+    course_code text NOT NULL,
+    day date DEFAULT ((now() AT TIME ZONE 'UTC'::text))::date NOT NULL,
+    opportunities bigint DEFAULT 0 NOT NULL,
+    play_seconds bigint DEFAULT 0 NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    phrases_spoken bigint DEFAULT 0 NOT NULL
+);
+
+
+--
+-- Name: TABLE learner_speaking_opportunities; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.learner_speaking_opportunities IS 'Per-learner per-course per-UTC-day count of speaking opportunities (cycles) and accumulated player play_seconds. Replaces sessions.items_practiced/duration_seconds for user-side contribution stats.';
+
+
+--
+-- Name: COLUMN learner_speaking_opportunities.phrases_spoken; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.learner_speaking_opportunities.phrases_spoken IS 'Cycles in which the VAD actually detected the learner speaking. Only ever non-zero when mic/adaptation consent is on; a row of 0 means "we were not listening", not "they said nothing". Summed lifetime across all courses by /api/me/phrases-spoken.';
+
+
+--
 -- Name: lego_progress; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -7932,9 +7961,9 @@ CREATE VIEW public.class_student_progress WITH (security_invoker='on') AS
     COALESCE(( SELECT count(*) AS count
            FROM public.lego_progress lp
           WHERE ((lp.learner_id = l.id) AND (lp.course_id = c.course_code) AND (lp.is_retired = true))), (0)::bigint) AS legos_mastered,
-    COALESCE(( SELECT sum(s.duration_seconds) AS sum
-           FROM public.sessions s
-          WHERE ((s.learner_id = l.id) AND (s.course_id = c.course_code))), (0)::bigint) AS total_practice_seconds,
+    (COALESCE(( SELECT sum(lso.play_seconds) AS sum
+           FROM public.learner_speaking_opportunities lso
+          WHERE ((lso.learner_id = l.id) AND (lso.course_code = c.course_code))), (0)::numeric))::bigint AS total_practice_seconds,
     ( SELECT max(s.ended_at) AS max
            FROM public.sessions s
           WHERE ((s.learner_id = l.id) AND (s.course_id = c.course_code))) AS last_active_at,
@@ -10197,6 +10226,38 @@ CREATE VIEW public.group_summary WITH (security_invoker='on') AS
 
 
 --
+-- Name: handbook_questions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.handbook_questions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    auth_user_id text NOT NULL,
+    node_id text,
+    persona text NOT NULL,
+    route text NOT NULL,
+    env text DEFAULT 'dev'::text NOT NULL,
+    question text NOT NULL,
+    deflected_entry_id text,
+    status text DEFAULT 'new'::text NOT NULL,
+    matched_entry_id text,
+    answer text,
+    answered_at timestamp with time zone,
+    answered_by text,
+    entry_id text,
+    CONSTRAINT handbook_questions_question_check CHECK (((char_length(question) >= 3) AND (char_length(question) <= 600))),
+    CONSTRAINT handbook_questions_status_check CHECK ((status = ANY (ARRAY['new'::text, 'duplicate'::text, 'answered'::text, 'in_page'::text, 'declined'::text])))
+);
+
+
+--
+-- Name: TABLE handbook_questions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.handbook_questions IS 'Questions readers asked on the schools Handbook and could not find an answer to, with the answer written back. Service-role-only: RLS on, no policies; the only door is api/handbook-questions.ts, which stamps auth_user_id from the verified bearer token (job #386, 2026-09-08).';
+
+
+--
 -- Name: htw_copy_versions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -10834,35 +10895,6 @@ COMMENT ON TABLE public.learner_roles IS 'Free-text roles a learner holds, one r
 --
 
 COMMENT ON COLUMN public.learner_roles.role IS 'Literal role name, matched against listening_pods.required_role. Free text ON BOTH SIDES on purpose: `previewer_002` must cost one INSERT, not a migration.';
-
-
---
--- Name: learner_speaking_opportunities; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.learner_speaking_opportunities (
-    learner_id uuid NOT NULL,
-    course_code text NOT NULL,
-    day date DEFAULT ((now() AT TIME ZONE 'UTC'::text))::date NOT NULL,
-    opportunities bigint DEFAULT 0 NOT NULL,
-    play_seconds bigint DEFAULT 0 NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    phrases_spoken bigint DEFAULT 0 NOT NULL
-);
-
-
---
--- Name: TABLE learner_speaking_opportunities; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.learner_speaking_opportunities IS 'Per-learner per-course per-UTC-day count of speaking opportunities (cycles) and accumulated player play_seconds. Replaces sessions.items_practiced/duration_seconds for user-side contribution stats.';
-
-
---
--- Name: COLUMN learner_speaking_opportunities.phrases_spoken; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.learner_speaking_opportunities.phrases_spoken IS 'Cycles in which the VAD actually detected the learner speaking. Only ever non-zero when mic/adaptation consent is on; a row of 0 means "we were not listening", not "they said nothing". Summed lifetime across all courses by /api/me/phrases-spoken.';
 
 
 --
@@ -13585,6 +13617,14 @@ ALTER TABLE ONLY public.groups
 
 
 --
+-- Name: handbook_questions handbook_questions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.handbook_questions
+    ADD CONSTRAINT handbook_questions_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: htw_copy_versions htw_copy_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14601,6 +14641,20 @@ CREATE UNIQUE INDEX family_members_one_family ON public.family_members USING btr
 --
 
 CREATE INDEX family_members_owner_idx ON public.family_members USING btree (owner_learner_id);
+
+
+--
+-- Name: handbook_questions_asker_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX handbook_questions_asker_idx ON public.handbook_questions USING btree (auth_user_id, created_at DESC);
+
+
+--
+-- Name: handbook_questions_status_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX handbook_questions_status_idx ON public.handbook_questions USING btree (status, created_at);
 
 
 --
@@ -19185,6 +19239,12 @@ CREATE POLICY groups_authenticated_read ON public.groups FOR SELECT TO authentic
 
 
 --
+-- Name: handbook_questions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.handbook_questions ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: htw_copy_versions; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -21985,6 +22045,15 @@ GRANT ALL ON TABLE public.class_sessions TO service_role;
 
 
 --
+-- Name: TABLE learner_speaking_opportunities; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.learner_speaking_opportunities TO anon;
+GRANT ALL ON TABLE public.learner_speaking_opportunities TO authenticated;
+GRANT ALL ON TABLE public.learner_speaking_opportunities TO service_role;
+
+
+--
 -- Name: TABLE lego_progress; Type: ACL; Schema: public; Owner: -
 --
 
@@ -22485,6 +22554,13 @@ GRANT ALL ON TABLE public.group_summary TO service_role;
 
 
 --
+-- Name: TABLE handbook_questions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.handbook_questions TO service_role;
+
+
+--
 -- Name: TABLE htw_copy_versions; Type: ACL; Schema: public; Owner: -
 --
 
@@ -22662,15 +22738,6 @@ GRANT ALL ON TABLE public.learner_practice_history TO service_role;
 GRANT ALL ON TABLE public.learner_roles TO anon;
 GRANT ALL ON TABLE public.learner_roles TO authenticated;
 GRANT ALL ON TABLE public.learner_roles TO service_role;
-
-
---
--- Name: TABLE learner_speaking_opportunities; Type: ACL; Schema: public; Owner: -
---
-
-GRANT ALL ON TABLE public.learner_speaking_opportunities TO anon;
-GRANT ALL ON TABLE public.learner_speaking_opportunities TO authenticated;
-GRANT ALL ON TABLE public.learner_speaking_opportunities TO service_role;
 
 
 --

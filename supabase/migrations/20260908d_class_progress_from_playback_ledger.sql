@@ -37,9 +37,13 @@ SELECT c.id AS class_id,
     COALESCE(( SELECT count(*) AS count
            FROM lego_progress lp
           WHERE lp.learner_id = l.id AND lp.course_id = c.course_code AND lp.is_retired = true), 0::bigint) AS legos_mastered,
+    -- play_seconds is bigint and sum(bigint) is numeric, so the cast is what
+    -- keeps this column bigint, as it has always been. Lossless: play_seconds
+    -- holds whole seconds. Without it CREATE OR REPLACE VIEW refuses, because
+    -- it may not change a column's type.
     COALESCE(( SELECT sum(lso.play_seconds) AS sum
            FROM learner_speaking_opportunities lso
-          WHERE lso.learner_id = l.id AND lso.course_code = c.course_code), 0::bigint) AS total_practice_seconds,
+          WHERE lso.learner_id = l.id AND lso.course_code = c.course_code), 0::numeric)::bigint AS total_practice_seconds,
     ( SELECT max(s.ended_at) AS max
            FROM sessions s
           WHERE s.learner_id = l.id AND s.course_id = c.course_code) AS last_active_at,
