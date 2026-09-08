@@ -16,14 +16,14 @@
  * school whose head is on gmail cannot vouch for arrivals by domain, and pretending
  * otherwise would let anyone with a gmail address onto their roster as proven.
  *
- * A domain that MORE THAN ONE existing school's admin sits on is a SHARED TENANT, not one
- * school's identity, and is never claimed. hwbcymru.net is the case that forced this rule: it
- * is the Welsh Government's national Hwb platform and every school in Wales is on it, so a
- * claim by whichever school ran first would make that school's teacher link vouch for any Hwb
- * address in the country. The test is derived from the live data — how many schools' admins
- * share the domain — not from a pasted list, so it catches the next national tenant too.
- * These are logged for a ruling: the LIVE creation path has no such test, so the next school
- * to self-serve on a shared tenant claims it for itself.
+ * A domain that ANOTHER school's founding admin lives on is a SHARED TENANT, not one school's
+ * identity, and is never claimed. hwbcymru.net is the case that forced this rule: it is the
+ * Welsh Government's national Hwb platform and every school in Wales is on it, so a claim by
+ * whichever school ran first would make that school's teacher link vouch for any Hwb address
+ * in the country. The test is DERIVED from the live data, not a pasted list, and since job
+ * #385 it lives in ONE place — isSharedTenantOnLiveData in api/_utils/schoolDomain.ts — which
+ * the live creation path calls at claim time and at every arrival, and which this script calls
+ * here. The two sides agree by construction: there is no second implementation to drift.
  *
  * A domain already held by ANOTHER school is a CONFLICT and is logged, never forced —
  * unless that other school is a sibling in the same group, in which case the claim is
@@ -55,6 +55,7 @@ import {
   emailDomainOf,
   whyDomainNotClaimable,
   claimDomainForSchool,
+  isSharedTenantOnLiveData,
 } from '../api/_utils/schoolDomain.ts'
 
 const APPLY = process.argv.includes('--apply')
@@ -89,18 +90,15 @@ async function plan() {
   }
   const groupOf = new Map((schools || []).map((s) => [s.id, s.group_id || null]))
 
-  // How many schools' admins sit on each domain? >1 means a shared tenant, not an identity.
+  // Each school's own founding address — the address of record, from auth.
+  // (The shared-tenant test below does NOT re-derive this; it reads
+  // learner_emails through schoolDomain.ts, exactly as the creation path does.)
   const adminEmail = new Map()
-  const schoolsOnDomain = new Map()
   for (const s of schools || []) {
     if (!s.admin_user_id) continue
     const { data: u } = await svc.auth.admin.getUserById(s.admin_user_id)
     const email = u?.user?.email || null
-    if (!email) continue
-    adminEmail.set(s.id, email)
-    const d = emailDomainOf(email)
-    if (!d) continue
-    schoolsOnDomain.set(d, (schoolsOnDomain.get(d) || 0) + 1)
+    if (email) adminEmail.set(s.id, email)
   }
 
   const rows = []
@@ -121,11 +119,13 @@ async function plan() {
       rows.push({ ...base, admin_email: email, domain, action: 'skip', reason: refusal })
       continue
     }
-    if ((schoolsOnDomain.get(domain) || 0) > 1) {
-      rows.push({
-        ...base, admin_email: email, domain, action: 'skip', reason: 'shared_by_multiple_schools',
-        schools_on_domain: schoolsOnDomain.get(domain),
-      })
+    const shared = await isSharedTenantOnLiveData(svc, { school_id: s.id, group_id: s.group_id || null }, domain)
+    if (shared === null) {
+      rows.push({ ...base, admin_email: email, domain, action: 'skip', reason: 'shared_tenant_check_unreadable' })
+      continue
+    }
+    if (shared) {
+      rows.push({ ...base, admin_email: email, domain, action: 'skip', reason: 'shared_tenant' })
       continue
     }
     const held = holders.get(domain) || []
@@ -159,8 +159,8 @@ console.log('  skip reasons:', JSON.stringify(bySkip))
 for (const r of rows.filter((x) => x.action === 'claim')) console.log(`  claim  ${r.domain}  <- ${r.school_name}`)
 for (const r of rows.filter((x) => x.action === 'conflict')) console.log(`  CONFLICT  ${r.domain}  ${r.school_name} — already held by ${r.held_by.join(', ')}`)
 const shared = new Map()
-for (const r of rows.filter((x) => x.reason === 'shared_by_multiple_schools')) shared.set(r.domain, r.schools_on_domain)
-for (const [d, n] of shared) console.log(`  SHARED TENANT — not claimed: ${d} (${n} schools' admins sit on it)`)
+for (const r of rows.filter((x) => x.reason === 'shared_tenant')) shared.set(r.domain, (shared.get(r.domain) || 0) + 1)
+for (const [d, n] of shared) console.log(`  SHARED TENANT — not claimed: ${d} (${n} schools live on it)`)
 
 if (APPLY) {
   for (const r of rows) {
