@@ -21,6 +21,7 @@ import { ensureClassLearnerEntity } from '../_utils/classLearnerEntity'
 import { ensureClassTeacherTag } from '../_utils/classTeacherTag'
 import { enforceMintRateLimit, CLASS_MINT_OUTCOME } from '../_utils/mintRateLimit'
 import { applyCors } from '../_utils/cors'
+import { isTutorPlatformPlanName } from '../_utils/tutorPlatformPlan'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -101,7 +102,7 @@ async function tutorPlatformOpen(
       .eq('learner_id', learnerId)
       .maybeSingle()
     return (
-      sub?.plan_name === 'SSi Premium (tutor bundle)' &&
+      isTutorPlatformPlanName(sub?.plan_name) &&
       (sub?.status === 'active' || sub?.status === 'past_due')
     )
   } catch {

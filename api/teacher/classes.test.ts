@@ -353,6 +353,18 @@ describe('POST /api/teacher/classes', () => {
     expect(DB.user_tags).toHaveLength(0)
   })
 
+  it('creates the class for a Family owner who also pays for the tutor bundle, even with platform_status expired (#422)', async () => {
+    // A Family owner who also pays for the tutor bundle keeps plan_name =
+    // 'SSi Family' on their single subscriptions row — Family outranks
+    // Premium there, and that row carries five other people's access — so
+    // this teacher can't be recognised by the literal tutor-bundle string.
+    DB.teachers = [{ id: 'teacher-row-1', learner_id: 'learner-1', platform_status: 'expired', platform_expires_at: null }]
+    DB.subscriptions = [{ learner_id: 'learner-1', status: 'active', plan_name: 'SSi Family' }]
+    const res = makeRes()
+    await handler(makeReq('POST', body), res)
+    expect(res.statusCode).toBe(201)
+  })
+
   // ── Join-code mint throttle (SEC22-01) ───────────────────────────────────
   // Every classes insert fires tr_classes_join_code → generate_join_code().
   // The 10-class CAP bounds live classes, not minting: archive-and-recreate
