@@ -31,12 +31,40 @@ function read(rel: string): string {
   return readFileSync(resolve(__dirname, rel), 'utf8')
 }
 
+/**
+ * The braced block that starts at `marker` — the whole function body, the whole
+ * `if` arm — found by matching braces rather than by slicing a fixed number of
+ * characters.
+ *
+ * Fixed-size windows are why two of these assertions went red on the 2026-09-08
+ * nightly while the code they guard was untouched and correct: a comment added
+ * inside `initialize()` by #345 pushed the call it looks for past a 3000-char
+ * slice, and a copy fix pushed a `return` past a 250-char one. A source-reading
+ * assertion has to be bounded by the code's own structure, or it decays into a
+ * character-count test that fails on prose.
+ */
+function blockAt(src: string, marker: string | RegExp): string {
+  const idx = typeof marker === 'string' ? src.indexOf(marker) : src.search(marker)
+  if (idx < 0) return ''
+  const open = src.indexOf('{', idx)
+  if (open < 0) return ''
+  let depth = 0
+  for (let i = open; i < src.length; i++) {
+    if (src[i] === '{') depth++
+    else if (src[i] === '}') {
+      depth--
+      if (depth === 0) return src.slice(idx, i + 1)
+    }
+  }
+  return src.slice(idx)
+}
+
 describe('SEC0901-D-02 (closed) — the audio-cache-owner and bundle-owner fixes are wired into every real auth transition', () => {
   const useAuth = read('../composables/useAuth.ts')
 
   it('reconcileAudioCacheOwner is called on the sign-in-event path (handleAuthChange)', () => {
-    const idx = useAuth.indexOf('async function handleAuthChange')
-    const block = useAuth.slice(idx, idx + 1200)
+    const block = blockAt(useAuth, 'async function handleAuthChange')
+    expect(block).not.toBe('')
     expect(block).toMatch(/void reconcileAudioCacheOwner\(user\.id\)/)
   })
 
@@ -44,8 +72,8 @@ describe('SEC0901-D-02 (closed) — the audio-cache-owner and bundle-owner fixes
     // onAuthStateChange does not reliably fire for a session already on disk
     // at boot — the fix's own comment says so. This is the check that a
     // sibling "amplification" fix doesn't repeat the exact gap it closed.
-    const idx = useAuth.indexOf('async function initialize(')
-    const block = useAuth.slice(idx, idx + 3000)
+    const block = blockAt(useAuth, 'async function initialize(')
+    expect(block).not.toBe('')
     expect(block).toMatch(/void reconcileAudioCacheOwner\(result\.data\.session\.user\.id\)/)
   })
 
@@ -116,9 +144,11 @@ describe('secure-assertion — sendSignInCode.ts fallback only honours a real 42
   const src = read('../auth/sendSignInCode.ts')
 
   it('a 429 from the new endpoint is returned to the caller, not retried through the Supabase fallback', () => {
-    const idx = src.indexOf("res.status === 429")
-    expect(idx).toBeGreaterThan(-1)
-    const block = src.slice(idx, idx + 250)
+    expect(src.indexOf('res.status === 429')).toBeGreaterThan(-1)
+    // The whole `if (res.status === 429) { … }` arm, not a character window:
+    // the branch must RETURN, so control never reaches the fallback below.
+    const block = blockAt(src, 'if (res.status === 429)')
+    expect(block).not.toBe('')
     expect(block).toMatch(/return \{ error:/)
   })
 
