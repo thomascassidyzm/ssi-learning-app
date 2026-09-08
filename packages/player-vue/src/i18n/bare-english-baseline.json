@@ -45,11 +45,6 @@
       "for",
       "variants"
     ],
-    "components/FamilyManagementModal.vue": [
-      "Family is full ( seats including you).",
-      "of seats used (including you)",
-      "· Child account"
-    ],
     "components/InAppBrowser.vue": [
       "Open"
     ],
@@ -100,8 +95,6 @@
       "Enter the code sent to",
       "Renews",
       "Reset ?",
-      "Stay Premium until , then stop",
-      "You'll stay on Premium until , then it ends and you won't be charged again. You can re-subscribe any time.",
       "You're not signed in, so your progress on this device isn't backed up. Clearing now will reset it.",
       "Your offline downloads (~ MB) will be removed — you'll need to download them again over the internet.",
       "belt",
@@ -198,7 +191,6 @@
     "views/onboarding/Onboarding.vue": [
       "A couple of details (optional)",
       "Continuing as",
-      "Enter the 6-digit code we sent to .",
       "Free for days",
       "Free until . No card needed to start.",
       "No languages match “ ”.",

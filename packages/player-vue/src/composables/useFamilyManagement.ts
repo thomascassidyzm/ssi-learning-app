@@ -15,6 +15,8 @@ export interface FamilyMember {
   invited_email: string | null
   display_name: string | null
   created_at: string
+  /** When the invite email last went out — null for a child seat, or if it never sent. */
+  invite_emailed_at?: string | null
 }
 
 export interface FamilyState {
@@ -49,16 +51,25 @@ export function useFamilyManagement() {
     try {
       const headers = await authHeaders()
       const res = await fetch('/api/family', { headers })
-      if (!res.ok) throw new Error('Failed to load family')
+      if (!res.ok) throw new Error('We could not load your family just now. Please try again in a moment.')
       state.value = await res.json()
     } catch (e: any) {
-      error.value = e?.message || 'Failed to load family'
+      error.value = e?.message || 'We could not load your family just now. Please try again in a moment.'
     } finally {
       isLoading.value = false
     }
   }
 
-  async function inviteByEmail(email: string): Promise<{ ok: boolean; error?: string }> {
+  /**
+   * Invite an adult by email — or, for an address already invited and not yet
+   * claimed, send the mail again. The server tells us which happened
+   * (`resent`), whether the person was attached on the spot (`attachedNow`,
+   * an existing account), and whether the mail actually went (`emailed`), so
+   * the screen can say something true rather than a bare "Invited".
+   */
+  async function inviteByEmail(
+    email: string,
+  ): Promise<{ ok: boolean; emailed?: boolean; resent?: boolean; attachedNow?: boolean; error?: string }> {
     error.value = ''
     try {
       const headers = await authHeaders()
@@ -69,13 +80,13 @@ export function useFamilyManagement() {
       })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
-        error.value = body?.error || 'Failed to invite'
+        error.value = body?.error || 'We could not send that invite. Please try again.'
         return { ok: false, error: error.value }
       }
       await load()
-      return { ok: true }
+      return { ok: true, emailed: !!body.emailed, resent: !!body.resent, attachedNow: !!body.attachedNow }
     } catch (e: any) {
-      error.value = e?.message || 'Failed to invite'
+      error.value = e?.message || 'We could not send that invite. Please try again.'
       return { ok: false, error: error.value }
     }
   }
@@ -92,14 +103,14 @@ export function useFamilyManagement() {
       })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
-        error.value = body?.error || 'Failed to add child'
+        error.value = body?.error || 'We could not set up that account. Nothing was saved — please try again.'
         return { ok: false, error: error.value }
       }
       lastSignInLink.value = body.signInLink ?? null
       await load()
       return { ok: true, signInLink: body.signInLink ?? null }
     } catch (e: any) {
-      error.value = e?.message || 'Failed to add child'
+      error.value = e?.message || 'We could not set up that account. Nothing was saved — please try again.'
       return { ok: false, error: error.value }
     }
   }

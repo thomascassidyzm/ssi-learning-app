@@ -2,7 +2,10 @@
 // Every surface that offers an invite shows the FULL URL as visible,
 // selectable text (monospace + copy button) — not just a bare Copy button.
 // One shared component instead of five near-duplicate markup blocks.
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const props = withDefaults(defineProps<{
   url: string
@@ -10,8 +13,21 @@ const props = withDefaults(defineProps<{
   copyLabel?: string
 }>(), {
   label: '',
-  copyLabel: 'Copy invite link',
 })
+
+/**
+ * The default label is resolved in a computed, not in withDefaults. A
+ * defineProps default is hoisted outside setup(), so it cannot call t() at
+ * all — and even where the compiler allows it, a default evaluated once would
+ * freeze in English, because on boot the locale chunk is still in flight.
+ */
+const copyLabelText = computed(() => props.copyLabel ?? t('schools.ui.inviteLinkField.copyLabel', 'Copy invite link'))
+
+// The copy IS the invite act — this is the beat where a teacher is about to
+// send a link to real learners, so it is one of the moments the mailbox prompt
+// listens for. Emitted rather than handled here: this field is shared by five
+// surfaces and only some of them own that prompt.
+const emit = defineEmits<{ (e: 'copied'): void }>()
 
 const copied = ref(false)
 async function copy() {
@@ -19,6 +35,7 @@ async function copy() {
   try {
     await navigator.clipboard.writeText(props.url)
     copied.value = true
+    emit('copied')
     setTimeout(() => { copied.value = false }, 2000)
   } catch {
     /* ignore */
@@ -30,7 +47,7 @@ async function copy() {
   <div class="invite-link-field">
     <div v-if="label" class="invite-link-label">{{ label }}</div>
     <div class="invite-link-row">
-      <code class="invite-link-url">{{ url || 'Link will appear here once ready.' }}</code>
+      <code class="invite-link-url">{{ url || t('schools.ui.inviteLinkField.linkPending', 'Link will appear here once ready.') }}</code>
       <button
         type="button"
         class="btn-ghost btn-small invite-link-copy"
@@ -38,7 +55,7 @@ async function copy() {
         :disabled="!url"
         @click="copy"
       >
-        {{ copied ? 'Copied' : copyLabel }}
+        {{ copied ? t('schools.ui.inviteLinkField.copied', 'Copied') : copyLabelText }}
       </button>
     </div>
   </div>

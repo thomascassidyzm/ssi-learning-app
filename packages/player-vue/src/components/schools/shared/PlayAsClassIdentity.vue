@@ -15,6 +15,10 @@
  * Rendered by both persistent top bars (SchoolsTopBar, TopNav) on the play
  * routes, so it looks and behaves identically in the schools and tutor shells.
  */
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
+
 defineProps<{
   className: string
   schoolName?: string
@@ -24,14 +28,14 @@ defineEmits<{ exit: [] }>()
 </script>
 
 <template>
-  <div class="pac" role="status" aria-live="polite" :aria-label="`Playing as ${className}`">
+  <div class="pac" role="status" aria-live="polite" :aria-label="t('schools.ui.playAsClassIdentity.ariaLabel', 'Playing as {name}').replace('{name}', className)">
     <span class="pac-live" aria-hidden="true"></span>
     <span class="pac-text">
-      <span class="pac-kicker">Playing&nbsp;as</span>
+      <span class="pac-kicker">{{ t('schools.ui.playAsClassIdentity.kicker', 'Playing as') }}</span>
       <strong class="pac-class">{{ className }}</strong>
       <span v-if="schoolName" class="pac-school" :title="schoolName">{{ schoolName }}</span>
     </span>
-    <button type="button" class="pac-exit" @click="$emit('exit')">End session</button>
+    <button type="button" class="pac-exit" @click="$emit('exit')">{{ t('schools.ui.playAsClassIdentity.endSession', 'End session') }}</button>
   </div>
 </template>
 

@@ -52,8 +52,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { randomUUID } from 'crypto'
 import { isValidEmailFormat, isDisposableEmailDomain, hasMxRecord } from '../_utils/emailValidation'
 import { buildShellClaim, clearedShellClaim, shellClaimMatches } from '../_utils/shellClaim'
-import { buildUnclaimedMint } from '../_utils/unclaimedMint'
-import { readSessionId } from './buyer-account'
+import { buildUnclaimedMint, readSessionId } from '../_utils/unclaimedMint'
 import {
   getClientIp,
   hashIp,

@@ -10,7 +10,9 @@
  * Called by the browser once, straight after any sign-in, from useAuth's single
  * SIGNED_IN chokepoint (packages/player-vue/src/auth/claimAccount.ts). It is
  * safe to call on every sign-in and on every account — an account with nothing
- * to claim gets a 200 and no writes.
+ * to claim gets a 200 and no writes. That includes every sign-in the new
+ * purchase flow makes, which is how a squatted account is repaired in the very
+ * act of its owner buying something.
  *
  * WHAT IT DESTROYS, when it fires:
  *   - the password, whoever set it. Rotated to a value nobody holds. The

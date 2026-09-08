@@ -1,5 +1,5 @@
 {
-  "version": "e3e4b3ea6fce",
+  "version": "3e92675a34d3",
   "generatedAt": "2026-09-07",
   "walks": [
     {
@@ -2256,6 +2256,35 @@
       "note": "A class with too little practice recorded shows a plain line saying so rather than a bar built from almost nothing."
     },
     {
+      "id": "prove-your-mailbox-reaches-you",
+      "title": "Prove your mailbox reaches you",
+      "section": "getting-people-in",
+      "personas": [
+        "school_admin",
+        "teacher"
+      ],
+      "keywords": [
+        "email",
+        "mailbox",
+        "code",
+        "spam filter",
+        "locked out"
+      ],
+      "place": {
+        "route": "dashboard"
+      },
+      "anchor": "mailbox-check-send",
+      "source": "packages/player-vue/src/components/schools/MailboxCheckPrompt.vue",
+      "walk": null,
+      "what": "School mail gateways are ferocious, and a code that never arrives is only discovered on the day you need it. This asks once, at the moment you have just made something worth keeping, and settles it.",
+      "where": "A card that appears right after you create a class or copy a class join link, for as long as your address is unproven.",
+      "how": [
+        "Tap **Send me a code**, or nominate a different address if your school one eats our mail.",
+        "Type the six digits we send, and tap **That's the one**."
+      ],
+      "note": "Close it and it stays closed. It never comes back on a timer."
+    },
+    {
       "id": "put-the-app-on-your-device",
       "title": "Put the app on your device",
       "section": "your-own-account",
@@ -3349,10 +3378,10 @@
         "Open the wizard and work down the steps on the left — your school, your staff, your courses, your classes.",
         "**Continue** saves the step you are on and moves you to the next one.",
         "Tap any step in the left-hand list to jump straight to it, forwards or back.",
-        "**Save & exit** puts you back on your dashboard with everything you have entered kept.",
+        "**Save & exit** saves the step you are on and puts you back on your dashboard. If something cannot be saved it stays put and tells you why, so you never leave work behind without knowing.",
         "Come back to Settings and First-time setup whenever you want to carry on."
       ],
-      "note": "Nothing here is a one-shot. Everything the wizard sets up — the school name, the invite links, the classes — can also be changed later from Settings and from your class pages."
+      "note": "Nothing here is a one-shot. Everything the wizard sets up — the school name, the invite links, the classes — can also be changed later from Settings and from your class pages. The course ticks on step three are only a filter for the class list on step four, so they are not kept when you leave."
     },
     {
       "id": "your-class-against-the-average",

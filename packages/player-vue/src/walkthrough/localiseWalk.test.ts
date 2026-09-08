@@ -6,9 +6,11 @@
  * sentence translated — worse than the new one in English, because it is wrong
  * and looks deliberate. This is what makes that a red CI run.
  *
- * It also asserts the split: every learner walk is mirrored, and no staff walk
- * is — the staff surfaces are English by product decision, and a stray mirrored
- * key there would be translation budget spent on nobody.
+ * It also asserts the coverage: EVERY walk is mirrored. It used to be learner
+ * walks only, because the teacher and leader surfaces were English by product
+ * decision. That decision was reversed on 2026-09-07 — a teacher reading a
+ * Welsh dashboard was still spoken to in English by the twelve staff walks —
+ * so the split is gone and the assertion is now completeness.
  */
 import { describe, it, expect } from 'vitest'
 import pack from './pack.json'
@@ -18,14 +20,13 @@ import eng from '@/locales/eng.json'
 
 const MIRROR = (eng as Record<string, any>).walkthrough as Record<string, any>
 const walks = (pack as { walks: Walk[] }).walks
-const learnerWalks = walks.filter((w) => w.personas.includes('learner'))
 
 describe('walkthrough locale mirror', () => {
-  it('mirrors every learner walk and only learner walks', () => {
-    expect(Object.keys(MIRROR).sort()).toEqual(learnerWalks.map((w) => w.id).sort())
+  it('mirrors every walk, and nothing that is not a walk', () => {
+    expect(Object.keys(MIRROR).sort()).toEqual(walks.map((w) => w.id).sort())
   })
 
-  it.each(learnerWalks.map((w) => [w.id, w] as const))('%s is mirrored string-for-string', (_id, walk) => {
+  it.each(walks.map((w) => [w.id, w] as const))('%s is mirrored string-for-string', (_id, walk) => {
     const m = MIRROR[walk.id]
     expect(m.title).toBe(walk.title)
     expect(m.topic).toBe(walk.topic)
@@ -36,7 +37,7 @@ describe('walkthrough locale mirror', () => {
     })
   })
 
-  it('localises to itself under English, staff walks included', () => {
+  it('localises to itself under English', () => {
     for (const walk of walks) expect(localiseWalk(walk)).toEqual(walk)
   })
 })

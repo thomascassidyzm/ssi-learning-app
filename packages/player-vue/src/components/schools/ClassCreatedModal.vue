@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { getLanguageName } from '@/composables/useI18n'
+import { getLanguageName, useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 defineProps({
   isOpen: {
@@ -68,22 +70,22 @@ function handleKeydown(e: KeyboardEvent) {
               </svg>
             </div>
 
-            <h2 id="created-modal-title" class="modal-title">Class created!</h2>
+            <h2 id="created-modal-title" class="modal-title">{{ t('schools.ui.classCreated.title', 'Class created!') }}</h2>
             <p class="modal-subtitle">
-              {{ classData.class_name }} &middot; {{ getCourseName(classData.course_code) }}
+              {{ classData.class_name }} · {{ getCourseName(classData.course_code) }}
             </p>
 
             <p class="share-hint">
-              You can add students from the class page whenever you're ready.
+              {{ t('schools.ui.classCreated.shareHint', "You can add students from the class page whenever you're ready.") }}
             </p>
           </div>
 
           <footer class="modal-footer">
             <button type="button" class="btn-secondary" @click="emit('close')">
-              Done
+              {{ t('schools.ui.classCreated.done', 'Done') }}
             </button>
             <button type="button" class="btn-primary" @click="emit('goToClass')">
-              Go to Class
+              {{ t('schools.ui.classCreated.goToClass', 'Go to Class') }}
             </button>
           </footer>
         </div>

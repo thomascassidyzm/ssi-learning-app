@@ -14,6 +14,7 @@ import { useRouter } from 'vue-router'
 import { getLanguageName, getLanguageEndonym, setLocale, useI18n } from '../composables/useI18n'
 import { courseTargetName } from '../utils/courseDisplayName'
 import { useSharedSubscription } from '../composables/useSubscription'
+import { usePendingPurchase } from '../composables/usePendingPurchase'
 import { useFamilyModal } from '@/composables/useFamilyModal'
 import { useCheckout } from '../composables/useCheckout'
 // The ONE payment-route declaration (platform/paymentRoute). Every control in
@@ -605,6 +606,14 @@ const {
 } = useSharedSubscription()
 const portalFeedback = ref('')
 
+// This is the screen a buyer opens to check what they bought, so it is the one
+// screen that must never show a stale answer. Boot's read can have failed
+// (fetchSubscription deliberately swallows a network error and leaves the state
+// untouched) or predated the purchase, and either way the Upgrade row would sit
+// there in front of somebody who has already paid — Tom, 2026-09-07. One read
+// on open, and the screen is always answering from the server.
+onMounted(() => { void refreshSubscription() })
+
 const handleManageSubscription = async () => {
   portalFeedback.value = ''
   try {
@@ -626,6 +635,25 @@ const subscriptionEndsAt = computed(() => {
   return new Date(end).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
 })
 const isCancelScheduled = computed(() => !!subscription.value?.cancelAtPeriodEnd)
+/**
+ * THE PLAN THIS PERSON ACTUALLY HOLDS, by name.
+ *
+ * The cancel rows used to say "Premium" whatever you were on, so a Family
+ * subscriber reading how to cancel was told they would "Stay Premium until 8
+ * October" — a plan they do not have (Tom, 2026-09-07). The status row above
+ * them already read the name off the subscription; these now do the same, and
+ * there is one place to change if a third plan ever arrives.
+ */
+const planLabel = computed(() => subscription.value?.planName || 'SSi Premium')
+
+// A purchase that has been paid for and has not yet landed. While it stands,
+// Settings must not offer to sell the thing that has just been bought — the
+// waiting overlay covers the screen, and this is the same truth underneath it
+// for anybody who steps out of the waiting room.
+const { isPending: purchasePending, pending: pendingPurchase } = usePendingPurchase()
+const pendingPlanLabel = computed(() =>
+  pendingPurchase.value?.plan === 'family' ? 'SSi Family' : 'SSi Premium'
+)
 
 function openCancelConfirm() {
   cancelError.value = ''
@@ -698,6 +726,19 @@ const webBillingAvailable = computed(() => paddleBillingAvailable())
 // don't own (spec §4.3). The owner's row reads the real plan_name.
 const isFamilyMember = computed(() => subscription.value?.planName === 'SSi Family (member)')
 const isFamilyOwner = computed(() => subscription.value?.planName === 'SSi Family')
+// THE PLAN THE PERSON ACTUALLY HOLDS. The cancel row and its dialog said
+// "Stay Premium" to somebody who had just paid for SSi Family (Tom,
+// 2026-09-07). Everything that names the plan reads it from the row.
+const cancelStayOnLine = computed(() =>
+  t('settings.cancelStayOn')
+    .replace('{plan}', planLabel.value)
+    .replace('{date}', subscriptionEndsAt.value || t('settings.periodEnd')),
+)
+const cancelRowLine = computed(() =>
+  t('settings.cancelRowDesc')
+    .replace('{plan}', planLabel.value)
+    .replace('{date}', subscriptionEndsAt.value || t('settings.periodEnd')),
+)
 // The modal itself lives in App.vue now (one instance, two doors — see
 // composables/useFamilyModal.ts). Settings opens it; the Paddle success
 // redirect for the Family plan opens the same one.
@@ -1722,12 +1763,12 @@ const confirmReset = async () => {
         <div class="reset-dialog">
           <h3 class="reset-title">{{ t('settings.cancelSubscription2') }}</h3>
           <p class="reset-desc">
-            You'll stay on Premium until {{ subscriptionEndsAt || 'the end of your current period' }}, then it ends and you won't be charged again. You can re-subscribe any time.
+            {{ cancelStayOnLine }}
           </p>
           <p v-if="cancelError" class="reset-error">{{ cancelError }}</p>
           <div class="reset-actions">
             <button class="reset-btn reset-btn--cancel" @click="dismissCancelConfirm" :disabled="isCancelling">
-              {{ t('settings.keepPremium') }}
+              {{ isFamilyOwner ? t('settings.keepFamily') : t('settings.keepPremium') }}
             </button>
             <button class="reset-btn reset-btn--confirm" @click="confirmCancel" :disabled="isCancelling">
               {{ isCancelling ? 'Cancelling...' : 'Cancel subscription' }}
@@ -2326,7 +2367,7 @@ const confirmReset = async () => {
               <div class="setting-row clickable danger" @click="openCancelConfirm">
                 <div class="setting-info">
                   <span class="setting-label">{{ t('settings.cancelSubscription') }}</span>
-                  <span class="setting-desc">Stay Premium until {{ subscriptionEndsAt || 'the period ends' }}, then stop</span>
+                  <span class="setting-desc">{{ cancelRowLine }}</span>
                 </div>
                 <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M9 18l6-6-6-6"/>
@@ -2368,6 +2409,15 @@ const confirmReset = async () => {
             </div>
             <!-- One row, because the choice now lives in the plan picker:
                  Premium or Family, monthly or annual. -->
+            <!-- PAID, NOT YET LANDED. Never the Upgrade row in this window:
+                 selling somebody the thing they have just bought is the whole
+                 of the defect this replaces. -->
+            <div v-else-if="purchasePending" class="setting-row">
+              <div class="setting-info">
+                <span class="setting-label">{{ pendingPlanLabel }}</span>
+                <span class="setting-desc">{{ t('purchasePending.settingsRow') }}</span>
+              </div>
+            </div>
             <div v-else class="setting-row clickable" @click="goPlans">
               <div class="setting-info">
                 <span class="setting-label">{{ t('settings.upgrade') }}</span>

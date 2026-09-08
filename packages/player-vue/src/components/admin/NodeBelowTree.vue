@@ -23,6 +23,18 @@ import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { classHomePath, groupHomePath, isMemberNodeSurface } from '@/composables/nodeSurfacePaths'
 import { isEmptyNode, type BelowNode, type BelowPerson } from './belowTree'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
+
+/**
+ * Two keys, one per branch — never one key with the plural spelled inside the
+ * markup, and never a reworded "Students: {n}" that dodges the problem. The
+ * English a leader reads is unchanged; a translator gets both forms.
+ */
+function pluralN(n: number, oneKey: string, oneEng: string, manyKey: string, manyEng: string): string {
+  return n === 1 ? t(oneKey, oneEng).replace('{n}', String(n)) : t(manyKey, manyEng).replace('{n}', String(n))
+}
 
 const props = withDefaults(defineProps<{
   node: BelowNode
@@ -103,7 +115,7 @@ function openClass(id: string): void {
         type="button"
         class="tree-caret"
         :aria-expanded="open"
-        :aria-label="open ? `Close ${node.name}` : `Open ${node.name}`"
+        :aria-label="open ? t('org.ui.nodeBelowTree.closeNode', 'Close {name}').replace('{name}', node.name) : t('org.ui.nodeBelowTree.openNode', 'Open {name}').replace('{name}', node.name)"
         @click="open = !open"
       >{{ open ? '▾' : '▸' }}</button>
       <span v-else class="tree-caret is-leaf" aria-hidden="true"></span>
@@ -141,12 +153,12 @@ function openClass(id: string): void {
         @click="openNode"
       >{{ node.name }}</button>
 
-      <span v-if="isRoot" class="tree-here">you’re here</span>
+      <span v-if="isRoot" class="tree-here">{{ t('org.ui.nodeBelowTree.youreHere', 'you’re here') }}</span>
       <span v-else-if="showLabel" class="tree-label">{{ labelWord }}</span>
-      <span v-if="showDemoBadge" class="tree-badge">Demo</span>
+      <span v-if="showDemoBadge" class="tree-badge">{{ t('org.ui.nodeBelowTree.demo', 'Demo') }}</span>
 
       <span v-if="node.learners" class="tree-count frost-mono-nums">
-        {{ node.learners }} learner<template v-if="node.learners !== 1">s</template>
+        {{ pluralN(node.learners, 'org.ui.nodeBelowTree.learnerOne', '{n} learner', 'org.ui.nodeBelowTree.learnersMany', '{n} learners') }}
       </span>
     </div>
 
@@ -172,7 +184,7 @@ function openClass(id: string): void {
         <button type="button" class="tree-name is-class-name" @click="openClass(c.id)">{{ c.name }}</button>
         <span v-if="c.teachers.length" class="tree-teachers">{{ c.teachers.join(', ') }}</span>
         <span v-if="c.studentCount" class="tree-count frost-mono-nums">
-          {{ c.studentCount }} student<template v-if="c.studentCount !== 1">s</template>
+          {{ pluralN(c.studentCount, 'org.ui.nodeBelowTree.studentOne', '{n} student', 'org.ui.nodeBelowTree.studentsMany', '{n} students') }}
         </span>
       </div>
 
@@ -181,7 +193,7 @@ function openClass(id: string): void {
           <span v-for="i in depth + 1" :key="i" class="rail"></span>
         </span>
         <button type="button" class="tree-more-btn" @click="showAllClasses = true">
-          {{ hiddenClasses }} more class<template v-if="hiddenClasses !== 1">es</template>
+          {{ pluralN(hiddenClasses, 'org.ui.nodeBelowTree.moreClassOne', '{n} more class', 'org.ui.nodeBelowTree.moreClassesMany', '{n} more classes') }}
         </button>
       </div>
 
@@ -214,7 +226,7 @@ function openClass(id: string): void {
           <span v-for="i in depth + 1" :key="i" class="rail"></span>
         </span>
         <button type="button" class="tree-more-btn" @click="showAllStaff = true">
-          {{ hiddenStaff }} more <template v-if="hiddenStaff === 1">person</template><template v-else>people</template>
+          {{ pluralN(hiddenStaff, 'org.ui.nodeBelowTree.morePersonOne', '{n} more person', 'org.ui.nodeBelowTree.morePeopleMany', '{n} more people') }}
         </button>
       </div>
 
@@ -223,7 +235,7 @@ function openClass(id: string): void {
           <span v-for="i in depth + 1" :key="i" class="rail"></span>
         </span>
         <button type="button" class="tree-more-btn" @click="openNode">
-          {{ node.hiddenGroups }} more below — open {{ node.name }}
+          {{ t('org.ui.nodeBelowTree.moreBelowOpen', '{n} more below — open {name}').replace('{n}', String(node.hiddenGroups)).replace('{name}', node.name) }}
         </button>
       </div>
     </template>

@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `e3e4b3ea6fce` · generated 2026-09-07 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `3e92675a34d3` · generated 2026-09-07 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## Add a class to a group
 
@@ -629,6 +629,19 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class
 
 **Worth knowing.** A class with too little practice recorded shows a plain line saying so rather than a bar built from almost nothing.
 
+## Prove your mailbox reaches you
+
+Section: getting-people-in · roles: school_admin, teacher · anchor: `mailbox-check-send` · in `packages/player-vue/src/components/schools/MailboxCheckPrompt.vue`
+
+**What it's for.** School mail gateways are ferocious, and a code that never arrives is only discovered on the day you need it. This asks once, at the moment you have just made something worth keeping, and settles it.
+
+**Where it is.** A card that appears right after you create a class or copy a class join link, for as long as your address is unproven.
+
+1. Tap **Send me a code**, or nominate a different address if your school one eats our mail.
+2. Type the six digits we send, and tap **That's the one**.
+
+**Worth knowing.** Close it and it stays closed. It never comes back on a timer.
+
 ## Put the app on your device
 
 Section: your-own-account · roles: leader, school_admin · anchor: `account-install` · in `packages/player-vue/src/components/admin/YourAccount.vue` · has a walk
@@ -1125,10 +1138,10 @@ Section: your-school · roles: school_admin · anchor: `setup-save-exit` · in `
 1. Open the wizard and work down the steps on the left — your school, your staff, your courses, your classes.
 2. **Continue** saves the step you are on and moves you to the next one.
 3. Tap any step in the left-hand list to jump straight to it, forwards or back.
-4. **Save & exit** puts you back on your dashboard with everything you have entered kept.
+4. **Save & exit** saves the step you are on and puts you back on your dashboard. If something cannot be saved it stays put and tells you why, so you never leave work behind without knowing.
 5. Come back to Settings and First-time setup whenever you want to carry on.
 
-**Worth knowing.** Nothing here is a one-shot. Everything the wizard sets up — the school name, the invite links, the classes — can also be changed later from Settings and from your class pages.
+**Worth knowing.** Nothing here is a one-shot. Everything the wizard sets up — the school name, the invite links, the classes — can also be changed later from Settings and from your class pages. The course ticks on step three are only a filter for the class list on step four, so they are not kept when you leave.
 
 ## Your class against the average
 

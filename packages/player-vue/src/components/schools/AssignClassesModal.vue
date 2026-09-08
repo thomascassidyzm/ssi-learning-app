@@ -9,6 +9,9 @@
 // the same product.
 import { ref, computed, watch } from 'vue'
 import type { AssignableClass, AssignmentOutcome } from '@/composables/schools/assignTeacherClasses'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   isOpen: boolean
@@ -101,8 +104,8 @@ function handleConfirm() {
       <div v-if="isOpen" class="modal-overlay" data-walk="assign-classes-modal" @click="handleOverlayClick" @keydown.escape="handleClose">
         <div class="modal" role="dialog" aria-modal="true" aria-labelledby="assign-modal-title">
           <header class="modal-header">
-            <h2 id="assign-modal-title" class="modal-title">Assign {{ teacherName }} to classes</h2>
-            <button class="modal-close" type="button" aria-label="Cancel" @click="handleClose">
+            <h2 id="assign-modal-title" class="modal-title">{{ t('schools.ui.assignClasses.title', 'Assign {name} to classes').replace('{name}', teacherName) }}</h2>
+            <button class="modal-close" type="button" :aria-label="t('schools.ui.assignClasses.cancel', 'Cancel')" @click="handleClose">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
               </svg>
@@ -111,14 +114,13 @@ function handleConfirm() {
 
           <div class="modal-body">
             <p class="modal-lede">
-              Tick every class {{ teacherName }} should teach. Unticking a class they teach now takes
-              them off it — so a move is one change here, not two.
+              {{ t('schools.ui.assignClasses.lede', 'Tick every class {name} should teach. Unticking a class they teach now takes them off it — so a move is one change here, not two.').replace('{name}', teacherName) }}
             </p>
 
             <p v-if="loadError" class="error-text" role="alert">{{ loadError }}</p>
-            <p v-else-if="loading" class="modal-note">Loading your classes…</p>
+            <p v-else-if="loading" class="modal-note">{{ t('schools.ui.assignClasses.loading', 'Loading your classes…') }}</p>
             <p v-else-if="!classes.length" class="modal-note">
-              No classes in this school yet. Create a class first, then come back and staff it.
+              {{ t('schools.ui.assignClasses.noClasses', 'No classes in this school yet. Create a class first, then come back and staff it.') }}
             </p>
 
             <ul v-else class="class-list" data-walk="assign-classes-list">
@@ -131,8 +133,8 @@ function handleConfirm() {
                     @change="toggle(c.id)"
                   />
                   <span class="class-name">{{ c.class_name }}</span>
-                  <span v-if="!c.hasActiveTeacher" class="class-tag">no teacher yet — they'd lead it</span>
-                  <span v-else-if="!c.isMember" class="class-tag class-tag-quiet">joins as co-teacher</span>
+                  <span v-if="!c.hasActiveTeacher" class="class-tag">{{ t('schools.ui.assignClasses.tagNoTeacher', "no teacher yet — they'd lead it") }}</span>
+                  <span v-else-if="!c.isMember" class="class-tag class-tag-quiet">{{ t('schools.ui.assignClasses.tagCoTeacher', 'joins as co-teacher') }}</span>
                 </label>
               </li>
             </ul>
@@ -142,7 +144,7 @@ function handleConfirm() {
               <ul v-if="failures.length" class="failure-list">
                 <li v-for="f in failures" :key="f.classId + f.action" class="failure-row">
                   <strong>{{ f.className }}</strong>
-                  — could not {{ f.action === 'add' ? 'add' : 'remove' }} {{ teacherName }}:
+                  {{ t('schools.ui.assignClasses.failureLine', '— could not {verb} {name}:').replace('{verb}', f.action === 'add' ? t('schools.ui.assignClasses.verbAdd', 'add') : t('schools.ui.assignClasses.verbRemove', 'remove')).replace('{name}', teacherName) }}
                   <span class="failure-reason">{{ f.error }}</span>
                 </li>
               </ul>
@@ -151,7 +153,7 @@ function handleConfirm() {
 
           <footer class="modal-footer">
             <button type="button" class="btn-cancel" :disabled="submitting" @click="handleClose">
-              {{ summary && !failures.length ? 'Done' : 'Cancel' }}
+              {{ summary && !failures.length ? t('schools.ui.assignClasses.done', 'Done') : t('schools.ui.assignClasses.cancel', 'Cancel') }}
             </button>
             <button
               type="button"
@@ -160,7 +162,7 @@ function handleConfirm() {
               :disabled="submitting || changeCount === 0"
               @click="handleConfirm"
             >
-              {{ submitting ? 'Saving…' : (changeCount ? `Save ${changeCount} change${changeCount === 1 ? '' : 's'}` : 'Save') }}
+              {{ submitting ? t('schools.ui.assignClasses.saving', 'Saving…') : (changeCount ? (changeCount === 1 ? t('schools.ui.assignClasses.saveOneChange', 'Save 1 change') : t('schools.ui.assignClasses.saveNChanges', 'Save {n} changes').replace('{n}', String(changeCount))) : t('schools.ui.assignClasses.save', 'Save')) }}
             </button>
           </footer>
         </div>

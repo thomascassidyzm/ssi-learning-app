@@ -60,9 +60,13 @@ function makeRound(legoId: string, roundNumber: number, n = 3): Round {
     cycles: Array.from({ length: n }, (_, i) => ({
       id: `${legoId}-c${i + 1}`,
       type: 'build',
-      known: { text: `known ${i + 1}`, audioUrl: `https://example.com/${legoId}-${i}-k.mp3` },
+      // Text is namespaced by LEGO because it is the PROMPT identity, and two
+      // rounds saying the same thing is a different law's business (A-64's
+      // consecutive-play cap — consecutivePlayIdentity.test.ts). Here we are
+      // pinning the repeat COUNTER, so every cycle must be distinct.
+      known: { text: `${legoId} known ${i + 1}`, audioUrl: `https://example.com/${legoId}-${i}-k.mp3` },
       target: {
-        text: `target ${i + 1}`,
+        text: `${legoId} target ${i + 1}`,
         voice1Url: `https://example.com/${legoId}-${i}-t1.mp3`,
         voice2Url: `https://example.com/${legoId}-${i}-t2.mp3`,
       },

@@ -172,7 +172,8 @@ describe('POST /api/subscription/change-plan', () => {
     const res = makeRes()
     await handler(makeReq(), res)
     expect(res._status).toBe(200)
-    expect(res._json).toMatchObject({ ok: true, planName: 'SSi Family' })
+    // and it reports the mode that ACTUALLY ran, not the one we asked for
+    expect(res._json).toMatchObject({ ok: true, planName: 'SSi Family', prorationBillingMode: 'do_not_bill' })
     expect(updateCalls).toHaveLength(2)
     expect(updateCalls[0].opts.prorationBillingMode).toBe('prorated_immediately')
     expect(updateCalls[1].opts.prorationBillingMode).toBe('do_not_bill')

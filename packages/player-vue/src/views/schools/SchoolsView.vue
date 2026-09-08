@@ -11,7 +11,9 @@ import { useGovtAdminActions } from '@/composables/schools/useGovtAdminActions'
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 import { compareByName } from '@/utils/alphaSort'
 import { redeemLink } from '@/composables/schools/inviteLink'
+import { useI18n } from '@/composables/useI18n'
 
+const { t } = useI18n()
 const router = useRouter()
 const isAdminView = inject<boolean>('isAdminView', false)
 const { schoolsLink } = useSchoolsNav()
@@ -60,7 +62,9 @@ const headerEyebrow = computed(() => {
   return (
     currentUser.value?.organization_name ||
     groupSummary.value?.group_name ||
-    (currentUser.value?.region_code ? `${currentUser.value.region_code.toUpperCase()} Authority` : 'Programme view')
+    (currentUser.value?.region_code
+      ? t('schools.schoolsList.regionAuthority', '{region} Authority').replace('{region}', currentUser.value.region_code.toUpperCase())
+      : t('schools.schoolsList.programmeView', 'Programme view'))
   )
 })
 
@@ -68,11 +72,15 @@ const awaitingCount = computed(() => schools.value.filter((s) => !s.has_admin).l
 
 const headerLede = computed(() => {
   const n = schools.value.length
-  if (!n && schoolsLoading.value) return 'Loading schools…'
-  if (!n) return 'No schools registered in this programme yet.'
-  const base = `Programme view of every school on SSi. ${n} school${n === 1 ? '' : 's'}.`
+  if (!n && schoolsLoading.value) return t('schools.schoolsList.loadingSchools', 'Loading schools…')
+  if (!n) return t('schools.schoolsList.noSchoolsYet', 'No schools registered in this programme yet.')
+  const base = t('schools.schoolsList.programmeViewSummary', 'Programme view of every school on SSi. {n} school{s}.')
+    .replace('{n}', String(n))
+    .replace('{s}', n === 1 ? '' : 's')
   if (!awaitingCount.value) return base
-  return `${base} ${awaitingCount.value} awaiting admin.`
+  return t('schools.schoolsList.awaitingAdminSuffix', '{base} {count} awaiting admin.')
+    .replace('{base}', base)
+    .replace('{count}', String(awaitingCount.value))
 })
 
 const hoursThisWeek = computed(() => Math.round(totalPracticeHours.value))
@@ -202,12 +210,12 @@ watch(currentUser, (u) => {
     <div class="hero">
       <div class="hero-text">
         <div class="hero-eyebrow">{{ headerEyebrow }}</div>
-        <h1 class="arsenal hero-title">All schools</h1>
+        <h1 class="arsenal hero-title">{{ t('schools.schoolsList.title', 'All schools') }}</h1>
         <p class="hero-lede schools-subtle">{{ headerLede }}</p>
       </div>
       <div class="hero-actions">
         <button type="button" class="btn-ghost" :disabled="!filteredSchools.length" @click="handleExport">
-          Export
+          {{ t('schools.schoolsList.export', 'Export') }}
         </button>
         <!-- HANDBOOK Add a school to your programme
              section: your-school
@@ -228,9 +236,9 @@ watch(currentUser, (u) => {
              Worth knowing. There is no separate onboarding step to remember. Both
              links live on the school's row from then on, so you can fetch them again
              any time.
-             checked: 2006c633.1822d897
+             checked: eff8d8b7.1822d897
         -->
-        <button v-if="!isAdminView" type="button" class="btn-play" data-walk="verb-add-school" @click="openAddModal">+ Add school</button>
+        <button v-if="!isAdminView" type="button" class="btn-play" data-walk="verb-add-school" @click="openAddModal">{{ t('schools.schoolsList.addSchool', '+ Add school') }}</button>
       </div>
     </div>
 
@@ -238,8 +246,8 @@ watch(currentUser, (u) => {
          swallowed fetch error was exactly how a stale claim/count could sit
          on screen indefinitely with no visible sign anything was wrong. -->
     <div v-if="fetchError" class="schools-card fetch-error-banner">
-      <span>Couldn't refresh this list — showing the last data loaded. {{ fetchError }}</span>
-      <button type="button" class="btn-ghost" :disabled="isRefreshing" @click="refresh">Retry</button>
+      <span>{{ t('schools.schoolsList.refreshFailed', "Couldn't refresh this list — showing the last data loaded.") }} {{ fetchError }}</span>
+      <button type="button" class="btn-ghost" :disabled="isRefreshing" @click="refresh">{{ t('schools.schoolsList.retry', 'Retry') }}</button>
     </div>
 
     <div class="stats-updated-row">
@@ -249,45 +257,45 @@ watch(currentUser, (u) => {
     <div class="kpi-grid">
       <div class="schools-card kpi">
         <span class="arsenal kpi-value">{{ schools.length }}</span>
-        <span class="kpi-label">Schools</span>
+        <span class="kpi-label">{{ t('schools.schoolsList.kpiSchools', 'Schools') }}</span>
       </div>
       <div class="schools-card kpi">
         <span class="arsenal kpi-value">{{ totalStudents.toLocaleString() }}</span>
-        <span class="kpi-label">Students</span>
+        <span class="kpi-label">{{ t('schools.schoolsList.kpiStudents', 'Students') }}</span>
       </div>
       <div class="schools-card kpi">
         <span class="arsenal kpi-value">{{ totalTeachers }}</span>
-        <span class="kpi-label">Teachers</span>
+        <span class="kpi-label">{{ t('schools.schoolsList.kpiTeachers', 'Teachers') }}</span>
       </div>
       <div class="schools-card kpi">
         <span class="arsenal kpi-value">{{ totalClasses }}</span>
-        <span class="kpi-label">Classes</span>
+        <span class="kpi-label">{{ t('schools.schoolsList.kpiClasses', 'Classes') }}</span>
       </div>
       <div class="schools-card kpi">
         <span class="arsenal kpi-value">{{ hoursThisWeek }}h</span>
-        <span class="kpi-label">Practice hours</span>
+        <span class="kpi-label">{{ t('schools.schoolsList.kpiPracticeHours', 'Practice hours') }}</span>
       </div>
       <div class="schools-card kpi">
         <span class="arsenal kpi-value">—</span>
-        <span class="kpi-label">Active in 7d</span>
+        <span class="kpi-label">{{ t('schools.schoolsList.kpiActiveIn7d', 'Active in 7d') }}</span>
       </div>
     </div>
 
     <div class="schools-card list-card">
       <div class="list-header">
-        <h3 class="arsenal list-title">{{ schools.length }} school{{ schools.length === 1 ? '' : 's' }}</h3>
+        <h3 class="arsenal list-title">{{ t('schools.schoolsList.schoolCount', '{n} school{s}').replace('{n}', String(schools.length)).replace('{s}', schools.length === 1 ? '' : 's') }}</h3>
         <div class="list-controls">
           <input
             v-model="searchQuery"
             class="list-search"
             type="text"
-            placeholder="Search…"
-            aria-label="Search schools"
+            :placeholder="t('schools.schoolsList.searchPlaceholder', 'Search…')"
+            :aria-label="t('schools.schoolsList.searchAriaLabel', 'Search schools')"
           />
-          <select v-model="sortKey" class="list-sort" aria-label="Sort schools">
-            <option value="name">Sort by name</option>
-            <option value="hours">Sort by hours</option>
-            <option value="students">Sort by students</option>
+          <select v-model="sortKey" class="list-sort" :aria-label="t('schools.schoolsList.sortAriaLabel', 'Sort schools')">
+            <option value="name">{{ t('schools.schoolsList.sortByName', 'Sort by name') }}</option>
+            <option value="hours">{{ t('schools.schoolsList.sortByHours', 'Sort by hours') }}</option>
+            <option value="students">{{ t('schools.schoolsList.sortByStudents', 'Sort by students') }}</option>
           </select>
         </div>
       </div>
@@ -319,16 +327,16 @@ watch(currentUser, (u) => {
       <table class="ssi-table" data-walk="schools-list-table">
         <thead>
           <tr>
-            <th>School</th>
-            <th>City</th>
-            <th>Students</th>
-            <th>Teachers</th>
-            <th>Classes</th>
-            <th>Hours</th>
-            <th>Joined</th>
-            <th>Status</th>
-            <th>Links</th>
-            <th aria-label="actions"></th>
+            <th>{{ t('schools.schoolsList.colSchool', 'School') }}</th>
+            <th>{{ t('schools.schoolsList.colCity', 'City') }}</th>
+            <th>{{ t('schools.schoolsList.colStudents', 'Students') }}</th>
+            <th>{{ t('schools.schoolsList.colTeachers', 'Teachers') }}</th>
+            <th>{{ t('schools.schoolsList.colClasses', 'Classes') }}</th>
+            <th>{{ t('schools.schoolsList.colHours', 'Hours') }}</th>
+            <th>{{ t('schools.schoolsList.colJoined', 'Joined') }}</th>
+            <th>{{ t('schools.schoolsList.colStatus', 'Status') }}</th>
+            <th>{{ t('schools.schoolsList.colLinks', 'Links') }}</th>
+            <th :aria-label="t('schools.schoolsList.colActions', 'actions')"></th>
           </tr>
         </thead>
         <tbody>
@@ -351,7 +359,7 @@ watch(currentUser, (u) => {
             <td>{{ Math.round(school.total_practice_hours) }}h</td>
             <td class="schools-subtle">{{ formatJoined(school.created_at) }}</td>
             <td>
-              <span v-if="!school.has_admin" class="awaiting-pill">Awaiting admin</span>
+              <span v-if="!school.has_admin" class="awaiting-pill">{{ t('schools.schoolsList.awaitingAdmin', 'Awaiting admin') }}</span>
               <span v-else class="health-cell">
                 <HealthDot :health="school.health" />
                 <span class="schools-subtle">{{ school.health.replace('-', ' ') }}</span>
@@ -383,34 +391,34 @@ watch(currentUser, (u) => {
                 class="link-chip"
                 :class="{ 'is-copied': copiedCode === school.admin_join_code }"
                 :disabled="!school.admin_join_code"
-                :title="school.admin_join_code ? 'Copy admin link' : 'No admin code yet'"
+                :title="school.admin_join_code ? t('schools.schoolsList.copyAdminLink', 'Copy admin link') : t('schools.schoolsList.noAdminCodeYet', 'No admin code yet')"
                 @click="copyCode(school.admin_join_code)"
               >
-                {{ copiedCode === school.admin_join_code ? 'Copied!' : 'Admin' }}
+                {{ copiedCode === school.admin_join_code ? t('schools.schoolsList.copied', 'Copied!') : t('schools.schoolsList.admin', 'Admin') }}
               </button>
               <button
                 type="button"
                 class="link-chip"
                 :class="{ 'is-copied': copiedCode === school.teacher_join_code }"
                 :disabled="!school.teacher_join_code"
-                :title="school.teacher_join_code ? 'Copy teacher link' : 'No teacher code yet'"
+                :title="school.teacher_join_code ? t('schools.schoolsList.copyTeacherLink', 'Copy teacher link') : t('schools.schoolsList.noTeacherCodeYet', 'No teacher code yet')"
                 @click="copyCode(school.teacher_join_code)"
               >
-                {{ copiedCode === school.teacher_join_code ? 'Copied!' : 'Teacher' }}
+                {{ copiedCode === school.teacher_join_code ? t('schools.schoolsList.copied', 'Copied!') : t('schools.schoolsList.teacher', 'Teacher') }}
               </button>
             </td>
             <td class="row-action">
-              <span class="row-link">Open →</span>
+              <span class="row-link">{{ t('schools.schoolsList.open', 'Open →') }}</span>
             </td>
           </tr>
           <tr v-if="!filteredSchools.length && searchQuery">
-            <td colspan="10" class="empty-row schools-subtle">No schools match "{{ searchQuery }}".</td>
+            <td colspan="10" class="empty-row schools-subtle">{{ t('schools.schoolsList.noSchoolsMatch', 'No schools match "{query}".').replace('{query}', searchQuery) }}</td>
           </tr>
           <tr v-else-if="!filteredSchools.length && schoolsLoading">
-            <td colspan="10" class="empty-row schools-subtle">Loading schools…</td>
+            <td colspan="10" class="empty-row schools-subtle">{{ t('schools.schoolsList.loadingSchools', 'Loading schools…') }}</td>
           </tr>
           <tr v-else-if="!filteredSchools.length">
-            <td colspan="10" class="empty-row schools-subtle">No schools to show.</td>
+            <td colspan="10" class="empty-row schools-subtle">{{ t('schools.schoolsList.noSchoolsToShow', 'No schools to show.') }}</td>
           </tr>
         </tbody>
       </table>
@@ -418,31 +426,30 @@ watch(currentUser, (u) => {
 
     <div v-if="showAddModal" class="invite-modal-backdrop" @click.self="closeAddModal">
       <div class="schools-card invite-modal">
-        <h3 class="arsenal invite-modal-title">Add school</h3>
+        <h3 class="arsenal invite-modal-title">{{ t('schools.schoolsList.addSchoolModalTitle', 'Add school') }}</h3>
         <p class="schools-subtle invite-modal-lede">
-          Creates the school in your programme immediately, with an admin link and a teacher link ready to share.
+          {{ t('schools.schoolsList.addSchoolModalLede', 'Creates the school in your programme immediately, with an admin link and a teacher link ready to share.') }}
         </p>
         <input
           v-if="!createdSchool"
           v-model="newSchoolName"
           type="text"
           class="invite-modal-input"
-          placeholder="School name"
+          :placeholder="t('schools.schoolsList.schoolNamePlaceholder', 'School name')"
           :disabled="isCreatingSchool"
           @keyup.enter="handleCreateSchool"
         />
         <p v-if="createError" class="invite-modal-error">{{ createError }}</p>
         <template v-if="createdSchool">
-          <InviteLinkField v-if="redeemUrl(createdSchool.admin_join_code)" label="Admin" :url="redeemUrl(createdSchool.admin_join_code)!" />
-          <InviteLinkField v-if="redeemUrl(createdSchool.teacher_join_code)" label="Teacher" :url="redeemUrl(createdSchool.teacher_join_code)!" />
+          <InviteLinkField v-if="redeemUrl(createdSchool.admin_join_code)" :label="t('schools.schoolsList.admin', 'Admin')" :url="redeemUrl(createdSchool.admin_join_code)!" />
+          <InviteLinkField v-if="redeemUrl(createdSchool.teacher_join_code)" :label="t('schools.schoolsList.teacher', 'Teacher')" :url="redeemUrl(createdSchool.teacher_join_code)!" />
           <p class="schools-subtle invite-modal-hint">
-            Send the school admin the Admin link — clicking it takes them straight to sign-in. These links also
-            live on the school's row any time you need them again.
+            {{ t('schools.schoolsList.addSchoolModalHint', "Send the school admin the Admin link — clicking it takes them straight to sign-in. These links also live on the school's row any time you need them again.") }}
           </p>
         </template>
         <div class="invite-modal-actions">
           <button type="button" class="btn-ghost" @click="closeAddModal">
-            {{ createdSchool ? 'Done' : 'Cancel' }}
+            {{ createdSchool ? t('schools.schoolsList.done', 'Done') : t('schools.schoolsList.cancel', 'Cancel') }}
           </button>
           <button
             v-if="!createdSchool"
@@ -451,7 +458,7 @@ watch(currentUser, (u) => {
             :disabled="isCreatingSchool || !newSchoolName.trim()"
             @click="handleCreateSchool"
           >
-            {{ isCreatingSchool ? 'Creating…' : 'Create school' }}
+            {{ isCreatingSchool ? t('schools.schoolsList.creating', 'Creating…') : t('schools.schoolsList.createSchool', 'Create school') }}
           </button>
         </div>
       </div>

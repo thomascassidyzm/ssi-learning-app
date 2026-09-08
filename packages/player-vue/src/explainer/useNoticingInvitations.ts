@@ -11,6 +11,7 @@
 import { ref, computed, type Ref } from 'vue'
 import pack from '@/explainer/pack.json'
 import { evaluateRules, type NoticingRule, type Invitation } from '@/explainer/evaluateRules'
+import { localiseNoticingRules } from '@/explainer/localiseNoticing'
 
 const DISMISS_KEY = 'ssi-noticing-dismissed'
 const DISMISS_DAYS = 14
@@ -50,7 +51,7 @@ export function useNoticingInvitations(opts: {
   const invitations = computed<Invitation[]>(() => {
     if (!opts.home.value) return []
     const all = evaluateRules(
-      pack.rules as NoticingRule[],
+      localiseNoticingRules(pack.rules as NoticingRule[]),
       opts.home.value,
       opts.persona.value,
       opts.member.value,

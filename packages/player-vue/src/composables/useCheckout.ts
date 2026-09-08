@@ -32,10 +32,19 @@
 
 import { ref, inject, nextTick, type Ref } from 'vue'
 import { getPaddle, paddleConfig } from '@/lib/paddle'
+import { CHECKOUT_COMPLETED_EVENT } from '@/lib/checkoutEvents'
 import { canTakePayment } from '@/platform/paymentRoute'
-import { useAuthModal } from './useAuthModal'
 import { useSharedSubscription } from './useSubscription'
 import { resolveSupabase } from './schools/client'
+import { useAuthModal } from './useAuthModal'
+import { sendSignInCode } from '@/auth/sendSignInCode'
+import { usePendingPurchase, beginPendingPurchase } from './usePendingPurchase'
+import {
+  savePendingIntent,
+  rememberIntentEmail,
+  readPendingIntent,
+  clearPendingIntent,
+} from '@/checkout/pendingIntent'
 
 // The class name the inline Paddle frame mounts into. The CheckoutOverlay host
 // element MUST carry this exact class (Paddle frameTarget is a class name).
@@ -60,6 +69,56 @@ const overlayOpen = ref(false)
 // Which plan is open, so CheckoutOverlay can show the right title ("SSi Premium"
 // vs "SSi Family") without re-deriving it from checkout internals.
 const overlayPlan = ref<CheckoutPlan>('premium')
+// The period the open checkout is for, so the pending-purchase record written
+// from Paddle's completion event names the right thing.
+const overlayBillingPeriod = ref<'monthly' | 'annual'>('monthly')
+
+/**
+ * PADDLE'S COMPLETION EVENT IS THE EARLIEST HONEST MOMENT.
+ *
+ * `checkout.completed` fires in this page, synchronously, the instant the
+ * payment succeeds — before Paddle's success redirect reloads us, and long
+ * before our webhook has landed. Catching it is what lets the app say "your
+ * payment is confirmed" immediately, instead of showing a person who has just
+ * paid the not-subscribed screen for several minutes (Tom, 2026-09-07).
+ *
+ * ONE HOOK, TWO LISTENERS. Paddle takes exactly ONE `eventCallback`, handed to
+ * it at initialisation, so it cannot be owned by whichever composable happens
+ * to open a checkout. lib/paddle.ts owns it and re-broadcasts the completion as
+ * the DOM event CHECKOUT_COMPLETED_EVENT (job #360). useSubscription listens to
+ * drop its cached pre-purchase answer and converge silently; this listens to
+ * put the buyer in a waiting state that tells them what happened. A second
+ * eventCallback here would have REPLACED #360's and silently broken it — the
+ * paying customer would see the Upgrade row again — and no test on either
+ * branch would have caught it, because each branch only had its own. The
+ * contract is pinned by lib/paddle.checkoutCompleted.test.ts.
+ *
+ * Wired per checkout and torn down after one event, deliberately: the same
+ * Paddle singleton also serves the school, org and tutor lanes, and a listener
+ * left standing would attribute THEIR completion to whatever plan this consumer
+ * checkout last held.
+ */
+let unwirePaddleCompletion: (() => void) | null = null
+
+function wirePaddleCompletion(plan: CheckoutPlan, billingPeriod: 'monthly' | 'annual'): void {
+  unwirePaddleCompletion?.()
+  const handler = (event: Event) => {
+    unwirePaddleCompletion?.()
+    unwirePaddleCompletion = null
+    const detail = (event as CustomEvent<{ transactionId?: unknown }>).detail
+    const raw = detail?.transactionId
+    beginPendingPurchase({
+      plan,
+      billingPeriod,
+      transactionId: typeof raw === 'string' ? raw : null,
+    })
+    // The waiting state owns the screen from here. Take Paddle's frame down so
+    // the buyer is not looking at a spent card form behind it.
+    overlayOpen.value = false
+  }
+  window.addEventListener(CHECKOUT_COMPLETED_EVENT, handler)
+  unwirePaddleCompletion = () => window.removeEventListener(CHECKOUT_COMPLETED_EVENT, handler)
+}
 // Drives the global PlanPicker (App.vue) — the plan-selection step that now sits
 // in front of Paddle. Every upgrade tap used to jump straight into a hardcoded
 // £15 Premium checkout, so SSi Family (live in Paddle since 2026-09-07) was
@@ -67,24 +126,40 @@ const overlayPlan = ref<CheckoutPlan>('premium')
 // checkout below it changed.
 const plansOpen = ref(false)
 const plansCourseCode = ref<string | null>(null)
-// Drives the DETAILS step — the second page of the plan picker, shown to a
+// Drives the ACCOUNT step — the second page of the plan picker, shown to a
 // signed-out buyer once they have chosen a plan.
 //
-// WHY IT REPLACED THE SIGN-IN MODAL (Tom, 2026-09-07, walking the live flow):
-// choosing Family used to open the OTP modal, so a person who wanted to pay
-// was sent out of the app to a mailbox, told to fetch a six-digit code and
-// type it back in BEFORE they were allowed to reach a card field. Verifying
-// an email is not a thing a shop asks before it will take your money. Here
-// they type the address, confirm it, optionally set a password, and go
-// straight to Paddle; /api/auth/buyer-account mints the account and the
-// session with no email sent, and marks it needs_verification so the
-// existing verify-your-email apparatus picks it up afterwards.
+// VERIFY, THEN PAY (Tom, 2026-09-07, ruling on his own earlier decision).
+// For a few hours this step created the account outright from a typed address
+// and an optional password, and went straight to the card field. That was a
+// confirmed account takeover — anyone could type a stranger's address, plant a
+// password, and hold a session for it (job #345). Tom's ruling replaces it
+// rather than patching it:
+//
+//   "if they click upgrade and they haven't already got an account, once they
+//    then verify their account by emailed code, it should take them straight
+//    back to the payment page they previously clicked on. AND, when they click
+//    upgrade they should be TOLD, please create an account first so we can be
+//    sure you're a real person, or so we can make sure your payment links to
+//    your verified account"
+//
+// So: address → emailed code → verified → the SAME plan opens in Paddle. The
+// takeover has nowhere to live, because no account is ever created from an
+// unverified address with a caller-supplied password, and no session is handed
+// out until somebody has proved they read the mail.
+//
+// THE BALL-ACHE HE WAS AVOIDING WAS LOSING YOUR PLACE, not the verification —
+// so the chosen plan is written to storage before the round-trip starts, and
+// comes back with them. See src/checkout/pendingIntent.ts.
 const detailsOpen = ref(false)
 const detailsBusy = ref(false)
 const detailsError = ref('')
-// The one branch that still needs a real sign-in: this address already has an
-// account, and minting a session for it unasked would be account takeover.
-const detailsExistingAccount = ref(false)
+// Which half of the account step is showing: type your address, or type the
+// code we just sent. One overlay, two faces.
+const detailsStep = ref<'email' | 'code'>('email')
+// The address the code went to. Shown back on the code step, and used to
+// verify. Restored from storage on a reload so the round-trip survives one.
+const detailsEmail = ref('')
 // Drives the ALREADY-SUBSCRIBED step of the plan picker overlay.
 //
 // WHY IT EXISTS (#255, 2026-09-07): nothing stopped a learner who was ALREADY
@@ -273,6 +348,12 @@ export function useCheckout() {
     billingPeriod: 'monthly' | 'annual' = 'monthly',
   ): Promise<void> {
     if (isOpeningCheckout.value) return
+    // NO SECOND PURCHASE WHILE ONE IS IN FLIGHT. Tom paid, saw nothing, and was
+    // able to loop straight back into buying it again — which is how a person
+    // ends up holding two subscriptions for one intention. The waiting state is
+    // already on screen when this fires, so returning is not a dead end: it is
+    // the buyer being kept in the truthful screen.
+    if (usePendingPurchase().isPending.value) return
     // THE BACKSTOP. Every route to Paddle passes through here — the picker, the
     // buyer-details step, the 409 already_registered sign-in, and the OTP
     // resume (completePendingCheckout). Guarding the funnel is what makes the
@@ -316,9 +397,11 @@ export function useCheckout() {
       // Show our safe-area overlay FIRST and let Vue paint its host element, so
       // the inline Paddle frame has a mount target.
       overlayPlan.value = plan
+      overlayBillingPeriod.value = billingPeriod
       overlayOpen.value = true
       await nextTick()
       const paddle = await getPaddle()
+      wirePaddleCompletion(plan, billingPeriod)
       paddle.Checkout.open({
         items: [{ priceId, quantity: 1 }],
         customer: { email },
@@ -365,6 +448,8 @@ export function useCheckout() {
   function closeCheckout(): void {
     overlayOpen.value = false
     checkoutError.value = ''
+    unwirePaddleCompletion?.()
+    unwirePaddleCompletion = null
     // Best-effort: ask Paddle to close its inline frame. Never let a Paddle
     // error keep the overlay open.
     void (async () => {
@@ -393,6 +478,9 @@ export function useCheckout() {
     // but this is the backstop that makes a missed one inert rather than a
     // dead button — and, in a store build, a review failure.
     if (!canTakePayment()) return
+    // A purchase for this account is already paid for and settling. Every door
+    // is shut until it resolves — see openPaddleCheckout.
+    if (usePendingPurchase().isPending.value) return
     // THE FRONT DOOR. Checked before the picker opens, so an existing
     // subscriber never sees a price they cannot buy — in-player paywall,
     // belt-map lock, course picker and Settings all enter here. A Premium
@@ -415,14 +503,20 @@ export function useCheckout() {
     const isAuthed = await isSignedIn()
     if (!isAuthed) {
       // Remember the choice FIRST — this is the state Tom lost. It is read
-      // back by submitBuyerDetails, by signInAndPay, and by
-      // completePendingCheckout if they fall through to the code modal.
+      // back by verifyBuyerCode in this tab, and by completePendingCheckout
+      // for somebody who came back after the app was torn down.
       pendingAfterAuth.value = true
       pendingCourseCode.value = courseCode
       pendingPlan.value = plan
       pendingBillingPeriod.value = billingPeriod
+      // WRITTEN DOWN BEFORE ANYTHING CAN GO WRONG. The refs above are memory
+      // and memory does not survive going to read an email on a phone; this
+      // does. It is the whole of "take them straight back to the payment page
+      // they previously clicked on".
+      savePendingIntent({ plan, billingPeriod, courseCode, email: null })
       detailsError.value = ''
-      detailsExistingAccount.value = false
+      detailsStep.value = 'email'
+      detailsEmail.value = ''
       detailsOpen.value = true
       return
     }
@@ -436,6 +530,7 @@ export function useCheckout() {
    */
   function openPlans(courseCode?: string | null): void {
     if (!canTakePayment()) return
+    if (usePendingPurchase().isPending.value) return
     // Sync, so it uses only what is already known — the authoritative check
     // lives in startCheckout and openPaddleCheckout, which every price button
     // goes through. This just stops a subscriber being shown the prices at all
@@ -462,65 +557,57 @@ export function useCheckout() {
   }
 
   /**
-   * The details step's submit. Creates the buyer's account and session with
-   * NO email round-trip, then opens Paddle on the plan they already chose.
+   * Step one of the account step: send them a six-digit code.
    *
-   * Three outcomes, all of which leave the plan choice intact:
-   *   ok               → session set, Paddle opens
-   *   already_registered → we refuse to mint (takeover), and offer sign-in
-   *   anything else    → an error on this step; the plan is still pending
+   * IT ANSWERS THE SAME WAY WHETHER OR NOT THE ADDRESS ALREADY HAS AN ACCOUNT,
+   * and that is not an accident. The old flow replied 409 already_registered so
+   * it could offer a password box — which told any unauthenticated caller
+   * whether a given address banks with us. Sending a code is the right answer
+   * to both cases anyway: a new buyer gets an account, a returning one gets
+   * signed in, and neither is told anything about the other. The enumeration
+   * oracle is closed by the flow rather than patched around.
+   *
+   * `sendSignInCode` is the house helper — our own mail through Resend, with a
+   * fall back to Supabase's mailer, so an outage degrades to an uglier email
+   * rather than a dead purchase.
    */
-  async function submitBuyerDetails(input: {
-    email: string
-    password?: string
-  }): Promise<void> {
+  async function sendBuyerCode(input: { email: string }): Promise<void> {
     const client = supabase()
     if (!client) {
       detailsError.value = 'We could not reach the account service. Please try again.'
       return
     }
+    const address = input.email.trim()
     detailsBusy.value = true
     detailsError.value = ''
-    detailsExistingAccount.value = false
     try {
-      const res = await fetch('/api/auth/buyer-account', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: input.email, password: input.password || undefined }),
-      })
-      const body = await res.json().catch(() => ({} as any))
-      if (!res.ok || !body?.success) {
-        if (body?.reason === 'already_registered') {
-          detailsExistingAccount.value = true
-          detailsError.value = body?.error || 'You already have an account with this email.'
-          return
-        }
-        detailsError.value = body?.error || 'We could not set up your account. Please try again.'
+      const result = await sendSignInCode(client, address)
+      if (result.error) {
+        detailsError.value = result.error.message
         return
       }
-      const { error: sessionError } = await client.auth.setSession({
-        access_token: body.session.access_token,
-        refresh_token: body.session.refresh_token,
-      })
-      if (sessionError) {
-        detailsError.value = 'We could not sign you in. Please try again.'
-        return
-      }
-      detailsOpen.value = false
-      await openPaddleCheckout(pendingCourseCode.value, pendingPlan.value, pendingBillingPeriod.value)
+      detailsEmail.value = address
+      // Survive a reload of the code step itself, not just of the plan choice.
+      rememberIntentEmail(address)
+      detailsStep.value = 'code'
     } catch (err: any) {
-      detailsError.value = err?.message || 'We could not set up your account. Please try again.'
+      detailsError.value = err?.message || 'We could not send that code. Please try again.'
     } finally {
       detailsBusy.value = false
     }
   }
 
   /**
-   * The already-registered branch: sign in with the password they typed, then
-   * carry straight on into Paddle. No email, no code — they proved the account
-   * is theirs with a credential they already hold.
+   * Step two: they typed the code. This is the moment the address is PROVED,
+   * and the only moment a session exists — so it is also the moment the plan
+   * they chose is spent.
+   *
+   * The account may be brand new (send-code creates one for an address that has
+   * none) or long-standing (they are simply signing in). Both land here and
+   * both go straight on to the same Paddle checkout, which is what makes the
+   * two cases one flow.
    */
-  async function signInAndPay(input: { email: string; password: string }): Promise<void> {
+  async function verifyBuyerCode(input: { code: string }): Promise<void> {
     const client = supabase()
     if (!client) {
       detailsError.value = 'We could not reach the account service. Please try again.'
@@ -529,31 +616,65 @@ export function useCheckout() {
     detailsBusy.value = true
     detailsError.value = ''
     try {
-      const { error: signInError } = await client.auth.signInWithPassword({
-        email: input.email,
-        password: input.password,
+      const { error: verifyError } = await client.auth.verifyOtp({
+        email: detailsEmail.value,
+        token: input.code.trim(),
+        type: 'email',
       })
-      if (signInError) {
-        detailsError.value = 'That password did not work. Try again, or ask us to email you a code.'
+      if (verifyError) {
+        detailsError.value = 'That code did not work. Check it and try again, or ask for a new one.'
         return
       }
       detailsOpen.value = false
+      // Straight back to the payment page they clicked, on the plan they
+      // clicked. completePendingCheckout is not used here because we are
+      // already in the tab that made the choice; it is the path for a person
+      // who came back after a reload.
+      pendingAfterAuth.value = false
+      clearPendingIntent()
       await openPaddleCheckout(pendingCourseCode.value, pendingPlan.value, pendingBillingPeriod.value)
     } catch (err: any) {
-      detailsError.value = err?.message || 'We could not sign you in. Please try again.'
+      detailsError.value = err?.message || 'We could not check that code. Please try again.'
     } finally {
       detailsBusy.value = false
     }
   }
 
+  /** Ask for another code — same address, same plan, no going back a step. */
+  async function resendBuyerCode(): Promise<void> {
+    if (!detailsEmail.value) return
+    await sendBuyerCode({ email: detailsEmail.value })
+  }
+
+  /** Back from the code step to the address step, e.g. they mistyped it. */
+  function editBuyerEmail(): void {
+    detailsStep.value = 'email'
+    detailsError.value = ''
+  }
+
   /**
-   * Last resort for an existing account whose password they don't have: hand
-   * over to the OTP modal. pendingAfterAuth is already set, so the resume
-   * carries the SAME plan into Paddle the moment they are in.
+   * "I already have an account." Hands over to the ordinary sign-in modal —
+   * password or code, their choice — and the plan comes with them.
+   *
+   * TOM ASKED FOR THIS EXPLICITLY: somebody who already has a verified account
+   * "must not be sent round this loop at all — they sign in and pay". A
+   * returning customer meeting a screen headed "Create your account" is exactly
+   * the loop.
+   *
+   * IT LEAKS NOTHING, because THEY choose it. The door is on screen for
+   * everybody, in the same words, whether or not the address they have in mind
+   * has an account; nothing about the account we hold decides what they see.
+   * That is the whole difference between this and the 409 it replaces, which
+   * ANSWERED the question for any caller who asked.
+   *
+   * Deliberately NOT closeDetails(): that spends the intent, and the intent is
+   * the thing that has to survive. pendingAfterAuth is already true, so
+   * PlayerContainer's success handler resumes into the same Paddle checkout.
    */
-  function emailMeACodeInstead(): void {
+  function signInInstead(): void {
     detailsOpen.value = false
     detailsError.value = ''
+    detailsStep.value = 'email'
     openAuth()
   }
 
@@ -561,8 +682,12 @@ export function useCheckout() {
     detailsOpen.value = false
     detailsBusy.value = false
     detailsError.value = ''
-    detailsExistingAccount.value = false
+    detailsStep.value = 'email'
+    detailsEmail.value = ''
     pendingAfterAuth.value = false
+    // They backed out on purpose. Leaving the intent behind would reopen a
+    // checkout they just closed, next time the app started.
+    clearPendingIntent()
   }
 
   async function isSignedIn(): Promise<boolean> {
@@ -581,15 +706,33 @@ export function useCheckout() {
    * sign-in, continue it into Paddle now.
    */
   async function completePendingCheckout(): Promise<void> {
-    if (!canTakePayment()) { pendingAfterAuth.value = false; return }
-    if (!pendingAfterAuth.value) return
+    if (!canTakePayment()) { pendingAfterAuth.value = false; clearPendingIntent(); return }
+
+    // TWO WAYS TO GET HERE, and the second one is the point of the rewrite.
+    //
+    //   in memory  — they never left the tab, so the refs still hold the plan.
+    //   on disk    — they went to read their email, the phone tore the app
+    //                down, and they came back to a cold start. The refs are
+    //                gone; the written-down intent is not.
+    //
+    // Memory wins when both are present: it is the same decision, and the refs
+    // are the one the current tab actually made.
+    const stored = readPendingIntent()
+    if (!pendingAfterAuth.value && !stored) return
+
+    const code = pendingAfterAuth.value ? pendingCourseCode.value : stored!.courseCode
+    const plan = pendingAfterAuth.value ? pendingPlan.value : stored!.plan
+    const billingPeriod = pendingAfterAuth.value ? pendingBillingPeriod.value : stored!.billingPeriod
+
+    // Spend it before opening, not after: openPaddleCheckout can throw or be
+    // refused, and an intent that survives its own spending reopens a checkout
+    // every time the app starts.
     pendingAfterAuth.value = false
-    const code = pendingCourseCode.value
-    const plan = pendingPlan.value
-    const billingPeriod = pendingBillingPeriod.value
     pendingCourseCode.value = null
     pendingPlan.value = 'premium'
     pendingBillingPeriod.value = 'monthly'
+    clearPendingIntent()
+
     await openPaddleCheckout(code, plan, billingPeriod)
   }
 
@@ -605,12 +748,15 @@ export function useCheckout() {
     detailsOpen,
     detailsBusy,
     detailsError,
-    detailsExistingAccount,
+    detailsStep,
+    detailsEmail,
     pendingPlan,
     pendingBillingPeriod,
-    submitBuyerDetails,
-    signInAndPay,
-    emailMeACodeInstead,
+    sendBuyerCode,
+    verifyBuyerCode,
+    resendBuyerCode,
+    editBuyerEmail,
+    signInInstead,
     closeDetails,
     startCheckout,
     completePendingCheckout,

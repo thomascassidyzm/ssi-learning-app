@@ -5,7 +5,10 @@
 // matches; nothing EVER auto-plays — a walk runs only because the user
 // tapped one of these or a noticing invitation.
 import { computed } from 'vue'
+import { useI18n } from '@/composables/useI18n'
 import { walksFor, startWalk, type WalkPersona } from '@/walkthrough/useWalkthrough'
+
+const { t } = useI18n()
 
 const props = defineProps<{ persona: WalkPersona; place: string; kind?: string }>()
 
@@ -18,7 +21,7 @@ const offers = computed(() => walksFor(props.persona, props.place, props.kind))
       v-for="w in offers" :key="w.id" type="button" class="walk-offer-link"
       :data-walk-offer="w.id"
       @click="startWalk(w.id)"
-    >Show me — {{ w.title }}</button>
+    >{{ t('org.ui.walkOffer.showMe', 'Show me — {title}').replace('{title}', w.title) }}</button>
   </div>
 </template>
 

@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 const props = withDefaults(defineProps<{
   done: number
@@ -8,8 +11,15 @@ const props = withDefaults(defineProps<{
   label?: string
 }>(), {
   color: 'var(--schools-red)',
-  label: 'Course Journey',
 })
+
+/**
+ * The default label is resolved in a computed, not in withDefaults. A
+ * defineProps default is hoisted outside setup(), so it cannot call t() at
+ * all — and even where the compiler allows it, a default evaluated once would
+ * freeze in English, because on boot the locale chunk is still in flight.
+ */
+const labelText = computed(() => props.label ?? t('schools.ui.journeyBar.defaultLabel', 'Course Journey'))
 
 const pct = computed(() => {
   if (!props.total) return 0
@@ -20,7 +30,7 @@ const pct = computed(() => {
 <template>
   <div class="journey">
     <div class="journey-head">
-      <span>{{ props.label }}</span>
+      <span>{{ labelText }}</span>
       <span>{{ props.done }}/{{ props.total }}</span>
     </div>
     <div class="journey-track">
