@@ -79,6 +79,10 @@ export default async function handler(
     invited_email: r.invited_email,
     display_name: r.member_learner_id ? (displayNames.get(r.member_learner_id) ?? null) : null,
     created_at: r.created_at,
+    // When the invite mail last went out (null: never, or a child seat), so
+    // the family screen can say so and offer a resend rather than a bare
+    // "Invited" (Tom, 2026-09-07).
+    invite_emailed_at: r.invite_emailed_at ?? null,
   }))
 
   res.status(200).json({

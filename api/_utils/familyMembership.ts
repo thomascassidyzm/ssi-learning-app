@@ -24,6 +24,9 @@ export interface FamilyMemberRow {
   created_at: string
   updated_at: string
   removed_at: string | null
+  /** Last time the invite email was handed to Resend; null for child seats or never-sent. */
+  invite_emailed_at?: string | null
+  invite_email_id?: string | null
 }
 
 /** Resolve the learners.id for an auth user id. Null if no learner row yet. */

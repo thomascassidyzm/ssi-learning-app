@@ -85,7 +85,16 @@ export default async function handler(
     return
   }
 
-  const { data: inserted, error: insertErr } = await supabase
+  // AN INVITE THAT ALREADY EXISTS IS RE-SENT, NOT REFUSED. The dedupe index
+  // used to answer 409 "Already invited" — which is exactly the moment an
+  // owner is retyping the address because the mail has not turned up (Tom,
+  // 2026-09-07: Resend had delivered it within a second; the app could only
+  // say "Invited"). Re-posting a live invite now sends the mail again and
+  // says so. An invite that has already been claimed is the one genuine
+  // "already in your family" — that stays a 409, with words a person can act on.
+  let inserted: Record<string, unknown> | null = null
+  let resent = false
+  const { data: freshRow, error: insertErr } = await supabase
     .from('family_members')
     .insert({
       owner_learner_id: ownerLearnerId,
@@ -97,14 +106,30 @@ export default async function handler(
     .single()
 
   if (insertErr) {
-    if (insertErr.code === '23505') {
-      // family_members_invite_dedupe: a live invite to this email already exists.
-      res.status(409).json({ error: 'Already invited' })
+    if (insertErr.code !== '23505') {
+      console.error('[family/invite] insert failed:', insertErr)
+      res.status(500).json({ error: 'We could not save this invite. Nothing was changed — please try again in a moment.' })
       return
     }
-    console.error('[family/invite] insert failed:', insertErr)
-    res.status(500).json({ error: 'Failed to create invite' })
-    return
+    const { data: existing } = await supabase
+      .from('family_members')
+      .select('*')
+      .eq('owner_learner_id', ownerLearnerId)
+      .eq('invited_email', normalizedEmail)
+      .is('removed_at', null)
+      .maybeSingle()
+    if (!existing) {
+      res.status(409).json({ error: 'That address has already been invited.' })
+      return
+    }
+    if (existing.status !== 'invited') {
+      res.status(409).json({ error: 'That person is already in your family.' })
+      return
+    }
+    inserted = existing
+    resent = true
+  } else {
+    inserted = freshRow
   }
 
   // Best-effort immediate attach: an existing account whose verified email
@@ -141,6 +166,7 @@ export default async function handler(
   // create-child.ts mints a synthetic address and hands over a QR code.
   let emailed = false
   let emailError: string | undefined
+  let sentId: string | undefined
   try {
     const sendResult = await sendFamilyInviteEmail({
       address: normalizedEmail,
@@ -148,11 +174,31 @@ export default async function handler(
       hasAccount: attachedNow,
     })
     emailed = sendResult.sent
+    sentId = sendResult.id
     if (!sendResult.sent) emailError = sendResult.error
   } catch (mailErr) {
     emailError = mailErr instanceof Error ? mailErr.message : 'send failed'
   }
   if (!emailed) console.error('[family/invite] invite email not sent:', emailError)
 
-  res.status(200).json({ invite: inserted, attachedNow, emailed })
+  // Stamp the row so the family screen can say WHEN the mail went and offer
+  // a resend (GET /api/family reads invite_emailed_at back). Best-effort: the
+  // stamp is observability, the seat is the thing.
+  let inviteEmailedAt: string | null = null
+  if (emailed && inserted?.id) {
+    inviteEmailedAt = new Date().toISOString()
+    const { error: stampErr } = await supabase
+      .from('family_members')
+      .update({ invite_emailed_at: inviteEmailedAt, invite_email_id: sentId ?? null })
+      .eq('id', inserted.id)
+    if (stampErr) console.error('[family/invite] could not stamp invite_emailed_at (non-fatal):', stampErr)
+  }
+
+  res.status(200).json({
+    invite: { ...inserted, invite_emailed_at: inviteEmailedAt ?? (inserted as any)?.invite_emailed_at ?? null },
+    attachedNow,
+    emailed,
+    resent,
+    emailError: emailed ? undefined : emailError,
+  })
 }

@@ -69,6 +69,12 @@ export default async function handler(
 
   const syntheticEmail = `fam-${randomUUID()}@${SYNTHETIC_EMAIL_DOMAIN}`
 
+  // WHAT GOES WRONG HERE IS SAID IN FULL. "Failed to create child account" was
+  // the whole of what a parent saw on 2026-09-07 — no cause, nothing to do
+  // next. Every failure below says what did not happen and that nothing was
+  // left half-made, so trying again is safe and obviously so.
+  const tryAgain = `We could not set up ${displayName}'s account, and nothing was saved. Please try again in a moment.`
+
   const { data: createdUser, error: createUserErr } = await supabase.auth.admin.createUser({
     email: syntheticEmail,
     email_confirm: true, // never sent, never seen — synthetic address we own
@@ -76,14 +82,22 @@ export default async function handler(
   })
   if (createUserErr || !createdUser?.user) {
     console.error('[family/create-child] auth user creation failed:', createUserErr)
-    res.status(500).json({ error: 'Failed to create child account' })
+    res.status(500).json({ error: tryAgain, detail: 'auth_user' })
     return
   }
   const childUserId = createdUser.user.id as string
 
+  // THE ROW THE DATABASE HAS ALREADY MADE. `on_auth_user_created` fires on the
+  // insert above and writes the learners row itself, naming it from the
+  // display_name in user_metadata. This endpoint used to INSERT a second one
+  // and hit learners_user_id_key every single time — so no child account had
+  // ever been created on the live database (zero rows, checked 2026-09-08),
+  // and every parent who tried saw "Failed to create child account". Upsert
+  // on user_id adopts the trigger's row, and still creates one wherever the
+  // trigger is absent.
   const { data: childLearner, error: learnerErr } = await supabase
     .from('learners')
-    .insert({ user_id: childUserId, display_name: displayName })
+    .upsert({ user_id: childUserId, display_name: displayName }, { onConflict: 'user_id' })
     .select('id')
     .single()
 
@@ -93,7 +107,7 @@ export default async function handler(
     // auth user with no matching learner (would silently fail every future
     // sign-in link for this child).
     await supabase.auth.admin.deleteUser(childUserId).catch(() => {})
-    res.status(500).json({ error: 'Failed to create child account' })
+    res.status(500).json({ error: tryAgain, detail: 'learner_row' })
     return
   }
 
@@ -111,7 +125,7 @@ export default async function handler(
   if (memberErr || !membership) {
     console.error('[family/create-child] membership creation failed:', memberErr)
     await supabase.auth.admin.deleteUser(childUserId).catch(() => {})
-    res.status(500).json({ error: 'Failed to create child membership' })
+    res.status(500).json({ error: tryAgain, detail: 'membership' })
     return
   }
 
@@ -123,7 +137,7 @@ export default async function handler(
     console.error('[family/create-child] sign-in link generation failed:', linkErr)
     // The account exists and is entitled — don't roll it back over a link
     // failure; the parent can re-mint via /api/family/signin-link.
-    res.status(200).json({ member: membership, signInLink: null, linkError: 'Failed to generate sign-in link — use "get sign-in link" to retry' })
+    res.status(200).json({ member: membership, signInLink: null, linkError: `${displayName}'s account is ready, but we could not make a sign-in link just now. Tap "Get sign-in link" on their row to try again.` })
     return
   }
 

@@ -25,6 +25,7 @@ import { useSharedUserEntitlements } from './composables/useUserEntitlements'
 import { hasTryEntitlement } from './composables/useEntitlement'
 import { useSharedSubscription } from './composables/useSubscription'
 import { useFamilyModal } from './composables/useFamilyModal'
+import { usePendingPurchase } from './composables/usePendingPurchase'
 import { useOfflineLease } from './composables/useOfflineLease'
 import {
   withNetworkTimeout,
@@ -49,6 +50,7 @@ const WalkOverlay = defineAsyncComponent(() => import('./components/admin/WalkOv
 import { setSchoolsClient } from './composables/schools/client'
 import AppEscape from './components/AppEscape.vue'
 import CheckoutOverlay from './components/CheckoutOverlay.vue'
+import PurchasePendingOverlay from './components/PurchasePendingOverlay.vue'
 import PlanPicker from './components/PlanPicker.vue'
 import FamilyManagementModal from './components/FamilyManagementModal.vue'
 // In-app browser — renders nothing until a link asks to open a page inside the
@@ -869,6 +871,26 @@ onMounted(async () => {
       const { initialize: initSubscription } = useSharedSubscription()
       const entitlementsReady = Promise.all([initEntitlements(), initSubscription()]).catch(() => {})
 
+      // THE MOMENT AFTER SOMEBODY PAYS. Pick up any purchase that was paid
+      // for and has not yet landed — written down before Paddle's success
+      // redirect, so it is still here on the other side of the page load, and
+      // still here after a phone tears a backgrounded PWA down. Until it
+      // resolves the app shows the waiting state rather than the
+      // not-subscribed state, which is the whole of Tom's "looks like nothing
+      // has happened, then spins endlessly" (2026-09-07). Chained off the
+      // subscription init so the first check reads a hydrated answer.
+      // Read the URL NOW, before the family-landing handler below strips its
+      // flags off it — both handlers hang off the same promise and neither
+      // should depend on the other's ordering.
+      const bootSearch = window.location.search
+      void entitlementsReady.then(() => {
+        try {
+          usePendingPurchase().resume(bootSearch)
+        } catch (e) {
+          console.warn('[App] Pending-purchase resume failed (non-fatal):', e)
+        }
+      })
+
       // WHERE A FAMILY PAYER LANDS. Paddle's success redirect for the Family
       // plan carries ?family=1, and initSubscription already polls until the
       // activating webhook has landed (just_subscribed=1). So the moment the
@@ -1011,6 +1033,7 @@ onMounted(async () => {
     <WalkOverlay />
     <PlanPicker />
     <CheckoutOverlay />
+    <PurchasePendingOverlay />
     <!-- Where a Family payer lands. One instance, two doors: the Paddle
          success redirect (?family=1) and Settings → Manage family. -->
     <FamilyManagementModal :is-open="familyModalOpen" @close="closeFamilyModal" />

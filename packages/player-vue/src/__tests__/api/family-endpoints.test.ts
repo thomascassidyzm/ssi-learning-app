@@ -45,6 +45,7 @@ function makeBuilder(table: string): any {
     in: (...a: any[]) => { calls.push({ table, method: 'in', args: a }); return builder },
     contains: (...a: any[]) => { calls.push({ table, method: 'contains', args: a }); return builder },
     insert: (...a: any[]) => { calls.push({ table, method: 'insert', args: a }); return builder },
+    upsert: (...a: any[]) => { calls.push({ table, method: 'upsert', args: a }); return builder },
     update: (...a: any[]) => { calls.push({ table, method: 'update', args: a }); return builder },
     maybeSingle: () => Promise.resolve(nextFor(table)),
     single: () => Promise.resolve(nextFor(table)),
@@ -138,50 +139,49 @@ describe('POST /api/family/invite', () => {
     expect((res._body as any).error).toMatch(/own email/i)
   })
 
-  it('rejects a duplicate live invite (23505 from family_members_invite_dedupe)', async () => {
+  it('re-sends the mail for an address already invited and not yet claimed — never a 409 at the moment somebody is retyping it', async () => {
+    // Tom, 2026-09-07: the invite had been delivered within a second, the app
+    // could only say "Invited", and a second attempt was refused as a duplicate.
+    tableQueues = {
+      learners: [
+        { data: { id: 'owner-learner-1' }, error: null },
+        { data: { verified_emails: [], display_name: 'Bethan' }, error: null },
+        { data: [], error: null }, // existing-account lookup
+      ],
+      family_members: [
+        { data: [], error: null }, // seat count
+        { data: null, error: { message: 'duplicate key', code: '23505' } }, // insert collides
+        { data: { id: 'invite-1', invited_email: 'grandpa@example.com', status: 'invited' }, error: null }, // the live row
+        { data: null, error: null }, // invite_emailed_at stamp
+      ],
+    }
+    const res = makeRes()
+    await inviteHandler(makeReq({ email: 'grandpa@example.com' }), res as any)
+    expect(res._status).toBe(200)
+    expect((res._body as any).resent).toBe(true)
+    expect((res._body as any).emailed).toBe(true)
+    expect((res._body as any).invite.invite_emailed_at).toBeTruthy()
+    expect(mailSent.length).toBe(1)
+    expect(mailSent[0].to).toEqual(['grandpa@example.com'])
+  })
+
+  it('refuses, in words a person can act on, when that address has already joined the family', async () => {
     tableQueues = {
       learners: [
         { data: { id: 'owner-learner-1' }, error: null },
         { data: { verified_emails: [] }, error: null },
       ],
       family_members: [
-        { data: [], error: null }, // seat count: fine
-        { data: null, error: { message: 'duplicate key', code: '23505' } }, // insert
+        { data: [], error: null },
+        { data: null, error: { message: 'duplicate key', code: '23505' } },
+        { data: { id: 'invite-1', invited_email: 'grandpa@example.com', status: 'active' }, error: null },
       ],
     }
     const res = makeRes()
     await inviteHandler(makeReq({ email: 'grandpa@example.com' }), res as any)
     expect(res._status).toBe(409)
-  })
-
-  it('creates the invite and attaches immediately when a matching verified account already exists', async () => {
-    tableQueues = {
-      learners: [
-        { data: { id: 'owner-learner-1' }, error: null }, // resolveLearnerId (owner)
-        { data: { verified_emails: [] }, error: null }, // owner's own emails
-        { data: [{ id: 'grandpa-learner-1', verified_emails: ['grandpa@example.com'] }], error: null }, // existing-account lookup
-      ],
-      family_members: [
-        { data: [], error: null }, // seat count
-        { data: { id: 'invite-1', owner_learner_id: 'owner-learner-1', invited_email: 'grandpa@example.com', status: 'invited' }, error: null }, // insert
-        { data: [{ id: 'invite-1', owner_learner_id: 'owner-learner-1' }], error: null }, // attachPendingInvitesForEmail: pending lookup
-        { data: null, error: null }, // isInAnyLiveFamily → false
-        { data: [], error: null }, // countUsedSeats for the attach belt+braces check
-        { data: { id: 'invite-1' }, error: null }, // update → active
-      ],
-    }
-    const res = makeRes()
-    await inviteHandler(makeReq({ email: 'grandpa@example.com' }), res as any)
-    expect(res._status).toBe(200)
-    expect((res._body as any).attachedNow).toBe(true)
-
-    // The gap this closed: the invite used to be written and NOBODY was told.
-    expect((res._body as any).emailed).toBe(true)
-    expect(mailSent.length).toBe(1)
-    expect(mailSent[0].to).toEqual(['grandpa@example.com'])
-    // Already has an account — "carry on as usual", never "sign up".
-    expect(mailSent[0].text).toContain('Sign in the way you normally do')
-    expect(mailSent[0].text).not.toMatch(/do not have an account/i)
+    expect((res._body as any).error).toMatch(/already in your family/i)
+    expect(mailSent).toEqual([])
   })
 
   it('emails a pending invitee the OTHER message: sign in with this address and the place attaches then', async () => {
@@ -264,6 +264,46 @@ describe('POST /api/family/create-child', () => {
     expect((res._body as any).signInLink).toBe('https://example.com/magic')
     const insertCalls = calls.filter((c) => c.method === 'insert')
     expect(insertCalls.some((c) => c.table === 'family_members' && c.args[0].is_child_account === true)).toBe(true)
+  })
+
+  it('adopts the learner row the auth trigger already made — never a second INSERT on learners', async () => {
+    // on_auth_user_created writes the learners row the moment the synthetic
+    // auth user exists. A plain INSERT here collided with learners_user_id_key
+    // on every call, so "Failed to create child account" was the ONLY outcome
+    // this endpoint had ever produced on the live database (2026-09-08).
+    tableQueues = {
+      learners: [
+        { data: { id: 'owner-learner-1' }, error: null },
+        { data: { id: 'child-learner-1' }, error: null },
+      ],
+      family_members: [
+        { data: [], error: null },
+        { data: { id: 'member-1', is_child_account: true, status: 'active' }, error: null },
+      ],
+    }
+    const res = makeRes()
+    await createChildHandler(makeReq({ display_name: 'Lewis' }), res as any)
+    expect(res._status).toBe(200)
+    expect(calls.some((c) => c.table === 'learners' && c.method === 'insert')).toBe(false)
+    const adopt = calls.find((c) => c.table === 'learners' && c.method === 'upsert')
+    expect(adopt?.args[0]).toMatchObject({ user_id: 'child-auth-1', display_name: 'Lewis' })
+    expect(adopt?.args[1]).toMatchObject({ onConflict: 'user_id' })
+  })
+
+  it('says what did not happen, in plain English, when the learner row cannot be made', async () => {
+    tableQueues = {
+      learners: [
+        { data: { id: 'owner-learner-1' }, error: null },
+        { data: null, error: { message: 'boom', code: '23505' } },
+      ],
+      family_members: [{ data: [], error: null }],
+    }
+    const res = makeRes()
+    await createChildHandler(makeReq({ display_name: 'Lewis' }), res as any)
+    expect(res._status).toBe(500)
+    expect((res._body as any).error).toMatch(/Lewis/)
+    expect((res._body as any).error).toMatch(/nothing was saved/i)
+    expect((res._body as any).error).toMatch(/try again/i)
   })
 
   it('sends NO email for a child seat — the address is synthetic and the parent gets a QR code instead', async () => {
