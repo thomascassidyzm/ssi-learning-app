@@ -1,5 +1,5 @@
 {
-  "version": "01e21ab6ca26",
+  "version": "888ae61baed4",
   "generatedAt": "2026-09-08",
   "walks": [
     {
@@ -2668,6 +2668,41 @@
         "Tap play to start the session."
       ],
       "note": "The join code is the same code all lesson, so a student arriving late still gets in."
+    },
+    {
+      "id": "see-and-download-your-funder-numbers",
+      "title": "See and download your funder numbers",
+      "section": "seeing-progress",
+      "personas": [
+        "leader",
+        "admin"
+      ],
+      "keywords": [
+        "funder",
+        "report",
+        "numbers",
+        "minutes",
+        "monthly return",
+        "csv",
+        "download",
+        "registered",
+        "16 to 24"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "anchor": "funder-numbers",
+      "source": "packages/player-vue/src/components/admin/OrgFunderNumbers.vue",
+      "walk": null,
+      "what": "The monthly return your funder asks for, on your own page, so you can read it or send it without asking us to pull it.",
+      "where": "Your organisation's home page, the **Funder report** section.",
+      "how": [
+        "Open your organisation's home page.",
+        "The month shown is the last complete one. Change it to report on another.",
+        "Read the three blocks: the month, everything since people enrolled, and the funding year so far.",
+        "Tap **Download spreadsheet** to get the same figures as a CSV."
+      ],
+      "note": "Minutes here are minutes the app was actually speaking to a learner, never time a screen sat open. Somebody who has studied both Welsh dialects is counted once, at their higher dialect, never the two added up. There are no names in this report and there never will be — the age question is a tick precisely so nobody has to hold a birth date."
     },
     {
       "id": "see-every-school-in-your-programme",

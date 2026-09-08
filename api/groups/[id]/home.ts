@@ -287,7 +287,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // Unioned across govt_admins + the leader membership tag so orgs created
     // before the ruling still name theirs.
     const leadersPromise = leadersForNodes(svc, [nodeId])
-    const [, extras, practiceHours, classPractice, leadersByNode] = await Promise.all([
+    // DOES THIS NODE REPORT TO A FUNDER? One primary-key lookup, and the whole
+    // reason it lives here rather than behind its own endpoint: the node home
+    // is already being built, and a leader must be able to find their own
+    // numbers without an ssi_admin pulling them (job #572). Present only on
+    // the org's OWN node — the policy row is keyed by group_id, so a child
+    // node correctly reports nothing and the export stays a whole-org measure.
+    const funderPolicyPromise = svc
+      .from('org_enrolment_policies')
+      .select('org_display_name, is_active')
+      .eq('group_id', nodeId)
+      .maybeSingle()
+    const [, extras, practiceHours, classPractice, leadersByNode, funderPolicy] = await Promise.all([
       schoolsPromise,
       // The BELOW-THIS tree draws every node in the subtree, so it needs
       // their rollups; a lens request (or a class home) still pays only for
@@ -296,6 +307,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       practiceHoursPromise,
       classPracticePromise,
       leadersPromise,
+      funderPolicyPromise,
     ])
     const leaderUids = [...(leadersByNode.get(nodeId) || [])]
     const leaderNames = await namesForAuthUids(svc, leaderUids)
@@ -840,6 +852,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       children: childRows.map(withExtras),
       practiceHours: Math.round(practiceHours * 10) / 10,
       leaders,
+      // Non-null only when this node IS a funded org with a live enrolment
+      // policy. The client renders the funder-numbers panel off its presence,
+      // so a node that reports to nobody carries no extra chrome and pays for
+      // no extra request.
+      funderReporting: (funderPolicy as any)?.data?.is_active
+        ? { orgName: (funderPolicy as any).data.org_display_name as string }
+        : null,
       classPractice,
       ...(treePayload || {}),
       ...(lensPayload || {}),

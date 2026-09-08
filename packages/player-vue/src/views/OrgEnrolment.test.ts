@@ -33,6 +33,7 @@ const POLICY = {
   askAgeBand: true,
   ageBandLabel: 'I am aged 16 to 24',
   freeMonths: 12,
+  grantedCourses: ['cym_n_for_eng', 'cym_s_for_eng'],
 }
 
 function mountPage(opts: { policy?: any; enrolResponse?: any; signedIn?: boolean } = {}) {
@@ -200,5 +201,83 @@ describe('the paying learner', () => {
     const wrapper = await claim({ success: false, error: 'We can only give you free access if you agree to the data-sharing statement.' })
     expect(wrapper.find('[role="alert"]').text()).toContain('free access')
     expect(wrapper.findAll('input[type="checkbox"]').length).toBe(2)
+  })
+})
+
+/**
+ * Kai's two reports from the live staging link, 2026-09-08.
+ *
+ * The first is a sentence that was not on the screen: a learner sent here by
+ * their tutor is told a lot about subscriptions and consent and nowhere plainly
+ * that the Welsh course they came for costs them nothing.
+ *
+ * The second is where "Start learning" LANDED them — App.vue defaults any
+ * visitor with no saved course to `zho_for_eng`, and somebody arriving through
+ * an enrolment link on a clean browser is precisely that visitor, so the free
+ * Welsh year opened in Chinese.
+ */
+describe("Kai's staging report", () => {
+  it('says the course is free, and names the language, before asking for anything', async () => {
+    const { wrapper } = mountPage()
+    await flush()
+    const banner = wrapper.find('.enrol-free')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain('Welsh')
+    expect(banner.text()).toContain('free')
+  })
+
+  it('keeps the free line up while they fetch the sign-in code from their inbox', async () => {
+    const { wrapper } = mountPage({ signedIn: false })
+    await flush()
+    await wrapper.find('button').trigger('click')
+    await flush()
+    expect(wrapper.find('input[type="email"]').exists()).toBe(true)
+    expect(wrapper.find('.enrol-free').exists()).toBe(true)
+  })
+
+  it('drops the language name rather than guessing when the free year spans two languages', async () => {
+    const { wrapper } = mountPage({ policy: { ...POLICY, grantedCourses: ['cym_n_for_eng', 'spa_for_eng'] } })
+    await flush()
+    const banner = wrapper.find('.enrol-free')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).not.toContain('Welsh')
+    expect(banner.text()).toContain('free')
+  })
+
+  it('FAILURE MODE: Start learning must not drop them on the app default course', async () => {
+    const { wrapper } = mountPage()
+    await flush()
+    await wrapper.find('button').trigger('click')
+    await flush()
+    await wrapper.findAll('input[type="checkbox"]')[1].setValue(true)
+    await flush()
+    await lastButton(wrapper).trigger('click')
+    await flush()
+    await lastButton(wrapper).trigger('click')
+    await flush()
+    // Two Welsh dialects: the picker, because the dialect is theirs to choose.
+    expect(routerPush).toHaveBeenCalledWith({ path: '/', query: { openCourses: '1' } })
+    expect(routerPush).not.toHaveBeenCalledWith('/')
+  })
+
+  it('goes straight into the course when the free year unlocks exactly one', async () => {
+    const { wrapper } = mountPage({
+      policy: { ...POLICY, grantedCourses: ['cym_n_for_eng'] },
+      enrolResponse: {
+        success: true, alreadyEnrolled: false, orgName: 'Dysgu Cymraeg',
+        grantedCourses: ['cym_n_for_eng'],
+        freeAccessUntil: '2027-09-08T00:00:00Z', cancellationNeeded: false,
+      },
+    })
+    await flush()
+    await wrapper.find('button').trigger('click')
+    await flush()
+    await wrapper.findAll('input[type="checkbox"]')[1].setValue(true)
+    await flush()
+    await lastButton(wrapper).trigger('click')
+    await flush()
+    await lastButton(wrapper).trigger('click')
+    await flush()
+    expect(routerPush).toHaveBeenCalledWith({ path: '/', query: { course: 'cym_n_for_eng' } })
   })
 })

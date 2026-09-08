@@ -39,6 +39,7 @@ import { buildBelowTree, isEmptyNode } from '@/components/admin/belowTree'
 import { cacheNodeHome, cachedNodeHome, cachedRail, dropCachedNode } from '@/composables/admin/nodeHomeCache'
 import NodeActionBar from '@/components/admin/NodeActionBar.vue'
 import WaysInLedger from '@/components/admin/WaysInLedger.vue'
+import OrgFunderNumbers from '@/components/admin/OrgFunderNumbers.vue'
 import HowThisWorks from '@/components/admin/HowThisWorks.vue'
 import YourAccount from '@/components/admin/YourAccount.vue'
 import NoticingInvitations from '@/components/admin/NoticingInvitations.vue'
@@ -1144,6 +1145,18 @@ const listPayload = computed(() => {
             ref="ledgerEl"
             :node-id="home.nodeId"
             :class-id="home.node.id"
+          />
+
+          <!-- FUNDER REPORT — for a node that reports to a funder, its own
+               monthly return, on its own page (job #572). Rendered off the
+               node-home payload's funderReporting, so a node that reports to
+               nobody carries no chrome and makes no extra request; the numbers
+               themselves come from /api/org/funder-export, which already
+               answers to this node's leader as well as to an ssi_admin. -->
+          <OrgFunderNumbers
+            v-if="!isClass && home.node && home.funderReporting"
+            :node-id="home.node.id"
+            :org-name="home.funderReporting.orgName"
           />
 
           <!-- YOUR ACCOUNT — the leader's own sign-in and their own device

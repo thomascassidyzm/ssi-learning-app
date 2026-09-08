@@ -135,6 +135,22 @@ describe('NodeHomeView — one grammar at every level', () => {
     expect(text).not.toContain('Directly below')
   })
 
+  // FUNDER REPORT (job #572): the panel is presence-driven, so an org that
+  // reports to a funder finds its own numbers on its own page, and an org that
+  // reports to nobody carries no extra chrome and makes no extra request.
+  it('shows the funder report only for a node that reports to a funder', async () => {
+    setupFetch(nodePayload({ funderReporting: { orgName: 'Y Ganolfan Dysgu Cymraeg Genedlaethol' } }))
+    const withFunder = mountView()
+    await flushPromises()
+    expect(withFunder.find('[data-walk="funder-numbers"]').exists()).toBe(true)
+
+    clearNodeHomeCache()
+    setupFetch(nodePayload())
+    const without = mountView()
+    await flushPromises()
+    expect(without.find('[data-walk="funder-numbers"]').exists()).toBe(false)
+  })
+
   it('THE DEFECT (founder, live NPTC page 2026-09-07): a school whose classes hang off itself is NOT "nothing below this"', async () => {
     routeMock.params = { id: 'nptc' }
     setupFetch({

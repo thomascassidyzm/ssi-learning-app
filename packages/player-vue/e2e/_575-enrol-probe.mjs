@@ -1,0 +1,20 @@
+import { chromium } from '@playwright/test'
+const HOST = process.env.HOST || 'https://staging.saysomethingin.app'
+const b = await chromium.launch({ executablePath: process.env.CHROME_BIN })
+const ctx = await b.newContext({ locale: 'en-GB' })
+const p = await ctx.newPage()
+const logs = []
+p.on('console', m => logs.push(m.text().slice(0,200)))
+await p.goto(`${HOST}/enrol/ZMN-561`, { waitUntil: 'networkidle', timeout: 60000 })
+await p.waitForTimeout(4000)
+console.log('URL:', p.url())
+console.log('htmlLang:', await p.evaluate(() => document.documentElement.lang))
+console.log('TITLE:', await p.title())
+console.log('--- visible text ---')
+console.log((await p.evaluate(() => document.body.innerText)).slice(0, 2000))
+console.log('--- storage ---')
+console.log(await p.evaluate(() => JSON.stringify(Object.fromEntries(Object.entries(localStorage)).valueOf()).slice(0,800)))
+console.log('--- console ---')
+console.log(logs.filter(l=>/Course|locale|i18n/i.test(l)).join('\n').slice(0,1500))
+await p.screenshot({ path: '/home/tomcassidy/.tmpbig/j575/enrol.png', fullPage: true })
+await b.close()

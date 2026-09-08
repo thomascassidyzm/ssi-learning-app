@@ -25,7 +25,8 @@
 import { computed, inject, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { sendSignInCode } from '../auth/sendSignInCode'
-import { t } from '../composables/useI18n'
+import { getLanguageName, t } from '../composables/useI18n'
+import { extractBaseLanguage } from '../utils/variantFlag'
 
 type Step = 'loading' | 'invalid' | 'intro' | 'email' | 'otp' | 'terms' | 'submitting' | 'done'
 
@@ -42,6 +43,7 @@ const consentStatement = ref('')
 const askAgeBand = ref(true)
 const ageBandLabel = ref('I am aged 16 to 24')
 const freeMonths = ref(12)
+const grantedCourses = ref<string[]>([])
 
 const email = ref('')
 const otp = ref('')
@@ -61,6 +63,38 @@ const prettyEnd = computed(() =>
   freeUntil.value
     ? new Date(freeUntil.value).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
     : '',
+)
+
+/**
+ * "Your Welsh course is free." — the sentence Kai said was missing.
+ *
+ * A learner arriving from the Canolfan is not thinking about a SaySomethingin
+ * subscription; they are thinking about the Welsh course their tutor told them
+ * to sign up for, and the one thing they need to know before handing over an
+ * email address is that it costs them nothing. So the language is NAMED, and
+ * it is named from the policy's own granted_courses rather than from a string
+ * an admin typed — the same list the free year actually unlocks.
+ *
+ * `cym_n_for_eng` and `cym_s_for_eng` are both Welsh, so the dialect suffix is
+ * dropped: two courses that are one language read as one language. Two genuinely
+ * different languages, or none we can read, fall back to the unnamed sentence,
+ * which is still true.
+ */
+const freeLanguage = computed(() => {
+  const langs = new Set<string>()
+  for (const code of grantedCourses.value) {
+    const target = String(code).split('_for_')[0]
+    if (target) langs.add(extractBaseLanguage(target))
+  }
+  if (langs.size !== 1) return ''
+  return getLanguageName(Array.from(langs)[0])
+})
+
+/** The free line itself, named where we can name it. */
+const freeHeadline = computed(() =>
+  freeLanguage.value
+    ? fill('enrol.freeBannerNamed', { language: freeLanguage.value })
+    : t('enrol.freeBanner'),
 )
 
 /** t() with {placeholders} filled — the same shape SettingsScreen.vue uses. */
@@ -94,6 +128,7 @@ onMounted(async () => {
     askAgeBand.value = !!body.askAgeBand
     ageBandLabel.value = body.ageBandLabel || ageBandLabel.value
     freeMonths.value = body.freeMonths || 12
+    grantedCourses.value = Array.isArray(body.grantedCourses) ? body.grantedCourses : []
     step.value = 'intro'
   } catch {
     step.value = 'invalid'
@@ -167,6 +202,9 @@ async function enrol(): Promise<void> {
     priorPlanName.value = body.priorPlanName ?? null
     payingOnAnotherAccount.value = !!body.payingOnAnotherAccount
     alreadyEnrolled.value = !!body.alreadyEnrolled
+    if (Array.isArray(body.grantedCourses) && body.grantedCourses.length) {
+      grantedCourses.value = body.grantedCourses
+    }
     step.value = 'done'
   } catch {
     error.value = t('enrol.errorNoServerMidFlow')
@@ -190,7 +228,29 @@ const cancelNotice = computed(() => {
     : t('enrol.cancelNotice')
 })
 
+/**
+ * Into THEIR course, not the app's anonymous-visitor default.
+ *
+ * `/` alone was landing freshly enrolled Welsh learners in Chinese — App.vue
+ * falls back to `zho_for_eng` for any visitor with no saved course, and a
+ * first-ever visit through an enrolment link is exactly that visitor. Kai hit
+ * it on staging on 2026-09-08.
+ *
+ * One granted course means there is nothing to choose, so we go straight in.
+ * Two — North and South Welsh — is a choice only the learner can make, so the
+ * course picker opens instead of us guessing a dialect at them. Either way the
+ * default is overwritten before the player resolves a course.
+ */
 function start(): void {
+  const courses = grantedCourses.value
+  if (courses.length === 1) {
+    router.push({ path: '/', query: { course: courses[0] } })
+    return
+  }
+  if (courses.length > 1) {
+    router.push({ path: '/', query: { openCourses: '1' } })
+    return
+  }
   router.push('/')
 }
 </script>
@@ -198,6 +258,19 @@ function start(): void {
 <template>
   <div class="enrol-page">
     <div class="enrol-card">
+      <!--
+        The free line, said once and said high — on every step before the
+        confirmation, because somebody who bounced to their inbox for a sign-in
+        code comes back to whichever step they left, and the reason they are
+        doing any of this should still be on the screen when they do.
+      -->
+      <p
+        v-if="step === 'intro' || step === 'email' || step === 'otp' || step === 'terms' || step === 'submitting'"
+        class="enrol-free"
+      >
+        {{ freeHeadline }}
+      </p>
+
       <template v-if="step === 'loading'">
         <p class="enrol-lede">{{ t('enrol.loading') }}</p>
       </template>
@@ -261,7 +334,7 @@ function start(): void {
 
         <label class="enrol-tick">
           <input v-model="consentTicked" type="checkbox" />
-          <span>{{ consentStatement }}</span>
+          <span>{{ consentStatement }} <span class="enrol-required" aria-hidden="true">*</span></span>
         </label>
 
         <p class="enrol-note">{{ t('enrol.consentIsRequired') }}</p>
@@ -317,6 +390,20 @@ function start(): void {
   padding: 1.75rem 1.5rem;
   box-shadow: 0 1px 3px rgb(0 0 0 / 8%);
 }
+.enrol-free {
+  /* Unmissable and first: a plain green statement above the heading, not a
+     date buried in a paragraph. Belt-accent green is the app's own affirmative
+     colour and is already carried by the primary button below it. */
+  margin: 0 0 1rem;
+  padding: 0.75rem 0.875rem;
+  border-radius: 0.625rem;
+  background: #eef3ea;
+  border: 1px solid #c6d6bb;
+  color: #3c4f31;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
 .enrol-title {
   margin: 0;
   font-size: 1.5rem;
@@ -350,6 +437,11 @@ function start(): void {
   letter-spacing: 0.2em;
   text-align: center;
 }
+.enrol-title + .enrol-tick {
+  /* The "terms" step goes straight from the title to the first question,
+     with no lede paragraph to carry the usual gap. */
+  margin-top: 1rem;
+}
 .enrol-tick {
   display: flex;
   gap: 0.75rem;
@@ -359,6 +451,10 @@ function start(): void {
   line-height: 1.45;
   color: var(--text-primary, #1a1a1a);
   cursor: pointer;
+}
+.enrol-required {
+  color: var(--danger, #a33);
+  font-weight: 700;
 }
 .enrol-tick input {
   /* A tick a thumb can actually hit. */
