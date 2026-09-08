@@ -98,17 +98,32 @@ function announce(state: 'ready' | 'unavailable'): void {
   if (announced) return
   announced = true
   if (window.parent === window) return // not framed; nothing to tell
-  const message = { type: 'ssi-demo', state }
-  // Explicit target origins rather than '*', so the message cannot be read by
-  // a page that framed us without permission. One post per allowed origin:
-  // postMessage silently drops the ones that do not match the real parent.
-  for (const origin of [...PARENT_ORIGINS, location.origin]) {
-    try {
-      window.parent.postMessage(message, origin)
-    } catch {
-      /* a mismatched origin is the normal case for all but one of these */
-    }
+  // An explicit target origin rather than '*', so a site that framed us without
+  // permission cannot read the message. Which origin: the referrer names our
+  // real parent, and it is only honoured when it is one we allow — anything
+  // else and we say nothing at all, which is the same to the parent as
+  // silence, and its own ten-second timer already handles silence.
+  const target = allowedParentOrigin()
+  if (!target) return
+  try {
+    window.parent.postMessage({ type: 'ssi-demo', state }, target)
+  } catch {
+    /* the parent went away mid-load */
   }
+}
+
+/** Our framing page's origin, if it is one we allow to frame us. */
+function allowedParentOrigin(): string | null {
+  let referrerOrigin = ''
+  try {
+    referrerOrigin = document.referrer ? new URL(document.referrer).origin : ''
+  } catch {
+    referrerOrigin = ''
+  }
+  // Same-origin is our own throwaway harness, and is also what a referrer-less
+  // load looks like when the browser strips the header entirely.
+  if (!referrerOrigin || referrerOrigin === location.origin) return location.origin
+  return PARENT_ORIGINS.includes(referrerOrigin) ? referrerOrigin : null
 }
 
 function fail(): void {
