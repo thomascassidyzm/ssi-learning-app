@@ -33,12 +33,13 @@ const BUILD_VERSION = typeof __BUILD_NUMBER__ !== 'undefined' ? __BUILD_NUMBER__
 let updateCheckInterval: ReturnType<typeof setInterval> | null = null
 
 // THE service-worker registration gate. `useRegisterSW` registers the moment
-// it is called (vite-plugin-pwa's registerSW kicks off register() eagerly —
-// `immediate` only decides whether Workbox waits for window load), so the only
-// real gate is not calling it. On the web that is always — behaviour is
-// unchanged. Inside a native shell's WebView it is never: the shell owns
-// caching and update delivery, and a Workbox precache underneath it would
-// serve its own stale app shell.
+// it is called — vite-plugin-pwa's registerSW kicks off register() eagerly and
+// `immediate` only decides whether Workbox waits for window load — so the only
+// real gate is not calling it. It is now called EVERYWHERE, on the web as
+// always and inside the native shell since 2026-09-08. The shell stopped
+// bundling web assets and became a window onto the deployment, so the shell
+// Workbox precaches is the deployment's own and it is what lets the app open
+// and play with no network. See platform/capabilities.shouldRunServiceWorker.
 //
 // `registerType: 'prompt'` and skipWaiting/clientsClaim=false in vite.config.js
 // are load-bearing for Tom's rule that an update NEVER force-applies while
