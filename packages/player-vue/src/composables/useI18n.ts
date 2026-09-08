@@ -133,6 +133,14 @@ export const isSupportedLocale = (langCode: string | null | undefined): boolean 
 export const setLocale = async (
   langCode: string,
   source: LocaleSource = 'chosen',
+  /**
+   * Write the choice down? Defaults to yes, which is every existing call site
+   * — a person tapping a language, and the deep-link inference on the ordinary
+   * app. The framed marketing demo passes false: it renders in the course's
+   * known language like everything else, but it is a page inside somebody
+   * else's site and it stores NOTHING. In-memory locale, gone with the frame.
+   */
+  { persist = true }: { persist?: boolean } = {},
 ): Promise<void> => {
   const loader = LOCALE_LOADERS[langCode]
   if (!loader) return // unknown locale — keep current
@@ -142,11 +150,13 @@ export const setLocale = async (
   // `source` defaults to 'chosen' so every existing call site — all of
   // which are a person tapping a language — keeps its stronger status
   // without being touched.
-  try {
-    localStorage.setItem(LOCALE_STORAGE_KEY, langCode)
-    localStorage.setItem(LOCALE_SOURCE_KEY, source)
-  } catch {
-    // localStorage might be unavailable
+  if (persist) {
+    try {
+      localStorage.setItem(LOCALE_STORAGE_KEY, langCode)
+      localStorage.setItem(LOCALE_SOURCE_KEY, source)
+    } catch {
+      // localStorage might be unavailable
+    }
   }
   currentLocale.value = langCode
   syncDocumentLang()

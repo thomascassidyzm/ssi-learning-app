@@ -165,9 +165,42 @@ describe('vercel.json — security response headers', () => {
     expect((cfg.headers ?? []).map((r) => r.source)).toEqual([
       '/(.*)',
       '/_schools-mockups/(.*)',
+      '/embed/(.*)',
       '/api/audio/(.*)',
       '/version.json',
     ])
+  })
+
+  it('the framed marketing demo is frameable by saysomethingin.com AND BY NOTHING ELSE', () => {
+    // /embed/* is the ONE surface the app lets anybody else frame: a
+    // saysomethingin.com India landing page shows the real player in a slot
+    // rather than a hand-written replica reading a stale JSON file.
+    //
+    // 'self' is in the list deliberately and is not slack: the throwaway
+    // harness at /_embed-harness/ is served from this same origin, and
+    // without 'self' the page we look at cannot frame the page we are
+    // looking at.
+    const rule = (loadVercelConfig().headers ?? []).find((r) => r.source === '/embed/(.*)')
+    expect(rule).toBeDefined()
+
+    const csp = headerValue(rule!, 'Content-Security-Policy')!
+    expect(csp).toMatch(/^frame-ancestors /)
+    expect(csp).toContain('https://www.saysomethingin.com')
+    expect(csp).toContain('https://saysomethingin.com')
+    expect(csp).toContain("'self'")
+    // No wildcard, ever. An origin list that grew a `*` would let any site on
+    // the internet frame the player and pass it off as their own.
+    expect(csp).not.toContain('*')
+    expect(csp).not.toContain('http://')
+  })
+
+  it('the app stays UNFRAMEABLE everywhere else — the posture did not loosen', () => {
+    // The proof that the /embed rule above is an exception and not a shift.
+    // If somebody ever relaxes the broad rule instead of adding a narrow one,
+    // this is what goes red.
+    const broad = broadRule(loadVercelConfig())
+    expect(headerValue(broad, 'Content-Security-Policy')).toBe("frame-ancestors 'none'")
+    expect(headerValue(broad, 'X-Frame-Options')).toBe('DENY')
   })
 
   it('the audio CORS wildcard stays credential-free (this control must HOLD)', () => {
@@ -184,7 +217,31 @@ describe('vercel.json — security response headers', () => {
     expect(keys).not.toContain('access-control-allow-credentials')
   })
 
-  it.todo('CLIENT-CONFIG-01 follow-up: promote Content-Security-Policy-Report-Only to enforced once a staging soak shows zero violations across Paddle checkout, offline audio download and the schools/admin surfaces')
+  it('the Report-Only policy is still report-only — and carries a trap for whoever promotes it', () => {
+    // The broad Report-Only policy also says `frame-ancestors 'none'`. While it
+    // is REPORT-ONLY that is harmless: it logs and does not block, so the
+    // framed demo works. The day somebody promotes it to enforced, that
+    // directive would kill the embed — an enforced policy cannot be relaxed by
+    // the separate enforced rule on /embed/(.*), because a page must satisfy
+    // EVERY enforced policy it is served. Promoting it therefore has to add a
+    // matching Report-Only override on /embed/(.*) in the same change.
+    //
+    // This test holds the ground until then: it goes red the moment the key is
+    // renamed to the enforced one without an /embed rule appearing alongside it.
+    const cfg = loadVercelConfig()
+    const broad = broadRule(cfg)
+    expect(headerValue(broad, 'Content-Security-Policy-Report-Only')).toContain("frame-ancestors 'none'")
+
+    const embed = (cfg.headers ?? []).find((r) => r.source === '/embed/(.*)')!
+    const embedKeys = embed.headers.map((h) => h.key.toLowerCase())
+    const broadEnforced = headerValue(broad, 'Content-Security-Policy')!
+    if (broadEnforced.includes('default-src')) {
+      // The promotion happened. It must have brought the embed exception with it.
+      expect(embedKeys).toContain('content-security-policy-report-only')
+    }
+  })
+
+  it.todo("CLIENT-CONFIG-01 follow-up: promote Content-Security-Policy-Report-Only to enforced once a staging soak shows zero violations across Paddle checkout, offline audio download and the schools/admin surfaces — and in the SAME change give /embed/(.*) its own copy with the marketing frame-ancestors, or the framed demo dies with it")
 })
 
 describe('vite build config — production source maps', () => {
