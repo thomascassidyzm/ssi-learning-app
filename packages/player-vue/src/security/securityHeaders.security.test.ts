@@ -165,9 +165,42 @@ describe('vercel.json — security response headers', () => {
     expect((cfg.headers ?? []).map((r) => r.source)).toEqual([
       '/(.*)',
       '/_schools-mockups/(.*)',
+      '/embed/(.*)',
       '/api/audio/(.*)',
       '/version.json',
     ])
+  })
+
+  it('the framed marketing demo is frameable by saysomethingin.com AND BY NOTHING ELSE', () => {
+    // /embed/* is the ONE surface the app lets anybody else frame: a
+    // saysomethingin.com India landing page shows the real player in a slot
+    // rather than a hand-written replica reading a stale JSON file.
+    //
+    // 'self' is in the list deliberately and is not slack: the throwaway
+    // harness at /_embed-harness/ is served from this same origin, and
+    // without 'self' the page we look at cannot frame the page we are
+    // looking at.
+    const rule = (loadVercelConfig().headers ?? []).find((r) => r.source === '/embed/(.*)')
+    expect(rule).toBeDefined()
+
+    const csp = headerValue(rule!, 'Content-Security-Policy')!
+    expect(csp).toMatch(/^frame-ancestors /)
+    expect(csp).toContain('https://www.saysomethingin.com')
+    expect(csp).toContain('https://saysomethingin.com')
+    expect(csp).toContain("'self'")
+    // No wildcard, ever. An origin list that grew a `*` would let any site on
+    // the internet frame the player and pass it off as their own.
+    expect(csp).not.toContain('*')
+    expect(csp).not.toContain('http://')
+  })
+
+  it('the app stays UNFRAMEABLE everywhere else — the posture did not loosen', () => {
+    // The proof that the /embed rule above is an exception and not a shift.
+    // If somebody ever relaxes the broad rule instead of adding a narrow one,
+    // this is what goes red.
+    const broad = broadRule(loadVercelConfig())
+    expect(headerValue(broad, 'Content-Security-Policy')).toBe("frame-ancestors 'none'")
+    expect(headerValue(broad, 'X-Frame-Options')).toBe('DENY')
   })
 
   it('the audio CORS wildcard stays credential-free (this control must HOLD)', () => {

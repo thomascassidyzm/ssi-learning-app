@@ -39,6 +39,19 @@
       ]
     },
     {
+      "source": "/embed/(.*)",
+      "headers": [
+        {
+          "key": "X-Frame-Options",
+          "value": ""
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "frame-ancestors https://www.saysomethingin.com https://saysomethingin.com 'self'"
+        }
+      ]
+    },
+    {
       "source": "/api/audio/(.*)",
       "headers": [
         { "key": "Access-Control-Allow-Origin", "value": "*" }

@@ -812,6 +812,16 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/TryLinkGateway.vue'),
     meta: { title: 'Try SaySomethingin' },
   },
+  // The framed marketing demo (no auth, no storage, no service worker). The
+  // ONE surface the app allows to be framed, and only by saysomethingin.com —
+  // see the /embed/(.*) header rule in vercel.json and platform/embedMode.ts.
+  // hideAppEscape because the frame has no "out" but its own single deep link.
+  {
+    path: '/embed/demo',
+    name: 'embed-demo',
+    component: () => import('@/views/EmbedDemoView.vue'),
+    meta: { title: 'SaySomethingin', hideAppEscape: true },
+  },
   // Frozen board-report snapshot (no auth — capability-by-unguessability,
   // living-board-report-spec.md §5). Renders only the stored payload.
   {

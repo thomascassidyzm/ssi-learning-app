@@ -69,16 +69,26 @@ export function localeForDeepLink(search: string): string | null {
  * paint is already in the right language. Safe to call when there is no deep
  * link — that is the overwhelmingly common case and it costs one URL parse.
  */
-export function applyDeepLinkLocale(search: string): string | null {
+export function applyDeepLinkLocale(
+  search: string,
+  /**
+   * `ephemeral` is the framed marketing demo (platform/embedMode.ts): infer the
+   * language from the course exactly as everywhere else, but neither read a
+   * stored choice — nobody chose anything inside a frame — nor write one. The
+   * demo stores nothing, and that is what makes it safe to put on somebody
+   * else's page.
+   */
+  { ephemeral = false }: { ephemeral?: boolean } = {},
+): string | null {
   const inferred = localeForDeepLink(search)
   if (!inferred) return null
 
   // A person's own pick outranks any link they follow.
-  if (hasChosenLocale()) return null
+  if (!ephemeral && hasChosenLocale()) return null
 
   // Nothing to do if we'd be re-setting what's already live — but do fall
   // through when the source key is missing, so a legacy inferred-era value
   // gets stamped properly. Cheap either way.
-  void setLocale(inferred, 'inferred')
+  void setLocale(inferred, 'inferred', { persist: !ephemeral })
   return inferred
 }
