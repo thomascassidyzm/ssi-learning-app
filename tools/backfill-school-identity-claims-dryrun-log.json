@@ -1,13 +1,13 @@
 {
-  "ranAt": "2026-09-08T09:27:25.754Z",
+  "ranAt": "2026-09-08T09:50:26.781Z",
   "apply": false,
   "counts": {
-    "skip": 41
+    "skip": 42
   },
   "bySkip": {
     "public_mail": 24,
-    "already_ours": 5,
-    "shared_by_multiple_schools": 10,
+    "already_ours": 6,
+    "shared_tenant": 10,
     "no_admin_user_id": 2
   },
   "rows": [
@@ -99,8 +99,7 @@
       "admin_email": "mcauleys51@hwbcymru.net",
       "domain": "hwbcymru.net",
       "action": "skip",
-      "reason": "shared_by_multiple_schools",
-      "schools_on_domain": 4
+      "reason": "shared_tenant"
     },
     {
       "school_id": "14710516-b26d-4daa-bbf7-01eef06c52ce",
@@ -109,8 +108,7 @@
       "admin_email": "vaughans98@hwbcymru.net",
       "domain": "hwbcymru.net",
       "action": "skip",
-      "reason": "shared_by_multiple_schools",
-      "schools_on_domain": 4
+      "reason": "shared_tenant"
     },
     {
       "school_id": "07b9d48b-d735-41a4-8bb6-f216070cded9",
@@ -232,8 +230,7 @@
       "admin_email": "parkera10@hwbcymru.net",
       "domain": "hwbcymru.net",
       "action": "skip",
-      "reason": "shared_by_multiple_schools",
-      "schools_on_domain": 4
+      "reason": "shared_tenant"
     },
     {
       "school_id": "5ec6cb90-f25c-4bc9-9e63-b4a93317737b",
@@ -242,8 +239,7 @@
       "admin_email": "aggletona5@hwbcymru.net",
       "domain": "hwbcymru.net",
       "action": "skip",
-      "reason": "shared_by_multiple_schools",
-      "schools_on_domain": 4
+      "reason": "shared_tenant"
     },
     {
       "school_id": "468d8132-c1ff-4e0d-8cf8-8ee786d60c95",
@@ -279,8 +275,7 @@
       "admin_email": "claude-signup-proof-1788783933@saysomethingin.com",
       "domain": "saysomethingin.com",
       "action": "skip",
-      "reason": "shared_by_multiple_schools",
-      "schools_on_domain": 6
+      "reason": "shared_tenant"
     },
     {
       "school_id": "77cb4111-fd12-4e40-86db-46f55d070d6a",
@@ -289,8 +284,7 @@
       "admin_email": "claude-signup-proof-1788783976@saysomethingin.com",
       "domain": "saysomethingin.com",
       "action": "skip",
-      "reason": "shared_by_multiple_schools",
-      "schools_on_domain": 6
+      "reason": "shared_tenant"
     },
     {
       "school_id": "4bf1a2db-caa3-4abf-8eb4-106f40377089",
@@ -299,8 +293,7 @@
       "admin_email": "claude-signup-proof-1788784062@saysomethingin.com",
       "domain": "saysomethingin.com",
       "action": "skip",
-      "reason": "shared_by_multiple_schools",
-      "schools_on_domain": 6
+      "reason": "shared_tenant"
     },
     {
       "school_id": "ff876772-9dcd-4383-8402-d8af030894b6",
@@ -309,8 +302,7 @@
       "admin_email": "claude-signup-proof-1788784221@saysomethingin.com",
       "domain": "saysomethingin.com",
       "action": "skip",
-      "reason": "shared_by_multiple_schools",
-      "schools_on_domain": 6
+      "reason": "shared_tenant"
     },
     {
       "school_id": "bf737384-f3e3-436d-b293-1f5ee76aaf67",
@@ -319,8 +311,7 @@
       "admin_email": "claude-prod-proof-1788784734@saysomethingin.com",
       "domain": "saysomethingin.com",
       "action": "skip",
-      "reason": "shared_by_multiple_schools",
-      "schools_on_domain": 6
+      "reason": "shared_tenant"
     },
     {
       "school_id": "98492df7-5be0-4612-ae17-f54f9f969004",
@@ -329,8 +320,7 @@
       "admin_email": "claude-otp-proof-1788784844@saysomethingin.com",
       "domain": "saysomethingin.com",
       "action": "skip",
-      "reason": "shared_by_multiple_schools",
-      "schools_on_domain": 6
+      "reason": "shared_tenant"
     },
     {
       "school_id": "2e5130ae-1c5f-491d-bca6-a1381d6ceb14",
@@ -385,6 +375,15 @@
       "domain": "gmail.com",
       "action": "skip",
       "reason": "public_mail"
+    },
+    {
+      "school_id": "12128dd8-393d-4918-a1fd-843a90f9bdd6",
+      "school_name": "St Alban's RC High School, Pontypool",
+      "created_at": "2026-09-08T09:38:41.674259+00:00",
+      "admin_email": "leejames@stalbans.schoolsedu.org.uk",
+      "domain": "stalbans.schoolsedu.org.uk",
+      "action": "skip",
+      "reason": "already_ours"
     }
   ]
 }
