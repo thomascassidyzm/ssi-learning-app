@@ -44,8 +44,16 @@ describe('SEC0901-D-02 (closed) — the audio-cache-owner and bundle-owner fixes
     // onAuthStateChange does not reliably fire for a session already on disk
     // at boot — the fix's own comment says so. This is the check that a
     // sibling "amplification" fix doesn't repeat the exact gap it closed.
+    // Bound the window by the NEXT function, the way the signOut check below
+    // does, rather than by a byte count. A fixed 3000-char window went red on
+    // 2026-09-08 for a comment added upstream of the call — the call was still
+    // there, 89 characters past the edge. A window that measures the function
+    // cannot lie about it.
     const idx = useAuth.indexOf('async function initialize(')
-    const block = useAuth.slice(idx, idx + 3000)
+    expect(idx).toBeGreaterThan(-1)
+    const nextFn = useAuth.indexOf('\n  async function ', idx + 20)
+    expect(nextFn).toBeGreaterThan(idx)
+    const block = useAuth.slice(idx, nextFn)
     expect(block).toMatch(/void reconcileAudioCacheOwner\(result\.data\.session\.user\.id\)/)
   })
 
@@ -116,9 +124,15 @@ describe('secure-assertion — sendSignInCode.ts fallback only honours a real 42
   const src = read('../auth/sendSignInCode.ts')
 
   it('a 429 from the new endpoint is returned to the caller, not retried through the Supabase fallback', () => {
+    // Same lesson as the initialize() check above: a 250-char window went red
+    // on 2026-09-08 because a four-line comment was added inside the branch,
+    // not because the branch stopped returning. Bound it by the branch instead
+    // — everything up to the fallback call that must not be reached.
     const idx = src.indexOf("res.status === 429")
     expect(idx).toBeGreaterThan(-1)
-    const block = src.slice(idx, idx + 250)
+    const fallback = src.indexOf('signInWithOtp', idx)
+    expect(fallback).toBeGreaterThan(idx)
+    const block = src.slice(idx, fallback)
     expect(block).toMatch(/return \{ error:/)
   })
 
