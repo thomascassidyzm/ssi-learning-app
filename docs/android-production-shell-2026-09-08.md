@@ -29,17 +29,28 @@ in IndexedDB (144 clips), then the network was genuinely cut at the network laye
 navigation still booted from the precache, and **audio played on with no network at all**.
 
 **Tap to update — the half that was still owed.** The previous proof mutated a local build
-underneath a running page and said so honestly. This one is against a real deploy:
+underneath a running page and said so honestly. This one is against a real deploy, and the
+shell was warmed on one production build and updated onto another:
 
-1. A shell was warmed on production and took control of the page. While production had not
-   moved, asking for an update found **nothing** — that negative is what makes the positive
-   below mean something.
+1. A shell was warmed on production and its service worker took control. While production
+   had not moved, asking for an update found **nothing** — that negative is what makes the
+   positive below mean something.
 2. A change was landed on production the ordinary way, down the promotion train.
-3. The warmed shell opened on the **old** code, still, exactly as it should — an update
-   never seizes a live page.
-4. Asking for the update found a new worker and it went to **waiting**, without taking over.
-5. Applying it and reloading served the **new** code, asserted on the build id production
-   itself chose rather than on a marker the probe injected.
+3. Asking for the update then found a new worker and it went to **waiting**, and
+   `controllerchange` fired **zero times** — the update did not seize the live page. That is
+   Tom's rule, and the reason for it is that seizing kills the audio in flight.
+4. Applying it retired the waiting worker, made the new one the active one, and the app was
+   running the **new** build — asserted on the build id production itself chose, not on a
+   marker the probe injected.
+
+**One correction worth having, because it changes what the button means.** The first run
+against a real deploy failed, and the failure was in my expectation rather than in the app.
+Navigations are **NetworkFirst on purpose** — the build config says so in as many words, "so
+the next natural page load always sees the fresh shell". So with the network up, simply
+opening the app already fetches the new shell; "you are stuck on old code until you tap" is
+not true online. What the tap actually owns is the **precache** — the copy the app runs when
+there is no network. So the honest description of the button is: it brings the offline copy
+up to date, and it never interrupts you to do it.
 
 ## What is still not proved here
 
