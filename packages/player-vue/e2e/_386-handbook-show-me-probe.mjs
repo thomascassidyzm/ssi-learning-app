@@ -49,7 +49,7 @@ const walkId = await showMe.getAttribute('data-handbook-demo')
 armed = true
 await showMe.click()
 await page.waitForFunction((id) => (document.documentElement.getAttribute('data-walk-active') || '').startsWith(id + ':'), walkId, { timeout: 15000 })
-check('one tap navigated to the place', /\/org\/[0-9a-f-]{36}$/.test(page.url()), page.url())
+check('one tap navigated to the place', /\/org\/[0-9a-f-]{36}$|\/schools\/[a-z-]+(\/[0-9a-f-]{36})?$/.test(page.url()) && !page.url().includes('handbook'), page.url())
 const steps = []
 for (let i = 0; i < 12; i++) {
   await page.waitForTimeout(1200)

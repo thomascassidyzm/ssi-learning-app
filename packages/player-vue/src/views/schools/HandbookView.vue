@@ -17,6 +17,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useClassesData } from '@/composables/schools/useClassesData'
+import { flatViewLanding, PLACE_ROUTE_NAMES } from '@/composables/schools/flatViewLanding'
 import { useI18n } from '@/composables/useI18n'
 import {
   handbookEntries, handbookSections, searchHandbook, viewerPersona, isMine, badgesFor, placeLink, demoLink,
@@ -28,7 +29,7 @@ import HandbookAsk from '@/components/schools/HandbookAsk.vue'
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
-const { currentUser } = useSchoolContext()
+const { currentUser, isGovtAdmin, isSchoolAdmin } = useSchoolContext()
 
 const persona = computed(() => viewerPersona(
   currentUser.value?.platform_role,
@@ -105,6 +106,13 @@ function goTo(entry: HandbookEntry): string | null {
 // else, so nothing here can ever auto-play.
 function demoTo(entry: HandbookEntry): string | null {
   const walk = entry.walk ? walkById(entry.walk) : null
+  // A retired flat view sends this reader on to the node surface after it
+  // mounts, and the demo's anchors are not there — so no demo is offered.
+  // Same rule the container applies, from the same function.
+  if (flatViewLanding(PLACE_ROUTE_NAMES[entry.place.route], {
+    groupId: currentUser.value?.group_id, schoolId: currentUser.value?.school_id,
+    isGovtAdmin: isGovtAdmin.value, isSchoolAdmin: isSchoolAdmin.value,
+  })) return null
   return demoLink(entry, persona.value, walk?.personas ?? null, nodeId.value, firstClassId.value)
 }
 

@@ -13,6 +13,7 @@ import { usePullToRefresh } from '@/composables/usePullToRefresh'
 import { SIGNIN_AGAIN_NOTICE_KEY } from '@/composables/useAuth'
 import { useUserRole } from '@/composables/useUserRole'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
+import { flatViewLanding } from '@/composables/schools/flatViewLanding'
 import { setSchoolsClient } from '@/composables/schools/client'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { useClassesData } from '@/composables/schools/useClassesData'
@@ -445,35 +446,21 @@ const showRailFrame = computed(() => !!route.meta.railFrame && railEligible.valu
 // one-shot: loadFromAuth resolves the context async, so group_id can land
 // after a deep link mounts (same pattern as DashboardView's node redirect).
 // Legacy no-group govt_admin rows (region_code-only) keep the flat views.
+// The rule itself lives in composables/schools/flatViewLanding.ts, shared
+// with the Handbook's "Show me" so a demo is never offered on a page this
+// reader is about to be sent away from (job #386). Third persona through the
+// same door (founder ruling, 2026-07-30): a school leader's Dashboard/
+// Teachers/Insights land on THE VIEW; Classes and Students stay flat.
 watch(
   [() => ctx.currentUser.value, () => route.name],
   ([user, routeName]) => {
-    const groupId = user?.group_id
-    if (groupId && ctx.isGovtAdmin.value) {
-      if (routeName === 'schools-list') {
-        void router.replace({ path: `/org/${groupId}`, query: { lens: 'schools' } })
-      } else if (routeName === 'analytics') {
-        void router.replace(`/org/${groupId}/insights`)
-      }
-      return
-    }
-    // Third persona through the same door (founder ruling, 2026-07-30): a
-    // school leader's Dashboard/Teachers/Insights land on THE VIEW — node
-    // home (teachers ARE its children) and node insights for their school's
-    // node. Classes and Students stay flat (Play-as-Class and student
-    // management have no node-surface equivalent yet). Teachers on these
-    // routes are untouched; legacy no-school school_admin rows keep the
-    // flat views.
-    const schoolId = user?.school_id
-    if (schoolId && ctx.isSchoolAdmin.value) {
-      if (routeName === 'schools-dashboard') {
-        void router.replace(`/org/${schoolId}`)
-      } else if (routeName === 'teachers') {
-        void router.replace({ path: `/org/${schoolId}`, query: { lens: 'teachers' } })
-      } else if (routeName === 'analytics') {
-        void router.replace(`/org/${schoolId}/insights`)
-      }
-    }
+    const landing = flatViewLanding(typeof routeName === 'string' ? routeName : null, {
+      groupId: user?.group_id,
+      schoolId: user?.school_id,
+      isGovtAdmin: ctx.isGovtAdmin.value,
+      isSchoolAdmin: ctx.isSchoolAdmin.value,
+    })
+    if (landing) void router.replace(landing)
   },
   { immediate: true },
 )
