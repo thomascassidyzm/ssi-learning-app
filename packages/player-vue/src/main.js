@@ -9,6 +9,7 @@ import { shouldReloadForPreloadError } from './utils/bootHeal'
 import { loadWebFonts } from './utils/loadWebFonts'
 import { selectPrecacheEntriesToPoison } from './utils/wedgeCheat'
 import { applyDeepLinkLocale } from './utils/deepLinkLocale'
+import { isEmbedContext } from './platform/embedMode'
 import { installApiOriginRewrite } from './platform/apiBase'
 import { installShellSafeArea } from './platform/shellSafeArea'
 
@@ -31,7 +32,11 @@ installShellSafeArea()
 // language for themselves. Runs here, before createApp, so the first paint is
 // already right rather than flashing English and repainting.
 // See utils/deepLinkLocale.ts for the inference-never-overrides rule.
-if (typeof location !== 'undefined') applyDeepLinkLocale(location.search)
+// The framed demo infers its language the same way but stores nothing —
+// see platform/embedMode.ts and the `ephemeral` flag in deepLinkLocale.
+if (typeof location !== 'undefined') {
+  applyDeepLinkLocale(location.search, { ephemeral: isEmbedContext() })
+}
 
 // Cold-start boot marks (all from navigation start via performance.now()).
 // mainExec = the main bundle (Vue + App + its static dep tree) has finished
@@ -57,8 +62,12 @@ loadWebFonts()
 // was needed for. A dynamic import gets code-split into its own chunk that the
 // SW precaches (globPatterns **/*.js) — so once the app has been opened online
 // once, the console works fully offline. Loaded only when the debug gate is on.
+// NEVER in the framed demo. eruda is a developer's on-screen console; a
+// marketing visitor on a landing page is not a developer, and it writes six
+// localStorage keys of its own on an origin the demo promises to leave clean.
 const DEBUG_TOOLS =
   typeof location !== 'undefined' &&
+  !isEmbedContext() &&
   (location.hostname.includes('vercel.app') || location.search.includes('debug'))
 if (DEBUG_TOOLS && !window.eruda) {
   import('eruda').then(({ default: eruda }) => {

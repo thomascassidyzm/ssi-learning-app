@@ -165,9 +165,42 @@ describe('vercel.json — security response headers', () => {
     expect((cfg.headers ?? []).map((r) => r.source)).toEqual([
       '/(.*)',
       '/_schools-mockups/(.*)',
+      '/embed/(.*)',
       '/api/audio/(.*)',
       '/version.json',
     ])
+  })
+
+  it('the framed marketing demo is frameable by saysomethingin.com AND BY NOTHING ELSE', () => {
+    // /embed/* is the ONE surface the app lets anybody else frame: a
+    // saysomethingin.com India landing page shows the real player in a slot
+    // rather than a hand-written replica reading a stale JSON file.
+    //
+    // 'self' is in the list deliberately and is not slack: the throwaway
+    // harness at /_embed-harness/ is served from this same origin, and
+    // without 'self' the page we look at cannot frame the page we are
+    // looking at.
+    const rule = (loadVercelConfig().headers ?? []).find((r) => r.source === '/embed/(.*)')
+    expect(rule).toBeDefined()
+
+    const csp = headerValue(rule!, 'Content-Security-Policy')!
+    expect(csp).toMatch(/^frame-ancestors /)
+    expect(csp).toContain('https://www.saysomethingin.com')
+    expect(csp).toContain('https://saysomethingin.com')
+    expect(csp).toContain("'self'")
+    // No wildcard, ever. An origin list that grew a `*` would let any site on
+    // the internet frame the player and pass it off as their own.
+    expect(csp).not.toContain('*')
+    expect(csp).not.toContain('http://')
+  })
+
+  it('the app stays UNFRAMEABLE everywhere else — the posture did not loosen', () => {
+    // The proof that the /embed rule above is an exception and not a shift.
+    // If somebody ever relaxes the broad rule instead of adding a narrow one,
+    // this is what goes red.
+    const broad = broadRule(loadVercelConfig())
+    expect(headerValue(broad, 'Content-Security-Policy')).toBe("frame-ancestors 'none'")
+    expect(headerValue(broad, 'X-Frame-Options')).toBe('DENY')
   })
 
   it('the audio CORS wildcard stays credential-free (this control must HOLD)', () => {
@@ -184,7 +217,32 @@ describe('vercel.json — security response headers', () => {
     expect(keys).not.toContain('access-control-allow-credentials')
   })
 
-  it.todo('CLIENT-CONFIG-01 follow-up: promote Content-Security-Policy-Report-Only to enforced once a staging soak shows zero violations across Paddle checkout, offline audio download and the schools/admin surfaces')
+  it('the embed Report-Only policy is the broad one, differing ONLY in frame-ancestors', () => {
+    // TWO copies of a 1.5KB policy is exactly how two policies drift apart, so
+    // this is the thing that makes the duplication safe: they must be
+    // character-identical once frame-ancestors is normalised away.
+    //
+    // Why duplicate at all. The broad Report-Only policy says
+    // frame-ancestors 'none'. Report-only does not block, so the demo worked
+    // without this — it just logged a violation into the console of every
+    // visitor to Aran's landing pages. And a page must satisfy EVERY enforced
+    // policy it is served, so the day CLIENT-CONFIG-01 promotes Report-Only to
+    // enforced, a 'none' here would kill the framed demo and the narrow
+    // enforced rule could not save it. Closing it now costs one config entry;
+    // discovering it after promotion costs a live demo.
+    const cfg = loadVercelConfig()
+    const broad = headerValue(broadRule(cfg), 'Content-Security-Policy-Report-Only')!
+    const embedRule = (cfg.headers ?? []).find((r) => r.source === '/embed/(.*)')!
+    const embed = headerValue(embedRule, 'Content-Security-Policy-Report-Only')!
+
+    expect(broad).toContain("frame-ancestors 'none'")
+    expect(embed).toContain('frame-ancestors https://www.saysomethingin.com https://saysomethingin.com')
+
+    const strip = (p: string) => p.replace(/frame-ancestors[^;]*/, 'frame-ancestors <X>')
+    expect(strip(embed)).toBe(strip(broad))
+  })
+
+  it.todo("CLIENT-CONFIG-01 follow-up: promote Content-Security-Policy-Report-Only to enforced once a staging soak shows zero violations across Paddle checkout, offline audio download and the schools/admin surfaces — and in the SAME change give /embed/(.*) its own copy with the marketing frame-ancestors, or the framed demo dies with it")
 })
 
 describe('vite build config — production source maps', () => {

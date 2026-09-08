@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Embed demo harness</title>
+<!--
+  THROWAWAY TEST HARNESS. Not a product page, not linked from anywhere, noindexed.
+
+  It exists so the framed demo can be LOOKED AT on a phone before the pull
+  request goes to Aran. It carries the REAL integration the marketing page will
+  carry — the same iframe attributes, the same placeholder underneath, the same
+  ready/unavailable listener, the same ten-second fail-closed timer — because a
+  harness that cheats any of that proves nothing.
+
+  ONE HONEST LIMIT, and it is the important sentence on this page: this harness
+  is SAME-ORIGIN with the embed. It would frame the demo successfully even under
+  X-Frame-Options: SAMEORIGIN, so a green harness does NOT prove that
+  saysomethingin.com — a different origin — can frame it. What proves that is
+  reading the response headers on /embed/demo. See the job report.
+
+  Remove this directory when the website pull request lands.
+-->
+<style>
+  :root { color-scheme: light; }
+  body {
+    margin: 0;
+    padding: 1.25rem max(1.25rem, env(safe-area-inset-left, 0px)) calc(2rem + env(safe-area-inset-bottom, 0px));
+    padding-top: calc(1.25rem + env(safe-area-inset-top, 0px));
+    background: #e8e3dd;
+    color: #22201d;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.5;
+  }
+  h1 { font-size: 1.15rem; margin: 0 0 .35rem; }
+  .note { font-size: .9rem; opacity: .75; margin: 0 0 1.5rem; }
+  .slot { max-width: 440px; margin: 0 auto 2.5rem; }
+  .slot > h2 { font-size: 1rem; margin: 0 0 .5rem; }
+  /* The demo sits OVER its placeholder and fades in on `ready`. */
+  .stage { position: relative; width: 100%; max-width: 440px; aspect-ratio: 440 / 900; }
+  .placeholder {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 1rem; padding: 1.5rem; text-align: center;
+    background: #fff; border-radius: 14px;
+  }
+  .placeholder p { margin: 0; }
+  .placeholder .sub { opacity: .7; font-size: .95rem; }
+  .cta {
+    display: inline-block; padding: .8rem 1.6rem; border-radius: 999px;
+    background: #2f6f5e; color: #fff; text-decoration: none; font-weight: 600;
+  }
+  iframe {
+    position: absolute; inset: 0;
+    opacity: 0; transition: opacity .25s ease;
+    border-radius: 14px;
+  }
+  iframe.revealed { opacity: 1; }
+  .state { font-size: .8rem; opacity: .6; margin-top: .5rem; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+
+<h1>Embed demo harness</h1>
+<p class="note">
+  A throwaway test page, not a product page. It frames
+  <code>/embed/demo</code> exactly as a saysomethingin.com landing page will.
+  It is same-origin with the demo, so it cannot by itself prove that a
+  different origin may frame it — only the response headers can say that.
+</p>
+
+<section class="slot">
+  <h2>English for Kannada speakers — 3 minutes</h2>
+  <div class="stage" data-course="eng_for_kan" data-minutes="3" data-s="kannada"></div>
+  <p class="state"></p>
+</section>
+
+<section class="slot">
+  <h2>English for Hindi speakers — 3 minutes</h2>
+  <div class="stage" data-course="eng_for_hin" data-minutes="3" data-s="hindi"></div>
+  <p class="state"></p>
+</section>
+
+<script>
+(function () {
+  // Same origin as this page, so the harness follows whatever deployment it is
+  // served from — dev here, production later — instead of pointing somewhere else.
+  var APP_ORIGIN = location.origin
+  var READY_TIMEOUT_MS = 10000
+
+  Array.prototype.forEach.call(document.querySelectorAll('.stage'), function (stage) {
+    var course = stage.dataset.course
+    var minutes = stage.dataset.minutes
+    var tag = stage.dataset.s
+    var state = stage.parentNode.querySelector('.state')
+
+    var deepLink = APP_ORIGIN + '/?course=' + encodeURIComponent(course) +
+      '&s=' + encodeURIComponent(tag)
+
+    // The placeholder is the PERMANENT state when the demo cannot load. It is
+    // candidate B — a working button — and there is no "coming soon" anywhere.
+    var placeholder = document.createElement('div')
+    placeholder.className = 'placeholder'
+    placeholder.innerHTML =
+      '<p><strong>A real 3-minute demo</strong></p>' +
+      '<p class="sub">Press play, speak out loud in the gap, hear the answer.</p>' +
+      '<a class="cta" href="' + deepLink + '">Start free</a>'
+    stage.appendChild(placeholder)
+
+    var src = APP_ORIGIN + '/embed/demo?course=' + encodeURIComponent(course) +
+      '&minutes=' + encodeURIComponent(minutes) + '&s=' + encodeURIComponent(tag)
+
+    var frame = document.createElement('iframe')
+    frame.src = src
+    frame.title = 'A real 3-minute demo'
+    frame.loading = 'lazy'
+    frame.referrerPolicy = 'strict-origin-when-cross-origin'
+    // Run, read its own origin, and navigate the TOP window only when the
+    // visitor taps. It cannot open popups, submit forms, or navigate the page
+    // on its own.
+    frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-top-navigation-by-user-activation')
+    frame.setAttribute('allow', 'autoplay')
+    frame.setAttribute('style', 'width:100%;max-width:440px;aspect-ratio:440/900;border:0')
+    stage.appendChild(frame)
+
+    var settled = false
+    function reveal() {
+      if (settled) return
+      settled = true
+      frame.classList.add('revealed')
+      state.textContent = 'ready — frame revealed'
+    }
+    function failClosed(why) {
+      if (settled) return
+      settled = true
+      frame.remove()
+      state.textContent = 'fail-closed to the placeholder — ' + why
+    }
+
+    // Listen to the app origin only.
+    window.addEventListener('message', function (e) {
+      if (e.origin !== APP_ORIGIN) return
+      if (!e.data || e.data.type !== 'ssi-demo') return
+      if (e.data.state === 'ready') reveal()
+      else if (e.data.state === 'unavailable') failClosed('the demo said unavailable')
+    })
+
+    setTimeout(function () { failClosed('no message in ten seconds') }, READY_TIMEOUT_MS)
+    state.textContent = 'waiting for the demo…'
+  })
+})()
+</script>
+
+</body>
+</html>

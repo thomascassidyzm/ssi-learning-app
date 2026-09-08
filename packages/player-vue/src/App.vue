@@ -37,6 +37,7 @@ import { waitForCatalogue, usableCatalogue } from './config/catalogueWait'
 import { checkCourseAccess, inferPricingTier } from '@ssi/core'
 import { useUserRole } from './composables/useUserRole'
 import { installConsoleDedup } from './utils/consoleDedup'
+import { isEmbedContext } from './platform/embedMode'
 // Async-load the 4 always-mounted overlay components — none of them
 // render anything visible until some internal condition triggers
 // (PWA update available, install prompt eligible, admin flag), so
@@ -59,6 +60,13 @@ import FamilyManagementModal from './components/FamilyManagementModal.vue'
 // In-app browser — renders nothing until a link asks to open a page inside the
 // app rather than throwing the learner out to a browser tab.
 const InAppBrowser = defineAsyncComponent(() => import('./components/InAppBrowser.vue'))
+
+// THE FRAMED DEMO BOOTS NOTHING. `/embed/*` is a marketing visitor's first
+// second on a phone, inside somebody else's page: no sign-in, no entitlement
+// round-trips, no multi-megabyte bundle warm-up, no service worker, nothing
+// written to storage on an origin they never chose to hold anything for. Every
+// eager side effect in this file asks this first. See platform/embedMode.ts.
+const IS_EMBED = isEmbedContext()
 
 // Suppress consecutive identical console errors/warnings after 3 repeats
 installConsoleDedup()
@@ -293,7 +301,10 @@ function warmBundleForIntent(courseCode) {
   }
 }
 
-if (config.features.useDatabase && isSupabaseConfigured(config)) {
+if (IS_EMBED) {
+  // Nothing: no client, no auth providers, no bundle warm-up. The demo talks to
+  // exactly one anonymous endpoint and owns that fetch itself.
+} else if (config.features.useDatabase && isSupabaseConfigured(config)) {
   try {
     supabaseClient.value = createClient(
       config.supabase.url,
@@ -401,7 +412,7 @@ const inviteCode = useInviteCode()
 // prompt only gives the install surfaces something to light up on. Asked once,
 // at the seam (platform/capabilities), not sniffed here.
 const installPrompt = ref(null)
-if (shouldOfferAppInstall()) {
+if (!IS_EMBED && shouldOfferAppInstall()) {
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault()
     installPrompt.value = e
@@ -818,6 +829,9 @@ provide('installPrompt', installPrompt)
 provide('fetchEnrolledCourses', fetchEnrolledCourses)
 
 onMounted(async () => {
+  // The framed demo mounts its own view and nothing else — see IS_EMBED above.
+  if (IS_EMBED) return
+
   // Clear stale caches on new deploy
   invalidateStaleCaches()
 
@@ -1028,6 +1042,10 @@ onMounted(async () => {
 <template>
   <div class="app-root">
     <router-view />
+    <!-- The framed demo is the view and nothing else: no escape pill, no PWA
+         update prompt (it never registers a service worker to update), no
+         install banner, no sign-in or checkout overlays. See IS_EMBED. -->
+    <template v-if="!IS_EMBED">
     <AppEscape v-if="showAppEscape" />
     <AppEscape v-else-if="dashboardEscape" :to="dashboardEscape" />
     <PwaUpdatePrompt />
@@ -1061,6 +1079,7 @@ onMounted(async () => {
     <div v-if="killSwitchMessage" class="kill-switch-overlay">
       <p>{{ killSwitchMessage }}</p>
     </div>
+    </template>
   </div>
 </template>
 

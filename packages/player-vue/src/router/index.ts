@@ -806,12 +806,33 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/JoinWithCode.vue'),
     meta: { title: 'Sign in with your access code' },
   },
+  // The funded-cohort door (Kai's spec, 2026-09-08). ONE link, never two: the
+  // old system's separate under-25 link put people in the wrong cohort and
+  // nobody could tell afterwards, so age is a tick on this page instead. Open
+  // to signed-out visitors — the page reads what it is asking them to agree to
+  // BEFORE it asks them to make an account.
+  {
+    path: '/enrol/:code?',
+    name: 'org-enrolment',
+    component: () => import('@/views/OrgEnrolment.vue'),
+    meta: { title: 'Claim your free year' },
+  },
   // Try link gateway (no auth required — zero-friction course preview)
   {
     path: '/try/:code',
     name: 'try-link',
     component: () => import('@/views/TryLinkGateway.vue'),
     meta: { title: 'Try SaySomethingin' },
+  },
+  // The framed marketing demo (no auth, no storage, no service worker). The
+  // ONE surface the app allows to be framed, and only by saysomethingin.com —
+  // see the /embed/(.*) header rule in vercel.json and platform/embedMode.ts.
+  // hideAppEscape because the frame has no "out" but its own single deep link.
+  {
+    path: '/embed/demo',
+    name: 'embed-demo',
+    component: () => import('@/views/EmbedDemoView.vue'),
+    meta: { title: 'SaySomethingin', hideAppEscape: true },
   },
   // Frozen board-report snapshot (no auth — capability-by-unguessability,
   // living-board-report-spec.md §5). Renders only the stored payload.
