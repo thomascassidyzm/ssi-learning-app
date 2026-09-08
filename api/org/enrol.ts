@@ -1,0 +1,335 @@
+/**
+ * Org enrolment — POST /api/org/enrol
+ * ===================================
+ *
+ * One sign-up link, and everyone who follows it — new to the app or not —
+ * comes through here once. The old system had a second link for under-25s and
+ * people used the wrong one and landed in the wrong cohort; there is exactly
+ * one link, and age is a TICK on this step.
+ *
+ * What one call does, in this order, and idempotently:
+ *   1. refuses without the data-sharing tick. No tick, no free access.
+ *   2. makes sure a learners row exists (the sign-up race, below).
+ *   3. refuses a second enrolment anywhere under the same org root.
+ *   4. writes the org_enrolments row — UNIQUE (group_id, learner_id) means a
+ *      replay lands on the existing row instead of creating a twin.
+ *   5. tags group membership by the same rule api/code/redeem.ts uses.
+ *   6. grants the free period as a per-learner user_entitlements row, so each
+ *      person's year runs from THEIR enrolment date.
+ *   7. records — and only records — whether they hold a paying subscription
+ *      that will need cancelling.
+ *
+ * THE LINE ON SUBSCRIPTIONS. Step 7 writes a state and returns a flag. It
+ * does not call Paddle, does not schedule anything, and there is no code path
+ * in this repository that cancels a subscription as a consequence of an
+ * enrolment. A learner who already pays is TOLD, in the enrolment UI, that
+ * their subscription needs cancelling, and is shown the date their free year
+ * ends. Somebody with authority does the cancelling, and records it through
+ * api/org/enrolment-cancellation.ts, which likewise only writes a note.
+ *
+ * THE SIGN-UP RACE. A brand-new learner has just verified an OTP. Three
+ * writers can be trying to create their learners row at that instant: the
+ * client's own useAuth.ts ensureLearnerExists(), api/code/redeem.ts, and this
+ * endpoint. All three insert on user_id, all three tolerate 23505, and this
+ * one re-reads after a conflict rather than failing — so hitting back and
+ * resubmitting, or a double-tap on a slow phone, converges on one learner and
+ * one enrolment.
+ */
+
+import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { applyCors } from '../_utils/cors'
+import { verifyAuthToken } from '../_utils/auth'
+import { affiliateToGroupNode } from '../_utils/groupAffiliation'
+
+const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
+const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
+
+export interface EnrolmentPolicy {
+  group_id: string
+  org_display_name: string
+  consent_statement: string
+  consent_version: string
+  ask_age_band: boolean
+  age_band_label: string
+  free_months: number
+  granted_courses: string[]
+  is_active: boolean
+}
+
+/**
+ * Forgiving lookup, matching the stored `code_normalized` column and
+ * api/code/validate.ts exactly: 'ABC-123', 'abc 123' and 'abc123' are one code.
+ */
+export function normalizeCode(code: string): string {
+  return String(code).trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+}
+
+/** enrolled_at + free_months, in UTC. Kept pure so the date the learner is shown is testable. */
+export function freeAccessUntil(from: Date, months: number): string {
+  const d = new Date(from.getTime())
+  const targetMonth = d.getUTCMonth() + months
+  const day = d.getUTCDate()
+  d.setUTCDate(1)
+  d.setUTCMonth(targetMonth)
+  // 31 Jan + 1 month is 28/29 Feb, never 2/3 March.
+  const lastDayOfTarget = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate()
+  d.setUTCDate(Math.min(day, lastDayOfTarget))
+  return d.toISOString()
+}
+
+/** The root of a group's slug path — two cohorts of one org share it. */
+export function rootOfPath(path: string | null | undefined, fallbackId: string): string {
+  const p = (path || '').trim()
+  return p ? p.split('/')[0] : fallbackId
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  if (applyCors(req, res, { methods: 'POST' })) return
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' })
+    return
+  }
+  if (!supabaseUrl || !supabaseServiceKey) {
+    res.status(500).json({ error: 'Server configuration error' })
+    return
+  }
+
+  const auth = await verifyAuthToken(req)
+  if (!auth.valid || !auth.userId) {
+    res.status(401).json({ error: auth.error || 'Unauthorized' })
+    return
+  }
+  const userId = auth.userId
+
+  const body = (req.body || {}) as Record<string, unknown>
+  const rawCode = String(body.code || '').trim()
+  const ageBand = body.ageBand16to24 === true
+  const consent = body.dataSharingConsent === true
+  if (!rawCode) {
+    res.status(400).json({ error: 'code is required' })
+    return
+  }
+
+  const supabase: SupabaseClient = createClient(supabaseUrl, supabaseServiceKey)
+
+  try {
+    // ── The code, and the org behind it ────────────────────────────────────
+    const { data: inviteRow } = await supabase
+      .from('invite_codes')
+      .select('id, code, code_type, grants_group_id, is_active, expires_at, max_uses, use_count')
+      .eq('code_normalized', normalizeCode(rawCode))
+      .maybeSingle()
+
+    const invite = inviteRow as any
+    if (!invite || !invite.is_active || !invite.grants_group_id) {
+      res.status(200).json({ success: false, error: 'Invalid code' })
+      return
+    }
+    if (invite.expires_at && new Date(invite.expires_at) <= new Date()) {
+      res.status(200).json({ success: false, error: 'This link has expired' })
+      return
+    }
+
+    const { data: policyRow } = await supabase
+      .from('org_enrolment_policies')
+      .select('group_id, org_display_name, consent_statement, consent_version, ask_age_band, age_band_label, free_months, granted_courses, is_active')
+      .eq('group_id', invite.grants_group_id)
+      .maybeSingle()
+    const policy = policyRow as EnrolmentPolicy | null
+    if (!policy || !policy.is_active) {
+      res.status(200).json({ success: false, error: 'This link has no enrolment step' })
+      return
+    }
+
+    // ── No tick, no free access ────────────────────────────────────────────
+    // Checked AFTER the code and policy resolve so the page can render the
+    // real consent wording, and BEFORE anything is written.
+    if (!consent) {
+      res.status(200).json({
+        success: false,
+        error: 'We can only give you free access if you agree to the data-sharing statement.',
+        needsConsent: true,
+      })
+      return
+    }
+
+    // ── The learner row (see THE SIGN-UP RACE above) ───────────────────────
+    let learnerId: string | null = null
+    {
+      const { data: existing } = await supabase.from('learners').select('id').eq('user_id', userId).maybeSingle()
+      learnerId = (existing as any)?.id ?? null
+    }
+    if (!learnerId) {
+      const { data: authUser } = await supabase.auth.admin.getUserById(userId)
+      const email = authUser?.user?.email
+      const displayName =
+        (typeof authUser?.user?.user_metadata?.display_name === 'string' && authUser.user.user_metadata.display_name.trim()) ||
+        (email && !email.endsWith('@invite.saysomethingin.app') ? email.split('@')[0] : undefined) ||
+        'User'
+      const { data: inserted, error: insertErr } = await supabase
+        .from('learners')
+        .insert({ user_id: userId, display_name: displayName })
+        .select('id')
+        .maybeSingle()
+      if (insertErr) {
+        // 23505: another writer won the race. Re-read rather than fail — this
+        // is the back-button / double-submit path, and it must converge.
+        const { data: raced } = await supabase.from('learners').select('id').eq('user_id', userId).maybeSingle()
+        learnerId = (raced as any)?.id ?? null
+      } else {
+        learnerId = (inserted as any)?.id ?? null
+      }
+      if (!learnerId) {
+        console.error('[org/enrol] could not resolve a learner for', userId)
+        res.status(500).json({ error: 'Internal server error' })
+        return
+      }
+    }
+
+    // ── One person, one cohort, under one org ──────────────────────────────
+    // The failure Kai named: a learner in an old and a new cohort at once.
+    // Groups under one org share the first segment of their slug path.
+    const { data: thisGroup } = await supabase.from('groups').select('id, path').eq('id', invite.grants_group_id).maybeSingle()
+    const orgRoot = rootOfPath((thisGroup as any)?.path, invite.grants_group_id)
+
+    const { data: priorEnrolments } = await supabase
+      .from('org_enrolments')
+      .select('id, group_id, enrolled_at, free_access_until, age_band_16_24, cancellation_state, reporting_from')
+      .eq('learner_id', learnerId)
+    const priors = (priorEnrolments ?? []) as any[]
+
+    if (priors.length) {
+      const groupIds = [...new Set(priors.map((p) => p.group_id))]
+      const { data: priorGroups } = await supabase.from('groups').select('id, path').in('id', groupIds)
+      const rootById = new Map(
+        ((priorGroups ?? []) as any[]).map((g) => [g.id, rootOfPath(g.path, g.id)]),
+      )
+      const sameOrg = priors.find((p) => rootById.get(p.group_id) === orgRoot)
+      if (sameOrg) {
+        // Already in. Idempotent, and deliberately NOT an error: a refresh, a
+        // back button, or somebody clicking the link again next week all land
+        // here and are shown the enrolment they already have.
+        res.status(200).json({
+          success: true,
+          alreadyEnrolled: true,
+          orgName: policy.org_display_name,
+          freeAccessUntil: sameOrg.free_access_until,
+          cancellationNeeded: sameOrg.cancellation_state === 'needed',
+        })
+        return
+      }
+    }
+
+    // ── What they hold today ───────────────────────────────────────────────
+    // Recorded, never acted on. See THE LINE ON SUBSCRIPTIONS above.
+    const { data: subRow } = await supabase
+      .from('subscriptions')
+      .select('id, status, plan_name, current_period_end, cancel_at_period_end')
+      .eq('learner_id', learnerId)
+      .maybeSingle()
+    const sub = subRow as any
+    const paying =
+      !!sub &&
+      sub.status === 'active' &&
+      !sub.cancel_at_period_end &&
+      (!sub.current_period_end || new Date(sub.current_period_end) > new Date())
+
+    const now = new Date()
+    const until = freeAccessUntil(now, policy.free_months)
+
+    const enrolmentRow = {
+      group_id: invite.grants_group_id as string,
+      learner_id: learnerId,
+      enrolled_at: now.toISOString(),
+      reporting_from: now.toISOString().slice(0, 10),
+      age_band_16_24: policy.ask_age_band ? ageBand : false,
+      age_ticked_at: policy.ask_age_band && ageBand ? now.toISOString() : null,
+      data_sharing_consent: true,
+      consent_at: now.toISOString(),
+      consent_version: policy.consent_version,
+      free_access_until: until,
+      prior_subscription_status: sub?.status ?? null,
+      prior_subscription_id: sub?.id ?? null,
+      cancellation_state: paying ? 'needed' : 'not_needed',
+      invite_code_id: invite.id,
+    }
+
+    const { data: written, error: writeErr } = await supabase
+      .from('org_enrolments')
+      .insert(enrolmentRow)
+      .select('id, free_access_until, cancellation_state')
+      .maybeSingle()
+
+    let enrolment = written as any
+    if (writeErr) {
+      if (writeErr.code !== '23505') {
+        console.error('[org/enrol] enrolment insert failed:', writeErr)
+        res.status(500).json({ error: 'Internal server error' })
+        return
+      }
+      // The UNIQUE (group_id, learner_id) constraint fired: two submits raced.
+      // Re-read the winner. Nothing is written twice, and the learner sees the
+      // same answer either way.
+      const { data: raced } = await supabase
+        .from('org_enrolments')
+        .select('id, free_access_until, cancellation_state')
+        .eq('group_id', invite.grants_group_id)
+        .eq('learner_id', learnerId)
+        .maybeSingle()
+      enrolment = raced
+      if (!enrolment) {
+        res.status(500).json({ error: 'Internal server error' })
+        return
+      }
+      res.status(200).json({
+        success: true,
+        alreadyEnrolled: true,
+        orgName: policy.org_display_name,
+        freeAccessUntil: enrolment.free_access_until,
+        cancellationNeeded: enrolment.cancellation_state === 'needed',
+      })
+      return
+    }
+
+    // ── Membership, by the same rule as every other join path ──────────────
+    const tagError = await affiliateToGroupNode(supabase, userId, invite.grants_group_id as string, 'student')
+    if (tagError) {
+      // Non-fatal: the enrolment row is the record that matters for reporting
+      // and for the free year. A missing tag costs dashboard visibility and is
+      // repairable; failing here would leave them enrolled but told otherwise.
+      console.error('[org/enrol] group tag failed (non-fatal):', tagError)
+    }
+
+    // ── The free period ────────────────────────────────────────────────────
+    if (policy.granted_courses?.length) {
+      const { error: entErr } = await supabase.from('user_entitlements').insert({
+        learner_id: learnerId,
+        access_type: 'courses',
+        granted_courses: policy.granted_courses,
+        expires_at: until,
+      })
+      if (entErr) console.error('[org/enrol] entitlement insert failed (non-fatal):', entErr)
+    }
+
+    // One use of the code, counted after the enrolment exists so a failed
+    // enrolment never burns a capped link. Best-effort: invite codes for a
+    // cohort of thousands are uncapped by default.
+    await supabase
+      .from('invite_codes')
+      .update({ use_count: (invite.use_count ?? 0) + 1 })
+      .eq('id', invite.id)
+
+    res.status(200).json({
+      success: true,
+      alreadyEnrolled: false,
+      orgName: policy.org_display_name,
+      freeAccessUntil: until,
+      cancellationNeeded: paying,
+      priorPlanName: paying ? (sub?.plan_name ?? null) : null,
+    })
+  } catch (error: any) {
+    console.error('[org/enrol] Error:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+}
