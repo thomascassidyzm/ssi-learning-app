@@ -19,12 +19,19 @@
  *   warm  — the shell registers a service worker on production, takes control,
  *           and finds NO update while production has not moved. That negative
  *           is the evidence that the positive below is caused by the deploy.
- *   apply — after a real deploy, the page opens on the OLD code still (the
- *           precache serving it, an update never seizing a live page);
- *           registration.update() finds a new worker and it goes to WAITING;
- *           applying it and reloading serves the NEW code, asserted on the
+ *   apply — after a real deploy, registration.update() finds a new worker and
+ *           it goes to WAITING without firing controllerchange, which is Tom's
+ *           rule that an update never seizes a live page and kills the audio
+ *           in flight; then applying it retires the waiting worker, makes it
+ *           the active one, and the app runs the NEW build — asserted on the
  *           build id baked into the bundle, read from where the app itself
- *           records it.
+ *           records it, and on a value production chose rather than a marker
+ *           this probe injected.
+ *
+ * WHAT IT DELIBERATELY DOES NOT ASSERT: that the page opens on old code.
+ * Navigations are NetworkFirst by design, so an ordinary online open already
+ * fetches the fresh shell. "Old until you tap" is true of the PRECACHE — what
+ * the learner runs offline — and that is what the tap replaces.
  *
  * The user agent carries `SSiShell/android`, so the app takes the WebView
  * branch of the platform seam exactly as it does inside the APK.
@@ -106,12 +113,10 @@ try {
   } else {
     const state = JSON.parse(readFileSync(STATE, 'utf8'))
     // A restarted browser's FIRST navigation can outrun the registration being
-    // read back off disk, and an uncontrolled navigation comes straight from
-    // the network — which would hand this probe the new code before any update
-    // had been applied and prove nothing. So take control first, explicitly,
-    // and only then ask what the page is running. On the handset this is the
-    // ordinary case rather than a special one: the app was opened before, so
-    // the worker is already there when it opens again.
+    // read back off disk, and an uncontrolled navigation proves nothing about
+    // the worker. So take control first, explicitly, and only then ask
+    // anything. On the handset this is the ordinary case rather than a special
+    // one: the app was opened before, so the worker is already there.
     const took = await page.evaluate(async () => {
       await navigator.serviceWorker.ready
       return !!navigator.serviceWorker.controller
@@ -125,21 +130,34 @@ try {
       for (let i = 0; i < 60 && !navigator.serviceWorker.controller; i++) await new Promise((r) => setTimeout(r, 500))
       return !!navigator.serviceWorker.controller
     }))
-    const before = await runningBuild(page)
+
     const served = await servedBuild(page)
-    check('the shell opened on the build it was warmed on', before === state.build, `${before} (warmed on ${state.build})`)
-    check('production has genuinely moved on since then', !!served?.buildNumber && served.buildNumber !== state.build, JSON.stringify(served))
-    check('so the page is running OLD code — an update did not seize it', before !== served?.buildNumber)
+    check('production has genuinely moved on since the shell was warmed', !!served?.buildNumber && served.buildNumber !== state.build, `${state.build} -> ${served?.buildNumber}`)
+
+    // NOT AN ASSERTION, AND HERE IS WHY. Navigations are NetworkFirst by
+    // deliberate design (vite.config.js: "so the next natural page load always
+    // sees the fresh shell"), so with the network up an ordinary open already
+    // fetches new HTML and this line usually reads the NEW build. "Old code
+    // until you tap" is true of the PRECACHE — which is what the learner runs
+    // offline, and what the tap replaces. Asserting otherwise would be
+    // asserting against the design.
+    console.log(`  the open served: ${await runningBuild(page)} (navigations are NetworkFirst, so this is expected to be fresh while online)`)
+
+    // Count seizures. A worker taking over a live page fires controllerchange;
+    // Tom's rule is that it must not, because it kills audio mid-cycle.
+    await page.evaluate(() => {
+      window.__ctrlChanges = 0
+      navigator.serviceWorker.addEventListener('controllerchange', () => { window.__ctrlChanges++ })
+    })
 
     const waiting = await page.evaluate(async () => {
       const reg = await navigator.serviceWorker.ready
       await reg.update()
       for (let i = 0; i < 120 && !reg.waiting; i++) await new Promise((r) => setTimeout(r, 500))
-      return { waiting: !!reg.waiting, stillControlledByOld: !!navigator.serviceWorker.controller }
+      return { waiting: !!reg.waiting, controller: !!navigator.serviceWorker.controller, seizures: window.__ctrlChanges }
     })
     check('a NEW service worker installed and is WAITING', waiting.waiting)
-    check('it did NOT take over the live page by itself', waiting.stillControlledByOld)
-    check('and the page is STILL the old code until it is applied', (await runningBuild(page)) === state.build)
+    check('it did NOT take over the live page by itself', waiting.controller && waiting.seizures === 0, `controllerchange fired ${waiting.seizures} times`)
 
     // The page may relaunch itself the moment the new worker activates — that
     // is the app's own doing and it destroys this execution context.
@@ -152,8 +170,13 @@ try {
     await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {})
     await page.locator('.mode-trigger').waitFor({ state: 'visible', timeout: 60_000 }).catch(() => {})
 
+    const applied = await page.evaluate(async () => {
+      const reg = await navigator.serviceWorker.ready
+      return { waiting: !!reg.waiting, active: reg.active?.state || null, controller: !!navigator.serviceWorker.controller }
+    })
+    check('applying it retired the waiting worker — the new one is now the active one', !applied.waiting && applied.active === 'activated' && applied.controller, JSON.stringify(applied))
     const after = await runningBuild(page)
-    check('after applying, the page IS the new code', after === served?.buildNumber, `${state.build} -> ${after}`)
+    check('and the code the app is running is the NEW build', after === served?.buildNumber, `${state.build} -> ${after}`)
   }
 } finally {
   await ctx.close()
