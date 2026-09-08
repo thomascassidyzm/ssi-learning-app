@@ -1,6 +1,7 @@
 import { computed, inject, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSchoolContext } from './useSchoolContext'
+import { rememberCourse } from '../../platform/courseChoice'
 
 /**
  * Shared "force the app onto this course right now" step for every Play-as-class
@@ -95,7 +96,7 @@ export function usePlayAsClass() {
       playError.value = `Couldn't start this class — its course ("${cls.course_code}") isn't set up correctly. Contact support.`
       return false
     }
-    localStorage.setItem('ssi-last-course', cls.course_code)
+    rememberCourse(cls.course_code, 'chosen')
     localStorage.setItem('ssi-active-class', JSON.stringify({
       id: cls.id,
       name: cls.class_name,

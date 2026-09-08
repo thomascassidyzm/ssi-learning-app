@@ -18,6 +18,7 @@ import { TEACHER_COURSES, labelForCourse } from '@/lib/teacherCourses'
 import { courseLabel, isFreeTier, type LiveCourse } from '@/lib/onboardingTracks'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
 import { useI18n } from '@/composables/useI18n'
+import { rememberCourse } from '../../platform/courseChoice'
 
 const router = useRouter()
 const supabase = inject('supabase', ref(null)) as any
@@ -235,7 +236,7 @@ function shareUrlFor(cls: TeacherClass): string {
 // (mirrors the schools ClassDetail "Play as class" → /schools/play). The player
 // reads ssi-active-class + ?class to switch to the class's course.
 async function playAsClass(cls: TeacherClass) {
-  localStorage.setItem('ssi-last-course', cls.course_code)
+  rememberCourse(cls.course_code, 'chosen')
   localStorage.setItem('ssi-active-class', JSON.stringify({
     id: cls.id,
     name: cls.class_name,
