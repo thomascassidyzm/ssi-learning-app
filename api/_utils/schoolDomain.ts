@@ -184,38 +184,44 @@ export async function claimsVouchingFor(
   schoolId: string,
 ): Promise<IdentityClaim[]> {
   if (!schoolId) return []
-  const { data: own, error: ownErr } = await supabase
-    .from('school_identity_claims')
-    .select('kind, value, school_id')
-    .eq('school_id', schoolId)
-  if (ownErr) {
-    console.error('[schoolDomain] claims read failed:', ownErr.message)
+  try {
+    const { data: own, error: ownErr } = await supabase
+      .from('school_identity_claims')
+      .select('kind, value, school_id')
+      .eq('school_id', schoolId)
+    if (ownErr) {
+      console.error('[schoolDomain] claims read failed:', ownErr.message)
+      return []
+    }
+    const claims: IdentityClaim[] = (own || []) as IdentityClaim[]
+
+    const { data: school } = await supabase
+      .from('schools')
+      .select('group_id')
+      .eq('id', schoolId)
+      .maybeSingle()
+    const groupId = (school as { group_id?: string | null } | null)?.group_id
+    if (!groupId) return claims
+
+    const { data: siblings } = await supabase
+      .from('schools')
+      .select('id')
+      .eq('group_id', groupId)
+      .neq('id', schoolId)
+    const siblingIds = ((siblings || []) as Array<{ id: string }>).map((s) => s.id)
+    if (!siblingIds.length) return claims
+
+    const { data: inherited } = await supabase
+      .from('school_identity_claims')
+      .select('kind, value, school_id')
+      .eq('kind', 'domain')
+      .in('school_id', siblingIds)
+    return claims.concat(((inherited || []) as IdentityClaim[]))
+  } catch (err: any) {
+    // A thrown read is doubt, and doubt is off-domain — the safe side.
+    console.error('[schoolDomain] claims read threw:', err?.message || err)
     return []
   }
-  const claims: IdentityClaim[] = (own || []) as IdentityClaim[]
-
-  const { data: school } = await supabase
-    .from('schools')
-    .select('group_id')
-    .eq('id', schoolId)
-    .maybeSingle()
-  const groupId = (school as { group_id?: string | null } | null)?.group_id
-  if (!groupId) return claims
-
-  const { data: siblings } = await supabase
-    .from('schools')
-    .select('id')
-    .eq('group_id', groupId)
-    .neq('id', schoolId)
-  const siblingIds = ((siblings || []) as Array<{ id: string }>).map((s) => s.id)
-  if (!siblingIds.length) return claims
-
-  const { data: inherited } = await supabase
-    .from('school_identity_claims')
-    .select('kind, value, school_id')
-    .eq('kind', 'domain')
-    .in('school_id', siblingIds)
-  return claims.concat(((inherited || []) as IdentityClaim[]))
 }
 
 /** The arrival decision for one typed address at one school's link. */
@@ -249,13 +255,18 @@ export async function claimDomainForSchool(
   const domain = emailDomainOf(args.email)
   const reason = whyDomainNotClaimable(domain)
   if (reason) return { status: 'not_claimable', domain, reason }
-  const { error } = await supabase
-    .from('school_identity_claims')
-    .insert({ school_id: args.schoolId, kind: 'domain', value: domain, source: args.source, added_by: args.addedBy })
-  if (!error) return { status: 'claimed', domain }
-  if (error.code === '23505') return { status: 'already_ours', domain }
-  console.error('[schoolDomain] domain claim failed:', error.message)
-  return { status: 'error', domain, message: error.message }
+  try {
+    const { error } = await supabase
+      .from('school_identity_claims')
+      .insert({ school_id: args.schoolId, kind: 'domain', value: domain, source: args.source, added_by: args.addedBy })
+    if (!error) return { status: 'claimed', domain }
+    if (error.code === '23505') return { status: 'already_ours', domain }
+    console.error('[schoolDomain] domain claim failed:', error.message)
+    return { status: 'error', domain, message: error.message }
+  } catch (err: any) {
+    console.error('[schoolDomain] domain claim threw:', err?.message || err)
+    return { status: 'error', domain, message: String(err?.message || err) }
+  }
 }
 
 /**
@@ -275,15 +286,21 @@ export async function schoolsClaimingDomainOf(
   const labels = domain.split('.')
   const candidates: string[] = []
   for (let i = 0; i < labels.length - 1; i++) candidates.push(labels.slice(i).join('.'))
-  const { data, error } = await supabase
-    .from('school_identity_claims')
-    .select('school_id, value, schools(school_name)')
-    .eq('kind', 'domain')
-    .in('value', candidates)
-  if (error || !data) return []
-  return (data as any[]).map((row) => ({
-    school_id: String(row.school_id),
-    school_name: String(row.schools?.school_name || ''),
-    domain: String(row.value),
-  }))
+  try {
+    const { data, error } = await supabase
+      .from('school_identity_claims')
+      .select('school_id, value, schools(school_name)')
+      .eq('kind', 'domain')
+      .in('value', candidates)
+    if (error || !data) return []
+    return (data as any[]).map((row) => ({
+      school_id: String(row.school_id),
+      school_name: String(row.schools?.school_name || ''),
+      domain: String(row.value),
+    }))
+  } catch (err: any) {
+    // Fail open: a signup blocked by the claims table is the worse fault.
+    console.error('[schoolDomain] domain holders read threw:', err?.message || err)
+    return []
+  }
 }

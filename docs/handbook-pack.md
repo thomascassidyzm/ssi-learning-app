@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `3e92675a34d3` · generated 2026-09-07 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `01e21ab6ca26` · generated 2026-09-08 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## Add a class to a group
 
@@ -186,6 +186,20 @@ Section: courses-and-content · roles: school_admin · anchor: `setup-course-pic
 4. Tap **Continue** — the next step only offers the courses you left ticked.
 
 **Worth knowing.** This is a filter and nothing more. It does not change what your school has access to, and it takes nothing away from anyone. A school on a trial sees its one trial course here; a subscribed school sees the whole catalogue.
+
+## Claim another email domain for your school
+
+Section: getting-people-in · roles: school_admin · anchor: `settings-identity-add-domain` · in `packages/player-vue/src/views/schools/SettingsView.vue`
+
+**What it's for.** Telling the app which email domains belong to your school, so staff arriving on your invite links from those addresses are in with one tap. Your own domain was claimed when you signed up; add the others if your school uses more than one.
+
+**Where it is.** Settings, the **Who your links let in** card, the **Add domain** field.
+
+1. Open Settings and find **Who your links let in**.
+2. Type the part of the address after the @, such as example.sch.uk.
+3. Tap **Add domain**.
+
+**Worth knowing.** Public providers such as gmail.com or outlook.com cannot be claimed, because they do not identify a school. For a colleague on one of those, add their address by itself instead. Schools in the same trust share each other's domains automatically.
 
 ## Copy a class link without opening the class
 
@@ -523,6 +537,20 @@ Section: running-classes · roles: leader, school_admin, teacher · anchor: `cla
 4. Send it to them — opening it puts them on this class as a teacher.
 
 **Worth knowing.** The link is scoped to this one class, so a cover teacher never lands in the rest of the school.
+
+## Let a named address in through your links
+
+Section: getting-people-in · roles: school_admin · anchor: `settings-identity-add-address` · in `packages/player-vue/src/views/schools/SettingsView.vue`
+
+**What it's for.** Letting one named person in with one tap when their email is not at your school's domain: a supply teacher here for a fortnight, or a colleague who only uses a personal address.
+
+**Where it is.** Settings, the **Who your links let in** card, the **Add address** field.
+
+1. Open Settings and find **Who your links let in**.
+2. Type their email address exactly as they will use it.
+3. Tap **Add address**, then send them your usual teacher link.
+
+**Worth knowing.** Without this they can still open the link and get in, but they show as **Unverified address** on the Teachers page until they confirm their email. Adding them here first skips that.
 
 ## Look up one student
 
@@ -944,6 +972,19 @@ Section: your-school · roles: school_admin · anchor: `upgrade-subscribe-school
 5. You come back to the dashboard with the subscription live.
 
 **Worth knowing.** Seats are teacher seats, not student seats. Your students do not each need one.
+
+## Take a domain or address off your school's list
+
+Section: getting-people-in · roles: school_admin · anchor: `settings-identity-remove` · in `packages/player-vue/src/views/schools/SettingsView.vue`
+
+**What it's for.** Stopping a domain or a named address from being waved straight in by your invite links.
+
+**Where it is.** Settings, the **Who your links let in** card, the **Remove** button beside the entry.
+
+1. Open Settings and find **Who your links let in**.
+2. Tap **Remove** beside the domain or address.
+
+**Worth knowing.** Nobody already in your school loses anything. It only changes how the next arrival from that domain or address is treated.
 
 ## Take a teacher off a class, or move them
 

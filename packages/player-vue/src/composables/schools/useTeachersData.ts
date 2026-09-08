@@ -83,6 +83,10 @@ export interface Teacher {
    *  The school's admin appears in this list and is labelled Admin, not Teacher. */
   role_in_context: 'teacher' | 'admin'
   joined_at: string
+  /** True while this staff member's address has never been vouched for — an
+   *  OFF-DOMAIN arrival on the invite link (job #371) who has not yet proved
+   *  the address by code. On-domain arrivals are born false. */
+  needs_verification: boolean
 }
 
 /** A teacher as a PICKABLE name — the co-teacher panel needs nothing more. */
@@ -172,7 +176,7 @@ export function useTeachersData() {
       // Get learner info
       const { data: learners, error: learnersError } = await client
         .from('learners')
-        .select('id, user_id, display_name')
+        .select('id, user_id, display_name, needs_verification')
         .in('user_id', teacherUserIds)
 
       if (learnersError) throw learnersError
@@ -250,6 +254,7 @@ export function useTeachersData() {
           own_practice_minutes: Math.round((ownSeconds.get(l.id) || 0) / 60),
           role_in_context: (staffRoles.get(l.user_id) === 'admin' ? 'admin' : 'teacher') as 'teacher' | 'admin',
           joined_at: joinDates.get(l.user_id) || '',
+          needs_verification: (l as any).needs_verification === true,
         }
       }).sort((a, b) => a.display_name.localeCompare(b.display_name))
     } catch (err) {

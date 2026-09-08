@@ -1,6 +1,6 @@
 {
-  "version": "3e92675a34d3",
-  "generatedAt": "2026-09-07",
+  "version": "01e21ab6ca26",
+  "generatedAt": "2026-09-08",
   "walks": [
     {
       "id": "choose-something-else-to-learn",
@@ -1310,6 +1310,37 @@
       "note": "This is a filter and nothing more. It does not change what your school has access to, and it takes nothing away from anyone. A school on a trial sees its one trial course here; a subscribed school sees the whole catalogue."
     },
     {
+      "id": "claim-another-email-domain-for-your-school",
+      "title": "Claim another email domain for your school",
+      "section": "getting-people-in",
+      "personas": [
+        "school_admin"
+      ],
+      "keywords": [
+        "domain",
+        "email",
+        "claim",
+        "trust",
+        "links",
+        "identity",
+        "sch.uk"
+      ],
+      "place": {
+        "route": "settings"
+      },
+      "anchor": "settings-identity-add-domain",
+      "source": "packages/player-vue/src/views/schools/SettingsView.vue",
+      "walk": null,
+      "what": "Telling the app which email domains belong to your school, so staff arriving on your invite links from those addresses are in with one tap. Your own domain was claimed when you signed up; add the others if your school uses more than one.",
+      "where": "Settings, the **Who your links let in** card, the **Add domain** field.",
+      "how": [
+        "Open Settings and find **Who your links let in**.",
+        "Type the part of the address after the @, such as example.sch.uk.",
+        "Tap **Add domain**."
+      ],
+      "note": "Public providers such as gmail.com or outlook.com cannot be claimed, because they do not identify a school. For a colleague on one of those, add their address by itself instead. Schools in the same trust share each other's domains automatically."
+    },
+    {
       "id": "copy-a-class-link-without-opening-the-class",
       "title": "Copy a class link without opening the class",
       "section": "getting-people-in",
@@ -2028,6 +2059,38 @@
         "Send it to them — opening it puts them on this class as a teacher."
       ],
       "note": "The link is scoped to this one class, so a cover teacher never lands in the rest of the school."
+    },
+    {
+      "id": "let-a-named-address-in-through-your-links",
+      "title": "Let a named address in through your links",
+      "section": "getting-people-in",
+      "personas": [
+        "school_admin"
+      ],
+      "keywords": [
+        "supply",
+        "personal",
+        "address",
+        "allow",
+        "invite",
+        "links",
+        "identity",
+        "gmail"
+      ],
+      "place": {
+        "route": "settings"
+      },
+      "anchor": "settings-identity-add-address",
+      "source": "packages/player-vue/src/views/schools/SettingsView.vue",
+      "walk": null,
+      "what": "Letting one named person in with one tap when their email is not at your school's domain: a supply teacher here for a fortnight, or a colleague who only uses a personal address.",
+      "where": "Settings, the **Who your links let in** card, the **Add address** field.",
+      "how": [
+        "Open Settings and find **Who your links let in**.",
+        "Type their email address exactly as they will use it.",
+        "Tap **Add address**, then send them your usual teacher link."
+      ],
+      "note": "Without this they can still open the link and get in, but they show as **Unverified address** on the Teachers page until they confirm their email. Adding them here first skips that."
     },
     {
       "id": "look-up-one-student",
@@ -2942,6 +3005,35 @@
         "You come back to the dashboard with the subscription live."
       ],
       "note": "Seats are teacher seats, not student seats. Your students do not each need one."
+    },
+    {
+      "id": "take-a-domain-or-address-off-your-school-s-list",
+      "title": "Take a domain or address off your school's list",
+      "section": "getting-people-in",
+      "personas": [
+        "school_admin"
+      ],
+      "keywords": [
+        "domain",
+        "address",
+        "remove",
+        "allow",
+        "links",
+        "identity"
+      ],
+      "place": {
+        "route": "settings"
+      },
+      "anchor": "settings-identity-remove",
+      "source": "packages/player-vue/src/views/schools/SettingsView.vue",
+      "walk": null,
+      "what": "Stopping a domain or a named address from being waved straight in by your invite links.",
+      "where": "Settings, the **Who your links let in** card, the **Remove** button beside the entry.",
+      "how": [
+        "Open Settings and find **Who your links let in**.",
+        "Tap **Remove** beside the domain or address."
+      ],
+      "note": "Nobody already in your school loses anything. It only changes how the next arrival from that domain or address is treated."
     },
     {
       "id": "take-a-teacher-off-a-class-or-move-them",

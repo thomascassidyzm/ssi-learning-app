@@ -54,6 +54,7 @@ import { createRootOrgAndLeader } from '../_utils/rootOrgProvision'
 import { leaderGroupId, readOrgPlatformState, ORG_TRIAL_DAYS } from '../_utils/orgPlatform'
 import { findSiblingSlugCollisions, duplicateNameBody } from '../_utils/groupSlug'
 import { enforceMintRateLimit, CLASS_MINT_OUTCOME, SCHOOL_MINT_OUTCOME } from '../_utils/mintRateLimit'
+import { claimDomainForSchool, schoolsClaimingDomainOf } from '../_utils/schoolDomain'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -78,7 +79,7 @@ export default async function handler(
     return
   }
 
-  const { track, course_code, org_name, confirm_duplicate } = req.body || {}
+  const { track, course_code, org_name, confirm_duplicate, confirm_shared_domain } = req.body || {}
   if (!TRACKS.has(track)) {
     res.status(400).json({ error: 'Invalid track' })
     return
@@ -461,6 +462,28 @@ export default async function handler(
 
       let schoolId = existingSchool?.id
       if (!schoolId) {
+        // THE DOMAIN IS ALREADY SOMEBODY'S SCHOOL (job #371). The first admin
+        // to sign a school up claims its email domain (below). A second head
+        // arriving from that same domain is, by default, a colleague who
+        // should JOIN that school through its links — not the founder of a
+        // rival one. So: 409 `domain_claimed`, naming the school, and nothing
+        // written. The door offers the one honest exception — a different
+        // school in a trust that shares one mail domain — as an explicit
+        // confirm (`confirm_shared_domain`), the same shape the org door uses
+        // for duplicate names. Fails open on a read error: a blocked signup
+        // is the worse fault.
+        if (!confirm_shared_domain) {
+          const holders = await schoolsClaimingDomainOf(supabase, authEmail)
+          if (holders.length > 0) {
+            res.status(409).json({
+              code: 'domain_claimed',
+              domain: holders[0].domain,
+              schools: holders.map((h) => ({ school_id: h.school_id, school_name: h.school_name })),
+              error: `Your email domain already belongs to ${holders[0].school_name || 'a school on SaySomethingin'}. Ask its admin for the teacher or admin link to join it.`,
+            })
+            return
+          }
+        }
         // Mint throttle (SEC22-01): this insert fires tr_schools_join_code and
         // mints BOTH role-granting codes (teacher_join_code +
         // admin_join_code), so it is the higher-value faucet of the two. Only
@@ -515,6 +538,18 @@ export default async function handler(
       // row is not worth losing a signup over.
       const tagErr = await ensureSchoolAdminTag(supabase, { userId: auth.userId, schoolId })
       if (tagErr) console.warn('[onboarding/provision] founding-admin tag failed (non-fatal):', tagErr)
+
+      // THE FOUNDING ADMIN CLAIMS THE DOMAIN (Tom, 2026-09-08: "the very first
+      // admin person to sign up a school therefore claims the domain for the
+      // school"). This track proved the mailbox by OTP before it got here, so
+      // the claim rests on a proven address. A public domain is refused inside
+      // and never written. Runs on every provision, like the two heals above,
+      // so a school that predates this gets its claim on the admin's next
+      // pass. Non-fatal: the school is the thing; the claim is a fact about it.
+      const claim = await claimDomainForSchool(supabase, {
+        schoolId, email: authEmail, source: 'founding_admin', addedBy: auth.userId,
+      })
+      if (claim.status === 'error') console.warn('[onboarding/provision] domain claim failed (non-fatal):', claim.message)
 
       // ONE trialled language per school. A second DIFFERENT course on a school
       // that already trialled (and isn't paying) must go through checkout, not a

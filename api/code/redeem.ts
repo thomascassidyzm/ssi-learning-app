@@ -13,6 +13,7 @@ import { verifyAuthToken } from '../_utils/auth'
 import { applyDashboardRole, computeEntitlementExpiry } from '../_utils/entitlementGrant'
 import { recordRoleChange } from '../_utils/auditRole'
 import { ensureJoinCodesRegistered } from '../_utils/schoolJoinCodes'
+import { claimDomainForSchool } from '../_utils/schoolDomain'
 import { ensureSchoolAdminTag } from '../_utils/schoolStaff'
 import { ensureGroupLeaderTag } from '../_utils/groupLeaderTag'
 import { provisionSchoolPlatformTrial } from '../_utils/schoolPlatformTrial'
@@ -456,14 +457,20 @@ async function redeemInviteCode(
     // Possession-onboarded accounts (api/auth/possession-redeem.ts) never
     // prove mailbox receipt — that endpoint mints a session without ever
     // emailing anyone. needs_verification is the durable record of
-    // that; cleared only by a completed round-trip through api/email/verify.ts.
-    const needsEmailVerification = metadata?.onboarded_via === 'possession'
+    // that; cleared only by a completed round-trip through api/email/verify.ts
+    // — OR never set at all, when the arrival was ON-DOMAIN (job #371): the
+    // typed address is at the school whose link they hold, which is the
+    // attestation Tom asked for, so the teacher is never nudged to verify.
+    // The address goes into verified_emails on the same grounds.
+    const onDomain = metadata?.arrival === 'on_domain'
+    const needsEmailVerification = metadata?.onboarded_via === 'possession' && !onDomain
     const { error: insertError } = await supabase
       .from('learners')
       .insert({
         user_id: userId,
         display_name: displayName,
         needs_verification: needsEmailVerification,
+        ...(onDomain && authEmail ? { verified_emails: [authEmail.toLowerCase().trim()] } : {}),
       })
     if (insertError) {
       console.error('[CodeRedeem] Failed to create learner:', insertError)
@@ -726,6 +733,15 @@ async function redeemInviteCode(
       const { data: authUser } = await supabase.auth.admin.getUserById(userId)
       const email = (authUser?.user?.email || '').trim().toLowerCase()
       await provisionSchoolPlatformTrial(supabase, email, newSchool!.id as string, null, true)
+      // The founding admin claims the school's domain (job #371). On this path
+      // the address was VOUCHED by the leader who minted the school_admin
+      // invite rather than proved by a mailed code — the same trust the invite
+      // already extends to make them admin at all. Public domains are refused
+      // inside. Non-fatal, same as the trial write beside it.
+      const claim = await claimDomainForSchool(supabase, {
+        schoolId: newSchool!.id as string, email, source: 'leader_invite', addedBy: userId,
+      })
+      if (claim.status === 'error') console.error('[CodeRedeem] domain claim failed (non-fatal):', claim.message)
     } catch (trialError) {
       console.error('[CodeRedeem] Platform-trial provisioning failed (non-fatal):', trialError)
     }
