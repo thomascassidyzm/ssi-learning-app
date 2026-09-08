@@ -276,3 +276,39 @@ until it is applied; that red is the truth.
 **The word that reverts it:** claims. Drop the `school_identity_claims` table and the arrival check
 in `api/auth/possession-redeem.ts` becomes a no-op; the contest card keys off `unclaimedMint.ts`
 alone and survives either way.
+
+## 2026-09-08 — the Handbook's demos and its ask loop (job #386)
+
+Tom's correction on dispatch: the demo layer already existed and was the walkthrough engine, so this
+was extension, not invention. Measured from the compiled pack against the live sources: 81 handbook
+entries, 18 walks, 11 entries paired to a walk by a hand-typed `walk:` line, 70 with none.
+
+**The pairing is a derivation, never a list.** A capability's identity is its `data-walk` anchor —
+the compiler already binds the prose to it by adjacency and fails the build when it goes. A walk is
+steps over anchors. So the walk that steps on an entry's anchor IS its demo, and `deriveWalkPairings`
+in `tools/walkthrough/lib.mjs` works it out at compile time: only walks a reader of the entry may
+see; a walk offered to every role the entry names beats one offered to some; the walk touching the
+fewest other capabilities beats the grand tour; then the walk whose first step is the anchor; two
+walks still level fail the build by name. Checked against the eleven hand-typed pairings: every one
+reproduced, three more found for free. The `walk:` line is now a build failure so the list cannot
+grow back. Delete the button and the prose and the demo go down through the same gate.
+
+**Show me navigates, then plays.** `startWalkAt` runs the caller's navigation and starts the walk
+once the route has settled; gate 7 polices it exactly like `startWalk`, inside an `@click` or not
+at all. The button appears only where the reader's own role may see the walk and there is a page to
+play it on; a class-detail demo lands on the reader's first class or stays hidden. Real page, real
+data, show-and-point, the destructive-verb refusal untouched.
+
+**The ask loop is player_events-shaped, not tester_feedback-shaped.** One table,
+`handbook_questions`, RLS on with zero client policies, service role only, `env` stamped from the
+host because one database serves three environments. One route, `api/handbook-questions.ts`:
+identity from the bearer token, never the body; own-row filter in the route; five asks a person a
+day, counted in the table itself; answering is `verifyAdmin`-only and signed `human`. On the page:
+a lenient local match over the question's content words deflects before anything is written, and
+"Your questions" renders each ask by tier — not answered yet; the answer with "Answered on 8
+September, not yet checked into the handbook", because a database answer is outside the compile
+gate; or a link to the entry that answers it. The answering half is `/admin/handbook-questions`,
+by hand. No nightly model batch exists; the route is where one would write.
+
+**The word that reverts it:** `walk:`. Put the line back in `handbookSource.mjs` as authored data and
+`deriveWalkPairings` becomes advisory; nothing else depends on it.
