@@ -11358,6 +11358,14 @@ CREATE TABLE public.orchestrator_messages (
 -- applied, regenerate this file with ./supabase/snapshot-schema.sh and this
 -- note goes away with the regeneration.
 --
+-- The same migration also adds two aggregate FUNCTIONS not shown here, because
+-- this snapshot's drift guard tracks relations rather than routines:
+-- org_enrolment_roster(uuid[]) and org_enrolment_window_seconds(uuid[], date,
+-- date). They are what keeps a large cohort's export from dragging millions of
+-- per-day rows into a serverless function, and api/org/funder-export.ts falls
+-- back to a bounded raw read — and then refuses outright — while they are
+-- absent. Applying the migration is what turns the fallback off.
+--
 
 --
 -- Name: org_enrolment_policies; Type: TABLE; Schema: public; Owner: -
@@ -11375,6 +11383,7 @@ CREATE TABLE public.org_enrolment_policies (
     course_family_map jsonb DEFAULT '{}'::jsonb NOT NULL,
     granted_courses text[] DEFAULT ARRAY[]::text[] NOT NULL,
     is_active boolean DEFAULT true NOT NULL,
+    link_expires_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT org_enrolment_policies_free_months_check CHECK (((free_months >= 1) AND (free_months <= 60))),
