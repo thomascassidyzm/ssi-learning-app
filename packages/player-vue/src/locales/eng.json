@@ -337,6 +337,8 @@
     "priceAnnual": "£150 a year",
     "and": "and",
     "cancelStayOn": "You'll stay on {plan} until {date}, then it ends and you won't be charged again. You can re-subscribe any time.",
+    "cancelFamilyEndsForAll": "Everyone on your plan loses their place on {date} as well. Cancelling carries no further cover.",
+    "cancelChangeToPremiumOffer": "Or change to SSi Premium and keep your own learning at {price} from {date}. Everyone on your plan then stays covered for a further 30 days.",
     "cancelRowDesc": "Stay on {plan} until {date}, then stop",
     "periodEnd": "the end of your current period",
     "keepMyPlan": "Keep my plan"

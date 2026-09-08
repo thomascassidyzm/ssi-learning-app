@@ -628,6 +628,7 @@ const {
   isSubscribed,
   cancelSubscription,
   refresh: refreshSubscription,
+  isPlatformAdmin,
 } = useSharedSubscription()
 const portalFeedback = ref('')
 
@@ -783,6 +784,18 @@ async function openPremiumDowngradeConfirm() {
 function dismissPremiumDowngradeConfirm() {
   showPremiumDowngradeConfirm.value = false
 }
+/**
+ * THE SAME DOOR, OPENED FROM THE CANCEL DIALOG (Tom, 2026-09-08). He cancelled
+ * his own Family plan and did not see the settings row sitting directly above
+ * Cancel, so the alternative is now offered at the moment of choosing too. It
+ * routes to the confirm screen above rather than duplicating it: that screen
+ * already names every affected person and the date their cover ends, which is
+ * the honesty bar. Cancelling stays exactly one tap from here, unchanged.
+ */
+async function offerPremiumInsteadOfCancel() {
+  showCancelConfirm.value = false
+  await openPremiumDowngradeConfirm()
+}
 async function confirmPremiumDowngrade() {
   const ok = await downgradeToPremium()
   if (ok) {
@@ -853,6 +866,24 @@ const cancelStayOnLine = computed(() =>
   t('settings.cancelStayOn')
     .replace('{plan}', planLabel.value)
     .replace('{date}', subscriptionEndsAt.value || t('settings.periodEnd')),
+)
+// A CANCELLATION HAS NO GRACE, deliberately: a downgrade leaves the owner
+// paying and displaces other people, a cancellation ends everything for
+// everybody at the paid period. The Family owner is told that plainly here,
+// because the sentence above it only speaks about their own access.
+const cancelFamilyEndsForAllLine = computed(() =>
+  fillLine('settings.cancelFamilyEndsForAll', {
+    date: subscriptionEndsAt.value || t('settings.periodEnd'),
+  }),
+)
+// The alternative, stated with its own consequence and its own date. No date
+// is computed here — the exact cover date is delivered by the server and shown
+// on the confirm screen this leads to.
+const cancelPremiumOfferLine = computed(() =>
+  fillLine('settings.cancelChangeToPremiumOffer', {
+    price: premiumPriceLabel.value,
+    date: subscriptionEndsAt.value || t('settings.periodEnd'),
+  }),
 )
 const cancelRowLine = computed(() =>
   t('settings.cancelRowDesc')
@@ -1885,6 +1916,22 @@ const confirmReset = async () => {
           <p class="reset-desc">
             {{ cancelStayOnLine }}
           </p>
+          <!-- What a cancellation actually does to the rest of the plan: it
+               ends for everyone on the same date, with no tail. -->
+          <p v-if="isFamilyOwner" class="reset-desc">{{ cancelFamilyEndsForAllLine }}</p>
+          <!-- The third choice, offered at the moment of choosing and never
+               pre-selected. It is a peer of the other two, not a gate in front
+               of them: cancelling is the same one tap it was before. -->
+          <div v-if="canOfferPremiumDowngrade" class="cancel-alt">
+            <p class="reset-desc cancel-alt-desc">{{ cancelPremiumOfferLine }}</p>
+            <button
+              class="reset-btn reset-btn--cancel cancel-alt-btn"
+              @click="offerPremiumInsteadOfCancel"
+              :disabled="isCancelling"
+            >
+              {{ t('settings.changeToPremium') }}
+            </button>
+          </div>
           <p v-if="cancelError" class="reset-error">{{ cancelError }}</p>
           <div class="reset-actions">
             <button class="reset-btn reset-btn--cancel" @click="dismissCancelConfirm" :disabled="isCancelling">
@@ -2478,7 +2525,24 @@ const confirmReset = async () => {
         <div class="card">
           <!-- Family member — covered by someone else's plan. Never a Paddle
                portal they don't own (spec §4.3): no cancel, no "payment & invoices". -->
-          <template v-if="isFamilyMember">
+          <!-- A PLATFORM ADMIN IS NEVER SOLD A PLAN (Tom, 2026-09-08: "I'm
+               being shown an upgrade button, which I probably shouldn't be
+               shown as I am a platform admin"). He holds no Paddle
+               subscription, so he fell into the not-subscribed branch below
+               and was offered £15 a month. One plain row naming his access
+               and no billing action of any kind: a portal link or a cancel
+               button would error against a subscription that does not exist.
+               `isPlatformAdmin` comes from /api/subscription, which reads
+               platform_role off the learner row — NOT from useUserRole, whose
+               cache is localStorage and is writable by anybody. -->
+          <template v-if="isPlatformAdmin">
+            <div class="setting-row">
+              <div class="setting-info">
+                <span class="setting-label">{{ t('settings.platformAdmin') }}</span>
+              </div>
+            </div>
+          </template>
+          <template v-else-if="isFamilyMember">
             <div class="setting-row">
               <div class="setting-info">
                 <span class="setting-label">{{ t('settings.ssiFamily') }}</span>
@@ -3856,6 +3920,19 @@ const confirmReset = async () => {
 .reset-actions {
   display: flex;
   gap: 0.75rem;
+}
+
+/* The alternative offered inside the cancel dialog. Deliberately the same
+   weight as "Keep SSi Family" and never the red confirm: nothing here may make
+   cancelling look smaller, slower or harder than it was. */
+.cancel-alt {
+  margin: 0 0 1.5rem;
+}
+.cancel-alt-desc {
+  margin: 0 0 0.75rem;
+}
+.cancel-alt-btn {
+  width: 100%;
 }
 
 .reset-btn {
