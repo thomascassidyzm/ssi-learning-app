@@ -111,21 +111,19 @@ async function shot(page, name) {
   await c.close()
 }
 
-// ── choosing Welsh, and the dialect ────────────────────────────────────────
+// ── choosing the dialect: THE SCOPED PICKER ────────────────────────────────
+// NOT `?openCourses=1`. That is the whole catalogue, and it is what the pack's
+// old step-6 pictures showed — a search box, twenty languages and a
+// "Premium £15/mo — Upgrade" banner over the Welsh row. A Canolfan learner
+// never sees it: OrgEnrolment.vue pushes the granted course codes, and the
+// picker then renders Welsh alone with its two dialects already expanded.
+// The codes travel in the query string, so this needs no sign-in at all.
 {
-  const c = await context({ signedIn: true })
+  const c = await context()
   const p = await c.newPage()
-  await p.goto(`${BASE}/?openCourses=1`, { waitUntil: 'domcontentloaded' })
-  await p.waitForTimeout(8000)
-  // The search box, not a scroll: Welsh sits below the fold behind a
-  // "2 variants" expander, and telling a nervous learner to scroll a modal
-  // is exactly where they stall.
-  await p.locator('input[placeholder*="Search"]').first().fill('Welsh')
-  await p.waitForTimeout(1200)
-  await shot(p, '10-picker-search-welsh')
-  await p.getByText('2 variants').first().click()
-  await p.waitForTimeout(1200)
-  await shot(p, '11-picker-variants')
+  await p.goto(`${BASE}/?openCourses=cym_n_for_eng,cym_s_for_eng`, { waitUntil: 'domcontentloaded' })
+  await p.waitForTimeout(9000)
+  await shot(p, '10-picker-scoped')
   await c.close()
 }
 
