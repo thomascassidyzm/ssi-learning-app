@@ -31,7 +31,7 @@ cd "$HERE"
 if [ "${1:-}" != "" ]; then
   export SSI_SHELL_ORIGIN="$1"
 fi
-SHELL_ORIGIN="${SSI_SHELL_ORIGIN:-https://staging.saysomethingin.app}"
+SHELL_ORIGIN="${SSI_SHELL_ORIGIN:-https://saysomethingin.app}"
 SHELL_ORIGIN="${SHELL_ORIGIN%/}"
 
 echo "==> shell origin: $SHELL_ORIGIN"

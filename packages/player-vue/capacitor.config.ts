@@ -15,9 +15,12 @@ import type { CapacitorConfig } from '@capacitor/cli'
  * the shell it precaches is the deployment's own shell. See
  * src/platform/capabilities.ts.
  *
- * ONE LINE SWITCHES THE ORIGIN. `SHELL_ORIGIN` below is the whole switch:
- * change the default to https://saysomethingin.app for a production wrap, or
- * export SSI_SHELL_ORIGIN before building to point one build somewhere else.
+ * ONE LINE SWITCHES THE ORIGIN. `SHELL_ORIGIN` below is the whole switch, and
+ * as of Tom's ruling on 2026-09-08 it points at PRODUCTION — "We also want the
+ * Android app to be serving main now right? Now we've tested it." The staging
+ * wrap was the proving ground and it proved; the shell is now a window onto
+ * https://saysomethingin.app. Export SSI_SHELL_ORIGIN before building to point
+ * one build somewhere else, e.g. back at staging for a field test.
  *
  * APPLICATION ID IS DELIBERATELY LOCAL. `com.saysomethingin.devwrap` is a
  * throwaway dev identifier. It is NOT `com.automagic.a3f`, the live published
@@ -26,8 +29,8 @@ import type { CapacitorConfig } from '@capacitor/cli'
  * Nothing here presumes it.
  */
 
-/** The deployment this shell is a window onto. THE one-line production switch. */
-const SHELL_ORIGIN = (process.env.SSI_SHELL_ORIGIN || 'https://staging.saysomethingin.app').replace(/\/+$/, '')
+/** The deployment this shell is a window onto. Production, by Tom's ruling. */
+const SHELL_ORIGIN = (process.env.SSI_SHELL_ORIGIN || 'https://saysomethingin.app').replace(/\/+$/, '')
 
 const config: CapacitorConfig = {
   appId: 'com.saysomethingin.devwrap',
