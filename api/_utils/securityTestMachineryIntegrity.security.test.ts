@@ -133,6 +133,7 @@ describe('security-test machinery integrity — pinned roster', () => {
     'api/_utils/findLearnerByEmailSelfOnly.security.test.ts',
     'api/_utils/glossSegments.security.test.ts',
     'api/_utils/joinCodeEntropy.security.test.ts',
+    'api/_utils/orgEnrolmentGrants.security.test.ts',
     'api/_utils/schoolSeats.security.test.ts',
     'api/_utils/securityTestMachineryIntegrity.security.test.ts',
     'api/admin/testDoors.security.test.ts',

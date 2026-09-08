@@ -11349,14 +11349,23 @@ CREATE TABLE public.orchestrator_messages (
 
 
 --
--- DECLARED AHEAD OF THE LIVE DATABASE. The two org_enrolment_* relations below
--- are defined by supabase/migrations/20260908e_org_enrolments.sql, which has
--- NOT been applied to the live database as of 2026-09-08 — the Canolfan
--- enrolment build it belongs to is on an unmerged branch awaiting review.
--- They are declared here so the snapshot-drift guard (api/schema-snapshot.test
--- .ts) can see the relations the new code queries; when the migration is
--- applied, regenerate this file with ./supabase/snapshot-schema.sh and this
--- note goes away with the regeneration.
+-- APPLIED LIVE 2026-09-08. The two org_enrolment_* relations below are defined
+-- by supabase/migrations/20260908e_org_enrolments.sql, applied to the live
+-- database on 2026-09-08 in one transaction alongside the merge of the Canolfan
+-- enrolment build to dev. Both tables were verified present, RLS-enabled and
+-- empty immediately afterwards, and both aggregate functions verified callable.
+-- These declarations are hand-written rather than dumped, so this file is a
+-- faithful-but-partial record of them until somebody regenerates it with
+-- ./supabase/snapshot-schema.sh; the ACLs below were likewise transcribed from
+-- the live grants rather than dumped.
+--
+-- One posture correction rode with the application, as
+-- supabase/migrations/20260908f_org_enrolments_authenticated_select_only.sql:
+-- 20260908e granted SELECT to authenticated but never revoked Supabase's
+-- grant-open default underneath it, so authenticated also held INSERT, UPDATE,
+-- DELETE and TRUNCATE. RLS already refused the first three; TRUNCATE is not
+-- subject to RLS and was the one that mattered. Live grants now read SELECT
+-- only, which is what 20260908e's own comment always said they were.
 --
 -- The same migration also adds two aggregate FUNCTIONS not shown here, because
 -- this snapshot's drift guard tracks relations rather than routines:
@@ -22894,6 +22903,21 @@ GRANT ALL ON TABLE public.offline_leases TO service_role;
 --
 
 GRANT ALL ON TABLE public.onboarding_messages TO service_role;
+
+
+--
+-- Name: TABLE org_enrolment_policies; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.org_enrolment_policies TO service_role;
+
+
+--
+-- Name: TABLE org_enrolments; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.org_enrolments TO service_role;
+GRANT SELECT ON TABLE public.org_enrolments TO authenticated;
 
 
 --
