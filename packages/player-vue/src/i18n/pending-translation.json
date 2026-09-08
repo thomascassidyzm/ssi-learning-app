@@ -1497,6 +1497,7 @@
     "settings.keepFamily",
     "settings.cancelStayOn",
     "settings.cancelRowDesc",
-    "settings.periodEnd"
+    "settings.periodEnd",
+    "settings.platformAdmin"
   ]
 }
