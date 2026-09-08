@@ -16,6 +16,21 @@
  * every APK a thin client of our uptime on exactly the bad networks the app
  * exists to survive. Cure the SILENT staleness instead, with a visible line.
  *
+ * SUPERSEDED 2026-09-08. Tom reversed that ruling: the shell now points
+ * `server.url` at the deployment and carries no web assets at all. His own
+ * answer to the reasoning above is that you cannot fetch an update without a
+ * network on ANY option, so needing one is a property of updating rather than
+ * a cost of the remote posture — and what covers the learner between updates
+ * is the service worker, which now runs inside the WebView precaching the
+ * deployment's own shell. The bundled build's real cost was that "Tap to
+ * update" could never fetch new web code: the button lied. So
+ * `shouldDescribeStaleness()` is now false everywhere and the line above is
+ * HISTORY, not law.
+ *
+ * The module stays, and so do the three rules below, which are scars rather
+ * than scaffolding: `shaPrefixEq` is imported by SettingsScreen's release-note
+ * comparison, and the rules hold for any future build-id comparison.
+ *
  * THREE RULES, and every one of them is a scar.
  *
  * 1. DIFFERENT IS NOT NEWER. Two build ids that disagree tell you the builds

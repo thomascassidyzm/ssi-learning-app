@@ -8,9 +8,22 @@ import {
   isNativeShell,
   platform,
   resetPlatform,
+  SHELL_UA_MARKER,
 } from './capabilities'
 
 afterEach(() => resetPlatform())
+
+/** Run `fn` with a pretend user agent, then put the real one back. */
+function withUserAgent(ua: string, fn: () => void): void {
+  const original = Object.getOwnPropertyDescriptor(navigator, 'userAgent')
+  Object.defineProperty(navigator, 'userAgent', { value: ua, configurable: true })
+  try {
+    fn()
+  } finally {
+    if (original) Object.defineProperty(navigator, 'userAgent', original)
+    else delete (navigator as any).userAgent
+  }
+}
 
 describe('platform capabilities', () => {
   it('defaults to the web with no API origin — today, unchanged', () => {
@@ -22,10 +35,16 @@ describe('platform capabilities', () => {
     expect(shouldRunServiceWorker()).toBe(true)
   })
 
-  it('never registers a service worker inside a native shell', () => {
+  it('RUNS a service worker inside the native shell — the offline story, 2026-09-08', () => {
+    // Flipped deliberately. While the APK bundled its web assets this was
+    // false, and rightly: the shell owned the code and a precache under it was
+    // a frozen copy of a frozen copy. The shell is now a window onto the
+    // deployment, so the shell the service worker precaches is the
+    // deployment's own, and it is the only thing that makes the app open and
+    // play with no network.
     configurePlatform({ shell: 'webview' })
     expect(isNativeShell()).toBe(true)
-    expect(shouldRunServiceWorker()).toBe(false)
+    expect(shouldRunServiceWorker()).toBe(true)
   })
 
   it('offers the install banner on the web — as today', () => {
@@ -52,31 +71,50 @@ describe('platform capabilities', () => {
     delete window.__SSI_PLATFORM__
   })
 
-  it('describes staleness in an Android shell — the 2026-09-04 cure, unchanged', () => {
-    configurePlatform({ shell: 'webview', os: 'android' })
-    expect(shouldDescribeStaleness()).toBe(true)
-  })
-
-  it('stays LOUD in a shell that never said its OS — today\'s Android stamp', () => {
-    // The stamps in the field carry no `os`. Going quiet on '' would silently
-    // revert the staleness cure on every one of them.
-    configurePlatform({ shell: 'webview' })
-    expect(platform().os).toBe('')
-    expect(shouldDescribeStaleness()).toBe(true)
-  })
-
-  it('says NOTHING about staleness on iOS — TestFlight owns update delivery', () => {
-    // The Android line promises "install it from popty.app/builds", which is a
-    // real resolution on Android and a lie on iOS: no sideload exists, and a
-    // newer web deployment does not imply any newer TestFlight build to
-    // install. Silence, per buildStaleness.ts rule 2.
-    configurePlatform({ shell: 'webview', os: 'ios' })
-    expect(shouldDescribeStaleness()).toBe(false)
+  it('says NOTHING about staleness in a shell, on any OS — 2026-09-08', () => {
+    // Flipped deliberately. The 2026-09-04 line existed because a bundled APK
+    // could not notice new code and the only remedy was installing a new app.
+    // A window onto the deployment IS the live code, and where a newer build
+    // is waiting the update banner owns it and a reload resolves it.
+    for (const os of ['android', 'ios', ''] as const) {
+      configurePlatform({ shell: 'webview', os })
+      expect(shouldDescribeStaleness()).toBe(false)
+    }
   })
 
   it('never describes staleness on the web, whatever the os claims', () => {
     configurePlatform({ shell: 'web', os: 'android' })
     expect(shouldDescribeStaleness()).toBe(false)
+  })
+
+  it('reads the shell out of the user agent when nothing is injected', () => {
+    // The remote shell has no index.html of ours to stamp, so it says who it
+    // is in the UA. SHELL_UA_MARKER must stay in step with appendUserAgent in
+    // capacitor.config.ts.
+    expect(SHELL_UA_MARKER).toBe('SSiShell/')
+    withUserAgent('Mozilla/5.0 (Linux; Android 14) Chrome/120 SSiShell/android', () => {
+      resetPlatform()
+      expect(platform()).toEqual({ shell: 'webview', apiOrigin: '', os: 'android' })
+    })
+  })
+
+  it('reads an iOS shell marker, and an unmarked UA stays the web', () => {
+    withUserAgent('Mozilla/5.0 (iPhone) SSiShell/ios', () => {
+      resetPlatform()
+      expect(platform().os).toBe('ios')
+      expect(isNativeShell()).toBe(true)
+    })
+    withUserAgent('Mozilla/5.0 (Macintosh) Safari/605', () => {
+      resetPlatform()
+      expect(platform()).toEqual({ shell: 'web', apiOrigin: '', os: '' })
+    })
+  })
+
+  it('leaves apiOrigin empty in the remote shell — every /api path is same-origin again', () => {
+    withUserAgent('Mozilla/5.0 (Linux; Android 14) SSiShell/android', () => {
+      resetPlatform()
+      expect(platform().apiOrigin).toBe('')
+    })
   })
 
   it('reads an injected os and rejects junk values', () => {

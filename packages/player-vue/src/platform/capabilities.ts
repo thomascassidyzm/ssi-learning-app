@@ -80,16 +80,60 @@ function readInjected(): Partial<PlatformConfig> {
   }
 }
 
+/**
+ * How a WebView shell announces itself when it has nothing of ours to stamp.
+ *
+ * The bundled build injected `window.__SSI_PLATFORM__` into the index.html it
+ * shipped. Since Tom's 2026-09-08 ruling the shell loads the DEPLOYMENT's
+ * index.html, which we cannot stamp at build time, so the shell appends a
+ * marker to the user agent instead — `appendUserAgent` in
+ * capacitor.config.ts. Keep the two strings in step; capabilities.test.ts
+ * pins this one.
+ *
+ * This is user-agent sniffing, which is usually a smell, and it is right here
+ * for the reason the seam exists: it is ONE read, in the ONE door, of a string
+ * WE control and put there ourselves. It is not a guess about a browser.
+ */
+export const SHELL_UA_MARKER = 'SSiShell/'
+
+function readUserAgent(): string {
+  try {
+    return typeof navigator !== 'undefined' && typeof navigator.userAgent === 'string'
+      ? navigator.userAgent
+      : ''
+  } catch {
+    return ''
+  }
+}
+
+/** `SSiShell/android` in the UA → { shell: 'webview', os: 'android' }. */
+function readShellUserAgent(): Partial<PlatformConfig> {
+  const ua = readUserAgent()
+  const at = ua.indexOf(SHELL_UA_MARKER)
+  if (at === -1) return {}
+  const rest = ua.slice(at + SHELL_UA_MARKER.length)
+  const os = rest.startsWith('ios') ? 'ios' : rest.startsWith('android') ? 'android' : ''
+  return { shell: 'webview', os }
+}
+
 function detect(): PlatformConfig {
   const injected = readInjected()
+  // The UA marker is the REMOTE shell's announcement; an injected stamp is the
+  // bundled shell's. Injection wins where both are present, so a stamped build
+  // behaves exactly as it did before this existed.
+  const ua = readShellUserAgent()
+
   const shellRaw = String(injected.shell ?? readEnv('VITE_APP_SHELL') ?? '')
-  const shell: AppShell = shellRaw === 'webview' ? 'webview' : 'web'
+  const shell: AppShell = shellRaw === 'webview' || ua.shell === 'webview' ? 'webview' : 'web'
 
   const originRaw = String(injected.apiOrigin ?? readEnv('VITE_API_ORIGIN') ?? '')
   // Trailing slash off, so apiUrl() can concatenate a leading-slash path.
   const apiOrigin = originRaw.replace(/\/+$/, '')
 
-  const osRaw = String(injected.os ?? readEnv('VITE_APP_SHELL_OS') ?? '')
+  // `||` and not `??`: readEnv returns '' rather than undefined for an unset
+  // variable, so a nullish chain would stop at the empty string and never
+  // reach the user agent.
+  const osRaw = String(injected.os || readEnv('VITE_APP_SHELL_OS') || ua.os || '')
   const os: ShellOs = osRaw === 'android' || osRaw === 'ios' ? osRaw : ''
 
   return { shell, apiOrigin, os }
@@ -129,18 +173,30 @@ export function isNativeShell(): boolean {
 /**
  * Should this build run a Workbox service worker at all?
  *
- * On the web: YES, unconditionally — byte-identical to today. Whether the
- * browser actually supports one is vite-plugin-pwa's own check inside
- * registerSW, and deliberately not duplicated here: duplicating it would
- * change web behaviour in browsers that have no service worker, which is
- * exactly what this seam must not do.
+ * YES, EVERYWHERE, since Tom's ruling of 2026-09-08 — and in the WebView it is
+ * now the load-bearing part rather than a redundancy.
  *
- * In a WebView: NO. The native shell owns caching and update delivery; a
- * Workbox precache underneath it is redundant at best and, because it would
- * serve its own stale app shell, actively harmful.
+ * This answer used to be NO in a WebView, on the reasoning that "the native
+ * shell owns caching and update delivery, and a Workbox precache underneath it
+ * would serve its own stale app shell". That was correct while the APK bundled
+ * its web assets: the shell really did own the code, and a precache of it was
+ * a second frozen copy of a frozen copy. It is exactly backwards now. The
+ * shell has no web assets at all; it is a window onto the deployment, so the
+ * shell the service worker precaches IS the deployment's shell, and the
+ * service worker is the ONLY thing that lets a learner open the app and play
+ * with no network. Tom's requirement, in his own words: the service worker
+ * caches the shell so regular play works offline after the first online open.
+ *
+ * Whether the browser actually supports one is vite-plugin-pwa's own check
+ * inside registerSW, and deliberately not duplicated here.
+ *
+ * Note what the service worker does NOT do: audio. Audio lives in IndexedDB
+ * under `ssi-audio-cache-v2` and has since SW audio caching was removed on
+ * 2026-05-24 over iOS Range requests. The shell boots from the precache; the
+ * lesson plays from IndexedDB.
  */
 export function shouldRunServiceWorker(): boolean {
-  return current.shell !== 'webview'
+  return true
 }
 
 /**
@@ -169,36 +225,29 @@ export function shouldOfferAppInstall(): boolean {
  * Should this build DESCRIBE its own staleness — "this app is from {date}, a
  * newer version exists"?
  *
- * In a WebView: YES. The APK bundles its web assets, so nothing inside it can
- * notice new code by itself and no action its holder takes will fetch any: the
- * only remedy is installing a new app. Left silent, that lag is undetectable,
- * which is exactly what happened to the build Tom was testing on 2026-09-04.
+ * NO, ANYWHERE, since Tom's ruling of 2026-09-08. This line existed for one
+ * structural reason and that reason is gone.
  *
- * On the web: NO. The service-worker update banner already owns this ground,
- * a reload genuinely resolves it, and a line telling a browser user to go and
- * install an app would be false. Web behaviour is unchanged.
+ * The reason was: a bundled APK cannot notice new web code, because its own
+ * /version.json is the frozen copy it shipped with — it asks itself and agrees
+ * with itself forever — and no action its holder can take will fetch any. So
+ * the lag was undetectable, and a visible sentence naming the only real
+ * remedy, install a newer app, was the cure.
  *
- * Note this is NOT `isNativeShell()` wearing a different hat, for the same
- * reason `shouldOfferAppInstall()` is not: the question a caller has is this
- * one, so this is the one the seam answers.
+ * A WebView onto the deployment has neither half of that. The code running IS
+ * the deployment's code, so there is nothing to be behind; and where a newer
+ * build genuinely is waiting, the service-worker update banner already owns
+ * that ground and a reload genuinely resolves it, which is precisely why the
+ * answer on the web has always been NO. Two surfaces describing one fact, one
+ * of them telling the holder to go and install an app they already have, is
+ * the class of lie this change exists to remove.
  *
- * EXCEPT ON iOS, where the answer is NO — silence, ruled 2026-09-05. The
- * sentence this gate drives promises the resolution that actually exists, and
- * on Android that resolution is real: popty.app/builds serves the newest APK
- * on demand, so "a newer version is available — install it" holds whenever the
- * comparison fires. On iOS neither half survives. Builds arrive only through
- * TestFlight / the App Store, so a newer WEB deployment does not imply any
- * newer app exists for the holder to install — the line could name no
- * resolution truthfully. And when a newer build HAS been uploaded, TestFlight
- * itself notifies the tester and offers the update button; our line would
- * duplicate a platform affordance, worse. Rule 2 of buildStaleness.ts is
- * "silent when unsure" — on iOS we are structurally unsure, so: silent.
- * An unknown OS ('') stays LOUD on purpose: today's Android wrapper does not
- * stamp an os yet, and going quiet on it would silently revert the 2026-09-04
- * staleness cure.
+ * The comparison machinery in buildStaleness.ts stays: SettingsScreen's
+ * release-note check imports shaPrefixEq from it, and its three rules are
+ * scars worth keeping.
  */
 export function shouldDescribeStaleness(): boolean {
-  return current.shell === 'webview' && current.os !== 'ios'
+  return false
 }
 
 /**
