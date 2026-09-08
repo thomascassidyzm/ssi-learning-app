@@ -19,6 +19,9 @@ const emit = defineEmits<{
 }>()
 
 const supabaseClient = inject<{ value: SupabaseClient | null }>('supabase')
+// Read by the Google door to ask GoTrue whether the provider is switched on
+// before it navigates away. See auth/googleSignIn.ts.
+const appConfig = inject<{ supabase?: { url?: string; anonKey?: string } } | null>('config', null)
 const { pendingCode, validationError, isValidating, validateCode, redeemCode, clearPendingCode } = useInviteCode()
 
 // Form state
@@ -226,7 +229,10 @@ const handlePasswordSignIn = async () => {
 const handleGoogleSignIn = async () => {
   googleLoading.value = true
   error.value = ''
-  const failure = await startGoogleSignIn(supabaseClient?.value as any, window.location)
+  const failure = await startGoogleSignIn(supabaseClient?.value as any, window.location, {
+    url: appConfig?.supabase?.url,
+    anonKey: appConfig?.supabase?.anonKey,
+  })
   if (failure) {
     error.value = failure
     googleLoading.value = false

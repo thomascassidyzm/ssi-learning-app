@@ -9,6 +9,7 @@
  */
 import { describe, it, expect, vi } from 'vitest'
 import {
+  isGoogleEnabled,
   googleRedirectTo,
   oauthErrorMessage,
   readOAuthReturnError,
@@ -91,5 +92,41 @@ describe('startGoogleSignIn', () => {
   it('survives a throwing client', async () => {
     const signInWithOAuth = vi.fn().mockRejectedValue(new Error('network'))
     expect(await startGoogleSignIn({ auth: { signInWithOAuth } } as any, loc)).toContain('email address below')
+  })
+})
+
+describe('isGoogleEnabled', () => {
+  const settings = (google: boolean) => vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ external: { google, email: true } }),
+  })
+
+  it('reads the provider flag off GoTrue', async () => {
+    expect(await isGoogleEnabled('https://p.supabase.co', 'anon', settings(true) as any)).toBe(true)
+    expect(await isGoogleEnabled('https://p.supabase.co', 'anon', settings(false) as any)).toBe(false)
+  })
+
+  it('FAILS OPEN so a flaky probe never shuts a working door', async () => {
+    const boom = vi.fn().mockRejectedValue(new Error('offline'))
+    expect(await isGoogleEnabled('https://p.supabase.co', 'anon', boom as any)).toBe(true)
+    const notOk = vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) })
+    expect(await isGoogleEnabled('https://p.supabase.co', 'anon', notOk as any)).toBe(true)
+    expect(await isGoogleEnabled(null, null)).toBe(true)
+  })
+})
+
+describe('startGoogleSignIn with the provider switched off', () => {
+  it('FAILURE MODE: never sends a learner to a raw Supabase 400 page', async () => {
+    const signInWithOAuth = vi.fn().mockResolvedValue({ error: null })
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ external: { google: false } }) })
+    vi.stubGlobal('fetch', fetchSpy)
+    const msg = await startGoogleSignIn(
+      { auth: { signInWithOAuth } } as any,
+      { origin: 'https://x.app', pathname: '/', search: '' },
+      { url: 'https://p.supabase.co', anonKey: 'anon' },
+    )
+    expect(msg).toBe('Google sign-in is not switched on yet. Please use your email address below.')
+    expect(signInWithOAuth).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
   })
 })

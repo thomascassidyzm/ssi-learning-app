@@ -83,6 +83,39 @@ export function readOAuthReturnError(hash: string | null | undefined): string | 
   return oauthErrorMessage({ message: frag.get('error_description') || code })
 }
 
+/**
+ * Is the door actually there?
+ *
+ * `signInWithOAuth` does not ask anybody anything — it builds a URL and
+ * navigates. So with the provider switched off the learner leaves the app and
+ * lands on a raw Supabase 400 page reading
+ * `{"code":400,...,"msg":"Unsupported provider: provider is not enabled"}`.
+ * Verified against the live project on 2026-09-08, which is exactly the state
+ * it is in until the OAuth client exists.
+ *
+ * GoTrue's own `/auth/v1/settings` is public and says which providers are on,
+ * so one cheap read before we navigate turns that dead end into a sentence.
+ * It FAILS OPEN: a probe that errors or times out lets the sign-in proceed,
+ * because a working door must never be shut by a flaky check. And it needs no
+ * follow-up deploy — the day Google is switched on, this starts saying yes.
+ */
+export async function isGoogleEnabled(
+  supabaseUrl: string | null | undefined,
+  anonKey: string | null | undefined,
+  fetchImpl: typeof fetch = fetch,
+): Promise<boolean> {
+  if (!supabaseUrl || !anonKey) return true
+  try {
+    const res = await fetchImpl(`${supabaseUrl}/auth/v1/settings`, { headers: { apikey: anonKey } })
+    if (!res.ok) return true
+    const body = await res.json()
+    const flag = body?.external?.google
+    return flag === undefined ? true : Boolean(flag)
+  } catch {
+    return true
+  }
+}
+
 export interface OAuthClient {
   auth: {
     signInWithOAuth(args: {
@@ -101,8 +134,12 @@ export interface OAuthClient {
 export async function startGoogleSignIn(
   client: OAuthClient | null | undefined,
   loc: { origin: string; pathname: string; search?: string },
+  supabase?: { url?: string | null; anonKey?: string | null },
 ): Promise<string | null> {
   if (!client) return 'Sign-in is unavailable right now. Please try again shortly.'
+  if (supabase && !(await isGoogleEnabled(supabase.url, supabase.anonKey))) {
+    return oauthErrorMessage({ message: 'provider is not enabled' })
+  }
   try {
     const { error } = await client.auth.signInWithOAuth({
       provider: 'google',
