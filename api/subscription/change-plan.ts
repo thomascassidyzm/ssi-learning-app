@@ -27,6 +27,25 @@
  * The plan_name mirror written here is OPTIMISTIC so the UI reflects the new
  * plan at once; the subscription.updated webhook converges on the
  * authoritative value (same pattern as update-seats).
+ *
+ * THE DOWNGRADE, plan:'premium' (job #376·F, D2/D9; built by #383·F). Paddle
+ * cannot schedule a price change for the period end — scheduled_change holds
+ * only cancel, pause and resume — so the end-of-period change is held by US.
+ * We write scheduled_plan_name='SSi Premium' and scheduled_plan_at=
+ * current_period_end on the owner's row FIRST, then move Paddle's price onto
+ * Premium with do_not_bill. Paddle's items change now, no money moves, the
+ * next renewal bills £15, and our row keeps plan_name='SSi Family' until the
+ * renewal webhook sees a billing period that starts on or after
+ * scheduled_plan_at (paddle-webhook.ts, handlePlanChangeOnHeldSubscription).
+ * Every member is covered for exactly what was paid; the delay is the window
+ * in which every displaced person can act. do_not_bill never meets Paddle's
+ * 55p refusal and there is no refund arithmetic to go wrong.
+ *
+ * Nobody is removed by a downgrade, ever (D5): this endpoint touches the
+ * owner's row only. Displaced adults are told at confirm, by email, with
+ * their own door in it (D6). "Keep Family" (D9) is plan:'family' on a row
+ * with a pending schedule: clear the two columns, move Paddle back onto the
+ * Family price with do_not_bill — the period was paid at £25 either way.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -34,6 +53,8 @@ import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { paddle } from '../_utils/paddle'
 import { applyCors } from '../_utils/cors'
+import { liveFamilyRows } from '../_utils/familyMembership'
+import { safeInviterName, sendFamilyEndsEmail } from '../_utils/familyInviteEmail'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -45,6 +66,18 @@ function familyPriceId(period: 'monthly' | 'annual'): string {
       ? process.env.VITE_PADDLE_FAMILY_PRICE_ANNUAL
       : process.env.VITE_PADDLE_FAMILY_PRICE_MONTHLY
   return (raw || '').trim()
+}
+
+// The SSi Premium prices, the same two ids PRICE_CATALOG (paddle-webhook.ts)
+// and the client (lib/paddle.ts) already carry; env first, in-repo fallback.
+const SSI_PREMIUM_MONTHLY_PRICE_ID = 'pri_01kqq85gvncyasfmfvvpcv1xfg'
+const SSI_PREMIUM_ANNUAL_PRICE_ID = 'pri_01kqq86ymc3yhm8be3w7f7kgr1'
+function premiumPriceId(period: 'monthly' | 'annual'): string {
+  const raw =
+    period === 'annual'
+      ? process.env.VITE_PADDLE_TEACHER_PRICE_ANNUAL
+      : process.env.VITE_PADDLE_TEACHER_PRICE_MONTHLY
+  return (raw || '').trim() || (period === 'annual' ? SSI_PREMIUM_ANNUAL_PRICE_ID : SSI_PREMIUM_MONTHLY_PRICE_ID)
 }
 
 // Only a plain Premium subscriber may take this door. The tutor bundle is a
@@ -72,8 +105,8 @@ export default async function handler(
 
   const body = (typeof req.body === 'string' ? safeParse(req.body) : req.body) || {}
   const targetPlan = String(body.plan || 'family')
-  if (targetPlan !== 'family') {
-    res.status(400).json({ error: 'Only an upgrade to SSi Family is supported' })
+  if (targetPlan !== 'family' && targetPlan !== 'premium') {
+    res.status(400).json({ error: 'Only a change to SSi Family or SSi Premium is supported' })
     return
   }
   const requestedPeriod =
@@ -98,12 +131,24 @@ export default async function handler(
     // change it" true by construction rather than by a check.
     const { data: sub } = await supabase
       .from('subscriptions')
-      .select('id, provider_subscription_id, status, plan_name')
+      .select('id, provider_subscription_id, status, plan_name, current_period_end, cancel_at_period_end, scheduled_plan_name, scheduled_plan_at')
       .eq('learner_id', learner.id)
       .maybeSingle()
 
     if (!sub?.provider_subscription_id) {
       res.status(404).json({ error: 'No active subscription' })
+      return
+    }
+
+    if (targetPlan === 'premium') {
+      await scheduleDowngradeToPremium(supabase, learner.id, sub, requestedPeriod, res)
+      return
+    }
+
+    // KEEP FAMILY (D9): a Family row with a pending change back to what it
+    // already is. One tap, one Paddle write, no money.
+    if (sub.plan_name === 'SSi Family' && sub.scheduled_plan_name) {
+      await keepFamily(supabase, sub, res)
       return
     }
 
@@ -203,6 +248,211 @@ export default async function handler(
     }
     console.error('[subscription/change-plan] Error:', err)
     res.status(500).json({ error: message })
+  }
+}
+
+interface OwnSubRow {
+  id: string
+  provider_subscription_id: string
+  status: string
+  plan_name: string | null
+  current_period_end: string | null
+  cancel_at_period_end: boolean | null
+  scheduled_plan_name: string | null
+  scheduled_plan_at: string | null
+}
+
+/**
+ * THE DOWNGRADE, scheduled for the end of the paid period (D2). Order matters
+ * and is deliberate: the schedule is written BEFORE Paddle's price moves, so
+ * a Premium-priced subscription.updated arriving a moment later finds the
+ * schedule and HOLDS plan_name rather than flipping the family dark today.
+ * If Paddle then refuses, the schedule is cleared again and nothing changed.
+ */
+async function scheduleDowngradeToPremium(
+  supabase: any,
+  learnerId: string,
+  sub: OwnSubRow,
+  requestedPeriod: 'monthly' | 'annual' | null,
+  res: VercelResponse
+): Promise<void> {
+  if (sub.plan_name !== 'SSi Family') {
+    res.status(409).json({ error: 'Only an SSi Family subscription can be changed to SSi Premium' })
+    return
+  }
+  if (sub.status !== 'active') {
+    res.status(409).json({
+      error:
+        sub.status === 'past_due'
+          ? 'Resolve the outstanding payment before changing your plan'
+          : 'Your subscription is not active, so it cannot be changed',
+    })
+    return
+  }
+  // CANCEL WINS (D4). A subscription already set to end has nothing to
+  // downgrade to; the door is hidden in the app and refused here.
+  if (sub.cancel_at_period_end) {
+    res.status(409).json({ error: 'Your subscription is already set to end, so there is nothing to change it to' })
+    return
+  }
+  if (sub.scheduled_plan_name === 'SSi Premium' && sub.scheduled_plan_at) {
+    res.status(200).json({
+      ok: true,
+      alreadyScheduled: true,
+      planName: 'SSi Family',
+      scheduledPlanName: 'SSi Premium',
+      scheduledPlanAt: sub.scheduled_plan_at,
+    })
+    return
+  }
+  // No date to hold the change for = nothing we can promise the family.
+  // Fail closed rather than flip anyone dark today.
+  if (!sub.current_period_end) {
+    res.status(409).json({ error: 'We could not find when your current period ends, so the change was not made' })
+    return
+  }
+
+  const live = await paddle.subscriptions.get(sub.provider_subscription_id)
+  const liveInterval = live.items?.[0]?.price?.billingCycle?.interval
+  // Annual Family goes to annual Premium; the interval is preserved as on the upgrade.
+  const period: 'monthly' | 'annual' = requestedPeriod || (liveInterval === 'year' ? 'annual' : 'monthly')
+  const priceId = premiumPriceId(period)
+  const scheduledPlanAt = sub.current_period_end
+
+  // 1. The schedule, first.
+  const { error: schedErr } = await supabase
+    .from('subscriptions')
+    .update({
+      scheduled_plan_name: 'SSi Premium',
+      scheduled_plan_at: scheduledPlanAt,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', sub.id)
+  if (schedErr) {
+    console.error('[subscription/change-plan] could not write the scheduled change:', schedErr)
+    res.status(500).json({ error: 'Could not schedule the change' })
+    return
+  }
+
+  // 2. Paddle's price, unbilled. Already on Premium (a hand swap in the
+  // dashboard) means there is nothing to move; the schedule alone does the job.
+  if (live.items?.[0]?.price?.id !== priceId) {
+    try {
+      await paddle.subscriptions.update(sub.provider_subscription_id, {
+        items: [{ priceId, quantity: 1 }],
+        prorationBillingMode: 'do_not_bill',
+      })
+    } catch (err) {
+      // Paddle refused: undo the schedule so the row says what Paddle says.
+      await supabase
+        .from('subscriptions')
+        .update({ scheduled_plan_name: null, scheduled_plan_at: null, updated_at: new Date().toISOString() })
+        .eq('id', sub.id)
+      throw err
+    }
+  }
+
+  // 3. Tell every displaced adult now, with their own door in it (D6).
+  // Best-effort: the change is made and true whether or not a mail sends.
+  const emailed = await tellDisplacedAdults(supabase, learnerId, scheduledPlanAt)
+
+  res.status(200).json({
+    ok: true,
+    planName: 'SSi Family',
+    scheduledPlanName: 'SSi Premium',
+    scheduledPlanAt,
+    billingPeriod: period,
+    prorationBillingMode: 'do_not_bill',
+    emailed,
+  })
+}
+
+/**
+ * KEEP FAMILY (D9). Paddle first, then the columns: if Paddle refuses, the
+ * schedule stands and the row still agrees with the price Paddle holds.
+ */
+async function keepFamily(supabase: any, sub: OwnSubRow, res: VercelResponse): Promise<void> {
+  const live = await paddle.subscriptions.get(sub.provider_subscription_id)
+  const liveInterval = live.items?.[0]?.price?.billingCycle?.interval
+  const period: 'monthly' | 'annual' = liveInterval === 'year' ? 'annual' : 'monthly'
+  const priceId = familyPriceId(period)
+  if (!priceId) {
+    console.error('[subscription/change-plan] Family price not configured for period:', period)
+    res.status(503).json({ error: 'The Family plan is not available yet' })
+    return
+  }
+
+  if (live.items?.[0]?.price?.id !== priceId) {
+    await paddle.subscriptions.update(sub.provider_subscription_id, {
+      items: [{ priceId, quantity: 1 }],
+      prorationBillingMode: 'do_not_bill',
+    })
+  }
+
+  const { error } = await supabase
+    .from('subscriptions')
+    .update({
+      scheduled_plan_name: null,
+      scheduled_plan_at: null,
+      plan_name: 'SSi Family',
+      plan_id: priceId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', sub.id)
+  if (error) {
+    console.error('[subscription/change-plan] could not clear the scheduled change:', error)
+    res.status(500).json({ error: 'Could not keep the Family plan' })
+    return
+  }
+
+  res.status(200).json({ ok: true, reverted: true, planName: 'SSi Family', billingPeriod: period, prorationBillingMode: 'do_not_bill' })
+}
+
+/**
+ * One email to each live ADULT member: the date, that their progress is safe,
+ * and the app as the door to their own Premium (D6, D8). A pending invitee
+ * never joined and gets nothing; a child has no inbox. Returns how many were
+ * handed to the mail sender.
+ */
+async function tellDisplacedAdults(supabase: any, ownerLearnerId: string, endsAt: string): Promise<number> {
+  try {
+    const rows = await liveFamilyRows(supabase, ownerLearnerId)
+    const adults = rows.filter((r) => r.status === 'active' && !r.is_child_account && r.member_learner_id)
+    if (adults.length === 0) return 0
+
+    const { data: owner } = await supabase
+      .from('learners')
+      .select('display_name')
+      .eq('id', ownerLearnerId)
+      .maybeSingle()
+    const inviterName = safeInviterName(owner?.display_name as string | null)
+
+    // The address they joined on; failing that, the one their account has verified.
+    const missing = adults.filter((r) => !r.invited_email).map((r) => r.member_learner_id as string)
+    const verified = new Map<string, string>()
+    if (missing.length > 0) {
+      const { data: learners } = await supabase
+        .from('learners')
+        .select('id, verified_emails')
+        .in('id', missing)
+      for (const l of learners || []) {
+        const first = Array.isArray(l.verified_emails) ? l.verified_emails[0] : null
+        if (first) verified.set(l.id as string, first as string)
+      }
+    }
+
+    let sent = 0
+    for (const r of adults) {
+      const address = r.invited_email || verified.get(r.member_learner_id as string)
+      if (!address) continue
+      const result = await sendFamilyEndsEmail({ address, inviterName, endsAt })
+      if (result.sent) sent += 1
+      else console.warn('[subscription/change-plan] family-ends mail not sent:', result.error)
+    }
+    return sent
+  } catch (err) {
+    console.warn('[subscription/change-plan] telling displaced adults failed (change stands):', err)
+    return 0
   }
 }
 

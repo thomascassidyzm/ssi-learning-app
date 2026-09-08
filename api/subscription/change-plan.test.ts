@@ -40,6 +40,12 @@ vi.mock('../_utils/paddle', () => ({
   },
 }))
 
+let endsMails: any[] = []
+vi.mock('../_utils/familyInviteEmail', () => ({
+  safeInviterName: (n: string | null) => n,
+  sendFamilyEndsEmail: vi.fn(async (input: any) => { endsMails.push(input); return { sent: true, id: 'mail-1' } }),
+}))
+
 let writes: Record<string, any[]> = {}
 let responders: Record<string, (calls: any[][]) => any> = {}
 
@@ -56,6 +62,8 @@ function makeChainable(table: string) {
     update: (o: unknown) => { calls.push(['update', o]); recordWrite(table, 'update', o); return builder },
     upsert: (o: unknown) => { calls.push(['upsert', o]); recordWrite(table, 'upsert', o); return builder },
     eq: (col: string, val: unknown) => { calls.push(['eq', col, val]); return builder },
+    is: (col: string, val: unknown) => { calls.push(['is', col, val]); return builder },
+    in: (col: string, vals: unknown) => { calls.push(['in', col, vals]); return builder },
     resolve: () => {
       const respond = responders[table]
       if (respond) { const r = respond(calls); if (r !== undefined) return r }
@@ -98,6 +106,7 @@ describe('POST /api/subscription/change-plan', () => {
     updateCalls = []
     updateErrors = []
     cancelCalls = []
+    endsMails = []
     authResult = { valid: true, userId: 'auth-user-1' }
     liveSub = premiumMonthly()
     responders.learners = () => ({ data: { id: 'learner-1' }, error: null })
@@ -241,5 +250,152 @@ describe('POST /api/subscription/change-plan', () => {
     process.env.VITE_PADDLE_FAMILY_PRICE_MONTHLY = monthly
     expect(res._status).toBe(503)
     expect(updateCalls).toHaveLength(0)
+  })
+})
+
+// ── THE DOWNGRADE (job #376·F, D2/D4/D6/D9) ──────────────────────────────────
+const PERIOD_END = '2026-10-07T23:41:26.033896Z'
+const familyMonthly = () => ({
+  status: 'active',
+  items: [{ price: { id: 'pri_family_monthly', billingCycle: { interval: 'month' } }, quantity: 1 }],
+})
+function familyRow(overrides: Record<string, unknown> = {}) {
+  return () => ({
+    data: {
+      id: 'sub-fam',
+      provider_subscription_id: 'psub_fam',
+      status: 'active',
+      plan_name: 'SSi Family',
+      current_period_end: PERIOD_END,
+      cancel_at_period_end: false,
+      scheduled_plan_name: null,
+      scheduled_plan_at: null,
+      ...overrides,
+    },
+    error: null,
+  })
+}
+const PREMIUM_MONTHLY = 'pri_01kqq85gvncyasfmfvvpcv1xfg'
+const PREMIUM_ANNUAL = 'pri_01kqq86ymc3yhm8be3w7f7kgr1'
+
+describe('POST /api/subscription/change-plan — Family → Premium, held for the period end', () => {
+  let handler: typeof import('./change-plan').default
+
+  beforeEach(async () => {
+    vi.resetModules()
+    writes = {}
+    responders = {}
+    updateCalls = []
+    updateErrors = []
+    cancelCalls = []
+    endsMails = []
+    authResult = { valid: true, userId: 'auth-user-1' }
+    liveSub = familyMonthly()
+    responders.learners = () => ({ data: { id: 'learner-owner', display_name: 'Tom' }, error: null })
+    responders.subscriptions = familyRow()
+    responders.family_members = () => ({ data: [], error: null })
+    handler = (await import('./change-plan')).default
+  })
+
+  it('THE DOWNGRADE: writes the schedule FIRST, then moves the same subscription onto Premium with do_not_bill', async () => {
+    const res = makeRes()
+    await handler(makeReq({ body: { plan: 'premium' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json).toMatchObject({
+      ok: true,
+      planName: 'SSi Family',
+      scheduledPlanName: 'SSi Premium',
+      scheduledPlanAt: PERIOD_END,
+      billingPeriod: 'monthly',
+      prorationBillingMode: 'do_not_bill',
+    })
+    // The row keeps SSi Family; only the schedule is written.
+    const upd = writes.subscriptions.filter((w) => w.op === 'update')
+    expect(upd).toHaveLength(1)
+    expect(upd[0].payload).toMatchObject({ scheduled_plan_name: 'SSi Premium', scheduled_plan_at: PERIOD_END })
+    expect(upd[0].payload).not.toHaveProperty('plan_name')
+    // One Paddle write, unbilled, on the Premium price — never a cancel.
+    expect(updateCalls).toEqual([
+      { id: 'psub_fam', opts: { items: [{ priceId: PREMIUM_MONTHLY, quantity: 1 }], prorationBillingMode: 'do_not_bill' } },
+    ])
+    expect(cancelCalls).toHaveLength(0)
+  })
+
+  it('an ANNUAL Family payer lands on ANNUAL Premium', async () => {
+    liveSub = { status: 'active', items: [{ price: { id: 'pri_family_annual', billingCycle: { interval: 'year' } } }] }
+    const res = makeRes()
+    await handler(makeReq({ body: { plan: 'premium' } }), res)
+    expect(updateCalls[0].opts.items[0].priceId).toBe(PREMIUM_ANNUAL)
+    expect(res._json.billingPeriod).toBe('annual')
+  })
+
+  it('CANCEL WINS: a subscription already set to end is refused, and Paddle is not touched', async () => {
+    responders.subscriptions = familyRow({ cancel_at_period_end: true })
+    const res = makeRes()
+    await handler(makeReq({ body: { plan: 'premium' } }), res)
+    expect(res._status).toBe(409)
+    expect(updateCalls).toHaveLength(0)
+    expect(writes.subscriptions ?? []).toHaveLength(0)
+  })
+
+  it('refuses a plain Premium row asking for Premium', async () => {
+    responders.subscriptions = familyRow({ plan_name: 'SSi Premium' })
+    const res = makeRes()
+    await handler(makeReq({ body: { plan: 'premium' } }), res)
+    expect(res._status).toBe(409)
+    expect(updateCalls).toHaveLength(0)
+  })
+
+  it('when Paddle refuses, the schedule is cleared again and nothing has changed', async () => {
+    updateErrors = [Object.assign(new Error('boom'), { code: 'some_other_error' })]
+    const res = makeRes()
+    await handler(makeReq({ body: { plan: 'premium' } }), res)
+    expect(res._status).toBe(500)
+    const upd = writes.subscriptions.filter((w) => w.op === 'update')
+    expect(upd).toHaveLength(2)
+    expect(upd[1].payload).toMatchObject({ scheduled_plan_name: null, scheduled_plan_at: null })
+  })
+
+  it('is a no-op when the change is already scheduled', async () => {
+    responders.subscriptions = familyRow({ scheduled_plan_name: 'SSi Premium', scheduled_plan_at: PERIOD_END })
+    const res = makeRes()
+    await handler(makeReq({ body: { plan: 'premium' } }), res)
+    expect(res._status).toBe(200)
+    expect(res._json.alreadyScheduled).toBe(true)
+    expect(updateCalls).toHaveLength(0)
+  })
+
+  it('tells every live ADULT member by email at confirm — not the child, not the pending invitee', async () => {
+    responders.family_members = () => ({
+      data: [
+        { id: 'fm-a', status: 'active', is_child_account: false, member_learner_id: 'learner-ffion', invited_email: 'ffion@example.com', removed_at: null },
+        { id: 'fm-c', status: 'active', is_child_account: true, member_learner_id: 'learner-lewis', invited_email: null, removed_at: null },
+        { id: 'fm-i', status: 'invited', is_child_account: false, member_learner_id: null, invited_email: 'pending@example.com', removed_at: null },
+      ],
+      error: null,
+    })
+    const res = makeRes()
+    await handler(makeReq({ body: { plan: 'premium' } }), res)
+    expect(res._status).toBe(200)
+    expect(endsMails).toHaveLength(1)
+    expect(endsMails[0]).toMatchObject({ address: 'ffion@example.com', inviterName: 'Tom', endsAt: PERIOD_END })
+    expect(res._json.emailed).toBe(1)
+  })
+
+  it('KEEP FAMILY: plan:family on a row with a pending change moves Paddle back onto Family, unbilled, and clears the schedule', async () => {
+    responders.subscriptions = familyRow({ scheduled_plan_name: 'SSi Premium', scheduled_plan_at: PERIOD_END })
+    liveSub = { status: 'active', items: [{ price: { id: PREMIUM_MONTHLY, billingCycle: { interval: 'month' } } }] }
+    const res = makeRes()
+    await handler(makeReq({ body: { plan: 'family' } }), res)
+    expect(res._status).toBe(200)
+    expect(res._json).toMatchObject({ ok: true, reverted: true, planName: 'SSi Family' })
+    expect(updateCalls).toEqual([
+      { id: 'psub_fam', opts: { items: [{ priceId: 'pri_family_monthly', quantity: 1 }], prorationBillingMode: 'do_not_bill' } },
+    ])
+    const upd = writes.subscriptions.filter((w) => w.op === 'update')
+    expect(upd).toHaveLength(1)
+    expect(upd[0].payload).toMatchObject({ scheduled_plan_name: null, scheduled_plan_at: null, plan_name: 'SSi Family' })
+    expect(endsMails).toHaveLength(0)
   })
 })
