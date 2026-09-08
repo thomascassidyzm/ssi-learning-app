@@ -226,7 +226,7 @@ async function confirmRemove(m: FamilyMember) {
             <li v-for="m in state.members" :key="m.id" class="member-row" :class="{ 'member-row--confirm': confirmRemoveId === m.id }">
               <template v-if="confirmRemoveId === m.id">
                 <div class="member-info">
-                  <span class="member-name">{{ fill('family.removeConfirm', { name: memberName(m) }) }}</span>
+                  <span class="member-name">{{ fill(m.is_child_account ? 'family.removeChildConfirm' : 'family.removeConfirm', { name: memberName(m) }) }}</span>
                 </div>
                 <div class="member-actions">
                   <button type="button" class="text-btn text-btn--danger" :disabled="removingId === m.id" @click="confirmRemove(m)">
@@ -260,8 +260,27 @@ async function confirmRemove(m: FamilyMember) {
               </template>
             </li>
           </ul>
+
+          <!-- Removed children keep their door. A child account has no email and
+               no way to pay, so the parent-minted link is its only way in and it
+               stays available here forever (job #376·F, D7). -->
+          <template v-if="state.removedChildren.length">
+            <p class="removed-title">{{ t('family.removedChildrenTitle') }}</p>
+            <ul class="member-list">
+              <li v-for="m in state.removedChildren" :key="m.id" class="member-row">
+                <div class="member-info">
+                  <span class="member-name">{{ memberName(m) }}</span>
+                  <span class="member-status">{{ t('family.removedChildAccount') }}</span>
+                </div>
+                <div class="member-actions">
+                  <button type="button" class="text-btn" @click="reMintLink(m.id, memberName(m))">{{ t('family.getSignLink') }}</button>
+                </div>
+              </li>
+            </ul>
+          </template>
+
           <p v-if="isLoading && !state.members.length" class="family-empty">{{ t('family.loading') }}</p>
-          <p v-else-if="!state.members.length" class="family-empty">{{ t('family.noOneAddedYetHow') }}</p>
+          <p v-else-if="!state.members.length && !state.removedChildren.length" class="family-empty">{{ t('family.noOneAddedYetHow') }}</p>
 
           <!-- Add actions -->
           <div v-if="seatsFull" class="family-full">{{ fullLine }}</div>
@@ -290,6 +309,13 @@ async function confirmRemove(m: FamilyMember) {
 </template>
 
 <style scoped>
+.removed-title {
+  margin: 1rem 0 0.25rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary, #64748b);
+}
+
 .family-overlay {
   position: fixed;
   inset: 0;

@@ -25,9 +25,15 @@ export interface FamilyState {
   seatsUsed: number
   seatCap: number
   members: FamilyMember[]
+  /**
+   * Children who have been removed from the plan. They hold no seat, but a
+   * child account has no email and no way to pay, so the parent-minted
+   * sign-in link stays available for them here, forever (job #376·F, D7).
+   */
+  removedChildren: FamilyMember[]
 }
 
-const EMPTY_STATE: FamilyState = { isOwner: false, hasFamilyPlan: false, seatsUsed: 0, seatCap: 6, members: [] }
+const EMPTY_STATE: FamilyState = { isOwner: false, hasFamilyPlan: false, seatsUsed: 0, seatCap: 6, members: [], removedChildren: [] }
 
 export function useFamilyManagement() {
   const supabase = inject<Ref<any>>('supabase', ref(null))
@@ -52,7 +58,8 @@ export function useFamilyManagement() {
       const headers = await authHeaders()
       const res = await fetch('/api/family', { headers })
       if (!res.ok) throw new Error('We could not load your family just now. Please try again in a moment.')
-      state.value = await res.json()
+      const body = await res.json()
+      state.value = { ...body, removedChildren: body.removedChildren ?? [] }
     } catch (e: any) {
       error.value = e?.message || 'We could not load your family just now. Please try again in a moment.'
     } finally {

@@ -85,6 +85,10 @@ export interface PortalResponse {
 export interface SubscriptionResponse {
   subscription: Subscription | null
   isSubscribed: boolean
+  /** True when this learner IS a parent-minted child account. A child has no
+   *  email of their own and no way to pay, so no checkout is ever offered
+   *  to them (job #376·F, D7). */
+  isChildAccount?: boolean
 }
 
 /**

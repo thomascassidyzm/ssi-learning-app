@@ -82,6 +82,9 @@ export interface UseSubscriptionReturn {
   pollUntilActive: (timeoutMs?: number) => Promise<void>
   /** Clear local cache */
   clearCache: () => void
+  /** True when this learner IS a parent-minted child account — never offered a
+   *  checkout (job #376·F, D7). */
+  isChildAccount: Ref<boolean>
 }
 
 // ============================================================================
@@ -97,6 +100,9 @@ export function useSubscription(): UseSubscriptionReturn {
   const isLoading = ref(false)
   const hasHydrated = ref(false)
   const error = ref<string | null>(null)
+  // A parent-minted child account: no email of their own, no way to pay, so
+  // no checkout is ever opened for them (job #376·F, D7).
+  const isChildAccount = ref(false)
 
   // Computed
   const isSubscribed = computed(() => {
@@ -187,6 +193,7 @@ export function useSubscription(): UseSubscriptionReturn {
         // Not authenticated - clear subscription. This IS a resolved state
         // (guest), so hydration is complete.
         subscription.value = null
+        isChildAccount.value = false
         hasHydrated.value = true
         return
       }
@@ -211,6 +218,7 @@ export function useSubscription(): UseSubscriptionReturn {
       const data: SubscriptionResponse = await response.json()
 
       subscription.value = data.subscription
+      isChildAccount.value = !!data.isChildAccount
       saveToCache(data.subscription, data.isSubscribed)
       hasHydrated.value = true
     } catch (err) {
@@ -356,6 +364,7 @@ export function useSubscription(): UseSubscriptionReturn {
   // ============================================================================
 
   return {
+    isChildAccount,
     subscription,
     isSubscribed,
     isLoading,

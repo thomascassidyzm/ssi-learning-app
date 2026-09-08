@@ -4,6 +4,8 @@
  * Owner-only, child-accounts-only. Body: { member_id }. Device wiped or link
  * expired → the parent re-mints a fresh one-time sign-in link. Support never
  * touches it; the parent is self-serve forever.
+ *
+ * Removed rows mint too: a child is never removable into unreachability.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -59,7 +61,11 @@ export default async function handler(
     .eq('id', memberId)
     .maybeSingle()
 
-  if (!membership || membership.removed_at || membership.owner_learner_id !== ownerLearnerId) {
+  // A REMOVED child row still mints (job #376·F, D7). A child account has no
+  // email and no way to pay; a parent-minted link is its only door. Refusing a
+  // removed row made one tap on Remove destroy a child's learning forever.
+  // Removing someone changes what they can REACH, never what they have DONE.
+  if (!membership || membership.owner_learner_id !== ownerLearnerId) {
     res.status(404).json({ error: 'Member not found' })
     return
   }

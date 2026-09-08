@@ -661,6 +661,8 @@
     "confirmEmail": "Confirm email",
     "emailsMustMatch": "Those two emails don't match.",
     "backToPlans": "Back to plans",
+    "childAccountTitle": "Ask your grown-up",
+    "childAccountBody": "Ask your grown-up about the family plan.",
     "alreadySubscribedTitle": "You already have a subscription",
     "alreadySubscribedBody": "Your SSi subscription is active, so we have not opened a new checkout — that would have charged you twice and given you nothing extra.",
     "alreadySubscribedChangeComing": "Changing your plan from inside the app is coming soon. Until then, get in touch and we will move you over.",
@@ -717,6 +719,9 @@
     "newSignInLinkFor": "New sign-in link for {name}",
     "signInLinkHow": "Open this link on {name}'s device, or scan the code. It signs them in once, with no email or password. If the device is ever wiped, tap Get sign-in link to make a new one.",
     "removeConfirm": "Remove {name}? They lose access straight away.",
+    "removeChildConfirm": "Remove {name}? {name} keeps their account and everything they have learned, and can keep using the free part of the course. You can always get a new sign-in link for them here.",
+    "removedChildrenTitle": "No longer on the plan",
+    "removedChildAccount": "Keeps their account and everything they have learned. Get a sign-in link any time.",
     "removing": "Removing…",
     "noOneAddedYetHow": "No one added yet. Invite an adult by email, or add a child. A child needs no email address.",
     "childFirstName": "Child's first name"

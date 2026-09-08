@@ -45,7 +45,7 @@ export default async function handler(
 
   const learnerId = await resolveLearnerId(supabase, authResult.userId)
   if (!learnerId) {
-    res.status(200).json({ isOwner: false, hasFamilyPlan: false, seatsUsed: 0, seatCap: FAMILY_SEAT_CAP, members: [] })
+    res.status(200).json({ isOwner: false, hasFamilyPlan: false, seatsUsed: 0, seatCap: FAMILY_SEAT_CAP, members: [], removedChildren: [] })
     return
   }
 
@@ -72,6 +72,37 @@ export default async function handler(
     for (const l of learners || []) displayNames.set(l.id as string, (l.display_name as string) || '')
   }
 
+  // Removed CHILD rows still surface, because a child account has no email and
+  // no way to pay: the parent-minted link is its only door, and it must stay
+  // reachable after Remove (job #376·F, D7). They hold no seat and are listed
+  // apart from the family. Removed adults are not listed; they sign in on
+  // their own address whenever they like.
+  const { data: removedRows } = await supabase
+    .from('family_members')
+    .select('id, member_learner_id, is_child_account, removed_at, created_at')
+    .eq('owner_learner_id', learnerId)
+    .eq('is_child_account', true)
+    .not('removed_at', 'is', null)
+  const removedChildIds = (removedRows || [])
+    .map((r: any) => r.member_learner_id)
+    .filter((id: string | null): id is string => !!id)
+  if (removedChildIds.length > 0) {
+    const { data: removedLearners } = await supabase
+      .from('learners')
+      .select('id, display_name')
+      .in('id', removedChildIds)
+    for (const l of removedLearners || []) displayNames.set(l.id as string, (l.display_name as string) || '')
+  }
+  const removedChildren = (removedRows || []).map((r: any) => ({
+    id: r.id,
+    status: 'removed' as const,
+    is_child_account: true,
+    invited_email: null,
+    display_name: r.member_learner_id ? (displayNames.get(r.member_learner_id) ?? null) : null,
+    created_at: r.created_at,
+    removed_at: r.removed_at,
+  }))
+
   const members = rows.map((r) => ({
     id: r.id,
     status: r.status,
@@ -91,5 +122,6 @@ export default async function handler(
     seatsUsed: 1 + rows.length,
     seatCap: FAMILY_SEAT_CAP,
     members,
+    removedChildren,
   })
 }
