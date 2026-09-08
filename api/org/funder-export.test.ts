@@ -140,6 +140,26 @@ beforeEach(async () => {
 })
 
 describe('who may pull it', () => {
+  // The POSITIVE leader case, asserted rather than assumed. Every other test
+  // in this file runs as an ssi_admin, so until this one existed the file
+  // proved only who is REFUSED — and the whole point of the funder panel (job
+  // #572) is that the org the numbers are about can pull them itself, with no
+  // admin rights anywhere. Verified live against dev on 2026-09-08 with the
+  // Canolfan's own leader account (platform_role NULL): 200 on JSON and CSV.
+  it('answers the leader of the org itself, not only an ssi_admin', async () => {
+    caller = { userId: 'leader-canolfan', isAdmin: false, ownGroupId: 'g-org' }
+    canSee = true
+    const res = makeRes()
+    await handler(get({ groupId: 'g-org', month: '2026-08' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.org).toBe('Dysgu Cymraeg')
+    expect(res.body.windows).toHaveLength(3)
+
+    const csv = makeRes()
+    await handler(get({ groupId: 'g-org', month: '2026-08', format: 'csv' }), csv)
+    expect(csv.statusCode).toBe(200)
+  })
+
   it('refuses a caller who governs no group', async () => {
     caller = null
     const res = makeRes()
