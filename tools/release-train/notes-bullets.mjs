@@ -85,3 +85,69 @@ export function extractBullets(body, heading) {
   flush()
   return out
 }
+
+// ── the SHAPE rule (Tom's ruling, 2026-09-08) ───────────────────────────────────────────────
+// "I think the release notes are too wordy, we just need 3x headines - no more than a sentence
+// for each one / and then the read more, which is one line on each thing deemed relevant".
+//
+// So: at most three headlines under `## What's new`, each ONE SENTENCE; and every read-more item
+// under the catch-all heading is one sentence AND short enough to be one line on a phone. This
+// lives here, beside the markup predicate, for the same reason that one does — two copies of a
+// rule agreeing by coincidence is how the train shipped a truncated bullet on 2026-09-05.
+//
+// The character ceilings are knobs, not doctrine: Tom moves either with one word.
+
+export const MAX_HEADLINES = 3
+export const HEADLINE_MAX_CHARS = 200
+export const READMORE_MAX_CHARS = 140
+
+// Notes dated before this predate the ruling and are deliberately grandfathered by the on-disk
+// sweep. The finalise gate has no such exemption — every NEW note is held to the shape.
+export const SHAPE_RULING_DATE = '2026-09-07'
+
+// Words that end in a full stop without ending a sentence. Kept deliberately short: the rule is
+// meant to be simple, and the tests are the proof.
+const ABBREVIATIONS = /(^|\s)(e\.g|i\.e|etc|vs|mr|mrs|ms|dr|st|no|approx|[a-z])$/i
+
+/** Sentence-terminating marks in a bullet, as end offsets — decimals and abbreviations skipped. */
+function terminators(s) {
+  const out = []
+  const re = /[.!?]+(?=\s|$)/g
+  let m
+  while ((m = re.exec(s)) !== null) {
+    if (m[0] === '.' && ABBREVIATIONS.test(s.slice(0, m.index))) continue
+    out.push(m.index + m[0].length)
+  }
+  return out
+}
+
+/** Is this bullet exactly one sentence — one terminator, and it closes the bullet? */
+export function isOneSentence(bullet) {
+  const s = String(bullet || '').trim()
+  const ends = terminators(s)
+  return ends.length === 1 && ends[0] === s.length
+}
+
+/**
+ * What is wrong with the SHAPE of one bullet. Empty array = it fits the ruling.
+ * `kind` is 'headline' (under "What's new") or 'readmore' (the catch-all section).
+ */
+export function shapeProblems(bullet, kind) {
+  const s = String(bullet || '').trim()
+  const max = kind === 'headline' ? HEADLINE_MAX_CHARS : READMORE_MAX_CHARS
+  const problems = []
+  if (!isOneSentence(s)) {
+    problems.push(kind === 'headline'
+      ? 'a headline must be exactly one sentence'
+      : 'a read-more item must be exactly one sentence')
+  }
+  if (s.length > max) problems.push(`over ${max} characters (${s.length})`)
+  return problems
+}
+
+/** Every off-shape bullet in one section, as `{ bullet, problems }` — the shape both gates report. */
+export function findOffShape(bullets, kind) {
+  return (bullets || [])
+    .map((bullet) => ({ bullet, problems: shapeProblems(bullet, kind) }))
+    .filter((x) => x.problems.length > 0)
+}
