@@ -459,7 +459,9 @@ export default async function handler(
  * event's billing-period start, this updates period and status but HOLDS
  * plan_name (and plan_id) — every member covered for exactly what was paid.
  * Once an event's billing period starts on or after scheduled_plan_at, it
- * writes 'SSi Premium' and clears the schedule. A late renewal fails closed
+ * writes 'SSi Premium' and clears scheduled_plan_name — but KEEPS
+ * scheduled_plan_at, which from that moment reads as "when the Family cover
+ * ended" and carries the members' 30-day grace. A late renewal fails closed
  * through the existing current_period_end check, as any late renewal does.
  * An unscheduled swap made by hand in the Paddle dashboard has no schedule
  * and flips at once — accepted, because the app door always schedules.
@@ -521,8 +523,13 @@ async function handlePlanChangeOnHeldSubscription(supabase: any, data: any): Pro
         ...base,
         plan_name: row.scheduled_plan_name || 'SSi Premium',
         plan_id: billedPriceId,
+        // The NAME is cleared — the change has happened, nothing is pending.
+        // The DATE stays, deliberately (Tom's 30-day grace, 2026-09-08): it is
+        // the record of when the paid Family period ended, and it is what
+        // familyAccess.ts adds 30 days to so every member keeps access for the
+        // grace instead of going dark the instant this write lands. Clearing
+        // it would leave nothing on the row to derive the tail from.
         scheduled_plan_name: null,
-        scheduled_plan_at: null,
       }
 
   const { error: updErr } = await supabase.from('subscriptions').update(patch).eq('id', row.id)

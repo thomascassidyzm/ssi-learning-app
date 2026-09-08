@@ -42,8 +42,19 @@ export interface Subscription {
   /** A change the owner has scheduled for the end of the paid period (job #376·F, D2). */
   scheduledPlanName?: string | null
   scheduledPlanAt?: string | null
-  /** For a family MEMBER: when their family cover ends (D6). Null while nothing ends. */
+  /**
+   * For a family MEMBER: when their family cover really ends (D6) — the paid
+   * period plus the 30-day grace when the owner has changed to Premium.
+   * Computed by the server (api/_utils/familyGrace.ts); never add days here.
+   * Null while nothing ends.
+   */
   familyEndsAt?: string | null
+  /**
+   * For the family OWNER: when the people on their plan stop being covered —
+   * the same 30-day arithmetic, from the same server helper, offered before
+   * they confirm as well as after. Null unless they hold the Family plan.
+   */
+  familyCoverEndsAt?: string | null
 }
 
 /**
