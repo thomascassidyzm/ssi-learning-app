@@ -1,10 +1,10 @@
 # Handbook — compiled render
 
-**Version `01e21ab6ca26` · generated 2026-09-08 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `0553521c275f` · generated 2026-09-08 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## Add a class to a group
 
-Section: running-classes · roles: admin, leader, school_admin · anchor: `verb-add-class` · in `packages/player-vue/src/components/admin/NodeActionBar.vue`
+Section: running-classes · roles: admin, leader, school_admin · anchor: `verb-add-class` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · no demo yet
 
 **What it's for.** Creating a class underneath a group you lead, before anyone is teaching it. Useful when you are setting a term up in advance and will put a teacher on each class later.
 
@@ -20,7 +20,7 @@ Section: running-classes · roles: admin, leader, school_admin · anchor: `verb-
 
 ## Add a school to your programme
 
-Section: your-school · roles: leader · anchor: `verb-add-school` · in `packages/player-vue/src/views/schools/SchoolsView.vue`
+Section: your-school · roles: leader · anchor: `verb-add-school` · in `packages/player-vue/src/views/schools/SchoolsView.vue` · no demo yet
 
 **What it's for.** Creating a new school inside your programme. The school exists the moment you name it, already attached to your group, with its admin link and teacher link ready to hand over.
 
@@ -36,7 +36,7 @@ Section: your-school · roles: leader · anchor: `verb-add-school` · in `packag
 
 ## Add a school under a group
 
-Section: your-school · roles: admin · anchor: `verb-add-school` · in `packages/player-vue/src/components/admin/NodeActionBar.vue`
+Section: your-school · roles: admin · anchor: `verb-add-school` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · no demo yet
 
 **What it's for.** Creating a school inside a group, so it has its own home page, its own staff and its own learners while still rolling up into whatever sits above it.
 
@@ -51,7 +51,7 @@ Section: your-school · roles: admin · anchor: `verb-add-school` · in `package
 
 ## Add a student to a class
 
-Section: getting-people-in · roles: admin, leader, school_admin · anchor: `verb-invite-student` · in `packages/player-vue/src/components/admin/NodeActionBar.vue`
+Section: getting-people-in · roles: admin, leader, school_admin · anchor: `verb-invite-student` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · no demo yet
 
 **What it's for.** Making one learner their own way into one class. The link puts them straight into that class with no forms and no sign-up, so a child can be learning within a minute of opening it.
 
@@ -67,7 +67,7 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `ver
 
 ## Add students to a class
 
-Section: getting-people-in · roles: leader, school_admin, teacher · anchor: `class-student-add` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
+Section: getting-people-in · roles: leader, school_admin, teacher · anchor: `class-student-add` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · no demo yet
 
 **What it's for.** Putting a pupil who is already in your school into this class, for a pupil who has changed set or landed in the wrong class.
 
@@ -83,7 +83,7 @@ Section: getting-people-in · roles: leader, school_admin, teacher · anchor: `c
 
 ## Bring your first person in
 
-Section: getting-people-in · roles: admin, leader, school_admin · anchor: `verb-invite-person` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · has a walk
+Section: getting-people-in · roles: admin, leader, school_admin · anchor: `verb-invite-person` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · demo: invite-first-teacher
 
 **What it's for.** Bringing anyone into this part of the tree — a leader, a teacher or a learner — with a personal link that is their login.
 
@@ -99,7 +99,7 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `ver
 
 ## Change how many seats you pay for
 
-Section: your-school · roles: school_admin, leader · anchor: `upgrade-update-seats` · in `packages/player-vue/src/views/schools/UpgradeView.vue`
+Section: your-school · roles: school_admin, leader · anchor: `upgrade-update-seats` · in `packages/player-vue/src/views/schools/UpgradeView.vue` · no demo yet
 
 **What it's for.** Growing or shrinking a live subscription as staff or learners come and go, without going through checkout a second time.
 
@@ -114,7 +114,7 @@ Section: your-school · roles: school_admin, leader · anchor: `upgrade-update-s
 
 ## Change your school's name and details
 
-Section: your-school · roles: school_admin · anchor: `settings-save-profile` · in `packages/player-vue/src/views/schools/SettingsView.vue`
+Section: your-school · roles: school_admin · anchor: `settings-save-profile` · in `packages/player-vue/src/views/schools/SettingsView.vue` · no demo yet
 
 **What it's for.** Correcting or updating what the app knows about your school — its name, its town, its contact email and a short description. The name is the one that shows on every page your staff and students see.
 
@@ -129,7 +129,7 @@ Section: your-school · roles: school_admin · anchor: `settings-save-profile` �
 
 ## Choose what a class learns
 
-Section: courses-and-content · roles: school_admin, teacher · anchor: `create-class-course` · in `packages/player-vue/src/components/schools/CreateClassModal.vue`
+Section: courses-and-content · roles: school_admin, teacher · anchor: `create-class-course` · in `packages/player-vue/src/components/schools/CreateClassModal.vue` · no demo yet
 
 **What it's for.** Setting the language a class learns. Every class carries one course, and it decides what the class practises, what students hear when they join, and where the class's shared position sits.
 
@@ -144,7 +144,7 @@ Section: courses-and-content · roles: school_admin, teacher · anchor: `create-
 
 ## Choose what role someone arrives as
 
-Section: getting-people-in · roles: admin, leader, school_admin · anchor: `invite-form-role` · in `packages/player-vue/src/components/admin/NodeActionBar.vue`
+Section: getting-people-in · roles: admin, leader, school_admin · anchor: `invite-form-role` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · demo: invite-first-teacher
 
 **What it's for.** The role you pick on an invite is the role the person lands in, and it travels with the link rather than being set afterwards. Teacher sees their own classes, group leader sees everything below their node, learner just learns.
 
@@ -159,7 +159,7 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `inv
 
 ## Choose which courses a school can use
 
-Section: courses-and-content · roles: admin · anchor: `verb-courses` · in `packages/player-vue/src/components/admin/NodeActionBar.vue`
+Section: courses-and-content · roles: admin · anchor: `verb-courses` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · no demo yet
 
 **What it's for.** Setting what a school or group is allowed to learn: the whole catalogue when they are paid up, or a named course or two while they are trialling.
 
@@ -174,7 +174,7 @@ Section: courses-and-content · roles: admin · anchor: `verb-courses` · in `pa
 
 ## Choose which courses your school uses
 
-Section: courses-and-content · roles: school_admin · anchor: `setup-course-picker` · in `packages/player-vue/src/views/schools/SetupView.vue`
+Section: courses-and-content · roles: school_admin · anchor: `setup-course-picker` · in `packages/player-vue/src/views/schools/SetupView.vue` · no demo yet
 
 **What it's for.** Narrowing the full list of courses your school can teach down to the handful you actually intend to use, so that choosing a course for a class is a short list rather than a long one.
 
@@ -189,7 +189,7 @@ Section: courses-and-content · roles: school_admin · anchor: `setup-course-pic
 
 ## Claim another email domain for your school
 
-Section: getting-people-in · roles: school_admin · anchor: `settings-identity-add-domain` · in `packages/player-vue/src/views/schools/SettingsView.vue`
+Section: getting-people-in · roles: school_admin · anchor: `settings-identity-add-domain` · in `packages/player-vue/src/views/schools/SettingsView.vue` · no demo yet
 
 **What it's for.** Telling the app which email domains belong to your school, so staff arriving on your invite links from those addresses are in with one tap. Your own domain was claimed when you signed up; add the others if your school uses more than one.
 
@@ -203,7 +203,7 @@ Section: getting-people-in · roles: school_admin · anchor: `settings-identity-
 
 ## Copy a class link without opening the class
 
-Section: getting-people-in · roles: school_admin, teacher · anchor: `classes-share-link` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
+Section: getting-people-in · roles: school_admin, teacher · anchor: `classes-share-link` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue` · no demo yet
 
 **What it's for.** Grabbing a class's join link straight from the class list, for when you are sending links to several classes in one sitting.
 
@@ -218,7 +218,7 @@ Section: getting-people-in · roles: school_admin, teacher · anchor: `classes-s
 
 ## Copy a school's joining links
 
-Section: getting-people-in · roles: leader · anchor: `schools-list-link-chips` · in `packages/player-vue/src/views/schools/SchoolsView.vue`
+Section: getting-people-in · roles: leader · anchor: `schools-list-link-chips` · in `packages/player-vue/src/views/schools/SchoolsView.vue` · no demo yet
 
 **What it's for.** Fetching the admin link or the teacher link for any school in your programme, so you can chase a school that has not got started or replace a link somebody has lost.
 
@@ -233,7 +233,7 @@ Section: getting-people-in · roles: leader · anchor: `schools-list-link-chips`
 
 ## Create your first classes
 
-Section: running-classes · roles: school_admin · anchor: `setup-add-class-row` · in `packages/player-vue/src/views/schools/SetupView.vue`
+Section: running-classes · roles: school_admin · anchor: `setup-add-class-row` · in `packages/player-vue/src/views/schools/SetupView.vue` · no demo yet
 
 **What it's for.** Setting up the classes your school will actually teach. A class is a name, a course and the students who join it, and it is the thing every progress figure in the dashboard is eventually counted against.
 
@@ -249,7 +249,7 @@ Section: running-classes · roles: school_admin · anchor: `setup-add-class-row`
 
 ## Delete a class
 
-Section: running-classes · roles: leader, school_admin, teacher · anchor: `class-delete` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
+Section: running-classes · roles: leader, school_admin, teacher · anchor: `class-delete` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · no demo yet
 
 **What it's for.** Removing a class you no longer want, usually one set up by mistake or a group that has finished. Before anything is deleted the app tells you what goes with it.
 
@@ -265,7 +265,7 @@ Section: running-classes · roles: leader, school_admin, teacher · anchor: `cla
 
 ## Delete a school or group
 
-Section: your-school · roles: admin · anchor: `verb-delete` · in `packages/player-vue/src/components/admin/NodeActionBar.vue`
+Section: your-school · roles: admin · anchor: `verb-delete` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · no demo yet
 
 **What it's for.** Removing a school or group that should never have existed, or has been wound up. It is the one verb here that takes everything below it with it.
 
@@ -280,7 +280,7 @@ Section: your-school · roles: admin · anchor: `verb-delete` · in `packages/pl
 
 ## Delete your school
 
-Section: your-school · roles: school_admin · anchor: `settings-delete-school` · in `packages/player-vue/src/views/schools/SettingsView.vue`
+Section: your-school · roles: school_admin · anchor: `settings-delete-school` · in `packages/player-vue/src/views/schools/SettingsView.vue` · no demo yet
 
 **What it's for.** Closing your school down for good. It removes the school itself along with its classes and everybody's enrolment in them, and it cannot be undone.
 
@@ -296,7 +296,7 @@ Section: your-school · roles: school_admin · anchor: `settings-delete-school` 
 
 ## Download your school's data
 
-Section: seeing-progress · roles: school_admin, teacher · anchor: `settings-export-data` · in `packages/player-vue/src/views/schools/SettingsView.vue`
+Section: seeing-progress · roles: school_admin, teacher · anchor: `settings-export-data` · in `packages/player-vue/src/views/schools/SettingsView.vue` · no demo yet
 
 **What it's for.** Taking your school's progress figures out of the app as a spreadsheet file — every student, the class they are in, how far they have got, how long they have practised and when they were last active.
 
@@ -311,7 +311,7 @@ Section: seeing-progress · roles: school_admin, teacher · anchor: `settings-ex
 
 ## Email someone their invite again
 
-Section: getting-people-in · roles: admin, leader, school_admin · anchor: `ways-in-resend` · in `packages/player-vue/src/components/admin/WaysInLedger.vue`
+Section: getting-people-in · roles: admin, leader, school_admin · anchor: `ways-in-resend` · in `packages/player-vue/src/components/admin/WaysInLedger.vue` · no demo yet
 
 **What it's for.** Sending the same invite email a second time to somebody who never found the first one. Nothing changes and no new link is made, so the one they may yet dig out of a spam folder still works.
 
@@ -326,7 +326,7 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `way
 
 ## Export your class list
 
-Section: running-classes · roles: school_admin, teacher · anchor: `classes-export` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
+Section: running-classes · roles: school_admin, teacher · anchor: `classes-export` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue` · no demo yet
 
 **What it's for.** Taking the class list away as a spreadsheet, with the name, language, student count, belt, hours this week, sessions, health and join code for every class.
 
@@ -341,7 +341,7 @@ Section: running-classes · roles: school_admin, teacher · anchor: `classes-exp
 
 ## Find a class in a long list
 
-Section: running-classes · roles: school_admin, teacher · anchor: `classes-filters` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
+Section: running-classes · roles: school_admin, teacher · anchor: `classes-filters` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue` · no demo yet
 
 **What it's for.** Narrowing a long list down to the classes you care about right now, by language or by how they are doing, and putting them in the order that answers your question.
 
@@ -356,7 +356,7 @@ Section: running-classes · roles: school_admin, teacher · anchor: `classes-fil
 
 ## Finding your way around the organisation
 
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-map-rail` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
+Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-map-rail` · in `packages/player-vue/src/views/admin/NodeHomeView.vue` · no demo yet
 
 **What it's for.** A standing map down the side of every level, showing where you are: the levels above you, the level you are on, its neighbours and what sits under it. It never disappears, so you can always tell how deep into the organisation you have gone.
 
@@ -371,7 +371,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-
 
 ## Give a class its course
 
-Section: courses-and-content · roles: school_admin · anchor: `setup-class-course` · in `packages/player-vue/src/views/schools/SetupView.vue`
+Section: courses-and-content · roles: school_admin · anchor: `setup-class-course` · in `packages/player-vue/src/views/schools/SetupView.vue` · no demo yet
 
 **What it's for.** Picking the language a class is learning. This is how a course reaches learners at all — a course does not belong to a person, it belongs to a class, and everybody in that class practises it.
 
@@ -387,7 +387,7 @@ Section: courses-and-content · roles: school_admin · anchor: `setup-class-cour
 
 ## Give a teacher their classes
 
-Section: getting-people-in · roles: school_admin, leader · anchor: `teacher-assign-classes` · in `packages/player-vue/src/views/schools/TeachersView.vue`
+Section: getting-people-in · roles: school_admin, leader · anchor: `teacher-assign-classes` · in `packages/player-vue/src/views/schools/TeachersView.vue` · no demo yet
 
 **What it's for.** Putting a teacher onto the classes they will teach, working from your staff list rather than opening each class in turn. This is how a new arrival gets their timetable in one sitting.
 
@@ -402,7 +402,7 @@ Section: getting-people-in · roles: school_admin, leader · anchor: `teacher-as
 
 ## Hand a class over to another teacher
 
-Section: running-classes · roles: leader, school_admin, teacher · anchor: `class-teacher-make-lead` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
+Section: running-classes · roles: leader, school_admin, teacher · anchor: `class-teacher-make-lead` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · demo: hand-over-the-lead
 
 **What it's for.** Passing the lead of a class to another teacher who already teaches it — for a maternity cover, a term swap, or a permanent handover.
 
@@ -417,7 +417,7 @@ Section: running-classes · roles: leader, school_admin, teacher · anchor: `cla
 
 ## Hand a teacher their access code
 
-Section: getting-people-in · roles: school_admin · anchor: `teacher-signin-link` · in `packages/player-vue/src/views/schools/TeachersView.vue`
+Section: getting-people-in · roles: school_admin · anchor: `teacher-signin-link` · in `packages/player-vue/src/views/schools/TeachersView.vue` · no demo yet
 
 **What it's for.** A way to get a teacher into their own account when email is not reaching them. School mail gateways quarantine our sign-in codes often enough that this is the rescue, not the exception.
 
@@ -433,7 +433,7 @@ Section: getting-people-in · roles: school_admin · anchor: `teacher-signin-lin
 
 ## Hand out your staff links
 
-Section: getting-people-in · roles: school_admin · anchor: `setup-staff-links` · in `packages/player-vue/src/views/schools/SetupView.vue`
+Section: getting-people-in · roles: school_admin · anchor: `setup-staff-links` · in `packages/player-vue/src/views/schools/SetupView.vue` · no demo yet
 
 **What it's for.** Getting your colleagues in. Your school has a standing teacher link and a standing admin link — send either one and whoever opens it is signed in with that role, with no sign-up form to fill in.
 
@@ -449,7 +449,7 @@ Section: getting-people-in · roles: school_admin · anchor: `setup-staff-links`
 
 ## How far a class has travelled
 
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-journey` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
+Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-journey` · in `packages/player-vue/src/views/admin/NodeHomeView.vue` · no demo yet
 
 **What it's for.** A bar showing where a class has got to in its course, measured in LEGOs — the individual pieces of language the course teaches. The class's own shared position leads, and the average its students have reached on their own sits alongside it.
 
@@ -464,7 +464,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class
 
 ## How fresh these numbers are
 
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-updated` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
+Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-updated` · in `packages/player-vue/src/views/admin/NodeHomeView.vue` · no demo yet
 
 **What it's for.** A small time stamp saying when the figures on the page were last loaded, so you always know whether you are looking at this morning or this minute.
 
@@ -478,7 +478,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-
 
 ## How students join a class
 
-Section: getting-people-in · roles: leader, school_admin, teacher · anchor: `class-join-link` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
+Section: getting-people-in · roles: leader, school_admin, teacher · anchor: `class-join-link` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · demo: run-class-session
 
 **What it's for.** The one door into a class. A student who follows the class link signs up and lands straight in the class, on the right course, with no code to type. The same class also has a short code for a room where a link is awkward.
 
@@ -493,7 +493,7 @@ Section: getting-people-in · roles: leader, school_admin, teacher · anchor: `c
 
 ## How your class measures up
 
-Section: seeing-progress · roles: teacher · anchor: `dash-class-bench` · in `packages/player-vue/src/views/schools/DashboardView.vue`
+Section: seeing-progress · roles: teacher · anchor: `dash-class-bench` · in `packages/player-vue/src/views/schools/DashboardView.vue` · no demo yet
 
 **What it's for.** A three-bar benchmark on each class, showing the cycles that class has done against the average for your school and the average across everyone learning that course anywhere. It answers the question a total cannot: is this normal.
 
@@ -509,7 +509,7 @@ Section: seeing-progress · roles: teacher · anchor: `dash-class-bench` · in `
 
 ## Invite a teacher to your school
 
-Section: getting-people-in · roles: school_admin · anchor: `teachers-invite-link` · in `packages/player-vue/src/views/schools/TeachersView.vue`
+Section: getting-people-in · roles: school_admin · anchor: `teachers-invite-link` · in `packages/player-vue/src/views/schools/TeachersView.vue` · no demo yet
 
 **What it's for.** One standing link that turns anyone who opens it into a teacher of your school. It is the same link every time, so you can hand it to a whole staff room at once.
 
@@ -525,7 +525,7 @@ Section: getting-people-in · roles: school_admin · anchor: `teachers-invite-li
 
 ## Invite a teacher who isn't here yet
 
-Section: running-classes · roles: leader, school_admin, teacher · anchor: `class-coteacher-link` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
+Section: running-classes · roles: leader, school_admin, teacher · anchor: `class-coteacher-link` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · demo: invite-a-supply-teacher
 
 **What it's for.** Getting a teacher who has no account yet into one class of yours, without going through the school admin.
 
@@ -540,7 +540,7 @@ Section: running-classes · roles: leader, school_admin, teacher · anchor: `cla
 
 ## Let a named address in through your links
 
-Section: getting-people-in · roles: school_admin · anchor: `settings-identity-add-address` · in `packages/player-vue/src/views/schools/SettingsView.vue`
+Section: getting-people-in · roles: school_admin · anchor: `settings-identity-add-address` · in `packages/player-vue/src/views/schools/SettingsView.vue` · no demo yet
 
 **What it's for.** Letting one named person in with one tap when their email is not at your school's domain: a supply teacher here for a fortnight, or a colleague who only uses a personal address.
 
@@ -554,7 +554,7 @@ Section: getting-people-in · roles: school_admin · anchor: `settings-identity-
 
 ## Look up one student
 
-Section: seeing-progress · roles: admin, school_admin, teacher · anchor: `student-view-link` · in `packages/player-vue/src/views/schools/StudentsView.vue`
+Section: seeing-progress · roles: admin, school_admin, teacher · anchor: `student-view-link` · in `packages/player-vue/src/views/schools/StudentsView.vue` · no demo yet
 
 **What it's for.** Finding one learner among all of them and opening what they have actually done. The list carries their belt, their hours this week, and when they were last here, so you can often answer the question without opening anything.
 
@@ -569,7 +569,7 @@ Section: seeing-progress · roles: admin, school_admin, teacher · anchor: `stud
 
 ## Make a class
 
-Section: running-classes · roles: school_admin, teacher · anchor: `verb-new-class` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
+Section: running-classes · roles: school_admin, teacher · anchor: `verb-new-class` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue` · no demo yet
 
 **What it's for.** Setting up a class of your own: a name, a language, and a link students use to join it. A class holds a roster, its own place on the course, and everything the class practises together.
 
@@ -585,7 +585,7 @@ Section: running-classes · roles: school_admin, teacher · anchor: `verb-new-cl
 
 ## Make a link anyone can use
 
-Section: getting-people-in · roles: admin, leader, school_admin · anchor: `verb-shareable-link` · in `packages/player-vue/src/components/admin/NodeActionBar.vue`
+Section: getting-people-in · roles: admin, leader, school_admin · anchor: `verb-shareable-link` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · demo: ways-in
 
 **What it's for.** One link, by role, that you can put in a newsletter or on a slide and let a whole room use. Unlike a personal invite it is not tied to anybody, so new arrivals type their own name before they are in.
 
@@ -600,7 +600,7 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `ver
 
 ## Move a teacher to another class
 
-Section: running-classes · roles: leader, school_admin, teacher · anchor: `class-teacher-other-classes` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
+Section: running-classes · roles: leader, school_admin, teacher · anchor: `class-teacher-other-classes` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · demo: move-a-teacher-between-classes
 
 **What it's for.** Changing which classes a teacher is on, in one pass, without visiting each class in turn.
 
@@ -615,7 +615,7 @@ Section: running-classes · roles: leader, school_admin, teacher · anchor: `cla
 
 ## Name your school
 
-Section: your-school · roles: school_admin · anchor: `setup-school-name` · in `packages/player-vue/src/views/schools/SetupView.vue`
+Section: your-school · roles: school_admin · anchor: `setup-school-name` · in `packages/player-vue/src/views/schools/SetupView.vue` · no demo yet
 
 **What it's for.** Telling the app what your school is actually called. The name you type here is the one your teachers and students see on every page, on every invite link they open, and at the top of every report.
 
@@ -630,7 +630,7 @@ Section: your-school · roles: school_admin · anchor: `setup-school-name` · in
 
 ## Open a class
 
-Section: running-classes · roles: school_admin, teacher · anchor: `classes-row` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
+Section: running-classes · roles: school_admin, teacher · anchor: `classes-row` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue` · no demo yet
 
 **What it's for.** Going from the summary row into the class itself, where the roster, the teachers, the join link and the class's progress all live.
 
@@ -644,7 +644,7 @@ Section: running-classes · roles: school_admin, teacher · anchor: `classes-row
 
 ## Practice per student per week
 
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-benchmark` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
+Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-benchmark` · in `packages/player-vue/src/views/admin/NodeHomeView.vue` · no demo yet
 
 **What it's for.** Minutes of practice per student per week for this class, set against the same figure for its school and for everyone doing the course. Dividing by students and by weeks is what lets a class of nine and a class of thirty be compared honestly.
 
@@ -659,7 +659,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class
 
 ## Prove your mailbox reaches you
 
-Section: getting-people-in · roles: school_admin, teacher · anchor: `mailbox-check-send` · in `packages/player-vue/src/components/schools/MailboxCheckPrompt.vue`
+Section: getting-people-in · roles: school_admin, teacher · anchor: `mailbox-check-send` · in `packages/player-vue/src/components/schools/MailboxCheckPrompt.vue` · no demo yet
 
 **What it's for.** School mail gateways are ferocious, and a code that never arrives is only discovered on the day you need it. This asks once, at the moment you have just made something worth keeping, and settles it.
 
@@ -672,7 +672,7 @@ Section: getting-people-in · roles: school_admin, teacher · anchor: `mailbox-c
 
 ## Put the app on your device
 
-Section: your-own-account · roles: leader, school_admin · anchor: `account-install` · in `packages/player-vue/src/components/admin/YourAccount.vue` · has a walk
+Section: your-own-account · roles: leader, school_admin · anchor: `account-install` · in `packages/player-vue/src/components/admin/YourAccount.vue` · demo: install-the-app
 
 **What it's for.** Putting SSi on your phone or tablet as an app, so it opens from the home screen and works without a browser tab.
 
@@ -686,7 +686,7 @@ Section: your-own-account · roles: leader, school_admin · anchor: `account-ins
 
 ## Read your class list
 
-Section: running-classes · roles: school_admin, teacher · anchor: `classes-table` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
+Section: running-classes · roles: school_admin, teacher · anchor: `classes-table` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue` · no demo yet
 
 **What it's for.** One row per class, showing at a glance how each one is doing: how many students, what belt the class has reached, hours practised this week, the shape of the last seven days, and a health mark for classes worth a look.
 
@@ -701,7 +701,7 @@ Section: running-classes · roles: school_admin, teacher · anchor: `classes-tab
 
 ## Reading one student's progress
 
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-students` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
+Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-students` · in `packages/player-vue/src/views/admin/NodeHomeView.vue` · no demo yet
 
 **What it's for.** Every student in a class, one to a row, each carrying their own position in the course, their belt, their practice over the last week and how recently they were active. A quiet coloured dot flags anyone who has gone quiet or fallen well behind the class.
 
@@ -717,7 +717,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class
 
 ## Reading the belts
 
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-belts` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
+Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-belts` · in `packages/player-vue/src/views/admin/NodeHomeView.vue` · no demo yet
 
 **What it's for.** How a class is spread across the eight belts, from white to black. A belt is earned by completing whole sentences of the course, so it is a coarse, honest badge of distance travelled rather than a score or a grade.
 
@@ -732,7 +732,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class
 
 ## Reading your insights
 
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `insights-measure` · in `packages/player-vue/src/insight/NodeRateEngine.vue` · has a walk
+Section: seeing-progress · roles: admin, leader, school_admin · anchor: `insights-measure` · in `packages/player-vue/src/insight/NodeRateEngine.vue` · demo: reading-insights
 
 **What it's for.** Reading the pace of learning at this level — what is being counted, over what period, and against what.
 
@@ -748,7 +748,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `insig
 
 ## Remove a student from a class
 
-Section: running-classes · roles: leader, school_admin, teacher · anchor: `class-student-remove` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
+Section: running-classes · roles: leader, school_admin, teacher · anchor: `class-student-remove` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · no demo yet
 
 **What it's for.** Taking a student off a class roster, for a pupil who has changed set or joined the wrong class from a shared link.
 
@@ -763,7 +763,7 @@ Section: running-classes · roles: leader, school_admin, teacher · anchor: `cla
 
 ## Remove a teacher from your school
 
-Section: getting-people-in · roles: school_admin · anchor: `teacher-remove` · in `packages/player-vue/src/views/schools/TeachersView.vue`
+Section: getting-people-in · roles: school_admin · anchor: `teacher-remove` · in `packages/player-vue/src/views/schools/TeachersView.vue` · no demo yet
 
 **What it's for.** Taking a teacher off your school when they leave. Their own account survives — what goes is their place in this school and their view of its classes and learners.
 
@@ -778,7 +778,7 @@ Section: getting-people-in · roles: school_admin · anchor: `teacher-remove` ·
 
 ## Rename a class
 
-Section: running-classes · roles: leader, school_admin, teacher · anchor: `class-rename` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
+Section: running-classes · roles: leader, school_admin, teacher · anchor: `class-rename` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · no demo yet
 
 **What it's for.** Changing what a class is called, for a name typed in a hurry or a group that has moved up a year.
 
@@ -793,7 +793,7 @@ Section: running-classes · roles: leader, school_admin, teacher · anchor: `cla
 
 ## Rename a school or group
 
-Section: your-school · roles: admin · anchor: `verb-rename` · in `packages/player-vue/src/components/admin/NodeActionBar.vue`
+Section: your-school · roles: admin · anchor: `verb-rename` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · no demo yet
 
 **What it's for.** Changing what a school or group is called everywhere it appears. Nothing else moves — the same people, classes and links carry on under the new name.
 
@@ -808,7 +808,7 @@ Section: your-school · roles: admin · anchor: `verb-rename` · in `packages/pl
 
 ## Run your first class session
 
-Section: running-classes · roles: school_admin, teacher · anchor: `class-play` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
+Section: running-classes · roles: school_admin, teacher · anchor: `class-play` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · demo: run-class-session
 
 **What it's for.** Running a live practice session with a class in the room, everyone hearing the same thing at the same time.
 
@@ -823,7 +823,7 @@ Section: running-classes · roles: school_admin, teacher · anchor: `class-play`
 
 ## See every school in your programme
 
-Section: seeing-progress · roles: leader · anchor: `schools-list-table` · in `packages/player-vue/src/views/schools/SchoolsView.vue`
+Section: seeing-progress · roles: leader · anchor: `schools-list-table` · in `packages/player-vue/src/views/schools/SchoolsView.vue` · no demo yet
 
 **What it's for.** One table of every school you look after, with its students, teachers, classes and practice hours side by side, so a whole programme reads at a glance instead of school by school.
 
@@ -840,7 +840,7 @@ Section: seeing-progress · roles: leader · anchor: `schools-list-table` · in 
 
 ## See what your school pays
 
-Section: your-school · roles: school_admin · anchor: `settings-billing-plan` · in `packages/player-vue/src/views/schools/SchoolBillingPanel.vue`
+Section: your-school · roles: school_admin · anchor: `settings-billing-plan` · in `packages/player-vue/src/views/schools/SchoolBillingPanel.vue` · no demo yet
 
 **What it's for.** The plain statement of your school's plan — its name, how many teacher seats it is paying for, and whether the subscription is live.
 
@@ -855,7 +855,7 @@ Section: your-school · roles: school_admin · anchor: `settings-billing-plan` �
 
 ## Set or change your password
 
-Section: your-own-account · roles: leader, school_admin · anchor: `account-password` · in `packages/player-vue/src/components/admin/YourAccount.vue` · has a walk
+Section: your-own-account · roles: leader, school_admin · anchor: `account-password` · in `packages/player-vue/src/components/admin/YourAccount.vue` · demo: set-your-password
 
 **What it's for.** Giving yourself a password so you can sign back in without waiting for a link in your email.
 
@@ -869,7 +869,7 @@ Section: your-own-account · roles: leader, school_admin · anchor: `account-pas
 
 ## Set up a demo organisation
 
-Section: your-school · roles: admin · anchor: `verb-mint-demo` · in `packages/player-vue/src/components/admin/NodeActionBar.vue`
+Section: your-school · roles: admin · anchor: `verb-mint-demo` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · no demo yet
 
 **What it's for.** Standing up a whole organisation with plausible people and activity already in it, for showing somebody what the product looks like once it is running rather than what it looks like empty.
 
@@ -884,7 +884,7 @@ Section: your-school · roles: admin · anchor: `verb-mint-demo` · in `packages
 
 ## Set your language and time zone
 
-Section: your-school · roles: school_admin, teacher · anchor: `settings-localisation-save` · in `packages/player-vue/src/views/schools/SettingsView.vue`
+Section: your-school · roles: school_admin, teacher · anchor: `settings-localisation-save` · in `packages/player-vue/src/views/schools/SettingsView.vue` · no demo yet
 
 **What it's for.** Choosing the language the dashboard itself speaks to you in, and the time zone your dates and times are read against.
 
@@ -899,7 +899,7 @@ Section: your-school · roles: school_admin, teacher · anchor: `settings-locali
 
 ## Share a class with a colleague
 
-Section: running-classes · roles: leader, school_admin, teacher · anchor: `class-teacher-add` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
+Section: running-classes · roles: leader, school_admin, teacher · anchor: `class-teacher-add` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · demo: share-a-class
 
 **What it's for.** Adding another teacher to a class you already run, so you both see the same roster and the same progress.
 
@@ -914,7 +914,7 @@ Section: running-classes · roles: leader, school_admin, teacher · anchor: `cla
 
 ## Start a class session from the list
 
-Section: running-classes · roles: school_admin, teacher · anchor: `classes-row-play` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
+Section: running-classes · roles: school_admin, teacher · anchor: `classes-row-play` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue` · no demo yet
 
 **What it's for.** Starting a shared practice session for a class without opening the class first. Your device leads and the whole class moves together from where the class last got to.
 
@@ -929,7 +929,7 @@ Section: running-classes · roles: school_admin, teacher · anchor: `classes-row
 
 ## Subscribe as a tutor
 
-Section: your-school · roles: teacher · anchor: `upgrade-subscribe-tutor` · in `packages/player-vue/src/views/schools/UpgradeView.vue`
+Section: your-school · roles: teacher · anchor: `upgrade-subscribe-tutor` · in `packages/player-vue/src/views/schools/UpgradeView.vue` · no demo yet
 
 **What it's for.** Paying for your own tutoring dashboard when you teach on your own rather than inside a school. It is one seat, for you.
 
@@ -944,7 +944,7 @@ Section: your-school · roles: teacher · anchor: `upgrade-subscribe-tutor` · i
 
 ## Subscribe your organisation
 
-Section: your-school · roles: leader · anchor: `upgrade-subscribe-org` · in `packages/player-vue/src/views/schools/UpgradeView.vue`
+Section: your-school · roles: leader · anchor: `upgrade-subscribe-org` · in `packages/player-vue/src/views/schools/UpgradeView.vue` · no demo yet
 
 **What it's for.** Putting your whole organisation on a paid plan. You pay per learner seat, and one subscription covers every seat and every language across the group.
 
@@ -959,7 +959,7 @@ Section: your-school · roles: leader · anchor: `upgrade-subscribe-org` · in `
 
 ## Subscribe your school
 
-Section: your-school · roles: school_admin · anchor: `upgrade-subscribe-school` · in `packages/player-vue/src/views/schools/UpgradeView.vue`
+Section: your-school · roles: school_admin · anchor: `upgrade-subscribe-school` · in `packages/player-vue/src/views/schools/UpgradeView.vue` · no demo yet
 
 **What it's for.** Turning a trial into a paid school. You pay per teacher seat, and one subscription covers every language and every class those teachers run.
 
@@ -975,7 +975,7 @@ Section: your-school · roles: school_admin · anchor: `upgrade-subscribe-school
 
 ## Take a domain or address off your school's list
 
-Section: getting-people-in · roles: school_admin · anchor: `settings-identity-remove` · in `packages/player-vue/src/views/schools/SettingsView.vue`
+Section: getting-people-in · roles: school_admin · anchor: `settings-identity-remove` · in `packages/player-vue/src/views/schools/SettingsView.vue` · no demo yet
 
 **What it's for.** Stopping a domain or a named address from being waved straight in by your invite links.
 
@@ -988,7 +988,7 @@ Section: getting-people-in · roles: school_admin · anchor: `settings-identity-
 
 ## Take a teacher off a class, or move them
 
-Section: running-classes · roles: leader, school_admin, teacher · anchor: `assign-classes-modal` · in `packages/player-vue/src/components/schools/AssignClassesModal.vue`
+Section: running-classes · roles: leader, school_admin, teacher · anchor: `assign-classes-modal` · in `packages/player-vue/src/components/schools/AssignClassesModal.vue` · no demo yet
 
 **What it's for.** Changing which classes a teacher takes without removing them from the school. The ticks start from what is true today, so moving somebody from one class to another is a single change rather than two.
 
@@ -1003,7 +1003,7 @@ Section: running-classes · roles: leader, school_admin, teacher · anchor: `ass
 
 ## Take your lists away as a spreadsheet
 
-Section: seeing-progress · roles: admin, school_admin, teacher · anchor: `students-export` · in `packages/player-vue/src/views/schools/StudentsView.vue`
+Section: seeing-progress · roles: admin, school_admin, teacher · anchor: `students-export` · in `packages/player-vue/src/views/schools/StudentsView.vue` · no demo yet
 
 **What it's for.** A CSV of whoever is currently on screen, for a report, a governors' meeting, or your own sums in a spreadsheet.
 
@@ -1018,7 +1018,7 @@ Section: seeing-progress · roles: admin, school_admin, teacher · anchor: `stud
 
 ## The class roster
 
-Section: seeing-progress · roles: leader, school_admin, teacher · anchor: `class-roster` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
+Section: seeing-progress · roles: leader, school_admin, teacher · anchor: `class-roster` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · no demo yet
 
 **What it's for.** Everyone in the class, one row each, with their belt, how much they have learned, how much they have practised and when they were last at it. This is the answer to who is quietly drifting.
 
@@ -1033,7 +1033,7 @@ Section: seeing-progress · roles: leader, school_admin, teacher · anchor: `cla
 
 ## The invites desk
 
-Section: getting-people-in · roles: admin · anchor: `invites-mode-strip` · in `packages/player-vue/src/components/admin/invites/InviteCreateCard.vue` · has a walk
+Section: getting-people-in · roles: admin · anchor: `invites-mode-strip` · in `packages/player-vue/src/components/admin/invites/InviteCreateCard.vue` · demo: invites-desk
 
 **What it's for.** The platform-wide desk where SSi mints and manages invites across every organisation at once.
 
@@ -1048,7 +1048,7 @@ Section: getting-people-in · roles: admin · anchor: `invites-mode-strip` · in
 
 ## The numbers on any level
 
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-stats` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
+Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-stats` · in `packages/player-vue/src/views/admin/NodeHomeView.vue` · no demo yet
 
 **What it's for.** The row of figures at the top of any level of your organisation. They always count everything below that level, each person once, so a group's numbers already include every school, class and learner underneath it.
 
@@ -1064,7 +1064,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-
 
 ## Voice and pause
 
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `insights-voice-pause` · in `packages/player-vue/src/views/admin/NodeInsightsView.vue`
+Section: seeing-progress · roles: admin, leader, school_admin · anchor: `insights-voice-pause` · in `packages/player-vue/src/views/admin/NodeInsightsView.vue` · no demo yet
 
 **What it's for.** What the microphone is actually giving us below this level: how many learners have any mic-derived data at all, and for those who do, how the pause the app leaves them to speak in is settling, and how they sound when they speak.
 
@@ -1079,7 +1079,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `insig
 
 ## Walking down to a school, a class or a person
 
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `below-tree-name` · in `packages/player-vue/src/components/admin/NodeBelowTree.vue`
+Section: seeing-progress · roles: admin, leader, school_admin · anchor: `below-tree-name` · in `packages/player-vue/src/components/admin/NodeBelowTree.vue` · no demo yet
 
 **What it's for.** A drawn tree of everything hanging beneath the level you are on — groups inside groups, the classes in each, the teachers who take them and the staff who teach nothing yet. It is one picture of the shape of your organisation, not a list you have to filter.
 
@@ -1095,7 +1095,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `below
 
 ## Ways in — who can get in, and how to change it
 
-Section: getting-people-in · roles: admin, leader, school_admin · anchor: `ways-in-ledger` · in `packages/player-vue/src/components/admin/WaysInLedger.vue` · has a walk
+Section: getting-people-in · roles: admin, leader, school_admin · anchor: `ways-in-ledger` · in `packages/player-vue/src/components/admin/WaysInLedger.vue` · demo: ways-in
 
 **What it's for.** The ledger of every way into this part of the tree — who has a live link, what it lets them do, and how to change your mind.
 
@@ -1111,7 +1111,7 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `way
 
 ## When more people join than you have seats
 
-Section: your-school · roles: school_admin, leader · anchor: `upgrade-seats-actual` · in `packages/player-vue/src/views/schools/UpgradeView.vue`
+Section: your-school · roles: school_admin, leader · anchor: `upgrade-seats-actual` · in `packages/player-vue/src/views/schools/UpgradeView.vue` · no demo yet
 
 **What it's for.** What happens when your school or organisation outgrows the seats it is paying for. Nothing is blocked, nobody is locked out, and no lesson stops. The page simply tells you the truth so you can put it right.
 
@@ -1126,7 +1126,7 @@ Section: your-school · roles: school_admin, leader · anchor: `upgrade-seats-ac
 
 ## Where the class has got to
 
-Section: seeing-progress · roles: leader, school_admin, teacher · anchor: `class-journey` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
+Section: seeing-progress · roles: leader, school_admin, teacher · anchor: `class-journey` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · no demo yet
 
 **What it's for.** How far the class has travelled through its course, as a bar with the class average behind it and the next belt named. A class carries its own place on the course, moved by the sessions you run together.
 
@@ -1141,7 +1141,7 @@ Section: seeing-progress · roles: leader, school_admin, teacher · anchor: `cla
 
 ## Whether a class is practising together
 
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-practice` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
+Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-practice` · in `packages/player-vue/src/views/admin/NodeHomeView.vue` · no demo yet
 
 **What it's for.** The headline card on a class: how many sessions it has run this week, how long ago the last one was, and the total hours it has practised together. Classes practising together is what a language programme lives on, so this leads over anything individual students do alone.
 
@@ -1155,7 +1155,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class
 
 ## Why the insights show a rate, not a total
 
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `insights-rate-widget` · in `packages/player-vue/src/insight/NodeRateEngine.vue`
+Section: seeing-progress · roles: admin, leader, school_admin · anchor: `insights-rate-widget` · in `packages/player-vue/src/insight/NodeRateEngine.vue` · no demo yet
 
 **What it's for.** Everything on the insights page is a rate — an amount per learner per week — rather than a running total. A total only ever says how big and how old something is, so a large school always beats a small one. A rate says how fast it is moving, which is the thing you can actually act on.
 
@@ -1170,7 +1170,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `insig
 
 ## Work through setup at your own pace
 
-Section: your-school · roles: school_admin · anchor: `setup-save-exit` · in `packages/player-vue/src/views/schools/SetupView.vue`
+Section: your-school · roles: school_admin · anchor: `setup-save-exit` · in `packages/player-vue/src/views/schools/SetupView.vue` · no demo yet
 
 **What it's for.** The first-run wizard that takes a brand-new school from nothing to teachers, courses and classes. It is four short steps and it does not have to be done in one sitting.
 
@@ -1186,7 +1186,7 @@ Section: your-school · roles: school_admin · anchor: `setup-save-exit` · in `
 
 ## Your class against the average
 
-Section: seeing-progress · roles: teacher · anchor: `teacher-insights-class` · in `packages/player-vue/src/insight/TeacherInsightsView.vue`
+Section: seeing-progress · roles: teacher · anchor: `teacher-insights-class` · in `packages/player-vue/src/insight/TeacherInsightsView.vue` · no demo yet
 
 **What it's for.** The teacher's own insight tool: pick one of your classes and see its pace set against the average, over the period and for the measure you choose. It answers whether a class is moving well, which a roster of totals cannot.
 
@@ -1202,7 +1202,7 @@ Section: seeing-progress · roles: teacher · anchor: `teacher-insights-class` �
 
 ## Your classes at a glance
 
-Section: seeing-progress · roles: teacher · anchor: `dash-class-card` · in `packages/player-vue/src/views/schools/DashboardView.vue`
+Section: seeing-progress · roles: teacher · anchor: `dash-class-card` · in `packages/player-vue/src/views/schools/DashboardView.vue` · no demo yet
 
 **What it's for.** Your teaching dashboard, with your classes first. Every class you teach is a row or a card carrying its course, how many students are in it, their average practice, and the join code you read out to get a new pupil in.
 
@@ -1217,7 +1217,7 @@ Section: seeing-progress · roles: teacher · anchor: `dash-class-card` · in `p
 
 ## Your own teaching numbers
 
-Section: seeing-progress · roles: teacher · anchor: `dash-teacher-stats` · in `packages/player-vue/src/views/schools/DashboardView.vue`
+Section: seeing-progress · roles: teacher · anchor: `dash-teacher-stats` · in `packages/player-vue/src/views/schools/DashboardView.vue` · no demo yet
 
 **What it's for.** One quiet line totalling your whole teaching load — how many students you have across every class, how many hours they have practised between them, and how many sessions have been run. It is a record of what has happened, never a target.
 

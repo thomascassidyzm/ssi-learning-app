@@ -613,7 +613,6 @@ function closeDelete(): void {
            roles: admin, leader, school_admin
            place: node-home
            keywords: invite, person, link, join, leader, learner
-           walk: invite-first-person
            What it's for. Bringing anyone into this part of the tree — a leader, a
            teacher or a learner — with a personal link that is their login.
            Where it is. The node's home page, the buttons along the top, **Invite a

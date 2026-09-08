@@ -25,6 +25,8 @@ import {
   PERSONAS,
   runGates,
   comparePack,
+  assemblePack,
+  deriveWalkPairings,
 } from '../../../../tools/walkthrough/lib.mjs'
 import {
   parseHandbookBlocks, fingerprintCapability, stampChecked, declarationSource,
@@ -318,8 +320,10 @@ describe('gateHandbookCoverage (every capability has a description)', () => {
     const { failures } = gateHandbookCoverage(['verb-invite-person', 'verb-mystery'], entries, [])
     expect(failures.some((f: string) => f.includes('verb-mystery'))).toBe(true)
   })
-  it('fails a block naming a walk that does not exist, and two entries with one title', () => {
-    expect(gateHandbookCoverage([], [{ ...entries[0], walk: 'ghost' }], []).failures.some((f: string) => f.includes('ghost'))).toBe(true)
+  it('fails two entries with one title', () => {
+    // A block naming a walk used to be checked here for the walk existing;
+    // since job #386 a walk: line is refused outright by validateHandbookEntry,
+    // because the pairing is derived from the walks, never typed.
     expect(gateHandbookCoverage([], [entries[0], entries[0]], []).failures.some((f: string) => f.includes('both titled'))).toBe(true)
   })
 })
@@ -538,5 +542,96 @@ describe('the two-part stamp (no silent bulk re-pin)', () => {
   it('a legacy one-part stamp reads as code-only, so nothing pinned before this breaks', () => {
     expect(checkedCode('e36b80b5')).toBe('e36b80b5')
     expect(checkedProse('e36b80b5')).toBe(null)
+  })
+})
+
+// THE DEMO IS DERIVED, NEVER TYPED (job #386). Before this, the pairing was a
+// hand-typed walk: line inside the HANDBOOK comment — eleven entries had one,
+// seventy had none, and nothing checked that the walk it named was about the
+// capability at all. Now the walk that steps on the capability's anchor IS its
+// demo, and a surviving walk: line fails the build.
+describe('deriveWalkPairings (one action, one demo, derived from the anchors)', () => {
+  const hb = (over: Record<string, unknown> = {}) => ({
+    path: 'x.vue', title: 'Share a class', section: 'running-classes', personas: ['teacher'],
+    place: 'class-detail', anchor: 'class-teacher-add', parts: [], keywords: [], walk: null,
+    what: 'w', where: 'w', how: ['1'], note: '', checked: 'a.b', ...over,
+  })
+  const step = (anchor: string) => ({ anchor, say: 's', advance: { on: 'next' } })
+
+  it('pairs an entry with the walk that steps on its anchor, with no walk: line anywhere', () => {
+    const w = walk({ id: 'share-a-class', personas: ['teacher'], steps: [step('class-teachers'), step('class-teacher-add')] })
+    const { pairings, failures } = deriveWalkPairings([hb()], [w])
+    expect(failures).toEqual([])
+    expect(pairings.get('class-teacher-add')).toBe('share-a-class')
+    // …and it is what lands in the pack the page reads.
+    const pack = assemblePack([w], [hb()], pairings)
+    expect(pack.handbook[0].walk).toBe('share-a-class')
+  })
+
+  it('an entry no walk steps on gets null, never a guess', () => {
+    const w = walk({ id: 'elsewhere', personas: ['teacher'], steps: [step('class-roster')] })
+    expect(deriveWalkPairings([hb()], [w]).pairings.has('class-teacher-add')).toBe(false)
+    expect(assemblePack([w], [hb()], new Map()).handbook[0].walk).toBe(null)
+  })
+
+  it('never pairs a reader with a walk their role cannot be shown', () => {
+    const w = walk({ id: 'admin-only', personas: ['admin'], steps: [step('class-teacher-add')] })
+    expect(deriveWalkPairings([hb()], [w]).pairings.has('class-teacher-add')).toBe(false)
+  })
+
+  it('prefers the walk offered to every role the entry names', () => {
+    const some = walk({ id: 'for-leaders', personas: ['leader'], steps: [step('verb-invite-person')] })
+    const all = walk({ id: 'for-everyone', personas: ['leader', 'school_admin'], steps: [step('verb-invite-person')] })
+    const e = hb({ anchor: 'verb-invite-person', personas: ['leader', 'school_admin'] })
+    expect(deriveWalkPairings([e], [some, all]).pairings.get('verb-invite-person')).toBe('for-everyone')
+  })
+
+  it('prefers the walk about this action over the grand tour that passes it', () => {
+    const tour = walk({ id: 'tour', personas: ['teacher'], steps: [step('class-roster'), step('class-teacher-add'), step('class-play')] })
+    const focused = walk({ id: 'focused', personas: ['teacher'], steps: [step('class-teachers'), step('class-teacher-add')] })
+    const entries = [hb(), hb({ title: 'Roster', anchor: 'class-roster' }), hb({ title: 'Play', anchor: 'class-play' })]
+    const { pairings } = deriveWalkPairings(entries, [tour, focused])
+    expect(pairings.get('class-teacher-add')).toBe('focused')
+    expect(pairings.get('class-roster')).toBe('tour')
+  })
+
+  it('two walks level on every tie-break is a build failure naming both — one action, one demo', () => {
+    const a = walk({ id: 'twin-a', personas: ['teacher'], steps: [step('class-teacher-add')] })
+    const b = walk({ id: 'twin-b', personas: ['teacher'], steps: [step('class-teacher-add')] })
+    const { pairings, failures } = deriveWalkPairings([hb()], [a, b])
+    expect(pairings.has('class-teacher-add')).toBe(false)
+    expect(failures).toHaveLength(1)
+    expect(failures[0]).toMatch(/twin-a, twin-b/)
+    expect(failures[0]).toMatch(/One action, one demo/)
+  })
+
+  it('a hand-typed walk: line is refused by name, so the list cannot grow back', () => {
+    const errors = validateHandbookEntry(hb({ walk: 'share-a-class' }))
+    expect(errors.some((m) => /walk: share-a-class — delete this line/.test(m))).toBe(true)
+    expect(validateHandbookEntry(hb())).toEqual([])
+  })
+
+  it('the live tree carries no hand-typed walk: line and the served pack carries the derived demos', () => {
+    const pack = JSON.parse(readFileSync(join(__dirname, 'pack.json'), 'utf8'))
+    const walkIds = new Set(pack.walks.map((w: { id: string }) => w.id))
+    let paired = 0
+    for (const e of pack.handbook) {
+      if (!e.walk) continue
+      paired += 1
+      expect(walkIds.has(e.walk)).toBe(true)
+      const w = pack.walks.find((x: { id: string }) => x.id === e.walk)
+      expect(w.steps.some((s: { anchor: string }) => s.anchor === e.anchor)).toBe(true)
+    }
+    expect(paired).toBeGreaterThan(0)
+  })
+})
+
+describe('gateNoAutoPlay also polices startWalkAt (navigate-then-start, job #386)', () => {
+  it('passes startWalkAt inside an @click and fails it in a script block', () => {
+    const ok = [{ path: 'ok.vue', src: '<button @click="startWalkAt(e.walk, () => router.push(to))">Show me</button>' }]
+    expect(gateNoAutoPlay(ok).failures).toEqual([])
+    const bad = [{ path: 'bad.vue', src: '<script setup>onMounted(() => startWalkAt(id, go))</script>' }]
+    expect(gateNoAutoPlay(bad).failures).toHaveLength(1)
+    expect(gateNoAutoPlay(bad).failures[0]).toMatch(/startWalkAt/)
   })
 })

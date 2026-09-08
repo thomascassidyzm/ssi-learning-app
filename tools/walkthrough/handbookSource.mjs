@@ -83,6 +83,8 @@ export function parseHandbookBlocks(path, src) {
         const [, key, value] = label
         if (key === 'section') entry.section = value.trim()
         else if (key === 'place') entry.place = value.trim()
+        // walk: is LEGACY — parsed only so the gate can refuse it by name.
+        // The demo is derived from the walks (lib.mjs deriveWalkPairings).
         else if (key === 'walk') entry.walk = value.trim() || null
         else if (key === 'checked') entry.checked = value.trim() || null
         else if (key === 'roles') entry.personas = value.split(',').map((s) => s.trim()).filter(Boolean)

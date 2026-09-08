@@ -149,7 +149,7 @@ const walksDir = join(HERE, 'walks')
 const walkFiles = readdirSync(walksDir).filter((f) => f.endsWith('.json')).sort()
 const walks = walkFiles.map((f) => JSON.parse(readFileSync(join(walksDir, f), 'utf8')))
 
-const { failures, warnings } = runGates({
+const { failures, warnings, pairings } = runGates({
   walks,
   entries,
   fingerprintOf,
@@ -185,7 +185,7 @@ if (failures.length) {
   process.exit(1)
 }
 
-const pack = assemblePack(walks, entries)
+const pack = assemblePack(walks, entries, pairings)
 const content = JSON.stringify(pack)
 const versioned = {
   version: createHash('sha256').update(content).digest('hex').slice(0, 12),
@@ -241,7 +241,7 @@ const handbookMd = [
   ...versioned.handbook.flatMap((e) => [
     `## ${e.title}`,
     '',
-    `Section: ${e.section} · roles: ${e.personas.join(', ')} · anchor: \`${e.anchor}\` · in \`${e.source}\`${e.walk ? ' · has a walk' : ''}`,
+    `Section: ${e.section} · roles: ${e.personas.join(', ')} · anchor: \`${e.anchor}\` · in \`${e.source}\`${e.walk ? ` · demo: ${e.walk}` : ' · no demo yet'}`,
     '',
     `**What it's for.** ${e.what}`,
     '',

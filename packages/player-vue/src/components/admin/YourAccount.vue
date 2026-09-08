@@ -120,7 +120,6 @@ function openGuide(): void {
          roles: leader, school_admin
          place: node-home
          keywords: password, sign in, login, account, security
-         walk: set-your-password
          What it's for. Giving yourself a password so you can sign back in without waiting
          for a link in your email.
          Where it is. Your node's home page, **Your account**.
@@ -169,7 +168,6 @@ function openGuide(): void {
          roles: leader, school_admin
          place: node-home
          keywords: install, app, phone, device, home screen, pwa
-         walk: install-the-app
          What it's for. Putting SSi on your phone or tablet as an app, so it opens from the
          home screen and works without a browser tab.
          Where it is. Your node's home page, **Your account**.

@@ -121,7 +121,69 @@ export function validateHandbookEntry(entry) {
   const prose = [entry.what, entry.where, entry.note, ...entry.how].join(' ')
   if (/[()]/.test(prose)) at('prose contains parentheses — zero-explanation ruling: say it in the sentence')
   if (/\bTODO\b|\bTBC\b|\bplaceholder\b/i.test(prose)) at('prose is a placeholder — write the sentence or delete the block')
+  // THE DEMO IS DERIVED, NEVER TYPED (job #386, 2026-09-08). A hand-typed
+  // walk: line was a second list beside the prose — eleven entries carried
+  // one, seventy did not, and nothing checked that the walk it named was
+  // about this capability at all. The pairing now comes from the walks
+  // themselves: see deriveWalkPairings. A line that survives here is a
+  // build failure so the list cannot quietly grow back.
+  if (entry.walk) at(`walk: ${entry.walk} — delete this line. The demo is derived: the walk whose steps anchor "${entry.anchor}" is this capability's demo`)
   return errors
+}
+
+/**
+ * THE PAIRING IS A DERIVATION, NOT A LIST (job #386).
+ *
+ * A capability's identity is its anchor — the compiler already binds the
+ * prose to it by adjacency, fails the build when it vanishes, and pins the
+ * sentence to the element's fingerprint. A walk is a sequence of steps over
+ * anchors. So "which walk demonstrates this capability" is a question the
+ * two artefacts already answer between them: the walk that steps on the
+ * capability's anchor. Nobody types it, nothing can name a walk about some
+ * other button, and deleting the button takes the prose AND the demo down
+ * together through the same anchor gate.
+ *
+ * ONE DEMO PER DISCRETE SINGLE ACTION. Where several walks step on the same
+ * anchor, the tie is broken by what the reader needs, in this order:
+ *   1. only walks a reader of this entry may see — sharing a persona;
+ *   2. a walk offered to EVERY role the entry names beats one offered to some;
+ *   3. the walk that touches the fewest other capabilities — the one that is
+ *      about this action rather than a grand tour that passes it;
+ *   4. the walk whose first step IS this capability.
+ * Two walks still level after that are a genuine duplicate, and the build
+ * says so by name: one action, one demo.
+ *
+ * Verified against the eleven pairings that were hand-typed before this
+ * existed: the derivation reproduces every one of them, and adds three that
+ * were free all along.
+ *
+ * @returns {{ pairings: Map<string, string>, failures: string[] }} anchor → walk id
+ */
+export function deriveWalkPairings(entries, walks) {
+  const failures = []
+  const pairings = new Map()
+  const capabilityAnchors = new Set(entries.map((e) => e.anchor))
+  const reach = (w) => new Set((w.steps ?? []).map((s) => s.anchor).filter((a) => capabilityAnchors.has(a))).size
+  for (const e of entries) {
+    let c = walks.filter((w) =>
+      (w.steps ?? []).some((s) => s.anchor === e.anchor) &&
+      (w.personas ?? []).some((p) => e.personas.includes(p)))
+    if (!c.length) continue
+    const covering = c.filter((w) => e.personas.every((p) => w.personas.includes(p)))
+    if (covering.length) c = covering
+    const fewest = Math.min(...c.map(reach))
+    c = c.filter((w) => reach(w) === fewest)
+    if (c.length > 1) {
+      const leading = c.filter((w) => w.steps[0]?.anchor === e.anchor)
+      if (leading.length) c = leading
+    }
+    if (c.length > 1) {
+      failures.push(`DEMO: ${e.path}: HANDBOOK "${e.title}" — two walks demonstrate anchor "${e.anchor}" for the same roles: ${c.map((w) => w.id).join(', ')}. One action, one demo — make one of them about something else`)
+      continue
+    }
+    pairings.set(e.anchor, c[0].id)
+  }
+  return { pairings, failures }
 }
 
 /**
@@ -142,10 +204,6 @@ export function gateHandbookCoverage(anchors, entries, walks) {
     if (described.has(id) || stepped.has(id)) continue
     const at = typeof a === 'string' ? '' : `${a.path}:${a.line} — `
     failures.push(`COVERAGE: ${at}data-walk="${id}" declares a capability with nothing said about it. Write a HANDBOOK comment directly above that element (see the worked example below), or add "${id}" to the parts: line of the capability it belongs to, or delete the anchor`)
-  }
-  const ids = new Set(walks.map((w) => w.id))
-  for (const e of entries) {
-    if (e.walk && !ids.has(e.walk)) failures.push(`${e.path}: HANDBOOK "${e.title}" names walk "${e.walk}", which does not exist`)
   }
   const seen = new Set()
   for (const e of entries) {
@@ -365,15 +423,20 @@ export function gateSafety(walks) {
  * only appear inside an @click handler attribute: a walk starts from a user
  * tap or not at all. A mounted-hook / watcher / query-param autostart shows
  * up as a script-block or non-click call and FAILS the build.
+ *
+ * startWalkAt() — the Handbook's navigate-then-start (job #386) — is the same
+ * tap with a page change in front of it, so it is policed here identically.
+ * A starter this gate does not know about is a starter it cannot see, which
+ * is why the new one was added to the pattern rather than around it.
  */
 export function gateNoAutoPlay(vueFiles) {
   const failures = []
   for (const { path, src } of vueFiles) {
-    const calls = (src.match(/startWalk\s*\(/g) ?? []).length
+    const calls = (src.match(/startWalk(?:At)?\s*\(/g) ?? []).length
     if (!calls) continue
-    const inClick = (src.match(/@click(?:\.[a-z.]+)?="[^"]*startWalk\s*\([^"]*"/g) ?? []).length
+    const inClick = (src.match(/@click(?:\.[a-z.]+)?="[^"]*startWalk(?:At)?\s*\([^"]*"/g) ?? []).length
     if (calls !== inClick) {
-      failures.push(`AUTOPLAY: ${path} calls startWalk() outside an @click handler — walks must only ever start from a user tap`)
+      failures.push(`AUTOPLAY: ${path} calls startWalk() or startWalkAt() outside an @click handler — walks must only ever start from a user tap`)
     }
   }
   return { failures }
@@ -419,7 +482,7 @@ export function gateUniqueIds(walks) {
  * out of the .vue files themselves — so the prose ships from where the code
  * is, and cannot be edited into a lie without the compiler noticing.
  */
-export function assemblePack(walks, entries = []) {
+export function assemblePack(walks, entries = [], pairings = new Map()) {
   const sortedWalks = [...walks].sort((a, b) => a.id.localeCompare(b.id))
   const handbook = [...entries]
     .sort((a, b) => a.title.localeCompare(b.title))
@@ -432,7 +495,8 @@ export function assemblePack(walks, entries = []) {
       place: { route: e.place },
       anchor: e.anchor,
       source: e.path,
-      walk: e.walk ?? null,
+      // Derived, never typed — the walk that steps on this anchor, or null.
+      walk: pairings.get(e.anchor) ?? null,
       what: e.what,
       where: e.where,
       how: e.how,
@@ -481,10 +545,12 @@ export function comparePack(compiled, served) {
   return failures
 }
 
-/** Run every gate; returns { failures, warnings }. */
+/** Run every gate; returns { failures, warnings, pairings } — pairings is anchor → walk id, derived. */
 export function runGates({ walks, vueFiles, runtimeSrc, rulesJson, evaluateRulesSrc, handbookSrc, entries = [], fingerprintOf }) {
   const failures = []
   const warnings = []
+  const derived = deriveWalkPairings(entries, walks)
+  failures.push(...derived.failures)
   for (const w of walks) failures.push(...validateWalkSchema(w))
   failures.push(...gateUniqueIds(walks).failures)
   const anchors = gateAnchors(walks, vueFiles)
@@ -517,5 +583,5 @@ export function runGates({ walks, vueFiles, runtimeSrc, rulesJson, evaluateRules
   }
   failures.push(...gateHandbookCoverage(anchorLocations, entries, walks).failures)
   if (fingerprintOf) failures.push(...gateHandbookFreshness(entries, fingerprintOf).failures)
-  return { failures, warnings }
+  return { failures, warnings, pairings: derived.pairings }
 }

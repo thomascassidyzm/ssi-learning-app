@@ -195,7 +195,6 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
          roles: admin, leader, school_admin
          place: node-home
          keywords: ways in, links, revoke, re-mint, access, ledger, shareable
-         walk: ways-in
          What it's for. The ledger of every way into this part of the tree — who has a live
          link, what it lets them do, and how to change your mind.
          Where it is. The node's home page, the **Ways in** section below the lists.

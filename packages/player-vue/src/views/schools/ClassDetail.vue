@@ -876,7 +876,6 @@ const mailboxPrompt = useMailboxPrompt()
              roles: school_admin, teacher
              place: class-detail
              keywords: session, play, class, run, join, code
-             walk: run-class-session
              What it's for. Running a live practice session with a class in the room,
              everyone hearing the same thing at the same time.
              Where it is. The class page, the join link and the play button.
@@ -923,7 +922,6 @@ const mailboxPrompt = useMailboxPrompt()
                    roles: leader, school_admin, teacher
                    place: class-detail
                    keywords: move, teacher, classes, assign, timetable
-                   walk: move-a-teacher-between-classes
                    What it's for. Changing which classes a teacher is on, in one
                    pass, without visiting each class in turn.
                    Where it is. The class page, the **Teachers** section, a
@@ -953,7 +951,6 @@ const mailboxPrompt = useMailboxPrompt()
                    roles: leader, school_admin, teacher
                    place: class-detail
                    keywords: lead, hand over, class, teacher, transfer
-                   walk: hand-over-the-lead
                    What it's for. Passing the lead of a class to another teacher
                    who already teaches it — for a maternity cover, a term swap,
                    or a permanent handover.
@@ -1010,7 +1007,6 @@ const mailboxPrompt = useMailboxPrompt()
                roles: leader, school_admin, teacher
                place: class-detail
                keywords: class, share, co-teacher, colleague, teachers
-               walk: share-a-class
                What it's for. Adding another teacher to a class you already run, so
                you both see the same roster and the same progress.
                Where it is. The class page, the **Teachers** section.
@@ -1056,7 +1052,6 @@ const mailboxPrompt = useMailboxPrompt()
              roles: leader, school_admin, teacher
              place: class-detail
              keywords: supply, cover, teacher, invite, class, link
-             walk: invite-a-supply-teacher
              What it's for. Getting a teacher who has no account yet into one class of
              yours, without going through the school admin.
              Where it is. The class page, the **Teachers** section.

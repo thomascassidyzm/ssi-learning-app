@@ -38,7 +38,6 @@ const initialWho = computed(() => (typeof route.query.who === 'string' ? route.q
            roles: admin
            place: admin-invites
            keywords: invites, desk, codes, admin, mint, org
-           walk: invites-desk
            What it's for. The platform-wide desk where SSi mints and manages invites
            across every organisation at once.
            Where it is. The admin area, **Invites**.

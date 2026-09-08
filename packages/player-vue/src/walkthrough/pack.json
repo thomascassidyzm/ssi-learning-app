@@ -1,5 +1,5 @@
 {
-  "version": "01e21ab6ca26",
+  "version": "0553521c275f",
   "generatedAt": "2026-09-08",
   "walks": [
     {
@@ -1096,7 +1096,7 @@
       },
       "anchor": "verb-invite-person",
       "source": "packages/player-vue/src/components/admin/NodeActionBar.vue",
-      "walk": "invite-first-person",
+      "walk": "invite-first-teacher",
       "what": "Bringing anyone into this part of the tree — a leader, a teacher or a learner — with a personal link that is their login.",
       "where": "The node's home page, the buttons along the top, **Invite a person**.",
       "how": [
@@ -1233,7 +1233,7 @@
       },
       "anchor": "invite-form-role",
       "source": "packages/player-vue/src/components/admin/NodeActionBar.vue",
-      "walk": null,
+      "walk": "invite-first-teacher",
       "what": "The role you pick on an invite is the role the person lands in, and it travels with the link rather than being set afterwards. Teacher sees their own classes, group leader sees everything below their node, learner just learns.",
       "where": "Any node's home page, **Invite a person**, the role dropdown on the left of the form.",
       "how": [
@@ -1951,7 +1951,7 @@
       },
       "anchor": "class-join-link",
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
-      "walk": null,
+      "walk": "run-class-session",
       "what": "The one door into a class. A student who follows the class link signs up and lands straight in the class, on the right course, with no code to type. The same class also has a short code for a room where a link is awkward.",
       "where": "The class page, the **Invite students** card.",
       "how": [
@@ -2179,7 +2179,7 @@
       },
       "anchor": "verb-shareable-link",
       "source": "packages/player-vue/src/components/admin/NodeActionBar.vue",
-      "walk": null,
+      "walk": "ways-in",
       "what": "One link, by role, that you can put in a newsletter or on a slide and let a whole room use. Unlike a personal invite it is not tied to anybody, so new arrivals type their own name before they are in.",
       "where": "The node's home page, **Get a shareable link** along the top.",
       "how": [

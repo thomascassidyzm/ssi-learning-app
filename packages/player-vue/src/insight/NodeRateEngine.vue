@@ -244,7 +244,6 @@ const metricDesc = computed(() => {
            roles: admin, leader, school_admin
            place: node-insights
            keywords: insights, numbers, rate, compare, measure, window
-           walk: reading-insights
            What it's for. Reading the pace of learning at this level — what is being
            counted, over what period, and against what.
            Where it is. The node's home page, **See insights**.
