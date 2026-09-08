@@ -65,6 +65,7 @@
     "forSpeakers": "for {lang} speakers",
     "searchPlaceholder": "Search for any language...",
     "moUnlimitedAccessAll": "£15/mo — unlimited access to all languages",
+    "freeThroughGroup": "Free through your group",
     "free": "Free",
     "freeForever": "Free forever"
   },
@@ -341,7 +342,9 @@
     "cancelChangeToPremiumOffer": "Or change to SSi Premium and keep your own learning at {price} from {date}. Everyone on your plan then stays covered for a further 30 days.",
     "cancelRowDesc": "Stay on {plan} until {date}, then stop",
     "periodEnd": "the end of your current period",
-    "keepMyPlan": "Keep my plan"
+    "keepMyPlan": "Keep my plan",
+    "freeThrough": "Free through",
+    "otherLanguagesOwnSubscription": "Other languages need their own subscription."
   },
   "belt": {
     "yourProgress": "Your progress",

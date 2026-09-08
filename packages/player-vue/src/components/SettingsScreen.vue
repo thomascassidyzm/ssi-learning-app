@@ -14,6 +14,7 @@ import { useRouter } from 'vue-router'
 import { getLanguageName, getLanguageEndonym, setLocale, useI18n } from '../composables/useI18n'
 import { courseTargetName } from '../utils/courseDisplayName'
 import { useSharedSubscription } from '../composables/useSubscription'
+import { useOrgFreeAccess } from '../composables/useOrgFreeAccess'
 import { usePendingPurchase } from '../composables/usePendingPurchase'
 import { useFamilyModal } from '@/composables/useFamilyModal'
 import { useCheckout } from '../composables/useCheckout'
@@ -629,6 +630,26 @@ const {
   cancelSubscription,
   refresh: refreshSubscription,
 } = useSharedSubscription()
+
+// FUNDED FREE ACCESS (the Canolfan free year). Not a subscription — there is
+// no payment, no portal, nothing to cancel — but equally not somebody to sell
+// to. In the place the Upgrade row used to sit they get a plain statement of
+// WHICH languages their funder has bought and until when, because the grant
+// covers those and not the rest of the catalogue: a learner who later wants
+// Spanish should not read this line and think they already have it. Access to
+// the courses themselves rides on their user_entitlements row, not on this.
+const { coverLine: orgCoverLine, coveredCourses: orgCoveredCourses, orgName: orgFunderName } = useOrgFreeAccess()
+const showOrgFreeRow = computed(() => orgCoveredCourses.value.length > 0)
+const orgFreeLabel = computed(() =>
+  orgFunderName.value
+    ? `${t('settings.freeThrough', 'Free through')} ${orgFunderName.value}`
+    : t('settings.subscription')
+)
+const orgFreeLine = computed(() =>
+  orgCoverLine.value
+    ? `${orgCoverLine.value}. ${t('settings.otherLanguagesOwnSubscription', 'Other languages need their own subscription.')}`
+    : t('settings.active')
+)
 const portalFeedback = ref('')
 
 // This is the screen a buyer opens to check what they bought, so it is the one
@@ -2649,6 +2670,18 @@ const confirmReset = async () => {
                 </div>
               </div>
             </template>
+          </template>
+          <!-- FREE THROUGH A FUNDED ORG (Canolfan). Never the Upgrade row:
+               offering a £15 subscription to somebody whose year is already
+               paid for is the whole of the defect this replaces — and to a
+               nervous learner a payment prompt reads as a bill they missed. -->
+          <template v-else-if="showOrgFreeRow">
+            <div class="setting-row">
+              <div class="setting-info">
+                <span class="setting-label">{{ orgFreeLabel }}</span>
+                <span class="setting-desc">{{ orgFreeLine }}</span>
+              </div>
+            </div>
           </template>
           <!-- Not subscribed -->
           <template v-else>
