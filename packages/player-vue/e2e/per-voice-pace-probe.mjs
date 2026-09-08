@@ -10,12 +10,21 @@
 // at DIFFERENT rates inside one session. That is a shape the old code could not
 // produce, whatever the belt.
 //
-// spa_for_eng, measured live on `public.course_voice_pace()` 2026-09-08:
-//     target1  azure_es-ES-ElviraNeural  effectivePaceRatio 0.985  (measured)
-//     target2  azure_es-ES-AlvaroNeural  effectivePaceRatio 1.000  (measured)
-//     known    xai_eve                   UNMEASURED -> uncorrected
-// so Easy must show {0.81, 0.80} on target clips (0.8/0.985, 0.8/1.0) and 1.0
-// on known clips; Fast must show {0.91, 0.90}.
+// THE COURSE HAS TO BE ONE THE RULE CAN REACH. `computeCycleSpeed` returns the
+// course base untouched when `nativeSpeed` is false — i.e. whenever target1 was
+// RENDERED slow (voice_config.voices.target1.settings.speed < 1). spa_for_eng is
+// one of those (0.9), so it plays flat and proves nothing either way.
+//
+// fra_for_eng is the honest specimen: rendered at native speed, course
+// global_speed 0.9, and its two target voices differ — measured live on
+// `public.course_voice_pace()` 2026-09-08:
+//     target1  eve   effectivePaceRatio 1.074  (measured)
+//     target2  leo   UNMEASURED -> target used uncorrected
+// so, with the 0.9 course base:
+//     Easy  target1 0.9 x (0.8/1.074) = 0.70   target2 0.9 x 0.8 = 0.72
+//     Fast  target1 0.9 x (0.9/1.074) = 0.75   target2 0.9 x 0.9 = 0.81
+// The retired belt ramp gave white belt ONE number, 0.9 x 0.8 = 0.72, for both
+// voices. So {0.70, 0.72} and {0.75, 0.81} are shapes only per-voice pace makes.
 //
 //   BASE_URL=https://staging.saysomethingin.app node e2e/per-voice-pace-probe.mjs
 //
@@ -25,7 +34,9 @@ import { chromium } from '@playwright/test'
 
 const BASE = process.env.BASE_URL || 'https://staging.saysomethingin.app'
 const OUT = process.env.OUT_DIR || `${process.env.CS_SCRATCH || '/tmp'}/per-voice-pace/`
-const COURSE = process.env.COURSE || 'spa_for_eng'
+const COURSE = process.env.COURSE || 'fra_for_eng'
+const EASY = (process.env.EASY_RATES || '0.7,0.72').split(',').map(Number)
+const FAST = (process.env.FAST_RATES || '0.75,0.81').split(',').map(Number)
 const PLAY_MS = Number(process.env.PLAY_MS || 60000)
 const READY_MS = Number(process.env.READY_TIMEOUT_MS || 45000)
 mkdirSync(OUT, { recursive: true })
@@ -116,8 +127,8 @@ const run = async (mode, expectedTargets) => {
 }
 
 console.log(`BASE_URL = ${BASE}\ncourse   = ${COURSE}`)
-await run('easy', [0.8, 0.81])
-await run('fast', [0.9, 0.91])
+await run('easy', EASY)
+await run('fast', FAST)
 
 console.log(`\n${failures === 0 ? 'ALL PASS' : `${failures} FAILURE(S)`}`)
 process.exit(failures === 0 ? 0 : 1)
