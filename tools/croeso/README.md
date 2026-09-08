@@ -22,6 +22,27 @@ against the other.
 - **Re-shoot** with `capture.mjs` when a screen changes; see its header for the
   environment variables headless Chrome needs here.
 
+## English first, Welsh second
+
+Kai's ruling, 2026-09-08: the pack goes to people who are *learning* Welsh,
+often in their first nervous weeks, and a wall of Welsh at the top of the page
+is a reason to close it. So every block is English then Welsh — headings,
+prose, figure captions, the contents list, the dialect names ("Northern
+(Gogledd)"). The Welsh stays and stays simple; it just comes second. The screen
+toggle hides the WELSH, not the English; the printed copy always carries both.
+
+## One sheet, one page
+
+Every `section.sheet` is exactly one A4 page: `break-before` starts it on fresh
+paper, `break-inside` stops it splitting. A short sheet leaves white at the foot
+of its page, which is the price of never asking a learner to turn over
+mid-step. If a sheet grows past a page, SPLIT IT IN THE TEMPLATE — `pdf.mjs`
+fails when the printed page count is not one more than the number of sheets.
+
+The contents list is real in-document `#` links, and Chrome's print-to-PDF turns
+them into PDF link annotations with named destinations, so it is clickable in
+the file as well as on the page.
+
 ## Never author the PDF separately
 
 It is printed from the page by headless Chrome. Two hand-kept copies diverge,

@@ -21,27 +21,28 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
 DST = os.path.join(ROOT, 'packages', 'player-vue', 'public', 'croeso', 'index.html')
 
-# Welsh alt text: a screen reader on this page is reading Welsh.
+# Alt text is ENGLISH: the page is English-first now, so a screen reader
+# working through it is reading English.
 ALT = {
- 'link': 'Sgrin gyntaf y ddolen gofrestru, gyda botwm Get started',
- 'email': 'Y blwch cyfeiriad e-bost a botwm Send my code',
- 'code': 'Y blwch ar gyfer y cod chwe digid',
- 'ticks': 'Y ddau flwch ticio a botwm Claim my free year',
- 'done': 'Y sgrin gadarnhau, gyda dyddiad diwedd y flwyddyn am ddim',
- 'search': 'Y rhestr cyrsiau gyda Welsh wedi ei deipio yn y blwch chwilio',
- 'variants': 'Y rhes Welsh wedi ei hagor, yn dangos Northern a Southern',
- 'ready': 'Sgrin y chwaraewr cyn dechrau, gyda botwm coch mawr',
- 'speak': 'Sgrin y chwaraewr yn ystod y bwlch, gyda YOU ARE MEANT TO BE SPEAKING NOW',
- 'answer': 'Sgrin y chwaraewr yn dangos yr ateb Cymraeg dw i isio',
- 'ios1': 'Cam un ar iPhone: y botwm rhannu',
- 'ios2': 'Cam dau ar iPhone: Add to Home Screen',
- 'ios3': 'Cam tri ar iPhone: y botwm Add',
- 'ios4': 'Cam pedwar ar iPhone: wedi gorffen',
- 'android': 'Y tri thap ar Android',
- 'settings': 'Sgrin Gosodiadau gyda botwm Sign in ac Interface Language',
- 'signin': 'Y sgrin fewngofnodi gyda blwch e-bost',
- 'uilang': 'Y rhestr ieithoedd rhyngwyneb, gyda Cymraeg ynddi',
- 'welshui': 'Sgrin y chwaraewr gyda rhyngwyneb Cymraeg',
+ 'link': 'The registration link\u2019s first screen, with a Get started button',
+ 'email': 'The email address box and a Send my code button',
+ 'code': 'The box for the six-digit code',
+ 'ticks': 'The two tick boxes and a Claim my free year button',
+ 'done': 'The confirmation screen, showing the date the free year ends',
+ 'search': 'The course list with Welsh typed into the search box',
+ 'variants': 'The Welsh row opened, showing Northern and Southern',
+ 'ready': 'The player screen before starting, with a big red button',
+ 'speak': 'The player screen during the gap, reading YOU ARE MEANT TO BE SPEAKING NOW',
+ 'answer': 'The player screen showing the Welsh answer dw i isio',
+ 'ios1': 'Step one on an iPhone: the Share button',
+ 'ios2': 'Step two on an iPhone: Add to Home Screen',
+ 'ios3': 'Step three on an iPhone: the Add button',
+ 'ios4': 'Step four on an iPhone: done',
+ 'android': 'The three taps on Android',
+ 'settings': 'The Settings screen with a Sign in button and Interface Language',
+ 'signin': 'The sign-in screen with an example address, gwen at example dot com, typed in the box',
+ 'uilang': 'The interface language list, with Cymraeg in it',
+ 'welshui': 'The player screen with a Welsh interface',
 }
 
 

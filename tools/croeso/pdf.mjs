@@ -17,8 +17,9 @@
  * It CHECKS what can honestly be checked: every picture decoded before the
  * shutter, nothing fetched from outside the file, and every picture actually
  * embedded in the PDF on disk afterwards. A PDF whose images have silently
- * vanished is worse than no PDF, because nobody looks. Page breaks are not
- * machine-checkable — open the thing and read it.
+ * vanished is worse than no PDF, because nobody looks. It also asserts one
+ * sheet, one page — a sheet that has outgrown its page splits, and that shows
+ * up as a surplus page. Whether a page READS well is still read by a human.
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -76,6 +77,9 @@ if (external.length) {
   process.exit(1)
 }
 
+// Counted while the page is still open; compared with the printed page count below.
+const sheets = await page.evaluate(() => document.querySelectorAll('section.sheet').length)
+
 await page.emulateMedia({ media: 'print' })
 
 const foot = `
@@ -106,9 +110,17 @@ if (embedded < imgs.count) {
   console.error(`only ${embedded} of ${imgs.count} pictures reached the PDF`)
   process.exit(1)
 }
-// Page breaks are checked by READING the PDF. There is no honest automatic
-// test for "this step reads badly across a fold", and a geometric guess made
-// from the screen layout reports every tall figure as broken. Read it.
+// ONE SHEET, ONE PAGE — and that IS machine-checkable, because the print
+// stylesheet starts every sheet on fresh paper. So the printed page count must
+// be exactly one (the masthead's own page) plus the number of sheets. A sheet
+// that has outgrown its page shows up here as a surplus page, which is the
+// defect the first pass had to find by eye. It does NOT replace reading the
+// thing: "this step reads badly" still has no automatic test.
+if (pages !== sheets + 1) {
+  console.error(`${pages} pages for ${sheets} sheets — expected ${sheets + 1}.`)
+  console.error('A sheet has outgrown its page and split. Split it in the template.')
+  process.exit(1)
+}
 
 const bytes = fs.statSync(OUT).size
 console.log(`${OUT}\n${pages} A4 pages, ${embedded} pictures embedded, ${(bytes / 1024 / 1024).toFixed(2)} MB`)
