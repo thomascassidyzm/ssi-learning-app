@@ -18,6 +18,17 @@ import { DEFAULT_EASY, DEFAULT_FAST } from '../composables/useAlgorithmConfig'
 // SimplePlayerRuntimeOverrides and from LearningPlayer's overrides object, so
 // BOTH modes read the one baked `cycle.playbackSpeed`. These tests pin that
 // there is no second speed path to drift.
+//
+// FLIPPED IN PART, 2026-09-07 (Tom's ruling of 2026-08-29, plate S-345). Mode
+// IS an input to the speaking speed again — target language on Easy is 0.80 of
+// the language's reference, on Fast 0.90 — so the old assertion that
+// `computeCycleSpeed` has no mode parameter is gone. What that assertion was
+// PROTECTING is not: the 2026-08-07 inversion, where the gentle mode played
+// faster than the fast one. That is now structurally impossible rather than
+// merely absent, because 0.80 < 0.90 holds for every voice at every seed, and
+// that is what this file asserts instead. There is still exactly ONE speed
+// path: mode is read once, at bake time, and nothing multiplies it at play
+// time — which is what the first two tests here have always been about.
 
 const NATIVE_COURSE: TargetSpeedConfig = { globalSpeed: 1.0, nativeSpeed: true }
 const FRENCH_COURSE: TargetSpeedConfig = { globalSpeed: 0.95, nativeSpeed: true }
@@ -48,16 +59,30 @@ describe('Easy and Fast share ONE target-voice speed ramp', () => {
     expect(simplePlayer).not.toMatch(/rate\s*\*=/)
   })
 
-  it('speaking speed is a function of belt and course only — mode is not an input', () => {
-    // computeCycleSpeed takes (seedNumber, courseConfig). There is deliberately
-    // no mode parameter, so Easy and Fast cannot disagree by construction.
-    expect(computeCycleSpeed.length).toBe(2)
-
+  it('Easy is never faster than Fast — for any course, at any seed', () => {
+    // The inversion this file exists to prevent, asserted directly on the new
+    // rule rather than via "mode is not an input". Easy asks for 0.80 of the
+    // language's reference and Fast for 0.90, so the ordering holds by
+    // construction, for a measured voice and an unmeasured one alike.
     for (const cfg of [NATIVE_COURSE, FRENCH_COURSE, LEGACY_COURSE]) {
       for (const seed of [1, 7, 8, 19, 20, 39, 40, 400]) {
-        const speed = computeCycleSpeed(seed, cfg)
-        // Same call, same answer, whichever mode the learner is in.
-        expect(computeCycleSpeed(seed, cfg)).toBe(speed)
+        const easy = computeCycleSpeed(seed, { ...cfg, mode: 'easy' })
+        const fast = computeCycleSpeed(seed, { ...cfg, mode: 'fast' })
+        expect(easy).toBeLessThanOrEqual(fast)
+      }
+    }
+  })
+
+  it('mode is read ONCE, at bake time — the same call gives the same answer', () => {
+    // Not "mode is not an input" any more, but the property that mattered:
+    // the speed is a pure function of (course config incl. mode, slot), so two
+    // cycles built for the same learner in the same mode cannot disagree.
+    for (const cfg of [NATIVE_COURSE, FRENCH_COURSE, LEGACY_COURSE]) {
+      for (const mode of ['easy', 'fast'] as const) {
+        const speed = computeCycleSpeed(1, { ...cfg, mode })
+        for (const seed of [1, 7, 8, 19, 20, 39, 40, 400]) {
+          expect(computeCycleSpeed(seed, { ...cfg, mode })).toBe(speed)
+        }
       }
     }
   })
@@ -68,6 +93,10 @@ describe('Easy and Fast share ONE target-voice speed ramp', () => {
     // here. It stays on the SPEAKING side, which is why these two now differ.
     expect(computeListeningSpeed(1.0, 1, NATIVE_COURSE)).toBe(1.0)
     expect(computeListeningSpeed(1.0, 1, NATIVE_COURSE)).toBeGreaterThan(computeCycleSpeed(1, NATIVE_COURSE))
+    // …and mode reaches the speaking side without reaching this one.
+    for (const mode of ['easy', 'fast'] as const) {
+      expect(computeListeningSpeed(1.0, 1, { ...NATIVE_COURSE, mode })).toBe(1.0)
+    }
     expect(computeListeningSpeed(2.0, 1, NATIVE_COURSE)).toBe(2.0)
     expect(computeListeningSpeed(2.0, 40, NATIVE_COURSE)).toBe(2.0)
 
@@ -87,7 +116,9 @@ describe('Easy and Fast share ONE target-voice speed ramp', () => {
     expect(DEFAULT_EASY.min_pause_ms).toBeGreaterThan(DEFAULT_FAST.min_pause_ms)
     expect(DEFAULT_EASY.post_voice2_gap_ms!).toBeGreaterThan(DEFAULT_FAST.post_voice2_gap_ms!)
     expect(DEFAULT_EASY.maxPhraseLengthFraction!).toBeLessThan(DEFAULT_FAST.maxPhraseLengthFraction!)
-    // …and the one thing they must NOT differ on any more:
+    // The mode CONFIG's own speed field stays equal: the Easy/Fast difference
+    // is expressed once, in the rule (`@ssi/core`'s voicePace.ts), never as a
+    // second number an admin could set independently and put back out of step.
     expect(DEFAULT_EASY.playback_speed).toBe(DEFAULT_FAST.playback_speed)
   })
 })
