@@ -68,7 +68,7 @@ async function answer(kind: 'vouch' | 'contest') {
   position: fixed;
   left: max(12px, env(safe-area-inset-left, 0px));
   right: max(12px, env(safe-area-inset-right, 0px));
-  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(16px + var(--shell-inset-bottom));
   z-index: 60;
   max-width: 520px;
   margin: 0 auto;
