@@ -96,14 +96,26 @@ describe('SEC0901-A-02 [SECURE-ASSERTION] — TENANCY-01\'s other three named si
   })
 })
 
-describe('SEC0901-A-03 [SECURE-ASSERTION] — cronAuth is wired into both registered cron routes and no others', () => {
-  it('vercel.json registers exactly the two cron paths this repo authenticates', () => {
+describe('SEC0901-A-03 [SECURE-ASSERTION] — cronAuth is wired into every registered cron route and no others', () => {
+  // The inventory. Kept as an explicit list so that ADDING a cron is a
+  // deliberate edit to this file rather than something that slips in — but the
+  // authentication assertion below is now DERIVED from vercel.json rather than
+  // from a second hardcoded list, so a new cron cannot be registered and left
+  // unauthenticated even if somebody updates this list without thinking.
+  it('vercel.json registers exactly the cron paths this repo authenticates', () => {
     const vercelJson = JSON.parse(read('vercel.json'))
     const cronPaths = (vercelJson.crons ?? []).map((c: any) => c.path).sort()
-    expect(cronPaths).toEqual(['/api/cron/expire-demo-schools', '/api/cron/teacher-payouts'])
+    expect(cronPaths).toEqual([
+      '/api/cron/expire-demo-schools',
+      '/api/cron/org-free-year-warnings',
+      '/api/cron/teacher-payouts',
+    ])
   })
-  it('both cron handlers call checkCronAuth before doing any work', () => {
-    for (const file of ['api/cron/expire-demo-schools.ts', 'api/cron/teacher-payouts.ts']) {
+  it('EVERY registered cron handler calls checkCronAuth before doing any work', () => {
+    const vercelJson = JSON.parse(read('vercel.json'))
+    const files = (vercelJson.crons ?? []).map((c: any) => `${String(c.path).replace(/^\//, '')}.ts`)
+    expect(files.length).toBeGreaterThan(0)
+    for (const file of files) {
       const src = read(file)
       expect(src, file).toContain("from '../_utils/cronAuth'")
       expect(src, file).toContain('checkCronAuth(')

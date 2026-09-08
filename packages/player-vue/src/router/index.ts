@@ -805,6 +805,17 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/JoinWithCode.vue'),
     meta: { title: 'Sign in with your access code' },
   },
+  // The funded-cohort door (Kai's spec, 2026-09-08). ONE link, never two: the
+  // old system's separate under-25 link put people in the wrong cohort and
+  // nobody could tell afterwards, so age is a tick on this page instead. Open
+  // to signed-out visitors — the page reads what it is asking them to agree to
+  // BEFORE it asks them to make an account.
+  {
+    path: '/enrol/:code?',
+    name: 'org-enrolment',
+    component: () => import('@/views/OrgEnrolment.vue'),
+    meta: { title: 'Claim your free year' },
+  },
   // Try link gateway (no auth required — zero-friction course preview)
   {
     path: '/try/:code',

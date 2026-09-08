@@ -11349,6 +11349,94 @@ CREATE TABLE public.orchestrator_messages (
 
 
 --
+-- DECLARED AHEAD OF THE LIVE DATABASE. The two org_enrolment_* relations below
+-- are defined by supabase/migrations/20260908e_org_enrolments.sql, which has
+-- NOT been applied to the live database as of 2026-09-08 — the Canolfan
+-- enrolment build it belongs to is on an unmerged branch awaiting review.
+-- They are declared here so the snapshot-drift guard (api/schema-snapshot.test
+-- .ts) can see the relations the new code queries; when the migration is
+-- applied, regenerate this file with ./supabase/snapshot-schema.sh and this
+-- note goes away with the regeneration.
+--
+-- The same migration also adds two aggregate FUNCTIONS not shown here, because
+-- this snapshot's drift guard tracks relations rather than routines:
+-- org_enrolment_roster(uuid[]) and org_enrolment_window_seconds(uuid[], date,
+-- date). They are what keeps a large cohort's export from dragging millions of
+-- per-day rows into a serverless function, and api/org/funder-export.ts falls
+-- back to a bounded raw read — and then refuses outright — while they are
+-- absent. Applying the migration is what turns the fallback off.
+--
+
+--
+-- Name: org_enrolment_policies; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.org_enrolment_policies (
+    group_id uuid NOT NULL,
+    org_display_name text NOT NULL,
+    consent_statement text NOT NULL,
+    consent_version text DEFAULT 'v1'::text NOT NULL,
+    ask_age_band boolean DEFAULT true NOT NULL,
+    age_band_label text DEFAULT 'I am aged 16 to 24'::text NOT NULL,
+    free_months integer DEFAULT 12 NOT NULL,
+    warn_days_before integer DEFAULT 21 NOT NULL,
+    course_family_map jsonb DEFAULT '{}'::jsonb NOT NULL,
+    granted_courses text[] DEFAULT ARRAY[]::text[] NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    link_expires_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT org_enrolment_policies_free_months_check CHECK (((free_months >= 1) AND (free_months <= 60))),
+    CONSTRAINT org_enrolment_policies_warn_days_check CHECK (((warn_days_before >= 1) AND (warn_days_before <= 180)))
+);
+
+
+--
+-- Name: TABLE org_enrolment_policies; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.org_enrolment_policies IS 'One row per org that has an enrolment step. Carries the consent wording, the free-period length, the warning lead time and the course-family map used by the funder export. A second funder is a row here, not a build.';
+
+
+--
+-- Name: org_enrolments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.org_enrolments (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    group_id uuid NOT NULL,
+    learner_id uuid NOT NULL,
+    enrolled_at timestamp with time zone DEFAULT now() NOT NULL,
+    reporting_from date DEFAULT ((now() AT TIME ZONE 'UTC'::text))::date NOT NULL,
+    age_band_16_24 boolean DEFAULT false NOT NULL,
+    age_ticked_at timestamp with time zone,
+    data_sharing_consent boolean NOT NULL,
+    consent_at timestamp with time zone DEFAULT now() NOT NULL,
+    consent_version text DEFAULT 'v1'::text NOT NULL,
+    free_access_until timestamp with time zone NOT NULL,
+    prior_subscription_status text,
+    prior_subscription_id uuid,
+    cancellation_state text DEFAULT 'not_needed'::text NOT NULL,
+    cancellation_noted_at timestamp with time zone,
+    cancellation_noted_by text,
+    expiry_warned_at timestamp with time zone,
+    invite_code_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT org_enrolments_age_stamp_check CHECK (((age_band_16_24 = false) OR (age_ticked_at IS NOT NULL))),
+    CONSTRAINT org_enrolments_cancellation_state_check CHECK ((cancellation_state = ANY (ARRAY['not_needed'::text, 'needed'::text, 'learner_confirmed'::text, 'verified_cancelled'::text]))),
+    CONSTRAINT org_enrolments_consent_required CHECK ((data_sharing_consent = true))
+);
+
+
+--
+-- Name: TABLE org_enrolments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.org_enrolments IS 'One row per learner per funded org cohort. UNIQUE (group_id, learner_id) is what makes the enrolment endpoint idempotent — a double submit, a back-button replay or a refresh mid-flow lands on the existing row rather than creating a second one.';
+
+
+--
 -- Name: phase_prompts; Type: TABLE; Schema: public; Owner: -
 --
 
