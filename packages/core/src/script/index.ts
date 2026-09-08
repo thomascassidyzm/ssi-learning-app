@@ -1,6 +1,7 @@
 export * from './playerTypes'
 export * from './courseBundle'
 export * from './computePauseDuration'
+export * from './voicePace'
 export * from './scriptGenerator.types'
 export * from './phraseSelection'
 export * from './generateScript'

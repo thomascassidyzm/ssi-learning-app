@@ -1,11 +1,13 @@
 /**
  * Tests for the effective-subscription resolver (FAMILY-PLAN-SPEC.md §3):
  * own row first; else the family join, gated on the owner's row being an
- * ACTIVE, unexpired 'SSi Family' plan.
+ * ACTIVE, unexpired 'SSi Family' plan — or one that WAS 'SSi Family' within
+ * the last 30 days, which is Tom's grace of 2026-09-08.
  */
 
 import { describe, it, expect } from 'vitest'
 import { resolveEffectiveSubscription, isEffectivelySubscribed } from '../../../../../api/_utils/familyAccess'
+import { familyCoverEndsAt } from '../../../../../api/_utils/familyGrace'
 
 /**
  * Minimal fake Supabase client routed per table. Each table's response is a
@@ -35,6 +37,7 @@ function fakeSupabase(routes: Record<string, Array<{ data: any; error: any }>>) 
 
 const FUTURE = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
 const PAST = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString()
 
 describe('resolveEffectiveSubscription', () => {
   it('returns the own row when one exists, without checking family at all', async () => {
@@ -100,16 +103,79 @@ describe('resolveEffectiveSubscription', () => {
     expect(result.viaFamily).toBe(false)
   })
 
-  it('is null when the owner downgraded away from SSi Family (plan_name changed — members correctly stop resolving)', async () => {
+  it('is null when the owner is on plain Premium and never scheduled a Family change (no grace to inherit)', async () => {
     const supabase = fakeSupabase({
       subscriptions: [
         { data: null, error: null },
-        { data: null, error: null }, // the real query's .eq('plan_name','SSi Family') excludes a plain-Premium owner row
+        { data: { id: 'owner-sub-1', learner_id: 'owner-1', status: 'active', plan_name: 'SSi Premium', current_period_end: FUTURE, scheduled_plan_at: null }, error: null },
       ],
       family_members: [{ data: { owner_learner_id: 'owner-1' }, error: null }],
     })
     const result = await resolveEffectiveSubscription(supabase as any, 'member-1')
     expect(result.sub).toBeNull()
+    expect(result.viaFamily).toBe(false)
+  })
+
+  // ── THE 30-DAY GRACE (Tom, 2026-09-08) ─────────────────────────────────────
+  // The owner's plan_name has flipped to 'SSi Premium'; scheduled_plan_at is
+  // left on the row as the day the paid Family period ended. Each member rides
+  // on for 30 days from that day, individually, and then stops.
+  it('covers a member 29 days after the plan flipped away from SSi Family — inside the 30-day grace', async () => {
+    const familyEnded = daysAgo(29)
+    const supabase = fakeSupabase({
+      subscriptions: [
+        { data: null, error: null },
+        { data: { id: 'owner-sub-1', learner_id: 'owner-1', status: 'active', plan_name: 'SSi Premium', current_period_end: FUTURE, scheduled_plan_name: null, scheduled_plan_at: familyEnded }, error: null },
+      ],
+      family_members: [{ data: { owner_learner_id: 'owner-1' }, error: null }],
+    })
+    const result = await resolveEffectiveSubscription(supabase as any, 'member-1')
+    expect(result.viaFamily).toBe(true)
+    expect(result.sub?.id).toBe('owner-sub-1')
+    // and the date the copy shows is this one, not a second sum done elsewhere
+    expect(result.coverEndsAt).toBe(familyCoverEndsAt(familyEnded))
+  })
+
+  it('drops a member 31 days after the plan flipped away from SSi Family — the grace is over', async () => {
+    const supabase = fakeSupabase({
+      subscriptions: [
+        { data: null, error: null },
+        { data: { id: 'owner-sub-1', learner_id: 'owner-1', status: 'active', plan_name: 'SSi Premium', current_period_end: FUTURE, scheduled_plan_name: null, scheduled_plan_at: daysAgo(31) }, error: null },
+      ],
+      family_members: [{ data: { owner_learner_id: 'owner-1' }, error: null }],
+    })
+    const result = await resolveEffectiveSubscription(supabase as any, 'member-1')
+    expect(result.sub).toBeNull()
+    expect(result.viaFamily).toBe(false)
+    expect(result.coverEndsAt).toBeNull()
+  })
+
+  it('tells a still-covered member the grace date while the change is only scheduled — period end plus 30 days', async () => {
+    const periodEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    const supabase = fakeSupabase({
+      subscriptions: [
+        { data: null, error: null },
+        { data: { id: 'owner-sub-1', learner_id: 'owner-1', status: 'active', plan_name: 'SSi Family', current_period_end: periodEnd, scheduled_plan_name: 'SSi Premium', scheduled_plan_at: periodEnd }, error: null },
+      ],
+      family_members: [{ data: { owner_learner_id: 'owner-1' }, error: null }],
+    })
+    const result = await resolveEffectiveSubscription(supabase as any, 'member-1')
+    expect(result.viaFamily).toBe(true)
+    expect(result.coverEndsAt).toBe(familyCoverEndsAt(periodEnd))
+  })
+
+  it('gives no grace when the owner cancels outright — cover ends at the paid period', async () => {
+    const periodEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    const supabase = fakeSupabase({
+      subscriptions: [
+        { data: null, error: null },
+        { data: { id: 'owner-sub-1', learner_id: 'owner-1', status: 'active', plan_name: 'SSi Family', current_period_end: periodEnd, cancel_at_period_end: true }, error: null },
+      ],
+      family_members: [{ data: { owner_learner_id: 'owner-1' }, error: null }],
+    })
+    const result = await resolveEffectiveSubscription(supabase as any, 'member-1')
+    expect(result.viaFamily).toBe(true)
+    expect(result.coverEndsAt).toBe(periodEnd)
   })
 
   it('is null when the owner\'s active Family row has lapsed past its current_period_end', async () => {
@@ -148,7 +214,7 @@ describe('isEffectivelySubscribed', () => {
     const supabase = fakeSupabase({
       subscriptions: [
         { data: null, error: null },
-        { data: { status: 'active', current_period_end: FUTURE }, error: null },
+        { data: { status: 'active', plan_name: 'SSi Family', current_period_end: FUTURE }, error: null },
       ],
       family_members: [{ data: { owner_learner_id: 'owner-1' }, error: null }],
     })

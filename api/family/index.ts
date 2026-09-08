@@ -13,6 +13,7 @@ import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { resolveLearnerId, liveFamilyRows, FAMILY_SEAT_CAP } from '../_utils/familyMembership'
 import { applyCors } from '../_utils/cors'
+import { familyCoverEndsAt } from '../_utils/familyGrace'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -45,13 +46,13 @@ export default async function handler(
 
   const learnerId = await resolveLearnerId(supabase, authResult.userId)
   if (!learnerId) {
-    res.status(200).json({ isOwner: false, hasFamilyPlan: false, seatsUsed: 0, seatCap: FAMILY_SEAT_CAP, members: [], removedChildren: [] })
+    res.status(200).json({ isOwner: false, hasFamilyPlan: false, seatsUsed: 0, seatCap: FAMILY_SEAT_CAP, members: [], removedChildren: [], familyEndsAt: null, planChangesAt: null })
     return
   }
 
   const { data: ownSub } = await supabase
     .from('subscriptions')
-    .select('status, plan_name, current_period_end')
+    .select('status, plan_name, current_period_end, cancel_at_period_end, scheduled_plan_name, scheduled_plan_at')
     .eq('learner_id', learnerId)
     .maybeSingle()
   const hasFamilyPlan =
@@ -59,6 +60,26 @@ export default async function handler(
     ownSub.plan_name === 'SSi Family' &&
     ownSub.status === 'active' &&
     (!ownSub.current_period_end || new Date(ownSub.current_period_end) > new Date())
+
+  // When the family cover ends, if the owner has set it to: a scheduled change
+  // to Premium (job #376·F, D5 — the family page shows the date) or a
+  // cancellation. Null while nothing ends.
+  //
+  // TWO DATES, NOT ONE, once a change to Premium is scheduled (Tom, 2026-09-08):
+  // the plan itself changes at the end of the paid period, and everybody on it
+  // stays covered for 30 days beyond that. The page says both, and both come
+  // from familyGrace.ts rather than from any arithmetic here.
+  const planChangesAt: string | null =
+    hasFamilyPlan && ownSub!.scheduled_plan_name && ownSub!.scheduled_plan_at
+      ? (ownSub!.scheduled_plan_at as string)
+      : null
+  const familyEndsAt: string | null = !hasFamilyPlan
+    ? null
+    : planChangesAt
+      ? familyCoverEndsAt(planChangesAt)
+      : ownSub!.cancel_at_period_end
+        ? (ownSub!.current_period_end as string | null)
+        : null
 
   const rows = await liveFamilyRows(supabase, learnerId)
 
@@ -123,5 +144,7 @@ export default async function handler(
     seatCap: FAMILY_SEAT_CAP,
     members,
     removedChildren,
+    familyEndsAt,
+    planChangesAt,
   })
 }

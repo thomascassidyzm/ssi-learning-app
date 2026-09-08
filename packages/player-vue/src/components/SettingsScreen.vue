@@ -17,6 +17,8 @@ import { useSharedSubscription } from '../composables/useSubscription'
 import { usePendingPurchase } from '../composables/usePendingPurchase'
 import { useFamilyModal } from '@/composables/useFamilyModal'
 import { useCheckout } from '../composables/useCheckout'
+import { useFamilyManagement, type FamilyMember } from '@/composables/useFamilyManagement'
+import { paddleConfig } from '@/lib/paddle'
 // The ONE payment-route declaration (platform/paymentRoute). Every control in
 // this file that starts or manages a payment asks it — never the platform.
 import { canTakePayment, paddleBillingAvailable } from '../platform/paymentRoute'
@@ -680,6 +682,9 @@ const {
   clearFamilyUpgrade,
   familyUpgradeBusy,
   familyUpgradeError,
+  canDowngradeToPremium,
+  downgradeToPremium,
+  keepFamily,
 } = useCheckout()
 
 // The upgrade door only appears for somebody on plain Premium who can actually
@@ -703,6 +708,98 @@ async function confirmFamilyUpgrade() {
     await refreshSubscription()
   }
 }
+
+// ── FAMILY → PREMIUM, HELD FOR THE END OF THE PAID PERIOD (job #376·F) ──────
+// The owner sees named people before confirming (D4). The row is written with
+// a schedule and Paddle's price moves unbilled; nobody is removed (D5); every
+// displaced adult is emailed by the server at confirm (D6). A cancellation
+// already scheduled hides this door: cancel wins. Once scheduled, the same
+// place offers "Keep SSi Family" (D9).
+const { state: familyState, load: loadFamily, isLoading: familyLoading } = useFamilyManagement()
+const premiumChangeAt = computed(() =>
+  subscription.value?.planName === 'SSi Family' && subscription.value.scheduledPlanName
+    ? subscription.value.scheduledPlanAt ?? null
+    : null,
+)
+const canOfferPremiumDowngrade = computed(
+  () => webBillingAvailable.value && purchaseAvailable.value && !isCancelScheduled.value && canDowngradeToPremium(),
+)
+function shortDate(iso: string | null | undefined): string {
+  if (!iso) return t('settings.periodEnd')
+  return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })
+}
+const familyIsAnnual = computed(
+  () => !!subscription.value?.planId && subscription.value.planId === paddleConfig.familyAnnualPriceId,
+)
+const premiumPriceLabel = computed(() => t(familyIsAnnual.value ? 'settings.priceAnnual' : 'settings.priceMonthly'))
+function fillLine(key: string, vars: Record<string, string>): string {
+  let out = t(key)
+  for (const [k, v] of Object.entries(vars)) out = out.split(`{${k}}`).join(v)
+  return out
+}
+// WHEN THE PEOPLE ON THE PLAN STOP BEING COVERED — the paid period plus the
+// 30-day grace (Tom, 2026-09-08). The server computes it (familyGrace.ts) and
+// sends it as familyCoverEndsAt, before the change is confirmed as well as
+// after, so no screen here ever adds 30 days to anything itself.
+const familyCoverEndsAt = computed(() => subscription.value?.familyCoverEndsAt ?? null)
+const premiumDowngradeRowLine = computed(() =>
+  fillLine('settings.changeToPremiumDesc', { price: premiumPriceLabel.value, date: shortDate(familyCoverEndsAt.value) }),
+)
+const premiumChangeScheduledLine = computed(() =>
+  fillLine('settings.changeToPremiumScheduled', {
+    date: shortDate(premiumChangeAt.value),
+    coverDate: shortDate(familyCoverEndsAt.value),
+  }),
+)
+const showPremiumDowngradeConfirm = ref(false)
+async function openPremiumDowngradeConfirm() {
+  clearFamilyUpgrade()
+  showPremiumDowngradeConfirm.value = true
+  await loadFamily()
+}
+function dismissPremiumDowngradeConfirm() {
+  showPremiumDowngradeConfirm.value = false
+}
+async function confirmPremiumDowngrade() {
+  const ok = await downgradeToPremium()
+  if (ok) {
+    showPremiumDowngradeConfirm.value = false
+    await refreshSubscription()
+  }
+}
+async function confirmKeepFamily() {
+  clearFamilyUpgrade()
+  const ok = await keepFamily()
+  if (ok) await refreshSubscription()
+}
+function familyMemberLabel(m: FamilyMember): string {
+  return m.display_name || m.invited_email || t('family.family')
+}
+const downgradeLiveMembers = computed(() => familyState.value.members.filter((m) => m.status === 'active'))
+const downgradeInvited = computed(() => familyState.value.members.filter((m) => m.status === 'invited'))
+const downgradeChildren = computed(() => downgradeLiveMembers.value.filter((m) => m.is_child_account))
+function joinNames(names: string[]): string {
+  if (names.length <= 1) return names[0] || ''
+  return `${names.slice(0, -1).join(', ')} ${t('settings.and')} ${names[names.length - 1]}`
+}
+const downgradeSentence = computed(() => {
+  const date = shortDate(subscription.value?.currentPeriodEnd)
+  const coverDate = shortDate(familyCoverEndsAt.value)
+  const names = downgradeLiveMembers.value.map(familyMemberLabel)
+  return names.length
+    ? fillLine('settings.changeToPremiumWho', { date, coverDate, names: joinNames(names), price: premiumPriceLabel.value })
+    : fillLine('settings.changeToPremiumAlone', { date, price: premiumPriceLabel.value })
+})
+const downgradeConfirmLabel = computed(() =>
+  fillLine('settings.changeToPremiumConfirm', { date: shortDate(subscription.value?.currentPeriodEnd) }),
+)
+
+// A MEMBER whose family cover is ending (D6): the date, and the ordinary
+// checkout behind "Keep going". Their own row, once bought, resolves first.
+const familyEndsLine = computed(() => {
+  const at = subscription.value?.familyEndsAt
+  return at ? fillLine('settings.familyEndsOn', { date: shortDate(at) }) : ''
+})
 
 function goPlans() {
   // No plan named, so the plan picker opens first (Premium or Family, monthly
@@ -1797,6 +1894,41 @@ const confirmReset = async () => {
       </div>
     </Transition>
 
+    <!-- Change to SSi Premium Confirmation Dialog: named people first (D4) -->
+    <Transition name="fade">
+      <div v-if="showPremiumDowngradeConfirm" class="reset-overlay">
+        <div class="reset-dialog">
+          <h3 class="reset-title">{{ t('settings.changeToPremiumTitle') }}</h3>
+          <p v-if="familyLoading" class="reset-desc">{{ t('family.loading') }}</p>
+          <template v-else>
+            <ul v-if="downgradeLiveMembers.length || downgradeInvited.length" class="downgrade-people">
+              <li v-for="m in downgradeLiveMembers" :key="m.id">
+                <span>{{ familyMemberLabel(m) }}</span>
+                <span v-if="m.is_child_account" class="downgrade-tag">{{ t('settings.childAccountTag') }}</span>
+              </li>
+              <li v-for="m in downgradeInvited" :key="m.id">
+                <span>{{ familyMemberLabel(m) }}</span>
+                <span class="downgrade-tag">{{ t('settings.invitedTag') }}</span>
+              </li>
+            </ul>
+            <p class="reset-desc">{{ downgradeSentence }}</p>
+            <p v-for="m in downgradeChildren" :key="'c-' + m.id" class="reset-desc">
+              {{ fillLine('settings.changeToPremiumChild', { name: familyMemberLabel(m) }) }}
+            </p>
+          </template>
+          <p v-if="familyUpgradeError" class="reset-error">{{ familyUpgradeError }}</p>
+          <div class="reset-actions">
+            <button class="reset-btn reset-btn--cancel" @click="dismissPremiumDowngradeConfirm" :disabled="familyUpgradeBusy">
+              {{ t('settings.keepFamily') }}
+            </button>
+            <button class="reset-btn reset-btn--confirm" @click="confirmPremiumDowngrade" :disabled="familyUpgradeBusy || familyLoading">
+              {{ familyUpgradeBusy ? t('settings.changeToPremiumBusy') : downgradeConfirmLabel }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Header -->
     <header class="header">
       <div class="header-spacer" />
@@ -2317,9 +2449,23 @@ const confirmReset = async () => {
             <div class="setting-row">
               <div class="setting-info">
                 <span class="setting-label">{{ t('settings.ssiFamily') }}</span>
-                <span class="setting-desc">{{ t('settings.coveredByFamilyPlan') }}</span>
+                <span class="setting-desc">{{ familyEndsLine || t('settings.coveredByFamilyPlan') }}</span>
               </div>
             </div>
+            <!-- The family cover is ending on a date (job #376·F, D6/D8): the
+                 ordinary checkout, at the ordinary price, is the whole route. -->
+            <template v-if="familyEndsLine && purchaseAvailable">
+              <div class="divider"></div>
+              <div class="setting-row clickable" @click="goPlans">
+                <div class="setting-info">
+                  <span class="setting-label">{{ t('settings.familyEndsKeepGoing') }}</span>
+                  <span class="setting-desc">{{ t('settings.plansFromMonth') }}</span>
+                </div>
+                <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 18l6-6-6-6"/>
+                </svg>
+              </div>
+            </template>
           </template>
           <template v-else-if="isSubscribed">
             <!-- Status -->
@@ -2328,6 +2474,7 @@ const confirmReset = async () => {
                 <span class="setting-label">{{ subscription?.planName || 'SSi Premium' }}</span>
                 <span class="setting-desc">
                   <template v-if="isCancelScheduled">Ends {{ subscriptionEndsAt }} — you keep access until then</template>
+                  <template v-else-if="premiumChangeAt">{{ premiumChangeScheduledLine }}</template>
                   <template v-else-if="subscriptionEndsAt">Renews {{ subscriptionEndsAt }}</template>
                   <template v-else>{{ t('settings.active') }}</template>
                 </span>
@@ -2355,6 +2502,33 @@ const confirmReset = async () => {
                 <div class="setting-info">
                   <span class="setting-label">{{ t('settings.upgradeToFamily') }}</span>
                   <span class="setting-desc">{{ t('settings.upgradeToFamilyDesc') }}</span>
+                </div>
+                <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 18l6-6-6-6"/>
+                </svg>
+              </div>
+            </template>
+            <!-- Family → Premium, held for the end of the paid period (job
+                 #376·F). Hidden once a cancellation is scheduled: cancel wins.
+                 Once the change is scheduled, the same place offers Keep Family. -->
+            <template v-if="canOfferPremiumDowngrade">
+              <div class="divider"></div>
+              <div class="setting-row clickable" @click="openPremiumDowngradeConfirm">
+                <div class="setting-info">
+                  <span class="setting-label">{{ t('settings.changeToPremium') }}</span>
+                  <span class="setting-desc">{{ premiumDowngradeRowLine }}</span>
+                </div>
+                <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 18l6-6-6-6"/>
+                </svg>
+              </div>
+            </template>
+            <template v-else-if="premiumChangeAt && webBillingAvailable">
+              <div class="divider"></div>
+              <div class="setting-row clickable" @click="confirmKeepFamily">
+                <div class="setting-info">
+                  <span class="setting-label">{{ familyUpgradeBusy ? t('settings.changeToPremiumBusy') : t('settings.keepFamily') }}</span>
+                  <span class="setting-desc">{{ familyUpgradeError || t('settings.keepFamilyDesc') }}</span>
                 </div>
                 <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M9 18l6-6-6-6"/>
@@ -3606,6 +3780,25 @@ const confirmReset = async () => {
   color: var(--text-muted);
   line-height: 1.5;
   margin: 0 0 1.5rem;
+}
+
+.downgrade-people {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  text-align: left;
+}
+.downgrade-people li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.08));
+  font-size: 0.95rem;
+}
+.downgrade-tag {
+  font-size: 0.8rem;
+  color: var(--text-secondary, #64748b);
 }
 
 .delete-confirm-field {

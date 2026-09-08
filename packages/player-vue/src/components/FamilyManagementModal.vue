@@ -43,6 +43,19 @@ const seatsLine = computed(() =>
   t('family.placesUsed').replace('{used}', String(state.value.seatsUsed)).replace('{cap}', String(state.value.seatCap)),
 )
 const fullLine = computed(() => t('family.familyFull').replace('{cap}', String(state.value.seatCap)))
+// TWO DATES, BOTH FROM THE SERVER (Tom's 30-day grace, 2026-09-08): the day
+// the plan becomes Premium, and the day — 30 days later — everybody here
+// actually stops being covered. Neither is worked out in this file.
+const familyEndsLine = computed(() => {
+  const changesAt = state.value.planChangesAt
+  const coverEndsAt = state.value.familyEndsAt
+  if (!coverEndsAt) return ''
+  const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })
+  // A cancellation is the other way this ends, and it ends everything at the
+  // paid period — nobody is paying afterwards, so there is no grace to name.
+  if (!changesAt) return t('family.planCancelsOn').replace('{date}', day(coverEndsAt))
+  return t('family.planEndsOn').replace('{date}', day(changesAt)).replace('{coverDate}', day(coverEndsAt))
+})
 
 // One line of good news under the seats count — "invite sent to X", "we sent
 // it again", "they already had an account". Cleared by the next action.
@@ -200,6 +213,9 @@ async function confirmRemove(m: FamilyMember) {
         <div class="family-scroll">
           <p class="family-seats">{{ seatsLine }}</p>
           <p v-if="!isLoading && !state.hasFamilyPlan" class="family-warn">{{ t('family.planNotActive') }}</p>
+          <!-- A change the owner has scheduled (job #376·F, D5): the places
+               stay covered until the date, and nobody is removed. -->
+          <p v-else-if="!isLoading && familyEndsLine" class="family-warn">{{ familyEndsLine }}</p>
           <p v-if="error" class="family-error" role="alert">{{ error }}</p>
           <p v-else-if="notice" class="family-notice" role="status">{{ notice }}</p>
 

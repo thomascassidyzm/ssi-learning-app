@@ -432,38 +432,117 @@ export default async function handler(
 // ============================================
 
 /**
- * A PLAN CHANGE, FILED OFF THE PRICE THAT WAS ACTUALLY BILLED.
+ * A PLAN CHANGE, FILED OFF THE PRICE THAT WAS ACTUALLY BILLED — IN BOTH
+ * DIRECTIONS (job #376·F, D3; built by #383·F).
  *
- * When a Premium subscriber upgrades to Family (api/subscription/change-plan),
- * Paddle changes the PRICE on the SAME subscription. Everything else about the
- * event is unchanged — including `customData.kind`, which was baked in at the
- * first checkout and still says 'premium'. Routed on kind, the event would run
- * handlePremiumSubscription and write plan_name 'SSi Premium' back over the
- * Family row: the person pays £25 and gets no family seats.
+ * When a subscriber changes plan (api/subscription/change-plan), Paddle
+ * changes the PRICE on the SAME subscription. Everything else about the event
+ * is unchanged — including `customData.kind`, baked in at the first checkout.
+ * Routed on kind, a Family-priced event still saying 'premium' would write
+ * 'SSi Premium' over the Family row (the £25-for-no-seats defect); and a
+ * Premium-priced event still saying 'family_plan' was REJECTED outright by the
+ * tier check, so the row froze at 'SSi Family' with a stale period end and the
+ * whole family, owner included, went dark at that date while £15 a month kept
+ * being charged. Nothing ever reconciled it.
  *
- * So a plan change is keyed off the BILLED PRICE, which comes from Paddle's own
- * payload and cannot be faked, exactly as the tier checks below already are.
- * The owner is resolved from the EXISTING subscriptions row that already carries
- * this subscription id — server-side, no customData involved at all — which also
- * means a changed subscription whose row we have never seen falls through to the
- * ordinary handling rather than being written to a guessed learner.
+ * So: an event whose subscription id already owns a row is a plan change ON
+ * THAT ROW, whatever `kind` says, keyed off the billed price from Paddle's own
+ * payload. The precedence guard (wouldDowngradePlan) applies only ACROSS
+ * different subscription ids; a price change on the same subscription is
+ * Paddle's truth and is never "clobbering". The owner is resolved from the row
+ * we already hold — server-side, no customData — so a changed subscription
+ * whose row we have never seen falls through to the ordinary handling.
+ *
+ * THE HELD PERIOD. change-plan writes scheduled_plan_name/scheduled_plan_at
+ * BEFORE moving the price, and the row keeps plan_name='SSi Family' until the
+ * paid period is over. With a schedule whose date is still ahead of the
+ * event's billing-period start, this updates period and status but HOLDS
+ * plan_name (and plan_id) — every member covered for exactly what was paid.
+ * Once an event's billing period starts on or after scheduled_plan_at, it
+ * writes 'SSi Premium' and clears scheduled_plan_name — but KEEPS
+ * scheduled_plan_at, which from that moment reads as "when the Family cover
+ * ended" and carries the members' 30-day grace. A late renewal fails closed
+ * through the existing current_period_end check, as any late renewal does.
+ * An unscheduled swap made by hand in the Paddle dashboard has no schedule
+ * and flips at once — accepted, because the app door always schedules.
  *
  * Returns true when it handled the event.
  */
-async function handlePlanChangeToFamily(supabase: any, data: any): Promise<boolean> {
+async function handlePlanChangeOnHeldSubscription(supabase: any, data: any): Promise<boolean> {
+  const billedPriceId = planIdOf(data)
+  const billedMeta = billedPriceId ? PRICE_CATALOG[billedPriceId] : undefined
+  // Only the two tiers a Family subscription moves between. A premium-tier
+  // price is ALSO the tutor/school platform unit; those rows are never
+  // 'SSi Family' and stay on their own handlers, side effects intact.
+  if (billedMeta?.tier !== 'family' && billedMeta?.tier !== 'premium') return false
+
   const { data: row, error } = await supabase
     .from('subscriptions')
-    .select('learner_id, plan_name')
+    .select('id, learner_id, plan_name, scheduled_plan_name, scheduled_plan_at')
     .eq('provider_subscription_id', data.id)
     .maybeSingle()
   if (error || !row?.learner_id) return false
 
+  if (billedMeta.tier === 'family') {
+    console.log(
+      '[paddle-webhook] plan change to family detected on existing subscription:',
+      data.id,
+      'existing plan_name:', row.plan_name
+    )
+    await writeFamilyRow(supabase, row.learner_id, data)
+    return true
+  }
+
+  // Premium-priced, on a row we hold. Only a FAMILY row (or one still holding
+  // a Family → Premium schedule) is ours here; a plain Premium renewal keeps
+  // its ordinary path and its attribution side effects.
+  if (row.plan_name !== 'SSi Family' && !row.scheduled_plan_name) return false
+
+  const status = SUB_STATUS_MAP[data.status] || 'none'
+  const periodEnd: string | null = data.currentBillingPeriod?.endsAt || data.nextBilledAt || null
+  const periodStart: string | null = data.currentBillingPeriod?.startsAt || null
+  const scheduledAt = row.scheduled_plan_at ? new Date(row.scheduled_plan_at).getTime() : NaN
+  const startedAt = periodStart ? new Date(periodStart).getTime() : NaN
+  const holdPlan =
+    !!row.scheduled_plan_name &&
+    Number.isFinite(scheduledAt) &&
+    Number.isFinite(startedAt) &&
+    startedAt < scheduledAt
+
+  const base = {
+    status,
+    current_period_end: periodEnd,
+    cancel_at_period_end: !!data.scheduledChange,
+    provider: 'paddle',
+    provider_customer_id: data.customerId,
+    updated_at: new Date().toISOString(),
+  }
+  const patch = holdPlan
+    ? base
+    : {
+        ...base,
+        plan_name: row.scheduled_plan_name || 'SSi Premium',
+        plan_id: billedPriceId,
+        // The NAME is cleared — the change has happened, nothing is pending.
+        // The DATE stays, deliberately (Tom's 30-day grace, 2026-09-08): it is
+        // the record of when the paid Family period ended, and it is what
+        // familyAccess.ts adds 30 days to so every member keeps access for the
+        // grace instead of going dark the instant this write lands. Clearing
+        // it would leave nothing on the row to derive the tail from.
+        scheduled_plan_name: null,
+      }
+
+  const { error: updErr } = await supabase.from('subscriptions').update(patch).eq('id', row.id)
+  if (updErr) {
+    console.error('[paddle-webhook] Failed to apply plan change on held subscription:', updErr)
+    return true
+  }
   console.log(
-    '[paddle-webhook] plan change to family detected on existing subscription:',
+    '[paddle-webhook] plan change to premium on existing subscription:',
     data.id,
-    'existing plan_name:', row.plan_name
+    holdPlan ? `HELD as ${row.plan_name} until ${row.scheduled_plan_at}` : 'APPLIED as SSi Premium',
+    'status:', status, 'period_end:', periodEnd
   )
-  await writeFamilyRow(supabase, row.learner_id, data)
   return true
 }
 
@@ -471,15 +550,11 @@ export async function handleSubscriptionEvent(supabase: any, data: any): Promise
   const customData = (data.customData || {}) as Record<string, unknown>
   const kind = customData.kind as string | undefined
 
-  // PRICE FIRST, for a plan change only. An event billed on the FAMILY tier
-  // whose customData still claims a non-family kind can only be a plan change
-  // on a subscription we already hold — file it as Family, or fall through if
-  // we hold no such row.
-  if (kind !== 'family_plan') {
-    const billedPriceId = planIdOf(data)
-    const billedMeta = billedPriceId ? PRICE_CATALOG[billedPriceId] : undefined
-    if (billedMeta?.tier === 'family' && (await handlePlanChangeToFamily(supabase, data))) return
-  }
+  // PRICE FIRST, for a plan change in either direction. An event on a
+  // subscription we already hold, billed on the Family or Premium tier, is a
+  // plan change on that row whatever customData.kind says — or falls through
+  // if we hold no such row / it is not a Family row.
+  if (await handlePlanChangeOnHeldSubscription(supabase, data)) return
 
   if (kind === 'premium' || kind === 'teacher_plan' || kind === 'learner_premium') {
     // 'learner_premium' is the CURRENT consumer premium flow. customData.kind is

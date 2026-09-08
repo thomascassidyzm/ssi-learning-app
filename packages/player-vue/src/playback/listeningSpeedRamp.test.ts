@@ -55,14 +55,15 @@ describe('computeListeningSpeed — belt-independent, always full pace', () => {
     }
   })
 
-  it('diverges from the speaking curve wherever the belt would have bitten', () => {
-    // Not a copy of speaking any more: below green, speaking is slower.
-    for (const { seed, rate } of BANDS) {
-      expect(computeCycleSpeed(seed, NATIVE)).toBe(rate)
-      expect(computeCycleSpeed(seed, NATIVE)).toBe(beltSpeed(seed))
-      if (rate < 1.0) {
-        expect(computeListeningSpeed(1.0, seed, NATIVE)).toBeGreaterThan(computeCycleSpeed(seed, NATIVE))
-      }
+  it('diverges from the speaking curve at EVERY seed, not just below green', () => {
+    // FLIPPED 2026-09-07 (plate S-345). This used to say "below green,
+    // speaking is slower" — green belt was where the ladder reached 1.0 and
+    // the two curves met. The ladder is retired: speaking is now the mode's
+    // target pace at every seed, so listening is faster than speaking
+    // EVERYWHERE, which is a stronger statement of the same ruling.
+    for (const { seed } of BANDS) {
+      expect(computeListeningSpeed(1.0, seed, NATIVE)).toBe(1.0)
+      expect(computeListeningSpeed(1.0, seed, NATIVE)).toBeGreaterThan(computeCycleSpeed(seed, NATIVE))
     }
   })
 
@@ -107,15 +108,18 @@ describe('computeListeningSpeed — belt-independent, always full pace', () => {
   })
 })
 
-describe('computeCycleSpeed — SPEAKING still ramps, untouched', () => {
-  it.each(BANDS)('$belt belt (seed $seed) speaks at $rate×', ({ seed, rate }) => {
-    expect(computeCycleSpeed(seed, NATIVE)).toBe(rate)
-    expect(beltSpeed(seed)).toBe(rate)
+describe('computeCycleSpeed — SPEAKING no longer ramps either', () => {
+  // FLIPPED 2026-09-07 (plate S-345). The belt ramp is retired from the
+  // speaking path too, so `beltSpeed` is now only a historical function these
+  // tests name to assert it is NOT what decides a speaking speed.
+  it.each(BANDS)('$belt belt (seed $seed) no longer speaks at $rate×', ({ seed, rate }) => {
+    expect(computeCycleSpeed(seed, NATIVE)).toBe(0.8)
+    if (rate !== 0.8) expect(computeCycleSpeed(seed, NATIVE)).not.toBe(beltSpeed(seed))
   })
 
   it('folds in the course globalSpeed and caps at it', () => {
     expect(computeCycleSpeed(1, FRENCH)).toBe(0.76)  // 0.95 × 0.8
-    expect(computeCycleSpeed(40, FRENCH)).toBe(0.95) // 0.95 × 1.0, capped at base
+    expect(computeCycleSpeed(40, FRENCH)).toBe(0.76) // …at every seed now
   })
 
   it('exempts legacy slow-recorded courses', () => {

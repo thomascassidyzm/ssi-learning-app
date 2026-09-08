@@ -19,6 +19,10 @@ import { DEFAULT_FAST } from '../composables/useAlgorithmConfig'
 import { reportIntroAudioMissing } from '../playback/introAudioTelemetry'
 import { capRoundCycles, cyclePromptIdentity } from '../playback/capConsecutiveRepeats'
 import { apiUrl } from '@/platform/apiBase'
+import {
+  playbackSpeedForVoice, voicePaceForSlot, MIN_SPEED,
+  type CourseVoicePace, type PaceMode,
+} from '@ssi/core'
 
 const audioUrl = (uuid: string | undefined): string => {
   if (!uuid) return ''
@@ -48,18 +52,40 @@ const audioUrl = (uuid: string | undefined): string => {
  */
 export interface TargetSpeedConfig {
   globalSpeed?: number        // base multiplier (default 1.0)
-  nativeSpeed?: boolean       // true = recorded at 1.0x, apply belt ramp. false = legacy, no ramp.
+  nativeSpeed?: boolean       // true = recorded at 1.0x, per-voice rule applies. false = legacy, left alone.
   introSpeed?: number         // new items in intro round (default 0.8)
   firstReviewSpeed?: number   // N-1 spaced rep (default 0.9)
   reviewSpeed?: number        // N-2+ spaced rep / USE (default 1.0)
   rampSeeds?: number          // seeds to ramp over, 0=disabled (default 10)
   rampStartSpeed?: number     // ramp multiplier at seed 1 (default 0.88)
 
+  /**
+   * The learner's setting. THE RULE TAKES A MODE (Tom, 2026-08-29): target
+   * language on Easy is 0.80 of the language's reference pace, on Fast 0.90.
+   *
+   * This supersedes the 2026-08-07 ruling that no mode may touch the baked
+   * speed. That ruling existed because Easy used to be a play-time multiplier
+   * ON TOP of the belt ramp and made beginners on the gentle mode hear FASTER
+   * speech than beginners on Fast. Under the new rule that inversion is
+   * structurally impossible — 0.80 < 0.90 for every voice, asserted in
+   * `@ssi/core`'s voicePace.test.ts — and mode is still applied once, at bake
+   * time, from here. Toggling mode rebuilds the script (the dedupe key in
+   * LearningPlayer carries `learningMode`), so the bake stays correct.
+   *
+   * Absent ⇒ 'easy', the cautious of the two.
+   */
+  mode?: PaceMode
+
+  /**
+   * Per-voice pace facts for THIS course, derived from the clips it actually
+   * ships (plate S-345). Absent ⇒ no correction: the mode's target pace is
+   * used unchanged, exactly as it would be with no per-voice pace at all.
+   */
+  voicePace?: CourseVoicePace | null
+
   /** @deprecated Use rampSeeds instead. Kept for backwards compat. */
   beltRamp?: boolean
 }
-
-const MIN_SPEED = 0.7
 
 /** Extract seed number from seedId like "S0001" → 1 */
 function seedNumberFromId(seedId: string): number {
@@ -68,11 +94,18 @@ function seedNumberFromId(seedId: string): number {
 }
 
 /**
- * Belt-based speed: the belt determines the speed. One simple ramp for ALL items
- * (new and spaced-rep alike), keyed to the canonical belt seed boundaries
- * (BELT_MAX_SEEDS: white ≤7, yellow ≤19, orange ≤39, green 40+):
+ * THE RETIRED BELT RAMP — white 0.8 → yellow 0.9 → orange 0.95 → green 1.0.
  *
- *   White 0.8 → Yellow 0.9 → Orange 0.95 → Green+ 1.0
+ * Tom, 2026-08-29 (plate S-345): "We also have a FAST setting — which could
+ * perhaps be a flat 0.9x … Then we can dispense with the belt ramp chicanery?"
+ * Speed is now a function of ROLE and MODE, never of belt or seed, and
+ * `computeCycleSpeed` no longer calls this.
+ *
+ * It survives as an exported function for exactly one reason: the LISTENING
+ * tests still use it to assert that the listening path never took a belt term
+ * and still doesn't. Nothing in the SPEAKING path may call it again.
+ *
+ * @deprecated The belt ramp is retired. Do not reintroduce it into any speed path.
  */
 export function beltSpeed(seedNumber: number): number {
   if (seedNumber < 8) return 0.8    // White  (seeds 1-7)
@@ -82,37 +115,86 @@ export function beltSpeed(seedNumber: number): number {
 }
 
 /**
- * Final baked target-voice speed for a cycle at `seedNumber`.
+ * Final baked target-voice speed for one target slot of a cycle.
  *
  * THE one speed curve. Both round-builders call it — the legacy
  * `toSimpleRounds` (script-gen path) and `backendCyclesToRounds` (the
- * instant-playback path). Keeping it in one exported place is what stops
- * the two builders drifting apart again: they were out of sync from the
- * instant-playback cutover until 2026-08-04, and every learner on the new
- * path silently played at a flat 1.0×.
+ * instant-playback path). Keeping it in one exported place is what stops the
+ * two builders drifting apart again: they were out of sync from the
+ * instant-playback cutover until 2026-08-04, and every learner on the new path
+ * silently played at a flat 1.0×.
  *
- * The value is BAKED onto the cycle as `cycle.playbackSpeed`, and since
- * 2026-08-07 it is the WHOLE truth of what the target voice plays at: no mode
- * may multiply or cancel it (Easy did until then, so beginners on the gentle
- * mode heard faster speech than beginners on Fast). Its other consumer:
- *   • `getPauseDuration` uses it as the BELT PROXY — `beltProgress(speed)`
- *     maps 0.8→White … 1.0→Green. An absent speed therefore reads as Green
- *     and hands a beginner the fully-tapered green-belt pause.
- * So the curve must be applied HERE, at bake time — a play-time-only
- * multiplier would fix the voice and leave the pause wrong.
+ * WHAT DECIDES THE NUMBER (Tom, 2026-08-29, plate S-345):
+ *   1. The RULE — target language on Easy 0.80, on Fast 0.90, of the
+ *      LANGUAGE'S reference pace. Not the belt. `@ssi/core`'s voicePace.ts is
+ *      the only implementation of it, shared with the dashboard's
+ *      services/shared/voice-pace.cjs via a common case-table fixture.
+ *   2. The PER-VOICE CORRECTION — divided by the measured pace of the voice
+ *      that ACTUALLY RENDERED this course's clips, so "Easy" means the same
+ *      thing to a learner whichever voice is speaking. Clamped to [0.7, 1.0]:
+ *      the floor because slower than that sounds broken, the ceiling because
+ *      nothing in the estate is minted above 1.0× and playing a clip faster
+ *      than it was rendered is a behaviour nobody asked for.
+ *   3. The COURSE/LEARNER BASE (`globalSpeed`) — kept, deliberately. It is two
+ *      things multiplied: a per-course compensation (0.9 on deu_for_eng and
+ *      fra_for_eng, live 2026-09-07) and the learner's own speed preference
+ *      from Settings. Retiring it would silently speed those two courses up by
+ *      11% for every learner and would throw away a dial the learner set
+ *      themselves. The brief retires the BELT ramp; this is the conservative
+ *      reading of it. CALL TAKEN 2026-09-07, flagged for Tom.
+ *
+ * WHAT IT DELIBERATELY DOES NOT DO: it does not take a belt, and it does not
+ * read a seed. `_seedNumber` stays in the signature because every call site has
+ * one and its DISUSE is the assertion — the same idiom `computeListeningSpeed`
+ * uses below.
+ *
+ * `slot` is the audio slot being baked — 'target1' or 'target2'. They are
+ * different voices with different measured paces, and one number for both is
+ * how casting and pace drift apart. Where the course has facts for only one
+ * target slot, the other borrows them (see `voicePaceForSlot`) and the payload
+ * still names whose pace was used.
  */
 export function computeCycleSpeed(
-  seedNumber: number,
-  config: TargetSpeedConfig
+  _seedNumber: number,
+  config: TargetSpeedConfig,
+  slot: 'target1' | 'target2' = 'target1'
 ): number {
   const base = config.globalSpeed ?? 1.0
 
-  // Legacy courses (recorded at slower speeds): no belt ramp, play at base speed
+  // Legacy courses (voices recorded slow, `nativeSpeed: false`): left
+  // byte-for-byte as they were. Those clips are ALREADY below native pace, so
+  // the rule's correction would slow them twice. This branch is a guard, not
+  // dead code — cym_s_for_eng and its siblings ride it.
   if (!config.nativeSpeed) return base
 
-  // Native speed courses: apply the single belt-based ramp (new + review alike)
-  const speed = Math.round(base * beltSpeed(seedNumber) * 100) / 100
+  const voice = voicePaceForSlot(config.voicePace, slot)
+  const decision = playbackSpeedForVoice(voice, slot, config.mode ?? 'easy')
+  const speed = Math.round(base * decision.speed * 100) / 100
   return Math.max(MIN_SPEED, Math.min(speed, base))
+}
+
+/**
+ * The same decision, with its reasoning intact — for the one log line that
+ * makes an unmeasured voice VISIBLE rather than a number nobody can explain.
+ * `computeCycleSpeed` is the hot path and returns just the number.
+ */
+export function explainCycleSpeed(
+  config: TargetSpeedConfig,
+  slot: 'target1' | 'target2' = 'target1'
+): { speed: number; voiceId: string | null; measured: boolean; reason: string } {
+  const base = config.globalSpeed ?? 1.0
+  if (!config.nativeSpeed) {
+    return { speed: base, voiceId: null, measured: false,
+      reason: `legacy course (nativeSpeed:false) — clips were recorded slow, so the rule does not touch them; base ${base}` }
+  }
+  const voice = voicePaceForSlot(config.voicePace, slot)
+  const decision = playbackSpeedForVoice(voice, slot, config.mode ?? 'easy')
+  return {
+    speed: computeCycleSpeed(0, config, slot),
+    voiceId: voice?.voiceId ?? null,
+    measured: voice?.measured === true,
+    reason: `${decision.reason}${base === 1.0 ? '' : `; × course/learner base ${base}`}`,
+  }
 }
 
 /**
@@ -266,14 +348,21 @@ function* toSimpleRoundsGen(
         })
       }
 
-      // Target speed: explicit (listening mode) → context-aware ramp → 1.0
-      const speed = i.playbackSpeed ?? computePlaybackSpeed(
+      // Target speed: explicit (listening/pod override) → the role+mode rule,
+      // corrected for the voice that rendered THIS slot.
+      const explicit = i.playbackSpeed
+      const speed = explicit ?? computePlaybackSpeed(
         i.type,
         seedNumberFromId(i.seedId || primarySeedId),
         i.roundNumber,
         i.reviewOf,
         targetSpeed
       )
+      // Slot 2 only when it genuinely differs — an explicit override owns both
+      // slots (pods play one clip), and an equal number is noise on the wire.
+      const speed2 = explicit === undefined
+        ? computeCycleSpeed(0, targetSpeed, 'target2')
+        : undefined
 
       const isBookend = i.type === 'listen_intro' || i.type === 'listen_outro'
       const isPod = i.type === 'pod'
@@ -300,6 +389,7 @@ function* toSimpleRoundsGen(
         // Expose raw target durations so runtime overrides (the active
         // learning mode) can recompute pauseDuration with their own formula
         // instead of just scaling the baked value.
+        ...(speed2 !== undefined && speed2 !== speed ? { voice2PlaybackSpeed: speed2 } : {}),
         ...(i.target1DurationMs ? { target1DurationMs: i.target1DurationMs } : {}),
         ...(i.target2DurationMs ? { target2DurationMs: i.target2DurationMs } : {}),
         // At-most-one-audio-track cycles: lets SimplePlayer suppress its

@@ -44,6 +44,17 @@ export interface Cycle {
   glossSegments?: Array<{ span: number; known: string }>
   /** Listening phase: playback speed multiplier (1.0 = normal, 2.0 = double) */
   playbackSpeed?: number
+  /**
+   * The VOICE_2 clip's own speed, when its voice's measured pace differs from
+   * voice 1's (plate S-345, Tom 2026-08-29 — per-voice pace).
+   *
+   * target1 and target2 are DIFFERENT VOICES with different natural paces, so
+   * one multiplier for both is how "0.8× of the language's reference" stops
+   * being true for one of the two. Absent ⇒ VOICE_2 uses `playbackSpeed`,
+   * which is what every cycle built before this existed does, and what a
+   * course whose two target voices measure the same still does.
+   */
+  voice2PlaybackSpeed?: number
   /** Raw target audio durations (ms). Kept on the cycle so runtime overrides
    * (e.g. the Easy/Fast mode override) can recompute pauseDuration with a
    * different formula
