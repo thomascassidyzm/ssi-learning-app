@@ -9,9 +9,13 @@
  * seat — docs/PRICING.md (Popty) rules "one seat = one named learner for the
  * entire paid period", which is why the lede promises adding seats but not
  * mid-period swaps.
- * ⚠️ SEAM: when the terminology-preset layer lands, the school lane's literal
- * "teacher seat" / "Subscribe your school" strings should route through it
- * rather than being a hard-coded second lane.
+ * SEAM RESOLVED (2026-09-08, #409): the terminology layer is
+ * composables/nodeTerminology.ts, and it derives the kind from STRUCTURE.
+ * The school lane below is keyed on `school_id` — a schools row, which is
+ * exactly the structure that makes a node a school — so its literal "teacher
+ * seat" / "Subscribe your school" strings are correct by construction, not a
+ * second hard-coded vocabulary. The org lane stays keyed on the leader role
+ * (money path: which lane bills whom is not a wording question).
  *
  * Context-aware, serves THREE lanes off a single surface:
  *   • govt_admin (org/workplace group-leader) → £15 per LEARNER seat / month

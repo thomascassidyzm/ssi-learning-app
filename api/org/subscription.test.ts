@@ -19,7 +19,9 @@ let DB: {
   govt_admins: Array<{ user_id: string; group_id: string | null }>
   groups: Array<{ id: string; name: string; platform_status: string | null; platform_expires_at: string | null; seats: number | null; provider_subscription_id?: string | null; provider_customer_id?: string | null }>
   learners: Array<{ user_id: string; platform_role: string | null }>
-  user_tags: Array<{ user_id: string; tag_type: string; tag_value: string; removed_at: string | null }>
+  user_tags: Array<{ user_id: string; tag_type: string; tag_value: string; removed_at: string | null; role_in_context?: string }>
+  schools?: Array<{ id: string; node_group_id: string }>
+  classes?: Array<{ id: string; group_id?: string; school_id?: string; is_active: boolean }>
 }
 
 function makeChainable(table: string) {
@@ -128,6 +130,36 @@ describe('GET /api/org/subscription', () => {
     const res = makeRes()
     await handler(makeReq(), res)
     expect(res.body.org.member_count).toBe(3)
+  })
+
+  // Tom's ruling 2026-09-08 (#409): the client tells a school from an org by
+  // the teachers and/or classes established (or a schools row hanging in the
+  // subtree), never by `type`. The endpoint therefore reports STRUCTURE.
+  it('reports structure: groups-only org → no school structure', async () => {
+    authUserId = 'leader-org'
+    DB.govt_admins.push({ user_id: 'leader-org', group_id: 'council' })
+    DB.groups.push(
+      { id: 'council', name: 'Cardiff Council', platform_status: 'trial', platform_expires_at: null, seats: null, path: 'council', parent_id: null } as any,
+      { id: 'parks', name: 'Parks', platform_status: null, platform_expires_at: null, seats: null, path: 'council.parks', parent_id: 'council' } as any,
+    )
+    DB.user_tags.push({ user_id: 'p1', tag_type: 'group', tag_value: 'GROUP:parks', removed_at: null, role_in_context: 'student' })
+    const res = makeRes()
+    await handler(makeReq(), res)
+    expect(res.body.org.structure).toMatchObject({ hasSchool: false, childGroupCount: 1, teacherCount: 0, classCount: 0, learnerCount: 1 })
+  })
+
+  it('reports structure: a region with a school beneath, and a group with its own teacher, both carry school structure', async () => {
+    authUserId = 'leader-region'
+    DB.govt_admins.push({ user_id: 'leader-region', group_id: 'region' })
+    DB.groups.push(
+      { id: 'region', name: 'Pilot Districts', platform_status: null, platform_expires_at: null, seats: null, path: 'region', parent_id: null } as any,
+      { id: 'sch-node', name: 'A School', platform_status: null, platform_expires_at: null, seats: null, path: 'region.sch', parent_id: 'region' } as any,
+    )
+    DB.schools = [{ id: 'school-1', node_group_id: 'sch-node' }]
+    DB.user_tags.push({ user_id: 't1', tag_type: 'group', tag_value: 'GROUP:sch-node', removed_at: null, role_in_context: 'teacher' })
+    const res = makeRes()
+    await handler(makeReq(), res)
+    expect(res.body.org.structure).toMatchObject({ hasSchool: true, teacherCount: 1 })
   })
 
   it('reports gate.active=false for an elapsed trial', async () => {
