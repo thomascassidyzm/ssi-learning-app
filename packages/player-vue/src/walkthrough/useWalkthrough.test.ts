@@ -2,7 +2,7 @@
 // filtering, and the DOM breadcrumb the e2e harness asserts on.
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
-  useWalkthrough, walksFor, walkById, startWalk, stopWalk,
+  useWalkthrough, walksFor, walkById, startWalk, startWalkAt, stopWalk,
   isDestructiveAnchor, effectiveAdvance, searchWalks, walkTopic, type WalkStep,
 } from './useWalkthrough'
 import pack from './pack.json'
@@ -225,5 +225,31 @@ describe('walkTopic', () => {
     expect(walkTopic(walkById('save-your-progress')!)).toBe('Saving your progress')
     expect(walkTopic({ id: 'x', title: 'Only a title', personas: [], place: { route: 'library' }, steps: [] }))
       .toBe('Only a title')
+  })
+})
+
+// SHOW ME from the Handbook (job #386): the same single tap, with the page
+// change in front of it. The walk must not start until the navigation has
+// settled, and must not start at all if the navigation fails.
+describe('startWalkAt (navigate, then start)', () => {
+  it('runs the navigation first and starts the walk only after it resolves', async () => {
+    const order: string[] = []
+    const go = async () => { order.push('navigated'); expect(w.activeWalk.value).toBe(null) }
+    const started = await startWalkAt('ways-in', go)
+    expect(started).toBe(true)
+    expect(order).toEqual(['navigated'])
+    expect(w.activeWalk.value?.id).toBe('ways-in')
+    expect(document.documentElement.getAttribute('data-walk-active')).toBe('ways-in:0')
+  })
+  it('starts nothing when the navigation fails — never a walk on the wrong page', async () => {
+    const started = await startWalkAt('ways-in', async () => { throw new Error('guard refused') })
+    expect(started).toBe(false)
+    expect(w.activeWalk.value).toBe(null)
+  })
+  it('does not navigate at all for a walk that does not exist', async () => {
+    let navigated = false
+    const started = await startWalkAt('no-such-walk', async () => { navigated = true })
+    expect(started).toBe(false)
+    expect(navigated).toBe(false)
   })
 })

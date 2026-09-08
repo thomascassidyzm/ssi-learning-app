@@ -725,6 +725,8 @@
     "schools.dashboard.yourClasses",
     "schools.dashboard.yourSchool",
     "schools.handbookPage.closeThemAll",
+    "schools.handbookPage.showMe",
+    "schools.handbookPage.showMeHint",
     "schools.handbookPage.emptyState",
     "schools.handbookPage.everything",
     "schools.handbookPage.howYouDoIt",

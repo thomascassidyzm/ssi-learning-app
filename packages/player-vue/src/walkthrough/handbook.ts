@@ -58,12 +58,15 @@ export const ROLE_BADGES: Record<WalkPersona, string> = {
  * place this map has never heard of, so "Take me there" can never point at
  * nowhere. `node` is the group or school the reader belongs to.
  */
-type PlaceLink = (node: string) => string | null
+type PlaceLink = (node: string, classId?: string) => string | null
 
 export const PLACE_LINKS: Record<string, PlaceLink> = {
   'node-home': (node) => (node ? `/org/${node}` : null),
   'node-insights': (node) => (node ? `/org/${node}/insights` : null),
-  'class-detail': () => '/schools/classes',
+  // A class-detail capability lives on ONE class's page. With a class to hand
+  // — the reader's first — Show me can land on it and the anchors resolve;
+  // without one, the list is the honest nearest place.
+  'class-detail': (_node, classId) => (classId ? `/schools/classes/${classId}` : '/schools/classes'),
   dashboard: () => '/schools',
   teachers: () => '/schools/teachers',
   students: () => '/schools/students',
@@ -78,9 +81,29 @@ export const PLACE_LINKS: Record<string, PlaceLink> = {
 }
 
 /** The router target for an entry, or null when the reader has nowhere to go. */
-export function placeLink(entry: HandbookEntry, nodeId: string | null | undefined): string | null {
+export function placeLink(entry: HandbookEntry, nodeId: string | null | undefined, classId?: string | null): string | null {
   const resolve = PLACE_LINKS[entry.place.route]
-  return resolve ? resolve(nodeId ?? '') : null
+  return resolve ? resolve(nodeId ?? '', classId ?? undefined) : null
+}
+
+/**
+ * Where "Show me" can take a reader and play the demo (job #386): the entry
+ * has a derived demo, the demo is offered to the reader's own role — the same
+ * entitlement walksFor applies, so a teacher is never shown an admin's
+ * buttons ringed on a page that hides them — and there is a page to go to.
+ * A class-detail demo additionally needs a real class to stand on, because
+ * its anchors exist on one class's page and nowhere else.
+ */
+export function demoLink(
+  entry: HandbookEntry,
+  persona: WalkPersona,
+  walkPersonas: WalkPersona[] | null,
+  nodeId: string | null | undefined,
+  classId?: string | null,
+): string | null {
+  if (!entry.walk || !walkPersonas || !walkPersonas.includes(persona)) return null
+  if (entry.place.route === 'class-detail' && !classId) return null
+  return placeLink(entry, nodeId, classId)
 }
 
 export interface HandbookEntry {
@@ -94,7 +117,10 @@ export interface HandbookEntry {
   keywords: string[]
   place: { route: string; kinds?: string[] }
   anchor: string
-  /** The walk id where a clip exists for this capability, else null. */
+  /**
+   * The demo — DERIVED by the compiler, never typed: the walk whose steps
+   * anchor this capability, or null while nobody has authored one.
+   */
   walk: string | null
   what: string
   where: string

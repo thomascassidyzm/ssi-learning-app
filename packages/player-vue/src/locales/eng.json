@@ -1531,7 +1531,9 @@
       "title": "Everything this dashboard can do",
       "whatItsFor": "What it's for",
       "whereItIs": "Where it is",
-      "worthKnowing": "Worth knowing"
+      "worthKnowing": "Worth knowing",
+      "showMe": "Show me",
+      "showMeHint": "Plays on the real screen and changes nothing."
     },
     "teacherDashboard": {
       "across": "Across",

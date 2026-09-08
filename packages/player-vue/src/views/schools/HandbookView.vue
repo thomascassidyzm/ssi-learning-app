@@ -14,16 +14,19 @@
  * to ask. "Just what I can do" is a one-tap narrowing, never the default.
  */
 import { ref, computed, watch, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
+import { useClassesData } from '@/composables/schools/useClassesData'
 import { useI18n } from '@/composables/useI18n'
 import {
-  handbookEntries, handbookSections, searchHandbook, viewerPersona, isMine, badgesFor, placeLink,
+  handbookEntries, handbookSections, searchHandbook, viewerPersona, isMine, badgesFor, placeLink, demoLink,
   type HandbookEntry,
 } from '@/walkthrough/handbook'
+import { startWalkAt, walkById } from '@/walkthrough/useWalkthrough'
 
 const { t } = useI18n()
 const route = useRoute()
+const router = useRouter()
 const { currentUser } = useSchoolContext()
 
 const persona = computed(() => viewerPersona(
@@ -90,8 +93,32 @@ function badges(entry: HandbookEntry): string[] {
 const nodeId = computed(() => currentUser.value?.group_id || currentUser.value?.school_id || '')
 
 function goTo(entry: HandbookEntry): string | null {
-  return placeLink(entry, nodeId.value)
+  return placeLink(entry, nodeId.value, firstClassId.value)
 }
+
+// SHOW ME (job #386) — the demo, played on the real screen. The walk is the
+// one the compiler DERIVED for this entry; the button appears only where the
+// reader's own role may see that walk and there is a page to play it on.
+// Tapping it navigates there and starts the walk in one go: a reader who is
+// stuck taps once. Gate 7 keeps startWalkAt inside this @click and nowhere
+// else, so nothing here can ever auto-play.
+function demoTo(entry: HandbookEntry): string | null {
+  const walk = entry.walk ? walkById(entry.walk) : null
+  return demoLink(entry, persona.value, walk?.personas ?? null, nodeId.value, firstClassId.value)
+}
+
+// A class-detail demo needs a real class to stand on. The reader's first
+// class is fetched once, lazily, the first time a class-detail entry opens —
+// the page itself stays a static read of the pack.
+const { classes, fetchClasses } = useClassesData()
+const firstClassId = computed(() => classes.value[0]?.id ?? null)
+let classesAsked = false
+watch(open, (ids) => {
+  if (classesAsked) return
+  if (![...ids].some((id) => all.find((e) => e.id === id)?.place.route === 'class-detail')) return
+  classesAsked = true
+  fetchClasses().catch(() => { /* no classes to show on — Show me simply stays hidden */ })
+})
 </script>
 
 <template>
@@ -151,7 +178,15 @@ function goTo(entry: HandbookEntry): string | null {
               <!-- eslint-disable-next-line vue/no-v-html — compiled repo prose, escaped in md() -->
               <p class="entry-p" v-html="md(e.note)"></p>
             </template>
-            <router-link v-if="goTo(e)" class="btn-play entry-goto" :to="goTo(e)!">{{ t('schools.handbookPage.takeMeThere', 'Take me there') }}</router-link>
+            <div class="entry-actions">
+              <button
+                v-if="demoTo(e)" type="button" class="btn-play entry-show-me"
+                :data-handbook-demo="e.walk!"
+                :title="t('schools.handbookPage.showMeHint', 'Plays on the real screen and changes nothing.')"
+                @click="startWalkAt(e.walk!, () => router.push(demoTo(e)!))"
+              >{{ t('schools.handbookPage.showMe', 'Show me') }}</button>
+              <router-link v-if="goTo(e)" class="entry-goto" :class="demoTo(e) ? 'btn-ghost' : 'btn-play'" :to="goTo(e)!">{{ t('schools.handbookPage.takeMeThere', 'Take me there') }}</router-link>
+            </div>
           </div>
         </article>
       </div>
@@ -205,5 +240,7 @@ function goTo(entry: HandbookEntry): string | null {
 .entry-p :deep(strong), .entry-steps :deep(strong) { color: var(--schools-fg, #0F1212); font-weight: var(--font-semibold); }
 .entry-steps { margin: 0; padding-left: 1.4em; list-style: decimal; color: var(--schools-fg-2, #555); font-size: var(--text-sm); line-height: 1.6; }
 .entry-steps li { margin-bottom: 2px; }
-.entry-goto { margin-top: var(--space-4); align-self: flex-start; text-decoration: none; }
+.entry-actions { margin-top: var(--space-4); display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.entry-show-me { flex: 1 1 auto; min-width: 12ch; }
+.entry-goto { text-decoration: none; }
 </style>

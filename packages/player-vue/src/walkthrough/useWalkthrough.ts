@@ -15,7 +15,7 @@
  * within ANCHOR_TIMEOUT_MS renders unanchored with Next (a walkthrough must
  * never hang).
  */
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import pack from './pack.json'
 import { localiseWalk } from './localiseWalk'
 
@@ -165,6 +165,29 @@ export function startWalk(id: string): boolean {
   return true
 }
 
+/**
+ * NAVIGATE, THEN START (job #386) — the Handbook's "Show me". A walk plays on
+ * the page its anchors live on, and the overlay ends any walk the moment the
+ * route changes, so a reader tapping Show me on the Handbook page is, by
+ * definition, standing on the wrong page. This is the same single tap with a
+ * page change in front of it: `go` is the navigation the caller owns, and the
+ * walk starts only once it has settled — after the route watcher that would
+ * otherwise stop a walk started too early has had its tick. Gate 7 in
+ * tools/walkthrough/lib.mjs polices this exactly like startWalk: it may
+ * appear inside an @click handler and nowhere else. A navigation that fails
+ * starts nothing: a walk must never play on a page it was not written for.
+ */
+export async function startWalkAt(id: string, go: () => Promise<unknown>): Promise<boolean> {
+  if (!walkById(id)) return false
+  try {
+    await go()
+  } catch {
+    return false
+  }
+  await nextTick()
+  return startWalk(id)
+}
+
 export function stopWalk(): void {
   activeWalk.value = null
   stepIndex.value = 0
@@ -204,6 +227,7 @@ export function useWalkthrough() {
     currentStep: computed<WalkStep | null>(() =>
       activeWalk.value ? activeWalk.value.steps[stepIndex.value] ?? null : null),
     startWalk,
+    startWalkAt,
     stopWalk,
     next: advance,
     back,

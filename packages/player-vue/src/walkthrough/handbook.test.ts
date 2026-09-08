@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   HANDBOOK_SECTIONS, ROLE_BADGES, handbookEntries, handbookSections,
-  searchHandbook, viewerPersona, isMine, badgesFor, placeLink, PLACE_LINKS,
+  searchHandbook, viewerPersona, isMine, badgesFor, placeLink, demoLink, PLACE_LINKS,
   type HandbookEntry,
 } from './handbook'
 
@@ -93,5 +93,25 @@ describe('place links', () => {
     for (const e of handbookEntries()) {
       expect(PLACE_LINKS[e.place.route], e.place.route).toBeTypeOf('function')
     }
+  })
+})
+
+// SHOW ME (job #386): where the demo button may appear, and where it lands.
+describe('demoLink (the Show me target)', () => {
+  const e = entry({ walk: 'invite-first-teacher', personas: ['school_admin'] })
+  it('offers the demo only to a reader whose role the walk is for', () => {
+    expect(demoLink(e, 'school_admin', ['school_admin'], 'node-1')).toBe('/org/node-1')
+    expect(demoLink(e, 'teacher', ['school_admin'], 'node-1')).toBe(null)
+  })
+  it('offers nothing without a derived walk, or with nowhere to go', () => {
+    expect(demoLink(entry({ walk: null }), 'school_admin', null, 'node-1')).toBe(null)
+    expect(demoLink(e, 'school_admin', ['school_admin'], '')).toBe(null)
+  })
+  it('a class-detail demo needs a real class to stand on, and lands on it', () => {
+    const c = entry({ walk: 'share-a-class', personas: ['teacher'], place: { route: 'class-detail' } })
+    expect(demoLink(c, 'teacher', ['teacher'], '', null)).toBe(null)
+    expect(demoLink(c, 'teacher', ['teacher'], '', 'class-9')).toBe('/schools/classes/class-9')
+    // Take me there still has the list to fall back on.
+    expect(placeLink(c, '')).toBe('/schools/classes')
   })
 })
