@@ -14,7 +14,7 @@ hand when the copy or the screenshots change, and its output is committed.
 To re-shoot the pictures after the app changes, see capture.mjs in this
 directory.
 """
-import base64, os, re, sys
+import base64, datetime, os, re, sys
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -56,6 +56,13 @@ def img_tag(name: str) -> str:
             f'alt="{ALT[name]}">')
 
 
+def _stamp() -> str:
+    """The date of the newest thing that goes into the page."""
+    newest = max(os.path.getmtime(os.path.join(HERE, 'page.tpl.html')),
+                 *(os.path.getmtime(os.path.join(HERE, 'shots', n + '.jpg')) for n in ALT))
+    return datetime.date.fromtimestamp(newest).strftime('%d.%m.%Y')
+
+
 def main() -> int:
     with open(os.path.join(HERE, 'page.tpl.html'), encoding='utf-8') as fh:
         tpl = fh.read()
@@ -68,6 +75,9 @@ def main() -> int:
     if unused:
         print('warning: shot never placed on the page:', sorted(unused), file=sys.stderr)
     out = re.sub(r'\{\{img:([a-z0-9]+)\}\}', lambda m: img_tag(m.group(1)), tpl)
+    # A build stamp so the Canolfan can tell two copies apart. This is the one
+    # thing a stale PowerPoint could never tell you about itself.
+    out = out.replace('{{buildstamp}}', _stamp())
     os.makedirs(os.path.dirname(DST), exist_ok=True)
     with open(DST, 'w', encoding='utf-8') as fh:
         fh.write(out)

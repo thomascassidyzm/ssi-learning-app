@@ -25,8 +25,19 @@
  * Afterwards, delete the test learner's rows. A screenshot run that leaves an
  * enrolment behind inflates the funder's own count of its cohort.
  */
-import { chromium } from '@playwright/test'
 import fs from 'node:fs'
+
+/** Playwright is not resolvable from this repo's root in every checkout, and a
+ *  worktree's node_modules is a symlink to the main one. Try the normal
+ *  specifier, then PLAYWRIGHT_MODULE, and say plainly what to set. */
+async function loadChromium() {
+  for (const spec of ['@playwright/test', process.env.PLAYWRIGHT_MODULE].filter(Boolean)) {
+    try { return (await import(spec)).chromium } catch { /* try the next one */ }
+  }
+  console.error('cannot resolve @playwright/test — set PLAYWRIGHT_MODULE to its index.mjs')
+  process.exit(1)
+}
+const chromium = await loadChromium()
 
 const BASE = process.env.BASE_URL || 'https://staging.saysomethingin.app'
 const CODE = process.env.ENROL_CODE || 'ZMN-561'

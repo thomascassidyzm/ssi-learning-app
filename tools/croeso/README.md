@@ -4,12 +4,29 @@ The page the Canolfan Cymraeg email links to, alongside its sign-up link. It
 replaces a lost PowerPoint that showed a version of the app that no longer
 exists.
 
-- **Read at** `/croeso` — `packages/player-vue/public/croeso/index.html`,
+**Two outputs, one source.** The Canolfan can attach the PDF to their email or
+link the page; both are built from the same template, so neither can go stale
+against the other.
+
+- **The page:** `/croeso` — `packages/player-vue/public/croeso/index.html`,
   reached through the two rewrites in `vercel.json`.
-- **Edit** `page.tpl.html`, then `python3 tools/croeso/build.py`. Commit both
-  the template and the built file.
+- **The PDF:** `/croeso/Pecyn-Croeso.pdf` — same directory, so Vercel serves it
+  straight off the filesystem, before any rewrite is consulted.
+- **Edit** `page.tpl.html`, then:
+
+      python3 tools/croeso/build.py     # template + shots -> index.html
+      node    tools/croeso/pdf.mjs      # index.html -> Pecyn-Croeso.pdf
+
+  in that order, and commit all three. `pdf.mjs` refuses to print a page that
+  is not there rather than reprinting yesterday's.
 - **Re-shoot** with `capture.mjs` when a screen changes; see its header for the
-  two environment variables headless Chrome needs here.
+  environment variables headless Chrome needs here.
+
+## Never author the PDF separately
+
+It is printed from the page by headless Chrome. Two hand-kept copies diverge,
+and the one that gets emailed to a few thousand learners is always the stale
+one. If the PDF needs to look different, change the `@media print` block.
 
 ## Why it is one file
 

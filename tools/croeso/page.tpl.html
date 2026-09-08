@@ -51,6 +51,10 @@ body.cy-only .en{display:none}
 figure{margin:1.1rem 0 .4rem;text-align:center}
 figure img{width:100%;max-width:300px;height:auto;border:1px solid var(--line);border-radius:14px;display:block;margin:0 auto;background:#fff}
 figcaption{font-size:.86rem;color:var(--ink-soft);margin-top:.5rem;line-height:1.45}
+.pairhead{margin:1.6rem 0 .4rem}
+.pairhead .paren{font-weight:400}
+.pairhead .alt{display:block;font-size:.86em;font-weight:500;color:var(--ink-soft)}
+body.cy-only .pairhead .alt{display:none}
 .shots{display:flex;flex-wrap:wrap;gap:14px;justify-content:center}
 .shots figure{flex:1 1 210px;max-width:250px;margin:.4rem 0}
 .shots figure img{max-width:100%}
@@ -67,30 +71,61 @@ figcaption{font-size:.86rem;color:var(--ink-soft);margin-top:.5rem;line-height:1
 .qa .q:first-child{margin-top:.9rem}
 /* --- toggle ------------------------------------------------------------ */
 .toggle{position:sticky;top:0;z-index:5;background:var(--paper);padding:10px 20px 12px;margin:0 -20px -6px;text-align:center;box-shadow:0 8px 12px -10px rgba(0,0,0,.35)}
+.print-only{display:none}
+.xref{font-size:.9rem;color:var(--ink-soft);margin:.9rem 0 0;line-height:1.5}
+.xref .en{display:block;margin-top:.25rem}
+.xref .en::before{content:none}
 .toggle button{font:inherit;font-size:1rem;font-weight:600;background:var(--card);color:var(--ink);
   border:1px solid var(--line);border-radius:999px;padding:12px 22px;min-height:48px;cursor:pointer}
+footer .build{display:block;margin-top:.4rem;font-size:.8rem;opacity:.75}
 footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;line-height:1.6}
 /* --- print ------------------------------------------------------------- */
 @media print{
-  @page{size:A4;margin:15mm}
-  body{background:#fff;font-size:11pt;padding:0}
-  body.cy-only .en{display:block}
+  /* The PDF is the Canolfan's primary artefact, so it has to stand alone and
+     it has to be COMPARABLE: a picture here is ~64mm wide, which is a phone
+     screen held against the page. Everything below serves those two things. */
+  @page{size:A4 portrait;margin:14mm 14mm 18mm}
+  body{background:#fff;color:#000;font-size:12pt;line-height:1.5;padding:0}
+  body.cy-only .en{display:block}          /* the paper copy always carries both */
   .wrap{max-width:none;padding:0}
-  .toggle{display:none}
-  .step,.qa,.masthead{border:1px solid #bbb;margin:8pt 0;padding:8pt 12pt;background:#fff}
-  /* Let a long step flow across a page break, but never split a picture
-     from its caption, a heading from its first line, or a stuck-box. */
-  figure,.stuck,.note{break-inside:avoid;page-break-inside:avoid}
-  :is(h2,h3){break-after:avoid;page-break-after:avoid}
-  .masthead{break-after:avoid}
-  h1{font-size:20pt}h2{font-size:14pt}h3{font-size:11.5pt}
-  figure img{max-width:52mm;border:1px solid #bbb}
-  .shots figure{flex:1 1 44mm;max-width:52mm}
-  .free,.stuck,.note{background:#fff;border:1px solid #999;color:#000}
-  a{color:#000;text-decoration:none}
-  a[href^="http"]::after{content:" (" attr(href) ")";font-size:9pt;color:#444}
-  .en::before{color:#666}
+  .toggle,.screen-only{display:none}
+  .print-only{display:block}
+  .step,.qa,.masthead{border:1px solid #b4aea4;border-radius:4mm;margin:6mm 0;padding:6mm 7mm;background:#fff}
+  h1{font-size:26pt;margin:0 0 1mm}
+  h2{font-size:16pt;margin:0 0 1mm}
+  h3{font-size:12.5pt;margin:5mm 0 1mm}
+  p{margin:2.2mm 0}
+  li{margin:1.8mm 0}
+  .stepno{background:#b5312c;color:#fff;font-size:11pt;padding:.5mm 4mm}
+  /* A picture is never orphaned from its caption, a heading never from its
+     first line, and a stuck-box never split down the middle. */
+  figure{break-inside:avoid;page-break-inside:avoid;margin:5mm 0 2mm}
+  /* 64mm wide is a phone screen held against the page — the comparison the
+     pack is for. A FULL phone screenshot at that width is 138mm tall, which
+     is over half an A4 text column, and the leftovers stranded whole pages
+     two-thirds empty. So width is capped for legibility and height is
+     capped for pagination, and each picture takes whichever binds first. */
+  figure img{max-width:64mm;max-height:118mm;width:auto;height:auto;border:1px solid #b4aea4;border-radius:2mm}
+  figcaption{font-size:9.5pt;margin-top:2mm}
+  .shots{gap:6mm}
+  .shots figure{flex:0 1 66mm;max-width:66mm}
+  .shots figure img{max-height:104mm}   /* two abreast, so a little shorter */
+  /* The stuck-box is a long list and MAY flow across a fold — forbidding it
+     stranded a picture alone on a two-thirds-empty page. The short note
+     box is a single sentence and must not split. */
+  .stuck,.note{background:#fff;border:1px solid #8a8378;border-radius:3mm;padding:5mm 6mm}
+  .note{break-inside:avoid;page-break-inside:avoid}
+  .note{border-left:1.5mm solid #b5312c}
+  .qa .q{break-after:avoid;page-break-after:avoid}
+  .shotgroup{break-inside:avoid;page-break-inside:avoid}
+  :is(h1,h2,h3){break-after:avoid;page-break-after:avoid}
+  body.cy-only .pairhead .alt{display:block}
+  .free{background:#fff;border:1px solid #6d8a5f;color:#2c4a24}
   .en{color:#333}
+  .en::before{color:#666}
+  .btnname{background:#eee9e0;border:1px solid #cfc8bc}
+  a{color:#000;text-decoration:none}
+  footer{margin-top:6mm}
 }
 </style>
 </head>
@@ -105,6 +140,18 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
     Blwyddyn o Say Something in Welsh, am ddim.
     <span class="en">A free year of Say Something in Welsh.</span>
   </div>
+  <p class="print-only xref">
+    Mae&rsquo;r pecyn hwn ar gael fel tudalen we hefyd, ar
+    <b>saysomethingin.app/croeso</b>.
+    <span class="en">This pack is also a web page, at
+    <b>saysomethingin.app/croeso</b>.</span>
+  </p>
+  <p class="screen-only xref">
+    Mae fersiwn i&rsquo;w hargraffu ar gael hefyd:
+    <a href="/croeso/Pecyn-Croeso.pdf">llwythwch y pecyn i lawr fel PDF</a>.
+    <span class="en">A printable version is also available:
+    <a href="/croeso/Pecyn-Croeso.pdf">download the pack as a PDF</a>.</span>
+  </p>
 </header>
 
 <div class="toggle"><button id="t" type="button" aria-pressed="false">Cuddio&rsquo;r Saesneg &middot; Hide English</button></div>
@@ -351,23 +398,31 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
     <h2>Rhowch o ar sgrin gartref eich ff&ocirc;n</h2>
     <p>Mae hyn yn werth ei wneud unwaith. Wedyn mae eicon coch yn eistedd gyda&rsquo;ch apiau eraill, ac un tap sydd ei angen &mdash; dim chwilio, dim teipio cyfeiriad.</p>
     <p>Mae&rsquo;r ap ei hun yn dangos y camau i chi. Tapiwch yr olwyn ddannedd yn y gwaelod, ac wedyn <span class="btnname">Install SaySomethingin</span>.</p>
-    <h3>Ar iPhone (yn Safari)</h3>
   </div>
   <div class="en">
     <h2>Put it on your phone&rsquo;s home screen</h2>
     <p>This is worth doing once. After that a red icon sits with your other apps, and one tap is all it takes &mdash; no searching, no typing an address.</p>
     <p>The app shows you the steps itself. Tap the cog at the bottom, then <span class="btnname">Install SaySomethingin</span>.</p>
-    <h3>On an iPhone (in Safari)</h3>
   </div>
-  <div class="shots">
-    <figure>{{img:ios1}}<figcaption>1. Y botwm rhannu, ar waelod Safari &middot; The Share button, at the bottom of Safari</figcaption></figure>
-    <figure>{{img:ios2}}<figcaption>2. Sgroliwch i lawr at &ldquo;Add to Home Screen&rdquo; &middot; Scroll down to &ldquo;Add to Home Screen&rdquo;</figcaption></figure>
-    <figure>{{img:ios3}}<figcaption>3. Tapiwch &ldquo;Add&rdquo; yn y gornel dde uchaf &middot; Tap &ldquo;Add&rdquo;, top right</figcaption></figure>
-    <figure>{{img:ios4}}<figcaption>4. Dyna ni &middot; That&rsquo;s it</figcaption></figure>
+  <div class="shotgroup">
+    <h3 class="pairhead">Ar iPhone <span class="paren">(yn Safari)</span><span class="alt">On an iPhone (in Safari)</span></h3>
+    <div class="shots">
+      <figure>{{img:ios1}}<figcaption>1. Y botwm rhannu, ar waelod Safari &middot; The Share button, at the bottom of Safari</figcaption></figure>
+      <figure>{{img:ios2}}<figcaption>2. Sgroliwch i lawr at &ldquo;Add to Home Screen&rdquo; &middot; Scroll down to &ldquo;Add to Home Screen&rdquo;</figcaption></figure>
+    </div>
   </div>
-  <div class="cy"><h3>Ar ff&ocirc;n Android (yn Chrome)</h3><p>Tri thap: y ddewislen yn Chrome, wedyn &ldquo;Add to Home screen&rdquo;, wedyn &ldquo;Add&rdquo;.</p></div>
-  <div class="en"><h3>On an Android phone (in Chrome)</h3><p>Three taps: the Chrome menu, then &ldquo;Add to Home screen&rdquo;, then &ldquo;Add&rdquo;.</p></div>
-  <figure>{{img:android}}<figcaption>Android &middot; tri thap &middot; three taps</figcaption></figure>
+  <div class="shotgroup">
+    <div class="shots">
+      <figure>{{img:ios3}}<figcaption>3. Tapiwch &ldquo;Add&rdquo; yn y gornel dde uchaf &middot; Tap &ldquo;Add&rdquo;, top right</figcaption></figure>
+      <figure>{{img:ios4}}<figcaption>4. Dyna ni &middot; That&rsquo;s it</figcaption></figure>
+    </div>
+  </div>
+  <div class="shotgroup">
+    <h3 class="pairhead">Ar ff&ocirc;n Android <span class="paren">(yn Chrome)</span><span class="alt">On an Android phone (in Chrome)</span></h3>
+    <div class="cy"><p>Tri thap: y ddewislen yn Chrome, wedyn &ldquo;Add to Home screen&rdquo;, wedyn &ldquo;Add&rdquo;.</p></div>
+    <div class="en"><p>Three taps: the Chrome menu, then &ldquo;Add to Home screen&rdquo;, then &ldquo;Add&rdquo;.</p></div>
+    <figure>{{img:android}}<figcaption>Android &middot; tri thap &middot; three taps</figcaption></figure>
+  </div>
 </section>
 
 <section class="step">
@@ -494,7 +549,8 @@ footer{margin:40px 0 0;font-size:.9rem;color:var(--ink-soft);text-align:center;l
 
 <footer>
   Say Something in Welsh &middot; saysomethingin.app<br>
-  Y Ganolfan Dysgu Cymraeg Genedlaethol
+  Y Ganolfan Dysgu Cymraeg Genedlaethol<br>
+  <span class="build">Pecyn Croeso &middot; {{buildstamp}}</span>
 </footer>
 
 </div>
