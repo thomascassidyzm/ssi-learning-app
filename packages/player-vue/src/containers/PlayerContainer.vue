@@ -81,6 +81,9 @@ const showSettings = ref(false)
 const showLibrary = ref(false)
 const showExplorer = ref(false)
 const showCourseSelector = ref(false)
+// Course codes the picker is restricted to, when something opened it scoped
+// (org enrolment). Empty = the whole catalogue, the ordinary case.
+const courseSelectorOnly = ref([])
 
 const learningPlayerRef = ref(null)
 
@@ -683,7 +686,16 @@ onMounted(() => {
   // 'Or browse our free courses' on /premium pushes here with ?openCourses=1
   // — open the Choose Your Course modal directly. The modal (CourseSelector)
   // lives at the bottom of this container's template.
-  if (urlParams.get('openCourses') === '1') {
+  //
+  // The org-enrolment flow pushes the granted course codes instead of '1'
+  // (?openCourses=cym_n_for_eng,cym_s_for_eng), and then the picker shows
+  // those and nothing else: a Canolfan learner chooses their dialect, not
+  // their language.
+  const openCoursesParam = urlParams.get('openCourses')
+  if (openCoursesParam) {
+    if (openCoursesParam !== '1') {
+      courseSelectorOnly.value = openCoursesParam.split(',').map(c => c.trim()).filter(Boolean)
+    }
     showCourseSelector.value = true
     // Strip the param so a refresh doesn't keep re-opening the modal.
     router.replace({ path: '/', query: {} })
@@ -860,12 +872,13 @@ onMounted(() => {
     <!-- Course Selector (always mounted, manages own overlay) -->
     <CourseSelector
       :is-open="showCourseSelector"
+      :only-courses="courseSelectorOnly"
       :supabase="supabaseClient"
       :enrolled-courses="enrolledCourses"
       :active-course-id="activeCourse?.course_code"
       :is-admin="isAdmin"
-      @selectCourse="(c) => { showCourseSelector = false; handleCourseSelect(c) }"
-      @close="showCourseSelector = false"
+      @selectCourse="(c) => { showCourseSelector = false; courseSelectorOnly = []; handleCourseSelect(c) }"
+      @close="showCourseSelector = false; courseSelectorOnly = []"
     />
 
     <!-- Unified Auth Modal (shared state with all components) -->

@@ -255,8 +255,9 @@ describe("Kai's staging report", () => {
     await flush()
     await lastButton(wrapper).trigger('click')
     await flush()
-    // Two Welsh dialects: the picker, because the dialect is theirs to choose.
-    expect(routerPush).toHaveBeenCalledWith({ path: '/', query: { openCourses: '1' } })
+    // Two Welsh dialects: the picker, because the dialect is theirs to choose —
+    // and scoped to those two, not the whole catalogue (Kai, 2026-09-08).
+    expect(routerPush).toHaveBeenCalledWith({ path: '/', query: { openCourses: 'cym_n_for_eng,cym_s_for_eng' } })
     expect(routerPush).not.toHaveBeenCalledWith('/')
   })
 

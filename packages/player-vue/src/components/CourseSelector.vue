@@ -114,6 +114,14 @@ const props = defineProps({
   isAdmin: {
     type: Boolean,
     default: false
+  },
+  // Course codes to restrict the picker to. Empty = the whole catalogue.
+  // Set by the org-enrolment flow, where a learner on a Canolfan policy that
+  // grants North and South Welsh should be choosing between those two and
+  // nothing else — not scrolling the world's languages to find Welsh.
+  onlyCourses: {
+    type: Array,
+    default: () => []
   }
 })
 
@@ -179,11 +187,27 @@ const getForLabel = (course) => {
   return knownName
 }
 
+// True when a caller has scoped the picker to a named set of courses.
+const isRestricted = computed(() => (props.onlyCourses?.length || 0) > 0)
+
 // All visible courses — premium courses ARE shown to non-subscribers
 // (previewable; playing past the free preview raises the in-player paywall) so
 // the catalogue advertises the offer.
 const visibleCourses = computed(() => {
   let courses = allCourses.value
+
+  // Scoped picker (org enrolment): these codes and no others, and no
+  // I-speak or search narrowing on top — the whole list is already the
+  // answer to "which of your granted courses?".
+  if (isRestricted.value) {
+    const only = new Set(props.onlyCourses)
+    const scoped = courses.filter(c => only.has(c.course_code))
+    // Never a dead end: if none of the named codes are in the catalogue we
+    // have loaded, show the ordinary catalogue rather than an empty sheet.
+    if (scoped.length > 0) {
+      return scoped.sort((a, b) => (a.course_code || '').localeCompare(b.course_code || ''))
+    }
+  }
 
   // I-speak filter — drops the long tail of "X for Y speakers" rows where
   // Y isn't the user's known language. Search bypasses the filter so users
@@ -437,6 +461,17 @@ watch(() => props.isOpen, (newVal) => {
   }
 })
 
+// A scoped picker of two dialects of one language groups into a single
+// "Welsh — 2 variants" row, which would hide the actual choice behind a tap.
+// Expand it, so North and South are both on screen the moment it opens.
+watch([() => props.isOpen, courseGroups], () => {
+  if (!props.isOpen || !isRestricted.value) return
+  const groups = courseGroups.value
+  if (groups.length === 1 && groups[0].courses.length > 1) {
+    expandedLangGroup.value = `${groups[0].target_lang}_${groups[0].known_lang}`
+  }
+}, { immediate: true })
+
 // Initial load
 onMounted(() => {
   if (allCourses.value.length === 0) adoptParentCatalogue()
@@ -457,13 +492,14 @@ onMounted(() => {
               <button class="close-btn" @click="emit('close')" :aria-label="t('sector.close')">&#x2715;</button>
             </div>
             <input
+              v-if="!isRestricted"
               v-model="searchQuery"
               type="text"
               class="course-search-input"
               :placeholder="t('courseSelector.searchPlaceholder')"
               autocomplete="off"
             />
-            <div v-if="availableKnownLangs.length > 1 && !searchQuery.trim()" class="i-speak-row">
+            <div v-if="!isRestricted && availableKnownLangs.length > 1 && !searchQuery.trim()" class="i-speak-row">
               <div class="i-speak-pills">
                 <input
                   v-model="iSpeakQuery"
