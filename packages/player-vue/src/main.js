@@ -12,6 +12,7 @@ import { applyDeepLinkLocale } from './utils/deepLinkLocale'
 import { isEmbedContext } from './platform/embedMode'
 import { installApiOriginRewrite } from './platform/apiBase'
 import { installShellSafeArea } from './platform/shellSafeArea'
+import { captureOAuthReturnError } from './auth/googleSignIn'
 
 // Point every app-relative `/api/...` request at the configured API origin.
 // FIRST, before anything can make a request. On the web the configured origin
@@ -20,6 +21,12 @@ import { installShellSafeArea } from './platform/shellSafeArea'
 // WebView — whose own origin serves no API — it is the one place that makes
 // the difference. See platform/apiBase.ts.
 installApiOriginRewrite()
+
+// A Google sign-in that FAILED comes back as `#error=...` in the fragment, and
+// Supabase's own detectSessionInUrl strips that fragment the moment the client
+// is built. Read it here, first, or the learner returns to an unchanged
+// sign-in screen with no idea why nothing happened. See auth/googleSignIn.ts.
+try { captureOAuthReturnError(window.location.hash) } catch { /* no window */ }
 
 // Make the system-bar insets real for edge-anchored chrome, and make a
 // MISSING measurement visible rather than silent. No-op on the web and in an
