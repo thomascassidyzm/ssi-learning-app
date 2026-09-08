@@ -23,12 +23,19 @@ const props = withDefaults(defineProps<{
  */
 const copyLabelText = computed(() => props.copyLabel ?? t('schools.ui.inviteLinkField.copyLabel', 'Copy invite link'))
 
+// The copy IS the invite act — this is the beat where a teacher is about to
+// send a link to real learners, so it is one of the moments the mailbox prompt
+// listens for. Emitted rather than handled here: this field is shared by five
+// surfaces and only some of them own that prompt.
+const emit = defineEmits<{ (e: 'copied'): void }>()
+
 const copied = ref(false)
 async function copy() {
   if (!props.url) return
   try {
     await navigator.clipboard.writeText(props.url)
     copied.value = true
+    emit('copied')
     setTimeout(() => { copied.value = false }, 2000)
   } catch {
     /* ignore */

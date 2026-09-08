@@ -21,6 +21,8 @@ import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
 import Bench from '@/components/schools/shared/Bench.vue'
 import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
+import MailboxCheckPrompt from '@/components/schools/MailboxCheckPrompt.vue'
+import { useMailboxPrompt } from '@/composables/useMailboxPrompt'
 import WalkOffer from '@/components/admin/WalkOffer.vue'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
@@ -763,6 +765,10 @@ const deleteImpactLines = computed(() => {
   }
   return lines
 })
+
+// The mailbox moment. Copying the join link is the act of inviting learners —
+// see composables/useMailboxPrompt.ts for when this stays shut.
+const mailboxPrompt = useMailboxPrompt()
 </script>
 
 <template>
@@ -1428,7 +1434,7 @@ const deleteImpactLines = computed(() => {
                  hand anything out until it comes back.
                  checked: bc4a8a6b.deda81a9
             -->
-            <div v-if="joinPanel.url" data-walk="class-join-link"><InviteLinkField :url="joinPanel.url" /></div>
+            <div v-if="joinPanel.url" data-walk="class-join-link"><InviteLinkField :url="joinPanel.url" @copied="mailboxPrompt.noteKeepWorthyMoment()" /></div>
 
             <button
               v-if="!showCode"
@@ -1491,6 +1497,13 @@ const deleteImpactLines = computed(() => {
       :summary="assignSummary"
       @close="closeAssign"
       @confirm="handleAssignConfirm"
+    />
+
+    <MailboxCheckPrompt
+      :isOpen="mailboxPrompt.isOpen.value"
+      :primaryEmail="mailboxPrompt.primaryEmail.value"
+      @close="mailboxPrompt.dismiss()"
+      @proved="mailboxPrompt.markProved()"
     />
   </main>
 </template>

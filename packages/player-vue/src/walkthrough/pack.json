@@ -1,5 +1,5 @@
 {
-  "version": "0d8d03eef1bc",
+  "version": "3e92675a34d3",
   "generatedAt": "2026-09-07",
   "walks": [
     {
@@ -2254,6 +2254,35 @@
         "Compare the lengths — the numbers at the end give the exact figures."
       ],
       "note": "A class with too little practice recorded shows a plain line saying so rather than a bar built from almost nothing."
+    },
+    {
+      "id": "prove-your-mailbox-reaches-you",
+      "title": "Prove your mailbox reaches you",
+      "section": "getting-people-in",
+      "personas": [
+        "school_admin",
+        "teacher"
+      ],
+      "keywords": [
+        "email",
+        "mailbox",
+        "code",
+        "spam filter",
+        "locked out"
+      ],
+      "place": {
+        "route": "dashboard"
+      },
+      "anchor": "mailbox-check-send",
+      "source": "packages/player-vue/src/components/schools/MailboxCheckPrompt.vue",
+      "walk": null,
+      "what": "School mail gateways are ferocious, and a code that never arrives is only discovered on the day you need it. This asks once, at the moment you have just made something worth keeping, and settles it.",
+      "where": "A card that appears right after you create a class or copy a class join link, for as long as your address is unproven.",
+      "how": [
+        "Tap **Send me a code**, or nominate a different address if your school one eats our mail.",
+        "Type the six digits we send, and tap **That's the one**."
+      ],
+      "note": "Close it and it stays closed. It never comes back on a timer."
     },
     {
       "id": "put-the-app-on-your-device",
