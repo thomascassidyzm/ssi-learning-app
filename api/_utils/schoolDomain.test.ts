@@ -90,3 +90,168 @@ describe('helpers', () => {
     expect(isDomainShaped('-a.b')).toBe(false)
   })
 })
+
+// ---------------------------------------------------------------------------
+// SHARED TENANTS (job #385). The rule is pure (isSharedTenantFor); the three
+// moments it acts at are exercised against an in-memory stand-in for the
+// tables it reads, so the same file proves the claim refusal, the arrival-time
+// suppression and the door — no network.
+// ---------------------------------------------------------------------------
+import {
+  isSharedTenantFor,
+  claimDomainForSchool,
+  claimsVouchingFor,
+  schoolsClaimingDomainOf,
+  schoolsLivingOn,
+} from './schoolDomain'
+
+describe('isSharedTenantFor — another household on the domain makes it a tenant', () => {
+  const newport = { school_id: 'newport', group_id: null }
+  it('a school alone on its domain is not a tenant', () => {
+    expect(isSharedTenantFor(newport, [{ school_id: 'newport', group_id: null }])).toBe(false)
+    expect(isSharedTenantFor(newport, [])).toBe(false)
+  })
+  it('a second, unrelated school living there makes it shared', () => {
+    expect(isSharedTenantFor(newport, [
+      { school_id: 'newport', group_id: null },
+      { school_id: 'monmouth', group_id: null },
+    ])).toBe(true)
+  })
+  it('a sibling in the same trust is the same household — not shared', () => {
+    const trustSchool = { school_id: 'a', group_id: 'trust' }
+    expect(isSharedTenantFor(trustSchool, [
+      { school_id: 'a', group_id: 'trust' },
+      { school_id: 'b', group_id: 'trust' },
+    ])).toBe(false)
+  })
+  it('a school in a DIFFERENT group is another household', () => {
+    const trustSchool = { school_id: 'a', group_id: 'trust' }
+    expect(isSharedTenantFor(trustSchool, [{ school_id: 'z', group_id: 'other-trust' }])).toBe(true)
+  })
+})
+
+/**
+ * A tiny stand-in for the four tables the rule reads. Supports exactly the
+ * builder calls schoolDomain.ts makes: select / eq / neq / in / or(ilike) /
+ * maybeSingle / insert, awaited as a thenable like the real client.
+ */
+function fakeSupabase(tables: Record<string, any[]>) {
+  const inserted: Array<{ table: string; row: any }> = []
+  const builder = (table: string) => {
+    let rows = [...(tables[table] || [])]
+    let single = false
+    let embed: string | null = null
+    const b: any = {
+      select(cols: string) {
+        const m = /(\w+)\(([^)]*)\)/.exec(cols || '')
+        if (m) embed = m[1]
+        return b
+      },
+      eq(col: string, v: any) { rows = rows.filter((r) => r[col] === v); return b },
+      neq(col: string, v: any) { rows = rows.filter((r) => r[col] !== v); return b },
+      in(col: string, vs: any[]) { rows = rows.filter((r) => vs.includes(r[col])); return b },
+      or(expr: string) {
+        const pats = expr.split(',').map((p) => p.replace(/^email\.ilike\./, ''))
+        rows = rows.filter((r) => pats.some((p) => {
+          const re = new RegExp('^' + p.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*') + '$', 'i')
+          return re.test(r.email)
+        }))
+        return b
+      },
+      maybeSingle() { single = true; return b },
+      insert(row: any) {
+        inserted.push({ table, row })
+        const dup = (tables[table] || []).some((r) => r.school_id === row.school_id && r.kind === row.kind && r.value === row.value)
+        return Promise.resolve({ error: dup ? { code: '23505', message: 'dup' } : null })
+      },
+      then(resolve: any) {
+        let data: any = rows.map((r) => {
+          if (!embed) return r
+          const fk = r[embed === 'schools' ? 'school_id' : embed + '_id']
+          const target = (tables[embed] || []).find((x) => x.id === fk) || null
+          return { ...r, [embed]: target }
+        })
+        if (single) data = data[0] || null
+        return resolve({ data, error: null })
+      },
+    }
+    return b
+  }
+  return { client: { from: builder } as any, inserted }
+}
+
+/** Live-data shape of the Hwb case: two Welsh schools whose founding admins both
+ *  sit on hwbcymru.net; Newport signed up first and claimed it. */
+function hwbWorld() {
+  return fakeSupabase({
+    schools: [
+      { id: 'newport', group_id: null, admin_user_id: 'u-newport', school_name: 'Newport High School' },
+      { id: 'monmouth', group_id: null, admin_user_id: 'u-monmouth', school_name: 'Monmouth Comprehensive' },
+      { id: 'chepstow', group_id: null, admin_user_id: 'u-chepstow', school_name: 'Chepstow School' },
+    ],
+    learners: [
+      { id: 'l-newport', user_id: 'u-newport' },
+      { id: 'l-monmouth', user_id: 'u-monmouth' },
+      { id: 'l-chepstow', user_id: 'u-chepstow' },
+    ],
+    learner_emails: [
+      { learner_id: 'l-newport', email: 'head@hwbcymru.net' },
+      { learner_id: 'l-monmouth', email: 'head2@hwbcymru.net' },
+      { learner_id: 'l-chepstow', email: 'head@chepstowschool.net' },
+    ],
+    school_identity_claims: [
+      { school_id: 'newport', kind: 'domain', value: 'hwbcymru.net' },
+      { school_id: 'chepstow', kind: 'domain', value: 'chepstowschool.net' },
+    ],
+  })
+}
+
+describe('schoolsLivingOn — residents are derived from the live rows, never a list', () => {
+  it('finds both Welsh schools on hwbcymru.net and only Chepstow on its own domain', async () => {
+    const { client } = hwbWorld()
+    expect((await schoolsLivingOn(client, 'hwbcymru.net'))!.map((r) => r.school_id).sort()).toEqual(['monmouth', 'newport'])
+    expect((await schoolsLivingOn(client, 'chepstowschool.net'))!.map((r) => r.school_id)).toEqual(['chepstow'])
+  })
+  it('a look-alike domain is not a resident', async () => {
+    const { client } = hwbWorld()
+    expect(await schoolsLivingOn(client, 'bcymru.net')).toEqual([])
+  })
+})
+
+describe('claimDomainForSchool — the second school on a tenant is refused, the first is not', () => {
+  it('Monmouth cannot claim hwbcymru.net: Newport already lives there', async () => {
+    const { client, inserted } = hwbWorld()
+    const out = await claimDomainForSchool(client, {
+      schoolId: 'monmouth', email: 'head2@hwbcymru.net', source: 'founding_admin', addedBy: 'u-monmouth',
+    })
+    expect(out).toEqual({ status: 'not_claimable', domain: 'hwbcymru.net', reason: 'shared_tenant' })
+    expect(inserted).toEqual([])
+  })
+  it('Chepstow, alone on chepstowschool.net, is already_ours (idempotent) — its own row is not evidence against it', async () => {
+    const { client } = hwbWorld()
+    const out = await claimDomainForSchool(client, {
+      schoolId: 'chepstow', email: 'deputy@chepstowschool.net', source: 'founding_admin', addedBy: 'u-chepstow',
+    })
+    expect(out).toEqual({ status: 'already_ours', domain: 'chepstowschool.net' })
+  })
+})
+
+describe('claimsVouchingFor — a claim on a domain that has become shared vouches for nobody', () => {
+  it("Newport's hwbcymru.net row is suppressed once Monmouth lives there; nothing is deleted", async () => {
+    const { client } = hwbWorld()
+    expect(await claimsVouchingFor(client, 'newport')).toEqual([])
+    // the row itself is untouched — suppression is the un-claim
+    expect(await claimsVouchingFor(client, 'chepstow')).toMatchObject([{ kind: 'domain', value: 'chepstowschool.net' }])
+  })
+})
+
+describe('schoolsClaimingDomainOf — the door names only an effective holder', () => {
+  it('a third Hwb head sees no holder at all: the domain belongs to nobody', async () => {
+    const { client } = hwbWorld()
+    expect(await schoolsClaimingDomainOf(client, 'head3@hwbcymru.net')).toEqual([])
+  })
+  it('a second Chepstow address is still pointed at Chepstow', async () => {
+    const { client } = hwbWorld()
+    expect(await schoolsClaimingDomainOf(client, 'someone@chepstowschool.net')).toMatchObject([{ school_id: 'chepstow' }])
+  })
+})

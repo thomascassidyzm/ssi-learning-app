@@ -742,6 +742,7 @@ async function redeemInviteCode(
         schoolId: newSchool!.id as string, email, source: 'leader_invite', addedBy: userId,
       })
       if (claim.status === 'error') console.error('[CodeRedeem] domain claim failed (non-fatal):', claim.message)
+      if (claim.status === 'not_claimable' && claim.reason === 'shared_tenant') console.info('[CodeRedeem] domain is a shared tenant, not claimed:', claim.domain)
     } catch (trialError) {
       console.error('[CodeRedeem] Platform-trial provisioning failed (non-fatal):', trialError)
     }

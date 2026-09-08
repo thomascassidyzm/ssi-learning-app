@@ -468,18 +468,27 @@ export default async function handler(
         // should JOIN that school through its links — not the founder of a
         // rival one. So: 409 `domain_claimed`, naming the school, and nothing
         // written. The door offers the one honest exception — a different
-        // school in a trust that shares one mail domain — as an explicit
+        // school on a domain it shares with the first — as an explicit
         // confirm (`confirm_shared_domain`), the same shape the org door uses
         // for duplicate names. Fails open on a read error: a blocked signup
         // is the worse fault.
+        //
+        // The wording is a fact, not a verdict (job #385): the holder SIGNED
+        // UP FIRST from this domain — it does not "own" it, because on a
+        // national tenant like hwbcymru.net it is one school of hundreds. A
+        // second head from a different school carries on in one tap, and the
+        // moment she does the domain is a shared tenant (schoolDomain.ts): the
+        // first school's claim stops vouching and a third head sees no notice
+        // at all, since schoolsClaimingDomainOf names only effective holders.
         if (!confirm_shared_domain) {
           const holders = await schoolsClaimingDomainOf(supabase, authEmail)
           if (holders.length > 0) {
+            const holderName = holders[0].school_name || 'another school'
             res.status(409).json({
               code: 'domain_claimed',
               domain: holders[0].domain,
               schools: holders.map((h) => ({ school_id: h.school_id, school_name: h.school_name })),
-              error: `Your email domain already belongs to ${holders[0].school_name || 'a school on SaySomethingin'}. Ask its admin for the teacher or admin link to join it.`,
+              error: `${holderName} signed up first from ${holders[0].domain}. If you work there, ask its admin for the teacher or admin link and you will be in with one tap. If yours is a different school that shares the same email system, carry on and set it up.`,
             })
             return
           }
@@ -550,6 +559,9 @@ export default async function handler(
         schoolId, email: authEmail, source: 'founding_admin', addedBy: auth.userId,
       })
       if (claim.status === 'error') console.warn('[onboarding/provision] domain claim failed (non-fatal):', claim.message)
+      // Worth a line in the log: this school's teachers will verify by code,
+      // because its domain is a tenant other schools live on (job #385).
+      if (claim.status === 'not_claimable' && claim.reason === 'shared_tenant') console.info('[onboarding/provision] domain is a shared tenant, not claimed:', claim.domain)
 
       // ONE trialled language per school. A second DIFFERENT course on a school
       // that already trialled (and isn't paying) must go through checkout, not a

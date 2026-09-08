@@ -1294,16 +1294,19 @@ async function continueIn() {
             </div>
           </div>
 
-          <!-- Domain already claimed (job #371): the email domain they proved
-               belongs to a school already. Nothing was created. Join it through
-               its links — or, for a different school in a trust that shares one
-               mail domain, go ahead deliberately. -->
+          <!-- Domain already claimed (job #371, wording #385): a school has
+               already signed up from the email domain they proved. Nothing was
+               created. The sentence states the fact — who signed up FIRST —
+               never "owns", because on a national tenant such as Hwb the
+               holder is one school of hundreds. Join it through its links, or
+               carry on as a different school in one tap; the server then treats
+               the domain as shared and the first school's claim stops vouching. -->
           <div v-if="domainClaimedBy" class="ob-warning" role="alert">
             <p class="ob-warning-text">
-              {{ t('onboarding.domainClaimedBody', 'Addresses at {domain} already belong to {school}. If that is your school, ask its admin for the teacher or admin link and you will be in with one tap. If yours is a different school that shares the same email domain, go ahead.').replace('{domain}', domainClaimedBy.domain).replace('{school}', domainClaimedBy.schoolName) }}
+              {{ t('onboarding.domainClaimedBody', '{school} signed up first from {domain}. If you work there, ask its admin for the teacher or admin link and you will be in with one tap. If yours is a different school that shares the same email system, carry on and set it up.').replace('{domain}', domainClaimedBy.domain).replace('{school}', domainClaimedBy.schoolName) }}
             </p>
             <div class="ob-warning-actions">
-              <Button variant="primary" size="md" :loading="busy" @click="confirmSharedDomainSchool">{{ t('onboarding.differentSchoolSameDomain', 'It is a different school — go ahead') }}</Button>
+              <Button variant="primary" size="md" :loading="busy" @click="confirmSharedDomainSchool">{{ t('onboarding.differentSchoolSameDomain', 'It is a different school — carry on') }}</Button>
             </div>
           </div>
 
