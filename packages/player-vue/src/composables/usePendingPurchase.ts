@@ -13,7 +13,17 @@
  *   1. ACKNOWLEDGE AT ONCE. The record is written from Paddle's own
  *      checkout.completed event — in the page, the instant the payment
  *      succeeds — so the acknowledgement does not wait on our webhook, on a
- *      redirect, or on anything that can be slow. While it stands, the
+ *      redirect, or on anything that can be slow.
+ *
+ *      THAT INDEPENDENCE IS THE POINT, and the measurement is why. Tom's
+ *      webhook was not slow: his subscription row was written 1.3 seconds
+ *      after his card was billed, while he sat looking at the Upgrade row for
+ *      several minutes. The entitlement was there the whole time and the
+ *      client never asked again — the success redirect out of Paddle's inline
+ *      frame is the only thing that would have made it ask, and the parent
+ *      page plainly never reloaded. checkout.completed fires in the PARENT
+ *      window whatever the iframe does, so this no longer depends on that
+ *      redirect, or on a reload, happening at all. While it stands, the
  *      not-subscribed state is covered and the buy path is shut.
  *   2. RESOLVE, DON'T SPIN. It polls /api/subscription on a decaying cadence
  *      and reports honestly which phase it is in, so the screen above it can
@@ -42,17 +52,26 @@ import { openFamilyModal } from './useFamilyModal'
 
 /**
  * When the wording changes from "this takes a few seconds" to "this is taking
- * longer than usual". It must be longer than the ordinary case and shorter than
- * a person's patience — say the honest thing before they start to worry, not
- * after.
+ * longer than usual".
+ *
+ * MEASURED, not guessed (2026-09-08, live Paddle + live DB, n=50 notifications
+ * over 2026-07-03 to 2026-09-07): Paddle delivers a webhook in a median of
+ * 1.06s, p90 2.36s, max 3.37s, with 50 of 50 delivered first time and no
+ * retries. On Tom's own £25 Family purchase the subscription row was written
+ * 1.3 seconds after his card was billed. So this is roughly seven times the
+ * worst delivery ever observed — long enough that nobody is told a normal wait
+ * is abnormal, short enough to speak up before they start to worry.
  */
 export const SLOW_AFTER_MS = 25_000
 
 /**
  * When we stop claiming it is imminent and hand them a way to reach a human.
- * Tom waited "several minutes" and it did resolve, so this is deliberately
- * generous — the point is that the screen has a definite end, not that it gives
- * up early.
+ *
+ * Deliberately generous against the measurement above — at 10 minutes we are
+ * some 180x past the worst observed delivery, so anything still unresolved here
+ * is not a slow webhook but a genuine fault, and a genuine fault deserves a
+ * person rather than another spinner. The point of the number is that the
+ * screen has a definite end, not that it gives up early.
  */
 export const STALLED_AFTER_MS = 10 * 60_000
 
