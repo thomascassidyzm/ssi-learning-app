@@ -217,28 +217,29 @@ describe('vercel.json — security response headers', () => {
     expect(keys).not.toContain('access-control-allow-credentials')
   })
 
-  it('the Report-Only policy is still report-only — and carries a trap for whoever promotes it', () => {
-    // The broad Report-Only policy also says `frame-ancestors 'none'`. While it
-    // is REPORT-ONLY that is harmless: it logs and does not block, so the
-    // framed demo works. The day somebody promotes it to enforced, that
-    // directive would kill the embed — an enforced policy cannot be relaxed by
-    // the separate enforced rule on /embed/(.*), because a page must satisfy
-    // EVERY enforced policy it is served. Promoting it therefore has to add a
-    // matching Report-Only override on /embed/(.*) in the same change.
+  it('the embed Report-Only policy is the broad one, differing ONLY in frame-ancestors', () => {
+    // TWO copies of a 1.5KB policy is exactly how two policies drift apart, so
+    // this is the thing that makes the duplication safe: they must be
+    // character-identical once frame-ancestors is normalised away.
     //
-    // This test holds the ground until then: it goes red the moment the key is
-    // renamed to the enforced one without an /embed rule appearing alongside it.
+    // Why duplicate at all. The broad Report-Only policy says
+    // frame-ancestors 'none'. Report-only does not block, so the demo worked
+    // without this — it just logged a violation into the console of every
+    // visitor to Aran's landing pages. And a page must satisfy EVERY enforced
+    // policy it is served, so the day CLIENT-CONFIG-01 promotes Report-Only to
+    // enforced, a 'none' here would kill the framed demo and the narrow
+    // enforced rule could not save it. Closing it now costs one config entry;
+    // discovering it after promotion costs a live demo.
     const cfg = loadVercelConfig()
-    const broad = broadRule(cfg)
-    expect(headerValue(broad, 'Content-Security-Policy-Report-Only')).toContain("frame-ancestors 'none'")
+    const broad = headerValue(broadRule(cfg), 'Content-Security-Policy-Report-Only')!
+    const embedRule = (cfg.headers ?? []).find((r) => r.source === '/embed/(.*)')!
+    const embed = headerValue(embedRule, 'Content-Security-Policy-Report-Only')!
 
-    const embed = (cfg.headers ?? []).find((r) => r.source === '/embed/(.*)')!
-    const embedKeys = embed.headers.map((h) => h.key.toLowerCase())
-    const broadEnforced = headerValue(broad, 'Content-Security-Policy')!
-    if (broadEnforced.includes('default-src')) {
-      // The promotion happened. It must have brought the embed exception with it.
-      expect(embedKeys).toContain('content-security-policy-report-only')
-    }
+    expect(broad).toContain("frame-ancestors 'none'")
+    expect(embed).toContain('frame-ancestors https://www.saysomethingin.com https://saysomethingin.com')
+
+    const strip = (p: string) => p.replace(/frame-ancestors[^;]*/, 'frame-ancestors <X>')
+    expect(strip(embed)).toBe(strip(broad))
   })
 
   it.todo("CLIENT-CONFIG-01 follow-up: promote Content-Security-Policy-Report-Only to enforced once a staging soak shows zero violations across Paddle checkout, offline audio download and the schools/admin surfaces — and in the SAME change give /embed/(.*) its own copy with the marketing frame-ancestors, or the framed demo dies with it")
