@@ -2,6 +2,94 @@
 
 All notable changes to the SSi Learning App, newest first. This file tracks `staging → main` promotions.
 
+## 2026-09-08 — SSi Family, a purchase path that holds together, and per-voice pace
+
+Covers the whole gap since the 7 September promotion: seven promotions to `main` in a day and a
+half, plus a run of loose security work. The headline is money — SSi Family is buyable, invitable
+and livable-in, a Premium subscriber can move to Family and back on the same subscription, and the
+moment after somebody pays is no longer a blank screen. Alongside it, the player stopped taking its
+speaking speed from a blunt belt ladder and started taking it from the voice that actually recorded
+the clip, a confirmed account-takeover route on the purchase path was closed, and the schools estate
+gained domain-based identity and a compiled Handbook.
+
+Note that this file had gone unwritten since 27 July; this entry covers the 8 September span only
+and does not backfill the six weeks before it.
+
+### Learner-facing
+- **SSi Family, end to end.** Buy it, invite the adults you want on it, and create a child account
+  that signs in with a parent-minted link. Child creation had never once succeeded on the live
+  database — the auth trigger already wrote the learner row, so the endpoint's own insert collided
+  every time; it now adopts that row. An invite records when it was emailed and can be sent again.
+  Removing somebody changes only what they can reach: a removed child's sign-in link still mints,
+  and nothing anyone learned is touched.
+- **Premium to Family, and Family back to Premium, on the same subscription.** Both directions run
+  as a plan change on the existing Paddle subscription rather than a second checkout. Going back to
+  Premium is held for the end of the paid period, the owner sees every affected person by name
+  before confirming, and members keep their cover for thirty days past the plan-name flip — derived
+  from the one date already on the row. The webhook now files plan changes off the billed price in
+  both directions; before this it rejected the Premium-priced event outright and the row froze, so a
+  family went dark while £15 a month kept being charged.
+- **An existing subscriber can no longer open a second subscription.** Live since the day Family went
+  on sale: a paying learner who tapped Family was charged twice and got neither plan, because the
+  webhook then correctly refused the row. Guarded at the front door and at the funnel, failing open.
+- **An upgrade taken days from renewal no longer dead-ends.** Paddle refuses the whole update when
+  the prorated delta falls under its 55p minimum; on that one error, and only that one, we ask again
+  unbilled.
+- **Buying signed out: verify, then pay, and land back on the plan you chose.** The morning's
+  "pay first, verify later" build was reversed the same night on Tom's own call — the ball-ache was
+  losing your place, not the verification. The code screen now says why it is asking, and Paddle
+  opens on the plan already chosen. No password field anywhere in the flow.
+- **The moment after paying has a state of its own.** Paid-not-yet-landed is recorded, survives the
+  success redirect and a phone tearing down a backgrounded PWA, polls on a decaying cadence and ends
+  by landing the buyer in what they bought. Separately, Paddle's in-page completion event is now the
+  cue, so a purchase converges even where the success redirect never lands — a standalone PWA, an
+  Apple Pay sheet, a buyer who taps away from the receipt.
+- **Per-voice pace in the player.** Speaking speed is now the intent for the slot divided by the
+  measured pace of the voice that rendered that slot's clips, clamped, keyed on the artefact rather
+  than the casting config. The four-step belt ladder is retired from the speaking path.
+- **Easy stopped sounding the same prompt four times in a row.** A BUILD and a USE phrase carrying
+  identical text are two lawful adjacent items, and since the repeat decision moved to the walker
+  each got its own two plays. The player now remembers the prompt identity of its last two plays.
+  The set of cycles played is unchanged; only the surplus hearings go.
+- **Sign-in copy that does not accuse.** The wait quoted on a refused resend is now derived from the
+  limiter's own window rather than asserted, the 429 carries Retry-After, and the code screen says a
+  code can take a couple of minutes.
+- **The purchase screens speak all 24 locales**, with the German rewritten informally to match the
+  register of the rest of `deu.json`.
+
+### Schools & admin
+- **School identity on the domain.** The first admin claims their email domain; the links a school
+  sends vouch for arrivals on it; a shared tenant is derived from who lives on the domain rather
+  than from a list, with suppression as the un-claim. Existing schools were backfilled from their
+  founding admin, and the door now says who signed up first.
+- A teacher can add a student to a class from the class page; an add that half-happened can be
+  finished; setup opens in the language the school chose at sign-up.
+- **The Handbook compiles from the capabilities themselves.** Prose lives beside the capability it
+  describes, pinned to a fingerprint of it, and the build gate teaches its own repair.
+- **The schools surface is keyed for translation** — dashboards, class detail, students, progress,
+  setup wizard, tutor surfaces, walkthroughs — and 15,152 translation slots were harvested from the
+  old localisation branch by matching on source text rather than merging it.
+- An admin seed_progress timeout no longer wipes every course statistic.
+
+### Under the hood
+- **A confirmed live account-takeover route on the purchase path was closed.** Credentials planted
+  against an unclaimed address now die when the real mailbox owner arrives; the minting endpoint that
+  allowed a caller-supplied password was deleted outright rather than patched.
+- A run of DEFINER-function hardening: `find_learner_by_email` is a self-lookup rather than an email
+  oracle, the practice-minutes oracle reads through the caller's own scope, `is_class_teacher` and
+  four server-only functions lose their browser grants, two anon-reachable content-config writes lose
+  theirs, and the session guard's `search_path` is pinned. A standing check now catches the whole
+  class.
+- The mint throttle buckets on the peer Vercel attests rather than the one the caller claims.
+- The pace derivation was made to fit Supabase's 8s statement timeout — a covering index swap, the
+  slot carried rather than looked up — and a failed derivation shortens the bundle cache to five
+  minutes instead of poisoning a day.
+- The Android shell became a WebView onto production rather than a bundle, so a deploy reaches it at
+  once. It remains a dev wrapper with a dev package id, and is deliberately absent from the learner
+  release notes.
+- Several nightly test reds were shown to be stale tests rather than broken code, and two i18n gates
+  that had been silently inert were turned back on.
+
 ## 2026-07-27 — Playback control, Layer-2 pods, remembered interludes, self-healing content
 
 Covers the gap since the last entry: the 14 July, 20 July and 27 July promotions to `main`. The headline is that the player finally does what its controls promise — skips work at every level and playback no longer stalls between rounds — alongside the new Layer-2 pod listening experience, interludes that are remembered per learner instead of replayed forever, and a content-freshness mechanism that lets devices heal their own stale caches. On the schools side, invitations became links, a region tier landed above schools, and the separate analytics pages collapsed into one recursive insights surface that now explains itself.
