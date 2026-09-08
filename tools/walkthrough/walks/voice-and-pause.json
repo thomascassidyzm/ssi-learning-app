@@ -1,0 +1,46 @@
+{
+  "id": "voice-and-pause",
+  "title": "Voice and pause",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-insights"
+  },
+  "keywords": [
+    "voice",
+    "pause",
+    "microphone",
+    "mic",
+    "speaking",
+    "uptake",
+    "prosody",
+    "adaptive"
+  ],
+  "steps": [
+    {
+      "anchor": "insights-voice-pause",
+      "say": "**Voice and pause** sits at the bottom of the insights page and says what the microphone is actually giving us below this level.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "insights-voice-pause",
+      "say": "Read the uptake figure first — it is how many learners have any mic-derived data at all, and everything beneath rests on it.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "insights-voice-pause",
+      "say": "Then comes how the pause the app leaves learners to speak in is settling, and how they sound when they speak. Open a class or a learner within it to read the same thing at a smaller scope.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "A learner with no microphone data is absent from these figures rather than counted as a zero, so the denominator is always stated. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

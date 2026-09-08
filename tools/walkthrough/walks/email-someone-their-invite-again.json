@@ -1,0 +1,37 @@
+{
+  "id": "email-someone-their-invite-again",
+  "title": "Email someone their invite again",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "keywords": [
+    "resend",
+    "email",
+    "invite",
+    "again",
+    "lost",
+    "ways in"
+  ],
+  "steps": [
+    {
+      "anchor": "ways-in-copy",
+      "say": "Every live way in has its own row down here in **Ways in**, with its verbs at the end of it. Find the row for the person who says they never got their invite.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "ways-in-resend",
+      "say": "**Email again** sends the same invite a second time. Nothing changes and no new link is made, so the one they may yet dig out of a spam folder still works. Only rows for a named person with an email on file carry this button.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's the same invite, sent again — and the note above the table names the address it went to. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

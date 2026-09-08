@@ -1,0 +1,45 @@
+{
+  "id": "choose-which-courses-your-school-uses",
+  "title": "Choose which courses your school uses",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "setup"
+  },
+  "keywords": [
+    "course",
+    "courses",
+    "language",
+    "languages",
+    "choose",
+    "pick",
+    "catalogue",
+    "setup",
+    "step 3"
+  ],
+  "steps": [
+    {
+      "anchor": "setup-course-picker",
+      "say": "Every course your school can teach is tiled here, and they all start ticked. Untick anything you do not plan to use.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "setup-course-picker",
+      "say": "This is a filter and nothing more. It does not change what your school has access to and it takes nothing away from anyone — it only shortens the list you pick from on the next step.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "setup-course-picker",
+      "say": "A school on a trial sees its one trial course here; a subscribed school sees the whole catalogue. Tap **Continue** when the ticks look right.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That is step three — a short list instead of a long one. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "id": "find-a-class-in-a-long-list",
+  "title": "Find a class in a long list",
+  "personas": [
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "classes"
+  },
+  "keywords": [
+    "filter",
+    "sort",
+    "classes",
+    "find",
+    "search",
+    "health"
+  ],
+  "steps": [
+    {
+      "anchor": "classes-filters",
+      "say": "The strip above the table cuts a long list down to the question you are actually asking.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "classes-filters",
+      "say": "**Course** shows only the classes learning one language. **Health** pulls out the classes that need attention.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "classes-filters",
+      "say": "**Sort** reorders what is left by students, hours this week or progress.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "classes-filters",
+      "say": "The totals above the table follow the filter, so the student count and the hours are always the total of what you are looking at.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's finding a class — three pickers, and the totals keeping up. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "id": "set-your-language-and-time-zone",
+  "title": "Set your language and time zone",
+  "personas": [
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "settings"
+  },
+  "keywords": [
+    "language",
+    "welsh",
+    "cymraeg",
+    "spanish",
+    "time zone",
+    "timezone",
+    "localisation",
+    "interface",
+    "week"
+  ],
+  "steps": [
+    {
+      "anchor": "settings-localisation-save",
+      "say": "Above this button, **Default interface language** sets the language the dashboard itself speaks to you in, and **Time zone** decides what your activity times are read against.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "settings-localisation-save",
+      "say": "**Week starts on** and the flags toggle are here too. Change whichever you want, then tap **Save changes** once.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "settings-localisation-save",
+      "say": "This is remembered on the device you set it on. Teachers and students each choose their own, so nothing you pick here changes what anybody else sees.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That is localisation — your dashboard, in your language, on your clock. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

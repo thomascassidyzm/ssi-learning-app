@@ -1,0 +1,42 @@
+{
+  "id": "export-your-class-list",
+  "title": "Export your class list",
+  "personas": [
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "classes"
+  },
+  "keywords": [
+    "export",
+    "csv",
+    "classes",
+    "download",
+    "spreadsheet"
+  ],
+  "steps": [
+    {
+      "anchor": "classes-export",
+      "say": "**Export CSV** takes the class list off the screen and into a spreadsheet, for a report or a register you keep elsewhere.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "classes-export",
+      "say": "What you export is what you can see, so filter the table down first if you only want part of it.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "classes-export",
+      "say": "The file downloads to your own device with today's date in its name.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's exporting your class list — what is on screen, in a file. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

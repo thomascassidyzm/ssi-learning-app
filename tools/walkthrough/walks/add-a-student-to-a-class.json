@@ -1,0 +1,44 @@
+{
+  "id": "add-a-student-to-a-class",
+  "title": "Add a student to a class",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "keywords": [
+    "student",
+    "invite",
+    "class",
+    "learner",
+    "join",
+    "link"
+  ],
+  "steps": [
+    {
+      "anchor": "verb-invite-student",
+      "say": "On a class's own page the invite verb says **Invite students**, because a link minted here carries this class with it. Tapping it opens a form and creates nothing.",
+      "advance": {
+        "on": "click"
+      }
+    },
+    {
+      "anchor": "invite-form-submit",
+      "say": "Type the student's name, then either add their email so we send the invite, or leave it blank and the button becomes **Create their link** for you to hand over yourself.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "verb-invite-student",
+      "say": "One student at a time is deliberate — the link is theirs alone and puts them straight into learning with no sign-up screens. Come back to this button for the next name.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's a student in a class — one name, one link, no forms for them. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

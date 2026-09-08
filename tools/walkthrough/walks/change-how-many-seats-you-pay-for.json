@@ -1,0 +1,47 @@
+{
+  "id": "change-how-many-seats-you-pay-for",
+  "title": "Change how many seats you pay for",
+  "personas": [
+    "school_admin",
+    "leader"
+  ],
+  "place": {
+    "route": "upgrade"
+  },
+  "keywords": [
+    "seats",
+    "add",
+    "remove",
+    "more",
+    "fewer",
+    "change",
+    "update",
+    "billing",
+    "staff",
+    "grow"
+  ],
+  "steps": [
+    {
+      "anchor": "upgrade-update-seats",
+      "say": "Once you are subscribed, the seat count is edited in place. Step it up or down with the stepper above, or type the number straight into the box.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "upgrade-update-seats",
+      "say": "This button then reads Update, with the new monthly total on it. Tapping it changes your existing subscription — no second checkout, no new card details.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "upgrade-update-seats",
+      "say": "While the count matches what you already pay for, the button simply says current and does nothing, so you cannot double-bill yourself by tapping it twice.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That is seat editing — grow or shrink as staff come and go. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

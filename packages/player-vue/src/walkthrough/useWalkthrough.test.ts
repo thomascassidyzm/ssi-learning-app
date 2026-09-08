@@ -26,10 +26,18 @@ describe('walksFor (offer filtering)', () => {
     // co-teaching capabilities (A-74) — sharing, inviting, handover — and,
     // since 2026-08-08, reading the class↔teacher relationship the other way
     // round to move somebody between classes.
-    expect(walksFor('teacher', 'class-detail').map((x) => x.id)).toEqual([
+    // Since job #386 every handbook entry has a demo, so the class desk offers
+    // more than the five founding walks — but never fewer, and never one from
+    // another place or persona.
+    const desk = walksFor('teacher', 'class-detail').map((x) => x.id)
+    expect(desk).toEqual(expect.arrayContaining([
       'hand-over-the-lead', 'invite-a-supply-teacher', 'move-a-teacher-between-classes',
       'run-class-session', 'share-a-class',
-    ])
+    ]))
+    for (const w of walksFor('teacher', 'class-detail')) {
+      expect(w.place.route).toBe('class-detail')
+      expect(w.personas).toContain('teacher')
+    }
     expect(walksFor('admin', 'admin-invites').map((x) => x.id)).toEqual(['invites-desk'])
     expect(walksFor('teacher', 'admin-invites')).toEqual([])
     // node-home kinds: invite-first-teacher is school-only; ways-in covers groups too

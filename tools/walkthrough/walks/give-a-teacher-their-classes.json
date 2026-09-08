@@ -1,0 +1,43 @@
+{
+  "id": "give-a-teacher-their-classes",
+  "title": "Give a teacher their classes",
+  "personas": [
+    "school_admin",
+    "leader"
+  ],
+  "place": {
+    "route": "teachers"
+  },
+  "keywords": [
+    "assign",
+    "class",
+    "teacher",
+    "staff",
+    "classes",
+    "timetable"
+  ],
+  "steps": [
+    {
+      "anchor": "teacher-assign-classes",
+      "say": "**Assign to a class** sits on every teacher's row. Working from your staff list is how a new arrival gets their whole timetable in one sitting, rather than opening each class in turn.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "teacher-assign-classes",
+      "say": "It opens a list of every class in the school. Tick each one they should teach, then **Save** applies the ticks.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "teacher-assign-classes",
+      "say": "A class with nobody on it says so in that list, and the teacher you tick will lead it. Tick a class that already has a teacher and yours joins as a co-teacher instead.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's a teacher staffed — their timetable read and set from their own row. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "id": "change-your-school-details",
+  "title": "Change your school's name and details",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "settings"
+  },
+  "keywords": [
+    "rename",
+    "name",
+    "profile",
+    "school",
+    "details",
+    "contact",
+    "email",
+    "city",
+    "region",
+    "about",
+    "edit"
+  ],
+  "steps": [
+    {
+      "anchor": "settings-save-profile",
+      "say": "Everything above this button is editable: your school name, its city and region, the contact email, and a short description. Change as many of them as you like before you save.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "settings-save-profile",
+      "say": "**Save changes** writes the lot in one go. The button reads Saved when it has gone through, and the new name appears across the dashboard straight away.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "settings-save-profile",
+      "say": "Only a school admin sees this button. A teacher opening the same page reads the details but cannot change them, and your school type is set by your group administrator rather than here.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That is the school profile — edit freely, save once. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "id": "choose-what-a-class-learns",
+  "title": "Choose what a class learns",
+  "personas": [
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "classes"
+  },
+  "keywords": [
+    "course",
+    "language",
+    "choose",
+    "class",
+    "catalogue"
+  ],
+  "steps": [
+    {
+      "anchor": "verb-new-class",
+      "say": "**+ New class** opens the panel where a class is made. Nothing is created by opening it, so you can look and close it again.",
+      "advance": {
+        "on": "click"
+      }
+    },
+    {
+      "anchor": "create-class-course",
+      "say": "The **Course** box is the one that matters here. Type a few letters and it searches the whole catalogue rather than making you scroll a list.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "create-class-course",
+      "say": "Pick the language the class is learning. That choice decides what the class practises and what students hear when they join.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "create-class-course",
+      "say": "The course stays with the class once it is made. A class that needs a different language is a new class, which leaves the old one's records untouched.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's choosing what a class learns — one box, searched, and set for good. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

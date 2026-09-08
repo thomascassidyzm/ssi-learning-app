@@ -1,0 +1,43 @@
+{
+  "id": "how-your-class-measures-up",
+  "title": "How your class measures up",
+  "personas": [
+    "teacher"
+  ],
+  "place": {
+    "route": "dashboard"
+  },
+  "keywords": [
+    "benchmark",
+    "compare",
+    "cycles",
+    "school",
+    "global",
+    "average",
+    "bench"
+  ],
+  "steps": [
+    {
+      "anchor": "dash-class-bench",
+      "say": "Three bars on each class, answering the question a total cannot: is this normal. The top bar is **Class** — the cycles your own class has done.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "dash-class-bench",
+      "say": "**School** underneath it is the average across the other classes in your school. **Global** is the average across every class doing that course anywhere.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "dash-class-bench",
+      "say": "Longer bars mean more, and the number at the end of each bar is the figure itself. A class with too little recorded activity shows a dash rather than an invented bar.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's the benchmark — your class, your school, everyone. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

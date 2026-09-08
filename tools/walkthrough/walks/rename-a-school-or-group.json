@@ -1,0 +1,34 @@
+{
+  "id": "rename-a-school-or-group",
+  "title": "Rename a school or group",
+  "personas": [
+    "admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "keywords": [
+    "rename",
+    "name",
+    "change",
+    "school",
+    "group"
+  ],
+  "steps": [
+    {
+      "anchor": "verb-rename",
+      "say": "**Rename** changes what this school or group is called everywhere it appears. Tapping it opens a field holding the current name.",
+      "advance": {
+        "on": "click"
+      }
+    },
+    {
+      "anchor": "verb-rename",
+      "say": "Type the new name and tap **Save**. Nothing else moves — the same people, classes and links carry on underneath it. If the new name matches something sitting beside it you are warned and asked to confirm.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's a new name and nothing else changed. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

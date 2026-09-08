@@ -1,0 +1,37 @@
+{
+  "id": "how-fresh-these-numbers-are",
+  "title": "How fresh these numbers are",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "keywords": [
+    "updated",
+    "refresh",
+    "fresh",
+    "stale",
+    "time",
+    "reload"
+  ],
+  "steps": [
+    {
+      "anchor": "node-updated",
+      "say": "**Updated** and a time — that is when the figures below were last fetched, so you always know whether you are reading this morning or this minute.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "node-updated",
+      "say": "Pull the page down or reload it and the numbers are fetched again; the stamp moves with them. Nothing is shown until a load has genuinely succeeded, so an empty stamp means the numbers have not arrived rather than that they are old.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's the freshness of everything under it, in one line. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

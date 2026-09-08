@@ -1,0 +1,45 @@
+{
+  "id": "reading-the-belts",
+  "title": "Reading the belts",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "keywords": [
+    "belt",
+    "belts",
+    "white",
+    "black",
+    "distribution",
+    "spread",
+    "seeds"
+  ],
+  "steps": [
+    {
+      "anchor": "class-belts",
+      "say": "**Belt distribution** is the shape of the class across the eight belts. A wide band of one colour means everyone is together; a long tail means they have spread out.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "class-belts",
+      "say": "The list underneath names each belt and how many students hold it.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "class-belts",
+      "say": "The ladder runs white, yellow, orange, green, blue, purple, brown, black, reached at 8, 20, 40, 80, 150, 280 and 400 completed sentences. Every screen in the product uses that one ladder, so a student never shows a different belt in two places.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "A belt is distance travelled, never a grade and nothing to pass. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

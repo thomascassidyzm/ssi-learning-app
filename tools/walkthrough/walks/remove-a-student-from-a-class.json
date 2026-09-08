@@ -1,0 +1,43 @@
+{
+  "id": "remove-a-student-from-a-class",
+  "title": "Remove a student from a class",
+  "personas": [
+    "leader",
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "class-detail"
+  },
+  "keywords": [
+    "remove",
+    "student",
+    "class",
+    "roster",
+    "leaver"
+  ],
+  "steps": [
+    {
+      "anchor": "class-student-remove",
+      "say": "**Remove** at the end of a student's row takes that pupil off this roster. It is per pupil, so you are always removing the person you are looking at.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "class-student-remove",
+      "say": "It asks you to confirm before anything happens, which is your chance to check you are on the right row.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "class-student-remove",
+      "say": "The student keeps their account and everything they have learned, and can join another class straight away. Only their place on this roster goes.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's removing a student — one row, one confirmation, nothing lost. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

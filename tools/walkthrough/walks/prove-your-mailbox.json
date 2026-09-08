@@ -1,0 +1,42 @@
+{
+  "id": "prove-your-mailbox",
+  "title": "Prove your mailbox reaches you",
+  "personas": [
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "dashboard"
+  },
+  "keywords": [
+    "email",
+    "mailbox",
+    "code",
+    "spam filter",
+    "locked out"
+  ],
+  "steps": [
+    {
+      "anchor": "mailbox-check-send",
+      "say": "School mail gateways are ferocious, and a sign-in code that never arrives is usually discovered on the day you need it. **Send me a code** settles that now, while you are here and not locked out.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "mailbox-check-send",
+      "say": "If your school address eats our mail, the line underneath sends the code to a different address instead. Whichever you pick, six digits arrive and you type them in.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "mailbox-check-send",
+      "say": "**That's the one** confirms the code and the card is done with for good. Close it instead and it stays closed — it never comes back on a timer.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's your mailbox proved — one code, once, and never asked again. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

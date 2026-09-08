@@ -1,0 +1,44 @@
+{
+  "id": "give-a-class-its-course",
+  "title": "Give a class its course",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "setup"
+  },
+  "keywords": [
+    "course",
+    "class",
+    "assign",
+    "choose",
+    "language",
+    "which",
+    "search",
+    "picker"
+  ],
+  "steps": [
+    {
+      "anchor": "setup-class-course",
+      "say": "A course does not belong to a person, it belongs to a class — so this picker beside the class name is how a course reaches learners at all. It already holds the language you chose when you signed your school up.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "setup-class-course",
+      "say": "Leave it alone to teach that language. To teach something else, tap the picker and it opens.",
+      "advance": {
+        "on": "click"
+      }
+    },
+    {
+      "anchor": "setup-class-course",
+      "say": "Start typing to narrow the list, because the catalogue runs to dozens of courses. Where a language offers more than one version, the versions differ by region or accent — pick the one you want and everybody who joins the class lands in it.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That is the course picker — one choice per class, changeable until you save. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

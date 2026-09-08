@@ -1,0 +1,40 @@
+{
+  "id": "remove-a-teacher-from-your-school",
+  "title": "Remove a teacher from your school",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "teachers"
+  },
+  "keywords": [
+    "remove",
+    "teacher",
+    "leaver",
+    "staff"
+  ],
+  "steps": [
+    {
+      "anchor": "teacher-remove",
+      "say": "**Remove** on a teacher's row takes them off your school when they leave. Their own account survives — what goes is their place here and their view of its classes and learners.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "teacher-remove",
+      "say": "You are asked for their name back before anything happens, so a mistaken tap costs you nothing. Confirm and the list refreshes without them.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "teacher-remove",
+      "say": "An admin's row carries no **Remove** button at all, so a school can never lose its own admin through this list. Change their role first if that is really what you want.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's a leaver off your staff list, their own account untouched. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

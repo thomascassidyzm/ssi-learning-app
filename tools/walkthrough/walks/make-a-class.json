@@ -1,0 +1,42 @@
+{
+  "id": "make-a-class",
+  "title": "Make a class",
+  "personas": [
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "classes"
+  },
+  "keywords": [
+    "class",
+    "create",
+    "new",
+    "make",
+    "start"
+  ],
+  "steps": [
+    {
+      "anchor": "verb-new-class",
+      "say": "**+ New class** along the top of **My Classes** is where a class of your own starts. A class holds a roster, its own place on the course, and everything the class practises together.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "verb-new-class",
+      "say": "It asks for two things: a name you will recognise on a list, such as Year 7 Welsh, and the language the class is learning.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "verb-new-class",
+      "say": "The join link is made for you at the same moment as the class. Nothing else is needed to start teaching.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's making a class — a name, a language, and a link students join by. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

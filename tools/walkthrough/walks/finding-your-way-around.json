@@ -1,0 +1,45 @@
+{
+  "id": "finding-your-way-around",
+  "title": "Finding your way around the organisation",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "keywords": [
+    "map",
+    "rail",
+    "navigate",
+    "where am i",
+    "ancestors",
+    "siblings",
+    "orientation"
+  ],
+  "steps": [
+    {
+      "anchor": "node-map-rail",
+      "say": "This column is the map, and it never goes away. Read down it for the path from your top level to the one you are standing on.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "node-map-rail",
+      "say": "Under your own level sit its neighbours and everything hanging beneath it, so you can always tell how deep into the organisation you have gone.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "node-map-rail",
+      "say": "Tap any name to move straight there. The page rebuilds around the new level and the map redraws with it. A leader only ever sees their own part of the organisation — the map is trimmed by the server, not hidden in the page.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's the map — one column that always answers where you are. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

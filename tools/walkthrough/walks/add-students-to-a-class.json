@@ -1,0 +1,51 @@
+{
+  "id": "add-students-to-a-class",
+  "title": "Add students to a class",
+  "personas": [
+    "leader",
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "class-detail"
+  },
+  "keywords": [
+    "add",
+    "student",
+    "class",
+    "roster",
+    "move",
+    "join"
+  ],
+  "steps": [
+    {
+      "anchor": "class-student-add",
+      "say": "**Add students** puts a pupil who is already in your school into this class. Opening it changes nothing on its own.",
+      "advance": {
+        "on": "click"
+      }
+    },
+    {
+      "anchor": "class-student-picker",
+      "say": "The list holds the pupils in your school who are not in this class yet, with the classes they are in now under each name. Type a few letters to narrow it.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "class-student-picker",
+      "say": "Tapping a name adds that pupil straight away, and they bring everything they have already learned with them. Adding does not take them out of any other class.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "class-student-add",
+      "say": "The same button reads **Done** while the list is open. For a pupil with no account at all, use the class link in **Invite students** instead.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's adding students — search, tap, done. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "id": "see-what-your-school-pays",
+  "title": "See what your school pays",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "settings"
+  },
+  "keywords": [
+    "billing",
+    "plan",
+    "pay",
+    "cost",
+    "price",
+    "seats",
+    "invoice",
+    "invoices",
+    "subscription",
+    "card",
+    "cancel"
+  ],
+  "steps": [
+    {
+      "anchor": "settings-billing-plan",
+      "say": "This is the whole of what your school pays, in one line: the plan it is on, how many teacher seats it covers, and whether the subscription is running.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "settings-billing-plan",
+      "say": "Underneath it the price per teacher seat is spelled out, so the number on your card statement is never a surprise.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "settings-billing-plan",
+      "say": "**Manage subscription & seats** takes you to the one Upgrade page where every payment change happens. **Billing & invoices** opens your invoices, your card and cancellation, and only appears once a subscription is running.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That is your plan, read from the top of the Billing panel. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

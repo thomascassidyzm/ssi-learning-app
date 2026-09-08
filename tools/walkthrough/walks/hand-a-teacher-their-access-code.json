@@ -1,0 +1,42 @@
+{
+  "id": "hand-a-teacher-their-access-code",
+  "title": "Hand a teacher their access code",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "teachers"
+  },
+  "keywords": [
+    "access code",
+    "sign-in",
+    "locked out",
+    "email",
+    "teacher",
+    "link"
+  ],
+  "steps": [
+    {
+      "anchor": "teacher-signin-link",
+      "say": "**Access code** on a teacher's row gets them into their own account when email is not reaching them. School mail gateways quarantine our sign-in codes often enough that this is the rescue, not the exception.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "teacher-signin-link",
+      "say": "Read the code out to them, write it down, or paste the link into whatever you already use. They go to saysomethingin.app/join and type it in.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "teacher-signin-link",
+      "say": "The code works once and lasts two days, and whoever uses it becomes that teacher — so give it to them directly and never post it anywhere shared. Need another? Tap **Access code** again.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's a locked-out teacher back in, without waiting on email. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

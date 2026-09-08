@@ -1,0 +1,35 @@
+{
+  "id": "choose-which-courses-a-school-can-use",
+  "title": "Choose which courses a school can use",
+  "personas": [
+    "admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "keywords": [
+    "courses",
+    "entitlement",
+    "trial",
+    "paid",
+    "access",
+    "catalogue"
+  ],
+  "steps": [
+    {
+      "anchor": "verb-courses",
+      "say": "**Courses** sets what this school or group is allowed to learn. Tapping it opens the picker and changes nothing until you save.",
+      "advance": {
+        "on": "click"
+      }
+    },
+    {
+      "anchor": "verb-courses",
+      "say": "Choose the whole catalogue for a school that is paid up, or search out the one or two courses a trial should carry. Everyone below this node inherits whatever you save.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's a school's reading list set from one place — the server works the trial dates out on save. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

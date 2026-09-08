@@ -1,0 +1,45 @@
+{
+  "id": "subscribe-as-a-tutor",
+  "title": "Subscribe as a tutor",
+  "personas": [
+    "teacher"
+  ],
+  "place": {
+    "route": "upgrade"
+  },
+  "keywords": [
+    "tutor",
+    "subscribe",
+    "pay",
+    "upgrade",
+    "freelance",
+    "single",
+    "monthly",
+    "annual",
+    "students"
+  ],
+  "steps": [
+    {
+      "anchor": "upgrade-subscribe-tutor",
+      "say": "Teaching on your own rather than inside a school means one seat, for you. Choose Monthly or Annual above — annual works out at two months free.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "upgrade-subscribe-tutor",
+      "say": "**Subscribe** opens the card panel on this page. Your students pay for their own learning separately, so three paying students cover what your dashboard costs.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "upgrade-subscribe-tutor",
+      "say": "Once it is running, this same button becomes **Manage subscription**, which is where invoices and cancellation live.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That is the tutor plan — a single seat, and it is yours. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

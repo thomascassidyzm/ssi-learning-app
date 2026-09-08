@@ -1,0 +1,42 @@
+{
+  "id": "open-a-class",
+  "title": "Open a class",
+  "personas": [
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "classes"
+  },
+  "keywords": [
+    "open",
+    "class",
+    "row",
+    "tap",
+    "detail"
+  ],
+  "steps": [
+    {
+      "anchor": "classes-row",
+      "say": "A whole row is the way in. Tapping anywhere on it opens that class, and the keyboard works too.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "classes-row",
+      "say": "The class page opens on its roster, which is where most of what you want to do with a class lives.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "classes-row",
+      "say": "The buttons at the right of the row do their own jobs and do not open the class.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's opening a class — tap the row, land on the roster. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "id": "delete-your-school",
+  "title": "Delete your school",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "settings"
+  },
+  "keywords": [
+    "delete",
+    "remove",
+    "close",
+    "school",
+    "danger",
+    "permanent",
+    "undo"
+  ],
+  "steps": [
+    {
+      "anchor": "settings-delete-school",
+      "say": "This is the Danger zone, and it is the one button on the dashboard that cannot be undone. It closes the school itself along with its classes and everybody's enrolment in them.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "settings-delete-school",
+      "say": "Tapping it does not delete anything yet. It opens a panel listing what would go — classes, students, teachers and recorded sessions, each counted for you.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "settings-delete-school",
+      "say": "If the school has real activity in it, you type its name exactly before the app will act. Confirm and you are signed out to a clean slate, because the account you were using belonged to a school that no longer exists.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That is the danger zone — read the counts, then decide. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

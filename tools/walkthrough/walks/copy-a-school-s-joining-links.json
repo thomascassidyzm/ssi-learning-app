@@ -1,0 +1,44 @@
+{
+  "id": "copy-a-school-s-joining-links",
+  "title": "Copy a school's joining links",
+  "personas": [
+    "leader"
+  ],
+  "place": {
+    "route": "schools-list"
+  },
+  "keywords": [
+    "link",
+    "links",
+    "invite",
+    "admin",
+    "teacher",
+    "copy",
+    "join",
+    "chase"
+  ],
+  "steps": [
+    {
+      "anchor": "schools-list-link-chips",
+      "say": "Every school's row carries its two joining links in the Links column. This is how you chase a school that has not got started, or replace a link somebody has lost.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "schools-list-link-chips",
+      "say": "**Admin** copies its admin link and **Teacher** copies its teacher link. The chip reads Copied so you know it worked, then you paste it into an email or a message.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "schools-list-link-chips",
+      "say": "Tapping a chip never opens the school — the rest of the row does that. A school still flagged as awaiting admin is one whose admin link nobody has opened yet.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's both links, always on the row, always fetchable again. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "id": "work-through-setup-at-your-own-pace",
+  "title": "Work through setup at your own pace",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "setup"
+  },
+  "keywords": [
+    "setup",
+    "wizard",
+    "first",
+    "start",
+    "onboarding",
+    "steps",
+    "later",
+    "finish",
+    "resume",
+    "save"
+  ],
+  "steps": [
+    {
+      "anchor": "setup-save-exit",
+      "say": "Setup is four short steps — your school, your staff, your courses, your classes — and it does not have to be done in one sitting. The steps are listed down the left and you can tap any of them to jump forwards or back.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "setup-save-exit",
+      "say": "**Continue** saves the step you are on and moves you along. **Save & exit** saves the step you are on and puts you back on your dashboard.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "setup-save-exit",
+      "say": "If something cannot be saved, it stays put and tells you why, so you never leave work behind without knowing. Come back through Settings and First-time setup whenever you want to carry on.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That is the wizard — nothing here is a one-shot, and everything it sets up can be changed later. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

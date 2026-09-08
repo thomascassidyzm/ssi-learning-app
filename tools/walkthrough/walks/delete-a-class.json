@@ -1,0 +1,50 @@
+{
+  "id": "delete-a-class",
+  "title": "Delete a class",
+  "personas": [
+    "leader",
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "class-detail"
+  },
+  "keywords": [
+    "class",
+    "delete",
+    "remove",
+    "close",
+    "bin"
+  ],
+  "steps": [
+    {
+      "anchor": "class-delete",
+      "say": "The small bin beside the class name deletes the class. It is here for a class set up by mistake or a group that has finished.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "class-delete",
+      "say": "Tapping it does not delete anything on the spot. It first shows you what would go with the class, so you are deciding with the facts in front of you.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "class-delete",
+      "say": "A class with real practice behind it asks you to type its name before it will go. That is the app making you say it twice on purpose.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "class-delete",
+      "say": "Students keep their own accounts and everything they have learned. What goes is the class itself, its roster and its join link.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's deleting a class — shown to you first, confirmed by you, then gone. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

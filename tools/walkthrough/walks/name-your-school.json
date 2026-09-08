@@ -1,0 +1,43 @@
+{
+  "id": "name-your-school",
+  "title": "Name your school",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "setup"
+  },
+  "keywords": [
+    "school",
+    "name",
+    "rename",
+    "title",
+    "setup",
+    "step 1",
+    "first"
+  ],
+  "steps": [
+    {
+      "anchor": "setup-school-name",
+      "say": "Step one of setup asks for one thing. The name you type here is the one your teachers and students see on every page, on every invite link they open, and at the top of every report.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "setup-school-name",
+      "say": "Write it as you would on a letterhead, then tap **Continue** — the name is saved before the next step opens. If you have only just arrived and the box sits empty for a second, give it a moment and press **Continue** again.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "setup-school-name",
+      "say": "Typing it here counts as confirming it, so you are not asked again afterwards. To change it later, use School profile in Settings.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That is step one done — one box, and your school has a name. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

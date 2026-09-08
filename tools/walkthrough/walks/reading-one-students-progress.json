@@ -1,0 +1,45 @@
+{
+  "id": "reading-one-students-progress",
+  "title": "Reading one student's progress",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "keywords": [
+    "student",
+    "learner",
+    "progress",
+    "roster",
+    "last active",
+    "drifting",
+    "spark"
+  ],
+  "steps": [
+    {
+      "anchor": "class-students",
+      "say": "**Students** is every student in the class, one to a row. The bar on each row is that person's own position in the course, in LEGOs.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "class-students",
+      "say": "The small chart beside it is their practice over the past week, with the minutes named, and the dot and word at the start of the row say whether they are excellent, good, needing attention or inactive.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "class-students",
+      "say": "Needing attention means either nothing for a fortnight or less than half the class average, so it is a prompt to look rather than a verdict. Tap a row to open that person.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's the whole class read one learner at a time. This tour changed nothing; only your own taps do."
+    }
+  ]
+}
