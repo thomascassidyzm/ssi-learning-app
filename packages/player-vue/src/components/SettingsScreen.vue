@@ -25,6 +25,7 @@ import { canTakePayment, paddleBillingAvailable } from '../platform/paymentRoute
 import { platform } from '../platform/capabilities'
 import { insetDiagnosticLine } from '../platform/shellSafeArea'
 import { appIsStale, checkAppStaleness } from '../composables/useAppStaleness'
+import { nothingSavedOnThisOrigin } from '../platform/shellOriginState'
 import { shaPrefixEq } from '../platform/buildStaleness'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useReleaseNotes } from '../composables/useReleaseNotes'
@@ -302,12 +303,20 @@ const versionDisplay = computed(() =>
 
 // Which deployment is this build actually TALKING TO?
 //
-// On a bundled native shell the web assets are frozen into the APK, so the
-// build id alone does not answer the question that matters when something
-// looks wrong: which API origin is on the other end. The wrapper stamps that
-// origin at build time (scripts/injectPlatform.mjs -> window.__SSI_PLATFORM__)
-// and the platform seam reads it; on the web apiOrigin is empty by design,
-// where the page's own host IS the truthful answer.
+// Since 2026-09-08 the native shell is a window onto the deployment, so its
+// own host IS the deployment and apiOrigin is empty exactly as on the web —
+// this line then reads window.location.host, which is the truthful answer for
+// both. It is not dead code: a bundled build stamps an API origin at build
+// time via scripts/injectPlatform.mjs, and where the code and the API come
+// from different places that gap is the first thing you want to see when
+// something looks wrong.
+//
+// WHAT THE BUILD ROW ABOVE MEANS NOW. There is only one build identity worth
+// showing, and it is the deployment's: the shell carries no web code, so the
+// sha and time on that row are the sha and time of the code actually running,
+// in the shell and in a browser alike. The APK has a version of its own and it
+// is deliberately NOT shown here — it would name the window rather than what
+// is through it, which is the class of lie this screen exists to avoid.
 //
 // Host only, not the full URL — the scheme and path are noise on a phone.
 const buildOrigin = computed(() => {
@@ -341,13 +350,14 @@ onMounted(() => {
   window.setTimeout(readInsetLine, 600)
 })
 
-// IS THIS APK BEHIND? (native shell only — see composables/useAppStaleness.ts)
+// IS THIS APK BEHIND? — a question that stopped existing on 2026-09-08.
 //
-// The bundled build cannot notice new code by itself: its own /version.json is
-// frozen into the APK. The composable asks the API ORIGIN instead, and only
-// says "behind" when the clock proves it. Kicked off on mount; silent on every
-// answer it cannot read, and silent on the web, where the update card above is
-// already the truthful affordance.
+// It was real while the APK bundled its web assets and could not notice new
+// code by itself. The shell now loads the deployment, so the running code IS
+// the live code, `shouldDescribeStaleness()` answers NO everywhere, and this
+// call is a no-op that keeps the wiring intact for a future bundled build.
+// See composables/useAppStaleness.ts. The update card above is the truthful
+// affordance on every surface now.
 //
 // It DESCRIBES. It does not gate: nothing below refuses a tap, blocks
 // navigation or interrupts playback.
@@ -371,6 +381,18 @@ const stalenessLine = computed(() => {
   if (!appIsStale.value || !buildDateWords.value) return ''
   return t('settings.appBehindLive').replace('{date}', buildDateWords.value)
 })
+
+// NOTHING CAME ACROSS WITH THE APP — see platform/shellOriginState.ts.
+//
+// The shell used to serve the app from https://localhost, so everything the
+// device saved was keyed to that origin. It now loads the deployment, a
+// different origin, and none of the old install's position, sign-in or
+// downloaded audio is visible here. Tom, before the switch: "it's the kind of
+// failure that looks like progress." So it is said out loud, once, in the
+// app's provenance corner, and it goes away by itself the moment anything is
+// saved on this origin.
+const freshStorageLine = computed(() =>
+  nothingSavedOnThisOrigin() ? t('settings.nothingSavedYet') : '')
 
 // What's new — latest curated release notes from Supabase
 const { notes: releaseNotes, isLoading: notesLoading, load: loadReleaseNotes } = useReleaseNotes()
@@ -1971,6 +1993,11 @@ const confirmReset = async () => {
            gate: plain text, nothing tappable, no modal, and absent entirely
            whenever the app is current or we cannot tell. -->
       <p v-if="stalenessLine" class="build-stale" role="status">{{ stalenessLine }}</p>
+
+      <!-- Nothing is saved on this origin yet. A DESCRIPTION, like the line
+           above: plain text, nothing tappable, gone as soon as anything is
+           saved. See freshStorageLine. -->
+      <p v-if="freshStorageLine" class="build-stale" role="status">{{ freshStorageLine }}</p>
 
       <!-- Measured system-bar insets. Native shell only; see readInsetLine. -->
       <p v-if="insetLine" class="build-insets">{{ insetLine }}</p>

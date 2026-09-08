@@ -2,49 +2,64 @@
 #
 # build-android-apk.sh — the ONE way to make an installable Android debug APK.
 #
-# WHY THIS SCRIPT EXISTS (2026-09-05). The APK published to popty.app/builds as
-# `local-5e99196` was built by hand: `vite build`, `cap sync`, `assembleDebug`.
-# Every step succeeded and the artefact was dead. The build ran on a box with no
-# VITE_SUPABASE_* variables set, so the bundle carried an empty Supabase url and
-# anon key, no Supabase client was ever created, and the installed app rendered
-# its transport bar and spun on a blank screen forever. Vercel supplies those
-# variables from project settings; a local build has nobody to supply them, and
-# nothing asked.
+# WHAT THIS BUILDS, SINCE TOM'S RULING OF 2026-09-08. A shell, and nothing but a
+# shell. The APK no longer carries the web app: `server.url` in
+# capacitor.config.ts points the WebView at a real deployment, so the code the
+# learner runs is the code that is live, and "Tap to update" can actually fetch
+# it. There is therefore NO vite build in this script and no Supabase
+# configuration to get wrong — the two things that killed the `local-5e99196`
+# artefact, which built cleanly with empty VITE_SUPABASE_* variables and
+# installed as a dead app spinning on a blank screen. That whole failure mode
+# is now structurally impossible here: those variables belong to the
+# deployment's build, on Vercel, where something supplies them.
 #
-# The vite config now REFUSES that build (shippableWebviewBuildGuard). This
-# script is the other half: it sources the config, names the api origin, and
-# prints the stamp out of the artefact so the person holding the phone can tell
-# which build they installed.
+# `webDir` points at a generated one-page holding notice, written below. The
+# WebView never reads it while the deployment is reachable; it exists because
+# `cap sync` needs a web directory to copy, and a holding notice is a better
+# thing to have in the APK than 823 frozen files of an app nobody loads.
 #
 # Usage:
-#   scripts/build-android-apk.sh [apiOrigin]
+#   scripts/build-android-apk.sh [origin]
 #
-# Config: export VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY yourself, or drop
-# them in an env file and point SSI_ENV_FILE at it. On watson-1 they live in
-# ~/.secrets/ssi-dashboard.env (same Supabase project). The anon key is a public
-# browser credential — it ships inside every deployed bundle already.
+# The optional argument overrides the origin for one build. The DEFAULT, and
+# the one-line production switch, lives in capacitor.config.ts.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$HERE"
 
-API_ORIGIN="${1:-https://ssi-learning-app-git-dev-zenjin.vercel.app}"
-ENV_FILE="${SSI_ENV_FILE:-$HOME/.secrets/ssi-dashboard.env}"
-
-if [ -z "${VITE_SUPABASE_URL:-}" ] && [ -f "$ENV_FILE" ]; then
-  # shellcheck disable=SC2046
-  export $(grep -E '^VITE_SUPABASE_(URL|ANON_KEY)=' "$ENV_FILE" | xargs -d '\n')
-  echo "config: sourced VITE_SUPABASE_* from $ENV_FILE"
+if [ "${1:-}" != "" ]; then
+  export SSI_SHELL_ORIGIN="$1"
 fi
-export VITE_USE_DATABASE="${VITE_USE_DATABASE:-true}"
-export VITE_APP_SHELL=webview
+SHELL_ORIGIN="${SSI_SHELL_ORIGIN:-https://saysomethingin.app}"
+SHELL_ORIGIN="${SHELL_ORIGIN%/}"
 
-echo "==> building web bundle (shell=webview)"
-pnpm --filter @ssi/core build
-./node_modules/.bin/vite build
+echo "==> shell origin: $SHELL_ORIGIN"
 
-echo "==> stamping platform seam"
-node scripts/injectPlatform.mjs dist/index.html "$API_ORIGIN"
+echo "==> writing the holding notice into android-shell-web/"
+mkdir -p android-shell-web
+cat > android-shell-web/index.html <<HTML
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>SaySomethingin</title>
+    <style>
+      body { margin: 0; display: grid; place-items: center; min-height: 100vh;
+             background: #e8e3dd; color: #2b2b2b;
+             font: 16px/1.5 system-ui, -apple-system, sans-serif; }
+      main { max-width: 24rem; padding: 2rem; text-align: center; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p>SaySomethingin is loading from ${SHELL_ORIGIN}.</p>
+      <p>If you are seeing this page, the app could not reach it. Check your connection and open the app again.</p>
+    </main>
+  </body>
+</html>
+HTML
 
 echo "==> capacitor sync"
 ./node_modules/.bin/cap sync android
@@ -65,8 +80,9 @@ echo "==> artefact"
 echo "    path   : $HERE/$APK"
 echo "    bytes  : $(stat -c%s "$APK")"
 echo "    sha256 : $(sha256sum "$APK" | cut -d' ' -f1)"
-echo "    stamp  : $(cat dist/version.json)"
-echo "    apiOrigin: $API_ORIGIN"
+echo "    origin : $SHELL_ORIGIN"
+echo "    serving: $(curl -fsS --max-time 10 "$SHELL_ORIGIN/version.json" || echo 'could not read /version.json')"
 echo
-echo "The Settings build row will read the buildNumber above, rendered in the"
-echo "device's own timezone. If it does not, you installed a different file."
+echo "The Settings build row reports the DEPLOYMENT's build, printed above as"
+echo "'serving' — the shell carries no web code of its own to report. If that"
+echo "row shows something else, the app is not loading from this origin."

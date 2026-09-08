@@ -224,10 +224,12 @@ export async function triggerServiceWorkerUpdate(): Promise<void> {
   if (!('serviceWorker' in navigator)) {
     return
   }
-  // In a native shell we deliberately never register a worker (see
-  // platform/capabilities), and `serviceWorker.ready` NEVER RESOLVES when
-  // nothing is registered — awaiting it there would hang this call forever
-  // rather than fail. There is nothing to update, so say so and return.
+  // The seam's answer, asked rather than assumed. It is true everywhere since
+  // 2026-09-08, when the shell became a window onto the deployment and the
+  // service worker became the thing that makes it play offline. The guard
+  // stays because `serviceWorker.ready` NEVER RESOLVES when nothing is
+  // registered — awaiting it under a shell that does not register would hang
+  // this call forever rather than fail.
   if (!shouldRunServiceWorker()) {
     return
   }
