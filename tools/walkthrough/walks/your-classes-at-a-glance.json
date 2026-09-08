@@ -1,0 +1,42 @@
+{
+  "id": "your-classes-at-a-glance",
+  "title": "Your classes at a glance",
+  "personas": [
+    "teacher"
+  ],
+  "place": {
+    "route": "dashboard"
+  },
+  "keywords": [
+    "classes",
+    "dashboard",
+    "overview",
+    "students",
+    "join code",
+    "course"
+  ],
+  "steps": [
+    {
+      "anchor": "dash-class-card",
+      "say": "Your classes come first on the dashboard, one entry each. The name carries its course, how many students are in it, and the join code you read out to get a new pupil in.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "dash-class-card",
+      "say": "Tapping the name opens that class's own page — the roster, its settings, and everything you would change about it.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "dash-class-card",
+      "say": "**Play as class** on any entry starts a session the whole class does together. A brand new account shows a single button to create your first class instead of this list.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's your teaching day in one screen — classes first, everything else under them. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

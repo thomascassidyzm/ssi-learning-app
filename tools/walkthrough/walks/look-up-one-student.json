@@ -1,0 +1,44 @@
+{
+  "id": "look-up-one-student",
+  "title": "Look up one student",
+  "personas": [
+    "admin",
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "students"
+  },
+  "keywords": [
+    "student",
+    "search",
+    "filter",
+    "find",
+    "progress",
+    "belt"
+  ],
+  "steps": [
+    {
+      "anchor": "student-view-link",
+      "say": "Finding one learner among all of them starts above the list: type part of their name in the search box, or narrow by class, belt or health.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "student-view-link",
+      "say": "Their row already carries their belt, their hours this week and when they were last here, so you can often answer the question without opening anything.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "student-view-link",
+      "say": "**View** opens what that learner has actually done. Health is worked out from their last visit and how they sit against their own class, so a learner marked as needing attention has gone quiet or fallen behind the people beside them.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's one learner found and read — search, row, then View. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

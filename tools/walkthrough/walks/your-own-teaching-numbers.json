@@ -1,0 +1,42 @@
+{
+  "id": "your-own-teaching-numbers",
+  "title": "Your own teaching numbers",
+  "personas": [
+    "teacher"
+  ],
+  "place": {
+    "route": "dashboard"
+  },
+  "keywords": [
+    "numbers",
+    "totals",
+    "students",
+    "hours",
+    "sessions",
+    "practice"
+  ],
+  "steps": [
+    {
+      "anchor": "dash-teacher-stats",
+      "say": "One quiet line under your classes, totalling your whole teaching load. **Students** counts every pupil in every class you teach, each person once.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "dash-teacher-stats",
+      "say": "**Practised** is real practice time those pupils have logged between them, and **sessions** is how many class sessions have been run.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "dash-teacher-stats",
+      "say": "It is a record of what has happened, never a target. The line only appears once you have a class — there is nothing to total before that.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's your load in three figures, under the classes where it belongs. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "id": "see-every-school",
+  "title": "See every school in your programme",
+  "personas": [
+    "leader"
+  ],
+  "place": {
+    "route": "schools-list"
+  },
+  "keywords": [
+    "schools",
+    "list",
+    "programme",
+    "compare",
+    "search",
+    "sort",
+    "export",
+    "health"
+  ],
+  "steps": [
+    {
+      "anchor": "schools-list-table",
+      "say": "One table of every school you look after, with its students, teachers, classes and practice hours side by side. A whole programme reads at a glance instead of school by school.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "schools-list-table",
+      "say": "The totals above the table are the programme as a whole. The search box and the sort control on the header row narrow it by name, hours or students.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "schools-list-table",
+      "say": "Read the Status column for a school nobody is running yet — it is flagged as awaiting admin. Tapping any row opens that school's own dashboard, and **Export** gives you the same table as a spreadsheet file.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "schools-list-table",
+      "say": "The list holds still until you refresh it, so a number will not change under you while you are reading it. If a refresh fails you are told plainly rather than shown stale figures as current.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's the programme in one table — totals above, schools below, nothing moving under you. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

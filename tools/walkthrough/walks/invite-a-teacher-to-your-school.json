@@ -1,0 +1,42 @@
+{
+  "id": "invite-a-teacher-to-your-school",
+  "title": "Invite a teacher to your school",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "teachers"
+  },
+  "keywords": [
+    "teacher",
+    "invite",
+    "link",
+    "staff",
+    "join",
+    "code"
+  ],
+  "steps": [
+    {
+      "anchor": "teachers-invite-link",
+      "say": "The **Invite teachers** card below the list holds one standing link that turns anyone who opens it into a teacher of your school.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "teachers-invite-link",
+      "say": "It is the same link every time, so you can hand it to a whole staff room at once. **Copy invite link**, then send it however you reach your staff — Teams, WhatsApp, printed on a slip.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "teachers-invite-link",
+      "say": "They open it, sign in once, and appear in your list as a teacher. If you are standing in front of them instead, **Show code instead** gives you a short code to read out, and they type it in at saysomethingin.com/redeem.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's your staff room in — one link, shared as many times as you like. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

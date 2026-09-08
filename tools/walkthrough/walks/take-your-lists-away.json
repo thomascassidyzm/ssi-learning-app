@@ -1,0 +1,43 @@
+{
+  "id": "take-your-lists-away",
+  "title": "Take your lists away as a spreadsheet",
+  "personas": [
+    "admin",
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "students"
+  },
+  "keywords": [
+    "export",
+    "csv",
+    "spreadsheet",
+    "download",
+    "report"
+  ],
+  "steps": [
+    {
+      "anchor": "students-export",
+      "say": "**Export CSV** takes whoever is currently on screen away as a file — for a report, a governors' meeting, or your own sums.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "students-export",
+      "say": "The export follows your filters, not the whole school. Filter or search the list down first, or clear the filters if you want everybody.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "students-export",
+      "say": "The file downloads with today's date in its name and opens in whatever spreadsheet you use. The **Teachers** page carries the same button along the top.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's your list out as a file — what you filtered is what you get. This tour changed nothing; only your own taps do."
+    }
+  ]
+}

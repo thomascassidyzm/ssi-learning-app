@@ -1,0 +1,51 @@
+{
+  "id": "take-a-teacher-off-a-class",
+  "title": "Take a teacher off a class, or move them",
+  "personas": [
+    "leader",
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "teachers"
+  },
+  "keywords": [
+    "teacher",
+    "class",
+    "remove",
+    "move",
+    "assign",
+    "timetable"
+  ],
+  "steps": [
+    {
+      "anchor": "teacher-assign-classes",
+      "say": "Taking someone off a class starts on their own row. **Assign to a class** opens the ticks and changes nothing on its own.",
+      "advance": {
+        "on": "click"
+      }
+    },
+    {
+      "anchor": "assign-classes-modal",
+      "say": "This panel is the whole timetable for one person. The classes they teach now are already ticked, so you are reading the truth before you change it.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "assign-classes-list",
+      "say": "Untick the class they are leaving. A move is the same panel twice over — untick where they are going from, tick where they are going to.",
+      "advance": {
+        "on": "next"
+      }
+    },
+    {
+      "anchor": "assign-classes-save",
+      "say": "**Save** counts your changes back to you before you commit, and applies only the boxes you actually touched. If one class fails it says which one and why, and the ticks reset to what is really true.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's a teacher moved or taken off — one panel, ticks, one save. This tour changed nothing; only your own taps do."
+    }
+  ]
+}
