@@ -157,8 +157,16 @@ export function validateHandbookEntry(entry) {
  * existed: the derivation reproduces every one of them, and adds three that
  * were free all along.
  *
- * @returns {{ pairings: Map<string, string>, failures: string[] }} anchor → walk id
+ * KEYED BY ENTRY, NOT BY ANCHOR (found by #390·F and #393·F): two entries in
+ * different files can share an anchor id with different roles — the admin's
+ * "Add a school under a group" and the leader's "Add a school to your
+ * programme" both sit on verb-add-school — and an anchor-keyed map handed
+ * one entry's demo to the other after the persona filter had refused it.
+ *
+ * @returns {{ pairings: Map<string, string>, failures: string[] }} pairingKey(entry) → walk id
  */
+export const pairingKey = (e) => `${e.path}#${e.anchor}`
+
 export function deriveWalkPairings(entries, walks) {
   const failures = []
   const pairings = new Map()
@@ -181,7 +189,7 @@ export function deriveWalkPairings(entries, walks) {
       failures.push(`DEMO: ${e.path}: HANDBOOK "${e.title}" — two walks demonstrate anchor "${e.anchor}" for the same roles: ${c.map((w) => w.id).join(', ')}. One action, one demo — make one of them about something else`)
       continue
     }
-    pairings.set(e.anchor, c[0].id)
+    pairings.set(pairingKey(e), c[0].id)
   }
   return { pairings, failures }
 }
@@ -496,7 +504,7 @@ export function assemblePack(walks, entries = [], pairings = new Map()) {
       anchor: e.anchor,
       source: e.path,
       // Derived, never typed — the walk that steps on this anchor, or null.
-      walk: pairings.get(e.anchor) ?? null,
+      walk: pairings.get(pairingKey(e)) ?? null,
       what: e.what,
       where: e.where,
       how: e.how,

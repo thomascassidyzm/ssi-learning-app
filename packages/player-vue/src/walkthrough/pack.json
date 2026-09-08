@@ -1,5 +1,5 @@
 {
-  "version": "40b0ade697d1",
+  "version": "dd0da1778df8",
   "generatedAt": "2026-09-08",
   "walks": [
     {
@@ -4076,7 +4076,7 @@
       },
       "anchor": "verb-add-school",
       "source": "packages/player-vue/src/components/admin/NodeActionBar.vue",
-      "walk": "add-a-school-to-your-programme",
+      "walk": "add-a-school-under-a-group",
       "what": "Creating a school inside a group, so it has its own home page, its own staff and its own learners while still rolling up into whatever sits above it.",
       "where": "The group's home page, **Add a school** along the top.",
       "how": [
@@ -4967,7 +4967,7 @@
       },
       "anchor": "class-journey",
       "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
-      "walk": "where-the-class-has-got-to",
+      "walk": "how-far-a-class-has-travelled",
       "what": "A bar showing where a class has got to in its course, measured in LEGOs — the individual pieces of language the course teaches. The class's own shared position leads, and the average its students have reached on their own sits alongside it.",
       "where": "The **Course journey** card on a class page.",
       "how": [

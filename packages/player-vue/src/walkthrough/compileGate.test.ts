@@ -27,6 +27,7 @@ import {
   comparePack,
   assemblePack,
   deriveWalkPairings,
+  pairingKey,
 } from '../../../../tools/walkthrough/lib.mjs'
 import {
   parseHandbookBlocks, fingerprintCapability, stampChecked, declarationSource,
@@ -562,7 +563,7 @@ describe('deriveWalkPairings (one action, one demo, derived from the anchors)', 
     const w = walk({ id: 'share-a-class', personas: ['teacher'], steps: [step('class-teachers'), step('class-teacher-add')] })
     const { pairings, failures } = deriveWalkPairings([hb()], [w])
     expect(failures).toEqual([])
-    expect(pairings.get('class-teacher-add')).toBe('share-a-class')
+    expect(pairings.get(pairingKey(hb()))).toBe('share-a-class')
     // …and it is what lands in the pack the page reads.
     const pack = assemblePack([w], [hb()], pairings)
     expect(pack.handbook[0].walk).toBe('share-a-class')
@@ -570,20 +571,20 @@ describe('deriveWalkPairings (one action, one demo, derived from the anchors)', 
 
   it('an entry no walk steps on gets null, never a guess', () => {
     const w = walk({ id: 'elsewhere', personas: ['teacher'], steps: [step('class-roster')] })
-    expect(deriveWalkPairings([hb()], [w]).pairings.has('class-teacher-add')).toBe(false)
+    expect(deriveWalkPairings([hb()], [w]).pairings.has(pairingKey(hb()))).toBe(false)
     expect(assemblePack([w], [hb()], new Map()).handbook[0].walk).toBe(null)
   })
 
   it('never pairs a reader with a walk their role cannot be shown', () => {
     const w = walk({ id: 'admin-only', personas: ['admin'], steps: [step('class-teacher-add')] })
-    expect(deriveWalkPairings([hb()], [w]).pairings.has('class-teacher-add')).toBe(false)
+    expect(deriveWalkPairings([hb()], [w]).pairings.has(pairingKey(hb()))).toBe(false)
   })
 
   it('prefers the walk offered to every role the entry names', () => {
     const some = walk({ id: 'for-leaders', personas: ['leader'], steps: [step('verb-invite-person')] })
     const all = walk({ id: 'for-everyone', personas: ['leader', 'school_admin'], steps: [step('verb-invite-person')] })
     const e = hb({ anchor: 'verb-invite-person', personas: ['leader', 'school_admin'] })
-    expect(deriveWalkPairings([e], [some, all]).pairings.get('verb-invite-person')).toBe('for-everyone')
+    expect(deriveWalkPairings([e], [some, all]).pairings.get(pairingKey(e))).toBe('for-everyone')
   })
 
   it('prefers the walk about this action over the grand tour that passes it', () => {
@@ -591,18 +592,31 @@ describe('deriveWalkPairings (one action, one demo, derived from the anchors)', 
     const focused = walk({ id: 'focused', personas: ['teacher'], steps: [step('class-teachers'), step('class-teacher-add')] })
     const entries = [hb(), hb({ title: 'Roster', anchor: 'class-roster' }), hb({ title: 'Play', anchor: 'class-play' })]
     const { pairings } = deriveWalkPairings(entries, [tour, focused])
-    expect(pairings.get('class-teacher-add')).toBe('focused')
-    expect(pairings.get('class-roster')).toBe('tour')
+    expect(pairings.get(pairingKey(hb()))).toBe('focused')
+    expect(pairings.get(pairingKey(entries[1]))).toBe('tour')
   })
 
   it('two walks level on every tie-break is a build failure naming both — one action, one demo', () => {
     const a = walk({ id: 'twin-a', personas: ['teacher'], steps: [step('class-teacher-add')] })
     const b = walk({ id: 'twin-b', personas: ['teacher'], steps: [step('class-teacher-add')] })
     const { pairings, failures } = deriveWalkPairings([hb()], [a, b])
-    expect(pairings.has('class-teacher-add')).toBe(false)
+    expect(pairings.has(pairingKey(hb()))).toBe(false)
     expect(failures).toHaveLength(1)
     expect(failures[0]).toMatch(/twin-a, twin-b/)
     expect(failures[0]).toMatch(/One action, one demo/)
+  })
+
+  it('two entries in different files sharing an anchor each keep their own demo — never the other role\'s', () => {
+    // Found by #390·F and #393·F: verb-add-school is an admin button in
+    // NodeActionBar.vue and a leader button in SchoolsView.vue.
+    const adminEntry = hb({ path: 'NodeActionBar.vue', title: 'Add a school under a group', anchor: 'verb-add-school', personas: ['admin'], place: 'node-home' })
+    const leaderEntry = hb({ path: 'SchoolsView.vue', title: 'Add a school to your programme', anchor: 'verb-add-school', personas: ['leader'], place: 'schools-list' })
+    const leaderWalk = walk({ id: 'add-a-school-to-your-programme', personas: ['leader'], place: { route: 'schools-list' }, steps: [step('verb-add-school')] })
+    const { pairings, failures } = deriveWalkPairings([adminEntry, leaderEntry], [leaderWalk])
+    expect(failures).toEqual([])
+    const pack = assemblePack([leaderWalk], [adminEntry, leaderEntry], pairings)
+    expect(pack.handbook.find((x) => x.title === 'Add a school to your programme')?.walk).toBe('add-a-school-to-your-programme')
+    expect(pack.handbook.find((x) => x.title === 'Add a school under a group')?.walk).toBe(null)
   })
 
   it('a hand-typed walk: line is refused by name, so the list cannot grow back', () => {

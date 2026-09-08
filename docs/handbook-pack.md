@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `40b0ade697d1` · generated 2026-09-08 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `dd0da1778df8` · generated 2026-09-08 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## Add a class to a group
 
@@ -36,7 +36,7 @@ Section: your-school · roles: leader · anchor: `verb-add-school` · in `packag
 
 ## Add a school under a group
 
-Section: your-school · roles: admin · anchor: `verb-add-school` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · demo: add-a-school-to-your-programme
+Section: your-school · roles: admin · anchor: `verb-add-school` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · demo: add-a-school-under-a-group
 
 **What it's for.** Creating a school inside a group, so it has its own home page, its own staff and its own learners while still rolling up into whatever sits above it.
 
@@ -449,7 +449,7 @@ Section: getting-people-in · roles: school_admin · anchor: `setup-staff-links`
 
 ## How far a class has travelled
 
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-journey` · in `packages/player-vue/src/views/admin/NodeHomeView.vue` · demo: where-the-class-has-got-to
+Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-journey` · in `packages/player-vue/src/views/admin/NodeHomeView.vue` · demo: how-far-a-class-has-travelled
 
 **What it's for.** A bar showing where a class has got to in its course, measured in LEGOs — the individual pieces of language the course teaches. The class's own shared position leads, and the average its students have reached on their own sits alongside it.
 
