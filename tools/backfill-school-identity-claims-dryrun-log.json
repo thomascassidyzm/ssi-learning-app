@@ -1,0 +1,390 @@
+{
+  "ranAt": "2026-09-08T09:27:25.754Z",
+  "apply": false,
+  "counts": {
+    "skip": 41
+  },
+  "bySkip": {
+    "public_mail": 24,
+    "already_ours": 5,
+    "shared_by_multiple_schools": 10,
+    "no_admin_user_id": 2
+  },
+  "rows": [
+    {
+      "school_id": "3978af23-19ef-4cf9-ab94-0e716e64a6ed",
+      "school_name": "Gaelscoil na Mara",
+      "created_at": "2026-06-10T02:22:41.210631+00:00",
+      "admin_email": "thomas.cassidy+demo.irish.admin@gmail.com",
+      "domain": "gmail.com",
+      "action": "skip",
+      "reason": "public_mail"
+    },
+    {
+      "school_id": "cc0ba726-942b-474c-9037-735008529a45",
+      "school_name": "Sakura International School",
+      "created_at": "2026-06-10T02:23:08.971601+00:00",
+      "admin_email": "thomas.cassidy+demo.japanese.admin@gmail.com",
+      "domain": "gmail.com",
+      "action": "skip",
+      "reason": "public_mail"
+    },
+    {
+      "school_id": "38f85a1e-814f-49de-8452-e676555e5dbf",
+      "school_name": "Ysgol Gynradd y Garn",
+      "created_at": "2026-06-10T02:23:25.287961+00:00",
+      "admin_email": "thomas.cassidy+demo.welsh.admin@gmail.com",
+      "domain": "gmail.com",
+      "action": "skip",
+      "reason": "public_mail"
+    },
+    {
+      "school_id": "440bd184-9877-429e-930d-44852ff2541d",
+      "school_name": "Salesian College",
+      "created_at": "2026-06-30T01:35:47.70639+00:00",
+      "admin_email": "thomas.cassidy+schools101@gmail.com",
+      "domain": "gmail.com",
+      "action": "skip",
+      "reason": "public_mail"
+    },
+    {
+      "school_id": "46b5aaec-34c2-4437-b480-d45408827716",
+      "school_name": "Salesian-2",
+      "created_at": "2026-06-30T01:50:44.276416+00:00",
+      "admin_email": "thomas.cassidy+schools102@gmail.com",
+      "domain": "gmail.com",
+      "action": "skip",
+      "reason": "public_mail"
+    },
+    {
+      "school_id": "2fd27c83-936f-4810-a88b-7d7b32315cee",
+      "school_name": "Sunrise Public School, Pune",
+      "created_at": "2026-07-14T07:20:15.891823+00:00",
+      "admin_email": "thomas.cassidy+demo.ime.sunrise.admin@gmail.com",
+      "domain": "gmail.com",
+      "action": "skip",
+      "reason": "public_mail"
+    },
+    {
+      "school_id": "08ae8828-8ee3-48d9-8443-00d8f815b8ec",
+      "school_name": "St. Mary's Academy, Kochi",
+      "created_at": "2026-07-14T07:20:30.335258+00:00",
+      "admin_email": "thomas.cassidy+demo.ime.stmarys.admin@gmail.com",
+      "domain": "gmail.com",
+      "action": "skip",
+      "reason": "public_mail"
+    },
+    {
+      "school_id": "df9a7eb0-2236-4d79-861d-b4784ccea1b4",
+      "school_name": "Green Valley International, Jaipur",
+      "created_at": "2026-07-14T07:20:42.981025+00:00",
+      "admin_email": "thomas.cassidy+demo.ime.enrich.greenvalley.admin@gmail.com",
+      "domain": "gmail.com",
+      "action": "skip",
+      "reason": "public_mail"
+    },
+    {
+      "school_id": "0f5bd6e4-f40b-4dbf-ac4f-a93478d20255",
+      "school_name": "Ysgol Cas-gwent Chepstow School",
+      "created_at": "2026-07-16T06:23:00.466891+00:00",
+      "admin_email": "angharadjones@chepstowschool.net",
+      "domain": "chepstowschool.net",
+      "action": "skip",
+      "reason": "already_ours"
+    },
+    {
+      "school_id": "e2e9adc3-9697-4d6f-a57a-4149257ec8ba",
+      "school_name": "LA SIS (EAS)",
+      "created_at": "2026-07-16T08:55:38.344015+00:00",
+      "admin_email": "mcauleys51@hwbcymru.net",
+      "domain": "hwbcymru.net",
+      "action": "skip",
+      "reason": "shared_by_multiple_schools",
+      "schools_on_domain": 4
+    },
+    {
+      "school_id": "14710516-b26d-4daa-bbf7-01eef06c52ce",
+      "school_name": "Newport High School",
+      "created_at": "2026-07-16T10:12:18.50425+00:00",
+      "admin_email": "vaughans98@hwbcymru.net",
+      "domain": "hwbcymru.net",
+      "action": "skip",
+      "reason": "shared_by_multiple_schools",
+      "schools_on_domain": 4
+    },
+    {
+      "school_id": "07b9d48b-d735-41a4-8bb6-f216070cded9",
+      "school_name": "Ysgol Croesyceiliog",
+      "created_at": "2026-07-17T10:26:43.407637+00:00",
+      "admin_email": "j.king@croesy.schoolsedu.org.uk",
+      "domain": "croesy.schoolsedu.org.uk",
+      "action": "skip",
+      "reason": "already_ours"
+    },
+    {
+      "school_id": "29a77af4-4be2-41bb-a0ac-e00160a23c2e",
+      "school_name": "Hillcrest Primary School",
+      "created_at": "2026-07-17T11:14:00.822309+00:00",
+      "admin_email": "thomas.cassidy+demo.japan.2026.90ecf6.s0.admin@gmail.com",
+      "domain": "gmail.com",
+      "action": "skip",
+      "reason": "public_mail"
+    },
+    {
+      "school_id": "c268d89d-2ff2-4d60-ae27-669d5ff25429",
+      "school_name": "Sherbourne College",
+      "created_at": "2026-07-17T11:14:04.223617+00:00",
+      "admin_email": "thomas.cassidy+demo.japan.2026.90ecf6.s1.admin@gmail.com",
+      "domain": "gmail.com",
+      "action": "skip",
+      "reason": "public_mail"
+    },
+    {
+      "school_id": "94bbb314-60f5-49a4-b804-7d5684445100",
+      "school_name": "THE-MODEL demo mrpvawk0",
+      "created_at": "2026-07-18T04:29:30.593033+00:00",
+      "action": "skip",
+      "reason": "no_admin_user_id"
+    },
+    {
+      "school_id": "014de6c0-7913-4c84-8da2-113f59cc2640",
+      "school_name": "Seaside Model School, Chennai",
+      "created_at": "2026-07-19T17:14:20.07574+00:00",
+      "admin_email": "thomas.cassidy+demo.ime.coastal.seaside.admin@gmail.com",
+      "domain": "gmail.com",
+      "action": "skip",
+      "reason": "public_mail"
+    },
+    {
+      "school_id": "8e4f7fdc-03dc-445f-a428-082562cf6a56",
+      "school_name": "Harbour View School, Visakhapatnam",
+      "created_at": "2026-07-19T17:14:22.423203+00:00",
+      "admin_email": "thomas.cassidy+demo.ime.coastal.harbour.admin@gmail.com",
+      "domain": "gmail.com",
+      "action": "skip",
+      "reason": "public_mail"
+    },
+    {
+      "school_id": "66b0e6b7-5e8c-4421-8994-57e9bd8e5295",
+      "school_name": "Oakridge International School, Bengaluru",
+      "created_at": "2026-07-20T03:13:09.166276+00:00",
+      "admin_email": "thomas.cassidy+demo.ime.metro.oakridge.admin@gmail.com",
+      "domain": "gmail.com",
+      "action": "skip",
+      "reason": "public_mail"
+    },
+    {
+      "school_id": "d0827b36-c8b9-4752-894b-5f3d3cd6e5b9",
+      "school_name": "Global Edge Academy, Mumbai",
+      "created_at": "2026-07-20T03:13:11.275934+00:00",
+      "admin_email": "thomas.cassidy+demo.ime.metro.globaledge.admin@gmail.com",
+      "domain": "gmail.com",
+      "action": "skip",
+      "reason": "public_mail"
+    },
+    {
+      "school_id": "dc902d34-137c-48e5-a702-918d93b322df",
+      "school_name": "Lotus Valley International, Delhi",
+      "created_at": "2026-07-20T03:13:14.067456+00:00",
+      "admin_email": "thomas.cassidy+demo.ime.metro.lotusvalley.admin@gmail.com",
+      "domain": "gmail.com",
+      "action": "skip",
+      "reason": "public_mail"
+    },
+    {
+      "school_id": "2db4ca40-75b2-4380-9d5d-a64f0503d0e6",
+      "school_name": "IME Demo Programme",
+      "created_at": "2026-07-20T03:32:10.318211+00:00",
+      "action": "skip",
+      "reason": "no_admin_user_id"
+    },
+    {
+      "school_id": "648185c9-78cf-48bd-98bd-8a5dd73670d5",
+      "school_name": "ZZ Test — Chepstow scenario",
+      "created_at": "2026-08-07T01:03:36.799019+00:00",
+      "admin_email": "thomas.cassidy+chepstowtest-leader@gmail.com",
+      "domain": "gmail.com",
+      "action": "skip",
+      "reason": "public_mail"
+    },
+    {
+      "school_id": "adb3fd3b-411a-4e98-ad70-3c603418444d",
+      "school_name": "My school",
+      "created_at": "2026-08-31T01:38:29.747886+00:00",
+      "admin_email": "thomas.cassidy+zzjourney5@gmail.com",
+      "domain": "gmail.com",
+      "action": "skip",
+      "reason": "public_mail"
+    },
+    {
+      "school_id": "c98bd987-1639-4823-a751-5b9ddcccc424",
+      "school_name": "Rogiet Primary School",
+      "created_at": "2026-09-01T09:35:14.696353+00:00",
+      "admin_email": "antparker76@gmail.com",
+      "domain": "gmail.com",
+      "action": "skip",
+      "reason": "public_mail"
+    },
+    {
+      "school_id": "5c8e6b3e-0e54-4b18-82bd-2cb2a0400852",
+      "school_name": "Rogiet Primary School",
+      "created_at": "2026-09-01T10:45:52.395939+00:00",
+      "admin_email": "parkera10@hwbcymru.net",
+      "domain": "hwbcymru.net",
+      "action": "skip",
+      "reason": "shared_by_multiple_schools",
+      "schools_on_domain": 4
+    },
+    {
+      "school_id": "5ec6cb90-f25c-4bc9-9e63-b4a93317737b",
+      "school_name": "Ysgol Gyfun Trefynwy/ Monmouth Comprehensive School",
+      "created_at": "2026-09-03T10:18:47.916725+00:00",
+      "admin_email": "aggletona5@hwbcymru.net",
+      "domain": "hwbcymru.net",
+      "action": "skip",
+      "reason": "shared_by_multiple_schools",
+      "schools_on_domain": 4
+    },
+    {
+      "school_id": "468d8132-c1ff-4e0d-8cf8-8ee786d60c95",
+      "school_name": "Ysgol Gyfun Tredegar",
+      "created_at": "2026-09-04T13:34:45.85347+00:00",
+      "admin_email": "sophie.morris@tredegarschool.cymru",
+      "domain": "tredegarschool.cymru",
+      "action": "skip",
+      "reason": "already_ours"
+    },
+    {
+      "school_id": "7912ac7c-5071-4308-8e3b-cf07056f7516",
+      "school_name": "My school",
+      "created_at": "2026-09-07T12:04:38.965381+00:00",
+      "admin_email": "thomas.cassidy+collegetest@gmail.com",
+      "domain": "gmail.com",
+      "action": "skip",
+      "reason": "public_mail"
+    },
+    {
+      "school_id": "fc760aab-0590-4779-8e9c-3652572ac069",
+      "school_name": "Neath College 001",
+      "created_at": "2026-09-07T12:05:35.645042+00:00",
+      "admin_email": "thomas.cassidy+college_001@gmail.com",
+      "domain": "gmail.com",
+      "action": "skip",
+      "reason": "public_mail"
+    },
+    {
+      "school_id": "61958b85-6927-419b-aeca-405c44ccfd71",
+      "school_name": "My school",
+      "created_at": "2026-09-07T12:25:44.495494+00:00",
+      "admin_email": "claude-signup-proof-1788783933@saysomethingin.com",
+      "domain": "saysomethingin.com",
+      "action": "skip",
+      "reason": "shared_by_multiple_schools",
+      "schools_on_domain": 6
+    },
+    {
+      "school_id": "77cb4111-fd12-4e40-86db-46f55d070d6a",
+      "school_name": "My school",
+      "created_at": "2026-09-07T12:26:27.694128+00:00",
+      "admin_email": "claude-signup-proof-1788783976@saysomethingin.com",
+      "domain": "saysomethingin.com",
+      "action": "skip",
+      "reason": "shared_by_multiple_schools",
+      "schools_on_domain": 6
+    },
+    {
+      "school_id": "4bf1a2db-caa3-4abf-8eb4-106f40377089",
+      "school_name": "My school",
+      "created_at": "2026-09-07T12:27:53.473892+00:00",
+      "admin_email": "claude-signup-proof-1788784062@saysomethingin.com",
+      "domain": "saysomethingin.com",
+      "action": "skip",
+      "reason": "shared_by_multiple_schools",
+      "schools_on_domain": 6
+    },
+    {
+      "school_id": "ff876772-9dcd-4383-8402-d8af030894b6",
+      "school_name": "My school",
+      "created_at": "2026-09-07T12:30:33.565309+00:00",
+      "admin_email": "claude-signup-proof-1788784221@saysomethingin.com",
+      "domain": "saysomethingin.com",
+      "action": "skip",
+      "reason": "shared_by_multiple_schools",
+      "schools_on_domain": 6
+    },
+    {
+      "school_id": "bf737384-f3e3-436d-b293-1f5ee76aaf67",
+      "school_name": "My school",
+      "created_at": "2026-09-07T12:39:05.859755+00:00",
+      "admin_email": "claude-prod-proof-1788784734@saysomethingin.com",
+      "domain": "saysomethingin.com",
+      "action": "skip",
+      "reason": "shared_by_multiple_schools",
+      "schools_on_domain": 6
+    },
+    {
+      "school_id": "98492df7-5be0-4612-ae17-f54f9f969004",
+      "school_name": "My school",
+      "created_at": "2026-09-07T12:41:07.577436+00:00",
+      "admin_email": "claude-otp-proof-1788784844@saysomethingin.com",
+      "domain": "saysomethingin.com",
+      "action": "skip",
+      "reason": "shared_by_multiple_schools",
+      "schools_on_domain": 6
+    },
+    {
+      "school_id": "2e5130ae-1c5f-491d-bca6-a1381d6ceb14",
+      "school_name": "NPTC Group",
+      "created_at": "2026-09-07T12:47:59.846732+00:00",
+      "admin_email": "karen.jones@nptcgroup.ac.uk",
+      "domain": "nptcgroup.ac.uk",
+      "action": "skip",
+      "reason": "already_ours"
+    },
+    {
+      "school_id": "1bc3308b-cdaa-4bad-9e2c-51b42ba3b735",
+      "school_name": "ZZ Probe 147 School",
+      "created_at": "2026-09-07T13:15:41.378491+00:00",
+      "admin_email": "zz-probe-147-1788786910@ssi-probe.test",
+      "domain": "ssi-probe.test",
+      "action": "skip",
+      "reason": "already_ours"
+    },
+    {
+      "school_id": "8d3b6f26-8149-4e06-9900-162cefcaa3ea",
+      "school_name": "My school",
+      "created_at": "2026-09-07T19:23:42.577345+00:00",
+      "admin_email": "ssi276head1788809009@gmail.com",
+      "domain": "gmail.com",
+      "action": "skip",
+      "reason": "public_mail"
+    },
+    {
+      "school_id": "e152f1dd-ff02-4fb5-99a7-d6d04b9a5576",
+      "school_name": "My school",
+      "created_at": "2026-09-07T19:29:41.995369+00:00",
+      "admin_email": "ssi276fix1788809368@gmail.com",
+      "domain": "gmail.com",
+      "action": "skip",
+      "reason": "public_mail"
+    },
+    {
+      "school_id": "541b634d-94d5-4aad-9281-9eb35870c662",
+      "school_name": "My school",
+      "created_at": "2026-09-07T19:33:25.241364+00:00",
+      "admin_email": "ssi276prod1788809591@gmail.com",
+      "domain": "gmail.com",
+      "action": "skip",
+      "reason": "public_mail"
+    },
+    {
+      "school_id": "edd96a33-48ec-40f6-9887-cef0d98ae846",
+      "school_name": "My school",
+      "created_at": "2026-09-07T19:38:03.230114+00:00",
+      "admin_email": "ssi276prodb1788809869@gmail.com",
+      "domain": "gmail.com",
+      "action": "skip",
+      "reason": "public_mail"
+    }
+  ]
+}
