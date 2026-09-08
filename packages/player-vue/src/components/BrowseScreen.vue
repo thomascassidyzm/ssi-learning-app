@@ -470,7 +470,7 @@ onMounted(() => {
           </svg>
         </div>
         <div class="schools-link-text">
-          <span class="schools-link-title">{{ t('browse.organisationDashboard') }}</span>
+          <span class="schools-link-title">{{ t('settings.adminDashboard') }}</span>
           <span class="schools-link-subtitle">{{ t('browse.peopleInvitesProgress') }}</span>
         </div>
         <svg class="schools-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -487,7 +487,7 @@ onMounted(() => {
           </svg>
         </div>
         <div class="schools-link-text">
-          <span class="schools-link-title">{{ t('settings.schoolsDashboard') }}</span>
+          <span class="schools-link-title">{{ t('settings.adminDashboard') }}</span>
           <span class="schools-link-subtitle">{{ t('browse.classesStudentsAnalytics') }}</span>
         </div>
         <svg class="schools-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

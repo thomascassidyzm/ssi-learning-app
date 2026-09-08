@@ -73,13 +73,33 @@ describe('useOrgLeadership', () => {
     expect(orgOnly.value).toBe(false)
   })
 
-  it('a government/schools admin (region node) is NOT an org leader', async () => {
-    mockFetch({ org: { org: { id: 'reg-1', name: 'Pilot Districts Region', type: 'region' } } })
+  it('a government/schools admin (region with schools beneath) is NOT an org leader — read from structure', async () => {
+    mockFetch({ org: { org: { id: 'reg-1', name: 'Pilot Districts Region', type: 'region', structure: { hasSchool: true, childGroupCount: 3, teacherCount: 6, classCount: 12, learnerCount: 80 } } } })
     const { leadsOrg, orgOnly, ensureLoaded } = useOrgLeadership()
     await ensureLoaded()
 
     expect(leadsOrg.value).toBe(false)
     expect(orgOnly.value).toBe(false) // Schools Dashboard stays exactly as it was
+  })
+
+  // Tom's ruling 2026-09-08 (#409): the kind is derived from structure, never
+  // from the group's type word.
+  it('a group whose type says "organisation" but which has established classes is the schools lane', async () => {
+    mockFetch({ org: { org: { id: 'o-1', name: 'Grown Up Ltd', type: 'organisation', structure: { hasSchool: false, childGroupCount: 0, teacherCount: 2, classCount: 3, learnerCount: 30 } } } })
+    const { leadsOrg, ensureLoaded } = useOrgLeadership()
+    await ensureLoaded()
+    expect(leadsOrg.value).toBe(false)
+  })
+
+  it('a group whose type says "school" but which is groups all the way down is the org lane', async () => {
+    mockFetch({
+      org: { org: { id: 's-0', name: 'Not Really A School', type: 'school', structure: { hasSchool: false, childGroupCount: 2, teacherCount: 0, classCount: 0, learnerCount: 9 } } },
+      teaching: { groups: [], classes: [] },
+    })
+    const { leadsOrg, orgOnly, ensureLoaded } = useOrgLeadership()
+    await ensureLoaded()
+    expect(leadsOrg.value).toBe(true)
+    expect(orgOnly.value).toBe(true)
   })
 
   it('leads nothing → no org door, and the school lane is untouched', async () => {
