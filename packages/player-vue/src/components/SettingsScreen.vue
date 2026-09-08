@@ -698,6 +698,20 @@ const webBillingAvailable = computed(() => paddleBillingAvailable())
 // don't own (spec §4.3). The owner's row reads the real plan_name.
 const isFamilyMember = computed(() => subscription.value?.planName === 'SSi Family (member)')
 const isFamilyOwner = computed(() => subscription.value?.planName === 'SSi Family')
+// THE PLAN THE PERSON ACTUALLY HOLDS. The cancel row and its dialog said
+// "Stay Premium" to somebody who had just paid for SSi Family (Tom,
+// 2026-09-07). Everything that names the plan reads it from the row.
+const heldPlanName = computed(() => subscription.value?.planName || 'SSi Premium')
+const cancelStayOnLine = computed(() =>
+  t('settings.cancelStayOn')
+    .replace('{plan}', heldPlanName.value)
+    .replace('{date}', subscriptionEndsAt.value || t('settings.periodEnd')),
+)
+const cancelRowLine = computed(() =>
+  t('settings.cancelRowDesc')
+    .replace('{plan}', heldPlanName.value)
+    .replace('{date}', subscriptionEndsAt.value || t('settings.periodEnd')),
+)
 // The modal itself lives in App.vue now (one instance, two doors — see
 // composables/useFamilyModal.ts). Settings opens it; the Paddle success
 // redirect for the Family plan opens the same one.
@@ -1722,12 +1736,12 @@ const confirmReset = async () => {
         <div class="reset-dialog">
           <h3 class="reset-title">{{ t('settings.cancelSubscription2') }}</h3>
           <p class="reset-desc">
-            You'll stay on Premium until {{ subscriptionEndsAt || 'the end of your current period' }}, then it ends and you won't be charged again. You can re-subscribe any time.
+            {{ cancelStayOnLine }}
           </p>
           <p v-if="cancelError" class="reset-error">{{ cancelError }}</p>
           <div class="reset-actions">
             <button class="reset-btn reset-btn--cancel" @click="dismissCancelConfirm" :disabled="isCancelling">
-              {{ t('settings.keepPremium') }}
+              {{ isFamilyOwner ? t('settings.keepFamily') : t('settings.keepPremium') }}
             </button>
             <button class="reset-btn reset-btn--confirm" @click="confirmCancel" :disabled="isCancelling">
               {{ isCancelling ? 'Cancelling...' : 'Cancel subscription' }}
@@ -2326,7 +2340,7 @@ const confirmReset = async () => {
               <div class="setting-row clickable danger" @click="openCancelConfirm">
                 <div class="setting-info">
                   <span class="setting-label">{{ t('settings.cancelSubscription') }}</span>
-                  <span class="setting-desc">Stay Premium until {{ subscriptionEndsAt || 'the period ends' }}, then stop</span>
+                  <span class="setting-desc">{{ cancelRowLine }}</span>
                 </div>
                 <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M9 18l6-6-6-6"/>
