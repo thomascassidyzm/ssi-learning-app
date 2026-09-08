@@ -171,6 +171,18 @@ describe('the paying learner', () => {
     expect(wrapper.text()).toContain('8 September 2027')
   })
 
+  it('FAILURE MODE: told to cancel a subscription that is not on the account they are looking at', async () => {
+    // The live database holds people with two learner records against one
+    // email. On the old system the subscription on the OTHER record went
+    // unnoticed and is, a year on, still charging them. Saying "cancel your
+    // subscription" to somebody staring at an account that has none is how
+    // that goes unfixed a second time.
+    const wrapper = await claim({ success: true, alreadyEnrolled: false, freeAccessUntil: '2027-09-08T00:00:00Z', cancellationNeeded: true, priorPlanName: 'Yearly', payingOnAnotherAccount: true })
+    expect(wrapper.text()).toMatch(/another account with this email/i)
+    expect(wrapper.text()).toContain('Yearly')
+    expect(wrapper.text()).toMatch(/we will not cancel it for you/i)
+  })
+
   it('a learner with no subscription sees no cancellation notice at all', async () => {
     const wrapper = await claim({ success: true, alreadyEnrolled: false, freeAccessUntil: '2027-09-08T00:00:00Z', cancellationNeeded: false })
     expect(wrapper.text()).not.toMatch(/cancel/i)

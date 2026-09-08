@@ -2881,6 +2881,8 @@
     "cancelNotice": "You are already paying for SaySomethingin. That subscription will keep charging you unless you cancel it — we will not cancel it for you.",
     "cancelNoticeWithPlan": "You are already paying for SaySomethingin on the {plan} plan. That subscription will keep charging you unless you cancel it — we will not cancel it for you.",
     "cancelHow": "Cancel it from your account settings whenever you like. Your free year is already running and lasts until {date} either way.",
-    "startLearning": "Start learning"
+    "startLearning": "Start learning",
+    "cancelNoticeOtherAccount": "You are already paying for SaySomethingin{plan} on another account with this email address. That subscription will keep charging you unless you cancel it — we will not cancel it for you.",
+    "cancelOnPlan": " on the {plan} plan"
   }
 }

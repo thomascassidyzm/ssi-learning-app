@@ -44,8 +44,66 @@ function makeChainable(table: string) {
   }
   return b
 }
+/**
+ * The aggregates, implemented over the same in-memory rows.
+ *
+ * These are the PRODUCTION path — the endpoint only falls back to reading the
+ * raw ledger when they are absent — so the fake implements them, and the one
+ * test that cares about the fallback turns them off explicitly.
+ */
+let aggregateDeployed = true
+const MISSING = { code: 'PGRST202', message: 'Could not find the function in the schema cache' }
+
+function rosterRows() {
+  const byLearner = new Map<string, any>()
+  for (const e of DB.org_enrolments) {
+    const on = String(e.enrolled_at).slice(0, 10)
+    const existing = byLearner.get(e.learner_id)
+    if (!existing) {
+      byLearner.set(e.learner_id, { learner_id: e.learner_id, enrolled_on: on, reporting_from: e.reporting_from, age_band_16_24: !!e.age_band_16_24 })
+      continue
+    }
+    if (on < existing.enrolled_on) { existing.enrolled_on = on; existing.reporting_from = e.reporting_from }
+    existing.age_band_16_24 = existing.age_band_16_24 || !!e.age_band_16_24
+  }
+  return [...byLearner.values()]
+}
+
+function windowRows(from: string, to: string) {
+  const baseline = new Map(rosterRows().map((r: any) => [r.learner_id, r.reporting_from]))
+  const totals = new Map<string, any>()
+  for (const row of DB.learner_speaking_opportunities) {
+    const base = baseline.get(row.learner_id)
+    if (base === undefined) continue
+    const lower = base > from ? base : from
+    if (row.day < lower || row.day > to) continue
+    const key = `${row.learner_id}|${row.course_code}`
+    const found = totals.get(key)
+    if (found) found.seconds += row.play_seconds
+    else totals.set(key, { learner_id: row.learner_id, course_code: row.course_code, seconds: row.play_seconds })
+  }
+  return [...totals.values()]
+}
+
 vi.mock('@supabase/supabase-js', () => ({
-  createClient: () => ({ from: (t: string) => makeChainable(t) }),
+  createClient: () => ({
+    from: (t: string) => makeChainable(t),
+    rpc: (name: string, args: any) => {
+      const rows = !aggregateDeployed
+        ? []
+        : name === 'org_enrolment_roster'
+          ? rosterRows()
+          : name === 'org_enrolment_window_seconds'
+            ? windowRows(args.p_from, args.p_to)
+            : []
+      const answer = aggregateDeployed ? { data: rows, error: null } : { data: null, error: MISSING }
+      return {
+        range: (f: number, t: number) =>
+          Promise.resolve(aggregateDeployed ? { data: rows.slice(f, t + 1), error: null } : answer),
+        then: (fn: any) => Promise.resolve(answer).then(fn),
+      }
+    },
+  }),
 }))
 
 function makeRes(): VercelResponse & { statusCode?: number; body?: any; headers: Record<string, string> } {
@@ -69,6 +127,7 @@ beforeEach(async () => {
   handler = (await import('./funder-export')).default
   caller = { userId: 'admin-1', isAdmin: true, ownGroupId: null }
   canSee = true
+  aggregateDeployed = true
   DB = {
     groups: [{ id: 'g-org', name: 'Dysgu Cymraeg', type: 'organisation', parent_id: null, path: 'dysgu-cymraeg', is_demo: false, is_test: false, created_at: '2026-01-01' }],
     org_enrolment_policies: [{
@@ -134,11 +193,22 @@ describe('the numbers', () => {
   it('FAILURE MODE: a person enrolled in two cohorts counted as two registered people', async () => {
     DB.groups.push({ id: 'g-cohort2', name: 'Cohort 2', type: 'group', parent_id: 'g-org', path: 'dysgu-cymraeg/cohort-2', is_demo: false, is_test: false, created_at: '2026-01-01' })
     DB.org_enrolments.push({ learner_id: L1, group_id: 'g-cohort2', enrolled_at: '2026-09-20T09:00:00Z', reporting_from: '2026-09-20', age_band_16_24: false })
+    // The fallback path is the one that counts collapses on the way past; the
+    // aggregate collapses them in SQL and has nothing to count. Both must end
+    // up with the same registered figure, which is what this asserts.
+    aggregateDeployed = false
     const res = makeRes()
     await handler(get({ groupId: 'g-org', month: '2026-09' }), res)
     const month = res.body.windows.find((w: any) => w.window.label === '2026-09')
     expect(month.all.registered).toBe(2)
     expect(res.body.duplicateEnrolmentsCollapsed).toBe(1)
+
+    aggregateDeployed = true
+    const viaAggregate = makeRes()
+    await handler(get({ groupId: 'g-org', month: '2026-09' }), viaAggregate)
+    const aggMonth = viaAggregate.body.windows.find((w: any) => w.window.label === '2026-09')
+    expect(aggMonth.all.registered).toBe(2)
+    expect(aggMonth.all.totalMinutes).toBe(month.all.totalMinutes)
     // The EARLIEST enrolment wins, so their minutes are not clipped by the
     // later cohort's baseline, and the age tick survives from wherever it was
     // given.

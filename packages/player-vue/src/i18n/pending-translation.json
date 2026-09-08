@@ -4,7 +4,9 @@
   "keys": [
     "enrol.cancelHow",
     "enrol.cancelNotice",
+    "enrol.cancelNoticeOtherAccount",
     "enrol.cancelNoticeWithPlan",
+    "enrol.cancelOnPlan",
     "enrol.claim",
     "enrol.consentIsRequired",
     "enrol.continue",

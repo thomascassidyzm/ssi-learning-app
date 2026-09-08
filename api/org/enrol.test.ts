@@ -48,6 +48,12 @@ function makeChainable(table: string) {
     eq(c: string, v: unknown) { rows = rows.filter((r) => r[c] === v); return b },
     is(c: string, v: unknown) { rows = rows.filter((r) => (r[c] ?? null) === v); return b },
     in(c: string, v: unknown[]) { rows = rows.filter((r) => v.includes(r[c])); return b },
+    // `verified_emails` is a text[]; `.contains(col, [value])` is the array
+    // containment the sibling-account lookup uses.
+    contains(c: string, v: unknown[]) {
+      rows = rows.filter((r) => Array.isArray(r[c]) && (v as any[]).every((x) => r[c].includes(x)))
+      return b
+    },
     gt(c: string, v: any) { rows = rows.filter((r) => r[c] > v); return b },
     gte(c: string, v: any) { rows = rows.filter((r) => r[c] >= v); return b },
     lte(c: string, v: any) { rows = rows.filter((r) => r[c] <= v); return b },

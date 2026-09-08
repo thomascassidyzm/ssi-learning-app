@@ -66,7 +66,7 @@ const PAGE = 1000
  * 503 naming the missing function, rather than timing out or — far worse —
  * quietly returning a number computed from a truncated read.
  */
-const FALLBACK_ROW_CEILING = 200_000
+const FALLBACK_ROW_CEILING = 50_000
 
 /** The previous COMPLETE month — a report pulled on the 3rd should not be a stub of the 3rd. */
 export function defaultMonth(now: Date = new Date()): string {

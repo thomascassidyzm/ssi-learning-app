@@ -42,6 +42,7 @@ import { applyCors } from '../_utils/cors'
 import { verifyAuthToken } from '../_utils/auth'
 import { affiliateToGroupNode } from '../_utils/groupAffiliation'
 import { getClientIp, hashIp, isIpOverLimit, logAttempt, PER_IP_LIMIT } from '../_utils/codeAttemptThrottle'
+import { canonicalEmail } from '../_utils/identity/emailCanon'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -310,18 +311,57 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     // ── What they hold today ───────────────────────────────────────────────
-    // Recorded, never acted on. See THE LINE ON SUBSCRIPTIONS above.
-    const { data: subRow } = await supabase
+    //
+    // THE FAILURE THIS EXISTS TO PREVENT. On the old system, enrolment
+    // sometimes did not recognise a learner who already had an account — so
+    // their existing subscription was never flagged and never cancelled, and
+    // Kai reports some of those are STILL running, a year on, quietly charging
+    // people who thought they were on a free Canolfan year.
+    //
+    // Recognition here is by EMAIL, not only by the account row this session
+    // happens to sit on. Supabase Auth already collapses one address to one
+    // auth user, so the residual case is the one that actually bites: a person
+    // holding more than one learner record against the same verified address —
+    // which the live database has (24 addresses shared across accounts as of
+    // the 8 September survey, deliberate tester accounts among them). Checking
+    // only `learner_id = mine` misses the subscription sitting on the sibling.
+    //
+    // What this still cannot see, stated rather than papered over: somebody
+    // who pays under one address and enrols under a different one. No lookup
+    // can join those, so the enrolment page's wording never claims we have
+    // checked everywhere — it tells them to go and look.
+    const { data: authForEmail } = await supabase.auth.admin.getUserById(userId)
+    const signInEmail = canonicalEmail(authForEmail?.user?.email)
+
+    const learnerIdsToCheck = new Set<string>([learnerId])
+    if (signInEmail) {
+      const { data: siblings } = await supabase
+        .from('learners')
+        .select('id')
+        .contains('verified_emails', [signInEmail])
+      for (const l of ((siblings ?? []) as any[])) learnerIdsToCheck.add(l.id)
+    }
+
+    const { data: subRows } = await supabase
       .from('subscriptions')
-      .select('id, status, plan_name, current_period_end, cancel_at_period_end')
-      .eq('learner_id', learnerId)
-      .maybeSingle()
-    const sub = subRow as any
-    const paying =
-      !!sub &&
-      sub.status === 'active' &&
-      !sub.cancel_at_period_end &&
-      (!sub.current_period_end || new Date(sub.current_period_end) > new Date())
+      .select('id, learner_id, status, plan_name, current_period_end, cancel_at_period_end')
+      .in('learner_id', [...learnerIdsToCheck])
+
+    const isLive = (r: any) =>
+      !!r &&
+      r.status === 'active' &&
+      !r.cancel_at_period_end &&
+      (!r.current_period_end || new Date(r.current_period_end) > new Date())
+
+    const all = ((subRows ?? []) as any[])
+    // Prefer a LIVE subscription wherever it sits; fall back to this learner's
+    // own row so the recorded status is still honest when nothing is live.
+    const sub = all.find(isLive) ?? all.find((r) => r.learner_id === learnerId) ?? null
+    const paying = isLive(sub)
+    // Whether the paying account is a sibling rather than this one — the
+    // enrolment page says so, because "cancel your subscription" is confusing
+    // advice if they are looking at an account that has none.
+    const payingOnAnotherAccount = paying && sub!.learner_id !== learnerId
 
     const now = new Date()
     const until = freeAccessUntil(now, policy.free_months)
@@ -418,6 +458,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       freeAccessUntil: until,
       cancellationNeeded: paying,
       priorPlanName: paying ? (sub?.plan_name ?? null) : null,
+      payingOnAnotherAccount,
+      // Said out loud so the page never implies we searched everywhere: an
+      // address we have never seen on this account is an address we cannot
+      // check.
+      recognisedBy: signInEmail ? 'email' : 'account',
     })
   } catch (error: any) {
     console.error('[org/enrol] Error:', error)

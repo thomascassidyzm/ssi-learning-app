@@ -51,6 +51,7 @@ const consentTicked = ref(false)
 const freeUntil = ref<string | null>(null)
 const cancellationNeeded = ref(false)
 const priorPlanName = ref<string | null>(null)
+const payingOnAnotherAccount = ref(false)
 const alreadyEnrolled = ref(false)
 
 const isSignedIn = computed(() => auth?.isAuthenticated?.value ?? false)
@@ -164,6 +165,7 @@ async function enrol(): Promise<void> {
     freeUntil.value = body.freeAccessUntil
     cancellationNeeded.value = !!body.cancellationNeeded
     priorPlanName.value = body.priorPlanName ?? null
+    payingOnAnotherAccount.value = !!body.payingOnAnotherAccount
     alreadyEnrolled.value = !!body.alreadyEnrolled
     step.value = 'done'
   } catch {
@@ -171,6 +173,22 @@ async function enrol(): Promise<void> {
     step.value = 'terms'
   }
 }
+
+/**
+ * The cancellation sentence, which has to be true in three different
+ * situations or it sends somebody hunting for a subscription that is not
+ * where we said. The one that matters is the third: the live database really
+ * does hold people with two learner records against one email address, and on
+ * the old system a subscription sitting on the other one was never noticed
+ * and is, a year later, still charging them.
+ */
+const cancelNotice = computed(() => {
+  const plan = priorPlanName.value ? fill('enrol.cancelOnPlan', { plan: priorPlanName.value }) : ''
+  if (payingOnAnotherAccount.value) return fill('enrol.cancelNoticeOtherAccount', { plan })
+  return priorPlanName.value
+    ? fill('enrol.cancelNoticeWithPlan', { plan: priorPlanName.value })
+    : t('enrol.cancelNotice')
+})
 
 function start(): void {
   router.push('/')
@@ -266,11 +284,7 @@ function start(): void {
           do not touch anybody's subscription on their behalf.
         -->
         <div v-if="cancellationNeeded" class="enrol-warn">
-          <p>
-            {{ priorPlanName
-              ? fill('enrol.cancelNoticeWithPlan', { plan: priorPlanName })
-              : t('enrol.cancelNotice') }}
-          </p>
+          <p>{{ cancelNotice }}</p>
           <p>{{ fill('enrol.cancelHow', { date: prettyEnd }) }}</p>
         </div>
 
