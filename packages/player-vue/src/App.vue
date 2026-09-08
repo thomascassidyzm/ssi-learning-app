@@ -465,8 +465,14 @@ const noPriorCourseSelection = ref(false)
 
 // Course persistence key
 
-// Handle course selection from CourseSelector
-const handleCourseSelect = async (course) => {
+// Handle course selection from CourseSelector.
+//
+// `origin` is how we got here, and it is stamped on the remembered course
+// (platform/courseChoice): 'chosen' is somebody tapping a course, which is
+// every caller but one. The org-enrolment picker passes 'default' when it
+// closes without a tap and falls back to the org's first granted course —
+// we picked that for the learner, and a course we picked is not a choice.
+const handleCourseSelect = async (course, origin = 'chosen') => {
   const courseCode = course.course_code || course.id
 
   // IMPORTANT: Update courseDataProvider BEFORE activeCourse
@@ -495,8 +501,8 @@ const handleCourseSelect = async (course) => {
   // NOW update activeCourse (triggers LearningPlayer remount via :key)
   activeCourse.value = course
 
-  // Persist course selection (localStorage + DB). `chosen`: somebody tapped it.
-  rememberCourse(courseCode, 'chosen')
+  // Persist course selection (localStorage + DB), with how we arrived at it.
+  rememberCourse(courseCode, origin)
   // Save to DB for cross-device persistence (fire-and-forget)
   if (supabaseClient.value && auth.learner.value?.id) {
     supabaseClient.value

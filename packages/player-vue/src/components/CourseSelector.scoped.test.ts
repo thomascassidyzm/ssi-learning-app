@@ -20,15 +20,18 @@ vi.mock('../composables/useSubscription', () => ({
   useSharedSubscription: () => ({ isSubscribed: ref(false) }),
 }))
 vi.mock('../composables/useCheckout', () => ({ useCheckout: () => ({ startCheckout: vi.fn() }) }))
-vi.mock('../platform/paymentRoute', () => ({ canTakePayment: () => false }))
+// Payment route is on unless a test turns it off — the Upgrade CTA only
+// renders when a purchase can actually be taken.
+let canPay = true
+vi.mock('../platform/paymentRoute', () => ({ canTakePayment: () => canPay }))
 vi.mock('../composables/useUserRole', () => ({ useUserRole: () => ({ platformRole: ref('learner') }) }))
 
 import CourseSelector from './CourseSelector.vue'
 
 const CATALOGUE = [
-  { course_code: 'cym_n_for_eng', target_lang: 'cym_n', known_lang: 'eng', display_name: 'North Welsh', new_app_status: 'live' },
-  { course_code: 'cym_s_for_eng', target_lang: 'cym_s', known_lang: 'eng', display_name: 'South Welsh', new_app_status: 'live' },
-  { course_code: 'spa_for_eng', target_lang: 'spa', known_lang: 'eng', display_name: 'Spanish', new_app_status: 'live' },
+  { course_code: 'cym_n_for_eng', target_lang: 'cym_n', known_lang: 'eng', display_name: 'North Welsh', new_app_status: 'live', pricing_tier: 'premium' },
+  { course_code: 'cym_s_for_eng', target_lang: 'cym_s', known_lang: 'eng', display_name: 'South Welsh', new_app_status: 'live', pricing_tier: 'premium' },
+  { course_code: 'spa_for_eng', target_lang: 'spa', known_lang: 'eng', display_name: 'Spanish', new_app_status: 'live', pricing_tier: 'premium' },
   { course_code: 'zho_for_eng', target_lang: 'zho', known_lang: 'eng', display_name: 'Chinese', new_app_status: 'live' },
 ]
 
@@ -69,5 +72,31 @@ describe('CourseSelector scoped to granted courses', () => {
     const names = rowNames(mountPicker([])).join(' ')
     expect(names).toContain('Spanish')
     expect(names).toContain('Chinese')
+  })
+})
+
+/**
+ * The Premium header, in a picker where there is nothing to upgrade to.
+ *
+ * FAILURE MODE (staging, 2026-09-08): the scoped sheet read 'Choose Your
+ * Course / Premium — £15/mo — unlimited access to all languages — Upgrade'
+ * directly above the two Welsh dialects, to a learner who had just been told
+ * their Welsh year is free.
+ */
+describe('CourseSelector premium header', () => {
+  it('FAILURE MODE: no Premium header and no Upgrade CTA when the picker is scoped', () => {
+    canPay = true
+    const w = mountPicker(['cym_n_for_eng', 'cym_s_for_eng'])
+    expect(w.find('.section-header--premium').exists()).toBe(false)
+    expect(w.find('.section-header__cta').exists()).toBe(false)
+    // The choice itself is untouched.
+    expect(rowNames(w)).toContain('Northern')
+  })
+
+  it('unscoped, the Premium header and its Upgrade CTA are still there', () => {
+    canPay = true
+    const w = mountPicker([])
+    expect(w.find('.section-header--premium').exists()).toBe(true)
+    expect(w.find('.section-header__cta').exists()).toBe(true)
   })
 })
