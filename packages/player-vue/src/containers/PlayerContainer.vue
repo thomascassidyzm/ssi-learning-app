@@ -30,6 +30,7 @@ import { getSharedBeltProgress, getSeedFromLegoId } from '@/composables/useBeltP
 import { useSharedUserEntitlements } from '@/composables/useUserEntitlements'
 import { useCheckout } from '@/composables/useCheckout'
 import { useSectorThread } from '@/composables/useSectorThread'
+import { courseToFallBackTo } from '@/containers/scopedPickerClose'
 import SectorPicker from '@/components/SectorPicker.vue'
 
 // Inject from App
@@ -633,6 +634,23 @@ const loadModeVisibility = () => {
   showPronunciationBtn.value = localStorage.getItem('ssi-mode-pronunciation') === 'true'
 }
 
+/**
+ * Closing the picker — and, for a SCOPED one, not being dropped somewhere else.
+ *
+ * The rule and the reasoning live in containers/scopedPickerClose; this is the
+ * wiring. 'default', not 'chosen': we picked the dialect for the learner, and
+ * a course we picked is not a choice (job #596).
+ */
+function closeCourseSelector() {
+  const scoped = courseSelectorOnly.value
+  const code = courseToFallBackTo(scoped, activeCourse.value?.course_code)
+  showCourseSelector.value = false
+  courseSelectorOnly.value = []
+  if (!code) return
+  const full = enrolledCourses?.value?.find(c => c.course_code === code)
+  handleCourseSelect?.(full || { course_code: code, id: code }, 'default')
+}
+
 onMounted(() => {
   loadModeVisibility()
   loadAdaptationConsent()
@@ -878,7 +896,7 @@ onMounted(() => {
       :active-course-id="activeCourse?.course_code"
       :is-admin="isAdmin"
       @selectCourse="(c) => { showCourseSelector = false; courseSelectorOnly = []; handleCourseSelect(c) }"
-      @close="showCourseSelector = false; courseSelectorOnly = []"
+      @close="closeCourseSelector()"
     />
 
     <!-- Unified Auth Modal (shared state with all components) -->
