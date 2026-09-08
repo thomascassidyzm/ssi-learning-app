@@ -162,16 +162,25 @@ export async function sendFamilyInviteEmail(input: FamilyInviteEmailInput): Prom
 
 // ── THE FAMILY-ENDS MAIL (job #376·F, D6) ────────────────────────────────────
 // Sent to each live ADULT member the moment the owner confirms a change from
-// Family to Premium — not at the flip, because the end-of-period window IS the
-// grace (D8) and a person can only use a window they know about. Three things
-// and no more: the date, that everything they have learned stays, and the app
-// as the door to their own Premium at the ordinary price. Never to a child
-// seat (no inbox) and never to a pending invitee (they never joined).
+// Family to Premium — at confirm rather than at the flip, because a person can
+// only use a window they know about. Three things and no more: the date, that
+// everything they have learned stays, and the app as the door to their own
+// Premium at the ordinary price. Never to a child seat (no inbox) and never to
+// a pending invitee (they never joined).
+//
+// THE DATE IS THE COVER END, NOT THE PLAN-CHANGE DATE (Tom, 2026-09-08,
+// superseding D8): the paid period plus 30 days. The caller computes it with
+// familyGrace.ts and passes it in, so this mail cannot say a different day
+// from the one the app shows or the one the resolver enforces.
 
 export interface FamilyEndsEmailInput {
   address: string
   inviterName: string | null
-  /** ISO instant the family cover ends — the owner's current_period_end. */
+  /**
+   * ISO instant the reader's own cover ends — already through
+   * familyCoverEndsAt(), i.e. the paid period plus the 30-day grace. Never a
+   * raw period end.
+   */
   endsAt: string
 }
 
