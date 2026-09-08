@@ -56,6 +56,7 @@ export interface EnrolmentPolicy {
   free_months: number
   granted_courses: string[]
   is_active: boolean
+  link_expires_at: string | null
 }
 
 /**
@@ -184,14 +185,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return
     }
 
+    // ── NO CAP ON THE SIGN-UP LINK ─────────────────────────────────────────
+    //
+    // THE FAILURE THIS EXISTS TO PREVENT. On the old system the sign-up link
+    // had a hard maximum, and it was hit — thousands of learners arrived at
+    // once and the ones past the cap could not get in (Kai, 2026-09-08). A
+    // Canolfan cohort genuinely does arrive together: a tutor puts the link on
+    // a screen and a whole class taps it inside a minute.
+    //
+    // So `use_count` is NOT a gate on this path, at all. There is no branch
+    // below that refuses an enrolment because a number got big, and
+    // api/admin/org-enrolment-setup.ts refuses to mint a capped link in the
+    // first place. If a cap somehow reaches a link anyway — hand-edited, or
+    // minted by an older tool — it is logged loudly and IGNORED, because the
+    // funder's learners not getting in is a far worse outcome than a counter
+    // exceeding a number somebody typed once.
+    if (invite.max_uses !== null && invite.max_uses !== undefined) {
+      console.warn(
+        '[org/enrol] enrolment link carries max_uses =',
+        invite.max_uses,
+        '— IGNORED. Enrolment links are uncapped by design; see api/admin/org-enrolment-setup.ts.',
+      )
+    }
+
     const { data: policyRow } = await supabase
       .from('org_enrolment_policies')
-      .select('group_id, org_display_name, consent_statement, consent_version, ask_age_band, age_band_label, free_months, granted_courses, is_active')
+      .select('group_id, org_display_name, consent_statement, consent_version, ask_age_band, age_band_label, free_months, granted_courses, is_active, link_expires_at')
       .eq('group_id', invite.grants_group_id)
       .maybeSingle()
     const policy = policyRow as EnrolmentPolicy | null
     if (!policy || !policy.is_active) {
       res.status(200).json({ success: false, error: 'This link has no enrolment step' })
+      return
+    }
+
+    // HOW LONG THE LINK LIVES IS DATA, in two places that agree: the code's own
+    // expires_at and the org's link_expires_at. NULL in both means the link
+    // stays live — which is what "leave it up all year" looks like — and a
+    // timestamp in either is honoured, which is what "refresh it every year"
+    // looks like. Kai has not settled which the Canolfan wants, so neither is
+    // compiled in and switching between them is an UPDATE.
+    if (policy.link_expires_at && new Date(policy.link_expires_at) <= new Date()) {
+      res.status(200).json({ success: false, error: 'This link has expired' })
       return
     }
 
@@ -365,13 +400,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       if (entErr) console.error('[org/enrol] entitlement insert failed (non-fatal):', entErr)
     }
 
-    // One use of the code, counted after the enrolment exists so a failed
-    // enrolment never burns a capped link. Best-effort: invite codes for a
-    // cohort of thousands are uncapped by default.
-    await supabase
-      .from('invite_codes')
-      .update({ use_count: (invite.use_count ?? 0) + 1 })
-      .eq('id', invite.id)
+    // Count the use — for information only, never as a gate (see NO CAP
+    // above). Done through the ATOMIC rpc rather than a read-then-write
+    // increment, because a burst of concurrent sign-ups is exactly the case
+    // this endpoint is built for and read-then-write loses most of them. A
+    // failure here is swallowed: a wrong counter is a cosmetic problem, and a
+    // learner refused entry over one is not.
+    const { error: countErr } = await supabase.rpc('claim_invite_code_use', { p_id: invite.id })
+    if (countErr) {
+      console.warn('[org/enrol] use_count not incremented (non-fatal):', countErr.message)
+    }
 
     res.status(200).json({
       success: true,

@@ -69,6 +69,15 @@ CREATE TABLE IF NOT EXISTS public.org_enrolment_policies (
   -- own enrolment date rather than from one org-wide clock.
   granted_courses    text[] NOT NULL DEFAULT ARRAY[]::text[],
   is_active          boolean NOT NULL DEFAULT true,
+  -- HOW LONG THE SIGN-UP LINK LIVES, as data.
+  --
+  -- Kai, 2026-09-08: the Canolfan may want the link live all year, or may want
+  -- a refreshed one each year, and which of those has NOT been decided. So
+  -- neither is compiled in. NULL means the link never expires; a timestamp is
+  -- honoured by the enrolment endpoint; and rotating to a fresh link each year
+  -- is a call to the setup endpoint with rotateLink, which retires the old code
+  -- and mints a new one against the same org. All three are the same table.
+  link_expires_at    timestamp with time zone,
   created_at         timestamp with time zone NOT NULL DEFAULT now(),
   updated_at         timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT org_enrolment_policies_free_months_check CHECK (free_months BETWEEN 1 AND 60),
@@ -159,6 +168,108 @@ REVOKE ALL ON TABLE public.org_enrolment_policies FROM anon, authenticated;
 GRANT SELECT ON TABLE public.org_enrolments TO authenticated;
 GRANT ALL ON TABLE public.org_enrolments TO service_role;
 GRANT ALL ON TABLE public.org_enrolment_policies TO service_role;
+
+-- ── The export's arithmetic, where the rows are ────────────────────────────
+--
+-- THE FAILURE THIS EXISTS TO PREVENT, in Kai's own words about the old system:
+-- the cohort size cap was raised, and then "data fetches started timing out
+-- (and still do)" once groups got large. That is what happens when a whole
+-- cohort's activity is dragged into application memory a page at a time.
+--
+-- The numbers. A learner practising four days a week for a year leaves roughly
+-- 200 rows a year in learner_speaking_opportunities per course. A 10,000-strong
+-- cohort is therefore ~2,000,000 rows for an all-time window — 2,000 round
+-- trips at PostgREST's 1,000-row page, which will time out long before it
+-- finishes, and hold a couple of hundred megabytes if it does not.
+--
+-- These two functions move the expensive dimension — DAYS — into the database,
+-- where it is one index scan and a GROUP BY. What comes back is one row per
+-- learner (the roster) and one row per learner per course (the seconds), so a
+-- 10,000-learner cohort returns ~10,000 and ~20,000 rows instead of two
+-- million. That is a hundredfold reduction and it does not grow with the
+-- length of the reporting window.
+--
+-- What deliberately does NOT move into SQL: the higher-of-dialects rule and
+-- the thresholds. Those stay in one tested TypeScript module, because a rule
+-- implemented twice is a rule that drifts, and the cheap dimension — at most a
+-- handful of courses per learner — costs nothing to fold in the application.
+
+-- One row per PERSON, however many cohorts of this org they hold.
+--
+-- reporting_from is derived from enrolled_at, so min(reporting_from) is the
+-- earliest enrolment's baseline — the same "earliest registration wins" rule
+-- the application applies, expressed once more compactly. bool_or on the age
+-- band: a person is in the band or is not, and a later untick is not evidence
+-- they aged out mid-year.
+CREATE OR REPLACE FUNCTION public.org_enrolment_roster(p_group_ids uuid[])
+RETURNS TABLE(learner_id uuid, enrolled_on date, reporting_from date, age_band_16_24 boolean)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+  SELECT e.learner_id,
+         min(e.enrolled_at AT TIME ZONE 'UTC')::date AS enrolled_on,
+         min(e.reporting_from)                       AS reporting_from,
+         bool_or(e.age_band_16_24)                   AS age_band_16_24
+  FROM org_enrolments e
+  WHERE e.group_id = ANY(p_group_ids)
+  GROUP BY e.learner_id;
+$$;
+
+COMMENT ON FUNCTION public.org_enrolment_roster(uuid[]) IS
+  'One row per person on an org''s roster, deduped across its cohorts at the earliest enrolment. Drives the funder export''s registered count, including learners who have never played.';
+
+-- Seconds per learner per course inside a window, with each learner's own
+-- clean-break baseline applied here rather than in the application.
+--
+-- The GREATEST() is the clean break: a ledger day earlier than that learner's
+-- own reporting_from is out of window even if it falls inside the month asked
+-- for. Nothing is deleted to achieve it — an older total is still retrievable
+-- by an admin querying the ledger directly.
+CREATE OR REPLACE FUNCTION public.org_enrolment_window_seconds(
+  p_group_ids uuid[],
+  p_from date,
+  p_to date
+)
+RETURNS TABLE(learner_id uuid, course_code text, seconds bigint)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+  WITH roster AS (
+    SELECT e.learner_id, min(e.reporting_from) AS reporting_from
+    FROM org_enrolments e
+    WHERE e.group_id = ANY(p_group_ids)
+    GROUP BY e.learner_id
+  )
+  SELECT lso.learner_id,
+         lso.course_code,
+         sum(lso.play_seconds)::bigint AS seconds
+  FROM learner_speaking_opportunities lso
+  JOIN roster r ON r.learner_id = lso.learner_id
+  WHERE lso.day >= GREATEST(p_from, r.reporting_from)
+    AND lso.day <= p_to
+  GROUP BY lso.learner_id, lso.course_code;
+$$;
+
+COMMENT ON FUNCTION public.org_enrolment_window_seconds(uuid[], date, date) IS
+  'Playback seconds per learner per course inside a window, with each learner''s own minutes-from-zero baseline applied. Exists so a large cohort''s export is one aggregate rather than millions of rows dragged into application memory — the exact failure the old system hit once its groups grew.';
+
+-- Both are SECURITY DEFINER because they read across learners; both are
+-- therefore service_role only, and the funder-export endpoint does its own
+-- hierarchy authz before calling either (RLS doctrine rule 1).
+REVOKE ALL ON FUNCTION public.org_enrolment_roster(uuid[]) FROM public, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.org_enrolment_roster(uuid[]) TO service_role;
+REVOKE ALL ON FUNCTION public.org_enrolment_window_seconds(uuid[], date, date) FROM public, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.org_enrolment_window_seconds(uuid[], date, date) TO service_role;
+
+-- The index the aggregate above walks. learner_speaking_opportunities is keyed
+-- (learner_id, course_code, day); this adds the day-leading order the window
+-- filter wants when a cohort is large enough for the planner to prefer it.
+CREATE INDEX IF NOT EXISTS idx_lso_day_learner
+  ON public.learner_speaking_opportunities (day, learner_id);
 
 COMMIT;
 

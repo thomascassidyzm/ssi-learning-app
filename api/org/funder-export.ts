@@ -42,16 +42,31 @@ import {
   baselineWindow,
   fundingYearStart,
   measureWindow,
+  measureWindowFromTotals,
   toCsv,
+  type CourseTotal,
   type EnrolledLearner,
   type LedgerDay,
   type WindowResult,
+  type Window,
 } from '../_utils/orgFunderExport'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
 const PAGE = 1000
+
+/**
+ * The point at which the raw-ledger fallback stops and says so.
+ *
+ * The fallback exists only for the window between this code shipping and
+ * migration 20260908e being applied. It drags per-day rows into memory, which
+ * is precisely the shape that made the old system's fetches time out once its
+ * groups grew, so it is bounded: past this many rows it refuses and returns a
+ * 503 naming the missing function, rather than timing out or — far worse —
+ * quietly returning a number computed from a truncated read.
+ */
+const FALLBACK_ROW_CEILING = 200_000
 
 /** The previous COMPLETE month — a report pulled on the 3rd should not be a stub of the 3rd. */
 export function defaultMonth(now: Date = new Date()): string {
@@ -101,6 +116,72 @@ export function dedupeRoster(
     existing.age_band_16_24 = existing.age_band_16_24 || !!r.age_band_16_24
   }
   return { roster: [...byLearner.values()], duplicateEnrolments: duplicates }
+}
+
+/**
+ * "Is this a missing function, or a real error?"
+ *
+ * Same test api/code/redeem.ts uses for claim_invite_code_use: PGRST202 /
+ * 42883 / a schema-cache miss mean the migration has not been applied yet and
+ * the caller should fall back. Anything else is a genuine failure and must not
+ * be silently downgraded into a slower path that hides it.
+ */
+function isMissingFunction(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false
+  return (
+    error.code === 'PGRST202' ||
+    error.code === '42883' ||
+    /could not find the function|schema cache/i.test(error.message || '')
+  )
+}
+
+/** The roster as one row per person, or null when the aggregate is not deployed. */
+async function rpcRoster(supabase: SupabaseClient, groupIds: string[]): Promise<EnrolledLearner[] | null> {
+  const out: EnrolledLearner[] = []
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await supabase
+      .rpc('org_enrolment_roster', { p_group_ids: groupIds })
+      .range(offset, offset + PAGE - 1)
+    if (error) {
+      if (isMissingFunction(error)) return null
+      throw new Error(`org_enrolment_roster failed: ${error.message}`)
+    }
+    const rows = (data ?? []) as Array<{ learner_id: string; enrolled_on: string; reporting_from: string; age_band_16_24: boolean }>
+    for (const r of rows) {
+      out.push({
+        learner_id: r.learner_id,
+        enrolled_on: String(r.enrolled_on).slice(0, 10),
+        reporting_from: String(r.reporting_from).slice(0, 10),
+        age_band_16_24: !!r.age_band_16_24,
+      })
+    }
+    if (rows.length < PAGE) break
+  }
+  return out
+}
+
+/** Per-learner-per-course seconds for one window, or null when not deployed. */
+async function windowTotals(
+  supabase: SupabaseClient,
+  groupIds: string[],
+  w: Window,
+): Promise<CourseTotal[] | null> {
+  const out: CourseTotal[] = []
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await supabase
+      .rpc('org_enrolment_window_seconds', { p_group_ids: groupIds, p_from: w.from, p_to: w.to })
+      .range(offset, offset + PAGE - 1)
+    if (error) {
+      if (isMissingFunction(error)) return null
+      throw new Error(`org_enrolment_window_seconds failed: ${error.message}`)
+    }
+    const rows = (data ?? []) as Array<{ learner_id: string; course_code: string; seconds: number | string }>
+    for (const r of rows) {
+      out.push({ learner_id: r.learner_id, course_code: r.course_code, seconds: Number(r.seconds) || 0 })
+    }
+    if (rows.length < PAGE) break
+  }
+  return out
 }
 
 async function pagedSelect<T>(
@@ -171,21 +252,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const subtree = await fetchSubtree(supabase, groupId)
     const groupIds = subtree.length ? subtree.map((g) => g.id) : [groupId]
 
-    const enrolRows = await pagedSelect<{
-      learner_id: string
-      enrolled_at: string
-      reporting_from: string
-      age_band_16_24: boolean
-    }>((from, to) =>
-      supabase
-        .from('org_enrolments')
-        .select('learner_id, enrolled_at, reporting_from, age_band_16_24')
-        .in('group_id', groupIds)
-        .order('enrolled_at', { ascending: true })
-        .range(from, to),
-    )
-
-    const { roster, duplicateEnrolments } = dedupeRoster(enrolRows)
+    // The roster, deduped to one row per PERSON. Tried as an aggregate first —
+    // a person holding three cohorts of the same org is three rows on the wire
+    // otherwise, and a large cohort pays that on every pull.
+    let roster: EnrolledLearner[]
+    let duplicateEnrolments = 0
+    const rosterRpc = await rpcRoster(supabase, groupIds)
+    if (rosterRpc) {
+      roster = rosterRpc
+    } else {
+      const enrolRows = await pagedSelect<{
+        learner_id: string
+        enrolled_at: string
+        reporting_from: string
+        age_band_16_24: boolean
+      }>((from, to) =>
+        supabase
+          .from('org_enrolments')
+          .select('learner_id, enrolled_at, reporting_from, age_band_16_24')
+          .in('group_id', groupIds)
+          .order('enrolled_at', { ascending: true })
+          .range(from, to),
+      )
+      const deduped = dedupeRoster(enrolRows)
+      roster = deduped.roster
+      duplicateEnrolments = deduped.duplicateEnrolments
+    }
 
     // Windows. All three end at the same instant — the end of the month being
     // reported — so a report pulled twice for the same month is identical, and
@@ -200,32 +292,79 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       baselineWindow(baselineFrom, month_window.to, `since_${baselineFrom}`),
     ]
 
-    const learnerIds = roster.map((r) => r.learner_id)
-    let ledger: LedgerDay[] = []
-    if (learnerIds.length) {
-      const widestFrom = windows.reduce<string>((min, w) => (w.from < min ? w.from : min), month_window.from)
-      // Chunked by learner id: `.in()` on ten thousand uuids is a URL, not a query.
-      for (let i = 0; i < learnerIds.length; i += 200) {
-        const chunk = learnerIds.slice(i, i + 200)
-        const rows = await pagedSelect<LedgerDay>((from, to) =>
-          supabase
-            .from('learner_speaking_opportunities')
-            .select('learner_id, course_code, day, play_seconds')
-            .in('learner_id', chunk)
-            .gte('day', widestFrom)
-            .lte('day', month_window.to)
-            .range(from, to),
-        )
-        ledger = ledger.concat(rows)
-      }
-    }
-
+    // ── The measurement ────────────────────────────────────────────────────
+    //
+    // THE LARGE-COHORT PATH, and it is the default. Each window is one
+    // aggregate call: the database sums the days and hands back one row per
+    // learner per course. A 10,000-strong cohort is ~20,000 rows a window
+    // rather than the ~2,000,000 its raw ledger would be, and that number does
+    // not grow as the reporting year lengthens.
+    //
+    // This is the specific failure Kai named from the old system — the cohort
+    // cap was raised and the fetches began timing out — so the aggregate is
+    // not an optimisation to reach for later, it is the path.
     const results: WindowResult[] = []
     const unmapped = new Set<string>()
+    let aggregated = true
+    let rowsRead = 0
+
     for (const w of windows) {
-      const { result, unmappedCourses } = measureWindow(ledger, roster, w, familyMap)
+      const totals = await windowTotals(supabase, groupIds, w)
+      if (totals === null) {
+        aggregated = false
+        break
+      }
+      rowsRead += totals.length
+      const { result, unmappedCourses } = measureWindowFromTotals(totals, roster, w, familyMap)
       results.push(result)
       unmappedCourses.forEach((c) => unmapped.add(c))
+    }
+
+    if (!aggregated) {
+      // Pre-migration only. Bounded, and loud when the bound is reached.
+      results.length = 0
+      unmapped.clear()
+      rowsRead = 0
+      const learnerIds = roster.map((r) => r.learner_id)
+      let ledger: LedgerDay[] = []
+      if (learnerIds.length) {
+        const widestFrom = windows.reduce<string>((min, w) => (w.from < min ? w.from : min), month_window.from)
+        for (let i = 0; i < learnerIds.length; i += 200) {
+          const chunk = learnerIds.slice(i, i + 200)
+          const rows = await pagedSelect<LedgerDay>((from, to) =>
+            supabase
+              .from('learner_speaking_opportunities')
+              .select('learner_id, course_code, day, play_seconds')
+              .in('learner_id', chunk)
+              .gte('day', widestFrom)
+              .lte('day', month_window.to)
+              .range(from, to),
+          )
+          ledger = ledger.concat(rows)
+          if (ledger.length > FALLBACK_ROW_CEILING) {
+            console.error(
+              '[org/funder-export] REFUSING a raw-ledger read of',
+              ledger.length,
+              'rows for',
+              learnerIds.length,
+              'learners — apply migration 20260908e_org_enrolments.sql',
+            )
+            res.status(503).json({
+              error:
+                'This cohort is too large to export without the database aggregate. Apply migration 20260908e_org_enrolments.sql, which adds org_enrolment_window_seconds, and retry.',
+              cohortSize: learnerIds.length,
+              rowsReadBeforeStopping: ledger.length,
+            })
+            return
+          }
+        }
+      }
+      rowsRead = ledger.length
+      for (const w of windows) {
+        const { result, unmappedCourses } = measureWindow(ledger, roster, w, familyMap)
+        results.push(result)
+        unmappedCourses.forEach((c) => unmapped.add(c))
+      }
     }
 
     if (String(req.query.format || '').toLowerCase() === 'csv') {
@@ -245,6 +384,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       minutesDefinition:
         'Minutes in which the app was playing audio to the learner (learner_speaking_opportunities.play_seconds). Not wall clock. A learner who has studied both Welsh dialects is counted once, at the higher dialect total, never the sum.',
       windows: results,
+      // How the numbers were produced, and how much was read to produce them.
+      // A funder export that cannot say which path it took is an export nobody
+      // can debug at the moment it matters.
+      measurement: {
+        path: aggregated ? 'database-aggregate' : 'raw-ledger-fallback',
+        rowsRead,
+        cohortSize: roster.length,
+      },
       // Loud, never silent: a Welsh course code the family map has never heard
       // of would otherwise be dropped from every figure without a word.
       unmappedCourseCodes: [...unmapped].sort(),

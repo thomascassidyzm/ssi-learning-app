@@ -38,6 +38,10 @@ const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 /** The only two things a human may record. Neither of them cancels anything. */
 export const RECORDABLE_STATES = ['learner_confirmed', 'verified_cancelled'] as const
 
+/** One screenful, and a ceiling nobody can talk us past with a query string. */
+const PAGE_SIZE = 100
+const MAX_PAGE_SIZE = 500
+
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (applyCors(req, res, { methods: 'GET,POST' })) return
   if (req.method !== 'GET' && req.method !== 'POST') {
@@ -67,14 +71,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       const subtree = await fetchSubtree(supabase, groupId)
       const groupIds = subtree.length ? subtree.map((g) => g.id) : [groupId]
 
-      const { data: rows } = await supabase
+      // PAGED, because a cohort is thousands of people and an unbounded read
+      // of "everyone who needs chasing" is exactly the shape that started
+      // timing out on the old system once its groups grew. One page at a time,
+      // with the total so the caller knows how much is left.
+      const limit = Math.min(Math.max(Number(req.query.limit ?? PAGE_SIZE) || PAGE_SIZE, 1), MAX_PAGE_SIZE)
+      const offset = Math.max(Number(req.query.offset ?? 0) || 0, 0)
+
+      const { data: rows, count } = await supabase
         .from('org_enrolments')
-        .select('id, learner_id, enrolled_at, free_access_until, prior_subscription_status, cancellation_state, cancellation_noted_at')
+        .select('id, learner_id, enrolled_at, free_access_until, prior_subscription_status, cancellation_state, cancellation_noted_at', { count: 'exact' })
         .in('group_id', groupIds)
         .in('cancellation_state', ['needed', 'learner_confirmed'])
         .order('enrolled_at', { ascending: true })
+        .range(offset, offset + limit - 1)
 
       const enrolments = (rows ?? []) as any[]
+      // Bounded by the page above, so this `.in()` is at most `limit` ids —
+      // never "every learner in the org" on one URL.
       const learnerIds = [...new Set(enrolments.map((r) => r.learner_id))]
       const names = new Map<string, { display_name: string | null; user_id: string }>()
       if (learnerIds.length) {
@@ -87,6 +101,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
       res.status(200).json({
         note: 'This is a queue for a human. Nothing in this repository cancels a subscription.',
+        total: count ?? enrolments.length,
+        limit,
+        offset,
+        nextOffset: enrolments.length === limit ? offset + limit : null,
         queue: enrolments.map((r) => ({
           enrolmentId: r.id,
           learnerId: r.learner_id,

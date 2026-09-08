@@ -51,6 +51,27 @@ export const WELSH_DIALECT_FAMILIES: Record<string, string> = {
   cym_for_eng: 'welsh_south',
 }
 
+/**
+ * WHAT THE FREE YEAR ACTUALLY UNLOCKS — and it is NOT the same list as the
+ * dialect map above.
+ *
+ * The dialect map is a REPORTING concern: it must name every code a learner's
+ * minutes could have been logged against, dead and legacy ones included, or
+ * the export silently under-counts. Entitlement is the opposite: it must name
+ * only what we mean to give away.
+ *
+ * Verified against the live courses table on 2026-09-08: exactly two Welsh
+ * courses are released and live in this app — `cym_n_for_eng` (North Welsh for
+ * English Speakers) and `cym_s_for_eng` (South Welsh for English Speakers),
+ * both premium. `cym_nnew_for_eng` is a draft rebuild and `cym_for_yor` is a
+ * draft, so neither is granted; both are still in the dialect map above so
+ * that if one goes live mid-year its minutes still count.
+ *
+ * KAI TO CONFIRM these are the two he means. Changing them is an UPDATE to the
+ * policy row, not a deploy.
+ */
+export const WELSH_GRANTED_COURSES = ['cym_n_for_eng', 'cym_s_for_eng']
+
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (applyCors(req, res, { methods: 'POST' })) return
   if (req.method !== 'POST') {
@@ -74,6 +95,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     res.status(400).json({ error: 'orgName and consentStatement are required' })
     return
   }
+
+  // NO CAP, AND NO WAY TO ASK FOR ONE. The old system's sign-up link had a
+  // hard maximum and it was hit when a cohort arrived together. Refusing the
+  // parameter outright is louder than ignoring it: whoever tried to set one
+  // finds out immediately, rather than discovering at 9am on intake day.
+  if (body.maxUses !== undefined && body.maxUses !== null) {
+    res.status(400).json({
+      error:
+        'Enrolment links are uncapped by design — the old system\'s cap was hit by a cohort arriving at once. Remove maxUses.',
+    })
+    return
+  }
+
+  // HOW LONG THE LINK LIVES, as data. Absent means it never expires, which is
+  // "leave it up all year". A timestamp is "refresh it each year". Kai has not
+  // settled which the Canolfan wants, so this endpoint supports both and
+  // assumes neither.
+  const linkExpiresAt = body.linkExpiresAt ? new Date(String(body.linkExpiresAt)) : null
+  if (linkExpiresAt && Number.isNaN(linkExpiresAt.getTime())) {
+    res.status(400).json({ error: 'linkExpiresAt must be a date' })
+    return
+  }
+  const rotateLink = body.rotateLink === true
 
   const supabase: SupabaseClient = createClient(supabaseUrl, supabaseServiceKey)
 
@@ -104,6 +148,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     // ── THE ONE LINK ───────────────────────────────────────────────────────
+    //
+    // One active student code per org, ever. `rotateLink` is the year-to-year
+    // refresh: it retires the current one and mints a successor, so there is
+    // still exactly one live link and the old one stops working rather than
+    // quietly running a second cohort alongside the new. Everyone who already
+    // enrolled through the retired code keeps their enrolment — the code is a
+    // door, not the membership.
     const { data: existingCode } = await supabase
       .from('invite_codes')
       .select('id, code')
@@ -112,8 +163,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       .eq('is_active', true)
       .maybeSingle()
 
-    let code = (existingCode as any)?.code as string | undefined
-    let codeId = (existingCode as any)?.id as string | undefined
+    let rotatedFrom: string | null = null
+    if (rotateLink && existingCode) {
+      await supabase.from('invite_codes').update({ is_active: false }).eq('id', (existingCode as any).id)
+      rotatedFrom = (existingCode as any).code
+    }
+
+    let code = rotateLink ? undefined : ((existingCode as any)?.code as string | undefined)
+    let codeId = rotateLink ? undefined : ((existingCode as any)?.id as string | undefined)
     if (!code) {
       const minted = generateCodeForType('student')
       const { data: inserted, error: codeErr } = await supabase
@@ -127,11 +184,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           // re-read above filters on it, and a lookup that depends on a
           // default is a lookup that breaks quietly if the default moves.
           is_active: true,
-          // Uncapped and unexpiring by default: a cohort of thousands arrives
-          // over weeks, and a link that runs out mid-intake is the failure
-          // this whole build exists to avoid.
+          // Uncapped, always. On the old system this cap existed, was reached,
+          // and locked out the tail of a cohort that had all arrived together.
           max_uses: null,
-          expires_at: null,
+          // Unexpiring unless somebody asks for an expiry — data, not a
+          // constant, because "all year" and "a fresh link each year" are both
+          // still on the table.
+          expires_at: linkExpiresAt ? linkExpiresAt.toISOString() : null,
           metadata: { organization_name: orgName, purpose: 'org-enrolment' },
         })
         .select('id, code')
@@ -156,7 +215,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       free_months: Number(body.freeMonths ?? 12),
       warn_days_before: Number(body.warnDaysBefore ?? 21),
       course_family_map: body.courseFamilyMap ?? WELSH_DIALECT_FAMILIES,
-      granted_courses: body.grantedCourses ?? Object.keys(WELSH_DIALECT_FAMILIES),
+      // Exactly the two live Welsh courses, NOT every code in the dialect map —
+      // see WELSH_GRANTED_COURSES on why those two lists are different things.
+      granted_courses: body.grantedCourses ?? WELSH_GRANTED_COURSES,
+      link_expires_at: linkExpiresAt ? linkExpiresAt.toISOString() : null,
       is_active: true,
       updated_at: new Date().toISOString(),
     }
@@ -175,6 +237,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       orgName,
       code,
       codeId,
+      rotatedFrom,
       // The link to hand out. One, and only one.
       signupUrl: `https://saysomethingin.app/enrol/${code}`,
       exportUrl: `/api/org/funder-export?groupId=${groupId}`,

@@ -20,6 +20,21 @@
  * Summing would double-count exactly the most engaged people.
  */
 
+/**
+ * Seconds per learner per course, already summed over the window by the
+ * database — what org_enrolment_window_seconds returns.
+ *
+ * This is the shape a LARGE cohort must be read in. The raw per-day shape
+ * below is still supported and still tested, because it is what the fallback
+ * path produces when the aggregate function is not yet deployed, but a
+ * 10,000-learner cohort must never travel as days.
+ */
+export interface CourseTotal {
+  learner_id: string
+  course_code: string
+  seconds: number
+}
+
 /** One day of one learner's playback, straight off the ledger. */
 export interface LedgerDay {
   learner_id: string
@@ -130,15 +145,46 @@ export function secondsByLearner(
   familyMap: Record<string, string>,
 ): { seconds: Map<string, number>; unmappedCourses: string[] } {
   const baseline = new Map(roster.map((r) => [r.learner_id, r.reporting_from]))
-  // learner -> family -> seconds
-  const byFamily = new Map<string, Map<string, number>>()
-  const unmapped = new Set<string>()
+  const totals = new Map<string, CourseTotal>()
 
   for (const row of ledger) {
     const from = baseline.get(row.learner_id)
     if (from === undefined) continue // not on this roster
     if (row.day < window.from || row.day > window.to) continue
     if (row.day < from) continue // before this learner's own clean break
+    const key = `${row.learner_id}\u0000${row.course_code}`
+    const found = totals.get(key)
+    if (found) found.seconds += Number(row.play_seconds) || 0
+    else totals.set(key, { learner_id: row.learner_id, course_code: row.course_code, seconds: Number(row.play_seconds) || 0 })
+  }
+
+  // The window filter and the per-learner baseline are the only work unique to
+  // the raw path; the dialect rule below is the SAME code the aggregated path
+  // runs, so the two can never disagree about what "the higher of Southern and
+  // Northern" means.
+  return foldCourseTotals([...totals.values()], roster, familyMap)
+}
+
+/**
+ * The higher of the course families, per learner — the one and only copy.
+ *
+ * Both paths end here: the raw per-day path above after it has filtered and
+ * summed, and the aggregated path after the database has done the summing.
+ * A rule implemented twice is a rule that drifts, and this is the rule the
+ * funder's numbers turn on.
+ */
+export function foldCourseTotals(
+  totals: CourseTotal[],
+  roster: EnrolledLearner[],
+  familyMap: Record<string, string>,
+): { seconds: Map<string, number>; unmappedCourses: string[] } {
+  const onRoster = new Set(roster.map((r) => r.learner_id))
+  // learner -> family -> seconds
+  const byFamily = new Map<string, Map<string, number>>()
+  const unmapped = new Set<string>()
+
+  for (const row of totals) {
+    if (!onRoster.has(row.learner_id)) continue
     const family = familyMap[row.course_code]
     if (!family) {
       unmapped.add(row.course_code)
@@ -149,7 +195,7 @@ export function secondsByLearner(
       fams = new Map()
       byFamily.set(row.learner_id, fams)
     }
-    fams.set(family, (fams.get(family) ?? 0) + (Number(row.play_seconds) || 0))
+    fams.set(family, (fams.get(family) ?? 0) + (Number(row.seconds) || 0))
   }
 
   const seconds = new Map<string, number>()
@@ -200,7 +246,29 @@ export function measureWindow(
   familyMap: Record<string, string>,
 ): { result: WindowResult; unmappedCourses: string[] } {
   const registered = rosterAsAt(roster, window)
-  const { seconds, unmappedCourses } = secondsByLearner(ledger, registered, window, familyMap)
+  return measureFolded(secondsByLearner(ledger, registered, window, familyMap), registered, window)
+}
+
+/**
+ * The same measurement, from totals the database already aggregated. This is
+ * the path a real cohort takes.
+ */
+export function measureWindowFromTotals(
+  totals: CourseTotal[],
+  roster: EnrolledLearner[],
+  window: Window,
+  familyMap: Record<string, string>,
+): { result: WindowResult; unmappedCourses: string[] } {
+  const registered = rosterAsAt(roster, window)
+  return measureFolded(foldCourseTotals(totals, registered, familyMap), registered, window)
+}
+
+function measureFolded(
+  folded: { seconds: Map<string, number>; unmappedCourses: string[] },
+  registered: EnrolledLearner[],
+  window: Window,
+): { result: WindowResult; unmappedCourses: string[] } {
+  const { seconds, unmappedCourses } = folded
   return {
     result: {
       window,

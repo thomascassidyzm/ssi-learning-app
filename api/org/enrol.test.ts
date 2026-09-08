@@ -98,9 +98,21 @@ function makeChainable(table: string) {
   return b
 }
 
+/** Records every rpc the endpoint fires, so the counter's atomicity is visible. */
+let RPCS: Array<{ name: string; args: any }>
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
     from: (t: string) => makeChainable(t),
+    rpc: async (name: string, args: any) => {
+      RPCS.push({ name, args })
+      // claim_invite_code_use increments atomically in the live DB; model that.
+      if (name === 'claim_invite_code_use') {
+        const row = (DB.invite_codes ?? []).find((c) => c.id === args.p_id)
+        if (row) row.use_count = (row.use_count ?? 0) + 1
+        return { data: args.p_id, error: null }
+      }
+      return { data: null, error: null }
+    },
     auth: { admin: { getUserById: async () => ({ data: { user: { email: 'new@example.com', user_metadata: {} } } }) } },
   }),
 }))
@@ -122,6 +134,7 @@ beforeEach(async () => {
   vi.resetModules()
   handler = (await import('./enrol')).default
   authUserId = 'auth-1'
+  RPCS = []
   DB = {
     invite_codes: [{ id: 'inv-1', code: 'CYM-001', code_normalized: 'CYM001', code_type: 'student', grants_group_id: 'g-canolfan', is_active: true, expires_at: null, max_uses: null, use_count: 0 }],
     org_enrolment_policies: [{

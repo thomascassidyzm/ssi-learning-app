@@ -29,8 +29,15 @@ type Row = Record<string, any>
 let DB: Record<string, Row[]>
 function makeChainable(table: string) {
   let rows: Row[] = [...(DB[table] ?? [])]
+  let countMode = false
   const b: any = {
-    select() { return b },
+    select(_c?: string, opts?: { count?: string }) { if (opts?.count) countMode = true; return b },
+    range(from: number, to: number) {
+      const total = rows.length
+      rows = rows.slice(from, to + 1)
+      ;(b as any)._total = total
+      return b
+    },
     eq(c: string, v: unknown) { rows = rows.filter((r) => r[c] === v); return b },
     in(c: string, v: unknown[]) { rows = rows.filter((r) => v.includes(r[c])); return b },
     order() { return b },
@@ -44,7 +51,9 @@ function makeChainable(table: string) {
       }
     },
     async maybeSingle() { return { data: rows[0] ?? null, error: null } },
-    then(f: any, r: any) { return Promise.resolve({ data: rows, error: null }).then(f, r) },
+    then(f: any, r: any) {
+      return Promise.resolve({ data: rows, error: null, count: countMode ? ((b as any)._total ?? rows.length) : null }).then(f, r)
+    },
   }
   return b
 }
@@ -82,6 +91,7 @@ describe('the queue', () => {
     await handler({ method: 'GET', query: { groupId: 'g-org' }, headers: {} } as any, res)
     expect(res.statusCode).toBe(200)
     expect(res.body.queue).toHaveLength(1)
+    expect(res.body).toMatchObject({ limit: 100, offset: 0, nextOffset: null })
     expect(res.body.queue[0]).toMatchObject({ enrolmentId: 'e-1', displayName: 'Sian', state: 'needed' })
   })
 
