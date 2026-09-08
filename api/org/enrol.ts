@@ -131,7 +131,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
     const { data: pol } = await svc
       .from('org_enrolment_policies')
-      .select('group_id, org_display_name, consent_statement, consent_version, ask_age_band, age_band_label, free_months, is_active')
+      .select('group_id, org_display_name, consent_statement, consent_version, ask_age_band, age_band_label, free_months, granted_courses, is_active')
       .eq('group_id', (inv as any).grants_group_id)
       .maybeSingle()
     if (!pol || !(pol as any).is_active) {
@@ -146,6 +146,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       askAgeBand: p.ask_age_band,
       ageBandLabel: p.age_band_label,
       freeMonths: p.free_months,
+      // The courses the free year actually unlocks. The page needs them to say
+      // WHICH course is free — "your Welsh course is free" is the sentence a
+      // learner reads, and a policy row is the only place the language lives —
+      // and afterwards to hand them into that course rather than the app's
+      // anonymous-visitor default. Public, and safe to be: it is the same list
+      // the link is advertising, not anybody's entitlement.
+      grantedCourses: p.granted_courses ?? [],
     })
     return
   }
@@ -303,6 +310,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           success: true,
           alreadyEnrolled: true,
           orgName: policy.org_display_name,
+          grantedCourses: policy.granted_courses ?? [],
           freeAccessUntil: sameOrg.free_access_until,
           cancellationNeeded: sameOrg.cancellation_state === 'needed',
         })
@@ -414,6 +422,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         success: true,
         alreadyEnrolled: true,
         orgName: policy.org_display_name,
+        grantedCourses: policy.granted_courses ?? [],
         freeAccessUntil: enrolment.free_access_until,
         cancellationNeeded: enrolment.cancellation_state === 'needed',
       })
@@ -455,6 +464,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       success: true,
       alreadyEnrolled: false,
       orgName: policy.org_display_name,
+      grantedCourses: policy.granted_courses ?? [],
       freeAccessUntil: until,
       cancellationNeeded: paying,
       priorPlanName: paying ? (sub?.plan_name ?? null) : null,

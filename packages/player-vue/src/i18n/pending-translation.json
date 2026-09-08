@@ -24,6 +24,8 @@
     "enrol.errorSendFailed",
     "enrol.errorSubmitFailed",
     "enrol.errorUnknownLink",
+    "enrol.freeBanner",
+    "enrol.freeBannerNamed",
     "enrol.getStarted",
     "enrol.introBody",
     "enrol.introTitle",
