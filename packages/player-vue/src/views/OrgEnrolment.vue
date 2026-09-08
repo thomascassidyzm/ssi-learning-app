@@ -184,6 +184,102 @@ function start(): void {
         <p class="enrol-lede">{{ t('enrol.loading') }}</p>
       </template>
 
+      <template v-else-if="step === 'invalid'">
+        <h1 class="enrol-title">{{ t('enrol.invalidTitle') }}</h1>
+        <p class="enrol-lede">{{ error }}</p>
+      </template>
+
+      <template v-else-if="step === 'intro'">
+        <h1 class="enrol-title">{{ t('enrol.introTitle') }}</h1>
+        <p class="enrol-lede">{{ fill('enrol.introBody', { org: orgName }) }}</p>
+        <button class="enrol-primary" @click="begin">{{ t('enrol.getStarted') }}</button>
+      </template>
+
+      <template v-else-if="step === 'email'">
+        <h1 class="enrol-title">{{ t('enrol.emailTitle') }}</h1>
+        <p class="enrol-lede">{{ t('enrol.emailBody') }}</p>
+        <form class="enrol-form" @submit.prevent="sendCode">
+          <input
+            v-model="email"
+            class="enrol-input"
+            type="email"
+            inputmode="email"
+            autocomplete="email"
+            :placeholder="t('enrol.emailPlaceholder')"
+          />
+          <p v-if="error" class="enrol-error" role="alert">{{ error }}</p>
+          <button type="submit" class="enrol-primary" :disabled="!email.includes('@')">
+            {{ t('enrol.sendCode') }}
+          </button>
+        </form>
+      </template>
+
+      <template v-else-if="step === 'otp'">
+        <h1 class="enrol-title">{{ t('enrol.otpTitle') }}</h1>
+        <p class="enrol-lede">{{ fill('enrol.otpBody', { email }) }}</p>
+        <form class="enrol-form" @submit.prevent="verifyCode">
+          <input
+            v-model="otp"
+            class="enrol-input enrol-input--code"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            maxlength="6"
+            placeholder="123456"
+          />
+          <p v-if="error" class="enrol-error" role="alert">{{ error }}</p>
+          <button type="submit" class="enrol-primary" :disabled="otp.length < 6">
+            {{ t('enrol.continue') }}
+          </button>
+        </form>
+      </template>
+
+      <template v-else-if="step === 'terms' || step === 'submitting'">
+        <h1 class="enrol-title">{{ t('enrol.ticksTitle') }}</h1>
+
+        <label v-if="askAgeBand" class="enrol-tick">
+          <input v-model="ageTicked" type="checkbox" />
+          <span>{{ ageBandLabel }}</span>
+        </label>
+
+        <label class="enrol-tick">
+          <input v-model="consentTicked" type="checkbox" />
+          <span>{{ consentStatement }}</span>
+        </label>
+
+        <p class="enrol-note">{{ t('enrol.consentIsRequired') }}</p>
+
+        <p v-if="error" class="enrol-error" role="alert">{{ error }}</p>
+        <button class="enrol-primary" :disabled="!canEnrol" @click="enrol">
+          {{ step === 'submitting' ? t('enrol.settingUp') : t('enrol.claim') }}
+        </button>
+      </template>
+
+      <template v-else-if="step === 'done'">
+        <h1 class="enrol-title">
+          {{ alreadyEnrolled ? t('enrol.doneTitleAlready') : t('enrol.doneTitle') }}
+        </h1>
+        <p class="enrol-lede">{{ fill('enrol.doneBody', { date: prettyEnd }) }}</p>
+
+        <!--
+          The one thing on this page that costs somebody money if we get it
+          wrong. Said plainly, with the date beside it, and NOT acted on: we
+          do not touch anybody's subscription on their behalf.
+        -->
+        <div v-if="cancellationNeeded" class="enrol-warn">
+          <p>
+            {{ priorPlanName
+              ? fill('enrol.cancelNoticeWithPlan', { plan: priorPlanName })
+              : t('enrol.cancelNotice') }}
+          </p>
+          <p>{{ fill('enrol.cancelHow', { date: prettyEnd }) }}</p>
+        </div>
+
+        <button class="enrol-primary" @click="start">{{ t('enrol.startLearning') }}</button>
+      </template>
+    </div>
+  </div>
+</template>
+
 <style scoped>
 .enrol-page {
   min-height: 100dvh;
