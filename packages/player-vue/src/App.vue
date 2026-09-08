@@ -42,6 +42,9 @@ import { installConsoleDedup } from './utils/consoleDedup'
 // (PWA update available, install prompt eligible, admin flag), so
 // they don't belong on the first-paint critical path.
 const PwaUpdatePrompt = defineAsyncComponent(() => import('./components/PwaUpdatePrompt.vue'))
+// "Was the earlier sign-in you?" — the contest card (job #371). App-level so a
+// code sign-in on any screen is covered; see src/auth/claimAccount.ts.
+const AccountContestPrompt = defineAsyncComponent(() => import('./components/auth/AccountContestPrompt.vue'))
 const InstallBanner = defineAsyncComponent(() => import('./components/InstallBanner.vue'))
 const TesterFeedback = defineAsyncComponent(() => import('./components/TesterFeedback.vue'))
 // Walkthrough overlay — renders nothing until a walk is started by a user tap
@@ -1028,6 +1031,7 @@ onMounted(async () => {
     <AppEscape v-if="showAppEscape" />
     <AppEscape v-else-if="dashboardEscape" :to="dashboardEscape" />
     <PwaUpdatePrompt />
+    <AccountContestPrompt :client="supabaseClient" />
     <InstallBanner />
     <TesterFeedback />
     <WalkOverlay />

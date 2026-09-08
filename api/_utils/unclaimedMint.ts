@@ -82,6 +82,18 @@
  * currently nil.
  */
 
+/*
+ * CONTESTED, NOT PROVENANCE ALONE (job #371, 2026-09-08). The PROVENANCE
+ * section above is kept verbatim because it is the record of a live breakage.
+ * What changed: a schools mint is no longer simply exempt. It is CONTESTABLE —
+ * see CONTESTABLE_MINTS and claimShape below. The sweep on a schools account
+ * fires only when the mailbox owner, having proved the address by code from a
+ * different session, says the earlier sign-in was not them. A teacher on a
+ * second device says "that was me" and keeps everything, which is the #354
+ * property; a real owner at a squatted address says "not me" and the planted
+ * credentials die, which is the Astra property. One rule, both kept.
+ */
+
 /** The `app_metadata` key the marker lives under. Service-role-writable only. */
 export const UNCLAIMED_MINT_KEY = 'unclaimed_mint'
 
@@ -89,20 +101,46 @@ export const UNCLAIMED_MINT_KEY = 'unclaimed_mint'
  *  `password` is deliberately absent — see the header. */
 const POSSESSION_METHODS = new Set(['otp', 'magiclink', 'email', 'emailotp', 'email_otp'])
 
-/** THE MINTING PATHS WHOSE CREDENTIALS MAY BE DESTROYED. See the PROVENANCE
- *  section of the header: revocation exists for the purchase path, where the
- *  password on an unproven address was planted by whoever typed the address.
- *  It must never fire on a schools mint, where the password is the teacher's
- *  own and losing it is a lockout. Anything not named here is NOT revocable —
- *  the set is an allowlist and the default is to leave credentials alone. */
+/** THE MINTING PATHS WHOSE CREDENTIALS MAY BE DESTROYED WITHOUT ASKING. See
+ *  the PROVENANCE section of the header: automatic revocation exists for the
+ *  purchase path, where the password on an unproven address was planted by
+ *  whoever typed the address — a stranger, by construction. Anything not
+ *  named here or in CONTESTABLE_MINTS is NOT revocable — both sets are
+ *  allowlists and the default is to leave credentials alone. */
 const REVOCABLE_MINTS = new Set(['buyer_account'])
 
-/** Was this mint made by a path whose credentials revocation may destroy?
- *  False for a schools mint, and false for an absent or unrecognised
- *  provenance — fail closed, because destroying a real credential is worse
- *  than leaving a squatted purchase account revocable one beat longer. */
+/**
+ * THE MINTING PATHS WHOSE CREDENTIALS MAY BE DESTROYED ONLY WHEN CONTESTED
+ * (job #371, 2026-09-08 — the answer to both job #354 and Astra's claim 1).
+ *
+ * A schools mint carries a password that is USUALLY the teacher's own. Job
+ * #354 proved the server cannot tell "the teacher's own second device signing
+ * in by code" from "the real owner arriving at a squatted account": the two
+ * event sequences are identical — a mint, a password, then a code sign-in from
+ * a different session. Sweeping automatically destroyed real teachers'
+ * passwords; never sweeping left Astra's hole open.
+ *
+ * So the one party who knows is asked. When a session that PROVED the mailbox
+ * arrives at one of these mints from a different session, the shape is `ask`:
+ * the app shows the mailbox owner one card — was the earlier sign-in you? —
+ * and only their explicit `contested: true` fires the sweep. Their "that was
+ * me" retires the marker instead. Either way the account is settled once.
+ */
+const CONTESTABLE_MINTS = new Set(['possession_redeem', 'possession_adopt'])
+
+/** Was this mint made by a path whose credentials revocation may destroy
+ *  WITHOUT asking? False for a schools mint (contestable, never automatic),
+ *  and false for an absent or unrecognised provenance — fail closed, because
+ *  destroying a real credential is worse than leaving a squatted purchase
+ *  account revocable one beat longer. */
 export function mintIsRevocable(mintedBy: string | null | undefined): boolean {
   return typeof mintedBy === 'string' && REVOCABLE_MINTS.has(mintedBy)
+}
+
+/** Was this mint made by a path whose credentials may be destroyed only on
+ *  the mailbox owner's say-so? */
+export function mintIsContestable(mintedBy: string | null | undefined): boolean {
+  return typeof mintedBy === 'string' && CONTESTABLE_MINTS.has(mintedBy)
 }
 
 export interface UnclaimedMint {
@@ -162,28 +200,58 @@ export function provedMailbox(amr: unknown): boolean {
 }
 
 /**
+ * WHAT SHAPE IS THIS SIGN-IN, against this account's marker?
+ *
+ *   'none' — nothing to do: no marker, an unrecognised provenance, the mint's
+ *            own session (the squatter, asking to be let off), or a password
+ *            sign-in (the planted credential, asking to legitimise itself).
+ *   'auto' — a purchase-path mint reached by a DIFFERENT session that proved
+ *            the mailbox: sweep, no questions (job #345).
+ *   'ask'  — a schools mint reached by a DIFFERENT session that proved the
+ *            mailbox: the mailbox owner decides (job #371).
+ *
+ * The three refusals in 'none' are the whole security argument and they are
+ * unchanged from job #345: only receipt of mail, from a session the mint did
+ * not hand out, ever gets past this point.
+ */
+export type ClaimShape = 'none' | 'auto' | 'ask'
+
+export function claimShape(
+  marker: UnclaimedMint | null,
+  callerSessionId: string | null | undefined,
+  callerAmr: unknown,
+): ClaimShape {
+  if (!marker) return 'none'
+  const auto = mintIsRevocable(marker.minted_by)
+  const ask = mintIsContestable(marker.minted_by)
+  // PROVENANCE FIRST. Anything whose provenance we cannot read is 'none' —
+  // fail closed, destroying nothing.
+  if (!auto && !ask) return 'none'
+  if (!callerSessionId) return 'none'
+  if (callerSessionId === marker.session_id) return 'none'
+  if (!provedMailbox(callerAmr)) return 'none'
+  return auto ? 'auto' : 'ask'
+}
+
+/**
  * MAY THIS SESSION CLAIM THIS ACCOUNT?
  *
- * True only when there is a marker FROM A REVOCABLE PATH, this is NOT the
- * session the mint handed out, and this session proved the mailbox. Every
- * other shape — no marker (nothing to claim), a schools mint or an
- * unrecognised provenance (nothing this rule is allowed to destroy), the
- * mint's own session (the squatter, asking to be let off), a password sign-in
- * (the planted credential, asking to legitimise itself) — is false, by
+ * True when the shape is 'auto', or when it is 'ask' AND the mailbox owner has
+ * said `contested` — that is, they have looked at the card and answered that
+ * the earlier sign-in was not them. Without that word a schools mint is never
+ * swept, which is job #354's property, kept. Every other shape is false, by
  * construction.
  */
 export function mayClaim(
   marker: UnclaimedMint | null,
   callerSessionId: string | null | undefined,
   callerAmr: unknown,
+  opts: { contested?: boolean } = {},
 ): boolean {
-  if (!marker) return false
-  // PROVENANCE FIRST. A schools mint carries the teacher's own password and
-  // must never be swept; so must anything whose provenance we cannot read.
-  if (!mintIsRevocable(marker.minted_by)) return false
-  if (!callerSessionId) return false
-  if (callerSessionId === marker.session_id) return false
-  return provedMailbox(callerAmr)
+  const shape = claimShape(marker, callerSessionId, callerAmr)
+  if (shape === 'auto') return true
+  if (shape === 'ask') return opts.contested === true
+  return false
 }
 
 /**

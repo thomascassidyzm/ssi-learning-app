@@ -24,6 +24,90 @@ const supabase = inject<import('vue').Ref<any>>('supabase', ref(null))
 const { currentUser, isSchoolAdmin } = useSchoolContext()
 const { activeSchool, currentSchool, fetchSchools } = useSchoolData()
 
+// WHO YOUR LINKS LET IN (job #371). The school's claimed email domains and
+// the named addresses the admin has let in by hand. An arrival at the
+// school's invite links from one of these is in with one tap; anyone else
+// gets in too but stays marked "unverified" on the Teachers page until they
+// confirm the address. Read and written through /api/school/identity-claims
+// only — the table is service-role-only.
+interface IdentityClaim { id: string; kind: 'domain' | 'address'; value: string; source: string; created_at: string }
+const identityClaims = ref<IdentityClaim[]>([])
+const identityError = ref<string | null>(null)
+const identityBusy = ref(false)
+const newDomain = ref('')
+const newAddress = ref('')
+const claimedDomains = computed(() => identityClaims.value.filter(c => c.kind === 'domain'))
+const allowedAddresses = computed(() => identityClaims.value.filter(c => c.kind === 'address'))
+
+async function identityHeaders(): Promise<Record<string, string> | null> {
+  if (!supabase?.value) return null
+  const { data: { session } } = await supabase.value.auth.getSession()
+  const token = session?.access_token
+  if (!token) return null
+  return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+}
+
+async function loadIdentityClaims() {
+  const headers = await identityHeaders()
+  if (!headers) return
+  const school = activeSchool.value || currentSchool.value
+  const q = school?.id ? `?school_id=${encodeURIComponent(school.id)}` : ''
+  try {
+    const res = await fetch(`/api/school/identity-claims${q}`, { headers })
+    if (!res.ok) return
+    const data = await res.json()
+    identityClaims.value = Array.isArray(data.claims) ? data.claims : []
+  } catch (err) {
+    console.error('Failed to load identity claims:', err)
+  }
+}
+
+async function addIdentityClaim(kind: 'domain' | 'address') {
+  const value = (kind === 'domain' ? newDomain.value : newAddress.value).trim()
+  if (!value || identityBusy.value) return
+  const headers = await identityHeaders()
+  if (!headers) return
+  identityBusy.value = true
+  identityError.value = null
+  try {
+    const school = activeSchool.value || currentSchool.value
+    const res = await fetch('/api/school/identity-claims', {
+      method: 'POST', headers, body: JSON.stringify({ kind, value, school_id: school?.id }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      identityError.value = data.error || t('schools.identity.failed', 'That could not be added.')
+      return
+    }
+    if (kind === 'domain') newDomain.value = ''
+    else newAddress.value = ''
+    await loadIdentityClaims()
+  } catch (err) {
+    identityError.value = t('schools.identity.failed', 'That could not be added.')
+    console.error('Failed to add identity claim:', err)
+  } finally {
+    identityBusy.value = false
+  }
+}
+
+async function removeIdentityClaim(id: string) {
+  const headers = await identityHeaders()
+  if (!headers || identityBusy.value) return
+  identityBusy.value = true
+  identityError.value = null
+  try {
+    const school = activeSchool.value || currentSchool.value
+    const res = await fetch('/api/school/identity-claims', {
+      method: 'DELETE', headers, body: JSON.stringify({ id, school_id: school?.id }),
+    })
+    if (res.ok) await loadIdentityClaims()
+  } catch (err) {
+    console.error('Failed to remove identity claim:', err)
+  } finally {
+    identityBusy.value = false
+  }
+}
+
 // School profile edits + Billing are admin-only (renaming the school and
 // changing paid seats are school_admin actions server-side — see
 // api/school/update-profile.ts / update-seats.ts). A plain teacher gets the
@@ -291,7 +375,9 @@ onMounted(() => {
   language.value = localStorage.getItem('ssi-language') || 'en'
   timezone.value = localStorage.getItem('ssi-timezone') || 'Europe/London'
   loadSubscription()
+  loadIdentityClaims()
 })
+watch([activeSchool, currentSchool], () => { loadIdentityClaims() })
 
 async function saveSchoolProfile() {
   const school = activeSchool.value || currentSchool.value
@@ -456,6 +542,85 @@ function toggleDataItem(id: string) {
             </button>
             <button type="button" class="btn-ghost">{{ t('schools.schoolSettings.cancel', 'Cancel') }}</button>
           </div>
+        </section>
+
+        <section v-if="canEditSchool" class="settings-panel identity-panel">
+          <h2 class="panel-title">{{ t('schools.identity.title', 'Who your links let in') }}</h2>
+          <p class="field-hint">
+            {{ t('schools.identity.intro', 'Anyone who opens your teacher or admin link from one of these email domains or addresses is in with one tap. Others still get in, but show as "Unverified address" on the Teachers page until they confirm their email.') }}
+          </p>
+
+          <div class="identity-group">
+            <span class="field-label">{{ t('schools.identity.domains', 'Your school\'s email domains') }}</span>
+            <ul class="identity-list">
+              <li v-for="c in claimedDomains" :key="c.id" class="identity-row">
+                <span class="identity-value">@{{ c.value }}</span>
+                <!-- HANDBOOK Take a domain or address off your school's list
+                     section: getting-people-in
+                     roles: school_admin
+                     place: settings
+                     keywords: domain, address, remove, allow, links, identity
+                     What it's for. Stopping a domain or a named address from being waved straight in by your invite links.
+                     Where it is. Settings, the **Who your links let in** card, the **Remove** button beside the entry.
+                     How you do it.
+                     1. Open Settings and find **Who your links let in**.
+                     2. Tap **Remove** beside the domain or address.
+                     Worth knowing. Nobody already in your school loses anything. It only changes how the next arrival from that domain or address is treated.
+                     checked: 9d2b1f89.f017f119
+                -->
+                <button type="button" class="btn-text identity-remove" data-walk="settings-identity-remove" :disabled="identityBusy" @click="removeIdentityClaim(c.id)">{{ t('schools.identity.remove', 'Remove') }}</button>
+              </li>
+              <li v-if="!claimedDomains.length" class="identity-empty">{{ t('schools.identity.noDomains', 'No domain claimed yet. Add the part of your school email after the @.') }}</li>
+            </ul>
+            <div class="identity-add">
+              <input v-model="newDomain" type="text" class="field-input" :placeholder="t('schools.identity.domainPlaceholder', 'example.sch.uk')" autocapitalize="none" autocorrect="off" spellcheck="false" @keyup.enter="addIdentityClaim('domain')" />
+              <!-- HANDBOOK Claim another email domain for your school
+                   section: getting-people-in
+                   roles: school_admin
+                   place: settings
+                   keywords: domain, email, claim, trust, links, identity, sch.uk
+                   What it's for. Telling the app which email domains belong to your school, so staff arriving on your invite links from those addresses are in with one tap. Your own domain was claimed when you signed up; add the others if your school uses more than one.
+                   Where it is. Settings, the **Who your links let in** card, the **Add domain** field.
+                   How you do it.
+                   1. Open Settings and find **Who your links let in**.
+                   2. Type the part of the address after the @, such as example.sch.uk.
+                   3. Tap **Add domain**.
+                   Worth knowing. Public providers such as gmail.com or outlook.com cannot be claimed, because they do not identify a school. For a colleague on one of those, add their address by itself instead. Schools in the same trust share each other's domains automatically.
+                   checked: 67cb1738.af5b252f
+              -->
+              <button type="button" class="btn-play" data-walk="settings-identity-add-domain" :disabled="identityBusy || !newDomain.trim()" @click="addIdentityClaim('domain')">{{ t('schools.identity.addDomain', 'Add domain') }}</button>
+            </div>
+          </div>
+
+          <div class="identity-group">
+            <span class="field-label">{{ t('schools.identity.addresses', 'Individual addresses you have let in') }}</span>
+            <ul class="identity-list">
+              <li v-for="c in allowedAddresses" :key="c.id" class="identity-row">
+                <span class="identity-value">{{ c.value }}</span>
+                <button type="button" class="btn-text identity-remove" :disabled="identityBusy" @click="removeIdentityClaim(c.id)">{{ t('schools.identity.remove', 'Remove') }}</button>
+              </li>
+              <li v-if="!allowedAddresses.length" class="identity-empty">{{ t('schools.identity.noAddresses', 'None yet. Use this for supply staff, or a colleague who only has a personal address.') }}</li>
+            </ul>
+            <div class="identity-add">
+              <input v-model="newAddress" type="email" class="field-input" :placeholder="t('schools.identity.addressPlaceholder', 'name@example.com')" autocapitalize="none" autocorrect="off" spellcheck="false" @keyup.enter="addIdentityClaim('address')" />
+              <!-- HANDBOOK Let a named address in through your links
+                   section: getting-people-in
+                   roles: school_admin
+                   place: settings
+                   keywords: supply, personal, address, allow, invite, links, identity, gmail
+                   What it's for. Letting one named person in with one tap when their email is not at your school's domain: a supply teacher here for a fortnight, or a colleague who only uses a personal address.
+                   Where it is. Settings, the **Who your links let in** card, the **Add address** field.
+                   How you do it.
+                   1. Open Settings and find **Who your links let in**.
+                   2. Type their email address exactly as they will use it.
+                   3. Tap **Add address**, then send them your usual teacher link.
+                   Worth knowing. Without this they can still open the link and get in, but they show as **Unverified address** on the Teachers page until they confirm their email. Adding them here first skips that.
+                   checked: b27fdce0.c4b93315
+              -->
+              <button type="button" class="btn-play" data-walk="settings-identity-add-address" :disabled="identityBusy || !newAddress.trim()" @click="addIdentityClaim('address')">{{ t('schools.identity.addAddress', 'Add address') }}</button>
+            </div>
+          </div>
+          <p v-if="identityError" class="field-hint identity-error" role="alert">{{ identityError }}</p>
         </section>
 
         <section v-else-if="activeSection === 'locale'" class="schools-card schools-card-pad panel">
@@ -924,4 +1089,14 @@ function toggleDataItem(id: string) {
     grid-template-columns: 1fr;
   }
 }
+
+.identity-panel .identity-group { margin-top: 14px; }
+.identity-list { list-style: none; margin: 6px 0 8px; padding: 0; }
+.identity-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border-subtle, #e2ded9); }
+.identity-value { font-size: 14px; }
+.identity-empty { font-size: 13px; color: var(--text-secondary, #47556a); padding: 6px 0; }
+.identity-add { display: flex; gap: 8px; align-items: center; }
+.identity-add .field-input { flex: 1; min-width: 0; }
+.identity-error { color: var(--accent-danger, #b3261e); margin-top: 10px; }
+.identity-remove { font-size: 13px; }
 </style>

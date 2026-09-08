@@ -93,6 +93,10 @@ const teachers = computed(() => {
     roleLabel: row.role_in_context === 'admin' ? t('schools.teachers.roleAdmin', 'Admin') : t('schools.teachers.roleTeacher', 'Teacher'),
     status: 'active' as TeacherStatus,
     joined_at: row.joined_at,
+    // An OFF-DOMAIN arrival on the invite link whose address nobody has
+    // vouched for yet (job #371). Shown, never hidden: the admin is the
+    // person who can tell a supply teacher from a stranger.
+    unverified: row.needs_verification === true,
   }))
 })
 
@@ -406,6 +410,11 @@ watch(selectedUser, (newUser) => {
                 <span class="status-dot" />
                 {{ row.status === 'active' ? t('schools.teachers.statusActive', 'Active') : t('schools.teachers.statusPendingInvite', 'Pending invite') }}
               </span>
+              <span
+                v-if="row.unverified"
+                class="unverified-pill"
+                :title="t('schools.teachers.unverifiedHint', 'Joined by the invite link from an address outside your school domain, and has not yet confirmed it. Remove them if you do not recognise them.')"
+              >{{ t('schools.teachers.unverified', 'Unverified address') }}</span>
             </td>
             <td class="cell-action">
               <!-- People-first assignment: the leader is on their staff list,
@@ -789,6 +798,17 @@ watch(selectedUser, (newUser) => {
   color: #7a5418;
 }
 
+.unverified-pill {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--accent-warning-bg, #fff4d6);
+  color: var(--accent-warning-text, #7a5200);
+  cursor: help;
+}
 .status-cell {
   display: inline-flex;
   align-items: center;
