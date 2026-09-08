@@ -14,6 +14,7 @@
 import { ref, computed, inject, type Ref, type ComputedRef } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { resolveSupabase } from './schools/client'
+import { CHECKOUT_COMPLETED_EVENT } from '../lib/checkoutEvents'
 import type {
   Subscription,
   SubscriptionStatus,
@@ -24,6 +25,8 @@ import type {
 // ============================================================================
 // STORAGE KEYS
 // ============================================================================
+
+export { CHECKOUT_COMPLETED_EVENT as CHECKOUT_COMPLETED_EVENT_NAME }
 
 const SUBSCRIPTION_KEY = 'ssi_subscription'
 const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
@@ -75,6 +78,8 @@ export interface UseSubscriptionReturn {
   cancelSubscription: () => Promise<{ ok: boolean; effectiveAt?: string | null; error?: string }>
   /** Refresh subscription from API */
   refresh: () => Promise<void>
+  /** Re-read until the API reports an active subscription (or timeout). */
+  pollUntilActive: (timeoutMs?: number) => Promise<void>
   /** Clear local cache */
   clearCache: () => void
 }
@@ -358,6 +363,7 @@ export function useSubscription(): UseSubscriptionReturn {
     error,
     status,
     initialize,
+    pollUntilActive,
     openPortal,
     cancelSubscription,
     refresh,
@@ -374,6 +380,38 @@ let sharedInstance: ReturnType<typeof useSubscription> | null = null
 export function useSharedSubscription(): UseSubscriptionReturn {
   if (!sharedInstance) {
     sharedInstance = useSubscription()
+    listenForCheckoutCompletion(sharedInstance)
   }
   return sharedInstance
+}
+
+/**
+ * CONVERGE ON THE PURCHASE WITHOUT THE REDIRECT.
+ *
+ * The success redirect (?just_subscribed=1) is the only thing that used to tell
+ * this app somebody had paid, and it is not ours to guarantee: a standalone PWA,
+ * a blocked top-level navigation, an Apple Pay sheet that returns in place, or a
+ * buyer who taps away from the receipt all skip it. When it is skipped the app
+ * keeps its pre-purchase state — subscription null, Settings offering the
+ * Upgrade row — while the money is gone and the webhook has already written the
+ * row. That is what a brand-new account buying SSi Family hit on 2026-09-07.
+ *
+ * Paddle fires checkout.completed in-page regardless. Here we take that as the
+ * cue and poll the same API the boot path polls, so the app catches up within
+ * seconds of the webhook landing, redirect or no redirect. Idempotent: polling
+ * stops the moment the subscription reads active, and a checkout that DID
+ * redirect simply finds it active on the first read.
+ */
+function listenForCheckoutCompletion(instance: UseSubscriptionReturn): void {
+  if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return
+  window.addEventListener(CHECKOUT_COMPLETED_EVENT, () => {
+    // Drop the cached pre-purchase answer first: the 5-minute TTL would
+    // otherwise hand a stale "not subscribed" to the next page load.
+    try {
+      localStorage.removeItem(SUBSCRIPTION_KEY)
+    } catch {
+      // Storage unavailable — the poll below is what actually matters.
+    }
+    void instance.pollUntilActive()
+  })
 }
