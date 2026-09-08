@@ -38,6 +38,11 @@ import { checkCourseAccess, inferPricingTier } from '@ssi/core'
 import { useUserRole } from './composables/useUserRole'
 import { installConsoleDedup } from './utils/consoleDedup'
 import { isEmbedContext } from './platform/embedMode'
+import {
+  rememberCourse,
+  readRememberedCourse,
+  rememberedCourseWasAutoAssigned,
+} from './platform/courseChoice'
 // Async-load the 4 always-mounted overlay components — none of them
 // render anything visible until some internal condition triggers
 // (PWA update available, install prompt eligible, admin flag), so
@@ -262,10 +267,9 @@ const supabaseClient = ref(null)
 // the child's onMounted (which fires first in Vue 3) saw a missing client,
 // getSchoolsClient() threw, the error was swallowed, and GOD mode never
 // surfaced on non-/schools routes.
-// Declared here (rather than beside the course-selection helpers below) so
-// the early bundle warm-up in the block that follows can read it without
-// tripping over the temporal dead zone.
-const LAST_COURSE_KEY = 'ssi-last-course'
+// The remembered-course key and its origin marker live in platform/courseChoice
+// (imported above), so the early bundle warm-up in the block that follows can
+// read them without tripping over the temporal dead zone.
 
 /**
  * Start the bundle download the moment a course can be NAMED — the intent
@@ -359,12 +363,16 @@ if (IS_EMBED) {
     // flight, so `prewarmInstantCaches` and the player's own bootstrap join
     // THIS fetch instead of starting another. A wrong guess costs one unused
     // request, which is why it is gated on the bundle flag.
+    // ...but ONLY for a course the visitor actually pointed at. The
+    // remembered code can also be one the app assigned to them (App.vue's
+    // anonymous fallback), and warming that spent a multi-megabyte guess on
+    // every enrol, redeem, join and try-link visit by somebody on their way
+    // somewhere else entirely (job #596). No known destination, no warm-up.
     try {
-      const remembered =
-        new URLSearchParams(window.location.search).get('course') ||
-        sessionStorage.getItem('ssi-demo-last-course') ||
-        localStorage.getItem(LAST_COURSE_KEY)
-      warmBundleForIntent(remembered)
+      const deepLinked = new URLSearchParams(window.location.search).get('course')
+      const demoCourse = sessionStorage.getItem('ssi-demo-last-course')
+      const remembered = rememberedCourseWasAutoAssigned() ? null : readRememberedCourse().code
+      warmBundleForIntent(deepLinked || demoCourse || remembered)
     } catch {
       /* no storage, no window — the player fetches it later exactly as before */
     }
@@ -487,12 +495,8 @@ const handleCourseSelect = async (course) => {
   // NOW update activeCourse (triggers LearningPlayer remount via :key)
   activeCourse.value = course
 
-  // Persist course selection (localStorage + DB)
-  try {
-    localStorage.setItem(LAST_COURSE_KEY, courseCode)
-  } catch (e) {
-    console.warn('[App] Failed to persist course selection:', e)
-  }
+  // Persist course selection (localStorage + DB). `chosen`: somebody tapped it.
+  rememberCourse(courseCode, 'chosen')
   // Save to DB for cross-device persistence (fire-and-forget)
   if (supabaseClient.value && auth.learner.value?.id) {
     supabaseClient.value
@@ -714,11 +718,22 @@ const fetchEnrolledCourses = async () => {
       }
 
       // Check for saved course preference: DB (cross-device) then localStorage (fallback)
+      // `savedOrigin` travels with it: the DB preference and the demo session
+      // are only ever written by an explicit switch, but localStorage also
+      // holds courses THIS code assigned, and the two must not read alike.
       let savedCourseCode = auth.learner.value?.preferences?.last_course_code || null
+      let savedOrigin = savedCourseCode ? 'chosen' : null
       if (!savedCourseCode) {
         try {
           // Check demo session first, then persistent localStorage
-          savedCourseCode = sessionStorage.getItem('ssi-demo-last-course') || localStorage.getItem(LAST_COURSE_KEY)
+          savedCourseCode = sessionStorage.getItem('ssi-demo-last-course')
+          if (savedCourseCode) {
+            savedOrigin = 'chosen'
+          } else {
+            const remembered = readRememberedCourse()
+            savedCourseCode = remembered.code
+            savedOrigin = remembered.origin
+          }
         } catch (e) {
           console.warn('[App] Failed to read saved course:', e)
         }
@@ -726,6 +741,11 @@ const fetchEnrolledCourses = async () => {
 
       // Priority: 1) URL param, 2) DB/localStorage, 3) first available
       let defaultCourse = null
+      // How the course we end up on was arrived at — 'chosen' when the learner
+      // pointed at it, 'default' when we picked for them, null when a legacy
+      // stored value predates the marker. Written down beside the code, and
+      // read by the prewarm gate below.
+      let selectionOrigin = null
 
       // First try URL param — must pass the same entitlement gate as a
       // click, otherwise visiting /?course=<premium_code> bypasses the
@@ -734,11 +754,9 @@ const fetchEnrolledCourses = async () => {
         const requested = data.find(c => c.course_code === urlCourseCode)
         if (requested && canAccessCourse(requested)) {
           defaultCourse = requested
-          try {
-            localStorage.setItem(LAST_COURSE_KEY, urlCourseCode)
-          } catch (e) {
-            // ignore
-          }
+          // A `?course=` link IS the visitor naming their destination.
+          selectionOrigin = 'chosen'
+          rememberCourse(urlCourseCode, 'chosen')
         }
         // If the URL-requested course is locked, fall through to the other
         // resolution paths — leave defaultCourse null here. We can't push
@@ -750,6 +768,10 @@ const fetchEnrolledCourses = async () => {
         const saved = data.find(c => c.course_code === savedCourseCode)
         if (saved && canAccessCourse(saved)) {
           defaultCourse = saved
+          // Carry the stored origin forward rather than laundering it into a
+          // choice: a course we assigned on visit one is still not a choice on
+          // visit two, however many times it is read back.
+          selectionOrigin = savedOrigin
         }
       }
       // Fall back to the first course the user can actually access. If
@@ -765,6 +787,7 @@ const fetchEnrolledCourses = async () => {
           data.find(c => c.course_code === PREFERRED_DEFAULT && canAccessCourse(c)) ||
           data.find(c => canAccessCourse(c)) || null
         noPriorCourseSelection.value = true
+        selectionOrigin = 'default'
       }
 
       if (defaultCourse && !activeCourse.value) {
@@ -780,24 +803,28 @@ const fetchEnrolledCourses = async () => {
           audioBaseUrl: config.s3.audioBaseUrl,
           courseId: defaultCourse.course_code,
         })
-        // Remember this course for next visit
-        try {
-          localStorage.setItem(LAST_COURSE_KEY, defaultCourse.course_code)
-        } catch (e) {
-          // Ignore localStorage errors
-        }
-        console.log('[App] Course:', defaultCourse.course_code)
+        // Remember this course for next visit — WITH how we got to it, so an
+        // auto-assigned default never reads back as a learner's preference.
+        // A legacy stored value with no origin is left exactly as it is:
+        // re-stamping it would be inventing a fact about the past.
+        if (selectionOrigin) rememberCourse(defaultCourse.course_code, selectionOrigin)
+        console.log('[App] Course:', defaultCourse.course_code, `(${selectionOrigin || 'origin unknown'})`)
 
         // Keep the warm-start cache honest before the player mounts. The full
         // walk itself is LearningPlayer's deferred handoff — not fired here.
         checkCourseContentVersion(supabaseClient.value, defaultCourse.course_code)
 
-        // Warm the instant-playback caches for the auto-selected default course
-        // too — previously only handleCourseSelect (an explicit switch) did this,
-        // so a fresh visitor's very first boot always paid the cold round-map +
-        // first-cycles round-trips instead of hitting the prewarmed cache.
+        // Warm the instant-playback caches for a course the learner is
+        // actually headed to — a `?course=` link, a class, a remembered
+        // choice. NOT for one we assigned ourselves: that spent a round-map
+        // and first-cycles round trip of the default course's audio on every
+        // enrol, redeem, join and try-link visit by somebody here for
+        // something else (job #596). The visitor who does then stay on the
+        // default pays a cold first play, which is the right person to charge.
         // Fire-and-forget; mirrors the handleCourseSelect wiring above.
-        void prewarmInstantCaches(defaultCourse.course_code)
+        if (selectionOrigin !== 'default') {
+          void prewarmInstantCaches(defaultCourse.course_code)
+        }
       }
     }
   } catch (err) {
