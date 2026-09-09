@@ -20,6 +20,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { resolveClassCourseCoverage } from './classCoverage'
 import { resolveOrgCourseCoverage } from './orgCoverage'
+import { resolveSchoolStaffCourseCoverage } from './schoolCoverage'
 
 export interface ResolvedEntitlement {
   id: string
@@ -39,6 +40,9 @@ export interface ResolvedEntitlement {
  * Layer 3 — class coverage: the course of a class you are in, as student or
  *           teacher, while that class's school has live platform coverage.
  * Layer 4 — org coverage: every live course while your org has coverage.
+ * Layer 5 — school-staff coverage: the courses YOUR SCHOOL has cover for,
+ *           because you are its admin or one of its teachers, whether or not
+ *           you hold a class (founder ruling 2026-09-09).
  */
 export async function resolveActiveEntitlements(
   supabase: SupabaseClient,
@@ -80,6 +84,13 @@ export async function resolveActiveEntitlements(
     console.error('[resolveEntitlements] Org-coverage error (non-fatal):', orgCoverageErr)
   }
 
+  try {
+    const staffCourses = await resolveSchoolStaffCourseCoverage(supabase, authUid)
+    if (staffCourses.length > 0) active.push(derived('school-membership', staffCourses))
+  } catch (schoolCoverageErr) {
+    console.error('[resolveEntitlements] School-staff-coverage error (non-fatal):', schoolCoverageErr)
+  }
+
   return active
 }
 
@@ -97,5 +108,7 @@ function derived(id: string, courses: string[]): ResolvedEntitlement {
 
 /** True for the synthetic ids above — the rows an admin cannot revoke. */
 export function isDerivedEntitlementId(id: string): boolean {
-  return id === 'cascade' || id === 'class-coverage' || id === 'org-coverage'
+  return (
+    id === 'cascade' || id === 'class-coverage' || id === 'org-coverage' || id === 'school-membership'
+  )
 }
