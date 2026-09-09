@@ -25,7 +25,16 @@
  *
  * Auth + service-role read mirror api/subscription/index.ts + api/entitlement/
  * user.ts. Reuses the EXISTING subscription/entitlement state — no parallel
- * source of truth.
+ * source of truth: what may be DOWNLOADED is resolved by the same
+ * `resolveActiveEntitlements` that decides what may be PLAYED, so the two
+ * surfaces cannot answer differently about one account (job #794).
+ *
+ * THE WINDOW. A lease may never outlive the cover that granted it. Derived
+ * coverage carries the SCHOOL'S or the ORG'S own expiry, not one minted per
+ * person, and `entExpiryFor` clamps the +30d slide to it — so a download taken
+ * on the last day of a school trial locks when that trial ends, not a month
+ * later. A blanket holder (subscription / `full` entitlement / admin) is
+ * open-ended and unclamped, exactly as before.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -33,6 +42,7 @@ import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { applyCors } from '../_utils/cors'
 import { resolveEffectiveSubscription } from '../_utils/familyAccess'
+import { resolveActiveEntitlements } from '../_utils/resolveEntitlements'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -148,40 +158,36 @@ export default async function handler(
       (!subscription.current_period_end ||
         new Date(subscription.current_period_end).getTime() > serverNow)
 
-    // Active (non-expired) entitlements — full + course-scoped, + group/school/
-    // class cascade (same source as api/entitlement/user.ts).
+    // Active entitlements — resolved by api/_utils/resolveEntitlements.ts, the
+    // ONE resolver the player and the admin view already use. Read row by row
+    // here and this endpoint asks a DIFFERENT question about the same account
+    // from the one PLAY asks: it saw stored rows and the cascade RPC only, so a
+    // teacher or student whose access is DERIVED — class coverage, org
+    // coverage, school-staff coverage — could play a course and not download it
+    // (job #794, the same shape as the founder report of 2026-09-09).
     const entitledCourseExpiry = new Map<string, number | null>()
     let hasFullEntitlement = false
 
-    const { data: entitlements } = await supabase
-      .from('user_entitlements')
-      .select('access_type, granted_courses, expires_at')
-      .eq('learner_id', learner.id)
+    const resolved = await resolveActiveEntitlements(supabase, userId, learner.id)
 
-    for (const e of entitlements || []) {
+    for (const e of resolved) {
+      // The resolver has already dropped expired stored rows and every derived
+      // layer is recomputed live, so anything here is active NOW. What the
+      // expiry still tells us is the BOUNDARY the lease must not cross.
       const expMs = e.expires_at ? new Date(e.expires_at).getTime() : null
-      if (expMs != null && expMs <= serverNow) continue // expired
+      if (expMs != null && expMs <= serverNow) continue
       if (e.access_type === 'full') {
         hasFullEntitlement = true
       } else if (e.access_type === 'courses' && Array.isArray(e.granted_courses)) {
         for (const code of e.granted_courses) {
-          // Keep the LATEST (max) expiry if a course is granted more than once.
+          // Keep the LATEST (max) expiry if a course is granted more than once:
+          // an open-ended grant (null) beats any date, and the later of two
+          // dates wins. Whoever grants the course for longest decides.
           const prev = entitledCourseExpiry.get(code)
           if (!entitledCourseExpiry.has(code)) entitledCourseExpiry.set(code, expMs)
           else if (prev != null && (expMs == null || expMs > prev)) entitledCourseExpiry.set(code, expMs)
         }
       }
-    }
-
-    try {
-      const { data: cascadeCourses } = await supabase.rpc('get_cascade_courses', {
-        p_user_id: userId,
-      })
-      for (const code of cascadeCourses || []) {
-        if (!entitledCourseExpiry.has(code)) entitledCourseExpiry.set(code, null) // open-ended
-      }
-    } catch (cascadeErr) {
-      console.error('[offline-lease] Cascade error (non-fatal):', cascadeErr)
     }
 
     const blanket = isPrivileged || subActive || hasFullEntitlement

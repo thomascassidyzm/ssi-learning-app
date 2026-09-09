@@ -61,7 +61,7 @@ describe('resolveOrgCourseCoverage', () => {
     DB.groups.push({ id: 'org-1', parent_id: null, platform_status: 'trial', platform_expires_at: FUTURE })
     tagUserToGroup('org-1')
 
-    const courses = await resolveOrgCourseCoverage(svc, 'auth-uid-1')
+    const { courses } = await resolveOrgCourseCoverage(svc, 'auth-uid-1')
 
     // "Covering ALL languages" — but only the catalogue the paid-grant
     // expansion also uses; a not_available course is not a language on sale.
@@ -72,7 +72,7 @@ describe('resolveOrgCourseCoverage', () => {
     DB.groups.push({ id: 'org-1', parent_id: null, platform_status: 'active', platform_expires_at: FUTURE })
     tagUserToGroup('org-1')
 
-    expect((await resolveOrgCourseCoverage(svc, 'auth-uid-1')).sort()).toEqual([
+    expect((await resolveOrgCourseCoverage(svc, 'auth-uid-1')).courses.sort()).toEqual([
       'cym_for_eng', 'spa_for_eng',
     ])
   })
@@ -81,14 +81,14 @@ describe('resolveOrgCourseCoverage', () => {
     DB.groups.push({ id: 'org-1', parent_id: null, platform_status: 'trial', platform_expires_at: PAST })
     tagUserToGroup('org-1')
 
-    expect(await resolveOrgCourseCoverage(svc, 'auth-uid-1')).toEqual([])
+    expect((await resolveOrgCourseCoverage(svc, 'auth-uid-1')).courses).toEqual([])
   })
 
   it.each(['expired', 'cancelled', 'past_due'])('grants nothing when the org is %s', async (status) => {
     DB.groups.push({ id: 'org-1', parent_id: null, platform_status: status, platform_expires_at: FUTURE })
     tagUserToGroup('org-1')
 
-    expect(await resolveOrgCourseCoverage(svc, 'auth-uid-1')).toEqual([])
+    expect((await resolveOrgCourseCoverage(svc, 'auth-uid-1')).courses).toEqual([])
   })
 
   it('inherits coverage from the parent org for a member of a clock-less sub-group', async () => {
@@ -100,7 +100,7 @@ describe('resolveOrgCourseCoverage', () => {
     )
     tagUserToGroup('sub-1')
 
-    expect((await resolveOrgCourseCoverage(svc, 'auth-uid-1')).sort()).toEqual([
+    expect((await resolveOrgCourseCoverage(svc, 'auth-uid-1')).courses.sort()).toEqual([
       'cym_for_eng', 'spa_for_eng',
     ])
   })
@@ -112,7 +112,7 @@ describe('resolveOrgCourseCoverage', () => {
     )
     tagUserToGroup('sub-1')
 
-    expect(await resolveOrgCourseCoverage(svc, 'auth-uid-1')).toEqual([])
+    expect((await resolveOrgCourseCoverage(svc, 'auth-uid-1')).courses).toEqual([])
   })
 
   it('answers from the NEAREST ancestor that has a clock, not the root', async () => {
@@ -125,7 +125,7 @@ describe('resolveOrgCourseCoverage', () => {
     )
     tagUserToGroup('sub-1')
 
-    expect(await resolveOrgCourseCoverage(svc, 'auth-uid-1')).toEqual([])
+    expect((await resolveOrgCourseCoverage(svc, 'auth-uid-1')).courses).toEqual([])
   })
 
   it('covers a member who is live in ANY one of several orgs', async () => {
@@ -136,7 +136,7 @@ describe('resolveOrgCourseCoverage', () => {
     tagUserToGroup('org-dead')
     tagUserToGroup('org-live')
 
-    expect((await resolveOrgCourseCoverage(svc, 'auth-uid-1')).sort()).toEqual([
+    expect((await resolveOrgCourseCoverage(svc, 'auth-uid-1')).courses.sort()).toEqual([
       'cym_for_eng', 'spa_for_eng',
     ])
   })
@@ -144,7 +144,7 @@ describe('resolveOrgCourseCoverage', () => {
   it('grants nothing to a user with no org affiliation', async () => {
     DB.groups.push({ id: 'org-1', parent_id: null, platform_status: 'active', platform_expires_at: FUTURE })
 
-    expect(await resolveOrgCourseCoverage(svc, 'auth-uid-1')).toEqual([])
+    expect((await resolveOrgCourseCoverage(svc, 'auth-uid-1')).courses).toEqual([])
   })
 
   it('ignores a removed affiliation', async () => {
@@ -153,14 +153,14 @@ describe('resolveOrgCourseCoverage', () => {
       user_id: 'auth-uid-1', tag_type: 'group', tag_value: 'GROUP:org-1', removed_at: PAST,
     })
 
-    expect(await resolveOrgCourseCoverage(svc, 'auth-uid-1')).toEqual([])
+    expect((await resolveOrgCourseCoverage(svc, 'auth-uid-1')).courses).toEqual([])
   })
 
   it('ignores another user’s affiliation', async () => {
     DB.groups.push({ id: 'org-1', parent_id: null, platform_status: 'active', platform_expires_at: FUTURE })
     tagUserToGroup('org-1', 'someone-else')
 
-    expect(await resolveOrgCourseCoverage(svc, 'auth-uid-1')).toEqual([])
+    expect((await resolveOrgCourseCoverage(svc, 'auth-uid-1')).courses).toEqual([])
   })
 
   it('terminates on a cyclic parent_id instead of hanging', async () => {
@@ -170,6 +170,6 @@ describe('resolveOrgCourseCoverage', () => {
     )
     tagUserToGroup('a')
 
-    expect(await resolveOrgCourseCoverage(svc, 'auth-uid-1')).toEqual([])
+    expect((await resolveOrgCourseCoverage(svc, 'auth-uid-1')).courses).toEqual([])
   })
 })

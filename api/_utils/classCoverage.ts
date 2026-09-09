@@ -18,9 +18,29 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { isPlatformActive } from './platformStatus'
 import { chunk } from './schoolScope'
 
+export interface ClassCoverage {
+  courses: string[]
+  /**
+   * The covering school's own `platform_expires_at` — never a window minted
+   * for this person. Where several classes contribute, this is the EARLIEST
+   * boundary among the schools that actually contributed a course: the next
+   * moment at which this answer changes.
+   *
+   * Null means no contributing school records an expiry at all (the bare
+   * `platform_status` DEFAULT that isPlatformActive fails open on).
+   *
+   * Added 2026-09-09 for the offline lease: online play recomputes this every
+   * check, so an open-ended answer costs nothing there, but a DOWNLOAD is
+   * carried away from the check and must not outlive the cover that granted
+   * it. Same convention as schoolCoverage.ts's SchoolStaffCoverage.
+   */
+  expiresAt: string | null
+}
+
 /**
  * Resolve the course codes a class member is entitled to via live class
- * affiliation. `authUid` MUST come from a verified JWT.
+ * affiliation, and the window that cover runs to. `authUid` MUST come from a
+ * verified JWT.
  *
  * For every class the caller is tagged into as a student OR AS ITS TEACHER
  * (user_tags: tag_type='class', role_in_context in ('student','teacher')),
@@ -30,10 +50,12 @@ import { chunk } from './schoolScope'
  * fails open only on the same axis api/school/subscription.ts does (a null/
  * absent platform_status on a resolvable school), never on a missing school.
  */
+const NOTHING: ClassCoverage = { courses: [], expiresAt: null }
+
 export async function resolveClassCourseCoverage(
   svc: SupabaseClient,
   authUid: string,
-): Promise<string[]> {
+): Promise<ClassCoverage> {
   const { data: tags } = await svc
     .from('user_tags')
     .select('tag_value')
@@ -49,7 +71,7 @@ export async function resolveClassCourseCoverage(
         .filter((id: string | null): id is string => !!id),
     ),
   ]
-  if (classIds.length === 0) return []
+  if (classIds.length === 0) return NOTHING
 
   const classRows: { id: string; school_id: string | null; course_code: string | null }[] = []
   for (const batch of chunk(classIds)) {
@@ -58,7 +80,7 @@ export async function resolveClassCourseCoverage(
   }
 
   const schoolIds = [...new Set(classRows.map((c) => c.school_id).filter((id): id is string => !!id))]
-  if (schoolIds.length === 0) return []
+  if (schoolIds.length === 0) return NOTHING
 
   const schoolStatus = new Map<string, { platform_status: string | null; platform_expires_at: string | null }>()
   for (const batch of chunk(schoolIds)) {
@@ -67,13 +89,18 @@ export async function resolveClassCourseCoverage(
   }
 
   const courses = new Set<string>()
+  // Only a school that actually CONTRIBUTES a course gets a say in the window.
+  let expiresAt: string | null = null
   for (const c of classRows) {
     if (!c.school_id || !c.course_code) continue
     const school = schoolStatus.get(c.school_id)
     if (!school) continue
     if (isPlatformActive(school.platform_status, school.platform_expires_at)) {
       courses.add(c.course_code)
+      const exp = school.platform_expires_at
+      if (exp && (!expiresAt || new Date(exp) < new Date(expiresAt))) expiresAt = exp
     }
   }
-  return [...courses]
+  if (courses.size === 0) return NOTHING
+  return { courses: [...courses], expiresAt }
 }
