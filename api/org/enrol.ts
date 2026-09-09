@@ -15,7 +15,11 @@
  *      replay lands on the existing row instead of creating a twin.
  *   5. tags group membership by the same rule api/code/redeem.ts uses.
  *   6. grants the free period as a per-learner user_entitlements row, so each
- *      person's year runs from THEIR enrolment date.
+ *      person's year runs from THEIR enrolment date. This one is NOT
+ *      swallowed: a failed grant fails the request rather than reporting
+ *      success on a lie, and every replay path heals a missing grant on its
+ *      way past. See THE FREE PERIOD below.
+ *      api/cron/org-entitlement-reconcile.ts is the daily backstop.
  *   7. records — and only records — whether they hold a paying subscription
  *      that will need cancelling.
  *
@@ -43,6 +47,7 @@ import { verifyAuthToken } from '../_utils/auth'
 import { affiliateToGroupNode } from '../_utils/groupAffiliation'
 import { getClientIp, hashIp, isIpOverLimit, logAttempt, REDEEM_PER_IP_LIMIT } from '../_utils/codeAttemptThrottle'
 import { canonicalEmail } from '../_utils/identity/emailCanon'
+import { ensureOrgEntitlement } from '../_utils/orgEntitlementGrant'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -313,6 +318,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         // Already in. Idempotent, and deliberately NOT an error: a refresh, a
         // back button, or somebody clicking the link again next week all land
         // here and are shown the enrolment they already have.
+        //
+        // HEAL ON THE WAY PAST. THE FAILURE THIS EXISTS TO PREVENT: a learner
+        // whose entitlement write failed the first time used to come back
+        // here, be told cheerfully that they were already enrolled, and leave
+        // with nothing — this branch returned long before the free period was
+        // ever written again. Coming back is exactly what a locked-out person
+        // does, so it is the right place to put the repair. It is a
+        // read-then-write, so five refreshes still leave exactly one grant,
+        // and it uses the ENROLMENT'S OWN free_access_until, never a fresh
+        // date, so a retry cannot silently extend the year.
+        const healed = await ensureOrgEntitlement(
+          supabase,
+          learnerId,
+          sameOrg.group_id,
+          policy.granted_courses ?? [],
+          sameOrg.free_access_until,
+        )
+        if (healed.status === 'failed') {
+          console.error('[org/enrol] entitlement heal failed for learner', learnerId, healed.error)
+          res.status(500).json({ error: 'Internal server error' })
+          return
+        }
+        if (healed.status === 'granted') {
+          console.warn('[org/enrol] healed a missing entitlement on replay for learner', learnerId)
+        }
         res.status(200).json({
           success: true,
           alreadyEnrolled: true,
@@ -425,6 +455,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         res.status(500).json({ error: 'Internal server error' })
         return
       }
+      // The other early return that must not skip the free period. The loser
+      // of the race is answered from the winner's row — and the winner may
+      // still be mid-flight, or may have failed its own entitlement write, so
+      // this path grants too rather than assuming somebody else did.
+      const healedRace = await ensureOrgEntitlement(
+        supabase,
+        learnerId,
+        invite.grants_group_id as string,
+        policy.granted_courses ?? [],
+        enrolment.free_access_until,
+      )
+      if (healedRace.status === 'failed') {
+        console.error('[org/enrol] entitlement write failed on race replay for learner', learnerId, healedRace.error)
+        res.status(500).json({ error: 'Internal server error' })
+        return
+      }
       res.status(200).json({
         success: true,
         alreadyEnrolled: true,
@@ -446,14 +492,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     // ── The free period ────────────────────────────────────────────────────
-    if (policy.granted_courses?.length) {
-      const { error: entErr } = await supabase.from('user_entitlements').insert({
-        learner_id: learnerId,
-        access_type: 'courses',
-        granted_courses: policy.granted_courses,
-        expires_at: until,
-      })
-      if (entErr) console.error('[org/enrol] entitlement insert failed (non-fatal):', entErr)
+    //
+    // THE FAILURE THIS EXISTS TO PREVENT. This write used to be swallowed as
+    // non-fatal, and the response below then told the learner their free year
+    // ran to a specific date while they held no entitlement at all. Nothing
+    // downstream noticed: api/_utils/orgFreeAccess.ts reads the intersection
+    // of policy and entitlement, so an empty one just sells them a course
+    // their funder had already paid for.
+    //
+    // So it FAILS THE REQUEST instead of reporting success on a lie. Not a
+    // rollback: the org_enrolments row stays, because deleting it would lose
+    // the consent record and the reporting date, which is a worse loss than a
+    // retry. The learner sees an honest error, retries, and the sameOrg branch
+    // above heals them. If they never retry, the daily reconcile cron does —
+    // api/cron/org-entitlement-reconcile.ts.
+    const grant = await ensureOrgEntitlement(
+      supabase,
+      learnerId,
+      invite.grants_group_id as string,
+      policy.granted_courses ?? [],
+      until,
+    )
+    if (grant.status === 'failed') {
+      console.error('[org/enrol] entitlement insert failed — refusing to report success:', grant.error)
+      res.status(500).json({ error: 'Internal server error' })
+      return
     }
 
     // Count the use — for information only, never as a gate (see NO CAP
