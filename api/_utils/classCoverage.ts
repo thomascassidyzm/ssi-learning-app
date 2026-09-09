@@ -82,9 +82,15 @@ export async function resolveClassCourseCoverage(
   const schoolIds = [...new Set(classRows.map((c) => c.school_id).filter((id): id is string => !!id))]
   if (schoolIds.length === 0) return NOTHING
 
-  const schoolStatus = new Map<string, { platform_status: string | null; platform_expires_at: string | null }>()
+  const schoolStatus = new Map<
+    string,
+    { platform_status: string | null; platform_expires_at: string | null; created_at: string | null }
+  >()
   for (const batch of chunk(schoolIds)) {
-    const { data } = await svc.from('schools').select('id, platform_status, platform_expires_at').in('id', batch)
+    const { data } = await svc
+      .from('schools')
+      .select('id, platform_status, platform_expires_at, created_at')
+      .in('id', batch)
     for (const s of data ?? []) schoolStatus.set((s as any).id, s as any)
   }
 
@@ -95,7 +101,7 @@ export async function resolveClassCourseCoverage(
     if (!c.school_id || !c.course_code) continue
     const school = schoolStatus.get(c.school_id)
     if (!school) continue
-    if (isPlatformActive(school.platform_status, school.platform_expires_at)) {
+    if (isPlatformActive(school.platform_status, school.platform_expires_at, school.created_at)) {
       courses.add(c.course_code)
       const exp = school.platform_expires_at
       if (exp && (!expiresAt || new Date(exp) < new Date(expiresAt))) expiresAt = exp

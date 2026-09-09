@@ -28,6 +28,9 @@ vi.mock('@/composables/useAdminClient', () => ({
   useAdminClient: () => ({ getAuthToken: async () => 'test-token' }),
 }))
 
+// A trialling school has a real window. A trial with NO end date is the
+// separate, deliberately-visible state tested at the bottom of this file.
+const TRIAL_ENDS = new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString()
 const ROLLUP = { childGroupCount: 1, teacherCount: 2, classCount: 1, learnerCount: 80 }
 
 function nodePayload(overrides: Record<string, any> = {}) {
@@ -37,7 +40,7 @@ function nodePayload(overrides: Record<string, any> = {}) {
     ancestors: [{ id: 'nation', name: 'India', label: 'nation', hasSchool: false }],
     siblings: [{ id: 'programme-2', name: 'Other Programme', label: 'programme', hasSchool: false }],
     children: [
-      { id: 'school-node', name: 'Sunrise Public School', label: 'school', hasSchool: true, is_demo: true, rollup: { childGroupCount: 0, teacherCount: 3, classCount: 4, learnerCount: 42 }, commercial: { schoolId: 'school-1', platformStatus: 'trial', trialCourseCode: 'hin_for_eng' } },
+      { id: 'school-node', name: 'Sunrise Public School', label: 'school', hasSchool: true, is_demo: true, rollup: { childGroupCount: 0, teacherCount: 3, classCount: 4, learnerCount: 42 }, commercial: { schoolId: 'school-1', platformStatus: 'trial', trialCourseCode: 'hin_for_eng', platformExpiresAt: TRIAL_ENDS } },
     ],
     practiceHours: 266.4,
     tree: {
@@ -258,7 +261,7 @@ describe('NodeHomeView — one grammar at every level', () => {
   it('school level: same page, trial state named in the header', async () => {
     routeMock.params = { id: 'school-1' }
     setupFetch(nodePayload({
-      node: { id: 'school-node', name: 'Sunrise Public School', label: 'school', is_demo: false, hasSchool: true, rollup: ROLLUP, commercial: { schoolId: 'school-1', platformStatus: 'trial', trialCourseCode: 'hin_for_eng' } },
+      node: { id: 'school-node', name: 'Sunrise Public School', label: 'school', is_demo: false, hasSchool: true, rollup: ROLLUP, commercial: { schoolId: 'school-1', platformStatus: 'trial', trialCourseCode: 'hin_for_eng', platformExpiresAt: TRIAL_ENDS } },
       children: [],
     }))
     const wrapper = mountView()
@@ -276,7 +279,7 @@ describe('NodeHomeView — one grammar at every level', () => {
   it('school level: a dialect-variant course names its variant in the badge', async () => {
     routeMock.params = { id: 'school-1' }
     setupFetch(nodePayload({
-      node: { id: 'school-node', name: 'Ysgol Cas-gwent Chepstow School', label: 'school', is_demo: false, hasSchool: true, rollup: ROLLUP, commercial: { schoolId: 'school-1', platformStatus: 'trial', trialCourseCode: 'cym_s_for_eng' } },
+      node: { id: 'school-node', name: 'Ysgol Cas-gwent Chepstow School', label: 'school', is_demo: false, hasSchool: true, rollup: ROLLUP, commercial: { schoolId: 'school-1', platformStatus: 'trial', trialCourseCode: 'cym_s_for_eng', platformExpiresAt: TRIAL_ENDS } },
       children: [],
     }))
     const wrapper = mountView()
@@ -288,13 +291,54 @@ describe('NodeHomeView — one grammar at every level', () => {
   it('school level: a trial with no language chosen yet reads a bare "Trial"', async () => {
     routeMock.params = { id: 'school-1' }
     setupFetch(nodePayload({
-      node: { id: 'school-node', name: 'A New School', label: 'school', is_demo: false, hasSchool: true, rollup: ROLLUP, commercial: { schoolId: 'school-1', platformStatus: 'trial', trialCourseCode: null } },
+      node: { id: 'school-node', name: 'A New School', label: 'school', is_demo: false, hasSchool: true, rollup: ROLLUP, commercial: { schoolId: 'school-1', platformStatus: 'trial', trialCourseCode: null, platformExpiresAt: TRIAL_ENDS } },
       children: [],
     }))
     const wrapper = mountView()
     await flushPromises()
     expect(wrapper.text()).toContain('Trial')
     expect(wrapper.text()).not.toContain('Trial —')
+  })
+
+  // A TRIAL WITH NO END DATE MUST NOT MEAN FOREVER (Tom, 2026-09-09). Such a
+  // school is INACTIVE to its own members, so the operator's own screen must
+  // say that — the old badge read a comfortable "Trial" over three production
+  // schools nobody could see were broken.
+  it('school level: a trial with NO end date, past its grace, says so', async () => {
+    routeMock.params = { id: 'school-1' }
+    setupFetch(nodePayload({
+      node: {
+        id: 'school-node', name: 'My school', label: 'school', is_demo: false, hasSchool: true, rollup: ROLLUP,
+        commercial: {
+          schoolId: 'school-1', platformStatus: 'trial', trialCourseCode: null,
+          platformExpiresAt: null,
+          createdAt: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+      },
+      children: [],
+    }))
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.text()).toContain('No end date — inactive')
+  })
+
+  it('school level: a brand-new unstamped school still reads "Trial" inside its grace', async () => {
+    routeMock.params = { id: 'school-1' }
+    setupFetch(nodePayload({
+      node: {
+        id: 'school-node', name: 'My school', label: 'school', is_demo: false, hasSchool: true, rollup: ROLLUP,
+        commercial: {
+          schoolId: 'school-1', platformStatus: 'trial', trialCourseCode: null,
+          platformExpiresAt: null,
+          createdAt: new Date(Date.now() - 60 * 1000).toISOString(),
+        },
+      },
+      children: [],
+    }))
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.text()).toContain('Trial')
+    expect(wrapper.text()).not.toContain('No end date')
   })
 
   it('class level: same grammar — rail to the school, read-only teachers (lead first), students as children', async () => {

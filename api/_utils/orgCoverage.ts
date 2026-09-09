@@ -87,7 +87,7 @@ async function activeAncestorOrgWindow(
     for (const batch of chunk(frontier)) {
       const { data } = await svc
         .from('groups')
-        .select('id, parent_id, platform_status, platform_expires_at')
+        .select('id, parent_id, platform_status, platform_expires_at, created_at')
         .in('id', batch)
       for (const r of data ?? []) rows.push(r)
     }
@@ -98,7 +98,7 @@ async function activeAncestorOrgWindow(
       // the billed node. Keep climbing to find the one that is. Only a node
       // that HAS a status answers the question.
       if (row.platform_status) {
-        if (isPlatformActive(row.platform_status, row.platform_expires_at)) {
+        if (isPlatformActive(row.platform_status, row.platform_expires_at, row.created_at)) {
           active = true
           const exp = row.platform_expires_at
           if (exp && (!expiresAt || new Date(exp) < new Date(expiresAt))) expiresAt = exp
