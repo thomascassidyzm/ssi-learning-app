@@ -1041,6 +1041,48 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     expect(insertWrite?.payload).toMatchObject({ needs_verification: true })
   })
 
+  it('SCHOOL BELONGING (2026-09-09): a forged arrival:"on_domain" buys nothing — the learner is still needs_verification true and the typed address never reaches verified_emails', async () => {
+    // The attestation is gone from the door (api/auth/possession-redeem.ts no
+    // longer writes it) but user_metadata is writable by the account itself,
+    // so a stranger can still put `arrival: 'on_domain'` there. This asserts
+    // the READ side ignores it. Before this change the same metadata cleared
+    // needs_verification and wrote the unproved address into verified_emails,
+    // which is the key api/access/grant-emails.ts uses to apply
+    // email-addressed access grants.
+    authUserOverride = {
+      email: 'stranger@notthisschool.example',
+      user_metadata: { onboarded_via: 'possession', display_name: 'Stranger', arrival: 'on_domain', arrival_via: 'domain' },
+    }
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-teacher-1', code: 'TEACH-1', code_type: 'teacher',
+            grants_region: null, grants_school_id: 'school-1', grants_class_id: null,
+            grants_group_id: null, metadata: {}, max_uses: null, use_count: 0,
+            expires_at: null, is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) return { data: null, error: null }
+      return { data: null, error: null }
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'TEACH-1', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    const insertWrite = writes.learners.find((w) => w.op === 'insert')
+    expect(insertWrite?.payload).toMatchObject({ needs_verification: true })
+    expect(insertWrite?.payload).not.toHaveProperty('verified_emails')
+  })
+
   it('teacher branch: a brand-new learner from OTP onboarding is created with needs_verification false', async () => {
     authUserOverride = { email: 'newteacher@school.example', user_metadata: {} }
     responders.invite_codes = (calls) => {

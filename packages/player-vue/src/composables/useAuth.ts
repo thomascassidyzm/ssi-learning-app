@@ -372,6 +372,16 @@ export function useAuth(): AuthState & AuthActions {
         // needs_verification correctly, since the loser's insert is a
         // no-op against an existing row.
         const needsEmailVerification = supabaseUser.value.user_metadata?.onboarded_via === 'possession'
+        // ...and must NOT seed verified_emails with an address nobody proved.
+        // A possession account was never sent anything; the address is simply
+        // what the person typed. verified_emails is the key
+        // api/access/grant-emails.ts uses to apply email-addressed access
+        // grants, so seeding it here handed a typed address somebody else's
+        // pending grant. An OTP signup is different — that address received a
+        // code — so it still seeds. Cleared for a possession account only by
+        // api/email/verify.ts, which is a real round trip.
+        // See docs/auth/school-belonging-design-2026-09-09.md.
+        const seedEmails = realEmail && !needsEmailVerification ? [realEmail] : []
 
         const { data: newLearner, error: createError } = await supabase.value
           .from('learners')
@@ -379,7 +389,7 @@ export function useAuth(): AuthState & AuthActions {
             user_id: userId,
             display_name: displayName,
             preferences: defaultPreferences(),
-            verified_emails: realEmail ? [realEmail] : [],
+            verified_emails: seedEmails,
             needs_verification: needsEmailVerification,
           })
           .select()
