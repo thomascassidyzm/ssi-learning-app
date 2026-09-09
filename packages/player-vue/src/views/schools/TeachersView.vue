@@ -22,7 +22,7 @@ const { t } = useI18n()
 
 const isAdminView = inject<boolean>('isAdminView', false)
 const { currentUser: selectedUser, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
-const { teachers: teachersData, isLoading: teachersLoading, error: teachersError, fetchTeachers, removeTeacher, createStaffSigninLink } = useTeachersData()
+const { teachers: teachersData, isLoading: teachersLoading, error: teachersError, fetchTeachers, removeTeacher, createStaffSigninLink, createNamedSeat } = useTeachersData()
 const { currentSchool, fetchSchools } = useSchoolData()
 const {
   classes,
@@ -217,6 +217,35 @@ const signinLinkBusy = ref('')
 const signinLinkError = ref('')
 const signinLinkCopied = ref(false)
 
+// MECHANISM B — a named seat. The admin types a name and gets a code to hand
+// over on their own channel. The result lands in the SAME panel the Access
+// code button uses, because what the admin does with it is identical: read it
+// out, write it down, or paste it wherever they already reach their staff.
+const seatNameOpen = ref(false)
+const seatName = ref('')
+const seatBusy = ref(false)
+
+async function handleNamedSeat() {
+  const name = seatName.value.trim()
+  if (!name || seatBusy.value) return
+  seatBusy.value = true
+  signinLinkError.value = ''
+  signinLinkFor.value = null
+  const result = await createNamedSeat(name)
+  seatBusy.value = false
+  if (result.error || !result.code || !result.joinUrl) {
+    signinLinkError.value = result.error || 'Could not create a code.'
+    return
+  }
+  signinLinkFor.value = { user_id: '', name, code: result.code, joinUrl: result.joinUrl, email: '' }
+  seatName.value = ''
+  seatNameOpen.value = false
+  // The seat is a person at this school now, so it belongs on the list —
+  // under "Not yet given classes", where the admin can give it classes before
+  // whoever it is has even arrived.
+  await fetchTeachers()
+}
+
 async function handleSigninLink(userId: string, name: string) {
   signinLinkBusy.value = userId
   signinLinkError.value = ''
@@ -360,6 +389,42 @@ watch(selectedUser, (newUser) => {
         <button v-if="canManageStaff" type="button" class="btn-ghost" @click="handleBulkImport">
           {{ t('schools.teachers.bulkImportCsv', 'Bulk import CSV') }}
         </button>
+        <!-- MECHANISM B of the school-belonging design: the admin names the
+             person BEFORE they arrive, so the seat can be given classes the
+             same day and the code travels on the school's own channel. -->
+        <!-- HANDBOOK Add a teacher by name
+             section: getting-people-in
+             roles: school_admin
+             place: teachers
+             keywords: add, teacher, name, code, seat, new staff, join
+             What it's for. Adding a specific teacher to your school when you
+             know who they are but cannot rely on email reaching them. You type
+             their name and get a code to hand over yourself.
+             Where it is. The **Teachers** page, the **Add by name** button at
+             the top.
+             How you do it.
+             1. Tap **Add by name**.
+             2. Type the teacher's name.
+             3. Tap **Create code**.
+             4. Read the code out, write it down, or paste it into whatever you
+                already use to reach them.
+             5. They go to saysomethingin.app/join and type it in.
+             Worth knowing. They appear on your list straight away under **Not
+             yet given classes**, so you can tick their classes before they have
+             even signed in. The code works once and lasts two days, and whoever
+             uses it becomes that person — so hand it over directly. Made a
+             mistake? Remove them from the list.
+             checked: 446541df.90235610
+        -->
+        <button
+          v-if="canManageStaff"
+          type="button"
+          class="btn-ghost"
+          data-walk="teacher-named-seat"
+          @click="seatNameOpen = !seatNameOpen"
+        >
+          + {{ t('schools.teachers.addByName', 'Add by name') }}
+        </button>
         <button v-if="canManageStaff" type="button" class="btn-play" @click="handleInvite">
           + {{ t('schools.teachers.inviteTeacher', 'Invite teacher') }}
         </button>
@@ -371,6 +436,28 @@ watch(selectedUser, (newUser) => {
       <button type="button" class="btn-ghost" @click="fetchTeachers()">{{ t('schools.teachers.retry', 'Retry') }}</button>
     </div>
 
+    <Transition name="fade">
+      <div v-if="seatNameOpen" class="invite-hint schools-card schools-card-pad seat-name-panel">
+        <label class="seat-name-label" for="seat-name">{{ t('schools.teachers.addByNameLabel', 'Who is the code for?') }}</label>
+        <div class="seat-name-row">
+          <input
+            id="seat-name"
+            v-model="seatName"
+            type="text"
+            class="seat-name-input"
+            :placeholder="t('schools.teachers.addByNamePlaceholder', 'Their name')"
+            :disabled="seatBusy"
+            @keyup.enter="handleNamedSeat"
+          />
+          <button type="button" class="btn-play btn-small" :disabled="seatBusy || !seatName.trim()" @click="handleNamedSeat">
+            {{ seatBusy ? t('schools.teachers.creatingEllipsis', 'Creating…') : t('schools.teachers.createCode', 'Create code') }}
+          </button>
+        </div>
+        <p class="schools-subtle seat-name-note">
+          {{ t('schools.teachers.addByNameNote', 'No email address needed. You hand the code over yourself, however you normally reach them.') }}
+        </p>
+      </div>
+    </Transition>
     <Transition name="fade">
       <div v-if="showImportHint" class="invite-hint schools-card schools-card-pad">
         {{ t('schools.teachers.bulkImportHint', 'Bulk CSV import is coming soon. For now, share the teacher invite link below — teachers click it, sign in once, and land in your school.') }}
@@ -500,7 +587,7 @@ watch(selectedUser, (newUser) => {
                    with nobody on it says so in the list, and the teacher you
                    tick will lead it. Tick a class that already has a teacher
                    and yours joins as a co-teacher instead.
-                   checked: f87575a8.d5378b72
+                   checked: 4460f7d4.e2406c34
               -->
               <button
                 v-if="canAssignClasses"
@@ -537,8 +624,10 @@ watch(selectedUser, (newUser) => {
                    Worth knowing. The code works once and lasts two days, and
                    whoever uses it becomes that teacher — so give it to them
                    directly and never post it anywhere shared. Need another? Tap
-                   **Access code** again.
-                   checked: 310cb8f2.10716eae
+                   **Access code** again, and the earlier one stops working. This
+                   is also how you reissue a code for somebody you added by name
+                   who never used the first one.
+                   checked: fc938fdd.61434b3f
               -->
               <button
                 v-if="canManageStaff"
@@ -561,6 +650,9 @@ watch(selectedUser, (newUser) => {
                    What it's for. Taking a teacher off your school when they
                    leave. Their own account survives — what goes is their place
                    in this school and their view of its classes and learners.
+                   It is also how you deal with somebody under **Not yet given
+                   classes** you do not recognise, or a name you typed by
+                   mistake.
                    Where it is. The **Teachers** page, the **Remove** button on
                    that teacher's row.
                    How you do it.
@@ -571,7 +663,7 @@ watch(selectedUser, (newUser) => {
                    Worth knowing. An admin's row carries no **Remove** button, so
                    a school can never lose its own admin through this list.
                    Change their role first if that is really what you want.
-                   checked: 4cb305ee.324451a9
+                   checked: e5db3019.e593536f
               -->
               <button
                 v-if="canManageStaff && row.role !== 'Admin'"
@@ -858,6 +950,39 @@ watch(selectedUser, (newUser) => {
 .role-pill.admin {
   background: #fff5e5;
   color: #7a5418;
+}
+
+.seat-name-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.seat-name-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.seat-name-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.seat-name-input {
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle, #d8d3cc);
+  border-radius: 8px;
+  font-size: 14px;
+  background: var(--bg-elevated, #fff);
+  color: inherit;
+}
+
+.seat-name-note {
+  font-size: 12px;
+  margin: 0;
 }
 
 .section-row td {

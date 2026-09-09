@@ -1,5 +1,5 @@
 {
-  "version": "619ac47df568",
+  "version": "ea8ba31cef0f",
   "generatedAt": "2026-09-09",
   "walks": [
     {
@@ -1041,6 +1041,39 @@
       "note": "One student at a time, on purpose — the link is theirs alone and carries the class with it. The **Students** page's **+ Invite students** button brings you here for exactly this reason."
     },
     {
+      "id": "add-a-teacher-by-name",
+      "title": "Add a teacher by name",
+      "section": "getting-people-in",
+      "personas": [
+        "school_admin"
+      ],
+      "keywords": [
+        "add",
+        "teacher",
+        "name",
+        "code",
+        "seat",
+        "new staff",
+        "join"
+      ],
+      "place": {
+        "route": "teachers"
+      },
+      "anchor": "teacher-named-seat",
+      "source": "packages/player-vue/src/views/schools/TeachersView.vue",
+      "walk": null,
+      "what": "Adding a specific teacher to your school when you know who they are but cannot rely on email reaching them. You type their name and get a code to hand over yourself.",
+      "where": "The **Teachers** page, the **Add by name** button at the top.",
+      "how": [
+        "Tap **Add by name**.",
+        "Type the teacher's name.",
+        "Tap **Create code**.",
+        "Read the code out, write it down, or paste it into whatever you already use to reach them.",
+        "They go to saysomethingin.app/join and type it in."
+      ],
+      "note": "They appear on your list straight away under **Not yet given classes**, so you can tick their classes before they have even signed in. The code works once and lasts two days, and whoever uses it becomes that person — so hand it over directly. Made a mistake? Remove them from the list."
+    },
+    {
       "id": "add-students-to-a-class",
       "title": "Add students to a class",
       "section": "getting-people-in",
@@ -1826,7 +1859,7 @@
         "They go to saysomethingin.app/join and type the code in.",
         "Tap **Done** when they are through."
       ],
-      "note": "The code works once and lasts two days, and whoever uses it becomes that teacher — so give it to them directly and never post it anywhere shared. Need another? Tap **Access code** again."
+      "note": "The code works once and lasts two days, and whoever uses it becomes that teacher — so give it to them directly and never post it anywhere shared. Need another? Tap **Access code** again, and the earlier one stops working. This is also how you reissue a code for somebody you added by name who never used the first one."
     },
     {
       "id": "hand-out-a-sign-up-link-for-one-course",
@@ -2600,7 +2633,7 @@
       "anchor": "teacher-remove",
       "source": "packages/player-vue/src/views/schools/TeachersView.vue",
       "walk": null,
-      "what": "Taking a teacher off your school when they leave. Their own account survives — what goes is their place in this school and their view of its classes and learners.",
+      "what": "Taking a teacher off your school when they leave. Their own account survives — what goes is their place in this school and their view of its classes and learners. It is also how you deal with somebody under **Not yet given classes** you do not recognise, or a name you typed by mistake.",
       "where": "The **Teachers** page, the **Remove** button on that teacher's row.",
       "how": [
         "Find the teacher in the list.",
