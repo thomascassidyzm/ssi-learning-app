@@ -817,7 +817,7 @@ async function handleCreateSigninLink() {
               Cancel
             </button>
             <button v-else class="btn-ghost" :disabled="trialBusy" @click="handleSetTrial('restore')">
-              Restore trial (+30 days)
+              Restore trial window
             </button>
           </div>
         </div>
