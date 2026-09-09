@@ -122,6 +122,8 @@ describe('viewAsPagesFor', () => {
     { path: '/schools/handbook', components: { default: {} }, meta: { title: 'Handbook' } },
     { path: '/org/:id', components: { default: {} }, meta: { title: 'Organisation' } },
     { path: '/org/:id/insights', components: { default: {} }, meta: { title: 'Insights' } },
+    { path: '/schools/classes/:id', components: { default: {} }, meta: { title: 'Class Detail' } },
+    { path: '/org', components: { default: {} }, meta: {} },
     { path: '/schools2', redirect: '/schools1', meta: {} },
     { path: '/admin/structure', components: { default: {} }, meta: { title: 'Structure' } },
     { path: '/admin/users/:learnerId/progress', components: { default: {} }, meta: { title: 'Progress' } },
@@ -135,6 +137,11 @@ describe('viewAsPagesFor', () => {
     // never the admin estate, never a flow door, never an unfillable param
     expect(paths.some(p => p.startsWith('/admin'))).toBe(false)
     expect(paths).not.toContain('/schools/setup')
+    // `:id` under /schools is a CLASS, not the node — never fill it with the
+    // school id and hand back a link to a class that does not exist.
+    expect(paths.some(p => p.startsWith('/schools/classes/'))).toBe(false)
+    // the bare /org parent record is a shell, not a page
+    expect(paths).not.toContain('/org')
   })
 
   it('drops node routes when there is no node to fill them with', () => {

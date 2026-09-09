@@ -18,11 +18,18 @@ export interface ViewAsPage {
   title: string
 }
 
-/** Routes whose params we can fill: exactly `:id`, standing for the node. */
+/**
+ * The only param this list can honestly fill is the NODE id under /org, where
+ * `:id` means "the node you belong to". Elsewhere `:id` means something we do
+ * not have — `/schools/classes/:id` is a CLASS, and filling it with the
+ * school's id offers a link to a class that does not exist. A link that leads
+ * somewhere false teaches nothing, so those pages are left off and reached by
+ * clicking through the page that lists them.
+ */
 function fillable(path: string, nodeId: string | null): string | null {
   const params = path.match(/:[A-Za-z]+\??/g) ?? []
   if (params.length === 0) return path
-  if (params.length === 1 && params[0].startsWith(':id') && nodeId) {
+  if (params.length === 1 && params[0].startsWith(':id') && nodeId && path.startsWith('/org/')) {
     return path.replace(/:id\??/, nodeId)
   }
   return null
@@ -44,7 +51,8 @@ export function viewAsPagesFor(
   const out: ViewAsPage[] = []
   const seen = new Set<string>()
   for (const r of routes) {
-    if (!/^\/(schools|org)(\/|$)/.test(r.path)) continue
+    // The bare `/org` parent record is a shell with no page of its own.
+    if (!/^\/(schools|org)\//.test(r.path) && r.path !== '/schools') continue
     if (r.redirect) continue
     if (!r.components || Object.keys(r.components).length === 0) continue
     const path = fillable(r.path, nodeId)
