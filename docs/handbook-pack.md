@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `080241395e96` · generated 2026-09-09 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `357b0b97ac74` · generated 2026-09-09 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## Add a class to a group
 
@@ -447,21 +447,6 @@ Section: getting-people-in · roles: school_admin · anchor: `teacher-signin-lin
 
 **Worth knowing.** The code works once and lasts two days, and whoever uses it becomes that teacher — so give it to them directly and never post it anywhere shared. Need another? Tap **Access code** again, and the earlier one stops working. This is also how you reissue a code for somebody you added by name who never used the first one.
 
-## Hand out a sign-up link for one course
-
-Section: getting-people-in · roles: admin, leader, school_admin · anchor: `ways-in-copy-course` · in `packages/player-vue/src/components/admin/WaysInLedger.vue`
-
-**What it's for.** Giving one group of learners a sign-up link that puts them straight into a named course, when your funded year covers more than one. A North Wales tutor hands out the North Welsh link and nobody in that room is asked which Welsh they meant.
-
-**Where it is.** The node's home page, the **Ways in** section, the course-named buttons on your sign-up link's row.
-
-1. Scroll to **Ways in** on the node's home page.
-2. Find the row for your sign-up link.
-3. Tap the button named after the course you want, and it is copied.
-4. Send that link to the learners who want that course.
-
-**Worth knowing.** It is the same link and the same cohort either way — the course name only decides where a learner lands. **Copy** still gives you the link that asks them to choose, and everyone gets the whole free year whichever link they came through.
-
 ## Hand out your staff links
 
 Section: getting-people-in · roles: school_admin · anchor: `setup-staff-links` · in `packages/player-vue/src/views/schools/SetupView.vue`
@@ -852,21 +837,6 @@ Section: running-classes · roles: school_admin, teacher · anchor: `class-play`
 
 **Worth knowing.** The join code is the same code all lesson, so a student arriving late still gets in.
 
-## See and download your funder numbers
-
-Section: seeing-progress · roles: leader, admin · anchor: `funder-numbers` · in `packages/player-vue/src/components/admin/OrgFunderNumbers.vue`
-
-**What it's for.** The monthly return your funder asks for, on your own page, so you can read it or send it without asking us to pull it.
-
-**Where it is.** Your organisation's home page, the **Funder report** section.
-
-1. Open your organisation's home page.
-2. The month shown is the last complete one. Change it to report on another.
-3. Read the three blocks: the month, everything since people enrolled, and the funding year so far.
-4. Tap **Download spreadsheet** to get the same figures as a CSV.
-
-**Worth knowing.** Minutes here are minutes the app was actually speaking to a learner, never time a screen sat open. Somebody who has studied both Welsh dialects is counted once, at their higher dialect, never the two added up. There are no names in this report and there never will be — the age question is a tick precisely so nobody has to hold a birth date.
-
 ## See every school in your programme
 
 Section: seeing-progress · roles: leader · anchor: `schools-list-table` · in `packages/player-vue/src/views/schools/SchoolsView.vue`
@@ -883,20 +853,6 @@ Section: seeing-progress · roles: leader · anchor: `schools-list-table` · in 
 6. Tap **Export** for the same table as a spreadsheet file.
 
 **Worth knowing.** The list holds still until you refresh it, so a number on screen will not change under you while you are reading. If a refresh fails you are told plainly rather than being shown stale figures as if they were current.
-
-## See what a funded organisation gives its learners
-
-Section: courses-and-content · roles: admin · anchor: `org-enrolment-courses` · in `packages/player-vue/src/components/schools/NodeEntitlementControl.vue`
-
-**What it's for.** Showing the courses an organisation hands out through its own sign-up page, which are given to each learner as they join rather than held on the organisation itself.
-
-**Where it is.** The organisation's home page, **Courses** along the top, at the head of the panel.
-
-1. Open the organisation's home page.
-2. Tap **Courses**.
-3. Read the courses listed under the organisation's name, and the length of the free period beside them.
-
-**Worth knowing.** Changing that list is a change to the organisation's enrolment policy, so it is not editable here — everyone who has already signed up keeps what they were given.
 
 ## See what your school pays
 

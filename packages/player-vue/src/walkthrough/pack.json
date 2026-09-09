@@ -1,5 +1,5 @@
 {
-  "version": "080241395e96",
+  "version": "357b0b97ac74",
   "generatedAt": "2026-09-09",
   "walks": [
     {
@@ -1862,41 +1862,6 @@
       "note": "The code works once and lasts two days, and whoever uses it becomes that teacher — so give it to them directly and never post it anywhere shared. Need another? Tap **Access code** again, and the earlier one stops working. This is also how you reissue a code for somebody you added by name who never used the first one."
     },
     {
-      "id": "hand-out-a-sign-up-link-for-one-course",
-      "title": "Hand out a sign-up link for one course",
-      "section": "getting-people-in",
-      "personas": [
-        "admin",
-        "leader",
-        "school_admin"
-      ],
-      "keywords": [
-        "dialect",
-        "course",
-        "link",
-        "enrol",
-        "north",
-        "south",
-        "welsh",
-        "cohort"
-      ],
-      "place": {
-        "route": "node-home"
-      },
-      "anchor": "ways-in-copy-course",
-      "source": "packages/player-vue/src/components/admin/WaysInLedger.vue",
-      "walk": null,
-      "what": "Giving one group of learners a sign-up link that puts them straight into a named course, when your funded year covers more than one. A North Wales tutor hands out the North Welsh link and nobody in that room is asked which Welsh they meant.",
-      "where": "The node's home page, the **Ways in** section, the course-named buttons on your sign-up link's row.",
-      "how": [
-        "Scroll to **Ways in** on the node's home page.",
-        "Find the row for your sign-up link.",
-        "Tap the button named after the course you want, and it is copied.",
-        "Send that link to the learners who want that course."
-      ],
-      "note": "It is the same link and the same cohort either way — the course name only decides where a learner lands. **Copy** still gives you the link that asks them to choose, and everyone gets the whole free year whichever link they came through."
-    },
-    {
       "id": "hand-out-your-staff-links",
       "title": "Hand out your staff links",
       "section": "getting-people-in",
@@ -2738,41 +2703,6 @@
       "note": "The join code is the same code all lesson, so a student arriving late still gets in."
     },
     {
-      "id": "see-and-download-your-funder-numbers",
-      "title": "See and download your funder numbers",
-      "section": "seeing-progress",
-      "personas": [
-        "leader",
-        "admin"
-      ],
-      "keywords": [
-        "funder",
-        "report",
-        "numbers",
-        "minutes",
-        "monthly return",
-        "csv",
-        "download",
-        "registered",
-        "16 to 24"
-      ],
-      "place": {
-        "route": "node-home"
-      },
-      "anchor": "funder-numbers",
-      "source": "packages/player-vue/src/components/admin/OrgFunderNumbers.vue",
-      "walk": null,
-      "what": "The monthly return your funder asks for, on your own page, so you can read it or send it without asking us to pull it.",
-      "where": "Your organisation's home page, the **Funder report** section.",
-      "how": [
-        "Open your organisation's home page.",
-        "The month shown is the last complete one. Change it to report on another.",
-        "Read the three blocks: the month, everything since people enrolled, and the funding year so far.",
-        "Tap **Download spreadsheet** to get the same figures as a CSV."
-      ],
-      "note": "Minutes here are minutes the app was actually speaking to a learner, never time a screen sat open. Somebody who has studied both Welsh dialects is counted once, at their higher dialect, never the two added up. There are no names in this report and there never will be — the age question is a tick precisely so nobody has to hold a birth date."
-    },
-    {
       "id": "see-every-school-in-your-programme",
       "title": "See every school in your programme",
       "section": "seeing-progress",
@@ -2808,37 +2738,6 @@
         "Tap **Export** for the same table as a spreadsheet file."
       ],
       "note": "The list holds still until you refresh it, so a number on screen will not change under you while you are reading. If a refresh fails you are told plainly rather than being shown stale figures as if they were current."
-    },
-    {
-      "id": "see-what-a-funded-organisation-gives-its-learners",
-      "title": "See what a funded organisation gives its learners",
-      "section": "courses-and-content",
-      "personas": [
-        "admin"
-      ],
-      "keywords": [
-        "courses",
-        "enrolment",
-        "free year",
-        "organisation",
-        "canolfan",
-        "granted",
-        "sign-up"
-      ],
-      "place": {
-        "route": "node-home"
-      },
-      "anchor": "org-enrolment-courses",
-      "source": "packages/player-vue/src/components/schools/NodeEntitlementControl.vue",
-      "walk": null,
-      "what": "Showing the courses an organisation hands out through its own sign-up page, which are given to each learner as they join rather than held on the organisation itself.",
-      "where": "The organisation's home page, **Courses** along the top, at the head of the panel.",
-      "how": [
-        "Open the organisation's home page.",
-        "Tap **Courses**.",
-        "Read the courses listed under the organisation's name, and the length of the free period beside them."
-      ],
-      "note": "Changing that list is a change to the organisation's enrolment policy, so it is not editable here — everyone who has already signed up keeps what they were given."
     },
     {
       "id": "see-what-your-school-pays",
