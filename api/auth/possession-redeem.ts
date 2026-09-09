@@ -53,7 +53,6 @@ import { randomUUID } from 'crypto'
 import { isValidEmailFormat, isDisposableEmailDomain, hasMxRecord } from '../_utils/emailValidation'
 import { buildShellClaim, clearedShellClaim, shellClaimMatches } from '../_utils/shellClaim'
 import { buildUnclaimedMint, readSessionId } from '../_utils/unclaimedMint'
-import { resolveArrival, type ArrivalMatch } from '../_utils/schoolDomain'
 import {
   getClientIp,
   hashIp,
@@ -407,23 +406,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       normalizedEmail = `link-${randomUUID()}@${LINK_AUTH_EMAIL_DOMAIN}`
     }
 
-    // SCHOOL IDENTITY ON THE DOMAIN (job #371). For a school's own links —
-    // the multi-use teacher and admin links, which carry grants_school_id —
-    // ask whether the typed address is one the school vouches for: at a
-    // claimed domain (or a subdomain of one, or a sibling school's in the
-    // same trust), or on the admin's own address list. See
-    // api/_utils/schoolDomain.ts for the rule and what it does and does not
-    // prove. ON-DOMAIN changes nothing about the path — it is still one tap,
-    // no mail — and records an ATTESTATION the learner row is born with
-    // (api/code/redeem.ts reads `arrival` below). OFF-DOMAIN also gets in
-    // (Tom: working first time outranks security in chronology) but stays
-    // needs_verification=true and is marked to the admin. Link-auth pupils
-    // and codes that carry no school skip this entirely.
-    let arrival: ArrivalMatch | null = null
-    const arrivalSchoolId = (inviteRow as any).grants_school_id as string | null | undefined
-    if (!isLinkAuth && arrivalSchoolId) {
-      arrival = await resolveArrival(supabase, arrivalSchoolId, normalizedEmail)
-    }
+    // NOTHING IS STAMPED AT THE DOOR (school-belonging design, 2026-09-09).
+    // This endpoint used to ask whether the typed address sat at a domain the
+    // school had claimed, and write the answer onto the account as an
+    // attestation of belonging. That is gone, and it is a deletion rather
+    // than a hardening: the match was a string comparison between an address
+    // the arriving person chose and a domain six schools in the estate had
+    // ever claimed, so even when it was genuine it proved nothing about who
+    // owns the mailbox. Belonging to a school is now the admin's own act —
+    // the class they give the arrival, or the named seat they minted for them
+    // — recorded service-role-only on the class tag and read back by
+    // api/school/roster.ts. The claimed-domain rule survives in
+    // api/_utils/schoolDomain.ts, used at READ time on the roster as a sort
+    // hint that carries no weight anywhere. See
+    // docs/auth/school-belonging-design-2026-09-09.md.
 
     // Create the account with no email sent. email_confirm:false — Supabase's
     // own verifyOtp call below will still mark the email confirmed at the
@@ -450,12 +446,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         onboarded_via: 'possession',
         ...(isLinkAuth ? { link_auth: true } : {}),
         ...(cleanDisplayName ? { display_name: cleanDisplayName } : {}),
-        // The arrival, for api/code/redeem.ts to read once when it creates the
-        // learner row: 'on_domain' is born verified, 'off_domain' is not.
-        // Written here by the service role; the subject can rewrite
-        // user_metadata, but redeem.ts reads it ONCE on first redemption,
-        // moments after this, and never again.
-        ...(arrival ? { arrival: arrival.onDomain ? 'on_domain' : 'off_domain', arrival_via: arrival.via } : {}),
       },
     })
 
@@ -572,7 +562,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     res.status(200).json({
       success: true,
-      ...(arrival ? { onDomain: arrival.onDomain } : {}),
       session: {
         access_token: verifyData.session.access_token,
         refresh_token: verifyData.session.refresh_token,
