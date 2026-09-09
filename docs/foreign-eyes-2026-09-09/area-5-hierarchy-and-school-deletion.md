@@ -206,3 +206,68 @@ The check missing at `api/admin/update-school.ts:99` is the one already written 
 ## Scope of this file
 
 This file answers Job 1 only — the specific dying claim. Area 5 proper (admin and view-as), and Areas 6 and 7, follow in their own files.
+
+---
+
+## ESCALATION — added 9 September 2026, after Area 6 landed
+
+**FE5-01 above says "a teacher can delete their own school". Composed with Area 6's FE6-01, the true statement is: ANY SIGNED-IN ACCOUNT CAN DELETE ANY SCHOOL.** The teacher's tag is not a prerequisite. It can be minted, by the attacker, from the browser, in one INSERT.
+
+Confidence: **certain** on every link as it stands in `supabase/schema.sql` and in the TypeScript. **The one caveat is that `schema.sql` is a dump, not live state** — CLAUDE.md says so, and this file's own limits say no live query was run. The settling check is at the bottom and it is small.
+
+### The link that changes everything
+
+FE5-01 rested on `schoolIdForAdmin` reading a `SCHOOL:` tag without checking `role_in_context`. I treated the tag as something the estate grants you. It is not. `user_tags` is **writable from the browser**.
+
+`supabase/schema.sql:22124` — the grant:
+
+```text
+22124: GRANT SELECT,INSERT,MAINTAIN,UPDATE ON TABLE public.user_tags TO authenticated;
+```
+
+`supabase/schema.sql:20296` — the policy:
+
+```text
+20296: CREATE POLICY user_tags_insert ON public.user_tags FOR INSERT TO authenticated
+       WITH CHECK ((public.is_god_user() OR ((user_id = (( SELECT auth.uid() AS uid))::text)
+       AND (role_in_context IS DISTINCT FROM 'teacher'::text)
+       AND (role_in_context IS DISTINCT FROM 'admin'::text))));
+```
+
+Read it precisely. The only things it forbids are writing a row for **somebody else**, and writing `role_in_context` of `'teacher'` or `'admin'`. It says nothing about `tag_type`, nothing about `tag_value`, and nothing about whether the school you are naming has ever heard of you.
+
+`role_in_context = 'student'` is permitted, and satisfies the table's own check constraint (`supabase/schema.sql:7777`, which allows `admin | teacher | student`). There is **no trigger on `user_tags`** — I checked; the dump defines none — so nothing validates the row's contents after the policy admits it.
+
+And `schoolIdForAdmin` does not filter on the role at all (`api/_utils/schoolScope.ts:76–84`): `tag_type = 'school'`, `removed_at IS NULL`, oldest `added_at` first. A `'student'` role passes it exactly as a `'teacher'` role does. `added_at` is a plain column on an unrestricted INSERT grant, so the attacker chooses the sort key too and can guarantee their row is the oldest.
+
+### The sequence, in full
+
+Actor: anybody who can create an account on saysomethingin.app. No invite code, no school, no role, no relationship of any kind to the target.
+
+1. Sign up. Any email, ordinary sign-in. You now hold an `authenticated` JWT and an `auth.uid()`.
+2. Obtain the target `schools.id`. It is a uuid that travels in join links and dashboard URLs; `schools_select` (`supabase/schema.sql:19879`) also returns the row to anyone holding a matching tag, which step 3 gives you.
+3. From the browser, with your own token:
+   `insert into user_tags (user_id, tag_type, tag_value, role_in_context, added_by, added_at) values ('<your auth uid>', 'school', 'SCHOOL:<target id>', 'student', '<your auth uid>', '2020-01-01');`
+   The policy admits it: the row is yours, and `'student'` is neither `'teacher'` nor `'admin'`.
+4. `GET /api/admin/update-school?school_id=<target id>` with your token. `verifyAdmin` fails; the fallback at `api/admin/update-school.ts:94–104` runs `verifyAuthToken` — which proves only that you are signed in — then `schoolIdForAdmin`, which returns your minted tag's school. The ids match. You get the impact preview, **including the school's exact name**.
+5. `DELETE /api/admin/update-school?school_id=<target id>&confirm_name=<the name from step 4>`.
+6. `deleteSchoolCascade` runs. Everything listed under *What is destroyed* above is gone: invite codes, every staff membership tag, the school row, and by cascade every class, every class session and every entitlement grant.
+
+Six steps. The only privilege required at any point is the ability to sign up.
+
+### Why this was not visible from either area alone
+
+Area 5 read the endpoint and found the gate trusts a tag. Area 6 read the database and found the tag is client-writable. Each finding is bounded on its own — "a teacher can delete their school" is an insider problem; "a learner can self-mint a class tag" is an entitlement problem. The composition is neither. This is the specific reason the commission put a cross-cutting area in the sweep at all, and it is worth recording that no single area's reading would have produced it.
+
+Note also what the policy DOES stop, because it bounds the rest of the estate correctly: `role_in_context` of `'teacher'` and `'admin'` are refused, so a self-minted tag cannot pass `api/school/remove-staff.ts:81` (which requires `'admin'`), cannot pass `api/_utils/groupTreeAuth.ts:58` (which requires `educational_role = 'school_admin'` on the `learners` row, not a tag), and cannot satisfy `SCHOOL_STAFF_ROLES` reads. The policy author was thinking about exactly this hazard. `schoolIdForAdmin` is the one consumer that reads the tag without reading the role, and it is the one this walks through.
+
+### Honest scale
+
+No schools are paying yet, so what is destroyable today is demo and pilot tenancies. That is the true size of it **now**. It is not the size of it at the first paying school, and unlike FE5-02 this needs no unusual account shape, no insider, and no luck — only an account and a school id. The code is on `dev` and rides the ordinary promotion train.
+
+### What would settle it — two checks, both small
+
+1. **Is the policy live as the dump says?**
+   `select policyname, cmd, with_check from pg_policies where tablename = 'user_tags';`
+   If `user_tags_insert`'s `with_check` reads as quoted above, the door is open.
+2. **Does the walk actually run?** One canary in a single rolled-back transaction, the shape `supabase/secfix-toolkit/` already exists for: `set_config('request.jwt.claims', ...)` for a throwaway account, `set local role authenticated`, attempt the step-3 INSERT, then call `schoolIdForAdmin`'s query and see whether it returns the target school. **ROLLBACK.** Nothing needs to be deleted to prove this — step 3 succeeding and step 4's id-match resolving is the whole proof.
