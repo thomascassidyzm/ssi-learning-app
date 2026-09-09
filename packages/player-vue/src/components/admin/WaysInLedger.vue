@@ -262,6 +262,7 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
           <td data-cell="status"><span class="status-pill" :class="`is-${l.status}`">{{ STATUS_WORD[l.status] || l.status }}</span></td>
           <td class="muted" data-cell="created">{{ when(l.createdAt) }}{{ l.createdBy ? ` · ${l.createdBy}` : '' }}</td>
           <td class="verbs-col" data-cell="verbs">
+            <div class="row-verbs">
             <button v-if="l.status === 'active'" type="button" class="row-verb" :class="{ 'is-copied': copiedCode === l.code }" data-walk="ways-in-copy" @click="copyLink(l)">{{ copiedCode === l.code ? t('org.ui.waysInLedger.copied', 'Copied!') : t('org.ui.waysInLedger.copy', 'Copy') }}</button>
             <!-- HANDBOOK Email someone their invite again
                  section: getting-people-in
@@ -288,6 +289,7 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
             <button v-if="l.status === 'active' && l.species === 'personal'" type="button" class="row-verb" :disabled="busyCode === l.code" data-walk="ways-in-remint" @click="patch(l, 'rotate')">{{ t('org.ui.waysInLedger.remint', 'Re-mint') }}</button>
             <button v-if="l.status === 'active'" type="button" class="row-verb is-danger" :disabled="busyCode === l.code" data-walk="ways-in-revoke" @click="patch(l, 'revoke')">{{ t('org.ui.waysInLedger.revoke', 'Revoke') }}</button>
             <button v-else-if="l.status === 'revoked'" type="button" class="row-verb" :disabled="busyCode === l.code" @click="patch(l, 'reactivate')">{{ t('org.ui.waysInLedger.putBack', 'Put back') }}</button>
+            </div>
           </td>
         </tr>
       </tbody>
@@ -340,9 +342,22 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
 .status-pill.is-revoked { background: rgba(var(--tone-red), 0.10); color: rgb(var(--tone-red)); }
 .status-pill.is-expired, .status-pill.is-exhausted { background: rgba(44, 38, 34, 0.08); color: var(--schools-fg-3, #8A8078); }
 
-.verbs-col { text-align: right; white-space: nowrap; }
+/* DESKTOP FIRST (founder, 2026-09-09: "most people who are doing
+   administration are going to be on a desktop"). The verbs used to be one
+   nowrap line, so the column DEMANDED ~300px whatever the window was, and
+   Who/what — the only column that can shrink — paid for it: at 1280px its
+   caption wrapped to two lines, at 1152px three, at 1024px eight, one word per
+   line, on a laptop. Now the verbs wrap onto a second line when the window is
+   tight, and Who/what has a floor. Measured across 1024-1440, the caption
+   stays on one line at every width. */
+.verbs-col { text-align: right; }
+.row-verbs { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+.ways-in-table td[data-cell='who'] { min-width: 260px; }
+/* Two verbs to a line at worst — below this the four buttons stacked one per
+   line and the row grew to three times its height (1024px, 2026-09-09). */
+.ways-in-table td[data-cell='verbs'] { min-width: 158px; }
 .row-verb {
-  padding: 4px 9px; margin-left: 4px; font: inherit; font-size: var(--text-xs); font-weight: var(--font-semibold);
+  padding: 4px 9px; font: inherit; font-size: var(--text-xs); font-weight: var(--font-semibold);
   border-radius: var(--radius-md); border: 1px solid rgba(44, 38, 34, 0.12);
   background: rgba(255, 255, 255, 0.6); color: var(--schools-fg-2, #555); cursor: pointer;
 }
@@ -354,7 +369,11 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
 /* Column order is not a promise: `Where` disappears in class mode, so the old
    nth-child(6) rule hid Created on a node page and the VERBS on a class page.
    Address the cells by what they ARE. */
-@media (max-width: 720px) {
+/* Created is the audit stamp, not an action — it is the first thing to go when
+   the window cannot hold every column without squeezing Who/what. Raised from
+   720px to 1120px on 2026-09-09: at 1024 the six columns plus the verbs
+   overflowed the node page's content area even with the verbs wrapping. */
+@media (max-width: 1120px) {
   .ways-in-table [data-cell='created'] { display: none; }
 }
 
@@ -386,10 +405,9 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
     font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
     color: var(--schools-fg-3, #8A8078); font-weight: var(--font-semibold);
   }
-  .ways-in-table td[data-cell='verbs'] {
-    flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 6px;
-    margin-top: 8px; text-align: left; white-space: normal;
-  }
-  .ways-in-table td[data-cell='verbs'] .row-verb { margin-left: 0; padding: 6px 12px; }
+  .ways-in-table td[data-cell='who'] { min-width: 0; }
+  .ways-in-table td[data-cell='verbs'] { flex: 1 1 100%; margin-top: 8px; text-align: left; }
+  .ways-in-table td[data-cell='verbs'] .row-verbs { justify-content: flex-start; gap: 6px; }
+  .ways-in-table td[data-cell='verbs'] .row-verb { padding: 6px 12px; }
 }
 </style>
