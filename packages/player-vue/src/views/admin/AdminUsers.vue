@@ -144,7 +144,7 @@ onMounted(() => { void refresh() })
             v-model="searchInput"
             type="text"
             class="filter-bar-input"
-            placeholder="Search by name or email…"
+            placeholder="Search by name, email, or account code…"
             @keydown.enter="handleSearch"
             @keydown.esc="handleClear"
           >

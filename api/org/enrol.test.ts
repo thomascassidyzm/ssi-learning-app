@@ -38,6 +38,10 @@ let DB: Record<string, Row[]>
 const UNIQUE: Record<string, string[]> = {
   org_enrolments: ['group_id', 'learner_id'],
   learners: ['user_id'],
+  // The primary key, which api/_utils/orgEntitlementGrant.ts computes rather
+  // than letting the database invent one — that is what makes the free-period
+  // grant idempotent under a genuine burst.
+  user_entitlements: ['id'],
   user_tags: ['user_id', 'tag_type', 'tag_value'],
 }
 

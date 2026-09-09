@@ -239,9 +239,11 @@ const cancelNotice = computed(() => {
  * Into THEIR course, not the app's anonymous-visitor default.
  *
  * `/` alone was landing freshly enrolled Welsh learners in Chinese — App.vue
- * falls back to `zho_for_eng` for any visitor with no saved course, and a
+ * fell back to `zho_for_eng` for any visitor with no saved course, and a
  * first-ever visit through an enrolment link is exactly that visitor. Kai hit
- * it on staging on 2026-09-08.
+ * it on staging on 2026-09-08. That default is now the first English-known
+ * course (`containers/firstOpenDefaultCourse.ts`), which is still not their
+ * course, so this path stands.
  *
  * A link minted for one dialect says so in its own query string, and that
  * settles it — the North Wales tutor's class never sees the question.

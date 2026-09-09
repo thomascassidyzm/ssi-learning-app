@@ -34,3 +34,6 @@ export * from './script';
 
 // Text measurement (per-language syllable counting registry)
 export * from './text';
+
+// Support identifier (the short name a learner reads out to support)
+export * from './identity';

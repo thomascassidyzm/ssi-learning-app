@@ -6,6 +6,13 @@ const COURSES = [
   { course_code: 'spa_for_eng', display_name: 'Spanish', known_lang: 'eng', target_lang: 'spa', pricing_tier: 'premium' },
   { course_code: 'cym_for_eng', display_name: 'Welsh', known_lang: 'eng', target_lang: 'cym', pricing_tier: 'free' },
 ]
+// The two live Welsh dialects, which share a language pair — they are only
+// told apart by their display names.
+const WELSH_DIALECTS = [
+  { course_code: 'cym_n_for_eng', display_name: 'North Welsh for English Speakers', known_lang: 'eng', target_lang: 'cym', pricing_tier: 'premium' },
+  { course_code: 'cym_s_for_eng', display_name: 'South Welsh for English Speakers', known_lang: 'eng', target_lang: 'cym', pricing_tier: 'premium' },
+]
+let catalogue: typeof COURSES = COURSES
 
 function mockSupabaseClient() {
   return {
@@ -14,7 +21,7 @@ function mockSupabaseClient() {
       const builder: any = {
         select: () => builder,
         in: () => builder,
-        order: () => Promise.resolve({ data: COURSES, error: null }),
+        order: () => Promise.resolve({ data: catalogue, error: null }),
       }
       return builder
     },
@@ -44,6 +51,7 @@ function policyResponse(policy: any) {
 }
 
 beforeEach(() => {
+  catalogue = COURSES
   fetchMock = vi.fn(async () => policyResponse(null))
   vi.stubGlobal('fetch', fetchMock)
 })
@@ -156,12 +164,13 @@ describe('NodeEntitlementControl', () => {
         return policyResponse({
           org_display_name: 'Y Ganolfan Dysgu Cymraeg Genedlaethol',
           free_months: 12,
-          granted_courses: ['cym_for_eng'],
+          granted_courses: ['cym_n_for_eng', 'cym_s_for_eng'],
           is_active: true,
         })
       }
       return grantsResponse([])
     })
+    catalogue = WELSH_DIALECTS
     const wrapper = mount(NodeEntitlementControl, {
       props: { nodeId: '673b0490-81a8-4f83-a2a9-c2e87baf1ec3', nodeType: 'group' },
     })
@@ -171,7 +180,9 @@ describe('NodeEntitlementControl', () => {
     expect(wrapper.text()).toContain('Granted at sign-up')
     expect(wrapper.text()).toContain('Y Ganolfan Dysgu Cymraeg Genedlaethol')
     expect(wrapper.text()).toContain('12 months free')
-    expect(wrapper.text()).toContain('Welsh')
+    // Both dialects, told apart — not "Welsh for English speakers" twice.
+    expect(wrapper.text()).toContain('North Welsh for English Speakers')
+    expect(wrapper.text()).toContain('South Welsh for English Speakers')
     // ...and the misleading line it replaces is gone.
     expect(wrapper.text()).not.toContain('No course access set yet')
   })

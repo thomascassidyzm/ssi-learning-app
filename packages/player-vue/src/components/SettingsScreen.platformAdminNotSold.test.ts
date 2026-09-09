@@ -18,7 +18,7 @@
  * billing action.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { mount } from '@vue/test-utils'
 import eng from '../locales/eng.json'
 
@@ -34,6 +34,11 @@ vi.mock('../composables/useSubscription', () => ({
     cancelSubscription: vi.fn(),
     refresh: vi.fn(),
     isPlatformAdmin,
+    // This learner has no funded-org grant. Stated, not omitted: SettingsScreen
+    // asks useOrgFreeAccess the same question on every render, and a mock that
+    // is silent about the grant makes the composable read undefined.value.
+    freeAccess: ref(null),
+    hasFreeAccess: computed(() => false),
   }),
 }))
 vi.mock('../platform/paymentRoute', () => ({

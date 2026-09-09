@@ -148,18 +148,30 @@ describe('PwaUpdatePrompt — banner only reflects a genuinely different live bu
     }
   })
 
-  // THE SERVICE-WORKER GATE. Web = register, exactly as before. WebView = never
-  // register, because the native shell owns caching and update delivery and a
-  // Workbox precache underneath it would serve its own stale app shell.
+  // THE SERVICE-WORKER GATE. Register EVERYWHERE — on the web as always, and
+  // inside the native shell since Tom's ruling of 2026-09-08.
+  //
+  // This assertion used to be the opposite, and was right while the APK
+  // bundled its web assets: the shell owned the code, and a Workbox precache
+  // underneath it was a frozen copy of a frozen copy. `a607ee6e` made the
+  // shell a window onto the deployment, so the shell the service worker
+  // precaches IS the deployment's own — and it is the only thing that lets a
+  // learner open the app and play with no network. That commit flipped
+  // `shouldRunServiceWorker()` and its own test in platform/capabilities.test.ts
+  // ('RUNS a service worker inside the native shell — the offline story') but
+  // missed this file, so this test went on pinning the retired behaviour and
+  // turned the nightly red on all three branches. Corrected 2026-09-09.
   it('registers the service worker on the web — unchanged', () => {
     activeWrapper = mount(PwaUpdatePrompt, { attachTo: document.body })
     expect(registerCalls).toHaveBeenCalledTimes(1)
   })
 
-  it('never registers a service worker inside a native shell', () => {
+  it('registers a service worker inside a native shell too — the offline story', () => {
     configurePlatform({ shell: 'webview' })
     activeWrapper = mount(PwaUpdatePrompt, { attachTo: document.body })
-    expect(registerCalls).not.toHaveBeenCalled()
+    expect(registerCalls).toHaveBeenCalledTimes(1)
+    // Registering is not announcing: nothing is on screen until a waiting
+    // worker is verified against /version.json as a genuinely different build.
     expect(document.body.querySelector('.pwa-update-banner')).toBeNull()
   })
 

@@ -65,6 +65,7 @@
     "forSpeakers": "for {lang} speakers",
     "searchPlaceholder": "Search for any language...",
     "moUnlimitedAccessAll": "£15/mo — unlimited access to all languages",
+    "freeThroughGroup": "Free through your group",
     "free": "Free",
     "freeForever": "Free forever"
   },
@@ -341,7 +342,14 @@
     "cancelChangeToPremiumOffer": "Or change to SSi Premium and keep your own learning at {price} from {date}. Everyone on your plan then stays covered for a further 30 days.",
     "cancelRowDesc": "Stay on {plan} until {date}, then stop",
     "periodEnd": "the end of your current period",
-    "keepMyPlan": "Keep my plan"
+    "keepMyPlan": "Keep my plan",
+    "freeThrough": "Free through",
+    "otherLanguagesOwnSubscription": "Other languages need their own subscription.",
+    "identityLead": "You are signed in as",
+    "identityNoEmail": "No email address on this account yet. The code below is how we find you.",
+    "identityLastConfirmed": "This is the address we last confirmed. We will check it again as soon as you are online.",
+    "identitySupportLabel": "Your account code",
+    "identitySupportNote": "If you ever get in touch, tell us this and we will know who you are. It only names your account — it does not let anyone in."
   },
   "belt": {
     "yourProgress": "Your progress",
@@ -629,6 +637,9 @@
     "continueWithoutCode": "Continue without a code",
     "useDifferentCode": "Use a different code",
     "signActivate": "Sign in to activate",
+    "googleContinue": "Continue with Google",
+    "googleOpening": "Opening Google…",
+    "or": "or",
     "email": "Email",
     "password": "Password",
     "password2": "Your password",
@@ -637,7 +648,9 @@
     "weveSentCode": "We've sent a code to",
     "verificationCode": "Verification Code",
     "verify": "Verify",
-    "resend": "Resend"
+    "resend": "Resend",
+    "rememberedAddress": "The address this device last used.",
+    "useDifferentAddress": "Use a different address"
   },
   "nav": {
     "library": "Library",

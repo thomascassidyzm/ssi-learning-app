@@ -20,6 +20,7 @@ import type {
   SubscriptionStatus,
   SubscriptionResponse,
   PortalResponse,
+  OrgFreeAccess,
 } from '../types/Subscription'
 
 // ============================================================================
@@ -52,6 +53,10 @@ const HYDRATION_TIMEOUT_MS = 8000
 interface CachedSubscription {
   subscription: Subscription | null
   isSubscribed: boolean
+  /** Free-through-a-funded-org grant, cached with the same TTL as the
+   *  subscription so a reload doesn't flash an upgrade prompt at a learner
+   *  whose year is paid for. */
+  freeAccess?: OrgFreeAccess | null
   cachedAt: number
 }
 
@@ -91,6 +96,14 @@ export interface UseSubscriptionReturn {
    *  from the learner row — deliberately NOT from useUserRole, whose cache is
    *  localStorage and is writable by the browser. */
   isPlatformAdmin: Ref<boolean>
+  /** The funded-org grant paying for this learner's access, if any. */
+  freeAccess: Ref<OrgFreeAccess | null>
+  /** NOBODY WHOSE ACCESS IS ALREADY FREE IS EVER SHOWN A PRICE.
+   *  True while a funded org enrolment (Canolfan's free year) is still
+   *  running. Every upgrade prompt is suppressed by this one signal, so a
+   *  new surface asks the same question as the old ones instead of inventing
+   *  its own idea of "free". */
+  hasFreeAccess: ComputedRef<boolean>
 }
 
 // ============================================================================
@@ -112,6 +125,11 @@ export function useSubscription(): UseSubscriptionReturn {
   // Server-decided; see the interface note. Defaults false, so a failed or
   // unauthenticated fetch never quietly grants anybody the admin treatment.
   const isPlatformAdmin = ref(false)
+  // Free through a funded org enrolment (Canolfan's free year) — see
+  // api/_utils/orgFreeAccess.ts. Drives prompt suppression, never access:
+  // the courses the grant unlocks are carried by user_entitlements, which
+  // checkCourseAccess already honours.
+  const freeAccess = ref<OrgFreeAccess | null>(null)
 
   // Computed
   const isSubscribed = computed(() => {
@@ -125,6 +143,13 @@ export function useSubscription(): UseSubscriptionReturn {
     }
 
     return true
+  })
+
+  const hasFreeAccess = computed(() => {
+    const until = freeAccess.value?.until
+    if (!until) return false
+    const ends = new Date(until)
+    return !Number.isNaN(ends.getTime()) && ends > new Date()
   })
 
   const status = computed((): SubscriptionStatus => {
@@ -153,11 +178,12 @@ export function useSubscription(): UseSubscriptionReturn {
     }
   }
 
-  function saveToCache(sub: Subscription | null, subscribed: boolean): void {
+  function saveToCache(sub: Subscription | null, subscribed: boolean, grant: OrgFreeAccess | null): void {
     try {
       const data: CachedSubscription = {
         subscription: sub,
         isSubscribed: subscribed,
+        freeAccess: grant,
         cachedAt: Date.now(),
       }
       localStorage.setItem(SUBSCRIPTION_KEY, JSON.stringify(data))
@@ -172,6 +198,8 @@ export function useSubscription(): UseSubscriptionReturn {
     // calls this on logout) until a reload. isSubscribed is computed from
     // `subscription`, so it follows automatically.
     subscription.value = null
+    freeAccess.value = null
+    isPlatformAdmin.value = false
     try {
       localStorage.removeItem(SUBSCRIPTION_KEY)
     } catch {
@@ -204,6 +232,7 @@ export function useSubscription(): UseSubscriptionReturn {
         subscription.value = null
         isChildAccount.value = false
         isPlatformAdmin.value = false
+        freeAccess.value = null
         hasHydrated.value = true
         return
       }
@@ -219,6 +248,7 @@ export function useSubscription(): UseSubscriptionReturn {
           // Auth issue - clear cache and state
           clearCache()
           subscription.value = null
+          freeAccess.value = null
           hasHydrated.value = true
           return
         }
@@ -230,7 +260,8 @@ export function useSubscription(): UseSubscriptionReturn {
       subscription.value = data.subscription
       isChildAccount.value = !!data.isChildAccount
       isPlatformAdmin.value = !!data.isPlatformAdmin
-      saveToCache(data.subscription, data.isSubscribed)
+      freeAccess.value = data.freeAccess ?? null
+      saveToCache(data.subscription, data.isSubscribed, freeAccess.value)
       hasHydrated.value = true
     } catch (err) {
       console.error('[useSubscription] Fetch error:', err)
@@ -335,6 +366,7 @@ export function useSubscription(): UseSubscriptionReturn {
   const cached = loadFromCache()
   if (cached) {
     subscription.value = cached.subscription
+    freeAccess.value = cached.freeAccess ?? null
   }
 
   /**
@@ -377,6 +409,8 @@ export function useSubscription(): UseSubscriptionReturn {
   return {
     isChildAccount,
     isPlatformAdmin,
+    freeAccess,
+    hasFreeAccess,
     subscription,
     isSubscribed,
     isLoading,

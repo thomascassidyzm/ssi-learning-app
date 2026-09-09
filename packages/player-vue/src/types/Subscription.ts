@@ -96,6 +96,26 @@ export interface PortalResponse {
 }
 
 /**
+ * A learner's access is paid for by a funded organisation rather than by
+ * themselves — the Canolfan free year (org_enrolments.free_access_until).
+ * Reported by /api/subscription so that "should this person be shown a price?"
+ * is answered from ONE place, whether the answer comes from a payment or from
+ * a grant.
+ */
+export interface OrgFreeAccess {
+  /** The org's `groups` row. */
+  groupId: string
+  /** Funder's display name, e.g. 'National Centre for Learning Welsh'. */
+  orgName: string | null
+  /** ISO timestamp the free period ends. */
+  until: string
+  /** The course codes this grant covers. Suppression is PER COURSE: a premium
+   *  language outside this list is quoted the ordinary price, which is honest
+   *  (Kai, 2026-09-08). */
+  courses: string[]
+}
+
+/**
  * Subscription API response
  */
 export interface SubscriptionResponse {
@@ -110,6 +130,9 @@ export interface SubscriptionResponse {
    *  to suppress every "buy a plan" affordance: a platform admin outranks
    *  Premium and is never sold anything (Tom, 2026-09-08). */
   isPlatformAdmin?: boolean
+  /** Non-null when this learner's access is already free through a funded org
+   *  enrolment. Suppresses every paid-upgrade prompt (see useSubscription). */
+  freeAccess?: OrgFreeAccess | null
 }
 
 /**
