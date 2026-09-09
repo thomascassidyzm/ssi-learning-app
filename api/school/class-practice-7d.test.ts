@@ -61,7 +61,9 @@ beforeEach(async () => {
   handler = (await import('./class-practice-7d')).default
   DB = {
     classes: [{ id: 'c1', school_id: 's1' }],
-    schools: [{ id: 's1', platform_status: 'trial', platform_expires_at: null }],
+    // A LIVE trial has a real end date. (Before 2026-09-09 this fixture had
+    // none and still counted as live — the "no end date means forever" hole.)
+    schools: [{ id: 's1', platform_status: 'trial', platform_expires_at: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString() }],
     learner_speaking_opportunities: [{ learner_id: 'l1', play_seconds: 120 }],
   }
   scope = {

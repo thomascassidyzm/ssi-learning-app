@@ -1,6 +1,6 @@
 {
-  "version": "4624146a02ac",
-  "generatedAt": "2026-09-07",
+  "version": "6c2ba9b664c9",
+  "generatedAt": "2026-09-09",
   "truth": {
     "verbs": [
       {
@@ -55,6 +55,7 @@
     "statWords": [
       "Demo",
       "Paid — all courses",
+      "No end date — inactive",
       "Class sessions this week",
       "Class practice",
       "Students",

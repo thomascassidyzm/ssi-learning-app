@@ -59,6 +59,7 @@ interface SchoolRow {
   platform_status: string | null
   platform_expires_at: string | null
   trial_course_code: string | null
+  created_at: string | null
 }
 
 /**
@@ -159,7 +160,7 @@ export async function resolveSchoolStaffCourseCoverage(
   for (const batch of chunk(schoolIds)) {
     const { data } = await svc
       .from('schools')
-      .select('id, platform_status, platform_expires_at, trial_course_code')
+      .select('id, platform_status, platform_expires_at, trial_course_code, created_at')
       .in('id', batch)
     for (const s of data ?? []) schools.push(s as any)
   }
@@ -167,7 +168,7 @@ export async function resolveSchoolStaffCourseCoverage(
   // A school whose clock has run out confers nothing — and a school row that
   // cannot be read confers nothing either, exactly as class coverage treats a
   // missing school. Only live ones go any further.
-  const live = schools.filter((s) => isPlatformActive(s.platform_status, s.platform_expires_at))
+  const live = schools.filter((s) => isPlatformActive(s.platform_status, s.platform_expires_at, s.created_at))
   if (live.length === 0) return NOTHING
 
   const needsClassFallback = live.filter((s) => s.platform_status !== 'active' && !s.trial_course_code)

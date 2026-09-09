@@ -217,12 +217,31 @@ describe('resolveSchoolStaffCourseCoverage', () => {
       }
     })
 
-    it('reports no window when the covering school records none — the fail-open trial default', async () => {
+    // FLIPPED 2026-09-09 (a trial with no end date must not mean forever).
+    // This used to assert that an unstamped trial covered its staff with no
+    // window at all — which is exactly the hole: three production schools had
+    // been in that state for days, covering everyone, forever. It now bounds
+    // to the row's own provisioning grace.
+    it('covers staff of a JUST-CREATED unstamped trial, with no window to report', async () => {
       const cover = await resolveSchoolStaffCourseCoverage(makeSupabase(db({
         user_tags: [staffTag('s1', 'admin')],
-        schools: [{ id: 's1', platform_status: 'trial', platform_expires_at: null, trial_course_code: 'jpn_for_eng' }],
+        schools: [{
+          id: 's1', platform_status: 'trial', platform_expires_at: null, trial_course_code: 'jpn_for_eng',
+          created_at: new Date(Date.now() - 60 * 1000).toISOString(),
+        }],
       })), 'u-1')
       expect(cover).toEqual({ courses: ['jpn_for_eng'], expiresAt: null })
+    })
+
+    it('covers NOBODY once that unstamped trial is past its grace', async () => {
+      const cover = await resolveSchoolStaffCourseCoverage(makeSupabase(db({
+        user_tags: [staffTag('s1', 'admin')],
+        schools: [{
+          id: 's1', platform_status: 'trial', platform_expires_at: null, trial_course_code: 'jpn_for_eng',
+          created_at: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000).toISOString(),
+        }],
+      })), 'u-1')
+      expect(cover).toEqual({ courses: [], expiresAt: null })
     })
 
     it('reports the EARLIEST boundary when two covered schools disagree', async () => {
