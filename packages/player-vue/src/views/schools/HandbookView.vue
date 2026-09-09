@@ -196,6 +196,15 @@ function goTo(entry: HandbookEntry): string | null {
 .entry-title { flex: 1; color: var(--schools-fg, #0F1212); font-size: var(--text-sm); font-weight: var(--font-semibold); }
 .entry-badges { display: flex; gap: 6px; flex-wrap: wrap; }
 .entry-chev { color: var(--schools-fg-3, #6b6b6b); font-size: var(--text-sm); width: 1em; text-align: center; }
+
+/* PHONE (390px, 2026-09-09): title and badges sharing one row squeezed the
+   title to one word per line. Below 560px the badges drop under the title —
+   the same stacking the Ways in ledger takes at the same breakpoint. */
+@media (max-width: 559px) {
+  .entry-head { flex-wrap: wrap; align-items: baseline; }
+  .entry-title { flex: 1 1 100%; }
+  .entry-badges { flex: 1 1 auto; }
+}
 .entry-body { padding: 0 0 var(--space-4); display: flex; flex-direction: column; gap: 4px; max-width: 62ch; }
 .entry-h {
   margin: var(--space-3) 0 0; font: inherit; font-size: var(--text-xs);
