@@ -175,6 +175,28 @@ export async function isSchoolAdminOf(
   return !!tag
 }
 
+/**
+ * The one school this account genuinely ADMINISTERS, or null.
+ *
+ * The authority sibling of `schoolIdForStaffMember` (api/_utils/schoolScope.ts),
+ * which answers the WIDER question "which school does this staff member belong
+ * to" and therefore resolves a plain TEACHER's school too. Anything that grants
+ * a leader's powers — a node scope root, a destructive act — must ask this one.
+ *
+ * Same two spellings `isSchoolAdminOf` recognises, so the per-school question
+ * ("am I an admin of school X?") and the resolve question ("which school am I
+ * an admin of?") can never disagree. The founding pointer wins where an account
+ * both founded one school and holds an admin tag at another, because the
+ * pointer is the one nobody can grant themselves.
+ */
+export async function adminSchoolIdFor(
+  supabase: SupabaseClient,
+  authUid: string,
+): Promise<string | null> {
+  const memberships = await schoolMembershipsOf(supabase, authUid)
+  return memberships.find((m) => m.role === 'admin')?.schoolId ?? null
+}
+
 /** One school a user is staff at, under whichever spelling recorded it. */
 export interface SchoolMembership {
   schoolId: string
