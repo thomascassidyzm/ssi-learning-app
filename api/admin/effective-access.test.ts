@@ -13,6 +13,7 @@ process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://example.supabase
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'service-role-key'
 
 const FUTURE = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+const PAST = new Date(Date.now() - 1000).toISOString()
 
 let adminResult: any = { userId: 'admin-uid' }
 vi.mock('../_utils/auth', () => ({
@@ -111,6 +112,8 @@ describe('GET /api/admin/effective-access', () => {
     expect(res.statusCode).toBe(200)
     expect(res.body.derived).toEqual(['school-membership'])
     expect(res.body.entitlements[0].granted_courses).toEqual(['cym_s_for_eng'])
+    // The window is the SCHOOL'S row, not one minted for her (ruling 2026-09-09).
+    expect(res.body.entitlements[0].expires_at).toBe(FUTURE)
   })
 
   it('reports nothing for a school admin whose school has NO cover', async () => {
@@ -127,6 +130,25 @@ describe('GET /api/admin/effective-access', () => {
     expect(res.statusCode).toBe(200)
     expect(res.body.entitlements).toEqual([])
     expect(res.body.derived).toEqual([])
+  })
+
+  // The school's clock stops the whole school at once — staff and students on
+  // the same row, in the same instant, with no per-person write anywhere.
+  it('stops a teacher AND a student the moment the school’s own window is past', async () => {
+    DB.schools = [{ id: 's1', platform_status: 'trial', platform_expires_at: PAST, trial_course_code: 'cym_s_for_eng' }]
+
+    for (const role of ['teacher', 'student'] as const) {
+      DB.user_tags = [
+        { user_id: 'auth-teacher', tag_type: 'class', tag_value: 'CLASS:c1', role_in_context: role, removed_at: null },
+        { user_id: 'auth-teacher', tag_type: 'school', tag_value: 'SCHOOL:s1', role_in_context: 'teacher', removed_at: null },
+      ]
+      const handler = (await import('./effective-access')).default
+      const res = makeRes()
+      await handler(req('lrn-1'), res)
+      expect(res.statusCode, role).toBe(200)
+      expect(res.body.entitlements, role).toEqual([])
+      expect(res.body.derived, role).toEqual([])
+    }
   })
 
   it('refuses without a learner_id, and 404s on an unknown one', async () => {
