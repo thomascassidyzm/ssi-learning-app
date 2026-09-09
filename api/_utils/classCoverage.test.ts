@@ -13,7 +13,12 @@ const PAST = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 interface DB {
   user_tags: Array<{ user_id: string; tag_type: string; role_in_context: string; removed_at: string | null; tag_value: string }>
   classes: Array<{ id: string; school_id: string | null; course_code: string | null }>
-  schools: Array<{ id: string; platform_status: string | null; platform_expires_at: string | null }>
+  schools: Array<{
+    id: string
+    platform_status: string | null
+    platform_expires_at: string | null
+    created_at?: string | null
+  }>
 }
 
 function makeChainable(table: string, db: DB) {
@@ -106,6 +111,41 @@ describe('resolveClassCourseCoverage', () => {
       const { courses } = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
       expect(courses, `status=${status}`).toEqual([])
     }
+  })
+
+  // A TRIAL WITH NO END DATE MUST NOT MEAN FOREVER (Tom, 2026-09-09). Three
+  // production schools sat unstamped for days, each one still handing its
+  // members free access. The cascade is where that access actually lands, so
+  // it is where the bound has to hold — including for the offline lease, which
+  // resolves through this same function (resolveEntitlements.ts).
+  it('grants the class course while an unstamped trial is inside its provisioning grace', async () => {
+    const db: DB = {
+      user_tags: [studentTag('c1')],
+      classes: [{ id: 'c1', school_id: 's1', course_code: 'fra_for_eng' }],
+      schools: [{
+        id: 's1',
+        platform_status: 'trial',
+        platform_expires_at: null,
+        created_at: new Date(Date.now() - 60 * 1000).toISOString(),
+      }],
+    }
+    const { courses } = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
+    expect(courses).toEqual(['fra_for_eng'])
+  })
+
+  it('withholds the class course once an unstamped trial is past its grace', async () => {
+    const db: DB = {
+      user_tags: [studentTag('c1')],
+      classes: [{ id: 'c1', school_id: 's1', course_code: 'fra_for_eng' }],
+      schools: [{
+        id: 's1',
+        platform_status: 'trial',
+        platform_expires_at: null,
+        created_at: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000).toISOString(),
+      }],
+    }
+    const { courses } = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
+    expect(courses).toEqual([])
   })
 
   it('returns no grants for a student with no class affiliation', async () => {

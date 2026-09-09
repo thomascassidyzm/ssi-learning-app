@@ -135,7 +135,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     const status = platformState?.platform_status ?? null
     const expiresAt = platformState?.platform_expires_at ?? null
-    const active = isPlatformActive(status, expiresAt)
+    const active = isPlatformActive(status, expiresAt, platformState?.created_at ?? null)
 
     res.status(200).json({
       org: {

@@ -756,13 +756,28 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
     <!-- Platform trial / subscription expired — pay IN-APP (no dead-end). -->
     <div v-else-if="showExpired" class="schools-expired">
       <div class="expired-card">
-        <span class="expired-pill">● Trial ended</span>
-        <!-- "trial", not "month": free/Welsh-track schools get a full year. -->
-        <h1 class="arsenal expired-headline">Your free trial has ended</h1>
-        <p class="expired-lede">
-          Subscribe below to keep your classes, analytics and student progress.
-          Your data is safe — nothing is deleted.
-        </p>
+        <!-- A trial with NO END DATE is not an ended trial, and saying so
+             would be a lie to a school whose signup never got a window
+             stamped. Name the actual state, and say what fixes it. -->
+        <template v-if="ctx.platformNoEndDate.value">
+          <span class="expired-pill">● No end date</span>
+          <h1 class="arsenal expired-headline">This school has no trial end date</h1>
+          <p class="expired-lede">
+            Your school was set up, but its free trial never got a start and end
+            date — so we cannot treat it as running. Subscribe below to carry on,
+            or contact us and we will set the trial up properly.
+            Your data is safe — nothing is deleted.
+          </p>
+        </template>
+        <template v-else>
+          <span class="expired-pill">● Trial ended</span>
+          <!-- "trial", not "month": free/Welsh-track schools get a full year. -->
+          <h1 class="arsenal expired-headline">Your free trial has ended</h1>
+          <p class="expired-lede">
+            Subscribe below to keep your classes, analytics and student progress.
+            Your data is safe — nothing is deleted.
+          </p>
+        </template>
         <UpgradeView v-if="UpgradeView && seatPurchaseAvailable" />
         <p v-else class="expired-lede">
           Ask your organisation's administrator to renew the subscription.

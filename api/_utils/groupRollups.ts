@@ -46,6 +46,10 @@ export interface CommercialInfo {
   trialCourseCode: string | null
   trialKind: string | null
   platformExpiresAt: string | null
+  /** The school row's own creation time. Carried so a reader can be TOLD that
+   *  a trial with no end date is past its grace and therefore inactive, rather
+   *  than shown a cheerful "Trial" badge over a school nobody can use. */
+  createdAt: string | null
   teacherSeats: number
 }
 
@@ -119,7 +123,7 @@ export async function computeNodeExtras(
     ...chunk(nodeIds).map(async (batch) => {
       const { data } = await svc
         .from('schools')
-        .select('id, node_group_id, platform_status, trial_course_code, trial_kind, platform_expires_at, teacher_seats')
+        .select('id, node_group_id, platform_status, trial_course_code, trial_kind, platform_expires_at, teacher_seats, created_at')
         .in('node_group_id', batch)
       for (const s of data ?? []) {
         const nodeId = (s as any).node_group_id as string
@@ -130,6 +134,7 @@ export async function computeNodeExtras(
           trialCourseCode: (s as any).trial_course_code,
           trialKind: (s as any).trial_kind,
           platformExpiresAt: (s as any).platform_expires_at,
+          createdAt: (s as any).created_at ?? null,
           teacherSeats: (s as any).teacher_seats,
         })
       }

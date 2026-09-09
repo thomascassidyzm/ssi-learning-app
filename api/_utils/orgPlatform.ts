@@ -36,6 +36,9 @@ export const ORG_ANNUAL_PRICE_PER_SEAT_GBP = 150
 export interface OrgPlatformState {
   platform_status: string | null
   platform_expires_at: string | null
+  /** The row's own creation time — bounds an unstamped trial's grace
+   *  (api/_utils/platformStatus.ts). */
+  created_at?: string | null
   seats: number | null
   provider_subscription_id?: string | null
   provider_customer_id?: string | null
@@ -165,13 +168,13 @@ export async function readOrgPlatformState(
 ): Promise<OrgPlatformState | null> {
   const { data, error } = await svc
     .from('groups')
-    .select('platform_status, platform_expires_at, seats, provider_subscription_id, provider_customer_id')
+    .select('platform_status, platform_expires_at, seats, provider_subscription_id, provider_customer_id, created_at')
     .eq('id', groupId)
     .maybeSingle()
 
   if (error) {
     if (isMissingPlatformSchema(error)) {
-      return { platform_status: null, platform_expires_at: null, seats: null }
+      return { platform_status: null, platform_expires_at: null, seats: null, created_at: null }
     }
     return null
   }
@@ -180,6 +183,7 @@ export async function readOrgPlatformState(
   return {
     platform_status: (data as any).platform_status ?? null,
     platform_expires_at: (data as any).platform_expires_at ?? null,
+    created_at: (data as any).created_at ?? null,
     seats: (data as any).seats ?? null,
     provider_subscription_id: (data as any).provider_subscription_id ?? null,
     provider_customer_id: (data as any).provider_customer_id ?? null,

@@ -64,6 +64,30 @@ describe('useSchoolContext — platform gate (past_due dunning grace)', () => {
     expect(ctx.platformPastDue.value).toBe(false)
   })
 
+  // A TRIAL WITH NO END DATE MUST NOT MEAN FOREVER (Tom, 2026-09-09). The
+  // browser gate must give the SAME answer as every server caller, or a
+  // dashboard stays open over an account the API has already locked.
+  it('a trial with no end date is active inside its provisioning grace', async () => {
+    const ctx = await withUser({
+      platform_status: 'trial',
+      platform_expires_at: null,
+      platform_created_at: new Date(Date.now() - 60 * 1000).toISOString(),
+    })
+    expect(ctx.platformActive.value).toBe(true)
+    expect(ctx.platformNoEndDate.value).toBe(false)
+  })
+
+  it('a trial with no end date LOCKS once the grace has passed, and says why', async () => {
+    const ctx = await withUser({
+      platform_status: 'trial',
+      platform_expires_at: null,
+      platform_created_at: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000).toISOString(),
+    })
+    expect(ctx.platformActive.value).toBe(false)
+    expect(ctx.platformNoEndDate.value).toBe(true)
+    expect(ctx.platformPastDue.value).toBe(false)
+  })
+
   it('govt_admin is never gated, even past_due', async () => {
     const ctx = await withUser({ educational_role: 'govt_admin', platform_status: 'past_due' })
     expect(ctx.platformActive.value).toBe(true)

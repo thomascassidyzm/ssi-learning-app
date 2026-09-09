@@ -9,6 +9,7 @@ import { useRoute } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useI18n } from '@/composables/useI18n'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
+import { isUnstampedTrialLapsed } from '@ssi/core'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { useClassesData } from '@/composables/schools/useClassesData'
 import { createStaffSigninLink } from '@/composables/schools/useTeachersData'
@@ -322,6 +323,13 @@ const stateBadge = computed(() => {
   const status = n.commercial?.platformStatus
   if (!status) return null
   if (status === 'active' || status === 'paid') return { word: t('org.nodeHome.badgePaid', 'Paid — all courses'), tone: 'green' }
+  // A TRIAL WITH NO END DATE MUST NOT MEAN FOREVER (Tom, 2026-09-09). Such a
+  // school reads INACTIVE to its own members, so the one screen an operator
+  // looks at has to say that out loud — the fault this closed was invisible
+  // for months precisely because the badge said a comfortable "Trial".
+  if (isUnstampedTrialLapsed(status, n.commercial?.platformExpiresAt, n.commercial?.createdAt)) {
+    return { word: t('org.nodeHome.badgeNoEndDate', 'No end date — inactive'), tone: 'grey' }
+  }
   if (status.startsWith('trial')) {
     // Name the language, never the raw code (founder report 2026-08-07: this
     // read a bare "Trial" because the school's trial_course_code was null, and

@@ -27,6 +27,7 @@ import { chunk } from './schoolScope'
 interface SchoolCoverageRow {
   platform_status: string | null
   platform_expires_at: string | null
+  created_at: string | null
 }
 
 /** Fetch platform_status/platform_expires_at for a set of school ids. */
@@ -38,12 +39,13 @@ async function fetchSchoolCoverage(
   for (const batch of chunk(schoolIds)) {
     const { data } = await svc
       .from('schools')
-      .select('id, platform_status, platform_expires_at')
+      .select('id, platform_status, platform_expires_at, created_at')
       .in('id', batch)
     for (const s of data ?? []) {
       out.set((s as any).id, {
         platform_status: (s as any).platform_status ?? null,
         platform_expires_at: (s as any).platform_expires_at ?? null,
+        created_at: (s as any).created_at ?? null,
       })
     }
   }
@@ -92,7 +94,13 @@ export async function filterActiveScope(
 
   const coverage = await fetchSchoolCoverage(svc, schoolIds)
   const activeSchoolIds = new Set(
-    schoolIds.filter((id) => isPlatformActive(coverage.get(id)?.platform_status ?? null, coverage.get(id)?.platform_expires_at ?? null)),
+    schoolIds.filter((id) =>
+      isPlatformActive(
+        coverage.get(id)?.platform_status ?? null,
+        coverage.get(id)?.platform_expires_at ?? null,
+        coverage.get(id)?.created_at ?? null,
+      ),
+    ),
   )
   if (activeSchoolIds.size === schoolIds.length) {
     return { classIds: scope.classIds, blocked: false } // all active — common case
@@ -118,5 +126,5 @@ export async function isEntityCoverageExpired(
   const coverage = await fetchSchoolCoverage(svc, [ownSchoolId])
   const row = coverage.get(ownSchoolId)
   if (!row) return false // unresolvable school — fail open, same axis as the entitlement cascade
-  return !isPlatformActive(row.platform_status, row.platform_expires_at)
+  return !isPlatformActive(row.platform_status, row.platform_expires_at, row.created_at)
 }
