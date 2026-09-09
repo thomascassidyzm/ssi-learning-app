@@ -107,6 +107,7 @@ describe('SEC0901-A-03 [SECURE-ASSERTION] — cronAuth is wired into every regis
     const cronPaths = (vercelJson.crons ?? []).map((c: any) => c.path).sort()
     expect(cronPaths).toEqual([
       '/api/cron/expire-demo-schools',
+      '/api/cron/org-entitlement-reconcile',
       '/api/cron/org-free-year-warnings',
       '/api/cron/teacher-payouts',
     ])
