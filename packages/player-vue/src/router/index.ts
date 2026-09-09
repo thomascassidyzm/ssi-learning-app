@@ -587,6 +587,22 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Admin Activity', description: 'Live activity and recent sessions' },
       },
       {
+        // The Handbook on the ADMIN surface. It has to exist here because an
+        // ssi_admin is NOT a member of any school: memberSurfaceGuard (above)
+        // bounces `canAccessAdmin && !hasSchoolRole` straight to
+        // /admin/structure, so the Handbook chip on /admin/groups/:id used to
+        // point at /schools/handbook and land the admin back on Structure
+        // (founder report 2026-09-09). Same view, same compiled pack — only
+        // the surface differs.
+        path: 'handbook',
+        name: 'admin-handbook',
+        component: HandbookView,
+        meta: {
+          title: 'Handbook',
+          description: 'Everything this dashboard can do, compiled from the same source that gates the live dashboard',
+        },
+      },
+      {
         path: 'courses',
         name: 'admin-courses',
         component: () => import('@/views/admin/AdminCourses.vue'),
