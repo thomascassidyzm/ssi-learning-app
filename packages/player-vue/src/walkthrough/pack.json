@@ -1,6 +1,6 @@
 {
-  "version": "70e1e050bdb1",
-  "generatedAt": "2026-09-08",
+  "version": "619ac47df568",
+  "generatedAt": "2026-09-09",
   "walks": [
     {
       "id": "choose-something-else-to-learn",
@@ -1762,7 +1762,7 @@
         "Tick every class they should teach.",
         "Tap **Save** to apply the ticks."
       ],
-      "note": "A class with nobody on it says so in the list, and the teacher you tick will lead it. Tick a class that already has a teacher and yours joins as a co-teacher instead."
+      "note": "This is also how somebody becomes part of your school. Anyone who used your invite link arrives under **Not yet given classes** and can see no learner at all until you tick a class for them, so a stranger who found the link sits there in plain sight and you can remove them. A class with nobody on it says so in the list, and the teacher you tick will lead it. Tick a class that already has a teacher and yours joins as a co-teacher instead."
     },
     {
       "id": "hand-a-class-over-to-another-teacher",
