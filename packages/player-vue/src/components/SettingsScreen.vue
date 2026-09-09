@@ -2188,7 +2188,7 @@ const confirmReset = async () => {
              checked: 6195847f.f4d0ecc8
         -->
         <div class="card identity-card" data-walk="account-identity">
-          <p class="identity-lead">You are signed in as</p>
+          <p class="identity-lead">{{ t('settings.identityLead') }}</p>
           <button
             v-if="!identityEmailIsPlaceholder && identityEmail"
             type="button"
@@ -2199,21 +2199,21 @@ const confirmReset = async () => {
             <span class="identity-copy">{{ copiedField === 'email' ? 'Copied' : 'Tap to copy' }}</span>
           </button>
           <p v-else class="identity-value identity-value--none">
-            No email address on this account yet. The code below is how we find you.
+            {{ t('settings.identityNoEmail') }}
           </p>
 
           <p v-if="!identityIsLive && identityEmail" class="identity-note">
-            This is the address we last confirmed. We will check it again as soon as you are online.
+            {{ t('settings.identityLastConfirmed') }}
           </p>
 
           <div v-if="supportId" class="identity-support">
-            <span class="identity-support-label">Your account code</span>
+            <span class="identity-support-label">{{ t('settings.identitySupportLabel') }}</span>
             <button type="button" class="identity-code" @click="copyIdentity('supportId')">
               {{ supportId }}
               <span class="identity-copy">{{ copiedField === 'supportId' ? 'Copied' : 'Tap to copy' }}</span>
             </button>
             <p class="identity-note">
-              If you ever get in touch, tell us this and we will know who you are. It only names your account — it does not let anyone in.
+              {{ t('settings.identitySupportNote') }}
             </p>
           </div>
         </div>

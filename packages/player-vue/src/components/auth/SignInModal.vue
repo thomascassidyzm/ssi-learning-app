@@ -573,8 +573,8 @@ const handleClose = () => {
           />
         </div>
         <p v-if="isOfferingRemembered" class="remembered-email">
-          The address this device last used.
-          <button type="button" @click="useDifferentAddress">Use a different address</button>
+          {{ t('auth.rememberedAddress') }}
+          <button type="button" @click="useDifferentAddress">{{ t('auth.useDifferentAddress') }}</button>
         </p>
       </div>
 

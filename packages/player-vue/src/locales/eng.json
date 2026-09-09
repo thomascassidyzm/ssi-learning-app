@@ -344,7 +344,12 @@
     "periodEnd": "the end of your current period",
     "keepMyPlan": "Keep my plan",
     "freeThrough": "Free through",
-    "otherLanguagesOwnSubscription": "Other languages need their own subscription."
+    "otherLanguagesOwnSubscription": "Other languages need their own subscription.",
+    "identityLead": "You are signed in as",
+    "identityNoEmail": "No email address on this account yet. The code below is how we find you.",
+    "identityLastConfirmed": "This is the address we last confirmed. We will check it again as soon as you are online.",
+    "identitySupportLabel": "Your account code",
+    "identitySupportNote": "If you ever get in touch, tell us this and we will know who you are. It only names your account — it does not let anyone in."
   },
   "belt": {
     "yourProgress": "Your progress",
@@ -643,7 +648,9 @@
     "weveSentCode": "We've sent a code to",
     "verificationCode": "Verification Code",
     "verify": "Verify",
-    "resend": "Resend"
+    "resend": "Resend",
+    "rememberedAddress": "The address this device last used.",
+    "useDifferentAddress": "Use a different address"
   },
   "nav": {
     "library": "Library",
