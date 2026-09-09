@@ -81,7 +81,7 @@ const config: CapacitorConfig = {
      * SAFER posture on iOS, not the riskier one. What the OS still requires is
      * NSMicrophoneUsageDescription in ios/App/App/Info.plist, and its absence
      * is a process kill rather than a denial. See
-     * docs/ios-remote-origin-microphone-2026-09-09.md. UNVERIFIED on a device.
+     * the repo-root docs/ios-remote-origin-microphone-2026-09-09.md. UNVERIFIED on a device.
      */
 
     /**
