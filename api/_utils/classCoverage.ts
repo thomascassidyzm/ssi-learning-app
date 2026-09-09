@@ -5,6 +5,13 @@
  * in full for exactly as long as that class's school has live platform
  * coverage (trial or paid) — no student-level clock, no student-level state,
  * recomputed on every check.
+ *
+ * TEACHERS TOO (founder report 2026-09-09, Chepstow): the tag filter read
+ * role_in_context='student' only, so a teacher tagged into the very class she
+ * runs got NOTHING — her students played the school's trialled course in full
+ * while she sat on DEFAULT access, previewing her own course to seed 19. A
+ * school pays per TEACHER; the staff of a covered school are the last people
+ * who should be locked out of it. Same clock, same derivation, no new state.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -12,13 +19,13 @@ import { isPlatformActive } from './platformStatus'
 import { chunk } from './schoolScope'
 
 /**
- * Resolve the course codes a student is entitled to via live class
+ * Resolve the course codes a class member is entitled to via live class
  * affiliation. `authUid` MUST come from a verified JWT.
  *
- * For every class the caller is tagged into as a student
- * (user_tags: tag_type='class', role_in_context='student'), resolve the
- * class's school and grant the class's course_code iff that school's
- * platform_status/platform_expires_at is currently active (see
+ * For every class the caller is tagged into as a student OR AS ITS TEACHER
+ * (user_tags: tag_type='class', role_in_context in ('student','teacher')),
+ * resolve the class's school and grant the class's course_code iff that
+ * school's platform_status/platform_expires_at is currently active (see
  * isPlatformActive). A school row that can't be found grants nothing — this
  * fails open only on the same axis api/school/subscription.ts does (a null/
  * absent platform_status on a resolvable school), never on a missing school.
@@ -32,7 +39,7 @@ export async function resolveClassCourseCoverage(
     .select('tag_value')
     .eq('user_id', authUid)
     .eq('tag_type', 'class')
-    .eq('role_in_context', 'student')
+    .in('role_in_context', ['student', 'teacher'])
     .is('removed_at', null)
 
   const classIds = [
