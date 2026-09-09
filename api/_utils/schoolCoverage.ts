@@ -29,6 +29,16 @@
  *   3. trial with NO recorded course    → the courses of that school's own
  *      CLASSES, and nothing else.
  *
+ * THE WINDOW IS THE SCHOOL'S TOO (founder ruling, 2026-09-09): "This should
+ * match the trial for the school. 365 days OR 30 days depending on which
+ * language they are trialling." So this layer carries the school's OWN
+ * `platform_expires_at` as its expiry — 365 or 30 days is already decided,
+ * once, by trialPolicy.ts when the school's trial was stamped, and nothing
+ * here recomputes it. No per-person window is calculated and no per-person
+ * expiry is ever written: when the school's window lapses, every member of its
+ * staff stops resolving in the same instant, off the same row, with no write
+ * anywhere.
+ *
  * Case 3 is where this deliberately departs from the class-creation
  * catalogue, which reads a null `trial_course_code` as "no restriction" and
  * offers the full catalogue. Offering 79 languages in a dropdown is harmless;
@@ -112,19 +122,38 @@ async function liveCourseCodes(svc: SupabaseClient): Promise<string[]> {
   ]
 }
 
+export interface SchoolStaffCoverage {
+  courses: string[]
+  /**
+   * The school's own `platform_expires_at`, never a window of this person's.
+   * Null means the covering school records no expiry at all — the bare
+   * `platform_status` DEFAULT that isPlatformActive deliberately fails open on.
+   *
+   * Where somebody is staff of several covered schools, this is the EARLIEST
+   * boundary among them: the next moment at which this answer changes. Nothing
+   * is lost by being conservative, because the answer is recomputed from the
+   * school rows on every check — past that boundary the lapsed school's courses
+   * simply drop out and the remaining school's own date takes over.
+   */
+  expiresAt: string | null
+}
+
+const NOTHING: SchoolStaffCoverage = { courses: [], expiresAt: null }
+
 /**
- * Resolve the course codes a member of school STAFF is entitled to by virtue
- * of their school's own cover. `authUid` MUST come from a verified JWT.
+ * Resolve the courses AND the window a member of school STAFF is entitled to
+ * by virtue of their school's own cover. `authUid` MUST come from a verified
+ * JWT.
  *
  * Costs two queries for the overwhelmingly common case of an account that is
- * staff of no school at all, and returns [].
+ * staff of no school at all, and returns nothing.
  */
 export async function resolveSchoolStaffCourseCoverage(
   svc: SupabaseClient,
   authUid: string,
-): Promise<string[]> {
+): Promise<SchoolStaffCoverage> {
   const schoolIds = await staffSchoolIds(svc, authUid)
-  if (schoolIds.length === 0) return []
+  if (schoolIds.length === 0) return NOTHING
 
   const schools: SchoolRow[] = []
   for (const batch of chunk(schoolIds)) {
@@ -139,7 +168,7 @@ export async function resolveSchoolStaffCourseCoverage(
   // cannot be read confers nothing either, exactly as class coverage treats a
   // missing school. Only live ones go any further.
   const live = schools.filter((s) => isPlatformActive(s.platform_status, s.platform_expires_at))
-  if (live.length === 0) return []
+  if (live.length === 0) return NOTHING
 
   const needsClassFallback = live.filter((s) => s.platform_status !== 'active' && !s.trial_course_code)
   const [classCourses, catalogue] = await Promise.all([
@@ -150,14 +179,30 @@ export async function resolveSchoolStaffCourseCoverage(
   ])
 
   const courses = new Set<string>()
+  // Only a school that actually CONTRIBUTES a course gets a say in the window.
+  const contributing: SchoolRow[] = []
   for (const s of live) {
-    if (s.platform_status === 'active') {
-      for (const code of catalogue) courses.add(code)
-    } else if (s.trial_course_code) {
-      courses.add(s.trial_course_code)
-    } else {
-      for (const code of classCourses.get(s.id) ?? []) courses.add(code)
-    }
+    const own =
+      s.platform_status === 'active'
+        ? catalogue
+        : s.trial_course_code
+          ? [s.trial_course_code]
+          : [...(classCourses.get(s.id) ?? [])]
+    if (own.length === 0) continue
+    for (const code of own) courses.add(code)
+    contributing.push(s)
   }
-  return [...courses]
+  if (courses.size === 0) return NOTHING
+
+  return { courses: [...courses], expiresAt: earliestExpiry(contributing) }
+}
+
+/** The nearest moment one of these schools' covers runs out; null if none records one. */
+function earliestExpiry(live: SchoolRow[]): string | null {
+  let earliest: string | null = null
+  for (const s of live) {
+    if (!s.platform_expires_at) continue
+    if (!earliest || new Date(s.platform_expires_at) < new Date(earliest)) earliest = s.platform_expires_at
+  }
+  return earliest
 }
