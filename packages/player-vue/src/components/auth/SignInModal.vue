@@ -528,10 +528,10 @@ const handleClose = () => {
           <path fill="#FBBC05" d="M11.8 28.2c-.4-1.3-.7-2.7-.7-4.2s.2-2.9.7-4.2v-5.7H4.5A22 22 0 0 0 2 24c0 3.6.9 6.9 2.5 9.9l7.3-5.7z"/>
           <path fill="#EA4335" d="M24 10.4c3.2 0 6.1 1.1 8.4 3.3l6.3-6.3C34.9 3.9 30 2 24 2 15.4 2 8 6.9 4.5 14.1l7.3 5.7c1.7-5.2 6.5-9.4 12.2-9.4z"/>
         </svg>
-        <span>{{ googleLoading ? 'Opening Google…' : 'Continue with Google' }}</span>
+        <span>{{ googleLoading ? t('auth.openingGoogle') : t('auth.continueWithGoogle') }}</span>
       </button>
 
-      <div class="auth-divider"><span>or</span></div>
+      <div class="auth-divider"><span>{{ t('auth.or') }}</span></div>
 
       <div class="input-group">
         <label for="auth-email" class="input-label">{{ t('auth.email') }}</label>
