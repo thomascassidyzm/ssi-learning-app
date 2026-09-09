@@ -640,7 +640,10 @@
     "weveSentCode": "We've sent a code to",
     "verificationCode": "Verification Code",
     "verify": "Verify",
-    "resend": "Resend"
+    "resend": "Resend",
+    "continueWithGoogle": "Continue with Google",
+    "openingGoogle": "Opening Google…",
+    "orDivider": "or"
   },
   "nav": {
     "library": "Library",
