@@ -135,6 +135,9 @@ const DERIVED_LABELS: Record<string, string> = {
   'cascade': 'Group/school cascade',
   'class-coverage': 'Class coverage — school platform',
   'org-coverage': 'Org coverage — org platform',
+  // The relationship, not just the layer: this account is STAFF of a school
+  // that has live cover, so it holds that school's courses course-for-course.
+  'school-membership': 'School staff — your school\'s platform cover',
 }
 
 /**
