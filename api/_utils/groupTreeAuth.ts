@@ -13,7 +13,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { verifyAdmin, verifyAuthToken } from './auth'
-import { schoolIdForAdmin } from './schoolScope'
+import { adminSchoolIdFor } from './schoolStaff'
 import { isWithinLeaderSubtree } from './orgLeader'
 import { ensureSchoolNode } from './schoolNode'
 
@@ -47,9 +47,14 @@ export async function leaderGroupIdFor(
   const ownGroupId = (govtAdmin as any)?.group_id as string | undefined
   if (ownGroupId) return ownGroupId
 
-  // School leader: scope root = their own school's node. Gated on the
-  // educational_role, NOT on mere school membership — a teacher also carries
-  // a SCHOOL: tag but stays on the teacher surfaces (no node-surface access).
+  // School leader: scope root = their own school's node. This is AUTHORITY —
+  // the node surfaces it opens include the leader's own group-delete path
+  // (api/groups/[id].ts) — so it is asked twice over, and neither question is
+  // mere membership. First the educational_role, because a teacher also
+  // carries a SCHOOL: tag but stays on the teacher surfaces. Then WHICH
+  // school, via adminSchoolIdFor rather than the membership resolver: that one
+  // returns the EARLIEST tag, so an admin of B who once taught at A took A's
+  // node as their scope root and could act on a school they never ran.
   const { data: learner } = await supabase
     .from('learners')
     .select('educational_role')
@@ -57,7 +62,7 @@ export async function leaderGroupIdFor(
     .maybeSingle()
   if ((learner as any)?.educational_role !== 'school_admin') return null
 
-  const schoolId = await schoolIdForAdmin(supabase, authUid)
+  const schoolId = await adminSchoolIdFor(supabase, authUid)
   if (!schoolId) return null
   const { data: school } = await supabase
     .from('schools')

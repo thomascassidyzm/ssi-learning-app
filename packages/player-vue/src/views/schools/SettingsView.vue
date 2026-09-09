@@ -271,7 +271,7 @@ async function openBillingPortal() {
 
 // Delete school — self-serve for the school's own admin ("every level can
 // delete the things it created", founder ruling). api/admin/update-school.ts
-// enforces ownership server-side (schoolIdForAdmin), same shape as the
+// enforces ownership server-side (isSchoolAdminOf), same shape as the
 // ssi_admin delete path it already had.
 const showDeleteSchoolModal = ref(false)
 const deleteSchoolImpact = ref<{

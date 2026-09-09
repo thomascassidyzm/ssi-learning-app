@@ -19,6 +19,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { descendantIds, type ParentLinked } from './groupSubtree'
+import { adminSchoolIdFor } from './schoolStaff'
 
 export interface CallerScope {
   /** learners.id of the caller (null if no learner row) */
@@ -64,15 +65,33 @@ async function taughtClassIds(svc: SupabaseClient, authUid: string): Promise<str
 }
 
 /**
- * The school a staff member (school_admin OR teacher) belongs to:
- * first-joined SCHOOL: tag, else admin_user_id. Exported so endpoints that
- * need a TEACHER's own school (resolveVisibleScope deliberately leaves a
- * teacher's schoolIds empty — see filterActiveScope's docstring, a teacher
- * can span schools) can resolve the same "home school" the client's
- * useSchoolContext.resolveUser() shows them, without re-deriving it from
- * classIds (which can't distinguish "no school" from "multiple schools").
+ * MEMBERSHIP, NOT AUTHORITY. The school a staff member (school_admin OR
+ * TEACHER) belongs to: first-joined active SCHOOL: tag, else admin_user_id.
+ * Exported so endpoints that need a TEACHER's own school (resolveVisibleScope
+ * deliberately leaves a teacher's schoolIds empty — see filterActiveScope's
+ * docstring, a teacher can span schools) can resolve the same "home school"
+ * the client's useSchoolContext.resolveUser() shows them, without re-deriving
+ * it from classIds (which can't distinguish "no school" from "multiple
+ * schools").
+ *
+ * It was called `schoolIdForAdmin` until 2026-09-09 and the name was the
+ * defect: api/admin/update-school.ts read the returned id as "the school this
+ * caller OWNS" and let any tag-holder DELETE it. The tag query filters on
+ * tag_type and removed_at ONLY — never role_in_context — so a plain teacher's
+ * membership row SHADOWS the genuine `admin_user_id` test below it, and 92
+ * live teacher accounts resolved as the admin of a school they do not run.
+ *
+ * Two further properties that make it unusable as an authority test, both
+ * deliberate here and both wrong there: it returns the EARLIEST tag, not the
+ * caller's current school (a school_admin of B who once taught at A resolves
+ * to A); and it answers "which school", never "may I act on THIS school".
+ *
+ * For any decision that grants a leader's powers use `isSchoolAdminOf(svc,
+ * uid, schoolId)` or `adminSchoolIdFor(svc, uid)` in ./schoolStaff — both
+ * recognise the two admin spellings (the founding pointer and an active
+ * role_in_context='admin' tag) and neither admits a teacher.
  */
-export async function schoolIdForAdmin(svc: SupabaseClient, authUid: string): Promise<string | null> {
+export async function schoolIdForStaffMember(svc: SupabaseClient, authUid: string): Promise<string | null> {
   const { data: tag } = await svc
     .from('user_tags')
     .select('tag_value')
@@ -287,7 +306,12 @@ async function resolveVisibleScopeUncached(svc: SupabaseClient, authUid: string)
   if (role === 'teacher') {
     classIds = await taughtClassIds(svc, authUid)
   } else if (role === 'school_admin') {
-    const schoolId = await schoolIdForAdmin(svc, authUid)
+    // Read-only scope, so MEMBERSHIP semantics are kept — but prefer the
+    // school this account genuinely administers where there is one, so an
+    // admin who once taught elsewhere reads their OWN school's rollups rather
+    // than their earliest tag's. Falls back to membership, so nobody who
+    // resolved to a school before resolves to nothing now.
+    const schoolId = (await adminSchoolIdFor(svc, authUid)) ?? (await schoolIdForStaffMember(svc, authUid))
     if (schoolId) {
       schoolIds = [schoolId]
       classIds = await classIdsForSchools(svc, [schoolId])
