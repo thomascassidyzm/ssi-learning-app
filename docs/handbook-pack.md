@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `ea8ba31cef0f` · generated 2026-09-09 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `080241395e96` · generated 2026-09-09 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## Add a class to a group
 
@@ -207,15 +207,15 @@ Section: courses-and-content · roles: school_admin · anchor: `setup-course-pic
 
 Section: getting-people-in · roles: school_admin · anchor: `settings-identity-add-domain` · in `packages/player-vue/src/views/schools/SettingsView.vue`
 
-**What it's for.** Telling the app which email domains belong to your school, so staff arriving on your invite links from those addresses are in with one tap. Your own domain was claimed when you signed up; add the others if your school uses more than one.
+**What it's for.** Telling the app which email domains belong to your school, so an arrival using one of them is not pushed to the top of your **Not yet given classes** list as somebody unfamiliar. Your own domain was recorded when you signed up; add the others if your school uses more than one.
 
-**Where it is.** Settings, the **Who your links let in** card, the **Add domain** field.
+**Where it is.** Settings, the **Which addresses look like your school** card, the **Add domain** field.
 
-1. Open Settings and find **Who your links let in**.
+1. Open Settings and find **Which addresses look like your school**.
 2. Type the part of the address after the @, such as example.sch.uk.
 3. Tap **Add domain**.
 
-**Worth knowing.** Public providers such as gmail.com or outlook.com cannot be claimed, because they do not identify a school. For a colleague on one of those, add their address by itself instead. Schools in the same trust share each other's domains automatically.
+**Worth knowing.** This grants nothing. Somebody at your domain still sees no learner until you give them a class, and somebody who is not still gets in with one tap. Public providers such as gmail.com or outlook.com cannot be added, because they do not identify a school. Schools in the same trust share each other's domains automatically.
 
 ## Copy a class link without opening the class
 
@@ -573,15 +573,15 @@ Section: running-classes · roles: leader, school_admin, teacher · anchor: `cla
 
 Section: getting-people-in · roles: school_admin · anchor: `settings-identity-add-address` · in `packages/player-vue/src/views/schools/SettingsView.vue`
 
-**What it's for.** Letting one named person in with one tap when their email is not at your school's domain: a supply teacher here for a fortnight, or a colleague who only uses a personal address.
+**What it's for.** Marking one named person as expected when their email is not at your school's domain: a supply teacher here for a fortnight, or a colleague who only uses a personal address. It stops them being sorted to the top of **Not yet given classes** as somebody you might not know.
 
-**Where it is.** Settings, the **Who your links let in** card, the **Add address** field.
+**Where it is.** Settings, the **Which addresses look like your school** card, the **Add address** field.
 
-1. Open Settings and find **Who your links let in**.
+1. Open Settings and find **Which addresses look like your school**.
 2. Type their email address exactly as they will use it.
 3. Tap **Add address**, then send them your usual teacher link.
 
-**Worth knowing.** Without this they can still open the link and get in, but they show as **Unverified address** on the Teachers page until they confirm their email. Adding them here first skips that.
+**Worth knowing.** They get in with one tap either way, with or without this. What actually puts somebody in your school is giving them a class. If you know who they are before they arrive, **Add by name** on the Teachers page is the shorter route.
 
 ## Look up one student
 
@@ -1037,14 +1037,14 @@ Section: your-school · roles: school_admin · anchor: `upgrade-subscribe-school
 
 Section: getting-people-in · roles: school_admin · anchor: `settings-identity-remove` · in `packages/player-vue/src/views/schools/SettingsView.vue`
 
-**What it's for.** Stopping a domain or a named address from being waved straight in by your invite links.
+**What it's for.** Taking a domain or a named address off the list your Teachers page sorts by.
 
-**Where it is.** Settings, the **Who your links let in** card, the **Remove** button beside the entry.
+**Where it is.** Settings, the **Which addresses look like your school** card, the **Remove** button beside the entry.
 
-1. Open Settings and find **Who your links let in**.
+1. Open Settings and find **Which addresses look like your school**.
 2. Tap **Remove** beside the domain or address.
 
-**Worth knowing.** Nobody already in your school loses anything. It only changes how the next arrival from that domain or address is treated.
+**Worth knowing.** Nobody loses anything and nobody is kept out. Arrivals from that address simply stop being sorted to the bottom of **Not yet given classes**.
 
 ## Take a teacher off a class, or move them
 
