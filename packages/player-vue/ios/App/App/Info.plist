@@ -38,6 +38,17 @@
 	     process outright. The text is what the learner reads in the prompt. -->
 	<key>NSMicrophoneUsageDescription</key>
 	<string>SSi uses the microphone to hear you speak during practice.</string>
+	<!-- APP TRANSPORT SECURITY: NOTHING TO DECLARE, deliberately. The WebView's
+	     whole content comes from https://saysomethingin.app over TLS with a
+	     public certificate, which is exactly the case ATS allows by default. An
+	     NSAppTransportSecurity dictionary here would only ever be a hole. If a
+	     field build ever needs to point at a plain-http origin, that is a change
+	     to SSI_SHELL_ORIGIN and it will fail loudly rather than silently — which
+	     is the right way round.
+
+	     No NSSpeechRecognitionUsageDescription either: the app reaches for
+	     getUserMedia in PronunciationOverlay.vue and never for the Web Speech
+	     API, so the key would describe a capability we do not use. -->
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -61,9 +72,13 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+	<!-- arm64, not the template's armv7. armv7 is 32-bit and no device that can
+	     run this build has had a 32-bit processor for a decade — the deployment
+	     target is iOS 15, which is arm64 only. The template value was never a
+	     working filter, just an inaccurate one. -->
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
-		<string>armv7</string>
+		<string>arm64</string>
 	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>

@@ -36,30 +36,8 @@ SHELL_ORIGIN="${SHELL_ORIGIN%/}"
 
 echo "==> shell origin: $SHELL_ORIGIN"
 
-echo "==> writing the holding notice into android-shell-web/"
-mkdir -p android-shell-web
-cat > android-shell-web/index.html <<HTML
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>SaySomethingin</title>
-    <style>
-      body { margin: 0; display: grid; place-items: center; min-height: 100vh;
-             background: #e8e3dd; color: #2b2b2b;
-             font: 16px/1.5 system-ui, -apple-system, sans-serif; }
-      main { max-width: 24rem; padding: 2rem; text-align: center; }
-    </style>
-  </head>
-  <body>
-    <main>
-      <p>SaySomethingin is loading from ${SHELL_ORIGIN}.</p>
-      <p>If you are seeing this page, the app could not reach it. Check your connection and open the app again.</p>
-    </main>
-  </body>
-</html>
-HTML
+echo "==> writing the holding notice into shell-web/"
+scripts/write-shell-web.sh "$SHELL_ORIGIN"
 
 echo "==> capacitor sync"
 ./node_modules/.bin/cap sync android

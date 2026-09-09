@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   shouldRunServiceWorker,
@@ -125,5 +127,32 @@ describe('platform capabilities', () => {
     resetPlatform()
     expect(platform().os).toBe('')
     delete window.__SSI_PLATFORM__
+  })
+})
+
+/**
+ * The comment in capacitor.config.ts says "keep this string in step with
+ * SHELL_UA_MARKER"; a comment is not a gate. This is. Both shells say who they
+ * are ONLY in the user agent — the remote deployment's index.html is not ours
+ * to stamp — so a marker that drifts by one character turns every native build
+ * into an ordinary web page silently: the service worker rule, the install
+ * prompt and the staleness line all flip, and nothing throws.
+ */
+describe('the shell markers in capacitor.config.ts', () => {
+  // vitest's root is the package directory, so the config sits at the top of it.
+  const config = readFileSync(resolve(process.cwd(), 'capacitor.config.ts'), 'utf8')
+
+  it('appends a marker for each platform that capabilities.ts can read back', () => {
+    for (const os of ['android', 'ios'] as const) {
+      const match = config.match(new RegExp(`appendUserAgent:\\s*'([^']*${os})'`))
+      expect(match, `no appendUserAgent for ${os} in capacitor.config.ts`).toBeTruthy()
+      const marker = match![1]
+      expect(marker).toBe(`${SHELL_UA_MARKER}${os}`)
+
+      withUserAgent(`Mozilla/5.0 (probe) ${marker}`, () => {
+        resetPlatform()
+        expect(platform()).toEqual({ shell: 'webview', apiOrigin: '', os })
+      })
+    }
   })
 })
