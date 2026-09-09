@@ -13,31 +13,31 @@
  * only — so even the roster behind this control is server-gated.
  */
 import { ref, computed, watch } from 'vue'
-import { useActAs } from '@/composables/useActAs'
-import { useUserRole, type ActAsPersona } from '@/composables/useUserRole'
+import { useViewAs } from '@/composables/useViewAs'
+import { useUserRole, type ViewAsPersona } from '@/composables/useUserRole'
 import { useAdminClient } from '@/composables/useAdminClient'
 
-const { actAs, viewAsError } = useActAs()
-const { canActAs } = useUserRole()
+const { viewAs, viewAsError } = useViewAs()
+const { canViewAs } = useUserRole()
 const { getAuthToken } = useAdminClient()
 
 const open = ref(false)
 const query = ref('')
-const results = ref<ActAsPersona[]>([])
+const results = ref<ViewAsPersona[]>([])
 const searching = ref(false)
 
-const ROLES: { role: ActAsPersona['role']; label: string; hint: string }[] = [
+const ROLES: { role: ViewAsPersona['role']; label: string; hint: string }[] = [
   { role: 'student', label: 'Learner', hint: 'the app with no staff surfaces at all' },
   { role: 'teacher', label: 'Teacher', hint: 'a class-scoped teacher' },
   { role: 'school_admin', label: 'School leader', hint: 'a whole school' },
   { role: 'govt_admin', label: 'Group leader', hint: 'a group of schools' },
 ]
 
-function asRole(role: ActAsPersona['role'], label: string): void {
+function asRole(role: ViewAsPersona['role'], label: string): void {
   open.value = false
   // Role-only: no userId, so nothing foreign is loaded — the app simply
   // wears that role. Pick a person below to get their real data too.
-  void actAs({ key: `role:${role}`, userId: '', role, name: label })
+  void viewAs({ key: `role:${role}`, userId: '', role, name: label })
 }
 
 const VIEW_AS_ROLES = new Set(['teacher', 'school_admin', 'govt_admin', 'student'])
@@ -65,7 +65,7 @@ async function search(): Promise<void> {
         key: u.user_id,
         userId: u.user_id,
         learnerId: u.id,
-        role: u.educational_role as ActAsPersona['role'],
+        role: u.educational_role as ViewAsPersona['role'],
         name: u.display_name || u.primary_email || 'Unnamed',
       }))
   } catch {
@@ -81,16 +81,16 @@ watch(query, () => {
   debounce = setTimeout(() => void search(), 250)
 })
 
-function pick(p: ActAsPersona): void {
+function pick(p: ViewAsPersona): void {
   open.value = false
-  void actAs(p)
+  void viewAs(p)
 }
 
 const errorText = computed(() => viewAsError.value)
 </script>
 
 <template>
-  <div v-if="canActAs" class="vap">
+  <div v-if="canViewAs" class="vap">
     <button
       type="button"
       class="vap-trigger"

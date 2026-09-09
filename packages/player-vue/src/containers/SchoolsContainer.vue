@@ -49,7 +49,7 @@ if (supabase.value) {
 const auth = inject<any>('auth', null)
 const isAuthenticated = computed(() => auth?.isAuthenticated?.value ?? false)
 const isAuthLoading = computed(() => auth?.isLoading?.value ?? false)
-const { canAccessSchools, isSsiAdmin, isActingAs, isTeacher, educationalRole, isInitialized: isRoleInitialized, restoreFromCache } = useUserRole()
+const { canAccessSchools, isSsiAdmin, isViewingAs, isTeacher, educationalRole, isInitialized: isRoleInitialized, restoreFromCache } = useUserRole()
 restoreFromCache()
 const router = useRouter()
 
@@ -64,12 +64,12 @@ activatePendingMission(router)
 // composables scope their queries off this.
 const ctx = useSchoolContext()
 // Skipped while viewing-as: an ssi_admin stepping into a persona
-// (useActAs.actAs) already populated ctx via loadAsPersona BEFORE this
+// (useViewAs.actAs) already populated ctx via loadAsPersona BEFORE this
 // container mounts; this watch would otherwise immediately clobber that
 // persona scope with the admin's own (loadFromAuth's admin-view guard only
 // skips when the loaded user_id ALSO differs from authUserId).
 watch(
-  () => auth?.isAuthenticated?.value && canAccessSchools.value && !isActingAs.value,
+  () => auth?.isAuthenticated?.value && canAccessSchools.value && !isViewingAs.value,
   (ready) => {
     if (ready && supabase.value && auth?.user?.value?.id) {
       ctx.loadFromAuth(auth.user.value.id, supabase.value).catch((err: unknown) => {
@@ -84,7 +84,7 @@ watch(
 // `isAdminView` flag the admin drill-in read-views already use, so every
 // "hide when admin-view" check scattered across the schools views covers
 // view-as for free. Writes are ALSO blocked server-side (actAsGuard).
-provide('isAdminView', isActingAs.value)
+provide('isAdminView', isViewingAs.value)
 
 // Prefetch hoist: fire the dashboard-suite data fetches here, at container
 // (route entry) level, the moment the school context resolves — instead of
@@ -158,11 +158,15 @@ const hasSchoolContext = computed(() => !!ctx.currentUser.value)
 
 // Platform-subscription gate (lever-3). FAIL-OPEN: ctx.platformActive defaults
 // to true for legacy rows / pre-migration DBs / unloaded context, so this never
-// locks anyone out before the migration lands. ssi_admins, view-as sessions
-// and demo (no real auth) all bypass — only a real, expired school/tutor is
-// blocked.
+// locks anyone out before the migration lands. ssi_admins and demo (no real
+// auth) bypass — only a real, expired school/tutor is blocked.
+//
+// The admin's own bypass is deliberately SUSPENDED while viewing-as: the
+// point of the viewer is fidelity, so if the school being looked at is out
+// of subscription, the expired wall is exactly what Tom should see. Bypassing
+// it would show him a screen no user of that school has ever seen.
 const platformBypass = computed(
-  () => isSsiAdmin.value || isActingAs.value || !isAuthenticated.value,
+  () => (isSsiAdmin.value && !isViewingAs.value) || !isAuthenticated.value,
 )
 const platformActive = computed(() => platformBypass.value || ctx.platformActive.value)
 

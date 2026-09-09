@@ -1,5 +1,5 @@
 /**
- * useActAs — lets an ssi_admin see the product as its users see it: pick a
+ * useViewAs — lets an ssi_admin see the product as its users see it: pick a
  * role (learner / teacher / school leader / group leader), optionally a real
  * person for their real school/group/class scope, and the app then RENDERS
  * AND ROUTES as that persona until they step back out.
@@ -33,15 +33,15 @@
 import { inject, ref, type Ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { useUserRole, type ActAsPersona } from '@/composables/useUserRole'
+import { useUserRole, type ViewAsPersona } from '@/composables/useUserRole'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { getSchoolsClient, setSchoolsClient } from '@/composables/schools/client'
 
-// The audit row id for the in-flight view-as session, so exitActAs can close
+// The audit row id for the in-flight view-as session, so stopViewing can close
 // it. sessionStorage-backed like the persona itself — a reload keeps it, a
 // closed tab loses it (an open-ended audit row is a truthful record of "no
 // explicit exit", not a bug).
-const AUDIT_ID_KEY = 'ssi-acting-as-audit-id'
+const AUDIT_ID_KEY = 'ssi-viewing-as-audit'
 
 /** Surfaced to the picker when the server refuses (403 = not an ssi_admin). */
 export const viewAsError = ref<string | null>(null)
@@ -52,7 +52,7 @@ export const viewAsError = ref<string | null>(null)
  * api/admin/view-as.ts is what decides whether view-as may start at all.
  */
 async function logViewAsStart(
-  persona: ActAsPersona,
+  persona: ViewAsPersona,
   authToken: string | undefined,
   schoolId?: string | null,
 ): Promise<boolean> {
@@ -86,7 +86,7 @@ async function logViewAsStart(
     return false
   } catch (err) {
     viewAsError.value = 'View as could not start — network error.'
-    console.warn('[useActAs] view-as audit start threw:', err)
+    console.warn('[useViewAs] view-as audit start threw:', err)
     return false
   }
 }
@@ -108,14 +108,14 @@ async function logViewAsEnd(authToken: string | undefined): Promise<void> {
     })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      console.warn('[useActAs] view-as audit end failed:', data?.error || res.status)
+      console.warn('[useViewAs] view-as audit end failed:', data?.error || res.status)
     }
   } catch (err) {
-    console.warn('[useActAs] view-as audit end threw:', err)
+    console.warn('[useViewAs] view-as audit end threw:', err)
   }
 }
 
-export function useActAs() {
+export function useViewAs() {
   const router = useRouter()
   const role = useUserRole()
   const ctx = useSchoolContext()
@@ -134,9 +134,9 @@ export function useActAs() {
   }
 
   /** Step into a role/persona and land on the surface that persona lives on. */
-  async function actAs(persona: ActAsPersona): Promise<void> {
+  async function viewAs(persona: ViewAsPersona): Promise<void> {
     viewAsError.value = null
-    if (!role.canActAs.value) {
+    if (!role.canViewAs.value) {
       viewAsError.value = 'View as is for platform admins only.'
       return
     }
@@ -148,7 +148,7 @@ export function useActAs() {
       // land on the learner's own home — the app with every staff and admin
       // surface correctly absent.
       if (!(await logViewAsStart(persona, token, null))) return
-      role.startActingAs(persona)
+      role.startViewing(persona)
       ctx.clear()
       await router.push('/')
       return
@@ -163,18 +163,18 @@ export function useActAs() {
       ctx.clear()
       return
     }
-    role.startActingAs(persona)
+    role.startViewing(persona)
     await router.push('/schools')
   }
 
   /** Step back out to the admin's own identity. */
-  async function exitActAs(): Promise<void> {
+  async function stopViewing(): Promise<void> {
     const c = client()
     const token = c ? (await c.auth.getSession()).data.session?.access_token : undefined
     await logViewAsEnd(token)
     // Drop the overlay BEFORE navigating: /admin/* is guarded on
     // canAccessAdmin, which is false while the overlay is on.
-    role.stopActingAs()
+    role.stopViewing()
     ctx.clear()
     viewAsError.value = null
     await router.push('/admin/structure')
@@ -185,9 +185,9 @@ export function useActAs() {
    * already restored the role overlay from sessionStorage (so the router
    * guards work); this refills the matching scope. Called once on app mount.
    */
-  async function restoreActAs(): Promise<void> {
+  async function restoreViewAs(): Promise<void> {
     role.restoreFromCache()
-    const persona = role.actingAs.value
+    const persona = role.viewingAs.value
     if (!persona) return
     // Role-only and learner personas carry no foreign scope to reprime.
     if (persona.role === 'student' || !persona.userId) return
@@ -195,5 +195,5 @@ export function useActAs() {
     await ctx.loadAsPersona(persona.userId, client())
   }
 
-  return { actAs, exitActAs, restoreActAs, viewAsError }
+  return { viewAs, stopViewing, restoreViewAs, viewAsError }
 }

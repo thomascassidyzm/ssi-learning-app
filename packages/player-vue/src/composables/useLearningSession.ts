@@ -18,6 +18,7 @@ import {
 } from '@ssi/core'
 import type { CourseDataProvider, LearningItem } from '../providers/CourseDataProvider'
 import { isBundleBootstrapEnabled } from './useInstantPlayback'
+import { useUserRole } from './useUserRole'
 
 // Accept either a value or a Ref — read lazily to avoid setup-time null captures
 type MaybeRef<T> = T | Ref<T>
@@ -76,6 +77,8 @@ export interface RoundInfo {
 
 export function useLearningSession(options: UseLearningSessionOptions = {}) {
   const demoItems = options.demoItems ?? []
+  // An ssi_admin viewing the app as a learner is LOOKING, not learning.
+  const { isViewingAs } = useUserRole()
 
   /**
    * PRACTISING — replaying material because the next new LEGO could not be
@@ -364,7 +367,11 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
         courseId,
         isGuest: learnerId ? isGuestLearner(learnerId) : 'n/a',
       })
-      if (sessionStore && learnerId && courseId && !isGuestLearner(learnerId)) {
+      // A VIEWING session leaves nothing behind (job #793): an ssi_admin
+      // looking at the app as a learner must not open a session row or an
+      // enrolment under their own id. The banner says read-only; this is what
+      // makes that true rather than decorative.
+      if (sessionStore && learnerId && courseId && !isGuestLearner(learnerId) && !isViewingAs.value) {
         try {
           const session = await sessionStore.startSession(learnerId, courseId)
           sessionId.value = session.id
@@ -386,7 +393,7 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
       }
 
       // Get or create enrollment if database is available (skip for guests)
-      if (progressStore && learnerId && courseId && !isGuestLearner(learnerId)) {
+      if (progressStore && learnerId && courseId && !isGuestLearner(learnerId) && !isViewingAs.value) {
         try {
           let enrollment = await progressStore.getEnrollment(learnerId, courseId)
           if (!enrollment) {
