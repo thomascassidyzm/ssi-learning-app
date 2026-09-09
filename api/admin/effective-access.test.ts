@@ -95,6 +95,40 @@ describe('GET /api/admin/effective-access', () => {
     expect(res.body.derived).toEqual([])
   })
 
+  // Founder ruling 2026-09-09: staff access keys on SCHOOL MEMBERSHIP, not on
+  // happening to hold a class. The screen must name that relationship too.
+  it('reports the school-membership layer for a school admin with no class at all', async () => {
+    DB.user_tags = [
+      { user_id: 'auth-teacher', tag_type: 'school', tag_value: 'SCHOOL:s1', role_in_context: 'admin', removed_at: null },
+    ]
+    DB.classes = []
+    DB.schools = [{ id: 's1', platform_status: 'trial', platform_expires_at: FUTURE, trial_course_code: 'cym_s_for_eng' }]
+
+    const handler = (await import('./effective-access')).default
+    const res = makeRes()
+    await handler(req('lrn-1'), res)
+
+    expect(res.statusCode).toBe(200)
+    expect(res.body.derived).toEqual(['school-membership'])
+    expect(res.body.entitlements[0].granted_courses).toEqual(['cym_s_for_eng'])
+  })
+
+  it('reports nothing for a school admin whose school has NO cover', async () => {
+    DB.user_tags = [
+      { user_id: 'auth-teacher', tag_type: 'school', tag_value: 'SCHOOL:s1', role_in_context: 'admin', removed_at: null },
+    ]
+    DB.classes = []
+    DB.schools = [{ id: 's1', platform_status: 'expired', platform_expires_at: null, trial_course_code: 'cym_s_for_eng' }]
+
+    const handler = (await import('./effective-access')).default
+    const res = makeRes()
+    await handler(req('lrn-1'), res)
+
+    expect(res.statusCode).toBe(200)
+    expect(res.body.entitlements).toEqual([])
+    expect(res.body.derived).toEqual([])
+  })
+
   it('refuses without a learner_id, and 404s on an unknown one', async () => {
     const handler = (await import('./effective-access')).default
     const bad = makeRes()
