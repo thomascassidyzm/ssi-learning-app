@@ -148,18 +148,26 @@ describe('PwaUpdatePrompt — banner only reflects a genuinely different live bu
     }
   })
 
-  // THE SERVICE-WORKER GATE. Web = register, exactly as before. WebView = never
-  // register, because the native shell owns caching and update delivery and a
-  // Workbox precache underneath it would serve its own stale app shell.
+  // THE SERVICE WORKER RUNS EVERYWHERE. It did not always: while the APK
+  // bundled its own web assets, registering here put a Workbox precache
+  // underneath a shell that owned caching, and it served its own stale app
+  // shell. Since a607ee6e (2026-09-08) the shell bundles nothing and is a
+  // window onto the deployment, so the shell the service worker precaches IS
+  // the deployment's own — and it is the only thing that makes the app open
+  // and play with no network. capabilities.test.ts asserts the same flip on
+  // shouldRunServiceWorker(); this assertion was left behind by that commit
+  // and is what the nightly caught on 2026-09-09.
   it('registers the service worker on the web — unchanged', () => {
     activeWrapper = mount(PwaUpdatePrompt, { attachTo: document.body })
     expect(registerCalls).toHaveBeenCalledTimes(1)
   })
 
-  it('never registers a service worker inside a native shell', () => {
+  it('registers the service worker inside a native shell too — the offline story', () => {
     configurePlatform({ shell: 'webview' })
     activeWrapper = mount(PwaUpdatePrompt, { attachTo: document.body })
-    expect(registerCalls).not.toHaveBeenCalled()
+    expect(registerCalls).toHaveBeenCalledTimes(1)
+    // Registering is not announcing: nothing surfaces until a genuinely
+    // different live build is verified, in the shell exactly as on the web.
     expect(document.body.querySelector('.pwa-update-banner')).toBeNull()
   })
 
