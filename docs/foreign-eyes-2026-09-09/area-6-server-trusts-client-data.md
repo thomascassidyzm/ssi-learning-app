@@ -423,16 +423,16 @@ Named so a verifier knows where I have already been, and so a later sweep does n
 - **`api/board/snapshot/[code].ts`** is unauthenticated by design, on a 128-bit share code, single-row, 404-on-revoked. Fine.
 - **`possession_mint_attempts`** — RLS on, no policies, so the mint limiter it backs cannot be poisoned from a browser. The contrast that makes FE6-02 a finding.
 - **Money out.** `api/cron/teacher-payouts.ts` is gated by `checkCronAuth` (`api/_utils/cronAuth.ts:47–58`), which is constant-time and fails closed on every deployed environment. The amounts come from `teacher_commissions.accrued_pence`, and that table is RLS-on with `teacher_commissions_insert_admin` / `_update_admin` both `is_ssi_admin()` (`supabase/schema.sql:20119`, `:20136`) — so despite a blanket `GRANT ALL … TO anon, authenticated` at `:23202–23203`, a browser cannot write a payable row. `api/teacher/payout-recipient.ts:96–133` takes bank details from the body but writes them to the caller's OWN `teachers` row, resolved from the session. Clean.
-- **One thing in that neighbourhood, flagged and then bounded.** `teachers` carries a blanket `GRANT ALL … TO authenticated` (`supabase/schema.sql:23221`) and `teachers_update_own_or_admin` (`:20210`) has **no `WITH CHECK`** — Postgres reuses the `USING` clause, which pins only `learner_id`. So a teacher's own row's `verified boolean`, `platform_status` and `platform_expires_at` are writable by their subject, and `api/school/subscription.ts:218–226` folds `platform_status` straight into the `active` boolean it returns:
+- **One thing in that neighbourhood, flagged and then bounded.** `teachers` carries a blanket `GRANT ALL … TO authenticated` (`supabase/schema.sql:23221`) and `teachers_update_own_or_admin` (`:20210`) has **no `WITH CHECK`** — Postgres reuses the `USING` clause, which pins only `learner_id`. So a teacher's own row's `verified boolean`, `platform_status` and `platform_expires_at` are writable by their subject, and `api/school/subscription.ts:219–227` folds `platform_status` straight into the `active` boolean it returns:
 
 ```text
-218:     const teacherActive =
-219:       teacherPaid ||
-220:       (teacherOut
-221:         ? isPlatformActive(teacherOut.platform_status as string | null, teacherOut.platform_expires_at as string | null)
-222:         : false)
+219:     const teacherActive =
+220:       teacherPaid ||
+221:       (teacherOut
+222:         ? isPlatformActive(teacherOut.platform_status as string | null, teacherOut.platform_expires_at as string | null)
+223:         : false)
 ...
-226:     const active = schoolActive || teacherActive
+227:     const active = schoolActive || teacherActive
 ```
 
   That is the area's exact shape — a server endpoint computing an entitlement answer from a column its caller writes. **I am not filing it as a finding, for one reason: the paywall it feeds is client-side anyway.** `packages/player-vue/src/containers/SchoolsContainer.vue:155–164` gates the dashboard on a `computed`, and `packages/player-vue/src/composables/schools/useSchoolContext.ts:106–124` recomputes the same predicate in the browser from the same row, failing open on a null status. An UPDATE to `platform_status` buys nothing that editing the client's own state does not already buy. What makes it worth writing down is that **`schools.platform_status` is NOT client-writable** (`supabase/schema.sql:22108` grants `authenticated` no UPDATE on `schools` at all) — so the school lane of the same gate is honest and the tutor lane is not, and if the tutor gate is ever moved server-side it will be moved onto a forgeable column. `verified` has no reader today; it is the kind of boolean that acquires one.
