@@ -39,7 +39,33 @@ function studentTag(classId: string, userId = 'stu-1'): DB['user_tags'][number] 
   return { user_id: userId, tag_type: 'class', role_in_context: 'student', removed_at: null, tag_value: `CLASS:${classId}` }
 }
 
+function teacherTag(classId: string, userId = 'tea-1'): DB['user_tags'][number] {
+  return { user_id: userId, tag_type: 'class', role_in_context: 'teacher', removed_at: null, tag_value: `CLASS:${classId}` }
+}
+
 describe('resolveClassCourseCoverage', () => {
+  // Founder report 2026-09-09 (Chepstow): the class TEACHER got nothing while
+  // her own students played the school's trialled course in full.
+  it('grants the class course to the class TEACHER while the school is covered', async () => {
+    const db: DB = {
+      user_tags: [teacherTag('c1')],
+      classes: [{ id: 'c1', school_id: 's1', course_code: 'cym_s_for_eng' }],
+      schools: [{ id: 's1', platform_status: 'trial', platform_expires_at: FUTURE }],
+    }
+    const courses = await resolveClassCourseCoverage(makeSupabase(db), 'tea-1')
+    expect(courses).toEqual(['cym_s_for_eng'])
+  })
+
+  it('withholds the class course from the teacher once the school trial has expired', async () => {
+    const db: DB = {
+      user_tags: [teacherTag('c1')],
+      classes: [{ id: 'c1', school_id: 's1', course_code: 'cym_s_for_eng' }],
+      schools: [{ id: 's1', platform_status: 'trial', platform_expires_at: PAST }],
+    }
+    const courses = await resolveClassCourseCoverage(makeSupabase(db), 'tea-1')
+    expect(courses).toEqual([])
+  })
+
   it('grants the class course when the school is on a live (unexpired) trial', async () => {
     const db: DB = {
       user_tags: [studentTag('c1')],
