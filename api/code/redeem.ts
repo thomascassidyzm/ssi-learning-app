@@ -456,21 +456,25 @@ async function redeemInviteCode(
       || 'User'
     // Possession-onboarded accounts (api/auth/possession-redeem.ts) never
     // prove mailbox receipt — that endpoint mints a session without ever
-    // emailing anyone. needs_verification is the durable record of
-    // that; cleared only by a completed round-trip through api/email/verify.ts
-    // — OR never set at all, when the arrival was ON-DOMAIN (job #371): the
-    // typed address is at the school whose link they hold, which is the
-    // attestation Tom asked for, so the teacher is never nudged to verify.
-    // The address goes into verified_emails on the same grounds.
-    const onDomain = metadata?.arrival === 'on_domain'
-    const needsEmailVerification = metadata?.onboarded_via === 'possession' && !onDomain
+    // emailing anyone. needs_verification is the durable record of that,
+    // cleared only by a completed round-trip through api/email/verify.ts.
+    //
+    // It used to be waived for an ON-DOMAIN arrival, and the typed address
+    // written straight into verified_emails on the same grounds. Both are
+    // gone (school-belonging design, 2026-09-09). A domain match never proved
+    // mailbox receipt, and verified_emails is the key
+    // api/access/grant-emails.ts uses to apply email-addressed access grants
+    // — so an unproved address landing in it at the door was the one real
+    // widening the old attestation bought. needs_verification now means what
+    // it says for every possession account, and the ONLY thing that clears it
+    // is a code the person actually received.
+    const needsEmailVerification = metadata?.onboarded_via === 'possession'
     const { error: insertError } = await supabase
       .from('learners')
       .insert({
         user_id: userId,
         display_name: displayName,
         needs_verification: needsEmailVerification,
-        ...(onDomain && authEmail ? { verified_emails: [authEmail.toLowerCase().trim()] } : {}),
       })
     if (insertError) {
       console.error('[CodeRedeem] Failed to create learner:', insertError)

@@ -28,11 +28,25 @@
  * Every delete is logged to player_events (event_type admin_school_deleted)
  * with the impact counts, best-effort, non-blocking.
  *
- * GET/DELETE: ssi_admin/god (verifyAdmin), OR the school's OWN admin — a
- * SERVER-DERIVED ownership check (schoolIdForAdmin(authUid) === schoolId,
- * never a client claim) — self-serve delete, "every level can delete the
- * things it created" (founder ruling). Same admin-first-then-owner-fallback
- * shape as the leader self-rename path in api/groups/[id].ts PATCH.
+ * GET/DELETE: ssi_admin/god (verifyAdmin), OR the school's OWN admin —
+ * `isSchoolAdminOf(authUid, schoolId)`, never a client claim — self-serve
+ * delete, "every level can delete the things it created" (founder ruling).
+ * Same admin-first-then-owner-fallback shape as the leader self-rename path
+ * in api/groups/[id].ts PATCH.
+ *
+ * That predicate is load-bearing and was WRONG until 2026-09-09. The gate read
+ * `schoolIdForAdmin(authUid) === schoolId`, and despite the name that resolver
+ * answers MEMBERSHIP: its user_tags query filters tag_type and removed_at only,
+ * never role_in_context, so a plain TEACHER's SCHOOL: tag shadowed the genuine
+ * `admin_user_id` test and resolved them as the school's admin. Any teacher
+ * could therefore DELETE their own school — irreversibly, cascading classes,
+ * sessions, memberships and live entitlement grants — from an ordinary login,
+ * and `confirm_name` is a typo guard, not an authorisation control: the 409
+ * hands the required string back in its own body. 92 live teacher accounts
+ * held such a tag. `isSchoolAdminOf` asks the real question, per school, in
+ * both admin spellings (founding pointer OR an active role_in_context='admin'
+ * tag), and is the same predicate canTeachClass and the SQL is_school_admin_of
+ * already enforce.
  * PATCH (group_id re-parent) stays ssi_admin-only — a school_admin must
  * never move their own school between groups unsupervised.
  */
@@ -42,7 +56,7 @@ import { createClient } from '@supabase/supabase-js'
 import { verifyAdmin, verifyAuthToken } from '../_utils/auth'
 import { computeSchoolImpact, deleteSchoolCascade } from '../_utils/schoolGroupDeletion'
 import { auditAdminDelete } from '../_utils/auditAdminDelete'
-import { schoolIdForAdmin } from '../_utils/schoolScope'
+import { isSchoolAdminOf } from '../_utils/schoolStaff'
 import { applyCors } from '../_utils/cors'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -96,8 +110,9 @@ export default async function handler(
         res.status(401).json({ error: authResult.error || 'Unauthorized' })
         return
       }
-      const ownSchoolId = await schoolIdForAdmin(supabase, authResult.userId)
-      if (!ownSchoolId || ownSchoolId !== schoolId) {
+      // AUTHORITY over THIS school — not "which school am I in". A
+      // membership resolver here let a teacher delete their own school.
+      if (!(await isSchoolAdminOf(supabase, authResult.userId, schoolId))) {
         res.status(403).json({ error: 'Not your school' })
         return
       }

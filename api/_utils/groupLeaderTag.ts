@@ -52,7 +52,7 @@ import { chunk } from './schoolScope'
  * learnerCount, which is exactly right — a leader is a leader.
  *
  * Grants nothing: every reader of role 'admin' in the estate (remove-staff,
- * update-profile, update-seats, schoolIdForAdmin) filters on tag_type='school'
+ * update-profile, update-seats, schoolIdForStaffMember) filters on tag_type='school'
  * first, so a group-scoped 'admin' cannot be mistaken for a school admin.
  */
 export const GROUP_LEADER_ROLE = 'admin'

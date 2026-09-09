@@ -60,6 +60,7 @@ function makeChainable(table: string) {
     not: () => builder,
     eq: (_col: string, val: unknown) => { eqVal = val; return builder },
     is: () => builder,
+    in: () => builder,
     limit: () => builder,
     insert: (obj: unknown) => { insertCalls.push({ table, obj }); return builder },
     single: () => Promise.resolve({ data: { id: 'group-new', ...(insertCalls[insertCalls.length - 1]?.obj || {}) }, error: null }),
@@ -85,6 +86,11 @@ function makeChainable(table: string) {
       // (selects id, parent_id) and the duplicate-name lookup (selects the
       // name/created_at/path it needs to warn). Tell them apart by columns.
       if (table === 'groups' && selectCols.includes('name')) return resolve({ data: existingGroups, error: null })
+      // schoolMembershipsOf (adminSchoolIdFor's own reader) reads user_tags as
+      // a LIST, not maybeSingle — same schoolAdminTagRow fixture, wrapped.
+      if (table === 'user_tags' && selectCols.includes('role_in_context')) {
+        return resolve({ data: schoolAdminTagRow ? [schoolAdminTagRow] : [], error: null })
+      }
       return resolve({ data: table === 'groups' && eqVal === undefined ? forestRows() : [], error: null })
     },
   }
@@ -397,7 +403,7 @@ describe('POST /api/groups — a school OWNER creates a group inside her own org
     verifyAuthTokenResult = { valid: true, userId: 'karen' }
     govtAdminRow = null // school track mints no leader row — this is correct
     learnerRow = { educational_role: 'school_admin' }
-    schoolAdminTagRow = { tag_value: 'SCHOOL:school-1' }
+    schoolAdminTagRow = { tag_value: 'SCHOOL:school-1', role_in_context: 'admin' }
     schoolRow = { id: 'school-1', school_name: 'NPTC Group', group_id: null, node_group_id: 'school-node' }
   })
 

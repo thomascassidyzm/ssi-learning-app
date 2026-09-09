@@ -68,6 +68,42 @@ export async function createStaffSigninLink(targetUserId: string): Promise<Staff
   }
 }
 
+/**
+ * Create a NAMED SEAT — server-mediated (api/school/named-seat.ts).
+ *
+ * Mechanism B of the school-belonging design. The admin types a name, not an
+ * address, and gets a code to hand over on the school's own channel. The seat
+ * appears on this very list straight away, under "Not yet given classes", so
+ * it can be given classes before the person has arrived — and removed if it
+ * was a mistake.
+ *
+ * Deliberately returns the SAME shape as createStaffSigninLink so the page can
+ * show one panel for both. What the admin does with the code is identical;
+ * only who it was minted for differs.
+ */
+export async function createNamedSeat(name: string): Promise<StaffAccessCode> {
+  const empty = { code: null, joinUrl: null, expiresAt: null, email: null }
+  try {
+    const headers = await authHeaders()
+    const res = await fetch('/api/school/named-seat', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ name }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) return { ...empty, error: data?.error || `Request failed: ${res.status}` }
+    return {
+      code: data.access_code ?? null,
+      joinUrl: data.join_url ?? null,
+      expiresAt: data.expires_at ?? null,
+      email: null,
+      error: null,
+    }
+  } catch (err) {
+    return { ...empty, error: err instanceof Error ? err.message : 'Could not create a code' }
+  }
+}
+
 export interface Teacher {
   user_id: string
   learner_id: string
@@ -83,10 +119,21 @@ export interface Teacher {
    *  The school's admin appears in this list and is labelled Admin, not Teacher. */
   role_in_context: 'teacher' | 'admin'
   joined_at: string
-  /** True while this staff member's address has never been vouched for — an
-   *  OFF-DOMAIN arrival on the invite link (job #371) who has not yet proved
-   *  the address by code. On-domain arrivals are born false. */
-  needs_verification: boolean
+  /** THE VOUCH (school-belonging design, 2026-09-09). The auth uid of whoever
+   *  put this person on a class of this school, and when — written
+   *  service-role-only on the class tag, read back by api/school/roster.ts.
+   *  Null while nobody has, which is what "Not yet given classes" means. */
+  vouched_by: string | null
+  vouched_at: string | null
+  /** They hold classes, but every one of them they made themselves. The
+   *  ordinary case for a teacher who arrived on the school's link and got on
+   *  with it — never flagged, carried only so the admin's list can be honest. */
+  self_assigned: boolean
+  /** SORT HINT ONLY, and it carries no weight anywhere. Whether a pending
+   *  arrival's address sits at a domain this school has claimed, derived at
+   *  read time and stored nowhere. Null when the school claims nothing, or
+   *  when the person already has classes and so needs no sorting. */
+  on_domain: boolean | null
 }
 
 /** A teacher as a PICKABLE name — the co-teacher panel needs nothing more. */
@@ -176,7 +223,7 @@ export function useTeachersData() {
       // Get learner info
       const { data: learners, error: learnersError } = await client
         .from('learners')
-        .select('id, user_id, display_name, needs_verification')
+        .select('id, user_id, display_name')
         .in('user_id', teacherUserIds)
 
       if (learnersError) throw learnersError
@@ -254,7 +301,13 @@ export function useTeachersData() {
           own_practice_minutes: Math.round((ownSeconds.get(l.id) || 0) / 60),
           role_in_context: (staffRoles.get(l.user_id) === 'admin' ? 'admin' : 'teacher') as 'teacher' | 'admin',
           joined_at: joinDates.get(l.user_id) || '',
-          needs_verification: (l as any).needs_verification === true,
+          // The ssi_admin browse branch reads user_tags directly and does not
+          // carry the vouch — that is the real admin's own view, served by
+          // api/school/roster.ts above. Reported as absent rather than faked.
+          vouched_by: null,
+          vouched_at: null,
+          self_assigned: false,
+          on_domain: null,
         }
       }).sort((a, b) => a.display_name.localeCompare(b.display_name))
     } catch (err) {
@@ -327,5 +380,6 @@ export function useTeachersData() {
     fetchClassTeacherCandidates,
     removeTeacher,
     createStaffSigninLink,
+    createNamedSeat,
   }
 }

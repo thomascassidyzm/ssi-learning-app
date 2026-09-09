@@ -3,8 +3,8 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.13.0"
-  date: "2026-09-07"   # setup step 4 course picker is filterable (FrostSelect)
+  version: "1.14.0"
+  date: "2026-09-09"   # belonging to a school is the admin's act, not a property of an address
   author: "Tom Cassidy"
   status: "draft"
 
@@ -281,6 +281,75 @@ principle IdentityCaptureNotGhosts:
     where the node IS a school), teacher, student (the learner join).
     NodeActionBar picker: Group leader / School leader / Teacher / Learner.
     Classes are never invited; a class's student link lives on ClassDetail.
+
+principle BelongingIsTheAdminsAct:
+  statement: "Belonging to a school is an act by whoever already holds the school, never a property of an email address. Nobody is stopped at the door."
+
+  why: |
+    The old rule compared the address an arriving person typed against a
+    domain their school had claimed, tested it once at the door, and stored
+    the answer in user_metadata — which the person under test can rewrite.
+    Every weakness followed from that shape. It also covered about one school
+    in eight: 6 of ~50 schools had ever claimed a domain, while 74 of 102
+    school-tagged teachers already held a class their admin had given them.
+    The vouch was already happening; it was simply not recorded as one.
+    Email cannot be the channel either — school gateways quarantine our mail
+    structurally, and a real Chepstow teacher's code was eaten twice.
+    Design: docs/auth/school-belonging-design-2026-09-09.md.
+
+  the_vouch: |
+    user_tags.added_by / added_at on the class/teacher tag, written
+    service-role-only through api/teacher/class-teachers.ts and surfaced by
+    the class_teachers view. RLS forbids any non-god authenticated user from
+    inserting a role_in_context='teacher' tag, so nobody can write their own.
+    No new column, no new table, no migration — the record already existed.
+    api/school/roster.ts reads it back as vouched_by / vouched_at, and
+    self_assigned for the teacher who made their own class.
+
+  mechanism_a: |
+    The admin's class assignment IS the proof. The one-tap multi-use invite
+    link is unchanged: an arrival gets in first time, gets the teacher role,
+    and lands on an empty dashboard. On the Teachers page they sit under
+    "Not yet given classes" until somebody who already holds the school ticks
+    a class for them, and they can see no pupil until then — pinned by
+    roster.test.ts, since roster.ts filters the school's pupil rows down to
+    the caller's own classes. The Remove button that already exists takes
+    them away. The stranger is made visible and removable, never refused.
+
+  mechanism_b: |
+    Named seats — POST api/school/named-seat. The admin types a NAME, not an
+    address, and gets an 8-character code to hand over on the school's own
+    channel. The seat becomes a real person at the school immediately: a
+    shell account on the link-auth placeholder address, a learner row with
+    the typed name, and a school teacher tag added_by the admin. So it can be
+    given classes before the person arrives, removed if it was a mistake, and
+    reissued through the existing Access code button. Redemption is
+    api/auth/access-code-redeem.ts unchanged. Single use, 48-hour expiry,
+    hash-only storage, a per-caller rate limit shared with staff-signin-link,
+    and an audit that fails closed. Containment is structural: the account is
+    created here, in the caller's own school, with the teacher role and
+    nothing else, so there is no power to inherit.
+
+  what_came_out: |
+    The arrival attestation written by api/auth/possession-redeem.ts, the
+    on_domain branch and the door-time verified_emails write in
+    api/code/redeem.ts, the same client-side verified_emails seed in
+    useAuth.ts, and the "Unverified address" pill with the schools use of
+    needs_verification behind it. Deleting the attestation beat hardening it:
+    under A it is not load-bearing, and even a genuine match never proved
+    mailbox receipt. verified_emails is the key api/access/grant-emails.ts
+    uses to apply email-addressed grants, so an unproved address landing in
+    it at the door was the one real widening the forgery bought.
+    needs_verification now means what it says for every possession account,
+    cleared only by a real round trip through api/email/verify.ts.
+
+  the_domain_match: |
+    Survives only as the ORDER of the pending section — off-domain first,
+    then longest-waiting — so the admin's eye lands on the arrival who looks
+    least like their staff. Derived at read time by roster.ts, stored
+    nowhere, granting nothing, blocking nothing, and resolved only for
+    pending arrivals at a school that has claimed something.
+    composables/schools/teacherRosterSections.ts is the rule, proved there.
 
 principle CreateClassOneTap:
   statement: "A create-class CTA opens the Create New Class modal in place — never a navigation to a second screen"

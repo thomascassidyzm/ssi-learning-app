@@ -7,6 +7,7 @@ import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { useClassesData } from '@/composables/schools/useClassesData'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 import AssignClassesModal from '@/components/schools/AssignClassesModal.vue'
+import { orderPending, settledStaff } from '@/composables/schools/teacherRosterSections'
 import {
   applyAssignmentDiff,
   computeAssignmentDiff,
@@ -21,7 +22,7 @@ const { t } = useI18n()
 
 const isAdminView = inject<boolean>('isAdminView', false)
 const { currentUser: selectedUser, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
-const { teachers: teachersData, isLoading: teachersLoading, error: teachersError, fetchTeachers, removeTeacher, createStaffSigninLink } = useTeachersData()
+const { teachers: teachersData, isLoading: teachersLoading, error: teachersError, fetchTeachers, removeTeacher, createStaffSigninLink, createNamedSeat } = useTeachersData()
 const { currentSchool, fetchSchools } = useSchoolData()
 const {
   classes,
@@ -93,18 +94,60 @@ const teachers = computed(() => {
     roleLabel: row.role_in_context === 'admin' ? t('schools.teachers.roleAdmin', 'Admin') : t('schools.teachers.roleTeacher', 'Teacher'),
     status: 'active' as TeacherStatus,
     joined_at: row.joined_at,
-    // An OFF-DOMAIN arrival on the invite link whose address nobody has
-    // vouched for yet (job #371). Shown, never hidden: the admin is the
-    // person who can tell a supply teacher from a stranger.
-    unverified: row.needs_verification === true,
+    // THE VOUCH (school-belonging design, 2026-09-09). Belonging to this
+    // school is not a property of an address; it is the act of somebody who
+    // already holds the school putting this person on a class. The "Unverified
+    // address" pill that used to sit here compared the address they typed
+    // against a domain the school had claimed — a match that only one school
+    // in eight could ever produce and that proved nothing about the mailbox.
+    // It is gone. What replaces it is a section on this page.
+    vouchedBy: row.vouched_by,
+    vouchedAt: row.vouched_at,
+    selfAssigned: row.self_assigned === true,
+    onDomain: row.on_domain,
   }))
 })
 
-const filtered = computed(() => {
+// PENDING = given no classes yet. That is the whole test, and it is the thing
+// the admin can act on: tick a class and they are in, or Remove them. A
+// teacher who made their own classes is NOT pending — 45 of 97 school-tagged
+// teachers in the live estate are in exactly that state, and flagging them
+// would be noise the admin learns to ignore. The rule itself lives in
+// composables/schools/teacherRosterSections.ts, pure and proved there.
+const searchMatches = computed(() => {
   if (!searchQuery.value.trim()) return teachers.value
   const q = searchQuery.value.toLowerCase()
   return teachers.value.filter(t => t.name.toLowerCase().includes(q))
 })
+
+const filtered = computed(() => settledStaff(searchMatches.value))
+
+// The domain match survives here and ONLY here: as the ORDER of this list, so
+// the admin's eye lands first on the arrivals who look least like their staff.
+// It grants nothing and blocks nothing.
+const pendingArrivals = computed(() => orderPending(searchMatches.value))
+
+// Who vouched for this person, as a NAME rather than a uid — nearly always
+// somebody else on this very list. Unresolvable ones say nothing rather than
+// showing an id.
+const nameByUserId = computed(() => new Map(teachers.value.map(t => [t.user_id, t.name])))
+function vouchLine(row: { vouchedBy: string | null; vouchedAt: string | null }): string {
+  if (!row.vouchedBy || !row.vouchedAt) return ''
+  const who = nameByUserId.value.get(row.vouchedBy)
+  if (!who) return ''
+  const when = new Date(row.vouchedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  return t('schools.teachers.vouchedBy', 'Given classes by {who}, {date}')
+    .replace('{who}', who)
+    .replace('{date}', when)
+}
+
+// ONE table, two sections. The pending arrivals come first because they are
+// the rows that want doing something about; everyone else follows. Rendering
+// them from a single list keeps the row markup — and the three capabilities
+// living on it — in exactly one place.
+const orderedRows = computed(() => [...pendingArrivals.value, ...filtered.value])
+const pendingHeaderIndex = computed(() => (pendingArrivals.value.length ? 0 : -1))
+const settledHeaderIndex = computed(() => (pendingArrivals.value.length && filtered.value.length ? pendingArrivals.value.length : -1))
 
 const activeCount = computed(() => teachers.value.filter(t => t.status === 'active').length)
 const pendingCount = computed(() => teachers.value.filter(t => t.status === 'invited').length)
@@ -173,6 +216,35 @@ const signinLinkFor = ref<{ user_id: string; name: string; code: string; joinUrl
 const signinLinkBusy = ref('')
 const signinLinkError = ref('')
 const signinLinkCopied = ref(false)
+
+// MECHANISM B — a named seat. The admin types a name and gets a code to hand
+// over on their own channel. The result lands in the SAME panel the Access
+// code button uses, because what the admin does with it is identical: read it
+// out, write it down, or paste it wherever they already reach their staff.
+const seatNameOpen = ref(false)
+const seatName = ref('')
+const seatBusy = ref(false)
+
+async function handleNamedSeat() {
+  const name = seatName.value.trim()
+  if (!name || seatBusy.value) return
+  seatBusy.value = true
+  signinLinkError.value = ''
+  signinLinkFor.value = null
+  const result = await createNamedSeat(name)
+  seatBusy.value = false
+  if (result.error || !result.code || !result.joinUrl) {
+    signinLinkError.value = result.error || 'Could not create a code.'
+    return
+  }
+  signinLinkFor.value = { user_id: '', name, code: result.code, joinUrl: result.joinUrl, email: '' }
+  seatName.value = ''
+  seatNameOpen.value = false
+  // The seat is a person at this school now, so it belongs on the list —
+  // under "Not yet given classes", where the admin can give it classes before
+  // whoever it is has even arrived.
+  await fetchTeachers()
+}
 
 async function handleSigninLink(userId: string, name: string) {
   signinLinkBusy.value = userId
@@ -317,6 +389,42 @@ watch(selectedUser, (newUser) => {
         <button v-if="canManageStaff" type="button" class="btn-ghost" @click="handleBulkImport">
           {{ t('schools.teachers.bulkImportCsv', 'Bulk import CSV') }}
         </button>
+        <!-- MECHANISM B of the school-belonging design: the admin names the
+             person BEFORE they arrive, so the seat can be given classes the
+             same day and the code travels on the school's own channel. -->
+        <!-- HANDBOOK Add a teacher by name
+             section: getting-people-in
+             roles: school_admin
+             place: teachers
+             keywords: add, teacher, name, code, seat, new staff, join
+             What it's for. Adding a specific teacher to your school when you
+             know who they are but cannot rely on email reaching them. You type
+             their name and get a code to hand over yourself.
+             Where it is. The **Teachers** page, the **Add by name** button at
+             the top.
+             How you do it.
+             1. Tap **Add by name**.
+             2. Type the teacher's name.
+             3. Tap **Create code**.
+             4. Read the code out, write it down, or paste it into whatever you
+                already use to reach them.
+             5. They go to saysomethingin.app/join and type it in.
+             Worth knowing. They appear on your list straight away under **Not
+             yet given classes**, so you can tick their classes before they have
+             even signed in. The code works once and lasts two days, and whoever
+             uses it becomes that person — so hand it over directly. Made a
+             mistake? Remove them from the list.
+             checked: 446541df.90235610
+        -->
+        <button
+          v-if="canManageStaff"
+          type="button"
+          class="btn-ghost"
+          data-walk="teacher-named-seat"
+          @click="seatNameOpen = !seatNameOpen"
+        >
+          + {{ t('schools.teachers.addByName', 'Add by name') }}
+        </button>
         <button v-if="canManageStaff" type="button" class="btn-play" @click="handleInvite">
           + {{ t('schools.teachers.inviteTeacher', 'Invite teacher') }}
         </button>
@@ -328,6 +436,28 @@ watch(selectedUser, (newUser) => {
       <button type="button" class="btn-ghost" @click="fetchTeachers()">{{ t('schools.teachers.retry', 'Retry') }}</button>
     </div>
 
+    <Transition name="fade">
+      <div v-if="seatNameOpen" class="invite-hint schools-card schools-card-pad seat-name-panel">
+        <label class="seat-name-label" for="seat-name">{{ t('schools.teachers.addByNameLabel', 'Who is the code for?') }}</label>
+        <div class="seat-name-row">
+          <input
+            id="seat-name"
+            v-model="seatName"
+            type="text"
+            class="seat-name-input"
+            :placeholder="t('schools.teachers.addByNamePlaceholder', 'Their name')"
+            :disabled="seatBusy"
+            @keyup.enter="handleNamedSeat"
+          />
+          <button type="button" class="btn-play btn-small" :disabled="seatBusy || !seatName.trim()" @click="handleNamedSeat">
+            {{ seatBusy ? t('schools.teachers.creatingEllipsis', 'Creating…') : t('schools.teachers.createCode', 'Create code') }}
+          </button>
+        </div>
+        <p class="schools-subtle seat-name-note">
+          {{ t('schools.teachers.addByNameNote', 'No email address needed. You hand the code over yourself, however you normally reach them.') }}
+        </p>
+      </div>
+    </Transition>
     <Transition name="fade">
       <div v-if="showImportHint" class="invite-hint schools-card schools-card-pad">
         {{ t('schools.teachers.bulkImportHint', 'Bulk CSV import is coming soon. For now, share the teacher invite link below — teachers click it, sign in once, and land in your school.') }}
@@ -388,13 +518,31 @@ watch(selectedUser, (newUser) => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in filtered" :key="row.user_id">
+          <template v-for="(row, i) in orderedRows" :key="row.user_id">
+          <!-- NOT YET GIVEN CLASSES. An arrival on the school's invite link is
+               nobody's colleague until somebody who already holds the school
+               gives them a class. Until then they sit here, seeing no pupil,
+               visible and removable. Nobody was stopped at the door to make
+               this true. -->
+          <tr v-if="i === pendingHeaderIndex" class="section-row">
+            <td colspan="8">
+              <span class="section-title">{{ t('schools.teachers.notYetGivenClasses', 'Not yet given classes') }}</span>
+              <span class="section-note schools-subtle">{{ t('schools.teachers.notYetGivenClassesNote', 'They can sign in and learn. They can see no learner until you tick a class for them.') }}</span>
+            </td>
+          </tr>
+          <tr v-if="i === settledHeaderIndex" class="section-row">
+            <td colspan="8">
+              <span class="section-title">{{ t('schools.teachers.teachingHere', 'Teaching here') }}</span>
+            </td>
+          </tr>
+          <tr>
             <td>
               <div class="teacher-cell">
                 <div class="avatar">{{ row.initials }}</div>
                 <div class="teacher-info">
                   <div class="teacher-name">{{ row.name }}</div>
                   <div class="teacher-sub schools-subtle">{{ formatJoined(row.joined_at) }}</div>
+                  <div v-if="vouchLine(row)" class="teacher-sub schools-subtle">{{ vouchLine(row) }}</div>
                 </div>
               </div>
             </td>
@@ -410,11 +558,6 @@ watch(selectedUser, (newUser) => {
                 <span class="status-dot" />
                 {{ row.status === 'active' ? t('schools.teachers.statusActive', 'Active') : t('schools.teachers.statusPendingInvite', 'Pending invite') }}
               </span>
-              <span
-                v-if="row.unverified"
-                class="unverified-pill"
-                :title="t('schools.teachers.unverifiedHint', 'Joined by the invite link from an address outside your school domain, and has not yet confirmed it. Remove them if you do not recognise them.')"
-              >{{ t('schools.teachers.unverified', 'Unverified address') }}</span>
             </td>
             <td class="cell-action">
               <!-- People-first assignment: the leader is on their staff list,
@@ -436,10 +579,15 @@ watch(selectedUser, (newUser) => {
                    2. Tap **Assign to a class**.
                    3. Tick every class they should teach.
                    4. Tap **Save** to apply the ticks.
-                   Worth knowing. A class with nobody on it says so in the list,
-                   and the teacher you tick will lead it. Tick a class that
-                   already has a teacher and yours joins as a co-teacher instead.
-                   checked: f87575a8.d5378b72
+                   Worth knowing. This is also how somebody becomes part of
+                   your school. Anyone who used your invite link arrives under
+                   **Not yet given classes** and can see no learner at all until
+                   you tick a class for them, so a stranger who found the link
+                   sits there in plain sight and you can remove them. A class
+                   with nobody on it says so in the list, and the teacher you
+                   tick will lead it. Tick a class that already has a teacher
+                   and yours joins as a co-teacher instead.
+                   checked: 4460f7d4.e2406c34
               -->
               <button
                 v-if="canAssignClasses"
@@ -476,8 +624,10 @@ watch(selectedUser, (newUser) => {
                    Worth knowing. The code works once and lasts two days, and
                    whoever uses it becomes that teacher — so give it to them
                    directly and never post it anywhere shared. Need another? Tap
-                   **Access code** again.
-                   checked: 310cb8f2.10716eae
+                   **Access code** again, and the earlier one stops working. This
+                   is also how you reissue a code for somebody you added by name
+                   who never used the first one.
+                   checked: fc938fdd.61434b3f
               -->
               <button
                 v-if="canManageStaff"
@@ -500,6 +650,9 @@ watch(selectedUser, (newUser) => {
                    What it's for. Taking a teacher off your school when they
                    leave. Their own account survives — what goes is their place
                    in this school and their view of its classes and learners.
+                   It is also how you deal with somebody under **Not yet given
+                   classes** you do not recognise, or a name you typed by
+                   mistake.
                    Where it is. The **Teachers** page, the **Remove** button on
                    that teacher's row.
                    How you do it.
@@ -510,7 +663,7 @@ watch(selectedUser, (newUser) => {
                    Worth knowing. An admin's row carries no **Remove** button, so
                    a school can never lose its own admin through this list.
                    Change their role first if that is really what you want.
-                   checked: 4cb305ee.324451a9
+                   checked: e5db3019.e593536f
               -->
               <button
                 v-if="canManageStaff && row.role !== 'Admin'"
@@ -523,7 +676,8 @@ watch(selectedUser, (newUser) => {
               </button>
             </td>
           </tr>
-          <tr v-if="filtered.length === 0">
+          </template>
+          <tr v-if="orderedRows.length === 0">
             <td colspan="8" class="empty-row">
               {{ t('schools.teachers.noTeachersMatch', 'No teachers match "{query}".').replace('{query}', searchQuery) }}
             </td>
@@ -798,16 +952,58 @@ watch(selectedUser, (newUser) => {
   color: #7a5418;
 }
 
-.unverified-pill {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 11px;
+.seat-name-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.seat-name-label {
+  font-size: 13px;
   font-weight: 600;
-  background: var(--accent-warning-bg, #fff4d6);
-  color: var(--accent-warning-text, #7a5200);
-  cursor: help;
+}
+
+.seat-name-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.seat-name-input {
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle, #d8d3cc);
+  border-radius: 8px;
+  font-size: 14px;
+  background: var(--bg-elevated, #fff);
+  color: inherit;
+}
+
+.seat-name-note {
+  font-size: 12px;
+  margin: 0;
+}
+
+.section-row td {
+  padding-top: 14px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-subtle, #e0dbd4);
+}
+
+.section-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.section-note {
+  margin-left: 10px;
+  font-size: 12px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
 }
 .status-cell {
   display: inline-flex;

@@ -1,6 +1,6 @@
 {
-  "version": "01e21ab6ca26",
-  "generatedAt": "2026-09-08",
+  "version": "357b0b97ac74",
+  "generatedAt": "2026-09-09",
   "walks": [
     {
       "id": "choose-something-else-to-learn",
@@ -1041,6 +1041,39 @@
       "note": "One student at a time, on purpose — the link is theirs alone and carries the class with it. The **Students** page's **+ Invite students** button brings you here for exactly this reason."
     },
     {
+      "id": "add-a-teacher-by-name",
+      "title": "Add a teacher by name",
+      "section": "getting-people-in",
+      "personas": [
+        "school_admin"
+      ],
+      "keywords": [
+        "add",
+        "teacher",
+        "name",
+        "code",
+        "seat",
+        "new staff",
+        "join"
+      ],
+      "place": {
+        "route": "teachers"
+      },
+      "anchor": "teacher-named-seat",
+      "source": "packages/player-vue/src/views/schools/TeachersView.vue",
+      "walk": null,
+      "what": "Adding a specific teacher to your school when you know who they are but cannot rely on email reaching them. You type their name and get a code to hand over yourself.",
+      "where": "The **Teachers** page, the **Add by name** button at the top.",
+      "how": [
+        "Tap **Add by name**.",
+        "Type the teacher's name.",
+        "Tap **Create code**.",
+        "Read the code out, write it down, or paste it into whatever you already use to reach them.",
+        "They go to saysomethingin.app/join and type it in."
+      ],
+      "note": "They appear on your list straight away under **Not yet given classes**, so you can tick their classes before they have even signed in. The code works once and lasts two days, and whoever uses it becomes that person — so hand it over directly. Made a mistake? Remove them from the list."
+    },
+    {
       "id": "add-students-to-a-class",
       "title": "Add students to a class",
       "section": "getting-people-in",
@@ -1331,14 +1364,14 @@
       "anchor": "settings-identity-add-domain",
       "source": "packages/player-vue/src/views/schools/SettingsView.vue",
       "walk": null,
-      "what": "Telling the app which email domains belong to your school, so staff arriving on your invite links from those addresses are in with one tap. Your own domain was claimed when you signed up; add the others if your school uses more than one.",
-      "where": "Settings, the **Who your links let in** card, the **Add domain** field.",
+      "what": "Telling the app which email domains belong to your school, so an arrival using one of them is not pushed to the top of your **Not yet given classes** list as somebody unfamiliar. Your own domain was recorded when you signed up; add the others if your school uses more than one.",
+      "where": "Settings, the **Which addresses look like your school** card, the **Add domain** field.",
       "how": [
-        "Open Settings and find **Who your links let in**.",
+        "Open Settings and find **Which addresses look like your school**.",
         "Type the part of the address after the @, such as example.sch.uk.",
         "Tap **Add domain**."
       ],
-      "note": "Public providers such as gmail.com or outlook.com cannot be claimed, because they do not identify a school. For a colleague on one of those, add their address by itself instead. Schools in the same trust share each other's domains automatically."
+      "note": "This grants nothing. Somebody at your domain still sees no learner until you give them a class, and somebody who is not still gets in with one tap. Public providers such as gmail.com or outlook.com cannot be added, because they do not identify a school. Schools in the same trust share each other's domains automatically."
     },
     {
       "id": "copy-a-class-link-without-opening-the-class",
@@ -1762,7 +1795,7 @@
         "Tick every class they should teach.",
         "Tap **Save** to apply the ticks."
       ],
-      "note": "A class with nobody on it says so in the list, and the teacher you tick will lead it. Tick a class that already has a teacher and yours joins as a co-teacher instead."
+      "note": "This is also how somebody becomes part of your school. Anyone who used your invite link arrives under **Not yet given classes** and can see no learner at all until you tick a class for them, so a stranger who found the link sits there in plain sight and you can remove them. A class with nobody on it says so in the list, and the teacher you tick will lead it. Tick a class that already has a teacher and yours joins as a co-teacher instead."
     },
     {
       "id": "hand-a-class-over-to-another-teacher",
@@ -1826,7 +1859,7 @@
         "They go to saysomethingin.app/join and type the code in.",
         "Tap **Done** when they are through."
       ],
-      "note": "The code works once and lasts two days, and whoever uses it becomes that teacher — so give it to them directly and never post it anywhere shared. Need another? Tap **Access code** again."
+      "note": "The code works once and lasts two days, and whoever uses it becomes that teacher — so give it to them directly and never post it anywhere shared. Need another? Tap **Access code** again, and the earlier one stops working. This is also how you reissue a code for somebody you added by name who never used the first one."
     },
     {
       "id": "hand-out-your-staff-links",
@@ -2083,14 +2116,14 @@
       "anchor": "settings-identity-add-address",
       "source": "packages/player-vue/src/views/schools/SettingsView.vue",
       "walk": null,
-      "what": "Letting one named person in with one tap when their email is not at your school's domain: a supply teacher here for a fortnight, or a colleague who only uses a personal address.",
-      "where": "Settings, the **Who your links let in** card, the **Add address** field.",
+      "what": "Marking one named person as expected when their email is not at your school's domain: a supply teacher here for a fortnight, or a colleague who only uses a personal address. It stops them being sorted to the top of **Not yet given classes** as somebody you might not know.",
+      "where": "Settings, the **Which addresses look like your school** card, the **Add address** field.",
       "how": [
-        "Open Settings and find **Who your links let in**.",
+        "Open Settings and find **Which addresses look like your school**.",
         "Type their email address exactly as they will use it.",
         "Tap **Add address**, then send them your usual teacher link."
       ],
-      "note": "Without this they can still open the link and get in, but they show as **Unverified address** on the Teachers page until they confirm their email. Adding them here first skips that."
+      "note": "They get in with one tap either way, with or without this. What actually puts somebody in your school is giving them a class. If you know who they are before they arrive, **Add by name** on the Teachers page is the shorter route."
     },
     {
       "id": "look-up-one-student",
@@ -2565,7 +2598,7 @@
       "anchor": "teacher-remove",
       "source": "packages/player-vue/src/views/schools/TeachersView.vue",
       "walk": null,
-      "what": "Taking a teacher off your school when they leave. Their own account survives — what goes is their place in this school and their view of its classes and learners.",
+      "what": "Taking a teacher off your school when they leave. Their own account survives — what goes is their place in this school and their view of its classes and learners. It is also how you deal with somebody under **Not yet given classes** you do not recognise, or a name you typed by mistake.",
       "where": "The **Teachers** page, the **Remove** button on that teacher's row.",
       "how": [
         "Find the teacher in the list.",
@@ -3027,13 +3060,13 @@
       "anchor": "settings-identity-remove",
       "source": "packages/player-vue/src/views/schools/SettingsView.vue",
       "walk": null,
-      "what": "Stopping a domain or a named address from being waved straight in by your invite links.",
-      "where": "Settings, the **Who your links let in** card, the **Remove** button beside the entry.",
+      "what": "Taking a domain or a named address off the list your Teachers page sorts by.",
+      "where": "Settings, the **Which addresses look like your school** card, the **Remove** button beside the entry.",
       "how": [
-        "Open Settings and find **Who your links let in**.",
+        "Open Settings and find **Which addresses look like your school**.",
         "Tap **Remove** beside the domain or address."
       ],
-      "note": "Nobody already in your school loses anything. It only changes how the next arrival from that domain or address is treated."
+      "note": "Nobody loses anything and nobody is kept out. Arrivals from that address simply stop being sorted to the bottom of **Not yet given classes**."
     },
     {
       "id": "take-a-teacher-off-a-class-or-move-them",
