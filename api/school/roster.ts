@@ -43,6 +43,7 @@ import { verifyAuthToken } from '../_utils/auth'
 import { resolveVisibleScope, schoolIdForAdmin, chunk } from '../_utils/schoolScope'
 import { SCHOOL_STAFF_ROLES } from '../_utils/schoolStaff'
 import { canTeachClass } from '../_utils/classTeacherAuth'
+import { claimsVouchingFor, matchArrival } from '../_utils/schoolDomain'
 import { applyCors } from '../_utils/cors'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -118,7 +119,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         .in('role_in_context', SCHOOL_STAFF_ROLES)
         .is('removed_at', null),
       classIds.length
-        ? svc.from('class_teachers').select('class_id, teacher_user_id').in('class_id', classIds)
+        // added_at/added_by carry the VOUCH: who put this person on a class of
+        // this school, and when. See the vouch block below.
+        ? svc.from('class_teachers').select('class_id, teacher_user_id, added_at, added_by').in('class_id', classIds)
         : Promise.resolve({ data: [], error: null } as any),
     ])
     if (teacherTagsErr) throw teacherTagsErr
@@ -166,6 +169,60 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       teacherClasses.set(uid, set)
     }
 
+    // THE VOUCH (school-belonging design, 2026-09-09). Belonging to a school
+    // is not a property of an email address; it is an act by somebody who
+    // already holds the school. That act is already in the database and has
+    // been all along: `user_tags.added_by` / `added_at` on the class/teacher
+    // tag, written service-role-only through api/teacher/class-teachers.ts and
+    // surfaced by the `class_teachers` view. RLS forbids any non-god
+    // authenticated user from inserting a role_in_context='teacher' tag, so
+    // nobody can write their own. No new column, no new table, no migration —
+    // this reads a record that already exists.
+    //
+    // The earliest class tag on this school NOT added by the person themselves
+    // is the vouch. Self-added rows are counted separately rather than
+    // ignored: a teacher who created their own class inside the school is the
+    // ordinary case, not a suspect — 45 of 97 school-tagged teachers in the
+    // live estate are in exactly that state today — so they are never flagged.
+    // What the admin acts on is the section below: has this person been given
+    // classes at all.
+    const vouch = new Map<string, { by: string; at: string }>()
+    const selfAssigned = new Set<string>()
+    for (const ct of classTeachers ?? []) {
+      const uid = (ct as any).teacher_user_id as string
+      if (!uid || !teacherIdSet.has(uid)) continue
+      const by = (ct as any).added_by as string | null
+      const at = (ct as any).added_at as string | null
+      if (!by || !at) continue
+      if (by === uid) { selfAssigned.add(uid); continue }
+      const seen = vouch.get(uid)
+      if (!seen || at < seen.at) vouch.set(uid, { by, at })
+    }
+
+    // THE SORT HINT, and it carries no weight. A school that has claimed a
+    // domain gets its pending arrivals ordered so the ones who do NOT look
+    // like staff come first — the admin's eye lands on the stranger. It is
+    // derived here at READ time and stored nowhere, it grants nothing, blocks
+    // nothing, and is never read as proof. Resolved only for arrivals with no
+    // class (a handful per school) and only for the ~1 school in 8 that has
+    // claimed anything at all, so the cost is bounded and usually zero.
+    const onDomain = new Map<string, boolean>()
+    const pendingIds = teacherUserIds.filter((uid) => !(teacherClasses.get(uid)?.size))
+    if (pendingIds.length) {
+      const claims = await claimsVouchingFor(svc, schoolId)
+      if (claims.length) {
+        await Promise.all(pendingIds.map(async (uid) => {
+          try {
+            const { data } = await svc.auth.admin.getUserById(uid)
+            const email = data?.user?.email
+            if (email) onDomain.set(uid, matchArrival(email, claims).onDomain)
+          } catch {
+            // A hint that cannot be resolved is simply absent. Never fatal.
+          }
+        }))
+      }
+    }
+
     let teachers: any[] = []
     if (teacherUserIds.length) {
       const { data: learners, error: learnersErr } = await svc
@@ -210,6 +267,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           own_practice_minutes: Math.round((ownSeconds.get(l.id) || 0) / 60),
           role_in_context: staffRoles.get(l.user_id) || 'teacher',
           joined_at: joinDates.get(l.user_id) || '',
+          // Who put this person on a class of this school, and when. Null
+          // while nobody has — which is what "Not yet given classes" means.
+          vouched_by: vouch.get(l.user_id)?.by ?? null,
+          vouched_at: vouch.get(l.user_id)?.at ?? null,
+          // They have classes, but every one of them they made themselves.
+          self_assigned: selfAssigned.has(l.user_id) && !vouch.has(l.user_id),
+          // Sort hint only. Undefined when the school claims no domain, or
+          // when this person already has classes and so needs no sorting.
+          on_domain: onDomain.has(l.user_id) ? onDomain.get(l.user_id) : null,
         }
       }).sort((a: any, b: any) => a.display_name.localeCompare(b.display_name))
     }
