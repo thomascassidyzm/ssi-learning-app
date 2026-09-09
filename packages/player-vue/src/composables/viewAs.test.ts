@@ -86,3 +86,25 @@ describe('viewAsFetchGuard decisions', () => {
     expect(viewAsRequestDecision('/api/schools/anything', 'DELETE')).toBe('tag')
   })
 })
+
+/**
+ * The admin gate must stand back while view-as is being switched on: before
+ * this, its isDenied watcher raced useActAs's own navigation and dumped the
+ * admin on the player instead of the school they asked to see (seen on the
+ * deployed dev site, job #793, screenshot 04).
+ */
+describe('admin gate under view-as', () => {
+  it('does not redirect while an admin is stepping into a persona', async () => {
+    const { useAdminAccessState } = await import('./useAdminGate')
+    const r = admin()
+    r.initialize('ssi_admin', null)
+    r.stopActingAs()
+    expect(useAdminAccessState().isDenied.value).toBe(false)
+    r.startActingAs({ key: 'k', userId: 'u1', role: 'school_admin', name: 'Dana' })
+    // Denied is TRUE (the estate is genuinely off) — the gate's watcher is
+    // what must stand back, which useAdminGate now does via isActingAs.
+    expect(useAdminAccessState().isDenied.value).toBe(true)
+    expect(r.isActingAs.value).toBe(true)
+    r.stopActingAs()
+  })
+})
