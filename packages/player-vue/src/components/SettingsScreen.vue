@@ -2224,7 +2224,6 @@ const confirmReset = async () => {
           <div class="setting-row clickable" v-if="userName || userEmail" @click="showDisplayNameForm = !showDisplayNameForm; displayNameInput = userName; displayNameError = ''; displayNameSuccess = false">
             <div class="setting-info">
               <span class="setting-label">{{ userName || 'User' }}</span>
-              <span class="setting-desc">{{ userEmail }}</span>
             </div>
             <svg class="chevron" :class="{ rotated: showDisplayNameForm }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>
@@ -3274,6 +3273,7 @@ const confirmReset = async () => {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+  padding: 0.875rem 1rem;
 }
 
 .identity-lead {
@@ -3284,9 +3284,9 @@ const confirmReset = async () => {
 
 .identity-value {
   display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
   background: none;
   border: none;
   padding: 0;
@@ -3310,6 +3310,7 @@ const confirmReset = async () => {
 .identity-copy {
   font-size: 0.75rem;
   font-weight: 400;
+  letter-spacing: normal;
   color: var(--text-muted);
   white-space: nowrap;
 }
@@ -4377,6 +4378,10 @@ const confirmReset = async () => {
   }
 
   .setting-row {
+    padding: 1rem 1.25rem;
+  }
+
+  .identity-card {
     padding: 1rem 1.25rem;
   }
 
