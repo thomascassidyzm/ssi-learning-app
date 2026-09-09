@@ -73,15 +73,15 @@ export async function resolveActiveEntitlements(
   }
 
   try {
-    const classCourses = await resolveClassCourseCoverage(supabase, authUid)
-    if (classCourses.length > 0) active.push(derived('class-coverage', classCourses))
+    const cls = await resolveClassCourseCoverage(supabase, authUid)
+    if (cls.courses.length > 0) active.push(derived('class-coverage', cls.courses, cls.expiresAt))
   } catch (classCoverageErr) {
     console.error('[resolveEntitlements] Class-coverage error (non-fatal):', classCoverageErr)
   }
 
   try {
-    const orgCourses = await resolveOrgCourseCoverage(supabase, authUid)
-    if (orgCourses.length > 0) active.push(derived('org-coverage', orgCourses))
+    const org = await resolveOrgCourseCoverage(supabase, authUid)
+    if (org.courses.length > 0) active.push(derived('org-coverage', org.courses, org.expiresAt))
   } catch (orgCoverageErr) {
     console.error('[resolveEntitlements] Org-coverage error (non-fatal):', orgCoverageErr)
   }
@@ -104,10 +104,14 @@ function derived(id: string, courses: string[], expiresAt: string | null = null)
     id,
     access_type: 'courses',
     granted_courses: courses,
-    // Derived layers are open-ended by default: they are recomputed on every
-    // check, so there is nothing for a date to protect. School-staff coverage
-    // is the exception — it reports the SCHOOL'S window, so the account can be
-    // told when its access ends by the same row that grants it.
+    // Every COVERAGE layer reports the covering node's own window — the
+    // school's or the org's, never one minted for the person. Online play
+    // recomputes on every check, so the date changes nothing there; the
+    // OFFLINE LEASE is carried away from the check and is capped at this
+    // boundary, so a download taken on the last day of a school trial cannot
+    // still play a month later (job #794). Null means the covering node
+    // records no expiry — the bare `platform_status` default. The cascade RPC
+    // has no window of its own to report.
     expires_at: expiresAt,
     redeemed_at: null,
     entitlement_code_id: null,

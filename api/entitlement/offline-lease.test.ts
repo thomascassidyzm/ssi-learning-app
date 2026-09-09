@@ -11,6 +11,10 @@
  *   - revocation kill-switch → locked, untouched.
  *   - stateless fallback when the offline_leases table read fails.
  *
+ * And, since job #794, the DERIVED lanes — the whole point of routing this
+ * endpoint through resolveActiveEntitlements: school-staff coverage, class
+ * coverage, and the cap that stops a lease outliving the school's own window.
+ *
  * Clock is pinned with vi.setSystemTime so leaseExpiresAt is exact.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -45,6 +49,7 @@ function makeChainable(table: string) {
     update: (o: unknown) => { calls.push(['update', o]); recordWrite(table, 'update', o); return builder },
     upsert: (o: unknown, opts: unknown) => { calls.push(['upsert', o, opts]); recordWrite(table, 'upsert', o); return builder },
     eq: (col: string, val: unknown) => { calls.push(['eq', col, val]); return builder },
+    in: (col: string, vals: unknown) => { calls.push(['in', col, vals]); return builder },
     is: (col: string, val: unknown) => { calls.push(['is', col, val]); return builder },
     resolve: () => {
       const respond = responders[table]
@@ -220,6 +225,146 @@ describe('/api/entitlement/offline-lease', () => {
     expect(res._json.courses[0]).toMatchObject({ courseCode: 'cym_for_eng', revoked: true, leaseExpiresAt: priorExpiry })
     // Revoked rows are not re-upserted.
     expect(writes.offline_leases).toBeUndefined()
+  })
+
+  // ── Derived coverage (job #794) ────────────────────────────────────────
+  //
+  // The defect: this endpoint read stored `user_entitlements` rows and the
+  // cascade RPC only, so somebody whose access is DERIVED could PLAY a course
+  // and not DOWNLOAD it. It now asks resolveActiveEntitlements — the same
+  // question play asks. These four tests fail on the pre-fix handler.
+
+  /** Wire the user_tags/classes/schools rows a derived lane reads. */
+  function withSchoolStaff(opts: { expiresAt?: string | null; trialCourse?: string | null } = {}) {
+    responders.user_tags = (calls) => {
+      const tagType = calls.find((c) => c[0] === 'eq' && c[1] === 'tag_type')?.[2]
+      if (tagType === 'school') return { data: [{ tag_value: 'SCHOOL:school-1' }], error: null }
+      return { data: [], error: null }
+    }
+    responders.schools = (calls) => {
+      // staffSchoolIds' admin_user_id pointer lookup vs the row read.
+      const byAdmin = calls.some((c) => c[0] === 'eq' && c[1] === 'admin_user_id')
+      if (byAdmin) return { data: [], error: null }
+      return {
+        data: [{
+          id: 'school-1',
+          platform_status: 'trial',
+          platform_expires_at: opts.expiresAt ?? new Date(NOW + 200 * DAY).toISOString(),
+          trial_course_code: opts.trialCourse ?? 'cym_for_eng',
+        }],
+        error: null,
+      }
+    }
+  }
+
+  function withClassCoverage(expiresAt?: string) {
+    responders.user_tags = (calls) => {
+      const tagType = calls.find((c) => c[0] === 'eq' && c[1] === 'tag_type')?.[2]
+      if (tagType === 'class') return { data: [{ tag_value: 'CLASS:class-1' }], error: null }
+      return { data: [], error: null }
+    }
+    responders.classes = () => ({ data: [{ id: 'class-1', school_id: 'school-1', course_code: 'cym_for_eng' }], error: null })
+    responders.schools = (calls) => {
+      const byAdmin = calls.some((c) => c[0] === 'eq' && c[1] === 'admin_user_id')
+      if (byAdmin) return { data: [], error: null }
+      return {
+        data: [{
+          id: 'school-1',
+          platform_status: 'trial',
+          platform_expires_at: expiresAt ?? new Date(NOW + 200 * DAY).toISOString(),
+          trial_course_code: null,
+        }],
+        error: null,
+      }
+    }
+  }
+
+  function plainNonPayer() {
+    responders.learners = () => ({ data: { id: 'learner-1', platform_role: 'learner', educational_role: null }, error: null })
+    responders.subscriptions = () => ({ data: null, error: null })
+    responders.user_entitlements = () => ({ data: [], error: null })
+    responders.offline_leases = (calls) => {
+      const isUpsert = calls.some((c) => c[0] === 'upsert')
+      if (isUpsert) return { data: null, error: null }
+      return { data: [], error: null }
+    }
+  }
+
+  it('school-STAFF coverage: a teacher with no row of her own gets a real lease for her school\'s course', async () => {
+    plainNonPayer()
+    withSchoolStaff()
+    const res = makeRes()
+    await handler(makeReq(['cym_for_eng']), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.valid).toBe(true)
+    expect(res._json.blanket).toBe(false)
+    // A real renewing lease, NOT the free one-shot taste a non-payer would get.
+    expect(res._json.courses[0]).toMatchObject({ courseCode: 'cym_for_eng', isTrial: false, revoked: false })
+    expect(res._json.courses[0].leaseExpiresAt).toBe(NOW + LEASE_MS)
+  })
+
+  it('school-STAFF coverage grants EXACTLY the school\'s courses, nothing else', async () => {
+    plainNonPayer()
+    withSchoolStaff({ trialCourse: 'cym_for_eng' })
+    const res = makeRes()
+    await handler(makeReq(['cym_for_eng', 'spa_for_eng']), res)
+
+    const spa = res._json.courses.find((c: any) => c.courseCode === 'spa_for_eng')
+    // Uncovered course falls through to the non-payer taste, not an entitlement.
+    expect(spa).toMatchObject({ isTrial: true })
+  })
+
+  it('CLASS coverage: a learner covered by their class gets a lease for its course', async () => {
+    plainNonPayer()
+    withClassCoverage()
+    const res = makeRes()
+    await handler(makeReq(['cym_for_eng']), res)
+
+    expect(res._json.valid).toBe(true)
+    expect(res._json.courses[0]).toMatchObject({ courseCode: 'cym_for_eng', isTrial: false })
+    expect(res._json.courses[0].leaseExpiresAt).toBe(NOW + LEASE_MS)
+  })
+
+  it('no coverage at all: still no entitlement — only the one-shot taste', async () => {
+    plainNonPayer()
+    responders.user_tags = () => ({ data: [], error: null })
+    responders.schools = () => ({ data: [], error: null })
+    const res = makeRes()
+    await handler(makeReq(['cym_for_eng']), res)
+
+    expect(res._json.valid).toBe(false)
+    expect(res._json.reason).toBe('no_entitlement')
+    expect(res._json.courses[0]).toMatchObject({ isTrial: true })
+  })
+
+  it('THE WINDOW: a lease is capped at the school\'s own expiry, not now+30d', async () => {
+    const schoolEnds = NOW + 5 * DAY
+    plainNonPayer()
+    withSchoolStaff({ expiresAt: new Date(schoolEnds).toISOString() })
+    const res = makeRes()
+    await handler(makeReq(['cym_for_eng']), res)
+
+    expect(res._json.valid).toBe(true)
+    // min(now+30d, school's own boundary) — the download locks when the trial does.
+    expect(res._json.courses[0]).toMatchObject({
+      courseCode: 'cym_for_eng',
+      leaseExpiresAt: schoolEnds,
+      entitlementExpiresAt: schoolEnds,
+      isTrial: false,
+    })
+    const up = writes.offline_leases.find((w) => w.op === 'upsert')!
+    expect(up.payload[0].expires_at).toBe(new Date(schoolEnds).toISOString())
+  })
+
+  it('THE WINDOW, class lane: capped at the covering school\'s expiry too', async () => {
+    const schoolEnds = NOW + 3 * DAY
+    plainNonPayer()
+    withClassCoverage(new Date(schoolEnds).toISOString())
+    const res = makeRes()
+    await handler(makeReq(['cym_for_eng']), res)
+
+    expect(res._json.courses[0]).toMatchObject({ leaseExpiresAt: schoolEnds, entitlementExpiresAt: schoolEnds, isTrial: false })
   })
 
   it('stateless fallback: offline_leases read failure returns entitled courses with null lease expiry', async () => {
