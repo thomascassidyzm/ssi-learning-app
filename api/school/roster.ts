@@ -284,6 +284,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // the whole school. The per-teacher aggregates above stay school-wide (they
     // are counts, not identities — that's what a staff list is for), but the
     // pupil ROWS a teacher gets back are only ever their own classes'.
+    // This filter is the whole reason an unvouched arrival is harmless, and the
+    // rows above it are the WHOLE school's — so it must never be simplified
+    // away. Pinned by roster.test.ts for the exact caller shape that matters:
+    // a teacher with a school tag and no classes gets students: [].
     const visibleStudents = scope.role === 'teacher'
       ? students.filter((p: any) => scope.classIds.includes(p.class_id))
       : students
