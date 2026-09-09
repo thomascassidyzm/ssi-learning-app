@@ -54,12 +54,12 @@ const PwaUpdatePrompt = defineAsyncComponent(() => import('./components/PwaUpdat
 const AccountContestPrompt = defineAsyncComponent(() => import('./components/auth/AccountContestPrompt.vue'))
 const InstallBanner = defineAsyncComponent(() => import('./components/InstallBanner.vue'))
 const TesterFeedback = defineAsyncComponent(() => import('./components/TesterFeedback.vue'))
-const ActingAsBanner = defineAsyncComponent(() => import('./components/ActingAsBanner.vue'))
+const ViewingAsBanner = defineAsyncComponent(() => import('./components/ViewingAsBanner.vue'))
 // Walkthrough overlay — renders nothing until a walk is started by a user tap
 // (noticing invitation / How-this-works "Show me"); never auto-plays.
 const WalkOverlay = defineAsyncComponent(() => import('./components/admin/WalkOverlay.vue'))
 import { setSchoolsClient } from './composables/schools/client'
-import { useActAs } from './composables/useActAs'
+import { useViewAs } from './composables/useViewAs'
 import { installViewAsFetchGuard } from './composables/viewAsFetchGuard'
 import AppEscape from './components/AppEscape.vue'
 import CheckoutOverlay from './components/CheckoutOverlay.vue'
@@ -864,7 +864,7 @@ provide('fetchEnrolledCourses', fetchEnrolledCourses)
 
 // Rehydrate an in-flight admin view-as (sessionStorage) after a reload, and
 // arm the read-only guard that makes view-as unable to write (no-op when off).
-const { restoreActAs } = useActAs()
+const { restoreViewAs } = useViewAs()
 installViewAsFetchGuard()
 
 onMounted(async () => {
@@ -875,7 +875,7 @@ onMounted(async () => {
   invalidateStaleCaches()
 
   // Re-prime the schools context if an admin reloaded while viewing-as.
-  restoreActAs().catch(err => {
+  restoreViewAs().catch(err => {
     console.warn('[App] view-as restore failed (non-fatal):', err)
   })
 
@@ -1096,7 +1096,7 @@ onMounted(async () => {
     <AccountContestPrompt :client="supabaseClient" />
     <InstallBanner />
     <TesterFeedback />
-    <ActingAsBanner />
+    <ViewingAsBanner />
     <WalkOverlay />
     <PlanPicker />
     <CheckoutOverlay />

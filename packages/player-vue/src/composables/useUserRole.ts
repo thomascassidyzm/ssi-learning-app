@@ -11,7 +11,7 @@ const STORAGE_KEY = 'ssi-user-role'
 // View-as overlay, sessionStorage-backed: a reload keeps it inside the tab,
 // closing the tab drops it. Never localStorage — a borrowed identity must
 // never outlive the window it was borrowed in.
-const ACT_AS_KEY = 'ssi-acting-as'
+const VIEW_AS_KEY = 'ssi-viewing-as'
 
 /**
  * A view-as persona: the role the UI should wear, and — when the admin picked
@@ -21,7 +21,7 @@ const ACT_AS_KEY = 'ssi-acting-as'
  * `userId` empty string = ROLE-ONLY view-as ("show me any plain learner's
  * app"), which needs no person and loads no foreign scope.
  */
-export interface ActAsPersona {
+export interface ViewAsPersona {
   key: string
   userId: string
   role: 'teacher' | 'school_admin' | 'govt_admin' | 'student'
@@ -32,7 +32,7 @@ export interface ActAsPersona {
 }
 
 /** Human label for a persona's role, for the view-as banner and picker. */
-export function roleLabel(role: ActAsPersona['role']): string {
+export function roleLabel(role: ViewAsPersona['role']): string {
   switch (role) {
     case 'teacher':
       return 'Teacher'
@@ -54,17 +54,17 @@ const isInitialized = ref(false)
 // The REAL platformRole stays 'ssi_admin' throughout (isSsiAdmin below is the
 // raw truth, so the exit banner and the admin's own session survive) — what
 // changes is every EFFECTIVE capability the UI and the router read.
-const actingAs = ref<ActAsPersona | null>(null)
-const isActingAs = computed(() => actingAs.value !== null)
+const viewingAs = ref<ViewAsPersona | null>(null)
+const isViewingAs = computed(() => viewingAs.value !== null)
 
 // The school role the UI should reflect — the persona's while viewing-as,
 // otherwise the user's own. Drives the member-surface route guard and every
 // role capability below.
 const effectiveEducationalRole = computed(() => {
-  if (!actingAs.value) return educationalRole.value
+  if (!viewingAs.value) return educationalRole.value
   // A learner persona has NO educational role — that absence is the point:
   // it is what makes every staff surface correctly disappear.
-  return actingAs.value.role === 'student' ? null : actingAs.value.role
+  return viewingAs.value.role === 'student' ? null : viewingAs.value.role
 })
 
 // Role hierarchy: ssi_admin > govt_admin > school_admin > teacher > student
@@ -88,25 +88,25 @@ const hasSchoolRole = computed(() =>
   ['teacher', 'tutor', 'school_admin', 'govt_admin'].includes(effectiveEducationalRole.value || '')
 )
 
-const isTester = computed(() => !isActingAs.value && (platformRole.value === 'tester' || isSsiAdmin.value))
+const isTester = computed(() => !isViewingAs.value && (platformRole.value === 'tester' || isSsiAdmin.value))
 
 // Capabilities
 // NOT raw isSsiAdmin: while viewing-as, the admin estate must be ABSENT —
 // that is the whole point of checking what a persona sees. The way back is
 // the view-as banner's Exit (which drops the overlay first), never a stray
 // admin link that the persona would never have.
-const canAccessAdmin = computed(() => isSsiAdmin.value && !isActingAs.value)
+const canAccessAdmin = computed(() => isSsiAdmin.value && !isViewingAs.value)
 // ssi_admins reach the schools area too — they're the platform operator, not a
 // school member, so they must never hit the "no school access / join code" wall
 // (which is for a signed-in learner with no school). Restores the pre-collapse
 // behaviour, where god — now folded into ssi_admin — passed this gate.
 // The raw-admin arm drops while viewing-as, so a learner persona loses the
 // Schools door exactly as a real learner has never had one.
-const canAccessSchools = computed(() => isTeacher.value || (isSsiAdmin.value && !isActingAs.value))
+const canAccessSchools = computed(() => isTeacher.value || (isSsiAdmin.value && !isViewingAs.value))
 const canImpersonate = computed(() => isSsiAdmin.value)
 // Who may step into a role/persona. Raw platform role — an admin already
 // viewing-as may switch persona without exiting first.
-const canActAs = computed(() => isSsiAdmin.value)
+const canViewAs = computed(() => isSsiAdmin.value)
 
 /**
  * Initialize from known role values (called after DB fetch).
@@ -173,10 +173,10 @@ function restoreFromCache(): void {
   // Always rehydrate an in-flight view-as (sessionStorage) so the router
   // guards see the persona on a hard reload, independent of whether the real
   // role cache is initialized yet.
-  if (!actingAs.value) {
+  if (!viewingAs.value) {
     try {
-      const a = sessionStorage.getItem(ACT_AS_KEY)
-      if (a) actingAs.value = JSON.parse(a)
+      const a = sessionStorage.getItem(VIEW_AS_KEY)
+      if (a) viewingAs.value = JSON.parse(a)
     } catch {
       // malformed or unavailable
     }
@@ -199,20 +199,20 @@ function restoreFromCache(): void {
  * Begin viewing as a persona. The real platformRole ('ssi_admin') is left
  * intact; only the EFFECTIVE role changes. Persisted to sessionStorage.
  */
-function startActingAs(persona: ActAsPersona): void {
-  actingAs.value = persona
+function startViewing(persona: ViewAsPersona): void {
+  viewingAs.value = persona
   try {
-    sessionStorage.setItem(ACT_AS_KEY, JSON.stringify(persona))
+    sessionStorage.setItem(VIEW_AS_KEY, JSON.stringify(persona))
   } catch {
     // sessionStorage unavailable
   }
 }
 
 /** Stop viewing-as and return to the admin's own identity. */
-function stopActingAs(): void {
-  actingAs.value = null
+function stopViewing(): void {
+  viewingAs.value = null
   try {
-    sessionStorage.removeItem(ACT_AS_KEY)
+    sessionStorage.removeItem(VIEW_AS_KEY)
   } catch {
     // sessionStorage unavailable
   }
@@ -225,7 +225,7 @@ function stopActingAs(): void {
  * never sends it, so its presence alone is a safe reject signal.
  */
 export function viewAsRequestHeaders(): Record<string, string> {
-  return isActingAs.value ? { 'X-Ssi-View-As': '1' } : {}
+  return isViewingAs.value ? { 'X-Ssi-View-As': '1' } : {}
 }
 
 /**
@@ -235,7 +235,7 @@ function clear(): void {
   platformRole.value = null
   educationalRole.value = null
   isInitialized.value = false
-  stopActingAs()
+  stopViewing()
   try {
     localStorage.removeItem(STORAGE_KEY)
   } catch {
@@ -249,8 +249,8 @@ export function useUserRole() {
     platformRole,
     educationalRole,
     isInitialized,
-    actingAs,
-    isActingAs,
+    viewingAs,
+    isViewingAs,
     effectiveEducationalRole,
 
     // Role booleans
@@ -266,14 +266,14 @@ export function useUserRole() {
     canAccessAdmin,
     canAccessSchools,
     canImpersonate,
-    canActAs,
+    canViewAs,
 
     // Actions
     initialize,
     setAuthoritative,
     restoreFromCache,
-    startActingAs,
-    stopActingAs,
+    startViewing,
+    stopViewing,
     clear,
   }
 }

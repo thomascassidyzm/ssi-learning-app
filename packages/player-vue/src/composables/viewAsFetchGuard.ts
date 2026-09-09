@@ -2,7 +2,7 @@
  * viewAsFetchGuard — makes view-as READ-SHAPED structurally, not by discipline.
  *
  * While an ssi_admin is viewing-as, every request still carries the ADMIN's own
- * token (see useActAs.ts). Two things follow, and this one wrapper handles both:
+ * token (see useViewAs.ts). Two things follow, and this one wrapper handles both:
  *
  *  1. Direct Supabase REST WRITES (POST/PATCH/PUT/DELETE on /rest/v1/<table>)
  *     would execute as the admin — a real write, attributed to the wrong
@@ -49,10 +49,10 @@ export function installViewAsFetchGuard(): void {
   if (installed || typeof window === 'undefined' || !window.fetch) return
   installed = true
   const original = window.fetch.bind(window)
-  const { isActingAs } = useUserRole()
+  const { isViewingAs } = useUserRole()
 
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    if (!isActingAs.value) return original(input, init)
+    if (!isViewingAs.value) return original(input, init)
 
     const url =
       typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url

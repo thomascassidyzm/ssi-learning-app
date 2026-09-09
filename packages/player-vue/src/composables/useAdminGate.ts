@@ -94,20 +94,20 @@ export function useAdminGate() {
   const router = useRouter()
   const route = useRoute()
   const { isCheckingAccess, isDenied } = useAdminAccessState()
-  const { isActingAs } = useUserRole()
+  const { isViewingAs } = useUserRole()
   const { status } = useResolvedSession()
   const auth = inject<InjectedAuth | null>('auth', null)
 
   watch(
     isDenied,
     (deny) => {
-      // View-as turns canAccessAdmin off deliberately, and useActAs is at that
+      // View-as turns canAccessAdmin off deliberately, and useViewAs is at that
       // moment pushing the admin to the persona's own surface. Redirecting
       // here too raced that push and dumped them on the player instead of the
       // school they asked to see. The router's own /admin guard still bounces
       // any later navigation INTO the admin estate while view-as is on, so
       // nothing is opened up by standing back here.
-      if (deny && !isActingAs.value) router.replace(deniedDestination(status.value, route.fullPath))
+      if (deny && !isViewingAs.value) router.replace(deniedDestination(status.value, route.fullPath))
     },
     { immediate: true },
   )
