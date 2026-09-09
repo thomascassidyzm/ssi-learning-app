@@ -7,6 +7,7 @@ import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { useClassesData } from '@/composables/schools/useClassesData'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 import AssignClassesModal from '@/components/schools/AssignClassesModal.vue'
+import { orderPending, settledStaff } from '@/composables/schools/teacherRosterSections'
 import {
   applyAssignmentDiff,
   computeAssignmentDiff,
@@ -93,18 +94,60 @@ const teachers = computed(() => {
     roleLabel: row.role_in_context === 'admin' ? t('schools.teachers.roleAdmin', 'Admin') : t('schools.teachers.roleTeacher', 'Teacher'),
     status: 'active' as TeacherStatus,
     joined_at: row.joined_at,
-    // An OFF-DOMAIN arrival on the invite link whose address nobody has
-    // vouched for yet (job #371). Shown, never hidden: the admin is the
-    // person who can tell a supply teacher from a stranger.
-    unverified: row.needs_verification === true,
+    // THE VOUCH (school-belonging design, 2026-09-09). Belonging to this
+    // school is not a property of an address; it is the act of somebody who
+    // already holds the school putting this person on a class. The "Unverified
+    // address" pill that used to sit here compared the address they typed
+    // against a domain the school had claimed — a match that only one school
+    // in eight could ever produce and that proved nothing about the mailbox.
+    // It is gone. What replaces it is a section on this page.
+    vouchedBy: row.vouched_by,
+    vouchedAt: row.vouched_at,
+    selfAssigned: row.self_assigned === true,
+    onDomain: row.on_domain,
   }))
 })
 
-const filtered = computed(() => {
+// PENDING = given no classes yet. That is the whole test, and it is the thing
+// the admin can act on: tick a class and they are in, or Remove them. A
+// teacher who made their own classes is NOT pending — 45 of 97 school-tagged
+// teachers in the live estate are in exactly that state, and flagging them
+// would be noise the admin learns to ignore. The rule itself lives in
+// composables/schools/teacherRosterSections.ts, pure and proved there.
+const searchMatches = computed(() => {
   if (!searchQuery.value.trim()) return teachers.value
   const q = searchQuery.value.toLowerCase()
   return teachers.value.filter(t => t.name.toLowerCase().includes(q))
 })
+
+const filtered = computed(() => settledStaff(searchMatches.value))
+
+// The domain match survives here and ONLY here: as the ORDER of this list, so
+// the admin's eye lands first on the arrivals who look least like their staff.
+// It grants nothing and blocks nothing.
+const pendingArrivals = computed(() => orderPending(searchMatches.value))
+
+// Who vouched for this person, as a NAME rather than a uid — nearly always
+// somebody else on this very list. Unresolvable ones say nothing rather than
+// showing an id.
+const nameByUserId = computed(() => new Map(teachers.value.map(t => [t.user_id, t.name])))
+function vouchLine(row: { vouchedBy: string | null; vouchedAt: string | null }): string {
+  if (!row.vouchedBy || !row.vouchedAt) return ''
+  const who = nameByUserId.value.get(row.vouchedBy)
+  if (!who) return ''
+  const when = new Date(row.vouchedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  return t('schools.teachers.vouchedBy', 'Given classes by {who}, {date}')
+    .replace('{who}', who)
+    .replace('{date}', when)
+}
+
+// ONE table, two sections. The pending arrivals come first because they are
+// the rows that want doing something about; everyone else follows. Rendering
+// them from a single list keeps the row markup — and the three capabilities
+// living on it — in exactly one place.
+const orderedRows = computed(() => [...pendingArrivals.value, ...filtered.value])
+const pendingHeaderIndex = computed(() => (pendingArrivals.value.length ? 0 : -1))
+const settledHeaderIndex = computed(() => (pendingArrivals.value.length && filtered.value.length ? pendingArrivals.value.length : -1))
 
 const activeCount = computed(() => teachers.value.filter(t => t.status === 'active').length)
 const pendingCount = computed(() => teachers.value.filter(t => t.status === 'invited').length)
@@ -388,13 +431,31 @@ watch(selectedUser, (newUser) => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in filtered" :key="row.user_id">
+          <template v-for="(row, i) in orderedRows" :key="row.user_id">
+          <!-- NOT YET GIVEN CLASSES. An arrival on the school's invite link is
+               nobody's colleague until somebody who already holds the school
+               gives them a class. Until then they sit here, seeing no pupil,
+               visible and removable. Nobody was stopped at the door to make
+               this true. -->
+          <tr v-if="i === pendingHeaderIndex" class="section-row">
+            <td colspan="8">
+              <span class="section-title">{{ t('schools.teachers.notYetGivenClasses', 'Not yet given classes') }}</span>
+              <span class="section-note schools-subtle">{{ t('schools.teachers.notYetGivenClassesNote', 'They can sign in and learn. They can see no learner until you tick a class for them.') }}</span>
+            </td>
+          </tr>
+          <tr v-if="i === settledHeaderIndex" class="section-row">
+            <td colspan="8">
+              <span class="section-title">{{ t('schools.teachers.teachingHere', 'Teaching here') }}</span>
+            </td>
+          </tr>
+          <tr>
             <td>
               <div class="teacher-cell">
                 <div class="avatar">{{ row.initials }}</div>
                 <div class="teacher-info">
                   <div class="teacher-name">{{ row.name }}</div>
                   <div class="teacher-sub schools-subtle">{{ formatJoined(row.joined_at) }}</div>
+                  <div v-if="vouchLine(row)" class="teacher-sub schools-subtle">{{ vouchLine(row) }}</div>
                 </div>
               </div>
             </td>
@@ -410,11 +471,6 @@ watch(selectedUser, (newUser) => {
                 <span class="status-dot" />
                 {{ row.status === 'active' ? t('schools.teachers.statusActive', 'Active') : t('schools.teachers.statusPendingInvite', 'Pending invite') }}
               </span>
-              <span
-                v-if="row.unverified"
-                class="unverified-pill"
-                :title="t('schools.teachers.unverifiedHint', 'Joined by the invite link from an address outside your school domain, and has not yet confirmed it. Remove them if you do not recognise them.')"
-              >{{ t('schools.teachers.unverified', 'Unverified address') }}</span>
             </td>
             <td class="cell-action">
               <!-- People-first assignment: the leader is on their staff list,
@@ -436,9 +492,14 @@ watch(selectedUser, (newUser) => {
                    2. Tap **Assign to a class**.
                    3. Tick every class they should teach.
                    4. Tap **Save** to apply the ticks.
-                   Worth knowing. A class with nobody on it says so in the list,
-                   and the teacher you tick will lead it. Tick a class that
-                   already has a teacher and yours joins as a co-teacher instead.
+                   Worth knowing. This is also how somebody becomes part of
+                   your school. Anyone who used your invite link arrives under
+                   **Not yet given classes** and can see no learner at all until
+                   you tick a class for them, so a stranger who found the link
+                   sits there in plain sight and you can remove them. A class
+                   with nobody on it says so in the list, and the teacher you
+                   tick will lead it. Tick a class that already has a teacher
+                   and yours joins as a co-teacher instead.
                    checked: f87575a8.d5378b72
               -->
               <button
@@ -523,7 +584,8 @@ watch(selectedUser, (newUser) => {
               </button>
             </td>
           </tr>
-          <tr v-if="filtered.length === 0">
+          </template>
+          <tr v-if="orderedRows.length === 0">
             <td colspan="8" class="empty-row">
               {{ t('schools.teachers.noTeachersMatch', 'No teachers match "{query}".').replace('{query}', searchQuery) }}
             </td>
@@ -798,16 +860,25 @@ watch(selectedUser, (newUser) => {
   color: #7a5418;
 }
 
-.unverified-pill {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-  background: var(--accent-warning-bg, #fff4d6);
-  color: var(--accent-warning-text, #7a5200);
-  cursor: help;
+.section-row td {
+  padding-top: 14px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-subtle, #e0dbd4);
+}
+
+.section-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.section-note {
+  margin-left: 10px;
+  font-size: 12px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
 }
 .status-cell {
   display: inline-flex;

@@ -47,8 +47,21 @@ function makeChainable(table: string) {
   return builder
 }
 
+// AUTH_EMAILS backs svc.auth.admin.getUserById — the ONLY place roster.ts
+// reads an address, and only for a pending arrival at a school that has
+// claimed a domain (the sort hint). Empty by default, so the hint costs
+// nothing in every other test.
+let AUTH_EMAILS: Record<string, string> = {}
 vi.mock('@supabase/supabase-js', () => ({
-  createClient: () => ({ from: (table: string) => makeChainable(table) }),
+  createClient: () => ({
+    from: (table: string) => makeChainable(table),
+    auth: {
+      admin: {
+        getUserById: async (uid: string) =>
+          AUTH_EMAILS[uid] ? { data: { user: { email: AUTH_EMAILS[uid] } } } : { data: { user: null } },
+      },
+    },
+  }),
 }))
 
 function makeReq(query: Record<string, string> = {}): VercelRequest {
@@ -87,10 +100,14 @@ beforeEach(async () => {
       { id: 't3', user_id: 'ut3', added_at: '2025-03-01', tag_value: 'CLASS:c2', tag_type: 'class', role_in_context: 'teacher', removed_at: null },
     ],
     class_teachers: [
-      { class_id: 'c1', teacher_user_id: 'ut1' },
-      { class_id: 'c2', teacher_user_id: 'ut1' },
-      { class_id: 'c2', teacher_user_id: 'ut3' },
-      { class_id: 'c3', teacher_user_id: 'ut2' },
+      // ut1 was put on both classes BY THE ADMIN — that is the vouch, and the
+      // earliest of the two is the one that counts.
+      { class_id: 'c1', teacher_user_id: 'ut1', added_at: '2025-01-05', added_by: 'admin-1' },
+      { class_id: 'c2', teacher_user_id: 'ut1', added_at: '2025-01-09', added_by: 'admin-1' },
+      // The supply teacher, put on c2 by the class's own lead teacher.
+      { class_id: 'c2', teacher_user_id: 'ut3', added_at: '2025-03-01', added_by: 'ut1' },
+      // ut2 made her own class. Ordinary, and never flagged.
+      { class_id: 'c3', teacher_user_id: 'ut2', added_at: '2025-02-02', added_by: 'ut2' },
     ],
     class_student_progress: [
       { class_id: 'c1', student_user_id: 'su1', learner_id: 'sl1', student_name: 'Alice', class_name: 'Welsh', course_code: 'cym', seeds_completed: 10, legos_mastered: 2, total_practice_seconds: 3600, last_active_at: null, joined_class_at: '2025-01-01' },
@@ -111,6 +128,7 @@ beforeEach(async () => {
   }
   scope = { learnerId: 'l1', role: 'school_admin', classIds: ['c1', 'c2', 'c3'], learnerIds: [], studentsByClass: {}, schoolIds: ['s1'], groupId: null }
   schoolIdForAdminResult = null
+  AUTH_EMAILS = {}
 })
 
 describe('GET /api/school/roster', () => {
@@ -365,5 +383,75 @@ describe('GET /api/school/roster', () => {
       await handler(makeReq(), res)
       expect(res.body.teachers.map((t: any) => t.user_id)).not.toContain('stu-uid')
     })
+  })
+})
+
+describe('GET /api/school/roster — the vouch (school-belonging design, 2026-09-09)', () => {
+  it('reports WHO put each teacher on a class of this school, and when — the earliest act by somebody else', async () => {
+    const res = makeRes()
+    await handler(makeReq(), res)
+    const zara = res.body.teachers.find((t: any) => t.display_name === 'Zara Teacher')
+    expect(zara.vouched_by).toBe('admin-1')
+    expect(zara.vouched_at).toBe('2025-01-05')
+    expect(zara.self_assigned).toBe(false)
+  })
+
+  it('counts a co-teacher added by the class\'s own lead as vouched — the lead already holds the school', async () => {
+    const res = makeRes()
+    await handler(makeReq(), res)
+    const supply = res.body.teachers.find((t: any) => t.display_name === 'Supply Teacher')
+    expect(supply.vouched_by).toBe('ut1')
+  })
+
+  it('a teacher who made their own class is self_assigned, NOT vouched and NOT flagged', async () => {
+    const res = makeRes()
+    await handler(makeReq(), res)
+    const alice = res.body.teachers.find((t: any) => t.display_name === 'Alice Teacher')
+    expect(alice.vouched_by).toBeNull()
+    expect(alice.self_assigned).toBe(true)
+    // She still has her class, so she is not pending — that is what the
+    // Teachers page sections on.
+    expect(alice.class_count).toBe(1)
+  })
+
+  it('an arrival with no class at all is pending: no vouch, not self-assigned', async () => {
+    DB.user_tags.push({ id: 't4', user_id: 'ut4', added_at: '2025-09-01', tag_value: 'SCHOOL:s1', tag_type: 'school', role_in_context: 'teacher', removed_at: null })
+    DB.learners.push({ id: 'l4', user_id: 'ut4', display_name: 'New Arrival' })
+    const res = makeRes()
+    await handler(makeReq(), res)
+    const arrival = res.body.teachers.find((t: any) => t.display_name === 'New Arrival')
+    expect(arrival.class_count).toBe(0)
+    expect(arrival.vouched_by).toBeNull()
+    expect(arrival.vouched_at).toBeNull()
+    expect(arrival.self_assigned).toBe(false)
+  })
+
+  it('the domain match is a SORT HINT on pending arrivals only — never resolved for anyone who already has classes', async () => {
+    DB.school_identity_claims = [{ kind: 'domain', value: 'sunrise.sch.uk', school_id: 's1' }]
+    DB.user_tags.push({ id: 't4', user_id: 'ut4', added_at: '2025-09-01', tag_value: 'SCHOOL:s1', tag_type: 'school', role_in_context: 'teacher', removed_at: null })
+    DB.user_tags.push({ id: 't5', user_id: 'ut5', added_at: '2025-09-02', tag_value: 'SCHOOL:s1', tag_type: 'school', role_in_context: 'teacher', removed_at: null })
+    DB.learners.push({ id: 'l4', user_id: 'ut4', display_name: 'Staff Arrival' })
+    DB.learners.push({ id: 'l5', user_id: 'ut5', display_name: 'Stranger Arrival' })
+    AUTH_EMAILS = {
+      ut4: 'newteacher@sunrise.sch.uk',
+      ut5: 'someone@gmail.com',
+      // Zara HAS classes; if the hint ever resolved for her this would show up.
+      ut1: 'zara@gmail.com',
+    }
+    const res = makeRes()
+    await handler(makeReq(), res)
+    const by = (n: string) => res.body.teachers.find((t: any) => t.display_name === n)
+    expect(by('Staff Arrival').on_domain).toBe(true)
+    expect(by('Stranger Arrival').on_domain).toBe(false)
+    expect(by('Zara Teacher').on_domain).toBeNull()
+  })
+
+  it('a school that has claimed nothing resolves no hint at all — no address is read', async () => {
+    DB.user_tags.push({ id: 't4', user_id: 'ut4', added_at: '2025-09-01', tag_value: 'SCHOOL:s1', tag_type: 'school', role_in_context: 'teacher', removed_at: null })
+    DB.learners.push({ id: 'l4', user_id: 'ut4', display_name: 'New Arrival' })
+    AUTH_EMAILS = { ut4: 'someone@gmail.com' }
+    const res = makeRes()
+    await handler(makeReq(), res)
+    expect(res.body.teachers.find((t: any) => t.display_name === 'New Arrival').on_domain).toBeNull()
   })
 })
