@@ -40,7 +40,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
-import { resolveVisibleScope, schoolIdForAdmin, chunk } from '../_utils/schoolScope'
+import { resolveVisibleScope, schoolIdForStaffMember, chunk } from '../_utils/schoolScope'
 import { SCHOOL_STAFF_ROLES } from '../_utils/schoolStaff'
 import { canTeachClass } from '../_utils/classTeacherAuth'
 import { claimsVouchingFor, matchArrival } from '../_utils/schoolDomain'
@@ -85,12 +85,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return
     }
 
-    // resolveVisibleScope already resolves schoolIds for school_admin; a
-    // teacher's is deliberately left empty there (see schoolIdForAdmin's
-    // docstring) — resolve their own "home school" the same way here.
+    // MEMBERSHIP is the right question here: this is a read, and a teacher
+    // is entitled to their own school's roster. resolveVisibleScope already
+    // resolves schoolIds for school_admin; a teacher's is deliberately left
+    // empty there (see schoolIdForStaffMember's docstring) — resolve their own
+    // "home school" the same way here.
     const schoolId = scope.role === 'school_admin'
       ? (scope.schoolIds[0] ?? null)
-      : await schoolIdForAdmin(svc, auth.userId)
+      : await schoolIdForStaffMember(svc, auth.userId)
 
     if (!schoolId) {
       res.status(200).json({ school: null, teachers: [], students: [] })

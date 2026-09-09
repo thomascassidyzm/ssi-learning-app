@@ -19,9 +19,12 @@ vi.mock('../_utils/auth', () => ({
   verifyAuthToken: vi.fn(async () => verifyAuthTokenResult),
 }))
 
+// The self-serve gate's predicate, mocked so THESE cases stay about the
+// handler's own behaviour. Its real behaviour — that a teacher is refused —
+// is covered without a mock in update-school.authority.test.ts.
 let ownSchoolId: string | null
-vi.mock('../_utils/schoolScope', () => ({
-  schoolIdForAdmin: vi.fn(async () => ownSchoolId),
+vi.mock('../_utils/schoolStaff', () => ({
+  isSchoolAdminOf: vi.fn(async (_svc: unknown, _uid: string, schoolId: string) => !!ownSchoolId && ownSchoolId === schoolId),
 }))
 
 let schoolImpact: any
