@@ -10,6 +10,7 @@ import { CONFIG_UNAVAILABLE_MESSAGE } from '@/config/env'
 import { hasLiveSessionFor, useLoginCodeAudit } from '@/auth/loginCode'
 import { sendSignInCode } from '../../auth/sendSignInCode'
 import { startGoogleSignIn, takeOAuthReturnError } from '../../auth/googleSignIn'
+import { readLastSignInEmail, rememberSignInEmail, forgetLastSignInEmail } from '../../auth/lastSignInEmail'
 
 const { isOpen, inviteCodeMode, passwordMode, close } = useAuthModal()
 const loginCodeAudit = useLoginCodeAudit('sign-in-modal')
@@ -39,6 +40,21 @@ const redeemFailed = ref(false)
 // Invite code input
 const codeInput = ref('')
 
+// The address this device last signed in with, offered rather than an empty
+// box (Tom, 2026-09-09: the commonest support case is a person who cannot
+// remember which address they used — the device already knows). Held
+// separately from `email` so the "use a different address" line disappears
+// the moment they start typing their own.
+const rememberedEmail = ref<string | null>(null)
+const isOfferingRemembered = computed(
+  () => !!rememberedEmail.value && email.value === rememberedEmail.value,
+)
+const useDifferentAddress = () => {
+  forgetLastSignInEmail()
+  rememberedEmail.value = null
+  email.value = ''
+}
+
 // School email gateways (Microsoft quarantine, most often) silently swallow
 // a lot of OTP mail with nothing bounced and nothing a teacher can whitelist.
 // Reveal the "it's not just slow" fallback after a wait, or immediately on
@@ -52,6 +68,8 @@ watch(isOpen, (open) => {
   if (open) {
     step.value = inviteCodeMode.value ? 'code' : 'email'
     usePassword.value = passwordMode.value
+    rememberedEmail.value = readLastSignInEmail()
+    if (rememberedEmail.value) email.value = rememberedEmail.value
     // A Google attempt that came back refused, captured at boot before
     // Supabase stripped the fragment. Read once; it does not haunt the next open.
     const returned = takeOAuthReturnError()
@@ -64,6 +82,7 @@ watch(isOpen, (open) => {
     error.value = ''
     redeemFailed.value = false
     codeInput.value = ''
+    rememberedEmail.value = null
     // Don't clear pendingCode on close — user may reopen to complete redemption.
     // It's cleared after successful redemption in handlePostAuth.
     step.value = 'email'
@@ -176,6 +195,9 @@ const handleSendCode = async () => {
       return
     }
 
+    // The address worked well enough for us to send a code to it — remember it
+    // for next time. Only the address; never the code.
+    rememberSignInEmail(email.value)
     step.value = 'verify'
     showDeliveryHint.value = false
     if (deliveryHintTimer) clearTimeout(deliveryHintTimer)
@@ -211,6 +233,7 @@ const handlePasswordSignIn = async () => {
       return
     }
 
+    rememberSignInEmail(email.value)
     await handlePostAuth()
   } catch (err: any) {
     console.error('Password sign-in error:', err)
@@ -549,6 +572,10 @@ const handleClose = () => {
             required
           />
         </div>
+        <p v-if="isOfferingRemembered" class="remembered-email">
+          The address this device last used.
+          <button type="button" @click="useDifferentAddress">Use a different address</button>
+        </p>
       </div>
 
       <!-- Password input (when using password mode) -->
@@ -822,6 +849,23 @@ const handleClose = () => {
 
 .input-wrapper input::placeholder {
   color: var(--text-muted);
+}
+
+.remembered-email {
+  margin: 0.4rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.remembered-email button {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-left: 0.35rem;
+  font: inherit;
+  color: var(--accent, currentColor);
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .otp-hint {

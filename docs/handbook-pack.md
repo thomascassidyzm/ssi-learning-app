@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `080241395e96` · generated 2026-09-09 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `9e1e45bfdab6` · generated 2026-09-09 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## Add a class to a group
 
@@ -369,6 +369,20 @@ Section: running-classes · roles: school_admin, teacher · anchor: `classes-fil
 4. Change **Sort** to order by students, hours this week or progress.
 
 **Worth knowing.** The totals above the table follow the filter, so the student count and the hours are always the total of what you are actually looking at.
+
+## Find out which email you are signed in with
+
+Section: your-own-account · roles: teacher, school_admin, leader · anchor: `account-identity` · in `packages/player-vue/src/components/SettingsScreen.vue`
+
+**What it's for.** Telling you which email address this account uses, so you never have to guess when you sign in on another device or ask us for help.
+
+**Where it is.** **Settings**, at the top of **Account**.
+
+1. Open **Settings**.
+2. Read the address under **You are signed in as**. Tap it to copy it.
+3. Under it is your account code. Tap to copy that too, and give it to us if you ever get in touch.
+
+**Worth knowing.** The account code names your account and nothing more. It does not let anybody in, so it is safe to read out or put in a message.
 
 ## Finding your way around the organisation
 

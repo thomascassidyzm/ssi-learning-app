@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { supportIdForLearnerId } from '@ssi/core'
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
@@ -521,6 +522,11 @@ async function handleCreateSigninLink() {
                   <span class="meta-dot"></span>
                   <!-- learner.id is the canonical identity everything keys on; auth uid is
                        just the login token. Label both so neither is mistaken for the other. -->
+                  <!-- The eight characters this learner sees at the top of their own
+                       Settings and reads out to support. Shown here so an operator can
+                       confirm the match on the phone without decoding anything. -->
+                  <span v-if="supportIdForLearnerId(profile.id)" class="profile-uid frost-mono-nums" title="The account code this learner sees in their own Settings">code {{ supportIdForLearnerId(profile.id) }}</span>
+                  <span v-if="supportIdForLearnerId(profile.id)" class="meta-dot"></span>
                   <span class="profile-uid frost-mono-nums" title="learner.id — the canonical identity for all data">learner {{ profile.id }}</span>
                   <span class="meta-dot"></span>
                   <span class="profile-uid frost-mono-nums" title="Supabase auth user id — login token only">auth {{ profile.user_id }}</span>
