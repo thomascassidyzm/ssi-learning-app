@@ -81,10 +81,14 @@ const effectiveAccess = computed(() => {
     (e: any) => e.access_type === 'courses' && (!e.expires_at || new Date(e.expires_at) > new Date()),
   )
   if (courseGrants.length > 0) {
+    const courses = [...new Set(courseGrants.flatMap((e: any) => e.granted_courses || []))]
+    const derivedOnly = courseGrants.every((e: any) => e.derived)
     return {
       tone: 'partial',
       label: 'PARTIAL — granted courses',
-      detail: 'full access to granted courses; other premium courses preview to end of Yellow.',
+      detail: derivedOnly
+        ? `${courses.join(', ') || 'granted courses'} in full, via a live class/school/org relationship — no stored grant, recomputed on every check. Other premium courses preview to end of Yellow.`
+        : `full access to ${courses.join(', ') || 'granted courses'}; other premium courses preview to end of Yellow.`,
     }
   }
   return {
@@ -770,7 +774,10 @@ async function handleCreateSigninLink() {
                 </td>
                 <td class="cell-muted">{{ timeAgo(ent.redeemed_at) }}</td>
                 <td class="cell-actions">
-                  <button class="row-action is-danger" title="Revoke" @click="handleRevoke(ent.id)">
+                  <span v-if="ent.derived" class="cell-muted" title="Derived from a live class, school or org relationship — recomputed on every check, so there is nothing to revoke here. Remove the relationship, or end the school's platform cover.">
+                    Derived
+                  </span>
+                  <button v-else class="row-action is-danger" title="Revoke" @click="handleRevoke(ent.id)">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                       <polyline points="3 6 5 6 21 6"/>
                       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
