@@ -52,7 +52,7 @@ describe('resolveClassCourseCoverage', () => {
       classes: [{ id: 'c1', school_id: 's1', course_code: 'cym_s_for_eng' }],
       schools: [{ id: 's1', platform_status: 'trial', platform_expires_at: FUTURE }],
     }
-    const courses = await resolveClassCourseCoverage(makeSupabase(db), 'tea-1')
+    const { courses } = await resolveClassCourseCoverage(makeSupabase(db), 'tea-1')
     expect(courses).toEqual(['cym_s_for_eng'])
   })
 
@@ -62,7 +62,7 @@ describe('resolveClassCourseCoverage', () => {
       classes: [{ id: 'c1', school_id: 's1', course_code: 'cym_s_for_eng' }],
       schools: [{ id: 's1', platform_status: 'trial', platform_expires_at: PAST }],
     }
-    const courses = await resolveClassCourseCoverage(makeSupabase(db), 'tea-1')
+    const { courses } = await resolveClassCourseCoverage(makeSupabase(db), 'tea-1')
     expect(courses).toEqual([])
   })
 
@@ -72,7 +72,7 @@ describe('resolveClassCourseCoverage', () => {
       classes: [{ id: 'c1', school_id: 's1', course_code: 'fra_for_eng' }],
       schools: [{ id: 's1', platform_status: 'trial', platform_expires_at: FUTURE }],
     }
-    const courses = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
+    const { courses } = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
     expect(courses).toEqual(['fra_for_eng'])
   })
 
@@ -82,7 +82,7 @@ describe('resolveClassCourseCoverage', () => {
       classes: [{ id: 'c1', school_id: 's1', course_code: 'spa_for_eng' }],
       schools: [{ id: 's1', platform_status: 'active', platform_expires_at: null }],
     }
-    const courses = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
+    const { courses } = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
     expect(courses).toEqual(['spa_for_eng'])
   })
 
@@ -92,7 +92,7 @@ describe('resolveClassCourseCoverage', () => {
       classes: [{ id: 'c1', school_id: 's1', course_code: 'fra_for_eng' }],
       schools: [{ id: 's1', platform_status: 'trial', platform_expires_at: PAST }],
     }
-    const courses = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
+    const { courses } = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
     expect(courses).toEqual([])
   })
 
@@ -103,7 +103,7 @@ describe('resolveClassCourseCoverage', () => {
         classes: [{ id: 'c1', school_id: 's1', course_code: 'fra_for_eng' }],
         schools: [{ id: 's1', platform_status: status, platform_expires_at: null }],
       }
-      const courses = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
+      const { courses } = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
       expect(courses, `status=${status}`).toEqual([])
     }
   })
@@ -114,7 +114,7 @@ describe('resolveClassCourseCoverage', () => {
       classes: [{ id: 'c1', school_id: 's1', course_code: 'fra_for_eng' }],
       schools: [{ id: 's1', platform_status: 'trial', platform_expires_at: FUTURE }],
     }
-    const courses = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
+    const { courses } = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
     expect(courses).toEqual([])
   })
 
@@ -124,7 +124,7 @@ describe('resolveClassCourseCoverage', () => {
       classes: [{ id: 'c1', school_id: 's1', course_code: 'gle_for_eng' }],
       schools: [{ id: 's1', platform_status: 'trial', platform_expires_at: FUTURE }],
     }
-    const courses = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
+    const { courses } = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
     expect(courses).toEqual(['gle_for_eng'])
   })
 
@@ -140,7 +140,7 @@ describe('resolveClassCourseCoverage', () => {
         { id: 's2', platform_status: 'trial', platform_expires_at: PAST },
       ],
     }
-    const courses = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
+    const { courses } = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
     expect(courses).toEqual(['fra_for_eng'])
   })
 
@@ -150,7 +150,7 @@ describe('resolveClassCourseCoverage', () => {
       classes: [{ id: 'c1', school_id: 'missing-school', course_code: 'fra_for_eng' }],
       schools: [],
     }
-    const courses = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
+    const { courses } = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
     expect(courses).toEqual([])
   })
 
@@ -160,7 +160,7 @@ describe('resolveClassCourseCoverage', () => {
       classes: [{ id: 'c1', school_id: null, course_code: 'fra_for_eng' }],
       schools: [],
     }
-    const courses = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
+    const { courses } = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
     expect(courses).toEqual([])
   })
 })
