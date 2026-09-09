@@ -3,7 +3,7 @@
 // widgets/Funnel.vue — Descending funnel; annotated leak stage highlighted red.
 //
 // Contract mirrors Stat.vue exactly:
-//   · props { data: FunnelData, spec: InsightSpec }   — data already narrowed to 'funnel'
+//   · props { data: FunnelData, annotations: Annotation[] }   — data already narrowed to 'funnel'
 //   · emits NOTHING                                    — the wrapper owns all events
 //   · renders ONLY the chart + annotation marks        — the wrapper owns story/why/actions chrome
 //   · lazy-imports echarts in onMounted (stays in the admin chunk)
@@ -17,7 +17,7 @@
 //   · all other at-shapes are silently ignored (spec: degrade, never throw).
 // ============================================================================
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
-import type { FunnelData, Annotation, InsightSpec } from '../spec'
+import type { FunnelData, Annotation } from '../spec'
 import {
   registerInsightTheme, INSIGHT_THEME_NAME, palette, tone, toneRgb, FONT_MONO,
   type EChartsLike,
@@ -25,7 +25,6 @@ import {
 
 const props = withDefaults(defineProps<{
   data: FunnelData
-  spec: InsightSpec
   annotations?: Annotation[]
 }>(), {
   annotations: () => [],
@@ -44,7 +43,7 @@ let resizeObserver: ResizeObserver | null = null
 // ---- annotation helpers ----
 // Find a 'stage' annotation for a given stage id. Silently ignores non-stage shapes.
 function annForStage(stageId: string): (Annotation & { at: 'stage' }) | undefined {
-  const found = (props.spec.annotate ?? props.annotations).find(
+  const found = props.annotations.find(
     (a): a is Annotation & { at: 'stage' } => a.at === 'stage' && a.stage === stageId,
   )
   return found
@@ -167,7 +166,7 @@ onMounted(async () => {
 })
 
 // Re-render on data or annotation change (host swaps data in place on drill).
-watch(() => [props.data, props.spec, props.annotations], () => { ensureChart() }, { deep: true })
+watch(() => [props.data, props.annotations], () => { ensureChart() }, { deep: true })
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
@@ -187,11 +186,11 @@ const _toneRgb = toneRgb
     <!-- Annotation badges: rendered below the chart as labelled callouts for each annotated stage.
          The wrapper owns the full story/why/actions chrome; these are purely chart-level marks. -->
     <ul
-      v-if="(spec.annotate ?? annotations).some(a => a.at === 'stage')"
+      v-if="annotations.some(a => a.at === 'stage')"
       class="funnel-annotations"
     >
       <li
-        v-for="ann in (spec.annotate ?? annotations).filter((a): a is typeof a & { at: 'stage' } => a.at === 'stage')"
+        v-for="ann in annotations.filter((a): a is typeof a & { at: 'stage' } => a.at === 'stage')"
         :key="ann.stage"
         class="funnel-ann-item"
         :style="{ borderColor: `rgba(${_toneRgb(ann.tone)}, 0.35)`, background: `rgba(${_toneRgb(ann.tone)}, 0.07)` }"

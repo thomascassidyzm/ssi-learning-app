@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router'
-import { ref, onMounted } from 'vue'
+import { ref, inject, computed, onMounted, watch } from 'vue'
 import AdminTopBar from '@/components/admin/AdminTopBar.vue'
+import { SignInModal } from '@/components/auth'
+import { useAuthModal } from '@/composables/useAuthModal'
+import { useUserRole } from '@/composables/useUserRole'
 import '@/styles/schools-tokens.css'
 import '@/styles/schools-design.css'
 
@@ -11,10 +14,47 @@ const mounted = ref(false)
 onMounted(() => {
   requestAnimationFrame(() => { mounted.value = true })
 })
+
+// Auth + role gating — reactive treatment mirroring SchoolsContainer's guard.
+// The router's global beforeEach only primes the role cache and falls
+// through for /admin (see router/index.ts); this container is where a cold
+// session (no cached role yet) actually waits for the async DB fetch before
+// deciding, instead of bouncing a genuine admin to the bare player before
+// their role has loaded.
+const auth = inject<any>('auth', null)
+const isAuthenticated = computed(() => auth?.isAuthenticated?.value ?? false)
+const isAuthLoading = computed(() => auth?.isLoading?.value ?? false)
+const { canAccessAdmin, isInitialized: isRoleInitialized, restoreFromCache } = useUserRole()
+restoreFromCache()
+
+// Auth can resolve before the learner row (and its role) has loaded — that
+// window reads as "authenticated" but the role is still unknown.
+const isRoleLoading = computed(() => isAuthenticated.value && !isRoleInitialized.value)
+const isResolving = computed(() => isAuthLoading.value || isRoleLoading.value)
+const showAdmin = computed(() => !isResolving.value && canAccessAdmin.value)
+// Genuinely unauthenticated → sign in inline, never the bare player.
+const showSignIn = computed(() => !isResolving.value && !isAuthenticated.value && !canAccessAdmin.value)
+// Signed in, but the resolved role isn't ssi_admin → prompt to switch accounts.
+const showNoAccess = computed(() => !isResolving.value && isAuthenticated.value && !canAccessAdmin.value)
+
+const { open: openAuth, close: closeAuth } = useAuthModal()
+watch(showSignIn, (show) => { if (show) openAuth() }, { immediate: true })
+const handleAuthSuccess = () => closeAuth()
 </script>
 
 <template>
   <div class="admin-container schools-surface" :class="{ 'is-mounted': mounted }">
+    <div v-if="isResolving" class="admin-resolving">
+      <div class="loading-spinner"></div>
+      <p>Loading…</p>
+    </div>
+
+    <div v-else-if="showNoAccess" class="admin-resolving">
+      <p>You need administrator access to view this page.</p>
+      <button type="button" class="admin-signin-btn" @click="openAuth()">Sign in</button>
+    </div>
+
+    <template v-else-if="showAdmin">
     <AdminTopBar />
 
     <main class="admin-main">
@@ -80,6 +120,9 @@ onMounted(() => {
         <span>What's New</span>
       </router-link>
     </nav>
+    </template>
+
+    <SignInModal @success="handleAuthSuccess" />
   </div>
 </template>
 
@@ -109,6 +152,47 @@ onMounted(() => {
   max-width: 1400px;
   margin: 0 auto;
   width: 100%;
+}
+
+/* ================================================================
+ * RESOLVING / NO-ACCESS — shown while the role fetch is in flight,
+ * or when a signed-in user's resolved role isn't ssi_admin
+ * ================================================================ */
+
+.admin-resolving {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4, 1rem);
+  color: var(--schools-fg, #0F1212);
+  text-align: center;
+  padding: 0 24px;
+}
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(15, 18, 18, 0.12);
+  border-top-color: var(--schools-gold, #FEC902);
+  border-radius: 50%;
+  animation: admin-spin 0.8s linear infinite;
+}
+
+@keyframes admin-spin {
+  to { transform: rotate(360deg); }
+}
+
+.admin-signin-btn {
+  padding: 10px 20px;
+  background: #050508;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 /* Page transition */

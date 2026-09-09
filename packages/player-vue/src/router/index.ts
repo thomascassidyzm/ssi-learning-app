@@ -670,11 +670,22 @@ router.afterEach((to) => {
 // `meta.public: true` flag, but for now everything under /methodology requires
 // ssi_admin / god.
 router.beforeEach((to, _from, next) => {
-  const requiresAdmin = to.path.startsWith('/admin') || to.path.startsWith('/methodology')
-  if (!requiresAdmin) return next()
+  const isAdminPath = to.path.startsWith('/admin')
+  const isMethodologyPath = to.path.startsWith('/methodology')
+  if (!isAdminPath && !isMethodologyPath) return next()
   const { canAccessAdmin, restoreFromCache } = useUserRole()
   restoreFromCache()
-  return canAccessAdmin.value ? next() : next('/')
+  if (canAccessAdmin.value) return next()
+  // /methodology has no container-level auth gate (unlike AdminContainer
+  // below), so it must stay strictly synchronous — a cold cache bounces
+  // immediately rather than opening a window where an ungated page renders.
+  if (isMethodologyPath) return next('/')
+  // /admin: cold cache (role not yet fetched from DB) falls through so a
+  // genuine admin's deep link isn't bounced to the bare player before the
+  // async role fetch completes — AdminContainer does the definitive
+  // reactive gate (loading state, then sign-in if truly unauthorized),
+  // mirroring the /schools guard's treatment.
+  return next()
 })
 
 // Update document title on navigation
