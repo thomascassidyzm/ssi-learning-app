@@ -87,6 +87,7 @@
   "crons": [
     { "path": "/api/cron/teacher-payouts", "schedule": "0 6 1 * *" },
     { "path": "/api/cron/expire-demo-schools", "schedule": "0 5 * * *" },
-    { "path": "/api/cron/org-free-year-warnings", "schedule": "0 7 * * *" }
+    { "path": "/api/cron/org-free-year-warnings", "schedule": "0 7 * * *" },
+    { "path": "/api/cron/org-entitlement-reconcile", "schedule": "30 7 * * *" }
   ]
 }
