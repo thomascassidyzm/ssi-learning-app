@@ -54,10 +54,13 @@ const PwaUpdatePrompt = defineAsyncComponent(() => import('./components/PwaUpdat
 const AccountContestPrompt = defineAsyncComponent(() => import('./components/auth/AccountContestPrompt.vue'))
 const InstallBanner = defineAsyncComponent(() => import('./components/InstallBanner.vue'))
 const TesterFeedback = defineAsyncComponent(() => import('./components/TesterFeedback.vue'))
+const ActingAsBanner = defineAsyncComponent(() => import('./components/ActingAsBanner.vue'))
 // Walkthrough overlay — renders nothing until a walk is started by a user tap
 // (noticing invitation / How-this-works "Show me"); never auto-plays.
 const WalkOverlay = defineAsyncComponent(() => import('./components/admin/WalkOverlay.vue'))
 import { setSchoolsClient } from './composables/schools/client'
+import { useActAs } from './composables/useActAs'
+import { installViewAsFetchGuard } from './composables/viewAsFetchGuard'
 import AppEscape from './components/AppEscape.vue'
 import CheckoutOverlay from './components/CheckoutOverlay.vue'
 import PurchasePendingOverlay from './components/PurchasePendingOverlay.vue'
@@ -859,12 +862,22 @@ provide('inviteCode', inviteCode)
 provide('installPrompt', installPrompt)
 provide('fetchEnrolledCourses', fetchEnrolledCourses)
 
+// Rehydrate an in-flight admin view-as (sessionStorage) after a reload, and
+// arm the read-only guard that makes view-as unable to write (no-op when off).
+const { restoreActAs } = useActAs()
+installViewAsFetchGuard()
+
 onMounted(async () => {
   // The framed demo mounts its own view and nothing else — see IS_EMBED above.
   if (IS_EMBED) return
 
   // Clear stale caches on new deploy
   invalidateStaleCaches()
+
+  // Re-prime the schools context if an admin reloaded while viewing-as.
+  restoreActAs().catch(err => {
+    console.warn('[App] view-as restore failed (non-fatal):', err)
+  })
 
   // Check service worker kill switch (for emergency recovery)
   // If kill switch is active, this will unregister SW and reload
@@ -1083,6 +1096,7 @@ onMounted(async () => {
     <AccountContestPrompt :client="supabaseClient" />
     <InstallBanner />
     <TesterFeedback />
+    <ActingAsBanner />
     <WalkOverlay />
     <PlanPicker />
     <CheckoutOverlay />

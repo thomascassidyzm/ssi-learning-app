@@ -28,6 +28,7 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import NavMoreMenu, { type NavMenuGroup, type NavMenuItem } from '@/components/shared/NavMoreMenu.vue'
 import RefreshButton from '@/components/shared/RefreshButton.vue'
+import ViewAsPicker from '@/components/admin/ViewAsPicker.vue'
 
 const route = useRoute()
 
@@ -160,6 +161,8 @@ const showTabs = computed(() => route.path.startsWith('/admin'))
       <!-- The ONE universal refresh affordance — same button, same spot as the
            schools surface (consistency law §1.12). Renders only where a loader
            is registered. -->
+      <ViewAsPicker />
+
       <RefreshButton />
     </div>
   </header>

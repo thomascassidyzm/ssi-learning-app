@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { openInApp } from '../composables/useInAppBrowser'
-import { ref, inject, computed, watch, defineAsyncComponent } from 'vue'
+import { ref, inject, provide, computed, watch, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SchoolsTopBar from '@/components/schools/shared/SchoolsTopBar.vue'
 import SchoolsErrorBoundary from '@/components/schools/shared/SchoolsErrorBoundary.vue'
@@ -49,7 +49,7 @@ if (supabase.value) {
 const auth = inject<any>('auth', null)
 const isAuthenticated = computed(() => auth?.isAuthenticated?.value ?? false)
 const isAuthLoading = computed(() => auth?.isLoading?.value ?? false)
-const { canAccessSchools, isSsiAdmin, isTeacher, educationalRole, isInitialized: isRoleInitialized, restoreFromCache } = useUserRole()
+const { canAccessSchools, isSsiAdmin, isActingAs, isTeacher, educationalRole, isInitialized: isRoleInitialized, restoreFromCache } = useUserRole()
 restoreFromCache()
 const router = useRouter()
 
@@ -63,8 +63,13 @@ activatePendingMission(router)
 // Load the school context for the real authenticated user — the schools
 // composables scope their queries off this.
 const ctx = useSchoolContext()
+// Skipped while viewing-as: an ssi_admin stepping into a persona
+// (useActAs.actAs) already populated ctx via loadAsPersona BEFORE this
+// container mounts; this watch would otherwise immediately clobber that
+// persona scope with the admin's own (loadFromAuth's admin-view guard only
+// skips when the loaded user_id ALSO differs from authUserId).
 watch(
-  () => auth?.isAuthenticated?.value && canAccessSchools.value,
+  () => auth?.isAuthenticated?.value && canAccessSchools.value && !isActingAs.value,
   (ready) => {
     if (ready && supabase.value && auth?.user?.value?.id) {
       ctx.loadFromAuth(auth.user.value.id, supabase.value).catch((err: unknown) => {
@@ -74,6 +79,12 @@ watch(
   },
   { immediate: true },
 )
+
+// Read-only browse: view-as hides every write control behind the same
+// `isAdminView` flag the admin drill-in read-views already use, so every
+// "hide when admin-view" check scattered across the schools views covers
+// view-as for free. Writes are ALSO blocked server-side (actAsGuard).
+provide('isAdminView', isActingAs.value)
 
 // Prefetch hoist: fire the dashboard-suite data fetches here, at container
 // (route entry) level, the moment the school context resolves — instead of
@@ -147,10 +158,11 @@ const hasSchoolContext = computed(() => !!ctx.currentUser.value)
 
 // Platform-subscription gate (lever-3). FAIL-OPEN: ctx.platformActive defaults
 // to true for legacy rows / pre-migration DBs / unloaded context, so this never
-// locks anyone out before the migration lands. ssi_admins and demo (no real
-// auth) all bypass — only a real, expired school/tutor is blocked.
+// locks anyone out before the migration lands. ssi_admins, view-as sessions
+// and demo (no real auth) all bypass — only a real, expired school/tutor is
+// blocked.
 const platformBypass = computed(
-  () => isSsiAdmin.value || !isAuthenticated.value,
+  () => isSsiAdmin.value || isActingAs.value || !isAuthenticated.value,
 )
 const platformActive = computed(() => platformBypass.value || ctx.platformActive.value)
 
