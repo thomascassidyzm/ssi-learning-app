@@ -148,19 +148,26 @@ describe('PwaUpdatePrompt — banner only reflects a genuinely different live bu
     }
   })
 
-  // THE SERVICE-WORKER GATE. Web = register, exactly as before. WebView = never
-  // register, because the native shell owns caching and update delivery and a
-  // Workbox precache underneath it would serve its own stale app shell.
+  // THE SERVICE-WORKER REGISTRATION, which now happens EVERYWHERE. It is
+  // gated at one place — shouldRunServiceWorker() in platform/capabilities —
+  // because useRegisterSW registers the moment it is called, so the only real
+  // gate is not calling it.
   it('registers the service worker on the web — unchanged', () => {
     activeWrapper = mount(PwaUpdatePrompt, { attachTo: document.body })
     expect(registerCalls).toHaveBeenCalledTimes(1)
   })
 
-  it('never registers a service worker inside a native shell', () => {
+  // Flipped deliberately in a607ee6e (2026-09-08), and this test was left
+  // behind asserting the policy that commit replaced. While the APK bundled
+  // its web assets the answer was NO, and rightly: the shell owned the code
+  // and a Workbox precache under it was a frozen copy of a frozen copy. The
+  // shell is now a window onto the deployment, so the shell the service
+  // worker precaches IS the deployment's own — and it is the only thing that
+  // lets a learner open the app and play with no network.
+  it('registers the service worker inside a native shell too', () => {
     configurePlatform({ shell: 'webview' })
     activeWrapper = mount(PwaUpdatePrompt, { attachTo: document.body })
-    expect(registerCalls).not.toHaveBeenCalled()
-    expect(document.body.querySelector('.pwa-update-banner')).toBeNull()
+    expect(registerCalls).toHaveBeenCalledTimes(1)
   })
 
 })
