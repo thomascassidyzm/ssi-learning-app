@@ -18,10 +18,10 @@ vi.mock('../_utils/auth', () => ({
 }))
 
 let scope: any
-let schoolIdForAdminResult: string | null = null
+let schoolIdForStaffMemberResult: string | null = null
 vi.mock('../_utils/schoolScope', () => ({
   resolveVisibleScope: vi.fn(async () => scope),
-  schoolIdForAdmin: vi.fn(async () => schoolIdForAdminResult),
+  schoolIdForStaffMember: vi.fn(async () => schoolIdForStaffMemberResult),
   chunk: (arr: any[], size = 150) => {
     const out = []
     for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
@@ -127,7 +127,7 @@ beforeEach(async () => {
     ],
   }
   scope = { learnerId: 'l1', role: 'school_admin', classIds: ['c1', 'c2', 'c3'], learnerIds: [], studentsByClass: {}, schoolIds: ['s1'], groupId: null }
-  schoolIdForAdminResult = null
+  schoolIdForStaffMemberResult = null
   AUTH_EMAILS = {}
 })
 
@@ -157,7 +157,7 @@ describe('GET /api/school/roster', () => {
 
   it('gives a TEACHER caller only their OWN classes\' students (founder ruling 2026-07-30)', async () => {
     scope = { ...scope, role: 'teacher', classIds: ['c3'], schoolIds: [] }
-    schoolIdForAdminResult = 's1'
+    schoolIdForStaffMemberResult = 's1'
     const req = makeReq()
     const res = makeRes()
     await handler(req, res)
@@ -199,9 +199,9 @@ describe('GET /api/school/roster', () => {
     expect(res.body.students.map((s: any) => s.display_name)).toEqual(['Alice', 'Bob', 'Cai'])
   })
 
-  it('resolves a teacher caller\'s own school via schoolIdForAdmin (resolveVisibleScope leaves teacher schoolIds empty)', async () => {
+  it('resolves a teacher caller\'s own school via schoolIdForStaffMember (resolveVisibleScope leaves teacher schoolIds empty)', async () => {
     scope = { ...scope, role: 'teacher', schoolIds: [] }
-    schoolIdForAdminResult = 's1'
+    schoolIdForStaffMemberResult = 's1'
     const req = makeReq()
     const res = makeRes()
     await handler(req, res)
@@ -211,7 +211,7 @@ describe('GET /api/school/roster', () => {
 
   it('returns an empty roster (not a 500) when the caller has no resolvable school', async () => {
     scope = { ...scope, role: 'teacher', schoolIds: [] }
-    schoolIdForAdminResult = null
+    schoolIdForStaffMemberResult = null
     const req = makeReq()
     const res = makeRes()
     await handler(req, res)
@@ -396,7 +396,7 @@ describe('GET /api/school/roster — the unassigned teacher (job #713 check two)
     // correct today and is one careless simplification away from not being,
     // so it is pinned here for the exact caller shape that matters.
     scope = { learnerId: 'lx', role: 'teacher', classIds: [], learnerIds: [], studentsByClass: {}, schoolIds: [], groupId: null }
-    schoolIdForAdminResult = 's1'
+    schoolIdForStaffMemberResult = 's1'
     const res = makeRes()
     await handler(makeReq(), res)
     expect(res.statusCode).toBe(200)
