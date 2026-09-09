@@ -77,8 +77,14 @@ describe('resolveVisibleScope', () => {
     const client = makeClient((table, f) => {
       if (table === 'learners' && f.eqs.user_id === 'sa-uid')
         return { data: { id: 'L-sa', educational_role: 'school_admin' } }
+      // The school-tag lookup is a LIST query now, not a .maybeSingle() one:
+      // schoolMembershipsOf reads every active SCHOOL: tag a person holds and
+      // the role recorded on each, because the delete gate asks which school
+      // this account is an ADMIN of rather than merely a member of. A mock
+      // that still answers with one bare object describes a database we no
+      // longer query.
       if (table === 'user_tags' && f.eqs.tag_type === 'school')
-        return { data: { tag_value: 'SCHOOL:SCH1' } }
+        return { data: [{ tag_value: 'SCHOOL:SCH1', role_in_context: 'admin' }] }
       if (table === 'classes' && Array.isArray(f.ins.school_id))
         return { data: [{ id: 'C1' }, { id: 'C2' }, { id: 'C3' }] }
       if (table === 'user_tags' && f.eqs.tag_type === 'class')
