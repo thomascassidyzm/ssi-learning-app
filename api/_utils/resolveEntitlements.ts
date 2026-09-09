@@ -40,9 +40,11 @@ export interface ResolvedEntitlement {
  * Layer 3 — class coverage: the course of a class you are in, as student or
  *           teacher, while that class's school has live platform coverage.
  * Layer 4 — org coverage: every live course while your org has coverage.
- * Layer 5 — school-staff coverage: the courses YOUR SCHOOL has cover for,
- *           because you are its admin or one of its teachers, whether or not
- *           you hold a class (founder ruling 2026-09-09).
+ * Layer 5 — school-staff coverage: the courses YOUR SCHOOL has cover for, on
+ *           YOUR SCHOOL'S OWN CLOCK, because you are its admin or one of its
+ *           teachers, whether or not you hold a class (founder ruling
+ *           2026-09-09). The only layer that carries an expiry, because it is
+ *           the school's date, not one minted for the person.
  */
 export async function resolveActiveEntitlements(
   supabase: SupabaseClient,
@@ -85,8 +87,10 @@ export async function resolveActiveEntitlements(
   }
 
   try {
-    const staffCourses = await resolveSchoolStaffCourseCoverage(supabase, authUid)
-    if (staffCourses.length > 0) active.push(derived('school-membership', staffCourses))
+    const staff = await resolveSchoolStaffCourseCoverage(supabase, authUid)
+    if (staff.courses.length > 0) {
+      active.push(derived('school-membership', staff.courses, staff.expiresAt))
+    }
   } catch (schoolCoverageErr) {
     console.error('[resolveEntitlements] School-staff-coverage error (non-fatal):', schoolCoverageErr)
   }
@@ -95,12 +99,16 @@ export async function resolveActiveEntitlements(
 }
 
 /** The synthetic entitlement a derived layer contributes. Never a stored row. */
-function derived(id: string, courses: string[]): ResolvedEntitlement {
+function derived(id: string, courses: string[], expiresAt: string | null = null): ResolvedEntitlement {
   return {
     id,
     access_type: 'courses',
     granted_courses: courses,
-    expires_at: null,
+    // Derived layers are open-ended by default: they are recomputed on every
+    // check, so there is nothing for a date to protect. School-staff coverage
+    // is the exception — it reports the SCHOOL'S window, so the account can be
+    // told when its access ends by the same row that grants it.
+    expires_at: expiresAt,
     redeemed_at: null,
     entitlement_code_id: null,
   }
