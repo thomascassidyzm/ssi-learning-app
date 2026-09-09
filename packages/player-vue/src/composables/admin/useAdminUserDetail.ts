@@ -57,6 +57,12 @@ export interface UserEntitlement {
   expires_at: string | null
   redeemed_at: string
   label: string | null
+  /**
+   * DERIVED access carries no row: it is recomputed from a class, school or org
+   * relationship on every check (api/_utils/resolveEntitlements.ts). It counts
+   * for what the learner can play and it cannot be revoked from this screen.
+   */
+  derived?: boolean
 }
 
 export interface CourseProgress {
@@ -123,6 +129,45 @@ const legoMetrics = ref<LegoMetricsRow[]>([])
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 const roleUpdateStatus = ref<string | null>(null)
+
+/** How each derived layer reads in the Source column. */
+const DERIVED_LABELS: Record<string, string> = {
+  'cascade': 'Group/school cascade',
+  'class-coverage': 'Class coverage — school platform',
+  'org-coverage': 'Org coverage — org platform',
+}
+
+/**
+ * Ask the server the question the PLAYER asks. The derived layers need the
+ * service role and the auth uid, so they cannot be computed in the browser —
+ * api/admin/effective-access.ts runs the shared resolver and returns them.
+ */
+async function fetchDerivedAccess(
+  client: SupabaseClient,
+  learnerId: string,
+): Promise<UserEntitlement[]> {
+  const { data: sessionData } = await client.auth.getSession()
+  const token = sessionData?.session?.access_token
+  if (!token) return []
+
+  const resp = await fetch(`/api/admin/effective-access?learner_id=${encodeURIComponent(learnerId)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!resp.ok) return []
+  const body = await resp.json()
+  const derivedIds: string[] = Array.isArray(body?.derived) ? body.derived : []
+  return (body?.entitlements || [])
+    .filter((e: any) => derivedIds.includes(e.id))
+    .map((e: any) => ({
+      id: e.id,
+      access_type: e.access_type,
+      granted_courses: e.granted_courses,
+      expires_at: e.expires_at,
+      redeemed_at: e.redeemed_at,
+      label: DERIVED_LABELS[e.id] || e.id,
+      derived: true,
+    }))
+}
 
 export function useAdminUserDetail(client: SupabaseClient) {
 
@@ -272,7 +317,7 @@ export function useAdminUserDetail(client: SupabaseClient) {
         codes?.forEach(c => codeLabels.set(c.id, c.label))
       }
 
-      userEntitlements.value = rawEntitlements.map(e => ({
+      const storedEntitlements: UserEntitlement[] = rawEntitlements.map(e => ({
         id: e.id,
         access_type: e.access_type,
         granted_courses: e.granted_courses,
@@ -280,6 +325,21 @@ export function useAdminUserDetail(client: SupabaseClient) {
         redeemed_at: e.redeemed_at,
         label: e.entitlement_code_id ? (codeLabels.get(e.entitlement_code_id) || 'Code') : 'Direct grant',
       }))
+
+      // DERIVED access — the three layers that have no row to read: the
+      // group→school→class cascade, class coverage (the course of a class you
+      // are in, as student OR teacher, while its school is covered) and org
+      // coverage. Without this the page showed a covered teacher as DEFAULT,
+      // "No active entitlements", while the player let her play (founder
+      // report 2026-09-09). Non-critical: a failure here leaves the stored
+      // rows exactly as they were.
+      userEntitlements.value = storedEntitlements
+      try {
+        const derivedRows = await fetchDerivedAccess(client, learnerId)
+        if (derivedRows.length > 0) userEntitlements.value = [...storedEntitlements, ...derivedRows]
+      } catch (derivedErr) {
+        console.warn('[AdminUserDetail] derived-access fetch failed:', derivedErr)
+      }
 
       // Fetch the real per-learner telemetry: L1 seed state + LEGO mastery.
       // Old code queried seed_progress / lego_progress — those tables are
