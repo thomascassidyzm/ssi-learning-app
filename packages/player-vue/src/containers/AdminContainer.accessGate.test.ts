@@ -1,21 +1,17 @@
 import { describe, it, expect, beforeEach } from 'vitest'
+import { computed } from 'vue'
 import { useUserRole } from '@/composables/useUserRole'
 import { useResolvedSession } from '@/composables/useResolvedSession'
-import { useAdminAccessState } from '@/composables/useAdminGate'
 
-// AdminContainer.vue's access state, now the shared useAdminAccessState
-// (part of useAdminGate — see that file for the full rationale), exercised
-// here against the REAL singletons — the founder-priority fix for /admin/*
-// deep links bouncing straight to the bare player. Before this, AdminContainer
-// had NO gate at all: the top-level router guard alone decided access,
-// straight off the synchronous role cache, and denied outright whenever that
-// cache didn't yet have an answer (a fresh browser, no cache). This gate is
-// what lets the guard defer instead of deny, and still corrects (redirects)
-// once the shared resolved-session gate genuinely resolves to a non-admin.
-// useAdminGate additionally generalises this same state to every other
-// admin surface — see AdminSchoolsContainer.accessGate.test.ts and
-// useAdminGate.test.ts for the standalone-route and downgrade-revalidation
-// coverage.
+// AdminContainer.vue's knowsAnswer/isCheckingAccess/isDenied computeds,
+// reproduced here against the REAL singletons — the founder-priority fix for
+// /admin/* deep links bouncing straight to the bare player. Before this,
+// AdminContainer had NO gate at all: the top-level router guard alone
+// decided access, straight off the synchronous role cache, and denied
+// outright whenever that cache didn't yet have an answer (a fresh browser,
+// no cache). This gate is what lets the guard defer instead of deny, and
+// still corrects (redirects) once the shared resolved-session gate
+// genuinely resolves to a non-admin.
 
 describe('AdminContainer access gate', () => {
   beforeEach(() => {
@@ -25,7 +21,11 @@ describe('AdminContainer access gate', () => {
   })
 
   function gating() {
-    const { isCheckingAccess, isDenied } = useAdminAccessState()
+    const { canAccessAdmin, isInitialized } = useUserRole()
+    const { isResolved } = useResolvedSession()
+    const knowsAnswer = computed(() => isInitialized.value || isResolved.value)
+    const isCheckingAccess = computed(() => !knowsAnswer.value)
+    const isDenied = computed(() => knowsAnswer.value && !canAccessAdmin.value)
     return { isCheckingAccess: isCheckingAccess.value, isDenied: isDenied.value }
   }
 

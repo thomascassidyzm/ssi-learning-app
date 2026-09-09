@@ -23,7 +23,6 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { pick, between, weekdayTimestamp, insertChunked, resolveMaxSeed, DAY } from './demoSchoolGen'
-import { resolveGroupSubtreeIds } from './demoSchoolGraph'
 
 export interface RefreshResult {
   demoOrgId: string
@@ -43,8 +42,7 @@ async function resolveOrgScope(supabase: SupabaseClient, org: { group_id: string
   const schoolIds: string[] = []
   if (org.school_id) schoolIds.push(org.school_id)
   if (org.group_id) {
-    const groupIds = await resolveGroupSubtreeIds(supabase, org.group_id)
-    const { data: groupSchools } = await supabase.from('schools').select('id').in('group_id', groupIds)
+    const { data: groupSchools } = await supabase.from('schools').select('id').eq('group_id', org.group_id)
     for (const s of groupSchools || []) schoolIds.push(s.id as string)
   }
   if (!schoolIds.length) return { schoolIds, classes: [] }

@@ -9,8 +9,6 @@
  * pages (saysomethingin.com) once they land.
  */
 
-import { isCommercialCourse } from '@ssi/core'
-
 export type OnboardingTrack = 'school' | 'tutor'
 
 export interface LiveCourse {
@@ -93,16 +91,13 @@ export function isFreeTier(c: LiveCourse): boolean {
 }
 
 /**
- * Courses on the year-long (365-day) HERITAGE trial: every non-commercial
- * course — free/community languages plus Welsh (the premium heritage flagship).
- * A course is heritage iff it is NOT commercial (its target is not a Big-10
- * language). Shares the one source of truth (`isCommercialCourse` in @ssi/core)
- * with the server rule in api/onboarding/provision.ts, so client and server can
- * never disagree about a course's trial length. NOT for the tutor track — tutor
- * platform trials are 30 days regardless of course.
+ * Courses on the year-long SCHOOL platform trial: every free/community course,
+ * plus Welsh — the premium anomaly (heritage flagship). Mirrors the server rule
+ * in api/onboarding/provision.ts (`isWelsh || isFree` → 365 days). NOT for the
+ * tutor track — tutor trials are 30 days regardless of course.
  */
 export function isYearTrialCourse(c: LiveCourse): boolean {
-  return !isCommercialCourse(c)
+  return isFreeTier(c) || (c.course_code || '').startsWith('cym')
 }
 
 export function courseLabel(c: LiveCourse): string {

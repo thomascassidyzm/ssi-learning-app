@@ -8,25 +8,21 @@
  * just tells the composables what scope to look at.
  *
  * Provides `isAdminView = true` so child views can hide write controls.
- * Standalone route (sibling of AdminContainer's children, not nested in
- * it) — useAdminGate is its OWN reactive access gate; the org tables this
- * reads (schools/…) are RLS-off by design, so this gate is the enforcement,
- * not a redundant check on top of the router guard (Trinity audit finding
- * #1, docs/trinity/admin.md).
+ * The real admin's authorization (ssi_admin / god) gates the route
+ * itself via the router guard, so if we're here, access is already
+ * verified.
  */
 import { inject, onUnmounted, provide, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AdminTopBar from '@/components/admin/AdminTopBar.vue'
 import { setSchoolsClient } from '@/composables/schools/client'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
-import { useAdminGate } from '@/composables/useAdminGate'
 import '@/styles/schools-tokens.css'
 import '@/styles/schools-design.css'
 
 const route = useRoute()
 const supabase = inject<any>('supabase', ref(null))
 const auth = inject<any>('auth', null)
-const { isCheckingAccess, isDenied } = useAdminGate()
 
 // Prime the schools-client bridge as soon as the supabase instance is
 // available, and reload context whenever the :id changes.
@@ -66,15 +62,10 @@ async function loadContext(schoolId: string | string[]) {
 // loadContext's own guard silently returned and isLoading stayed true
 // forever: dead on cold load, same bug class as the router/data-composable
 // races elsewhere in this fix. Watching the learner too re-fires once
-// identity actually resolves, not just when the route id changes. Also
-// gated on the access check resolving to "allowed" — this query must never
-// fire while checking OR for a denied caller (the cross-tenant leak this
-// fix closes: org tables are RLS-off, so this gate IS the enforcement).
+// identity actually resolves, not just when the route id changes.
 watch(
-  [() => route.params.id, () => auth?.learner?.value, isCheckingAccess, isDenied],
-  ([id, learner, checking, denied]) => {
-    if (id && learner && !checking && !denied) loadContext(id as string)
-  },
+  [() => route.params.id, () => auth?.learner?.value],
+  ([id]) => { if (id) loadContext(id as string) },
   { immediate: true },
 )
 // Deterministic teardown: leaving this read-view must never let its scope
@@ -86,13 +77,7 @@ onUnmounted(() => ctx.clear())
 <template>
   <div class="schools-container schools-surface">
     <AdminTopBar />
-    <div v-if="!isCheckingAccess && !isDenied && !isLoading && !loadError" class="entity-context-bar">
-      <div class="entity-context-identity">
-        <span class="entity-context-eyebrow">Viewing school</span>
-        <span class="entity-context-name" :title="ctx.currentUser?.value?.school_name || 'School'">{{ ctx.currentUser?.value?.school_name || 'School' }}</span>
-      </div>
-    </div>
-    <div v-if="isCheckingAccess || isDenied || isLoading" class="schools-loading">
+    <div v-if="isLoading" class="schools-loading">
       <div class="loading-spinner"></div>
       <p>Loading school…</p>
     </div>
@@ -111,53 +96,11 @@ onUnmounted(() => ctx.clear())
 
 <style scoped>
 .schools-container {
-  /* Owns its scroll: body carries overflow:hidden app-wide (Android bounce
-     fix in style.css) — same pattern as AdminContainer (founder pass A). */
-  height: 100vh;
-  overflow-y: auto;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   background: var(--schools-bg, #f6f5f1);
   color: var(--schools-fg, #0F1212);
-}
-/* Identity-first: the school name is the headline of this surface — it must
-   stay visible (sticky, truncating) at every width instead of losing to the
-   admin chrome above it. */
-.entity-context-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 32px;
-  background: #fff;
-  border-bottom: 1px solid var(--schools-border, rgba(15,18,18,.10));
-  position: sticky;
-  top: calc(54px + env(safe-area-inset-top, 0px));
-  z-index: 50;
-}
-.entity-context-identity {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-.entity-context-eyebrow {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--schools-red, #DB1E17);
-}
-.entity-context-name {
-  font-weight: 700;
-  font-size: 16px;
-  line-height: 1.25;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-@media (max-width: 640px) {
-  .entity-context-bar { padding: 8px 16px; }
 }
 .schools-loading {
   display: flex;

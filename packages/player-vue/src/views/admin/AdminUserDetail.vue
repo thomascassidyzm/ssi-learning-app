@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useAdminUserDetail } from '@/composables/admin/useAdminUserDetail'
 import { parseCourseCode, getBeltForSeeds, timeAgo, formatDuration } from '@/composables/admin/adminUtils'
@@ -229,6 +228,21 @@ const sparkline30d = computed(() => {
   return buckets
 })
 
+const currentStreak = computed(() => {
+  const days = new Set(sessions.value.map(s => s.started_at.slice(0, 10)))
+  if (days.size === 0) return 0
+  let streak = 0
+  const cursor = new Date()
+  // Grace: if today has no row yet, start counting from yesterday so a
+  // 9 AM check doesn't reset an actually-active streak.
+  if (!days.has(dayKey(cursor))) cursor.setDate(cursor.getDate() - 1)
+  while (days.has(dayKey(cursor))) {
+    streak++
+    cursor.setDate(cursor.getDate() - 1)
+  }
+  return streak
+})
+
 const lastActiveAt = computed(() => sessions.value[0]?.started_at ?? null)
 
 function formatMinutes(seconds: number): string {
@@ -291,22 +305,31 @@ const grantDurationDays = ref(365)
 const grantCourses = ref<string[]>([])
 const grantLoading = ref(false)
 
-// The ONE refresh protocol (founder ruling, 2026-07-19): data loads on
-// navigation and then HOLDS STILL. No focus/visibilitychange auto-refetch —
-// that was the old visibility-refetch class the protocol exists to kill, and
-// it fired a full telemetry re-fetch every time the admin flipped back from
-// another tab. Instead we register this page's loader with the shared
-// useDashboardRefresh so the navbar RefreshButton + pull-to-refresh drive it,
-// exactly like every sibling admin view. `immediate` runs the initial load
-// through the same path (spinner + "Updated" stamp).
+// Auto-refresh: re-fetch when the page becomes visible / refocused so
+// flipping back from the player tab shows up-to-date telemetry without
+// a manual reload. No periodic polling — the player only writes on
+// natural session boundaries (stop / pause / tab hidden), so by the
+// time the admin tab gains focus the latest flush has already landed.
 function refreshDetail() {
   const learnerId = route.params.learnerId as string
   if (!learnerId) return
   fetchUserDetail(learnerId)
 }
 
-const { registerRefresh } = useDashboardRefresh()
-registerRefresh(refreshDetail)
+function onVisibilityChange() {
+  if (document.visibilityState === 'visible') refreshDetail()
+}
+
+onMounted(() => {
+  refreshDetail()
+  document.addEventListener('visibilitychange', onVisibilityChange)
+  window.addEventListener('focus', refreshDetail)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+  window.removeEventListener('focus', refreshDetail)
+})
 
 function goBack() {
   router.push('/admin/users')
@@ -410,9 +433,18 @@ async function handleCreateSigninLink() {
       </button>
       <span class="breadcrumb-sep">/</span>
       <span class="breadcrumb-current">{{ profile?.display_name || 'Loading…' }}</span>
-      <!-- The "Learner dashboard" button died with the individual learner
-           page (founder ruling 2026-07-19) — a learner's teaching data
-           lives in their class's node home, expanded in place. -->
+      <button
+        v-if="profile"
+        class="breadcrumb-action"
+        @click="$router.push(`/admin/users/${$route.params.learnerId}/progress`)"
+        title="Open the learner's own progress dashboard"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+        Learner dashboard
+      </button>
     </nav>
 
     <!-- Error -->
@@ -536,9 +568,7 @@ async function handleCreateSigninLink() {
 
       <!-- ─── Activity hero ──────────────────────────────────────────
            At-a-glance: is this user actually using the app?
-           Lifetime / 7-day / today / last-active + a 30-day sparkline.
-           No streak — streaks are banned (founder ruling 2026-07-19,
-           docs/gamification-done-right.md).
+           Lifetime / 7-day / today / streak + a 30-day sparkline.
            Reads from `sessions` (per-day rollup from
            learner_speaking_opportunities — the canonical telemetry). -->
       <section class="section">
@@ -555,6 +585,12 @@ async function handleCreateSigninLink() {
             <div class="activity-stat">
               <div class="schools-kicker">Today</div>
               <div class="arsenal activity-value">{{ formatMinutes(todayPracticeSeconds) }}</div>
+            </div>
+            <div class="activity-stat">
+              <div class="schools-kicker">Streak</div>
+              <div class="arsenal activity-value">
+                {{ currentStreak === 0 ? '—' : `${currentStreak}d` }}
+              </div>
             </div>
             <div class="activity-stat activity-stat-wide">
               <div class="schools-kicker">Last active</div>
@@ -772,10 +808,7 @@ async function handleCreateSigninLink() {
               <div class="course-foot">
                 <span>
                   <span class="schools-subtle">Practice ·</span>
-                  <span
-                    class="course-foot-value frost-mono-nums"
-                    :title="enrollment.total_practice_minutes_estimated ? 'Approximate — no session logs for this course, derived from course position' : undefined"
-                  >{{ enrollment.total_practice_minutes_estimated ? '~' : '' }}{{ formatDuration(enrollment.total_practice_minutes || 0) }}</span>
+                  <span class="course-foot-value frost-mono-nums">{{ formatDuration(enrollment.total_practice_minutes || 0) }}</span>
                 </span>
                 <span>
                   <span class="schools-subtle">Last ·</span>

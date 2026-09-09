@@ -2,8 +2,7 @@
 import { ref, computed, onMounted, watch, inject } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
-import { useClassesData, type ClassReport, type ClassDeleteImpact } from '@/composables/schools/useClassesData'
-import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
+import { useClassesData, type ClassReport } from '@/composables/schools/useClassesData'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { getSchoolsClient } from '@/composables/schools/client'
 import BeltDot from '@/components/schools/shared/BeltDot.vue'
@@ -12,12 +11,9 @@ import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
 import Bench from '@/components/schools/shared/Bench.vue'
 import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
-import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
-import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { getLanguageName } from '@/composables/useI18n'
 import { deriveBelt, BELTS, type Belt } from '@/composables/schools/belts'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
-import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 
 type Health = 'excellent' | 'good' | 'needs-attention' | 'inactive'
 
@@ -25,20 +21,10 @@ const router = useRouter()
 const route = useRoute()
 
 const isAdminView = inject<boolean>('isAdminView', false)
-const { schoolsLink } = useSchoolsNav()
 const { currentUser: selectedUser, isGovtAdmin } = useSchoolContext()
-const {
-  classDetail,
-  isLoading: classDetailLoading,
-  error: classDetailError,
-  fetchClassDetail,
-  getClassReport,
-  renameClass: renameClassApi,
-  fetchClassDeleteImpact,
-  deleteClass: deleteClassApi,
-} = useClassesData()
+const { classDetail, fetchClassDetail, getClassReport } = useClassesData()
 const { viewingSchool } = useSchoolData()
-const { canPlayAsClass, launchClassSession, playError } = usePlayAsClass()
+const { canPlayAsClass, launchClassSession } = usePlayAsClass()
 
 // When a govt admin drilled group → school → class, "back" should return to
 // the school dashboard, not the (empty for them) classes list.
@@ -210,25 +196,14 @@ async function loadReport(classId: string) {
   classReport.value = await getClassReport(classId)
 }
 
-// The ONE refresh protocol: reload this class's detail + report on demand via
-// the navbar button / pull-to-refresh. No polling — the class view holds still.
-async function loadClass(): Promise<void> {
-  const classId = classIdParam.value
-  if (classId && selectedUser.value) {
-    await Promise.all([fetchClassDetail(classId), loadReport(classId)])
-  }
-}
-const { registerRefresh, refresh } = useDashboardRefresh()
-registerRefresh(loadClass, { immediate: false })
-
 onMounted(() => {
   const classId = classIdParam.value
   if (classId && selectedUser.value) {
-    void refresh()
+    fetchClassDetail(classId)
+    loadReport(classId)
   } else if (!classId) {
     const stored = sessionStorage.getItem('ssi-class-detail')
-    // Admin-aware: never fall back into the member /schools tree (see handleBack).
-    if (!stored) router.push(isAdminView ? schoolsLink('classes') : { name: 'classes' })
+    if (!stored) router.push({ name: 'classes' })
   }
 })
 
@@ -252,16 +227,6 @@ watch(classIdParam, (classId, previousClassId) => {
 })
 
 function handleBack() {
-  // In the ssi_admin read-view this component is mounted under
-  // /admin/schools/:id/classes/:classId. Hardcoded learner routes ('/schools',
-  // { name: 'classes' }) resolve into the member /schools tree, whose guard
-  // ejects platform admins to /admin/structure — the bounce founder-reported
-  // 2026-07-19 (e.g. after deleting a class). Route through schoolsLink so the
-  // admin stays on its own /admin/schools/:id surface. Learner paths unchanged.
-  if (isAdminView) {
-    router.push(schoolsLink(backToSchool.value ? 'schools-list' : 'classes'))
-    return
-  }
   // Govt drill-down returns to the school dashboard (viewingSchool stays set),
   // everyone else to the classes list.
   if (backToSchool.value) {
@@ -281,7 +246,7 @@ async function handlePlay() {
 }
 
 // Same /redeem/:code door as every other invite in the app (group leader,
-// school admin, teacher — AdminStructure.vue's schoolAdminInviteLink). The
+// school admin, teacher — SchoolsSetup.vue's schoolAdminInviteLink). The
 // underlying invite_codes row is unchanged (code_type: 'student',
 // max_uses: null) — many students redeem the same link, it's just delivered
 // as a link instead of a bare code now.
@@ -310,62 +275,24 @@ async function handleRemoveStudent(student: { user_id: string; name: string }) {
   if (!error) fetchClassDetail(classData.value.id)
 }
 
-// Rename the class via the server-mediated endpoint (api/school/rename-class)
-// — a direct client `classes.update()` has no ownership check at all (classes
-// is RLS-off by design), so ownership is enforced server-side instead.
+// Rename the class. classes now grants authenticated UPDATE (the create-class
+// grant fix), so a direct client update works — mirrors the native-dialog
+// pattern used by handleRemoveStudent above.
 async function renameClass() {
   const next = (window.prompt('Rename class', classData.value.class_name) || '').trim()
   if (!next || next === classData.value.class_name) return
-  const ok = await renameClassApi(classData.value.id, next)
-  if (!ok) {
+  const supabase = getSchoolsClient()
+  const { error } = await supabase
+    .from('classes')
+    .update({ class_name: next })
+    .eq('id', classData.value.id)
+  if (error) {
+    console.error('[ClassDetail] rename failed:', error)
     window.alert('Could not rename the class. Please try again.')
     return
   }
   fetchClassDetail(classData.value.id)
 }
-
-// Delete the class — the reported gap ("a teacher can't delete a class they
-// set up wrongly"). api/school/delete-class.ts enforces ownership; this view
-// just drives the confirm modal off its impact preview / real-activity flag.
-const showDeleteModal = ref(false)
-const deleteImpact = ref<ClassDeleteImpact | null>(null)
-const isDeletingClass = ref(false)
-const deleteClassError = ref('')
-
-async function openDeleteModal() {
-  deleteClassError.value = ''
-  deleteImpact.value = await fetchClassDeleteImpact(classData.value.id)
-  showDeleteModal.value = true
-}
-
-function closeDeleteModal() {
-  showDeleteModal.value = false
-  deleteClassError.value = ''
-}
-
-async function confirmDeleteClass(typedName: string) {
-  isDeletingClass.value = true
-  deleteClassError.value = ''
-  const result = await deleteClassApi(classData.value.id, typedName || undefined)
-  isDeletingClass.value = false
-  if (!result.ok) {
-    if (result.impact) deleteImpact.value = result.impact
-    deleteClassError.value = result.error
-    return
-  }
-  showDeleteModal.value = false
-  handleBack()
-}
-
-const deleteImpactLines = computed(() => {
-  const impact = deleteImpact.value
-  if (!impact) return []
-  const lines: string[] = []
-  if (impact.learnerCount) lines.push(`${impact.learnerCount} student${impact.learnerCount === 1 ? '' : 's'}`)
-  if (impact.teacherCount) lines.push(`${impact.teacherCount} teacher${impact.teacherCount === 1 ? '' : 's'}`)
-  if (impact.sessionCount) lines.push(`${impact.sessionCount} recorded session${impact.sessionCount === 1 ? '' : 's'}`)
-  return lines
-})
 </script>
 
 <template>
@@ -376,17 +303,12 @@ const deleteImpactLines = computed(() => {
       <span class="crumb-current">{{ classData.class_name }}</span>
     </nav>
 
-    <div v-if="playError" class="fetch-error-banner">
-      <span>{{ playError }}</span>
-    </div>
-
     <header class="page-head">
       <div class="page-head-text">
         <div class="schools-kicker page-eyebrow">{{ courseLabel }}</div>
         <h1 class="arsenal page-title">
           {{ classData.class_name }}
           <button
-            v-if="!isAdminView"
             type="button"
             title="Rename class"
             aria-label="Rename class"
@@ -394,16 +316,6 @@ const deleteImpactLines = computed(() => {
             style="margin-left:10px;background:none;border:none;cursor:pointer;color:var(--schools-fg-3);vertical-align:middle;padding:4px;"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-          </button>
-          <button
-            v-if="!isAdminView"
-            type="button"
-            title="Delete class"
-            aria-label="Delete class"
-            @click="openDeleteModal"
-            style="margin-left:2px;background:none;border:none;cursor:pointer;color:var(--schools-fg-3);vertical-align:middle;padding:4px;"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
           </button>
         </h1>
         <div class="meta-row">
@@ -417,8 +329,6 @@ const deleteImpactLines = computed(() => {
             <span class="meta-dot">·</span>
             <span>Position {{ classData.last_lego_id }}</span>
           </template>
-          <span class="meta-dot">·</span>
-          <UpdatedStamp />
         </div>
       </div>
 
@@ -490,17 +400,11 @@ const deleteImpactLines = computed(() => {
                   </button>
                 </td>
               </tr>
-              <tr v-if="filteredStudents.length === 0 && searchQuery">
-                <td colspan="6" class="empty-row">No students match "{{ searchQuery }}"</td>
-              </tr>
-              <tr v-else-if="filteredStudents.length === 0 && classDetailLoading">
-                <td colspan="6" class="empty-row schools-subtle">Loading roster…</td>
-              </tr>
-              <tr v-else-if="filteredStudents.length === 0 && classDetailError">
-                <td colspan="6" class="empty-row">Couldn't load roster. {{ classDetailError }}</td>
-              </tr>
-              <tr v-else-if="filteredStudents.length === 0">
-                <td colspan="6" class="empty-row">No students have joined this class yet.</td>
+              <tr v-if="filteredStudents.length === 0">
+                <td colspan="6" class="empty-row">
+                  <span v-if="searchQuery">No students match "{{ searchQuery }}"</span>
+                  <span v-else>No students have joined this class yet.</span>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -536,7 +440,6 @@ const deleteImpactLines = computed(() => {
               <div class="belt-legend-label">{{ row.belt }}</div>
             </div>
           </div>
-          <p v-else-if="classDetailLoading" class="rail-note schools-subtle">Loading…</p>
           <p v-else class="rail-note schools-subtle">No students enrolled yet.</p>
         </div>
 
@@ -546,7 +449,7 @@ const deleteImpactLines = computed(() => {
           <p v-else class="rail-note schools-subtle">Benchmark loading...</p>
         </div>
 
-        <div v-if="!isAdminView" class="schools-card schools-card-pad rail-card join-card">
+        <div class="schools-card schools-card-pad rail-card join-card">
           <div class="schools-kicker join-kicker">Invite students</div>
           <p class="join-help">
             Share this link — students click it, sign up, and land straight in the class.
@@ -579,18 +482,6 @@ const deleteImpactLines = computed(() => {
         </div>
       </aside>
     </div>
-
-    <ConfirmDeleteModal
-      :is-open="showDeleteModal"
-      title="Delete class"
-      :target-name="classData.class_name"
-      :impact-lines="deleteImpactLines"
-      :require-typed-confirm="!!deleteImpact?.hasRealActivity"
-      :submitting="isDeletingClass"
-      :error="deleteClassError"
-      @close="closeDeleteModal"
-      @confirm="confirmDeleteClass"
-    />
   </main>
 </template>
 
@@ -605,19 +496,6 @@ const deleteImpactLines = computed(() => {
   font-size: 12.5px;
   color: var(--schools-fg-2);
   margin-bottom: 10px;
-}
-
-.fetch-error-banner {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  margin-bottom: 12px;
-  font-size: 13px;
-  color: var(--schools-red);
-  border: 1px solid rgba(var(--tone-red, 194, 58, 58), 0.28);
-  background: rgba(var(--tone-red, 194, 58, 58), 0.06);
-  border-radius: 8px;
 }
 .breadcrumb a {
   color: inherit;

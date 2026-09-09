@@ -14,26 +14,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-/**
- * A demo org's root group can now grow an arbitrary-depth sub-tree (founder
- * org model, `2f919488` / `20260717c`) — a school can live several levels
- * below the root the demo-schools tool created. `groups.path` is a slug
- * path (`root-slug/child-slug/...`), so "every group in this org" is every
- * row whose path equals the root's, or starts with the root's path + '/'.
- */
-export async function resolveGroupSubtreeIds(supabase: SupabaseClient, rootGroupId: string): Promise<string[]> {
-  const { data: rootRows } = await supabase.from('groups').select('id, path').eq('id', rootGroupId)
-  const rootPath = rootRows?.[0]?.path as string | undefined
-  if (!rootPath) return [rootGroupId]
-  const { data: rows } = await supabase.from('groups').select('id, path')
-  return (rows || [])
-    .filter((r) => r.path === rootPath || (typeof r.path === 'string' && r.path.startsWith(`${rootPath}/`)))
-    .map((r) => r.id as string)
-}
-
 export interface DemoOrgGraph {
-  /** The org's root group plus every descendant group, any depth. */
-  groupIds: string[]
   schoolIds: string[]
   classIds: string[]
   classLearnerIds: string[]
@@ -49,9 +30,8 @@ export async function discoverDemoOrgGraph(
 ): Promise<DemoOrgGraph> {
   const schoolIds: string[] = []
   if (org.school_id) schoolIds.push(org.school_id)
-  const groupIds = org.group_id ? await resolveGroupSubtreeIds(supabase, org.group_id) : []
-  if (groupIds.length) {
-    const { data: groupSchools } = await supabase.from('schools').select('id').in('group_id', groupIds)
+  if (org.group_id) {
+    const { data: groupSchools } = await supabase.from('schools').select('id').eq('group_id', org.group_id)
     for (const s of groupSchools || []) schoolIds.push(s.id as string)
   }
 
@@ -70,8 +50,8 @@ export async function discoverDemoOrgGraph(
     const { data: teacherRows } = await supabase.from('classes').select('teacher_user_id').in('id', classIds)
     for (const t of teacherRows || []) if (t.teacher_user_id) staffAuthUids.push(t.teacher_user_id as string)
   }
-  if (groupIds.length) {
-    const { data: govtAdmins } = await supabase.from('govt_admins').select('user_id').in('group_id', groupIds)
+  if (org.group_id) {
+    const { data: govtAdmins } = await supabase.from('govt_admins').select('user_id').eq('group_id', org.group_id)
     for (const g of govtAdmins || []) if (g.user_id) staffAuthUids.push(g.user_id as string)
   }
 
@@ -89,7 +69,6 @@ export async function discoverDemoOrgGraph(
   }
 
   return {
-    groupIds,
     schoolIds,
     classIds,
     classLearnerIds,

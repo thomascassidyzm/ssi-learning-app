@@ -15,7 +15,6 @@ import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useReleaseNotes } from '../composables/useReleaseNotes'
 import { updateAvailable as pwaUpdateAvailable } from '../composables/usePwaUpdate'
 import { formatFurthestPoint, formatFurthestTarget, canRecoverToFurthest } from '../utils/furthestProgress'
-import { isPlaceholderEmail } from '../utils/placeholderEmail'
 
 const emit = defineEmits(['close', 'openExplorer', 'openListening', 'settingChanged'])
 
@@ -750,20 +749,14 @@ const isEmailUnverified = computed(() => {
   return metadata?.onboarded_via === 'possession' && metadata?.email_confirmed_manually !== true
 })
 
-// A link-auth (straight-in) account has no real email yet — its primary is a
-// placeholder (api/auth/possession-redeem.ts). The unverified-email prompt then
-// reads "add your email" rather than "verify link-<uuid>@…", and the verify
-// form starts blank instead of pre-filling the junk address.
-const isPrimaryEmailPlaceholder = computed(() => isPlaceholderEmail(primaryEmail.value))
-
 function handleVerifyPrimaryEmail() {
   addEmailError.value = ''
   addEmailSuccess.value = false
   addEmailStep.value = 'email'
-  addEmailInput.value = isPrimaryEmailPlaceholder.value ? '' : primaryEmail.value
+  addEmailInput.value = primaryEmail.value
   addEmailOtp.value = ''
   showAddEmailForm.value = true
-  if (!isPrimaryEmailPlaceholder.value) handleSendAddEmailOtp()
+  handleSendAddEmailOtp()
 }
 
 const handleSendAddEmailOtp = async () => {
@@ -886,28 +879,32 @@ const confirmDelete = async () => {
   deleteError.value = null
 
   try {
-    // Server-side: cascades every learner-scoped table AND removes the
-    // Supabase Auth identity — the client SDK can do neither (no DELETE
-    // grant on most tables, no admin API for the auth user).
-    const session = await supabase.value.auth.getSession()
-    const authToken = session.data?.session?.access_token
+    const learnerId = auth.learnerId.value
 
-    const res = await fetch('/api/account/delete', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
-      },
-    })
-    const data = await res.json().catch(() => ({}))
+    // Delete all user data from all tables
+    const tables = [
+      'response_metrics',
+      'spike_events',
+      'lego_progress',
+      'seed_progress',
+      'sessions',
+      'course_enrollments',
+    ]
 
-    if (!res.ok || !data.ok) {
-      deleteError.value = data.error || 'Failed to delete account. Please contact support.'
-      return
+    for (const table of tables) {
+      await supabase.value
+        .from(table)
+        .delete()
+        .eq('learner_id', learnerId)
     }
 
-    // Sign out (Supabase Auth) — the identity is already gone server-side,
-    // this just clears the local session.
+    // Delete learner record
+    await supabase.value
+      .from('learners')
+      .delete()
+      .eq('id', learnerId)
+
+    // Sign out (Supabase Auth)
     if (auth?.signOut) {
       await auth.signOut()
     }
@@ -1257,30 +1254,66 @@ const confirmReset = async () => {
   try {
     const course = courseCode.value
 
-    // Clear Supabase tables if signed in. Server-side: the client has no
-    // DELETE grant on response_metrics/spike_events/lego_progress/
-    // seed_progress/sessions (same gap as the old client-side delete-account
-    // path), so this is a single call to api/account/reset-progress.ts
-    // rather than per-table client writes that silently permission-denied.
+    // Clear Supabase tables if signed in
     if (supabase?.value && auth?.learnerId?.value && !auth.learnerId.value.startsWith('guest-')) {
-      const session = await supabase.value.auth.getSession()
-      const authToken = session.data?.session?.access_token
+      const learnerId = auth.learnerId.value
 
-      const res = await fetch('/api/account/reset-progress', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
-        },
-        body: JSON.stringify({ course_code: course }),
-      })
-      const data = await res.json().catch(() => ({}))
+      // Delete from tables in order (respecting FK constraints)
+      const tables = [
+        'response_metrics',
+        'spike_events',
+        'lego_progress',
+        'seed_progress',
+        'sessions',
+      ]
 
-      if (!res.ok || !data.ok) {
-        resetError.value = data.error || 'Failed to reset progress'
-        isResetting.value = false
-        return
+      for (const table of tables) {
+        const { error } = await supabase.value
+          .from(table)
+          .delete()
+          .eq('learner_id', learnerId)
+          .eq('course_id', course)
+
+        if (error) {
+          console.warn(`[Reset] Error clearing ${table}:`, error.message)
+        }
       }
+
+      // Reset enrollment stats for this course only. Also clear the legacy
+      // ratcheted "furthest reached" fields (highest_completed_lego_id,
+      // highest_completed_round_index, completed_pod_rounds,
+      // infplay_round_index) alongside the resume cursor. These columns are
+      // being retired (2026-07-04 cursor-only decision) but are still
+      // written by the DB ratchet trigger / pod scheduler for stale-PWA
+      // compatibility, so a deliberate restart nulls them too rather than
+      // leaving inconsistent legacy state behind.
+      //
+      // last_practiced_at is STAMPED to now, not nulled — the position
+      // authority ruling (docs/pwa-lifecycle-design.md §2.3) trusts the
+      // device's cached position over the server cursor only when the
+      // cache is strictly fresher than this timestamp. Stamping it means
+      // the reset always wins that comparison outright, even if the local
+      // key below somehow survives (race, storage error) — closing the
+      // resurrection bug where a leftover local key + a null timestamp let
+      // the old position get resumed and then re-ratcheted back into the
+      // DB hours later.
+      await supabase.value
+        .from('course_enrollments')
+        .update({
+          total_practice_minutes: 0,
+          last_practiced_at: new Date().toISOString(),
+          highest_completed_seed: 0,
+          last_completed_lego_id: null,
+          highest_completed_lego_id: null,
+          last_completed_round_index: null,
+          highest_completed_round_index: null,
+          completed_pod_rounds: 0,
+          pod_activation_round: null,
+          infplay_round_index: 0,
+          current_mode: 'main',
+        })
+        .eq('learner_id', learnerId)
+        .eq('course_id', course)
     }
 
     // The device's cached position (localStorage) is checked before the
@@ -1677,13 +1710,13 @@ const confirmReset = async () => {
           <div v-if="isEmailUnverified" class="setting-row">
             <div class="setting-info">
               <span class="setting-label">
-                {{ isPrimaryEmailPlaceholder ? 'Add your email' : primaryEmail }}
-                <span v-if="!isPrimaryEmailPlaceholder" class="unverified-badge">unverified</span>
+                {{ primaryEmail }}
+                <span class="unverified-badge">unverified</span>
               </span>
-              <span class="setting-desc">{{ isPrimaryEmailPlaceholder ? 'Add an email so you can sign in on another device' : "We haven't confirmed you can receive mail at this address yet" }}</span>
+              <span class="setting-desc">We haven't confirmed you can receive mail at this address yet</span>
             </div>
             <button class="inline-save-btn" :disabled="isSendingOtp" @click="handleVerifyPrimaryEmail">
-              {{ isSendingOtp ? 'Sending...' : (isPrimaryEmailPlaceholder ? 'Add email' : 'Verify now') }}
+              {{ isSendingOtp ? 'Sending...' : 'Verify now' }}
             </button>
           </div>
 

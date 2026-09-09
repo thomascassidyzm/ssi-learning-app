@@ -5,9 +5,7 @@
 // ONE reusable widget (RateCompare.vue) wrapped by three selectors:
 //   · Metric   — the 6 HERO_RATES (progressPace leads — the headline rate)
 //   · Entity   — a LEVEL switch (learner / class / school / course) + an entity picker
-//   · Average  — the entity's ANCESTOR chain (class → its school avg → its course
-//                avg), nearest first = default. The cohort is the entity's
-//                SIBLINGS in that scope — never its own members (voice ruling).
+//   · Average  — the metric's swappable comparison cohorts
 //
 // Design principle: RATE IS PRIMARY. Rate of progress matters more than
 // position; position rides along only as the small secondary contextLine.
@@ -22,29 +20,21 @@
 // ============================================================================
 import { ref, computed, watch } from 'vue'
 import RateCompare from '../components/RateCompare.vue'
-import WindowChips from '../components/WindowChips.vue'
-import FrostSelect from '@/components/FrostSelect.vue'
 import {
   HERO_RATES,
   getRateComparison,
   listEntities,
   listAverages,
   listEntityLevels,
-  WINDOW_OPTIONS,
-  DEFAULT_WINDOW,
   type EntityLevel,
 } from '../data/demoRates'
 import type { RateComparisonData } from '../spec'
 
 // ── Selection state ─────────────────────────────────────────────────────────
-const windowId = ref<string>(DEFAULT_WINDOW)           // today / 7d / 30d / all
 const metricId = ref<string>('progressPace')          // headline rate by default
 const entityLevel = ref<EntityLevel>('class')          // default: a class entity
 const entityId = ref<string>('')
-const averageId = ref<string>('')                      // snapped to the nearest ancestor below
-
-const metricSelectOptions = computed(() =>
-  HERO_RATES.map((m) => ({ value: m.id, label: `${m.label} (${m.unit} / ${m.per})` })))
+const averageId = ref<string>('course avg')            // default: course avg
 
 const ALL_LEVELS: { value: EntityLevel; label: string }[] = [
   { value: 'learner', label: 'Learner' },
@@ -66,33 +56,23 @@ const availableLevels = computed(() => {
 // Entities for the chosen (metric, level) — the entity picker's options.
 const entityOptions = computed(() => listEntities(metricId.value, entityLevel.value))
 
-// Compare-to = the selected entity's ANCESTOR chain (nearest first). The
-// options NAME each ancestor ("Gaelcholáiste Luimnigh avg"), so the defaulted
-// selection is always explicit — this control never sits empty.
-const averageOptions = computed(() =>
-  listAverages(metricId.value, entityLevel.value, entityId.value))
+// Averages valid for the chosen metric — the average picker's options.
+const averageOptions = computed(() => listAverages(metricId.value))
 
 // ── Keep the selection coherent as dropdowns change ─────────────────────────
-// Metric change: snap the level into the metric's valid set.
+// When metric changes: snap level + average into the metric's valid sets.
 watch(metricId, () => {
   const levels = listEntityLevels(metricId.value)
   if (!levels.includes(entityLevel.value)) entityLevel.value = levels[0] ?? 'class'
+  const avgs = listAverages(metricId.value)
+  if (!avgs.includes(averageId.value)) averageId.value = avgs[0] ?? 'course avg'
 })
 
-// Metric or level change: re-anchor the entity to the first roster option.
+// When metric or level changes: re-anchor the entity to the cohort leader (first).
 watch([metricId, entityLevel], () => {
   const opts = listEntities(metricId.value, entityLevel.value)
   if (!opts.find((o) => o.value === entityId.value)) {
     entityId.value = opts[0]?.value ?? ''
-  }
-}, { immediate: true })
-
-// Any selection change: snap compare-to onto the entity's own ancestor chain,
-// defaulting to the NEAREST ancestor (options[0]).
-watch([metricId, entityLevel, entityId], () => {
-  const opts = averageOptions.value
-  if (!opts.find((o) => o.value === averageId.value)) {
-    averageId.value = opts[0]?.value ?? ''
   }
 }, { immediate: true })
 
@@ -106,7 +86,6 @@ const comparison = computed<RateComparisonData>(() =>
     entityLevel.value,
     entityId.value,
     averageId.value,
-    windowId.value,
   ),
 )
 </script>
@@ -128,16 +107,14 @@ const comparison = computed<RateComparisonData>(() =>
 
     <!-- ── Selectors ── -->
     <div class="rtb-controls">
-      <!-- Time window -->
-      <div class="rtb-field">
-        <span class="rtb-field-label">Window</span>
-        <WindowChips v-model="windowId" :options="WINDOW_OPTIONS" aria-label="Time window" />
-      </div>
-
-      <!-- Measure -->
+      <!-- Metric -->
       <label class="rtb-field rtb-field-wide">
-        <span class="rtb-field-label">Measure</span>
-        <FrostSelect v-model="metricId" :options="metricSelectOptions" aria-label="Measure" />
+        <span class="rtb-field-label">Metric</span>
+        <select v-model="metricId" class="rtb-select">
+          <option v-for="m in HERO_RATES" :key="m.id" :value="m.id">
+            {{ m.label }} ({{ m.unit }} / {{ m.per }})
+          </option>
+        </select>
       </label>
 
       <!-- Entity level switch -->
@@ -165,11 +142,11 @@ const comparison = computed<RateComparisonData>(() =>
         </select>
       </label>
 
-      <!-- Average picker — the entity's ancestor chain, nearest first -->
+      <!-- Average picker -->
       <label class="rtb-field">
         <span class="rtb-field-label">Compare to</span>
         <select v-model="averageId" class="rtb-select">
-          <option v-for="a in averageOptions" :key="a.value" :value="a.value">{{ a.label }}</option>
+          <option v-for="a in averageOptions" :key="a" :value="a">{{ a }}</option>
         </select>
       </label>
     </div>

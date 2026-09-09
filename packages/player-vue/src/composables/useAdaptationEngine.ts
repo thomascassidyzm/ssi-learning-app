@@ -23,7 +23,6 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { watch, type Ref } from 'vue'
 import {
   createMetricsTracker,
   createSpikeDetector,
@@ -43,7 +42,6 @@ import {
   type RoundPlan,
   type LocalDifficulty,
 } from '@ssi/core'
-import { getSeedFromLegoId } from './useBeltProgress'
 
 const FLUSH_EVERY_N_CYCLES = 10
 const QUICK_RESPONSE_MS = 2000
@@ -67,20 +65,8 @@ const MASTERY_MULTIPLIER: Record<MasteryState, number> = {
 }
 
 export interface UseAdaptationEngineConfig {
-  /**
-   * Supabase client — plain value OR a Ref, mirroring `BeltProgressSyncConfig`
-   * (`useBeltProgress.ts`). MUST be a Ref for any caller where auth/client
-   * resolution can still be in flight at construction time: a plain value is
-   * captured ONCE and never re-read, so if it's still null/guest at that
-   * instant every later `flush()` uses the same stale snapshot forever — the
-   * root cause of `learner_lego_metrics` never getting written (2026-07-16
-   * shadow verdict). `LearningPlayer.vue`'s child `onMounted` fires before
-   * its parent `App.vue` even starts `auth.initialize()`, so this is not a
-   * rare race — it is the FIRST read, every time.
-   */
-  supabase: Ref<SupabaseClient | null> | SupabaseClient | null
-  /** Learner ID — same plain-or-Ref contract as `supabase` above, same reason. */
-  learnerId: Ref<string | null> | string | null
+  supabase: SupabaseClient | null
+  learnerId: string | null
   courseCode: string
   /**
    * The ONE shared evidence aggregator (WP-0). Pass the SAME instance given
@@ -91,22 +77,6 @@ export interface UseAdaptationEngineConfig {
   aggregator?: EvidenceAggregator
   /** Rate-policy tuning (WP-2) — `algorithm_config.adaptation_v2.bounds`/config. Defaults to DEFAULT_RATE_POLICY_CONFIG. */
   ratePolicyConfig?: Partial<RatePolicyConfig>
-  /**
-   * Fires whenever a hydrate/flush write fails. The engine still degrades
-   * gracefully (in-memory play continues), but the failure must never be
-   * silent — the caller is expected to log it as a real telemetry event
-   * (e.g. `logEvent('adaptation_persistence_error', ...)`), not just console
-   * noise a soak review can miss.
-   */
-  onPersistenceError?: (stage: 'hydrate' | 'mastery' | 'series' | 'evidence', error: unknown) => void
-}
-
-function unwrapMaybeRef<T>(v: Ref<T> | T | null | undefined): T | null {
-  if (v === null || v === undefined) return null
-  if (typeof v === 'object' && v !== null && 'value' in (v as object)) {
-    return (v as Ref<T>).value
-  }
-  return v as T
 }
 
 /** Input to `planRound` — one round boundary. See `RoundBoundaryInput` (ratePolicy.ts) for the full shape this builds. */
@@ -145,7 +115,7 @@ export interface UseAdaptationEngineReturn {
    * (shadow mode: log only, never apply).
    */
   planRound(input: PlanRoundInput): PlanRoundResult
-  /** Flush dirty rows to Supabase. On failure, calls `config.onPersistenceError` (never silent) and retries next flush. */
+  /** Flush dirty rows to Supabase. Returns silently on failure. */
   flush(): Promise<void>
   /** Cleanup: remove pagehide listener, final flush. */
   dispose(): void
@@ -165,45 +135,35 @@ export function useAdaptationEngine(
   // Bounded normalized-latency ring per lego — the difficulty series B4 reads.
   const seriesByLego = new Map<string, number[]>()
   let cyclesSinceFlush = 0
+  let initialized = false
   let pageHideHandler: (() => void) | null = null
-  // The learnerId hydration last succeeded against — null until the FIRST
-  // successful hydrate. Distinct from "initialize() was called": a guest/
-  // not-yet-resolved learnerId at call time must NOT permanently mark this
-  // engine as initialized, or a later-resolving auth (the common case — see
-  // `supabase`/`learnerId` doc above) never gets its one-time hydration.
-  let hydratedForLearnerId: string | null = null
-  let hydrating = false
-
-  const getSupabase = (): SupabaseClient | null => unwrapMaybeRef(config.supabase)
-  const getLearnerId = (): string | null => unwrapMaybeRef(config.learnerId)
 
   const canSync = (): boolean => {
-    const learnerId = getLearnerId()
-    return !!(getSupabase() && learnerId && !learnerId.startsWith('guest-'))
+    return !!(
+      config.supabase &&
+      config.learnerId &&
+      !config.learnerId.startsWith('guest-')
+    )
   }
 
   const store = (): LegoMetricsStore | null => {
-    const client = getSupabase()
-    if (!canSync() || !client) return null
-    return new LegoMetricsStore({ client })
+    if (!canSync() || !config.supabase) return null
+    return new LegoMetricsStore({ client: config.supabase })
   }
 
   const initialize = async (): Promise<void> => {
-    const learnerId = getLearnerId()
+    if (initialized) return
+    initialized = true
+
     const s = store()
-    if (!s || !learnerId) {
-      // Guest, or auth/client not resolved yet — engine still works in
-      // memory. `hydratedForLearnerId` stays unset, so a later resolve
-      // (auth.initialize() finishing after this composable was constructed)
-      // gets one real hydration attempt via the watcher below.
+    if (!s || !config.learnerId) {
+      // Guest or no client — engine still works in memory, just no persistence
       registerPageHide()
       return
     }
-    if (hydrating || hydratedForLearnerId === learnerId) return
-    hydrating = true
 
     try {
-      const rows = await s.loadAll(learnerId, config.courseCode)
+      const rows = await s.loadAll(config.learnerId, config.courseCode)
       const states: LegoMasteryState[] = rows.map((r) => ({
         lego_id: r.lego_id,
         current_state: r.mastery_state,
@@ -235,29 +195,15 @@ export function useAdaptationEngine(
       if (evidenceSnapshot.size > 0) {
         aggregator.hydrate(evidenceSnapshot)
       }
-      hydratedForLearnerId = learnerId
       console.log(
         `[useAdaptationEngine] Hydrated ${states.length} LEGO mastery states for course ${config.courseCode}`
       )
     } catch (err) {
-      console.error('[useAdaptationEngine] Hydration failed:', err)
-      config.onPersistenceError?.('hydrate', err)
-    } finally {
-      hydrating = false
+      console.warn('[useAdaptationEngine] Hydration failed:', err)
     }
 
     registerPageHide()
   }
-
-  // Re-attempt hydration once if the learnerId resolves AFTER construction
-  // (the normal case: `initializeAdaptationEngine()` in LearningPlayer.vue
-  // fires from a CHILD component's onMounted, which Vue runs before the
-  // parent App.vue's onMounted even starts `auth.initialize()` — so the
-  // first `initialize()` call above almost always runs pre-auth). A no-op
-  // when `config.learnerId` isn't an actual Ref (the getter never changes).
-  watch(getLearnerId, (id) => {
-    if (id) void initialize()
-  })
 
   const registerPageHide = () => {
     if (typeof window === 'undefined' || pageHideHandler) return
@@ -337,20 +283,12 @@ export function useAdaptationEngine(
     const difficulty: LocalDifficulty[] = readyUnitIds.map((unitId) =>
       assessLocalDifficulty({ unitId, unitKind: 'lego', ...aggregator.getSeries(unitId) })
     )
-    // Every unit id IS a lego id (`S%04dL%02d`), so its ordinal is derivable
-    // directly from the id — the same "seed number is the ordinal proxy"
-    // convention the caller already uses for `roundLegoOrdinal`
-    // (LearningPlayer.vue). Previously only the round's own LEGO carried an
-    // ordinal, so every review-phase unit read "unknown -> not critical ->
-    // deferrable" — including seed-1 LEGOs (2026-07-16 shadow verdict,
-    // "criticality inversion"). Building the map from every read unit (not
-    // just the round's own) closes that gap with no new plumbing.
+    // Only the round's own (possibly-new) LEGO has a known ordinal here —
+    // every other unit falls through the criticality guard's safe default
+    // (unknown ordinal never resists deferral by accident, ratePolicy.ts
+    // `isCritical`). Earn a fuller ordinal map only if pilot data shows this
+    // under-protects other early-course units.
     const unitOrdinals: Record<string, number> = { [input.roundLegoId]: input.roundLegoOrdinal }
-    for (const read of difficulty) {
-      if (unitOrdinals[read.unitId] !== undefined) continue
-      const ordinal = getSeedFromLegoId(read.unitId)
-      if (ordinal !== null) unitOrdinals[read.unitId] = ordinal
-    }
     const plan = ratePolicy.planRound({
       roundLegoId: input.roundLegoId,
       roundLegoOrdinal: input.roundLegoOrdinal,
@@ -366,8 +304,7 @@ export function useAdaptationEngine(
   const flush = async (): Promise<void> => {
     if (dirty.size === 0) return
     const s = store()
-    const learnerId = getLearnerId()
-    if (!s || !learnerId) {
+    if (!s || !config.learnerId) {
       dirty.clear()
       cyclesSinceFlush = 0
       return
@@ -378,7 +315,7 @@ export function useAdaptationEngine(
     const rows: LegoMetricsUpsert[] = legoIds.map((legoId) => {
       const state = mastery.getState(legoId)
       return {
-        learner_id: learnerId,
+        learner_id: config.learnerId!,
         lego_id: legoId,
         course_code: config.courseCode,
         mastery_state: state.current_state,
@@ -396,8 +333,7 @@ export function useAdaptationEngine(
     try {
       await s.upsertMany(rows)
     } catch (err) {
-      console.error('[useAdaptationEngine] Flush failed:', err)
-      config.onPersistenceError?.('mastery', err)
+      console.warn('[useAdaptationEngine] Flush failed:', err)
       // Re-mark as dirty so next flush retries; skip the series write (the row
       // may not exist yet, and we don't want to mask the mastery failure).
       for (const id of legoIds) dirty.add(id)
@@ -415,7 +351,7 @@ export function useAdaptationEngine(
             ? samples.reduce((a, b) => a + b, 0) / samples.length
             : null
           return {
-            learner_id: learnerId,
+            learner_id: config.learnerId!,
             lego_id: legoId,
             course_code: config.courseCode,
             recent_latency_samples: samples,
@@ -425,8 +361,7 @@ export function useAdaptationEngine(
         .filter((r) => r.recent_latency_samples.length > 0)
       await s.upsertSeries(seriesRows)
     } catch (err) {
-      console.error('[useAdaptationEngine] Series flush failed (non-fatal):', err)
-      config.onPersistenceError?.('series', err)
+      console.warn('[useAdaptationEngine] Series flush failed (non-fatal):', err)
     }
 
     // Evidence-aggregator snapshot (WP-0/WP-4) — the merged behavioural+
@@ -436,7 +371,7 @@ export function useAdaptationEngine(
     try {
       const evidenceRows: LegoEvidenceSeriesUpsert[] = legoIds
         .map((legoId) => ({
-          learner_id: learnerId,
+          learner_id: config.learnerId!,
           lego_id: legoId,
           course_code: config.courseCode,
           evidence_series: aggregator.getSeries(legoId),
@@ -444,8 +379,7 @@ export function useAdaptationEngine(
         .filter((r) => r.evidence_series.values.length > 0)
       await s.upsertEvidenceSeries(evidenceRows)
     } catch (err) {
-      console.error('[useAdaptationEngine] Evidence-series flush failed (non-fatal):', err)
-      config.onPersistenceError?.('evidence', err)
+      console.warn('[useAdaptationEngine] Evidence-series flush failed (non-fatal):', err)
     }
   }
 

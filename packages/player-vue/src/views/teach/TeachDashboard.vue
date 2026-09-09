@@ -230,7 +230,7 @@ async function loadTeacher(token: string): Promise<boolean> {
   })
 
   if (res.status === 404) {
-    router.replace({ path: '/tutors', query: { reason: 'not-provisioned' } })
+    router.replace('/tutors')
     return false
   }
 

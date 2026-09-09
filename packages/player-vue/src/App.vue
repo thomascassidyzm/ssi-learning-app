@@ -7,7 +7,7 @@ import { createCourseDataProvider } from './providers/CourseDataProvider'
 import { loadConfig, isSupabaseConfigured } from './config/env'
 import { useAuth } from './composables/useAuth'
 import { prewarmInstantCaches } from './composables/useInstantPlayback'
-import { checkKillSwitch, unregisterAllServiceWorkers, clearAllCaches, killSwitchMessage } from './composables/useServiceWorkerSafety'
+import { checkKillSwitch, unregisterAllServiceWorkers, clearAllCaches } from './composables/useServiceWorkerSafety'
 import { useTheme } from './composables/useTheme'
 import { useEagerScriptPreload } from './composables/useEagerScriptPreload'
 import { checkContentVersion } from './composables/useScriptCache'
@@ -28,7 +28,9 @@ import { installConsoleDedup } from './utils/consoleDedup'
 const PwaUpdatePrompt = defineAsyncComponent(() => import('./components/PwaUpdatePrompt.vue'))
 const InstallBanner = defineAsyncComponent(() => import('./components/InstallBanner.vue'))
 const TesterFeedback = defineAsyncComponent(() => import('./components/TesterFeedback.vue'))
+const ActingAsBanner = defineAsyncComponent(() => import('./components/ActingAsBanner.vue'))
 import { setSchoolsClient } from './composables/schools/client'
+import { useActAs } from './composables/useActAs'
 import AppEscape from './components/AppEscape.vue'
 import CheckoutOverlay from './components/CheckoutOverlay.vue'
 
@@ -506,9 +508,17 @@ provide('inviteCode', inviteCode)
 provide('installPrompt', installPrompt)
 provide('fetchEnrolledCourses', fetchEnrolledCourses)
 
+// Rehydrate an in-flight admin act-as (sessionStorage) after a reload.
+const { restoreActAs } = useActAs()
+
 onMounted(async () => {
   // Clear stale caches on new deploy
   invalidateStaleCaches()
+
+  // Re-prime the schools context if an admin reloaded while acting-as.
+  restoreActAs().catch(err => {
+    console.warn('[App] act-as restore failed (non-fatal):', err)
+  })
 
   // Check service worker kill switch (for emergency recovery)
   // If kill switch is active, this will unregister SW and reload
@@ -657,10 +667,8 @@ onMounted(async () => {
     <PwaUpdatePrompt />
     <InstallBanner />
     <TesterFeedback />
+    <ActingAsBanner />
     <CheckoutOverlay />
-    <div v-if="killSwitchMessage" class="kill-switch-overlay">
-      <p>{{ killSwitchMessage }}</p>
-    </div>
   </div>
 </template>
 
@@ -677,24 +685,5 @@ onMounted(async () => {
   min-height: 100vh;
   min-height: 100dvh;
   background: var(--bg-primary);
-}
-
-.kill-switch-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 99999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  text-align: center;
-  background: rgba(20, 16, 14, 0.92);
-  color: #fff;
-}
-
-.kill-switch-overlay p {
-  max-width: 420px;
-  font-size: 16px;
-  line-height: 1.5;
 }
 </style>

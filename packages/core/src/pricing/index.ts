@@ -26,14 +26,3 @@ export {
   canAccessSeed,
   inferPricingTier,
 } from './access';
-
-// Trial duration derived from the course's commercial class (30-day commercial
-// / 365-day heritage) — single source of truth for granted expiry + picker copy.
-export {
-  type TrialCourse,
-  TRIAL_DAYS_COMMERCIAL,
-  TRIAL_DAYS_HERITAGE,
-  isCommercialCourse,
-  trialDaysForCourse,
-  targetLangFromCourseCode,
-} from './trial';
