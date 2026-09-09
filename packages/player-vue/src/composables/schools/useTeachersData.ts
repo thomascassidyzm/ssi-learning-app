@@ -68,6 +68,42 @@ export async function createStaffSigninLink(targetUserId: string): Promise<Staff
   }
 }
 
+/**
+ * Create a NAMED SEAT — server-mediated (api/school/named-seat.ts).
+ *
+ * Mechanism B of the school-belonging design. The admin types a name, not an
+ * address, and gets a code to hand over on the school's own channel. The seat
+ * appears on this very list straight away, under "Not yet given classes", so
+ * it can be given classes before the person has arrived — and removed if it
+ * was a mistake.
+ *
+ * Deliberately returns the SAME shape as createStaffSigninLink so the page can
+ * show one panel for both. What the admin does with the code is identical;
+ * only who it was minted for differs.
+ */
+export async function createNamedSeat(name: string): Promise<StaffAccessCode> {
+  const empty = { code: null, joinUrl: null, expiresAt: null, email: null }
+  try {
+    const headers = await authHeaders()
+    const res = await fetch('/api/school/named-seat', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ name }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) return { ...empty, error: data?.error || `Request failed: ${res.status}` }
+    return {
+      code: data.access_code ?? null,
+      joinUrl: data.join_url ?? null,
+      expiresAt: data.expires_at ?? null,
+      email: null,
+      error: null,
+    }
+  } catch (err) {
+    return { ...empty, error: err instanceof Error ? err.message : 'Could not create a code' }
+  }
+}
+
 export interface Teacher {
   user_id: string
   learner_id: string
@@ -344,5 +380,6 @@ export function useTeachersData() {
     fetchClassTeacherCandidates,
     removeTeacher,
     createStaffSigninLink,
+    createNamedSeat,
   }
 }

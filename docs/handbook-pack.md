@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `619ac47df568` · generated 2026-09-09 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `ea8ba31cef0f` · generated 2026-09-09 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## Add a class to a group
 
@@ -64,6 +64,22 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `ver
 5. Submit, and repeat for the next student.
 
 **Worth knowing.** One student at a time, on purpose — the link is theirs alone and carries the class with it. The **Students** page's **+ Invite students** button brings you here for exactly this reason.
+
+## Add a teacher by name
+
+Section: getting-people-in · roles: school_admin · anchor: `teacher-named-seat` · in `packages/player-vue/src/views/schools/TeachersView.vue`
+
+**What it's for.** Adding a specific teacher to your school when you know who they are but cannot rely on email reaching them. You type their name and get a code to hand over yourself.
+
+**Where it is.** The **Teachers** page, the **Add by name** button at the top.
+
+1. Tap **Add by name**.
+2. Type the teacher's name.
+3. Tap **Create code**.
+4. Read the code out, write it down, or paste it into whatever you already use to reach them.
+5. They go to saysomethingin.app/join and type it in.
+
+**Worth knowing.** They appear on your list straight away under **Not yet given classes**, so you can tick their classes before they have even signed in. The code works once and lasts two days, and whoever uses it becomes that person — so hand it over directly. Made a mistake? Remove them from the list.
 
 ## Add students to a class
 
@@ -429,7 +445,7 @@ Section: getting-people-in · roles: school_admin · anchor: `teacher-signin-lin
 4. They go to saysomethingin.app/join and type the code in.
 5. Tap **Done** when they are through.
 
-**Worth knowing.** The code works once and lasts two days, and whoever uses it becomes that teacher — so give it to them directly and never post it anywhere shared. Need another? Tap **Access code** again.
+**Worth knowing.** The code works once and lasts two days, and whoever uses it becomes that teacher — so give it to them directly and never post it anywhere shared. Need another? Tap **Access code** again, and the earlier one stops working. This is also how you reissue a code for somebody you added by name who never used the first one.
 
 ## Hand out a sign-up link for one course
 
@@ -780,7 +796,7 @@ Section: running-classes · roles: leader, school_admin, teacher · anchor: `cla
 
 Section: getting-people-in · roles: school_admin · anchor: `teacher-remove` · in `packages/player-vue/src/views/schools/TeachersView.vue`
 
-**What it's for.** Taking a teacher off your school when they leave. Their own account survives — what goes is their place in this school and their view of its classes and learners.
+**What it's for.** Taking a teacher off your school when they leave. Their own account survives — what goes is their place in this school and their view of its classes and learners. It is also how you deal with somebody under **Not yet given classes** you do not recognise, or a name you typed by mistake.
 
 **Where it is.** The **Teachers** page, the **Remove** button on that teacher's row.
 
