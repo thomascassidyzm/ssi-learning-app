@@ -386,6 +386,27 @@ describe('GET /api/school/roster', () => {
   })
 })
 
+describe('GET /api/school/roster — the unassigned teacher (job #713 check two)', () => {
+  it('a teacher with a SCHOOL tag and ZERO classes gets NO pupil rows at all', async () => {
+    // The load-bearing assumption of the whole school-belonging mechanism: the
+    // door can stay wide open BECAUSE an arrival nobody has vouched for can
+    // see nothing. The route walk found no leak anywhere, but this route is
+    // the near-miss — it pulls the WHOLE school's pupil rows into memory and
+    // filters them down to scope.classIds on the way out. That filter is
+    // correct today and is one careless simplification away from not being,
+    // so it is pinned here for the exact caller shape that matters.
+    scope = { learnerId: 'lx', role: 'teacher', classIds: [], learnerIds: [], studentsByClass: {}, schoolIds: [], groupId: null }
+    schoolIdForAdminResult = 's1'
+    const res = makeRes()
+    await handler(makeReq(), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.students).toEqual([])
+    // The staff list is not pupil data and stays visible — it is what the
+    // co-teacher picker needs, and it is how the admin sees this person too.
+    expect(res.body.teachers.length).toBeGreaterThan(0)
+  })
+})
+
 describe('GET /api/school/roster — the vouch (school-belonging design, 2026-09-09)', () => {
   it('reports WHO put each teacher on a class of this school, and when — the earliest act by somebody else', async () => {
     const res = makeRes()
