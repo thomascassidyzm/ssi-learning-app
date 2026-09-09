@@ -280,27 +280,27 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
     <table v-else class="ways-in-table">
       <thead>
         <tr>
-          <th>{{ t('org.ui.waysInLedger.whoWhat', 'Who / what') }}</th>
-          <th v-if="!classId">{{ t('org.ui.waysInLedger.where', 'Where') }}</th>
-          <th>{{ t('org.ui.waysInLedger.link', 'Link') }}</th>
-          <th class="num">{{ t('org.ui.waysInLedger.uses', 'Uses') }}</th>
-          <th>{{ t('org.ui.waysInLedger.status', 'Status') }}</th>
-          <th>{{ t('org.ui.waysInLedger.created', 'Created') }}</th>
-          <th class="verbs-col"></th>
+          <th data-cell="who">{{ t('org.ui.waysInLedger.whoWhat', 'Who / what') }}</th>
+          <th v-if="!classId" data-cell="where">{{ t('org.ui.waysInLedger.where', 'Where') }}</th>
+          <th data-cell="link">{{ t('org.ui.waysInLedger.link', 'Link') }}</th>
+          <th class="num" data-cell="uses">{{ t('org.ui.waysInLedger.uses', 'Uses') }}</th>
+          <th data-cell="status">{{ t('org.ui.waysInLedger.status', 'Status') }}</th>
+          <th data-cell="created">{{ t('org.ui.waysInLedger.created', 'Created') }}</th>
+          <th class="verbs-col" data-cell="verbs"></th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="l in visible" :key="l.code" :class="{ 'is-dead': l.status !== 'active' }">
-          <td>
+          <td data-cell="who">
             <span class="row-role">{{ l.species === 'personal' ? (l.personalName || t('org.ui.waysInLedger.personalLink', 'Personal link')) : t('org.ui.waysInLedger.anyoneJoinsAs', 'Anyone — joins as {role}').replace('{role}', (ROLE_WORD[l.role] || l.role).toLowerCase()) }}</span>
             <span class="row-kind">{{ l.species === 'personal' ? t('org.ui.waysInLedger.ownSignInLinkGoesStraightIn', '{role} · their own sign-in link, goes straight in').replace('{role}', ROLE_WORD[l.role] || l.role) : t('org.ui.waysInLedger.shareableNewArrivalsEnterName', 'shareable · new arrivals enter their name') }}</span>
           </td>
-          <td v-if="!classId">{{ l.where.name }}</td>
-          <td class="mono">{{ l.code }}</td>
-          <td class="num frost-mono-nums" :class="{ 'is-not-yet': l.uses.kind === 'signin' && l.uses.count === 0 }" :title="usesTitle(l)">{{ usesText(l) }}</td>
-          <td><span class="status-pill" :class="`is-${l.status}`">{{ STATUS_WORD[l.status] || l.status }}</span></td>
-          <td class="muted">{{ when(l.createdAt) }}{{ l.createdBy ? ` · ${l.createdBy}` : '' }}</td>
-          <td class="verbs-col">
+          <td v-if="!classId" data-cell="where" :data-label="t('org.ui.waysInLedger.where', 'Where')">{{ l.where.name }}</td>
+          <td class="mono" data-cell="link" :data-label="t('org.ui.waysInLedger.link', 'Link')">{{ l.code }}</td>
+          <td class="num frost-mono-nums" data-cell="uses" :data-label="t('org.ui.waysInLedger.uses', 'Uses')" :class="{ 'is-not-yet': l.uses.kind === 'signin' && l.uses.count === 0 }" :title="usesTitle(l)">{{ usesText(l) }}</td>
+          <td data-cell="status"><span class="status-pill" :class="`is-${l.status}`">{{ STATUS_WORD[l.status] || l.status }}</span></td>
+          <td class="muted" data-cell="created">{{ when(l.createdAt) }}{{ l.createdBy ? ` · ${l.createdBy}` : '' }}</td>
+          <td class="verbs-col" data-cell="verbs">
             <button v-if="l.status === 'active'" type="button" class="row-verb" :class="{ 'is-copied': copiedCode === l.code }" data-walk="ways-in-copy" @click="copyLink(l)">{{ copiedCode === l.code ? t('org.ui.waysInLedger.copied', 'Copied!') : t('org.ui.waysInLedger.copy', 'Copy') }}</button>
             <!-- HANDBOOK Hand out a sign-up link for one course
                  section: getting-people-in
@@ -422,7 +422,45 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
 .row-verb.is-danger { color: rgb(var(--tone-red)); border-color: rgba(var(--tone-red), 0.25); }
 .row-verb.is-copied { background: rgba(var(--tone-green), 0.14); border-color: rgba(var(--tone-green), 0.4); color: rgb(var(--tone-green-ink)); }
 
+/* Column order is not a promise: `Where` disappears in class mode, so the old
+   nth-child(6) rule hid Created on a node page and the VERBS on a class page.
+   Address the cells by what they ARE. */
 @media (max-width: 720px) {
-  .ways-in-table th:nth-child(6), .ways-in-table td:nth-child(6) { display: none; }
+  .ways-in-table [data-cell='created'] { display: none; }
+}
+
+/* PHONE (founder, 390px, 2026-09-09): as a grid the row actions ran off the
+   right edge ("Email ag…") and Who/what was so narrow its caption set one word
+   per line. Below 560px the table becomes the app's CARD idiom — the same
+   stacked shape NodeChildrenList takes at the same breakpoint: the person on
+   their own full-width line, the facts on one wrapped meta line beneath, the
+   verbs wrapping under the row they belong to. Nothing is hidden; every column
+   still shows, labelled, and Copy/Email stay on screen. */
+@media (max-width: 559px) {
+  .ways-in-table, .ways-in-table tbody, .ways-in-table tr, .ways-in-table td { display: block; }
+  .ways-in-table thead { display: none; }
+  .ways-in-table tr {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px;
+    padding: 10px 0; border-bottom: 1px solid rgba(44, 38, 34, 0.10);
+  }
+  .ways-in-table td { padding: 0; border: none; }
+  /* The name and its description own a full line, so the caption wraps as prose. */
+  .ways-in-table td[data-cell='who'] { flex: 1 1 100%; margin-bottom: 4px; }
+  .ways-in-table td[data-cell='where'],
+  .ways-in-table td[data-cell='link'],
+  .ways-in-table td[data-cell='uses'],
+  .ways-in-table td[data-cell='status'],
+  .ways-in-table td[data-cell='created'] { flex: 0 0 auto; text-align: left; }
+  /* The header row is gone, so each fact carries its own word. */
+  .ways-in-table td[data-label]::before {
+    content: attr(data-label) ' ';
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--schools-fg-3, #8A8078); font-weight: var(--font-semibold);
+  }
+  .ways-in-table td[data-cell='verbs'] {
+    flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 6px;
+    margin-top: 8px; text-align: left; white-space: normal;
+  }
+  .ways-in-table td[data-cell='verbs'] .row-verb { margin-left: 0; padding: 6px 12px; }
 }
 </style>

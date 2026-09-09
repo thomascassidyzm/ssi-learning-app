@@ -16,8 +16,10 @@ import { walksFor, startWalk } from '@/walkthrough/useWalkthrough'
 import type { Invitation } from '@/explainer/evaluateRules'
 import { shouldThrob, markSeen } from '@/explainer/howThisWorksThrob'
 import { useI18n } from '@/composables/useI18n'
+import { useRoute } from 'vue-router'
 
 const { t } = useI18n()
+const route = useRoute()
 
 const props = withDefaults(defineProps<{
   persona: 'admin' | 'leader'
@@ -40,8 +42,15 @@ const walks = computed(() => walksFor(props.persona, 'node-home', props.kind))
 // search for a capability they do not know exists. The chip sits beside the
 // quiet link rather than replacing this panel, because the panel is also the
 // single surfacing point for the noticing invitations (ruling 2026-07-29).
-const handbookTo = computed(() =>
-  props.persona === 'leader' && props.nodeId ? `/org/${props.nodeId}/handbook` : '/schools/handbook')
+// The surface decides the door, not just the persona. An ssi_admin standing on
+// /admin/groups/:id is a member of no school, so memberSurfaceGuard turns
+// /schools/handbook into a redirect to /admin/structure — which is exactly the
+// "Handbook goes nowhere" the founder hit on 2026-09-09. Each surface has its
+// own mount of the same view: /admin/handbook, /org/:id/handbook, /schools/handbook.
+const handbookTo = computed(() => {
+  if (String(route.path).startsWith('/admin')) return '/admin/handbook'
+  return props.persona === 'leader' && props.nodeId ? `/org/${props.nodeId}/handbook` : '/schools/handbook'
+})
 
 const open = ref(false)
 const text = computed<string | null>(() => {
