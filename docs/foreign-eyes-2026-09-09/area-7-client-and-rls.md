@@ -351,3 +351,49 @@ observe whether it logs `[RLS_VIOLATION]` against a live session — it should, 
   in-turn rather than parallelised across sub-workers; given the time budget, breadth past the files
   named above was traded for depth on the mixed-identity question first, per the commission's own
   instruction.
+
+---
+
+## Verification note added by the dispatching room, 9 September 2026
+
+FE7-01 was re-checked independently against `supabase/schema.sql` in a separate checkout before this file was folded into the sweep. It stands, and one half of it was missing from the original write-up.
+
+Both halves of the door are open, and the RLS doctrine in CLAUDE.md requires both to be checked ("*Symptom split: 'permission denied' = grant layer; silent empty = policy layer*"). The worker recorded the policy layer; the grant layer is the other half:
+
+```text
+19278: ALTER TABLE public.entitlement_grants ENABLE ROW LEVEL SECURITY;
+19284: CREATE POLICY entitlement_grants_authenticated_read ON public.entitlement_grants FOR SELECT TO authenticated USING (true);
+19329: ALTER TABLE public.groups ENABLE ROW LEVEL SECURITY;
+19335: CREATE POLICY groups_authenticated_read ON public.groups FOR SELECT TO authenticated USING (true);
+```
+
+```text
+22594: GRANT SELECT,REFERENCES,TRIGGER,MAINTAIN ON TABLE public.entitlement_grants TO authenticated;
+22633: GRANT SELECT,REFERENCES,TRIGGER,MAINTAIN ON TABLE public.groups TO authenticated;
+```
+
+So the grant is present AND the policy admits everything. Neither layer refuses. `anon` holds no SELECT on either table, so the caller must be signed in — any signed-in account will do.
+
+What `groups` actually exposes, from its own definition in the same dump:
+
+```text
+    platform_status text,
+    platform_expires_at timestamp with time zone,
+    seats integer,
+    provider_subscription_id text,
+    provider_customer_id text,
+```
+
+That is every tenant's commercial state and their Paddle subscription and customer identifiers, readable with a student's token.
+
+This falsifies, for two of the six tables, the ground truth the commission itself carried forward — "the six org tables were verified RLS-ON with real policies on 2026-08-06". RLS-ON is true. "Real policies" is not true for `groups` and `entitlement_grants`; `USING (true)` is a policy in form only.
+
+**The one caveat, and it is the settling check.** `supabase/schema.sql` is a dump, not live state. Everything above is proven about the dump. One query against the live database settles it for production:
+
+```sql
+select tablename, policyname, qual
+  from pg_policies
+ where tablename in ('groups','entitlement_grants');
+```
+
+If `qual` reads `true`, the leak is live.
