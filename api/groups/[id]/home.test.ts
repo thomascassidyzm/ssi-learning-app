@@ -67,6 +67,19 @@ function resetTables(): void {
       })),
       { learner_id: 'class-learner-1', event_type: 'audio_play', 'payload->>role': 'target2', occurred_at: new Date(Date.now() - 8 * 86400000).toISOString(), payload: { role: 'target2', url: '/api/audio/a-1' } },
       { learner_id: 'learner-1', event_type: 'audio_play', 'payload->>role': 'target2', occurred_at: new Date().toISOString(), payload: { role: 'target2', url: '/api/audio/a-1' } },
+      // IN-APP TIME (founder ruling 2026-09-10): the diary carries every kind
+      // of event, and TIME is sessionised off their timestamps. The class
+      // account: a 20-minute whole-class lesson yesterday (a `known` clip every
+      // five minutes), a 40-minute silence, then five more minutes — 25 min in
+      // two blocks. The student learner-1: ten minutes in the app today, of
+      // which the ledger above times 10 min of audio yesterday + today.
+      ...[0, 5, 10, 15, 20, 60, 65].map((min) => ({
+        learner_id: 'class-learner-1', event_type: 'audio_play', 'payload->>role': 'known',
+        occurred_at: new Date(Date.now() - 86400000 - (65 - min) * 60000).toISOString(), payload: { role: 'known', url: '/api/audio/k-1' },
+      })),
+      ...[0, 4, 7, 10].map((min) => ({
+        learner_id: 'learner-1', event_type: 'phase_skip', occurred_at: new Date(Date.now() - (10 - min) * 60000).toISOString(), payload: {},
+      })),
     ],
     course_practice_phrases: [
       { target2_audio_id: 'a-1', known_text: 'I want', target_text: 'quiero' },
@@ -339,7 +352,9 @@ describe('GET /api/groups/:id/home', () => {
     // phrases spoken; the eight-day-old clip and the other learner's clip do
     // not count. No hours and no session count: the class account's
     // `sessions` rows do not describe its lessons (_utils/classPractice.ts).
-    expect(res.body.classPractice).toMatchObject({ windowDays: 7, phrases7d: 4 })
+    // IN-APP TIME (founder ruling 2026-09-10): the class account's two
+    // blocks yesterday, 25 minutes, the silence between them not counted.
+    expect(res.body.classPractice).toMatchObject({ windowDays: 7, phrases7d: 4, inAppMinutes7d: 25 })
     expect(res.body.classPractice).not.toHaveProperty('hours')
     expect(res.body.classPractice).not.toHaveProperty('weekSessions')
     expect(typeof res.body.classPractice.lastPractisedAt).toBe('string')
@@ -391,9 +406,16 @@ describe('GET /api/groups/:id/home', () => {
         { known: 'I want to speak', target: 'quiero hablar', count: 1 },
         { known: 'to learn', target: 'aprender', count: 1 },
       ],
+      // IN-APP TIME leads (founder ruling 2026-09-10): the class account's
+      // 25 minutes of whole-class play plus learner-1's 10 minutes in the app
+      // today, each learner id once. The silence between the class's two
+      // blocks is not counted.
+      inAppMinutes7d: 35,
+      classInAppMinutes7d: 25,
       // learner-1 is a student on class-1: 600s today + 1200s yesterday on
-      // the ledger = 30 minutes, one person. The class account has no ledger
-      // rows and never can; nothing from it leaks into the minutes.
+      // the ledger = 30 minutes, one person — AUDIO PLAYED, the secondary
+      // figure. The class account has no ledger rows and never can.
+      audioPlayedMinutes7d: 30,
       ownAccountMinutes7d: 30,
       ownAccountPeople7d: 1,
     })

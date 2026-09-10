@@ -993,7 +993,6 @@
       "resetFilters": "फ़िल्टर रीसेट करें",
       "retry": "फिर से कोशिश करें",
       "sortAvgSeeds": "औसत सीड्स",
-      "sortHours": "घंटे/सप्ताह",
       "sortLabel": "क्रमबद्ध करें",
       "sortName": "नाम",
       "sortStudents": "छात्र",
@@ -1004,7 +1003,6 @@
       "tableHeaderClass": "कक्षा",
       "tableHeaderCourse": "कोर्स",
       "tableHeaderHealth": "स्वास्थ्य",
-      "tableHeaderHours": "घंटे/सप्ताह",
       "tableHeaderStudents": "छात्र",
       "tryWideningFilter": "कोर्स या हेल्थ फ़िल्टर को व्यापक करने का प्रयास करें।"
     },

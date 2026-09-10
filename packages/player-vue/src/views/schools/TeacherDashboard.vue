@@ -74,8 +74,10 @@ const healthFilter = ref<'all' | Health>('all')
 
 const classReports = reactive(new Map<string, ClassReport>())
 
-// Real 7-day practice seconds per class, from /api/school/class-practice-7d
-// (player_events rollup, scoped server-side). Empty until loaded → hoursWk = 0.
+// Real 7-day TIME IN THE APP per class, from /api/school/class-practice-7d:
+// in-app session time off the diary, gaps included, whole-class play counted
+// once (founder ruling 2026-09-10, api/_utils/inAppTime.ts). Empty until
+// loaded → hoursWk = 0.
 const practice7dSeconds = ref<Record<string, number>>({})
 
 async function loadPractice7d() {
@@ -133,9 +135,9 @@ function courseShortName(code: string): string {
 const enrichedClasses = computed(() => {
   return classesData.value.map(c => {
     const report = classReports.get(c.id)
-    // Real 7-day practice hours for the class, from /api/school/class-practice-7d
-    // (player_events / learner_speaking_opportunities rollup, scoped server-side).
-    // Falls back to 0 until the async load resolves.
+    // Real 7-day hours IN THE APP for the class, from /api/school/class-practice-7d
+    // (in-app session time, never audio-played seconds — that rides in the same
+    // payload as audioPlayedByClass, the secondary figure). 0 until loaded.
     const hoursWk = Math.round(((practice7dSeconds.value[c.id] ?? 0) / 3600) * 10) / 10
     return {
       id: c.id,
@@ -206,9 +208,9 @@ const headlineSubtitle = computed(() => {
     ? t('schools.teacherDashboard.classSingular', 'class')
     : t('schools.teacherDashboard.classPlural', 'classes')
   const base = selectedUser.value?.school_name
-    ? t('schools.teacherDashboard.summaryWithSchool', '{n} {classWord} across {school} · {students} students · {hours}h this week')
+    ? t('schools.teacherDashboard.summaryWithSchoolInApp', '{n} {classWord} across {school} · {students} students · {hours}h in the app this week')
         .replace('{school}', selectedUser.value.school_name)
-    : t('schools.teacherDashboard.summaryNoSchool', '{n} {classWord} · {students} students · {hours}h this week')
+    : t('schools.teacherDashboard.summaryNoSchoolInApp', '{n} {classWord} · {students} students · {hours}h in the app this week')
   return base
     .replace('{n}', String(enrichedClasses.value.length))
     .replace('{classWord}', classWord)
@@ -347,7 +349,7 @@ async function copyShareLink(cls: { id: string; join_code: string }) {
 }
 
 function exportCsv() {
-  const header = ['Class', 'Course', 'Students', 'Belt', 'Avg seeds', 'Hours/wk', 'Sessions', 'Health', 'Join code']
+  const header = ['Class', 'Course', 'Students', 'Belt', 'Avg seeds', 'Time in app hrs/wk', 'Sessions', 'Health', 'Join code']
   const rows = filtered.value.map(c => [
     c.class_name,
     c.course_label,
@@ -387,8 +389,8 @@ function exportCsv() {
              place: classes
              keywords: export, csv, download, report, classes
              What it's for. Taking the class list away as a spreadsheet, with the name,
-             language, student count, belt, hours this week, sessions, health and join
-             code for every class.
+             language, student count, belt, hours in the app this week, sessions, health
+             and join code for every class.
              Where it is. **My Classes**, the **Export CSV** button along the top.
              How you do it.
              1. Open **My Classes**.
@@ -513,7 +515,7 @@ function exportCsv() {
         <select v-model="sortKey" class="filter-select">
           <option value="name">{{ t('schools.teacherDashboard.sortName', 'Name') }}</option>
           <option value="students">{{ t('schools.teacherDashboard.sortStudents', 'Students') }}</option>
-          <option value="hours">{{ t('schools.teacherDashboard.sortHours', 'Hours/wk') }}</option>
+          <option value="hours">{{ t('schools.teacherDashboard.sortTimeInApp', 'Time in app') }}</option>
           <option value="journey">{{ t('schools.teacherDashboard.sortAvgSeeds', 'Avg seeds') }}</option>
         </select>
       </div>
@@ -525,10 +527,13 @@ function exportCsv() {
            section: running-classes
            roles: school_admin, teacher
            place: classes
-           keywords: classes, list, overview, belt, hours, health
+           keywords: classes, list, overview, belt, hours, time in app, health
            What it's for. One row per class, showing at a glance how each one is doing:
-           how many students, what belt the class has reached, hours practised this week,
-           the shape of the last seven days, and a health mark for classes worth a look.
+           how many students, what belt the class has reached, hours in the app this
+           week, the shape of the last seven days, and a health mark for classes worth
+           a look. Time in app is the time the class, and any students on their own
+           accounts, spent in the app with the lesson running, pauses included — so
+           it is the time they were in the lesson.
            Where it is. **My Classes**, the table filling most of the page.
            How you do it.
            1. Open **My Classes**.
@@ -536,7 +541,7 @@ function exportCsv() {
               pointing you.
            3. Use the small chart in each row to see whether practice is steady or has
               stopped.
-           4. Compare hours this week between classes taking the same course.
+           4. Compare time in the app this week between classes taking the same course.
            Worth knowing. Health is worked out from how many of the last seven days the
            class practised on. A quiet week reads as needing eyes, which is a prompt for
            a word rather than a worry.
@@ -550,7 +555,7 @@ function exportCsv() {
             <th>{{ t('schools.teacherDashboard.tableHeaderStudents', 'Students') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderBelt', 'Belt') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderAvgSeeds', 'Avg seeds') }}</th>
-            <th>{{ t('schools.teacherDashboard.tableHeaderHours', 'Hours/wk') }}</th>
+            <th>{{ t('schools.teacherDashboard.tableHeaderTimeInApp', 'Time in app, hrs/wk') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderActivity', 'Activity') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderHealth', 'Health') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderShare', 'Share') }}</th>

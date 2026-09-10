@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `6a31aa1b6e6c` · generated 2026-09-10 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `bccb7e08da76` · generated 2026-09-10 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -372,7 +372,7 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `way
 
 Section: running-classes · roles: school_admin, teacher · anchor: `classes-export` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
 
-**What it's for.** Taking the class list away as a spreadsheet, with the name, language, student count, belt, hours this week, sessions, health and join code for every class.
+**What it's for.** Taking the class list away as a spreadsheet, with the name, language, student count, belt, hours in the app this week, sessions, health and join code for every class.
 
 **Where it is.** **My Classes**, the **Export CSV** button along the top.
 
@@ -806,14 +806,14 @@ Section: your-own-account · roles: leader, school_admin · anchor: `account-ins
 
 Section: running-classes · roles: school_admin, teacher · anchor: `classes-table` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
 
-**What it's for.** One row per class, showing at a glance how each one is doing: how many students, what belt the class has reached, hours practised this week, the shape of the last seven days, and a health mark for classes worth a look.
+**What it's for.** One row per class, showing at a glance how each one is doing: how many students, what belt the class has reached, hours in the app this week, the shape of the last seven days, and a health mark for classes worth a look. Time in app is the time the class, and any students on their own accounts, spent in the app with the lesson running, pauses included — so it is the time they were in the lesson.
 
 **Where it is.** **My Classes**, the table filling most of the page.
 
 1. Open **My Classes**.
 2. Read down the health column first, because that is where the app is pointing you.
 3. Use the small chart in each row to see whether practice is steady or has stopped.
-4. Compare hours this week between classes taking the same course.
+4. Compare time in the app this week between classes taking the same course.
 
 **Worth knowing.** Health is worked out from how many of the last seven days the class practised on. A quiet week reads as needing eyes, which is a prompt for a word rather than a worry.
 
@@ -1204,9 +1204,9 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-
 1. Open the level you want — a group, a school or a class.
 2. **Phrases spoken this week** is how many phrases the classes beneath this level were prompted and said back in whole-class play over the last seven days. It is recorded for every clip the app plays, so it is the truest picture of a lesson.
 3. **Classes practising this week** is how many of them played together in the last seven days, out of all the classes below.
-4. **Practice minutes this week** is time staff and students spent practising on their own accounts, timed by the app as it plays. Whole-class play is not in this figure because the app does not yet time it, and the sentence under the row says so.
+4. **Minutes in the app this week** is the time the classes beneath this level, and their staff and students on their own accounts, spent in the app over the last seven days, pauses included — the time they were in the lesson. The sentence under the row says how much of it was whole-class play and how much was audio playing.
 5. **Teachers** counts the staff below this level, each once however many classes they take.
-6. On a class the row switches to that class's own phrases spoken this week, its students and its teachers.
+6. On a class the row switches to that class's own phrases spoken this week, its minutes in the app, its students and its teachers.
 
 **Worth knowing.** An organisation that is not school-shaped sees the same row worded as practice hours, groups and learners instead.
 
@@ -1283,7 +1283,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-
 2. Read the list: the prompt, the phrase the class said back, and the number of times it came round this week.
 3. Tap a column heading to sort by it.
 
-**Worth knowing.** A level whose classes have not played together this week says so in words instead of showing an empty list. Only whole-class play appears here; what staff and students practise on their own accounts is counted in the minutes figure above.
+**Worth knowing.** A level whose classes have not played together this week says so in words instead of showing an empty list. Only whole-class play appears here; what staff and students practise on their own accounts is counted in the minutes in the app figure above.
 
 ## When an answer was fetched
 
@@ -1338,10 +1338,10 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class
 
 1. Open a class from the tree or the map.
 2. Read the big figure for phrases spoken this week.
-3. The line under it gives the time since the class last practised.
+3. The line under it gives the time since the class last practised and its minutes in the app this week.
 4. The list beneath is every phrase the class said this week and the number of times it came round.
 
-**Worth knowing.** Whole-class play is counted in phrases rather than minutes, because the app does not yet time it. A class that has never played together says so plainly and names the teacher's **Play as class** button as the thing that starts the first lesson.
+**Worth knowing.** The minutes are time in the app with the lesson running, pauses included, so they are the time the class was in the lesson. A class that has never played together says so plainly and names the teacher's **Play as class** button as the thing that starts the first lesson.
 
 ## Whether the app is working right now
 

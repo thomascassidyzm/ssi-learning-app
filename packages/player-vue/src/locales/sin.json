@@ -993,7 +993,6 @@
       "resetFilters": "පෙරහන් යළි සකසන්න",
       "retry": "නැවත උත්සාහ කරන්න",
       "sortAvgSeeds": "සාමාන්‍ය බීජ ගණන",
-      "sortHours": "පැය/සති",
       "sortLabel": "පෙළගැස්වීම",
       "sortName": "නම",
       "sortStudents": "සිසුන්",
@@ -1004,7 +1003,6 @@
       "tableHeaderClass": "පන්තිය",
       "tableHeaderCourse": "පාඨමාලාව",
       "tableHeaderHealth": "සෞඛ්‍යය",
-      "tableHeaderHours": "පැය/සති",
       "tableHeaderShare": "බෙදාගන්න",
       "tableHeaderStudents": "සිසුන්",
       "tryWideningFilter": "පාඨමාලාව හෝ තත්ත්ව පෙරහන පුළුල් කිරීමට උත්සාහ කරන්න."

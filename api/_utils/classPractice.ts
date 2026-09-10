@@ -27,10 +27,14 @@
  *   - `sessions` — the older session log. For class accounts it is inverted:
  *     of Chepstow's 19 real class lessons this week NONE has a row, and the 8
  *     rows that exist belong to app opens with no play (duration 0). Its
- *     duration is therefore not read here at all. A whole-class practice TIME
- *     does not exist in any ledger and no proxy is substituted for it — the
- *     board says so in words instead (founder instruction 2026-09-10: "Report
- *     an honest gap rather than a proxy anywhere the data is not there").
+ *     duration is therefore not read here at all.
+ *
+ * TIME (founder ruling, Tom 2026-09-10, later the same evening): the school
+ * time figure is IN-APP SESSION TIME — wall-clock time in the app including
+ * the gaps between clips — sessionised off the diary's timestamps for every
+ * learner id, the class account included (_utils/inAppTime.ts). That is how
+ * whole-class play gets a TIME at all. Audio-played minutes off the ledger
+ * stay as the secondary figure.
  *
  * So this module answers three things off the live records:
  *   - did the class practise, and when — the enrollment cursor stamp OR a clip
@@ -43,6 +47,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { chunk } from './schoolScope'
+import { inAppSecondsByLearner } from './inAppTime'
 
 export const CLASS_PRACTICE_WINDOW_DAYS = 7
 /** PostgREST caps a single response at 1,000 rows; page the diary read. */
@@ -206,21 +211,17 @@ export async function topPhrases(
 }
 
 /**
- * OWN-ACCOUNT PRACTICE MINUTES in the window — staff and students' own
- * learning accounts beneath a node, off the playback ledger, i.e. the one
- * definition of a minute. Whole-class play is NOT in here and cannot be (see
- * the header): it is counted in phrases, never in minutes, until the class
- * account can write the ledger.
- *
- * People are gathered by tag: school staff (teacher/admin on SCHOOL:), group
- * members (any role on GROUP:), and class students (student on CLASS:).
- * Each learner counted once however many tags they carry.
+ * OWN-ACCOUNT LEARNER IDS beneath a node — staff and students' own learning
+ * accounts, gathered by tag: school staff (teacher/admin on SCHOOL:), group
+ * members (any role on GROUP:), and class students (student on CLASS:). Each
+ * learner once however many tags they carry. Class accounts are NOT here —
+ * they carry no tag by design (THE-MODEL I6) and hang off
+ * `classes.class_learner_id` instead.
  */
-export async function ownAccountLedgerSeconds(
+export async function ownAccountLearnerIds(
   svc: SupabaseClient,
   scope: { schoolIds: string[]; groupIds: string[]; classIds: string[] },
-  now: number = Date.now(),
-): Promise<{ seconds: number; people: number }> {
+): Promise<string[]> {
   const uids = new Set<string>()
   const tagQuery = (tagType: string, values: string[], roles: string[] | null) =>
     chunk(values).map(async (batch) => {
@@ -234,17 +235,31 @@ export async function ownAccountLedgerSeconds(
     ...tagQuery('group', scope.groupIds.map((id) => `GROUP:${id}`), null),
     ...tagQuery('class', scope.classIds.map((id) => `CLASS:${id}`), ['student']),
   ])
-  if (uids.size === 0) return { seconds: 0, people: 0 }
+  if (uids.size === 0) return []
 
-  const learnerIds: string[] = []
+  const learnerIds = new Set<string>()
   await Promise.all(
     chunk([...uids]).map(async (batch) => {
       const { data } = await svc.from('learners').select('id').in('user_id', batch)
-      for (const r of data ?? []) if ((r as any).id) learnerIds.push(String((r as any).id))
+      for (const r of data ?? []) if ((r as any).id) learnerIds.add(String((r as any).id))
     }),
   )
-  if (learnerIds.length === 0) return { seconds: 0, people: 0 }
+  return [...learnerIds]
+}
 
+/**
+ * AUDIO-PLAYED MINUTES in the window for the given learner ids, off the
+ * playback ledger — the SECONDARY time figure since Tom's 2026-09-10 ruling
+ * (the headline is in-app session time: _utils/inAppTime.ts). Whole-class
+ * play is NOT in here and cannot be (see the header): the class account
+ * cannot write the ledger.
+ */
+export async function ownAccountLedgerSeconds(
+  svc: SupabaseClient,
+  learnerIds: string[],
+  now: number = Date.now(),
+): Promise<{ seconds: number; people: number }> {
+  if (learnerIds.length === 0) return { seconds: 0, people: 0 }
   const sinceDay = new Date(now - CLASS_PRACTICE_WINDOW_DAYS * 86400000).toISOString().split('T')[0]
   let seconds = 0
   const people = new Set<string>()
@@ -262,4 +277,31 @@ export async function ownAccountLedgerSeconds(
     }),
   )
   return { seconds, people: people.size }
+}
+
+/**
+ * IN-APP TIME in the window — THE HEADLINE (founder ruling, Tom 2026-09-10:
+ * "in-app time is in-class time"). Sessionised off the diary for every
+ * learner id given, each once: the classes' own accounts (whole-class play,
+ * timed here for the first time) and staff/students' own accounts. Rule and
+ * dials in _utils/inAppTime.ts. Returns the total and the whole-class part.
+ */
+export async function inAppTimeSeconds(
+  svc: SupabaseClient,
+  classLearnerIds: string[],
+  ownLearnerIds: string[],
+  now: number = Date.now(),
+): Promise<{ seconds: number; classSeconds: number }> {
+  const classSet = new Set(classLearnerIds.filter(Boolean))
+  const ids = [...new Set([...classSet, ...ownLearnerIds])]
+  if (ids.length === 0) return { seconds: 0, classSeconds: 0 }
+  const sinceIso = new Date(now - CLASS_PRACTICE_WINDOW_DAYS * 86400000).toISOString()
+  const byLearner = await inAppSecondsByLearner(svc, ids, sinceIso)
+  let seconds = 0
+  let classSeconds = 0
+  for (const [lid, s] of byLearner) {
+    seconds += s
+    if (classSet.has(lid)) classSeconds += s
+  }
+  return { seconds, classSeconds }
 }
