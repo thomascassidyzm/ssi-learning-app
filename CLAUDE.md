@@ -99,6 +99,12 @@ git checkout dev
 git pull origin dev
 ```
 
+Working on the learning flow? `tools/vocabulary-pointers.json` maps Tom's vocabulary — listening
+exercise, layer 1, layer 2, lap, stage, round, known side, target side — onto the file and line that
+DECIDES each one, with the deciding line quoted. Look a term up there before reading anything else.
+It carries no explanation of behaviour on purpose; `node tools/vocabulary-pointers-check.mjs` walks
+every pointer and exits non-zero on any that no longer resolves.
+
 Then **read [`WORKLIST.md`](./WORKLIST.md) (repo root)** — the shared multi-agent worklist (the live "what's next"). Before starting anything substantial, **claim your item there** (`[ ]`→`[~] @you MM-DD`, one-line commit) so parallel agents don't double-grab it. The full protocol is in its header.
 
 **Rules:**
