@@ -20,6 +20,9 @@ let interrupted = false
 process.on('SIGINT', () => { interrupted = true })
 process.on('SIGTERM', () => { interrupted = true })
 try {
+  if (!process.argv.includes('--observe-first-belt')) {
+    throw new Error('Qualification blocked: shared detector accepts silent PCM. --observe-first-belt collects incomplete observations only; it cannot certify this sheet')
+  }
   const secrets = Object.fromEntries(readFileSync(join(homedir(), '.secrets/ssi-test-accounts.env'), 'utf8')
     .split('\n').map(l => l.match(/^([A-Z0-9_]+)=(.*)$/)).filter(Boolean).map(m => [m[1], m[2]]))
   if (!secrets.COLOMBO_FRESH_PASSWORD) throw new Error('Missing fresh fixture password')

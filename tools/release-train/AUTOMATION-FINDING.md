@@ -33,6 +33,11 @@ yet measure those frames and consequently cannot emit pass. The focused
 regression was observed failing before this requirement and passing after it.
 Synthetic positive data in that unit test is not live application evidence.
 
+The probe's ordinary command now refuses before any fixture mutation or browser
+launch. Explicit `--observe-first-belt` permits further incomplete observations;
+it does not bypass qualification or the release gate. Do not spend an hour on
+natural playback expecting this prototype to certify a pass.
+
 ## Live staging observations
 
 The `fresh` fixture signed in by its stored password. Its Spanish enrolment
