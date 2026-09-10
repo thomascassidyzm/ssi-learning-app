@@ -15,7 +15,8 @@ import { computed, onMounted } from 'vue'
 import QuestionPage from '@/intel/QuestionPage.vue'
 import InsightWidget from '@/insight/InsightWidget.vue'
 import { useIntelApi } from '@/intel/useIntelApi'
-import { QUESTIONS } from '@/intel/questions'
+import { questionBySlug } from '@/intel/questions'
+import { metric } from '@/intel/metrics'
 import type { AnyInsightSpec, ResolvedInsight } from '@/insight/spec'
 
 interface PulseCourseRow { course: string; thisWeek: number; lastWeek: number }
@@ -31,7 +32,7 @@ interface PulseResponse {
   countedAt: string
 }
 
-const question = QUESTIONS[0]
+const question = questionBySlug('pulse')!
 const { data, error, fetchedAt, load } = useIntelApi<PulseResponse>('/api/intel/pulse')
 
 onMounted(() => { void load() })
@@ -54,7 +55,7 @@ const spec = computed<AnyInsightSpec>(() => ({
   widget: 'ranked-bar',
   query: { metric: 'pulseByCountry', window: '7d' },
   frame: 'world',
-  title: 'Where this week\'s people are',
+  title: metric('peopleByCountry', question.slug).label,
   tag: 'countries',
 }))
 
@@ -138,7 +139,7 @@ function change(row: PulseCourseRow): string {
 
     <template #rows>
       <div class="rows-card">
-        <p class="rows-title">Courses people practised this week</p>
+        <p class="rows-title">{{ metric('peopleByCourse', question.slug).label }}</p>
         <p v-if="data && courseRows.length === 0" class="rows-empty">
           Nobody practised anything in the last fourteen days.
         </p>

@@ -69,6 +69,7 @@ const AdminSchoolsContainer = () => import('@/containers/AdminSchoolsContainer.v
 const AdminGroupContainer = () => import('@/containers/AdminGroupContainer.vue')
 const MethodologyContainer = () => import('@/containers/MethodologyContainer.vue')
 import { QUESTIONS } from '@/intel/questions'
+import { FOSSILS, fossilIsDead, fossilLanding } from '@/intel/fossils'
 
 // Schools views (lazy-loaded)
 const DashboardView = () => import('@/views/schools/DashboardView.vue')
@@ -93,6 +94,41 @@ const INTEL_VIEWS: Record<string, () => Promise<unknown>> = {
   pulse: () => import('@/views/intel/PulseView.vue'),
   'weak-points': () => import('@/views/intel/WeakPointsView.vue'),
 }
+// THE FOSSILS — the old admin pages a question replaces. Each renders only
+// while a question it serves is unbuilt; the day the last one is built the
+// same path becomes a redirect into the question, scope preserved. The rule
+// lives in @/intel/fossils.ts and intel/grammar.test.ts enforces it, so a
+// question cannot be built without killing the page it replaces.
+const FOSSIL_VIEWS: Record<string, () => Promise<unknown>> = {
+  'users/:learnerId': () => import('@/views/admin/AdminUserDetail.vue'),
+  attention: () => import('@/views/admin/AdminAttention.vue'),
+  activity: () => import('@/views/admin/AdminActivity.vue'),
+  courses: () => import('@/views/admin/AdminCourses.vue'),
+  insights: () => import('@/insight/InsightsView.vue'),
+  stats: () => import('@/views/admin/AdminStatsView.vue'),
+  board: () => import('@/views/admin/BoardReportView.vue'),
+}
+const FOSSIL_META: Record<string, { title: string; description: string }> = {
+  'users/:learnerId': { title: 'User Detail', description: 'Individual user profile and progress' },
+  attention: { title: 'Needs Attention', description: 'Subscribers who need attention' },
+  activity: { title: 'Admin Activity', description: 'Live activity and recent sessions' },
+  courses: { title: 'Admin Courses', description: 'Course overview with enrollment stats' },
+  insights: { title: 'Insights', description: 'Insight Engine — what Claude surfaced (discovery feed)' },
+  stats: { title: 'Stats', description: 'Insight Engine boards — lifecycle, rates, content, ops' },
+  board: { title: 'Board', description: 'Living board report — live business state + authored reports' },
+}
+function fossilRoute(f: (typeof FOSSILS)[number]): RouteRecordRaw {
+  if (fossilIsDead(f)) {
+    return { path: f.path, redirect: (to) => fossilLanding(f, to.query as Record<string, unknown>) }
+  }
+  return {
+    path: f.path,
+    name: `admin-${f.path.replace(/[^a-z]+/g, '-').replace(/-$/, '')}`,
+    component: FOSSIL_VIEWS[f.path],
+    meta: FOSSIL_META[f.path],
+  }
+}
+const fossilRoutes: RouteRecordRaw[] = FOSSILS.map(fossilRoute)
 // THE VIEW — the one recursive node home (archive/docs-retired-2026-08-24/THE-VIEW.md)
 const NodeHomeView = () => import('@/views/admin/NodeHomeView.vue')
 // Referenced ONLY from the INSTITUTIONAL_PURCHASE_IN_BUILD branches below, so a
@@ -568,40 +604,14 @@ const routes: RouteRecordRaw[] = [
         redirect: '/admin/structure',
       },
       {
-        // Platform Analytics is the first of the seven ways-to-see-how-learners-
-        // are-doing to die. Its Overview and Growth tabs asked question 1 — how
-        // many real people practised, and is that up or down — so the URL now
-        // lands on the question itself. The other six ways stay until the
-        // question that replaces each one is built: redirecting a working page
-        // to a page that does not exist yet would be a worse surface, not a
-        // smaller one.
-        path: 'analytics',
-        redirect: '/intel/pulse',
-      },
-      {
+        // People — the list you find one person in. A scope picker for the
+        // questions, like Structure is for organisations; not a fossil.
         path: 'users',
         name: 'admin-users',
         component: () => import('@/views/admin/AdminUsers.vue'),
-        meta: { title: 'Admin Users', description: 'All platform users and enrollments' },
+        meta: { title: 'People', description: 'Find one person by name, email or support id' },
       },
-      {
-        path: 'users/:learnerId',
-        name: 'admin-user-detail',
-        component: () => import('@/views/admin/AdminUserDetail.vue'),
-        meta: { title: 'User Detail', description: 'Individual user profile and progress' },
-      },
-      {
-        path: 'attention',
-        name: 'admin-attention',
-        component: () => import('@/views/admin/AdminAttention.vue'),
-        meta: { title: 'Needs Attention', description: 'Subscribers who need attention' },
-      },
-      {
-        path: 'activity',
-        name: 'admin-activity',
-        component: () => import('@/views/admin/AdminActivity.vue'),
-        meta: { title: 'Admin Activity', description: 'Live activity and recent sessions' },
-      },
+      ...fossilRoutes,
       {
         // The Handbook on the ADMIN surface. It has to exist here because an
         // ssi_admin is NOT a member of any school: memberSurfaceGuard (above)
@@ -617,12 +627,6 @@ const routes: RouteRecordRaw[] = [
           title: 'Handbook',
           description: 'Everything this dashboard can do, compiled from the same source that gates the live dashboard',
         },
-      },
-      {
-        path: 'courses',
-        name: 'admin-courses',
-        component: () => import('@/views/admin/AdminCourses.vue'),
-        meta: { title: 'Admin Courses', description: 'Course overview with enrollment stats' },
       },
       {
         path: 'pod-auditioner',
@@ -668,24 +672,6 @@ const routes: RouteRecordRaw[] = [
         name: 'admin-methodology',
         component: () => import('@/views/admin/AdminMethodology.vue'),
         meta: { title: 'Measuring progress', description: 'Methodology papers and demos' },
-      },
-      {
-        path: 'insights',
-        name: 'admin-insights',
-        component: () => import('@/insight/InsightsView.vue'),
-        meta: { title: 'Insights', description: 'Insight Engine — what Claude surfaced (discovery feed)' },
-      },
-      {
-        path: 'stats',
-        name: 'admin-stats',
-        component: () => import('@/views/admin/AdminStatsView.vue'),
-        meta: { title: 'Stats', description: 'Insight Engine boards — lifecycle, rates, content, ops' },
-      },
-      {
-        path: 'board',
-        name: 'admin-board',
-        component: () => import('@/views/admin/BoardReportView.vue'),
-        meta: { title: 'Board', description: 'Living board report — live business state + authored reports' },
       },
     ],
   },

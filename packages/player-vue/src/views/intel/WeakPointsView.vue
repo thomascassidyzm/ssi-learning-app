@@ -20,7 +20,8 @@ import { useRoute } from 'vue-router'
 import QuestionPage from '@/intel/QuestionPage.vue'
 import InsightWidget from '@/insight/InsightWidget.vue'
 import { useIntelApi } from '@/intel/useIntelApi'
-import { QUESTIONS } from '@/intel/questions'
+import { questionBySlug } from '@/intel/questions'
+import { metric } from '@/intel/metrics'
 import type { AnyInsightSpec, ResolvedInsight } from '@/insight/spec'
 
 interface WeakPointRow {
@@ -46,7 +47,7 @@ interface WeakPointsResponse {
 }
 interface PulseResponse { population: number; courses: { course: string; thisWeek: number }[] }
 
-const question = QUESTIONS.find((q) => q.slug === 'weak-points')!
+const question = questionBySlug('weak-points')!
 const route = useRoute()
 
 // The rail's course list is the same real-population read the pulse does, so
@@ -95,7 +96,7 @@ const spec = computed<AnyInsightSpec>(() => ({
   widget: 'ranked-bar',
   query: { metric: 'weakPoints', entity: 'lego', course: course.value ?? undefined },
   frame: 'content',
-  title: 'The bits that caused the most trouble',
+  title: metric('weakPointsByLego', question.slug).label,
   tag: 'legos',
 }))
 
@@ -184,7 +185,7 @@ function stopped(r: WeakPointRow): string {
             <span class="num" title="skips">{{ r.skips }}</span>
             <span class="num" title="retries">{{ r.retries }}</span>
             <span class="num" title="failures">{{ r.failures }}</span>
-            <span class="stopped">{{ stopped(r) }}</span>
+            <span class="stopped" :title="metric('stoppedShareByLego', question.slug).label">{{ stopped(r) }}</span>
           </span>
         </router-link>
         <p v-if="weak.data.value?.truncated" class="rows-note">
