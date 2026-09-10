@@ -132,23 +132,20 @@ describe('POST /api/email/verify', () => {
     expect(learnersUpdateCalls).toContainEqual({ needs_verification: false })
   })
 
-  // A CLASS SEAT NEVER GROWS INTO A PERSONAL ACCOUNT (Tom, 2026-09-10). A
-  // name-only pupil minted from a class link (user_metadata.class_seat, set
-  // by api/auth/possession-redeem.ts) sits on the school's licence. Attaching
-  // a real email was the one route by which that free seat became a
-  // credentialed account a child could carry home and keep — the leak the
-  // ruling closes. Refused before the code is even checked, so no OTP is spent
-  // and nothing on the account changes.
-  it('refuses to attach an email to a class seat, without spending the code or touching the account', async () => {
+  // A CLASS SEAT ATTACHES AN EMAIL LIKE ANY OTHER ACCOUNT (Tom's correction,
+  // 2026-09-10): a seat behind a class is an institution-funded seat and the
+  // product, not the leak — an over-16 college learner on one needs a real
+  // address as their own route back if they lose the device. For a few hours
+  // this endpoint refused user_metadata.class_seat; that refusal is gone.
+  it('lets a class seat attach and confirm an email exactly as any other possession account does', async () => {
     authUser = { id: 'user-1', email: 'link-abc@invite.saysomethingin.app', user_metadata: { onboarded_via: 'possession', link_auth: true, class_seat: true } }
     const res = makeRes()
-    await handler(makeReq({ email: 'child@example.com', token: '123456' }), res)
+    await handler(makeReq({ email: 'link-abc@invite.saysomethingin.app', token: '123456' }), res)
 
-    expect(res._status).toBe(403)
-    expect(res._json.reason).toBe('class_seat')
-    expect(verifyOtpCalls).toHaveLength(0)
-    expect(updateUserByIdCalls).toHaveLength(0)
-    expect(learnersUpdateCalls).toHaveLength(0)
+    expect(res._status).toBe(200)
+    expect(verifyOtpCalls).toHaveLength(1)
+    expect(updateUserByIdCalls).toHaveLength(1)
+    expect(updateUserByIdCalls[0].patch.user_metadata.email_confirmed_manually).toBe(true)
   })
 
   it('does not touch user_metadata when verifying a different (secondary) email', async () => {

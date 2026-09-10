@@ -349,9 +349,7 @@
     "identityNoEmail": "No email address on this account yet. The code below is how we find you.",
     "identityLastConfirmed": "This is the address we last confirmed. We will check it again as soon as you are online.",
     "identitySupportLabel": "Your account code",
-    "identitySupportNote": "If you ever get in touch, tell us this and we will know who you are. It only names your account — it does not let anyone in.",
-    "classSeatLabel": "A class seat",
-    "classSeatDesc": "This account is on your school's licence. It plays your class's course while you are in the class, and no email can be added to it."
+    "identitySupportNote": "If you ever get in touch, tell us this and we will know who you are. It only names your account — it does not let anyone in."
   },
   "belt": {
     "yourProgress": "Your progress",

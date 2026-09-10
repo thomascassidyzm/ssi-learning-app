@@ -1197,13 +1197,6 @@ const isEmailUnverified = computed(() => {
 // form starts blank instead of pre-filling the junk address.
 const isPrimaryEmailPlaceholder = computed(() => isPlaceholderEmail(primaryEmail.value))
 
-// A CLASS SEAT (Tom, 2026-09-10): a name-only pupil account minted from a
-// class link sits on the school's licence and plays the class's course while
-// the pupil is in the class. It is not a personal account and cannot become
-// one by having an email attached — api/email/verify.ts refuses that — so
-// this screen says what the seat is instead of offering the add-email door.
-const isClassSeat = computed(() => auth?.user?.value?.user_metadata?.class_seat === true)
-
 // True while the open email form is verifying the account's OWN primary
 // address rather than adding a second one. Drives the form's copy and, more
 // importantly, mirrors the outcome back up next to the button that was
@@ -2315,14 +2308,7 @@ const confirmReset = async () => {
                a route back if they lose the device. So this never says
                "unverified", never says "verify", and above all never gates
                anything: the account works completely without it. -->
-          <div v-if="isClassSeat" class="setting-row">
-            <div class="setting-info">
-              <span class="setting-label">{{ t('settings.classSeatLabel') }}</span>
-              <span class="setting-desc">{{ t('settings.classSeatDesc') }}</span>
-            </div>
-          </div>
-
-          <div v-else-if="isEmailUnverified" class="setting-row">
+          <div v-if="isEmailUnverified" class="setting-row">
             <div class="setting-info">
               <span class="setting-label">
                 {{ isPrimaryEmailPlaceholder ? 'A way to reach you' : primaryEmail }}
@@ -2338,10 +2324,10 @@ const confirmReset = async () => {
             </button>
           </div>
 
-          <div v-if="isEmailUnverified || isClassSeat" class="divider"></div>
+          <div v-if="isEmailUnverified" class="divider"></div>
 
-          <!-- Linked Emails — never offered on a class seat (see isClassSeat). -->
-          <div v-if="!isClassSeat" class="setting-row clickable" @click="showAddEmailForm = !showAddEmailForm; addEmailError = ''; addEmailSuccess = false; addEmailStep = 'email'; addEmailInput = ''; addEmailOtp = ''; verifyingPrimary = false">
+          <!-- Linked Emails -->
+          <div class="setting-row clickable" @click="showAddEmailForm = !showAddEmailForm; addEmailError = ''; addEmailSuccess = false; addEmailStep = 'email'; addEmailInput = ''; addEmailOtp = ''; verifyingPrimary = false">
             <div class="setting-info">
               <span class="setting-label">{{ t('settings.linkedEmails') }}</span>
               <span class="setting-desc">{{ verifiedEmails.length > 1 ? `${verifiedEmails.length} emails linked` : 'Add another email to sign in with' }}</span>
@@ -2352,7 +2338,7 @@ const confirmReset = async () => {
           </div>
 
           <!-- Linked emails list + add form -->
-          <div v-if="showAddEmailForm && !isClassSeat" class="inline-form">
+          <div v-if="showAddEmailForm" class="inline-form">
             <!-- Show existing verified emails -->
             <div v-if="verifiedEmails.length" class="verified-emails-list">
               <div v-for="em in verifiedEmails" :key="em" class="verified-email-item">

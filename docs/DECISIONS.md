@@ -464,3 +464,24 @@ more child seats. The child-side pieces common to both landed (`api/_utils/class
 its first screen is that fork. (2) What happens to a £5 school-linked seat when the household later
 buys SSi Family: `familyAccess.ts` resolves the child's own row first, so today the two run side
 by side and the child's £5 keeps billing.
+
+**Corrected the same night — who the customer is, not class versus individual.** Tom: *"learners in
+colleges, like Neath Port Talbot College - NPTC - WILL be individual learners - they-re all over 16
+and won-t be in CLASSES per se - so we DO need that free access channel for individual learners"*,
+then *"no, their learners are all part of a class, or are staff and belong to the institution"*.
+Settled form: the institution's own account is free, and every seat behind a class or a staff
+membership is institution-funded, tied to the org and counted in its numbers. That is the product,
+for an eleven-year-old in a Chepstow class and for an adult at a college alike; being over 16
+changes nothing about who pays. A learner on their own time pays: under 16 the parent, with their
+own email and card; 16+ themselves, a path that does not exist today and is the conversion route
+for a college cohort when its course ends. The leak is a personal learner account nobody is paying
+for and no org is behind. No new membership machinery: class and staff tags already say who
+belongs.
+
+Consequence for what this job built: the name-only class link mints an institution seat, which is
+the product, so there was no door to close at the mint. The email-attach refusal built earlier in
+the job under the first reading was reverted the same night, because it would have blocked an
+over-16 college learner's only route back into their own seat. The `class_seat` stamp stays as a
+record of origin and gates nothing. The step-4 "residue" of a pupil playing the class course at
+home is not a residue: it is the product.
+

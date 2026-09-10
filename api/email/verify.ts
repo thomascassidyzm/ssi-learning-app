@@ -93,23 +93,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ) {
       return res.status(429).json({ error: 'Too many attempts. Please try again later.' })
     }
-    // A CLASS SEAT NEVER GROWS INTO A PERSONAL ACCOUNT (Tom, 2026-09-10:
-    // "if the children want to be learners on their own time, they have to
-    // pay"). A name-only pupil minted from a class link carries
-    // user_metadata.class_seat (api/auth/possession-redeem.ts). Attaching a
-    // real email here was the one route by which that free, class-bounded
-    // seat became a credentialed account the child kept for their own time.
-    // Refused before the code is checked, so no OTP is spent and nothing on
-    // the account changes. The route to a child's own seat is a parent-paid
-    // one, not this.
-    const { data: seatUser } = await admin.auth.admin.getUserById(userId)
-    if (seatUser?.user?.user_metadata?.class_seat === true) {
-      return res.status(403).json({
-        error: 'This is a class seat on your school\'s licence, so an email cannot be added to it.',
-        reason: 'class_seat',
-      })
-    }
-
     // Logged BEFORE the guess is relayed, so a crash mid-verify still spends
     // the budget — a limiter that only counts completed attempts can be
     // drained by abandoning requests.
