@@ -20,6 +20,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAdmin } from '../_utils/auth'
+import { applyCors } from '../_utils/cors'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -32,6 +33,9 @@ function clientIp(req: VercelRequest): string | null {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  // The native WebView sends a cross-origin preflight before this POST; without an OPTIONS
+  // answer the call never happens at all inside the shell.
+  if (applyCors(req, res, { methods: 'POST' })) return
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' })
     return
