@@ -1,0 +1,98 @@
+/**
+ * The one test the shared population resolver has, per the design's own rule.
+ *
+ * The case that matters most is the second one: a tester row that
+ * test_learner_ids() does not know about must still be excluded. That is the
+ * live gap the resolver exists to cover, and it is the failure that would
+ * silently inflate every number on every page of the surface.
+ */
+import { describe, it, expect } from 'vitest'
+import {
+  resolveRealLearners,
+  isMachineCountry,
+  MACHINE_COUNTRIES,
+} from './realLearnerPopulation'
+
+type Learner = { id: string; is_class_entity: boolean | null; platform_role: string | null }
+
+function fakeClient(learners: Learner[], testIds: string[], opts: { rosterFails?: boolean } = {}) {
+  return {
+    rpc: async (name: string) => {
+      if (name === 'test_learner_ids') {
+        return { data: testIds.map((learner_id) => ({ learner_id })), error: null }
+      }
+      return { data: null, error: null }
+    },
+    from: () => ({
+      select: async () =>
+        opts.rosterFails
+          ? { data: null, error: { message: 'boom' } }
+          : { data: learners, error: null },
+    }),
+  } as any
+}
+
+describe('resolveRealLearners', () => {
+  it('keeps a plain learner and drops everyone the canonical function names', async () => {
+    const pop = await resolveRealLearners(
+      fakeClient(
+        [
+          { id: 'real-1', is_class_entity: false, platform_role: null },
+          { id: 'demo-1', is_class_entity: false, platform_role: null },
+        ],
+        ['demo-1'],
+      ),
+    )
+    expect([...pop.realIds]).toEqual(['real-1'])
+    expect(pop.excludedIds.has('demo-1')).toBe(true)
+    expect(pop.count).toBe(1)
+  })
+
+  it('drops a tester the canonical function has never heard of', async () => {
+    // The live gap: test_learner_ids() tests is_demo / is_internal / the
+    // plus-address / is_test schools, and knows nothing about platform_role.
+    // A tester created after the 2026-07 back-fill carries is_internal = false
+    // and would otherwise count as a real learner in every number.
+    const pop = await resolveRealLearners(
+      fakeClient(
+        [
+          { id: 'real-1', is_class_entity: false, platform_role: null },
+          { id: 'tester-1', is_class_entity: false, platform_role: 'tester' },
+          { id: 'admin-1', is_class_entity: false, platform_role: 'ssi_admin' },
+          { id: 'popty-1', is_class_entity: false, platform_role: 'popty_user' },
+        ],
+        [], // the canonical function returns nothing at all
+      ),
+    )
+    expect([...pop.realIds]).toEqual(['real-1'])
+    expect(pop.count).toBe(1)
+  })
+
+  it('drops a class entity, which is a room rather than a person', async () => {
+    const pop = await resolveRealLearners(
+      fakeClient(
+        [
+          { id: 'real-1', is_class_entity: false, platform_role: null },
+          { id: 'class-1', is_class_entity: true, platform_role: null },
+        ],
+        [],
+      ),
+    )
+    expect([...pop.realIds]).toEqual(['real-1'])
+  })
+
+  it('counts nobody rather than everybody when the roster cannot be read', async () => {
+    const pop = await resolveRealLearners(fakeClient([], [], { rosterFails: true }))
+    expect(pop.count).toBe(0)
+  })
+})
+
+describe('isMachineCountry', () => {
+  it('names Japan and Finland and nothing else', () => {
+    expect(MACHINE_COUNTRIES).toEqual(['JP', 'FI'])
+    expect(isMachineCountry('JP')).toBe(true)
+    expect(isMachineCountry('fi')).toBe(true)
+    expect(isMachineCountry('GB')).toBe(false)
+    expect(isMachineCountry(null)).toBe(false)
+  })
+})
