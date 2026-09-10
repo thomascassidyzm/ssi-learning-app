@@ -9,6 +9,14 @@
  * (magiclink, never emailed) for the parent to open/scan on the kid's
  * device once. The child never enters an email, password, or birthday —
  * the parent performs every step; the account's only PII is a first name.
+ *
+ * THE PARENT DOOR ON THE CLASS LINK (Tom, 2026-09-10). Optional body field
+ * `class_code` — the class's student_join_code the parent arrived on. When
+ * present, the CLASS: student tag and the course enrolment are written for
+ * the CHILD in this same request (api/_utils/classSeat.ts), so a parent-made
+ * child lands on the teacher's roster exactly as a link-joined pupil does.
+ * The parent is never tagged and never enrolled: not a learner, on no roster.
+ * A class link that fails does not undo the child — the response says so.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -17,6 +25,7 @@ import { randomUUID } from 'node:crypto'
 import { verifyAuthToken } from '../_utils/auth'
 import { resolveLearnerId, countUsedSeats, FAMILY_SEAT_CAP } from '../_utils/familyMembership'
 import { applyCors } from '../_utils/cors'
+import { tagChildIntoClassByCode, type ClassSeatLink } from '../_utils/classSeat'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -129,6 +138,16 @@ export default async function handler(
     return
   }
 
+  const rawClassCode = (req.body || {}).class_code
+  let classLink: ClassSeatLink | undefined
+  if (typeof rawClassCode === 'string' && rawClassCode.trim()) {
+    classLink = await tagChildIntoClassByCode(supabase, {
+      classCode: rawClassCode,
+      childAuthUid: childUserId,
+      childLearnerId: childLearner.id,
+    })
+  }
+
   const { data: linkData, error: linkErr } = await supabase.auth.admin.generateLink({
     type: 'magiclink',
     email: syntheticEmail,
@@ -137,9 +156,9 @@ export default async function handler(
     console.error('[family/create-child] sign-in link generation failed:', linkErr)
     // The account exists and is entitled — don't roll it back over a link
     // failure; the parent can re-mint via /api/family/signin-link.
-    res.status(200).json({ member: membership, signInLink: null, linkError: `${displayName}'s account is ready, but we could not make a sign-in link just now. Tap "Get sign-in link" on their row to try again.` })
+    res.status(200).json({ member: membership, signInLink: null, classLink, linkError: `${displayName}'s account is ready, but we could not make a sign-in link just now. Tap "Get sign-in link" on their row to try again.` })
     return
   }
 
-  res.status(200).json({ member: membership, signInLink: linkData.properties.action_link })
+  res.status(200).json({ member: membership, signInLink: linkData.properties.action_link, classLink })
 }

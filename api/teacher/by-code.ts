@@ -245,8 +245,12 @@ export default async function handler(
         class_name: classRow.class_name,
         course_code: classRow.course_code,
         student_join_code: classRow.student_join_code,
-        // null = tutor/ACT class (£10 student); set = school class (£5 student).
+        // Org-owned = school_id OR group_id set (£5 student); neither = tutor
+        // class (£10). The client (WithTeacher.vue, classTier.ts) must read
+        // BOTH, as this endpoint and the webhook do — until 2026-09-10 it read
+        // school_id alone and priced a group-only class as a tutor class.
         school_id: classRow.school_id,
+        group_id: classRow.group_id ?? null,
         // true = free-tier course → student joins free, no checkout.
         course_is_free: courseIsFree,
       },

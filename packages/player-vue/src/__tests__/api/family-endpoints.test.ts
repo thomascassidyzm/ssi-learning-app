@@ -266,6 +266,57 @@ describe('POST /api/family/create-child', () => {
     expect(insertCalls.some((c) => c.table === 'family_members' && c.args[0].is_child_account === true)).toBe(true)
   })
 
+  // THE PARENT DOOR ON THE CLASS LINK (Tom, 2026-09-10): the child is minted
+  // on this exact shape and the CLASS: student tag is written server-side in
+  // the SAME request, from the class code the parent arrived on. The parent
+  // is never tagged: the parent is not a learner and is on no roster.
+  it('with class_code: tags the CHILD into the class and enrols them on its course in the same request; the parent is never tagged', async () => {
+    tableQueues = {
+      learners: [
+        { data: { id: 'owner-learner-1' }, error: null },
+        { data: { id: 'child-learner-1' }, error: null },
+      ],
+      family_members: [
+        { data: [], error: null },
+        { data: { id: 'member-1', is_child_account: true, status: 'active' }, error: null },
+      ],
+      classes: [{ data: { id: 'class-1', course_code: 'cym_s_for_eng', is_active: true, school_id: 'school-1', group_id: null }, error: null }],
+      user_tags: [{ data: null, error: null }],
+      course_enrollments: [{ data: null, error: null }],
+    }
+    const res = makeRes()
+    await createChildHandler(makeReq({ display_name: 'Dylan', class_code: 'abc-123' }), res as any)
+    expect(res._status).toBe(200)
+    expect((res._body as any).classLink).toMatchObject({ classId: 'class-1', courseCode: 'cym_s_for_eng' })
+
+    const tag = calls.find((c) => c.table === 'user_tags' && c.method === 'upsert')
+    expect(tag?.args[0]).toMatchObject({ user_id: 'child-auth-1', tag_type: 'class', tag_value: 'CLASS:class-1', role_in_context: 'student' })
+    const enrol = calls.find((c) => c.table === 'course_enrollments' && c.method === 'upsert')
+    expect(enrol?.args[0]).toMatchObject({ learner_id: 'child-learner-1', course_id: 'cym_s_for_eng' })
+    expect(calls.some((c) => c.table === 'user_tags' && c.method === 'upsert' && c.args[0].user_id === 'owner-user-1')).toBe(false)
+  })
+
+  it('with a class_code that matches no class: the child is still made, and the response says the class link did not happen', async () => {
+    tableQueues = {
+      learners: [
+        { data: { id: 'owner-learner-1' }, error: null },
+        { data: { id: 'child-learner-1' }, error: null },
+      ],
+      family_members: [
+        { data: [], error: null },
+        { data: { id: 'member-1', is_child_account: true, status: 'active' }, error: null },
+      ],
+      classes: [{ data: null, error: null }],
+    }
+    const res = makeRes()
+    await createChildHandler(makeReq({ display_name: 'Dylan', class_code: 'NOPE-000' }), res as any)
+    expect(res._status).toBe(200)
+    expect((res._body as any).signInLink).toBe('https://example.com/magic')
+    expect((res._body as any).classLink?.classId).toBeUndefined()
+    expect(typeof (res._body as any).classLink?.error).toBe('string')
+    expect(calls.some((c) => c.table === 'user_tags')).toBe(false)
+  })
+
   it('adopts the learner row the auth trigger already made — never a second INSERT on learners', async () => {
     // on_auth_user_created writes the learners row the moment the synthetic
     // auth user exists. A plain INSERT here collided with learners_user_id_key

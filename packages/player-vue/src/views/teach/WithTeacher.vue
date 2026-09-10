@@ -12,6 +12,7 @@ import '@/styles/schools-tokens.css'
 import { sendSignInCode } from '../../auth/sendSignInCode'
 import { useI18n } from '@/composables/useI18n'
 import { rememberCourse } from '../../platform/courseChoice'
+import { isOrgOwnedClass } from './classTier'
 
 const route = useRoute()
 const supabase = inject('supabase', ref(null)) as any
@@ -32,18 +33,21 @@ interface PublicClass {
   class_name: string
   course_code: string
   student_join_code: string
-  // null = tutor/ACT class (£10); set = school class (£5). Drives price + commission.
+  // Org-owned = school_id OR group_id set (£5); neither = tutor/ACT class
+  // (£10). Drives price + commission; see classTier.ts.
   school_id: string | null
+  group_id?: string | null
   // true = free-tier course (non-Big-10 target AND not Welsh) → student joins
   // FREE, no Paddle checkout. Defaults false (money-safe) if the API omits it.
   course_is_free?: boolean
 }
 
-// Price by class type. The webhook re-derives the SAME fact from class.school_id
-// server-side and freezes it into teacher_referrals.locked_price_pence, so the
-// client price is display + checkout only — it never decides commission.
+// Price by class type. The webhook re-derives the SAME fact from the class's
+// school_id / group_id server-side and freezes it into
+// teacher_referrals.locked_price_pence, so the client price is display +
+// checkout only — it never decides commission. One rule, shared: classTier.ts.
 const STANDARD_SSI_PRICE = 15
-const isSchoolClass = computed(() => !!classInfo.value?.school_id)
+const isSchoolClass = computed(() => isOrgOwnedClass(classInfo.value))
 // Free-tier course → the student joins without paying (no Paddle checkout).
 const isFreeCourse = computed(() => classInfo.value?.course_is_free === true)
 const STUDENT_MONTHLY_PRICE = computed(() => (isSchoolClass.value ? 5 : 10))
@@ -341,12 +345,22 @@ async function openCheckout() {
       checkoutError.value = t('teach.withTeacher.paidJoinUnavailableInApp', "Joining a paid class isn't available in this version of the app yet.")
       return
     }
+    // BILLING ACCOUNT SEPARATE FROM LEARNER SEAT (Tom, 2026-09-10): for a
+    // school class the PARENT pays with their own email and card, and the
+    // CHILD is the learner. On this page today both are the signed-in person
+    // — the parent door that splits them (customer.email = the parent's,
+    // supabase_user_id = the child's; the webhook writes the subscription on
+    // supabase_user_id and never on the payer) is not built here, because
+    // HOW the parent's email attaches — a billing contact on the pupil
+    // record, or a parent account that holds the seat — is a fork Tom has
+    // not ruled on. See docs/DECISIONS.md 2026-09-10.
     const paddle = await getPaddle()
     paddle.Checkout.open({
       items: [{ priceId: studentPriceId.value, quantity: 1 }],
       customer: { email: userEmail.value },
       customData: {
-        // Contract: webhook re-derives price/tier/commission from class.school_id.
+        // Contract: webhook re-derives price/tier/commission from the class's
+        // school_id / group_id, never from what this client sent.
         kind: 'student_via_teacher',
         teacher_id: teacher.value.id,
         class_id: classInfo.value.id,

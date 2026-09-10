@@ -117,6 +117,25 @@ describe('GET /api/teacher/by-code (student_join_code lookup)', () => {
     expect(res._json.is_full).toBe(false)
   })
 
+  // A GROUP-ONLY class is org-owned (commissions-never-stack, 2026-08-02) and
+  // this endpoint already prices it so — but the payload only carried
+  // school_id, so WithTeacher.vue read it as a TUTOR class and showed £10 for
+  // a seat the webhook would lock at £5. group_id now rides the payload.
+  it('group-only class: passes group_id through so the client derives the same org tier the webhook locks', async () => {
+    responders.classes = () => ({ data: { ...SCHOOL_CLASS, school_id: null, group_id: 'grp-1' }, error: null })
+    responders.courses = () => ({ data: { pricing_tier: 'premium' }, error: null })
+    responders.learners = () => ({ data: { id: 'learner-1', display_name: 'Ms Jones' }, error: null })
+    responders.schools = () => ({ data: null, error: null })
+    responders.teacher_referrals = () => ({ count: 0, error: null })
+
+    const res = makeRes()
+    await handler(makeReq('ABC-123'), res)
+    expect(res.status).toHaveBeenCalledWith(200)
+    expect(res._json.class.school_id).toBeNull()
+    expect(res._json.class.group_id).toBe('grp-1')
+    expect(res._json.seats_remaining).toBeNull()
+  })
+
   it('school class: falls back to the school name when the teacher learner has no display_name', async () => {
     responders.classes = () => ({ data: SCHOOL_CLASS, error: null })
     responders.courses = () => ({ data: { pricing_tier: 'premium' }, error: null })
