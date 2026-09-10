@@ -157,6 +157,7 @@ function buildOrgWorld() {
           { known: 'I want to speak', target: 'quiero hablar', count: 7 },
           { known: 'I am trying to learn', target: 'estoy intentando aprender', count: 5 },
         ],
+        inAppMinutes7d: 412, classInAppMinutes7d: 198, audioPlayedMinutes7d: 214,
         ownAccountMinutes7d: 214, ownAccountPeople7d: 9,
       },
       classes: classesLens,
@@ -168,7 +169,7 @@ function buildOrgWorld() {
       // The class has played together to seed 22 — orange belt, 18 to green.
       journey: { done: 44, total: 60, source: 'class-play', legoId: 'S0022L02', seedNumber: 22 },
       classPractice: {
-        windowDays: 7, phrases7d: 96, lastPractisedAt: daysAgo(1),
+        windowDays: 7, phrases7d: 96, inAppMinutes7d: 118, lastPractisedAt: daysAgo(1),
         phrases: [
           { known: 'I want', target: 'quiero', count: 6 },
           { known: 'I want to speak', target: 'quiero hablar', count: 4 },
@@ -181,7 +182,7 @@ function buildOrgWorld() {
     [CLASS_Y5]: classHome(CLASS_Y5, 'Year 5 French', 'fra_for_eng', {
       journey: { done: 18, total: 60, source: 'estimate', legoId: null, seedNumber: null },
       classPractice: {
-        windowDays: 7, phrases7d: 61, lastPractisedAt: daysAgo(2),
+        windowDays: 7, phrases7d: 61, inAppMinutes7d: 80, lastPractisedAt: daysAgo(2),
         phrases: [
           { known: 'I want', target: 'je veux', count: 5 },
           { known: 'I want to speak', target: 'je veux parler', count: 3 },

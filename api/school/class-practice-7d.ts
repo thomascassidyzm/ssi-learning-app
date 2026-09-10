@@ -31,7 +31,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { resolveVisibleScope, chunk } from '../_utils/schoolScope'
 import { filterActiveScope } from '../_utils/schoolCoverageGate'
@@ -142,7 +142,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 }
 
 /** The SECONDARY figure: audio-played seconds off the ledger, per learner. Null on a query error. */
-async function audioPlayedByLearner(svc: ReturnType<typeof createClient>, learnerIds: string[], sinceDay: string): Promise<Map<string, number> | null> {
+async function audioPlayedByLearner(svc: SupabaseClient, learnerIds: string[], sinceDay: string): Promise<Map<string, number> | null> {
   const secondsByLearner = new Map<string, number>()
   for (const batch of chunk(learnerIds)) {
     const { data, error } = await svc
