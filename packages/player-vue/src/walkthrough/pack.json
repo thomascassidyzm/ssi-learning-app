@@ -1,5 +1,5 @@
 {
-  "version": "8cc42609415d",
+  "version": "73f382229b34",
   "generatedAt": "2026-09-10",
   "walks": [
     {
@@ -1408,10 +1408,10 @@
       "source": "packages/player-vue/src/intel/ScopeRail.vue",
       "walk": null,
       "what": "Asking the same question of a smaller group: everyone, one course, one organisation or one person. The question does not change; who it is about does.",
-      "where": "The map on the left of every question page. On a phone it is the first block.",
+      "where": "The map on the left of every question page, the same map the organisation dashboard draws. On a phone it is the first block.",
       "how": [
         "Tap **Everyone** to ask the question of every real person.",
-        "Tap a course under **Courses** to ask it of that course alone.",
+        "Tap a course to ask it of that course alone. The other courses stay one tap away as the rows at this level.",
         "Tap **Organisations** to go to the organisation tree and pick a group, a school or a class.",
         "Tap **People** to find one person by name or email."
       ],

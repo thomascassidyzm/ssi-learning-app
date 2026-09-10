@@ -198,8 +198,8 @@ function stopped(r: WeakPointRow): string {
 
 <style scoped>
 .empty-state {
-  background: var(--schools-card, #fff);
-  border: 1px dashed var(--schools-border-strong, rgba(15, 18, 18, .18));
+  background: var(--schools-card);
+  border: 1px dashed var(--schools-border-strong);
   border-radius: var(--schools-radius-lg, 12px);
   padding: 22px 20px;
   color: var(--schools-fg-2);
@@ -208,8 +208,8 @@ function stopped(r: WeakPointRow): string {
 }
 
 .rows-card {
-  background: var(--schools-card, #fff);
-  border: 1px solid var(--schools-border, rgba(15, 18, 18, .10));
+  background: var(--schools-card);
+  border: 1px solid var(--schools-border);
   border-radius: var(--schools-radius-lg, 12px);
   overflow: hidden;
 }
@@ -229,11 +229,11 @@ function stopped(r: WeakPointRow): string {
   justify-content: space-between;
   gap: 16px;
   padding: 11px 18px;
-  border-top: 1px solid var(--schools-border, rgba(15, 18, 18, .10));
+  border-top: 1px solid var(--schools-border);
   color: var(--schools-fg);
   text-decoration: none;
 }
-.row:hover { background: var(--schools-bg, #f6f5f1); }
+.row:hover { background: var(--schools-bg); }
 .row-text { display: flex; flex-direction: column; min-width: 0; }
 .known { font-size: 14px; }
 .target { font-size: 12.5px; color: var(--schools-fg-3); }

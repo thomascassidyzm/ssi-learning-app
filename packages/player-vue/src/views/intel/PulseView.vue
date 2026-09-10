@@ -161,8 +161,8 @@ function change(row: PulseCourseRow): string {
 
 <style scoped>
 .rows-card {
-  background: var(--schools-card, #fff);
-  border: 1px solid var(--schools-border, rgba(15, 18, 18, .10));
+  background: var(--schools-card);
+  border: 1px solid var(--schools-border);
   border-radius: var(--schools-radius-lg, 12px);
   overflow: hidden;
 }
@@ -187,11 +187,11 @@ function change(row: PulseCourseRow): string {
   justify-content: space-between;
   gap: 12px;
   padding: 11px 18px;
-  border-top: 1px solid var(--schools-border, rgba(15, 18, 18, .10));
+  border-top: 1px solid var(--schools-border);
   color: var(--schools-fg);
   text-decoration: none;
 }
-.row:hover { background: var(--schools-bg, #f6f5f1); }
+.row:hover { background: var(--schools-bg); }
 .row-name { font-size: 14px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .row-values { display: flex; align-items: baseline; gap: 12px; }
 .num { font-family: var(--font-mono, ui-monospace, monospace); font-variant-numeric: tabular-nums; font-size: 15px; }

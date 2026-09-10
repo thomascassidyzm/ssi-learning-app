@@ -63,7 +63,9 @@ describe('the five-part question page', () => {
     const w = mountPage({ evidence: '<div>chart</div>', rows: '<div>rows</div>' })
     const order = [...w.element.querySelectorAll('[data-intel]')]
       .map((el) => el.getAttribute('data-intel'))
-      .filter((n) => n && n !== 'updated-stamp' && n !== 'population-chip')
+      // The page's own anchor and the two stamps inside the answer are not
+      // parts; the five parts are what is left.
+      .filter((n) => n && n !== 'question-page' && n !== 'updated-stamp' && n !== 'population-chip')
     expect(order).toEqual(['scope-rail', 'verb-bar', 'answer', 'evidence', 'rows'])
   })
 

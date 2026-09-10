@@ -85,9 +85,9 @@ const SetupView = () => import('@/views/schools/SetupView.vue')
 // HANDBOOK (2026-09-07) — the compiled map of every capability, shared by the
 // /schools and /org mounts: one component, one address per lane.
 const HandbookView = () => import('@/views/schools/HandbookView.vue')
-// THE INTELLIGENCE SURFACE — its own shell (the dark admin bar dies here) and
-// the two question pages built in the first slice.
-const IntelContainer = () => import('@/containers/IntelContainer.vue')
+// THE INTELLIGENCE SURFACE — the question pages. They ride AdminContainer,
+// the ONE shell over SSi's internal surfaces (Tom's ruling 2026-09-10:
+// "share"), whose bar carries the ten questions.
 const NotYetBuiltView = () => import('@/views/intel/NotYetBuiltView.vue')
 const INTEL_VIEWS: Record<string, () => Promise<unknown>> = {
   pulse: () => import('@/views/intel/PulseView.vue'),
@@ -704,7 +704,7 @@ const routes: RouteRecordRaw[] = [
   // ═══════════════════════════════════════════════════════════════════
   {
     path: '/intel',
-    component: IntelContainer,
+    component: AdminContainer,
     meta: { hideAppEscape: true },
     children: [
       { path: '', redirect: '/intel/pulse' },

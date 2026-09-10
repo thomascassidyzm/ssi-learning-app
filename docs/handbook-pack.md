@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `8cc42609415d` · generated 2026-09-10 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `73f382229b34` · generated 2026-09-10 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -222,10 +222,10 @@ Section: seeing-progress · roles: admin · anchor: `scope-rail` · in `packages
 
 **What it's for.** Asking the same question of a smaller group: everyone, one course, one organisation or one person. The question does not change; who it is about does.
 
-**Where it is.** The map on the left of every question page. On a phone it is the first block.
+**Where it is.** The map on the left of every question page, the same map the organisation dashboard draws. On a phone it is the first block.
 
 1. Tap **Everyone** to ask the question of every real person.
-2. Tap a course under **Courses** to ask it of that course alone.
+2. Tap a course to ask it of that course alone. The other courses stay one tap away as the rows at this level.
 3. Tap **Organisations** to go to the organisation tree and pick a group, a school or a class.
 4. Tap **People** to find one person by name or email.
 

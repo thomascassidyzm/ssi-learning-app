@@ -21,9 +21,12 @@
  * what makes "every page shows them, in the same slot" true by construction
  * instead of true by everybody remembering.
  */
+import { onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import PopulationChip from './PopulationChip.vue'
 import UpdatedStamp from './UpdatedStamp.vue'
 import ScopeRail from './ScopeRail.vue'
+import { useIntelUsage } from './useIntelUsage'
 
 withDefaults(defineProps<{
   /** The question, said out loud, as the kicker. */
@@ -42,6 +45,19 @@ withDefaults(defineProps<{
   showingTestData: false,
   courseScopable: false,
 })
+
+// THE SURFACE RECORDS ITS OWN USE. Every question opened, about whom, so in
+// a month the ten-question premise is measured rather than assumed — see
+// useIntelUsage.ts. Recorded here, in the layout, so no page can forget.
+const route = useRoute()
+const { recordOpened } = useIntelUsage()
+function record(): void {
+  const slug = route.path.split('/').filter(Boolean).pop() ?? ''
+  const course = typeof route.query.course === 'string' ? route.query.course : null
+  void recordOpened({ question: slug, course })
+}
+onMounted(record)
+watch(() => [route.path, route.query.course], record)
 </script>
 
 <template>
@@ -111,7 +127,7 @@ withDefaults(defineProps<{
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
   gap: 20px;
-  padding: 20px max(20px, env(safe-area-inset-right, 0px)) calc(28px + env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px));
+  /* The shell pads and centres; the page only lays out. */
   max-width: 1180px;
   margin: 0 auto;
 }
@@ -125,8 +141,8 @@ withDefaults(defineProps<{
 .verbs { display: flex; flex-wrap: wrap; gap: 8px; min-height: 4px; }
 
 .answer {
-  background: var(--schools-card, #fff);
-  border: 1px solid var(--schools-border, rgba(15, 18, 18, .10));
+  background: var(--schools-card);
+  border: 1px solid var(--schools-border);
   border-radius: var(--schools-radius-lg, 12px);
   padding: 18px 20px 16px;
   display: flex;

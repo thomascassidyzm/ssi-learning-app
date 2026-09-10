@@ -57,8 +57,8 @@ withDefaults(defineProps<{
   display: inline-block;
   padding: 3px 10px 4px;
   border-radius: var(--schools-radius-pill, 999px);
-  border: 1px solid var(--schools-border, rgba(15, 18, 18, .10));
-  background: var(--schools-card, #fff);
+  border: 1px solid var(--schools-border);
+  background: var(--schools-card);
   font-size: 12px;
   color: var(--schools-fg-2);
 }

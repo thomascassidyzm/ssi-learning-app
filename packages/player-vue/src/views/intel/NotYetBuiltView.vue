@@ -54,8 +54,8 @@ const question = computed(() => questionBySlug(route.path.split('/').filter(Bool
 
 <style scoped>
 .not-yet {
-  background: var(--schools-card, #fff);
-  border: 1px dashed var(--schools-border-strong, rgba(15, 18, 18, .18));
+  background: var(--schools-card);
+  border: 1px dashed var(--schools-border-strong);
   border-radius: var(--schools-radius-lg, 12px);
   padding: 22px 20px;
   color: var(--schools-fg-2);
