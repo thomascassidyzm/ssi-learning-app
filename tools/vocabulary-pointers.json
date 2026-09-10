@@ -112,7 +112,7 @@
       "term": "LAYER-1 SEEDS PLAY t k t t ALWAYS",
       "code": "DEFAULT_LISTENING_PATTERN -> l1PlaylistFromPattern",
       "status": "ambiguous",
-      "note": "Shape holds, VOICE ORDER DOES NOT. Code ships target(v1), known, target(v2), target(v1) - v2 third. Tom's words are target, known, v1, v2 - v2 fourth. The DB row algorithm_config['listening'].seedPlaylist IS ['t1','known','t1','t2'] i.e. Tom's order, but it is DEAD on the learner path: LearningPlayer.vue:4421 always supplies a listeningPolicy, so the ternary at useLayer1Scheduler.ts:819 never takes the c.seedPlaylist arm for a real learner.",
+      "note": "Shape holds, VOICE ORDER IS AN OPEN QUESTION FOR TOM. Code ships target(v1), known, target(v2), target(v1) — v2 THIRD. Tom's stated order is target, known, v1, v2 — v2 LAST. The DB row algorithm_config['listening'].seedPlaylist IS ['t1','known','t1','t2'], i.e. Tom's order, but it is DEAD on the learner path: LearningPlayer.vue:4421 always supplies a listeningPolicy, so the ternary at useLayer1Scheduler.ts:819 never takes the c.seedPlaylist arm for a real learner. WHICH ORDER IS WANTED IS TOM'S CALL — not a defect until he says so.",
       "pointers": [
         {
           "file": "packages/player-vue/src/playback/listeningExposureRamp.ts",
@@ -253,7 +253,7 @@
       "term": "DRILL MODE",
       "code": "listenMode === 'drill'",
       "status": "ambiguous",
-      "note": "INVERTED AGAINST TOM'S WORDS. Tom: drill = target language only. Code: drill = target, known, target, target - i.e. the t-k-t-t cadence he ascribes to immersion. Two implementations also disagree with each other: podModalQueue.ts:33 plays t/k/t/t at base speed, while a dialogue scene with an authored fusion rung takes a different queue entirely at ListeningOverlay.vue:1322. A third description, the UI label at ListeningOverlay.vue:342, says 'once normal then twice fast', which neither implementation does. Confirmed a third time in the fusion-drill path: fusionDrill.ts pushes target/known/target/target under the name pushTktt.",
+      "note": "Drill plays FOUR clips per line — target, known, target, target — and every one of them at the base rate, which is Tom's t·k·t·t. podModalQueue.ts:33 is that arm; fusionDrill.ts names the same shape pushTktt. A dialogue scene with an authored fusion rung takes a DIFFERENT queue entirely at ListeningOverlay.vue:1322. The UI label at ListeningOverlay.vue:342 describes neither: it says three times per line, once normal then twice fast, where the code plays four clips at one single speed and includes the known clip the label never mentions. The code comment above the mode list still calls these 'Two target-only practice modes', which drill is not. THE LABEL IS LEARNER-FACING COPY — a finding for Tom, not a fix.",
       "pointers": [
         {
           "file": "packages/player-vue/src/playback/podModalQueue.ts",
@@ -280,8 +280,8 @@
     {
       "term": "IMMERSION MODE",
       "code": "listenMode === 'immersion' (the default arm of buildModalQueue)",
-      "status": "ambiguous",
-      "note": "INVERTED AGAINST TOM'S WORDS. Tom: immersion = same t-k-t-t cadence. Code: immersion is the fall-through arm and plays the TARGET ONLY, once per unit. The known clip is played only when a line has no target text at all.",
+      "status": "clean",
+      "note": "Immersion plays the TARGET ONLY, once per unit, at the chosen speed — which is what Tom says it is. It is the fall-through arm of buildModalQueue. The known clip is reached for only when a line carries no target text at all, which is deliberate: on a bilingual transcript an English turn IS the recording of what was said, and the alternative is silence where a real turn was (Tom's ruling, 2026-09-03, documented in the comment beside the code). A line that HAS target text but no clip stays silent by design, so a missing recording cannot hide behind the known language.",
       "pointers": [
         {
           "file": "packages/player-vue/src/playback/podModalQueue.ts",
