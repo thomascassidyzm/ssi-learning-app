@@ -8,9 +8,10 @@ import { test, expect, type Page } from '@playwright/test'
  *   /schools1  — the HERITAGE door, and since 2026-08-02 the ONLY school door.
  *                Welsh N/S + Irish pinned first, then the rest of the 365-day
  *                offer, then the REST OF THE CATALOGUE (inherited from the
- *                retired /schools2). "Free for a year" badges discriminate
- *                within the merged list; search works; a free-tier pick
- *                promises 365 days.
+ *                retired /schools2). EVERY row carries a chip — "Free for a
+ *                year" on the 365-day offer, "Free for 30 days" on the
+ *                premium ones, so no row is silent next to a neighbour's
+ *                offer; search works; a free-tier pick promises 365 days.
  *   /schools2  — RETIRED: a pure redirect to /schools1, query + hash preserved.
  *   /tutors    — NO year badges anywhere and a free-tier pick promises 30 days
  *                (the tutor trial is 30 days regardless of course).
@@ -51,17 +52,18 @@ test.describe('/schools1 — the heritage door, now the only school door', () =>
     await expect(options.nth(1)).toContainText('South Welsh')
     await expect(options.nth(2)).toContainText('Irish')
 
-    // Badges now DISCRIMINATE: the door lists the whole catalogue (merged in
-    // when /schools2 retired), so the year-free set is marked and the
-    // commercial courses are not. Spanish for English speakers is the canonical
-    // unbadged case — and its presence is the proof no course became
-    // unreachable when the English-first door closed.
+    // Chips DISCRIMINATE but never fall silent: the door lists the whole
+    // catalogue (merged in when /schools2 retired), so the year-free set says
+    // "Free for a year" and the commercial courses say "Free for 30 days".
+    // Spanish for English speakers is the canonical premium case — and its
+    // presence is the proof no course became unreachable when the
+    // English-first door closed.
     const badges = page.locator('.ob-known-menu .ob-tier')
-    expect(await badges.count(), 'year-free badges should render').toBeGreaterThan(10)
+    expect(await badges.count(), 'every row should carry a chip').toBe(count)
     await page.locator('.ob-known-search').fill('spanish')
     const spanishOpt = page.locator('.ob-known-opt').first()
     await expect(spanishOpt).toContainText(/Spanish/i)
-    await expect(spanishOpt.locator('.ob-tier')).toHaveCount(0)
+    await expect(spanishOpt.locator('.ob-tier')).toHaveText('Free for 30 days')
     await page.locator('.ob-known-search').fill('')
 
     // Search surfaces a language the old door hid; picking it commits the course.
