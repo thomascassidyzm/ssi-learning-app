@@ -95,7 +95,7 @@ try {
       }
       if (entry.gap) { row.reason = entry.gap; continue }
       if (baseline.exit !== 0) { row.reason = 'Positive baseline did not pass; no catch may be credited'; continue }
-      row.run = probe(entry.mode)
+      row.run = probe(entry.mode === 'silence' ? 'audible' : 'blob')
       if (entry.patch.kind === 'fixture') row.applied = row.run.evidence?.clock > 0.05
       if (row.run.exit === 2 || row.run.exit === null || !row.run.evidence || row.run.evidence.clock <= 0.05) {
         row.reason = 'Control could not run or playback did not advance'
