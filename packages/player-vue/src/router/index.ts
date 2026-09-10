@@ -92,30 +92,25 @@ const HandbookView = () => import('@/views/schools/HandbookView.vue')
 const NotYetBuiltView = () => import('@/views/intel/NotYetBuiltView.vue')
 const INTEL_VIEWS: Record<string, () => Promise<unknown>> = {
   pulse: () => import('@/views/intel/PulseView.vue'),
+  leaving: () => import('@/views/intel/LeavingView.vue'),
   'weak-points': () => import('@/views/intel/WeakPointsView.vue'),
+  courses: () => import('@/views/intel/CoursesView.vue'),
+  working: () => import('@/views/intel/WorkingView.vue'),
 }
 // THE FOSSILS — the old admin pages a question replaces. Each renders only
 // while a question it serves is unbuilt; the day the last one is built the
 // same path becomes a redirect into the question, scope preserved. The rule
 // lives in @/intel/fossils.ts and intel/grammar.test.ts enforces it, so a
 // question cannot be built without killing the page it replaces.
+// Only the fossils still ALIVE keep a loader: a dead one's view is deleted
+// with it, and the grammar test refuses a live fossil with no loader.
 const FOSSIL_VIEWS: Record<string, () => Promise<unknown>> = {
   'users/:learnerId': () => import('@/views/admin/AdminUserDetail.vue'),
-  attention: () => import('@/views/admin/AdminAttention.vue'),
-  activity: () => import('@/views/admin/AdminActivity.vue'),
-  courses: () => import('@/views/admin/AdminCourses.vue'),
-  insights: () => import('@/insight/InsightsView.vue'),
   stats: () => import('@/views/admin/AdminStatsView.vue'),
-  board: () => import('@/views/admin/BoardReportView.vue'),
 }
 const FOSSIL_META: Record<string, { title: string; description: string }> = {
   'users/:learnerId': { title: 'User Detail', description: 'Individual user profile and progress' },
-  attention: { title: 'Needs Attention', description: 'Subscribers who need attention' },
-  activity: { title: 'Admin Activity', description: 'Live activity and recent sessions' },
-  courses: { title: 'Admin Courses', description: 'Course overview with enrollment stats' },
-  insights: { title: 'Insights', description: 'Insight Engine — what Claude surfaced (discovery feed)' },
   stats: { title: 'Stats', description: 'Insight Engine boards — lifecycle, rates, content, ops' },
-  board: { title: 'Board', description: 'Living board report — live business state + authored reports' },
 }
 function fossilRoute(f: (typeof FOSSILS)[number]): RouteRecordRaw {
   if (fossilIsDead(f)) {

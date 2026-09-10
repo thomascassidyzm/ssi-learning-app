@@ -36,6 +36,13 @@ export const METRICS = {
   moneyStanding: { question: 'pulse', label: 'this week\'s people, paying, gifted or free', endpoint: '/api/intel/pulse', unit: 'people' },
   weakPointsByLego: { question: 'weak-points', label: 'trouble per person who met each piece of a course', endpoint: '/api/intel/weak-points', unit: 'count' },
   stoppedShareByLego: { question: 'weak-points', label: 'share of people whose last practice in a course was on this piece', endpoint: '/api/intel/weak-points', unit: 'share' },
+  aboutToLeave: { question: 'leaving', label: 'real people who were regular and have stopped, are paying and quiet, or whose access ends soon', endpoint: '/api/intel/leaving', unit: 'people' },
+  goneForHowLong: { question: 'leaving', label: 'how long since each of them practised', endpoint: '/api/intel/leaving', unit: 'people' },
+  coursePractisedThisMonth: { question: 'courses', label: 'real people who practised each course in the last thirty days', endpoint: '/api/intel/courses', unit: 'people' },
+  courseReach: { question: 'courses', label: 'real people who have ever been in each course', endpoint: '/api/intel/courses', unit: 'people' },
+  courseFinished: { question: 'courses', label: 'real people who have reached the end of each course', endpoint: '/api/intel/courses', unit: 'people' },
+  audioFailureRate: { question: 'working', label: 'share of real people\'s audio plays that failed', endpoint: '/api/intel/working', unit: 'share' },
+  failureRateByBuild: { question: 'working', label: 'the failure rate on each build, most people first', endpoint: '/api/intel/working', unit: 'share' },
 } as const satisfies Record<string, Metric>
 
 export type MetricId = keyof typeof METRICS

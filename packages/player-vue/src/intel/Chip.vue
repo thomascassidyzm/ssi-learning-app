@@ -8,9 +8,11 @@
  * lives in the URL — so a chip is a link to the same page with the lens set,
  * which is what makes a pasted address reproduce the exact view.
  */
+import type { RouteLocationRaw } from 'vue-router'
+
 withDefaults(defineProps<{
   /** The page address with this lens applied. */
-  to: string
+  to: RouteLocationRaw
   on?: boolean
 }>(), { on: false })
 </script>

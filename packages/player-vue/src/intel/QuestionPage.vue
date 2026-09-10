@@ -26,6 +26,7 @@ import { useRoute } from 'vue-router'
 import PopulationChip from './PopulationChip.vue'
 import UpdatedStamp from './UpdatedStamp.vue'
 import ScopeRail from './ScopeRail.vue'
+import QuestionFindings from './QuestionFindings.vue'
 import { useIntelUsage } from './useIntelUsage'
 
 withDefaults(defineProps<{
@@ -51,10 +52,11 @@ withDefaults(defineProps<{
 // useIntelUsage.ts. Recorded here, in the layout, so no page can forget.
 const route = useRoute()
 const { recordOpened } = useIntelUsage()
+const slug = () => route.path.split('/').filter(Boolean).pop() ?? ''
 function record(): void {
-  const slug = route.path.split('/').filter(Boolean).pop() ?? ''
+  const slug_ = slug()
   const course = typeof route.query.course === 'string' ? route.query.course : null
-  void recordOpened({ question: slug, course })
+  void recordOpened({ question: slug_, course })
 }
 onMounted(record)
 watch(() => [route.path, route.query.course], record)
@@ -97,6 +99,10 @@ watch(() => [route.path, route.query.course], record)
       <div class="verbs" data-intel="verb-bar">
         <slot name="verbs" />
       </div>
+
+      <!-- The nightly findings about THIS question, above the answer — the
+           Discovery feed's new shape. Layout-owned, so no page can forget. -->
+      <QuestionFindings :question="slug()" />
 
       <!-- 2. THE ANSWER -->
       <section class="answer" data-intel="answer">

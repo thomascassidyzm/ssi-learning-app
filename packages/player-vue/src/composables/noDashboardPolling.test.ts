@@ -24,9 +24,10 @@ const GUARDED = [
   'views/admin/AdminStructure.vue',
   'views/admin/AdminUsers.vue',
   'views/admin/AdminStatsView.vue',
-  'views/admin/AdminActivity.vue',
   'views/admin/AdminUserDetail.vue',
-  'composables/admin/useAdminActivity.ts',
+  // The intelligence surface's one door to the server, and its layout.
+  'intel/useIntelApi.ts',
+  'intel/QuestionPage.vue',
   // The access gate itself — founder ruling 2026-07-19: the SERVER enforces
   // admin role/scope per request (archive/docs-retired-2026-08-24/trinity/admin.md audit: 0 endpoint
   // gaps), so the gate's old 60s refreshRole() poll + visibilitychange

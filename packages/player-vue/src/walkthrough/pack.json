@@ -1,5 +1,5 @@
 {
-  "version": "73f382229b34",
+  "version": "1c59f816f104",
   "generatedAt": "2026-09-10",
   "walks": [
     {
@@ -3681,6 +3681,38 @@
       "note": "A shareable link is open to anyone who holds it, so revoke is the tool when a link has travelled further than you meant."
     },
     {
+      "id": "what-the-nightly-findings-say-about-this-question",
+      "title": "What the nightly findings say about this question",
+      "section": "seeing-progress",
+      "personas": [
+        "admin"
+      ],
+      "keywords": [
+        "findings",
+        "discovery",
+        "nightly",
+        "claude",
+        "silent",
+        "stale",
+        "cards"
+      ],
+      "place": {
+        "route": "intel"
+      },
+      "anchor": "findings",
+      "surface": "intel",
+      "source": "packages/player-vue/src/intel/QuestionFindings.vue",
+      "walk": null,
+      "what": "Every night a job reads the week's practice and writes a handful of findings in plain words. Each one appears here on the question it is about, so you read the finding beside the number it is a finding about.",
+      "where": "The cards between the verbs and the answer on a question page. A question with no findings shows nothing here.",
+      "how": [
+        "Read the cards. Each carries a dot in one of four tones: good, watch, alarm or quiet.",
+        "Read the line above them for when they were found.",
+        "If that line is red, the nightly job has missed two nights or more and the findings are old. The job is not on this estate and cannot be restarted from here."
+      ],
+      "note": "The numbers inside a finding were the job's own on the night; the page's own numbers are fetched fresh and may differ."
+    },
+    {
       "id": "when-an-answer-was-fetched",
       "title": "When an answer was fetched",
       "section": "seeing-progress",
@@ -3814,6 +3846,39 @@
       "note": "A class that has never played together says so plainly and names the teacher's **Play as class** button as the thing that starts the first one."
     },
     {
+      "id": "whether-the-app-is-working-right-now",
+      "title": "Whether the app is working right now",
+      "section": "seeing-progress",
+      "personas": [
+        "admin"
+      ],
+      "keywords": [
+        "working",
+        "health",
+        "audio",
+        "failed",
+        "build",
+        "device",
+        "fix landed"
+      ],
+      "place": {
+        "route": "intel"
+      },
+      "anchor": "question-working",
+      "surface": "intel",
+      "source": "packages/player-vue/src/views/intel/WorkingView.vue",
+      "walk": null,
+      "what": "Whether audio is failing for real people, and on which build and which kind of device, so you can tell if the last fix reached them.",
+      "where": "**Working now**, under What's happening.",
+      "how": [
+        "Read the sentence for the failure rate over the last seven days and the build most people are on today.",
+        "Read the chart for the rate by day.",
+        "Read the rows, one per build, most people first. Tap a build to narrow the rows to it; the choice is written into the page address.",
+        "Read the device line under the rows for phones against desktops."
+      ],
+      "note": "Only real people's plays are counted, so your own session on staging is not here. Machine traffic is left out by rule."
+    },
+    {
       "id": "which-bits-of-a-course-make-people-stumble",
       "title": "Which bits of a course make people stumble",
       "section": "seeing-progress",
@@ -3845,6 +3910,73 @@
         "Open a row to see that piece's phrases."
       ],
       "note": "When fewer than five real people have practised a course, the page says **too few to say** rather than showing a number. That is the truth about the course, not a fault in the page."
+    },
+    {
+      "id": "which-courses-are-worth-attention",
+      "title": "Which courses are worth attention",
+      "section": "seeing-progress",
+      "personas": [
+        "admin"
+      ],
+      "keywords": [
+        "courses",
+        "reach",
+        "stickiness",
+        "finishing",
+        "ranking",
+        "practised",
+        "month"
+      ],
+      "place": {
+        "route": "intel"
+      },
+      "anchor": "question-courses",
+      "surface": "intel",
+      "source": "packages/player-vue/src/views/intel/CoursesView.vue",
+      "walk": null,
+      "what": "One ranking of every course by real people practising it this month, with how many have ever been in it and how many have reached its end.",
+      "where": "**Courses**, under What's happening.",
+      "how": [
+        "Read the sentence for how many courses are alive this month and which had the most people.",
+        "Read the chart for the courses with anybody in them, most first.",
+        "Use the chips to show every course, only the alive ones, or the quiet ones somebody once joined. The chip is written into the page address.",
+        "Open a course row to see which bits of it people stumble on."
+      ],
+      "note": "Reaching the end means getting through nine tenths of the course. A course with no recorded length shows a dash there rather than a zero. Minutes are not shown: the stored counters are not reliable, and a number that might be wrong is left off."
+    },
+    {
+      "id": "who-is-about-to-leave",
+      "title": "Who is about to leave",
+      "section": "seeing-progress",
+      "personas": [
+        "admin"
+      ],
+      "keywords": [
+        "leaving",
+        "quiet",
+        "stopped",
+        "churn",
+        "paying",
+        "trial",
+        "ending",
+        "write to"
+      ],
+      "place": {
+        "route": "intel"
+      },
+      "anchor": "question-leaving",
+      "surface": "intel",
+      "source": "packages/player-vue/src/views/intel/LeavingView.vue",
+      "walk": null,
+      "what": "The list of who to write to and why: real people who were practising regularly and have stopped, paying people who have gone quiet, and people whose access runs out within a fortnight.",
+      "where": "**Leaving**, under What's happening.",
+      "how": [
+        "Read the sentence for how many, and why.",
+        "Read the chart for how long they have been gone.",
+        "Read the rows, most recently seen first, then the most regular first. Each carries every reason that applies.",
+        "Open a row to see that person and act on them."
+      ],
+      "note": "Nobody is ranked by money. No amount is stored anywhere in this database, so the order is who was seen most recently and who was most regular before they stopped. This page sends nothing."
     },
     {
       "id": "who-is-behind-every-number",

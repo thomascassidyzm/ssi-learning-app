@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `73f382229b34` · generated 2026-09-10 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `1c59f816f104` · generated 2026-09-10 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -1242,6 +1242,20 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `way
 
 **Worth knowing.** A shareable link is open to anyone who holds it, so revoke is the tool when a link has travelled further than you meant.
 
+## What the nightly findings say about this question
+
+Section: seeing-progress · roles: admin · anchor: `findings` · in `packages/player-vue/src/intel/QuestionFindings.vue`
+
+**What it's for.** Every night a job reads the week's practice and writes a handful of findings in plain words. Each one appears here on the question it is about, so you read the finding beside the number it is a finding about.
+
+**Where it is.** The cards between the verbs and the answer on a question page. A question with no findings shows nothing here.
+
+1. Read the cards. Each carries a dot in one of four tones: good, watch, alarm or quiet.
+2. Read the line above them for when they were found.
+3. If that line is red, the nightly job has missed two nights or more and the findings are old. The job is not on this estate and cannot be restarted from here.
+
+**Worth knowing.** The numbers inside a finding were the job's own on the night; the page's own numbers are fetched fresh and may differ.
+
 ## When an answer was fetched
 
 Section: seeing-progress · roles: admin · anchor: `updated-stamp` · in `packages/player-vue/src/intel/UpdatedStamp.vue`
@@ -1299,6 +1313,21 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class
 
 **Worth knowing.** A class that has never played together says so plainly and names the teacher's **Play as class** button as the thing that starts the first one.
 
+## Whether the app is working right now
+
+Section: seeing-progress · roles: admin · anchor: `question-working` · in `packages/player-vue/src/views/intel/WorkingView.vue`
+
+**What it's for.** Whether audio is failing for real people, and on which build and which kind of device, so you can tell if the last fix reached them.
+
+**Where it is.** **Working now**, under What's happening.
+
+1. Read the sentence for the failure rate over the last seven days and the build most people are on today.
+2. Read the chart for the rate by day.
+3. Read the rows, one per build, most people first. Tap a build to narrow the rows to it; the choice is written into the page address.
+4. Read the device line under the rows for phones against desktops.
+
+**Worth knowing.** Only real people's plays are counted, so your own session on staging is not here. Machine traffic is left out by rule.
+
 ## Which bits of a course make people stumble
 
 Section: seeing-progress · roles: admin · anchor: `question-weak-points` · in `packages/player-vue/src/views/intel/WeakPointsView.vue`
@@ -1313,6 +1342,36 @@ Section: seeing-progress · roles: admin · anchor: `question-weak-points` · in
 4. Open a row to see that piece's phrases.
 
 **Worth knowing.** When fewer than five real people have practised a course, the page says **too few to say** rather than showing a number. That is the truth about the course, not a fault in the page.
+
+## Which courses are worth attention
+
+Section: seeing-progress · roles: admin · anchor: `question-courses` · in `packages/player-vue/src/views/intel/CoursesView.vue`
+
+**What it's for.** One ranking of every course by real people practising it this month, with how many have ever been in it and how many have reached its end.
+
+**Where it is.** **Courses**, under What's happening.
+
+1. Read the sentence for how many courses are alive this month and which had the most people.
+2. Read the chart for the courses with anybody in them, most first.
+3. Use the chips to show every course, only the alive ones, or the quiet ones somebody once joined. The chip is written into the page address.
+4. Open a course row to see which bits of it people stumble on.
+
+**Worth knowing.** Reaching the end means getting through nine tenths of the course. A course with no recorded length shows a dash there rather than a zero. Minutes are not shown: the stored counters are not reliable, and a number that might be wrong is left off.
+
+## Who is about to leave
+
+Section: seeing-progress · roles: admin · anchor: `question-leaving` · in `packages/player-vue/src/views/intel/LeavingView.vue`
+
+**What it's for.** The list of who to write to and why: real people who were practising regularly and have stopped, paying people who have gone quiet, and people whose access runs out within a fortnight.
+
+**Where it is.** **Leaving**, under What's happening.
+
+1. Read the sentence for how many, and why.
+2. Read the chart for how long they have been gone.
+3. Read the rows, most recently seen first, then the most regular first. Each carries every reason that applies.
+4. Open a row to see that person and act on them.
+
+**Worth knowing.** Nobody is ranked by money. No amount is stored anywhere in this database, so the order is who was seen most recently and who was most regular before they stopped. This page sends nothing.
 
 ## Who is behind every number
 

@@ -142,7 +142,7 @@ function stopped(r: WeakPointRow): string {
        Worth knowing. When fewer than five real people have practised a course,
        the page says **too few to say** rather than showing a number. That is
        the truth about the course, not a fault in the page.
-       checked: 8378b141.a9071ccb
+       checked: c0324cc4.a9071ccb
   -->
   <QuestionPage
     data-intel="question-weak-points"

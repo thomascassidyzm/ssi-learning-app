@@ -42,7 +42,7 @@ export const QUESTIONS: readonly Question[] = [
     tab: 'Leaving',
     question: 'Who is about to leave, and who has already gone quiet?',
     group: 'Learners',
-    built: false,
+    built: true,
   },
   {
     n: 3,
@@ -66,7 +66,7 @@ export const QUESTIONS: readonly Question[] = [
     tab: 'Courses',
     question: 'Which courses are worth our attention, and which are people actually finishing?',
     group: 'Content',
-    built: false,
+    built: true,
   },
   {
     n: 6,
@@ -82,7 +82,7 @@ export const QUESTIONS: readonly Question[] = [
     tab: 'Working now',
     question: 'Is the app working right now, and did my last fix land?',
     group: 'Business',
-    built: false,
+    built: true,
   },
   {
     n: 8,

@@ -120,7 +120,7 @@ function change(row: PulseCourseRow): string {
        4. Open any course row to see which bits of that course give people
           trouble.
        Worth knowing. A person who practised nine times this week counts once.
-       checked: 8cf7ecff.7d5c7c03
+       checked: 2c86596a.7d5c7c03
   -->
   <QuestionPage
     data-intel="question-pulse"

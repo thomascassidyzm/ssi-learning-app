@@ -38,6 +38,9 @@ function mountPage(slots: Record<string, string> = {}) {
 // ScopeRail reaches for useRoute/useRouter, so the whole layout is mounted with
 // vue-router's composables stubbed rather than a real router being spun up.
 import { vi } from 'vitest'
+// The layout fetches the nightly findings and records its own use; neither
+// belongs in a structural test, so the network is a stub here.
+vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ byQuestion: {}, silent: false, generatedAt: null, ageHours: null }) })))
 vi.mock('vue-router', () => ({
   useRoute: () => ({ path: '/intel/pulse', query: {} }),
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
@@ -65,7 +68,7 @@ describe('the five-part question page', () => {
       .map((el) => el.getAttribute('data-intel'))
       // The page's own anchor and the two stamps inside the answer are not
       // parts; the five parts are what is left.
-      .filter((n) => n && n !== 'question-page' && n !== 'updated-stamp' && n !== 'population-chip')
+      .filter((n) => n && n !== 'question-page' && n !== 'updated-stamp' && n !== 'population-chip' && n !== 'findings')
     expect(order).toEqual(['scope-rail', 'verb-bar', 'answer', 'evidence', 'rows'])
   })
 

@@ -24,7 +24,7 @@ import { QUESTIONS, questionPath, questionBySlug } from './questions'
  * Whether the Discovery feed's findings are shown as cards on the question
  * they concern. The feed page dies when they are — see QuestionFindings.vue.
  */
-export const FINDINGS_ON_QUESTIONS = false
+export const FINDINGS_ON_QUESTIONS = true
 
 export interface Fossil {
   /** Path under /admin, as the router writes it. */
