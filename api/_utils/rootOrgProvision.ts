@@ -6,8 +6,9 @@
  * track (the /orgs signup door).
  *
  * Does exactly what the self-serve lane in api/groups/index.ts always did:
- * insert a root `groups` row (type 'organisation', stamped with the 30-day
- * org trial via orgTrialStamp), fail open onto the pre-migration schema, then
+ * insert a root `groups` row (type 'organisation', stamped with the org trial
+ * via orgTrialStamp — 30 days on a premium language, a year otherwise), fail
+ * open onto the pre-migration schema, then
  * mint the caller's govt_admins leader row AND their leader membership tag
  * (groupLeaderTag — founder ruling 2026-08-06) and set their
  * learners.educational_role to 'govt_admin', which is what the BROWSER routes
@@ -37,11 +38,15 @@ export async function createRootOrgAndLeader(
   supabase: SupabaseClient,
   userId: string,
   name: string,
+  /** Trial window in days. Defaults to the course-less org window
+   *  (trialPolicy.ts). The /orgs door passes the length it derived from the
+   *  language, when the caller named one. */
+  trialDays?: number,
 ): Promise<RootOrg> {
   const row: Record<string, unknown> = {
     name: name.trim(),
     type: 'organisation',
-    ...orgTrialStamp(),
+    ...orgTrialStamp(trialDays),
   }
 
   let { data, error } = await supabase.from('groups').insert(row).select().single()

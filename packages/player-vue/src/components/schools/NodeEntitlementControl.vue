@@ -12,6 +12,7 @@ import Button from './shared/Button.vue'
 import SearchBox from './shared/SearchBox.vue'
 import Badge from './shared/Badge.vue'
 import { useI18n } from '@/composables/useI18n'
+import { trialDaysForCourse } from '@ssi/core'
 
 const { t } = useI18n()
 
@@ -41,11 +42,12 @@ interface CatalogueCourse {
 
 // Mirrors api/entitlement/grant.ts's server-side derivation exactly — this is
 // a PREVIEW only (the server recomputes and is the source of truth on save).
-const TRIAL_PREMIUM_DAYS = 30
-const TRIAL_FREE_DAYS = 365
+// It calls the SAME function the server calls, because the pricing tier is the
+// wrong signal and used to lie here: Welsh is priced premium yet takes the
+// year window, so this preview promised an operator 30 days and the server
+// then wrote 365.
 function trialDaysFor(c: CatalogueCourse): number {
-  const isFree = c.pricing_tier === 'free' || c.pricing_tier === 'community'
-  return isFree ? TRIAL_FREE_DAYS : TRIAL_PREMIUM_DAYS
+  return trialDaysForCourse(c)
 }
 
 const { getClient, getAuthToken } = useAdminClient()

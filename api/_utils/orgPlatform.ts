@@ -4,7 +4,9 @@
  *
  * An org is a class-less group node. It prices EXACTLY as a school prices
  * teachers: £15/seat/month or £150/seat/year, seats = the Paddle quantity on a
- * single per-seat price. A new org gets a 30-day all-language trial, and
+ * single per-seat price. A new org gets an all-language trial whose LENGTH
+ * follows the language it is there for — founder ruling 2026-09-10, and see
+ * trialPolicy.ts — which for a course-less org is the year window, and
  * upgrading CONVERTS THAT ORG IN PLACE — the same `groups` row flips
  * trial → active; nothing is re-provisioned, no second node is minted, and
  * every invite/sub-group/member created during the trial survives untouched.
@@ -25,8 +27,12 @@ import { chunk } from './schoolScope'
 import { descendantIds, type ParentLinked } from './groupSubtree'
 import { ORG_TRIAL_DAYS } from './trialPolicy'
 
-/** Founder ruling 2026-08-02: 30-day free trial covering ALL languages —
- * sourced from trialPolicy.ts, the single trial-length policy point. */
+/** Founder ruling 2026-09-10: trial LENGTH follows the language for every
+ * educational institution, orgs included — 30 days on a premium language, a
+ * year on Welsh and every free language. An org picks no language at signup,
+ * so this constant is the course-less default and is now the year. Sourced
+ * from trialPolicy.ts, the single trial-length policy point; pass an explicit
+ * `days` wherever a course IS known. */
 export { ORG_TRIAL_DAYS }
 
 /** Founder ruling 2026-08-01: standard per-seat price, no volume scaling. */
@@ -49,7 +55,7 @@ function isoIn(days: number): string {
 }
 
 /**
- * The columns to stamp on a NEWLY created org so its 30-day clock starts at
+ * The columns to stamp on a NEWLY created org so its clock starts at
  * creation. Returned as a patch (rather than applied here) so the creating
  * endpoint can fold it into its single INSERT — one round trip, and the org is
  * never briefly visible without a clock.

@@ -221,8 +221,10 @@ export default async function handler(
       // decision that belongs to them.
       if (is_demo && isAdmin) row.is_demo = true
 
-      // Trial clock (founder ruling 2026-08-01): a NEW ORG gets 30 days of
-      // all-language access from the moment it exists. Only ROOT nodes get a
+      // Trial clock (founder rulings 2026-08-01 and 2026-09-10): a NEW ORG
+      // gets all-language access from the moment it exists, for the window
+      // trialPolicy.ts decides — a year for a course-less org, which is every
+      // org made here, since this door names no language. Only ROOT nodes get a
       // clock — a sub-group is part of its org and bills through the org's own
       // row, so stamping it would start a second, competing clock on the same
       // customer. Upgrading converts this same row in place (trial → active).

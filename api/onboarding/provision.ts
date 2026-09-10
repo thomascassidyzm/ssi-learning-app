@@ -13,7 +13,8 @@
  *   - activates the PLATFORM subscription trial (lever-3): the dashboard is free
  *     for a window, then £15/teacher/mo. premium-track → 1 month; free-track →
  *     1 year (schools pay for the platform even on free courses); tutor → 1 month;
- *     org → 30 days, all languages (api/_utils/trialPolicy.ts).
+ *     org → the same 30/365 split, from the language it names or, when it
+ *     names none, the year window (api/_utils/trialPolicy.ts).
  *     Limited to ONE trialled language per school, and ONE trial per email per
  *     track FOREVER (email-burn via trial_burns; burn-before-grant). The org
  *     track has no per-course trial burn — one org per leader (govt_admins is
@@ -51,7 +52,8 @@ import { isDisposableEmailDomain } from '../_utils/emailValidation'
 import { OPERATOR_CAPTURE_ERROR } from '../_utils/operatorGuard'
 import { isCommercialCourse, trialDaysForCourse } from '../../packages/core/src/pricing'
 import { createRootOrgAndLeader } from '../_utils/rootOrgProvision'
-import { leaderGroupId, readOrgPlatformState, ORG_TRIAL_DAYS } from '../_utils/orgPlatform'
+import { leaderGroupId, readOrgPlatformState } from '../_utils/orgPlatform'
+import { trialDaysFor } from '../_utils/trialPolicy'
 import { findSiblingSlugCollisions, duplicateNameBody } from '../_utils/groupSlug'
 import { enforceMintRateLimit, CLASS_MINT_OUTCOME, SCHOOL_MINT_OUTCOME } from '../_utils/mintRateLimit'
 import { claimDomainForSchool, schoolsClaimingDomainOf } from '../_utils/schoolDomain'
@@ -101,8 +103,8 @@ export default async function handler(
     //    in-app catalogue in App.vue) and matches the track. Never trust the
     //    client to pick a not_available/draft or wrong-track course.
     //    Org track skips all of this — an org is class-less and its trial
-    //    covers every language (trialPolicy.ts), so there is no single course
-    //    to validate against.
+    //    covers every language (orgCoverage.ts), so there is no single course
+    //    to validate against; its LENGTH is decided in the org branch below.
     let isFree = false
     let commercial = true
     let trialDays = 30
@@ -255,6 +257,17 @@ export default async function handler(
     if (track === 'org') {
       role = 'govt_admin'
 
+      // TRIAL LENGTH FOLLOWS THE LANGUAGE, for an org exactly as for a school
+      // (founder ruling 2026-09-10: "Welsh and all free languages are 365 day
+      // trials for all educational institutions"). The /orgs door is
+      // class-less and asks for a name, not a language, so there is usually no
+      // course to derive from — a course-less org takes the generous window,
+      // the same default api/govt/create-school.ts gives a course-less school.
+      // When a caller DOES name a course, its commercial class decides, and
+      // premium orgs get the 30-day window like everyone else.
+      const orgHeritage = course_code ? !isCommercialCourse({ course_code }) : true
+      const orgTrialDays = trialDaysFor('org', orgHeritage)
+
       // One org per leader (founder ruling 2026-08-02) — resolved FIRST so the
       // duplicate-name warning below can bail before any write happens.
       const existingGroupId = await leaderGroupId(supabase, auth.userId)
@@ -298,17 +311,17 @@ export default async function handler(
             track: 'org',
             kind: state.platform_status === 'active' ? 'active' : 'trial',
             expires_at: state.platform_expires_at,
-            days: ORG_TRIAL_DAYS,
+            days: orgTrialDays,
           }
         }
       } else {
-        const group = await createRootOrgAndLeader(supabase, auth.userId, org_name.trim())
+        const group = await createRootOrgAndLeader(supabase, auth.userId, org_name.trim(), orgTrialDays)
         orgGroupId = group.id
         platformTrial = {
           track: 'org',
           kind: 'trial',
-          expires_at: group.platform_expires_at || new Date(Date.now() + ORG_TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString(),
-          days: ORG_TRIAL_DAYS,
+          expires_at: group.platform_expires_at || new Date(Date.now() + orgTrialDays * 24 * 60 * 60 * 1000).toISOString(),
+          days: orgTrialDays,
         }
       }
     } else if (track === 'tutor') {

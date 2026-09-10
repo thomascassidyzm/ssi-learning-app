@@ -139,7 +139,7 @@ const panelQuotes = computed(() => {
 // future school door would share track: 'school'.
 const route = useRoute()
 const isHeritageDoor = computed(() => route.name === 'onboard-school-1')
-// The org door (/orgs) is class-less and covers ALL languages (trialPolicy.ts) —
+// The org door (/orgs) is class-less and covers ALL languages (orgCoverage.ts) —
 // it skips the whole language/course picker and asks for the org's name
 // instead. Keeps every course-shaped computed below (selectedCourse,
 // trialDaysFor, etc.) simply unused rather than threading an org branch
@@ -477,15 +477,18 @@ function trialDaysFor(course: LiveCourse | null): number {
   if (props.track === 'tutor') return 30
   return isYearTrialCourse(course) ? 365 : 30
 }
-// Mirrors api/_utils/trialPolicy.ts's ORG_TRIAL_DAYS — the org door's offer
-// is fixed (30 days, every language), unlike the per-course school/tutor
-// trial length, so there's no server round trip needed to show it here.
-const ORG_TRIAL_DAYS = 30
+// Mirrors api/_utils/trialPolicy.ts's ORG_TRIAL_DAYS. The org door names no
+// language, so the server has nothing to derive a length from and opens the
+// year window — founder ruling 2026-09-10, Welsh and every free language get
+// a year for all educational institutions. Fixed for this door, unlike the
+// per-course school/tutor length, so no server round trip is needed to show
+// it. If the org door ever asks for a language, this must derive too.
+const ORG_TRIAL_DAYS = 365
 const selectedTrialDays = computed(() =>
   isOrgDoor.value ? ORG_TRIAL_DAYS : trialDaysFor(selectedCourseObj.value)
 )
 const offerLine = computed(() => {
-  if (isOrgDoor.value) return `Free for ${ORG_TRIAL_DAYS} days — every language, no card needed`
+  if (isOrgDoor.value) return 'Free for a year — every language, no card needed'
   if (!selectedCourseObj.value) return ''
   return `Free for ${selectedTrialDays.value} days — no card needed`
 })
@@ -935,7 +938,7 @@ async function continueIn() {
         <Transition name="ob-line" mode="out-in">
           <p class="ob-evolve" :key="step + (selectedCourseLabel || '')">
             <template v-if="step === 'choose'">
-              {{ isOrgDoor ? `Set your organisation up for free, then test drive it for ${ORG_TRIAL_DAYS} days — every language, as many learners as you like, no card.` : "Pick your language and we'll open the door — no card, no catch." }}
+              {{ isOrgDoor ? 'Set your organisation up for free, then test drive it for a year — every language, as many learners as you like, no card.' : "Pick your language and we'll open the door — no card, no catch." }}
             </template>
             <template v-else-if="step === 'otp'">
               One code stands between you and

@@ -12,11 +12,14 @@
  * classes → schools. An org is *class-less by definition* (founder spec
  * 2026-08-01: "a class-less group/organisation node"), so its members match
  * nothing in either path and would be entitled to nothing at all during the
- * 30-day trial they were just sold. This closes that hole on the org axis
+ * trial they were just sold. This closes that hole on the org axis
  * only; the class path is untouched.
  *
- * ALL COURSES, DELIBERATELY. Founder ruling 2026-08-01: the org trial is a
- * "30-day free trial covering ALL languages". That is a deliberate departure
+ * ALL COURSES, DELIBERATELY. Founder ruling 2026-08-01: the org trial covers
+ * ALL languages. Its LENGTH is a separate question, answered by
+ * trialPolicy.ts — 30 days on a premium language, a year on Welsh and the
+ * free languages, for every educational institution (2026-09-10). That is a
+ * deliberate departure
  * from THE-MODEL.md §1.11's binary rule, where a node's TRIAL means exactly
  * one course and only PAID means all courses. The later, org-specific ruling
  * governs the org lane. Paid orgs get all courses too — an org is class-less,
