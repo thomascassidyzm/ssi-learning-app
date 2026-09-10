@@ -8,6 +8,27 @@ change them.*
 *Every claim about existing machinery below was read from the code on this branch, not from a
 document.*
 
+> **CORRECTED 2026-09-10, and the correction reverses this document's own recommendation.** §7 asked
+> whether a minted plain learner should be born EXCLUDED from analytics, and recommended that it
+> should. **Tom ruled against it.** In his words:
+>
+> > "why cant they be included? if theyre in the data as proper learners, they can just be minted as
+> > GIFTED, so the payment side of things doesnt expect them."
+>
+> He is right and the reason is worth stating plainly, because the mistake was a category error
+> rather than a wrong dial setting. **Did they pay** and **are they a real person learning** are two
+> different facts, and the first draft carried them on one flag. A comped teacher, a gifted friend
+> and a pilot school are all real humans genuinely learning: their sessions, their weak points and
+> their drop-off are true signal, and excluding them makes every number LESS accurate, not safer.
+> The only things that should ever be excluded are the things that are not people — demo fixtures,
+> test accounts, staff accounts.
+>
+> So the model is **three kinds, not two: paying, gifted, and not-a-person.** Gifted is an
+> ENTITLEMENT fact that belongs on the money side, telling the billing machinery not to expect a
+> payment, and it has **no effect whatsoever on analytics inclusion**. Not-a-person is the only
+> analytics exclusion there is. §4 and §7 below have been rewritten to say so, and the code landed
+> in the same change.
+
 ---
 
 ## Why this exists, and the failure it is written to prevent
@@ -39,11 +60,11 @@ already implements it, because reuse rather than reinvention is the whole point.
 
 | # | Verb | Plain words on screen | Scope it hangs off | Already exists as |
 |---|---|---|---|---|
-| 1 | **Mint a learner** | "Add a person" | Everyone, or a course | `api/admin/create-staff.ts` for staff rows; **no endpoint mints a plain learner today** |
+| 1 | **Mint a learner** | "Add a person" | Everyone, or a course | `api/admin/mint-learner.ts` — built 2026-09-10; mints a real, included person, optionally gifted |
 | 2 | **Give premium access** | "Give full access" | A person | `api/admin/grant-entitlement.ts`, or the tester role via `api/invite/create.ts` |
 | 3 | **Take premium access away** | "Take full access back" | A person | `api/admin/revoke-entitlement.ts` |
 | 4 | **Make a way in** | "Make a joining link" | An organisation, a school, a class, or Everyone | `api/invite/create.ts` |
-| 5 | **Make demo material** | "Make a demo organisation" | Everyone, or an organisation | `api/admin/demo-schools.ts`, `api/admin/demo-leaf.ts` |
+| 5 | **Make demo material** | "Make a demo organisation" | Everyone, or an organisation | `api/admin/demo-schools.ts`, `api/admin/demo-leaf.ts`, `api/groups/[id]/demo-mint.ts`, and `api/admin/mint-demo-learner.ts` for a single not-a-person |
 | 6 | **Point an organisation at its own way in** | "Send them their own link" | An organisation | `api/invite/create.ts` scoped to the node, plus the org's own `/org/:id` home |
 | 7 | **Rescue a sign-in** | "Make a one-off sign-in link" | A person | `api/admin/create-signin-link.ts` |
 | 8 | **Change what someone is** | "Change their role" | A person | `api/admin/update-user-role.ts` |
@@ -134,12 +155,29 @@ intelligence surface did it" is not an answer to who did it.
 
 ---
 
-## 4. Born excluded — the load-bearing rule
+## 4. Three kinds — the load-bearing rule
 
 This is the one that matters, because it is the one that silently corrupts every number on the
-answering half if it is got wrong.
+answering half if it is got wrong. It was got wrong in this document's first draft, and Tom's
+correction of 2026-09-10 is what it now says.
 
-### The gap as it stands today
+### The three kinds
+
+| Kind | Is it a person? | Does billing expect money? | Counted in analytics? |
+|---|---|---|---|
+| **paying** | yes | yes | **yes** |
+| **gifted** | yes | no, because they hold an entitlement | **yes** |
+| **not-a-person** | no — a demo fixture, a test account, a staff account | irrelevant | **no** |
+
+**Gifted is not a status and nothing in the code invents one.** It is a `user_entitlements` row,
+written by the machinery that already grants entitlements, and read back as a cohort. That is
+exactly what Tom meant by "minted as GIFTED, so the payment side of things doesn't expect them":
+the row is the message to the payment side, and the payment side is the only thing that reads it.
+
+**Free is not fake.** A learner who pays nothing and practises every day is real, belongs in the
+pulse, and must not be hidden. Exclusion follows *staff and test*, never *free*.
+
+### The gap that made the first draft look reasonable
 
 The canonical analytics exclusion in the database is `test_learner_ids()`, defined in
 `supabase/migrations/20260715_test_learner_exclusion.sql`. It feeds board metrics through
@@ -147,45 +185,86 @@ The canonical analytics exclusion in the database is `test_learner_ids()`, defin
 who is `is_demo`, or `is_internal`, or carries a `thomas.cassidy+` address, or is tied to an
 `is_test` school.
 
-**It does not know the `tester` role exists.** And nothing in the code ever sets
+**It does not know the `tester` role exists.** And until this slice nothing in the code ever set
 `is_internal = true` — that flag was set once by a backfill inside that same migration, and by hand
-since. Every tester and admin row happens to carry it today. The mechanism that keeps it that way
-does not exist. The next person to redeem a tester code gets full content access, stays
-`is_internal = false`, and is counted as a real learner in every board number and every daily
-contribution from that moment on.
+since. The next person to redeem a tester code would have taken full content access, stayed
+`is_internal = false`, and counted as a real learner in every board number from that moment on.
 
-### The rule
+That gap is real and it is now closed. What the first draft did wrong was to reach for the same
+flag to solve a different problem — somebody minted by hand who does not pay — when the two have
+nothing to do with each other.
 
-**Anything the surface mints is born excluded — set by the endpoint at creation, never by a backfill
-somebody remembers to run.**
-
-Applied verb by verb:
+### The rule, verb by verb
 
 | Verb | What it sets at creation |
 |---|---|
-| 1 Mint a learner | `is_internal = true` unless the admin explicitly says this is a real person, which is a deliberate second click and says so in the confirm |
-| 2 Give premium access | Nothing, if it is an entitlement on a real person — a comped real learner IS a real learner and must keep counting. If it is granted by making somebody a tester, `is_internal = true` rides with the role |
-| 4 Make a way in | Nothing on the code itself; the exclusion lands when the code is redeemed, in `redeem.ts` |
-| 5 Make demo material | `is_demo = true` on every learner, `is_test = true` on every school — already true today, and it is the model the others copy |
-| 8 Change what someone is | `is_internal = true` when the new `platform_role` is `ssi_admin` or `tester` |
+| 1 Mint a learner | **Nothing. A minted plain learner is a real person and is counted.** The endpoint refuses `is_demo` / `is_internal` outright and names the demo endpoint instead. A `gift` may ride along, which writes a `user_entitlements` row and changes nothing about whether they count |
+| 2 Give premium access | Nothing on the learner — a comped real learner IS a real learner. If access is being granted by making somebody a tester or a Popty user, that is privilege rather than a gift, and `is_internal = true` rides with the role |
+| 4 Make a way in | Nothing on the code itself; the exclusion, where there is one, lands when the code is redeemed, in `redeem.ts` |
+| 5 Make demo material | `is_demo = true` on every learner, `is_test = true` on every school — already true today, and it is the model `mint-demo-learner.ts` copies |
+| 8 Change what someone is | `is_internal = true` when the new `platform_role` is `ssi_admin`, `tester` or `popty_user` — the only three the column allows, all of them staff |
 
-The distinction in verb 2 is the subtle one and it is worth stating plainly: **comping a real person
-does not make them fake.** A learner who pays nothing but practises every day is real, belongs in
-the pulse, and must not be hidden. Exclusion follows *staff and test*, never *free*.
+### Two doors, deliberately
 
-### The fix landed in this slice
+Minting a real person and minting a fixture are **two endpoints**, not one endpoint with a
+checkbox:
 
-`api/code/redeem.ts` now sets `is_internal = true` in the same update that assigns a
-`platform_role`, which covers both the `tester` and the `ssi_admin` code types. One line, code only,
-revertable, no migration and no canary. It closes the gap at the mechanism.
+- `POST /api/admin/mint-learner` — a real, included person. Takes an optional `gift`. Answers
+  `counts_in_analytics: true`. Passing `is_demo` or `is_internal` is a 400 naming the other door.
+- `POST /api/admin/mint-demo-learner` — a not-a-person. `kind` is required and has no default:
+  `demo` sets `is_demo`, `test` sets `is_internal`. Answers `counts_in_analytics: false`. Takes no
+  gift, because a fixture holding an entitlement would appear in a cohort of real people.
+
+A checkbox on one form is precisely how "is this a real person?" ends up answered by whatever the
+last person left ticked. Choosing the door is the act.
+
+### What landed in this slice
+
+- `api/_utils/mintLearner.ts` — `birthFlags()`, `mintPerson()`, `mintNotAPerson()`. The ruling is
+  four lines of `birthFlags` and it is tested directly.
+- `api/admin/mint-learner.ts`, `api/admin/mint-demo-learner.ts` — the two doors, `verifyAdmin`-gated.
+- `grantGiftEntitlement()` in `api/_utils/entitlementGrant.ts` — one writer for both the mint path
+  and `api/admin/grant-entitlement.ts`, so the row they produce cannot drift. Every gift leaves a
+  `role_change_audit` row: field `entitlement`, source naming the door, actor the admin's own uid.
+- `api/code/redeem.ts` sets `is_internal = true` in the same update that assigns a `platform_role`
+  on the invite path, and `applyDashboardRole()` now does the same on the entitlement-code path,
+  which was the half the first fix missed. Both return untouched when there is no role, so **a gift
+  never acquires the flag** — asserted by a test at the redeem level.
+- `api/_utils/realLearnerPopulation.ts` states in its own header that it has no opinion about money
+  and must never acquire one, with a test that a comped learner stays in the population.
 
 **What is deliberately NOT done here:** teaching `test_learner_ids()` itself about the `tester` role.
 That is a database function change on a function two write paths depend on, so it needs the canary
-method, and the code-only fix above makes it unnecessary for every learner created from now on. It
-stays a named next step, worth doing when the next database pass runs, as belt and braces rather than
-as the mechanism.
+method, and the code-only fix makes it unnecessary for every learner created from now on. It stays a
+named next step for the next database pass, as belt and braces rather than as the mechanism.
 
----
+### Seeing the gifted cohort
+
+Tom asked for this specifically: how comped and pilot learners behave is intelligence worth having,
+and it is only available if they are in the data at all — which is the practical argument for the
+ruling as well as the principled one.
+
+`api/_utils/entitlementCohort.ts` splits any set of learners into **paying / gifted / free**,
+derived from `subscriptions` (the money side) and `user_entitlements` (the access side). It needs no
+migration and no new column, and because it derives rather than records, it sees every gift ever
+made rather than only the ones minted after today.
+
+**Where it is visible now:** question 1, the pulse. The endpoint returns `standing` alongside the
+headline and the page prints one line under the evidence — "N paying, N gifted, N on free access" —
+splitting the people already counted, never filtering them.
+
+**Next-slice items, named rather than implied:**
+
+- The gifted cohort as a *rail scope*, so any question can be asked of gifted learners alone — that
+  is where "how do pilot learners behave" gets a real answer, and it wants the rail work that
+  question 6 and the course questions bring.
+- Distinguishing *comped individual* from *pilot organisation* within gifted. The `role_change_audit`
+  row carries the source and the actor, and org grants carry a group, so the data is there; nothing
+  reads it yet.
+- The derived entitlement layers — cascade, class coverage, org coverage, school-staff coverage —
+  have no `user_entitlements` row, so a learner whose access comes only from their school's cover
+  currently reads as `free`. That undercounts gifted; it never overcounts it. Widening the cohort
+  file is the fix when the cohort matters more than the per-person queries cost.
 
 ## 5. Where the verbs sit
 
@@ -231,20 +310,29 @@ contract and a test that the bar renders even when there are no verbs. Neither o
 pages in this slice carries a verb: question 4 has none by design, and question 1 has one only at
 course scope, which the rail cannot reach until the course questions are built.
 
-**Designed only.** All nine verbs above. Their endpoints exist already, with the single exception of
-**Mint a learner**, which has no plain-learner endpoint today and is the one genuinely new piece of
-server code the verbs half needs. When it is written it follows `create-staff.ts` — service-role
-insert, compensating delete on partial failure, `verifyAdmin` gate — and it sets `is_internal = true`
-at birth unless told otherwise.
+**Built since, on the correction of 2026-09-10.** **Mint a learner** — the one genuinely new piece
+of server code the verbs half needed — is now `api/admin/mint-learner.ts`, following
+`create-staff.ts` for its shape: service-role insert, compensating delete on partial failure,
+`verifyAdmin` gate. It sets no exclusion flag and cannot be asked for one. Its counterpart
+`api/admin/mint-demo-learner.ts` is the door for a not-a-person. The gifted cohort is served by
+`api/intel/pulse.ts` and printed on question 1.
+
+**Designed only.** The other eight verbs above, whose endpoints all exist already; and the verb bar
+itself is still empty on both question pages in this slice — question 4 has no verbs by design, and
+question 1 has one only at course scope, which the rail cannot reach until the course questions are
+built.
 
 ---
 
-## 7. The one open question
+## 7. The question that was asked, and how it was answered
 
-**Should a minted plain learner default to born-excluded, or born-real?**
+**Was:** should a minted plain learner default to born-excluded, or born-real?
 
-I have designed it born-excluded, because a wrong exclusion costs one missing person in a number and
-a wrong inclusion silently inflates every number until somebody notices. But minting a learner for a
-real organisation that cannot self-serve is a real use, and that person is real. The design handles
-it with a deliberate second click, and if Tom would rather it defaulted the other way that is a
-one-word change with the confirm text following it.
+**Answered by Tom on 2026-09-10: born-real, and gifted if they need access.** The recommendation in
+this document's first draft — born-excluded, on the grounds that a wrong inclusion silently inflates
+every number — was wrong, and wrong in an instructive way: it treated "does not pay" as a reason to
+doubt that somebody is a person. It is not one. The safety it was reaching for is real, but it
+belongs to demo fixtures and test accounts, which have their own door, and nowhere else.
+
+§4 above is the corrected rule and the code that implements it. Nothing in this document now asks
+whether a real person should be hidden.
