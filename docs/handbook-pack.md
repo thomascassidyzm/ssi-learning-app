@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `6a31aa1b6e6c` · generated 2026-09-10 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `e5de6a26067f` · generated 2026-09-10 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -1313,6 +1313,20 @@ Section: your-school · roles: school_admin, leader · anchor: `upgrade-seats-ac
 
 **Worth knowing.** This is deliberately an honest count rather than a gate. We would rather show you the gap than shut a class out mid-lesson.
 
+## Where classes are in the course and where they stop
+
+Section: seeing-progress · roles: leader, school_admin · anchor: `insights-org-journey` · in `packages/player-vue/src/insight/OrgIntelPanel.vue`
+
+**What it's for.** Where in the course your classes have got to, shown as the last phrase each class played, and the point most of them stop before.
+
+**Where it is.** The **Journey** question on any level's insights page, under Quiet.
+
+1. Read the sentence for how many classes have started, how far the furthest have got and where most stop.
+2. Read the funnel: each step is a sentence of the course, and the bar is how many classes have reached it.
+3. Read the class rows, furthest first, for each class's own position.
+
+**Worth knowing.** A position is the phrase the class last played, in both languages. A sentence is one of the course's own sentences; the count out of the total says how far along that is.
+
 ## Where the class has got to
 
 Section: seeing-progress · roles: leader, school_admin, teacher · anchor: `class-journey` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
@@ -1372,6 +1386,35 @@ Section: seeing-progress · roles: admin · anchor: `question-weak-points` · in
 4. Open a row to see that piece's phrases.
 
 **Worth knowing.** When fewer than five real people have practised a course, the page says **too few to say** rather than showing a number. That is the truth about the course, not a fault in the page.
+
+## Which classes have gone quiet
+
+Section: seeing-progress · roles: leader, school_admin · anchor: `insights-org-quiet` · in `packages/player-vue/src/insight/OrgIntelPanel.vue`
+
+**What it's for.** The half you act on: which classes practised before and have stopped, how long ago, and which have never started at all.
+
+**Where it is.** The **Quiet** question on any level's insights page, under Practising.
+
+1. Read the sentence for how many classes have gone quiet and how many have never started.
+2. Read the bars for how long since each class last practised.
+3. Open a class row to see where it stopped.
+
+**Worth knowing.** Practised this week counts any sign of practice, a phrase spoken or the course opened and progress saved. The Practising figure above counts phrases spoken only, so it can be lower.
+
+## Which classes practised this week
+
+Section: seeing-progress · roles: leader, school_admin · anchor: `insights-org-practising` · in `packages/player-vue/src/insight/OrgIntelPanel.vue`
+
+**What it's for.** Whether your classes are actually doing it: how many practised together in the last seven days against the seven before, how many phrases they spoke, and which people practised on their own account and for how long.
+
+**Where it is.** The **Practising** question at the top of any level's insights page.
+
+1. Read the sentence for this week against last week.
+2. Read the line for how many phrases were spoken each day over the last four weeks.
+3. Read the class rows for who practised, when they last practised together and where in the course they are.
+4. Read the people rows for own-account minutes.
+
+**Worth knowing.** A class is counted in phrases spoken, never minutes. Nothing records how long a whole class practised, so no time is invented for it. Minutes appear only for people's own logins.
 
 ## Which courses are worth attention
 

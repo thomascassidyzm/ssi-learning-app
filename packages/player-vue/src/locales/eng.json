@@ -2706,6 +2706,67 @@
         "typeItAgain": "Type it again",
         "yourAccount": "Your account"
       }
+    },
+    "intel": {
+      "notStarted": "not started",
+      "sentenceN": "sentence {n}",
+      "sentenceNofM": "sentence {n} of {m}",
+      "sameAsLastWeek": "the same as last week",
+      "upFrom": "up from {n} last week",
+      "downFrom": "down from {n} last week",
+      "practising": {
+        "classYes": "This class practised together this week, {phrases} phrases spoken, {change}.",
+        "classNo": "This class did not practise together this week.",
+        "classes": "{n} of your {total} classes practised together this week, {change}, {phrases} phrases spoken.",
+        "people": "{n} of {total} people practised on their own account, {minutes} minutes between them.",
+        "widgetTitle": "Phrases spoken together, by day",
+        "series": "phrases spoken",
+        "honest": "A class is counted in phrases spoken. No record measures how long a whole class practised together, so no time is shown for it; minutes are people's own logins only.",
+        "rowsClasses": "Classes, by phrases spoken this week",
+        "rowsEmpty": "No class has practised together in the last fourteen days.",
+        "rowsPeople": "People on their own account, minutes this week"
+      },
+      "byDay": "by day",
+      "quiet": {
+        "bucketThisWeek": "practised this week",
+        "bucketWeek": "gone a week",
+        "bucketTwoWeeks": "gone two weeks",
+        "bucketThreeWeeks": "gone three weeks",
+        "bucketMonth": "gone a month or more",
+        "bucketNever": "never started",
+        "classNever": "This class has never practised together.",
+        "classQuiet": "This class has gone quiet: last practised together {when}.",
+        "classFine": "This class last practised together {when}.",
+        "none": "Every class has practised in the last seven days.",
+        "oneQuiet": "1 class has gone quiet",
+        "nQuiet": "{n} classes have gone quiet",
+        "oneNever": "1 has never started",
+        "nNever": "{n} have never started",
+        "answer": "{quiet}, and {never}.",
+        "widgetTitle": "How long since each class practised",
+        "rowsTitle": "Classes with nothing this week, longest gone first",
+        "rowsEmpty": "Every class has practised this week."
+      },
+      "classesWord": "classes",
+      "never": "never",
+      "journey": {
+        "nobody": "No class has started the course yet.",
+        "classAt": "This class has reached {where}, {sentence}.",
+        "started": "{n} of {total} classes have started.",
+        "furthest": "The furthest {n} have reached {where}, {sentence}.",
+        "drop": "Most stop before {where}, {sentence}: {lost} classes got to the step before it and no further.",
+        "widgetTitle": "Classes reaching each point in the course",
+        "stageStarted": "started",
+        "rowsTitle": "Classes, furthest first",
+        "rowsEmpty": "No class has a position yet."
+      },
+      "counting": "Counting…",
+      "coverageExpired": "This school’s platform coverage has expired, so its practice cannot be shown.",
+      "forbidden": "You do not have access to this level’s practice.",
+      "readError": "Could not read this level’s practice.",
+      "kicker": "Attention · practice",
+      "title": "Are they doing it, who is not, and where do they stop",
+      "sub": "Three questions about this level only, answered from what the app actually recorded in the last four weeks. Nothing here compares you with anyone else."
     }
   },
   "insights": {

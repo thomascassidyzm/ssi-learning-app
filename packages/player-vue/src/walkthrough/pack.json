@@ -1,5 +1,5 @@
 {
-  "version": "6a31aa1b6e6c",
+  "version": "e5de6a26067f",
   "generatedAt": "2026-09-10",
   "walks": [
     {
@@ -3850,6 +3850,40 @@
       "note": "This is deliberately an honest count rather than a gate. We would rather show you the gap than shut a class out mid-lesson."
     },
     {
+      "id": "where-classes-are-in-the-course-and-where-they-stop",
+      "title": "Where classes are in the course and where they stop",
+      "section": "seeing-progress",
+      "personas": [
+        "leader",
+        "school_admin"
+      ],
+      "keywords": [
+        "journey",
+        "how far",
+        "drop off",
+        "stop",
+        "sentence",
+        "position",
+        "funnel",
+        "course"
+      ],
+      "place": {
+        "route": "node-insights"
+      },
+      "anchor": "insights-org-journey",
+      "surface": "schools",
+      "source": "packages/player-vue/src/insight/OrgIntelPanel.vue",
+      "walk": null,
+      "what": "Where in the course your classes have got to, shown as the last phrase each class played, and the point most of them stop before.",
+      "where": "The **Journey** question on any level's insights page, under Quiet.",
+      "how": [
+        "Read the sentence for how many classes have started, how far the furthest have got and where most stop.",
+        "Read the funnel: each step is a sentence of the course, and the bar is how many classes have reached it.",
+        "Read the class rows, furthest first, for each class's own position."
+      ],
+      "note": "A position is the phrase the class last played, in both languages. A sentence is one of the course's own sentences; the count out of the total says how far along that is."
+    },
+    {
       "id": "where-the-class-has-got-to",
       "title": "Where the class has got to",
       "section": "seeing-progress",
@@ -3981,6 +4015,73 @@
         "Open a row to see that piece's phrases."
       ],
       "note": "When fewer than five real people have practised a course, the page says **too few to say** rather than showing a number. That is the truth about the course, not a fault in the page."
+    },
+    {
+      "id": "which-classes-have-gone-quiet",
+      "title": "Which classes have gone quiet",
+      "section": "seeing-progress",
+      "personas": [
+        "leader",
+        "school_admin"
+      ],
+      "keywords": [
+        "quiet",
+        "gone quiet",
+        "never started",
+        "stopped",
+        "not practising",
+        "drop off"
+      ],
+      "place": {
+        "route": "node-insights"
+      },
+      "anchor": "insights-org-quiet",
+      "surface": "schools",
+      "source": "packages/player-vue/src/insight/OrgIntelPanel.vue",
+      "walk": null,
+      "what": "The half you act on: which classes practised before and have stopped, how long ago, and which have never started at all.",
+      "where": "The **Quiet** question on any level's insights page, under Practising.",
+      "how": [
+        "Read the sentence for how many classes have gone quiet and how many have never started.",
+        "Read the bars for how long since each class last practised.",
+        "Open a class row to see where it stopped."
+      ],
+      "note": "Practised this week counts any sign of practice, a phrase spoken or the course opened and progress saved. The Practising figure above counts phrases spoken only, so it can be lower."
+    },
+    {
+      "id": "which-classes-practised-this-week",
+      "title": "Which classes practised this week",
+      "section": "seeing-progress",
+      "personas": [
+        "leader",
+        "school_admin"
+      ],
+      "keywords": [
+        "practised",
+        "this week",
+        "last week",
+        "phrases",
+        "classes",
+        "people",
+        "minutes",
+        "adherence"
+      ],
+      "place": {
+        "route": "node-insights"
+      },
+      "anchor": "insights-org-practising",
+      "surface": "schools",
+      "source": "packages/player-vue/src/insight/OrgIntelPanel.vue",
+      "walk": null,
+      "what": "Whether your classes are actually doing it: how many practised together in the last seven days against the seven before, how many phrases they spoke, and which people practised on their own account and for how long.",
+      "where": "The **Practising** question at the top of any level's insights page.",
+      "how": [
+        "Read the sentence for this week against last week.",
+        "Read the line for how many phrases were spoken each day over the last four weeks.",
+        "Read the class rows for who practised, when they last practised together and where in the course they are.",
+        "Read the people rows for own-account minutes."
+      ],
+      "note": "A class is counted in phrases spoken, never minutes. Nothing records how long a whole class practised, so no time is invented for it. Minutes appear only for people's own logins."
     },
     {
       "id": "which-courses-are-worth-attention",

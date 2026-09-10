@@ -61,6 +61,12 @@ export interface ClassPracticeFacts {
   phrases: number
   /** Per audio id, how many times that phrase came round in the window. */
   phraseCounts: Map<string, number>
+  /**
+   * When each phrase in the window was spoken, epoch ms, in diary order — so a
+   * caller can split one read into weeks or days by the same timestamp rule
+   * `phrases` itself uses, without a second diary read.
+   */
+  phraseTimes: number[]
 }
 
 export interface PhraseCount {
@@ -76,24 +82,27 @@ export function practisedSince(facts: ClassPracticeFacts | undefined, since: num
 
 /**
  * Practice facts for every class given, keyed by CLASS id, over the last
- * CLASS_PRACTICE_WINDOW_DAYS. A class with no learner identity of its own
- * (pre-re-anchor, or never played) comes back empty rather than missing, so
- * callers never have to null-check.
+ * `windowDays` (CLASS_PRACTICE_WINDOW_DAYS unless a caller asks for a longer
+ * look-back — the org intelligence lens reads 28 days in one pass and splits
+ * them by day). A class with no learner identity of its own (pre-re-anchor,
+ * or never played) comes back empty rather than missing, so callers never
+ * have to null-check.
  */
 export async function loadClassPractice(
   svc: SupabaseClient,
   classes: ClassPracticeClass[],
   now: number = Date.now(),
+  windowDays: number = CLASS_PRACTICE_WINDOW_DAYS,
 ): Promise<Map<string, ClassPracticeFacts>> {
   const out = new Map<string, ClassPracticeFacts>()
-  for (const c of classes) out.set(c.id, { lastPractisedAt: null, phrases: 0, phraseCounts: new Map() })
+  for (const c of classes) out.set(c.id, { lastPractisedAt: null, phrases: 0, phraseCounts: new Map(), phraseTimes: [] })
 
   const classIdByLearner = new Map<string, string>()
   for (const c of classes) if (c.class_learner_id) classIdByLearner.set(c.class_learner_id, c.id)
   const learnerIds = [...classIdByLearner.keys()]
   if (learnerIds.length === 0) return out
 
-  const sinceIso = new Date(now - CLASS_PRACTICE_WINDOW_DAYS * 86400000).toISOString()
+  const sinceIso = new Date(now - windowDays * 86400000).toISOString()
 
   const bump = (classId: string, at: string | null | undefined) => {
     if (!at) return
@@ -135,7 +144,9 @@ export async function loadClassPractice(
           if (!classId) continue
           const facts = out.get(classId)!
           facts.phrases += 1
-          bump(classId, String((r as any).occurred_at))
+          const at = String((r as any).occurred_at)
+          bump(classId, at)
+          facts.phraseTimes.push(new Date(at).getTime())
           const audioId = audioIdFromUrl((r as any).payload?.url)
           if (audioId) facts.phraseCounts.set(audioId, (facts.phraseCounts.get(audioId) || 0) + 1)
         }
@@ -221,28 +232,7 @@ export async function ownAccountLedgerSeconds(
   scope: { schoolIds: string[]; groupIds: string[]; classIds: string[] },
   now: number = Date.now(),
 ): Promise<{ seconds: number; people: number }> {
-  const uids = new Set<string>()
-  const tagQuery = (tagType: string, values: string[], roles: string[] | null) =>
-    chunk(values).map(async (batch) => {
-      let q = svc.from('user_tags').select('user_id').eq('tag_type', tagType).in('tag_value', batch).is('removed_at', null)
-      if (roles) q = q.in('role_in_context', roles)
-      const { data } = await q
-      for (const r of data ?? []) if ((r as any).user_id) uids.add(String((r as any).user_id))
-    })
-  await Promise.all([
-    ...tagQuery('school', scope.schoolIds.map((id) => `SCHOOL:${id}`), ['teacher', 'admin']),
-    ...tagQuery('group', scope.groupIds.map((id) => `GROUP:${id}`), null),
-    ...tagQuery('class', scope.classIds.map((id) => `CLASS:${id}`), ['student']),
-  ])
-  if (uids.size === 0) return { seconds: 0, people: 0 }
-
-  const learnerIds: string[] = []
-  await Promise.all(
-    chunk([...uids]).map(async (batch) => {
-      const { data } = await svc.from('learners').select('id').in('user_id', batch)
-      for (const r of data ?? []) if ((r as any).id) learnerIds.push(String((r as any).id))
-    }),
-  )
+  const learnerIds = [...(await ownAccountLearners(svc, scope)).keys()]
   if (learnerIds.length === 0) return { seconds: 0, people: 0 }
 
   const sinceDay = new Date(now - CLASS_PRACTICE_WINDOW_DAYS * 86400000).toISOString().split('T')[0]
@@ -262,4 +252,80 @@ export async function ownAccountLedgerSeconds(
     }),
   )
   return { seconds, people: people.size }
+}
+
+/**
+ * The PEOPLE beneath a node whose own learning accounts count as own-account
+ * practice — learners.id → display name. Gathered by tag exactly as
+ * ownAccountLedgerSeconds always did (school staff on SCHOOL:, group members
+ * on GROUP:, students on CLASS:), plus each class's lead teacher pointer
+ * (classes.teacher_user_id), so a teacher who runs a class but was never
+ * tagged still counts. Each person once however many tags they carry.
+ */
+export async function ownAccountLearners(
+  svc: SupabaseClient,
+  scope: { schoolIds: string[]; groupIds: string[]; classIds: string[] },
+): Promise<Map<string, string>> {
+  const uids = new Set<string>()
+  const tagQuery = (tagType: string, values: string[], roles: string[] | null) =>
+    chunk(values).map(async (batch) => {
+      let q = svc.from('user_tags').select('user_id').eq('tag_type', tagType).in('tag_value', batch).is('removed_at', null)
+      if (roles) q = q.in('role_in_context', roles)
+      const { data } = await q
+      for (const r of data ?? []) if ((r as any).user_id) uids.add(String((r as any).user_id))
+    })
+  await Promise.all([
+    ...tagQuery('school', scope.schoolIds.map((id) => `SCHOOL:${id}`), ['teacher', 'admin']),
+    ...tagQuery('group', scope.groupIds.map((id) => `GROUP:${id}`), null),
+    ...tagQuery('class', scope.classIds.map((id) => `CLASS:${id}`), ['student']),
+    ...chunk(scope.classIds).map(async (batch) => {
+      const { data } = await svc.from('classes').select('teacher_user_id').in('id', batch)
+      for (const r of data ?? []) if ((r as any).teacher_user_id) uids.add(String((r as any).teacher_user_id))
+    }),
+  ])
+  const out = new Map<string, string>()
+  if (uids.size === 0) return out
+  await Promise.all(
+    chunk([...uids]).map(async (batch) => {
+      const { data } = await svc.from('learners').select('id, display_name').in('user_id', batch)
+      for (const r of data ?? []) if ((r as any).id) out.set(String((r as any).id), String((r as any).display_name || ''))
+    }),
+  )
+  return out
+}
+
+/**
+ * Own-account practice PER PERSON PER DAY off the playback ledger, over the
+ * last `windowDays` — the same one definition of a minute, kept per person so
+ * a leader can see who practised on their own account, when, and for how
+ * long. learners.id → ISO day → seconds. Only days with play > 0 appear.
+ */
+export async function ownAccountLedgerByPerson(
+  svc: SupabaseClient,
+  learnerIds: string[],
+  windowDays: number,
+  now: number = Date.now(),
+): Promise<Map<string, Map<string, number>>> {
+  const out = new Map<string, Map<string, number>>()
+  if (learnerIds.length === 0) return out
+  const sinceDay = new Date(now - windowDays * 86400000).toISOString().split('T')[0]
+  await Promise.all(
+    chunk(learnerIds).map(async (batch) => {
+      const { data } = await svc
+        .from('learner_speaking_opportunities')
+        .select('learner_id, day, play_seconds')
+        .in('learner_id', batch)
+        .gte('day', sinceDay)
+      for (const r of data ?? []) {
+        const s = Number((r as any).play_seconds) || 0
+        if (s <= 0) continue
+        const id = String((r as any).learner_id)
+        const day = String((r as any).day).slice(0, 10)
+        let days = out.get(id)
+        if (!days) { days = new Map(); out.set(id, days) }
+        days.set(day, (days.get(day) || 0) + s)
+      }
+    }),
+  )
+  return out
 }
