@@ -32,6 +32,13 @@
  * Creation is deliberately NOT gated on a teacher existing — a leader
  * standing up next term's classes in August has no staff to name yet.
  *
+ * THE COURSE IS GATED, TOO (2026-09-10). A class's course_code is not a
+ * label: classCoverage.ts hands it to every student tagged into the class.
+ * So this endpoint asks classCourseEntitlement.ts whether the node actually
+ * has that course before it writes one — without it, a leader-created school
+ * sitting on its 365-day heritage platform trial could open a class on a
+ * premium Big-10 course and hand a whole class a paid course free for a year.
+ *
  * GET ?group_id= returns nothing; there is no read half. The class's course
  * options come from the same catalogue every other school surface reads.
  */
@@ -42,6 +49,7 @@ import { resolveGroupTreeCaller, callerCanSeeGroup } from '../_utils/groupTreeAu
 import { rejectIfViewAs } from '../_utils/actAsGuard'
 import { ensureClassLearnerEntity } from '../_utils/classLearnerEntity'
 import { enforceMintRateLimit, CLASS_MINT_OUTCOME } from '../_utils/mintRateLimit'
+import { checkClassCourseEntitlement } from '../_utils/classCourseEntitlement'
 import { applyCors } from '../_utils/cors'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -129,6 +137,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       .select('id')
       .eq('node_group_id', groupId)
       .maybeSingle()
+
+    // THE COURSE MUST BE ONE THIS NODE ACTUALLY HAS (classCourseEntitlement.ts).
+    // A class's course_code is what classCoverage.ts hands every student in
+    // it, so an unchecked course_code here is a free premium course for a
+    // whole class for as long as the node's platform clock runs — up to the
+    // 365-day heritage trial a leader-created school is stamped with. The
+    // ladder is the settled commercial model, not a new rule: heritage always,
+    // premium only on a paid node, its own trialled course, a live grant, or a
+    // live ancestor org.
+    const entitlement = await checkClassCourseEntitlement(supabase, {
+      schoolId: (schoolForNode as { id?: string } | null)?.id ?? null,
+      groupId,
+      courseCode,
+    })
+    if (!entitlement.allowed) {
+      console.warn(
+        '[school/create-class] refused course', courseCode, 'for group', groupId, 'by', caller.userId,
+      )
+      res.status(entitlement.status ?? 403).json({
+        error: entitlement.error,
+        ...(entitlement.requiresCheckout ? { requires_checkout: true } : {}),
+      })
+      return
+    }
 
     // Mint throttle (SEC22-01): every `classes` insert mints a join code.
     // Checked after the cheap refusals so nothing above burns a real

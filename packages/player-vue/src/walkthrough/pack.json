@@ -1,5 +1,5 @@
 {
-  "version": "9e1e45bfdab6",
+  "version": "2ff493abac00",
   "generatedAt": "2026-09-10",
   "walks": [
     {
@@ -941,7 +941,7 @@
         "Choose the course the class will learn.",
         "Tap **Add**."
       ],
-      "note": "A class needs no teacher to exist. It sits under the group waiting, and you put a teacher on it whenever you are ready."
+      "note": "A class needs no teacher to exist. It sits under the group waiting, and you put a teacher on it whenever you are ready. The course must be one your group has cover for. A paid language you have not subscribed to and are not trialling is refused when you tap **Add**, and the message says so."
     },
     {
       "id": "add-a-school-to-your-programme",

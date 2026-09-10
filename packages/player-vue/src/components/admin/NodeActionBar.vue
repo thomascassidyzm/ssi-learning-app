@@ -694,7 +694,9 @@ function closeDelete(): void {
            4. Choose the course the class will learn.
            5. Tap **Add**.
            Worth knowing. A class needs no teacher to exist. It sits under the group
-           waiting, and you put a teacher on it whenever you are ready.
+           waiting, and you put a teacher on it whenever you are ready. The course must
+           be one your group has cover for. A paid language you have not subscribed to
+           and are not trialling is refused when you tap **Add**, and the message says so.
            checked: 6d513232.32cb8fc5
       -->
       <button v-if="!neutral" type="button" class="verb" :class="{ 'is-open': openForm === 'class' }" data-walk="verb-add-class" @click="toggle('class')">{{ t('org.ui.nodeActionBar.addAClass', 'Add a class') }}</button>
