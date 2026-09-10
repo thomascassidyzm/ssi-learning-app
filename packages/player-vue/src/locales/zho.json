@@ -993,7 +993,6 @@
       "resetFilters": "重置筛选",
       "retry": "重试",
       "sortAvgSeeds": "平均种子句数",
-      "sortHours": "小时/周",
       "sortLabel": "排序",
       "sortName": "姓名",
       "sortStudents": "学生",
@@ -1004,7 +1003,6 @@
       "tableHeaderClass": "班级",
       "tableHeaderCourse": "课程",
       "tableHeaderHealth": "医疗健康",
-      "tableHeaderHours": "小时/周",
       "tableHeaderShare": "分享",
       "tableHeaderStudents": "学生",
       "tryWideningFilter": "请尝试放宽课程或健康度筛选条件。"

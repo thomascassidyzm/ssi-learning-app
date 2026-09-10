@@ -993,7 +993,6 @@
       "resetFilters": "فلٹرز ری سیٹ کریں",
       "retry": "دوبارہ کوشش",
       "sortAvgSeeds": "اوسط سیڈز",
-      "sortHours": "گھنٹے/ہفتہ",
       "sortLabel": "ترتیب دیں",
       "sortName": "نام",
       "sortStudents": "طلبہ",
@@ -1004,7 +1003,6 @@
       "tableHeaderClass": "کلاس",
       "tableHeaderCourse": "کورس",
       "tableHeaderHealth": "صحت",
-      "tableHeaderHours": "گھنٹے/ہفتہ",
       "tableHeaderStudents": "طلبہ",
       "tryWideningFilter": "کورس یا صحت کے فلٹر کو وسیع کرنے کی کوشش کریں۔"
     },

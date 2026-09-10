@@ -993,7 +993,6 @@
       "resetFilters": "வடிகட்டிகளை மீட்டமை",
       "retry": "மீண்டும் முயல்க",
       "sortAvgSeeds": "சராசரி சீட்கள்",
-      "sortHours": "மணிநேரம்/வாரம்",
       "sortLabel": "வரிசைப்படுத்து",
       "sortName": "பெயர்",
       "sortStudents": "மாணவர்கள்",
@@ -1004,7 +1003,6 @@
       "tableHeaderClass": "வகுப்பு",
       "tableHeaderCourse": "பாடநெறி",
       "tableHeaderHealth": "சுகாதாரம்",
-      "tableHeaderHours": "மணிநேரம்/வாரம்",
       "tableHeaderStudents": "மாணவர்கள்",
       "tryWideningFilter": "பாடநெறி அல்லது ஆரோக்கிய வடிகட்டியை விரிவுபடுத்த முயற்சிக்கவும்."
     },

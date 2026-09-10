@@ -1,5 +1,5 @@
 {
-  "version": "e5de6a26067f",
+  "version": "d7de74a7dd41",
   "generatedAt": "2026-09-10",
   "walks": [
     {
@@ -1741,7 +1741,7 @@
       "surface": "schools",
       "source": "packages/player-vue/src/views/schools/TeacherDashboard.vue",
       "walk": null,
-      "what": "Taking the class list away as a spreadsheet, with the name, language, student count, belt, hours this week, sessions, health and join code for every class.",
+      "what": "Taking the class list away as a spreadsheet, with the name, language, student count, belt, hours in the app this week, sessions, health and join code for every class.",
       "where": "**My Classes**, the **Export CSV** button along the top.",
       "how": [
         "Open **My Classes**.",
@@ -2707,6 +2707,7 @@
         "overview",
         "belt",
         "hours",
+        "time in app",
         "health"
       ],
       "place": {
@@ -2716,13 +2717,13 @@
       "surface": "schools",
       "source": "packages/player-vue/src/views/schools/TeacherDashboard.vue",
       "walk": null,
-      "what": "One row per class, showing at a glance how each one is doing: how many students, what belt the class has reached, hours practised this week, the shape of the last seven days, and a health mark for classes worth a look.",
+      "what": "One row per class, showing at a glance how each one is doing: how many students, what belt the class has reached, hours in the app this week, the shape of the last seven days, and a health mark for classes worth a look. Time in app is the time the class, and any students on their own accounts, spent in the app with the lesson running, pauses included — so it is the time they were in the lesson.",
       "where": "**My Classes**, the table filling most of the page.",
       "how": [
         "Open **My Classes**.",
         "Read down the health column first, because that is where the app is pointing you.",
         "Use the small chart in each row to see whether practice is steady or has stopped.",
-        "Compare hours this week between classes taking the same course."
+        "Compare time in the app this week between classes taking the same course."
       ],
       "note": "Health is worked out from how many of the last seven days the class practised on. A quiet week reads as needing eyes, which is a prompt for a word rather than a worry."
     },
@@ -3601,9 +3602,9 @@
         "Open the level you want — a group, a school or a class.",
         "**Phrases spoken this week** is how many phrases the classes beneath this level were prompted and said back in whole-class play over the last seven days. It is recorded for every clip the app plays, so it is the truest picture of a lesson.",
         "**Classes practising this week** is how many of them played together in the last seven days, out of all the classes below.",
-        "**Practice minutes this week** is time staff and students spent practising on their own accounts, timed by the app as it plays. Whole-class play is not in this figure because the app does not yet time it, and the sentence under the row says so.",
+        "**Minutes in the app this week** is the time the classes beneath this level, and their staff and students on their own accounts, spent in the app over the last seven days, pauses included — the time they were in the lesson. The sentence under the row says how much of it was whole-class play and how much was audio playing.",
         "**Teachers** counts the staff below this level, each once however many classes they take.",
-        "On a class the row switches to that class's own phrases spoken this week, its students and its teachers."
+        "On a class the row switches to that class's own phrases spoken this week, its minutes in the app, its students and its teachers."
       ],
       "note": "An organisation that is not school-shaped sees the same row worded as practice hours, groups and learners instead."
     },
@@ -3780,7 +3781,7 @@
         "Read the list: the prompt, the phrase the class said back, and the number of times it came round this week.",
         "Tap a column heading to sort by it."
       ],
-      "note": "A level whose classes have not played together this week says so in words instead of showing an empty list. Only whole-class play appears here; what staff and students practise on their own accounts is counted in the minutes figure above."
+      "note": "A level whose classes have not played together this week says so in words instead of showing an empty list. Only whole-class play appears here; what staff and students practise on their own accounts is counted in the minutes in the app figure above."
     },
     {
       "id": "when-an-answer-was-fetched",
@@ -3945,10 +3946,10 @@
       "how": [
         "Open a class from the tree or the map.",
         "Read the big figure for phrases spoken this week.",
-        "The line under it gives the time since the class last practised.",
+        "The line under it gives the time since the class last practised and its minutes in the app this week.",
         "The list beneath is every phrase the class said this week and the number of times it came round."
       ],
-      "note": "Whole-class play is counted in phrases rather than minutes, because the app does not yet time it. A class that has never played together says so plainly and names the teacher's **Play as class** button as the thing that starts the first lesson."
+      "note": "The minutes are time in the app with the lesson running, pauses included, so they are the time the class was in the lesson. A class that has never played together says so plainly and names the teacher's **Play as class** button as the thing that starts the first lesson."
     },
     {
       "id": "whether-the-app-is-working-right-now",

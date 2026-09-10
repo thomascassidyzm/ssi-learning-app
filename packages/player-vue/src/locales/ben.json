@@ -993,7 +993,6 @@
       "resetFilters": "ফিল্টার রিসেট করুন",
       "retry": "আবার চেষ্টা করুন",
       "sortAvgSeeds": "গড় সীড",
-      "sortHours": "ঘণ্টা/সপ্তাহ",
       "sortLabel": "সাজান",
       "sortName": "নাম",
       "sortStudents": "শিক্ষার্থী",
@@ -1004,7 +1003,6 @@
       "tableHeaderClass": "ক্লাস",
       "tableHeaderCourse": "কোর্স",
       "tableHeaderHealth": "স্বাস্থ্য",
-      "tableHeaderHours": "ঘণ্টা/সপ্তাহ",
       "tableHeaderStudents": "শিক্ষার্থী",
       "tryWideningFilter": "কোর্স বা হেলথ ফিল্টার প্রশস্ত করার চেষ্টা করুন।"
     },

@@ -990,7 +990,6 @@
       "resetFilters": "إعادة ضبط التصفيات",
       "retry": "إعادة المحاولة",
       "sortAvgSeeds": "متوسط الجمل الأساسية",
-      "sortHours": "ساعات/أسبوع",
       "sortLabel": "ترتيب",
       "sortName": "الاسم",
       "summaryNeedsEyes": "يحتاج إلى نظرة",
@@ -1000,7 +999,6 @@
       "tableHeaderClass": "الفصل",
       "tableHeaderCourse": "الدورة",
       "tableHeaderHealth": "الصحة",
-      "tableHeaderHours": "ساعات/أسبوع",
       "tableHeaderShare": "مشاركة",
       "tryWideningFilter": "جرّب توسيع تصفية الدورة أو الحالة."
     },

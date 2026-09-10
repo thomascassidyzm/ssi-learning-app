@@ -990,7 +990,6 @@
       "resetFilters": "Atstatyti filtrus",
       "retry": "Bandyti dar kartą",
       "sortAvgSeeds": "Vid. sėklos",
-      "sortHours": "Val./sav.",
       "sortLabel": "Rikiuoti",
       "sortName": "Vardas",
       "summaryNeedsEyes": "Reikia peržiūrėti",
@@ -1000,7 +999,6 @@
       "tableHeaderClass": "Klasė",
       "tableHeaderCourse": "Kursas",
       "tableHeaderHealth": "Sveikata",
-      "tableHeaderHours": "Val./sav.",
       "tryWideningFilter": "Pabandykite praplėsti kurso arba būklės filtrą."
     },
     "teachers": {
