@@ -199,7 +199,7 @@ if (RECONFIRM_WALKS) {
       const untouched = checkedProse(step.checked) && checkedProse(step.checked) === stepProseFingerprint(step)
       const named = RECONFIRM_WALKS_ONLY && selWalk === walk.id && selAnchor === step.anchor
       if (untouched && !(named && UNCHANGED)) {
-        refused.push({ walk, step, n: j + 1, file })
+        refused.push({ walk, step, n: j + 1, file: walkPathOf(walk) })
         continue
       }
       step.checked = `${now}.${stepProseFingerprint(step)}`
@@ -213,7 +213,7 @@ if (RECONFIRM_WALKS) {
     ? `[walkthrough] ${stamped} walk step${stamped === 1 ? '' : 's'} re-pinned to what ${stamped === 1 ? 'it points' : 'they point'} at.`
     : '[walkthrough] nothing to re-pin — every walk step is already pinned to its current capability.')
   if (refused.length) {
-    console.error(`\n[walkthrough] NOT RE-PINNED — ${refused.length} step${refused.length === 1 ? '' : 's'} point at something that changed, and ${refused.length === 1 ? 'its wording' : 'their wording'} did not:`)
+    console.error(`\n[walkthrough] NOT RE-PINNED — ${refused.length} step${refused.length === 1 ? '' : 's'} ${refused.length === 1 ? 'points' : 'point'} at something that changed, and ${refused.length === 1 ? 'its wording' : 'their wording'} did not:`)
     for (const r of refused) console.error(`  ✗ ${r.file} — walk "${r.walk.id}" step ${r.n}, anchor "${r.step.anchor}"`)
     console.error(
       '\nRead each step against the code it now points at, and either:\n' +

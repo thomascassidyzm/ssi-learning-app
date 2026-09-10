@@ -8,8 +8,7 @@
  * with fixtures; compile.mjs is the CLI shell that feeds it real files.
  */
 import {
-  checkedCode, checkedProse, ANCHOR_ATTRS, anchorTagRe, anchorAttrRe,
-  anchorFingerprint, stepProseFingerprint,
+  checkedCode, ANCHOR_ATTRS, anchorTagRe, anchorAttrRe, anchorFingerprint,
 } from './handbookSource.mjs'
 
 export { ANCHOR_ATTRS, anchorTagRe, anchorAttrRe }
@@ -488,7 +487,7 @@ export function assemblePack(walks, entries = []) {
   // and into the pack's version hash on every re-pin. Strip it here, once, so
   // comparePack keeps comparing what the page actually serves.
   const sortedWalks = [...walks]
-    .map((w) => ({ ...w, steps: (w.steps ?? []).map(({ checked, ...step }) => step) }))
+    .map((w) => ({ ...w, steps: (w.steps ?? []).map(({ checked: _checked, ...step }) => step) }))
     .sort((a, b) => a.id.localeCompare(b.id))
   const handbook = [...entries]
     .sort((a, b) => a.title.localeCompare(b.title))
