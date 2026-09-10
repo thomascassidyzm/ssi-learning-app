@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 // The first-step feasibility probe. Do not extend until a real belt transition
 // has been observed from the blank fixture; never accelerate or skip playback.
-import { readFileSync, mkdirSync, writeFileSync } from 'node:fs'
+import { readFileSync, mkdirSync, writeFileSync, existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { chromium } from '@playwright/test'
 import { FIXTURES, FIXTURE_COURSE } from './fixtures/test-accounts.mjs'
 import { CHROME_PATH, SB_URL, ANON_KEY, svc, sessionKey, instrument, NET, waitAudible } from './journeys/lib.mjs'
+import { firstBeltVerdict } from './release-evidence.mjs'
 
 const base = process.env.BASE_URL || 'https://staging.saysomethingin.app'
 if (new URL(base).hostname !== 'staging.saysomethingin.app') throw new Error('This fixture-mutating probe is restricted to staging')
@@ -15,6 +16,9 @@ const out = join(process.env.CS_SCRATCH, 'tmp', 'release-pass', new Date().toISO
 mkdirSync(out, { recursive: true, mode: 0o700 })
 const result = { step: 'first-belt-change', run: 'web', verdict: 'not checked', base, evidence: {}, notes: [] }
 let browser
+let interrupted = false
+process.on('SIGINT', () => { interrupted = true })
+process.on('SIGTERM', () => { interrupted = true })
 try {
   const secrets = Object.fromEntries(readFileSync(join(homedir(), '.secrets/ssi-test-accounts.env'), 'utf8')
     .split('\n').map(l => l.match(/^([A-Z0-9_]+)=(.*)$/)).filter(Boolean).map(m => [m[1], m[2]]))
@@ -36,7 +40,9 @@ try {
   result.evidence.fixtureReset = true
   const version = await fetch(`${base}/version.json`, { signal: AbortSignal.timeout(15000), cache: 'no-store' }).then(r => r.json())
   result.evidence.deployment = version
-  browser = await chromium.launch({ executablePath: CHROME_PATH, args: ['--no-sandbox'] })
+  const shell = CHROME_PATH.replace('/chromium-', '/chromium_headless_shell-')
+    .replace('/chrome-linux64/chrome', '/chrome-headless-shell-linux64/chrome-headless-shell')
+  browser = await chromium.launch({ executablePath: process.env.CHROME_BIN || (existsSync(shell) ? shell : CHROME_PATH), args: ['--no-sandbox'] })
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' })
   await context.addInitScript(instrument)
   await context.addInitScript(([key, value]) => localStorage.setItem(key, JSON.stringify(value)), [sessionKey, session])
@@ -76,7 +82,7 @@ try {
   result.evidence.audio = audible
   if (!audible) throw new Error('No lesson media-clock advancement observed within 45 seconds')
   const deadline = Date.now() + Number(process.env.BELT_TIMEOUT_MS || 3600000)
-  while (Date.now() < deadline) {
+  while (!interrupted && Date.now() < deadline) {
     const body = await page.locator('body').innerText()
     result.evidence.lastScreen = body
     result.evidence.pageErrors = errors
@@ -86,9 +92,11 @@ try {
     if (await yellow.isVisible()) {
       await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))
       await page.screenshot({ path: join(out, 'transition.png') })
+      result.evidence.transitionScreenshot = true
       result.evidence.transition = await yellow.evaluate(el => ({ className: el.className, colour: getComputedStyle(el).getPropertyValue('--belt-color') }))
       result.evidence.runtimeBuilds = [...runtimeBuilds]
       const after = await fetch(`${base}/version.json`, { signal: AbortSignal.timeout(15000), cache: 'no-store' }).then(r => r.json())
+      result.evidence.afterBuild = after.buildNumber
       if (after.buildNumber !== version.buildNumber || !runtimeBuilds.has(version.buildNumber)) {
         throw new Error('Deployed build changed or running bundle identity was not proven')
       }
@@ -99,13 +107,17 @@ try {
     await page.waitForTimeout(15000)
   }
   await page.screenshot({ path: join(out, 'last-screen.png') })
+  if (interrupted) result.notes.push('Probe interrupted; step incomplete')
   if (!result.notes.length) result.notes.push('No first belt transition observed within the probe budget')
 } catch (e) {
   result.notes.push(e.message.split('\n')[0])
 } finally {
   if (browser) await browser.close()
+  const decision = firstBeltVerdict(result.evidence)
+  result.verdict = decision.verdict
+  result.notes.push(decision.note)
   writeFileSync(join(out, 'result.json'), JSON.stringify(result, null, 2) + '\n')
-  console.log(`NOT CHECKED — first-belt-change :: ${result.notes.join('; ')}`)
+  console.log(`${result.verdict.toUpperCase()} — first-belt-change :: ${result.notes.join('; ')}`)
   console.log(`Evidence: ${out}`)
 }
-process.exitCode = 2
+process.exitCode = result.verdict === 'pass' ? 0 : result.verdict === 'fail' ? 1 : 2

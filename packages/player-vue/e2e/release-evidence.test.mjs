@@ -4,7 +4,7 @@ import { firstBeltVerdict } from './release-evidence.mjs'
 
 const complete = () => ({
   fixtureReset: true, before: 'Spanish\nWhite Belt',
-  audio: { firstPlayCall: 1, firstLessonAudible: 500, firstLessonSrc: 'https://example.invalid/lesson.mp3' },
+  audio: { firstPlayCall: 1, firstLessonAudible: 500, firstLessonSrc: 'https://example.invalid/lesson.mp3', nonzeroFrames: 100 },
   startPaint: { kind: 'structural', paintedMs: 50 },
   transition: { className: 'player belt-yellow' }, transitionScreenshot: true,
   deployment: { buildNumber: 'abcdef0' }, afterBuild: 'abcdef0', runtimeBuilds: ['abcdef0'], pageErrors: [],
@@ -14,6 +14,7 @@ test('play promises, brand chimes, missing screenshots and drift cannot release 
   assert.equal(firstBeltVerdict(complete()).verdict, 'pass')
   for (const patch of [
     { audio: { firstPlayCall: 1 } },
+    { audio: { firstPlayCall: 1, firstLessonAudible: 547, firstLessonSrc: 'blob:https://release-probe.invalid/clip', nonzeroFrames: 0 } },
     { audio: { firstLessonAudible: 500, firstLessonSrc: 'https://example.invalid/brand.mp3' } },
     { fixtureReset: false }, { before: 'Yellow Belt' },
     { startPaint: { kind: 'timeout' } }, { transitionScreenshot: false },
