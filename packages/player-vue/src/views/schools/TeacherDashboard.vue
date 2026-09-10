@@ -17,6 +17,7 @@ import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 import { getLanguageName, useI18n } from '@/composables/useI18n'
 import { deriveBelt, type Belt } from '@/composables/schools/belts'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
+import { redeemLink } from '@/composables/schools/inviteLink'
 
 type Health = 'excellent' | 'good' | 'needs-attention' | 'inactive'
 type SortKey = 'name' | 'students' | 'hours' | 'journey'
@@ -329,16 +330,23 @@ async function handlePlayClass(cls: { id: string; class_name: string; course_cod
   await launchClassSession(cls)
 }
 
-// Per-class share link + one-click copy (mirrors the tutor dashboard so the
-// school lane gets the same "create class → copy link → fill roster" flow).
+// Per-class share link + one-click copy. ONE DOOR (2026-09-10): this is the
+// SAME /redeem/ class link the class page's Invite students card hands out,
+// built by the same helper (inviteLink.redeemLink). It used to be the /with/
+// checkout gateway while the class page offered /redeem/, and the Handbook
+// said they were the same — so a teacher who believed it sent a class of
+// pupils to a card checkout. A pupil on this link gives a first name and
+// lands in the class on the school's licence; nothing is bought here.
 const origin = typeof window !== 'undefined' ? window.location.origin : ''
 const copiedClassId = ref<string | null>(null)
 function shareUrlFor(cls: { join_code: string }): string {
-  return `${origin}/with/${cls.join_code}`
+  return redeemLink(cls.join_code, origin) ?? ''
 }
 async function copyShareLink(cls: { id: string; join_code: string }) {
+  const url = shareUrlFor(cls)
+  if (!url) return
   try {
-    await navigator.clipboard.writeText(shareUrlFor(cls))
+    await navigator.clipboard.writeText(url)
     copiedClassId.value = cls.id
     setTimeout(() => { if (copiedClassId.value === cls.id) copiedClassId.value = null }, 2000)
   } catch {
@@ -624,11 +632,16 @@ function exportCsv() {
                    2. Find the class's row.
                    3. Tap **Copy link**.
                    4. Paste it into your email or your lesson slide.
-                   Worth knowing. It is the same link the class page offers, so a
-                   student who follows it lands in that class either way.
-                   checked: 0500adc5.08226b73
+                   Worth knowing. It is the same class link the class page's
+                   **Invite students** card offers, the one that opens at
+                   saysomethingin.app/redeem. A pupil who follows it gives a
+                   first name and lands in your class on the school's licence,
+                   with nothing to pay and no card asked for. It is a class
+                   seat, not a personal account: it plays the class's course
+                   while your school's cover runs and the pupil is in the class.
+                   checked: 00ba1271.fa65dacb
               -->
-              <button type="button" class="share-btn" data-walk="classes-share-link" @click.stop="copyShareLink(cls)" :title="shareUrlFor(cls)">
+              <button type="button" class="share-btn" data-walk="classes-share-link" :disabled="!shareUrlFor(cls)" @click.stop="copyShareLink(cls)" :title="shareUrlFor(cls)">
                 {{ copiedClassId === cls.id ? t('schools.teacherDashboard.copied', 'Copied ✓') : t('schools.teacherDashboard.copyLink', 'Copy link') }}
               </button>
             </td>

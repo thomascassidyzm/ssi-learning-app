@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `e5de6a26067f` · generated 2026-09-10 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `16040835f050` · generated 2026-09-10 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -258,7 +258,7 @@ Section: getting-people-in · roles: school_admin, teacher · anchor: `classes-s
 3. Tap **Copy link**.
 4. Paste it into your email or your lesson slide.
 
-**Worth knowing.** It is the same link the class page offers, so a student who follows it lands in that class either way.
+**Worth knowing.** It is the same class link the class page's **Invite students** card offers, the one that opens at saysomethingin.app/redeem. A pupil who follows it gives a first name and lands in your class on the school's licence, with nothing to pay and no card asked for. It is a class seat, not a personal account: it plays the class's course while your school's cover runs and the pupil is in the class.
 
 ## Copy a school's joining links
 

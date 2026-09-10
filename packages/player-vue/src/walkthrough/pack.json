@@ -1,5 +1,5 @@
 {
-  "version": "e5de6a26067f",
+  "version": "16040835f050",
   "generatedAt": "2026-09-10",
   "walks": [
     {
@@ -1479,7 +1479,7 @@
         "Tap **Copy link**.",
         "Paste it into your email or your lesson slide."
       ],
-      "note": "It is the same link the class page offers, so a student who follows it lands in that class either way."
+      "note": "It is the same class link the class page's **Invite students** card offers, the one that opens at saysomethingin.app/redeem. A pupil who follows it gives a first name and lands in your class on the school's licence, with nothing to pay and no card asked for. It is a class seat, not a personal account: it plays the class's course while your school's cover runs and the pupil is in the class."
     },
     {
       "id": "copy-a-school-s-joining-links",
