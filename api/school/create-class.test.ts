@@ -30,6 +30,25 @@ vi.mock('../_utils/groupTreeAuth', () => ({
     c.isAdmin || visibleGroupIds.includes(groupId)),
 }))
 
+// The SCHOOL lane's authority (2026-09-10): a verified caller who is staff of
+// the named school. Mocked for the same reason as above — schoolMembershipsOf
+// and verifyAuthToken have their own tests; these assert this endpoint's USE
+// of them.
+let authUserId: string | null
+let isSsiAdmin: boolean
+let staffSchoolIds: string[]
+vi.mock('../_utils/auth', () => ({
+  verifyAdmin: vi.fn(async () => (isSsiAdmin ? { userId: authUserId } : { error: 'not admin' })),
+  verifyAuthToken: vi.fn(async () =>
+    authUserId ? { valid: true, userId: authUserId } : { valid: false, error: 'Unauthorized' }),
+}))
+vi.mock('../_utils/schoolStaff', () => ({
+  schoolMembershipsOf: vi.fn(async () => staffSchoolIds.map((schoolId) => ({ schoolId, role: 'teacher' }))),
+}))
+vi.mock('../_utils/classTeacherTag', () => ({
+  ensureClassTeacherTag: vi.fn(async () => ({ ok: true, created: true, reactivated: false })),
+}))
+
 vi.mock('../_utils/actAsGuard', () => ({ rejectIfViewAs: vi.fn(() => null) }))
 vi.mock('../_utils/mintRateLimit', () => ({
   enforceMintRateLimit: vi.fn(async () => ({ ok: true })),
@@ -116,6 +135,9 @@ beforeEach(async () => {
   }
   caller = { userId: 'leader-1', isAdmin: false, ownGroupId: 'root-org' }
   visibleGroupIds = ['root-org', 'sub-group']
+  authUserId = 'teacher-1'
+  isSsiAdmin = false
+  staffSchoolIds = ['school-1']
 })
 
 describe('POST /api/school/create-class', () => {
@@ -246,5 +268,89 @@ describe('POST /api/school/create-class — course entitlement', () => {
     const res = makeRes()
     await handler(makeReq({ group_id: 'root-org', class_name: 'Year 7 Welsh', course_code: 'cym_s_for_eng' }), res)
     expect(res.statusCode).toBe(201)
+  })
+})
+
+
+/**
+ * THE SCHOOL LANE (2026-09-10) — the /schools "Create class" button.
+ *
+ * It used to insert into `classes` straight from the browser
+ * (useClassesData.createClass), behind RLS `classes_insert`,
+ * `WITH CHECK (teacher_user_id = auth.uid()::text)`. That policy asks whose
+ * row it is and nothing about the course, so the entitlement ladder above was
+ * bypassed simply by not calling this endpoint. These tests fail on the
+ * pre-fix code for the plainest possible reason: a `school_id` body was a 400
+ * ("group_id is required"), because the lane did not exist.
+ */
+describe('POST /api/school/create-class — school lane', () => {
+  it('creates a class for a school, with the CREATOR as its lead teacher', async () => {
+    const res = makeRes()
+    await handler(makeReq({ school_id: 'school-1', class_name: 'Year 7 Welsh', course_code: 'cym_s_for_eng' }), res)
+    expect(res.statusCode).toBe(201)
+    expect(DB.classes).toHaveLength(1)
+    expect(DB.classes[0].school_id).toBe('school-1')
+    // The node lane's classes are teacher-less by design; this lane's are not
+    // — the creator is the lead, exactly as the RLS policy used to force.
+    expect(DB.classes[0].teacher_user_id).toBe('teacher-1')
+    // The school's own node, so every subtree reader finds it too.
+    expect(DB.classes[0].group_id).toBe('root-org')
+  })
+
+  it('REFUSES a premium course the school has no entitlement for — the bypass, closed', async () => {
+    const res = makeRes()
+    await handler(makeReq({ school_id: 'school-1', class_name: 'Free Spanish', course_code: 'spa_for_eng' }), res)
+    expect(res.statusCode).toBe(403)
+    expect(res.body.requires_checkout).toBe(true)
+    expect(DB.classes).toHaveLength(0)
+  })
+
+  it('allows the premium course the school is actually trialling', async () => {
+    DB.schools[0].trial_course_code = 'spa_for_eng'
+    const res = makeRes()
+    await handler(makeReq({ school_id: 'school-1', class_name: 'Spanish 1', course_code: 'spa_for_eng' }), res)
+    expect(res.statusCode).toBe(201)
+  })
+
+  it('REFUSES a school the caller is not staff of — 403, nothing written', async () => {
+    staffSchoolIds = ['some-other-school']
+    const res = makeRes()
+    await handler(makeReq({ school_id: 'school-1', class_name: 'Pwned', course_code: 'cym_s_for_eng' }), res)
+    expect(res.statusCode).toBe(403)
+    expect(DB.classes).toHaveLength(0)
+  })
+
+  it('401s an unauthenticated caller', async () => {
+    authUserId = null
+    const res = makeRes()
+    await handler(makeReq({ school_id: 'school-1', class_name: 'X', course_code: 'cym_s_for_eng' }), res)
+    expect(res.statusCode).toBe(401)
+    expect(DB.classes).toHaveLength(0)
+  })
+
+  it('an ssi_admin needs no staff membership', async () => {
+    authUserId = 'admin-1'
+    isSsiAdmin = true
+    staffSchoolIds = []
+    const res = makeRes()
+    await handler(makeReq({ school_id: 'school-1', class_name: 'Support class', course_code: 'cym_s_for_eng' }), res)
+    expect(res.statusCode).toBe(201)
+    expect(DB.classes[0].teacher_user_id).toBe('admin-1')
+  })
+
+  it('404s a school id that does not exist', async () => {
+    staffSchoolIds = ['ghost-school']
+    const res = makeRes()
+    await handler(makeReq({ school_id: 'ghost-school', class_name: 'X', course_code: 'cym_s_for_eng' }), res)
+    expect(res.statusCode).toBe(404)
+    expect(DB.classes).toHaveLength(0)
+  })
+
+  it('mints the invite_codes row on this lane too', async () => {
+    const res = makeRes()
+    await handler(makeReq({ school_id: 'school-1', class_name: 'Year 9', course_code: 'cym_s_for_eng' }), res)
+    expect(res.statusCode).toBe(201)
+    expect(DB.invite_codes).toHaveLength(1)
+    expect(DB.invite_codes[0].grants_class_id).toBe(DB.classes[0].id)
   })
 })
