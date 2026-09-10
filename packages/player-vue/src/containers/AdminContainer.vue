@@ -97,11 +97,11 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
         </svg>
         <span>Courses</span>
       </router-link>
-      <router-link to="/admin/analytics" class="bottom-nav-item" :class="{ active: route.path === '/admin/analytics' }">
+      <router-link to="/intel/pulse" class="bottom-nav-item" :class="{ active: route.path.startsWith('/intel') }">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
         </svg>
-        <span>Stats</span>
+        <span>Questions</span>
       </router-link>
       <router-link to="/admin/release-notes" class="bottom-nav-item" :class="{ active: route.path === '/admin/release-notes' }">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
