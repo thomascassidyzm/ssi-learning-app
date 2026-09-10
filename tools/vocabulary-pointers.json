@@ -111,8 +111,8 @@
     {
       "term": "LAYER-1 SEEDS PLAY t k t t ALWAYS",
       "code": "DEFAULT_LISTENING_PATTERN -> l1PlaylistFromPattern",
-      "status": "ambiguous",
-      "note": "Shape holds, VOICE ORDER IS AN OPEN QUESTION FOR TOM. Code ships target(v1), known, target(v2), target(v1) — v2 THIRD. Tom's stated order is target, known, v1, v2 — v2 LAST. The DB row algorithm_config['listening'].seedPlaylist IS ['t1','known','t1','t2'], i.e. Tom's order, but it is DEAD on the learner path: LearningPlayer.vue:4421 always supplies a listeningPolicy, so the ternary at useLayer1Scheduler.ts:819 never takes the c.seedPlaylist arm for a real learner. WHICH ORDER IS WANTED IS TOM'S CALL — not a defect until he says so.",
+      "status": "clean",
+      "note": "SETTLED 2026-09-10. The code's order is the wanted order: target voice 1, known, target voice 2, target voice 1 — v2 THIRD. Tom, asked whether the code was right or whether v2 should come last: \"this order is fine: The voice ordering inside drill — code plays target v1, known, target v2, target v1. You'd said v2 last.\" His earlier stated order with v2 last is withdrawn. The question was put to him about DRILL; it lands here because DEFAULT_LISTENING_PATTERN is one pattern, mode-agnostic and layer-agnostic — layer 1 maps it onto a seed's two recorded voices, layer 2 onto a pod sentence's target and translation clips — so the ruling settles it everywhere. The DB row algorithm_config['listening'].seedPlaylist is a DEAD second definition: LearningPlayer.vue:4421 always supplies a listeningPolicy, so the ternaries at useLayer1Scheduler.ts:819 and :881 never take the c.seedPlaylist arm for a real learner. Dead on the learner path, not unreachable — it stays admin-editable on the Listening config page, so it was aligned to ['t1','known','t2','t1'] on 2026-09-10, from ['t1','known','t1','t2'].",
       "pointers": [
         {
           "file": "packages/player-vue/src/playback/listeningExposureRamp.ts",
@@ -135,6 +135,11 @@
           "quote": "const list = policy ? l1PlaylistFromPattern(policy.pattern) : c.seedPlaylist"
         },
         {
+          "file": "packages/player-vue/src/composables/useLayer1Scheduler.ts",
+          "line": 881,
+          "quote": "const list = policy ? l1PlaylistFromPattern(policy.pattern) : c.seedPlaylist"
+        },
+        {
           "file": "packages/player-vue/src/components/LearningPlayer.vue",
           "line": 4421,
           "quote": "listeningPolicy: listeningPlayPolicy,"
@@ -143,6 +148,11 @@
           "file": "packages/player-vue/src/composables/useAlgorithmConfig.ts",
           "line": 861,
           "quote": "playPattern: DEFAULT_LISTENING_PATTERN,"
+        },
+        {
+          "file": "packages/player-vue/src/components/LearningPlayer.vue",
+          "line": 4392,
+          "quote": "if (Array.isArray(c.seedPlaylist) && c.seedPlaylist.length) out.seedPlaylist = c.seedPlaylist"
         }
       ]
     },

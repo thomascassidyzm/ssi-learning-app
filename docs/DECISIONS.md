@@ -1,3 +1,29 @@
+## 2026-09-10 — The layer-1 voice order is settled: v2 third, not last (job #74, branch cs/74-glossary-voice-order-ruling)
+
+Tom ruled on the one open question the vocabulary glossary was carrying. Asked whether the code was
+right or whether target voice 2 should come last, he answered: *"this order is fine: The voice
+ordering inside drill — code plays target v1, known, target v2, target v1. You'd said v2 last."* His
+earlier stated order, with v2 last, is withdrawn by him. The code was already correct and does not
+change.
+
+- **The ruling settles the pattern everywhere, not just in drill.** The question was put about
+  drill; the constant is `DEFAULT_LISTENING_PATTERN` at `listeningExposureRamp.ts:84`, which is one
+  pattern, mode-agnostic and layer-agnostic — layer 1 maps it onto a seed's two recorded voices,
+  layer 2 onto a pod sentence's target and translation clips. So the entry it closes is
+  `LAYER-1 SEEDS PLAY t k t t ALWAYS` in `tools/vocabulary-pointers.json`, now `clean`, carrying his
+  words rather than a summary of them.
+- **The dead `seedPlaylist` DB row was aligned rather than left holding the rejected order.**
+  `algorithm_config['listening'].seedPlaylist` held `['t1','known','t1','t2']` — the withdrawn
+  order. It is dead on the learner path: `LearningPlayer.vue:4421` always supplies a
+  `listeningPolicy`, so neither ternary at `useLayer1Scheduler.ts:819` or `:881` takes the
+  `c.seedPlaylist` arm for a real learner. Dead is not unreachable, though: the field stays
+  admin-editable on the Listening config page, so a value Tom has just rejected sitting there is a
+  landmine for the next admin. It was written to `['t1','known','t2','t1']` and read back. Zero
+  effect on what any learner hears, by definition of the arm never being taken.
+- **Two pointers added, no prose about behaviour.** The second live ternary at `:881` and the
+  config read at `LearningPlayer.vue:4392` were unpointed; they are pointers now. 63 pointers across
+  17 terms, all resolving.
+
 ## 2026-09-08 — The 30-day grace: a family member's cover outlives the plan name (job #402)
 
 Tom's ruling, superseding #376·F **D8** ("no grace discount, the end-of-period window is the
