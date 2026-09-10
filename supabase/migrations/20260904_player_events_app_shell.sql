@@ -14,8 +14,16 @@
 -- user-agent's Android `; wv)` WebView marker, and tolerates the column being
 -- absent so telemetry cannot break on deploy ordering in either direction.
 --
--- APPLY BY HAND (canary method, supabase/secfix-toolkit/). No RLS change:
--- player_events' posture is untouched by adding a column.
+-- APPLIED LIVE 2026-09-10 by the canary method
+-- (supabase/secfix-toolkit/canary_player_events_app_shell.cjs): one transaction,
+-- the real insert replayed both with and without app_shell, the row count
+-- asserted unchanged, COMMIT only on green. 847,503 rows before and after.
+-- No RLS change: player_events' posture is untouched by adding a column.
+--
+-- The tolerate-absent fallback in api/player-events.ts STAYS. The column is
+-- live in this database, but the code has to keep running against any
+-- environment that predates it, and losing all telemetry to buy one field is
+-- the trade that fallback exists to refuse.
 
 ALTER TABLE public.player_events
   ADD COLUMN IF NOT EXISTS app_shell text;
