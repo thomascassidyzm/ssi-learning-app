@@ -303,7 +303,26 @@
     "fixesMostAudioLoading": "Behebt die meisten Audio- und Ladeprobleme. Du bleibst angemeldet.",
     "addHomeScreenFaster": "Zum Home-Bildschirm hinzufügen für schnelleren Offline-Zugriff",
     "plansFromMonth": "£15/Monat für ein Konto, £25/Monat für sechs",
-    "upgrade": "Upgrade"
+    "upgrade": "Upgrade",
+    "and": "und",
+    "changeToPremium": "Zu SSi Premium wechseln",
+    "changeToPremiumAlone": "Ab {date} zahlst du {price} für ein Konto. Niemand sonst nutzt deinen Tarif.",
+    "changeToPremiumBusy": "Wird geändert...",
+    "changeToPremiumChild": "{name} behält das Konto und alles Gelernte und kann den kostenlosen Teil des Kurses weiter nutzen. Unter „Familie verwalten“ kannst du jederzeit einen neuen Anmeldelink anfordern.",
+    "changeToPremiumConfirm": "Am {date} zu Premium wechseln",
+    "changeToPremiumDesc": "Ein Konto, {price}. Die Plätze deiner Familie enden am {date}",
+    "changeToPremiumInvited": "{email} ist noch nicht beigetreten und wird nicht benachrichtigt.",
+    "changeToPremiumScheduled": "Wechselt am {date} zu SSi Premium. Alle in deinem Tarif behalten bis zum {coverDate} ihren Zugang",
+    "changeToPremiumTitle": "Zu SSi Premium wechseln?",
+    "changeToPremiumWho": "Dein Tarif wechselt am {date} zu SSi Premium und du behältst Premium für {price}. {names} behalten danach noch 30 Tage lang ihren Zugang, bis zum {coverDate}. Alles Gelernte bleibt erhalten.",
+    "childAccountTag": "Kind",
+    "familyEndsKeepGoing": "Weitermachen",
+    "familyEndsOn": "Dein Premium-Zugang über die Familie endet am {date}. Mach für £15 im Monat weiter",
+    "invitedTag": "eingeladen",
+    "keepFamilyDesc": "Bei SSi-Familie bleiben. Die Plätze deiner Familie bleiben bestehen",
+    "nothingSavedYet": "Auf diesem Gerät ist noch nichts gespeichert. Wenn du eine frühere Version dieser App genutzt hast, sind dein Stand und deine Downloads dort geblieben. Melde dich an, um deinen Fortschritt aus deinem Konto wiederherzustellen.",
+    "priceAnnual": "£150 im Jahr",
+    "priceMonthly": "£15 im Monat"
   },
   "belt": {
     "yourProgress": "Dein Fortschritt",
@@ -642,7 +661,9 @@
     "emailsMustMatch": "Diese beiden E-Mail-Adressen stimmen nicht überein.",
     "backToPlans": "Zurück zu den Tarifen",
     "manageSubscription": "Zahlung & Rechnungen",
-    "opening": "Wird geöffnet…"
+    "opening": "Wird geöffnet…",
+    "childAccountBody": "Frag deine erwachsene Bezugsperson nach dem Familientarif.",
+    "childAccountTitle": "Frag deine erwachsene Bezugsperson"
   },
   "family": {
     "family": "Familie",
@@ -654,7 +675,12 @@
     "noOneAddedYet": "Noch niemand hinzugefügt.",
     "addChild": "+ Kind hinzufügen",
     "firstName": "Vorname",
-    "inviteByEmail": "+ Per E-Mail einladen"
+    "inviteByEmail": "+ Per E-Mail einladen",
+    "planCancelsOn": "Dein Tarif endet am {date}. Alle hier behalten bis dahin ihren Zugang und niemand wird entfernt. Alles Gelernte bleibt erhalten.",
+    "planEndsOn": "Dein Tarif wechselt am {date} zu SSi Premium. Alle hier behalten danach noch 30 Tage lang ihren Zugang, bis zum {coverDate}, und niemand wird entfernt. Alles Gelernte bleibt erhalten.",
+    "removeChildConfirm": "{name} entfernen? {name} behält das Konto und alles Gelernte und kann den kostenlosen Teil des Kurses weiter nutzen. Du kannst hier jederzeit einen neuen Anmeldelink anfordern.",
+    "removedChildAccount": "Behält das Konto und alles Gelernte. Du kannst jederzeit einen Anmeldelink anfordern.",
+    "removedChildrenTitle": "Nicht mehr im Tarif"
   },
   "common": {
     "noMatchesFor": "Keine Treffer für „{query}“",

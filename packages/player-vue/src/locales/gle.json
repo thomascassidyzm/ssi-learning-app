@@ -303,7 +303,26 @@
     "fixesMostAudioLoading": "Réitíonn sé formhór na bhfadhbanna fuaime agus lódála. Fanann tú sínithe isteach.",
     "addHomeScreenFaster": "Cuir leis do scáileán baile le haghaidh rochtain as líne níos tapúla",
     "plansFromMonth": "£15/mí do chuntas amháin, £25/mí do sé cinn",
-    "upgrade": "Uasghrádaigh"
+    "upgrade": "Uasghrádaigh",
+    "and": "agus",
+    "changeToPremium": "Athraigh go SSi Premium",
+    "changeToPremiumAlone": "Ó {date} ar aghaidh, íocann tú {price} as cuntas amháin. Níl aon duine eile ar do phlean.",
+    "changeToPremiumBusy": "Ag athrú...",
+    "changeToPremiumChild": "Coinníonn {name} an cuntas agus gach rud atá foghlamtha acu, agus is féidir leo leanúint ar aghaidh leis an gcuid saor in aisce den chúrsa. Is féidir leat nasc nua sínithe isteach a fháil dóibh am ar bith faoi “Bainistigh an teaghlach”.",
+    "changeToPremiumConfirm": "Athraigh go Premium ar {date}",
+    "changeToPremiumDesc": "Cuntas amháin, {price}. Críochnaíonn áiteanna do theaghlaigh ar {date}",
+    "changeToPremiumInvited": "Níl {email} tagtha isteach fós agus ní chuirfear ar an eolas iad.",
+    "changeToPremiumScheduled": "Athraíonn go SSi Premium ar {date}. Coinníonn gach duine ar do phlean a rochtain go dtí {coverDate}",
+    "changeToPremiumTitle": "Athraigh go SSi Premium?",
+    "changeToPremiumWho": "Athraíonn do phlean go SSi Premium ar {date} agus coinníonn tú Premium ar {price}. Coinníonn {names} a rochtain ar feadh 30 lá eile, go dtí {coverDate}. Fanann gach rud atá foghlamtha acu.",
+    "childAccountTag": "leanbh",
+    "familyEndsKeepGoing": "Lean ort",
+    "familyEndsOn": "Críochnaíonn do rochtain teaghlaigh ar Premium ar {date}. Lean ort ar £15 sa mhí",
+    "invitedTag": "cuireadh tugtha",
+    "keepFamilyDesc": "Fan ar Theaghlach SSi. Leanann áiteanna do theaghlaigh ar aghaidh",
+    "nothingSavedYet": "Níl aon rud sábháilte ar an ngléas seo fós. Má d'úsáid tú leagan níos luaithe den aip seo, d'fhan d'áit agus d'íoslódálacha leis. Sínigh isteach chun do dhul chun cinn a fháil ar ais ó do chuntas.",
+    "priceAnnual": "£150 sa bhliain",
+    "priceMonthly": "£15 sa mhí"
   },
   "belt": {
     "yourProgress": "Do dhul chun cinn",
@@ -642,7 +661,9 @@
     "emailsMustMatch": "Níl an dá sheoladh ríomhphoist sin ag teacht le chéile.",
     "backToPlans": "Ar ais chuig na pleananna",
     "manageSubscription": "Íocaíocht agus sonraisc",
-    "opening": "Á oscailt…"
+    "opening": "Á oscailt…",
+    "childAccountBody": "Cuir ceist ar an duine fásta atá ag tabhairt aire duit faoin bplean teaghlaigh.",
+    "childAccountTitle": "Cuir ceist ar do dhuine fásta"
   },
   "family": {
     "family": "Teaghlach",
@@ -654,7 +675,12 @@
     "noOneAddedYet": "Níor cuireadh aon duine leis fós.",
     "addChild": "+ Cuir leanbh leis",
     "firstName": "Céadainm",
-    "inviteByEmail": "+ Tabhair cuireadh trí ríomhphost"
+    "inviteByEmail": "+ Tabhair cuireadh trí ríomhphost",
+    "planCancelsOn": "Críochnaíonn do phlean ar {date}. Coinníonn gach duine anseo a rochtain go dtí sin agus ní bhaintear aon duine. Fanann gach rud atá foghlamtha acu.",
+    "planEndsOn": "Athraíonn do phlean go SSi Premium ar {date}. Coinníonn gach duine anseo a rochtain ar feadh 30 lá eile, go dtí {coverDate}, agus ní bhaintear aon duine. Fanann gach rud atá foghlamtha acu.",
+    "removeChildConfirm": "Bain {name}? Coinníonn {name} an cuntas agus gach rud atá foghlamtha acu, agus is féidir leo leanúint ar aghaidh leis an gcuid saor in aisce den chúrsa. Is féidir leat nasc nua sínithe isteach a fháil dóibh anseo am ar bith.",
+    "removedChildAccount": "Coinníonn siad an cuntas agus gach rud atá foghlamtha acu. Faigh nasc sínithe isteach am ar bith.",
+    "removedChildrenTitle": "Níl siad ar an bplean a thuilleadh"
   },
   "common": {
     "noMatchesFor": "Gan torthaí ar “{query}”",

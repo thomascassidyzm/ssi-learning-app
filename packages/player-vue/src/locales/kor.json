@@ -303,7 +303,26 @@
     "fixesMostAudioLoading": "대부분의 음성 및 로딩 문제를 해결해요. 로그인 상태는 유지돼요.",
     "addHomeScreenFaster": "홈 화면에 추가하면 더 빠르고 오프라인에서도 접근할 수 있어요",
     "plansFromMonth": "계정 1개 월 15파운드, 6개 월 25파운드",
-    "upgrade": "업그레이드"
+    "upgrade": "업그레이드",
+    "and": "및",
+    "changeToPremium": "SSi 프리미엄으로 변경",
+    "changeToPremiumAlone": "{date}부터 계정 하나에 {price}를 지불합니다. 플랜에 다른 멤버는 없습니다.",
+    "changeToPremiumBusy": "변경 중...",
+    "changeToPremiumChild": "{name} 계정과 학습한 내용은 모두 유지되며 코스의 무료 부분을 계속 이용할 수 있습니다. ‘가족 관리’에서 언제든 새 로그인 링크를 받을 수 있습니다.",
+    "changeToPremiumConfirm": "{date}에 프리미엄으로 변경",
+    "changeToPremiumDesc": "계정 하나, {price}. 가족의 이용 자리는 {date}에 종료됩니다",
+    "changeToPremiumInvited": "{email} 계정은 아직 참여하지 않았으며 알림을 받지 않습니다.",
+    "changeToPremiumScheduled": "{date}에 SSi 프리미엄으로 변경됩니다. 플랜의 모든 멤버는 {coverDate}까지 계속 이용할 수 있습니다",
+    "changeToPremiumTitle": "SSi 프리미엄으로 변경할까요?",
+    "changeToPremiumWho": "플랜이 {date}에 SSi 프리미엄으로 변경되며 본인은 {price}에 프리미엄을 계속 이용합니다. {names} 멤버는 그 후 30일 동안, {coverDate}까지 계속 이용할 수 있습니다. 학습한 내용은 모두 유지됩니다.",
+    "childAccountTag": "어린이",
+    "familyEndsKeepGoing": "계속하기",
+    "familyEndsOn": "가족을 통한 프리미엄 이용이 {date}에 종료됩니다. 월 £15로 계속하세요",
+    "invitedTag": "초대됨",
+    "keepFamilyDesc": "SSi 패밀리 유지. 가족의 이용 자리가 계속 유지됩니다",
+    "nothingSavedYet": "이 기기에는 아직 저장된 내용이 없습니다. 이전 버전의 앱을 사용했다면 학습 위치와 다운로드는 그 버전에 남아 있습니다. 로그인하면 계정에서 진행 상황을 복원합니다.",
+    "priceAnnual": "연 £150",
+    "priceMonthly": "월 £15"
   },
   "belt": {
     "yourProgress": "나의 진행률",
@@ -642,7 +661,9 @@
     "emailsMustMatch": "두 이메일이 일치하지 않습니다.",
     "backToPlans": "요금제로 돌아가기",
     "manageSubscription": "결제 및 청구서",
-    "opening": "여는 중…"
+    "opening": "여는 중…",
+    "childAccountBody": "가족 플랜에 대해 보호자에게 물어보세요.",
+    "childAccountTitle": "보호자에게 물어보세요"
   },
   "family": {
     "family": "가족",
@@ -654,7 +675,12 @@
     "noOneAddedYet": "아직 추가된 사람이 없어요.",
     "addChild": "+ 자녀 추가",
     "firstName": "이름",
-    "inviteByEmail": "+ 이메일로 초대"
+    "inviteByEmail": "+ 이메일로 초대",
+    "planCancelsOn": "플랜이 {date}에 종료됩니다. 그때까지 모두 계속 이용할 수 있으며 아무도 삭제되지 않습니다. 학습한 내용은 모두 유지됩니다.",
+    "planEndsOn": "플랜이 {date}에 SSi 프리미엄으로 변경됩니다. 모두 그 후 30일 동안, {coverDate}까지 계속 이용할 수 있으며 아무도 삭제되지 않습니다. 학습한 내용은 모두 유지됩니다.",
+    "removeChildConfirm": "{name} 계정을 플랜에서 삭제할까요? {name} 계정과 학습한 내용은 모두 유지되며 코스의 무료 부분을 계속 이용할 수 있습니다. 여기서 언제든 새 로그인 링크를 받을 수 있습니다.",
+    "removedChildAccount": "계정과 학습한 내용이 모두 유지됩니다. 언제든 로그인 링크를 받을 수 있습니다.",
+    "removedChildrenTitle": "플랜에서 제외된 멤버"
   },
   "common": {
     "noMatchesFor": "“{query}”에 대한 결과가 없습니다",

@@ -306,7 +306,26 @@
     "plansFromMonth": "£15/mis am un cyfrif, £25/mis am chwech",
     "upgrade": "Uwchraddio",
     "freeThrough": "Am ddim drwy",
-    "otherLanguagesOwnSubscription": "Mae angen tanysgrifiad ei hun ar ieithoedd eraill."
+    "otherLanguagesOwnSubscription": "Mae angen tanysgrifiad ei hun ar ieithoedd eraill.",
+    "and": "a",
+    "changeToPremium": "Newid i SSi Premiwm",
+    "changeToPremiumAlone": "O {date} ymlaen, byddwch yn talu {price} am un cyfrif. Does neb arall ar eich cynllun.",
+    "changeToPremiumBusy": "Yn newid...",
+    "changeToPremiumChild": "Mae {name} yn cadw ei gyfrif a phopeth mae wedi'i ddysgu, a gall barhau i ddefnyddio rhan am ddim y cwrs. Gallwch gael dolen fewngofnodi newydd ar ei gyfer unrhyw bryd yn «Rheoli'r teulu».",
+    "changeToPremiumConfirm": "Newid i Premiwm ar {date}",
+    "changeToPremiumDesc": "Un cyfrif, {price}. Mae lleoedd eich teulu yn dod i ben ar {date}",
+    "changeToPremiumInvited": "Nid yw {email} wedi ymuno eto ac ni fydd yn cael gwybod.",
+    "changeToPremiumScheduled": "Yn newid i SSi Premiwm ar {date}. Mae pawb ar eich cynllun wedi'u cynnwys tan {coverDate}",
+    "changeToPremiumTitle": "Newid i SSi Premiwm?",
+    "changeToPremiumWho": "Mae eich cynllun yn newid i SSi Premiwm ar {date} ac rydych yn cadw Premiwm am {price}. Mae {names} wedi'u cynnwys am 30 diwrnod ar ôl hynny, tan {coverDate}. Mae popeth maen nhw wedi'i ddysgu yn aros.",
+    "childAccountTag": "plentyn",
+    "familyEndsKeepGoing": "Dal ati",
+    "familyEndsOn": "Mae Premiwm eich teulu yn dod i ben ar {date}. Daliwch ati am £15 y mis",
+    "invitedTag": "wedi'i wahodd",
+    "keepFamilyDesc": "Aros gyda Teulu SSi. Mae lleoedd eich teulu yn parhau",
+    "nothingSavedYet": "Does dim wedi'i gadw ar y ddyfais hon eto. Os oeddech yn defnyddio fersiwn gynharach o'r ap hwn, arhosodd eich lle a'ch lawrlwythiadau gyda honno. Mewngofnodwch i adfer eich cynnydd o'ch cyfrif.",
+    "priceAnnual": "£150 y flwyddyn",
+    "priceMonthly": "£15 y mis"
   },
   "belt": {
     "yourProgress": "Dy gynnydd",
@@ -645,7 +664,9 @@
     "emailsMustMatch": "Dyw'r ddau e-bost ddim yn cyfateb.",
     "backToPlans": "Yn ôl i'r cynlluniau",
     "manageSubscription": "Taliadau ac anfonebau",
-    "opening": "Wrthi'n agor…"
+    "opening": "Wrthi'n agor…",
+    "childAccountBody": "Gofynnwch i'ch oedolyn am y cynllun teulu.",
+    "childAccountTitle": "Gofynnwch i'ch oedolyn"
   },
   "family": {
     "family": "Teulu",
@@ -657,7 +678,12 @@
     "noOneAddedYet": "Neb wedi'u hychwanegu eto.",
     "addChild": "+ Ychwanegu plentyn",
     "firstName": "Enw cyntaf",
-    "inviteByEmail": "+ Gwahodd drwy e-bost"
+    "inviteByEmail": "+ Gwahodd drwy e-bost",
+    "planCancelsOn": "Mae eich cynllun yn dod i ben ar {date}. Mae pawb yma wedi'u cynnwys tan hynny, ac ni fydd neb yn cael ei dynnu. Mae popeth maen nhw wedi'i ddysgu yn aros.",
+    "planEndsOn": "Mae eich cynllun yn newid i SSi Premiwm ar {date}. Mae pawb yma wedi'u cynnwys am 30 diwrnod ar ôl hynny, tan {coverDate}, ac ni fydd neb yn cael ei dynnu. Mae popeth maen nhw wedi'i ddysgu yn aros.",
+    "removeChildConfirm": "Tynnu {name}? Mae {name} yn cadw ei gyfrif a phopeth mae wedi'i ddysgu, a gall barhau i ddefnyddio rhan am ddim y cwrs. Gallwch gael dolen fewngofnodi newydd ar ei gyfer yma unrhyw bryd.",
+    "removedChildAccount": "Yn cadw ei gyfrif a phopeth mae wedi'i ddysgu. Gallwch gael dolen fewngofnodi unrhyw bryd.",
+    "removedChildrenTitle": "Ddim ar y cynllun mwyach"
   },
   "common": {
     "noMatchesFor": "Dim canlyniadau ar gyfer “{query}”",

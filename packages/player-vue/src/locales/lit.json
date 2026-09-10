@@ -303,7 +303,26 @@
     "fixesMostAudioLoading": "Išsprendžia daugumą garso ir įkėlimo problemų. Liksite prisijungę.",
     "addHomeScreenFaster": "Pridėkite prie pagrindinio ekrano greitesnei prieigai neprisijungus",
     "plansFromMonth": "£15/mėn. vienai paskyrai, £25/mėn. šešioms",
-    "upgrade": "Atnaujinti"
+    "upgrade": "Atnaujinti",
+    "and": "ir",
+    "changeToPremium": "Pereiti į SSi Premium",
+    "changeToPremiumAlone": "Nuo {date} mokėsite {price} už vieną paskyrą. Jūsų plane daugiau nieko nėra.",
+    "changeToPremiumBusy": "Keičiama...",
+    "changeToPremiumChild": "{name} išsaugo paskyrą ir viską, ką išmoko, ir gali toliau naudotis nemokama kurso dalimi. Skiltyje „Tvarkyti šeimą“ bet kada galite gauti naują prisijungimo nuorodą šiam vaikui.",
+    "changeToPremiumConfirm": "Pereiti į Premium {date}",
+    "changeToPremiumDesc": "Viena paskyra, {price}. Jūsų šeimos vietos baigiasi {date}",
+    "changeToPremiumInvited": "{email} dar neprisijungė ir pranešimo negaus.",
+    "changeToPremiumScheduled": "{date} keičiamas į SSi Premium. Visi jūsų plane išlaiko prieigą iki {coverDate}",
+    "changeToPremiumTitle": "Pereiti į SSi Premium?",
+    "changeToPremiumWho": "Jūsų planas {date} keičiamas į SSi Premium, o jūs išlaikote Premium už {price}. {names} išlaiko prieigą dar 30 dienų, iki {coverDate}. Viskas, ką jie išmoko, išlieka.",
+    "childAccountTag": "vaikas",
+    "familyEndsKeepGoing": "Tęsti",
+    "familyEndsOn": "Jūsų šeimos Premium prieiga baigiasi {date}. Tęskite už £15 per mėnesį",
+    "invitedTag": "pakviesta",
+    "keepFamilyDesc": "Likti su SSi šeima. Jūsų šeimos vietos išlieka",
+    "nothingSavedYet": "Šiame įrenginyje dar nieko neišsaugota. Jei naudojote ankstesnę šios programėlės versiją, jūsų vieta ir atsisiuntimai liko joje. Prisijunkite, kad atkurtumėte pažangą iš savo paskyros.",
+    "priceAnnual": "£150 per metus",
+    "priceMonthly": "£15 per mėnesį"
   },
   "belt": {
     "yourProgress": "Tavo pažanga",
@@ -642,7 +661,9 @@
     "emailsMustMatch": "Šie du el. pašto adresai nesutampa.",
     "backToPlans": "Atgal į planus",
     "manageSubscription": "Mokėjimai ir sąskaitos",
-    "opening": "Atveriama…"
+    "opening": "Atveriama…",
+    "childAccountBody": "Apie šeimos planą paklausk tavimi besirūpinančio suaugusiojo.",
+    "childAccountTitle": "Paklausk savo suaugusiojo"
   },
   "family": {
     "family": "Šeima",
@@ -654,7 +675,12 @@
     "noOneAddedYet": "Kol kas niekas nepridėtas.",
     "addChild": "+ Pridėti vaiką",
     "firstName": "Vardas",
-    "inviteByEmail": "+ Pakviesti el. paštu"
+    "inviteByEmail": "+ Pakviesti el. paštu",
+    "planCancelsOn": "Jūsų planas baigiasi {date}. Visi čia išlaiko prieigą iki tos dienos ir niekas nepašalinamas. Viskas, ką jie išmoko, išlieka.",
+    "planEndsOn": "Jūsų planas {date} keičiamas į SSi Premium. Visi čia išlaiko prieigą dar 30 dienų, iki {coverDate}, ir niekas nepašalinamas. Viskas, ką jie išmoko, išlieka.",
+    "removeChildConfirm": "Pašalinti {name}? {name} išsaugo paskyrą ir viską, ką išmoko, ir gali toliau naudotis nemokama kurso dalimi. Čia bet kada galite gauti naują prisijungimo nuorodą šiam vaikui.",
+    "removedChildAccount": "Išsaugo paskyrą ir viską, ką išmoko. Prisijungimo nuorodą galite gauti bet kada.",
+    "removedChildrenTitle": "Nebėra plane"
   },
   "common": {
     "noMatchesFor": "Nėra atitikmenų užklausai „{query}“",

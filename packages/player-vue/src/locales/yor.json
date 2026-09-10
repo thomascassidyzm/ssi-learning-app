@@ -303,7 +303,26 @@
     "fixesMostAudioLoading": "Ó máa ń tún ọ̀pọ̀lọpọ̀ ìṣòro ìró àti ìrùwá ṣe. Iwọ yóò dúró ní ìwọlé.",
     "addHomeScreenFaster": "Fi kún ojú-ìwé ilé rẹ fún ààyè tó yára síi, láìní ìsopọ̀",
     "plansFromMonth": "£15/oṣù fún àkántì kan, £25/oṣù fún mẹ́fà",
-    "upgrade": "Ṣe àgbéga"
+    "upgrade": "Ṣe àgbéga",
+    "and": "àti",
+    "changeToPremium": "Yí padà sí SSi Premium",
+    "changeToPremiumAlone": "Láti {date}, o máa san {price} fún àkántì kan. Kò sí ẹlòmíràn nínú ètò rẹ.",
+    "changeToPremiumBusy": "Ń yí padà...",
+    "changeToPremiumChild": "{name} yóò pa àkántì rẹ̀ àti gbogbo ohun tí ó ti kọ́ mọ́, ó sì lè máa lo apá ẹ̀kọ́ tí ó jẹ́ ọ̀fẹ́. O lè gba ìjápọ̀ tuntun fún wíwọlé fún un nígbàkigbà ní “Ṣàkóso ìdílé”.",
+    "changeToPremiumConfirm": "Yí padà sí Premium ní {date}",
+    "changeToPremiumDesc": "Àkántì kan, {price}. Àwọn àyè ìdílé rẹ yóò parí ní {date}",
+    "changeToPremiumInvited": "{email} kò tíì darapọ̀, a kò sì ní fi tó wọn létí.",
+    "changeToPremiumScheduled": "Yóò yí padà sí SSi Premium ní {date}. Gbogbo ẹni tó wà nínú ètò rẹ lè máa lò ó títí di {coverDate}",
+    "changeToPremiumTitle": "Yí padà sí SSi Premium?",
+    "changeToPremiumWho": "Ètò rẹ yóò yí padà sí SSi Premium ní {date}, o sì máa tẹ̀síwájú pẹ̀lú Premium fún {price}. {names} lè máa lò ó fún ọgbọ̀n ọjọ́ sí i lẹ́yìn náà, títí di {coverDate}. Gbogbo ohun tí wọ́n ti kọ́ yóò wà.",
+    "childAccountTag": "ọmọ",
+    "familyEndsKeepGoing": "Máa bá a lọ",
+    "familyEndsOn": "Premium tí o ń rí nípasẹ̀ ìdílé rẹ yóò parí ní {date}. Máa bá a lọ fún £15 lóṣù",
+    "invitedTag": "ẹni tí a pè",
+    "keepFamilyDesc": "Dúró lórí SSi Family. Àwọn àyè ìdílé rẹ yóò tẹ̀síwájú",
+    "nothingSavedYet": "A kò tíì fi ohunkóhun pamọ́ sórí ẹ̀rọ yìí. Tí o bá ti lo ẹ̀dà ìṣáájú ti ápù yìí, ibi tí o dé àti àwọn ohun tí o gbà sílẹ̀ ṣì wà níbẹ̀. Wọlé, ìlọsíwájú rẹ yóò sì padà láti àkántì rẹ.",
+    "priceAnnual": "£150 lọ́dún",
+    "priceMonthly": "£15 lóṣù"
   },
   "belt": {
     "yourProgress": "Ìtẹ̀síwájú rẹ",
@@ -642,7 +661,9 @@
     "emailsMustMatch": "Ímeèlì méjèèjì kò bára mu.",
     "backToPlans": "Padà sí àwọn ètò",
     "manageSubscription": "Ìsanwó àti àkọsílẹ̀-owó",
-    "opening": "Ń ṣí…"
+    "opening": "Ń ṣí…",
+    "childAccountBody": "Béèrè lọ́wọ́ àgbà tí ń tọ́jú rẹ nípa ètò ìdílé.",
+    "childAccountTitle": "Béèrè lọ́wọ́ àgbà rẹ"
   },
   "family": {
     "family": "Ìdílé",
@@ -654,7 +675,12 @@
     "noOneAddedYet": "Kò sí ẹnikẹ́ni tí a ti fi kún un síbẹ̀.",
     "addChild": "+ Fi ọmọ kún",
     "firstName": "Orúkọ àkọ́kọ́",
-    "inviteByEmail": "+ Pe nípasẹ̀ ímeèlì"
+    "inviteByEmail": "+ Pe nípasẹ̀ ímeèlì",
+    "planCancelsOn": "Ètò rẹ yóò parí ní {date}. Gbogbo ẹni tó wà níbí lè máa lò ó títí di ìgbà náà, a kò sì ní yọ ẹnikẹ́ni kúrò. Gbogbo ohun tí wọ́n ti kọ́ yóò wà.",
+    "planEndsOn": "Ètò rẹ yóò yí padà sí SSi Premium ní {date}. Gbogbo ẹni tó wà níbí lè máa lò ó fún ọgbọ̀n ọjọ́ sí i lẹ́yìn náà, títí di {coverDate}, a kò sì ní yọ ẹnikẹ́ni kúrò. Gbogbo ohun tí wọ́n ti kọ́ yóò wà.",
+    "removeChildConfirm": "Yọ {name} kúrò? {name} yóò pa àkántì rẹ̀ àti gbogbo ohun tí ó ti kọ́ mọ́, ó sì lè máa lo apá ẹ̀kọ́ tí ó jẹ́ ọ̀fẹ́. O lè gba ìjápọ̀ tuntun fún wíwọlé fún un níbí nígbàkigbà.",
+    "removedChildAccount": "Yóò pa àkántì rẹ̀ àti gbogbo ohun tí ó ti kọ́ mọ́. Gba ìjápọ̀ fún wíwọlé nígbàkigbà.",
+    "removedChildrenTitle": "Kò sí nínú ètò mọ́"
   },
   "common": {
     "noMatchesFor": "Kò sí àbájáde fún “{query}”",

@@ -303,7 +303,26 @@
     "fixesMostAudioLoading": "Əksər səs və yükləmə problemlərini həll edir. Siz daxil olmuş qalırsınız.",
     "addHomeScreenFaster": "Daha sürətli, oflayn giriş üçün əsas ekranınıza əlavə edin",
     "plansFromMonth": "bir hesab üçün £15/ay, altı hesab üçün £25/ay",
-    "upgrade": "Yüksəlt"
+    "upgrade": "Yüksəlt",
+    "and": "və",
+    "changeToPremium": "SSi Premium-a keçin",
+    "changeToPremiumAlone": "{date} tarixindən bir hesab üçün {price} ödəyirsiniz. Planınızda başqa heç kim yoxdur.",
+    "changeToPremiumBusy": "Dəyişdirilir...",
+    "changeToPremiumChild": "{name} hesabını və öyrəndiyi hər şeyi saxlayır, kursun pulsuz hissəsindən istifadə etməyə davam edə bilər. “Aiələni idarə et” bölməsindən onun üçün istənilən vaxt yeni giriş keçidi ala bilərsiniz.",
+    "changeToPremiumConfirm": "{date} tarixində Premium-a keçin",
+    "changeToPremiumDesc": "Bir hesab, {price}. Ailənizin yerləri {date} tarixində bitir",
+    "changeToPremiumInvited": "{email} hələ qoşulmayıb və ona bildiriş verilməyəcək.",
+    "changeToPremiumScheduled": "{date} tarixində SSi Premium-a keçir. Planınızdakı hər kəs {coverDate} tarixinədək girişini saxlayır",
+    "changeToPremiumTitle": "SSi Premium-a keçilsin?",
+    "changeToPremiumWho": "Planınız {date} tarixində SSi Premium-a keçir və siz Premium-u {price} qiymətinə saxlayırsınız. {names} bundan sonra daha 30 gün, {coverDate} tarixinədək girişini saxlayır. Öyrəndikləri hər şey qalır.",
+    "childAccountTag": "uşaq",
+    "familyEndsKeepGoing": "Davam edin",
+    "familyEndsOn": "Ailə Premium girişiniz {date} tarixində bitir. Ayda £15 ödəməklə davam edin",
+    "invitedTag": "dəvət olunub",
+    "keepFamilyDesc": "SSi Ailəsində qalın. Ailənizin yerləri qüvvədə qalır",
+    "nothingSavedYet": "Bu cihazda hələ heç nə saxlanmayıb. Bu tətbiqin əvvəlki versiyasından istifadə etmisinizsə, qaldığınız yer və endirmələriniz orada qalıb. Hesabınıza daxil olun, irəliləyişiniz bərpa olunsun.",
+    "priceAnnual": "İldə £150",
+    "priceMonthly": "Ayda £15"
   },
   "belt": {
     "yourProgress": "İrəliləyişiniz",
@@ -642,7 +661,9 @@
     "emailsMustMatch": "Bu iki e-poçt uyğun gəlmir.",
     "backToPlans": "Planlara qayıt",
     "manageSubscription": "Ödəniş və qaimə-fakturalar",
-    "opening": "Açılır…"
+    "opening": "Açılır…",
+    "childAccountBody": "Ailə planı barədə sizə baxan böyükdən soruşun.",
+    "childAccountTitle": "Böyüyünüzdən soruşun"
   },
   "family": {
     "family": "Ailə",
@@ -654,7 +675,12 @@
     "noOneAddedYet": "Hələ heç kim əlavə edilməyib.",
     "addChild": "+ Uşaq əlavə et",
     "firstName": "Ad",
-    "inviteByEmail": "+ E-poçtla dəvət et"
+    "inviteByEmail": "+ E-poçtla dəvət et",
+    "planCancelsOn": "Planınız {date} tarixində bitir. Buradakı hər kəs həmin vaxtadək girişini saxlayır və heç kim çıxarılmır. Öyrəndikləri hər şey qalır.",
+    "planEndsOn": "Planınız {date} tarixində SSi Premium-a keçir. Buradakı hər kəs bundan sonra daha 30 gün, {coverDate} tarixinədək girişini saxlayır və heç kim çıxarılmır. Öyrəndikləri hər şey qalır.",
+    "removeChildConfirm": "{name} çıxarılsın? {name} hesabını və öyrəndiyi hər şeyi saxlayır, kursun pulsuz hissəsindən istifadə etməyə davam edə bilər. Buradan onun üçün istənilən vaxt yeni giriş keçidi ala bilərsiniz.",
+    "removedChildAccount": "Hesabını və öyrəndiyi hər şeyi saxlayır. İstənilən vaxt giriş keçidi alın.",
+    "removedChildrenTitle": "Artıq planda deyil"
   },
   "common": {
     "noMatchesFor": "“{query}” üçün uyğunluq yoxdur",

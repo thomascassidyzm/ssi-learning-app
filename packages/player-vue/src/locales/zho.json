@@ -303,7 +303,26 @@
     "fixesMostAudioLoading": "可解决大多数音频和加载问题，且你会保持登录状态。",
     "addHomeScreenFaster": "添加到主屏幕，获得更快的离线访问体验",
     "plansFromMonth": "单个账户 £15/月，6 个账户 £25/月",
-    "upgrade": "升级"
+    "upgrade": "升级",
+    "and": "和",
+    "changeToPremium": "变更为SSi高级版",
+    "changeToPremiumAlone": "从{date}起，你为一个账户支付{price}。你的套餐中没有其他人。",
+    "changeToPremiumBusy": "正在变更...",
+    "changeToPremiumChild": "{name}会保留账户和所有已学内容，并可继续使用课程的免费部分。你随时可以在“管理家庭”中为其获取新的登录链接。",
+    "changeToPremiumConfirm": "于{date}变更为高级版",
+    "changeToPremiumDesc": "一个账户，{price}。你家人的名额将于{date}结束",
+    "changeToPremiumInvited": "{email}尚未加入，不会收到通知。",
+    "changeToPremiumScheduled": "于{date}变更为SSi高级版。套餐中的所有人均可继续使用至{coverDate}",
+    "changeToPremiumTitle": "变更为SSi高级版？",
+    "changeToPremiumWho": "你的套餐将于{date}变更为SSi高级版，你可以按{price}继续使用高级版。{names}此后仍可继续使用30天，直到{coverDate}。所有已学内容都会保留。",
+    "childAccountTag": "儿童",
+    "familyEndsKeepGoing": "继续",
+    "familyEndsOn": "你通过家庭获得的高级版将于{date}结束。每月£15即可继续",
+    "invitedTag": "已邀请",
+    "keepFamilyDesc": "保留SSi家庭版。你家人的名额继续有效",
+    "nothingSavedYet": "此设备上尚未保存任何内容。如果你用过此应用的早期版本，学习位置和下载内容仍留在那个版本中。登录后即可从账户恢复进度。",
+    "priceAnnual": "每年£150",
+    "priceMonthly": "每月£15"
   },
   "belt": {
     "yourProgress": "你的进度",
@@ -642,7 +661,9 @@
     "emailsMustMatch": "这两个邮箱不一致。",
     "backToPlans": "返回方案",
     "manageSubscription": "付款与发票",
-    "opening": "正在打开…"
+    "opening": "正在打开…",
+    "childAccountBody": "向照顾你的大人了解家庭套餐。",
+    "childAccountTitle": "问问照顾你的大人"
   },
   "family": {
     "family": "家庭",
@@ -654,7 +675,12 @@
     "noOneAddedYet": "还没有添加任何人。",
     "addChild": "+ 添加孩子",
     "firstName": "名字",
-    "inviteByEmail": "+ 通过邮箱邀请"
+    "inviteByEmail": "+ 通过邮箱邀请",
+    "planCancelsOn": "你的套餐将于{date}结束。在此之前，这里的每个人都可以继续使用，不会移除任何人。所有已学内容都会保留。",
+    "planEndsOn": "你的套餐将于{date}变更为SSi高级版。此后，这里的每个人仍可继续使用30天，直到{coverDate}，不会移除任何人。所有已学内容都会保留。",
+    "removeChildConfirm": "移除{name}？{name}会保留账户和所有已学内容，并可继续使用课程的免费部分。你随时可以在这里为其获取新的登录链接。",
+    "removedChildAccount": "保留账户和所有已学内容。随时可以获取登录链接。",
+    "removedChildrenTitle": "已不在套餐中"
   },
   "common": {
     "noMatchesFor": "没有与“{query}”匹配的结果",

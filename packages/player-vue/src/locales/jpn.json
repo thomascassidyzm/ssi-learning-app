@@ -303,7 +303,26 @@
     "fixesMostAudioLoading": "ほとんどの音声や読み込みの問題を解決します。サインイン状態は維持されます。",
     "addHomeScreenFaster": "ホーム画面に追加すると、より速く、オフラインでもアクセスできます",
     "plansFromMonth": "1アカウント月額15ポンド、6アカウント月額25ポンド",
-    "upgrade": "アップグレード"
+    "upgrade": "アップグレード",
+    "and": "と",
+    "changeToPremium": "SSi プレミアムに変更",
+    "changeToPremiumAlone": "{date}から1アカウントにつき{price}をお支払いいただきます。プランに他のメンバーはいません。",
+    "changeToPremiumBusy": "変更中...",
+    "changeToPremiumChild": "{name}のアカウントと学習した内容はすべて残り、コースの無料部分を引き続き利用できます。新しいログインリンクは「ファミリーを管理」でいつでも取得できます。",
+    "changeToPremiumConfirm": "{date}にプレミアムに変更",
+    "changeToPremiumDesc": "1アカウント、{price}。ご家族の利用枠は{date}に終了します",
+    "changeToPremiumInvited": "{email}はまだ参加していないため、通知されません。",
+    "changeToPremiumScheduled": "{date}にSSi プレミアムに変わります。プランの全員が{coverDate}まで引き続き利用できます",
+    "changeToPremiumTitle": "SSi プレミアムに変更しますか？",
+    "changeToPremiumWho": "プランは{date}にSSi プレミアムに変わり、ご自身は{price}でプレミアムを継続できます。{names}はその後30日間、{coverDate}まで引き続き利用できます。学習した内容はすべて残ります。",
+    "childAccountTag": "子ども",
+    "familyEndsKeepGoing": "続ける",
+    "familyEndsOn": "ファミリー経由のプレミアムは{date}に終了します。月額£15で続けましょう",
+    "invitedTag": "招待済み",
+    "keepFamilyDesc": "SSi ファミリーを継続。ご家族の利用枠はそのままです",
+    "nothingSavedYet": "この端末にはまだ何も保存されていません。このアプリの以前のバージョンを使っていた場合、学習位置とダウンロードはそちらに残っています。ログインすると、アカウントから進捗が復元されます。",
+    "priceAnnual": "年額£150",
+    "priceMonthly": "月額£15"
   },
   "belt": {
     "yourProgress": "あなたの進捗",
@@ -642,7 +661,9 @@
     "emailsMustMatch": "2つのメールアドレスが一致しません。",
     "backToPlans": "プランに戻る",
     "manageSubscription": "支払いと請求書",
-    "opening": "開いています…"
+    "opening": "開いています…",
+    "childAccountBody": "ファミリープランについて、おうちの大人に聞いてみましょう。",
+    "childAccountTitle": "おうちの大人に聞いてみよう"
   },
   "family": {
     "family": "ファミリー",
@@ -654,7 +675,12 @@
     "noOneAddedYet": "まだ誰も追加されていません。",
     "addChild": "+ 子どもを追加",
     "firstName": "名",
-    "inviteByEmail": "+ メールで招待"
+    "inviteByEmail": "+ メールで招待",
+    "planCancelsOn": "プランは{date}に終了します。それまでは全員が引き続き利用でき、メンバーは削除されません。学習した内容はすべて残ります。",
+    "planEndsOn": "プランは{date}にSSi プレミアムに変わります。全員がその後30日間、{coverDate}まで引き続き利用でき、メンバーは削除されません。学習した内容はすべて残ります。",
+    "removeChildConfirm": "{name}を削除しますか？{name}のアカウントと学習した内容はすべて残り、コースの無料部分を引き続き利用できます。新しいログインリンクはここでいつでも取得できます。",
+    "removedChildAccount": "アカウントと学習した内容はすべて残ります。ログインリンクはいつでも取得できます。",
+    "removedChildrenTitle": "プランから外れたメンバー"
   },
   "common": {
     "noMatchesFor": "「{query}」に一致するものはありません",

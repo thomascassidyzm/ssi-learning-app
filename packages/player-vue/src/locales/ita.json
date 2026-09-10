@@ -303,7 +303,26 @@
     "fixesMostAudioLoading": "Risolve la maggior parte dei problemi di audio e caricamento. Resti connesso/a.",
     "addHomeScreenFaster": "Aggiungi alla schermata Home per un accesso più veloce e offline",
     "plansFromMonth": "£15/mese per un account, £25/mese per sei",
-    "upgrade": "Passa a Premium"
+    "upgrade": "Passa a Premium",
+    "and": "e",
+    "changeToPremium": "Passa a SSi Premium",
+    "changeToPremiumAlone": "Dal {date} paghi {price} per un account. Non c'è nessun altro nel tuo piano.",
+    "changeToPremiumBusy": "Modifica in corso...",
+    "changeToPremiumChild": "{name} mantiene il proprio account e tutto ciò che ha imparato, e può continuare a usare la parte gratuita del corso. Puoi ottenere un nuovo link di accesso in qualsiasi momento in «Gestisci la famiglia».",
+    "changeToPremiumConfirm": "Passa a Premium il {date}",
+    "changeToPremiumDesc": "Un account, {price}. I posti della tua famiglia terminano il {date}",
+    "changeToPremiumInvited": "{email} non ha ancora aderito e non riceverà alcun avviso.",
+    "changeToPremiumScheduled": "Passa a SSi Premium il {date}. Tutti nel tuo piano mantengono l'accesso fino al {coverDate}",
+    "changeToPremiumTitle": "Passare a SSi Premium?",
+    "changeToPremiumWho": "Il tuo piano passa a SSi Premium il {date} e mantieni Premium a {price}. {names} mantengono l'accesso per altri 30 giorni, fino al {coverDate}. Tutto ciò che hanno imparato resta.",
+    "childAccountTag": "minore",
+    "familyEndsKeepGoing": "Continua",
+    "familyEndsOn": "Il tuo accesso Premium familiare termina il {date}. Continua per £15 al mese",
+    "invitedTag": "invitato",
+    "keepFamilyDesc": "Resta su SSi Family. I posti della tua famiglia restano attivi",
+    "nothingSavedYet": "Non c'è ancora nulla di salvato su questo dispositivo. Se usavi una versione precedente di questa app, la tua posizione e i tuoi download sono rimasti lì. Accedi per recuperare i progressi dal tuo account.",
+    "priceAnnual": "£150 all'anno",
+    "priceMonthly": "£15 al mese"
   },
   "belt": {
     "yourProgress": "I tuoi progressi",
@@ -642,7 +661,9 @@
     "emailsMustMatch": "Queste due email non corrispondono.",
     "backToPlans": "Torna ai piani",
     "manageSubscription": "Pagamenti e fatture",
-    "opening": "Apertura…"
+    "opening": "Apertura…",
+    "childAccountBody": "Chiedi all'adulto che si prende cura di te del piano famiglia.",
+    "childAccountTitle": "Chiedi a chi si prende cura di te"
   },
   "family": {
     "family": "Famiglia",
@@ -654,7 +675,12 @@
     "noOneAddedYet": "Nessuno aggiunto ancora.",
     "addChild": "+ Aggiungi un figlio",
     "firstName": "Nome",
-    "inviteByEmail": "+ Invita via e-mail"
+    "inviteByEmail": "+ Invita via e-mail",
+    "planCancelsOn": "Il tuo piano termina il {date}. Tutti qui mantengono l'accesso fino ad allora e nessuno viene rimosso. Tutto ciò che hanno imparato resta.",
+    "planEndsOn": "Il tuo piano passa a SSi Premium il {date}. Tutti qui mantengono l'accesso per altri 30 giorni, fino al {coverDate}, e nessuno viene rimosso. Tutto ciò che hanno imparato resta.",
+    "removeChildConfirm": "Rimuovere {name}? {name} mantiene il proprio account e tutto ciò che ha imparato, e può continuare a usare la parte gratuita del corso. Puoi ottenere qui un nuovo link di accesso in qualsiasi momento.",
+    "removedChildAccount": "Mantiene il proprio account e tutto ciò che ha imparato. Puoi ottenere un link di accesso in qualsiasi momento.",
+    "removedChildrenTitle": "Non più nel piano"
   },
   "common": {
     "noMatchesFor": "Nessun risultato per “{query}”",
