@@ -152,7 +152,7 @@ const rows = computed<Row[]>(() => {
           : t('org.ui.nodeChildrenList.noClassPracticeYet', 'No class practice yet'),
       ].filter(Boolean).join(' · '),
       counts: [
-        { value: `${c.classPracticeHours ?? 0}h`, word: t('org.ui.nodeChildrenList.wordClassPractice', 'class practice') },
+        { value: c.phrases7d ?? 0, word: t('org.ui.nodeChildrenList.wordPhrasesThisWeek', 'phrases spoken this week') },
         { value: c.studentCount, word: t('org.ui.nodeChildrenList.wordStudents', 'students') },
       ],
       to: classHomePath(c.id, member.value),
