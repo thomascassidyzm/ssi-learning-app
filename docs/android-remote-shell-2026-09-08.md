@@ -28,14 +28,36 @@ with itself forever.
 The new artefact's `assets/public/` holds **three files** — `index.html`, `cordova.js`,
 `cordova_plugins.js` — where the old one held 823. The APK went from **23.3 MB to 4.1 MB**.
 
-**The one-line production switch** is the `SHELL_ORIGIN` constant at the top of that file:
+**Which deployment the shell looks at** is the `SHELL_DEFAULT_ORIGIN` constant at the top of that
+file, and as of Tom's ruling on 2026-09-10 it is **staging**:
 
 ```ts
-const SHELL_ORIGIN = (process.env.SSI_SHELL_ORIGIN || 'https://staging.saysomethingin.app').replace(/\/+$/, '')
+const SHELL_DEFAULT_ORIGIN = 'https://staging.saysomethingin.app'
+const SHELL_ORIGIN = (process.env.SSI_SHELL_ORIGIN || SHELL_DEFAULT_ORIGIN).replace(/\/+$/, '')
 ```
 
-Change `https://staging.saysomethingin.app` to `https://saysomethingin.app` and rebuild. One build
-can also be pointed elsewhere without touching the file: `scripts/build-android-apk.sh <origin>`.
+**Production has to be asked for, out loud, every time.** Tom's reasoning: production is for live
+learners, and the only honest reason to test there is to fix a problem that is already live on it —
+never to compare builds or platforms. So an APK that lands on production because somebody forgot to
+set a variable is always wrong, and the default has to fail towards staging. Between 2026-09-08 and
+2026-09-10 it defaulted the other way, which is how a Colombo tester could have been handed a
+production build that nobody chose.
+
+```bash
+scripts/build-android-apk.sh                                   # staging
+scripts/build-android-apk.sh https://saysomethingin.app        # production, deliberately
+SSI_SHELL_ORIGIN=https://saysomethingin.app scripts/build-android-apk.sh   # same
+```
+
+`scripts/build-android-apk.sh` keeps no default of its own — it reads `SHELL_DEFAULT_ORIGIN` out of
+`capacitor.config.ts` and stops if it cannot, because a second copy of the answer could only ever
+drift and print a lie. It prints the origin twice, each time saying whether it was chosen or fell
+back, and `src/platform/shellOrigin.test.ts` pins all of it.
+
+**A tester can check it without a developer.** The quiet line under the build card in Settings is
+`window.location.host` — the host the app is genuinely running on, which in this shell IS the
+deployment. `staging.saysomethingin.app` there means staging, whatever anyone said when they handed
+the APK over.
 
 ### What had to move with it
 
