@@ -9,10 +9,26 @@
       "status": "ambiguous",
       "note": "THREE call sites gate one insertion. LearningPlayer.vue:2675 decides only to PAUSE in the same tick as round_completed; LearningPlayer.vue:6285 decides to PREFETCH; LearningPlayer.vue:6289 is where the lap is actually composed and played. All three read the same predicate.",
       "pointers": [
-        { "file": "packages/player-vue/src/components/LearningPlayer.vue", "line": 6289, "quote": "if (podCadenceFiresAtRound(completedRoundIndex)) {" },
-        { "file": "packages/player-vue/src/components/LearningPlayer.vue", "line": 6012, "quote": "return podScheduler.isLapDue()" },
-        { "file": "packages/player-vue/src/components/LearningPlayer.vue", "line": 2675, "quote": "const willFirePod = !beltJustEarned.value" },
-        { "file": "packages/player-vue/src/components/LearningPlayer.vue", "line": 6285, "quote": "if (podCadenceFiresAtRound(completedRoundIndex)) {" }
+        {
+          "file": "packages/player-vue/src/components/LearningPlayer.vue",
+          "line": 6289,
+          "quote": "if (podCadenceFiresAtRound(completedRoundIndex)) {"
+        },
+        {
+          "file": "packages/player-vue/src/components/LearningPlayer.vue",
+          "line": 6012,
+          "quote": "return podScheduler.isLapDue()"
+        },
+        {
+          "file": "packages/player-vue/src/components/LearningPlayer.vue",
+          "line": 2675,
+          "quote": "const willFirePod = !beltJustEarned.value"
+        },
+        {
+          "file": "packages/player-vue/src/components/LearningPlayer.vue",
+          "line": 6285,
+          "quote": "if (podCadenceFiresAtRound(completedRoundIndex)) {"
+        }
       ]
     },
     {
@@ -21,10 +37,26 @@
       "status": "ambiguous",
       "note": "isLapDue() is THE live predicate. shouldFireLapAt() at usePodLapScheduler.ts:754 is a same-shaped PREVIEW projection used by sector-merge and prefetch - it is NOT the fire decision and must never be quoted as one.",
       "pointers": [
-        { "file": "packages/player-vue/src/composables/usePodLapScheduler.ts", "line": 734, "quote": "const isLapDue = (): boolean => {" },
-        { "file": "packages/player-vue/src/composables/usePodLapScheduler.ts", "line": 742, "quote": "return roundsSincePod.value >= podInterval()" },
-        { "file": "packages/player-vue/src/composables/useAlgorithmConfig.ts", "line": 951, "quote": "roundInterval: 5," },
-        { "file": "packages/player-vue/src/composables/usePodLapScheduler.ts", "line": 754, "quote": "const shouldFireLapAt = (mainRound: number): boolean => {" }
+        {
+          "file": "packages/player-vue/src/composables/usePodLapScheduler.ts",
+          "line": 734,
+          "quote": "const isLapDue = (): boolean => {"
+        },
+        {
+          "file": "packages/player-vue/src/composables/usePodLapScheduler.ts",
+          "line": 742,
+          "quote": "return roundsSincePod.value >= podInterval()"
+        },
+        {
+          "file": "packages/player-vue/src/composables/useAlgorithmConfig.ts",
+          "line": 951,
+          "quote": "roundInterval: 5,"
+        },
+        {
+          "file": "packages/player-vue/src/composables/usePodLapScheduler.ts",
+          "line": 754,
+          "quote": "const shouldFireLapAt = (mainRound: number): boolean => {"
+        }
       ]
     },
     {
@@ -32,8 +64,26 @@
       "code": "L1Play / useLayer1Scheduler / 'seed cup'",
       "status": "clean",
       "pointers": [
-        { "file": "packages/player-vue/src/composables/useLayer1Scheduler.ts", "line": 819, "quote": "const list = policy ? l1PlaylistFromPattern(policy.pattern) : c.seedPlaylist" },
-        { "file": "packages/player-vue/src/playback/podSegue.ts", "line": 53, "quote": "export const seguePodWithLayer1 = (lap: PodLap, l1Plays: readonly L1Play[]): PodLap => {" }
+        {
+          "file": "packages/player-vue/src/composables/useLayer1Scheduler.ts",
+          "line": 764,
+          "quote": "const nextLap = (mainRound: number): L1Lap | null => {"
+        },
+        {
+          "file": "packages/player-vue/src/composables/useLayer1Scheduler.ts",
+          "line": 151,
+          "quote": "export function buildSeedPlays("
+        },
+        {
+          "file": "packages/player-vue/src/composables/useLayer1Scheduler.ts",
+          "line": 819,
+          "quote": "const list = policy ? l1PlaylistFromPattern(policy.pattern) : c.seedPlaylist"
+        },
+        {
+          "file": "packages/player-vue/src/playback/podSegue.ts",
+          "line": 53,
+          "quote": "export const seguePodWithLayer1 = (lap: PodLap, l1Plays: readonly L1Play[]): PodLap => {"
+        }
       ]
     },
     {
@@ -41,9 +91,21 @@
       "code": "listening_pod_sentences / PodLap / usePodLapScheduler",
       "status": "clean",
       "pointers": [
-        { "file": "packages/player-vue/src/composables/usePodLapScheduler.ts", "line": 593, "quote": ".from('listening_pod_sentences')" },
-        { "file": "packages/player-vue/src/composables/usePodLapScheduler.ts", "line": 440, "quote": "export interface PodLap {" },
-        { "file": "packages/player-vue/src/composables/servedPod.ts", "line": 113, "quote": "for (const slug of SERVING_POD_SLUGS) {" }
+        {
+          "file": "packages/player-vue/src/composables/usePodLapScheduler.ts",
+          "line": 593,
+          "quote": ".from('listening_pod_sentences')"
+        },
+        {
+          "file": "packages/player-vue/src/composables/usePodLapScheduler.ts",
+          "line": 440,
+          "quote": "export interface PodLap {"
+        },
+        {
+          "file": "packages/player-vue/src/composables/servedPod.ts",
+          "line": 113,
+          "quote": "for (const slug of SERVING_POD_SLUGS) {"
+        }
       ]
     },
     {
@@ -52,11 +114,36 @@
       "status": "ambiguous",
       "note": "Shape holds, VOICE ORDER DOES NOT. Code ships target(v1), known, target(v2), target(v1) - v2 third. Tom's words are target, known, v1, v2 - v2 fourth. The DB row algorithm_config['listening'].seedPlaylist IS ['t1','known','t1','t2'] i.e. Tom's order, but it is DEAD on the learner path: LearningPlayer.vue:4421 always supplies a listeningPolicy, so the ternary at useLayer1Scheduler.ts:819 never takes the c.seedPlaylist arm for a real learner.",
       "pointers": [
-        { "file": "packages/player-vue/src/playback/listeningExposureRamp.ts", "line": 84, "quote": "export const DEFAULT_LISTENING_PATTERN: ListeningSlot[] = ['target', 'known', 'target2', 'target']" },
-        { "file": "packages/player-vue/src/composables/useLayer1Scheduler.ts", "line": 201, "quote": "return pattern.map((slot) => (slot === 'known' ? 'known' : slot === 'target2' ? 't2' : 't1'))" },
-        { "file": "packages/player-vue/src/composables/useLayer1Scheduler.ts", "line": 131, "quote": "export const DEFAULT_SEED_PLAYLIST: Layer1SlotRole[] = ['t1', 'known', 't2', 't1']" },
-        { "file": "packages/player-vue/src/composables/useLayer1Scheduler.ts", "line": 819, "quote": "const list = policy ? l1PlaylistFromPattern(policy.pattern) : c.seedPlaylist" },
-        { "file": "packages/player-vue/src/components/LearningPlayer.vue", "line": 4421, "quote": "listeningPolicy: listeningPlayPolicy," }
+        {
+          "file": "packages/player-vue/src/playback/listeningExposureRamp.ts",
+          "line": 84,
+          "quote": "export const DEFAULT_LISTENING_PATTERN: ListeningSlot[] = ['target', 'known', 'target2', 'target']"
+        },
+        {
+          "file": "packages/player-vue/src/composables/useLayer1Scheduler.ts",
+          "line": 201,
+          "quote": "return pattern.map((slot) => (slot === 'known' ? 'known' : slot === 'target2' ? 't2' : 't1'))"
+        },
+        {
+          "file": "packages/player-vue/src/composables/useLayer1Scheduler.ts",
+          "line": 131,
+          "quote": "export const DEFAULT_SEED_PLAYLIST: Layer1SlotRole[] = ['t1', 'known', 't2', 't1']"
+        },
+        {
+          "file": "packages/player-vue/src/composables/useLayer1Scheduler.ts",
+          "line": 819,
+          "quote": "const list = policy ? l1PlaylistFromPattern(policy.pattern) : c.seedPlaylist"
+        },
+        {
+          "file": "packages/player-vue/src/components/LearningPlayer.vue",
+          "line": 4421,
+          "quote": "listeningPolicy: listeningPlayPolicy,"
+        },
+        {
+          "file": "packages/player-vue/src/composables/useAlgorithmConfig.ts",
+          "line": 861,
+          "quote": "playPattern: DEFAULT_LISTENING_PATTERN,"
+        }
       ]
     },
     {
@@ -65,12 +152,36 @@
       "status": "ambiguous",
       "note": "TWO live paths. Which one runs is a DB value, not a code value: algorithm_config key='listening', field listeningUseStagePlaylist. Code default is FALSE (flat one-pattern). The LIVE row read 2026-09-10 carries true, description 'stage playlist ON 2026-08-24' - so real learners DO get the staged ladder. listeningExposureRamp.ts's file header calls the ladder retired; the code does not bear that out.",
       "pointers": [
-        { "file": "packages/player-vue/src/composables/usePodLapScheduler.ts", "line": 976, "quote": "const playlist = policy.useStagePlaylist" },
-        { "file": "packages/player-vue/src/composables/usePodLapScheduler.ts", "line": 977, "quote": "? (stagePlaylistMap[stageInfo.stage] || stagePlaylistMap[String(stageInfo.stage)])" },
-        { "file": "packages/player-vue/src/composables/usePodLapScheduler.ts", "line": 978, "quote": ": singlePlaylist" },
-        { "file": "packages/player-vue/src/composables/useAlgorithmConfig.ts", "line": 907, "quote": "useStagePlaylist: listening?.listeningUseStagePlaylist === true," },
-        { "file": "packages/player-vue/src/composables/useAlgorithmConfig.ts", "line": 864, "quote": "listeningUseStagePlaylist: false," },
-        { "file": "packages/player-vue/src/composables/usePodLapScheduler.ts", "line": 935, "quote": "const singlePlaylist = podPlaylistFromPattern(policy.pattern)" }
+        {
+          "file": "packages/player-vue/src/composables/usePodLapScheduler.ts",
+          "line": 976,
+          "quote": "const playlist = policy.useStagePlaylist"
+        },
+        {
+          "file": "packages/player-vue/src/composables/usePodLapScheduler.ts",
+          "line": 977,
+          "quote": "? (stagePlaylistMap[stageInfo.stage] || stagePlaylistMap[String(stageInfo.stage)])"
+        },
+        {
+          "file": "packages/player-vue/src/composables/usePodLapScheduler.ts",
+          "line": 978,
+          "quote": ": singlePlaylist"
+        },
+        {
+          "file": "packages/player-vue/src/composables/useAlgorithmConfig.ts",
+          "line": 907,
+          "quote": "useStagePlaylist: listening?.listeningUseStagePlaylist === true,"
+        },
+        {
+          "file": "packages/player-vue/src/composables/useAlgorithmConfig.ts",
+          "line": 864,
+          "quote": "listeningUseStagePlaylist: false,"
+        },
+        {
+          "file": "packages/player-vue/src/composables/usePodLapScheduler.ts",
+          "line": 935,
+          "quote": "const singlePlaylist = podPlaylistFromPattern(policy.pattern)"
+        }
       ]
     },
     {
@@ -79,11 +190,31 @@
       "status": "ambiguous",
       "note": "Both numbers are right. Code fallback has 9 stages, terminal 9:['ps2x']. The live pods row read 2026-09-10 has 8, terminal 8:['ps2x']. totalStages is never hardcoded - podStageFor reads the key count of whichever map is live, so this is admin-editable.",
       "pointers": [
-        { "file": "packages/player-vue/src/composables/usePodLapScheduler.ts", "line": 144, "quote": "export const DEFAULT_STAGE_PLAYLIST: Record<number, PodPlayRole[]> = {" },
-        { "file": "packages/player-vue/src/composables/useAlgorithmConfig.ts", "line": 926, "quote": "stagePlaylist: {" },
-        { "file": "packages/player-vue/src/composables/usePodLapScheduler.ts", "line": 175, "quote": "export const DEFAULT_STAGE_DURATION = 5" },
-        { "file": "packages/player-vue/src/composables/usePodLapScheduler.ts", "line": 189, "quote": "export const DEFAULT_STAGE_DURATIONS: Record<number, number> = { 1: 1, 2: 3 }" },
-        { "file": "packages/player-vue/src/composables/usePodLapScheduler.ts", "line": 968, "quote": "if (podCohortHasCompleted(alive, stageDuration, totalStages, stageDurationsMap)) continue" }
+        {
+          "file": "packages/player-vue/src/composables/usePodLapScheduler.ts",
+          "line": 144,
+          "quote": "export const DEFAULT_STAGE_PLAYLIST: Record<number, PodPlayRole[]> = {"
+        },
+        {
+          "file": "packages/player-vue/src/composables/useAlgorithmConfig.ts",
+          "line": 926,
+          "quote": "stagePlaylist: {"
+        },
+        {
+          "file": "packages/player-vue/src/composables/usePodLapScheduler.ts",
+          "line": 175,
+          "quote": "export const DEFAULT_STAGE_DURATION = 5"
+        },
+        {
+          "file": "packages/player-vue/src/composables/usePodLapScheduler.ts",
+          "line": 189,
+          "quote": "export const DEFAULT_STAGE_DURATIONS: Record<number, number> = { 1: 1, 2: 3 }"
+        },
+        {
+          "file": "packages/player-vue/src/composables/usePodLapScheduler.ts",
+          "line": 968,
+          "quote": "if (podCohortHasCompleted(alive, stageDuration, totalStages, stageDurationsMap)) continue"
+        }
       ]
     },
     {
@@ -91,20 +222,59 @@
       "code": "showListeningOverlay -> ListeningOverlay.vue; gated by localStorage 'ssi-mode-listening'",
       "status": "clean",
       "pointers": [
-        { "file": "packages/player-vue/src/components/LearningPlayer.vue", "line": 11932, "quote": "showListeningOverlay.value = true" },
-        { "file": "packages/player-vue/src/components/LearningPlayer.vue", "line": 109, "quote": "const ListeningOverlay = defineAsyncComponent(() => import('./ListeningOverlay.vue'))" },
-        { "file": "packages/player-vue/src/containers/PlayerContainer.vue", "line": 633, "quote": "showListeningBtn.value = localStorage.getItem('ssi-mode-listening') === 'true'" }
+        {
+          "file": "packages/player-vue/src/components/LearningPlayer.vue",
+          "line": 11918,
+          "quote": "const handleListeningMode = () => {"
+        },
+        {
+          "file": "packages/player-vue/src/components/LearningPlayer.vue",
+          "line": 11932,
+          "quote": "showListeningOverlay.value = true"
+        },
+        {
+          "file": "packages/player-vue/src/components/LearningPlayer.vue",
+          "line": 109,
+          "quote": "const ListeningOverlay = defineAsyncComponent(() => import('./ListeningOverlay.vue'))"
+        },
+        {
+          "file": "packages/player-vue/src/containers/PlayerContainer.vue",
+          "line": 633,
+          "quote": "showListeningBtn.value = localStorage.getItem('ssi-mode-listening') === 'true'"
+        },
+        {
+          "file": "packages/player-vue/src/components/LearningPlayer.vue",
+          "line": 17759,
+          "quote": "<ListeningOverlay"
+        }
       ]
     },
     {
       "term": "DRILL MODE",
       "code": "listenMode === 'drill'",
       "status": "ambiguous",
-      "note": "INVERTED AGAINST TOM'S WORDS. Tom: drill = target language only. Code: drill = target, known, target, target - i.e. the t-k-t-t cadence he ascribes to immersion. Two implementations also disagree with each other: podModalQueue.ts:33 plays t/k/t/t at base speed, while a dialogue scene with an authored fusion rung takes a different queue entirely at ListeningOverlay.vue:1322. A third description, the UI label at ListeningOverlay.vue:342, says 'once normal then twice fast', which neither implementation does.",
+      "note": "INVERTED AGAINST TOM'S WORDS. Tom: drill = target language only. Code: drill = target, known, target, target - i.e. the t-k-t-t cadence he ascribes to immersion. Two implementations also disagree with each other: podModalQueue.ts:33 plays t/k/t/t at base speed, while a dialogue scene with an authored fusion rung takes a different queue entirely at ListeningOverlay.vue:1322. A third description, the UI label at ListeningOverlay.vue:342, says 'once normal then twice fast', which neither implementation does. Confirmed a third time in the fusion-drill path: fusionDrill.ts pushes target/known/target/target under the name pushTktt.",
       "pointers": [
-        { "file": "packages/player-vue/src/playback/podModalQueue.ts", "line": 33, "quote": "if (mode === 'drill') {" },
-        { "file": "packages/player-vue/src/components/ListeningOverlay.vue", "line": 1322, "quote": "if (listenMode.value === 'drill') {" },
-        { "file": "packages/player-vue/src/components/ListeningOverlay.vue", "line": 342, "quote": "{ key: 'drill',     label: 'Drill',     desc: 'Each line three times — once normal, then twice fast' }," }
+        {
+          "file": "packages/player-vue/src/playback/podModalQueue.ts",
+          "line": 33,
+          "quote": "if (mode === 'drill') {"
+        },
+        {
+          "file": "packages/player-vue/src/components/ListeningOverlay.vue",
+          "line": 1322,
+          "quote": "if (listenMode.value === 'drill') {"
+        },
+        {
+          "file": "packages/player-vue/src/components/ListeningOverlay.vue",
+          "line": 342,
+          "quote": "{ key: 'drill',     label: 'Drill',     desc: 'Each line three times — once normal, then twice fast' },"
+        },
+        {
+          "file": "packages/core/src/pods/fusionDrill.ts",
+          "line": 415,
+          "quote": "const pushTktt = ("
+        }
       ]
     },
     {
@@ -113,9 +283,21 @@
       "status": "ambiguous",
       "note": "INVERTED AGAINST TOM'S WORDS. Tom: immersion = same t-k-t-t cadence. Code: immersion is the fall-through arm and plays the TARGET ONLY, once per unit. The known clip is played only when a line has no target text at all.",
       "pointers": [
-        { "file": "packages/player-vue/src/playback/podModalQueue.ts", "line": 47, "quote": "for (const u of units) {" },
-        { "file": "packages/player-vue/src/playback/podModalQueue.ts", "line": 48, "quote": "if (u.targetAudioId) { queue.push({ id: u.targetAudioId, rate: base }); continue }" },
-        { "file": "packages/player-vue/src/components/ListeningOverlay.vue", "line": 346, "quote": "const listenMode = ref(localStorage.getItem('ssi-listening-mode') || 'immersion')" }
+        {
+          "file": "packages/player-vue/src/playback/podModalQueue.ts",
+          "line": 47,
+          "quote": "for (const u of units) {"
+        },
+        {
+          "file": "packages/player-vue/src/playback/podModalQueue.ts",
+          "line": 48,
+          "quote": "if (u.targetAudioId) { queue.push({ id: u.targetAudioId, rate: base }); continue }"
+        },
+        {
+          "file": "packages/player-vue/src/components/ListeningOverlay.vue",
+          "line": 346,
+          "quote": "const listenMode = ref(localStorage.getItem('ssi-listening-mode') || 'immersion')"
+        }
       ]
     },
     {
@@ -124,9 +306,21 @@
       "status": "ambiguous",
       "note": "FOUR different things are called 'round' in this codebase and they are not interchangeable: Round.roundNumber (the script/player unit); podRound (an ordinal of completed pod laps); course_round_index.round_index (a course-wide materialised view, not per-learner); and the course_enrollments counters rounds_since_pod / completed_pod_rounds / infplay_round_index. Always check which one a piece of code means.",
       "pointers": [
-        { "file": "packages/core/src/script/playerTypes.ts", "line": 71, "quote": "export interface Round {" },
-        { "file": "packages/core/src/script/playerTypes.ts", "line": 72, "quote": "roundNumber: number" },
-        { "file": "packages/player-vue/src/composables/usePodLapScheduler.ts", "line": 873, "quote": "const podRound = podCohortRoundFor(cohorts, completedPodRounds.value)" }
+        {
+          "file": "packages/core/src/script/playerTypes.ts",
+          "line": 71,
+          "quote": "export interface Round {"
+        },
+        {
+          "file": "packages/core/src/script/playerTypes.ts",
+          "line": 72,
+          "quote": "roundNumber: number"
+        },
+        {
+          "file": "packages/player-vue/src/composables/usePodLapScheduler.ts",
+          "line": 873,
+          "quote": "const podRound = podCohortRoundFor(cohorts, completedPodRounds.value)"
+        }
       ]
     },
     {
@@ -134,9 +328,21 @@
       "code": "SimplePlayer.advanceRound() -> emit('round_completed')",
       "status": "clean",
       "pointers": [
-        { "file": "packages/player-vue/src/playback/SimplePlayer.ts", "line": 2168, "quote": "const nextIdx = this.findNextSoundableCycleIndex(round, this.state.cycleIndex + 1)" },
-        { "file": "packages/player-vue/src/playback/SimplePlayer.ts", "line": 2178, "quote": "private advanceRound(): void {" },
-        { "file": "packages/player-vue/src/playback/SimplePlayer.ts", "line": 2179, "quote": "this.emit('round_completed', { round: this.currentRound })" }
+        {
+          "file": "packages/player-vue/src/playback/SimplePlayer.ts",
+          "line": 2168,
+          "quote": "const nextIdx = this.findNextSoundableCycleIndex(round, this.state.cycleIndex + 1)"
+        },
+        {
+          "file": "packages/player-vue/src/playback/SimplePlayer.ts",
+          "line": 2178,
+          "quote": "private advanceRound(): void {"
+        },
+        {
+          "file": "packages/player-vue/src/playback/SimplePlayer.ts",
+          "line": 2179,
+          "quote": "this.emit('round_completed', { round: this.currentRound })"
+        }
       ]
     },
     {
@@ -144,8 +350,16 @@
       "code": "Cycle.known { text, audioUrl }; phase 'prompt' -> role 'known'",
       "status": "clean",
       "pointers": [
-        { "file": "packages/core/src/script/playerTypes.ts", "line": 19, "quote": "known: { text: string; audioUrl: string }" },
-        { "file": "packages/player-vue/src/playback/SimplePlayer.ts", "line": 698, "quote": "case 'prompt': return 'known'" }
+        {
+          "file": "packages/core/src/script/playerTypes.ts",
+          "line": 19,
+          "quote": "known: { text: string; audioUrl: string }"
+        },
+        {
+          "file": "packages/player-vue/src/playback/SimplePlayer.ts",
+          "line": 698,
+          "quote": "case 'prompt': return 'known'"
+        }
       ]
     },
     {
@@ -153,9 +367,21 @@
       "code": "Cycle.target { text, voice1Url, voice2Url }; phases 'voice1'/'voice2' -> roles 'target1'/'target2'",
       "status": "clean",
       "pointers": [
-        { "file": "packages/core/src/script/playerTypes.ts", "line": 20, "quote": "target: { text: string; textNative?: string; voice1Url: string; voice2Url: string }" },
-        { "file": "packages/player-vue/src/playback/SimplePlayer.ts", "line": 699, "quote": "case 'voice1': return 'target1'" },
-        { "file": "packages/player-vue/src/playback/SimplePlayer.ts", "line": 700, "quote": "case 'voice2': return 'target2'" }
+        {
+          "file": "packages/core/src/script/playerTypes.ts",
+          "line": 20,
+          "quote": "target: { text: string; textNative?: string; voice1Url: string; voice2Url: string }"
+        },
+        {
+          "file": "packages/player-vue/src/playback/SimplePlayer.ts",
+          "line": 699,
+          "quote": "case 'voice1': return 'target1'"
+        },
+        {
+          "file": "packages/player-vue/src/playback/SimplePlayer.ts",
+          "line": 700,
+          "quote": "case 'voice2': return 'target2'"
+        }
       ]
     },
     {
@@ -164,8 +390,16 @@
       "status": "ambiguous",
       "note": "A second definition of the same rule exists in @ssi/core (TEXT_VISIBILITY, engine/types.ts) and is DEAD - it belongs to the ICycleOrchestrator path that ships no class. The live decision reads SimplePlayer's own lowercase Phase type, not the core CyclePhase enum. Do not point a brief at core/engine/types.ts for this.",
       "pointers": [
-        { "file": "packages/player-vue/src/components/LearningPlayer.vue", "line": 7881, "quote": ": (currentPhase.value === Phase.VOICE_2 && !isTransitioningItem.value)" },
-        { "file": "packages/player-vue/src/playback/SimplePlayer.ts", "line": 119, "quote": "export type Phase = 'idle' | 'buffering' | 'prompt' | 'pause' | 'voice1' | 'voice2'" }
+        {
+          "file": "packages/player-vue/src/components/LearningPlayer.vue",
+          "line": 7881,
+          "quote": ": (currentPhase.value === Phase.VOICE_2 && !isTransitioningItem.value)"
+        },
+        {
+          "file": "packages/player-vue/src/playback/SimplePlayer.ts",
+          "line": 119,
+          "quote": "export type Phase = 'idle' | 'buffering' | 'prompt' | 'pause' | 'voice1' | 'voice2'"
+        }
       ]
     },
     {
@@ -174,8 +408,16 @@
       "status": "not-found",
       "note": "There is no 'speaking' mode enum, branch or constant on the playback path. Code asks 'is this listening?' and everything else is speaking - and it asks that in TWO incompatible ways: cycle.type membership at LearningPlayer.vue:6055, and a cycle.id string prefix at LearningPlayer.vue:7869. A cycle marked one way but not the other classifies differently in the two places. The literal 'speaking' in composables/useLearnerProfile.ts drives a coaching nudge only and gates no playback.",
       "pointers": [
-        { "file": "packages/player-vue/src/components/LearningPlayer.vue", "line": 7869, "quote": "return cycle?.id?.startsWith('listening_') || false" },
-        { "file": "packages/player-vue/src/playback/SimplePlayer.ts", "line": 1502, "quote": "|| currentCycle?.type === 'listening'" }
+        {
+          "file": "packages/player-vue/src/components/LearningPlayer.vue",
+          "line": 7869,
+          "quote": "return cycle?.id?.startsWith('listening_') || false"
+        },
+        {
+          "file": "packages/player-vue/src/playback/SimplePlayer.ts",
+          "line": 1502,
+          "quote": "|| currentCycle?.type === 'listening'"
+        }
       ]
     },
     {
@@ -184,8 +426,16 @@
       "status": "ambiguous",
       "note": "The 1.0 ceiling is absolute for Layer 1, and DELIBERATELY NOT APPLIED to pods on the stage-playlist path - that arm never calls resolveListeningSpeed, so authored ps2x reps play at 2.0x.",
       "pointers": [
-        { "file": "packages/player-vue/src/playback/listeningExposureRamp.ts", "line": 94, "quote": "export const LISTENING_SPEED_CEILING = 1.0" },
-        { "file": "packages/player-vue/src/composables/usePodLapScheduler.ts", "line": 999, "quote": "const uniformSpeed = policy.useStagePlaylist || policy.speedSource !== 'exposure'" }
+        {
+          "file": "packages/player-vue/src/playback/listeningExposureRamp.ts",
+          "line": 94,
+          "quote": "export const LISTENING_SPEED_CEILING = 1.0"
+        },
+        {
+          "file": "packages/player-vue/src/composables/usePodLapScheduler.ts",
+          "line": 999,
+          "quote": "const uniformSpeed = policy.useStagePlaylist || policy.speedSource !== 'exposure'"
+        }
       ]
     }
   ]
