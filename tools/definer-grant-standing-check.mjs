@@ -36,7 +36,19 @@ import { createRequire } from 'node:module'
 
 const DASHBOARD_REPO = '/home/tomcassidy/ssi-dashboard-v7-clean'
 const require = createRequire(DASHBOARD_REPO + '/')
-const { Client } = require(DASHBOARD_REPO + '/node_modules/pg')
+
+// `pg` lives in the DASHBOARD repo, not this one, and it is needed only on the live-DB path.
+// Resolved LAZILY, deliberately: this module also exports the pure parser and rule that
+// api/_utils/definerGrantStandingCheck.security.test.ts feeds a fixture dump through, and that
+// suite says in its own header that it is DB-free and network-free. While the require sat at
+// module scope that promise was false — on 2026-09-10 the dashboard checkout had no node_modules
+// at all and the whole suite failed at IMPORT time with "Cannot find module .../pg", taking
+// api-test red on dev, staging and main for a reason that had nothing to do with any of them.
+// A test that cannot run without a neighbouring repo's installed dependencies is not DB-free.
+function pgClient() {
+  const { Client } = require(DASHBOARD_REPO + '/node_modules/pg')
+  return Client
+}
 
 const ALLOWLIST_PATH = new URL('./definer-grant-standing-allowlist.json', import.meta.url)
 
@@ -81,6 +93,7 @@ async function loadDbUrl() {
 
 async function fetchLiveFunctions() {
   const DB = await loadDbUrl()
+  const Client = pgClient()
   const client = new Client({ connectionString: DB, ssl: { rejectUnauthorized: false } })
   await client.connect()
   try {
