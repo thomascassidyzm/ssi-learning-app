@@ -68,6 +68,27 @@ describe('resolveRealLearners', () => {
     expect(pop.count).toBe(1)
   })
 
+  // Tom's ruling, 2026-09-10. A comped teacher, a gifted friend and a pilot
+  // school are real humans genuinely learning, and their sessions, weak points
+  // and drop-off are true signal. The resolver must have no opinion whatsoever
+  // about whether somebody paid — this test is the guard that stops the
+  // rejected born-excluded design finding its way back in.
+  it('keeps a GIFTED learner: not paying is not the same as not real', async () => {
+    const pop = await resolveRealLearners(
+      fakeClient(
+        [
+          { id: 'pays', is_class_entity: false, platform_role: null },
+          { id: 'comped', is_class_entity: false, platform_role: null },
+          { id: 'pilot', is_class_entity: false, platform_role: null },
+        ],
+        [],
+      ),
+    )
+    expect(pop.realIds.has('comped')).toBe(true)
+    expect(pop.realIds.has('pilot')).toBe(true)
+    expect(pop.count).toBe(3)
+  })
+
   it('drops a class entity, which is a room rather than a person', async () => {
     const pop = await resolveRealLearners(
       fakeClient(

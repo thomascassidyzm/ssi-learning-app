@@ -32,6 +32,15 @@
  *      an EVENT-level rule rather than a learner-level one, so it is exposed
  *      separately as isMachineCountry().
  *
+ * WHAT IS DELIBERATELY NOT EXCLUDED, and this one is a ruling rather than a
+ * limitation (Tom, 2026-09-10): PEOPLE WHO DO NOT PAY. A comped teacher, a
+ * gifted friend and a pilot school are real humans genuinely learning; their
+ * sessions, weak points and drop-off are true signal, and hiding them makes
+ * every number LESS accurate rather than safer. Whether somebody pays is a fact
+ * about billing and lives in api/_utils/entitlementCohort.ts, which SPLITS this
+ * population into paying / gifted / free without removing anybody from it. This
+ * resolver has no opinion on money and must never acquire one.
+ *
  * WHAT IS NOT EXCLUDED, stated rather than papered over: headless user agents.
  * player_events stores no user agent — the columns are id, occurred_at,
  * user_id, course_code, session_id, event_type, payload, client_version,

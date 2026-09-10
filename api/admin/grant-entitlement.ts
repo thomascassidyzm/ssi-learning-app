@@ -9,6 +9,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAdmin } from '../_utils/auth'
 import { applyCors } from '../_utils/cors'
+import { grantGiftEntitlement, validateGift } from '../_utils/entitlementGrant'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -47,49 +48,40 @@ export default async function handler(
     return
   }
 
-  if (!access_type || !['full', 'courses'].includes(access_type)) {
-    res.status(400).json({ error: 'Invalid access_type' })
+  // A GIFT, not a status (Tom's ruling, 2026-09-10). Granting an entitlement by
+  // hand is how a real person is told the payment side expects nothing from
+  // them; it changes nothing about whether they count as a learner, and the
+  // shared writer below is the same one api/_utils/mintLearner.ts uses so the
+  // two doors cannot produce different rows.
+  const gift = {
+    access_type,
+    granted_courses,
+    duration_type,
+    duration_days,
+  }
+  const bad = validateGift(gift as any)
+  if (bad) {
+    res.status(400).json({ error: bad })
     return
   }
-
-  if (access_type === 'courses' && (!granted_courses || !Array.isArray(granted_courses) || granted_courses.length === 0)) {
-    res.status(400).json({ error: 'granted_courses required for "courses" access type' })
-    return
-  }
-
   if (!duration_type || !['lifetime', 'time_limited'].includes(duration_type)) {
     res.status(400).json({ error: 'Invalid duration_type' })
     return
   }
 
   try {
-    // Calculate expiry
-    let expires_at = null
-    if (duration_type === 'time_limited') {
-      const days = duration_days || 30
-      expires_at = new Date(Date.now() + days * 86400000).toISOString()
-    }
+    const outcome = await grantGiftEntitlement(supabase, learner_id, gift as any, {
+      actorUserId: admin.userId,
+      source: 'grant-entitlement',
+    })
 
-    const { data, error } = await supabase
-      .from('user_entitlements')
-      .insert({
-        learner_id,
-        entitlement_code_id: null,
-        access_type,
-        granted_courses: access_type === 'courses' ? granted_courses : null,
-        expires_at,
-      })
-      .select()
-      .single()
-
-    if (error) {
-      console.error('[GrantEntitlement] Insert error:', error)
+    if (!outcome.ok) {
       res.status(500).json({ error: 'Failed to grant entitlement' })
       return
     }
 
     console.log('[GrantEntitlement] Granted:', access_type, 'to learner:', learner_id, 'by:', admin.userId)
-    res.status(201).json({ entitlement: data })
+    res.status(201).json({ entitlement: outcome.entitlement })
   } catch (err) {
     console.error('[GrantEntitlement] Error:', err)
     res.status(500).json({ error: 'Internal server error' })

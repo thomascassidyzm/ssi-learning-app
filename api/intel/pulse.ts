@@ -23,6 +23,7 @@ import { createClient } from '@supabase/supabase-js'
 import { verifyAdmin } from '../_utils/auth'
 import { applyCors } from '../_utils/cors'
 import { resolveRealLearners, isMachineCountry } from '../_utils/realLearnerPopulation'
+import { resolveMoneyStandings, countStandings, type StandingCounts } from '../_utils/entitlementCohort'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -44,6 +45,16 @@ export interface PulseResponse {
   thisWeek: number
   lastWeek: number
   population: number
+  /**
+   * How this week's people stand with the money side — paying, gifted, free.
+   *
+   * Gifted is here because Tom asked for it by name: comped teachers, gifted
+   * friends and pilot schools are real people whose behaviour is worth
+   * watching, and the only way to watch them is to have them in the numbers in
+   * the first place. This is a SPLIT of the people already counted above, never
+   * a filter on them — nobody is added or removed by it.
+   */
+  standing: StandingCounts
   courses: PulseCourseRow[]
   countries: PulseCountryRow[]
   /** ISO instant the server finished counting — the Updated stamp reads this. */
@@ -117,10 +128,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     set.add(e.learner_id)
   }
 
+  // The money-side split of the people who practised. A separate resolver from
+  // the population one, deliberately: did-they-pay and are-they-a-real-person
+  // are two facts, and the whole correction of 2026-09-10 is that they must
+  // never ride on one flag again.
+  const standings = await resolveMoneyStandings(svc, thisWeekPeople)
+
   const body: PulseResponse = {
     thisWeek: thisWeekPeople.size,
     lastWeek: lastWeekPeople.size,
     population: count,
+    standing: countStandings(standings.values()),
     courses: [...byCourse.entries()]
       .map(([course, b]) => ({ course, thisWeek: b.thisWeek.size, lastWeek: b.lastWeek.size }))
       .sort((a, b) => b.thisWeek - a.thisWeek || a.course.localeCompare(b.course)),

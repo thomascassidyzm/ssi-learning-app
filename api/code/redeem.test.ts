@@ -1776,6 +1776,53 @@ describe('POST /api/code/redeem (entitlement codes)', () => {
     })
   })
 
+  // THE OTHER HALF OF "BORN EXCLUDED" (Tom's ruling, 2026-09-10). The
+  // is_internal fix above must catch STAFF and nothing else. A gift is the
+  // mechanism by which a REAL person is given access without the payment side
+  // expecting money from them, and a gifted learner is a real learner: they
+  // belong in the pulse, the weak points and the drop-off, because excluding
+  // them makes those numbers less accurate rather than safer.
+  //
+  // This test is the guard on that. An entitlement code that grants access and
+  // no platform role must leave the learner row entirely alone.
+  it('a GIFTED learner is never excluded: an access grant sets no flag on them', async () => {
+    responders.entitlement_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'ent-gift',
+            code: 'GIFT-1',
+            access_type: 'full',
+            granted_courses: null,
+            duration_type: 'lifetime',
+            duration_days: null,
+            label: 'Comped',
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+            grants_platform_role: null,
+            grants_dashboard_courses: null,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = () => ({ data: { id: 'learner-gift' }, error: null })
+    responders.user_entitlements = () => ({ data: null, error: null })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'GIFT-1', codeKind: 'entitlement' } }), res)
+
+    expect(res._json.success).toBe(true)
+    expect(writes.user_entitlements).toHaveLength(1)
+    // No write to `learners` at all — no is_internal, no is_demo, nothing.
+    const learnerWrites = (writes.learners ?? []).filter((w) => w.op === 'update')
+    expect(learnerWrites).toHaveLength(0)
+  })
+
   it('reports "Code already redeemed" without inserting a second user_entitlements row', async () => {
     responders.entitlement_codes = (calls) => {
       const isSelect = calls.some((c) => c[0] === 'select')

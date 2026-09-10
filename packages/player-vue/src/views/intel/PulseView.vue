@@ -20,10 +20,12 @@ import type { AnyInsightSpec, ResolvedInsight } from '@/insight/spec'
 
 interface PulseCourseRow { course: string; thisWeek: number; lastWeek: number }
 interface PulseCountryRow { country: string; people: number }
+interface StandingCounts { paying: number; gifted: number; free: number }
 interface PulseResponse {
   thisWeek: number
   lastWeek: number
   population: number
+  standing: StandingCounts
   courses: PulseCourseRow[]
   countries: PulseCountryRow[]
   countedAt: string
@@ -73,6 +75,23 @@ const resolved = computed<ResolvedInsight>(() => ({
 
 const courseRows = computed(() => data.value?.courses ?? [])
 
+/**
+ * The money-side split of this week's people, in a sentence.
+ *
+ * Gifted learners — comped teachers, gifted friends, pilot schools — are REAL
+ * people and are counted in the number above. This line says how many of them
+ * there were, because how comped and pilot learners behave is a question worth
+ * asking and it can only be asked of people who are in the data. It splits the
+ * headline; it never filters it.
+ */
+const standingLine = computed<string | null>(() => {
+  const s = data.value?.standing
+  if (!s) return null
+  const total = s.paying + s.gifted + s.free
+  if (total === 0) return null
+  return `${s.paying} paying, ${s.gifted} gifted, ${s.free} on free access.`
+})
+
 function change(row: PulseCourseRow): string {
   const diff = row.thisWeek - row.lastWeek
   if (diff === 0) return 'no change'
@@ -91,6 +110,7 @@ function change(row: PulseCourseRow): string {
     <!-- No verbs at Everyone scope; the bar renders empty rather than being
          omitted, which is the layout rule. -->
     <template #evidence>
+      <p v-if="standingLine" class="standing">{{ standingLine }}</p>
       <InsightWidget :spec="spec" :resolved="resolved" />
     </template>
 
@@ -131,6 +151,11 @@ function change(row: PulseCourseRow): string {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--schools-red);
+}
+.standing {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: var(--schools-fg-3);
 }
 .rows-empty { padding: 0 18px 16px; color: var(--schools-fg-3); font-size: 14px; }
 

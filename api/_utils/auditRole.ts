@@ -16,10 +16,14 @@ export interface RoleChangeEntry {
   actorUserId?: string | null      // auth uid of who made the change (self for redemptions)
   targetLearnerId?: string | null  // learners.id
   targetUserId?: string | null     // auth uid of the target
-  field: 'platform_role' | 'educational_role' | 'dashboard'
+  // `entitlement` is a gift rather than a role: a real person given access
+  // without payment (Tom's ruling, 2026-09-10). It rides in this table because
+  // this table is already "who did what to whom", and a gift needs a record for
+  // the same reason a role change does.
+  field: 'platform_role' | 'educational_role' | 'dashboard' | 'entitlement'
   oldValue?: string | null
   newValue?: string | null
-  source: 'update-user-role' | 'invite-code' | 'entitlement-code' | 'email-allowlist'
+  source: 'update-user-role' | 'invite-code' | 'entitlement-code' | 'email-allowlist' | 'grant-entitlement' | 'mint-learner'
   codeUsed?: string | null
   detail?: Record<string, unknown> | null
 }
