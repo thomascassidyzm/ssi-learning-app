@@ -20,6 +20,25 @@ withDefaults(defineProps<{
 </script>
 
 <template>
+  <!-- HANDBOOK Who is behind every number
+       section: seeing-progress
+       roles: admin
+       place: intel
+       keywords: population, real people, demo, staff, test, excluded, chip
+       What it's for. Saying, under every answer, how many real people the
+       numbers on that page are counted from and who has been left out. Demo
+       accounts, SSi staff, class accounts and machine traffic are never
+       counted as people.
+       Where it is. The small pill beneath the answer sentence on every
+       question page.
+       How you do it.
+       1. Read the pill under the answer for the number of real people counted.
+       2. If a page is deliberately showing demo or staff data, the pill says
+          so in red.
+       Worth knowing. The count comes from the server, from one shared rule,
+       never from the page itself. Two pages cannot disagree about who is real.
+       checked: 23b7a8c5.e0a14f75
+  -->
   <span class="population-chip" :class="{ alarm: showingTestData }" data-intel="population-chip">
     <template v-if="showingTestData">
       Demo and staff data. These are not real people.

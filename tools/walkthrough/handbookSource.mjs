@@ -50,6 +50,14 @@ import { createHash } from 'node:crypto'
  */
 export const ANCHOR_ATTRS = ['data-walk', 'data-intel']
 
+/**
+ * WHICH SURFACE an anchor namespace describes. The pack carries this on every
+ * entry so the schools Handbook page can show only its own capabilities and
+ * the intelligence surface's "What this page counts" panel can find its own,
+ * from ONE compiled pack — the mechanism is shared, the pages are not.
+ */
+export const ANCHOR_SURFACES = { 'data-walk': 'schools', 'data-intel': 'intel' }
+
 const alternation = (attrs) => attrs.map((a) => a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
 
 /** `<tag … data-walk="id" …>` — group 1 is the attribute, group 2 the id. */

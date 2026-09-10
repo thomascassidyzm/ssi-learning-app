@@ -123,7 +123,28 @@ function stopped(r: WeakPointRow): string {
 </script>
 
 <template>
+  <!-- HANDBOOK Which bits of a course make people stumble
+       section: seeing-progress
+       roles: admin
+       place: intel
+       keywords: weak points, stumble, skip, retry, lego, course, too few to say
+       What it's for. Seeing, for one course, which pieces of it real learners
+       skip, retry, or stop on, ranked by how much trouble each piece caused
+       per person who met it.
+       Where it is. **Weak points**, under What's happening. Pick a course on
+       the left.
+       How you do it.
+       1. Tap a course under **Courses** in the map on the left.
+       2. Read the sentence for the piece that gave people the most trouble.
+       3. Read the rows, worst first, showing both languages for each piece.
+       4. Open a row to see that piece's phrases.
+       Worth knowing. When fewer than five real people have practised a course,
+       the page says **too few to say** rather than showing a number. That is
+       the truth about the course, not a fault in the page.
+       checked: 8378b141.a9071ccb
+  -->
   <QuestionPage
+    data-intel="question-weak-points"
     :question="question.question"
     :answer="answer"
     :headline="headline"

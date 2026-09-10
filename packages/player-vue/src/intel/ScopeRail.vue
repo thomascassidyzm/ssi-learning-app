@@ -36,6 +36,26 @@ function scopeTo(course: string | null): void {
 </script>
 
 <template>
+  <!-- HANDBOOK Choosing who a question is asked about
+       section: seeing-progress
+       roles: admin
+       place: intel
+       keywords: scope, everyone, course, organisation, people, rail, where you are
+       What it's for. Asking the same question of a smaller group: everyone,
+       one course, one organisation or one person. The question does not
+       change; who it is about does.
+       Where it is. The map on the left of every question page. On a phone it
+       is the first block.
+       How you do it.
+       1. Tap **Everyone** to ask the question of every real person.
+       2. Tap a course under **Courses** to ask it of that course alone.
+       3. Tap **Organisations** to go to the organisation tree and pick a
+          group, a school or a class.
+       4. Tap **People** to find one person by name or email.
+       Worth knowing. The choice is written into the page address, so a pasted
+       link opens the same question about the same people.
+       checked: 3ef45065.de5a5507
+  -->
   <nav class="scope-rail" aria-label="Where you are" data-intel="scope-rail">
     <button
       type="button"

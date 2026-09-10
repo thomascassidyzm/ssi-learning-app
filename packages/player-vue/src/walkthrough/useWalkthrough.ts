@@ -25,10 +25,13 @@ import { localiseWalk } from './localiseWalk'
 // most non-learner capability has moved to the node surface, but the flat
 // views are the residue AND the uncovered first-run path, so the map has to
 // span both while that migration finishes.
+// 'intel' is the intelligence surface, whose descriptions compile through the
+// same mechanism; its one place lands on the first question.
 export const KNOWN_PLACES = [
   'node-home', 'class-detail', 'node-insights', 'admin-invites', 'library',
   'dashboard', 'teachers', 'students', 'classes', 'settings', 'setup',
   'schools-list', 'analytics', 'upgrade',
+  'intel',
 ]
 
 // 'learner' (A-159, 2026-08-18) — the engine's first non-dashboard persona.

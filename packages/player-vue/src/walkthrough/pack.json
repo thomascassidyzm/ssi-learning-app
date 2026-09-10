@@ -1,5 +1,5 @@
 {
-  "version": "2ff493abac00",
+  "version": "8cc42609415d",
   "generatedAt": "2026-09-10",
   "walks": [
     {
@@ -911,6 +911,35 @@
   ],
   "handbook": [
     {
+      "id": "a-question-whose-page-is-not-built-yet",
+      "title": "A question whose page is not built yet",
+      "section": "seeing-progress",
+      "personas": [
+        "admin"
+      ],
+      "keywords": [
+        "not yet",
+        "unbuilt",
+        "coming",
+        "question",
+        "frame"
+      ],
+      "place": {
+        "route": "intel"
+      },
+      "anchor": "question-not-yet",
+      "surface": "intel",
+      "source": "packages/player-vue/src/views/intel/NotYetBuiltView.vue",
+      "walk": null,
+      "what": "Holding the place of a question that is in the frame but has no page yet, in the same layout as the built ones, so the bar always shows all ten and nothing pretends to measure what it does not.",
+      "where": "Any question in the bar shown in the quieter grey.",
+      "how": [
+        "Tap the question in the bar.",
+        "Read the card saying nothing is measured for it yet."
+      ],
+      "note": "This is never a teaser and never a stub with a fake number on it."
+    },
+    {
       "id": "add-a-class-to-a-group",
       "title": "Add a class to a group",
       "section": "running-classes",
@@ -930,6 +959,7 @@
         "route": "node-home"
       },
       "anchor": "verb-add-class",
+      "surface": "schools",
       "source": "packages/player-vue/src/components/admin/NodeActionBar.vue",
       "walk": null,
       "what": "Creating a class underneath a group you lead, before anyone is teaching it. Useful when you are setting a term up in advance and will put a teacher on each class later.",
@@ -963,6 +993,7 @@
         "route": "schools-list"
       },
       "anchor": "verb-add-school",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/SchoolsView.vue",
       "walk": null,
       "what": "Creating a new school inside your programme. The school exists the moment you name it, already attached to your group, with its admin link and teacher link ready to hand over.",
@@ -994,6 +1025,7 @@
         "route": "node-home"
       },
       "anchor": "verb-add-school",
+      "surface": "schools",
       "source": "packages/player-vue/src/components/admin/NodeActionBar.vue",
       "walk": null,
       "what": "Creating a school inside a group, so it has its own home page, its own staff and its own learners while still rolling up into whatever sits above it.",
@@ -1027,6 +1059,7 @@
         "route": "node-home"
       },
       "anchor": "verb-invite-student",
+      "surface": "schools",
       "source": "packages/player-vue/src/components/admin/NodeActionBar.vue",
       "walk": null,
       "what": "Making one learner their own way into one class. The link puts them straight into that class with no forms and no sign-up, so a child can be learning within a minute of opening it.",
@@ -1060,6 +1093,7 @@
         "route": "teachers"
       },
       "anchor": "teacher-named-seat",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/TeachersView.vue",
       "walk": null,
       "what": "Adding a specific teacher to your school when you know who they are but cannot rely on email reaching them. You type their name and get a code to hand over yourself.",
@@ -1094,6 +1128,7 @@
         "route": "class-detail"
       },
       "anchor": "class-student-add",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
       "walk": null,
       "what": "Putting a pupil who is already in your school into this class, for a pupil who has changed set or landed in the wrong class.",
@@ -1128,6 +1163,7 @@
         "route": "node-home"
       },
       "anchor": "verb-invite-person",
+      "surface": "schools",
       "source": "packages/player-vue/src/components/admin/NodeActionBar.vue",
       "walk": "invite-first-person",
       "what": "Bringing anyone into this part of the tree — a leader, a teacher or a learner — with a personal link that is their login.",
@@ -1165,6 +1201,7 @@
         "route": "upgrade"
       },
       "anchor": "upgrade-update-seats",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/UpgradeView.vue",
       "walk": null,
       "what": "Growing or shrinking a live subscription as staff or learners come and go, without going through checkout a second time.",
@@ -1201,6 +1238,7 @@
         "route": "settings"
       },
       "anchor": "settings-save-profile",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/SettingsView.vue",
       "walk": null,
       "what": "Correcting or updating what the app knows about your school — its name, its town, its contact email and a short description. The name is the one that shows on every page your staff and students see.",
@@ -1232,6 +1270,7 @@
         "route": "classes"
       },
       "anchor": "create-class-course",
+      "surface": "schools",
       "source": "packages/player-vue/src/components/schools/CreateClassModal.vue",
       "walk": null,
       "what": "Setting the language a class learns. Every class carries one course, and it decides what the class practises, what students hear when they join, and where the class's shared position sits.",
@@ -1265,6 +1304,7 @@
         "route": "node-home"
       },
       "anchor": "invite-form-role",
+      "surface": "schools",
       "source": "packages/player-vue/src/components/admin/NodeActionBar.vue",
       "walk": null,
       "what": "The role you pick on an invite is the role the person lands in, and it travels with the link rather than being set afterwards. Teacher sees their own classes, group leader sees everything below their node, learner just learns.",
@@ -1296,6 +1336,7 @@
         "route": "node-home"
       },
       "anchor": "verb-courses",
+      "surface": "schools",
       "source": "packages/player-vue/src/components/admin/NodeActionBar.vue",
       "walk": null,
       "what": "Setting what a school or group is allowed to learn: the whole catalogue when they are paid up, or a named course or two while they are trialling.",
@@ -1330,6 +1371,7 @@
         "route": "setup"
       },
       "anchor": "setup-course-picker",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/SetupView.vue",
       "walk": null,
       "what": "Narrowing the full list of courses your school can teach down to the handful you actually intend to use, so that choosing a course for a class is a short list rather than a long one.",
@@ -1341,6 +1383,39 @@
         "Tap **Continue** — the next step only offers the courses you left ticked."
       ],
       "note": "This is a filter and nothing more. It does not change what your school has access to, and it takes nothing away from anyone. A school on a trial sees its one trial course here; a subscribed school sees the whole catalogue."
+    },
+    {
+      "id": "choosing-who-a-question-is-asked-about",
+      "title": "Choosing who a question is asked about",
+      "section": "seeing-progress",
+      "personas": [
+        "admin"
+      ],
+      "keywords": [
+        "scope",
+        "everyone",
+        "course",
+        "organisation",
+        "people",
+        "rail",
+        "where you are"
+      ],
+      "place": {
+        "route": "intel"
+      },
+      "anchor": "scope-rail",
+      "surface": "intel",
+      "source": "packages/player-vue/src/intel/ScopeRail.vue",
+      "walk": null,
+      "what": "Asking the same question of a smaller group: everyone, one course, one organisation or one person. The question does not change; who it is about does.",
+      "where": "The map on the left of every question page. On a phone it is the first block.",
+      "how": [
+        "Tap **Everyone** to ask the question of every real person.",
+        "Tap a course under **Courses** to ask it of that course alone.",
+        "Tap **Organisations** to go to the organisation tree and pick a group, a school or a class.",
+        "Tap **People** to find one person by name or email."
+      ],
+      "note": "The choice is written into the page address, so a pasted link opens the same question about the same people."
     },
     {
       "id": "claim-another-email-domain-for-your-school",
@@ -1362,6 +1437,7 @@
         "route": "settings"
       },
       "anchor": "settings-identity-add-domain",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/SettingsView.vue",
       "walk": null,
       "what": "Telling the app which email domains belong to your school, so an arrival using one of them is not pushed to the top of your **Not yet given classes** list as somebody unfamiliar. Your own domain was recorded when you signed up; add the others if your school uses more than one.",
@@ -1392,6 +1468,7 @@
         "route": "classes"
       },
       "anchor": "classes-share-link",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/TeacherDashboard.vue",
       "walk": null,
       "what": "Grabbing a class's join link straight from the class list, for when you are sending links to several classes in one sitting.",
@@ -1426,6 +1503,7 @@
         "route": "schools-list"
       },
       "anchor": "schools-list-link-chips",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/SchoolsView.vue",
       "walk": null,
       "what": "Fetching the admin link or the teacher link for any school in your programme, so you can chase a school that has not got started or replace a link somebody has lost.",
@@ -1459,6 +1537,7 @@
         "route": "setup"
       },
       "anchor": "setup-add-class-row",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/SetupView.vue",
       "walk": null,
       "what": "Setting up the classes your school will actually teach. A class is a name, a course and the students who join it, and it is the thing every progress figure in the dashboard is eventually counted against.",
@@ -1492,6 +1571,7 @@
         "route": "class-detail"
       },
       "anchor": "class-delete",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
       "walk": null,
       "what": "Removing a class you no longer want, usually one set up by mistake or a group that has finished. Before anything is deleted the app tells you what goes with it.",
@@ -1523,6 +1603,7 @@
         "route": "node-home"
       },
       "anchor": "verb-delete",
+      "surface": "schools",
       "source": "packages/player-vue/src/components/admin/NodeActionBar.vue",
       "walk": null,
       "what": "Removing a school or group that should never have existed, or has been wound up. It is the one verb here that takes everything below it with it.",
@@ -1555,6 +1636,7 @@
         "route": "settings"
       },
       "anchor": "settings-delete-school",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/SettingsView.vue",
       "walk": null,
       "what": "Closing your school down for good. It removes the school itself along with its classes and everybody's enrolment in them, and it cannot be undone.",
@@ -1590,6 +1672,7 @@
         "route": "settings"
       },
       "anchor": "settings-export-data",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/SettingsView.vue",
       "walk": null,
       "what": "Taking your school's progress figures out of the app as a spreadsheet file — every student, the class they are in, how far they have got, how long they have practised and when they were last active.",
@@ -1623,6 +1706,7 @@
         "route": "node-home"
       },
       "anchor": "ways-in-resend",
+      "surface": "schools",
       "source": "packages/player-vue/src/components/admin/WaysInLedger.vue",
       "walk": null,
       "what": "Sending the same invite email a second time to somebody who never found the first one. Nothing changes and no new link is made, so the one they may yet dig out of a spam folder still works.",
@@ -1654,6 +1738,7 @@
         "route": "classes"
       },
       "anchor": "classes-export",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/TeacherDashboard.vue",
       "walk": null,
       "what": "Taking the class list away as a spreadsheet, with the name, language, student count, belt, hours this week, sessions, health and join code for every class.",
@@ -1686,6 +1771,7 @@
         "route": "classes"
       },
       "anchor": "classes-filters",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/TeacherDashboard.vue",
       "walk": null,
       "what": "Narrowing a long list down to the classes you care about right now, by language or by how they are doing, and putting them in the order that answers your question.",
@@ -1719,6 +1805,7 @@
         "route": "settings"
       },
       "anchor": "account-identity",
+      "surface": "schools",
       "source": "packages/player-vue/src/components/SettingsScreen.vue",
       "walk": null,
       "what": "Telling you which email address this account uses, so you never have to guess when you sign in on another device or ask us for help.",
@@ -1752,6 +1839,7 @@
         "route": "node-home"
       },
       "anchor": "node-map-rail",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
       "walk": null,
       "what": "A standing map down the side of every level, showing where you are: the levels above you, the level you are on, its neighbours and what sits under it. It never disappears, so you can always tell how deep into the organisation you have gone.",
@@ -1785,6 +1873,7 @@
         "route": "setup"
       },
       "anchor": "setup-class-course",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/SetupView.vue",
       "walk": null,
       "what": "Picking the language a class is learning. This is how a course reaches learners at all — a course does not belong to a person, it belongs to a class, and everybody in that class practises it.",
@@ -1817,6 +1906,7 @@
         "route": "teachers"
       },
       "anchor": "teacher-assign-classes",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/TeachersView.vue",
       "walk": null,
       "what": "Putting a teacher onto the classes they will teach, working from your staff list rather than opening each class in turn. This is how a new arrival gets their timetable in one sitting.",
@@ -1849,6 +1939,7 @@
         "route": "class-detail"
       },
       "anchor": "class-teacher-make-lead",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
       "walk": "hand-over-the-lead",
       "what": "Passing the lead of a class to another teacher who already teaches it — for a maternity cover, a term swap, or a permanent handover.",
@@ -1880,6 +1971,7 @@
         "route": "teachers"
       },
       "anchor": "teacher-signin-link",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/TeachersView.vue",
       "walk": null,
       "what": "A way to get a teacher into their own account when email is not reaching them. School mail gateways quarantine our sign-in codes often enough that this is the rescue, not the exception.",
@@ -1916,6 +2008,7 @@
         "route": "node-home"
       },
       "anchor": "ways-in-copy-course",
+      "surface": "schools",
       "source": "packages/player-vue/src/components/admin/WaysInLedger.vue",
       "walk": null,
       "what": "Giving one group of learners a sign-up link that puts them straight into a named course, when your funded year covers more than one. A North Wales tutor hands out the North Welsh link and nobody in that room is asked which Welsh they meant.",
@@ -1950,6 +2043,7 @@
         "route": "setup"
       },
       "anchor": "setup-staff-links",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/SetupView.vue",
       "walk": null,
       "what": "Getting your colleagues in. Your school has a standing teacher link and a standing admin link — send either one and whoever opens it is signed in with that role, with no sign-up form to fill in.",
@@ -1962,6 +2056,41 @@
         "Anyone who has already joined is listed underneath, so you can see who is in."
       ],
       "note": "A teacher does not need to speak the language. The app does the teaching, so anyone on your staff can run a class."
+    },
+    {
+      "id": "how-every-question-page-is-laid-out",
+      "title": "How every question page is laid out",
+      "section": "seeing-progress",
+      "personas": [
+        "admin"
+      ],
+      "keywords": [
+        "question",
+        "page",
+        "layout",
+        "answer",
+        "evidence",
+        "rows",
+        "verbs",
+        "five parts"
+      ],
+      "place": {
+        "route": "intel"
+      },
+      "anchor": "question-page",
+      "surface": "intel",
+      "source": "packages/player-vue/src/intel/QuestionPage.vue",
+      "walk": null,
+      "what": "Every one of the ten questions is answered on a page with the same five parts in the same order, so once you can read one you can read them all: where you are, the answer, the evidence, the rows, and the verbs.",
+      "where": "Any page under What's happening.",
+      "how": [
+        "Read the map on the left to see who the question is being asked about.",
+        "Read the answer: one plain sentence and one number, with when it was fetched and who is counted directly beneath.",
+        "Read the evidence: one chart, never two side by side.",
+        "Open any row beneath it. Every row is a link to the thing it names.",
+        "The buttons across the top of the main column are the things you can do about the answer. When there is nothing to do, the strip is empty rather than missing."
+      ],
+      "note": "No page may add a part or move one. A page that tried to would fail the build."
     },
     {
       "id": "how-far-a-class-has-travelled",
@@ -1985,6 +2114,7 @@
         "route": "node-home"
       },
       "anchor": "class-journey",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
       "walk": null,
       "what": "A bar showing where a class has got to in its course, measured in LEGOs — the individual pieces of language the course teaches. The class's own shared position leads, and the average its students have reached on their own sits alongside it.",
@@ -2018,6 +2148,7 @@
         "route": "node-home"
       },
       "anchor": "node-updated",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
       "walk": null,
       "what": "A small time stamp saying when the figures on the page were last loaded, so you always know whether you are looking at this morning or this minute.",
@@ -2028,6 +2159,41 @@
         "Pull the page down or reload it to fetch again — the stamp moves with it."
       ],
       "note": "Nothing is shown until the first load has genuinely succeeded, so an empty stamp means the numbers have not arrived rather than that they are old."
+    },
+    {
+      "id": "how-many-real-people-practised-this-week",
+      "title": "How many real people practised this week",
+      "section": "seeing-progress",
+      "personas": [
+        "admin"
+      ],
+      "keywords": [
+        "pulse",
+        "practised",
+        "this week",
+        "last week",
+        "real people",
+        "courses",
+        "countries",
+        "paying",
+        "gifted"
+      ],
+      "place": {
+        "route": "intel"
+      },
+      "anchor": "question-pulse",
+      "surface": "intel",
+      "source": "packages/player-vue/src/views/intel/PulseView.vue",
+      "walk": null,
+      "what": "The first question on a Monday: how many real people practised in the last seven days, and whether that is more or fewer than the seven days before.",
+      "where": "**Pulse**, the first question in the bar under What's happening.",
+      "how": [
+        "Read the number and the sentence for this week against last week.",
+        "Read the line beneath the chart for how many of those people are paying, gifted or on free access. Gifted people are real people and are counted.",
+        "Read the chart for where in the world this week's people are.",
+        "Open any course row to see which bits of that course give people trouble."
+      ],
+      "note": "A person who practised nine times this week counts once."
     },
     {
       "id": "how-students-join-a-class",
@@ -2050,6 +2216,7 @@
         "route": "class-detail"
       },
       "anchor": "class-join-link",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
       "walk": null,
       "what": "The one door into a class. A student who follows the class link signs up and lands straight in the class, on the right course, with no code to type. The same class also has a short code for a room where a link is awkward.",
@@ -2082,6 +2249,7 @@
         "route": "dashboard"
       },
       "anchor": "dash-class-bench",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/DashboardView.vue",
       "walk": null,
       "what": "A three-bar benchmark on each class, showing the cycles that class has done against the average for your school and the average across everyone learning that course anywhere. It answers the question a total cannot: is this normal.",
@@ -2114,6 +2282,7 @@
         "route": "teachers"
       },
       "anchor": "teachers-invite-link",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/TeachersView.vue",
       "walk": null,
       "what": "One standing link that turns anyone who opens it into a teacher of your school. It is the same link every time, so you can hand it to a whole staff room at once.",
@@ -2148,6 +2317,7 @@
         "route": "class-detail"
       },
       "anchor": "class-coteacher-link",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
       "walk": "invite-a-supply-teacher",
       "what": "Getting a teacher who has no account yet into one class of yours, without going through the school admin.",
@@ -2181,6 +2351,7 @@
         "route": "settings"
       },
       "anchor": "settings-identity-add-address",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/SettingsView.vue",
       "walk": null,
       "what": "Marking one named person as expected when their email is not at your school's domain: a supply teacher here for a fortnight, or a colleague who only uses a personal address. It stops them being sorted to the top of **Not yet given classes** as somebody you might not know.",
@@ -2213,6 +2384,7 @@
         "route": "students"
       },
       "anchor": "student-view-link",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/StudentsView.vue",
       "walk": null,
       "what": "Finding one learner among all of them and opening what they have actually done. The list carries their belt, their hours this week, and when they were last here, so you can often answer the question without opening anything.",
@@ -2244,6 +2416,7 @@
         "route": "classes"
       },
       "anchor": "verb-new-class",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/TeacherDashboard.vue",
       "walk": null,
       "what": "Setting up a class of your own: a name, a language, and a link students use to join it. A class holds a roster, its own place on the course, and everything the class practises together.",
@@ -2278,6 +2451,7 @@
         "route": "node-home"
       },
       "anchor": "verb-shareable-link",
+      "surface": "schools",
       "source": "packages/player-vue/src/components/admin/NodeActionBar.vue",
       "walk": null,
       "what": "One link, by role, that you can put in a newsletter or on a slide and let a whole room use. Unlike a personal invite it is not tied to anybody, so new arrivals type their own name before they are in.",
@@ -2310,6 +2484,7 @@
         "route": "class-detail"
       },
       "anchor": "class-teacher-other-classes",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
       "walk": "move-a-teacher-between-classes",
       "what": "Changing which classes a teacher is on, in one pass, without visiting each class in turn.",
@@ -2342,6 +2517,7 @@
         "route": "setup"
       },
       "anchor": "setup-school-name",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/SetupView.vue",
       "walk": null,
       "what": "Telling the app what your school is actually called. The name you type here is the one your teachers and students see on every page, on every invite link they open, and at the top of every report.",
@@ -2373,6 +2549,7 @@
         "route": "classes"
       },
       "anchor": "classes-row",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/TeacherDashboard.vue",
       "walk": null,
       "what": "Going from the summary row into the class itself, where the roster, the teachers, the join link and the class's progress all live.",
@@ -2406,6 +2583,7 @@
         "route": "node-home"
       },
       "anchor": "class-benchmark",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
       "walk": null,
       "what": "Minutes of practice per student per week for this class, set against the same figure for its school and for everyone doing the course. Dividing by students and by weeks is what lets a class of nine and a class of thirty be compared honestly.",
@@ -2437,6 +2615,7 @@
         "route": "dashboard"
       },
       "anchor": "mailbox-check-send",
+      "surface": "schools",
       "source": "packages/player-vue/src/components/schools/MailboxCheckPrompt.vue",
       "walk": null,
       "what": "School mail gateways are ferocious, and a code that never arrives is only discovered on the day you need it. This asks once, at the moment you have just made something worth keeping, and settles it.",
@@ -2467,6 +2646,7 @@
         "route": "node-home"
       },
       "anchor": "account-install",
+      "surface": "schools",
       "source": "packages/player-vue/src/components/admin/YourAccount.vue",
       "walk": "install-the-app",
       "what": "Putting SSi on your phone or tablet as an app, so it opens from the home screen and works without a browser tab.",
@@ -2498,6 +2678,7 @@
         "route": "classes"
       },
       "anchor": "classes-table",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/TeacherDashboard.vue",
       "walk": null,
       "what": "One row per class, showing at a glance how each one is doing: how many students, what belt the class has reached, hours practised this week, the shape of the last seven days, and a health mark for classes worth a look.",
@@ -2532,6 +2713,7 @@
         "route": "node-home"
       },
       "anchor": "class-students",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
       "walk": null,
       "what": "Every student in a class, one to a row, each carrying their own position in the course, their belt, their practice over the last week and how recently they were active. A quiet coloured dot flags anyone who has gone quiet or fallen well behind the class.",
@@ -2567,6 +2749,7 @@
         "route": "node-home"
       },
       "anchor": "class-belts",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
       "walk": null,
       "what": "How a class is spread across the eight belts, from white to black. A belt is earned by completing whole sentences of the course, so it is a coarse, honest badge of distance travelled rather than a score or a grade.",
@@ -2600,6 +2783,7 @@
         "route": "node-insights"
       },
       "anchor": "insights-measure",
+      "surface": "schools",
       "source": "packages/player-vue/src/insight/NodeRateEngine.vue",
       "walk": "reading-insights",
       "what": "Reading the pace of learning at this level — what is being counted, over what period, and against what.",
@@ -2633,6 +2817,7 @@
         "route": "class-detail"
       },
       "anchor": "class-student-remove",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
       "walk": null,
       "what": "Taking a student off a class roster, for a pupil who has changed set or joined the wrong class from a shared link.",
@@ -2663,6 +2848,7 @@
         "route": "teachers"
       },
       "anchor": "teacher-remove",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/TeachersView.vue",
       "walk": null,
       "what": "Taking a teacher off your school when they leave. Their own account survives — what goes is their place in this school and their view of its classes and learners. It is also how you deal with somebody under **Not yet given classes** you do not recognise, or a name you typed by mistake.",
@@ -2695,6 +2881,7 @@
         "route": "class-detail"
       },
       "anchor": "class-rename",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
       "walk": null,
       "what": "Changing what a class is called, for a name typed in a hurry or a group that has moved up a year.",
@@ -2725,6 +2912,7 @@
         "route": "node-home"
       },
       "anchor": "verb-rename",
+      "surface": "schools",
       "source": "packages/player-vue/src/components/admin/NodeActionBar.vue",
       "walk": null,
       "what": "Changing what a school or group is called everywhere it appears. Nothing else moves — the same people, classes and links carry on under the new name.",
@@ -2757,6 +2945,7 @@
         "route": "class-detail"
       },
       "anchor": "class-play",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
       "walk": "run-class-session",
       "what": "Running a live practice session with a class in the room, everyone hearing the same thing at the same time.",
@@ -2792,6 +2981,7 @@
         "route": "node-home"
       },
       "anchor": "funder-numbers",
+      "surface": "schools",
       "source": "packages/player-vue/src/components/admin/OrgFunderNumbers.vue",
       "walk": null,
       "what": "The monthly return your funder asks for, on your own page, so you can read it or send it without asking us to pull it.",
@@ -2827,6 +3017,7 @@
         "route": "schools-list"
       },
       "anchor": "schools-list-table",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/SchoolsView.vue",
       "walk": null,
       "what": "One table of every school you look after, with its students, teachers, classes and practice hours side by side, so a whole programme reads at a glance instead of school by school.",
@@ -2861,6 +3052,7 @@
         "route": "node-home"
       },
       "anchor": "org-enrolment-courses",
+      "surface": "schools",
       "source": "packages/player-vue/src/components/schools/NodeEntitlementControl.vue",
       "walk": null,
       "what": "Showing the courses an organisation hands out through its own sign-up page, which are given to each learner as they join rather than held on the organisation itself.",
@@ -2896,6 +3088,7 @@
         "route": "settings"
       },
       "anchor": "settings-billing-plan",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/SchoolBillingPanel.vue",
       "walk": null,
       "what": "The plain statement of your school's plan — its name, how many teacher seats it is paying for, and whether the subscription is live.",
@@ -2927,6 +3120,7 @@
         "route": "node-home"
       },
       "anchor": "account-password",
+      "surface": "schools",
       "source": "packages/player-vue/src/components/admin/YourAccount.vue",
       "walk": "set-your-password",
       "what": "Giving yourself a password so you can sign back in without waiting for a link in your email.",
@@ -2957,6 +3151,7 @@
         "route": "node-home"
       },
       "anchor": "verb-mint-demo",
+      "surface": "schools",
       "source": "packages/player-vue/src/components/admin/NodeActionBar.vue",
       "walk": null,
       "what": "Standing up a whole organisation with plausible people and activity already in it, for showing somebody what the product looks like once it is running rather than what it looks like empty.",
@@ -2992,6 +3187,7 @@
         "route": "settings"
       },
       "anchor": "settings-localisation-save",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/SettingsView.vue",
       "walk": null,
       "what": "Choosing the language the dashboard itself speaks to you in, and the time zone your dates and times are read against.",
@@ -3024,6 +3220,7 @@
         "route": "class-detail"
       },
       "anchor": "class-teacher-add",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
       "walk": "share-a-class",
       "what": "Adding another teacher to a class you already run, so you both see the same roster and the same progress.",
@@ -3055,6 +3252,7 @@
         "route": "classes"
       },
       "anchor": "classes-row-play",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/TeacherDashboard.vue",
       "walk": null,
       "what": "Starting a shared practice session for a class without opening the class first. Your device leads and the whole class moves together from where the class last got to.",
@@ -3089,6 +3287,7 @@
         "route": "upgrade"
       },
       "anchor": "upgrade-subscribe-tutor",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/UpgradeView.vue",
       "walk": null,
       "what": "Paying for your own tutoring dashboard when you teach on your own rather than inside a school. It is one seat, for you.",
@@ -3124,6 +3323,7 @@
         "route": "upgrade"
       },
       "anchor": "upgrade-subscribe-org",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/UpgradeView.vue",
       "walk": null,
       "what": "Putting your whole organisation on a paid plan. You pay per learner seat, and one subscription covers every seat and every language across the group.",
@@ -3159,6 +3359,7 @@
         "route": "upgrade"
       },
       "anchor": "upgrade-subscribe-school",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/UpgradeView.vue",
       "walk": null,
       "what": "Turning a trial into a paid school. You pay per teacher seat, and one subscription covers every language and every class those teachers run.",
@@ -3191,6 +3392,7 @@
         "route": "settings"
       },
       "anchor": "settings-identity-remove",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/SettingsView.vue",
       "walk": null,
       "what": "Taking a domain or a named address off the list your Teachers page sorts by.",
@@ -3222,6 +3424,7 @@
         "route": "teachers"
       },
       "anchor": "assign-classes-modal",
+      "surface": "schools",
       "source": "packages/player-vue/src/components/schools/AssignClassesModal.vue",
       "walk": null,
       "what": "Changing which classes a teacher takes without removing them from the school. The ticks start from what is true today, so moving somebody from one class to another is a single change rather than two.",
@@ -3254,6 +3457,7 @@
         "route": "students"
       },
       "anchor": "students-export",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/StudentsView.vue",
       "walk": null,
       "what": "A CSV of whoever is currently on screen, for a report, a governors' meeting, or your own sums in a spreadsheet.",
@@ -3286,6 +3490,7 @@
         "route": "class-detail"
       },
       "anchor": "class-roster",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
       "walk": null,
       "what": "Everyone in the class, one row each, with their belt, how much they have learned, how much they have practised and when they were last at it. This is the answer to who is quietly drifting.",
@@ -3317,6 +3522,7 @@
         "route": "admin-invites"
       },
       "anchor": "invites-mode-strip",
+      "surface": "schools",
       "source": "packages/player-vue/src/components/admin/invites/InviteCreateCard.vue",
       "walk": "invites-desk",
       "what": "The platform-wide desk where SSi mints and manages invites across every organisation at once.",
@@ -3351,6 +3557,7 @@
         "route": "node-home"
       },
       "anchor": "node-stats",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
       "walk": null,
       "what": "The row of figures at the top of any level of your organisation. They always count everything below that level, each person once, so a group's numbers already include every school, class and learner underneath it.",
@@ -3387,6 +3594,7 @@
         "route": "node-insights"
       },
       "anchor": "insights-voice-pause",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/admin/NodeInsightsView.vue",
       "walk": null,
       "what": "What the microphone is actually giving us below this level: how many learners have any mic-derived data at all, and for those who do, how the pause the app leaves them to speak in is settling, and how they sound when they speak.",
@@ -3422,6 +3630,7 @@
         "route": "node-home"
       },
       "anchor": "below-tree-name",
+      "surface": "schools",
       "source": "packages/player-vue/src/components/admin/NodeBelowTree.vue",
       "walk": null,
       "what": "A drawn tree of everything hanging beneath the level you are on — groups inside groups, the classes in each, the teachers who take them and the staff who teach nothing yet. It is one picture of the shape of your organisation, not a list you have to filter.",
@@ -3457,6 +3666,7 @@
         "route": "node-home"
       },
       "anchor": "ways-in-ledger",
+      "surface": "schools",
       "source": "packages/player-vue/src/components/admin/WaysInLedger.vue",
       "walk": "ways-in",
       "what": "The ledger of every way into this part of the tree — who has a live link, what it lets them do, and how to change your mind.",
@@ -3469,6 +3679,36 @@
         "**Revoke** closes that way in entirely."
       ],
       "note": "A shareable link is open to anyone who holds it, so revoke is the tool when a link has travelled further than you meant."
+    },
+    {
+      "id": "when-an-answer-was-fetched",
+      "title": "When an answer was fetched",
+      "section": "seeing-progress",
+      "personas": [
+        "admin"
+      ],
+      "keywords": [
+        "updated",
+        "fetched",
+        "fresh",
+        "stale",
+        "time",
+        "stamp"
+      ],
+      "place": {
+        "route": "intel"
+      },
+      "anchor": "updated-stamp",
+      "surface": "intel",
+      "source": "packages/player-vue/src/intel/UpdatedStamp.vue",
+      "walk": null,
+      "what": "Saying when the numbers on a question page were actually read from the database, so you know whether you are looking at this minute or this morning.",
+      "where": "Beneath the answer sentence on every question page, reading **Updated** and a time.",
+      "how": [
+        "Read the time beneath the answer.",
+        "While it reads **Updating**, the page is still fetching and no number on it is final."
+      ],
+      "note": "The time is taken when the fetch completed, never when the page drew itself."
     },
     {
       "id": "when-more-people-join-than-you-have-seats",
@@ -3494,6 +3734,7 @@
         "route": "upgrade"
       },
       "anchor": "upgrade-seats-actual",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/UpgradeView.vue",
       "walk": null,
       "what": "What happens when your school or organisation outgrows the seats it is paying for. Nothing is blocked, nobody is locked out, and no lesson stops. The page simply tells you the truth so you can put it right.",
@@ -3526,6 +3767,7 @@
         "route": "class-detail"
       },
       "anchor": "class-journey",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
       "walk": null,
       "what": "How far the class has travelled through its course, as a bar with the class average behind it and the next belt named. A class carries its own place on the course, moved by the sessions you run together.",
@@ -3559,6 +3801,7 @@
         "route": "node-home"
       },
       "anchor": "class-practice",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
       "walk": null,
       "what": "The headline card on a class: how many sessions it has run this week, how long ago the last one was, and the total hours it has practised together. Classes practising together is what a language programme lives on, so this leads over anything individual students do alone.",
@@ -3569,6 +3812,70 @@
         "The line under it gives the time since the last session and the running total of hours and sessions."
       ],
       "note": "A class that has never played together says so plainly and names the teacher's **Play as class** button as the thing that starts the first one."
+    },
+    {
+      "id": "which-bits-of-a-course-make-people-stumble",
+      "title": "Which bits of a course make people stumble",
+      "section": "seeing-progress",
+      "personas": [
+        "admin"
+      ],
+      "keywords": [
+        "weak points",
+        "stumble",
+        "skip",
+        "retry",
+        "lego",
+        "course",
+        "too few to say"
+      ],
+      "place": {
+        "route": "intel"
+      },
+      "anchor": "question-weak-points",
+      "surface": "intel",
+      "source": "packages/player-vue/src/views/intel/WeakPointsView.vue",
+      "walk": null,
+      "what": "Seeing, for one course, which pieces of it real learners skip, retry, or stop on, ranked by how much trouble each piece caused per person who met it.",
+      "where": "**Weak points**, under What's happening. Pick a course on the left.",
+      "how": [
+        "Tap a course under **Courses** in the map on the left.",
+        "Read the sentence for the piece that gave people the most trouble.",
+        "Read the rows, worst first, showing both languages for each piece.",
+        "Open a row to see that piece's phrases."
+      ],
+      "note": "When fewer than five real people have practised a course, the page says **too few to say** rather than showing a number. That is the truth about the course, not a fault in the page."
+    },
+    {
+      "id": "who-is-behind-every-number",
+      "title": "Who is behind every number",
+      "section": "seeing-progress",
+      "personas": [
+        "admin"
+      ],
+      "keywords": [
+        "population",
+        "real people",
+        "demo",
+        "staff",
+        "test",
+        "excluded",
+        "chip"
+      ],
+      "place": {
+        "route": "intel"
+      },
+      "anchor": "population-chip",
+      "surface": "intel",
+      "source": "packages/player-vue/src/intel/PopulationChip.vue",
+      "walk": null,
+      "what": "Saying, under every answer, how many real people the numbers on that page are counted from and who has been left out. Demo accounts, SSi staff, class accounts and machine traffic are never counted as people.",
+      "where": "The small pill beneath the answer sentence on every question page.",
+      "how": [
+        "Read the pill under the answer for the number of real people counted.",
+        "If a page is deliberately showing demo or staff data, the pill says so in red."
+      ],
+      "note": "The count comes from the server, from one shared rule, never from the page itself. Two pages cannot disagree about who is real."
     },
     {
       "id": "why-the-insights-show-a-rate-not-a-total",
@@ -3593,6 +3900,7 @@
         "route": "node-insights"
       },
       "anchor": "insights-rate-widget",
+      "surface": "schools",
       "source": "packages/player-vue/src/insight/NodeRateEngine.vue",
       "walk": null,
       "what": "Everything on the insights page is a rate — an amount per learner per week — rather than a running total. A total only ever says how big and how old something is, so a large school always beats a small one. A rate says how fast it is moving, which is the thing you can actually act on.",
@@ -3628,6 +3936,7 @@
         "route": "setup"
       },
       "anchor": "setup-save-exit",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/SetupView.vue",
       "walk": null,
       "what": "The first-run wizard that takes a brand-new school from nothing to teachers, courses and classes. It is four short steps and it does not have to be done in one sitting.",
@@ -3662,6 +3971,7 @@
         "route": "analytics"
       },
       "anchor": "teacher-insights-class",
+      "surface": "schools",
       "source": "packages/player-vue/src/insight/TeacherInsightsView.vue",
       "walk": null,
       "what": "The teacher's own insight tool: pick one of your classes and see its pace set against the average, over the period and for the measure you choose. It answers whether a class is moving well, which a roster of totals cannot.",
@@ -3694,6 +4004,7 @@
         "route": "dashboard"
       },
       "anchor": "dash-class-card",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/DashboardView.vue",
       "walk": null,
       "what": "Your teaching dashboard, with your classes first. Every class you teach is a row or a card carrying its course, how many students are in it, their average practice, and the join code you read out to get a new pupil in.",
@@ -3725,6 +4036,7 @@
         "route": "dashboard"
       },
       "anchor": "dash-teacher-stats",
+      "surface": "schools",
       "source": "packages/player-vue/src/views/schools/DashboardView.vue",
       "walk": null,
       "what": "One quiet line totalling your whole teaching load — how many students you have across every class, how many hours they have practised between them, and how many sessions have been run. It is a record of what has happened, never a target.",

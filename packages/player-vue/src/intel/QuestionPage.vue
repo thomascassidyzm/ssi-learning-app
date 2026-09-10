@@ -45,6 +45,30 @@ withDefaults(defineProps<{
 </script>
 
 <template>
+  <!-- HANDBOOK How every question page is laid out
+       section: seeing-progress
+       roles: admin
+       place: intel
+       parts: verb-bar, answer, evidence, rows
+       keywords: question, page, layout, answer, evidence, rows, verbs, five parts
+       What it's for. Every one of the ten questions is answered on a page with
+       the same five parts in the same order, so once you can read one you can
+       read them all: where you are, the answer, the evidence, the rows, and the
+       verbs.
+       Where it is. Any page under What's happening.
+       How you do it.
+       1. Read the map on the left to see who the question is being asked about.
+       2. Read the answer: one plain sentence and one number, with when it was
+          fetched and who is counted directly beneath.
+       3. Read the evidence: one chart, never two side by side.
+       4. Open any row beneath it. Every row is a link to the thing it names.
+       5. The buttons across the top of the main column are the things you can
+          do about the answer. When there is nothing to do, the strip is empty
+          rather than missing.
+       Worth knowing. No page may add a part or move one. A page that tried to
+       would fail the build.
+       checked: f511f1fc.9db64e3c
+  -->
   <div class="question-page" data-intel="question-page">
     <!-- 1. WHERE YOU ARE -->
     <aside class="where">

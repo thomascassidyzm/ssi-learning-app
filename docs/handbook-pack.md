@@ -1,6 +1,19 @@
 # Handbook — compiled render
 
-**Version `2ff493abac00` · generated 2026-09-10 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `8cc42609415d` · generated 2026-09-10 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+
+## A question whose page is not built yet
+
+Section: seeing-progress · roles: admin · anchor: `question-not-yet` · in `packages/player-vue/src/views/intel/NotYetBuiltView.vue`
+
+**What it's for.** Holding the place of a question that is in the frame but has no page yet, in the same layout as the built ones, so the bar always shows all ten and nothing pretends to measure what it does not.
+
+**Where it is.** Any question in the bar shown in the quieter grey.
+
+1. Tap the question in the bar.
+2. Read the card saying nothing is measured for it yet.
+
+**Worth knowing.** This is never a teaser and never a stub with a fake number on it.
 
 ## Add a class to a group
 
@@ -202,6 +215,21 @@ Section: courses-and-content · roles: school_admin · anchor: `setup-course-pic
 4. Tap **Continue** — the next step only offers the courses you left ticked.
 
 **Worth knowing.** This is a filter and nothing more. It does not change what your school has access to, and it takes nothing away from anyone. A school on a trial sees its one trial course here; a subscribed school sees the whole catalogue.
+
+## Choosing who a question is asked about
+
+Section: seeing-progress · roles: admin · anchor: `scope-rail` · in `packages/player-vue/src/intel/ScopeRail.vue`
+
+**What it's for.** Asking the same question of a smaller group: everyone, one course, one organisation or one person. The question does not change; who it is about does.
+
+**Where it is.** The map on the left of every question page. On a phone it is the first block.
+
+1. Tap **Everyone** to ask the question of every real person.
+2. Tap a course under **Courses** to ask it of that course alone.
+3. Tap **Organisations** to go to the organisation tree and pick a group, a school or a class.
+4. Tap **People** to find one person by name or email.
+
+**Worth knowing.** The choice is written into the page address, so a pasted link opens the same question about the same people.
 
 ## Claim another email domain for your school
 
@@ -492,6 +520,22 @@ Section: getting-people-in · roles: school_admin · anchor: `setup-staff-links`
 
 **Worth knowing.** A teacher does not need to speak the language. The app does the teaching, so anyone on your staff can run a class.
 
+## How every question page is laid out
+
+Section: seeing-progress · roles: admin · anchor: `question-page` · in `packages/player-vue/src/intel/QuestionPage.vue`
+
+**What it's for.** Every one of the ten questions is answered on a page with the same five parts in the same order, so once you can read one you can read them all: where you are, the answer, the evidence, the rows, and the verbs.
+
+**Where it is.** Any page under What's happening.
+
+1. Read the map on the left to see who the question is being asked about.
+2. Read the answer: one plain sentence and one number, with when it was fetched and who is counted directly beneath.
+3. Read the evidence: one chart, never two side by side.
+4. Open any row beneath it. Every row is a link to the thing it names.
+5. The buttons across the top of the main column are the things you can do about the answer. When there is nothing to do, the strip is empty rather than missing.
+
+**Worth knowing.** No page may add a part or move one. A page that tried to would fail the build.
+
 ## How far a class has travelled
 
 Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-journey` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
@@ -520,6 +564,21 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-
 3. Pull the page down or reload it to fetch again — the stamp moves with it.
 
 **Worth knowing.** Nothing is shown until the first load has genuinely succeeded, so an empty stamp means the numbers have not arrived rather than that they are old.
+
+## How many real people practised this week
+
+Section: seeing-progress · roles: admin · anchor: `question-pulse` · in `packages/player-vue/src/views/intel/PulseView.vue`
+
+**What it's for.** The first question on a Monday: how many real people practised in the last seven days, and whether that is more or fewer than the seven days before.
+
+**Where it is.** **Pulse**, the first question in the bar under What's happening.
+
+1. Read the number and the sentence for this week against last week.
+2. Read the line beneath the chart for how many of those people are paying, gifted or on free access. Gifted people are real people and are counted.
+3. Read the chart for where in the world this week's people are.
+4. Open any course row to see which bits of that course give people trouble.
+
+**Worth knowing.** A person who practised nine times this week counts once.
 
 ## How students join a class
 
@@ -1183,6 +1242,19 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `way
 
 **Worth knowing.** A shareable link is open to anyone who holds it, so revoke is the tool when a link has travelled further than you meant.
 
+## When an answer was fetched
+
+Section: seeing-progress · roles: admin · anchor: `updated-stamp` · in `packages/player-vue/src/intel/UpdatedStamp.vue`
+
+**What it's for.** Saying when the numbers on a question page were actually read from the database, so you know whether you are looking at this minute or this morning.
+
+**Where it is.** Beneath the answer sentence on every question page, reading **Updated** and a time.
+
+1. Read the time beneath the answer.
+2. While it reads **Updating**, the page is still fetching and no number on it is final.
+
+**Worth knowing.** The time is taken when the fetch completed, never when the page drew itself.
+
 ## When more people join than you have seats
 
 Section: your-school · roles: school_admin, leader · anchor: `upgrade-seats-actual` · in `packages/player-vue/src/views/schools/UpgradeView.vue`
@@ -1226,6 +1298,34 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class
 3. The line under it gives the time since the last session and the running total of hours and sessions.
 
 **Worth knowing.** A class that has never played together says so plainly and names the teacher's **Play as class** button as the thing that starts the first one.
+
+## Which bits of a course make people stumble
+
+Section: seeing-progress · roles: admin · anchor: `question-weak-points` · in `packages/player-vue/src/views/intel/WeakPointsView.vue`
+
+**What it's for.** Seeing, for one course, which pieces of it real learners skip, retry, or stop on, ranked by how much trouble each piece caused per person who met it.
+
+**Where it is.** **Weak points**, under What's happening. Pick a course on the left.
+
+1. Tap a course under **Courses** in the map on the left.
+2. Read the sentence for the piece that gave people the most trouble.
+3. Read the rows, worst first, showing both languages for each piece.
+4. Open a row to see that piece's phrases.
+
+**Worth knowing.** When fewer than five real people have practised a course, the page says **too few to say** rather than showing a number. That is the truth about the course, not a fault in the page.
+
+## Who is behind every number
+
+Section: seeing-progress · roles: admin · anchor: `population-chip` · in `packages/player-vue/src/intel/PopulationChip.vue`
+
+**What it's for.** Saying, under every answer, how many real people the numbers on that page are counted from and who has been left out. Demo accounts, SSi staff, class accounts and machine traffic are never counted as people.
+
+**Where it is.** The small pill beneath the answer sentence on every question page.
+
+1. Read the pill under the answer for the number of real people counted.
+2. If a page is deliberately showing demo or staff data, the pill says so in red.
+
+**Worth knowing.** The count comes from the server, from one shared rule, never from the page itself. Two pages cannot disagree about who is real.
 
 ## Why the insights show a rate, not a total
 

@@ -100,7 +100,29 @@ function change(row: PulseCourseRow): string {
 </script>
 
 <template>
+  <!-- HANDBOOK How many real people practised this week
+       section: seeing-progress
+       roles: admin
+       place: intel
+       keywords: pulse, practised, this week, last week, real people, courses, countries, paying, gifted
+       What it's for. The first question on a Monday: how many real people
+       practised in the last seven days, and whether that is more or fewer than
+       the seven days before.
+       Where it is. **Pulse**, the first question in the bar under What's
+       happening.
+       How you do it.
+       1. Read the number and the sentence for this week against last week.
+       2. Read the line beneath the chart for how many of those people are
+          paying, gifted or on free access. Gifted people are real people and
+          are counted.
+       3. Read the chart for where in the world this week's people are.
+       4. Open any course row to see which bits of that course give people
+          trouble.
+       Worth knowing. A person who practised nine times this week counts once.
+       checked: 8cf7ecff.7d5c7c03
+  -->
   <QuestionPage
+    data-intel="question-pulse"
     :question="question.question"
     :answer="answer"
     :headline="headline"

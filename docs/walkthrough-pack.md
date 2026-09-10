@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `2ff493abac00` · generated 2026-09-10 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `8cc42609415d` · generated 2026-09-10 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## choose-something-else-to-learn — Choose something else to learn
 

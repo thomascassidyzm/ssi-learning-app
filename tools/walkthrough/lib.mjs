@@ -8,7 +8,7 @@
  * with fixtures; compile.mjs is the CLI shell that feeds it real files.
  */
 import {
-  checkedCode, ANCHOR_ATTRS, anchorTagRe, anchorAttrRe, anchorFingerprint,
+  checkedCode, ANCHOR_ATTRS, ANCHOR_SURFACES, anchorTagRe, anchorAttrRe, anchorFingerprint,
 } from './handbookSource.mjs'
 
 export { ANCHOR_ATTRS, anchorTagRe, anchorAttrRe }
@@ -499,6 +499,9 @@ export function assemblePack(walks, entries = []) {
       keywords: e.keywords,
       place: { route: e.place },
       anchor: e.anchor,
+      // Which surface this capability belongs to — the schools dashboard or
+      // the intelligence surface — read from the anchor's own namespace.
+      surface: ANCHOR_SURFACES[e.attr] ?? 'schools',
       source: e.path,
       walk: e.walk ?? null,
       what: e.what,
