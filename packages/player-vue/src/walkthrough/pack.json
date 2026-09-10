@@ -1,5 +1,5 @@
 {
-  "version": "0424d42c70f5",
+  "version": "6a31aa1b6e6c",
   "generatedAt": "2026-09-10",
   "walks": [
     {
@@ -3599,10 +3599,11 @@
       "where": "Across the top of the page for a group, a school or a class, under the name.",
       "how": [
         "Open the level you want — a group, a school or a class.",
-        "**Class practice** is the hours classes have practised together beneath this level.",
-        "**Classes practising this week** is how many of them have run a session in the last seven days.",
-        "**Teachers** and **Learners** count the people below this level, each once however many classes they are in.",
-        "On a class the same row switches to that class's own sessions this week, its practice hours, its students and its teachers."
+        "**Phrases spoken this week** is how many phrases the classes beneath this level were prompted and said back in whole-class play over the last seven days. It is recorded for every clip the app plays, so it is the truest picture of a lesson.",
+        "**Classes practising this week** is how many of them played together in the last seven days, out of all the classes below.",
+        "**Practice minutes this week** is time staff and students spent practising on their own accounts, timed by the app as it plays. Whole-class play is not in this figure because the app does not yet time it, and the sentence under the row says so.",
+        "**Teachers** counts the staff below this level, each once however many classes they take.",
+        "On a class the row switches to that class's own phrases spoken this week, its students and its teachers."
       ],
       "note": "An organisation that is not school-shaped sees the same row worded as practice hours, groups and learners instead."
     },
@@ -3674,7 +3675,7 @@
         "Open a group or a school.",
         "Tap a caret to open or close what sits under a name.",
         "Tap any name to go to that level — the numbers and the tree redraw for it.",
-        "A class row names its teachers and its student count without you opening it.",
+        "A class row names its teachers, its student count, and how many phrases it spoke together in the last seven days, or says plainly that it has not practised together this week, without you opening it.",
         "Where there are more than eight classes or people, a **more** button reveals the rest."
       ],
       "note": "The top two levels open themselves and deeper ones wait to be tapped, so a large organisation shows you its shape instead of eighty-five rows."
@@ -3746,6 +3747,40 @@
         "If that line is red, the nightly job has missed two nights or more and the findings are old. The job is not on this estate and cannot be restarted from here."
       ],
       "note": "The numbers inside a finding were the job's own on the night; the page's own numbers are fetched fresh and may differ."
+    },
+    {
+      "id": "what-your-classes-actually-practised",
+      "title": "What your classes actually practised",
+      "section": "seeing-progress",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "keywords": [
+        "phrases",
+        "practised",
+        "spoken",
+        "list",
+        "what they said",
+        "repetition",
+        "this week"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "anchor": "node-phrases",
+      "surface": "schools",
+      "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
+      "walk": null,
+      "what": "A list of the phrases the classes beneath this level said together in the last seven days, with how many times each one came round. A phrase that appears again and again is the course bringing it back on purpose, which is how it sticks.",
+      "where": "The **What they practised this week** card under the row of numbers on a group or school page, and on a class page under its own practice card.",
+      "how": [
+        "Open a group, a school or a class.",
+        "Read the list: the prompt, the phrase the class said back, and the number of times it came round this week.",
+        "Tap a column heading to sort by it."
+      ],
+      "note": "A level whose classes have not played together this week says so in words instead of showing an empty list. Only whole-class play appears here; what staff and students practise on their own accounts is counted in the minutes figure above."
     },
     {
       "id": "when-an-answer-was-fetched",
@@ -3871,14 +3906,15 @@
       "surface": "schools",
       "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
       "walk": null,
-      "what": "The headline card on a class: how many sessions it has run this week, how long ago the last one was, and the total hours it has practised together. Classes practising together is what a language programme lives on, so this leads over anything individual students do alone.",
+      "what": "The headline card on a class: how many phrases the class was prompted and said back together in the last seven days, when it last practised, and the list of those phrases with how often each came round. Classes practising together is what a language programme lives on, so this leads over anything individual students do alone.",
       "where": "The **Class practice** card on a class page.",
       "how": [
         "Open a class from the tree or the map.",
-        "Read the big figure for sessions run this week.",
-        "The line under it gives the time since the last session and the running total of hours and sessions."
+        "Read the big figure for phrases spoken this week.",
+        "The line under it gives the time since the class last practised.",
+        "The list beneath is every phrase the class said this week and the number of times it came round."
       ],
-      "note": "A class that has never played together says so plainly and names the teacher's **Play as class** button as the thing that starts the first one."
+      "note": "Whole-class play is counted in phrases rather than minutes, because the app does not yet time it. A class that has never played together says so plainly and names the teacher's **Play as class** button as the thing that starts the first lesson."
     },
     {
       "id": "whether-the-app-is-working-right-now",

@@ -130,11 +130,11 @@ function buildOrgWorld() {
   const classesLens = [
     {
       id: CLASS_Y6, name: 'Year 6 Spanish', home: 'Harbour View Primary', teachers: ['Eleri Vaughan'],
-      studentCount: 7, practiceHours: 35.5, classPracticeHours: 8.5, lastClassSessionAt: daysAgo(1),
+      studentCount: 7, practiceHours: 35.5, phrases7d: 96, lastClassSessionAt: daysAgo(1),
     },
     {
       id: CLASS_Y5, name: 'Year 5 French', home: 'Harbour View Primary', teachers: ['Eleri Vaughan'],
-      studentCount: 5, practiceHours: 19.3, classPracticeHours: 5.2, lastClassSessionAt: daysAgo(2),
+      studentCount: 5, practiceHours: 19.3, phrases7d: 61, lastClassSessionAt: daysAgo(2),
     },
   ]
 
@@ -150,7 +150,15 @@ function buildOrgWorld() {
       siblings: [],
       children: [],
       practiceHours: 54.8,
-      classPractice: { hours: 13.7, sessions7d: 5, activeClasses7d: 2, classCount: 2 },
+      classPractice: {
+        windowDays: 7, classCount: 2, activeClasses7d: 2, phrases7d: 157, classesWithPhrases7d: 2,
+        topPhrases7d: [
+          { known: 'I want', target: 'quiero', count: 9 },
+          { known: 'I want to speak', target: 'quiero hablar', count: 7 },
+          { known: 'I am trying to learn', target: 'estoy intentando aprender', count: 5 },
+        ],
+        ownAccountMinutes7d: 214, ownAccountPeople7d: 9,
+      },
       classes: classesLens,
       teachers: [{ user_id: TEACHER_USER_ID, name: 'Eleri Vaughan', classes: classesLens.map((c) => ({ id: c.id, name: c.name, home: c.home })) }],
       groups: [],
@@ -159,13 +167,26 @@ function buildOrgWorld() {
     [CLASS_Y6]: classHome(CLASS_Y6, 'Year 6 Spanish', 'spa_for_eng', {
       // The class has played together to seed 22 — orange belt, 18 to green.
       journey: { done: 44, total: 60, source: 'class-play', legoId: 'S0022L02', seedNumber: 22 },
-      classPractice: { weekSessions: 3, sessions28d: 11, totalSessions: 34, lastSessionAt: daysAgo(1), hours: 8.5 },
+      classPractice: {
+        windowDays: 7, phrases7d: 96, lastPractisedAt: daysAgo(1),
+        phrases: [
+          { known: 'I want', target: 'quiero', count: 6 },
+          { known: 'I want to speak', target: 'quiero hablar', count: 4 },
+          { known: 'I am trying to learn', target: 'estoy intentando aprender', count: 3 },
+        ],
+      },
       benchmark: { class: 38, school: 34, course: 31 },
       practiceHours: 35.5,
     }),
     [CLASS_Y5]: classHome(CLASS_Y5, 'Year 5 French', 'fra_for_eng', {
       journey: { done: 18, total: 60, source: 'estimate', legoId: null, seedNumber: null },
-      classPractice: { weekSessions: 2, sessions28d: 8, totalSessions: 21, lastSessionAt: daysAgo(2), hours: 5.2 },
+      classPractice: {
+        windowDays: 7, phrases7d: 61, lastPractisedAt: daysAgo(2),
+        phrases: [
+          { known: 'I want', target: 'je veux', count: 5 },
+          { known: 'I want to speak', target: 'je veux parler', count: 3 },
+        ],
+      },
       benchmark: { class: 33, school: 34, course: 31 },
       practiceHours: 19.3,
     }),

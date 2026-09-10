@@ -22,6 +22,10 @@ export interface BelowClass {
   name: string
   teachers: string[]
   studentCount: number
+  /** Whole-class phrases spoken in the board window, off the class account's diary. */
+  phrases7d: number
+  /** Newest evidence the class practised together, or null if it never has. */
+  lastPractisedAt: string | null
 }
 
 export interface BelowPerson {
@@ -118,6 +122,8 @@ export function buildBelowTree(payload: Record<string, any> | null | undefined):
       name: c.name,
       teachers: Array.isArray(c.teachers) ? c.teachers : [],
       studentCount: Number(c.studentCount ?? 0),
+      phrases7d: Number(c.phrases7d ?? 0),
+      lastPractisedAt: typeof c.lastPractisedAt === 'string' ? c.lastPractisedAt : null,
     })
   }
   for (const p of staffRows) {

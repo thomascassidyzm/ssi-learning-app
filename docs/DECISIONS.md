@@ -378,3 +378,33 @@ until it is applied; that red is the truth.
 **The word that reverts it:** claims. Drop the `school_identity_claims` table and the arrival check
 in `api/auth/possession-redeem.ts` becomes a no-op; the contest card keys off `unclaimedMint.ts`
 alone and survives either way.
+
+## 2026-09-10 — the school board counts phrases spoken, not hours it never measured (job #159)
+
+**The finding.** Every clip a class plays is in `player_events`, with its audio id, for every kind
+of account. The playback ledger — the one definition of a minute since 2026-08-19 — cannot be
+written by a class account: `bump_speaking_opportunities` checks `learners.user_id = auth.uid()`,
+and a class's user_id is `class-learner:<id>`, so the write is refused and the player only logs it.
+The class account's `sessions` rows are inverted: none for Chepstow's nineteen real lessons this
+week, eight for app opens with no play. So the board's "Class practice 0h" was reading a ledger
+that cannot see lessons, while throwing away the school_summary hours it had already computed, and
+the Lens still reads `class_sessions`, dead since 19 August.
+
+**The decision.** Whole-class play is shown as PHRASES SPOKEN — Tom's term for cycles played, one
+per `target2` clip, the same count the ledger banks as `opportunities` for own accounts — plus the
+phrase-by-count list, off the diary joined to the phrase tables. Practice minutes on the board are
+own accounts only, off the ledger, as their own field. Whole-class practice TIME is not shown as any
+number: no ledger measures it and no proxy stands in for it; one sentence under the row says so.
+The hours tile, the class sessions count and the "Xh practised together" line are deleted, not
+relabelled. Learners leaves the school-shaped stats row; it stays in the tree.
+
+**Better × Simpler × Cheaper.** Better: every tile is backed by a live record, and the page shows
+what was practised. Simpler: two dead tiles and three dead sentences gone; the phrase list is the
+existing insight Table widget. Cheaper: one paged, JSON-path-filtered read of class-account diary
+rows over seven days — a few thousand rows estate-wide, 596 ms live for Chepstow — no migration, no
+player deploy.
+
+**Not done, named.** Timing whole-class play needs the class account's ledger bump routed through
+`/api/school/class-progress` (service role, teacher-authorised) and the class session opened at play
+start: a player deploy, not a Friday hotfix. The Lens needs re-pointing off `class_sessions`.
+
