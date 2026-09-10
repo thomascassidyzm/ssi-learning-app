@@ -485,3 +485,41 @@ over-16 college learner's only route back into their own seat. The `class_seat` 
 record of origin and gates nothing. The step-4 "residue" of a pupil playing the class course at
 home is not a residue: it is the product.
 
+**Third ruling the same night — entitlement scope is decided by who paid.** Tom: *"ok a payment of
+5 pounds for ANY learner gives them access to ALL courses, ALL languages / but their free account
+as play as class, or in college time, is ONLY for the languages in the school trial"*. An
+institution seat plays the languages its institution licenses and nothing wider. Any paid learner
+at £5, parent-paid under 16 or self-paid at 16+, gets every course in every language, however
+they arrived and whether or not they also hold an institution seat. A learner holding both: the
+paid entitlement governs access, the institution seat goes on governing org membership, class
+attribution and the org's numbers. Two axes, never one flag. This is the upsell, and it sells
+itself: the seat is useful and visibly bounded, and £5 opens everything at the edge.
+
+**How that composes with the code, verified rather than assumed.** The paid half already held:
+`checkCourseAccess` in `@ssi/core` grants every premium course to any active subscription row,
+plan name unread, on the server gate and the client alike. The institution half already held on
+the PLAYER's answer: `classCoverage.ts` grants the class's own course while the school's cover and
+the class tag are live, and `classCourseEntitlement.ts` only lets a class open on a heritage course
+or the school's recorded trial course, so a seat's scope is inside the trial's languages. The two
+axes are already separate: `resolveEntitlements.ts` lists coverage additively beside the
+subscription, and `resolveVisibleScope` reads tags, not entitlements. The per-language trial rule
+is per NODE, in `trialPolicy.ts`, and a school learner gets no learner-level trial because
+`provision.ts` writes no grant; the only learner-level "trial" is the seed-19 preview on every
+premium course, which is unchanged.
+
+**The conflict, stated and then fixed.** The SERVER content gate, `api/_utils/courseAccess.ts`,
+behind the bundle, cycles and infplay endpoints, read only the learner's subscription, stored
+`user_entitlements` rows and the `entitlement_grants` cascade. It never consulted class, org or
+staff coverage, and a self-serve school writes no grant, so an institution seat was sliced to the
+free preview there while `/api/entitlement/user` told the player it could play. Institution seats
+have played to seed 39 only because the legacy anon-key script path is still live and is gated by
+the client; when the bundle cutover retires that path, every institution seat would have dropped
+to preview. The gate was written on 2026-07-06, nine days before the class-coverage model, so this
+is an omission, not a decision. It now calls `resolveActiveEntitlements`, the same resolver the
+player and the admin view use. One test: red on the old gate, green on the new.
+
+**The legible edge, not built.** At the wall, `LearningPlayer.vue`'s paywall sells Premium at £15;
+the £5 school price is only reachable from a class link. An institution learner who wants a
+language their school does not license should be offered £5 at that moment, as parent-pays under
+16 and self-pay at 16+. Both doors are parked behind the parent-email fork and the missing 16+
+self-pay path.
