@@ -12,14 +12,18 @@
  *   node tools/walkthrough/compile.mjs --check   # gate: source vs the SERVED pack, no writes
  *   node tools/walkthrough/compile.mjs --build   # always writes, never fails on prose
  *   node tools/walkthrough/compile.mjs --reconfirm ["<anchor>" [--unchanged]]
+ *   node tools/walkthrough/compile.mjs --reconfirm-walks ["<walk-id>:<anchor>[#step]" [--unchanged]]
  */
 import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { runGates, assemblePack, comparePack } from './lib.mjs'
-import { parseHandbookBlocks, fingerprintCapability, stampChecked, proseFingerprint, checkedCode, checkedProse } from './handbookSource.mjs'
+import { runGates, assemblePack, comparePack, indexAnchors } from './lib.mjs'
+import {
+  parseHandbookBlocks, fingerprintCapability, stampChecked, proseFingerprint,
+  checkedCode, checkedProse, anchorFingerprint, stepProseFingerprint,
+} from './handbookSource.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(HERE, '..', '..')
@@ -48,6 +52,15 @@ const RECONFIRM_ONLY = process.argv[process.argv.indexOf('--reconfirm') + 1]?.st
 // the tool can tell "I rewrote it" from "I read it and it still holds" — and
 // the second one has to be said out loud, per capability.
 const UNCHANGED = process.argv.includes('--unchanged')
+// --reconfirm-walks is the same repair tool for the CLIPS. A walk step is a
+// sentence about a button too; it just lives in walks/*.json rather than
+// beside the code, so the stamp is a field on the step and the repair names
+// the step: "<walk-id>:<anchor>", with "#2" on the end when one walk points at
+// the same anchor twice.
+const RECONFIRM_WALKS = process.argv.includes('--reconfirm-walks')
+const RECONFIRM_WALKS_ONLY = process.argv[process.argv.indexOf('--reconfirm-walks') + 1]?.startsWith('-') === false
+  ? process.argv[process.argv.indexOf('--reconfirm-walks') + 1]
+  : null
 
 function vueFilesUnder(dir) {
   const out = []
@@ -148,11 +161,79 @@ function exampleBlock() {
 const walksDir = join(HERE, 'walks')
 const walkFiles = readdirSync(walksDir).filter((f) => f.endsWith('.json')).sort()
 const walks = walkFiles.map((f) => JSON.parse(readFileSync(join(walksDir, f), 'utf8')))
+// Which file each walk came from, so a gate failure opens the file the reader
+// has to edit rather than making them grep 18 of them for an id.
+const walkFileOf = new Map(walkFiles.map((f, i) => [walks[i].id, `tools/walkthrough/walks/${f}`]))
+const walkPathOf = (w) => walkFileOf.get(w.id) ?? `walk "${w.id}"`
+
+// Every anchored element, in every namespace, indexed once — this is what the
+// walk-step stamp is taken against, and it is the same scan the anchor gate uses.
+const anchorSites = indexAnchors(vueFiles)
+const fingerprintOfAnchor = (id) => anchorFingerprint(anchorSites.get(id))
+
+if (RECONFIRM_WALKS) {
+  // "<walk-id>:<anchor>" selects a step; "#2" on the end picks one when a walk
+  // points at the same anchor twice. A bare --reconfirm-walks re-stamps every
+  // step whose words changed — and, exactly as for the Handbook, no step whose
+  // words did NOT change, because that is silencing rather than repairing.
+  const [selWalk, selRest] = (RECONFIRM_WALKS_ONLY ?? '').split(':')
+  const [selAnchor, selStep] = (selRest ?? '').split('#')
+  const selects = (walk, step, i) => !RECONFIRM_WALKS_ONLY || (
+    walk.id === selWalk
+    && (!selAnchor || step.anchor === selAnchor)
+    && (!selStep || String(i + 1) === selStep)
+  )
+
+  let stamped = 0
+  const refused = []
+  for (const [i, walk] of walks.entries()) {
+    const file = walkFiles[i]
+    let touched = false
+    for (const [j, step] of (walk.steps ?? []).entries()) {
+      if (!selects(walk, step, j)) continue
+      const now = fingerprintOfAnchor(step.anchor)
+      // A missing anchor is gateAnchors' hard failure, not something to stamp over.
+      if (!now) continue
+      const fresh = checkedCode(step.checked) === now && checkedProse(step.checked)
+      if (fresh) continue
+      const untouched = checkedProse(step.checked) && checkedProse(step.checked) === stepProseFingerprint(step)
+      const named = RECONFIRM_WALKS_ONLY && selWalk === walk.id && selAnchor === step.anchor
+      if (untouched && !(named && UNCHANGED)) {
+        refused.push({ walk, step, n: j + 1, file })
+        continue
+      }
+      step.checked = `${now}.${stepProseFingerprint(step)}`
+      console.log(`  ✓ re-pinned "${walk.id}" step ${j + 1} — ${step.anchor}`)
+      stamped += 1
+      touched = true
+    }
+    if (touched) writeFileSync(join(walksDir, file), JSON.stringify(walk, null, 2) + '\n')
+  }
+  console.log(stamped
+    ? `[walkthrough] ${stamped} walk step${stamped === 1 ? '' : 's'} re-pinned to what ${stamped === 1 ? 'it points' : 'they point'} at.`
+    : '[walkthrough] nothing to re-pin — every walk step is already pinned to its current capability.')
+  if (refused.length) {
+    console.error(`\n[walkthrough] NOT RE-PINNED — ${refused.length} step${refused.length === 1 ? '' : 's'} point at something that changed, and ${refused.length === 1 ? 'its wording' : 'their wording'} did not:`)
+    for (const r of refused) console.error(`  ✗ ${r.file} — walk "${r.walk.id}" step ${r.n}, anchor "${r.step.anchor}"`)
+    console.error(
+      '\nRead each step against the code it now points at, and either:\n' +
+      '  - rewrite what it says, then run: node tools/walkthrough/compile.mjs --reconfirm-walks\n' +
+      '  - or, if it is still true as written, say so for that one step:\n' +
+      '      node tools/walkthrough/compile.mjs --reconfirm-walks "<walk-id>:<anchor>" --unchanged\n'
+    )
+  }
+  // ONE COMMAND, NOT TWO — the same reason as --reconfirm: re-pinning without
+  // recompiling leaves pack.json holding the old clip.
+  const self = fileURLToPath(import.meta.url)
+  const res = spawnSync(process.execPath, [self], { encoding: 'utf8', stdio: 'inherit' })
+  process.exit(refused.length ? 1 : res.status ?? 1)
+}
 
 const { failures, warnings } = runGates({
   walks,
   entries,
   fingerprintOf,
+  walkPathOf,
   vueFiles,
   runtimeSrc: readFileSync(join(ROOT, 'packages/player-vue/src/walkthrough/useWalkthrough.ts'), 'utf8'),
   rulesJson: JSON.parse(readFileSync(join(ROOT, 'tools/explainer/rules.json'), 'utf8')),
@@ -180,6 +261,11 @@ if (failures.length) {
     '  3. Run ONE command — it re-pins the sentence to the code and recompiles the pack:\n' +
     '       node tools/walkthrough/compile.mjs --reconfirm\n' +
     '     Add an anchor id to re-pin just one: --reconfirm "your-anchor-id"\n' +
+    '  4. A STALE WALK STEP is the same thing in a clip: the words live in\n' +
+    '     tools/walkthrough/walks/<walk>.json, on the step named above. Rewrite what\n' +
+    '     the step says so it tells the truth about what that element now does, then:\n' +
+    '       node tools/walkthrough/compile.mjs --reconfirm-walks\n' +
+    '     Just one step: --reconfirm-walks "<walk-id>:<anchor>"\n' +
     exampleBlock()
   )
   process.exit(1)

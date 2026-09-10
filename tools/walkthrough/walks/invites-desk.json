@@ -21,21 +21,24 @@
       "say": "Three ways to mint access, one form: **Into an organisation** (role links into the tree), **Direct access** (codes and magic links), **New demo org** (a full practice tree).",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "dd5af572.9210bea0"
     },
     {
       "anchor": "invites-org-who",
       "say": "**Who** silently changes what the submit button does: some options mint a FRESH link, others surface the STANDING link that already exists. Watch the button label switch as you change this.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "305763dc.e837d018"
     },
     {
       "anchor": "invites-org-submit",
       "say": "Every submit on this desk mints REAL access the moment you tap — a leaked leader link makes a stranger a group leader. This tour never taps it for you.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "1f2a9900.6d4c541a"
     },
     {
       "anchor": "invites-active-toggle",
@@ -43,7 +46,8 @@
       "advance": {
         "on": "next"
       },
-      "terminal": "Rule of the desk: look before you mint — everything here is live the moment it exists."
+      "terminal": "Rule of the desk: look before you mint — everything here is live the moment it exists.",
+      "checked": "1f435d38.a8bde4c6"
     }
   ]
 }

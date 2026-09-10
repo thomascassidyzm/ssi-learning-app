@@ -29,14 +29,16 @@
       "say": "Everything you can get to lives below, and this box is the quick way in. Type a language and the list narrows as you go.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "5f3a7259.cd18abc4"
     },
     {
       "anchor": "library-course-grid",
       "say": "Tap any one of these and you are straight into it — no setting up, no starting over.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "8d798d54.7f3a0378"
     },
     {
       "anchor": "library-course-grid",
@@ -44,7 +46,8 @@
       "advance": {
         "on": "next"
       },
-      "terminal": "That's the Library. Close it and press play to carry on with the one you are in."
+      "terminal": "That's the Library. Close it and press play to carry on with the one you are in.",
+      "checked": "8d798d54.90f90146"
     }
   ]
 }

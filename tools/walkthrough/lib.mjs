@@ -7,7 +7,12 @@
  * like the explainer pack's gate. Kept pure (no fs) so the gates unit-test
  * with fixtures; compile.mjs is the CLI shell that feeds it real files.
  */
-import { checkedCode } from './handbookSource.mjs'
+import {
+  checkedCode, checkedProse, ANCHOR_ATTRS, anchorTagRe, anchorAttrRe,
+  anchorFingerprint, stepProseFingerprint,
+} from './handbookSource.mjs'
+
+export { ANCHOR_ATTRS, anchorTagRe, anchorAttrRe }
 
 export const PERSONAS = ['admin', 'leader', 'school_admin', 'teacher', 'learner']
 export const ADVANCE_KINDS = ['next', 'click', 'visible']
@@ -131,17 +136,29 @@ export function validateHandbookEntry(entry) {
  * itself as a capability and then has nothing to say about itself is exactly
  * the silent blank this page exists to abolish.
  */
-export function gateHandbookCoverage(anchors, entries, walks) {
+export function gateHandbookCoverage(anchors, entries, walks, { failAttrs = ['data-walk'] } = {}) {
   const failures = []
+  const warnings = []
   const described = new Set(entries.flatMap((e) => [e.anchor, ...(e.parts ?? [])]))
   const stepped = new Set(walks.flatMap((w) => (w.steps ?? []).map((s) => s.anchor)))
   for (const a of anchors) {
-    // Accepts a bare id or a { id, path, line } location; the location form is
-    // what the CLI passes, so the message can send someone straight to the spot.
+    // Accepts a bare id or a { id, attr, path, line } location; the location
+    // form is what the CLI passes, so the message can send someone straight to
+    // the spot. A bare id is read as data-walk, so nothing that passes ids
+    // changes meaning.
     const id = typeof a === 'string' ? a : a.id
+    const attr = (typeof a === 'string' ? null : a.attr) ?? 'data-walk'
     if (described.has(id) || stepped.has(id)) continue
     const at = typeof a === 'string' ? '' : `${a.path}:${a.line} — `
-    failures.push(`COVERAGE: ${at}data-walk="${id}" declares a capability with nothing said about it. Write a HANDBOOK comment directly above that element (see the worked example below), or add "${id}" to the parts: line of the capability it belongs to, or delete the anchor`)
+    // A namespace whose surface has not landed yet WARNS. Turning an unmerged
+    // branch's anchors into a build failure on dev would break the tree for
+    // work nobody has merged; the freshness stamp still covers them the moment
+    // a walk or a description names one.
+    if (!failAttrs.includes(attr)) {
+      warnings.push(`COVERAGE: ${at}${attr}="${id}" declares a capability with nothing said about it yet — a warning while the ${attr} surface is still landing`)
+      continue
+    }
+    failures.push(`COVERAGE: ${at}${attr}="${id}" declares a capability with nothing said about it. Write a HANDBOOK comment directly above that element (see the worked example below), or add "${id}" to the parts: line of the capability it belongs to, or delete the anchor`)
   }
   const ids = new Set(walks.map((w) => w.id))
   for (const e of entries) {
@@ -153,7 +170,7 @@ export function gateHandbookCoverage(anchors, entries, walks) {
     if (seen.has(key)) failures.push(`${e.path}: two handbook entries are both titled "${e.title}" — one capability, one description`)
     seen.add(key)
   }
-  return { failures }
+  return { failures, warnings }
 }
 
 /**
@@ -179,6 +196,46 @@ export function gateHandbookFreshness(entries, fingerprintOf) {
     }
     if (checkedCode(e.checked) !== now) {
       failures.push(`STALE: ${at} — "${e.title}": the capability changed since this description was last read. Re-read the sentence there against the code, fix it if it now lies, then run: node tools/walkthrough/compile.mjs --reconfirm "${e.anchor}"`)
+    }
+  }
+  return { failures }
+}
+
+/**
+ * Gate 9d — FRESHNESS FOR WALK STEPS, the same backstop over the clips.
+ *
+ * A walk step is a sentence about a button, exactly like a Handbook
+ * description — it just lives in tools/walkthrough/walks/*.json rather than
+ * beside the code. Today the build fails if a step points at a button that is
+ * gone; nothing whatever notices when a button keeps its anchor and its label
+ * and changes what it DOES, so every walk stepping it goes on saying the old
+ * thing, silently, forever. This is the thing that notices.
+ *
+ * Same fingerprint, same two-part `<code>.<prose>` stamp, same one-command
+ * repair — and the same stated limit: it reads the anchored element's own
+ * .vue file and cannot see into a composable, a store action or an API route.
+ *
+ * @param fingerprintOfAnchor (anchorId) => string|null — null when the anchor
+ *   is missing entirely, which gateAnchors already fails on; reporting it
+ *   twice would only be noise.
+ * @param pathOf (walk) => string — the walk's own JSON file, so the message
+ *   opens the file the reader has to edit.
+ */
+export function gateWalkFreshness(walks, fingerprintOfAnchor, pathOf = (w) => `walk "${w.id}"`) {
+  const failures = []
+  for (const walk of walks) {
+    for (const [i, step] of (walk.steps ?? []).entries()) {
+      const now = fingerprintOfAnchor(step.anchor)
+      if (!now) continue
+      const at = `${pathOf(walk)} — walk "${walk.id}" step ${i + 1}, anchor "${step.anchor}"`
+      const repair = `node tools/walkthrough/compile.mjs --reconfirm-walks "${walk.id}:${step.anchor}"`
+      if (!step.checked) {
+        failures.push(`STALE: ${at} has never been pinned to what it points at. Read what the step says against the code, then run: ${repair}`)
+        continue
+      }
+      if (checkedCode(step.checked) !== now) {
+        failures.push(`STALE: ${at}: what this step points at changed since the step was last read. Re-read what it says against the code, fix it if it now lies, then run: ${repair}`)
+      }
     }
   }
   return { failures }
@@ -266,18 +323,24 @@ export function gatePlaceLinks(runtimeSrc, handbookSrc) {
  * `!member` is admin-only; a walk offered to any member persona must not
  * reference it.
  */
-export function gateAnchors(walks, vueFiles) {
-  const failures = []
-  const warnings = []
-  // data-walk="id" occurrences, with the enclosing opening tag for the guard check.
-  const anchorTags = new Map() // id -> [{ path, tag }]
+export function indexAnchors(vueFiles, attrs = ANCHOR_ATTRS) {
+  const anchorTags = new Map() // id -> [{ path, attr, tag, tagStart, src }]
   for (const { path, src } of vueFiles) {
-    for (const m of src.matchAll(/<[a-zA-Z][^>]*\bdata-walk="([a-z0-9-]+)"[^>]*>/gs)) {
-      const id = m[1]
+    for (const m of src.matchAll(anchorTagRe(attrs))) {
+      const id = m[2]
       if (!anchorTags.has(id)) anchorTags.set(id, [])
-      anchorTags.get(id).push({ path, tag: m[0] })
+      anchorTags.get(id).push({ path, attr: m[1], tag: m[0], tagStart: m.index, src })
     }
   }
+  return anchorTags
+}
+
+export function gateAnchors(walks, vueFiles, attrs = ANCHOR_ATTRS) {
+  const failures = []
+  const warnings = []
+  // Every anchored element, in every namespace, with the enclosing opening tag
+  // for the guard check and its offset for the freshness fingerprint.
+  const anchorTags = indexAnchors(vueFiles, attrs)
   const referenced = new Set()
   for (const walk of walks) {
     const memberOffered = walk.personas.some((p) => MEMBER_PERSONAS.includes(p))
@@ -292,7 +355,7 @@ export function gateAnchors(walks, vueFiles) {
       referenced.add(anchor)
       const sites = anchorTags.get(anchor)
       if (!sites) {
-        failures.push(`ANCHOR: walk "${walk.id}" anchor "${anchor}" has no data-walk="${anchor}" in any .vue source`)
+        failures.push(`ANCHOR: walk "${walk.id}" anchor "${anchor}" has no ${attrs.map((a) => `${a}="${anchor}"`).join(" or ")} in any .vue source`)
         continue
       }
       if (memberOffered && sites.every(({ tag }) => /v-if="[^"]*!member/.test(tag))) {
@@ -420,7 +483,13 @@ export function gateUniqueIds(walks) {
  * is, and cannot be edited into a lie without the compiler noticing.
  */
 export function assemblePack(walks, entries = []) {
-  const sortedWalks = [...walks].sort((a, b) => a.id.localeCompare(b.id))
+  // The `checked:` stamp is build-time bookkeeping — the player has no use for
+  // it, and shipping it would put a hash in front of every learner-facing clip
+  // and into the pack's version hash on every re-pin. Strip it here, once, so
+  // comparePack keeps comparing what the page actually serves.
+  const sortedWalks = [...walks]
+    .map((w) => ({ ...w, steps: (w.steps ?? []).map(({ checked, ...step }) => step) }))
+    .sort((a, b) => a.id.localeCompare(b.id))
   const handbook = [...entries]
     .sort((a, b) => a.title.localeCompare(b.title))
     .map((e) => ({
@@ -482,12 +551,15 @@ export function comparePack(compiled, served) {
 }
 
 /** Run every gate; returns { failures, warnings }. */
-export function runGates({ walks, vueFiles, runtimeSrc, rulesJson, evaluateRulesSrc, handbookSrc, entries = [], fingerprintOf }) {
+export function runGates({
+  walks, vueFiles, runtimeSrc, rulesJson, evaluateRulesSrc, handbookSrc,
+  entries = [], fingerprintOf, attrs = ANCHOR_ATTRS, walkPathOf,
+}) {
   const failures = []
   const warnings = []
   for (const w of walks) failures.push(...validateWalkSchema(w))
   failures.push(...gateUniqueIds(walks).failures)
-  const anchors = gateAnchors(walks, vueFiles)
+  const anchors = gateAnchors(walks, vueFiles, attrs)
   failures.push(...anchors.failures)
   warnings.push(...anchors.warnings)
   failures.push(...gatePlaces(walks, runtimeSrc).failures)
@@ -509,13 +581,19 @@ export function runGates({ walks, vueFiles, runtimeSrc, rulesJson, evaluateRules
   const seenAnchor = new Set()
   const anchorLocations = []
   for (const { path, src } of vueFiles) {
-    for (const m of src.matchAll(/\bdata-walk="([a-z0-9-]+)"/g)) {
-      if (seenAnchor.has(m[1])) continue
-      seenAnchor.add(m[1])
-      anchorLocations.push({ id: m[1], path, line: src.slice(0, m.index).split('\n').length })
+    for (const m of src.matchAll(anchorAttrRe(attrs))) {
+      if (seenAnchor.has(m[2])) continue
+      seenAnchor.add(m[2])
+      anchorLocations.push({ id: m[2], attr: m[1], path, line: src.slice(0, m.index).split('\n').length })
     }
   }
-  failures.push(...gateHandbookCoverage(anchorLocations, entries, walks).failures)
+  const coverage = gateHandbookCoverage(anchorLocations, entries, walks)
+  failures.push(...coverage.failures)
+  warnings.push(...(coverage.warnings ?? []))
   if (fingerprintOf) failures.push(...gateHandbookFreshness(entries, fingerprintOf).failures)
+  // The walk steps' own freshness, over whichever namespace each anchor lives
+  // in — the index is built once, here, from the same scan the anchor gate uses.
+  const sites = indexAnchors(vueFiles, attrs)
+  failures.push(...gateWalkFreshness(walks, (id) => anchorFingerprint(sites.get(id)), walkPathOf).failures)
   return { failures, warnings }
 }

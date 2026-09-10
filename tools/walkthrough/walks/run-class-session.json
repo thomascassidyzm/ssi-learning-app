@@ -21,14 +21,16 @@
       "say": "Students join with this link — share it and they sign up straight into this class.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "ffcd317f.4817986a"
     },
     {
       "anchor": "class-join-code",
       "say": "Prefer a whiteboard? **Show code instead** reveals a standing code — anyone who enters it at saysomethingin.com/redeem joins this class, until the code changes.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "d6ba5671.f061c5d6"
     },
     {
       "anchor": "class-play",
@@ -36,7 +38,8 @@
       "advance": {
         "on": "next"
       },
-      "terminal": "When you're ready, tap Play as class for real — this tour never starts a session for you."
+      "terminal": "When you're ready, tap Play as class for real — this tour never starts a session for you.",
+      "checked": "61c196d4.19b699ac"
     }
   ]
 }
