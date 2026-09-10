@@ -28,14 +28,16 @@
       "say": "These are a record of what you have already done. None of them is a target, and none of them is being compared with anybody.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "4d05e255.c8e01928"
     },
     {
       "anchor": "library-stat-total-time",
       "say": "Time is the time you have actually spent learning. If it ever shows a **~** in front of it, that is us working it out from how far along you are, because we have not logged the sessions themselves.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "9a62b200.7ca2f05f"
     },
     {
       "anchor": "library-stat-phrases-learnt",
@@ -43,7 +45,8 @@
       "advance": {
         "on": "next"
       },
-      "terminal": "Nothing here changes what you get next. The course follows your position, not these numbers."
+      "terminal": "Nothing here changes what you get next. The course follows your position, not these numbers.",
+      "checked": "c051d05b.55f87c5d"
     }
   ]
 }

@@ -21,14 +21,16 @@
       "say": "Use this when the colleague has no account yet — a supply teacher starting on Monday, or someone new to the school. It saves waiting for an admin to add them first.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "296f8502.1a28dd7d"
     },
     {
       "anchor": "class-coteacher-link",
       "say": "**Create a co-teacher link** mints a fresh link the moment you tap it. Whoever opens it lands as a teacher of this class, and of this school — not as its lead, and not over any of your other classes.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "fde90cfc.15843b1b"
     },
     {
       "anchor": "class-join-link",
@@ -36,7 +38,8 @@
       "advance": {
         "on": "next"
       },
-      "terminal": "Short version: the teacher link is minted per colleague and puts them beside you, the student link is the standing one for the class. This tour minted nothing."
+      "terminal": "Short version: the teacher link is minted per colleague and puts them beside you, the student link is the standing one for the class. This tour minted nothing.",
+      "checked": "ffcd317f.f80a0dc0"
     }
   ]
 }

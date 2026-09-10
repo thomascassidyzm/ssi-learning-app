@@ -20,28 +20,32 @@
       "say": "**Teachers** answers 'who teaches this class?'. A head usually wants the other direction too — 'which classes does this person take?' — and that is the same question read backwards.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "296f8502.5e12689f"
     },
     {
       "anchor": "class-teacher-other-classes",
       "say": "**Other classes** on anyone's row asks it that way round. It never moves anybody on its own — it opens a list for you to change.",
       "advance": {
         "on": "click"
-      }
+      },
+      "checked": "4ab7f707.91310d2e"
     },
     {
       "anchor": "assign-classes-list",
       "say": "Every class in the school, with the ones this teacher already takes already ticked. Ticking a second, or a third, is all 'belonging to several classes' means — there is no separate step for it.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "9bbd16ec.19a4f89c"
     },
     {
       "anchor": "assign-classes-list",
       "say": "A move is just both at once: tick where they are going, untick where they are leaving. You are looking at the truth before you change it, so nothing here is a guess.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "9bbd16ec.df72bff7"
     },
     {
       "anchor": "assign-classes-save",
@@ -49,7 +53,8 @@
       "advance": {
         "on": "next"
       },
-      "terminal": "That's moving a teacher — one untick, one tick, one save. This tour changed nothing; only your own taps do."
+      "terminal": "That's moving a teacher — one untick, one tick, one save. This tour changed nothing; only your own taps do.",
+      "checked": "6ecf2500.1821c302"
     }
   ]
 }

@@ -17,6 +17,10 @@ import {
   validateHandbookEntry,
   gateHandbookCoverage,
   gateHandbookFreshness,
+  gateWalkFreshness,
+  indexAnchors,
+  assemblePack,
+  ANCHOR_ATTRS,
   gateSections,
   gateRoleBadges,
   gatePlaceLinks,
@@ -28,7 +32,7 @@ import {
 } from '../../../../tools/walkthrough/lib.mjs'
 import {
   parseHandbookBlocks, fingerprintCapability, stampChecked, declarationSource,
-  proseFingerprint, checkedCode, checkedProse,
+  proseFingerprint, checkedCode, checkedProse, anchorFingerprint, stepProseFingerprint,
 } from '../../../../tools/walkthrough/handbookSource.mjs'
 import { readFileSync } from 'node:fs'
 
@@ -538,5 +542,142 @@ describe('the two-part stamp (no silent bulk re-pin)', () => {
   it('a legacy one-part stamp reads as code-only, so nothing pinned before this breaks', () => {
     expect(checkedCode('e36b80b5')).toBe('e36b80b5')
     expect(checkedProse('e36b80b5')).toBe(null)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// THE WALK-STEP STAMP (job #124·G → this one). A walk step is a sentence about
+// a button too. The build already fails when a step points at a button that is
+// GONE; nothing noticed when a button kept its anchor and its label and changed
+// what it DOES. These hold the same three properties the Handbook stamp has —
+// every step is pinned, a behaviour change under an unchanged name trips it,
+// and a restyle does not — plus the one this job exists for: the attribute name
+// is a PARAMETER, so data-intel is covered without a second mechanism.
+// ---------------------------------------------------------------------------
+
+const STEP_SFC = `<script setup lang="ts">
+function invite(role: string) { open.value = role }
+</script>
+<template>
+  <button data-walk="verb-invite-person" @click="invite('teacher')">Invite a person</button>
+</template>`
+
+const INTEL_SFC = `<script setup lang="ts">
+function askAgain() { refresh() }
+</script>
+<template>
+  <button data-intel="verb-ask-again" @click="askAgain()">Ask again</button>
+</template>`
+
+const stepWalk = (over: Record<string, unknown> = {}) => walk({
+  steps: [{ anchor: 'verb-invite-person', say: 'Tap **Invite a person**.', advance: { on: 'next' } }],
+  ...over,
+})
+
+// The compile CLI's own plumbing, in three lines: index the anchors, fingerprint
+// whichever sites carry the id.
+const fpOfAnchor = (files: { path: string, src: string }[], attrs?: string[]) => {
+  const sites = indexAnchors(files, attrs)
+  return (id: string) => anchorFingerprint(sites.get(id))
+}
+const pinStep = (step: any, fp: (id: string) => string | null) => ({
+  ...step, checked: `${fp(step.anchor)}.${stepProseFingerprint(step)}`,
+})
+
+describe('the walk-step freshness stamp', () => {
+  const files = [{ path: 'F.vue', src: STEP_SFC }]
+
+  it('FAILS a step that has never been pinned to what it points at', () => {
+    const { failures } = gateWalkFreshness([stepWalk()], fpOfAnchor(files))
+    expect(failures).toHaveLength(1)
+    expect(failures[0]).toContain('never been pinned')
+    expect(failures[0]).toContain('--reconfirm-walks "test-walk:verb-invite-person"')
+  })
+
+  it('passes once the step is pinned', () => {
+    const fp = fpOfAnchor(files)
+    const w = stepWalk({ steps: [pinStep(stepWalk().steps[0], fp)] })
+    expect(gateWalkFreshness([w], fp).failures).toEqual([])
+  })
+
+  it('FAILS when the HANDLER changes while the anchor, the label and the step do not', () => {
+    const w = stepWalk({ steps: [pinStep(stepWalk().steps[0], fpOfAnchor(files))] })
+    const changed = [{ path: 'F.vue', src: STEP_SFC.replace('open.value = role', 'open.value = role; void grantAdmin(role)') }]
+    const { failures } = gateWalkFreshness([w], fpOfAnchor(changed))
+    expect(failures).toHaveLength(1)
+    expect(failures[0]).toContain('changed since the step was last read')
+  })
+
+  it('does NOT fire on a restyle — a guard that cries wolf gets routed around', () => {
+    const styled = [{ path: 'F.vue', src: STEP_SFC.replace('<button ', '<button class="verb" ') }]
+    const w = stepWalk({ steps: [pinStep(stepWalk().steps[0], fpOfAnchor(styled))] })
+    const restyled = [{ path: 'F.vue', src: styled[0].src.replace('class="verb"', 'class="verb is-primary"') }]
+    expect(gateWalkFreshness([w], fpOfAnchor(restyled)).failures).toEqual([])
+  })
+
+  it('says WHERE — the walk file, the walk id, the step number and the anchor', () => {
+    const { failures } = gateWalkFreshness([stepWalk()], fpOfAnchor(files), () => 'tools/walkthrough/walks/test-walk.json')
+    expect(failures[0]).toContain('tools/walkthrough/walks/test-walk.json')
+    expect(failures[0]).toContain('walk "test-walk" step 1, anchor "verb-invite-person"')
+  })
+
+  it('stays quiet about a missing anchor — gateAnchors already fails that, hard', () => {
+    expect(gateWalkFreshness([stepWalk()], fpOfAnchor([{ path: 'F.vue', src: '<div />' }])).failures).toEqual([])
+  })
+
+  it('keeps the stamp out of the shipped pack — the player has no use for a hash', () => {
+    const w = stepWalk({ steps: [pinStep(stepWalk().steps[0], fpOfAnchor(files))] })
+    const pack = assemblePack([w], [])
+    expect(pack.walks[0].steps[0].checked).toBeUndefined()
+    expect(pack.walks[0].steps[0].say).toBe('Tap **Invite a person**.')
+  })
+})
+
+describe('both anchor namespaces (data-walk and data-intel)', () => {
+  it('declares the namespaces in one place, data-walk first so nothing changes meaning', () => {
+    expect(ANCHOR_ATTRS[0]).toBe('data-walk')
+    expect(ANCHOR_ATTRS).toContain('data-intel')
+  })
+
+  it('indexes and fingerprints a data-intel anchor exactly like a data-walk one', () => {
+    const files = [{ path: 'I.vue', src: INTEL_SFC }]
+    expect(indexAnchors(files).get('verb-ask-again')?.[0].attr).toBe('data-intel')
+    const w = walk({ steps: [{ anchor: 'verb-ask-again', say: 'Tap it.', advance: { on: 'next' } }] })
+    expect(gateWalkFreshness([w], fpOfAnchor(files)).failures[0]).toContain('never been pinned')
+    const pinned = walk({ steps: [pinStep(w.steps[0], fpOfAnchor(files))] })
+    expect(gateWalkFreshness([pinned], fpOfAnchor(files)).failures).toEqual([])
+    const changed = [{ path: 'I.vue', src: INTEL_SFC.replace('refresh()', 'refresh(); wipe()') }]
+    expect(gateWalkFreshness([pinned], fpOfAnchor(changed)).failures).toHaveLength(1)
+  })
+
+  it('resolves a walk anchor that lives under data-intel, so no walk has to know the namespace', () => {
+    const w = walk({ steps: [{ anchor: 'verb-ask-again', say: 'Tap it.', advance: { on: 'next' } }] })
+    expect(gateAnchors([w], [{ path: 'I.vue', src: INTEL_SFC }]).failures).toEqual([])
+  })
+
+  it('binds a HANDBOOK block to a data-intel element under it', () => {
+    const src = INTEL_SFC.replace('  <button data-intel', `  <!-- HANDBOOK Ask the question again
+       section: seeing-progress
+       roles: leader
+       place: node-home
+       What it's for. Asking for the number again.
+       Where it is. The question page.
+       How you do it.
+       1. Tap **Ask again**.
+  -->
+  <button data-intel`)
+    const { entries, errors } = parseHandbookBlocks('I.vue', src)
+    expect(errors).toEqual([])
+    expect(entries[0].anchor).toBe('verb-ask-again')
+    expect(entries[0].attr).toBe('data-intel')
+  })
+
+  it('WARNS rather than FAILS on an undescribed anchor in a namespace still landing', () => {
+    const loose = { id: 'verb-ask-again', attr: 'data-intel', path: 'I.vue', line: 4 }
+    const { failures, warnings } = gateHandbookCoverage([loose], [], [])
+    expect(failures).toEqual([])
+    expect(warnings[0]).toContain('still landing')
+    // …and a data-walk anchor is still a hard failure.
+    expect(gateHandbookCoverage([{ ...loose, attr: 'data-walk' }], [], []).failures).toHaveLength(1)
   })
 })

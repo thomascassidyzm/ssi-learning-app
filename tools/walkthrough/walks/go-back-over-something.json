@@ -30,14 +30,16 @@
       "say": "Nothing is ever locked behind you. Tap here to open the whole course up.",
       "advance": {
         "on": "click"
-      }
+      },
+      "checked": "33d5949c.f8fc1ab5"
     },
     {
       "anchor": "belt-browser-list",
       "say": "Every belt is listed, with a tick on the ones you have already come through. Open one and you can look through everything you met there.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "986cd772.3d57efe2"
     },
     {
       "anchor": "belt-browser-list",
@@ -45,7 +47,8 @@
       "advance": {
         "on": "next"
       },
-      "terminal": "If you land somewhere you did not mean to, come straight back in here and pick your way forward again. Nothing is lost by wandering."
+      "terminal": "If you land somewhere you did not mean to, come straight back in here and pick your way forward again. Nothing is lost by wandering.",
+      "checked": "986cd772.56534de4"
     }
   ]
 }

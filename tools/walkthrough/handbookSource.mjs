@@ -36,6 +36,30 @@
  */
 import { createHash } from 'node:crypto'
 
+/**
+ * THE ANCHOR NAMESPACES.
+ *
+ * An anchored element declares itself a capability. The schools dashboard
+ * says so with `data-walk`; the delivery-side intelligence surface says so
+ * with `data-intel`. Everything that scans for an anchor — the Handbook
+ * parser, the anchor gate, the freshness stamp — takes the list rather than
+ * the name, so a third namespace is this one line and nothing else.
+ *
+ * `data-walk` stays first, and stays the default of every helper here, so no
+ * existing call site changes meaning.
+ */
+export const ANCHOR_ATTRS = ['data-walk', 'data-intel']
+
+const alternation = (attrs) => attrs.map((a) => a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
+
+/** `<tag … data-walk="id" …>` — group 1 is the attribute, group 2 the id. */
+export const anchorTagRe = (attrs = ANCHOR_ATTRS, flags = 'gs') =>
+  new RegExp(`<[a-zA-Z][^>]*\\b(${alternation(attrs)})="([a-z0-9-]+)"[^>]*>`, flags)
+
+/** Just the attribute occurrence — group 1 the attribute, group 2 the id. */
+export const anchorAttrRe = (attrs = ANCHOR_ATTRS, flags = 'g') =>
+  new RegExp(`\\b(${alternation(attrs)})="([a-z0-9-]+)"`, flags)
+
 export const PROSE_HEADINGS = {
   "What it's for.": 'what',
   'Where it is.': 'where',
@@ -56,7 +80,7 @@ function dedent(body) {
  * @returns {{entries: object[], errors: string[]}} entries carry their raw
  * offsets so --reconfirm can rewrite the `checked:` line in place.
  */
-export function parseHandbookBlocks(path, src) {
+export function parseHandbookBlocks(path, src, attrs = ANCHOR_ATTRS) {
   const entries = []
   const errors = []
   for (const m of src.matchAll(BLOCK_RE)) {
@@ -68,7 +92,7 @@ export function parseHandbookBlocks(path, src) {
     if (!title) { at('the first line must be the entry title, on the same line as HANDBOOK'); continue }
 
     const entry = {
-      title, path, section: '', personas: [], place: '', keywords: [], walk: null, parts: [],
+      title, path, section: '', personas: [], place: '', keywords: [], walk: null, parts: [], attr: null, anchor: null,
       what: '', where: '', how: [], note: '', checked: null,
       blockStart: start, blockEnd: start + raw.length, raw,
       // 1-indexed line of the HANDBOOK comment, so a gate failure can say
@@ -118,12 +142,13 @@ export function parseHandbookBlocks(path, src) {
     const after = src.slice(entry.blockEnd)
     const nextBlock = after.search(/<!--\s*HANDBOOK\b/)
     const scope = nextBlock === -1 ? after : after.slice(0, nextBlock)
-    const anchorMatch = scope.match(/<[a-zA-Z][^>]*\bdata-walk="([a-z0-9-]+)"[^>]*>/s)
+    const anchorMatch = scope.match(anchorTagRe(attrs, 's'))
     if (!anchorMatch) {
-      at('no data-walk element follows it — a description must sit directly above the thing it describes')
+      at(`no ${attrs.join(' or ')} element follows it — a description must sit directly above the thing it describes`)
       continue
     }
-    entry.anchor = anchorMatch[1]
+    entry.attr = anchorMatch[1]
+    entry.anchor = anchorMatch[2]
     entry.tag = anchorMatch[0]
     entry.tagStart = entry.blockEnd + anchorMatch.index
     entries.push(entry)
@@ -140,11 +165,40 @@ export function parseHandbookBlocks(path, src) {
  * hatch). Recording the prose the stamp was made against lets the repair tool
  * tell the two cases apart: the sentence was rewritten, or it was not.
  */
+const hash8 = (parts) => createHash('sha256').update(parts.join('\n')).digest('hex').slice(0, 8)
+
 export function proseFingerprint(entry) {
-  return createHash('sha256')
-    .update([entry.title, entry.what, entry.where, ...entry.how, entry.note ?? ''].join('\n'))
-    .digest('hex')
-    .slice(0, 8)
+  return hash8([entry.title, entry.what, entry.where, ...entry.how, entry.note ?? ''])
+}
+
+/**
+ * The prose half of a WALK STEP's stamp — the same idea, over the words a
+ * walk step actually says. A step's prose is its `say` line and, on the last
+ * step, its `terminal` sign-off; nothing else reaches the learner.
+ */
+export function stepProseFingerprint(step) {
+  return hash8([step.say ?? '', step.terminal ?? ''])
+}
+
+/**
+ * The code half of a WALK STEP's stamp.
+ *
+ * A step names an anchor, not a file, and one anchor id can legitimately
+ * appear on more than one element — a v-if/v-else pair, or the same
+ * capability rendered in two views. So the step's fingerprint is every one of
+ * those sites' capability fingerprints, sorted and hashed together: change
+ * what ANY of them does and the step is stale, which is the honest reading of
+ * "the thing this step points at changed".
+ *
+ * It inherits fingerprintCapability's limit exactly — one file, no callees —
+ * and that limit is the whole guarantee: a step goes stale when the element
+ * under it changes in its own .vue, not when an API route behind it does.
+ *
+ * @param sites [{ src, tag, tagStart }] — every element carrying the anchor.
+ */
+export function anchorFingerprint(sites) {
+  if (!sites?.length) return null
+  return hash8(sites.map((s) => fingerprintCapability(s.src, s.tag, s.tagStart)).sort())
 }
 
 /** The code half of a `checked:` stamp. Legacy one-part stamps are all code. */

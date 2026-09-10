@@ -25,21 +25,24 @@
       "say": "People join through here — tap **Invite a person**. Nothing is created until you submit the form.",
       "advance": {
         "on": "click"
-      }
+      },
+      "checked": "6f7b703a.fa238050"
     },
     {
       "anchor": "invite-form-role",
       "say": "Pick **Teacher** — the link carries the role with it, so whoever clicks it arrives as a teacher of this school.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "be0bc360.6d54a96f"
     },
     {
       "anchor": "invite-form-submit",
       "say": "With their name filled in, this mints their own sign-in link — the account exists the moment you tap, and the link IS their login. Send it any way you like.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "945d4b8b.d593682a"
     },
     {
       "anchor": "ways-in-ledger",
@@ -47,7 +50,8 @@
       "advance": {
         "on": "next"
       },
-      "terminal": "That's the whole flow — the link is their login. This tour minted nothing; only your own taps do."
+      "terminal": "That's the whole flow — the link is their login. This tour minted nothing; only your own taps do.",
+      "checked": "3bede94f.32e1d67e"
     }
   ]
 }
