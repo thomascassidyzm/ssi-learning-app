@@ -262,9 +262,25 @@ const RESOLVE_URL_TIMEOUT_MS = 4_000
 const ENSURE_KNOWN_READY_TIMEOUT_MS = 5_000
 
 /** Ceiling on "phase entered → audio element actually told to play". Covers
- * every await on the path, present and future. Generous enough that a slow-
- * but-working resolve (bounded at 4s above) still lands inside it. */
-const PHASE_START_TIMEOUT_MS = 8_000
+ * every await on the path, present and future.
+ *
+ * It MUST be strictly greater than the sum of the bounded awaits it covers,
+ * or the watchdog fires on a slow-but-working path and skips a clip that was
+ * about to play. On PROMPT — the only phase carrying both — those awaits are
+ * ensureKnownReady (5s) then resolveUrl (4s), so an 8s ceiling was 1s short of
+ * the 9s it is documented to cover. `phaseStartTimeoutCoversItsAwaits()` below
+ * is the invariant, asserted by the suite. */
+const PHASE_START_TIMEOUT_MS = 12_000
+
+/**
+ * The invariant above, as code: the phase watchdog must outlast every bounded
+ * await that can run inside its window. Exported so the test asserts the
+ * relationship rather than a magic number, and so adding a new bounded await
+ * without widening the ceiling fails loudly.
+ */
+export function phaseStartTimeoutCoversItsAwaits(): boolean {
+  return PHASE_START_TIMEOUT_MS > ENSURE_KNOWN_READY_TIMEOUT_MS + RESOLVE_URL_TIMEOUT_MS
+}
 
 // ---------------------------------------------------------------------------
 // Background-safe PAUSE phase.
@@ -1571,6 +1587,11 @@ export class SimplePlayer {
         } else {
           if (!isSingleAudioCycle) {
             console.warn(`[SimplePlayer] No prompt audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
+            // A speaking cycle that reaches this branch is SHORT one step the
+            // learner should have heard. Console-only made it invisible to
+            // everyone but whoever happened to have devtools open; it now
+            // reports itself like every other unplayable clip.
+            this.emit('audio_failed', this.buildFailedContext(undefined, 2, 'no-audio-url'))
           }
           this.onAudioEnded()
         }
@@ -1589,6 +1610,11 @@ export class SimplePlayer {
         } else {
           if (!isSingleAudioCycle) {
             console.warn(`[SimplePlayer] No voice1 audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
+            // A speaking cycle that reaches this branch is SHORT one step the
+            // learner should have heard. Console-only made it invisible to
+            // everyone but whoever happened to have devtools open; it now
+            // reports itself like every other unplayable clip.
+            this.emit('audio_failed', this.buildFailedContext(undefined, 2, 'no-audio-url'))
           }
           this.onAudioEnded()
         }
@@ -1610,6 +1636,11 @@ export class SimplePlayer {
         } else {
           if (!isSingleAudioCycle) {
             console.warn(`[SimplePlayer] No voice2 audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
+            // A speaking cycle that reaches this branch is SHORT one step the
+            // learner should have heard. Console-only made it invisible to
+            // everyone but whoever happened to have devtools open; it now
+            // reports itself like every other unplayable clip.
+            this.emit('audio_failed', this.buildFailedContext(undefined, 2, 'no-audio-url'))
           }
           this.onAudioEnded()
         }
@@ -1863,7 +1894,21 @@ export class SimplePlayer {
     this.safetyGen = gen
     this.safetyTimer = setTimeout(() => {
       if (gen !== this.playGeneration) return
-      console.warn('[SimplePlayer] Safety timeout — audio stalled (no progress for 10s), advancing')
+      // A stall is a clip the learner did NOT hear, and until 2026-09-10 this
+      // was the one advance-on-failure path in the engine that reported
+      // nothing and named nothing — `audio_play` is logged on phase ENTRY, so
+      // the record said the prompt played while the learner sat in silence.
+      // That is why a live "no English before the pause" defect was invisible
+      // across 114k audio_play events. Report it the way every other skip
+      // reports itself, then advance exactly as before.
+      const cycle = this.currentCycle
+      console.error(
+        `[SimplePlayer] STALL WATCHDOG: no playback progress for 10s — SKIPPING this clip ` +
+        `and continuing. phase=${this.state.phase} role=${this.phaseToRole()} ` +
+        `legoId=${cycle?.legoId} cycleId=${cycle?.id} known="${cycle?.known?.text}" ` +
+        `target="${cycle?.target?.text}"`,
+      )
+      this.emit('audio_failed', this.buildFailedContext(undefined, 2, 'stall-watchdog-no-progress'))
       this.onAudioEnded()
     }, 10_000)
   }
