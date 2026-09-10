@@ -253,7 +253,7 @@
       "term": "DRILL MODE",
       "code": "listenMode === 'drill'",
       "status": "ambiguous",
-      "note": "Drill plays FOUR clips per line — target, known, target, target — and every one of them at the base rate, which is Tom's t·k·t·t. podModalQueue.ts:33 is that arm; fusionDrill.ts names the same shape pushTktt. A dialogue scene with an authored fusion rung takes a DIFFERENT queue entirely at ListeningOverlay.vue:1322. The UI label at ListeningOverlay.vue:342 describes neither: it says three times per line, once normal then twice fast, where the code plays four clips at one single speed and includes the known clip the label never mentions. The code comment above the mode list still calls these 'Two target-only practice modes', which drill is not. THE LABEL IS LEARNER-FACING COPY — a finding for Tom, not a fix.",
+      "note": "Drill plays FOUR clips per line — target, known, target, target — and every one of them at the base rate, which is Tom's t·k·t·t. podModalQueue.ts:33 is that arm; fusionDrill.ts names the same shape pushTktt. A dialogue scene with an authored fusion rung takes a DIFFERENT queue entirely at ListeningOverlay.vue:1322. The UI label at ListeningOverlay.vue:342 was corrected 2026-09-10 to match: four plays, one speed, target/meaning/target/target. The code comment above the mode list still calls these 'Two target-only practice modes', which drill is not (it includes the known clip).",
       "pointers": [
         {
           "file": "packages/player-vue/src/playback/podModalQueue.ts",
@@ -268,7 +268,7 @@
         {
           "file": "packages/player-vue/src/components/ListeningOverlay.vue",
           "line": 342,
-          "quote": "{ key: 'drill',     label: 'Drill',     desc: 'Each line three times — once normal, then twice fast' },"
+          "quote": "{ key: 'drill',     label: 'Drill',     desc: 'Each line four times — target, its meaning, then target twice more' },"
         },
         {
           "file": "packages/core/src/pods/fusionDrill.ts",
