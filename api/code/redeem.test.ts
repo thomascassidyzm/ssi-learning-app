@@ -209,6 +209,125 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     expect(writes.govt_admins[0].payload.group_id).toBe('group-new')
   })
 
+  // BORN EXCLUDED (2026-09-10). The canonical analytics exclusion in the
+  // database, test_learner_ids(), tests is_demo / is_internal / the
+  // thomas.cassidy+ address / is_test schools. It has never heard of the
+  // `tester` platform role, and NOTHING in the code sets is_internal — it was
+  // back-filled once, in July, and set by hand since. So the next person to
+  // redeem a tester code would take the role, keep is_internal = false, and
+  // count as a real learner in every board number and every daily contribution
+  // from that moment on. The flag now rides with the role, at the moment the
+  // role is granted, which closes it at the mechanism rather than at somebody's
+  // memory of a back-fill.
+  it('tester code: sets is_internal in the same update that grants the role', async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-t',
+            code: 'TST-001',
+            code_type: 'tester',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: null,
+            grants_group_id: null,
+            metadata: {},
+            max_uses: 10,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = () => ({ data: { id: 'learner-t' }, error: null })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'TST-001', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    const update = (writes.learners ?? []).find((w: any) => w.op === 'update')
+    expect(update).toBeDefined()
+    expect(update.payload.platform_role).toBe('tester')
+    expect(update.payload.is_internal).toBe(true)
+  })
+
+  // The code value here is deliberately NOT the ABC-123 shape: privileged
+  // redemption refuses a weak-keyspace code outright (SEC25-X-03), so a
+  // realistic 128-bit code is what actually exercises the grant path.
+  it('ssi_admin code: is born excluded too', async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-a',
+            code: 'K7M2QX4TB9NRPD',
+            code_type: 'ssi_admin',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: null,
+            grants_group_id: null,
+            metadata: {},
+            max_uses: 1,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = () => ({ data: { id: 'learner-a' }, error: null })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'K7M2QX4TB9NRPD', codeKind: 'invite' } }), res)
+
+    const update = (writes.learners ?? []).find((w: any) => w.op === 'update')
+    expect(update.payload.platform_role).toBe('ssi_admin')
+    expect(update.payload.is_internal).toBe(true)
+  })
+
+  // A school admin is a REAL person and must keep counting. Exclusion follows
+  // staff and test, never free and never privileged.
+  it('does NOT exclude a school admin, who is a real learner', async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-s',
+            code: 'SAD-001',
+            code_type: 'school_admin_join',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: null,
+            grants_group_id: null,
+            metadata: {},
+            max_uses: 5,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = () => ({ data: { id: 'learner-s' }, error: null })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'SAD-001', codeKind: 'invite' } }), res)
+
+    const update = (writes.learners ?? []).find((w: any) => w.op === 'update')
+    expect(update.payload.educational_role).toBe('school_admin')
+    expect(update.payload.is_internal).toBeUndefined()
+  })
+
   it('school_admin branch: sets group_id at birth and registers BOTH join codes', async () => {
     responders.invite_codes = (calls) => {
       const isSelect = calls.some((c) => c[0] === 'select')

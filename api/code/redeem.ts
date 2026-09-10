@@ -385,6 +385,28 @@ async function redeemInviteCode(
   } else {
     learnerUpdate.educational_role = codeType
   }
+
+  // BORN EXCLUDED (2026-09-10). A platform_role means staff or QA, and staff
+  // and QA are not real learners in any number we report.
+  //
+  // The canonical exclusion in the database, test_learner_ids()
+  // (20260715_test_learner_exclusion.sql), tests is_demo, is_internal, the
+  // thomas.cassidy+ address pattern and is_test schools. It has never heard of
+  // the `tester` role. And nothing in this codebase has ever SET is_internal —
+  // it was back-filled once by that migration and set by hand since. Every
+  // tester and admin row happens to carry it today; the mechanism that would
+  // keep it that way did not exist, so the next tester code redeemed would have
+  // granted full content access and counted as a real learner in every board
+  // number and every daily contribution from that moment on.
+  //
+  // The flag now rides WITH the role, in the same update, so exclusion is a
+  // property of granting privilege rather than of somebody remembering a
+  // back-fill. Educational roles are untouched: a school admin is a real person
+  // and must keep counting. Exclusion follows staff and test, never free and
+  // never privileged.
+  if (learnerUpdate.platform_role) {
+    learnerUpdate.is_internal = true
+  }
   const { error: learnerError } = await supabase
     .from('learners')
     .update(learnerUpdate)
