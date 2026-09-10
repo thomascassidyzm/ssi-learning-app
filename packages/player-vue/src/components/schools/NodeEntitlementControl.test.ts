@@ -125,6 +125,20 @@ describe('NodeEntitlementControl', () => {
     expect(body).toMatchObject({ group_id: 'g1', state: 'trial', course_code: 'spa_for_eng' })
   })
 
+  // Welsh is PRICED premium and yet takes the year window, because trial
+  // length follows the target language and cym is not a Big-10 one. The
+  // preview used to read the pricing tier and so promised an operator 30 days
+  // while the server wrote 365.
+  it('previews a full year for Welsh, whose pricing tier says premium', async () => {
+    catalogue = WELSH_DIALECTS
+    fetchMock.mockResolvedValueOnce(grantsResponse([]))
+    const wrapper = mount(NodeEntitlementControl, { props: { nodeId: 's1', nodeType: 'school' } })
+    await flushPromises()
+
+    await wrapper.findAll('.course-option')[0].trigger('click')
+    expect(wrapper.find('.expiry-preview').text()).toContain('365')
+  })
+
   it('saving a paid pick omits course_code', async () => {
     fetchMock.mockResolvedValueOnce(grantsResponse([]))
     const wrapper = mount(NodeEntitlementControl, { props: { nodeId: 'c1', nodeType: 'class' } })

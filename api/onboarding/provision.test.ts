@@ -376,8 +376,14 @@ describe('POST /api/onboarding/provision — org track', () => {
     expect(res._json.role).toBe('govt_admin')
     expect(res._json.redirect).toBe('/org/group-new')
     expect(res._json.existing).toBe(false)
-    expect(res._json.platform_trial).toMatchObject({ track: 'org', kind: 'trial', days: 30 })
+    // Founder ruling 2026-09-10: an educational institution on Welsh or any
+    // free language gets a year, and the /orgs door names no language at all,
+    // so a new org opens on the year window rather than the old flat 30 days.
+    expect(res._json.platform_trial).toMatchObject({ track: 'org', kind: 'trial', days: 365 })
     expect(writes.groups[0].payload).toMatchObject({ name: 'Cardiff Council', type: 'organisation' })
+    // …and the clock actually stamped on the row says the same thing.
+    const stampedMs = new Date(writes.groups[0].payload.platform_expires_at as string).getTime() - Date.now()
+    expect(Math.round(stampedMs / 86_400_000)).toBe(365)
     expect(writes.govt_admins[0].payload).toMatchObject({ user_id: 'auth-op-1', group_id: 'group-new' })
     expect(writes.learners.some((w) => w.op === 'update' && w.payload.educational_role === 'govt_admin')).toBe(true)
   })
