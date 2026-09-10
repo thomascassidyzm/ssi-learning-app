@@ -37,7 +37,7 @@ import { directMemberPracticeSeconds } from '../../_utils/directMemberPractice'
 import { descendantIds } from '../../_utils/groupSubtree'
 import { leadersForNodes } from '../../_utils/groupLeaderTag'
 import { sortByName } from '../../_utils/alphaSort'
-import { loadClassPractice, practiceSeconds, sessionsSince, practisedSince } from '../../_utils/classPractice'
+import { loadClassPractice, practisedSince, topPhrases, ownAccountLedgerSeconds, CLASS_PRACTICE_WINDOW_DAYS } from '../../_utils/classPractice'
 import { applyCors } from '../../_utils/cors'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -259,25 +259,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return hours
     })
     // CLASS PRACTICE rollup — classes practising together across the subtree,
-    // the primary school metric. Read off the class-entity spine (`sessions` +
-    // the class enrollment cursor), NOT `class_sessions`, which nothing has
-    // written since the 2026-08-19 re-anchor — see _utils/classPractice.ts.
-    const classPracticePromise = subtreeClassesPromise.then(async (subtreeClasses) => {
-      const practice = await loadClassPractice(svc, subtreeClasses)
-      const weekAgo = Date.now() - 7 * 86400000
-      let seconds = 0
-      let sessions7d = 0
+    // the primary school metric, read off the diary (`player_events` under
+    // each class's own account) and the class enrollment cursor — NEVER
+    // `class_sessions` (dead since 2026-08-19) and NEVER the class account's
+    // `sessions.duration_seconds` (absent for real lessons: see
+    // _utils/classPractice.ts). Whole-class play has no measured TIME in any
+    // ledger, so this block carries none — it carries PHRASES SPOKEN (Tom's
+    // term for cycles played) and the phrase-by-count list, plus the
+    // own-account minutes of staff and students off the playback ledger, kept
+    // as its own field so whole-class play is never folded into a minute
+    // figure it did not earn (job #159, 2026-09-10).
+    const classPracticeFactsPromise = subtreeClassesPromise.then((subtreeClasses) => loadClassPractice(svc, subtreeClasses))
+    const classPracticePromise = Promise.all([subtreeClassesPromise, classPracticeFactsPromise, classIdsPromise]).then(async ([subtreeClasses, practice, classIds]) => {
+      const weekAgo = Date.now() - CLASS_PRACTICE_WINDOW_DAYS * 86400000
+      let phrases7d = 0
+      let classesWithPhrases7d = 0
       let activeClasses7d = 0
       for (const facts of practice.values()) {
-        seconds += practiceSeconds(facts)
-        sessions7d += sessionsSince(facts, weekAgo)
+        phrases7d += facts.phrases
+        if (facts.phrases > 0) classesWithPhrases7d += 1
         if (practisedSince(facts, weekAgo)) activeClasses7d += 1
       }
+      const [topPhrases7d, own] = await Promise.all([
+        topPhrases(svc, practice.values(), 12),
+        ownAccountLedgerSeconds(svc, {
+          schoolIds: schoolRows.map((s) => s.id),
+          groupIds: subtreeIds,
+          classIds: [...classIds],
+        }),
+      ])
       return {
-        hours: Math.round((seconds / 3600) * 10) / 10,
-        sessions7d,
-        activeClasses7d,
+        windowDays: CLASS_PRACTICE_WINDOW_DAYS,
         classCount: subtreeClasses.length,
+        activeClasses7d,
+        phrases7d,
+        classesWithPhrases7d,
+        topPhrases7d,
+        ownAccountMinutes7d: Math.round(own.seconds / 60),
+        ownAccountPeople7d: own.people,
       }
     })
     // WHO LEADS THIS NODE. The org page could name the leader of a group
@@ -441,19 +460,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       const classHours = (csp ?? []).reduce((sum: number, s: any) => sum + (Number(s.total_practice_seconds) || 0), 0) / 3600
 
       // ─── CLASS PRACTICE — the headline layer (founder ruling: play-as-class
-      // is the only metric that matters in a school; students are the bonus). ───
+      // is the only metric that matters in a school; students are the bonus).
+      // Phrases spoken this week and the phrases themselves, off the diary;
+      // no session count and no hours, because the class account's `sessions`
+      // rows do not describe its lessons (_utils/classPractice.ts). ───
       const classFacts = classPracticeByClass.get(classRow.id)
-      const cs = classFacts?.sessions ?? []
-      const weekAgo = Date.now() - 7 * 86400000
-      const monthAgo = Date.now() - 28 * 86400000
       const classPractice = {
-        weekSessions: cs.filter((s) => new Date(s.started_at).getTime() >= weekAgo).length,
-        sessions28d: cs.filter((s) => new Date(s.started_at).getTime() >= monthAgo).length,
-        totalSessions: cs.length,
-        // The cursor stamp counts as evidence the class practised even when no
-        // session row was opened, so "last practised" is never falsely blank.
-        lastSessionAt: classFacts?.lastPractisedAt ?? null,
-        hours: Math.round((cs.reduce((sum, s) => sum + (Number(s.duration_seconds) || 0), 0) / 3600) * 10) / 10,
+        windowDays: CLASS_PRACTICE_WINDOW_DAYS,
+        phrases7d: classFacts?.phrases ?? 0,
+        // The cursor stamp counts as evidence the class practised even when
+        // the diary is empty, so "last practised" is never falsely blank.
+        lastPractisedAt: classFacts?.lastPractisedAt ?? null,
+        phrases: await topPhrases(svc, [classFacts], 40),
       }
 
       // Journey: how far the CLASS has travelled together — the class-entity's
@@ -535,6 +553,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // to teach yet is visible rather than missing). Learners are counts on
     // the nodes, never rows: a 400-pupil school is a number, not a list. ───
     let treePayload: Record<string, unknown> | null = null
+    const classPracticeFacts = await classPracticeFactsPromise
     if (drawsTree) {
       const subtreeClasses = await subtreeClassesPromise
       const classIds = subtreeClasses.map((c) => c.id)
@@ -632,6 +651,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
               nodeId: nodeForClass(c),
               teachers: [...(teachersByClass.get(c.id) || [])].map((uid) => names.get(uid) || 'Unnamed').sort(),
               studentCount: studentCountByClass.get(c.id) || 0,
+              // Whole-class play this week, per class — the row a head of
+              // department reads on a Monday: who did it, who has gone quiet.
+              phrases7d: classPracticeFacts.get(c.id)?.phrases ?? 0,
+              lastPractisedAt: classPracticeFacts.get(c.id)?.lastPractisedAt ?? null,
             }))
             .sort((a, b) => a.name.localeCompare(b.name)),
           staff: staffUids
@@ -764,7 +787,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       const teachersByClass = new Map<string, Set<string>>()
       const studentCountByClass = new Map<string, number>()
       const hoursByClass = new Map<string, number>()
-      const classHoursByClass = new Map<string, number>()
+      const phrasesByClass = new Map<string, number>()
       const lastClassSessionByClass = new Map<string, string>()
       await Promise.all([
         ...chunk(classIds).map(async (batch) => {
@@ -789,7 +812,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           ? [
               loadClassPractice(svc, classes).then((practice) => {
                 for (const [cid, facts] of practice) {
-                  classHoursByClass.set(cid, practiceSeconds(facts) / 3600)
+                  phrasesByClass.set(cid, facts.phrases)
                   if (facts.lastPractisedAt) lastClassSessionByClass.set(cid, facts.lastPractisedAt)
                 }
               }),
@@ -819,7 +842,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
             teachers: [...(teachersByClass.get(c.id) || [])].map((uid) => names.get(uid) || 'Unnamed').sort(),
             studentCount: studentCountByClass.get(c.id) || 0,
             practiceHours: Math.round((hoursByClass.get(c.id) || 0) * 10) / 10,
-            classPracticeHours: Math.round((classHoursByClass.get(c.id) || 0) * 10) / 10,
+            phrases7d: phrasesByClass.get(c.id) || 0,
             lastClassSessionAt: lastClassSessionByClass.get(c.id) || null,
           })).sort((a, b) => (a.home || '').localeCompare(b.home || '') || a.name.localeCompare(b.name)),
         }
