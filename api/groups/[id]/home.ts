@@ -37,6 +37,7 @@ import { directMemberPracticeSeconds } from '../../_utils/directMemberPractice'
 import { descendantIds } from '../../_utils/groupSubtree'
 import { leadersForNodes } from '../../_utils/groupLeaderTag'
 import { sortByName } from '../../_utils/alphaSort'
+import { loadClassPractice, practiceSeconds, sessionsSince, practisedSince } from '../../_utils/classPractice'
 import { applyCors } from '../../_utils/cors'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -59,13 +60,14 @@ interface NodeRef { id: string; name: string; label: string; is_demo: boolean; h
  * as leaves of the containment structure, so the one subtree fetch carries the
  * columns that draw them rather than only the ids the rollups need.
  */
-const SUBTREE_CLASS_COLUMNS = 'id, class_name, school_id, group_id, teacher_user_id'
+const SUBTREE_CLASS_COLUMNS = 'id, class_name, school_id, group_id, teacher_user_id, class_learner_id'
 interface SubtreeClassRow {
   id: string
   class_name: string
   school_id: string | null
   group_id: string | null
   teacher_user_id: string | null
+  class_learner_id: string | null
 }
 
 function toRef(g: GroupRow, schoolNodeIds: Set<string>): NodeRef {
@@ -256,28 +258,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       ])
       return hours
     })
-    // CLASS PRACTICE rollup — classes practising together across the subtree
-    // (class_sessions), the primary school metric.
-    const classPracticePromise = classIdsPromise.then(async (classIds) => {
+    // CLASS PRACTICE rollup — classes practising together across the subtree,
+    // the primary school metric. Read off the class-entity spine (`sessions` +
+    // the class enrollment cursor), NOT `class_sessions`, which nothing has
+    // written since the 2026-08-19 re-anchor — see _utils/classPractice.ts.
+    const classPracticePromise = subtreeClassesPromise.then(async (subtreeClasses) => {
+      const practice = await loadClassPractice(svc, subtreeClasses)
+      const weekAgo = Date.now() - 7 * 86400000
       let seconds = 0
       let sessions7d = 0
-      const active7d = new Set<string>()
-      const weekAgo = Date.now() - 7 * 86400000
-      await Promise.all(chunk([...classIds]).map(async (batch) => {
-        const { data } = await svc.from('class_sessions').select('class_id, started_at, duration_seconds').in('class_id', batch)
-        for (const r of data ?? []) {
-          seconds += Number((r as any).duration_seconds) || 0
-          if (new Date((r as any).started_at).getTime() >= weekAgo) {
-            sessions7d += 1
-            active7d.add((r as any).class_id as string)
-          }
-        }
-      }))
+      let activeClasses7d = 0
+      for (const facts of practice.values()) {
+        seconds += practiceSeconds(facts)
+        sessions7d += sessionsSince(facts, weekAgo)
+        if (practisedSince(facts, weekAgo)) activeClasses7d += 1
+      }
       return {
         hours: Math.round((seconds / 3600) * 10) / 10,
         sessions7d,
-        activeClasses7d: active7d.size,
-        classCount: classIds.size,
+        activeClasses7d,
+        classCount: subtreeClasses.length,
       }
     })
     // WHO LEADS THIS NODE. The org page could name the leader of a group
@@ -356,15 +356,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // (founder ruling 2026-07-19). No streaks anywhere: founder ruling
     // 2026-07-19, reasoning in archive/docs-retired-2026-08-24/gamification-done-right.md.
     if (classRow) {
-      const [{ data: ct }, { data: csp }, { count: legoTotal }, { data: classStats }, { data: classSessions }, { data: classEnrollment }] = await Promise.all([
+      const [{ data: ct }, { data: csp }, { count: legoTotal }, { data: classStats }, classPracticeByClass, { data: classEnrollment }] = await Promise.all([
         svc.from('class_teachers').select('teacher_user_id, is_lead').eq('class_id', classRow.id),
         svc.from('class_student_progress').select('learner_id, student_name, seeds_completed, legos_mastered, total_practice_seconds, last_active_at, joined_class_at').eq('class_id', classRow.id),
         svc.from('course_legos').select('id', { count: 'exact', head: true }).eq('course_code', classRow.course_code),
         svc.from('class_activity_stats').select('total_practice_seconds, active_students, school_id, region_code, course_code').eq('class_id', classRow.id).maybeSingle(),
         // PLAY-AS-CLASS IS THE PRIMARY METRIC (founder ruling): the class's
-        // own teacher-led sessions lead this page. Newest first; 500 covers
-        // years of twice-weekly classroom practice.
-        svc.from('class_sessions').select('started_at, ended_at, duration_seconds, cycles_completed, end_lego_id').eq('class_id', classRow.id).order('started_at', { ascending: false }).limit(500),
+        // own teacher-led sessions lead this page — off the class-entity
+        // spine, not the dead `class_sessions` table (_utils/classPractice.ts).
+        loadClassPractice(svc, [classRow]),
         // The class's OWN learning account (THE-MODEL I6) — its enrollment
         // cursor is what play-as-class advances, and is the journey source.
         classRow.class_learner_id
@@ -442,26 +442,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
       // ─── CLASS PRACTICE — the headline layer (founder ruling: play-as-class
       // is the only metric that matters in a school; students are the bonus). ───
-      const cs = (classSessions ?? []) as { started_at: string; ended_at: string | null; duration_seconds: number | null; cycles_completed: number | null; end_lego_id: string | null }[]
+      const classFacts = classPracticeByClass.get(classRow.id)
+      const cs = classFacts?.sessions ?? []
       const weekAgo = Date.now() - 7 * 86400000
       const monthAgo = Date.now() - 28 * 86400000
       const classPractice = {
         weekSessions: cs.filter((s) => new Date(s.started_at).getTime() >= weekAgo).length,
         sessions28d: cs.filter((s) => new Date(s.started_at).getTime() >= monthAgo).length,
         totalSessions: cs.length,
-        lastSessionAt: cs[0]?.started_at ?? null,
+        // The cursor stamp counts as evidence the class practised even when no
+        // session row was opened, so "last practised" is never falsely blank.
+        lastSessionAt: classFacts?.lastPractisedAt ?? null,
         hours: Math.round((cs.reduce((sum, s) => sum + (Number(s.duration_seconds) || 0), 0) / 3600) * 10) / 10,
       }
 
       // Journey: how far the CLASS has travelled together — the class-entity's
-      // play-as-class position (enrollment cursor, falling back to the newest
-      // class session's end LEGO, then classes.last_lego_id), expressed as a
+      // play-as-class position (enrollment ceiling, falling back to the
+      // enrollment's last completed LEGO, then classes.last_lego_id) — live
+      // class enrollments carry the cursor but no ceiling — expressed as a
       // LEGO ordinal so it shares units with the course total. Only when no
       // class play exists at all do we fall back to the legacy current_seed
       // estimate (a seed count — kept so pre-play classes still show a bar).
       const journeyTotal = Number(legoTotal) || 0
       const journeyLegoId = (classEnrollment as any)?.highest_completed_lego_id
-        || cs.find((s) => s.end_lego_id)?.end_lego_id
+        || (classEnrollment as any)?.last_completed_lego_id
         || classRow.last_lego_id
         || null
       const journeyOrd = journeyLegoId ? await legoOrdinal(svc, classRow.course_code, journeyLegoId) : 0
@@ -719,7 +723,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       // Subtree classes: node-attached (group_id) ∪ legacy school-attached —
       // both arms of the union in one parallel wave, plus (teachers lens) the
       // school/group teacher tags that don't need class ids.
-      const classes: { id: string; class_name: string; school_id: string | null; group_id: string | null; teacher_user_id: string | null }[] = []
+      const classes: { id: string; class_name: string; school_id: string | null; group_id: string | null; teacher_user_id: string | null; class_learner_id: string | null }[] = []
       const seenClassIds = new Set<string>()
       const addClasses = (rows: any[] | null) => {
         for (const c of rows ?? []) if (!seenClassIds.has(c.id)) { seenClassIds.add(c.id); classes.push(c) }
@@ -727,11 +731,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       const taggedTeacherUids = new Set<string>()
       await Promise.all([
         ...chunk(subtreeIds).map(async (batch) => {
-          const { data } = await svc.from('classes').select('id, class_name, school_id, group_id, teacher_user_id').in('group_id', batch).eq('is_active', true)
+          const { data } = await svc.from('classes').select('id, class_name, school_id, group_id, teacher_user_id, class_learner_id').in('group_id', batch).eq('is_active', true)
           addClasses(data)
         }),
         ...chunk(subtreeSchoolIds).map(async (batch) => {
-          const { data } = await svc.from('classes').select('id, class_name, school_id, group_id, teacher_user_id').in('school_id', batch).eq('is_active', true)
+          const { data } = await svc.from('classes').select('id, class_name, school_id, group_id, teacher_user_id, class_learner_id').in('school_id', batch).eq('is_active', true)
           addClasses(data)
         }),
         ...(lens === 'teachers'
@@ -780,16 +784,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           }
         }),
         // Class practice per class (the primary metric) — classes lens only.
+        // Same live spine as the subtree rollup: _utils/classPractice.ts.
         ...(lens === 'classes'
-          ? chunk(classIds).map(async (batch) => {
-              const { data } = await svc.from('class_sessions').select('class_id, started_at, duration_seconds').in('class_id', batch)
-              for (const r of data ?? []) {
-                const cid = (r as any).class_id as string
-                classHoursByClass.set(cid, (classHoursByClass.get(cid) || 0) + (Number((r as any).duration_seconds) || 0) / 3600)
-                const at = String((r as any).started_at)
-                if ((lastClassSessionByClass.get(cid) || '') < at) lastClassSessionByClass.set(cid, at)
-              }
-            })
+          ? [
+              loadClassPractice(svc, classes).then((practice) => {
+                for (const [cid, facts] of practice) {
+                  classHoursByClass.set(cid, practiceSeconds(facts) / 3600)
+                  if (facts.lastPractisedAt) lastClassSessionByClass.set(cid, facts.lastPractisedAt)
+                }
+              }),
+            ]
           : []),
       ])
       // Lead pointer unioned in after the wave.

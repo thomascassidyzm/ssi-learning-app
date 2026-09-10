@@ -41,12 +41,19 @@ function resetTables(): void {
       { id: 'class-1', class_name: 'Year 6 Hindi', course_code: 'hin_for_eng', school_id: 'school-1', group_id: 'school-node', teacher_user_id: 'teacher-uid-1', is_active: true, current_seed: 60, last_lego_id: 'S0060L02', class_learner_id: 'class-learner-1' },
     ],
     // PLAY-AS-CLASS: the class's own teacher-led sessions (the primary
-    // metric) + the class-entity's enrollment cursor (THE-MODEL I6).
-    class_sessions: [
-      { class_id: 'class-1', started_at: new Date().toISOString(), ended_at: new Date().toISOString(), duration_seconds: 1800, cycles_completed: 160, end_lego_id: 'S0060L02' },
-      { class_id: 'class-1', started_at: new Date(Date.now() - 3 * 86400000).toISOString(), ended_at: new Date(Date.now() - 3 * 86400000).toISOString(), duration_seconds: 1200, cycles_completed: 110, end_lego_id: 'S0059L03' },
-      { class_id: 'class-1', started_at: new Date(Date.now() - 35 * 86400000).toISOString(), ended_at: new Date(Date.now() - 35 * 86400000).toISOString(), duration_seconds: 1500, cycles_completed: 130, end_lego_id: 'S0054L01' },
+    // metric) + the class-entity's enrollment cursor (THE-MODEL I6). Both
+    // hang off the class's OWN learner id — since the 2026-08-19 re-anchor
+    // that is where class practice lives, and `class_sessions` is dead estate
+    // (api/_utils/classPractice.ts).
+    sessions: [
+      { learner_id: 'class-learner-1', course_id: 'hin_for_eng', started_at: new Date().toISOString(), ended_at: new Date().toISOString(), duration_seconds: 1800, items_practiced: 160 },
+      { learner_id: 'class-learner-1', course_id: 'hin_for_eng', started_at: new Date(Date.now() - 3 * 86400000).toISOString(), ended_at: new Date(Date.now() - 3 * 86400000).toISOString(), duration_seconds: 1200, items_practiced: 110 },
+      { learner_id: 'class-learner-1', course_id: 'hin_for_eng', started_at: new Date(Date.now() - 35 * 86400000).toISOString(), ended_at: new Date(Date.now() - 35 * 86400000).toISOString(), duration_seconds: 1500, items_practiced: 130 },
     ],
+    // The table the dashboard USED to read. Nothing has written it since
+    // 2026-08-19; it stays here, populated, so any read of it would show up
+    // as a number no test asked for.
+    class_sessions: [],
     course_enrollments: [
       { learner_id: 'class-learner-1', course_id: 'hin_for_eng', highest_completed_lego_id: 'S0060L02', last_completed_lego_id: 'S0060L02', last_practiced_at: new Date().toISOString(), total_practice_minutes: 75 },
     ],
@@ -300,7 +307,7 @@ describe('GET /api/groups/:id/home', () => {
     expect(res.body.benchmark).toEqual({ class: 90, school: 30, course: 24 })
   })
 
-  it('CLASS-PRACTICE PIN: class home leads with the class practising together — classPractice block from class_sessions, journey from the class-entity enrollment', async () => {
+  it('CLASS-PRACTICE PIN: class home leads with the class practising together — classPractice block from the class-entity sessions, journey from its enrollment', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
     await handler(makeReq('class-1'), res)
@@ -321,7 +328,7 @@ describe('GET /api/groups/:id/home', () => {
 
   it('a class with NO play-as-class history falls back to the current_seed journey estimate', async () => {
     verifyAdminResult = { userId: 'admin-1' }
-    TABLES.class_sessions = []
+    TABLES.sessions = []
     TABLES.course_enrollments = []
     TABLES.classes[0].last_lego_id = null
     TABLES.classes[0].class_learner_id = null
@@ -338,6 +345,40 @@ describe('GET /api/groups/:id/home', () => {
     await handler(makeReq('programme'), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.classPractice).toEqual({ hours: 1.3, sessions7d: 2, activeClasses7d: 1, classCount: 1 })
+  })
+
+  // ─── FIELD DEFECT 2026-09-10: the rollup read `class_sessions`, which
+  // nothing has written since the play-as-class re-anchor of 2026-08-19
+  // (verified live: max(started_at) = 2026-08-19T20:18Z). Every class created
+  // after that date reported 0h however much it had practised — 30 of the 103
+  // such classes had real class-entity practice, one of them that same day. ───
+  it('DEAD-TABLE PIN: class practice is read off the class-entity spine, never class_sessions', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // A class of the post-re-anchor shape: real `sessions` and a fresh cursor
+    // stamp on its OWN learner id, and not one class_sessions row anywhere.
+    TABLES.class_sessions = []
+    const res = makeRes()
+    await handler(makeReq('programme'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.classPractice).toEqual({ hours: 1.3, sessions7d: 2, activeClasses7d: 1, classCount: 1 })
+    // And a stale class_sessions row can no longer add hours that the class
+    // did not practise — the dead table is not read at all.
+    TABLES.class_sessions = [{ class_id: 'class-1', started_at: new Date().toISOString(), duration_seconds: 36000 }]
+    const res2 = makeRes()
+    await handler(makeReq('programme'), res2)
+    expect(res2.body.classPractice.hours).toBe(1.3)
+  })
+
+  it('a class that practised without opening a session row still counts as practising this week', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // The live majority case: /api/school/class-progress stamps the cursor on
+    // every save, but a session row is only opened and closed on a clean
+    // start/finish (live: 30 classes practised in the window, 12 session rows).
+    TABLES.sessions = []
+    const res = makeRes()
+    await handler(makeReq('programme'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.classPractice).toEqual({ hours: 0, sessions7d: 0, activeClasses7d: 1, classCount: 1 })
   })
 
   // ─── FIELD DEFECT 2026-08-06: an org whose people are invited straight into
