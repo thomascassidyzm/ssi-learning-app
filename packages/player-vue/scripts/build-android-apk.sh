@@ -20,9 +20,21 @@
 #
 # Usage:
 #   scripts/build-android-apk.sh [origin]
+#   SSI_SHELL_ORIGIN=<origin> scripts/build-android-apk.sh
 #
-# The optional argument overrides the origin for one build. The DEFAULT, and
-# the one-line production switch, lives in capacitor.config.ts.
+# WHICH DEPLOYMENT THIS APK LOOKS AT, AND WHY THE DEFAULT IS STAGING. Tom's
+# ruling, 2026-09-10: production is for live learners, so the only honest
+# reason to point a test build at it is to fix a problem that is already live
+# there — never to compare builds or platforms. An APK that lands on
+# production because somebody forgot a variable is therefore always wrong, and
+# an unset SSI_SHELL_ORIGIN yields STAGING. Production is one explicit word:
+#
+#   scripts/build-android-apk.sh https://saysomethingin.app
+#
+# The default itself is NOT written here. It is read out of
+# capacitor.config.ts below, because that file is what the WebView actually
+# obeys and a second copy of the answer in this script could only ever drift
+# away from it and lie in the banner.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -31,10 +43,27 @@ cd "$HERE"
 if [ "${1:-}" != "" ]; then
   export SSI_SHELL_ORIGIN="$1"
 fi
-SHELL_ORIGIN="${SSI_SHELL_ORIGIN:-https://saysomethingin.app}"
+
+# The single source of truth for the default, read from the file the WebView
+# obeys. If this grep ever comes back empty the config has been restructured,
+# and the right answer is to stop rather than to silently invent an origin.
+SHELL_DEFAULT_ORIGIN="$(sed -n "s/^const SHELL_DEFAULT_ORIGIN = '\(.*\)'.*$/\1/p" capacitor.config.ts)"
+if [ -z "$SHELL_DEFAULT_ORIGIN" ]; then
+  echo "!! could not read SHELL_DEFAULT_ORIGIN from capacitor.config.ts." >&2
+  echo "   Set SSI_SHELL_ORIGIN explicitly, or fix the constant, and run again." >&2
+  exit 1
+fi
+
+if [ -n "${SSI_SHELL_ORIGIN:-}" ]; then
+  SHELL_ORIGIN="$SSI_SHELL_ORIGIN"
+  ORIGIN_SOURCE="chosen explicitly"
+else
+  SHELL_ORIGIN="$SHELL_DEFAULT_ORIGIN"
+  ORIGIN_SOURCE="the default — nobody set SSI_SHELL_ORIGIN"
+fi
 SHELL_ORIGIN="${SHELL_ORIGIN%/}"
 
-echo "==> shell origin: $SHELL_ORIGIN"
+echo "==> shell origin: $SHELL_ORIGIN  ($ORIGIN_SOURCE)"
 
 echo "==> writing the holding notice into android-shell-web/"
 mkdir -p android-shell-web
@@ -80,9 +109,14 @@ echo "==> artefact"
 echo "    path   : $HERE/$APK"
 echo "    bytes  : $(stat -c%s "$APK")"
 echo "    sha256 : $(sha256sum "$APK" | cut -d' ' -f1)"
-echo "    origin : $SHELL_ORIGIN"
+echo "    origin : $SHELL_ORIGIN  ($ORIGIN_SOURCE)"
 echo "    serving: $(curl -fsS --max-time 10 "$SHELL_ORIGIN/version.json" || echo 'could not read /version.json')"
 echo
 echo "The Settings build row reports the DEPLOYMENT's build, printed above as"
 echo "'serving' — the shell carries no web code of its own to report. If that"
 echo "row shows something else, the app is not loading from this origin."
+echo
+echo "A TESTER CAN CHECK THIS WITHOUT YOU: the quiet line under the build card"
+echo "in Settings is the host the app is actually running on, so it reads"
+echo "'${SHELL_ORIGIN#https://}' on this APK. If it says something else, that"
+echo "is the truth and this banner is not."
