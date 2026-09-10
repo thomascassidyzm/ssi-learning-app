@@ -68,6 +68,8 @@ const AdminContainer = () => import('@/containers/AdminContainer.vue')
 const AdminSchoolsContainer = () => import('@/containers/AdminSchoolsContainer.vue')
 const AdminGroupContainer = () => import('@/containers/AdminGroupContainer.vue')
 const MethodologyContainer = () => import('@/containers/MethodologyContainer.vue')
+import { QUESTIONS } from '@/intel/questions'
+
 // Schools views (lazy-loaded)
 const DashboardView = () => import('@/views/schools/DashboardView.vue')
 const TeachersView = () => import('@/views/schools/TeachersView.vue')
@@ -83,6 +85,14 @@ const SetupView = () => import('@/views/schools/SetupView.vue')
 // HANDBOOK (2026-09-07) — the compiled map of every capability, shared by the
 // /schools and /org mounts: one component, one address per lane.
 const HandbookView = () => import('@/views/schools/HandbookView.vue')
+// THE INTELLIGENCE SURFACE — its own shell (the dark admin bar dies here) and
+// the two question pages built in the first slice.
+const IntelContainer = () => import('@/containers/IntelContainer.vue')
+const NotYetBuiltView = () => import('@/views/intel/NotYetBuiltView.vue')
+const INTEL_VIEWS: Record<string, () => Promise<unknown>> = {
+  pulse: () => import('@/views/intel/PulseView.vue'),
+  'weak-points': () => import('@/views/intel/WeakPointsView.vue'),
+}
 // THE VIEW — the one recursive node home (archive/docs-retired-2026-08-24/THE-VIEW.md)
 const NodeHomeView = () => import('@/views/admin/NodeHomeView.vue')
 // Referenced ONLY from the INSTITUTIONAL_PURCHASE_IN_BUILD branches below, so a
@@ -558,10 +568,15 @@ const routes: RouteRecordRaw[] = [
         redirect: '/admin/structure',
       },
       {
+        // Platform Analytics is the first of the seven ways-to-see-how-learners-
+        // are-doing to die. Its Overview and Growth tabs asked question 1 — how
+        // many real people practised, and is that up or down — so the URL now
+        // lands on the question itself. The other six ways stay until the
+        // question that replaces each one is built: redirecting a working page
+        // to a page that does not exist yet would be a worse surface, not a
+        // smaller one.
         path: 'analytics',
-        name: 'admin-analytics',
-        component: () => import('@/views/admin/AdminAnalytics.vue'),
-        meta: { title: 'Admin Analytics', description: 'Platform-wide analytics dashboard' },
+        redirect: '/intel/pulse',
       },
       {
         path: 'users',
@@ -672,6 +687,33 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/BoardReportView.vue'),
         meta: { title: 'Board', description: 'Living board report — live business state + authored reports' },
       },
+    ],
+  },
+  // ═══════════════════════════════════════════════════════════════════
+  // THE INTELLIGENCE SURFACE — the ten questions.
+  //
+  // docs/delivery-side-intelligence-surface.md is the frame; every route here
+  // is generated from @/intel/questions.ts, which is the ONE place the ten are
+  // written down. One route per question is a rule the design makes checkable,
+  // and generating the routes from the list is what makes it true rather than
+  // remembered.
+  //
+  // A question whose page is not built yet still has its route and still sits
+  // in the bar, rendering the honest not-yet card. The frame is ten from the
+  // first day.
+  // ═══════════════════════════════════════════════════════════════════
+  {
+    path: '/intel',
+    component: IntelContainer,
+    meta: { hideAppEscape: true },
+    children: [
+      { path: '', redirect: '/intel/pulse' },
+      ...QUESTIONS.map((q) => ({
+        path: q.slug,
+        name: `intel-${q.slug}`,
+        component: q.built ? INTEL_VIEWS[q.slug] : NotYetBuiltView,
+        meta: { title: q.tab, description: q.question },
+      })),
     ],
   },
   // Admin read-views — view a specific school's dashboard as ssi_admin
@@ -972,7 +1014,7 @@ router.afterEach((to) => {
 // which gates rendering on the shared resolved-session gate and corrects
 // (redirects) once resolution genuinely says non-admin.
 router.beforeEach((to, _from, next) => {
-  const requiresAdmin = to.path.startsWith('/admin') || to.path.startsWith('/methodology')
+  const requiresAdmin = to.path.startsWith('/admin') || to.path.startsWith('/intel') || to.path.startsWith('/methodology')
   if (!requiresAdmin) return next()
   const { canAccessAdmin, isInitialized, restoreFromCache } = useUserRole()
   restoreFromCache()
