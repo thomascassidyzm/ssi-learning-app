@@ -1,0 +1,13 @@
+{
+  "id": "belt-frozen",
+  "feel": "The learner keeps practising but never earns the next belt.",
+  "patch": {
+    "file": "packages/player-vue/src/composables/useBeltProgress.ts",
+    "before": "return i\n",
+    "after": "return 0\n",
+    "count": 1
+  },
+  "check": "TESTER-SHEET step 1; journeys j1 measures first audio only; _verify-belt-ceiling.mjs claims belt ceilings, not earned progression",
+  "gap": "No local course/playback fixture reaching the first belt transition. Existing live probes are not a safe substitute.",
+  "revert": "Runner restores the original bytes in finally and asserts git status is clean before the next entry. Fixture pages are destroyed with their browser."
+}

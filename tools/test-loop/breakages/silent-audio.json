@@ -1,0 +1,12 @@
+{
+  "id": "silent-audio",
+  "feel": "The lesson clock moves but the learner hears total silence.",
+  "patch": {
+    "kind": "fixture",
+    "file": "packages/player-vue/e2e/release-audible-control.mjs",
+    "description": "The imported control replaces lesson media with a blob WAV containing 16,000 zero PCM samples; every browser route is stubbed."
+  },
+  "check": "journeys/lib.mjs instrument + waitAudible; release-audible-control.mjs qualifies that instrument",
+  "mode": "silence",
+  "revert": "Runner restores the original bytes in finally and asserts git status is clean before the next entry. Fixture pages are destroyed with their browser."
+}
