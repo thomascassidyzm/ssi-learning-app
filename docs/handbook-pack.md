@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `9e1e45bfdab6` · generated 2026-09-09 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `9e1e45bfdab6` · generated 2026-09-10 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## Add a class to a group
 
