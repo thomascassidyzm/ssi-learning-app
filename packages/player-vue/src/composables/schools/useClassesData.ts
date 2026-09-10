@@ -982,6 +982,38 @@ export function useClassesData() {
     }
   }
 
+  /**
+   * Create a class — SERVER-MEDIATED, never a client insert.
+   *
+   * THE HOLE THIS CLOSED (2026-09-10). This used to
+   * `client.from('classes').insert(...)` straight from the browser. The only
+   * thing standing behind that was the RLS policy `classes_insert`,
+   * `WITH CHECK (teacher_user_id = auth.uid()::text)` — which asks whose row
+   * it is and NOTHING about the course. Meanwhile a class's `course_code` is
+   * what api/_utils/classCoverage.ts hands every student tagged into it, in
+   * full, for as long as the class's school has live platform cover. So a
+   * teacher could open a class on any premium course the school had never
+   * paid for, and the entitlement ladder that shipped in
+   * api/_utils/classCourseEntitlement.ts was bypassed by simply not using the
+   * endpoint. Both writes now go through a server endpoint, per CLAUDE.md's
+   * RLS doctrine: the policy stays a row-ownership check, the commercial
+   * authz lives in an endpoint with tests.
+   *
+   * TWO ENDPOINTS, chosen by whether there is a school:
+   *   school_id  → POST /api/school/create-class (school lane) — staff
+   *     membership + the entitlement ladder. This is the path that was
+   *     leaking.
+   *   school_id null → POST /api/teacher/classes — the personal tutor lane
+   *     (THE-MODEL §1.3/I5), the endpoint /teach has always used. A class
+   *     with school_id null grants NO class coverage at all
+   *     (classCoverage.ts skips rows without a school), so there is no
+   *     premium course to leak here; that lane is gated by the tutor's own
+   *     platform subscription instead.
+   *
+   * Both endpoints already mint the invite_codes row, the class's own learner
+   * entity and the creator's teacher↔class tag, so the three follow-up fetches
+   * this function used to make are gone with the insert.
+   */
   async function createClass(params: {
     class_name: string
     course_code: string
@@ -994,107 +1026,56 @@ export function useClassesData() {
     const creatorUserId = selectedUser.value.user_id
 
     try {
-      const { data: newClass, error: insertError } = await client
-        .from('classes')
-        .insert({
-          class_name: params.class_name,
-          course_code: params.course_code,
-          school_id: params.school_id,
-          teacher_user_id: creatorUserId,
-          is_active: true,
-        })
-        .select('id, class_name, course_code, school_id, teacher_user_id, student_join_code, current_seed, is_active, created_at')
-        .single()
-
-      if (insertError) throw insertError
-
-      if (newClass.student_join_code) {
-        // invite_codes INSERT was REVOKEd by 20260521180000; the
-        // matching server endpoint inserts the row and authorizes
-        // the caller (teacher / school_admin / ssi_admin).
-        try {
-          const { data: { session } } = await client.auth.getSession()
-          const token = session?.access_token
-          if (token) {
-            const resp = await fetch('/api/teacher/create-class-join-code', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-              },
-              body: JSON.stringify({ class_id: newClass.id }),
-            })
-            if (!resp.ok) {
-              const data = await resp.json().catch(() => ({}))
-              console.error('[ClassesData] Failed to create invite code for student join code:', data.error || resp.status)
-              // Non-fatal — class still works, just won't resolve through /api/code/validate
-            }
-          } else {
-            console.warn('[ClassesData] No auth token; skipping invite_code creation for class', newClass.id)
-          }
-        } catch (codeErr) {
-          console.error('[ClassesData] invite_code fetch error:', codeErr)
-        }
+      const { data: { session } } = await client.auth.getSession()
+      const token = session?.access_token
+      if (!token) {
+        error.value = 'You are not signed in.'
+        return null
       }
 
-      // Mint the class's own learner entity (owner ruling 2026-07-16: a class
-      // is a first-class learner citizen, enrolled in its own course). Must be
-      // server-mediated — learners has RLS enabled and a class entity's
-      // synthetic user_id can never satisfy learners_insert_self. Non-fatal:
-      // play-as-class re-attempts this lazily if it's still missing.
-      let classLearnerId: string | null = null
-      try {
-        const { data: { session } } = await client.auth.getSession()
-        const token = session?.access_token
-        if (token) {
-          const resp = await fetch('/api/teacher/create-class-learner', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ class_id: newClass.id }),
-          })
-          if (!resp.ok) {
-            const data = await resp.json().catch(() => ({}))
-            console.error('[ClassesData] Failed to create class learner entity:', data.error || resp.status)
-          } else {
-            const data = await resp.json()
-            classLearnerId = data.class_learner_id || null
-          }
-        }
-      } catch (learnerErr) {
-        console.error('[ClassesData] create-class-learner fetch error:', learnerErr)
+      const endpoint = params.school_id ? '/api/school/create-class' : '/api/teacher/classes'
+      const body = params.school_id
+        ? { school_id: params.school_id, class_name: params.class_name, course_code: params.course_code }
+        : { class_name: params.class_name, course_code: params.course_code }
+
+      const resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok || !data?.class) {
+        // The endpoint's own words, not a generic failure — a premium-course
+        // refusal tells the teacher what to do about it, and swallowing that
+        // into "Failed to create class" is the false-"Saved" class one step
+        // removed (RLS doctrine rule 8).
+        error.value = data?.error || `Failed to create class: ${resp.status}`
+        console.error('[ClassesData] createClass failed:', error.value)
+        return null
       }
 
-      // Seed the creator's teacher↔class relationship (lead) via the service-role
-      // route — the live RLS forbids a client teacher-tag insert. Makes the
-      // relationship the source of truth so the new class appears under
-      // membership reads, not only via the lead pointer.
-      const teacherLink = await addClassTeacher(newClass.id, creatorUserId, { lead: true })
-      const teacherLinked = teacherLink.ok
-      if (!teacherLinked) {
-        // The teacher↔class relationship row never got written. The class row
-        // exists (so we still return it and show it), but membership reads
-        // won't surface it and the lead pointer is unbacked. Do NOT silently
-        // assert is_lead: true here — that was the "false Saved" lie. Surface
-        // it on the error ref and leave the optimistic teachers list empty.
-        error.value = `Class "${newClass.class_name}" was created but linking you as its teacher failed — it may not appear in your class list until you re-add yourself.`
-      }
-
+      const newClass = data.class as Record<string, any>
       const classInfo: ClassInfo = {
         id: newClass.id,
         class_name: newClass.class_name,
         course_code: newClass.course_code,
-        school_id: newClass.school_id,
-        teacher_user_id: newClass.teacher_user_id,
+        // The tutor lane's select omits both — it only ever writes school_id
+        // null and the caller as lead.
+        school_id: newClass.school_id ?? params.school_id ?? null,
+        teacher_user_id: newClass.teacher_user_id ?? creatorUserId,
         student_join_code: newClass.student_join_code,
-        current_seed: newClass.current_seed,
+        current_seed: newClass.current_seed ?? 0,
         last_lego_id: null,
-        class_learner_id: classLearnerId,
-        is_active: newClass.is_active,
+        class_learner_id: newClass.class_learner_id ?? null,
+        is_active: newClass.is_active ?? true,
         student_count: 0,
         avg_seeds_completed: 0,
         avg_practice_minutes: 0,
         created_at: newClass.created_at,
-        teachers: teacherLinked ? [{ user_id: newClass.teacher_user_id, is_lead: true }] : [],
+        // Both endpoints write the teacher↔class tag for the creator and fail
+        // the request if it could not be written, so a 2xx means the lead
+        // relationship really is there.
+        teachers: [{ user_id: newClass.teacher_user_id ?? creatorUserId, is_lead: true }],
       }
 
       classes.value = [...classes.value, classInfo]

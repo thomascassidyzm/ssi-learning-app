@@ -39,6 +39,15 @@
  * sitting on its 365-day heritage platform trial could open a class on a
  * premium Big-10 course and hand a whole class a paid course free for a year.
  *
+ * THE CLIENT INSERT IS GONE (2026-09-10). The /schools "Create class" button
+ * used to insert into `classes` straight from the browser
+ * (useClassesData.createClass), which meant the ONLY check on it was that RLS
+ * policy — row ownership, and not one word about the course. Since the
+ * entitlement ladder landed here, that raw insert was a live bypass of it: a
+ * teacher could open a class on any premium course by calling the Supabase
+ * client directly. So the composable now POSTs here with `school_id` instead,
+ * and this endpoint grew the SCHOOL lane above to serve it.
+ *
  * GET ?group_id= returns nothing; there is no read half. The class's course
  * options come from the same catalogue every other school surface reads.
  */
@@ -46,6 +55,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { resolveGroupTreeCaller, callerCanSeeGroup } from '../_utils/groupTreeAuth'
+import { verifyAdmin, verifyAuthToken } from '../_utils/auth'
+import { schoolMembershipsOf } from '../_utils/schoolStaff'
+import { ensureClassTeacherTag } from '../_utils/classTeacherTag'
 import { rejectIfViewAs } from '../_utils/actAsGuard'
 import { ensureClassLearnerEntity } from '../_utils/classLearnerEntity'
 import { enforceMintRateLimit, CLASS_MINT_OUTCOME } from '../_utils/mintRateLimit'
@@ -56,7 +68,7 @@ const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL |
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
 const CLASS_SELECT =
-  'id, class_name, course_code, school_id, group_id, teacher_user_id, student_join_code, class_learner_id, is_active, created_at'
+  'id, class_name, course_code, school_id, group_id, teacher_user_id, student_join_code, current_seed, class_learner_id, is_active, created_at'
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   // Cross-origin policy and preflight both live in `api/_utils/cors.ts`.
@@ -82,6 +94,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
 
   const groupId = typeof req.body?.group_id === 'string' ? req.body.group_id.trim() : ''
+  const bodySchoolId = typeof req.body?.school_id === 'string' ? req.body.school_id.trim() : ''
   // SEC25 INPUT-09: length-capped free text — same caps as
   // api/school/rename-class.ts and api/teacher/classes.ts.
   const className = typeof req.body?.class_name === 'string' ? req.body.class_name.trim().slice(0, 120) : ''
@@ -89,14 +102,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-  // Writes its own 401/403 on rejection.
-  const caller = await resolveGroupTreeCaller(req, res, supabase)
-  if (!caller) return
+  // TWO LANES, ONE ENDPOINT — and the second one is why the client insert is
+  // gone (2026-09-10).
+  //
+  //   NODE lane (`group_id`): a leader standing on a group/school node adds a
+  //   teacher-less class. Authority is the #147 subtree predicate.
+  //
+  //   SCHOOL lane (`school_id`): the /schools "Create class" button, which
+  //   until now went straight from the browser into `classes` under RLS
+  //   `WITH CHECK (teacher_user_id = auth.uid()::text)`. That policy asks
+  //   whose row it is and NOTHING about the course, so a teacher could open a
+  //   class on any premium course their school had never paid for and every
+  //   student in it played it free (classCoverage.ts hands out the class's
+  //   course_code on the school's clock). Repointing that write here puts it
+  //   behind the same checkClassCourseEntitlement ladder the node lane runs —
+  //   the RLS doctrine move: policy untouched, hierarchy authz in the endpoint.
+  //   Authority is school STAFF membership (schoolMembershipsOf, both
+  //   spellings), and the creator becomes the class's lead teacher, which is
+  //   exactly what the RLS policy used to force.
+  let callerUserId: string
+  let targetGroupId: string | null = null
+  let targetSchoolId: string | null = null
+  // Null on the node lane, by design (a class need not have a teacher yet).
+  let leadTeacherUserId: string | null = null
 
-  if (!groupId) {
-    res.status(400).json({ error: 'group_id is required' })
-    return
-  }
   if (!className) {
     res.status(400).json({ error: 'class_name is required' })
     return
@@ -107,36 +136,85 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
 
   try {
-    if (!(await callerCanSeeGroup(supabase, caller, groupId))) {
-      res.status(403).json({ error: 'That group is not yours to add a class to' })
-      return
-    }
+    if (bodySchoolId) {
+      const adminResult = await verifyAdmin(req)
+      if ('error' in adminResult) {
+        const authResult = await verifyAuthToken(req)
+        if (!authResult.valid || !authResult.userId) {
+          res.status(401).json({ error: authResult.error || 'Unauthorized' })
+          return
+        }
+        const memberships = await schoolMembershipsOf(supabase, authResult.userId)
+        if (!memberships.some((m) => m.schoolId === bodySchoolId)) {
+          res.status(403).json({ error: 'That school is not yours to add a class to' })
+          return
+        }
+        callerUserId = authResult.userId
+      } else {
+        callerUserId = adminResult.userId
+      }
 
-    const { data: group, error: groupError } = await supabase
-      .from('groups')
-      .select('id')
-      .eq('id', groupId)
-      .maybeSingle()
-    if (groupError) {
-      console.error('[school/create-class] group read failed:', groupError)
-      res.status(500).json({ error: groupError.message })
-      return
-    }
-    if (!group) {
-      res.status(404).json({ error: 'Group not found' })
-      return
-    }
+      const { data: school, error: schoolError } = await supabase
+        .from('schools')
+        .select('id, node_group_id')
+        .eq('id', bodySchoolId)
+        .maybeSingle()
+      if (schoolError) {
+        console.error('[school/create-class] school read failed:', schoolError)
+        res.status(500).json({ error: schoolError.message })
+        return
+      }
+      if (!school) {
+        res.status(404).json({ error: 'School not found' })
+        return
+      }
+      targetSchoolId = bodySchoolId
+      targetGroupId = (school as { node_group_id?: string | null }).node_group_id ?? null
+      leadTeacherUserId = callerUserId
+    } else {
+      // Writes its own 401/403 on rejection.
+      const caller = await resolveGroupTreeCaller(req, res, supabase)
+      if (!caller) return
 
-    // A node that IS a school's own node keeps the legacy school_id arm
-    // populated, so the school lane (/schools/classes, useClassesData's
-    // school_id scoping) sees the class exactly like any other. A class on a
-    // plain group node has no school and is reached by group_id — every
-    // subtree reader already UNIONs the two (api/groups/[id]/home.ts).
-    const { data: schoolForNode } = await supabase
-      .from('schools')
-      .select('id')
-      .eq('node_group_id', groupId)
-      .maybeSingle()
+      if (!groupId) {
+        res.status(400).json({ error: 'group_id is required' })
+        return
+      }
+      if (!(await callerCanSeeGroup(supabase, caller, groupId))) {
+        res.status(403).json({ error: 'That group is not yours to add a class to' })
+        return
+      }
+
+      const { data: group, error: groupError } = await supabase
+        .from('groups')
+        .select('id')
+        .eq('id', groupId)
+        .maybeSingle()
+      if (groupError) {
+        console.error('[school/create-class] group read failed:', groupError)
+        res.status(500).json({ error: groupError.message })
+        return
+      }
+      if (!group) {
+        res.status(404).json({ error: 'Group not found' })
+        return
+      }
+
+      // A node that IS a school's own node keeps the legacy school_id arm
+      // populated, so the school lane (/schools/classes, useClassesData's
+      // school_id scoping) sees the class exactly like any other. A class on a
+      // plain group node has no school and is reached by group_id — every
+      // subtree reader already UNIONs the two (api/groups/[id]/home.ts).
+      const { data: schoolForNode } = await supabase
+        .from('schools')
+        .select('id')
+        .eq('node_group_id', groupId)
+        .maybeSingle()
+
+      callerUserId = caller.userId
+      targetGroupId = groupId
+      targetSchoolId = (schoolForNode as { id?: string } | null)?.id ?? null
+    }
 
     // THE COURSE MUST BE ONE THIS NODE ACTUALLY HAS (classCourseEntitlement.ts).
     // A class's course_code is what classCoverage.ts hands every student in
@@ -147,13 +225,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // premium only on a paid node, its own trialled course, a live grant, or a
     // live ancestor org.
     const entitlement = await checkClassCourseEntitlement(supabase, {
-      schoolId: (schoolForNode as { id?: string } | null)?.id ?? null,
-      groupId,
+      schoolId: targetSchoolId,
+      groupId: targetGroupId,
       courseCode,
     })
     if (!entitlement.allowed) {
       console.warn(
-        '[school/create-class] refused course', courseCode, 'for group', groupId, 'by', caller.userId,
+        '[school/create-class] refused course', courseCode,
+        'for school', targetSchoolId, 'group', targetGroupId, 'by', callerUserId,
       )
       res.status(entitlement.status ?? 403).json({
         error: entitlement.error,
@@ -165,7 +244,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // Mint throttle (SEC22-01): every `classes` insert mints a join code.
     // Checked after the cheap refusals so nothing above burns a real
     // leader's budget.
-    const mintLimit = await enforceMintRateLimit(supabase, req, caller.userId, CLASS_MINT_OUTCOME)
+    const mintLimit = await enforceMintRateLimit(supabase, req, callerUserId, CLASS_MINT_OUTCOME)
     if (!mintLimit.ok) {
       res.status(mintLimit.status).json({ error: mintLimit.error })
       return
@@ -176,11 +255,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       .insert({
         class_name: className,
         course_code: courseCode,
-        group_id: groupId,
-        school_id: (schoolForNode as { id?: string } | null)?.id ?? null,
-        // THE POINT OF THIS ENDPOINT: no teacher. The lead pointer stays null
-        // until somebody is assigned through api/teacher/class-teachers.ts.
-        teacher_user_id: null,
+        group_id: targetGroupId,
+        school_id: targetSchoolId,
+        // NODE LANE: no teacher, by design — the lead pointer stays null until
+        // somebody is assigned through api/teacher/class-teachers.ts. SCHOOL
+        // LANE: the creator IS the lead, which is what the RLS policy this
+        // replaces used to force.
+        teacher_user_id: leadTeacherUserId,
         is_active: true,
       })
       .select(CLASS_SELECT)
@@ -202,7 +283,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         code: (created as { student_join_code: string }).student_join_code,
         code_type: 'student',
         grants_class_id: created.id,
-        created_by: caller.userId,
+        created_by: callerUserId,
         is_active: true,
       })
       if (codeError) {
@@ -219,7 +300,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       ;(created as { class_learner_id?: string | null }).class_learner_id = learnerResult.learnerId
     }
 
-    console.log('[school/create-class] created', created.id, 'in group', groupId, 'by', caller.userId)
+    // SCHOOL LANE ONLY: dual-write the teacher↔class RELATIONSHIP beside the
+    // lead pointer (classTeacherTag.ts — writing only the pointer is how 47 of
+    // 62 live classes ended up needing a backfill). NOT swallowed: the class
+    // would not appear in the creator's own membership reads. The node lane
+    // has no teacher to record.
+    if (leadTeacherUserId) {
+      const tagResult = await ensureClassTeacherTag(supabase, created.id, leadTeacherUserId, callerUserId)
+      if ('error' in tagResult) {
+        console.error('[school/create-class] class/teacher tag write failed:', tagResult.error)
+        res.status(500).json({ error: `Class created but teacher record failed: ${tagResult.error}` })
+        return
+      }
+    }
+
+    console.log(
+      '[school/create-class] created', created.id,
+      'in group', targetGroupId, 'school', targetSchoolId, 'by', callerUserId,
+    )
     res.status(201).json({ class: created })
   } catch (err: any) {
     console.error('[school/create-class] Error:', err)
