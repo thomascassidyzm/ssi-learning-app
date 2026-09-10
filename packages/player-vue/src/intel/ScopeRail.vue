@@ -24,6 +24,8 @@ const props = defineProps<{
   courses?: { code: string; name: string }[]
   /** False on questions that cannot be scoped to one course. */
   courseScopable?: boolean
+  /** The one person a person-scoped question is about. */
+  person?: { id: string; name: string } | null
 }>()
 
 const route = useRoute()
@@ -57,21 +59,25 @@ const people: RailRef = { id: 'people', name: 'People', label: 'everyone we know
 // a course the course is the node, Everyone is above it, and the other
 // courses are its siblings — the same shape the org rail draws for a school
 // inside a group.
-const ancestors = computed<RailRef[]>(() =>
-  activeCourse.value ? [{ ...everyone, path: scopedPath(null) }] : [],
-)
+const ancestors = computed<RailRef[]>(() => {
+  if (props.person) return [{ ...everyone, path: '/intel/pulse' }, people]
+  return activeCourse.value ? [{ ...everyone, path: scopedPath(null) }] : []
+})
 const node = computed(() => {
+  if (props.person) return { id: `person:${props.person.id}`, name: props.person.name, label: 'person' }
   const c = activeCourse.value
   if (!c) return { id: everyone.id, name: everyone.name, label: everyone.label }
   const named = props.courses?.find((x) => x.code === c)
   return { id: `course:${c}`, name: named?.name ?? c, label: 'course' }
 })
-const siblings = computed<RailRef[]>(() =>
-  activeCourse.value ? courseRefs.value.filter((r) => r.id !== `course:${activeCourse.value}`) : [],
-)
-const children = computed<RailRef[]>(() =>
-  activeCourse.value ? [] : [...courseRefs.value, organisations, people],
-)
+const siblings = computed<RailRef[]>(() => {
+  if (props.person) return []
+  return activeCourse.value ? courseRefs.value.filter((r) => r.id !== `course:${activeCourse.value}`) : []
+})
+const children = computed<RailRef[]>(() => {
+  if (props.person || activeCourse.value) return []
+  return [...courseRefs.value, organisations, people]
+})
 </script>
 
 <template>
@@ -97,7 +103,8 @@ const children = computed<RailRef[]>(() =>
        checked: 3ef45065.886d1834
   -->
   <nav class="scope-rail" aria-label="Where you are" data-intel="scope-rail">
-    <p v-if="!props.courseScopable" class="rail-note">This question is asked of everyone.</p>
+    <p v-if="props.person" class="rail-note">This question is asked of one person.</p>
+    <p v-else-if="!props.courseScopable" class="rail-note">This question is asked of everyone.</p>
     <p v-else-if="!props.courses?.length" class="rail-note">No courses with real people in them yet.</p>
     <NodeMapRail
       :ancestors="ancestors"

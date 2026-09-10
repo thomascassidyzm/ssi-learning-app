@@ -16,7 +16,13 @@ withDefaults(defineProps<{
   people: number | null
   /** True when the page is deliberately showing demo or staff data. */
   showingTestData?: boolean
-}>(), { showingTestData: false })
+  /**
+   * A page about ONE person states the rule for that person instead of a
+   * count: "counts as a real person", or every reason they are left out.
+   * The server writes it; the page passes it through.
+   */
+  note?: string | null
+}>(), { showingTestData: false, note: null })
 </script>
 
 <template>
@@ -40,7 +46,10 @@ withDefaults(defineProps<{
        checked: 23b7a8c5.e0a14f75
   -->
   <span class="population-chip" :class="{ alarm: showingTestData }" data-intel="population-chip">
-    <template v-if="showingTestData">
+    <template v-if="note">
+      {{ note }}
+    </template>
+    <template v-else-if="showingTestData">
       Demo and staff data. These are not real people.
     </template>
     <template v-else-if="people === null">

@@ -97,7 +97,11 @@ export function fossilIsDead(f: Fossil): boolean {
 }
 
 /** Where a dead fossil's URL lands, scope preserved where the old URL carried one. */
-export function fossilLanding(f: Fossil, query: Record<string, unknown> = {}): { path: string; query?: Record<string, string> } {
+export function fossilLanding(
+  f: Fossil,
+  query: Record<string, unknown> = {},
+  params: Record<string, unknown> = {},
+): { path: string; query?: Record<string, string> } {
   const first = questionBySlug(f.questions[0] ?? 'pulse') ?? QUESTIONS[0]
   let path = f.landing ?? questionPath(first)
   const board = typeof query.board === 'string' ? query.board : null
@@ -105,6 +109,10 @@ export function fossilLanding(f: Fossil, query: Record<string, unknown> = {}): {
     const q = questionBySlug(f.boards[board])
     if (q) path = questionPath(q)
   }
-  const course = typeof query.course === 'string' ? query.course : null
-  return course ? { path, query: { course } } : { path }
+  const preserved: Record<string, string> = {}
+  if (typeof query.course === 'string') preserved.course = query.course
+  // The old user page carried the person in the path; the question carries
+  // them in the query, like every other scope.
+  if (typeof params.learnerId === 'string') preserved.person = params.learnerId
+  return Object.keys(preserved).length ? { path, query: preserved } : { path }
 }

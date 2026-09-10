@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `1c59f816f104` · generated 2026-09-10 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `0424d42c70f5` · generated 2026-09-10 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -731,6 +731,20 @@ Section: your-school · roles: school_admin · anchor: `setup-school-name` · in
 4. If you have just arrived and the box is empty for a second, give it a moment and press **Continue** again.
 
 **Worth knowing.** Typing it here counts as confirming it, so you will not be asked to confirm your school's name again afterwards. To change it later, use School profile in Settings.
+
+## One person's story
+
+Section: seeing-progress · roles: admin · anchor: `question-person` · in `packages/player-vue/src/views/intel/PersonView.vue`
+
+**What it's for.** Everything that answers a support call about one person: who they are, their support id, whether they count as a real person, what they can play and through which door, where they are in each course, what they did last and on what.
+
+**Where it is.** **One person**, under What's happening. Open a row on Leaving, or find them under People.
+
+1. Read the sentence for their standing, their access and their last practice, and the pill beneath it for whether they count.
+2. Use the verbs across the top to act: give full access, take it back, make a one-off sign-in link, change their role, change their trial, or correct a wrong flag. Every verb says what it will change and asks before it does.
+3. Read the cards for their access, their memberships, their course positions and their last few events.
+
+**Worth knowing.** Every verb is recorded against your own name by the server. A comped person stays a real person; only staff and test are left out of the numbers.
 
 ## Open a class
 

@@ -20,10 +20,10 @@ export interface RoleChangeEntry {
   // without payment (Tom's ruling, 2026-09-10). It rides in this table because
   // this table is already "who did what to whom", and a gift needs a record for
   // the same reason a role change does.
-  field: 'platform_role' | 'educational_role' | 'dashboard' | 'entitlement'
+  field: 'platform_role' | 'educational_role' | 'dashboard' | 'entitlement' | 'flags'
   oldValue?: string | null
   newValue?: string | null
-  source: 'update-user-role' | 'invite-code' | 'entitlement-code' | 'email-allowlist' | 'grant-entitlement' | 'mint-learner'
+  source: 'update-user-role' | 'invite-code' | 'entitlement-code' | 'email-allowlist' | 'grant-entitlement' | 'mint-learner' | 'set-learner-flags'
   codeUsed?: string | null
   detail?: Record<string, unknown> | null
 }

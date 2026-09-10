@@ -93,6 +93,7 @@ const NotYetBuiltView = () => import('@/views/intel/NotYetBuiltView.vue')
 const INTEL_VIEWS: Record<string, () => Promise<unknown>> = {
   pulse: () => import('@/views/intel/PulseView.vue'),
   leaving: () => import('@/views/intel/LeavingView.vue'),
+  person: () => import('@/views/intel/PersonView.vue'),
   'weak-points': () => import('@/views/intel/WeakPointsView.vue'),
   courses: () => import('@/views/intel/CoursesView.vue'),
   working: () => import('@/views/intel/WorkingView.vue'),
@@ -105,16 +106,14 @@ const INTEL_VIEWS: Record<string, () => Promise<unknown>> = {
 // Only the fossils still ALIVE keep a loader: a dead one's view is deleted
 // with it, and the grammar test refuses a live fossil with no loader.
 const FOSSIL_VIEWS: Record<string, () => Promise<unknown>> = {
-  'users/:learnerId': () => import('@/views/admin/AdminUserDetail.vue'),
   stats: () => import('@/views/admin/AdminStatsView.vue'),
 }
 const FOSSIL_META: Record<string, { title: string; description: string }> = {
-  'users/:learnerId': { title: 'User Detail', description: 'Individual user profile and progress' },
   stats: { title: 'Stats', description: 'Insight Engine boards — lifecycle, rates, content, ops' },
 }
 function fossilRoute(f: (typeof FOSSILS)[number]): RouteRecordRaw {
   if (fossilIsDead(f)) {
-    return { path: f.path, redirect: (to) => fossilLanding(f, to.query as Record<string, unknown>) }
+    return { path: f.path, redirect: (to) => fossilLanding(f, to.query as Record<string, unknown>, to.params as Record<string, unknown>) }
   }
   return {
     path: f.path,

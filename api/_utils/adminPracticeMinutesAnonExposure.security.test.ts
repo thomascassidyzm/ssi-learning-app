@@ -155,7 +155,6 @@ describe('SEC25-D-02: admin_practice_minutes(_by_course) — DEFINER, anon-grant
   it('the repointed callers all go through the scoped endpoint helper', () => {
     const files = [
       '../../packages/player-vue/src/composables/admin/useAdminCourses.ts',
-      '../../packages/player-vue/src/composables/admin/useAdminUserDetail.ts',
       '../../packages/player-vue/src/composables/schools/useAnalyticsData.ts',
       '../../packages/player-vue/src/views/schools/StudentProgressView.vue',
     ]

@@ -74,7 +74,7 @@ export const QUESTIONS: readonly Question[] = [
     tab: 'One person',
     question: "What is this one person's story, and what has gone wrong for them?",
     group: 'Learners',
-    built: false,
+    built: true,
   },
   {
     n: 7,

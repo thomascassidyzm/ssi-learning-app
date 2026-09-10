@@ -74,6 +74,16 @@ describe.skipIf(!live)('intelligence endpoints, live and read-only', () => {
     console.log('[findings]', JSON.stringify({ generatedAt: body.generatedAt, ageHours: body.ageHours, silent: body.silent, questions: Object.fromEntries(Object.entries(body.byQuestion as Record<string, unknown[]>).map(([k, v]) => [k, v.length])) }))
   }, 30_000)
 
+  it('one person reads in one call, with their standing in the numbers stated', async () => {
+    const leaving = await call(await import('./leaving'))
+    const first = (leaving.body.rows as { learnerId: string }[])[0]
+    if (!first) return
+    const { status, body } = await call(await import('./person'), { id: first.learnerId })
+    expect(status).toBe(200)
+    expect(typeof body.counted).toBe('boolean')
+    console.log('[person]', JSON.stringify({ counted: body.counted, excludedBecause: body.excludedBecause, standing: body.standing, access: (body.access as unknown[]).length, positions: (body.positions as unknown[]).length, recent: (body.recent as unknown[]).length, supportId: body.supportId, practice: body.practice }))
+  }, 60_000)
+
   it('weak points floors a real course honestly', async () => {
     const { status, body } = await call(await import('./weak-points'), { course: 'spa_for_eng' })
     expect(status).toBe(200)

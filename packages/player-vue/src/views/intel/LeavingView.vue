@@ -10,10 +10,10 @@
  * stored anywhere in this database, so "how much we would lose" cannot be
  * computed and is not pretended.
  *
- * Rows are people, and every row is a link to that person. The verbs the
- * design puts here — give full access, change their trial — act on ONE
- * person, and until a row can be selected in place they live on the
- * person's own page, one tap away. The bar renders empty rather than
+ * Rows are people, and every row is a link to that person's own question.
+ * The verbs the design puts here — give full access, change their trial —
+ * act on ONE person, and until a row can be selected in place they live on
+ * the person's page, one tap away. The bar renders empty rather than
  * pretending.
  */
 import { computed, onMounted } from 'vue'
@@ -149,7 +149,7 @@ function ends(r: Row): string {
           v-for="r in data?.rows ?? []"
           :key="r.learnerId"
           class="row"
-          :to="`/admin/users/${r.learnerId}`"
+          :to="{ path: '/intel/person', query: { person: r.learnerId } }"
         >
           <span class="who">
             <span class="name">{{ r.name || r.email || 'Somebody with no name yet' }}</span>

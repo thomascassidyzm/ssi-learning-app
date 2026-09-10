@@ -39,12 +39,18 @@ withDefaults(defineProps<{
   fetchedAt: Date | null
   people: number | null
   showingTestData?: boolean
+  /** For a page about one person: their standing in the numbers, in words. */
+  populationNote?: string | null
   courses?: { code: string; name: string }[]
   courseScopable?: boolean
+  /** For a page about one person: who, so the rail can say where you are. */
+  person?: { id: string; name: string } | null
 }>(), {
   headline: null,
   showingTestData: false,
+  populationNote: null,
   courseScopable: false,
+  person: null,
 })
 
 // THE SURFACE RECORDS ITS OWN USE. Every question opened, about whom, so in
@@ -90,7 +96,7 @@ watch(() => [route.path, route.query.course], record)
   <div class="question-page" data-intel="question-page">
     <!-- 1. WHERE YOU ARE -->
     <aside class="where">
-      <ScopeRail :courses="courses" :course-scopable="courseScopable" />
+      <ScopeRail :courses="courses" :course-scopable="courseScopable" :person="person" />
     </aside>
 
     <div class="main">
@@ -111,7 +117,7 @@ watch(() => [route.path, route.query.course], record)
         <p class="sentence arsenal">{{ answer ?? 'Working it out…' }}</p>
         <div class="meta">
           <UpdatedStamp :fetched-at="fetchedAt" />
-          <PopulationChip :people="people" :showing-test-data="showingTestData" />
+          <PopulationChip :people="people" :showing-test-data="showingTestData" :note="populationNote" />
         </div>
       </section>
 

@@ -73,6 +73,11 @@ describe('one route per question', () => {
     }
   })
 
+  it('sends an old user page to the person question with the person preserved', () => {
+    const user = FOSSILS.find((f) => f.path === 'users/:learnerId')!
+    expect(fossilLanding(user, {}, { learnerId: 'abc' })).toEqual({ path: '/intel/person', query: { person: 'abc' } })
+  })
+
   it('sends each old stats board to the question that took its job', () => {
     const stats = FOSSILS.find((f) => f.path === 'stats')!
     expect(fossilLanding(stats, { board: 'health' }).path).toBe('/intel/working')

@@ -43,6 +43,8 @@ export const METRICS = {
   courseFinished: { question: 'courses', label: 'real people who have reached the end of each course', endpoint: '/api/intel/courses', unit: 'people' },
   audioFailureRate: { question: 'working', label: 'share of real people\'s audio plays that failed', endpoint: '/api/intel/working', unit: 'share' },
   failureRateByBuild: { question: 'working', label: 'the failure rate on each build, most people first', endpoint: '/api/intel/working', unit: 'share' },
+  personPractice: { question: 'person', label: 'sessions and days practised in the last thirty days', endpoint: '/api/intel/person', unit: 'count' },
+  personPositions: { question: 'person', label: 'where they are in each course, as the last piece played', endpoint: '/api/intel/person', unit: 'count' },
 } as const satisfies Record<string, Metric>
 
 export type MetricId = keyof typeof METRICS

@@ -1,5 +1,5 @@
 {
-  "version": "1c59f816f104",
+  "version": "0424d42c70f5",
   "generatedAt": "2026-09-10",
   "walks": [
     {
@@ -2529,6 +2529,41 @@
         "If you have just arrived and the box is empty for a second, give it a moment and press **Continue** again."
       ],
       "note": "Typing it here counts as confirming it, so you will not be asked to confirm your school's name again afterwards. To change it later, use School profile in Settings."
+    },
+    {
+      "id": "one-person-s-story",
+      "title": "One person's story",
+      "section": "seeing-progress",
+      "personas": [
+        "admin"
+      ],
+      "keywords": [
+        "person",
+        "support",
+        "account",
+        "access",
+        "sign in",
+        "role",
+        "trial",
+        "flag",
+        "position",
+        "story"
+      ],
+      "place": {
+        "route": "intel"
+      },
+      "anchor": "question-person",
+      "surface": "intel",
+      "source": "packages/player-vue/src/views/intel/PersonView.vue",
+      "walk": null,
+      "what": "Everything that answers a support call about one person: who they are, their support id, whether they count as a real person, what they can play and through which door, where they are in each course, what they did last and on what.",
+      "where": "**One person**, under What's happening. Open a row on Leaving, or find them under People.",
+      "how": [
+        "Read the sentence for their standing, their access and their last practice, and the pill beneath it for whether they count.",
+        "Use the verbs across the top to act: give full access, take it back, make a one-off sign-in link, change their role, change their trial, or correct a wrong flag. Every verb says what it will change and asks before it does.",
+        "Read the cards for their access, their memberships, their course positions and their last few events."
+      ],
+      "note": "Every verb is recorded against your own name by the server. A comped person stays a real person; only staff and test are left out of the numbers."
     },
     {
       "id": "open-a-class",

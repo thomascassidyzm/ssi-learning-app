@@ -24,7 +24,6 @@ const GUARDED = [
   'views/admin/AdminStructure.vue',
   'views/admin/AdminUsers.vue',
   'views/admin/AdminStatsView.vue',
-  'views/admin/AdminUserDetail.vue',
   // The intelligence surface's one door to the server, and its layout.
   'intel/useIntelApi.ts',
   'intel/QuestionPage.vue',
