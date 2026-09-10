@@ -380,6 +380,14 @@ async function redeemInviteCode(
     learnerUpdate.platform_role = 'ssi_admin'
   } else if (codeType === 'tester') {
     learnerUpdate.platform_role = 'tester'
+    // A tester is not a learner, and the exclusion must say so at the MECHANISM
+    // rather than by luck. test_learner_ids() — the canonical exclusion every
+    // board number and daily-contribution count runs through — tests is_demo,
+    // is_internal, is_class_entity and the thomas.cassidy+ address pattern. It
+    // does NOT know the tester role exists. Every tester row alive today happens
+    // to carry is_internal because of a one-off backfill; without this line the
+    // next person to redeem a tester code counts as a real learner everywhere.
+    learnerUpdate.is_internal = true
   } else if (codeType === 'school_admin_join') {
     learnerUpdate.educational_role = 'school_admin'
   } else {
