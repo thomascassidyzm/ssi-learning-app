@@ -5,7 +5,7 @@
 // An inconvenient red stays red. Only Tom or Watson retires a test.
 // This is measurement, never permission to promote. It cannot edit source checks.
 import { spawnSync, spawn } from 'node:child_process'
-import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, realpathSync, readdirSync, symlinkSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, realpathSync, readdirSync, symlinkSync, existsSync, rmSync } from 'node:fs'
 import { resolve, join, dirname, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 const source = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -15,8 +15,14 @@ const out = mkdtempSync(join(root, 'tmp', 'test-loop-'))
 const scratch = join(out, 'checkout')
 const report = { sourceCommit: command('git', ['rev-parse', 'HEAD'], source).stdout.trim(), started: new Date().toISOString(), scratch, build: 'not-run', entries: [] }
 let preview
+function stopPreview() {
+  if (preview?.pid) { try { process.kill(-preview.pid, 'SIGTERM') } catch {} }
+}
+for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { stopPreview(); process.exit(2) })
 function command(bin, args, cwd = scratch, timeout = 120000) {
-  return spawnSync(bin, args, { cwd, encoding: 'utf8', timeout, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, CS_SCRATCH: out, BASE_URL: 'http://localhost:4173' } })
+  const r = spawnSync(bin, args, { cwd, detached: true, encoding: 'utf8', timeout, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, CS_SCRATCH: out, BASE_URL: 'http://localhost:4173' } })
+  if (r.error && r.pid) { try { process.kill(-r.pid, 'SIGTERM') } catch {} }
+  return r
 }
 function requireOK(r, label) {
   if (r.status !== 0) throw new Error(`${label}: ${r.error?.message || r.stderr || r.stdout}`)
@@ -38,9 +44,10 @@ function dependencies(pkg) {
 }
 function probe(name) {
   console.log(`A serial, niced ${name} browser control measures the audio instrument without accounts or external traffic.`)
+  const path = join(out, 'tmp', `release-${name}-control`, 'result.json')
+  rmSync(path, { force: true }) // Never reuse a previous run's evidence after a crash.
   const r = command('nice', ['-n', '15', 'node', `packages/player-vue/e2e/release-${name}-control.mjs`], scratch, 20000)
   let evidence = null
-  const path = join(out, 'tmp', `release-${name}-control`, 'result.json')
   if (existsSync(path)) evidence = JSON.parse(readFileSync(path))
   return { exit: r.status, error: r.error?.message, stdout: r.stdout, stderr: r.stderr, evidence }
 }
@@ -97,7 +104,7 @@ try {
       if (baseline.exit !== 0) { row.reason = 'Positive baseline did not pass; no catch may be credited'; continue }
       row.run = probe(entry.mode === 'silence' ? 'audible' : 'blob')
       if (entry.patch.kind === 'fixture') row.applied = row.run.evidence?.clock > 0.05
-      if (row.run.exit === 2 || row.run.exit === null || !row.run.evidence || row.run.evidence.clock <= 0.05) {
+      if (![0, 1].includes(row.run.exit) || !row.run.evidence || row.run.evidence.clock <= 0.05) {
         row.reason = 'Control could not run or playback did not advance'
       } else if (entry.mode === 'silence') {
         // Deliberately inverted: red qualification means the SUITE WAS FOOLED.
@@ -113,7 +120,7 @@ try {
   if (report.positiveAfter.exit !== 0) throw new Error('Restored positive control failed')
 } catch (e) { report.error = e.message; process.exitCode = 2 }
 finally {
-  if (preview?.pid) { try { process.kill(-preview.pid, 'SIGTERM') } catch {} }
+  stopPreview()
   report.finished = new Date().toISOString()
   writeFileSync(join(out, 'cycle.json'), JSON.stringify(report, null, 2) + '\n')
   console.log(`REPORT ${join(out, 'cycle.json')}`)

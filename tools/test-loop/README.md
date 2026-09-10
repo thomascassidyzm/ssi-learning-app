@@ -33,6 +33,16 @@ misses, 2 means gaps or an execution failure (which may coexist with misses).
 Reports retain the source SHA, actual child exit, playback clock and detector
 observation. Archive them before Command Surface sweeps the scratch directory.
 
+The release automation worker can run the additive qualification check with:
+
+```sh
+pnpm --filter player-vue verify:audibility
+```
+
+This checks a positive blob and then silence, serially. It is expected to stay
+red on the current detector until worker #168's fix is integrated. It is a
+prerequisite instrument check, not the human/Astra release pass itself.
+
 ## Library and cycle semantics
 
 `breakages/index.json` fixes the six seeded entries; each JSON file names the
