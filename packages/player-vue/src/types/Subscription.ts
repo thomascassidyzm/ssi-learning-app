@@ -128,6 +128,11 @@ export interface SubscriptionResponse {
   /** Non-null when this learner's access is already free through a funded org
    *  enrolment. Suppresses every paid-upgrade prompt (see useSubscription). */
   freeAccess?: OrgFreeAccess | null
+  /** True when this learner's platform_role is 'ssi_admin'. Decided on the
+   *  server from the learner row, never from the client's role cache, and used
+   *  to suppress every "buy a plan" affordance: a platform admin outranks
+   *  Premium and is never sold anything (Tom, 2026-09-08). */
+  isPlatformAdmin?: boolean
 }
 
 /**

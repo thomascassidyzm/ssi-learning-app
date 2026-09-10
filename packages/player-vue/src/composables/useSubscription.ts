@@ -98,6 +98,12 @@ export interface UseSubscriptionReturn {
    *  new surface asks the same question as the old ones instead of inventing
    *  its own idea of "free". */
   hasFreeAccess: ComputedRef<boolean>
+  /** True when the SERVER says this learner is an ssi_admin. Suppresses every
+   *  upgrade affordance: a platform admin outranks Premium and is never sold
+   *  anything (Tom, 2026-09-08). Read from /api/subscription, which resolves it
+   *  from the learner row — deliberately NOT from useUserRole, whose cache is
+   *  localStorage and is writable by the browser. */
+  isPlatformAdmin: Ref<boolean>
 }
 
 // ============================================================================
@@ -121,6 +127,9 @@ export function useSubscription(): UseSubscriptionReturn {
   // the courses the grant unlocks are carried by user_entitlements, which
   // checkCourseAccess already honours.
   const freeAccess = ref<OrgFreeAccess | null>(null)
+  // Server-decided; see the interface note. Defaults false, so a failed or
+  // unauthenticated fetch never quietly grants anybody the admin treatment.
+  const isPlatformAdmin = ref(false)
 
   // Computed
   const isSubscribed = computed(() => {
@@ -222,6 +231,7 @@ export function useSubscription(): UseSubscriptionReturn {
         subscription.value = null
         isChildAccount.value = false
         freeAccess.value = null
+        isPlatformAdmin.value = false
         hasHydrated.value = true
         return
       }
@@ -249,6 +259,7 @@ export function useSubscription(): UseSubscriptionReturn {
       subscription.value = data.subscription
       isChildAccount.value = !!data.isChildAccount
       freeAccess.value = data.freeAccess ?? null
+      isPlatformAdmin.value = !!data.isPlatformAdmin
       saveToCache(data.subscription, data.isSubscribed, freeAccess.value)
       hasHydrated.value = true
     } catch (err) {
@@ -398,6 +409,7 @@ export function useSubscription(): UseSubscriptionReturn {
     isChildAccount,
     freeAccess,
     hasFreeAccess,
+    isPlatformAdmin,
     subscription,
     isSubscribed,
     isLoading,

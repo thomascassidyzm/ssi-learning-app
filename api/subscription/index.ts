@@ -66,7 +66,7 @@ export default async function handler(
     // Get learner ID for this Supabase Auth user
     const { data: learner, error: learnerError } = await supabase
       .from('learners')
-      .select('id')
+      .select('id, platform_role')
       .eq('user_id', userId)
       .single()
 
@@ -76,6 +76,7 @@ export default async function handler(
         subscription: null,
         isSubscribed: false,
         freeAccess: null,
+        isPlatformAdmin: false,
       })
       return
     }
@@ -86,6 +87,19 @@ export default async function handler(
     // answer that question the same way a payer does, from the grant rather
     // than from a payment (api/_utils/orgFreeAccess.ts).
     const freeAccess = await resolveOrgFreeAccess(supabase, learner.id)
+    // A PLATFORM ADMIN IS NEVER SOLD A PLAN (Tom, 2026-09-08: "I'm being shown
+    // an upgrade button, which I probably shouldn't be shown as I am a platform
+    // admin"). He outranks Premium, holds no Paddle subscription, and so fell
+    // into the not-subscribed branch and got offered £15 a month.
+    //
+    // DECIDED HERE, from the learner row, and not from the client's own
+    // `ssi-user-role` cache — which is localStorage and which anybody can
+    // write. This endpoint already reads the row under the service key, so the
+    // answer costs one extra column and is the same answer the server would
+    // give about anybody. Same shape as isChildAccount above: a server-decided
+    // fact the client renders rather than a client-decided one it asserts.
+    // Only 'ssi_admin' — 'tester' is deliberately NOT included.
+    const isPlatformAdmin = learner.platform_role === 'ssi_admin'
 
     // A CHILD ACCOUNT IS NEVER OFFERED A CHECKOUT (job #376·F, D7). A child
     // signs in on a synthetic address a parent never sees; binding a Paddle
@@ -109,6 +123,7 @@ export default async function handler(
         isSubscribed: false,
         isChildAccount,
         freeAccess,
+        isPlatformAdmin,
       })
       return
     }
@@ -157,6 +172,7 @@ export default async function handler(
       isSubscribed,
       isChildAccount,
       freeAccess,
+      isPlatformAdmin,
     })
   } catch (err) {
     console.error('[subscription] Error:', err)
