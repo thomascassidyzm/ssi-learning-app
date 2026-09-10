@@ -27,6 +27,8 @@ import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import VadPanel from '@/insight/VadPanel.vue'
 import { fetchVadScope, type VadScopePayload } from '@/insight/data/vadScope'
 import { summariseVad, type VadSummary } from '@/insight/data/vadUptake'
+import OrgIntelPanel from '@/insight/OrgIntelPanel.vue'
+import { fetchOrgIntel, OrgIntelError, type OrgIntelPayload } from '@/insight/data/orgIntel'
 
 const route = useRoute()
 const router = useRouter()
@@ -166,6 +168,36 @@ const vadScopeLabel = computed(() => vad.value?.scope.label || title.value)
 // Class rows only make sense above a class; a class scope IS one class.
 const vadClasses = computed(() => (vad.value?.scope.kind === 'class' ? [] : vad.value?.scope.classes ?? []))
 
+// ─── THE ORG QUESTIONS, scoped to this node ─────────────────────────────────
+// Tom, 2026-09-10: the intelligence surface is "great for ssi admin / but why
+// not make it for orgs as well … They still need to know adherence, drop-off
+// places / which users do what, after when and for how long". The three org
+// questions (intel/orgQuestions.ts) land HERE, at the top of the lens the
+// leader already has, from ONE read of GET /api/org/intel. Scope is the
+// server's: this component asks for the node it is already showing and
+// renders what comes back; a node outside the caller's own subtree answers
+// 403, stated in words rather than hidden.
+const orgIntel = ref<OrgIntelPayload | null>(null)
+const orgIntelLoading = ref(true)
+const orgIntelError = ref<string | null>(null)
+watch(nodeId, async (id) => {
+  orgIntel.value = null
+  orgIntelError.value = null
+  if (!id) { orgIntelLoading.value = false; return }
+  orgIntelLoading.value = true
+  try {
+    orgIntel.value = await fetchOrgIntel(id, await getAuthToken())
+  } catch (e: unknown) {
+    orgIntelError.value = e instanceof OrgIntelError && e.code === 'coverage_expired'
+      ? t('org.intel.coverageExpired', 'This school’s platform coverage has expired, so its practice cannot be shown.')
+      : e instanceof OrgIntelError && e.status === 403
+        ? t('org.intel.forbidden', 'You do not have access to this level’s practice.')
+        : t('org.intel.readError', 'Could not read this level’s practice.')
+  } finally {
+    orgIntelLoading.value = false
+  }
+}, { immediate: true })
+
 // The per-learner page is admin-only (the member surface has no equivalent —
 // its teacher-relevant content lives flat on the class node home, founder
 // ruling 2026-07-19). So a leader's rows are not clickable rather than
@@ -222,6 +254,23 @@ const homeLink = computed(() => {
             </div>
           </div>
         </header>
+
+        <!-- THE ORG QUESTIONS — practising, quiet, journey — first, because
+             they are what a leader opened the lens for. The rate comparison
+             and the voice section follow, unchanged. -->
+        <section class="org-intel-section">
+          <header class="vad-section-head">
+            <span class="schools-kicker">{{ t('org.intel.kicker', 'Attention · practice') }}</span>
+            <h2 class="vad-section-title arsenal">{{ t('org.intel.title', 'Are they doing it, who is not, and where do they stop') }}</h2>
+            <p class="vad-section-sub">{{ t('org.intel.sub', 'Three questions about this level only, answered from what the app actually recorded in the last four weeks. Nothing here compares you with anyone else.') }}</p>
+          </header>
+          <OrgIntelPanel
+            :payload="orgIntel"
+            :is-loading="orgIntelLoading"
+            :error="orgIntelError"
+            :member="member"
+          />
+        </section>
 
         <NodeRateEngine
           v-model:course="course"
@@ -318,6 +367,8 @@ const homeLink = computed(() => {
   align-items: flex-end;
   gap: 8px;
 }
+/* ---- The org questions ---------------------------------------------------- */
+.org-intel-section { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
 /* ---- Voice & pause section ---------------------------------------------- */
 .vad-section { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
 .vad-section-head { display: flex; flex-direction: column; gap: 4px; }
