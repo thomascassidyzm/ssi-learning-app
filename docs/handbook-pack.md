@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `9e1e45bfdab6` · generated 2026-09-10 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `2ff493abac00` · generated 2026-09-10 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## Add a class to a group
 
@@ -16,7 +16,7 @@ Section: running-classes · roles: admin, leader, school_admin · anchor: `verb-
 4. Choose the course the class will learn.
 5. Tap **Add**.
 
-**Worth knowing.** A class needs no teacher to exist. It sits under the group waiting, and you put a teacher on it whenever you are ready.
+**Worth knowing.** A class needs no teacher to exist. It sits under the group waiting, and you put a teacher on it whenever you are ready. The course must be one your group has cover for. A paid language you have not subscribed to and are not trialling is refused when you tap **Add**, and the message says so.
 
 ## Add a school to your programme
 
