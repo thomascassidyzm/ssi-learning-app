@@ -336,6 +336,24 @@ describe('POST /api/auth/possession-redeem', () => {
       expect(createUserArg.user_metadata.display_name).toBe('Alys')
     })
 
+    // THE CLASS SEAT (Tom, 2026-09-10): "the child accounts are not free —
+    // the school's account is free — if the children want to be learners on
+    // their own time, they have to pay". A name-only pupil account is a seat
+    // on the school's licence, class-bounded, and the stamp is what lets the
+    // email-attach route (api/email/verify.ts) refuse to grow it into a free
+    // personal account. Only link-auth mints carry it; a typed-email
+    // possession account is a real person's account and never does.
+    it('stamps a link-auth pupil mint as a class seat, and a typed-email mint never', async () => {
+      const res = makeRes()
+      await handler(makeReq({ code: 'CLASS-1', linkAuth: true, displayName: 'Alys' }), res)
+      expect(createUserArg.user_metadata.class_seat).toBe(true)
+
+      createUserArg = undefined
+      const res2 = makeRes()
+      await handler(makeReq({ code: 'CLASS-1', email: 'alys@example.com', displayName: 'Alys' }), res2)
+      expect(createUserArg.user_metadata.class_seat).toBeUndefined()
+    })
+
     it('does not require a valid email and skips the MX gate', async () => {
       mxResolution = 'no-mx' // would 400 a typed email; irrelevant to link-auth
       const res = makeRes()

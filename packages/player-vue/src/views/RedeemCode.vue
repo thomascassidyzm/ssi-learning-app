@@ -905,6 +905,10 @@ function goHome() {
         <form v-else-if="step === 'name'" class="auth-form" @submit.prevent="handlePupilSubmit">
           <p class="instruction-text">{{ pendingCode?.className ? "What's your name? Your teacher will see it on the class list." : "What's your name?" }}</p>
           <p class="capture-explainer">{{ captureExplainer }}</p>
+          <!-- THE CLASS SEAT (Tom, 2026-09-10): what a name-only pupil gets
+               is a seat on the school's licence, class-bounded — not a
+               personal account. Said here, once, in plain words. -->
+          <p v-if="pendingCode?.codeType === 'student' && pendingCode?.className" class="capture-explainer">{{ t('redeem.classSeatNote') }}</p>
 
           <Transition name="error-fade">
             <div v-if="error" class="error-banner">

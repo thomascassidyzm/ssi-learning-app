@@ -15,6 +15,7 @@ vi.mock('../_utils/auth', () => ({
 }))
 
 let verifyOtpResult: any
+let verifyOtpCalls: any[] = []
 let learnerRow: any
 let crossAccountLearner: any
 let authUser: any
@@ -77,7 +78,7 @@ vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
     from: () => makeLearnersBuilder(),
     auth: {
-      verifyOtp: () => Promise.resolve(verifyOtpResult),
+      verifyOtp: (arg: any) => { verifyOtpCalls.push(arg); return Promise.resolve(verifyOtpResult) },
       admin: {
         getUserById: () => Promise.resolve({ data: { user: authUser } }),
         updateUserById: (id: string, patch: any) => {
@@ -108,6 +109,7 @@ describe('POST /api/email/verify', () => {
     updateUserByIdCalls = []
     learnersUpdateCalls = []
     verifyOtpResult = { error: null }
+    verifyOtpCalls = []
     learnerRow = { id: 'learner-1', verified_emails: [] }
     crossAccountLearner = null
     authUser = { id: 'user-1', email: 'teacher@school.example', user_metadata: { onboarded_via: 'possession' } }
@@ -128,6 +130,25 @@ describe('POST /api/email/verify', () => {
     // Mirrors onto the queryable learners.needs_verification column
     // (admin Users page / onboarding-email team's signal).
     expect(learnersUpdateCalls).toContainEqual({ needs_verification: false })
+  })
+
+  // A CLASS SEAT NEVER GROWS INTO A PERSONAL ACCOUNT (Tom, 2026-09-10). A
+  // name-only pupil minted from a class link (user_metadata.class_seat, set
+  // by api/auth/possession-redeem.ts) sits on the school's licence. Attaching
+  // a real email was the one route by which that free seat became a
+  // credentialed account a child could carry home and keep — the leak the
+  // ruling closes. Refused before the code is even checked, so no OTP is spent
+  // and nothing on the account changes.
+  it('refuses to attach an email to a class seat, without spending the code or touching the account', async () => {
+    authUser = { id: 'user-1', email: 'link-abc@invite.saysomethingin.app', user_metadata: { onboarded_via: 'possession', link_auth: true, class_seat: true } }
+    const res = makeRes()
+    await handler(makeReq({ email: 'child@example.com', token: '123456' }), res)
+
+    expect(res._status).toBe(403)
+    expect(res._json.reason).toBe('class_seat')
+    expect(verifyOtpCalls).toHaveLength(0)
+    expect(updateUserByIdCalls).toHaveLength(0)
+    expect(learnersUpdateCalls).toHaveLength(0)
   })
 
   it('does not touch user_metadata when verifying a different (secondary) email', async () => {

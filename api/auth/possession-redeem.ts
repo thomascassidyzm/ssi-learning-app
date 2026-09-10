@@ -444,7 +444,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         // account needs that nudge MORE than a typed-email one, not less. The
         // separate link_auth flag is analytics-only.
         onboarded_via: 'possession',
-        ...(isLinkAuth ? { link_auth: true } : {}),
+        // THE CLASS SEAT (Tom, 2026-09-10): "the child accounts are not free
+        // — the school's account is free — if the children want to be
+        // learners on their own time, they have to pay." A link-auth mint is
+        // only ever a pupil (LINK_AUTH_ELIGIBLE_CODE_TYPES), and what it
+        // mints is a seat on the school's licence: it plays the class's
+        // course while the school's cover and the class tag are live
+        // (api/_utils/classCoverage.ts) and nothing else. The stamp is the
+        // durable record of that kind, read by api/email/verify.ts to refuse
+        // the one route by which such a seat used to grow into a personal
+        // account a child could carry away for free. Existing accounts are
+        // not stamped: closing a door forward is not revoking behind it.
+        ...(isLinkAuth ? { link_auth: true, class_seat: true } : {}),
         ...(cleanDisplayName ? { display_name: cleanDisplayName } : {}),
       },
     })

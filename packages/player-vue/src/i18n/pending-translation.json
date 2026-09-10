@@ -1,6 +1,6 @@
 {
   "_readme": "Keys that exist in eng.json and are knowingly NOT yet translated. Enrolling a key here is how a new English string lands without turning the locale-parity gate red — an explicit, reviewable admission of debt instead of silent drift. This file IS the work order for the 21-language translation pass: every key below is a string a translator has to do. When a key is translated into every locale, DELETE it from here — the parity test fails on a stale entry, so the list can only shrink. Never add a key here to silence a gate you could satisfy by wiring an existing key instead.",
-  "_minted": "2026-09-03 — the i18n sweep that keyed the settings, player, onboarding, install, redeem and profile screens. 2026-09-07 — the schools/teach/org sweep: 1,281 keys across the teacher, school-leader and tutor surfaces. About half of those reached the 21 languages the 2026-09-02 branch covered, by harvest, for free. The rest — and the whole of kan/mar/tel, which that branch never had — await a run of `pnpm i18n:fill`. That run could NOT be done on 2026-09-07: no CLAUDE_CONFIG_DIR on this box is logged in for headless use, so every `claude -p` exited 1. Re-run it from a logged-in box and this list shrinks on its own. 2026-09-09 — the 31 keys minted by the Family/change-to-Premium, removed-child and ways-in-ledger work of 2026-09-08, enrolled when the nightly went red on main: the strings are new, the translation pass has not run since, and machine-filling 21 languages nobody here can read is the thing this register exists to prevent. 2026-09-09 — the seven strings the account-identity work minted: Settings' \"You are signed in as\" block and the sign-in screen's remembered-address line. 2026-09-10 — 26 keys from the Family/Premium settings and plans surfaces enrol on main: they reached production in eng.json without an enrolment, so all 24 locales were short the same 26 and the parity gate was red on this branch. Already enrolled on staging; this is main catching up, not new debt.",
+  "_minted": "2026-09-03 — the i18n sweep that keyed the settings, player, onboarding, install, redeem and profile screens. 2026-09-07 — the schools/teach/org sweep: 1,281 keys across the teacher, school-leader and tutor surfaces. About half of those reached the 21 languages the 2026-09-02 branch covered, by harvest, for free. The rest — and the whole of kan/mar/tel, which that branch never had — await a run of `pnpm i18n:fill`. That run could NOT be done on 2026-09-07: no CLAUDE_CONFIG_DIR on this box is logged in for headless use, so every `claude -p` exited 1. Re-run it from a logged-in box and this list shrinks on its own. 2026-09-09 — the 31 keys minted by the Family/change-to-Premium, removed-child and ways-in-ledger work of 2026-09-08, enrolled when the nightly went red on main: the strings are new, the translation pass has not run since, and machine-filling 21 languages nobody here can read is the thing this register exists to prevent. 2026-09-09 — the seven strings the account-identity work minted: Settings' \"You are signed in as\" block and the sign-in screen's remembered-address line. 2026-09-10 — 26 keys from the Family/Premium settings and plans surfaces enrol on main: they reached production in eng.json without an enrolment, so all 24 locales were short the same 26 and the parity gate was red on this branch. Already enrolled on staging; this is main catching up, not new debt. 2026-09-10 — three keys from the class-seat work (job #176): the seat note on the class-link name step and the settings-screen row that replaces the add-email offer on a class seat. English only; the Welsh a Chepstow parent reads must not be machine-filled.",
   "keys": [
     "auth.googleContinue",
     "auth.googleOpening",
@@ -696,6 +696,7 @@
     "purchasePending.stalledTitle",
     "purchasePending.startLearning",
     "purchasePending.willAppear",
+    "redeem.classSeatNote",
     "schools.billing.billingAndInvoices",
     "schools.billing.currentPlan",
     "schools.billing.manageSubscription",
@@ -1393,6 +1394,8 @@
     "settings.changeToPremiumTitle",
     "settings.changeToPremiumWho",
     "settings.childAccountTag",
+    "settings.classSeatDesc",
+    "settings.classSeatLabel",
     "settings.familyEndsKeepGoing",
     "settings.familyEndsOn",
     "settings.freeThrough",

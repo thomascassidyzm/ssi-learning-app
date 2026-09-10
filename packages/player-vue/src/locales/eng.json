@@ -349,7 +349,9 @@
     "identityNoEmail": "No email address on this account yet. The code below is how we find you.",
     "identityLastConfirmed": "This is the address we last confirmed. We will check it again as soon as you are online.",
     "identitySupportLabel": "Your account code",
-    "identitySupportNote": "If you ever get in touch, tell us this and we will know who you are. It only names your account — it does not let anyone in."
+    "identitySupportNote": "If you ever get in touch, tell us this and we will know who you are. It only names your account — it does not let anyone in.",
+    "classSeatLabel": "A class seat",
+    "classSeatDesc": "This account is on your school's licence. It plays your class's course while you are in the class, and no email can be added to it."
   },
   "belt": {
     "yourProgress": "Your progress",
@@ -908,7 +910,8 @@
     "nextNameTheyCan": "next to your name. They can read it out to you — no email at all.",
     "checkEmailDigitCode": "Check your email for a 6-digit code",
     "mayTakeMomentArrive": "It may take a moment to arrive. Check your spam folder if needed.",
-    "goBackSkipEmail": "Go back and skip the email code"
+    "goBackSkipEmail": "Go back and skip the email code",
+    "classSeatNote": "This is a class seat on your school's licence. It plays your class's course while you are in the class."
   },
   "tryLink": {
     "checkingLink": "Checking your link...",
