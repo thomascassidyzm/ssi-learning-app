@@ -281,6 +281,10 @@ const scopeCache = new Map<string, { scope: CallerScope; expiresAt: number }>()
  * Resolve the caller's visible student scope. `authUid` MUST come from a
  * verified JWT (see verifyAuthToken), never from client-supplied input.
  */
+// TEACHER VISIBILITY (Tom, 2026-09-10, settled): a teacher sees only their
+// own class's pupils' practice, and nothing wider. This resolver is that rail:
+// role 'teacher' → the classes they teach, and no school-wide or group-wide
+// scope. Every schools read goes through it; do not widen it for a teacher.
 export async function resolveVisibleScope(svc: SupabaseClient, authUid: string): Promise<CallerScope> {
   const cached = scopeCache.get(authUid)
   if (cached && cached.expiresAt > Date.now()) return cached.scope

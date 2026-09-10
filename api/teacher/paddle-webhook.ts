@@ -104,7 +104,11 @@ interface PriceMeta {
   gbpPence: number
   period: 'monthly' | 'annual'
 }
-const PRICE_CATALOG: Record<string, PriceMeta> = {
+// NO GROUP PRICE (Tom, 2026-09-10, settled): "No multi-school group price
+// exists. There is no third number." Two student tiers, full stop — a class
+// under a group is school-priced through handleStudentSubscription's rule.
+// paddle-webhook.test.ts pins the tier set.
+export const PRICE_CATALOG: Record<string, PriceMeta> = {
   // £15/mo + £150/yr SSi Premium — used for learner_premium, tutor_platform AND
   // the per-seat school_platform price (a school is quantity>1 of the same unit).
   pri_01kqq85gvncyasfmfvvpcv1xfg: { tier: 'premium', gbpPence: 1500, period: 'monthly' },
@@ -1519,6 +1523,10 @@ export async function handleStudentSubscription(
   data: any,
   customData: Record<string, unknown>
 ): Promise<void> {
+  // THE LEARNER, NOT THE PAYER (Tom, 2026-09-10): "Parents pay, but the child
+  // is the learner." The subscription is written on supabase_user_id — the
+  // CHILD — and never on whoever Paddle's customer email belongs to. A parent
+  // paying for a school seat is the customer; the seat is the child's.
   const supabaseUserId = customData.supabase_user_id as string | undefined
   const classId = customData.class_id as string | undefined
 
@@ -1609,6 +1617,22 @@ export async function handleStudentSubscription(
   const firstItem = Array.isArray(data.items) && data.items.length > 0 ? data.items[0] : null
   const planId: string | null = firstItem?.price?.id || null
 
+  // PRICE LOCKING (Tom, 2026-09-10, settled): "The £5 school price locks for
+  // the year and only re-derives at renewal. Never mid-year, never
+  // mid-period." The period stored BEFORE this event is the lock's clock: an
+  // event whose billing period has not advanced past it is mid-period and
+  // keeps the price already frozen on the referral row; a first sighting or
+  // an advanced period is the renewal moment and re-derives from the class
+  // as it stands. Read before the upsert below overwrites it.
+  const { data: priorSub } = await supabase
+    .from('subscriptions')
+    .select('current_period_end')
+    .eq('learner_id', learner.id)
+    .maybeSingle()
+  const priorPeriodEnd: string | null = priorSub?.current_period_end ?? null
+  const isRenewalOrFirst =
+    !priorPeriodEnd || !periodEnd || new Date(periodEnd).getTime() > new Date(priorPeriodEnd).getTime()
+
   // The precedence guard only suppresses the redundant subscription-ROW
   // write (a lower-ranked plan must never clobber a higher-ranked one
   // already active — e.g. a tutor/premium holder buying a class seat).
@@ -1665,6 +1689,17 @@ export async function handleStudentSubscription(
   // when a row resolved above — but class enrollment/tagging below never depend on it.
   if (subRow) {
     const referralStatus = REFERRAL_STATUS_MAP[data.status] || 'lapsed'
+    // The lock, held: mid-period, the price already frozen on this referral
+    // wins over today's derivation (see isRenewalOrFirst above).
+    let referralPricePence = lockedPricePence
+    if (!isRenewalOrFirst) {
+      const { data: priorRef } = await supabase
+        .from('teacher_referrals')
+        .select('locked_price_pence')
+        .eq('subscription_id', subRow.id)
+        .maybeSingle()
+      if (typeof priorRef?.locked_price_pence === 'number') referralPricePence = priorRef.locked_price_pence
+    }
     const { error: referralErr } = await supabase
       .from('teacher_referrals')
       .upsert(
@@ -1672,7 +1707,7 @@ export async function handleStudentSubscription(
           class_id: classId,
           student_learner_id: learner.id,
           source: 'signup_link',
-          locked_price_pence: lockedPricePence,
+          locked_price_pence: referralPricePence,
           status: referralStatus,
           subscription_id: subRow.id,
           updated_at: new Date().toISOString(),

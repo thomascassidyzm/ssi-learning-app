@@ -408,3 +408,59 @@ player deploy.
 `/api/school/class-progress` (service role, teacher-authorised) and the class session opened at play
 start: a player deploy, not a Friday hotfix. The Lens needs re-pointing off `class_sessions`.
 
+
+## 2026-09-10 — the school pupil seat: the school's account is free, the child's is not, and the parent pays (job #176)
+
+Source: the verified design at https://watson-1.tail4968cb.ts.net/d/e6ba061d, read from code at
+`origin/dev` `6dd831df` and the live production database, and Tom's rulings on it in the
+`ssi-learning-app` channel the same night. Recorded here in his own words; each is settled.
+
+**Ruling 1, the frame.** *"the child accounts are not free - the school's account is free - if the
+children want to be learners on their own time, they have to pay"*. So class practice in a lesson,
+on the school's licence, is already bought; a child learning on their own time is a paying learner
+at the £5 school-linked price. The free name-only class door was never a safeguarding feature: it
+was a revenue leak minting free personal access.
+
+**Ruling 2, the payer.** Asked whether the parent pays for the £5 pupil seat: *"their paretns do"*.
+Refined the same night: *"Parents pay, but the child is the learner, so the parents have to put
+their card details in, with something like their own parent email or something, maybe?"* The
+design is BILLING ACCOUNT SEPARATE FROM LEARNER SEAT, the shape the live SSi Family plan already
+uses. The parent supplies their own email and card and is the account holder for billing, receipts
+and cancellation; the parent is not a learner, gets no seat, no course, no roster row. The child is
+the learner and is who the seat is charged for. Reuse the family child shape and the existing
+`student_via_teacher` checkout; no second billing lane. The "maybe?" is about mechanism, not the
+principle: parent pays, parent supplies their own email, is settled.
+
+**Ruling 3, price locking.** The £5 school price locks for the year and only re-derives at renewal.
+Never mid-year, never mid-period. Enforced at `handleStudentSubscription` in
+`api/teacher/paddle-webhook.ts`: the referral's frozen `locked_price_pence` is kept on any event
+whose billing period has not advanced past the stored one, and re-derived from the class only on
+first sighting or when the period rolls. Before this the upsert re-derived on every event.
+`paddle-webhook.test.ts` holds both halves.
+
+**Ruling 4, teacher visibility.** A teacher sees only their own class's pupils' practice. The rail is
+`resolveVisibleScope` in `api/_utils/schoolScope.ts`, now explicit rather than assumed.
+
+**Ruling 5, group pricing.** No multi-school group price exists. There is no third number. A child
+under a school under a live group is school-priced at £5 through the same nearest-live-ancestor
+rule. `PRICE_CATALOG` carries exactly two student tiers and the test pins the set.
+
+**Ruling 6, Chepstow's zero.** 34 student join codes with zero uses is a fact, not a signal:
+*"of course, the teachers MAY not be promoting it, so we don-t have to read too much into it
+necessarily"*. Do not reason from it in either direction.
+
+**What this job built, and the one taste-safe default it took.** The two class links are one door
+again and the Handbook says what it costs. A name-only pupil is stamped a class seat at mint: it
+plays the class's course while the school's cover and the class tag are live, which
+`classCoverage.ts` already enforced, and it can no longer grow into a personal account by having a
+real email attached. The alternative reading, shutting the name-only door outright so every pupil
+goes parent-first, was not taken; the softer default keeps a teacher able to fill a roster in a
+lesson. Existing placeholder accounts are untouched.
+
+**Still parked, deliberately, and built around rather than answered.** (1) How the parent's email
+attaches — a distinct billing contact on the pupil record, or a parent account that holds one or
+more child seats. The child-side pieces common to both landed (`api/_utils/classSeat.ts`, the
+`class_code` option on `api/family/create-child.ts`); the parent-facing door is not built because
+its first screen is that fork. (2) What happens to a £5 school-linked seat when the household later
+buys SSi Family: `familyAccess.ts` resolves the child's own row first, so today the two run side
+by side and the child's £5 keeps billing.

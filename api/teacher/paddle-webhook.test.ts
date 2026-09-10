@@ -274,6 +274,65 @@ describe('POST /api/teacher/paddle-webhook', () => {
     expect(writes.teacher_referrals.find((w) => w.op === 'upsert')!.payload).toMatchObject({ locked_price_pence: 500 })
   })
 
+  // ── PRICE LOCKING (Tom, 2026-09-10, settled): "the £5 school price locks
+  // for the year and only re-derives at renewal. Never mid-year, never
+  // mid-period." The referral upsert used to overwrite locked_price_pence on
+  // EVERY subscription event, so a class that moved tier mid-period re-priced
+  // on the next payment-method change. ──
+  function existingStudentRow(calls: any[][], periodEnd: string) {
+    if (calls.some((c) => c[0] === 'upsert')) return { data: { id: 'sub-1' }, error: null }
+    return { data: { id: 'sub-1', plan_name: 'SSi Student Access', status: 'active', provider_subscription_id: 'psub_1', current_period_end: periodEnd }, error: null }
+  }
+  function existingReferral(calls: any[][]) {
+    if (calls.some((c) => c[0] === 'upsert')) return { data: null, error: null }
+    return { data: { id: 'ref-1', class_id: 'class-1', locked_price_pence: 1000 }, error: null }
+  }
+
+  it('price lock: a mid-period update keeps the locked price even though the class now derives a different tier', async () => {
+    responders.classes = () => ({ data: { school_id: 'school-1', course_code: 'cym_for_eng' }, error: null }) // NOW a school class → would derive 500
+    responders.learners = () => ({ data: { id: 'learner-1' }, error: null })
+    responders.subscriptions = (calls) => existingStudentRow(calls, '2026-08-01T00:00:00Z')
+    responders.teacher_referrals = existingReferral
+    responders.learner_emails = () => ({ data: [], error: null })
+    currentEvent = subEvent(
+      { kind: 'student_via_teacher', supabase_user_id: 'user-x', class_id: 'class-1' },
+      { items: [{ price: { id: STUDENT_TUTOR_PRICE }, quantity: 1 }] },
+    )
+    currentEvent.eventType = EventName.SubscriptionUpdated // same period end as the stored row → mid-period
+    const res = makeRes()
+    await handler(makeReq(), res)
+    expect(res._status).toBe(200)
+    expect(writes.teacher_referrals.find((w) => w.op === 'upsert')!.payload).toMatchObject({ locked_price_pence: 1000 })
+  })
+
+  it('price lock: a RENEWAL (billing period advanced) re-derives the tier from the class as it stands', async () => {
+    responders.classes = () => ({ data: { school_id: 'school-1', course_code: 'cym_for_eng' }, error: null })
+    responders.learners = () => ({ data: { id: 'learner-1' }, error: null })
+    responders.subscriptions = (calls) => existingStudentRow(calls, '2026-08-01T00:00:00Z')
+    responders.teacher_referrals = existingReferral
+    responders.learner_emails = () => ({ data: [], error: null })
+    currentEvent = subEvent(
+      { kind: 'student_via_teacher', supabase_user_id: 'user-x', class_id: 'class-1' },
+      { items: [{ price: { id: STUDENT_SCHOOL_PRICE }, quantity: 1 }], currentBillingPeriod: { endsAt: '2026-09-01T00:00:00Z' }, nextBilledAt: '2026-09-01T00:00:00Z' },
+    )
+    currentEvent.eventType = EventName.SubscriptionUpdated
+    const res = makeRes()
+    await handler(makeReq(), res)
+    expect(res._status).toBe(200)
+    expect(writes.teacher_referrals.find((w) => w.op === 'upsert')!.payload).toMatchObject({ locked_price_pence: 500 })
+  })
+
+  // ── NO GROUP PRICE (Tom, 2026-09-10, settled): "No multi-school group price
+  // exists. There is no third number." A child under a school under a live
+  // group is school-priced at £5 through the same rule. ──
+  it('the price catalogue carries exactly two student tiers and no group tier', async () => {
+    const { PRICE_CATALOG } = await import('./paddle-webhook')
+    const tiers = new Set(Object.values(PRICE_CATALOG).map((m: any) => m.tier))
+    for (const tier of tiers) expect(['premium', 'student_tutor', 'student_school', 'family']).toContain(tier)
+    expect([...tiers].filter((t) => String(t).startsWith('student_'))).toHaveLength(2)
+    expect([...tiers].some((t) => /group|org/.test(String(t)))).toBe(false)
+  })
+
   // ── school_platform ──
   it('school_platform on a premium price sets school platform columns incl. seats = item quantity', async () => {
     // The target is resolved server-side from the PAYER (security fix
