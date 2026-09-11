@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `17dfe1d8e4de` · generated 2026-09-11 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `a0cc40fd37f2` · generated 2026-09-11 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -889,7 +889,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `insig
 4. Use **Compare to** to put an average alongside.
 5. **Overview** takes you back to the same place's home page.
 
-**Worth knowing.** Everything here is a rate, not a raw total, so groups of very different sizes still compare fairly.
+**Worth knowing.** Everything here is a rate, not a raw total, so groups of very different sizes still compare fairly. A class that practises from the front is counted through its own class account, so whole-class lessons show here the same as any other practice.
 
 ## Remove a student from a class
 
@@ -1250,7 +1250,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `insig
 3. Read the uptake figure first — it is how many learners this is based on.
 4. Open a class or a learner within it to see the same reading at a smaller scope.
 
-**Worth knowing.** A learner with no microphone data is absent from these figures rather than counted as a zero, so the denominator is always stated.
+**Worth knowing.** A learner with no microphone data is absent from these figures rather than counted as a zero, so the denominator is always stated. A class that practises from the front counts as one learner, its own class account, so a school with no pupil accounts still has a roster here.
 
 ## Walking down to a school, a class or a person
 

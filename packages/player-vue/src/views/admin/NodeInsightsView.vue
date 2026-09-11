@@ -305,7 +305,9 @@ const homeLink = computed(() => {
                 smaller scope.
              Worth knowing. A learner with no microphone data is absent from these
              figures rather than counted as a zero, so the denominator is always
-             stated.
+             stated. A class that practises from the front counts as one learner,
+             its own class account, so a school with no pupil accounts still has a
+             roster here.
              checked: e009121e.3bd624f8
         -->
         <section class="vad-section" data-walk="insights-voice-pause">

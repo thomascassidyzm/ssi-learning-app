@@ -323,6 +323,28 @@ describe('hide, don’t zero', () => {
   })
 })
 
+describe('a class that plays from the front', () => {
+  // Ysgol Cas-gwent: no pupil accounts at all; every class practises as ONE
+  // learner, its own account (classes.class_learner_id). Before this the
+  // school's roster was empty and the voice panel read as if it had nobody.
+  const frontClass = { id: 'c9', class_name: 'Class Nine', course_code: 'cym_for_eng', school_id: 's1', group_id: null, teacher_user_id: 'u-t1', is_active: true, class_learner_id: 'CA9' }
+  it('counts the class account as the learner, once, with no pupils tagged', async () => {
+    CLASSES.push(frontClass as never)
+    try {
+      const caller = await callerFor('u-sl1')
+      const scope = await resolveVadScope(makeSupabase(), caller, { groupId: 'g-node-s1' })
+      if (isDenied(scope)) throw new Error('expected access')
+      expect(scope.learnerIds).toContain('CA9')
+      expect(scope.classes.find(c => c.classId === 'c9')?.learnerIds).toEqual(['CA9'])
+      const one = await resolveVadScope(makeSupabase(), caller, { classId: 'c9' })
+      if (isDenied(one)) throw new Error('expected access')
+      expect(one.learnerIds).toEqual(['CA9'])
+    } finally {
+      CLASSES.pop()
+    }
+  })
+})
+
 describe('unauthenticated', () => {
   it('is 401 with no valid token, and resolves no caller', async () => {
     verifyAdminResult = { error: 'not admin', status: 403 }

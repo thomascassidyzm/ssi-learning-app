@@ -20,9 +20,11 @@
  * node, the ancestor chain) AND the resolved comparison, so the engine page
  * is one round trip and every state is deep-linkable.
  *
- * Rate math is the shared api/_utils/rateCompare.ts primitives over
- * analytics_class_sessions_scoped — the same numbers the schools rate-compare
- * lane tells. Cohorts leave the server ONLY as aggregates + an anonymised
+ * Rate math is the shared api/_utils/rateCompare.ts primitives over session
+ * rows from ONE read (_utils/diarySessionRows.ts): the legacy
+ * analytics_class_sessions_scoped RPC plus whole-class play sessionised off the
+ * diary for each class's own account — the same numbers the schools
+ * rate-compare lane tells. Cohorts leave the server ONLY as aggregates + an anonymised
  * distribution (spec.ts sovereignty) — never another entity's name.
  *
  * AUTHZ — three doors, most-powerful first:
@@ -48,6 +50,7 @@ import { resolveVisibleScope, ownSchoolIdForNode, chunk } from '../../_utils/sch
 import { ensureSchoolNode } from '../../_utils/schoolNode'
 import { isEntityCoverageExpired } from '../../_utils/schoolCoverageGate'
 import { descendantIds } from '../../_utils/groupSubtree'
+import { loadScopedSessionRows } from '../../_utils/diarySessionRows'
 import {
   aggregateWindowPace,
   distributionStats,
@@ -401,11 +404,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const censusIds = entityAllClasses.map((c) => c.id).slice(0, MAX_COHORT_IDS)
     let censusRows: ScopedSessionRow[] = []
     if (censusIds.length > 0) {
-      const { data: censusData, error: censusError } = await svc.rpc('analytics_class_sessions_scoped', {
-        p_class_ids: censusIds,
-        p_days: CENSUS_EVER_DAYS,
-        p_include_demo: entityIsDemo,
-      })
+      const { data: censusData, error: censusError } = await loadScopedSessionRows(svc, censusIds, CENSUS_EVER_DAYS, entityIsDemo)
       if (censusError) console.error('[node-rate-compare] course census error:', censusError.message)
       censusRows = (censusData as ScopedSessionRow[]) || []
     }
@@ -494,11 +493,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const activeCourses = rankedCourses.filter((c) => c.hasData)
     if (!(requestedCourse && courseCounts.has(requestedCourse)) && !classRow && compareAnc?.path) {
       const scopeIds = scopeClasses.map((c) => c.id).slice(0, MAX_COHORT_IDS)
-      const { data: scopeData, error: scopeError } = await svc.rpc('analytics_class_sessions_scoped', {
-        p_class_ids: scopeIds,
-        p_days: fetchDays,
-        p_include_demo: Boolean(nodeRow?.is_demo),
-      })
+      const { data: scopeData, error: scopeError } = await loadScopedSessionRows(svc, scopeIds, fetchDays, Boolean(nodeRow?.is_demo))
       if (scopeError) {
         console.error('[node-rate-compare] scope census error:', scopeError.message)
       } else {
@@ -615,11 +610,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         rows = preRows
       } else {
         const allClassIds = [...new Set([...entityClassIds, ...members.flatMap((m) => m.classIds)])].slice(0, MAX_COHORT_IDS)
-        const { data: rawRows, error } = await svc.rpc('analytics_class_sessions_scoped', {
-          p_class_ids: allClassIds,
-          p_days: fetchDays,
-          p_include_demo: entityIsDemo,
-        })
+        const { data: rawRows, error } = await loadScopedSessionRows(svc, allClassIds, fetchDays, entityIsDemo)
         if (error) return { rpcError: error.message }
         rows = (rawRows as ScopedSessionRow[]) || []
       }
@@ -636,7 +627,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
     let loaded = await loadActive(firstMembers.members, isGlobalCompare ? null : scopeRows)
     if ('rpcError' in loaded) {
-      console.error('[node-rate-compare] analytics_class_sessions_scoped error:', loaded.rpcError)
+      console.error('[node-rate-compare] session rows error:', loaded.rpcError)
       res.status(500).json({ error: 'Failed to load rate data' })
       return
     }
@@ -662,7 +653,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         const wm = await resolveMembers()
         const wl = await loadActive(wm.members)
         if ('rpcError' in wl) {
-          console.error('[node-rate-compare] analytics_class_sessions_scoped error:', wl.rpcError)
+          console.error('[node-rate-compare] session rows error:', wl.rpcError)
           res.status(500).json({ error: 'Failed to load rate data' })
           return
         }
