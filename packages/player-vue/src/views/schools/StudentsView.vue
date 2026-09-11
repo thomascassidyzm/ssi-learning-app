@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, inject } from 'vue'
+import { formatPracticeMinutes } from '@/composables/schools/practiceMinutes'
 import { useRouter } from 'vue-router'
 import BeltDot from '@/components/schools/shared/BeltDot.vue'
 import HealthDot from '@/components/schools/shared/HealthDot.vue'
@@ -78,7 +79,8 @@ const enrichedStudents = computed(() => {
       belt,
       seeds_completed: s.seeds_completed,
       legos_mastered: s.legos_mastered,
-      hours7d: Math.round((s.total_practice_minutes / 60) * 10) / 10,
+      // MINUTES, all time — never hours (Tom, 2026-09-11, job #265).
+      practiceMinutes: Math.round(s.total_practice_minutes || 0),
       legoTotal: 60,
       health: deriveHealth(s.seeds_completed, s.last_active_at, avg),
       last_active_display: formatLastActive(s.last_active_at),
@@ -148,9 +150,9 @@ function viewStudent(s: { learner_id: string; name?: string }) {
 }
 
 function exportCsv() {
-  const header = ['Name', 'Class', 'Belt', 'Seeds', 'LEGOs', 'Hours/wk', 'Health', 'Last active']
+  const header = ['Name', 'Class', 'Belt', 'Seeds', 'LEGOs', 'Minutes practised', 'Health', 'Last active']
   const rows = filtered.value.map(s => [
-    s.name, s.class_name, s.belt, s.seeds_completed, s.legos_mastered, s.hours7d, s.health, s.last_active_display,
+    s.name, s.class_name, s.belt, s.seeds_completed, s.legos_mastered, s.practiceMinutes, s.health, s.last_active_display,
   ].join(','))
   const csv = [header.join(','), ...rows].join('\n')
   const blob = new Blob([csv], { type: 'text/csv' })
@@ -272,7 +274,7 @@ watch(selectedUser, (newUser) => {
             <th>{{ t('schools.students.classFilterLabel', 'Class') }}</th>
             <th>{{ t('schools.students.beltFilterLabel', 'Belt') }}</th>
             <th>{{ t('schools.students.legosColumn', 'LEGOs') }}</th>
-            <th>{{ t('schools.students.hoursPerWeekColumn', 'Hours/wk') }}</th>
+            <th>{{ t('schools.students.minutesPractisedColumn', 'Minutes practised') }}</th>
             <th>{{ t('schools.students.healthFilterLabel', 'Health') }}</th>
             <th>{{ t('schools.students.lastActiveColumn', 'Last active') }}</th>
             <th></th>
@@ -307,7 +309,7 @@ watch(selectedUser, (newUser) => {
                 <span class="seeds-text">{{ s.legos_mastered }}/{{ s.legoTotal }}</span>
               </div>
             </td>
-            <td>{{ s.hours7d }}h</td>
+            <td>{{ formatPracticeMinutes(s.practiceMinutes) }}</td>
             <td>
               <span class="health-cell">
                 <HealthDot :health="s.health" />

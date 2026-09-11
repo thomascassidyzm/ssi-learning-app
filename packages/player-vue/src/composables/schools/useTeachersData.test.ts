@@ -77,8 +77,8 @@ describe('useTeachersData', () => {
       json: async () => ({
         school: {}, students: [],
         teachers: [
-          { user_id: 'ut1', learner_id: 'l1', display_name: 'Alice', class_count: 1, student_count: 1, total_practice_hours: 1, joined_at: '2025-01-01' },
-          { user_id: 'ut2', learner_id: 'l2', display_name: 'Zara', class_count: 2, student_count: 2, total_practice_hours: 3, joined_at: '2025-02-01' },
+          { user_id: 'ut1', learner_id: 'l1', display_name: 'Alice', class_count: 1, student_count: 1, total_practice_minutes: 60, joined_at: '2025-01-01' },
+          { user_id: 'ut2', learner_id: 'l2', display_name: 'Zara', class_count: 2, student_count: 2, total_practice_minutes: 180, joined_at: '2025-02-01' },
         ],
       }),
     }))
@@ -129,7 +129,7 @@ describe('useTeachersData', () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,
       json: async () => ({ school: {}, students: [], teachers: [
-        { user_id: 'ut1', learner_id: 'l1', display_name: 'Test', class_count: 0, student_count: 0, total_practice_hours: 0, joined_at: '' },
+        { user_id: 'ut1', learner_id: 'l1', display_name: 'Test', class_count: 0, student_count: 0, total_practice_minutes: 0, joined_at: '' },
       ] }),
     }))
     vi.stubGlobal('fetch', fetchMock)
@@ -184,7 +184,7 @@ describe('useTeachersData', () => {
     const zara = td.teachers.value.find(t => t.display_name === 'Zara Teacher')!
     expect(zara.class_count).toBe(2)
     expect(zara.student_count).toBe(2)
-    expect(zara.total_practice_hours).toBe(3)
+    expect(zara.total_practice_minutes).toBe(180)
     // own practice (their learner's sessions) is separate from student hours
     expect(zara.own_practice_minutes).toBe(4)
     const alice = td.teachers.value.find(t => t.display_name === 'Alice Teacher')!

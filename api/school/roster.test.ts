@@ -177,7 +177,7 @@ describe('GET /api/school/roster', () => {
     expect(zara.class_count).toBe(2)
     expect(zara.student_count).toBe(2)
     // (3600 + 7200) / 3600 = 3.0 hours
-    expect(zara.total_practice_hours).toBe(3)
+    expect(zara.total_practice_minutes).toBe(180)
   })
 
   it('reports each teacher\'s OWN practice from their learner\'s sessions (the Chepstow trial-school zero)', async () => {

@@ -458,6 +458,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
             seeds_completed: Number(s.seeds_completed) || 0,
             legos_mastered: Number(s.legos_mastered) || 0,
             practice_hours: Math.round(((Number(s.total_practice_seconds) || 0) / 3600) * 10) / 10,
+            practice_minutes: Math.round((Number(s.total_practice_seconds) || 0) / 60),
             last_active_at: s.last_active_at,
             joined_class_at: s.joined_class_at,
             last7_minutes: last7,
@@ -553,6 +554,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         benchmark,
         classPractice,
         practiceHours: Math.round(classHours * 10) / 10,
+        practiceMinutes: Math.round(classHours * 60),
         schoolId: classRow.school_id,
         nodeId,
       })
@@ -750,6 +752,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
               classCount: Number(sum?.class_count) || 0,
               studentCount: Number(sum?.student_count) || 0,
               practiceHours: Math.round((Number(sum?.total_practice_hours) || 0) * 10) / 10,
+              practiceMinutes: Math.round((Number(sum?.total_practice_hours) || 0) * 60),
               hasAdmin: Boolean(sum?.has_admin),
               teachers: [...(teacherUidsBySchool.get(s.id) || [])].map((uid) => names.get(uid) || 'Unnamed').sort(),
             }
@@ -857,6 +860,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
             teachers: [...(teachersByClass.get(c.id) || [])].map((uid) => names.get(uid) || 'Unnamed').sort(),
             studentCount: studentCountByClass.get(c.id) || 0,
             practiceHours: Math.round((hoursByClass.get(c.id) || 0) * 10) / 10,
+            practiceMinutes: Math.round((hoursByClass.get(c.id) || 0) * 60),
             phrases7d: phrasesByClass.get(c.id) || 0,
             lastClassSessionAt: lastClassSessionByClass.get(c.id) || null,
           })).sort((a, b) => (a.home || '').localeCompare(b.home || '') || a.name.localeCompare(b.name)),
@@ -893,6 +897,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       siblings,
       children: childRows.map(withExtras),
       practiceHours: Math.round(practiceHours * 10) / 10,
+      // MINUTES is the unit every human-facing surface shows (Tom, 2026-09-11,
+      // job #265). practiceHours stays for older readers, demoted.
+      practiceMinutes: Math.round(practiceHours * 60),
       leaders,
       // Non-null only when this node IS a funded org with a live enrolment
       // policy. The client renders the funder-numbers panel off its presence,

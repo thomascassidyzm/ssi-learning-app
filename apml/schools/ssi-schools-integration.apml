@@ -846,6 +846,26 @@ principle TeacherOwnPracticeVisible:
 
 principle HeadlineHoursIncludeStaffPractice:
   statement: |
+    [2026-09-11, job #265 — SUPERSEDED IN UNIT AND IN SOURCE. Tom on staging:
+    "why the fucking hell are they all showing 0h progress. Why the fuck is
+    hours a thing anyway?" Every school-facing surface now shows MINUTES,
+    through the one formatter composables/schools/practiceMinutes.ts —
+    useSchoolData converts the views' hours at the boundary
+    (total_practice_minutes / staff_practice_minutes), roster.ts returns
+    total_practice_minutes, and the school leader's dashboard HEADLINE is no
+    longer the all-time view figure at all: it is "Minutes in the app this
+    week" + "X of Y classes practising this week" off
+    /api/school/class-practice-7d's `rollup`, computed by the same helpers and
+    rule as the admin's node home (api/groups/[id]/home.ts classPractice), so
+    the number a leader reads is the number Tom reads. Under View-as / the
+    admin read-view the school being read goes as ?school_id= (verifyAdmin
+    gated) because the admin's own resolved scope is empty — that empty scope
+    is what painted the dashboard 0h "as if real". Role-only View-as for a
+    school role no longer exists: the role buttons pick the most recently
+    active real person of that role (ViewAsPicker.vue, /api/admin/users?role=).
+    The all-time figures below remain for the group/region views and the
+    teachers/students tables, in minutes.]
+
     A school's HEADLINE hours (school_summary.total_practice_hours, the
     dashboard "Hours practised" tile, govt tiles/straplines, and every group/
     org rollup that sums school hours) include ALL practice in the school —

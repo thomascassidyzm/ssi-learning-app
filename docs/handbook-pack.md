@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `c81f9cce60ca` · generated 2026-09-11 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `b4afe20db348` · generated 2026-09-11 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -702,6 +702,19 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `ver
 
 **Worth knowing.** It is open to anyone holding it, so when a link has travelled further than you meant, revoke it in **Ways in** and make a fresh one. Use **Invite a person** instead when you can name who is coming.
 
+## Minutes in the app this week
+
+Section: seeing-progress · roles: school_admin · anchor: `dash-minutes-this-week` · in `packages/player-vue/src/views/schools/DashboardView.vue`
+
+**What it's for.** How much your school practised this week, in minutes: the time your classes spent in the app with a lesson running, pauses included, plus any teacher or pupil practising on their own account, each counted once. Under it, how many of your classes practised at all this week.
+
+**Where it is.** The stat strip at the top of the schools dashboard.
+
+1. Read the number. It is minutes, never hours, and it is this week only.
+2. Read the line beneath it for how many classes practised.
+
+**Worth knowing.** A dash means this week's figures have not loaded — pull to refresh. It is never shown as a zero that is not real.
+
 ## Move a teacher to another class
 
 Section: running-classes · roles: leader, school_admin, teacher · anchor: `class-teacher-other-classes` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
@@ -806,7 +819,7 @@ Section: your-own-account · roles: leader, school_admin · anchor: `account-ins
 
 Section: running-classes · roles: school_admin, teacher · anchor: `classes-table` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
 
-**What it's for.** One row per class, showing at a glance how each one is doing: how many students, what belt the class has reached, hours in the app this week, the shape of the last seven days, and a health mark for classes worth a look. Time in app is the time the class, and any students on their own accounts, spent in the app with the lesson running, pauses included — so it is the time they were in the lesson.
+**What it's for.** One row per class, showing at a glance how each one is doing: how many students, what belt the class has reached, minutes in the app this week, the shape of the last seven days, and a health mark for classes worth a look. Time in app is the time the class, and any students on their own accounts, spent in the app with the lesson running, pauses included — so it is the time they were in the lesson.
 
 **Where it is.** **My Classes**, the table filling most of the page. On a phone each class is a card instead, with the number you sorted by beside its name and the rest underneath.
 
@@ -1539,13 +1552,13 @@ Section: seeing-progress · roles: teacher · anchor: `dash-class-card` · in `p
 
 Section: seeing-progress · roles: teacher · anchor: `dash-teacher-stats` · in `packages/player-vue/src/views/schools/DashboardView.vue`
 
-**What it's for.** One quiet line totalling your whole teaching load — how many students you have across every class, how many hours they have practised between them, and how many sessions have been run. It is a record of what has happened, never a target.
+**What it's for.** One quiet line totalling your whole teaching load — how many students you have across every class, how many minutes they have practised between them, and how many sessions have been run. It is a record of what has happened, never a target.
 
 **Where it is.** Underneath your classes on the schools dashboard.
 
 1. Open the schools dashboard and scroll past your classes.
 2. **Students** counts every pupil in every class you teach, each person once.
-3. **Hours practised** is real practice time those pupils have logged.
+3. **Minutes practised** is real practice time those pupils have logged, in minutes.
 4. **Sessions** is how many class sessions have been run.
 
 **Worth knowing.** The line only appears once you have at least one class — there is nothing to total before that.

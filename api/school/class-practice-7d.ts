@@ -29,14 +29,28 @@
  *   activeDaysByClass: { [classId]: distinct UTC days in the window with any play,
  *                        the class account and its students together } — what
  *                        the class list's health mark is worked out from
+ *   rollup: { windowDays, classCount, activeClasses7d, inAppMinutes7d } — THE
+ *                        SCHOOL HEADLINE, computed by the same helpers and the
+ *                        same rule as the internal admin's node home
+ *                        (api/groups/[id]/home.ts classPractice), so the number
+ *                        a school leader reads is the number Tom reads for that
+ *                        school. inAppMinutes7d counts the classes' own accounts
+ *                        AND staff/students' own accounts, each once.
  *   metric: 'in_app_session_time', idleCutoffSeconds, days: 7
  * }
+ *
+ * Admin passthrough (job #265): `?school_id=` lets an ssi_admin read ONE
+ * school's figures — View-as runs every fetch under the admin's own session,
+ * whose resolved scope is empty, which is how the school dashboard under
+ * View-as showed zeros as if they were real. verifyAdmin gates it; a staff
+ * caller's own scope is never widened by the parameter.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { verifyAuthToken } from '../_utils/auth'
-import { resolveVisibleScope, chunk } from '../_utils/schoolScope'
+import { verifyAuthToken, verifyAdmin } from '../_utils/auth'
+import { resolveVisibleScope, scopeForSchoolRead, chunk } from '../_utils/schoolScope'
+import { loadClassPractice, practisedSince, ownAccountLearnerIds, inAppTimeSeconds, CLASS_PRACTICE_WINDOW_DAYS } from '../_utils/classPractice'
 import { filterActiveScope } from '../_utils/schoolCoverageGate'
 import { applyCors } from '../_utils/cors'
 import { inAppTimeByLearner, IDLE_CUTOFF_SECONDS } from '../_utils/inAppTime'
@@ -70,7 +84,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const svc = createClient(supabaseUrl, supabaseServiceKey)
 
   try {
-    const scope = await resolveVisibleScope(svc, auth.userId)
+    let scope = await resolveVisibleScope(svc, auth.userId)
+    const requestedSchoolId = typeof req.query.school_id === 'string' ? req.query.school_id.trim() : ''
+    if (requestedSchoolId && scope.classIds.length === 0 && scope.schoolIds.length === 0) {
+      const adminResult = await verifyAdmin(req)
+      if ('error' in adminResult) {
+        res.status(403).json({ error: 'Not a platform admin' })
+        return
+      }
+      scope = await scopeForSchoolRead(svc, requestedSchoolId)
+    }
 
     // Intersect any requested class_ids with the caller's actual scope; default
     // to the whole scope. This is the access gate — out-of-scope ids are dropped.
@@ -94,7 +117,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     if (classIds.length === 0) {
       res.setHeader('Cache-Control', 'no-store')
-      res.status(200).json({ practiceByClass: {}, classPlayByClass: {}, audioPlayedByClass: {}, activeDaysByClass: {}, metric: 'in_app_session_time', idleCutoffSeconds: IDLE_CUTOFF_SECONDS, days: DAYS })
+      res.status(200).json({ practiceByClass: {}, classPlayByClass: {}, audioPlayedByClass: {}, activeDaysByClass: {}, rollup: { windowDays: CLASS_PRACTICE_WINDOW_DAYS, classCount: 0, activeClasses7d: 0, inAppMinutes7d: 0 }, metric: 'in_app_session_time', idleCutoffSeconds: IDLE_CUTOFF_SECONDS, days: DAYS })
       return
     }
 
@@ -115,9 +138,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     since.setUTCHours(0, 0, 0, 0)
     const sinceDay = since.toISOString().split('T')[0]
 
-    const [inAppByLearner, secondsByLearner] = await Promise.all([
+    // The school headline — identical helpers and rule to the admin's node
+    // home (api/groups/[id]/home.ts), so both surfaces read the same number.
+    const rollupPromise = (async () => {
+      const classRows = classIds.map((id) => ({ id, class_learner_id: classLearnerByClass.get(id) ?? null }))
+      const nodeGroupIds: string[] = []
+      for (const batch of chunk(scope.schoolIds)) {
+        const { data } = await svc.from('schools').select('node_group_id').in('id', batch)
+        for (const r of data ?? []) if ((r as any).node_group_id) nodeGroupIds.push(String((r as any).node_group_id))
+      }
+      const [facts, ownIds] = await Promise.all([
+        loadClassPractice(svc, classRows),
+        ownAccountLearnerIds(svc, { schoolIds: scope.schoolIds, groupIds: [...new Set([...(scope.groupId ? [scope.groupId] : []), ...nodeGroupIds])], classIds }),
+      ])
+      const weekAgo = Date.now() - CLASS_PRACTICE_WINDOW_DAYS * 86400000
+      let activeClasses7d = 0
+      for (const f of facts.values()) if (practisedSince(f, weekAgo)) activeClasses7d += 1
+      const inApp = await inAppTimeSeconds(svc, [...classLearnerByClass.values()], ownIds)
+      return { windowDays: CLASS_PRACTICE_WINDOW_DAYS, classCount: classIds.length, activeClasses7d, inAppMinutes7d: Math.round(inApp.seconds / 60) }
+    })()
+
+    const [inAppByLearner, secondsByLearner, rollup] = await Promise.all([
       inAppTimeByLearner(svc, [...studentIds, ...classLearnerByClass.values()], since.toISOString()),
       audioPlayedByLearner(svc, studentIds, sinceDay),
+      rollupPromise,
     ])
     if (!secondsByLearner) {
       res.status(500).json({ error: 'Failed to load practice data' })
@@ -145,7 +189,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     res.setHeader('Cache-Control', 'no-store')
-    res.status(200).json({ practiceByClass, classPlayByClass, audioPlayedByClass, activeDaysByClass, metric: 'in_app_session_time', idleCutoffSeconds: IDLE_CUTOFF_SECONDS, days: DAYS })
+    res.status(200).json({ practiceByClass, classPlayByClass, audioPlayedByClass, activeDaysByClass, rollup, metric: 'in_app_session_time', idleCutoffSeconds: IDLE_CUTOFF_SECONDS, days: DAYS })
   } catch (err) {
     console.error('[class-practice-7d] error:', err)
     res.status(500).json({ error: 'Internal server error' })

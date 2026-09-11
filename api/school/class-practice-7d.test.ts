@@ -10,13 +10,17 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://example.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'service-role-key'
 
+let adminOk = false
 vi.mock('../_utils/auth', () => ({
   verifyAuthToken: vi.fn(async () => ({ valid: true, userId: 'caller-1' })),
+  verifyAdmin: vi.fn(async () => (adminOk ? { userId: 'caller-1' } : { error: 'Forbidden', status: 403 })),
 }))
 
 let scope: any
+let schoolReadScope: any
 vi.mock('../_utils/schoolScope', () => ({
   resolveVisibleScope: vi.fn(async () => scope),
+  scopeForSchoolRead: vi.fn(async () => schoolReadScope),
   chunk: (arr: any[], size = 150) => {
     const out = []
     for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
@@ -24,13 +28,14 @@ vi.mock('../_utils/schoolScope', () => ({
   },
 }))
 
-let DB: { classes: any[]; schools: any[]; learner_speaking_opportunities: any[]; player_events: any[] }
+let DB: { classes: any[]; schools: any[]; learner_speaking_opportunities: any[]; player_events: any[]; course_enrollments?: any[]; user_tags?: any[]; learners?: any[] }
 
 function makeChainable(table: string) {
   let rows: any[] = [...((DB as any)[table] ?? [])]
   const builder: any = {
     select: () => builder,
     eq: () => builder,
+    is: () => builder,
     in: (col: string, vals: unknown[]) => { rows = rows.filter((r) => vals.includes(r[col])); return builder },
     gte: (col: string, v: string) => { rows = rows.filter((r) => r[col] === undefined || String(r[col]) >= v); return builder },
     order: (col: string, opts?: { ascending?: boolean }) => {
@@ -87,6 +92,67 @@ beforeEach(async () => {
     learnerId: 'l1', role: 'school_admin', classIds: ['c1'], learnerIds: ['l1'],
     studentsByClass: { c1: ['l1'] }, schoolIds: ['s1'], groupId: null,
   }
+  adminOk = false
+  schoolReadScope = null
+})
+
+describe('GET /api/school/class-practice-7d — the SCHOOL HEADLINE rollup (job #265, 2026-09-11)', () => {
+  it('rollup: minutes in the app this week count the class account AND staff own accounts once each; classes practising this week come off the enrollment cursor', async () => {
+    // A teacher's own account: 15 minutes today. Tagged as school staff, so
+    // the admin's node home counts her — and therefore so must this.
+    DB.user_tags = [
+      { tag_type: 'school', tag_value: 'SCHOOL:s1', user_id: 'uid-teacher', role_in_context: 'teacher', removed_at: null },
+      { tag_type: 'class', tag_value: 'CLASS:c1', user_id: 'uid-l1', role_in_context: 'student', removed_at: null },
+    ]
+    DB.learners = [
+      { id: 'teacher-learner', user_id: 'uid-teacher', display_name: 'Ms Jones' },
+      { id: 'l1', user_id: 'uid-l1', display_name: 'Asha' },
+    ]
+    DB.player_events.push(...[0, 5, 10, 15].map((min) => ({ learner_id: 'teacher-learner', occurred_at: at(-min) })))
+    // The class cursor bumped this week → c1 is a class practising this week.
+    DB.course_enrollments = [{ learner_id: 'class-learner-1', last_practiced_at: at(-60) }]
+    const res = makeRes()
+    await handler(makeReq({}), res)
+    expect(res.statusCode).toBe(200)
+    // class account 1500s + student 600s + teacher 900s = 3000s = 50 min.
+    // (The per-class figure stays students + class account: 2100s.)
+    expect(res.body.rollup).toEqual({ windowDays: 7, classCount: 1, activeClasses7d: 1, inAppMinutes7d: 50 })
+    expect(res.body.practiceByClass).toEqual({ c1: 2100 })
+  })
+
+  it('rollup is present, and zero, when the caller has no classes — never absent', async () => {
+    scope.classIds = []
+    const res = makeRes()
+    await handler(makeReq({}), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.rollup).toEqual({ windowDays: 7, classCount: 0, activeClasses7d: 0, inAppMinutes7d: 0 })
+  })
+
+  it('admin passthrough: an ssi_admin with an EMPTY scope may read one school by ?school_id — View-as no longer renders zeros as if real', async () => {
+    scope = { learnerId: 'admin-l', role: 'ssi_admin', classIds: [], learnerIds: [], studentsByClass: {}, schoolIds: [], groupId: null }
+    schoolReadScope = { learnerId: null, role: 'ssi_admin', classIds: ['c1'], learnerIds: ['l1'], studentsByClass: { c1: ['l1'] }, schoolIds: ['s1'], groupId: null }
+    adminOk = true
+    const res = makeRes()
+    await handler(makeReq({ school_id: 's1' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.practiceByClass).toEqual({ c1: 2100 })
+    expect(res.body.rollup.classCount).toBe(1)
+  })
+
+  it('admin passthrough refuses a non-admin with an empty scope, and never widens a staff caller\'s own scope', async () => {
+    scope = { learnerId: 'x', role: 'student', classIds: [], learnerIds: [], studentsByClass: {}, schoolIds: [], groupId: null }
+    const res = makeRes()
+    await handler(makeReq({ school_id: 's1' }), res)
+    expect(res.statusCode).toBe(403)
+    // A school_admin passing someone else's school_id still gets their own scope.
+    scope = { learnerId: 'l1', role: 'school_admin', classIds: ['c1'], learnerIds: ['l1'], studentsByClass: { c1: ['l1'] }, schoolIds: ['s1'], groupId: null }
+    schoolReadScope = { learnerId: null, role: 'ssi_admin', classIds: ['c-other'], learnerIds: [], studentsByClass: {}, schoolIds: ['s-other'], groupId: null }
+    adminOk = true
+    const res2 = makeRes()
+    await handler(makeReq({ school_id: 's-other' }), res2)
+    expect(res2.statusCode).toBe(200)
+    expect(Object.keys(res2.body.practiceByClass)).toEqual(['c1'])
+  })
 })
 
 describe('GET /api/school/class-practice-7d — IN-APP TIME (founder ruling 2026-09-10)', () => {
