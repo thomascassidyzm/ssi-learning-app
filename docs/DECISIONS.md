@@ -451,3 +451,29 @@ PROMOTE LANDED. THE RELEASE NOTES DID NOT. It is never cronned. The removal is p
 seen red on the old script and green on the new one. This was a supersession, not an erosion.
 
 **The word that reverts it:** gate. The deleted files are one `git revert` away on `dev`.
+
+## 2026-09-11 — a class has started when it has practised, not when it was assigned a course (job #215)
+
+**Better × Simpler × Cheaper.** Better: the two sentences a school leader reads on one screen,
+"13 have never started" and "30 of 34 have started", now describe the same fact and add up to the
+school. Simpler: one rule, written once in `api/org/intel.ts`, decides what "started" means for
+both QUIET and JOURNEY and for each class row's position; no widget hidden, no second read.
+Cheaper: a reading-side change to one function and one proving test; no write path touched, no
+migration, no shared database change.
+
+**What was wrong.** Opening the class player writes a live position to the enrollment WITHOUT a
+practice stamp, by design since 2026-06-11 so that a boot does not read as practice. JOURNEY read
+that cursor as "started"; QUIET read the missing practice stamp as "never started". Nine of
+Chepstow's thirty-four classes carried a cursor at sentence 1 and no practice, and were counted
+both ways.
+
+**The principle, Tom's.** "They know that SSi works, and all it needs is regular use." Assignment
+is an intention; practice is what the school is being asked about. So started means practised.
+
+**What changed.** `computeOrgIntel` gives a class a position only when it has practice evidence,
+the same evidence QUIET already uses. Pinned by a test that was seen red on the old code and green
+on the new: a class with a cursor and no practice is counted never-started by both questions.
+
+**Follow-up, not done here.** The boot-time save still leaves a cursor on a class that never
+played. The node home reads that cursor for its journey bar too. Whether a bare boot should write a
+cursor at all is a write-path question for its own job.
