@@ -178,13 +178,43 @@ describe('SEC0901-A-04b [SECURE-ASSERTION] — mintRateLimit.ts buckets on the p
     expect(src).not.toContain("req.headers['x-forwarded-for']")
     expect(src).not.toContain("req.headers['x-real-ip']")
   })
-  it('all three mint callers gate the throttle behind a verified caller', () => {
-    for (const file of ['api/teacher/classes.ts', 'api/onboarding/provision.ts', 'api/school/create-class.ts']) {
+  it('every mint caller gates the throttle behind a verified caller', () => {
+    // The per-user key must be the uid the platform verified — read straight
+    // off verifyAuthToken / verifyAdmin / resolveGroupTreeCaller's result,
+    // never off the request body. Two spellings are admitted: the property
+    // access `auth.userId` / `caller.userId` / `authResult.userId` inline, or a
+    // bare local that is ONLY EVER assigned from one of those results (the
+    // create-class shape, where two auth lanes converge on one `callerUserId`).
+    // A caller with no throttle, a throttle keyed on anything else, or a local
+    // fed from any other source fails here.
+    const VERIFIED = /^(auth|caller|authResult|adminResult)\.userId$/
+    const callers = ['api/teacher/classes.ts', 'api/onboarding/provision.ts', 'api/school/create-class.ts']
+    // The census is the module's own import list: a fourth caller that imports
+    // the throttle without being listed here fails, so the list cannot go stale.
+    const walk = (dir: string): string[] =>
+      readdirSync(resolve(repoRoot, dir), { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory() ? walk(`${dir}/${e.name}`) : e.name.endsWith('.ts') && !e.name.endsWith('.test.ts') ? [`${dir}/${e.name}`] : [],
+      )
+    const importers = walk('api').filter((f) => read(f).includes("from '../_utils/mintRateLimit'")).sort()
+    expect(importers).toEqual([...callers].sort())
+    for (const file of callers) {
       const src = read(file)
-      expect(src, file).toContain('enforceMintRateLimit(')
-      // The verified uid is what is passed as the per-user key — either
-      // verifyAuthToken's own result or a caller resolved from it.
-      expect(src, file).toMatch(/enforceMintRateLimit\(\s*supabase,\s*req,\s*(auth|caller|authResult)\.userId/)
+      const calls = [...src.matchAll(/enforceMintRateLimit\(\s*supabase,\s*req,\s*([\w.]+)\s*,/g)].map((m) => m[1])
+      expect(calls.length, `${file}: no enforceMintRateLimit(supabase, req, <uid>, …) call`).toBeGreaterThan(0)
+      // Every call, not just the first — provision.ts mints twice.
+      expect(calls.length, file).toBe((src.match(/enforceMintRateLimit\(/g) ?? []).length)
+      for (const key of calls) {
+        if (VERIFIED.test(key)) continue
+        expect(key, `${file}: throttle keyed on "${key}", which is neither a verified result nor a plain local`).toMatch(/^\w+$/)
+        // A bare local: declared without an initialiser, and every assignment
+        // to it is a verified result. No other source may ever reach it.
+        const assignments = [...src.matchAll(new RegExp(`(?<![\\w.])${key}\\s*=\\s*([^\\n;]+)`, 'g'))].map((m) => m[1].trim())
+        expect(assignments.length, `${file}: "${key}" is never assigned`).toBeGreaterThan(0)
+        for (const rhs of assignments) {
+          expect(rhs, `${file}: "${key}" is assigned from "${rhs}", not a verified caller`).toMatch(VERIFIED)
+        }
+        expect(src, `${file}: "${key}" must be declared bare, not initialised from elsewhere`).toMatch(new RegExp(`(let|const)\\s+${key}\\s*:`))
+      }
     }
   })
 })
