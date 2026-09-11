@@ -1370,6 +1370,7 @@ const mailboxPrompt = useMailboxPrompt()
           v-if="!isAdminView && (isSchoolAdmin || isGovtAdmin) && classIdParam"
           :class-id="classIdParam"
           :teachers="classTeachers.map(x => ({ user_id: x.user_id, name: x.name }))"
+          :teachers-state="teacherListState"
           @copied="loadClass"
         />
 
