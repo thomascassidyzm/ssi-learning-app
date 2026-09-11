@@ -521,3 +521,39 @@ on the new: a class with a cursor and no practice is counted never-started by bo
 **Follow-up, not done here.** The boot-time save still leaves a cursor on a class that never
 played. The node home reads that cursor for its journey bar too. Whether a bare boot should write a
 cursor at all is a write-path question for its own job.
+---
+
+## 2026-09-11 — the support channel's three tables are live; the watcher is not
+
+**Decision.** Job #214 left three questions open. Two of them were answered yes and are done here:
+the two branches are merged and the migration is applied. The third — arming the watcher — is
+Tom's alone and was not touched.
+
+**The migration.** `20260911_support_channel.sql` was applied to the live shared project by
+`supabase/secfix-toolkit/canary_support_channel.cjs`, canary style: one transaction, the DDL, then
+fixtures on real schools and a real council group, then thirty-seven assertions, then a rollback of
+the fixtures and a COMMIT of the DDL alone. Leak-closed: anon reads nothing; a school admin sees
+their own thread and their own turns and nothing of the school next door, cannot see an org thread,
+cannot read `support_signals` at all, and cannot insert, update or delete anything anywhere — every
+write is the server's or the service key's. Legit paths alive: `ensureThread`'s select, the
+messages POST, the thread GET's `last_read_at` stamp, the doorbell's `doorbell_sent_at` stamp, the
+population count as an integer, the signals upsert, and the watcher's unanswered-questions query.
+The shape holds too — a thread owns exactly one of a school or a group, and there is one thread per
+school forever. Live posture after commit: RLS on all three, one SELECT policy each on threads and
+messages, zero policies and zero grants on `support_signals`, and SELECT the only privilege
+`authenticated` holds anywhere in the set.
+
+**One red the merge found.** `SEC0901-A-03` keeps the cron inventory as an explicit list so that
+adding a cron is a deliberate edit to the security file. The doorbell was added to `vercel.json` on
+the branch without that edit, so `test:api` went red the moment the branch met `dev`. The
+deliberate edit is made; the handler already carried `checkCronAuth`, which the gate's derived
+second assertion proves independently. The gate worked exactly as designed.
+
+**The doorbell cannot ring yet, and that is structural, not a promise.** It selects `out` rows
+older than three hours. Nothing writes an `out` row but the watcher and Tom's reply tool, and the
+watcher is unarmed — so no school admin can receive an email from this until somebody arms it.
+
+**The watcher stays unarmed.** `ops/ssi-support-watcher.service` in command-surface is committed
+and installed nowhere: not in `~/.config/systemd/user`, no `~/.config/ssi-support/env`, never
+enabled, never started. Arming it means an AI begins drafting replies to real school admins.
+That is an intention-level call and it is being asked of Tom separately.
