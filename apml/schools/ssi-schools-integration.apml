@@ -1901,3 +1901,23 @@ future NotInV1:
     - "District admin"
     - "API for LMS integration"
     - "SSO (SAML, Google Workspace)"
+
+# =============================================================================
+# COPY A TEACHER'S OWN PLAY ONTO THE CLASS ACCOUNT (2026-09-11, job #266)
+# =============================================================================
+
+copy_teacher_play:
+  ruling: |
+    Tom, 2026-09-11: "IF the teachers have by mistake played as themselves,
+    Angharad needs to be able to copy all progress data and telemetry and
+    everything to the play as class account." A class IS one learner account
+    (classes.class_learner_id); a teacher who ran lessons signed in as
+    themselves leaves that account reading "not started".
+  endpoints:
+    - "POST api/school/copy-teacher-play/preview — dry run: per-table counts, in-app seconds off the diary, teacher and class positions as the last LEGO's own content, resulting position. Writes nothing; works under View-as."
+    - "POST api/school/copy-teacher-play/apply — re-keys every learner-keyed row for the CLASS'S course from the teacher's learners row onto the class learner; merges the course_enrollments cursor to the further position; writes one class_progress_copy_audit row. Refused 403 under View-as (rejectIfViewAs)."
+  auth: "canTeachClass — school admin of the class's school under either spelling, ssi_admin, or an active teacher of the class. The teacher_user_id must itself teach the class."
+  engine: "api/_utils/classProgressCopy.ts — COPY_TABLES (13, read live from information_schema), SKIPPED_TABLES named with reasons, planCopy / applyCopy."
+  idempotency: "Copy-and-keep. Generated-id tables skip source ids named in any prior audit record for the same source/target/course; natural-key tables are insert-if-absent on the class side. Practice minutes on the enrollment are added once, on the first run."
+  audit_table: "class_progress_copy_audit (migration 20260911b, applied live by canary_class_progress_copy_audit.cjs): RLS on, zero policies, service_role only, JSONB record shaped after api/_utils/identity/mergeAudit.ts MovedRows."
+  ui: "components/schools/CopyTeacherPlayCard.vue on the class page rail, shown to school_admin / govt_admin only; pick teacher → See what would move → Copy onto the class → result line. Handbook anchor class-copy-play-preview with parts."
