@@ -34,7 +34,9 @@ function makeChainable(table: string) {
   let rows: any[] = [...((DB as any)[table] ?? [])]
   const builder: any = {
     select: () => builder,
-    eq: () => builder,
+    eq: (col: string, v: unknown) => { if (col === 'learner_id' || col === 'course_id') rows = rows.filter((r) => r[col] === v); return builder },
+    lt: () => builder,
+    lte: () => builder,
     is: () => builder,
     in: (col: string, vals: unknown[]) => { rows = rows.filter((r) => vals.includes(r[col])); return builder },
     gte: (col: string, v: string) => { rows = rows.filter((r) => r[col] === undefined || String(r[col]) >= v); return builder },
@@ -44,7 +46,7 @@ function makeChainable(table: string) {
       return builder
     },
     range: (from: number, to: number) => { rows = rows.slice(from, to + 1); return builder },
-    then: (resolve: any) => Promise.resolve({ data: rows, error: null }).then(resolve),
+    then: (resolve: any) => Promise.resolve({ data: rows, count: rows.length, error: null }).then(resolve),
   }
   return builder
 }
@@ -118,6 +120,25 @@ describe('GET /api/school/class-practice-7d — the SCHOOL HEADLINE rollup (job 
     // (The per-class figure stays students + class account: 2100s.)
     expect(res.body.rollup).toEqual({ windowDays: 7, classCount: 1, activeClasses7d: 1, inAppMinutes7d: 50 })
     expect(res.body.practiceByClass).toEqual({ c1: 2100 })
+  })
+
+  it('CLASS ACCOUNT ROW (Tom, 2026-09-11): each class carries its own account\'s progress — started, minutes per day, journey — and a class that never played says so', async () => {
+    DB.classes.push({ id: 'c-never', school_id: 's1', class_learner_id: 'class-learner-never', course_code: 'cym_s_for_eng', last_lego_id: null })
+    DB.classes[0].course_code = 'cym_s_for_eng'
+    DB.course_enrollments = [{ learner_id: 'class-learner-1', course_id: 'cym_s_for_eng', highest_completed_lego_id: null, last_completed_lego_id: 'S0003L02', last_practiced_at: at(-60) }]
+    scope.classIds = ['c1', 'c-never']
+    scope.studentsByClass = { c1: ['l1'], 'c-never': [] }
+    const res = makeRes()
+    await handler(makeReq({}), res)
+    expect(res.statusCode).toBe(200)
+    const a = res.body.classAccountByClass
+    expect(a.c1.started).toBe(true)
+    expect(a.c1.minutesByDay).toHaveLength(7)
+    // The class account's 25 minutes yesterday, and nothing from the student.
+    expect(a.c1.minutesByDay.reduce((x: number, y: number) => x + y, 0)).toBe(25)
+    expect(a.c1.lastPractisedAt).toBeTruthy()
+    // Never played: no cursor, no diary, no position → not started, in words downstream.
+    expect(a['c-never']).toEqual({ started: false, journeyDone: 0, journeyTotal: 0, seedNumber: null, lastPractisedAt: null, phrases7d: 0, minutesByDay: [0, 0, 0, 0, 0, 0, 0] })
   })
 
   it('rollup is present, and zero, when the caller has no classes — never absent', async () => {

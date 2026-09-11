@@ -95,6 +95,22 @@ export interface InAppTime {
   seconds: number
   /** Distinct UTC days with any event in the window, ascending. */
   days: string[]
+  /** Sessionised seconds per UTC day (YYYY-MM-DD) — the class list's activity sparkline (job #265). */
+  secondsByDay: Record<string, number>
+}
+
+/** Pure: sessionised seconds per UTC day. A block never spans midnight here — each day's stamps are sessionised alone. */
+export function sessioniseSecondsByDay(timestampsMs: number[], opts: SessioniseOptions = {}): Record<string, number> {
+  const byDay = new Map<string, number[]>()
+  for (const t of timestampsMs) {
+    if (!Number.isFinite(t)) continue
+    const day = new Date(t).toISOString().slice(0, 10)
+    if (!byDay.has(day)) byDay.set(day, [])
+    byDay.get(day)!.push(t)
+  }
+  const out: Record<string, number> = {}
+  for (const [day, ts] of byDay) out[day] = sessioniseSeconds(ts, opts)
+  return out
 }
 
 /**
@@ -149,6 +165,6 @@ export async function inAppTimeByLearner(
       }
     }),
   )
-  for (const [lid, ts] of stamps) out.set(lid, { seconds: sessioniseSeconds(ts, opts), days: activeDays(ts) })
+  for (const [lid, ts] of stamps) out.set(lid, { seconds: sessioniseSeconds(ts, opts), days: activeDays(ts), secondsByDay: sessioniseSecondsByDay(ts, opts) })
   return out
 }
