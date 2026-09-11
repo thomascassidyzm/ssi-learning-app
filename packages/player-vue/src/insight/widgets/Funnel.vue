@@ -3,7 +3,12 @@
 // widgets/Funnel.vue — Descending funnel; annotated leak stage highlighted red.
 //
 // Contract mirrors Stat.vue exactly:
-//   · props { data: FunnelData, spec: InsightSpec }   — data already narrowed to 'funnel'
+//   · props { data: FunnelData, annotations?: Annotation[], spec?: InsightSpec }
+//     — data already narrowed to 'funnel'. InsightWidget (the only host) passes { data,
+//     annotations } and NOTHING else, so `spec` is optional: it was declared required
+//     here and read blind, which threw "Cannot read properties of undefined (reading
+//     'annotate')" and took a school admin's whole insights page into the error
+//     boundary the first time a class had started the course (job #259, 2026-09-11).
 //   · emits NOTHING                                    — the wrapper owns all events
 //   · renders ONLY the chart + annotation marks        — the wrapper owns story/why/actions chrome
 //   · lazy-imports echarts in onMounted (stays in the admin chunk)
@@ -25,7 +30,7 @@ import {
 
 const props = withDefaults(defineProps<{
   data: FunnelData
-  spec: InsightSpec
+  spec?: InsightSpec
   annotations?: Annotation[]
 }>(), {
   annotations: () => [],
@@ -42,9 +47,13 @@ let chart: EChartInstance | null = null
 let resizeObserver: ResizeObserver | null = null
 
 // ---- annotation helpers ----
+// The wrapper already hands spec.annotate down as `annotations`; a direct mount may pass a spec.
+function stageAnnotations(): Annotation[] {
+  return props.spec?.annotate ?? props.annotations
+}
 // Find a 'stage' annotation for a given stage id. Silently ignores non-stage shapes.
 function annForStage(stageId: string): (Annotation & { at: 'stage' }) | undefined {
-  const found = (props.spec.annotate ?? props.annotations).find(
+  const found = stageAnnotations().find(
     (a): a is Annotation & { at: 'stage' } => a.at === 'stage' && a.stage === stageId,
   )
   return found
@@ -187,11 +196,11 @@ const _toneRgb = toneRgb
     <!-- Annotation badges: rendered below the chart as labelled callouts for each annotated stage.
          The wrapper owns the full story/why/actions chrome; these are purely chart-level marks. -->
     <ul
-      v-if="(spec.annotate ?? annotations).some(a => a.at === 'stage')"
+      v-if="stageAnnotations().some(a => a.at === 'stage')"
       class="funnel-annotations"
     >
       <li
-        v-for="ann in (spec.annotate ?? annotations).filter((a): a is typeof a & { at: 'stage' } => a.at === 'stage')"
+        v-for="ann in stageAnnotations().filter((a): a is typeof a & { at: 'stage' } => a.at === 'stage')"
         :key="ann.stage"
         class="funnel-ann-item"
         :style="{ borderColor: `rgba(${_toneRgb(ann.tone)}, 0.35)`, background: `rgba(${_toneRgb(ann.tone)}, 0.07)` }"
