@@ -148,6 +148,9 @@ const errorText = computed(() => viewAsError.value)
 </template>
 
 <style scoped>
+/* Colours come from the --schools-* tokens the admin top bar itself uses, so
+   the trigger reads on the light bar. It used to carry white-on-translucent
+   values written for the old dark bar, which made it invisible (2026-09-11). */
 .vap {
   position: relative;
   display: inline-flex;
@@ -158,16 +161,19 @@ const errorText = computed(() => viewAsError.value)
   gap: 6px;
   font: inherit;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.86);
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 8px;
+  font-weight: 500;
+  color: var(--schools-fg-2);
+  background: var(--schools-bg);
+  border: 1px solid var(--schools-border-strong);
+  border-radius: var(--schools-radius-md);
   padding: 6px 10px;
   cursor: pointer;
+  white-space: nowrap;
 }
 .vap-trigger:hover {
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
+  background: var(--schools-card);
+  color: var(--schools-fg);
+  border-color: var(--schools-fg-3);
 }
 .vap-menu {
   position: absolute;
@@ -176,13 +182,14 @@ const errorText = computed(() => viewAsError.value)
   margin-top: 6px;
   z-index: 60;
   width: 300px;
+  max-width: calc(100vw - 24px);
   max-height: 70vh;
   overflow-y: auto;
-  background: #fff;
-  color: #14110f;
-  border: 1px solid rgba(15, 18, 18, 0.12);
-  border-radius: 10px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.24);
+  background: var(--schools-card);
+  color: var(--schools-fg);
+  border: 1px solid var(--schools-border);
+  border-radius: var(--schools-radius-lg);
+  box-shadow: var(--schools-shadow-lg);
   padding: 8px;
 }
 .vap-head {
@@ -190,7 +197,7 @@ const errorText = computed(() => viewAsError.value)
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #7a716a;
+  color: var(--schools-fg-3);
 }
 .vap-item {
   display: flex;
@@ -201,13 +208,13 @@ const errorText = computed(() => viewAsError.value)
   font: inherit;
   background: none;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--schools-radius-md);
   padding: 7px 8px;
   cursor: pointer;
-  color: inherit;
+  color: var(--schools-fg);
 }
 .vap-item:hover {
-  background: rgba(15, 18, 18, 0.06);
+  background: var(--schools-bg);
 }
 .vap-item-label {
   font-size: 14px;
@@ -215,25 +222,33 @@ const errorText = computed(() => viewAsError.value)
 }
 .vap-item-hint {
   font-size: 12px;
-  color: #7a716a;
+  color: var(--schools-fg-3);
 }
 .vap-search {
   width: 100%;
   font: inherit;
   font-size: 14px;
   padding: 7px 9px;
-  border: 1px solid rgba(15, 18, 18, 0.16);
-  border-radius: 8px;
+  color: var(--schools-fg);
+  background: var(--schools-card);
+  border: 1px solid var(--schools-border-strong);
+  border-radius: var(--schools-radius-md);
   margin: 2px 0 4px;
 }
 .vap-note {
   margin: 4px 8px;
   font-size: 12px;
-  color: #7a716a;
+  color: var(--schools-fg-3);
 }
 .vap-error {
   margin: 6px 8px 2px;
   font-size: 12px;
-  color: #b42318;
+  color: var(--schools-red);
+}
+
+@media (max-width: 640px) {
+  /* Icon only on a phone; the title still names it. */
+  .vap-trigger span { display: none; }
+  .vap-trigger { padding: 6px 8px; }
 }
 </style>
