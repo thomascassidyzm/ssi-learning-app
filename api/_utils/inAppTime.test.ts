@@ -4,7 +4,7 @@
  * do not, and no block can ever be a 128-hour sitting.
  */
 import { describe, it, expect } from 'vitest'
-import { sessioniseSeconds, IDLE_CUTOFF_SECONDS, BLOCK_CAP_SECONDS } from './inAppTime'
+import { sessioniseSeconds, activeDays, IDLE_CUTOFF_SECONDS, BLOCK_CAP_SECONDS } from './inAppTime'
 
 const m = (min: number) => min * 60 * 1000
 
@@ -40,5 +40,20 @@ describe('sessioniseSeconds', () => {
     const ts = [0, m(3), m(10), m(11)]
     expect(sessioniseSeconds(ts, { idleCutoffSeconds: 120 })).toBe(60)
     expect(sessioniseSeconds(ts, { idleCutoffSeconds: 600 })).toBe(660)
+  })
+})
+
+describe('activeDays', () => {
+  it('counts the distinct UTC days a learner had any event on — one clip on a day is a day practised', () => {
+    const d = (iso: string) => new Date(iso).getTime()
+    expect(activeDays([
+      d('2026-09-08T07:50:00Z'), d('2026-09-08T08:03:00Z'), // one lesson, one day
+      d('2026-09-09T10:52:00Z'),                            // a single clip the next day
+      d('2026-09-11T23:59:59Z'), d('2026-09-11T00:00:01Z'), // the same UTC day at both ends
+    ])).toEqual(['2026-09-08', '2026-09-09', '2026-09-11'])
+  })
+  it('is empty for no events and ignores garbage stamps', () => {
+    expect(activeDays([])).toEqual([])
+    expect(activeDays([NaN])).toEqual([])
   })
 })

@@ -557,3 +557,26 @@ watcher is unarmed — so no school admin can receive an email from this until s
 and installed nowhere: not in `~/.config/systemd/user`, no `~/.config/ssi-support/env`, never
 enabled, never started. Arming it means an AI begins drafting replies to real school admins.
 That is an intention-level call and it is being asked of Tom separately.
+## 2026-09-11 — a class with no pupil accounts is not "inactive" by fiat (job #217·G)
+
+**The case.** Ysgol Cas-gwent runs 34 classes as whole-class play from the front, with no pupil
+accounts at all. On the morning of 11 September its head of department sent screenshots of her
+class list reading "Inactive" on every row, next to "0h this week". By 12:03Z the in-app-time
+release (`5ea385e88`) had made the hours column true, and the node home true, but the health mark
+stayed "Inactive" for every class — the rule in `TeacherDashboard.vue` said "no pupil accounts
+means inactive" before it looked at whether the class had practised at all.
+
+**The ruling applied.** The Handbook sentence for that column already says what the rule is:
+"Health is worked out from how many of the last seven days the class practised on." The code now
+does that. `/api/school/class-practice-7d` carries `activeDaysByClass` — distinct days with any
+play in the window, the class account and its pupils together — from the same diary read that
+already produces the in-app seconds. `deriveClassHealth` (`views/schools/classHealth.ts`) takes
+the higher of the report's active days and the diary's, tiers as before (5+ excellent, 2+ good,
+1 needs attention), and only then falls back to the old pupil-count rule for a class with no play
+on either record. Classes with pupils keep the answer they had. No Handbook sentence changed,
+because the sentence was right and the code was wrong; `--check` stays green.
+
+**What this does not do.** It does not touch the node home, the Insights rate engine (which still
+reads `analytics_class_sessions_scoped` over the dead `class_sessions` table and reports "no
+practice recorded" for this school — logged for job #215·G), or any copy. It sends no notice to
+anyone. Pinned by `classHealth.test.ts`, seen red on the old rule and green on the new one.
