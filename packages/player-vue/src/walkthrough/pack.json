@@ -1,5 +1,5 @@
 {
-  "version": "8ff5a6e3a950",
+  "version": "a0cc40fd37f2",
   "generatedAt": "2026-09-11",
   "walks": [
     {
@@ -1515,6 +1515,37 @@
         "Paste it into an email or a message to whoever needs it."
       ],
       "note": "Tapping a link chip does not open the school — the rest of the row does that. A school still flagged as awaiting admin is one whose admin link nobody has opened yet."
+    },
+    {
+      "id": "copy-a-teacher-s-own-play-onto-the-class",
+      "title": "Copy a teacher's own play onto the class",
+      "section": "running-classes",
+      "personas": [
+        "school_admin"
+      ],
+      "keywords": [
+        "copy",
+        "teacher",
+        "play as class",
+        "progress",
+        "mistake",
+        "own account"
+      ],
+      "place": {
+        "route": "class-detail"
+      },
+      "anchor": "class-copy-play-preview",
+      "surface": "schools",
+      "source": "packages/player-vue/src/components/schools/CopyTeacherPlayCard.vue",
+      "walk": null,
+      "what": "Putting right a class whose teacher ran lessons signed in as themselves instead of using Play as class, so the class carries the progress it really made.",
+      "where": "The class page, the **Played as themselves by mistake?** card beside the roster.",
+      "how": [
+        "Pick the teacher from the list.",
+        "Tap **See what would move** and read the sessions, the time in the app and where the class will be afterwards.",
+        "Tap **Copy onto the class**. One line tells you what was copied."
+      ],
+      "note": "The teacher keeps their own record. Only play on this class's course moves, the class ends up at the further of the two places, and running it again copies nothing twice. While viewing as someone else you can see what would move but not copy it."
     },
     {
       "id": "create-your-first-classes",

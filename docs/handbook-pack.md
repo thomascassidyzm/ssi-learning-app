@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `8ff5a6e3a950` · generated 2026-09-11 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `a0cc40fd37f2` · generated 2026-09-11 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -274,6 +274,20 @@ Section: getting-people-in · roles: leader · anchor: `schools-list-link-chips`
 4. Paste it into an email or a message to whoever needs it.
 
 **Worth knowing.** Tapping a link chip does not open the school — the rest of the row does that. A school still flagged as awaiting admin is one whose admin link nobody has opened yet.
+
+## Copy a teacher's own play onto the class
+
+Section: running-classes · roles: school_admin · anchor: `class-copy-play-preview` · in `packages/player-vue/src/components/schools/CopyTeacherPlayCard.vue`
+
+**What it's for.** Putting right a class whose teacher ran lessons signed in as themselves instead of using Play as class, so the class carries the progress it really made.
+
+**Where it is.** The class page, the **Played as themselves by mistake?** card beside the roster.
+
+1. Pick the teacher from the list.
+2. Tap **See what would move** and read the sessions, the time in the app and where the class will be afterwards.
+3. Tap **Copy onto the class**. One line tells you what was copied.
+
+**Worth knowing.** The teacher keeps their own record. Only play on this class's course moves, the class ends up at the further of the two places, and running it again copies nothing twice. While viewing as someone else you can see what would move but not copy it.
 
 ## Create your first classes
 
