@@ -1,0 +1,13 @@
+{
+  "id": "settings-wrong-server",
+  "feel": "Settings tells the learner they are connected to the wrong server.",
+  "patch": {
+    "file": "packages/player-vue/src/components/SettingsScreen.vue",
+    "before": "const configured = platform().apiOrigin",
+    "after": "const configured = 'https://stale.invalid'",
+    "count": 1
+  },
+  "check": "TESTER-SHEET step 4; journeys j5 measures screen timing, not the displayed address",
+  "gap": "No local Settings render fixture asserting the displayed host. apiBase tests check request routing, not this label.",
+  "revert": "Runner restores the original bytes in finally and asserts git status is clean before the next entry. Fixture pages are destroyed with their browser."
+}
