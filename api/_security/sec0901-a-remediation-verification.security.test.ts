@@ -109,6 +109,7 @@ describe('SEC0901-A-03 [SECURE-ASSERTION] — cronAuth is wired into every regis
       '/api/cron/expire-demo-schools',
       '/api/cron/org-entitlement-reconcile',
       '/api/cron/org-free-year-warnings',
+      '/api/cron/support-doorbell',
       '/api/cron/teacher-payouts',
     ])
   })
