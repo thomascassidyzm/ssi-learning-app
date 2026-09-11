@@ -864,7 +864,12 @@ principle HeadlineHoursIncludeStaffPractice:
     school role no longer exists: the role buttons pick the most recently
     active real person of that role (ViewAsPicker.vue, /api/admin/users?role=).
     The all-time figures below remain for the group/region views and the
-    teachers/students tables, in minutes.]
+    teachers/students tables, in minutes. Same day, Tom's second ruling: a
+    class IS one learner account, so the classes list (TeacherDashboard.vue)
+    and the class node home read the CLASS ACCOUNT's own progress from
+    class-practice-7d's classAccountByClass — belt, journey in LEGOs,
+    per-day minutes, started — and carry no per-pupil count, average or
+    distribution; a never-played account says "Not started" in words.]
 
     A school's HEADLINE hours (school_summary.total_practice_hours, the
     dashboard "Hours practised" tile, govt tiles/straplines, and every group/

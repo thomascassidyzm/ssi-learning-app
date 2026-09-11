@@ -388,7 +388,7 @@ describe('NodeHomeView — one grammar at every level', () => {
     expect(pushMock).toHaveBeenCalledWith('/admin/groups/nation')
   })
 
-  it('TEACHING-DATA PIN: class home shows per-student belts + the class cards (journey, belt distribution, benchmark)', async () => {
+  it('TEACHING-DATA PIN: class home shows per-student belts in the roster + the class journey card; the per-student cards are gone (Tom, 2026-09-11, job #265)', async () => {
     routeMock.params = { id: 'class-1' }
     setupFetch(classPayload())
     const wrapper = mountView()
@@ -400,12 +400,16 @@ describe('NodeHomeView — one grammar at every level', () => {
     expect(text).toContain('white')
     expect(text).toContain('60')
     expect(wrapper.findAll('.belt-dot').length).toBeGreaterThan(0)
-    // Class cards
+    // Class cards: the journey is the CLASS ACCOUNT's own. A class is one
+    // learner account, so belt-distribution-by-student, practice per student
+    // per week, students-average and the Students stat tile are gone.
     expect(text).toContain('Course journey')
-    expect(text).toContain('Belt distribution')
-    expect(text).toContain('Practice min/student/week')
+    expect(text).not.toContain('Belt distribution')
+    expect(text).not.toContain('Practice min/student/week')
+    expect(text).not.toContain('on their own')
+    expect(text).not.toContain('LEGOs mastered on average')
+    expect(text).toContain('LEGOs travelled together')
     // Journey note speaks LEGOs (position-is-LEGO ruling: never "seed")
-    expect(text).toContain('LEGOs mastered on average')
     expect(text).not.toMatch(/\bseed\b/i)
   })
 
@@ -455,7 +459,7 @@ describe('NodeHomeView — one grammar at every level', () => {
     expect(text).not.toMatch(/\bseed\b/i)
   })
 
-  it('a class with NO class practice yet: teaching invitation copy, journey falls back to the students\' average', async () => {
+  it('a class with NO class practice yet: teaching invitation copy, and the journey says Not started in words', async () => {
     routeMock.params = { id: 'class-1' }
     const payload = classPayload()
     ;(payload as any).classPractice = { windowDays: 7, phrases7d: 0, inAppMinutes7d: 0, lastPractisedAt: null, phrases: [] }
@@ -466,8 +470,9 @@ describe('NodeHomeView — one grammar at every level', () => {
 
     const text = wrapper.text()
     expect(text).toContain('No class practice yet')
-    // Fallback journey rendering: students' average LEGOs drives the bar.
-    expect(text).toContain('LEGOs mastered on average')
+    // Never a bar of zeros dressed as an estimate: the words say it.
+    expect(text).toContain('Not started — the class has not played together yet.')
+    expect(text).not.toContain('LEGOs mastered on average')
   })
 
   it('LEARNER-PAGE-DEAD PIN: student rows are FLAT — everything in-row, no click, no navigation, no streak', async () => {

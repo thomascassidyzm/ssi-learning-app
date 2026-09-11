@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `2969d38779fe` · generated 2026-09-11 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `0e7c3a9d6d05` · generated 2026-09-11 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -386,7 +386,7 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `way
 
 Section: running-classes · roles: school_admin, teacher · anchor: `classes-export` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
 
-**What it's for.** Taking the class list away as a spreadsheet, with the name, language, student count, belt, hours in the app this week, sessions, health and join code for every class.
+**What it's for.** Taking the class list away as a spreadsheet, with the name, language, belt, journey in LEGOs, minutes in the app this week, sessions, health and join code for every class.
 
 **Where it is.** **My Classes**, the **Export CSV** button along the top.
 
@@ -408,9 +408,9 @@ Section: running-classes · roles: school_admin, teacher · anchor: `classes-fil
 1. Open **My Classes**.
 2. Pick a language under **Course** to see only the classes learning it.
 3. Pick a state under **Health** to pull out the classes that need attention.
-4. Change **Sort by** to order by students, time in app this week or average seeds. On a phone it is the first control, and the number you sorted by shows beside each class name.
+4. Change **Sort by** to order by time in app this week or by how far through the course each class has got. On a phone it is the first control, and the number you sorted by shows beside each class name.
 
-**Worth knowing.** The totals above the table follow the filter, so the student count and the hours are always the total of what you are actually looking at.
+**Worth knowing.** The totals above the table follow the filter, so the minutes are always the total of what you are actually looking at.
 
 ## Find out which email you are signed in with
 
@@ -554,16 +554,15 @@ Section: seeing-progress · roles: admin · anchor: `question-page` · in `packa
 
 Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-journey` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
 
-**What it's for.** A bar showing where a class has got to in its course, measured in LEGOs — the individual pieces of language the course teaches. The class's own shared position leads, and the average its students have reached on their own sits alongside it.
+**What it's for.** A bar showing where a class has got to in its course, measured in LEGOs — the individual pieces of language the course teaches. A class is one learner account played from the front, so the position is the class's own.
 
 **Where it is.** The **Course journey** card on a class page.
 
 1. Open a class.
 2. Read the bar for how much of the course the class has covered together.
-3. The line underneath gives both figures: the class's shared position, and the average students have reached learning alone.
-4. It also names the next belt and how many LEGOs are left to reach it.
+3. The line underneath gives the figure in LEGOs, then names the next belt and how many LEGOs are left to reach it.
 
-**Worth knowing.** A class that has never played together has no shared position, so the bar falls back to the students' own average and says so.
+**Worth knowing.** A class that has never played together says **Not started** in words; it is never shown as a bar of zero.
 
 ## How fresh these numbers are
 
@@ -787,21 +786,6 @@ Section: running-classes · roles: school_admin, teacher · anchor: `classes-row
 
 **Worth knowing.** The row is a button in its own right, so a keyboard works too. The buttons at the right of the row do their own jobs and do not open the class.
 
-## Practice per student per week
-
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-benchmark` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
-
-**What it's for.** Minutes of practice per student per week for this class, set against the same figure for its school and for everyone doing the course. Dividing by students and by weeks is what lets a class of nine and a class of thirty be compared honestly.
-
-**Where it is.** The **Practice min/student/week** card on a class page.
-
-1. Open a class.
-2. Read the top bar for this class's own minutes per student per week.
-3. The bars below it are the school average and the global average for the course.
-4. Compare the lengths — the numbers at the end give the exact figures.
-
-**Worth knowing.** A class with too little practice recorded shows a plain line saying so rather than a bar built from almost nothing.
-
 ## Prove your mailbox reaches you
 
 Section: getting-people-in · roles: school_admin, teacher · anchor: `mailbox-check-send` · in `packages/player-vue/src/components/schools/MailboxCheckPrompt.vue`
@@ -833,7 +817,7 @@ Section: your-own-account · roles: leader, school_admin · anchor: `account-ins
 
 Section: running-classes · roles: school_admin, teacher · anchor: `classes-table` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
 
-**What it's for.** One row per class, showing at a glance how each one is doing: how many students, what belt the class has reached, minutes in the app this week, the shape of the last seven days, and a health mark for classes worth a look. Time in app is the time the class, and any students on their own accounts, spent in the app with the lesson running, pauses included — so it is the time they were in the lesson.
+**What it's for.** One row per class, showing at a glance how each one is doing. A class is one learner account, played from the front of the room, so every figure on the row is that account's own: the belt the class has reached, how far through the course it has travelled in LEGOs, minutes in the app this week, the shape of its last seven days, and a health mark for classes worth a look. Time in app is time with the lesson running, pauses included — the time the class was in the lesson. A class that has never played says **Not started** in words rather than showing a row of zeros.
 
 **Where it is.** **My Classes**, the table filling most of the page. On a phone each class is a card instead, with the number you sorted by beside its name and the rest underneath.
 
@@ -859,21 +843,6 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class
 5. Tap a row to open that person.
 
 **Worth knowing.** Needing attention means either nothing for a fortnight or less than half the class average, so it is a prompt to look rather than a verdict.
-
-## Reading the belts
-
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-belts` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
-
-**What it's for.** How a class is spread across the eight belts, from white to black. A belt is earned by completing whole sentences of the course, so it is a coarse, honest badge of distance travelled rather than a score or a grade.
-
-**Where it is.** The **Belt distribution** card on a class page.
-
-1. Open a class.
-2. Read the coloured strip for the shape of the class — a wide band of one colour means everyone is together.
-3. The list underneath names each belt and how many students hold it.
-4. The ladder runs white, yellow, orange, green, blue, purple, brown, black, reached at 8, 20, 40, 80, 150, 280 and 400 completed sentences.
-
-**Worth knowing.** Every screen in the product uses that one ladder, so a student never shows a different belt in two places.
 
 ## Reading your insights
 
