@@ -36,14 +36,16 @@
  * school whose platform coverage has lapsed answers 403 coverage_expired; a
  * plain group node does not (owner's ruling in schoolCoverageGate.ts).
  *
- * WHAT IS COUNTED, AND WHAT IS HONESTLY NOT. Whole-class practice lives ONLY in
- * player_events (api/_utils/classPractice.ts, job #159): the class account
- * cannot write the playback ledger and its session rows are absent for real
- * lessons. So a class is measured in PHRASES SPOKEN, never minutes, and minutes
- * appear only for people's own logins, off the ledger. No proxy stands in for
- * whole-class time. "This week" is the last seven days by timestamp — the
- * identical rule the node home's phrases7d uses, so Overview and Insights can
- * never disagree about the number.
+ * WHAT IS COUNTED. Whole-class practice lives ONLY in player_events
+ * (api/_utils/classPractice.ts, job #159): the class account cannot write the
+ * playback ledger and its session rows are absent for real lessons. So a class
+ * is measured in PHRASES SPOKEN and in IN-APP MINUTES on its own account,
+ * sessionised off the diary by the one rule in _utils/inAppTime.ts (founder
+ * ruling 2026-09-10: in-app time is in-class time) — the same number the class
+ * page header and the school dashboard show, so no surface can disagree with
+ * another. People's minutes are their own logins, off the ledger. "This week"
+ * is the last seven days by timestamp — the identical rule the node home's
+ * phrases7d uses.
  *
  * POSITION IS THE LEGO LAST PLAYED, never a seed number on screen: each class
  * carries its position as the LEGO's own text in both languages. Milestones in
@@ -82,6 +84,7 @@ import {
   CLASS_PRACTICE_WINDOW_DAYS,
   type ClassPracticeFacts,
 } from '../_utils/classPractice'
+import { inAppSecondsByLearner } from '../_utils/inAppTime'
 import { applyCors } from '../_utils/cors'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -107,6 +110,9 @@ export interface OrgIntelClassRow {
   courseCode: string | null
   phrasesThisWeek: number
   phrasesLastWeek: number
+  /** In-app minutes on the class account, sessionised off the diary (inAppTime.ts). */
+  minutesThisWeek: number
+  minutesLastWeek: number
   /** Newest evidence the class practised together — a clip or the cursor stamp. */
   lastPractisedAt: string | null
   daysSincePractice: number | null
@@ -135,6 +141,9 @@ export interface OrgIntelResponse {
     classesLastWeek: number
     phrasesThisWeek: number
     phrasesLastWeek: number
+    /** In-app minutes across the classes' own accounts. */
+    classMinutesThisWeek: number
+    classMinutesLastWeek: number
     peopleCount: number
     peopleThisWeek: number
     peopleLastWeek: number
@@ -270,7 +279,7 @@ export async function computeOrgIntel(
   const classLearnerIds = classes.map((c) => c.class_learner_id).filter((id): id is string => !!id)
   const courseCodes = [...new Set(classes.map((c) => c.course_code).filter((c): c is string => !!c))]
 
-  const [practice, enrollments, people, courseLengths] = await Promise.all([
+  const [practice, enrollments, people, courseLengths, inAppWeek, inAppFortnight] = await Promise.all([
     loadClassPractice(svc, classes, now, LOOKBACK_DAYS),
     Promise.all(chunk(classLearnerIds).map(async (batch) => {
       const { data } = await svc
@@ -281,6 +290,11 @@ export async function computeOrgIntel(
     })).then((pages) => pages.flat()),
     ownAccountLearners(svc, { schoolIds: scope.schoolIds, groupIds: scope.groupIds, classIds }),
     loadCourseLengths(svc, courseCodes),
+    // Whole-class time: the class account's in-app seconds this week, and over
+    // the fortnight so last week is the difference. Same rule as the class
+    // page header and the school dashboard (#265).
+    inAppSecondsByLearner(svc, classLearnerIds, new Date(weekAgo).toISOString()),
+    inAppSecondsByLearner(svc, classLearnerIds, new Date(twoWeeksAgo).toISOString()),
   ])
 
   // Position per class: the highest LEGO played, else the last completed one.
@@ -325,12 +339,16 @@ export async function computeOrgIntel(
     const facts: ClassPracticeFacts | undefined = practice.get(c.id)
     const times = facts?.phraseTimes ?? []
     const last = facts?.lastPractisedAt ?? null
+    const secondsThisWeek = c.class_learner_id ? inAppWeek.get(c.class_learner_id) ?? 0 : 0
+    const secondsFortnight = c.class_learner_id ? inAppFortnight.get(c.class_learner_id) ?? 0 : 0
     return {
       id: c.id,
       name: c.class_name || 'Unnamed class',
       courseCode: c.course_code,
       phrasesThisWeek: phrasesBetween(times, weekAgo, Number.POSITIVE_INFINITY),
       phrasesLastWeek: phrasesBetween(times, twoWeeksAgo, weekAgo),
+      minutesThisWeek: Math.round(secondsThisWeek / 60),
+      minutesLastWeek: Math.round(Math.max(secondsFortnight - secondsThisWeek, 0) / 60),
       lastPractisedAt: last,
       daysSincePractice: last ? Math.floor((now - new Date(last).getTime()) / DAY_MS) : null,
       position: positionFor(c),
@@ -400,6 +418,8 @@ export async function computeOrgIntel(
       classesLastWeek: classRows.filter((c) => c.phrasesLastWeek > 0).length,
       phrasesThisWeek: classRows.reduce((n, c) => n + c.phrasesThisWeek, 0),
       phrasesLastWeek: classRows.reduce((n, c) => n + c.phrasesLastWeek, 0),
+      classMinutesThisWeek: classRows.reduce((n, c) => n + c.minutesThisWeek, 0),
+      classMinutesLastWeek: classRows.reduce((n, c) => n + c.minutesLastWeek, 0),
       peopleCount: personRows.length,
       peopleThisWeek: personRows.filter((p) => p.minutesThisWeek > 0).length,
       peopleLastWeek: personRows.filter((p) => p.minutesLastWeek > 0).length,

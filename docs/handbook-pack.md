@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `9dfff707ad44` · generated 2026-09-11 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `0e7c3a9d6d05` · generated 2026-09-11 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -1424,7 +1424,7 @@ Section: seeing-progress · roles: leader, school_admin · anchor: `insights-org
 3. Read the class rows for who practised, when they last practised together and where in the course they are.
 4. Read the people rows for own-account minutes.
 
-**Worth knowing.** A class is counted in phrases spoken, never minutes. Nothing records how long a whole class practised, so no time is invented for it. Minutes appear only for people's own logins.
+**Worth knowing.** A class's minutes are time in the app on its own class account, the gaps between phrases included, the same number its class page shows. People's minutes are their own logins.
 
 ## Which courses are worth attention
 
