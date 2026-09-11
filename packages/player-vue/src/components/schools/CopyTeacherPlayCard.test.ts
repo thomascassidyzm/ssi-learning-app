@@ -102,3 +102,25 @@ describe('CopyTeacherPlayCard', () => {
     expect(w.find('[data-walk="class-copy-play-apply"]').exists()).toBe(false)
   })
 })
+
+// The honesty property the class page already keeps (classDetailPanels.ts)
+// has to hold inside this card too: a FAILED teacher read is never voiced as
+// "no teachers are linked". Caught by the nightly on 2026-09-11.
+describe('CopyTeacherPlayCard — an empty list is only "no teachers" when the read was clean', () => {
+  it('says the list could not be loaded, not that the class has no teachers', () => {
+    const w = mount(CopyTeacherPlayCard, { props: { classId: 'class-1', teachers: [], teachersState: 'error' } })
+    expect(w.text()).not.toContain('No teachers are linked to this class yet')
+    expect(w.text()).toContain("Couldn't load the teacher list")
+  })
+
+  it('says nothing about teachers while the read is still pending', () => {
+    const w = mount(CopyTeacherPlayCard, { props: { classId: 'class-1', teachers: [], teachersState: 'loading' } })
+    expect(w.text()).not.toContain('No teachers are linked to this class yet')
+    expect(w.text()).toContain('Loading the teacher list')
+  })
+
+  it('still says "no teachers" once the read resolved clean and empty', () => {
+    const w = mount(CopyTeacherPlayCard, { props: { classId: 'class-1', teachers: [], teachersState: 'empty' } })
+    expect(w.text()).toContain('No teachers are linked to this class yet')
+  })
+})

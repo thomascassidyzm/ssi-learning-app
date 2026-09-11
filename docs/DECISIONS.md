@@ -681,3 +681,23 @@ Angharad will see exactly that, and it is not a bug.
 **The audit table is live.** `20260911b_class_progress_copy_audit.sql` was applied to the shared
 project by `canary_class_progress_copy_audit.cjs`: nine assertions, anon and authenticated denied
 on read and write, service_role writes and reads back by pair, then COMMIT of the DDL alone.
+
+## 2026-09-11 — nightly red on staging: the copy-play card voiced a failed teacher read as an empty class; the explainer pack was stale (job #284·F)
+
+**Two reds, both from the 11 September promotions, neither a flaky test.**
+
+**The copy-play card said "No teachers are linked to this class yet" whenever its list was empty**,
+including when the class page's own `class_teachers` read had FAILED. The panel beside it already
+keeps pending, failed and observed-empty apart through `teacherPanelState`, and
+`ClassDetail.teacherAffordance.test.ts` asserts that a failed read never reads as an empty class
+anywhere on the page. The card, added by job #266, did not know the read's state, so the page
+said "Couldn't load" and "No teachers" at once. The fix hands the card the same `PanelState` the
+panel uses: it says loading while pending, "couldn't load" on failure, and "no teachers" only on a
+clean empty read. Absent the prop it still speaks from the list alone, so the card's own tests
+did not change. Two new card tests fail on the pre-fix card and pass on the fixed one.
+
+**The explainer pack was a commit behind its sources.** Job #265 renamed two class-page measures,
+"Students" to "LEGOs travelled together" and "Practice hours" to "Minutes practised", without
+running `tools/explainer/compile.mjs`, so the checked-in `pack.json` carried version 525131d5baef
+while the sources compiled to f33f092123b9. The compile gate exists precisely to catch that. The
+repair is the compiler's own output, committed; nothing was hand-edited.
