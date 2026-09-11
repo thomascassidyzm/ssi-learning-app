@@ -1,3 +1,47 @@
+## 2026-09-11 — The in-app support channel for school and org admins is built, reconciled to Tom's two rulings (job #214, branch cs/214-build-the-in-app-support-channel)
+
+Spec `/d/8e1fce9d` §14, built as written except where Tom's two later rulings changed it: **admins
+only** ("not individual teachers — a bridge too far at the moment", 2026-09-10 21:55Z) and **DB
+writes as turn-taking and as surfacing data points for the handbook page**. The transport is the
+database: her question is a row through `POST /api/support/messages`, the answer is a row the
+watcher on watson-1 writes back, and there is no reply-in endpoint. Decisions taken where the spec
+was silent or ambiguous, each overturnable in a word:
+
+- **Support sits directly under Handbook in the user menu.** The commission doubted the Handbook
+  entry existed in `SchoolsTopBar.vue`; it does, at the top of the menu, so the spec's placement
+  stands. Shown only to `isSchoolAdmin || isGovtAdmin`; the routes refuse a teacher with 403.
+- **The Handbook data points are a third signal key, not a page.** Every answer row records
+  `handbook_anchors` and `handbook_hit`; a how-to the pack could not answer mints
+  `handbook-gap:<anchor-or-topic>` on `support_signals`, so the count of what people have to ask
+  about accumulates by itself and is readable from the table. The admin-facing half is the quiet
+  question mark beside the stats row and the class-practice card, reading the compiled sentence by
+  anchor. No authoring tool, no editor, no second corpus (§15).
+- **The endpoint does not call the agent inline.** §14 item 6 says "calls the agent, writes the
+  agent's reply, returns both"; the reconciled architecture has the agent on watson-1, so the route
+  writes her row and the watcher takes the turn seconds later. Simpler: one agent, one place, and
+  the app never holds a model key. The thread view polls every 15s while visible, and on focus.
+- **A thread is keyed by school OR by group.** `support_threads.school_id` / `group_id`, exactly one
+  set, so an org leader has a thread of their own without pretending to be a school.
+- **Three columns the sketch did not have:** `draft_reply` on the question (the card's draft, so
+  `yes` is one INSERT with no retyping), `last_read_at` on the thread (the unread dot and the
+  doorbell key on it), `escalation_resolved_at` (what turns "Waiting on Tom since …" off).
+- **Population counts OTHER schools**, the caller's own excluded, so the integer reads as the
+  sentence the agent says.
+- **The doorbell is a Vercel cron, not the watcher.** `api/cron/support-doorbell.ts`, hourly at
+  :20 — the Resend key already lives in Vercel and nowhere on watson-1. Rings once per reply,
+  after three hours unopened, to the admin who asked, in the thread's language.
+- **Tom's one word maps to one flag on one script.** `tools/support/reply.cjs --message <id>`
+  with `--yes` (the draft, in his name), `--body "…"` (verbatim, in his name) or `--no` (SSi says
+  a person is looking). Author stamps are author-stamp.js's vocabulary: human · Tom · login-header.
+- **The estate side lives on a command-surface branch made in a git worktree**, never on the live
+  checkout that the running surface reads from. `cs/214-support-channel-watcher`, not merged.
+- **The watcher is written and not armed.** `ops/ssi-support-watcher.service` is not installed;
+  the file says what arming takes. `SUPPORT_PACK_PATH` must point at a `dev` checkout with the
+  handbook compiled — the shared checkout's pack had no handbook section on 2026-09-11, and the
+  loader now says so out loud rather than answering every how-to with "I don't know" quietly.
+- **The migration is unapplied.** `supabase/migrations/20260911_support_channel.sql`; the three
+  tables are declared by hand in `schema.sql` so the snapshot gate stays honest until it is.
+
 ## 2026-09-10 — The layer-1 voice order is settled: v2 third, not last (job #74, branch cs/74-glossary-voice-order-ruling)
 
 Tom ruled on the one open question the vocabulary glossary was carrying. Asked whether the code was

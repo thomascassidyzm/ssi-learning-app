@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, inject, ref } from 'vue'
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
+import { useSupportChannel } from '@/composables/schools/useSupportChannel'
 import { usePlayAsClassContext } from '@/composables/schools/usePlayAsClassContext'
 import { leaderRoleLabel } from '@/composables/nodeTerminology'
 import PlayAsClassIdentity from './PlayAsClassIdentity.vue'
@@ -34,6 +35,16 @@ const upgradeTab = computed<NavTab[]>(() =>
 const route = useRoute()
 const router = useRouter()
 const { currentUser, isGovtAdmin, isSchoolAdmin, clear: clearSchoolContext } = useSchoolContext()
+// Replies unread on the school's support thread — peeked on mount and on
+// focus, never on a timer: a glance at the menu must not count as reading.
+const { unread: supportUnread, peekUnread } = useSupportChannel()
+const canSupport = computed(() => isSchoolAdmin.value || isGovtAdmin.value)
+function peekSupport(): void {
+  if (canSupport.value && document.visibilityState === 'visible') void peekUnread()
+}
+onMounted(() => { peekSupport(); window.addEventListener('focus', peekSupport) })
+onBeforeUnmount(() => { window.removeEventListener('focus', peekSupport) })
+watch(canSupport, (ok) => { if (ok) peekSupport() })
 
 // Play-as-class: while a class session is live, a SLIM in-nav chip names the
 // class (school demoted inside it) so a teacher always knows WHICH class is
@@ -339,6 +350,14 @@ if (typeof document !== 'undefined') {
         </button>
         <div v-if="menuOpen" class="user-menu-pop">
           <router-link :to="handbookTo" class="menu-item" @click="closeMenu">{{ t('schools.ui.topBar.menuHandbook', 'Handbook') }}</router-link>
+          <!-- The support channel, directly under Handbook: a once-a-term thing
+               too, and the same corpus answers most of it. Admins only (Tom,
+               2026-09-10): a class teacher never sees this entry, and the
+               route refuses them anyway. The dot is replies unread. -->
+          <router-link v-if="isSchoolAdmin || isGovtAdmin" to="/schools/support" class="menu-item menu-item-support" @click="closeMenu">
+            {{ t('schools.support.menuSupport', 'Support') }}
+            <span v-if="supportUnread > 0" class="menu-dot" :aria-label="t('schools.support.unreadAria', 'Unread replies')"></span>
+          </router-link>
           <router-link v-if="isSchoolAdmin" to="/schools/settings" class="menu-item" @click="closeMenu">{{ t('schools.ui.topBar.menuSchoolSettings', 'School settings') }}</router-link>
           <!-- Roles are additive facets of ONE account — leaving the schools
                surface is a NAVIGATION, not an identity sign-out. Before this
@@ -552,6 +571,8 @@ if (typeof document !== 'undefined') {
   box-sizing: border-box;
 }
 .menu-item:hover { background: #fafaf6; }
+.menu-item-support { display: flex; align-items: center; gap: 8px; }
+.menu-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--schools-red, #b3312f); flex-shrink: 0; }
 
 /* Hamburger toggle — hidden on desktop, shown below the breakpoint. 44px is
    the accessibility tap-target floor; the previous 38px also had no
