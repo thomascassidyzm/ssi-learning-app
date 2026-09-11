@@ -265,7 +265,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           display_name: l.display_name,
           class_count: classSet.size,
           student_count: studentCount,
-          total_practice_hours: Math.round((seconds / 3600) * 10) / 10,
+          // MINUTES, never hours (Tom, 2026-09-11, job #265): their classes'
+          // students' practice, all time.
+          total_practice_minutes: Math.round(seconds / 60),
           own_practice_minutes: Math.round((ownSeconds.get(l.id) || 0) / 60),
           role_in_context: staffRoles.get(l.user_id) || 'teacher',
           joined_at: joinDates.get(l.user_id) || '',

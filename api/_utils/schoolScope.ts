@@ -42,6 +42,20 @@ const EMPTY: CallerScope = {
   learnerId: null, role: null, classIds: [], learnerIds: [], studentsByClass: {}, schoolIds: [], groupId: null,
 }
 
+/**
+ * The scope an ssi_admin READS when looking at one school — the same shape a
+ * school_admin of that school resolves to, minus any identity. Admin
+ * passthrough only (verifyAdmin first): the caller's own resolveVisibleScope
+ * is EMPTY for an ssi_admin, which is why the school pages under View-as
+ * rendered zeros for every class-practice figure (job #265, 2026-09-11).
+ */
+export async function scopeForSchoolRead(svc: SupabaseClient, schoolId: string): Promise<CallerScope> {
+  const classIds = await classIdsForSchools(svc, [schoolId])
+  const byClass = await studentsByClass(svc, classIds)
+  const learnerIds = [...new Set(Object.values(byClass).flat())]
+  return { learnerId: null, role: 'ssi_admin', classIds, learnerIds, studentsByClass: byClass, schoolIds: [schoolId], groupId: null }
+}
+
 /** Chunk an array so a PostgREST .in() filter never blows the URL length cap. */
 export function chunk<T>(arr: T[], size = 150): T[][] {
   const out: T[][] = []
@@ -202,7 +216,7 @@ async function scopeForGovtAdmin(svc: SupabaseClient, authUid: string): Promise<
 }
 
 /** Active class ids for a set of schools. */
-async function classIdsForSchools(svc: SupabaseClient, schoolIds: string[]): Promise<string[]> {
+export async function classIdsForSchools(svc: SupabaseClient, schoolIds: string[]): Promise<string[]> {
   const ids = new Set<string>()
   for (const batch of chunk(schoolIds)) {
     const { data } = await svc.from('classes').select('id').in('school_id', batch).eq('is_active', true)
@@ -216,7 +230,7 @@ async function classIdsForSchools(svc: SupabaseClient, schoolIds: string[]): Pro
  * maps those auth uids to learners.id. Chunked so large scopes (a whole region)
  * don't blow the .in() URL cap.
  */
-async function studentsByClass(svc: SupabaseClient, classIds: string[]): Promise<Record<string, string[]>> {
+export async function studentsByClass(svc: SupabaseClient, classIds: string[]): Promise<Record<string, string[]>> {
   if (classIds.length === 0) return {}
 
   // 1. class → student auth uids

@@ -23,6 +23,8 @@ import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
 import { missionsEnabled, startMission, useMission } from '@/missions/useMission'
 import { redeemLink } from '@/composables/schools/inviteLink'
+import { formatPracticeMinutes, secondsToMinutes } from '@/composables/schools/practiceMinutes'
+import { useSchoolPractice7d } from '@/composables/schools/useSchoolPractice7d'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -68,8 +70,8 @@ const {
   totalStudents,
   totalTeachers,
   totalClasses,
-  totalPracticeHours,
-  totalStaffPracticeHours,
+  totalPracticeMinutes,
+  totalStaffPracticeMinutes,
   fetchSchools,
   confirmSchoolName,
   selectSchoolToView,
@@ -268,12 +270,17 @@ function closeCreatedModal() {
 // driving the navbar button + pull-to-refresh. Initial load routes through it
 // (spinner + honest "Updated HH:MM"). No polling — the dashboard holds still,
 // even during a live class, until a deliberate refresh (founder ruling).
+// The school leader's headline: minutes in the app this week and classes
+// practising this week — the SAME figures, from the same server rule, as
+// the internal admin's node home for this school (job #265).
+const practice7d = useSchoolPractice7d()
+
 async function loadDashboard(): Promise<void> {
   const user = currentUser.value
   if (!user) return
   await fetchSchools()
   if (isTeacher.value || isSchoolAdmin.value) {
-    await fetchClasses().then(fetchReports)
+    await Promise.all([fetchClasses().then(fetchReports), isSchoolAdmin.value ? practice7d.fetchRollup() : Promise.resolve()])
   }
   if (isGovtAdmin.value) {
     await fetchSchoolLinks()
@@ -342,10 +349,6 @@ function courseDisplayName(code: string): string {
   return m ? getLanguageName(m[1]) : code
 }
 
-function formatHours(seconds: number): string {
-  return `${(seconds / 3600).toFixed(1)}h`
-}
-
 // Aggregates across the teacher's classes (all-time, from class reports).
 const teacherStats = computed(() => {
   const reports = Array.from(classReports.values())
@@ -355,7 +358,7 @@ const teacherStats = computed(() => {
   const totalSeconds = reports.reduce((sum, r) => sum + r.class.total_practice_seconds, 0)
   return {
     students: totalStudentsAcross,
-    hours: (totalSeconds / 3600).toFixed(1),
+    minutes: secondsToMinutes(totalSeconds),
     sessions: totalSessions,
     cycles: totalCycles,
     classes: teacherClasses.value.length,
@@ -373,30 +376,36 @@ const greetingLines = computed(() => {
     .replace('{n}', String(n)).replace('{students}', String(teacherStats.value.students))
 })
 
-// Minutes-first headline formatting (founder ruling 2026-07-18): never render a
-// rounded "0h" when real minutes exist — a trial school where only staff have
-// practised (e.g. Chepstow, Lucy's 4m) must show "4m", not "0h". Matches the
-// Own-practice column's formatOwnPractice in TeachersView.
-function formatPracticeHours(hours: number): string {
-  const minutes = Math.round((hours || 0) * 60)
-  if (minutes >= 60) return `${Math.round((minutes / 60) * 10) / 10}h`
-  return `${minutes}m`
-}
+// MINUTES, never hours, on every school surface (Tom, 2026-09-11, job #265) —
+// one formatter, composables/schools/practiceMinutes.ts.
 
-// The honest "incl. Xm staff practice" composition line — shown only when staff
-// minutes are nonzero, so the headline is never silently inflated.
+// The honest "incl. X min staff practice" composition line under the group
+// leader's all-time figure — shown only when staff minutes are nonzero, so
+// that headline is never silently inflated (founder ruling 2026-07-18).
 const staffPracticeNote = computed(() => {
-  const minutes = Math.round((totalStaffPracticeHours.value || 0) * 60)
+  const minutes = totalStaffPracticeMinutes.value || 0
   if (minutes <= 0) return ''
   return t('schools.dashboard.inclStaffPractice', 'incl. {hours} staff practice')
-    .replace('{hours}', formatPracticeHours(totalStaffPracticeHours.value))
+    .replace('{hours}', formatPracticeMinutes(minutes))
+})
+
+// "X of Y classes practising this week" — the honest companion to the
+// minutes headline; a dash while this week's figures have not loaded.
+const classesPractisingLine = computed(() => {
+  if (!practice7d.loaded.value) return ''
+  return t('schools.dashboard.classesPractisingThisWeek', '{active} of {total} classes practising this week')
+    .replace('{active}', String(practice7d.activeClassesThisWeek.value))
+    .replace('{total}', String(practice7d.classCount.value))
 })
 
 const adminGreetingLines = computed(() => {
-  return t('schools.dashboard.adminGreetingLine', '{students} students across {classes} classes — {hours} practised all-time.')
+  const base = t('schools.dashboard.adminGreetingStudentsClasses', '{students} students across {classes} classes')
     .replace('{students}', String(totalStudents.value))
     .replace('{classes}', String(totalClasses.value))
-    .replace('{hours}', formatPracticeHours(totalPracticeHours.value))
+  if (!practice7d.loaded.value) return base
+  return t('schools.dashboard.adminGreetingMinutesWeek', '{base} — {minutes} in the app this week.')
+    .replace('{base}', base)
+    .replace('{minutes}', formatPracticeMinutes(practice7d.minutesThisWeek.value))
 })
 
 const breadcrumb = computed(() => {
@@ -614,16 +623,16 @@ async function handlePlayClass(cls: ClassInfo) {
            section: seeing-progress
            roles: teacher
            place: dashboard
-           keywords: numbers, totals, students, hours, sessions, practice
+           keywords: numbers, totals, students, minutes, sessions, practice
            What it's for. One quiet line totalling your whole teaching load — how many
-           students you have across every class, how many hours they have practised
+           students you have across every class, how many minutes they have practised
            between them, and how many sessions have been run. It is a record of what has
            happened, never a target.
            Where it is. Underneath your classes on the schools dashboard.
            How you do it.
            1. Open the schools dashboard and scroll past your classes.
            2. **Students** counts every pupil in every class you teach, each person once.
-           3. **Hours practised** is real practice time those pupils have logged.
+           3. **Minutes practised** is real practice time those pupils have logged, in minutes.
            4. **Sessions** is how many class sessions have been run.
            Worth knowing. The line only appears once you have at least one class — there
            is nothing to total before that.
@@ -632,7 +641,7 @@ async function handlePlayClass(cls: ClassInfo) {
       <div v-if="teacherClasses.length" class="teacher-stat-line schools-subtle" data-walk="dash-teacher-stats">
         <span><strong class="arsenal stat-line-value">{{ teacherStats.students }}</strong> {{ t('schools.dashboard.students', 'students') }}</span>
         <span class="dot-sep">·</span>
-        <span><strong class="arsenal stat-line-value">{{ teacherStats.hours }}h</strong> {{ t('schools.dashboard.practised', 'practised') }}</span>
+        <span><strong class="arsenal stat-line-value">{{ formatPracticeMinutes(teacherStats.minutes) }}</strong> {{ t('schools.dashboard.practised', 'practised') }}</span>
         <span class="dot-sep">·</span>
         <span><strong class="arsenal stat-line-value">{{ teacherStats.sessions }}</strong> {{ t('schools.dashboard.sessions', 'sessions') }}</span>
       </div>
@@ -722,10 +731,28 @@ async function handlePlayClass(cls: ClassInfo) {
           <span class="arsenal stat-value">{{ totalClasses }}</span>
           <span class="stat-label">{{ t('schools.dashboard.classesLabel', 'Classes') }}</span>
         </div>
-        <div class="stat-card">
-          <span class="arsenal stat-value">{{ formatPracticeHours(totalPracticeHours) }}</span>
-          <span class="stat-label">{{ t('schools.dashboard.hoursPractised', 'Hours practised') }}</span>
-          <span v-if="staffPracticeNote" class="stat-subnote">{{ staffPracticeNote }}</span>
+        <!-- HANDBOOK Minutes in the app this week
+             section: seeing-progress
+             roles: school_admin
+             place: dashboard
+             keywords: minutes, time in app, this week, classes practising, practice
+             What it's for. How much your school practised this week, in minutes: the
+             time your classes spent in the app with a lesson running, pauses included,
+             plus any teacher or pupil practising on their own account, each counted
+             once. Under it, how many of your classes practised at all this week.
+             Where it is. The stat strip at the top of the schools dashboard.
+             How you do it.
+             1. Read the number. It is minutes, never hours, and it is this week only.
+             2. Read the line beneath it for how many classes practised.
+             Worth knowing. A dash means this week's figures have not loaded — pull to
+             refresh. It is never shown as a zero that is not real.
+             checked: 10c13269.32e408c6
+        -->
+        <div class="stat-card" data-walk="dash-minutes-this-week">
+          <span class="arsenal stat-value">{{ practice7d.loaded.value ? formatPracticeMinutes(practice7d.minutesThisWeek.value) : '—' }}</span>
+          <span class="stat-label">{{ t('schools.dashboard.minutesInAppThisWeek', 'Minutes in the app this week') }}</span>
+          <span v-if="classesPractisingLine" class="stat-subnote">{{ classesPractisingLine }}</span>
+          <span v-else class="stat-subnote">{{ t('schools.dashboard.thisWeekNotLoaded', 'This week’s figures have not loaded — pull to refresh.') }}</span>
         </div>
         <div class="stat-card">
           <span class="arsenal stat-value">{{ teacherClasses.length }}</span>
@@ -835,11 +862,11 @@ async function handlePlayClass(cls: ClassInfo) {
         :lines="isViewingSchool
           ? t('schools.dashboard.classesStudentsPractisedGovt', '{classes} classes · {students} students · {hours} practised{staffNote}')
               .replace('{classes}', String(totalClasses)).replace('{students}', String(totalStudents))
-              .replace('{hours}', formatPracticeHours(totalPracticeHours))
-              .replace('{staffNote}', staffPracticeNote ? ` (${staffPracticeNote})` : '')
+              .replace('{hours}', formatPracticeMinutes(totalPracticeMinutes))
+              .replace('{staffNote}', staffPracticeNote ? `, ${staffPracticeNote}` : '')
           : t('schools.dashboard.schoolsStudentsPractisedGovt', '{schoolCount} schools · {students} students · {hours} practised{staffNote}')
               .replace('{schoolCount}', String(schools.length)).replace('{students}', String(totalStudents))
-              .replace('{hours}', formatPracticeHours(totalPracticeHours))
+              .replace('{hours}', formatPracticeMinutes(totalPracticeMinutes))
               .replace('{staffNote}', staffPracticeNote ? ` (${staffPracticeNote})` : '')"
         :date="todayLabel"
         :dense="density === 'compact'"
@@ -958,8 +985,8 @@ async function handlePlayClass(cls: ClassInfo) {
               <div class="schools-subtle">{{ t('schools.dashboard.studentsLabel', 'Students') }}</div>
             </div>
             <div>
-              <div class="arsenal govt-tile-stat">{{ formatPracticeHours(school.total_practice_hours) }}</div>
-              <div class="schools-subtle">{{ t('schools.dashboard.hours', 'Hours') }}</div>
+              <div class="arsenal govt-tile-stat">{{ formatPracticeMinutes(school.total_practice_minutes) }}</div>
+              <div class="schools-subtle">{{ t('schools.dashboard.minutesPractised', 'Minutes practised') }}</div>
             </div>
           </div>
         </button>
@@ -981,8 +1008,8 @@ async function handlePlayClass(cls: ClassInfo) {
             <span class="stat-label">{{ t('schools.dashboard.classesLabel', 'Classes') }}</span>
           </div>
           <div class="stat-card">
-            <span class="arsenal stat-value">{{ Math.round(totalPracticeHours) }}h</span>
-            <span class="stat-label">{{ t('schools.dashboard.hoursPractised', 'Hours practised') }}</span>
+            <span class="arsenal stat-value">{{ formatPracticeMinutes(totalPracticeMinutes) }}</span>
+            <span class="stat-label">{{ t('schools.dashboard.minutesPractised', 'Minutes practised') }}</span>
           </div>
         </div>
 

@@ -110,9 +110,10 @@ export interface Teacher {
   display_name: string
   class_count: number
   student_count: number
-  total_practice_hours: number
+  // MINUTES, all time (Tom, 2026-09-11, job #265) — never hours.
+  total_practice_minutes: number
   /** The teacher's OWN practice (their learner's sessions) — distinct from
-   *  total_practice_hours, which is their classes' STUDENTS' practice. In a
+   *  total_practice_minutes, which is their classes' STUDENTS' practice. In a
    *  trial school with no students yet this is the only non-zero number. */
   own_practice_minutes: number
   /** 'teacher' | 'admin' — a school's STAFF is both (see api/_utils/schoolStaff.ts).
@@ -297,7 +298,7 @@ export function useTeachersData() {
           display_name: l.display_name,
           class_count: stats.classes.size,
           student_count: stats.students,
-          total_practice_hours: Math.round((stats.practiceSeconds / 3600) * 10) / 10,
+          total_practice_minutes: Math.round(stats.practiceSeconds / 60),
           own_practice_minutes: Math.round((ownSeconds.get(l.id) || 0) / 60),
           role_in_context: (staffRoles.get(l.user_id) === 'admin' ? 'admin' : 'teacher') as 'teacher' | 'admin',
           joined_at: joinDates.get(l.user_id) || '',

@@ -56,6 +56,7 @@ import BeltDot from '@/components/schools/shared/BeltDot.vue'
 import Bench from '@/components/schools/shared/Bench.vue'
 import { deriveBelt, BELTS, type Belt } from '@/composables/schools/belts'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
+import { formatPracticeMinutes, hoursToMinutes } from '@/composables/schools/practiceMinutes'
 import { isMemberNodeSurface, nodeInsightsPath } from '@/composables/nodeSurfacePaths'
 import { derivePreset } from '@/composables/nodeTerminology'
 import { timeAgo } from '@/composables/admin/adminUtils'
@@ -387,6 +388,14 @@ const classPractice = computed(() => home.value?.classPractice ?? null)
 // (api/_utils/inAppTime.ts). Audio-played minutes off the ledger are the
 // secondary figure, named in the sentence under the row. Every figure here is
 // backed by a live record.
+// All-time practice in MINUTES (Tom, 2026-09-11, job #265). practiceMinutes is
+// what the server sends now; a cached pre-#265 payload only has hours.
+const practiceMinutesAllTime = computed(() => {
+  const h = home.value as any
+  if (!h) return 0
+  return typeof h.practiceMinutes === 'number' ? h.practiceMinutes : hoursToMinutes(h.practiceHours)
+})
+
 const stats = computed(() => {
   const n = home.value?.node
   if (!n) return []
@@ -403,14 +412,14 @@ const stats = computed(() => {
   // Neutral dressing: no class/teacher words — practice, groups, learners.
   if (neutral.value) {
     return [
-      { value: `${home.value?.practiceHours ?? 0}h`, word: t('org.nodeHome.statPracticeHours', 'Practice hours') },
+      { value: formatPracticeMinutes(practiceMinutesAllTime.value), word: t('org.nodeHome.statMinutesPractised', 'Minutes practised') },
       { value: r.childGroupCount ?? 0, word: t('org.nodeHome.statGroups', 'Groups') },
       { value: r.learnerCount ?? 0, word: t('org.nodeHome.statLearners', 'Learners') },
     ]
   }
   if (!cp) {
     return [
-      { value: `${home.value?.practiceHours ?? 0}h`, word: t('org.nodeHome.statPracticeHours', 'Practice hours') },
+      { value: formatPracticeMinutes(practiceMinutesAllTime.value), word: t('org.nodeHome.statMinutesPractised', 'Minutes practised') },
       { value: r.classCount ?? 0, word: t('org.nodeHome.statClasses', 'Classes') },
       { value: r.teacherCount ?? 0, word: t('org.nodeHome.statTeachers', 'Teachers') },
       { value: r.learnerCount ?? 0, word: t('org.nodeHome.statLearners', 'Learners') },

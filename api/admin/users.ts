@@ -299,6 +299,10 @@ export default async function handler(
     // Capped: a 100-char search term is beyond any real admin lookup, and an
     // unbounded one is a cheap way to make Postgres scan with a huge pattern.
     const search = typeof req.query.search === 'string' ? req.query.search.trim().slice(0, 100) : ''
+    // `role=` narrows to one educational_role — View-as's "any school leader"
+    // picks a real person of that role (job #265). Allowlisted, never raw.
+    const ROLE_FILTERS = new Set(['teacher', 'school_admin', 'govt_admin', 'student'])
+    const role = typeof req.query.role === 'string' && ROLE_FILTERS.has(req.query.role) ? req.query.role : ''
     const offset = (page - 1) * limit
 
     let learnerIdsMatchingEmail: string[] = []
@@ -319,6 +323,8 @@ export default async function handler(
       .select('id, user_id, display_name, created_at, educational_role, platform_role, needs_verification', { count: 'exact' })
       .eq('is_class_entity', false)
       .order('created_at', { ascending: false })
+
+    if (role) query = query.eq('educational_role', role)
 
     if (search) {
       // SEC25 INPUT-06 / COORD-01: `.or()` takes a filter EXPRESSION, so the

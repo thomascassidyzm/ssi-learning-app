@@ -1449,7 +1449,6 @@
       "title": "Billing"
     },
     "dashboard": {
-      "adminGreetingLine": "{students} students across {classes} classes — {hours} practised all-time.",
       "analytics": "Analytics",
       "avgPractice": "Avg practice",
       "benchmarksCyclesVsSchoolGlobal": "Benchmarks (cycles vs school · global)",
@@ -1477,8 +1476,6 @@
       "fullSchoolsList": "Full schools list →",
       "getStarted": "Get started",
       "group": "Group",
-      "hours": "Hours",
-      "hoursPractised": "Hours practised",
       "inclStaffPractice": "incl. {hours} staff practice",
       "inviteLabelAdmin": "Admin",
       "inviteLabelTeacher": "Teacher",
@@ -1529,7 +1526,13 @@
       "whatSchoolsWillSeeWhenJoin": "This is what schools will see when they join.",
       "whatTeachersAndStudentsWillSee": "This is what your teachers and students will see.",
       "yourClasses": "Your classes",
-      "yourSchool": "Your School"
+      "yourSchool": "Your School",
+      "minutesPractised": "Minutes practised",
+      "minutesInAppThisWeek": "Minutes in the app this week",
+      "classesPractisingThisWeek": "{active} of {total} classes practising this week",
+      "thisWeekNotLoaded": "This week’s figures have not loaded — pull to refresh.",
+      "adminGreetingStudentsClasses": "{students} students across {classes} classes",
+      "adminGreetingMinutesWeek": "{base} — {minutes} in the app this week."
     },
     "handbookPage": {
       "closeThemAll": "Close them all",
@@ -1590,8 +1593,6 @@
       "sortStudents": "Students",
       "sortTimeInApp": "Time in app",
       "summaryNeedsEyes": "Needs eyes",
-      "summaryNoSchoolInApp": "{n} {classWord} · {students} students · {hours}h in the app this week",
-      "summaryWithSchoolInApp": "{n} {classWord} across {school} · {students} students · {hours}h in the app this week",
       "tableHeaderActivity": "Activity",
       "tableHeaderAvgSeeds": "Avg seeds",
       "tableHeaderBelt": "Belt",
@@ -1600,8 +1601,10 @@
       "tableHeaderHealth": "Health",
       "tableHeaderShare": "Share",
       "tableHeaderStudents": "Students",
-      "tableHeaderTimeInApp": "Time in app, hrs/wk",
-      "tryWideningFilter": "Try widening the course or health filter."
+      "tryWideningFilter": "Try widening the course or health filter.",
+      "tableHeaderTimeInAppMinutes": "Time in app, min/wk",
+      "summaryWithSchoolInAppMinutes": "{n} {classWord} across {school} · {students} students · {minutes} in the app this week",
+      "summaryNoSchoolInAppMinutes": "{n} {classWord} · {students} students · {minutes} in the app this week"
     },
     "teachers": {
       "accessCode": "Access code",
@@ -1652,13 +1655,13 @@
       "tableHeaderOwnPractice": "Own practice",
       "tableHeaderRole": "Role",
       "tableHeaderStatus": "Status",
-      "tableHeaderStudentHours": "Student hours",
       "tableHeaderStudents": "Students",
       "tableHeaderTeacher": "Teacher",
       "tipInviteLinksBody": "Anyone who clicks your teacher invite link appears here as a teacher once they sign in — so share it only with your staff. You can remove a teacher from their row at any time.",
       "tipInviteLinksKicker": "Tip — invite links",
       "tipRolesBody": "Admins manage staff, classes and settings. Teachers see only their own classes. Switch role any time from a teacher's row.",
-      "tipRolesKicker": "Tip — roles"
+      "tipRolesKicker": "Tip — roles",
+      "tableHeaderStudentMinutes": "Student minutes"
     },
     "schoolSettings": {
       "about": "About",
@@ -1733,7 +1736,6 @@
       "colActions": "actions",
       "colCity": "City",
       "colClasses": "Classes",
-      "colHours": "Hours",
       "colJoined": "Joined",
       "colLinks": "Links",
       "colSchool": "School",
@@ -1749,7 +1751,6 @@
       "export": "Export",
       "kpiActiveIn7d": "Active in 7d",
       "kpiClasses": "Classes",
-      "kpiPracticeHours": "Practice hours",
       "kpiSchools": "Schools",
       "kpiStudents": "Students",
       "kpiTeachers": "Teachers",
@@ -1774,7 +1775,9 @@
       "sortByName": "Sort by name",
       "sortByStudents": "Sort by students",
       "teacher": "Teacher",
-      "title": "All schools"
+      "title": "All schools",
+      "kpiPracticeMinutes": "Minutes practised",
+      "colMinutes": "Minutes"
     },
     "upgrade": {
       "annual": "Annual",
@@ -1983,7 +1986,6 @@
       "healthInactiveOption": "Inactive",
       "healthNeedsAttention": "needs attention",
       "healthNeedsAttentionOption": "Needs attention",
-      "hoursPerWeekColumn": "Hours/wk",
       "inviteStudents": "Invite students",
       "lastActiveColumn": "Last active",
       "lastActiveDaysAgo": "{n}d ago",
@@ -2009,7 +2011,8 @@
       "studentColumn": "Student",
       "studentSingular": "student",
       "studentsPlural": "students",
-      "viewLabel": "View"
+      "viewLabel": "View",
+      "minutesPractisedColumn": "Minutes practised"
     },
     "ui": {
       "assignClasses": {
@@ -2453,7 +2456,6 @@
       "statLearners": "Learners",
       "statMinutesInAppThisWeek": "Minutes in the app this week",
       "statPhrasesSpokenThisWeek": "Phrases spoken this week",
-      "statPracticeHours": "Practice hours",
       "statStudents": "Students",
       "statTeachers": "Teachers",
       "statsNoteInAppTime": "Minutes in the app is the time your classes, staff and students spent in the app over the last seven days, pauses included — the time they were in the lesson. Whole-class play accounts for {classMinutes} of those minutes. Audio actually playing came to {audioMinutes} minutes.",
@@ -2466,7 +2468,8 @@
       "trialEndedHeadline": "Your organisation's free trial has ended",
       "trialEndedLede": "Subscribe below to keep every member, group and team in your organisation. Your data is safe — nothing is deleted.",
       "trialEndedPill": "Trial ended",
-      "upgradeCta": "Upgrade →"
+      "upgradeCta": "Upgrade →",
+      "statMinutesPractised": "Minutes practised"
     },
     "ui": {
       "howThisWorks": {

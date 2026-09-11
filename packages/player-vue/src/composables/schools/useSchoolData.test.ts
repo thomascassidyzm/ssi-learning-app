@@ -136,7 +136,7 @@ describe('useSchoolData', () => {
     expect(sd.schools.value[0].student_count).toBe(42)
     expect(sd.groupSummary.value?.student_count).toBe(80)
     expect(sd.groupSummary.value?.teacher_count).toBe(5)
-    expect(sd.groupSummary.value?.total_practice_hours).toBeCloseTo(256.6)
+    expect(sd.groupSummary.value?.total_practice_minutes).toBe(15396)
     vi.unstubAllGlobals()
   })
 
@@ -267,7 +267,7 @@ describe('useSchoolData', () => {
     const school = {
       id: 's1', school_name: 'Test', region_code: 'WALES', admin_user_id: 'u1',
       teacher_join_code: '', admin_join_code: 'ADM-001', teacher_count: 1, class_count: 1, student_count: 10,
-      total_practice_hours: 20, created_at: '2025-01-01',
+      total_practice_minutes: 1200, created_at: '2025-01-01',
     }
     sd.selectSchoolToView(school)
     expect(sd.isViewingSchool.value).toBe(true)
@@ -283,7 +283,7 @@ describe('useSchoolData', () => {
     const school = {
       id: 's1', school_name: 'Test', region_code: 'WALES', admin_user_id: 'u1',
       teacher_join_code: '', admin_join_code: 'ADM-002', teacher_count: 1, class_count: 1, student_count: 42,
-      total_practice_hours: 20, created_at: '2025-01-01',
+      total_practice_minutes: 1200, created_at: '2025-01-01',
     }
     sd.selectSchoolToView(school)
     expect(sd.totalStudents.value).toBe(42)
@@ -292,17 +292,17 @@ describe('useSchoolData', () => {
   it('totalStudents sums schools when no drill-down and no group summary', async () => {
     const sd = await setup({}, 'govt_admin')
     sd.schools.value = [
-      { id: 's1', school_name: 'A', region_code: null, admin_user_id: 'u1', teacher_join_code: '', admin_join_code: 'ADM-003', teacher_count: 1, class_count: 1, student_count: 10, total_practice_hours: 5, created_at: '' },
-      { id: 's2', school_name: 'B', region_code: null, admin_user_id: 'u2', teacher_join_code: '', admin_join_code: 'ADM-004', teacher_count: 1, class_count: 1, student_count: 20, total_practice_hours: 10, created_at: '' },
+      { id: 's1', school_name: 'A', region_code: null, admin_user_id: 'u1', teacher_join_code: '', admin_join_code: 'ADM-003', teacher_count: 1, class_count: 1, student_count: 10, total_practice_minutes: 300, created_at: '' },
+      { id: 's2', school_name: 'B', region_code: null, admin_user_id: 'u2', teacher_join_code: '', admin_join_code: 'ADM-004', teacher_count: 1, class_count: 1, student_count: 20, total_practice_minutes: 600, created_at: '' },
     ]
     sd.groupSummary.value = null
     expect(sd.totalStudents.value).toBe(30)
   })
 
-  it('totalPracticeHours uses groupSummary when available', async () => {
+  it('totalPracticeMinutes uses groupSummary when available', async () => {
     const sd = await setup({}, 'govt_admin')
-    sd.groupSummary.value = { region_code: 'W', group_name: 'Wales', school_count: 1, teacher_count: 1, student_count: 1, total_practice_hours: 999 }
-    expect(sd.totalPracticeHours.value).toBe(999)
+    sd.groupSummary.value = { region_code: 'W', group_name: 'Wales', school_count: 1, teacher_count: 1, student_count: 1, total_practice_minutes: 999 }
+    expect(sd.totalPracticeMinutes.value).toBe(999)
   })
 
   it('threads staff_practice_hours from the roster so the headline can show the honest composition (Chepstow, staff-only school)', async () => {
@@ -325,24 +325,24 @@ describe('useSchoolData', () => {
 
     await sd.fetchSchools()
 
-    expect(sd.currentSchool.value?.staff_practice_hours).toBeCloseTo(4 / 60)
-    expect(sd.totalPracticeHours.value).toBeCloseTo(4 / 60)
+    expect(sd.currentSchool.value?.staff_practice_minutes).toBe(4)
+    expect(sd.totalPracticeMinutes.value).toBe(4)
     // The composition equals the whole headline here — every practised minute is staff's.
-    expect(sd.totalStaffPracticeHours.value).toBeCloseTo(4 / 60)
+    expect(sd.totalStaffPracticeMinutes.value).toBe(4)
     vi.unstubAllGlobals()
   })
 
-  it('totalStaffPracticeHours sums schools and prefers groupSummary/viewingSchool', async () => {
+  it('totalStaffPracticeMinutes sums schools and prefers groupSummary/viewingSchool', async () => {
     const sd = await setup({}, 'govt_admin')
     sd.schools.value = [
-      { id: 's1', school_name: 'A', region_code: null, admin_user_id: 'u1', teacher_join_code: '', admin_join_code: 'ADM-101', teacher_count: 1, class_count: 1, student_count: 10, total_practice_hours: 5, staff_practice_hours: 1, created_at: '' },
-      { id: 's2', school_name: 'B', region_code: null, admin_user_id: 'u2', teacher_join_code: '', admin_join_code: 'ADM-102', teacher_count: 1, class_count: 1, student_count: 20, total_practice_hours: 10, staff_practice_hours: 2, created_at: '' },
+      { id: 's1', school_name: 'A', region_code: null, admin_user_id: 'u1', teacher_join_code: '', admin_join_code: 'ADM-101', teacher_count: 1, class_count: 1, student_count: 10, total_practice_minutes: 300, staff_practice_minutes: 60, created_at: '' },
+      { id: 's2', school_name: 'B', region_code: null, admin_user_id: 'u2', teacher_join_code: '', admin_join_code: 'ADM-102', teacher_count: 1, class_count: 1, student_count: 20, total_practice_minutes: 600, staff_practice_minutes: 120, created_at: '' },
     ]
     sd.groupSummary.value = null
-    expect(sd.totalStaffPracticeHours.value).toBe(3)
+    expect(sd.totalStaffPracticeMinutes.value).toBe(180)
 
-    sd.groupSummary.value = { region_code: 'W', group_name: 'Wales', school_count: 2, teacher_count: 2, student_count: 30, total_practice_hours: 15, staff_practice_hours: 3 }
-    expect(sd.totalStaffPracticeHours.value).toBe(3)
+    sd.groupSummary.value = { region_code: 'W', group_name: 'Wales', school_count: 2, teacher_count: 2, student_count: 30, total_practice_minutes: 900, staff_practice_minutes: 180 }
+    expect(sd.totalStaffPracticeMinutes.value).toBe(180)
   })
 
   it('does not fetch if no selected user', async () => {

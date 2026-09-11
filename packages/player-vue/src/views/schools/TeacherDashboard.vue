@@ -11,6 +11,7 @@ import Sparkline from '@/components/schools/shared/Sparkline.vue'
 import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
+import { formatPracticeMinutes, secondsToMinutes } from '@/composables/schools/practiceMinutes'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useClassesData, type ClassReport } from '@/composables/schools/useClassesData'
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
@@ -81,7 +82,7 @@ const classReports = reactive(new Map<string, ClassReport>())
 // Real 7-day TIME IN THE APP per class, from /api/school/class-practice-7d:
 // in-app session time off the diary, gaps included, whole-class play counted
 // once (founder ruling 2026-09-10, api/_utils/inAppTime.ts). Empty until
-// loaded → hoursWk = 0.
+// loaded → minutesWk = 0.
 const practice7dSeconds = ref<Record<string, number>>({})
 // Distinct days with any play in the last 7, per class — the health mark's
 // input, from the same payload. Empty until loaded → 0.
@@ -103,7 +104,7 @@ async function loadPractice7d() {
     practice7dSeconds.value = (data?.practiceByClass as Record<string, number>) || {}
     practice7dDays.value = (data?.activeDaysByClass as Record<string, number>) || {}
   } catch {
-    /* non-fatal — hoursWk falls back to 0 */
+    /* non-fatal — minutesWk falls back to 0 */
   }
 }
 
@@ -134,10 +135,11 @@ function courseShortName(code: string): string {
 const enrichedClasses = computed(() => {
   return classesData.value.map(c => {
     const report = classReports.get(c.id)
-    // Real 7-day hours IN THE APP for the class, from /api/school/class-practice-7d
+    // Real 7-day MINUTES in the app for the class, from /api/school/class-practice-7d
     // (in-app session time, never audio-played seconds — that rides in the same
     // payload as audioPlayedByClass, the secondary figure). 0 until loaded.
-    const hoursWk = Math.round(((practice7dSeconds.value[c.id] ?? 0) / 3600) * 10) / 10
+    // Minutes, never hours (Tom, 2026-09-11, job #265).
+    const minutesWk = secondsToMinutes(practice7dSeconds.value[c.id] ?? 0)
     return {
       id: c.id,
       class_name: c.class_name,
@@ -149,7 +151,7 @@ const enrichedClasses = computed(() => {
       class_belt: deriveBelt(c.avg_seeds_completed),
       current_seed: c.current_seed,
       avg_seeds_completed: c.avg_seeds_completed,
-      hoursWk,
+      minutesWk,
       sessions: report?.class.total_sessions ?? 0,
       active_days: report?.class.active_days_last_7 ?? 0,
       activity: c.activity_last_7 ?? [0, 0, 0, 0, 0, 0, 0],
@@ -180,7 +182,7 @@ const filtered = computed(() => {
   rows.sort((a, b) => {
     if (sortKey.value === 'name') return a.class_name.localeCompare(b.class_name)
     if (sortKey.value === 'students') return b.student_count - a.student_count
-    if (sortKey.value === 'hours') return b.hoursWk - a.hoursWk
+    if (sortKey.value === 'hours') return b.minutesWk - a.minutesWk
     if (sortKey.value === 'journey') return b.avg_seeds_completed - a.avg_seeds_completed
     return 0
   })
@@ -191,10 +193,7 @@ const totalStudents = computed(() =>
   filtered.value.reduce((sum, c) => sum + c.student_count, 0),
 )
 
-const totalHours = computed(() => {
-  const h = filtered.value.reduce((sum, c) => sum + c.hoursWk, 0)
-  return Math.round(h * 10) / 10
-})
+const totalMinutes = computed(() => filtered.value.reduce((sum, c) => sum + c.minutesWk, 0))
 
 const healthCounts = computed(() => {
   const acc: Record<string, number> = {}
@@ -213,14 +212,14 @@ const headlineSubtitle = computed(() => {
     ? t('schools.teacherDashboard.classSingular', 'class')
     : t('schools.teacherDashboard.classPlural', 'classes')
   const base = selectedUser.value?.school_name
-    ? t('schools.teacherDashboard.summaryWithSchoolInApp', '{n} {classWord} across {school} · {students} students · {hours}h in the app this week')
+    ? t('schools.teacherDashboard.summaryWithSchoolInAppMinutes', '{n} {classWord} across {school} · {students} students · {minutes} in the app this week')
         .replace('{school}', selectedUser.value.school_name)
-    : t('schools.teacherDashboard.summaryNoSchoolInApp', '{n} {classWord} · {students} students · {hours}h in the app this week')
+    : t('schools.teacherDashboard.summaryNoSchoolInAppMinutes', '{n} {classWord} · {students} students · {minutes} in the app this week')
   return base
     .replace('{n}', String(enrichedClasses.value.length))
     .replace('{classWord}', classWord)
     .replace('{students}', String(totalStudents.value))
-    .replace('{hours}', String(totalHours.value))
+    .replace('{minutes}', formatPracticeMinutes(totalMinutes.value))
 })
 
 // The ONE refresh protocol: one loader for this classes dashboard, driving the
@@ -354,14 +353,14 @@ async function copyShareLink(cls: { id: string; join_code: string }) {
 }
 
 function exportCsv() {
-  const header = ['Class', 'Course', 'Students', 'Belt', 'Avg seeds', 'Time in app hrs/wk', 'Sessions', 'Health', 'Join code']
+  const header = ['Class', 'Course', 'Students', 'Belt', 'Avg seeds', 'Time in app min/wk', 'Sessions', 'Health', 'Join code']
   const rows = filtered.value.map(c => [
     c.class_name,
     c.course_label,
     c.student_count,
     c.class_belt,
     c.avg_seeds_completed,
-    c.hoursWk,
+    c.minutesWk,
     c.sessions,
     c.health,
     c.join_code,
@@ -534,9 +533,9 @@ function exportCsv() {
            section: running-classes
            roles: school_admin, teacher
            place: classes
-           keywords: classes, list, overview, belt, hours, time in app, health
+           keywords: classes, list, overview, belt, minutes, time in app, health
            What it's for. One row per class, showing at a glance how each one is doing:
-           how many students, what belt the class has reached, hours in the app this
+           how many students, what belt the class has reached, minutes in the app this
            week, the shape of the last seven days, and a health mark for classes worth
            a look. Time in app is the time the class, and any students on their own
            accounts, spent in the app with the lesson running, pauses included — so
@@ -564,7 +563,7 @@ function exportCsv() {
             <th>{{ t('schools.teacherDashboard.tableHeaderStudents', 'Students') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderBelt', 'Belt') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderAvgSeeds', 'Avg seeds') }}</th>
-            <th>{{ t('schools.teacherDashboard.tableHeaderTimeInApp', 'Time in app, hrs/wk') }}</th>
+            <th>{{ t('schools.teacherDashboard.tableHeaderTimeInAppMinutes', 'Time in app, min/wk') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderActivity', 'Activity') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderHealth', 'Health') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderShare', 'Share') }}</th>
@@ -614,7 +613,7 @@ function exportCsv() {
               </div>
             </td>
             <td :data-label="t('schools.teacherDashboard.tableHeaderAvgSeeds', 'Avg seeds')" :class="{ 'is-sorted': pinnedKey === 'journey' }">{{ cls.avg_seeds_completed }}</td>
-            <td :data-label="t('schools.teacherDashboard.tableHeaderTimeInApp', 'Time in app, hrs/wk')" :class="{ 'is-sorted': pinnedKey === 'hours' }">{{ cls.hoursWk }}h</td>
+            <td :data-label="t('schools.teacherDashboard.tableHeaderTimeInAppMinutes', 'Time in app, min/wk')" :class="{ 'is-sorted': pinnedKey === 'hours' }">{{ formatPracticeMinutes(cls.minutesWk) }}</td>
             <td :data-label="t('schools.teacherDashboard.tableHeaderActivity', 'Activity')"><Sparkline :data="cls.activity" :width="80" :height="20" /></td>
             <td :data-label="t('schools.teacherDashboard.tableHeaderHealth', 'Health')">
               <span class="cell-health">

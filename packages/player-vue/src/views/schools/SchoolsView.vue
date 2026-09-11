@@ -5,6 +5,7 @@ import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
+import { formatPracticeMinutes } from '@/composables/schools/practiceMinutes'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData, type School } from '@/composables/schools/useSchoolData'
 import { useGovtAdminActions } from '@/composables/schools/useGovtAdminActions'
@@ -24,7 +25,7 @@ const {
   totalStudents,
   totalTeachers,
   totalClasses,
-  totalPracticeHours,
+  totalPracticeMinutes,
   fetchSchools,
   selectSchoolToView,
   isLoading: schoolsLoading,
@@ -53,7 +54,7 @@ const filteredSchools = computed<School[]>(() => {
 
   return list.sort((a, b) => {
     if (sortKey.value === 'students') return b.student_count - a.student_count
-    if (sortKey.value === 'hours') return b.total_practice_hours - a.total_practice_hours
+    if (sortKey.value === 'hours') return b.total_practice_minutes - a.total_practice_minutes
     return compareByName(a.school_name, b.school_name)
   })
 })
@@ -83,7 +84,8 @@ const headerLede = computed(() => {
     .replace('{count}', String(awaitingCount.value))
 })
 
-const hoursThisWeek = computed(() => Math.round(totalPracticeHours.value))
+// All-time minutes across the schools listed (MINUTES, never hours — Tom, 2026-09-11).
+const minutesAllTime = computed(() => Math.round(totalPracticeMinutes.value))
 
 function schoolInitial(name: string): string {
   const parts = name.split(/\s+/).filter(Boolean)
@@ -171,14 +173,14 @@ function csvCell(value: string | number): string {
 }
 
 function handleExport() {
-  const header = ['School', 'City', 'Students', 'Teachers', 'Classes', 'Hours', 'Joined', 'Health']
+  const header = ['School', 'City', 'Students', 'Teachers', 'Classes', 'Minutes practised', 'Joined', 'Health']
   const rows = filteredSchools.value.map((s) => [
     s.school_name,
     '—',
     s.student_count,
     s.teacher_count,
     s.class_count,
-    Math.round(s.total_practice_hours),
+    Math.round(s.total_practice_minutes),
     formatJoined(s.created_at),
     s.health?.replace('-', ' ') || '',
   ])
@@ -272,8 +274,8 @@ watch(currentUser, (u) => {
         <span class="kpi-label">{{ t('schools.schoolsList.kpiClasses', 'Classes') }}</span>
       </div>
       <div class="schools-card kpi">
-        <span class="arsenal kpi-value">{{ hoursThisWeek }}h</span>
-        <span class="kpi-label">{{ t('schools.schoolsList.kpiPracticeHours', 'Practice hours') }}</span>
+        <span class="arsenal kpi-value">{{ formatPracticeMinutes(minutesAllTime) }}</span>
+        <span class="kpi-label">{{ t('schools.schoolsList.kpiPracticeMinutes', 'Minutes practised') }}</span>
       </div>
       <div class="schools-card kpi">
         <span class="arsenal kpi-value">—</span>
@@ -332,7 +334,7 @@ watch(currentUser, (u) => {
             <th>{{ t('schools.schoolsList.colStudents', 'Students') }}</th>
             <th>{{ t('schools.schoolsList.colTeachers', 'Teachers') }}</th>
             <th>{{ t('schools.schoolsList.colClasses', 'Classes') }}</th>
-            <th>{{ t('schools.schoolsList.colHours', 'Hours') }}</th>
+            <th>{{ t('schools.schoolsList.colMinutes', 'Minutes') }}</th>
             <th>{{ t('schools.schoolsList.colJoined', 'Joined') }}</th>
             <th>{{ t('schools.schoolsList.colStatus', 'Status') }}</th>
             <th>{{ t('schools.schoolsList.colLinks', 'Links') }}</th>
@@ -356,7 +358,7 @@ watch(currentUser, (u) => {
             <td>{{ school.student_count }}</td>
             <td>{{ school.teacher_count }}</td>
             <td>{{ school.class_count }}</td>
-            <td>{{ Math.round(school.total_practice_hours) }}h</td>
+            <td>{{ formatPracticeMinutes(school.total_practice_minutes) }}</td>
             <td class="schools-subtle">{{ formatJoined(school.created_at) }}</td>
             <td>
               <span v-if="!school.has_admin" class="awaiting-pill">{{ t('schools.schoolsList.awaitingAdmin', 'Awaiting admin') }}</span>

@@ -102,11 +102,11 @@ describe('TeacherDashboard — the sorted metric is reachable on a phone', () =>
     expect(table.attributes('data-sorted')).toBe('hours')
     const pinned = wrapper.findAll('tbody td.is-sorted')
     expect(pinned.length).toBe(2)
-    expect(pinned[0].attributes('data-label')).toBe('Time in app, hrs/wk')
-    expect(pinned[0].text()).toMatch(/h$/)
+    expect(pinned[0].attributes('data-label')).toBe('Time in app, min/wk')
+    expect(pinned[0].text()).toMatch(/ min$/)
 
     const labelled = wrapper.findAll('tbody tr:first-child td[data-label]').map(td => td.attributes('data-label'))
-    expect(labelled).toEqual(['Course', 'Students', 'Belt', 'Avg seeds', 'Time in app, hrs/wk', 'Activity', 'Health'])
+    expect(labelled).toEqual(['Course', 'Students', 'Belt', 'Avg seeds', 'Time in app, min/wk', 'Activity', 'Health'])
   })
 
   it('sorting by name still pins time in app, the school metric', async () => {
