@@ -10,7 +10,8 @@
  *   admin-chepstow  — /admin/schools/<Ysgol Cas-gwent>/analytics, the same
  *                     surface for the real school;
  *   angharad        — the REAL View-as picker, search "Angharad", then the
- *                     school leader's own /org/<node>/insights.
+ *                     school leader's own /org/<node>/insights, and class 8H's
+ *                     home and insights (Tom's 2026-09-11 screenshots).
  * Manifest beside the PNGs.
  *
  * Usage:
@@ -33,6 +34,7 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'thomas.cassidy+ssi@gmail.com'
 const CHEPSTOW_SCHOOL = '0f5bd6e4-f40b-4dbf-ac4f-a93478d20255'
 const CHEPSTOW_NODE = '568fe0ca-4846-4d4b-ac3d-5af94eb30073'
 const IME_NODE = '2d98bc20-a9c7-4fed-b69a-aa64038ded2a'
+const CLASS_8H = process.env.CLASS_ID || '01041bae-ef81-4c78-bc21-b1a8f0def808'
 fs.mkdirSync(SHOTS, { recursive: true })
 
 async function mint(email) {
@@ -131,6 +133,8 @@ try {
     console.log(`[angharad] viewing-as = ${viewingAs}`)
     await shotPage('angharad', 'schools-home', page, errors, '/schools', note)
     await shotPage('angharad', 'insights', page, errors, `/org/${CHEPSTOW_NODE}/insights`, note)
+    await shotPage('angharad', 'class-8h-home', page, errors, `/org/${CLASS_8H}`, note)
+    await shotPage('angharad', 'class-8h-insights', page, errors, `/org/${CLASS_8H}/insights?window=7d&measure=minutes_per_class`, note)
     await ctx.close()
   }
 } finally {
