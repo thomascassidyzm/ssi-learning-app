@@ -39,9 +39,14 @@ The release automation worker can run the additive qualification check with:
 pnpm --filter player-vue verify:audibility
 ```
 
-This checks a positive blob and then silence, serially. It is expected to stay
-red on the current detector until worker #168's fix is integrated. It is a
-prerequisite instrument check, not the human/Astra release pass itself.
+This runs the positive blob control and then the three-case audible control
+(silence refused, click-at-end refused, real bundled clip heard), serially.
+Worker #168's energy-predicate detector is merged on `dev` as `069ef0c5c`, so
+this is expected GREEN; a red here is a genuine instrument finding to report,
+never a threshold to adjust. The blob control is kept alongside the real-clip
+case because it exercises blob-URL provenance specifically, which the real-clip
+case does not. It is a prerequisite instrument check, not the human/Astra
+release pass itself.
 
 ## Library and cycle semantics
 
@@ -52,13 +57,17 @@ Every source patch runs in a disposable clone and is restored byte for byte in
 `finally`; git status must be clean before and after every entry. Ignored build
 output is disposable. Nothing rewrites the original checkout's checks.
 
-The silence entry reuses `release-audible-control.mjs` byte for byte from
-`origin/cs/157-automate-the-release-test-pass`. Its mutation is media substitution
-inside a fully stubbed browser: 16,000 zero PCM samples through a blob URL.
-It does not alter app files. **Control exit 1 means MISS, not CATCH:** the control
-went red because the suite's detector was fooled. Exit 0 means the detector
-refused silence, but only with a passing positive blob companion and advancing
-playback clock. Exit 2, timeout, absent evidence and stalled media are GAP.
+The silence entry uses `dev`'s `release-audible-control.mjs` (worker #168's
+three-case control). Its mutation is media substitution inside a fully stubbed
+browser: 16,000 zero PCM samples through a blob URL. It does not alter app
+files. The runner scores the **silence case alone**: verdict `wrong` (zero PCM
+reported as heard) is **MISS** because the suite's detector was fooled; verdict
+`correct` is **CATCH**, but only with a passing positive blob companion and an
+advancing playback clock. A wrong verdict on the click or real-clip case turns
+the control red without scoring this entry; read `run.evidence.results`.
+`cannot-run`, timeout, absent evidence and stalled media are GAP. Cycle 1
+measured this entry as MISS on the pre-#168 detector; the integrated detector
+measures it as CATCH (see `reports/`).
 
 The added positive blob control plays a known non-zero 440 Hz WAV through the
 actual shared instrument. The blob mutation deliberately rejects blob URLs in
@@ -86,20 +95,57 @@ Existing private audio instruments remain untouched. The ground search found
 a sixth exact copy was not established here. Do not treat this as a completed
 estate-wide sweep.
 
-## Standing job proposal — not installed
+## Run a cycle now (on demand)
 
-Proposed slot: **00:45 UTC**, outside the 03:30 UTC estate-wide suite. The first
-version exits 2 for the four documented gaps; keep those red/incomplete.
-Watson should retain the cycle JSON and dispatch work on a specific miss,
-requiring red-on-defect / green-on-restoration evidence for every added check.
-Do not schedule concurrently with another browser worker on this repo.
-
-Exact dispatch line, **after these changes are available in the named checkout**:
+One command, from any checkout of this repo that has its workspace dependencies
+installed; it measures the tip of `origin/dev`, not whatever is checked out:
 
 ```sh
-systemd-run --user --unit=cs-test-loop --slice=cs-workers.slice --on-calendar='*-*-* 00:45:00 UTC' --timer-property=Persistent=true --property=Nice=15 --property=RuntimeMaxSec=900 --working-directory=/home/tomcassidy/SSi/ssi-learning-app /bin/bash -lc 'export CS_SCRATCH="$HOME/.cache/ssi-test-loop"; mkdir -p "$CS_SCRATCH/tmp"; exec node tools/test-loop/run.mjs'
+nice -n 15 node tools/test-loop/run.mjs --ref origin/dev
 ```
 
-The source checkout is read only to the runner; every mutation and build occurs
-in its scratch clone. The timer is a proposal, not installed: this session can
-write only the private worktree and scratch paths. No promotion is implied.
+Omit `--ref` to measure the current checkout's HEAD instead. The printed
+`REPORT` line names the cycle JSON in `$CS_SCRATCH/tmp/test-loop-*/cycle.json`;
+copy it somewhere durable before the scratch directory is swept. The nightly
+wrapper below does that copy for you and is the same one command to type:
+
+```sh
+tools/test-loop/nightly.sh
+```
+
+Its report lands in `~/SSi/test-loop-reports/<UTC stamp>-<sha>.json` with the
+runner's console log beside it and `latest.json` / `latest.log` pointing at the
+newest. A full cycle takes several minutes: fresh clone, two builds, preview,
+serial browser controls.
+
+## Standing job — installed 2026-09-11, report-only, SEMI-AUTOMATIC
+
+**This loop is not a gate. Its exit code is advisory and nothing may consume
+it as a gate.** No CI job, release script, promotion path or deploy reads it.
+It scored one catch of six seeded breakages in its first cycle and missed
+silence outright, so it is not trustworthy as a gate, and Tom has ruled it is
+not to be one. The human/Astra six-step pass between `staging` and `main`
+remains the actual release gate and is untouched by this. Semi-automatic means:
+it runs on its own schedule and writes a report a person reads and acts on.
+
+Slot: **00:45 UTC** nightly, outside the 03:30 UTC estate-wide suite, as the
+user timer `cs-test-loop.timer` → `cs-test-loop.service` in
+`~/.config/systemd/user/`, under `cs-workers.slice`, `Nice=15`, `Persistent=true`.
+The service fetches `origin/dev` in the shared checkout, extracts
+`tools/test-loop/nightly.sh` from that ref and runs it, so the tested code and
+the runner are both the tip of `dev`, never the branch the checkout happens to
+be on. The report records `ref` and `sourceCommit`. `RuntimeMaxSec` is set from
+the measured full-cycle wall-clock with headroom, see the unit file.
+
+```sh
+systemctl --user list-timers cs-test-loop.timer     # next run
+systemctl --user start cs-test-loop.service          # run the nightly now
+journalctl --user -u cs-test-loop -n 100 --no-pager  # last run's console
+cat ~/SSi/test-loop-reports/latest.json              # last run's report
+```
+
+Watson reads `latest.json` and dispatches work on a specific miss, requiring
+red-on-defect / green-on-restoration evidence for every added check. The four
+GAP entries stay GAP until someone builds a safe local learner-level fixture;
+exit 2 for them is honest and expected. Do not schedule another browser worker
+on this repo at 00:45.

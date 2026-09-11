@@ -8,12 +8,21 @@ import { spawnSync, spawn } from 'node:child_process'
 import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, realpathSync, readdirSync, symlinkSync, existsSync, rmSync } from 'node:fs'
 import { resolve, join, dirname, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
-const source = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
+// TEST_LOOP_SOURCE names the checkout whose git objects and node_modules the
+// scratch clone borrows; default is the checkout this file lives in.
+const source = realpathSync(process.env.TEST_LOOP_SOURCE || resolve(dirname(fileURLToPath(import.meta.url)), '../..'))
 if (!process.env.CS_SCRATCH) throw new Error('CS_SCRATCH required; never use /tmp')
 const root = realpathSync(process.env.CS_SCRATCH)
 const out = mkdtempSync(join(root, 'tmp', 'test-loop-'))
 const scratch = join(out, 'checkout')
-const report = { sourceCommit: command('git', ['rev-parse', 'HEAD'], source).stdout.trim(), started: new Date().toISOString(), scratch, build: 'not-run', entries: [] }
+// --ref <remote/branch> makes the TESTED commit explicit: the remote branch is
+// fetched into source and its tip is measured, whatever source has checked out.
+// Without it, source's HEAD is measured. The report records both.
+const refIndex = process.argv.indexOf('--ref')
+const ref = refIndex >= 0 ? process.argv[refIndex + 1] : null
+if (refIndex >= 0 && !/^[\w.-]+\/[\w./-]+$/.test(ref || '')) throw new Error('--ref needs <remote>/<branch>')
+if (ref) requireOK(command('git', ['fetch', '--quiet', ...ref.split('/', 1), ref.slice(ref.indexOf('/') + 1)], source, 60000), 'fetch ref')
+const report = { ref: ref || 'HEAD of source', sourceCommit: requireOK(command('git', ['rev-parse', ref || 'HEAD'], source), 'rev-parse').stdout.trim(), started: new Date().toISOString(), scratch, build: 'not-run', entries: [] }
 let preview
 function stopPreview() {
   if (preview?.pid) { try { process.kill(-preview.pid, 'SIGTERM') } catch {} }
@@ -49,6 +58,12 @@ function probe(name) {
   const r = command('nice', ['-n', '15', 'node', `packages/player-vue/e2e/release-${name}-control.mjs`], scratch, 20000)
   let evidence = null
   if (existsSync(path)) evidence = JSON.parse(readFileSync(path))
+  // The audible control runs three cases; the silence case is the one this
+  // loop scores. Lift its clock and verdict so the scoring below reads one shape.
+  if (evidence?.results) {
+    const silence = evidence.results.find(c => c.id === 'silence') || {}
+    evidence = { ...evidence, clock: silence.clock ?? 0, silenceVerdict: silence.verdict ?? 'cannot-run', silenceHeard: silence.heard ?? null, silenceLevel: silence.level ?? null }
+  }
   return { exit: r.status, error: r.error?.message, stdout: r.stdout, stderr: r.stderr, evidence }
 }
 try {
@@ -107,8 +122,13 @@ try {
       if (![0, 1].includes(row.run.exit) || !row.run.evidence || row.run.evidence.clock <= 0.05) {
         row.reason = 'Control could not run or playback did not advance'
       } else if (entry.mode === 'silence') {
-        // Deliberately inverted: red qualification means the SUITE WAS FOOLED.
-        row.status = row.run.exit === 1 ? 'MISS' : 'CATCH'
+        // Scored on the silence case alone: 'wrong' means the detector reported
+        // zero PCM as heard, so the SUITE WAS FOOLED. A wrong verdict on the
+        // click or real-clip case turns the control red without scoring here;
+        // it is still recorded in run.evidence and must be read.
+        const v = row.run.evidence.silenceVerdict
+        row.status = v === 'wrong' ? 'MISS' : v === 'correct' ? 'CATCH' : 'GAP'
+        if (row.status === 'GAP') row.reason = 'Silence case inconclusive (cannot-run)'
       } else row.status = row.run.exit === 1 ? 'CATCH' : 'MISS'
     } finally {
       if (original !== undefined) writeFileSync(target, original)

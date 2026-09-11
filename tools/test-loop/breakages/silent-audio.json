@@ -4,9 +4,10 @@
   "patch": {
     "kind": "fixture",
     "file": "packages/player-vue/e2e/release-audible-control.mjs",
-    "description": "The imported control replaces lesson media with a blob WAV containing 16,000 zero PCM samples; every browser route is stubbed."
+    "description": "The control replaces lesson media with a blob WAV of 16,000 zero PCM samples (its 'silence' case); every browser route is stubbed. The same control also plays a click-at-end clip and a bundled real lesson mp3, so a detector cannot pass by always answering one way."
   },
-  "check": "journeys/lib.mjs instrument + waitAudible; release-audible-control.mjs qualifies that instrument",
+  "check": "journeys/lib.mjs instrument + waitAudible on the energy predicate in journeys/audibility.mjs (worker #168, merged to dev as 069ef0c5c); release-audible-control.mjs qualifies that instrument with three cases",
   "mode": "silence",
+  "expected": "CATCH: the silence case verdict is 'correct' because the detector refuses zero PCM (RMS below the -45 dBFS floor for the whole clip). 'wrong' means the detector reported silence as heard and the entry scores MISS. Before #168 this entry measured MISS (cycle-1.json: clock 0.212616 s, reported audible).",
   "revert": "Runner restores the original bytes in finally and asserts git status is clean before the next entry. Fixture pages are destroyed with their browser."
 }
