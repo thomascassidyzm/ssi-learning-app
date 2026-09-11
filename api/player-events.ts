@@ -273,8 +273,8 @@ export default async function handler(
   try {
     let { error } = await supabase.from('player_events').insert(rows)
     // app_shell is an ADDITIVE column (supabase/migrations/20260904_player_
-    // events_app_shell.sql.UNAPPLIED) that has to be applied by hand. Until it is, or if
-    // this code ever runs against a database that predates it, PostgREST
+    // events_app_shell.sql, applied live 2026-09-10). If this code ever runs
+    // against a database that predates it, PostgREST
     // rejects the whole batch for an unknown column — which would take out ALL
     // telemetry to buy one new field. So a schema-cache/undefined-column error
     // retries once without it: the new signal is the thing that degrades, not
