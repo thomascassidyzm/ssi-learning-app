@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `d7de74a7dd41` · generated 2026-09-10 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `f1bce6285111` · generated 2026-09-11 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -1326,6 +1326,20 @@ Section: seeing-progress · roles: leader, school_admin · anchor: `insights-org
 3. Read the class rows, furthest first, for each class's own position.
 
 **Worth knowing.** A position is the phrase the class last played, in both languages. A sentence is one of the course's own sentences; the count out of the total says how far along that is.
+
+## Where in the world people are using us, and on what
+
+Section: seeing-progress · roles: admin · anchor: `question-where-and-what` · in `packages/player-vue/src/views/intel/WhereAndWhatView.vue`
+
+**What it's for.** Which countries real people practised from in the last thirty days, whether they were on phones, tablets or desktops, and whether they were in the app or in a browser.
+
+**Where it is.** **Where and what**, under What's happening.
+
+1. Read the sentence for how many real people, from how many countries, and the country and device most of them are on.
+2. Read the chart for people by country, most first.
+3. Read the rows, one per country, each with its phone, tablet and desktop split and its in-the-app or in-a-browser split. Tap a country to narrow the page to it; tap a device chip to count only that device. Both choices are written into the page address.
+
+**Worth knowing.** A person seen on two devices is counted once in the headline and once under each device. In the app or in a browser has only been recorded since 10 September 2026, so earlier people read as not recorded rather than being guessed at. Machine traffic is left out by rule.
 
 ## Where the class has got to
 
