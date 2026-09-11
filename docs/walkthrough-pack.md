@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `98cd15e5ddac` · generated 2026-09-11 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `42fae3351cf9` · generated 2026-09-11 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## choose-something-else-to-learn — Choose something else to learn
 
@@ -22,7 +22,7 @@ Personas: learner · place: library
 
 ## hand-over-the-lead — Hand a class over to another teacher
 
-Personas: teacher · place: class-detail
+Personas: teacher, school_admin · place: class-detail
 
 1. [`class-teachers` · next] One teacher on a class is the **lead** — the one the class is listed under, and the one a school admin comes to about it. When you move on from a class, that name should move too.
 2. [`class-teacher-make-lead` · next] **Make lead** hands it to a colleague already on the class. It takes effect straight away, so add them first and hand over once you have.
@@ -40,7 +40,7 @@ Personas: leader · place: node-home (org/group/school)
 
 ## invite-a-supply-teacher — Invite a teacher who isn't here yet
 
-Personas: teacher · place: class-detail
+Personas: teacher, school_admin · place: class-detail
 
 1. [`class-teachers` · next] Use this when the colleague has no account yet — a supply teacher starting on Monday, or someone new to the school. It saves waiting for an admin to add them first.
 2. [`class-coteacher-link` · next] **Create a co-teacher link** mints a fresh link the moment you tap it. Whoever opens it lands as a teacher of this class, and of this school — not as its lead, and not over any of your other classes.
@@ -79,7 +79,7 @@ Personas: admin · place: admin-invites
 
 ## move-a-teacher-between-classes — Move a teacher to another class
 
-Personas: teacher · place: class-detail
+Personas: teacher, school_admin · place: class-detail
 
 1. [`class-teachers` · next] **Teachers** answers 'who teaches this class?'. A head usually wants the other direction too — 'which classes does this person take?' — and that is the same question read backwards.
 2. [`class-teacher-other-classes` · click] **Other classes** on anyone's row asks it that way round. It never moves anybody on its own — it opens a list for you to change.
@@ -110,7 +110,7 @@ Personas: learner · place: library
 
 ## run-class-session — Run your first class session
 
-Personas: teacher · place: class-detail
+Personas: teacher, school_admin · place: class-detail
 
 1. [`class-join-link` · next] Students join with this link — share it and they sign up straight into this class.
 2. [`class-join-code` · next] Prefer a whiteboard? **Show code instead** reveals a standing code — anyone who enters it at saysomethingin.com/redeem joins this class, until the code changes.
@@ -136,7 +136,7 @@ Personas: leader · place: node-home (org/group/school)
 
 ## share-a-class — Share a class with a colleague
 
-Personas: teacher · place: class-detail
+Personas: teacher, school_admin · place: class-detail
 
 1. [`class-teachers` · next] A class does not have to be yours alone. **Teachers** lists everyone who teaches it, with the lead marked — a job share, a department colleague, a supply teacher covering for a fortnight.
 2. [`class-teacher-add` · click] **Add another teacher** is how you share it. Nobody is added until you pick a name and confirm.

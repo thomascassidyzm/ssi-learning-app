@@ -21,7 +21,8 @@ import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 import MailboxCheckPrompt from '@/components/schools/MailboxCheckPrompt.vue'
 import { useMailboxPrompt } from '@/composables/useMailboxPrompt'
-import WalkOffer from '@/components/admin/WalkOffer.vue'
+import HowThisWorks from '@/components/admin/HowThisWorks.vue'
+import { viewerPersona } from '@/walkthrough/handbook'
 import CopyTeacherPlayCard from '@/components/schools/CopyTeacherPlayCard.vue'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
@@ -83,6 +84,9 @@ const searchQuery = ref('')
 // SCHOOL id, not the class id. Prefer `classId` when present — see
 // finding #1c, 2026-07-13 audit.
 const classIdParam = computed(() => (route.params.classId as string) || (route.params.id as string))
+// The explainer persona is the viewer's own role — one resolver, shared with
+// the Handbook page, so the door and the map never disagree about who you are.
+const explainerPersona = computed(() => viewerPersona(selectedUser.value?.platform_role, selectedUser.value?.educational_role))
 
 function getInitials(name: string): string {
   return name.split(/\s+/).map(p => p[0]).join('').toUpperCase().slice(0, 2)
@@ -862,7 +866,21 @@ const mailboxPrompt = useMailboxPrompt()
       </div>
 
       <div class="page-head-actions">
-        <WalkOffer v-if="!isAdminView" persona="teacher" place="class-detail" />
+        <!-- HOW THIS WORKS (job #286) — the explainer's door on the /schools
+             class page: the persona×class explanation from the compiled pack
+             with the "Show me" clips for this place, then the Handbook as the
+             quieter map. Persona is the viewer's own role, exactly as the
+             Handbook page resolves it, so View-as opens what the impersonated
+             leader or teacher would see. Renders nothing when the pack has no
+             explanation for this persona at a class. -->
+        <HowThisWorks
+          v-if="!isAdminView"
+          :persona="explainerPersona"
+          kind="class"
+          place="class-detail"
+          :node-id="classIdParam || ''"
+          :viewer-id="selectedUser?.user_id || 'anon'"
+        />
         <!-- HANDBOOK Run your first class session
              section: running-classes
              roles: school_admin, teacher

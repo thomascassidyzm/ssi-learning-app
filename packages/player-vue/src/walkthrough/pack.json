@@ -1,5 +1,5 @@
 {
-  "version": "98cd15e5ddac",
+  "version": "42fae3351cf9",
   "generatedAt": "2026-09-11",
   "walks": [
     {
@@ -107,7 +107,8 @@
       "id": "hand-over-the-lead",
       "title": "Hand a class over to another teacher",
       "personas": [
-        "teacher"
+        "teacher",
+        "school_admin"
       ],
       "place": {
         "route": "class-detail"
@@ -195,7 +196,8 @@
       "id": "invite-a-supply-teacher",
       "title": "Invite a teacher who isn't here yet",
       "personas": [
-        "teacher"
+        "teacher",
+        "school_admin"
       ],
       "place": {
         "route": "class-detail"
@@ -392,7 +394,8 @@
       "id": "move-a-teacher-between-classes",
       "title": "Move a teacher to another class",
       "personas": [
-        "teacher"
+        "teacher",
+        "school_admin"
       ],
       "place": {
         "route": "class-detail"
@@ -559,7 +562,8 @@
       "id": "run-class-session",
       "title": "Run your first class session",
       "personas": [
-        "teacher"
+        "teacher",
+        "school_admin"
       ],
       "place": {
         "route": "class-detail"
@@ -694,7 +698,8 @@
       "id": "share-a-class",
       "title": "Share a class with a colleague",
       "personas": [
-        "teacher"
+        "teacher",
+        "school_admin"
       ],
       "place": {
         "route": "class-detail"

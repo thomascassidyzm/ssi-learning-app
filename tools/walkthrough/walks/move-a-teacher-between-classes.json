@@ -2,7 +2,8 @@
   "id": "move-a-teacher-between-classes",
   "title": "Move a teacher to another class",
   "personas": [
-    "teacher"
+    "teacher",
+    "school_admin"
   ],
   "place": {
     "route": "class-detail"
