@@ -86,6 +86,7 @@ const SetupView = () => import('@/views/schools/SetupView.vue')
 // HANDBOOK (2026-09-07) — the compiled map of every capability, shared by the
 // /schools and /org mounts: one component, one address per lane.
 const HandbookView = () => import('@/views/schools/HandbookView.vue')
+const SupportView = () => import('@/views/schools/SupportView.vue')
 // THE INTELLIGENCE SURFACE — the question pages. They ride AdminContainer,
 // the ONE shell over SSi's internal surfaces (Tom's ruling 2026-09-10:
 // "share"), whose bar carries the ten questions.
@@ -362,6 +363,19 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: 'Handbook',
           description: 'Everything this dashboard can do, compiled from the same source that gates the live dashboard',
+          railFrame: true,
+        },
+      },
+      {
+        // The support channel — one thread per school, admins only (Tom,
+        // 2026-09-10). The route refuses a teacher server-side; the menu
+        // entry is simply not shown to one.
+        path: 'support',
+        name: 'schools-support',
+        component: SupportView,
+        meta: {
+          title: 'Support',
+          description: 'Your school\'s conversation with SSi, inside the app',
           railFrame: true,
         },
       },

@@ -9,6 +9,8 @@ import { useRoute } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useI18n } from '@/composables/useI18n'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
+import SupportSheet from '@/components/schools/support/SupportSheet.vue'
+import HandbookMark from '@/components/schools/support/HandbookMark.vue'
 import { isUnstampedTrialLapsed } from '@ssi/core'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { useClassesData } from '@/composables/schools/useClassesData'
@@ -440,6 +442,31 @@ const phrasesTable = computed<TableData>(() => ({
   rows: phraseRows.value.map((p, i) => ({ id: `${i}-${p.known}`, cells: { known: p.known, target: p.target, count: p.count } })),
 }))
 const showPhrasesCard = computed(() => !!classPractice.value && !neutral.value && !isClass.value)
+
+// DOOR ONE of the support channel (spec §2; Tom, 2026-09-10: admins only).
+// "Does this look wrong?" under the figures, opening a sheet that already
+// knows which row she tapped and what it read. The server adds what it
+// computed underneath, so the agent holds both numbers without diagnosis.
+const canAskSupport = computed(() => isSchoolAdmin.value || isGovtAdmin.value)
+const supportOpen = ref(false)
+const supportAnchor = ref('node-stats')
+const supportLabel = ref('')
+const supportValue = ref('')
+function askAboutStats(): void {
+  supportAnchor.value = 'node-stats'
+  supportLabel.value = stats.value.map((s) => s.word).join(' / ')
+  supportValue.value = stats.value.map((s) => `${s.value} ${s.word}`).join(' · ')
+  supportOpen.value = true
+}
+function askAboutClassPractice(): void {
+  const cp = classPractice.value
+  supportAnchor.value = 'class-practice'
+  supportLabel.value = t('org.nodeHome.statClassPractice', 'Class practice')
+  supportValue.value = cp?.lastPractisedAt
+    ? `${cp.phrases7d ?? 0} / ${cp.inAppMinutes7d ?? 0} min / ${cp.lastPractisedAt}`
+    : t('org.nodeHome.noClassPracticeYet', "No class practice yet — the teacher's Play as class button starts the first session.")
+  supportOpen.value = true
+}
 
 // Node verbs (invite / add / rename / mint / delete / courses) live in
 // NodeActionBar.vue, which calls the endpoints and emits `changed` → fetchHome.
@@ -936,6 +963,10 @@ const listPayload = computed(() => {
               <span class="stat-word">{{ s.word }}</span>
             </div>
           </div>
+          <p v-if="canAskSupport && !switching" class="stats-ask">
+            <button type="button" class="ask-support" @click="askAboutStats">{{ t('schools.support.doorAffordance', 'Does this look wrong?') }}</button>
+            <HandbookMark anchor="node-stats" />
+          </p>
           <p v-if="showPhrasesCard && !switching" class="stats-note">
             {{ t('org.nodeHome.statsNoteInAppTime', 'Minutes in the app is the time your classes, staff and students spent in the app over the last seven days, pauses included — the time they were in the lesson. Whole-class play accounts for {classMinutes} of those minutes. Audio actually playing came to {audioMinutes} minutes.').replace('{classMinutes}', String(classPractice?.classInAppMinutes7d ?? 0)).replace('{audioMinutes}', String(classPractice?.audioPlayedMinutes7d ?? 0)) }}
           </p>
@@ -1016,7 +1047,7 @@ const listPayload = computed(() => {
                  checked: 2423aa12.0aca4ce8
             -->
             <div class="schools-card class-card" data-walk="class-practice">
-              <span class="schools-kicker">{{ t('org.nodeHome.statClassPractice', 'Class practice') }}</span>
+              <span class="class-card-kicker-row"><span class="schools-kicker">{{ t('org.nodeHome.statClassPractice', 'Class practice') }}</span><HandbookMark anchor="class-practice" /></span>
               <template v-if="classPractice?.lastPractisedAt">
                 <p class="class-practice-headline frost-mono-nums">
                   {{ classPractice.phrases7d }}<span class="class-practice-unit"> {{ classPractice.phrases7d === 1 ? t('org.nodeHome.phraseSpokenThisWeek', 'phrase spoken this week') : t('org.nodeHome.phrasesSpokenThisWeek', 'phrases spoken this week') }}</span>
@@ -1029,6 +1060,9 @@ const listPayload = computed(() => {
                 <p v-else class="class-card-note">{{ t('org.nodeHome.noClassPlayThisWeek', 'No whole-class practice recorded in the last seven days.') }}</p>
               </template>
               <p v-else class="class-card-note">{{ t('org.nodeHome.noClassPracticeYet', "No class practice yet — the teacher's Play as class button starts the first session.") }}</p>
+              <p v-if="canAskSupport" class="stats-ask">
+                <button type="button" class="ask-support" @click="askAboutClassPractice">{{ t('schools.support.doorAffordance', 'Does this look wrong?') }}</button>
+              </p>
             </div>
             <!-- HANDBOOK How far a class has travelled
                  section: seeing-progress
@@ -1292,6 +1326,7 @@ const listPayload = computed(() => {
       @close="closeAssign"
       @confirm="handleAssignConfirm"
     />
+  <SupportSheet :open="supportOpen" :anchor="supportAnchor" :displayed-label="supportLabel" :displayed-value="supportValue" @close="supportOpen = false" />
   </div>
 </template>
 
@@ -1450,6 +1485,10 @@ const listPayload = computed(() => {
 }
 .class-card-note { margin: 0; font-size: var(--text-sm); color: var(--schools-fg-2, #555); line-height: 1.5; }
 .stats-note { margin: var(--space-2) 0 0; font-size: var(--text-sm); color: var(--schools-fg-2, #555); line-height: 1.5; }
+.stats-ask { display: flex; align-items: center; margin: 6px 0 0; font-size: 12px; }
+.class-card-kicker-row { display: inline-flex; align-items: center; }
+.ask-support { background: none; border: none; padding: 0; font: inherit; font-size: 12px; color: var(--schools-fg-3, #777); text-decoration: underline; cursor: pointer; }
+.ask-support:hover { color: var(--schools-fg, #222); }
 .phrases-card { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); margin-top: var(--space-3); }
 .phrases-card.is-switching > :not(.schools-kicker) { visibility: hidden; }
 .class-practice-headline { margin: 0; font-size: 28px; font-weight: 700; color: var(--schools-fg-1, #222); line-height: 1.1; }
