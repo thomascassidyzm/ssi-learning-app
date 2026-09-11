@@ -701,3 +701,35 @@ did not change. Two new card tests fail on the pre-fix card and pass on the fixe
 running `tools/explainer/compile.mjs`, so the checked-in `pack.json` carried version 525131d5baef
 while the sources compiled to f33f092123b9. The compile gate exists precisely to catch that. The
 repair is the compiler's own output, committed; nothing was hand-edited.
+
+## 2026-09-11 — schools pages open the explainer clips, not the prose Handbook (job #286·F)
+
+**Where Tom actually was.** View-as as the Chepstow leader lands on the ORG LENS, `/org/<school>`,
+and class 8H is `/org/<class-id>`, rendered by `NodeHomeView.vue`, not `/schools/classes/:id`. That
+page already mounted `HowThisWorks.vue` with both doors. The Handbook was the bordered chip and the
+explainer toggle a faint underlined link, so the first tap went to the prose map "Everything this
+dashboard can do". The persona there is `leader`, and no walk in the pack targets node-home at a
+class, so even the right door opened prose with no clips beneath it.
+
+**Decision: the explainer toggle is the louder door, everywhere the component mounts.** Tom's
+words set it: the clips are what "How this works" means. The Handbook stays as the quiet second
+door, unchanged in destination, because the 2026-09-07 ruling keeps it as the map of everything
+and the panel as the just-in-time answer. This is one component, so the org lens and the schools
+class page cannot disagree about which door is first.
+
+**Decision: the /schools class page mounts the same door with the viewer's own persona.** Persona
+comes from `viewerPersona`, the resolver the Handbook page already uses, so the door and the map
+agree about who you are and View-as opens what the impersonated leader or teacher would see. The
+teacher-only "Show me" row it replaces had been showing school leaders the teacher clips anyway;
+those five walks now name school_admin, which their capabilities' HANDBOOK comments already do.
+
+**Decision: no mount on the /schools dashboard.** The school_admin school ruling was authored for
+the org lens and bolds "Class practice" and names a teacher link and a learner link the /schools
+dashboard does not carry. A panel that points at numbers that are not on the page is the failure
+mode the brief named, so that page keeps its top-bar Handbook only. If in doubt, cut it out.
+
+**Not done, deliberately.** The explainer drift gate still validates admin and leader only.
+Wiring school_admin and teacher fails on twelve org-lens verbs those rulings never name, because
+they were written for the legacy /schools surface. Re-authoring rulings is Tom's prose, not a
+worker's. The full persona × place × clip inventory, including the class-node clips gap on the org
+lens, is the published gaps list for this job.
