@@ -13,11 +13,20 @@
 import { ref, computed, watch } from 'vue'
 import { getSchoolsClient } from '@/composables/schools/client'
 import { useI18n } from '@/composables/useI18n'
+import type { PanelState } from '@/views/schools/classDetailPanels'
 
 const { t } = useI18n()
 
 interface TeacherChoice { user_id: string; name: string }
-const props = defineProps<{ classId: string; teachers: TeacherChoice[] }>()
+// `teachersState` is what the class page's own teacher read came back as. An
+// empty list is only "no teachers are linked" when that read resolved clean and
+// empty — a failed or pending read must never be voiced as an empty class
+// (nightly, 2026-09-11: this card said "No teachers" under a failed read while
+// the panel beside it said "Couldn't load"). Absent, the list speaks for itself.
+const props = withDefaults(defineProps<{ classId: string; teachers: TeacherChoice[]; teachersState?: PanelState }>(), {
+  teachersState: undefined,
+})
+const listState = computed<PanelState>(() => props.teachersState ?? (props.teachers.length > 0 ? 'ready' : 'empty'))
 const emit = defineEmits<{ (e: 'copied'): void }>()
 
 interface PositionWords { known: string | null; target: string | null }
@@ -135,7 +144,9 @@ function words(p: PositionWords | null | undefined): string {
     <select id="copy-play-teacher" v-model="pickedTeacherId" class="teacher-select copy-play-select" :disabled="busy || teachers.length === 0" data-walk="class-copy-play-picker">
       <option v-for="x in teachers" :key="x.user_id" :value="x.user_id">{{ x.name }}</option>
     </select>
-    <p v-if="teachers.length === 0" class="rail-note schools-subtle">{{ t('schools.copyPlay.noTeachers', 'No teachers are linked to this class yet.') }}</p>
+    <p v-if="listState === 'loading'" class="rail-note schools-subtle">{{ t('schools.copyPlay.teachersLoading', 'Loading the teacher list…') }}</p>
+    <p v-else-if="listState === 'error'" class="rail-note schools-subtle">{{ t('schools.copyPlay.teachersError', "Couldn't load the teacher list, so there is nobody to pick yet. Try refreshing.") }}</p>
+    <p v-else-if="listState === 'empty'" class="rail-note schools-subtle">{{ t('schools.copyPlay.noTeachers', 'No teachers are linked to this class yet.') }}</p>
 
     <!-- HANDBOOK Copy a teacher's own play onto the class
          section: running-classes
