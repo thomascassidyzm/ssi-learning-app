@@ -18,7 +18,7 @@ import { getLanguageName, useI18n } from '@/composables/useI18n'
 import { deriveBelt, type Belt } from '@/composables/schools/belts'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
 
-type Health = 'excellent' | 'good' | 'needs-attention' | 'inactive'
+import { deriveClassHealth, type ClassHealth as Health } from './classHealth'
 type SortKey = 'name' | 'students' | 'hours' | 'journey'
 
 const router = useRouter()
@@ -79,11 +79,14 @@ const classReports = reactive(new Map<string, ClassReport>())
 // once (founder ruling 2026-09-10, api/_utils/inAppTime.ts). Empty until
 // loaded → hoursWk = 0.
 const practice7dSeconds = ref<Record<string, number>>({})
+// Distinct days with any play in the last 7, per class — the health mark's
+// input, from the same payload. Empty until loaded → 0.
+const practice7dDays = ref<Record<string, number>>({})
 
 async function loadPractice7d() {
   if (!supabase.value) return
   const classIds = classesData.value.map(c => c.id)
-  if (classIds.length === 0) { practice7dSeconds.value = {}; return }
+  if (classIds.length === 0) { practice7dSeconds.value = {}; practice7dDays.value = {}; return }
   try {
     const { data: { session } } = await supabase.value.auth.getSession()
     const token = session?.access_token
@@ -94,6 +97,7 @@ async function loadPractice7d() {
     if (!res.ok) return
     const data = await res.json()
     practice7dSeconds.value = (data?.practiceByClass as Record<string, number>) || {}
+    practice7dDays.value = (data?.activeDaysByClass as Record<string, number>) || {}
   } catch {
     /* non-fatal — hoursWk falls back to 0 */
   }
@@ -110,15 +114,6 @@ async function fetchReportsForClasses() {
   }
 }
 
-
-function deriveHealth(report: ClassReport | undefined, studentCount: number): Health {
-  if (studentCount === 0) return 'inactive'
-  if (!report) return 'good'
-  const activeDays = report.class.active_days_last_7
-  if (activeDays >= 5) return 'excellent'
-  if (activeDays >= 2) return 'good'
-  return 'needs-attention'
-}
 
 function healthDisplayLabel(health: Health): string {
   if (health === 'excellent') return t('schools.teacherDashboard.healthExcellent', 'Excellent')
@@ -154,7 +149,13 @@ const enrichedClasses = computed(() => {
       sessions: report?.class.total_sessions ?? 0,
       active_days: report?.class.active_days_last_7 ?? 0,
       activity: c.activity_last_7 ?? [0, 0, 0, 0, 0, 0, 0],
-      health: deriveHealth(report, c.student_count),
+      // The rule lives in classHealth.ts; whole-class play from the front
+      // counts, so a class with no pupil accounts is not inactive by fiat.
+      health: deriveClassHealth({
+        studentCount: c.student_count,
+        reportActiveDays: report ? report.class.active_days_last_7 : null,
+        inAppActiveDays: practice7dDays.value[c.id] ?? 0,
+      }),
     }
   })
 })

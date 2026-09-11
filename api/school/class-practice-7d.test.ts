@@ -104,6 +104,24 @@ describe('GET /api/school/class-practice-7d — IN-APP TIME (founder ruling 2026
     expect(res.body.metric).toBe('in_app_session_time')
     expect(res.body.idleCutoffSeconds).toBe(300)
   })
+
+  it('ACTIVE DAYS: the days a class practised on count the class account and its students together — a class with no pupil accounts still earns its days from the front', async () => {
+    // Student today; the class account yesterday → two distinct days for c1.
+    // A second class with NO students and only whole-class play earns its
+    // day all the same — that is Ysgol Cas-gwent's shape (job #217).
+    DB.classes.push({ id: 'c2', school_id: 's1', class_learner_id: 'class-learner-2' })
+    DB.player_events.push({ learner_id: 'class-learner-2', occurred_at: at(-30) })
+    scope.classIds = ['c1', 'c2']
+    const res = makeRes()
+    await handler(makeReq({}), res)
+    expect(res.statusCode).toBe(200)
+    // c1's expected days come from the fixture's own stamps (the class
+    // account's hour of play yesterday can straddle UTC midnight).
+    const c1Days = new Set(DB.player_events.filter((e) => e.learner_id !== 'class-learner-2').map((e) => String(e.occurred_at).slice(0, 10))).size
+    expect(c1Days).toBeGreaterThanOrEqual(2)
+    expect(res.body.activeDaysByClass).toEqual({ c1: c1Days, c2: 1 })
+    expect(res.body.classPlayByClass.c2).toBe(0) // one clip is presence, not length
+  })
 })
 
 describe('GET /api/school/class-practice-7d — coverage gate', () => {

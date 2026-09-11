@@ -26,6 +26,9 @@
  *   practiceByClass:   { [classId]: in-app seconds, last 7 days } — the headline
  *   classPlayByClass:  { [classId]: of which, the class account's own play }
  *   audioPlayedByClass:{ [classId]: students' audio-played seconds off the ledger }
+ *   activeDaysByClass: { [classId]: distinct UTC days in the window with any play,
+ *                        the class account and its students together } — what
+ *                        the class list's health mark is worked out from
  *   metric: 'in_app_session_time', idleCutoffSeconds, days: 7
  * }
  */
@@ -36,7 +39,7 @@ import { verifyAuthToken } from '../_utils/auth'
 import { resolveVisibleScope, chunk } from '../_utils/schoolScope'
 import { filterActiveScope } from '../_utils/schoolCoverageGate'
 import { applyCors } from '../_utils/cors'
-import { inAppSecondsByLearner, IDLE_CUTOFF_SECONDS } from '../_utils/inAppTime'
+import { inAppTimeByLearner, IDLE_CUTOFF_SECONDS } from '../_utils/inAppTime'
 
 const DAYS = 7
 
@@ -91,7 +94,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     if (classIds.length === 0) {
       res.setHeader('Cache-Control', 'no-store')
-      res.status(200).json({ practiceByClass: {}, classPlayByClass: {}, audioPlayedByClass: {}, metric: 'in_app_session_time', idleCutoffSeconds: IDLE_CUTOFF_SECONDS, days: DAYS })
+      res.status(200).json({ practiceByClass: {}, classPlayByClass: {}, audioPlayedByClass: {}, activeDaysByClass: {}, metric: 'in_app_session_time', idleCutoffSeconds: IDLE_CUTOFF_SECONDS, days: DAYS })
       return
     }
 
@@ -113,7 +116,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const sinceDay = since.toISOString().split('T')[0]
 
     const [inAppByLearner, secondsByLearner] = await Promise.all([
-      inAppSecondsByLearner(svc, [...studentIds, ...classLearnerByClass.values()], since.toISOString()),
+      inAppTimeByLearner(svc, [...studentIds, ...classLearnerByClass.values()], since.toISOString()),
       audioPlayedByLearner(svc, studentIds, sinceDay),
     ])
     if (!secondsByLearner) {
@@ -124,17 +127,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const practiceByClass: Record<string, number> = {}
     const classPlayByClass: Record<string, number> = {}
     const audioPlayedByClass: Record<string, number> = {}
+    // Distinct days with any play, class account and students together — the
+    // health mark's input ("how many of the last seven days the class
+    // practised on"). A class with no pupil accounts earns its days from the
+    // front of the room like any other.
+    const activeDaysByClass: Record<string, number> = {}
     for (const c of classIds) {
       const students = scope.studentsByClass[c] || []
       const classLearner = classLearnerByClass.get(c)
-      const classPlay = classLearner ? (inAppByLearner.get(classLearner) || 0) : 0
+      const classPlay = classLearner ? (inAppByLearner.get(classLearner)?.seconds || 0) : 0
       classPlayByClass[c] = classPlay
-      practiceByClass[c] = classPlay + students.reduce((sum, lid) => sum + (inAppByLearner.get(lid) || 0), 0)
+      practiceByClass[c] = classPlay + students.reduce((sum, lid) => sum + (inAppByLearner.get(lid)?.seconds || 0), 0)
       audioPlayedByClass[c] = students.reduce((sum, lid) => sum + (secondsByLearner.get(lid) || 0), 0)
+      const days = new Set<string>()
+      for (const lid of [classLearner, ...students]) if (lid) for (const d of inAppByLearner.get(lid)?.days ?? []) days.add(d)
+      activeDaysByClass[c] = days.size
     }
 
     res.setHeader('Cache-Control', 'no-store')
-    res.status(200).json({ practiceByClass, classPlayByClass, audioPlayedByClass, metric: 'in_app_session_time', idleCutoffSeconds: IDLE_CUTOFF_SECONDS, days: DAYS })
+    res.status(200).json({ practiceByClass, classPlayByClass, audioPlayedByClass, activeDaysByClass, metric: 'in_app_session_time', idleCutoffSeconds: IDLE_CUTOFF_SECONDS, days: DAYS })
   } catch (err) {
     console.error('[class-practice-7d] error:', err)
     res.status(500).json({ error: 'Internal server error' })
