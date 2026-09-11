@@ -23,7 +23,7 @@ function payload(): OrgIntelPayload {
     windowDays: 7,
     lookbackDays: 28,
     countedAt: new Date().toISOString(),
-    practising: { classCount: 34, classesThisWeek: 14, classesLastWeek: 1, phrasesThisWeek: 422, phrasesLastWeek: 3, peopleCount: 39, peopleThisWeek: 17, peopleLastWeek: 0, ownMinutesThisWeek: 124, ownMinutesLastWeek: 0 },
+    practising: { classCount: 34, classesThisWeek: 14, classesLastWeek: 1, phrasesThisWeek: 422, phrasesLastWeek: 3, classMinutesThisWeek: 352, classMinutesLastWeek: 4, peopleCount: 39, peopleThisWeek: 17, peopleLastWeek: 0, ownMinutesThisWeek: 124, ownMinutesLastWeek: 0 },
     byDay: Array.from({ length: 28 }, (_, i) => ({ day: new Date(Date.now() - (27 - i) * DAY).toISOString().slice(0, 10), phrases: i === 25 ? 329 : 0, classes: i === 25 ? 11 : 0 })),
     quiet: { quietCount: 1, neverCount: 13, buckets: [
       { id: 'this-week', classes: 20 }, { id: 'gone-a-week', classes: 0 }, { id: 'gone-two-weeks', classes: 0 },
@@ -42,9 +42,9 @@ function payload(): OrgIntelPayload {
       ],
     },
     classes: [
-      { id: 'c-7h', name: '7H', courseCode: 'cym_s_for_eng', phrasesThisWeek: 52, phrasesLastWeek: 0, lastPractisedAt: new Date(Date.now() - DAY).toISOString(), daysSincePractice: 1, position: { legoId: 'S0003L01', sentence: 3, knownText: 'I’m going to', targetText: 'dw i’n mynd i' } },
-      { id: 'c-6s', name: '6S', courseCode: 'cym_s_for_eng', phrasesThisWeek: 0, phrasesLastWeek: 0, lastPractisedAt: new Date(Date.now() - 55 * DAY).toISOString(), daysSincePractice: 55, position: { legoId: 'S0003L01', sentence: 3, knownText: 'I’m going to', targetText: 'dw i’n mynd i' } },
-      { id: 'c-11e', name: '11E', courseCode: 'cym_s_for_eng', phrasesThisWeek: 0, phrasesLastWeek: 0, lastPractisedAt: null, daysSincePractice: null, position: null },
+      { id: 'c-7h', name: '7H', courseCode: 'cym_s_for_eng', phrasesThisWeek: 52, phrasesLastWeek: 0, minutesThisWeek: 24, minutesLastWeek: 0, lastPractisedAt: new Date(Date.now() - DAY).toISOString(), daysSincePractice: 1, position: { legoId: 'S0003L01', sentence: 3, knownText: 'I’m going to', targetText: 'dw i’n mynd i' } },
+      { id: 'c-6s', name: '6S', courseCode: 'cym_s_for_eng', phrasesThisWeek: 0, phrasesLastWeek: 0, minutesThisWeek: 0, minutesLastWeek: 0, lastPractisedAt: new Date(Date.now() - 55 * DAY).toISOString(), daysSincePractice: 55, position: { legoId: 'S0003L01', sentence: 3, knownText: 'I’m going to', targetText: 'dw i’n mynd i' } },
+      { id: 'c-11e', name: '11E', courseCode: 'cym_s_for_eng', phrasesThisWeek: 0, phrasesLastWeek: 0, minutesThisWeek: 0, minutesLastWeek: 0, lastPractisedAt: null, daysSincePractice: null, position: null },
     ],
     people: [
       { learnerId: 'l-1', name: 'Mr Lloyd', minutesThisWeek: 31, minutesLastWeek: 0, lastPractisedDay: '2026-09-09' },
@@ -64,7 +64,9 @@ describe('OrgIntelPanel', () => {
   it('answers the three questions in words, from the one payload', () => {
     const w = mountPanel(payload())
     const text = w.text()
-    expect(text).toContain('14 of your 34 classes practised together this week, up from 1 last week, 422 phrases spoken.')
+    expect(text).toContain('14 of your 34 classes practised together this week, up from 1 last week, 422 phrases spoken, 352 min in the app.')
+    expect(text).toContain('24 min')                    // 7H's own in-app minutes on its row
+    expect(text).not.toMatch(/\b\d+(\.\d+)?h\b/)      // minutes, never hours
     expect(text).toContain('17 of 39 people practised on their own account, 124 minutes between them.')
     expect(text).toContain('1 class has gone quiet, and 13 have never started.')
     expect(text).toContain('21 of 34 classes have started.')
@@ -82,11 +84,11 @@ describe('OrgIntelPanel', () => {
     expect(mountPanel(payload(), { member: false }).find('a[href="/admin/classes/c-7h"]').exists()).toBe(true)
   })
 
-  it('shows position as the phrase last played, never a bare seed id, and says whole-class time is not measured', () => {
+  it('shows position as the phrase last played, never a bare seed id, and says what a class\'s minutes are', () => {
     const w = mountPanel(payload())
     expect(w.text()).toContain('I’m going to · dw i’n mynd i')
     expect(w.text()).not.toMatch(/S00\d\dL\d\d/)
-    expect(w.text()).toContain('No record measures how long a whole class practised together')
+    expect(w.text()).toContain('time in the app on its own class account')
   })
 
   it('carries no vendor figure', () => {

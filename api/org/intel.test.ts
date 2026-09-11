@@ -55,6 +55,11 @@ function resetTables(): void {
       clip('cl-1', 1, 'a-1', 0), clip('cl-1', 1, 'a-2', 1), clip('cl-1', 2, 'a-1', 2),
       clip('cl-1', 9, 'a-1', 0), clip('cl-1', 10, 'a-3', 1),
       clip('cl-2', 10, 'a-1', 0),
+      // class-1 also sat in the app for one 12-minute block this week (taps,
+      // no clips): in-app time counts the gaps, phrases do not.
+      ...[0, 240, 480, 720].map((s) => ({ learner_id: 'cl-1', event_type: 'tap_play', occurred_at: iso(2, s * 1000), payload: {} })),
+      // and a 6-minute block last week
+      ...[0, 180, 360].map((s) => ({ learner_id: 'cl-1', event_type: 'tap_play', occurred_at: iso(9, s * 1000), payload: {} })),
       clip('cl-x', 1, 'a-1', 0), clip('cl-x', 1, 'a-1', 1), clip('cl-x', 1, 'a-1', 2), clip('cl-x', 1, 'a-1', 3), clip('cl-x', 1, 'a-1', 4),
     ],
     course_enrollments: [
@@ -240,6 +245,16 @@ describe('GET /api/org/intel — the three answers', () => {
     expect(c1.position).toEqual({ legoId: 'S0008L01', sentence: 8, knownText: 'I still want', targetText: 'dw i dal yn moyn' })
     const t1 = res.body.people.find((p: any) => p.name === 'Mr Lloyd')
     expect(t1).toMatchObject({ minutesThisWeek: 10, minutesLastWeek: 5, lastPractisedDay: day(1) })
+  })
+
+  it('a class has MINUTES: in-app time on its own class account, this week against last, the same rule as the class page (Tom 2026-09-11: the graphs made no sense because class time was people\'s logins only)', async () => {
+    const res = makeRes()
+    await handler(makeReq('school-1'), res)
+    const c1 = res.body.classes.find((c: any) => c.id === 'class-1')
+    expect(c1).toMatchObject({ minutesThisWeek: 12, minutesLastWeek: 6 })
+    expect(res.body.practising).toMatchObject({ classMinutesThisWeek: 12, classMinutesLastWeek: 6 })
+    // Own-account minutes are untouched by class time.
+    expect(res.body.practising.ownMinutesThisWeek).toBe(10)
   })
 
   it('QUIET names the classes that have gone quiet and the ones that never started', async () => {
