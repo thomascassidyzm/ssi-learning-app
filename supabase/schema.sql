@@ -5679,6 +5679,63 @@ $$;
 
 
 --
+-- Name: org_enrolment_roster(uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.org_enrolment_roster(p_group_ids uuid[]) RETURNS TABLE(learner_id uuid, enrolled_on date, reporting_from date, age_band_16_24 boolean)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  SELECT e.learner_id,
+         min(e.enrolled_at AT TIME ZONE 'UTC')::date AS enrolled_on,
+         min(e.reporting_from)                       AS reporting_from,
+         bool_or(e.age_band_16_24)                   AS age_band_16_24
+  FROM org_enrolments e
+  WHERE e.group_id = ANY(p_group_ids)
+  GROUP BY e.learner_id;
+$$;
+
+
+--
+-- Name: FUNCTION org_enrolment_roster(p_group_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.org_enrolment_roster(p_group_ids uuid[]) IS 'One row per person on an org''s roster, deduped across its cohorts at the earliest enrolment. Drives the funder export''s registered count, including learners who have never played.';
+
+
+--
+-- Name: org_enrolment_window_seconds(uuid[], date, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.org_enrolment_window_seconds(p_group_ids uuid[], p_from date, p_to date) RETURNS TABLE(learner_id uuid, course_code text, seconds bigint)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  WITH roster AS (
+    SELECT e.learner_id, min(e.reporting_from) AS reporting_from
+    FROM org_enrolments e
+    WHERE e.group_id = ANY(p_group_ids)
+    GROUP BY e.learner_id
+  )
+  SELECT lso.learner_id,
+         lso.course_code,
+         sum(lso.play_seconds)::bigint AS seconds
+  FROM learner_speaking_opportunities lso
+  JOIN roster r ON r.learner_id = lso.learner_id
+  WHERE lso.day >= GREATEST(p_from, r.reporting_from)
+    AND lso.day <= p_to
+  GROUP BY lso.learner_id, lso.course_code;
+$$;
+
+
+--
+-- Name: FUNCTION org_enrolment_window_seconds(p_group_ids uuid[], p_from date, p_to date); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.org_enrolment_window_seconds(p_group_ids uuid[], p_from date, p_to date) IS 'Playback seconds per learner per course inside a window, with each learner''s own minutes-from-zero baseline applied. Exists so a large cohort''s export is one aggregate rather than millions of rows dragged into application memory — the exact failure the old system hit once its groups grew.';
+
+
+--
 -- Name: position_derived_seconds_per_lego(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -11349,34 +11406,6 @@ CREATE TABLE public.orchestrator_messages (
 
 
 --
--- APPLIED LIVE 2026-09-08. The two org_enrolment_* relations below are defined
--- by supabase/migrations/20260908e_org_enrolments.sql, applied to the live
--- database on 2026-09-08 in one transaction alongside the merge of the Canolfan
--- enrolment build to dev. Both tables were verified present, RLS-enabled and
--- empty immediately afterwards, and both aggregate functions verified callable.
--- These declarations are hand-written rather than dumped, so this file is a
--- faithful-but-partial record of them until somebody regenerates it with
--- ./supabase/snapshot-schema.sh; the ACLs below were likewise transcribed from
--- the live grants rather than dumped.
---
--- One posture correction rode with the application, as
--- supabase/migrations/20260908f_org_enrolments_authenticated_select_only.sql:
--- 20260908e granted SELECT to authenticated but never revoked Supabase's
--- grant-open default underneath it, so authenticated also held INSERT, UPDATE,
--- DELETE and TRUNCATE. RLS already refused the first three; TRUNCATE is not
--- subject to RLS and was the one that mattered. Live grants now read SELECT
--- only, which is what 20260908e's own comment always said they were.
---
--- The same migration also adds two aggregate FUNCTIONS not shown here, because
--- this snapshot's drift guard tracks relations rather than routines:
--- org_enrolment_roster(uuid[]) and org_enrolment_window_seconds(uuid[], date,
--- date). They are what keeps a large cohort's export from dragging millions of
--- per-day rows into a serverless function, and api/org/funder-export.ts falls
--- back to a bounded raw read — and then refuses outright — while they are
--- absent. Applying the migration is what turns the fallback off.
---
-
---
 -- Name: org_enrolment_policies; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -11443,6 +11472,20 @@ CREATE TABLE public.org_enrolments (
 --
 
 COMMENT ON TABLE public.org_enrolments IS 'One row per learner per funded org cohort. UNIQUE (group_id, learner_id) is what makes the enrolment endpoint idempotent — a double submit, a back-button replay or a refresh mid-flow lands on the existing row rather than creating a second one.';
+
+
+--
+-- Name: COLUMN org_enrolments.reporting_from; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.org_enrolments.reporting_from IS 'The minutes-from-zero baseline: the funder export counts learner_speaking_opportunities.day >= this date and no earlier. Pre-cutover history is not deleted, merely out of window.';
+
+
+--
+-- Name: COLUMN org_enrolments.cancellation_state; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.org_enrolments.cancellation_state IS 'not_needed = held no paying subscription at enrolment. needed = they did, and were told to cancel it. learner_confirmed / verified_cancelled = a HUMAN recorded that it happened. No code path in this repo cancels a subscription; these values are a record, never a trigger.';
 
 
 --
@@ -11521,7 +11564,8 @@ CREATE TABLE public.player_events (
     device_type text,
     ip_country text,
     env text,
-    learner_id uuid
+    learner_id uuid,
+    app_shell text
 );
 
 
@@ -11537,6 +11581,13 @@ COMMENT ON TABLE public.player_events IS 'Diagnostic event log for the learning 
 --
 
 COMMENT ON COLUMN public.player_events.env IS 'Deployment environment the event came from, derived server-side from the request host: production | staging | dev. NULL = unknown (rows predating this column).';
+
+
+--
+-- Name: COLUMN player_events.app_shell; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.player_events.app_shell IS 'Container the session ran in: ''web'' (browser tab / installed PWA) or ''webview'' (native shell). NULL for rows written before 2026-09-04. Orthogonal to device_type, which is form factor.';
 
 
 --
@@ -12558,7 +12609,7 @@ CREATE TABLE public.voice_language_roles (
     slot text DEFAULT 'phrase'::text NOT NULL,
     CONSTRAINT voice_language_roles_gender_check CHECK ((gender = ANY (ARRAY['f'::text, 'm'::text]))),
     CONSTRAINT voice_language_roles_rank_check CHECK (((rank >= 0) AND (rank <= 5))),
-    CONSTRAINT voice_language_roles_slot_check CHECK ((slot = ANY (ARRAY['phrase'::text, 'guide'::text])))
+    CONSTRAINT voice_language_roles_slot_check CHECK ((slot = ANY (ARRAY['phrase'::text, 'guide'::text, 'presentation'::text])))
 );
 
 
@@ -12573,7 +12624,7 @@ COMMENT ON COLUMN public.voice_language_roles.language IS 'The CAST ENTITY a voi
 -- Name: COLUMN voice_language_roles.slot; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.voice_language_roles.slot IS 'phrase = the male/female course-material voices. guide = the instruction and encouragement voice, cast against the KNOWN language, one per language, gender informational only (Tom, 2026-08-29).';
+COMMENT ON COLUMN public.voice_language_roles.slot IS 'phrase = the male/female course-material voices. guide = the instruction and encouragement voice, cast against the KNOWN language, one per language, gender informational only (Tom, 2026-08-29). presentation = the course narrator (the LEGO intro), also cast against the KNOWN language, also one per language and gender-informational, and also outside the completeness count (Tom, 2026-09-10).';
 
 
 --
@@ -14039,6 +14090,30 @@ ALTER TABLE ONLY public.onboarding_messages
 
 ALTER TABLE ONLY public.orchestrator_messages
     ADD CONSTRAINT orchestrator_messages_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: org_enrolment_policies org_enrolment_policies_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_enrolment_policies
+    ADD CONSTRAINT org_enrolment_policies_pkey PRIMARY KEY (group_id);
+
+
+--
+-- Name: org_enrolments org_enrolments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_enrolments
+    ADD CONSTRAINT org_enrolments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: org_enrolments org_enrolments_unique_member; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_enrolments
+    ADD CONSTRAINT org_enrolments_unique_member UNIQUE (group_id, learner_id);
 
 
 --
@@ -16001,6 +16076,13 @@ CREATE INDEX idx_listening_pods_required_role ON public.listening_pods USING btr
 
 
 --
+-- Name: idx_lso_day_learner; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_lso_day_learner ON public.learner_speaking_opportunities USING btree (day, learner_id);
+
+
+--
 -- Name: idx_metrics_learner; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -16054,6 +16136,27 @@ CREATE INDEX idx_onboarding_messages_sort_order ON public.onboarding_messages US
 --
 
 CREATE INDEX idx_orch_msg_course ON public.orchestrator_messages USING btree (course_code, created_at DESC);
+
+
+--
+-- Name: idx_org_enrolments_group; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_org_enrolments_group ON public.org_enrolments USING btree (group_id);
+
+
+--
+-- Name: idx_org_enrolments_learner; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_org_enrolments_learner ON public.org_enrolments USING btree (learner_id);
+
+
+--
+-- Name: idx_org_enrolments_warning_due; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_org_enrolments_warning_due ON public.org_enrolments USING btree (free_access_until) WHERE (expiry_warned_at IS NULL);
 
 
 --
@@ -16666,6 +16769,13 @@ CREATE UNIQUE INDEX one_active_per_phase ON public.phase_prompts USING btree (ph
 
 
 --
+-- Name: player_events_app_shell_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX player_events_app_shell_idx ON public.player_events USING btree (app_shell, occurred_at DESC) WHERE (app_shell IS NOT NULL);
+
+
+--
 -- Name: player_events_env_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -16775,6 +16885,13 @@ CREATE UNIQUE INDEX voice_language_roles_no_self_backup ON public.voice_language
 --
 
 CREATE UNIQUE INDEX voice_language_roles_one_guide_per_rank ON public.voice_language_roles USING btree (language, rank) WHERE (slot = 'guide'::text);
+
+
+--
+-- Name: voice_language_roles_one_presentation_per_rank; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX voice_language_roles_one_presentation_per_rank ON public.voice_language_roles USING btree (language, rank) WHERE (slot = 'presentation'::text);
 
 
 --
@@ -17925,6 +18042,46 @@ ALTER TABLE ONLY public.listening_pod_sentences
 
 ALTER TABLE ONLY public.offline_leases
     ADD CONSTRAINT offline_leases_learner_id_fkey FOREIGN KEY (learner_id) REFERENCES public.learners(id) ON DELETE CASCADE;
+
+
+--
+-- Name: org_enrolment_policies org_enrolment_policies_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_enrolment_policies
+    ADD CONSTRAINT org_enrolment_policies_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id) ON DELETE CASCADE;
+
+
+--
+-- Name: org_enrolments org_enrolments_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_enrolments
+    ADD CONSTRAINT org_enrolments_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id) ON DELETE CASCADE;
+
+
+--
+-- Name: org_enrolments org_enrolments_invite_code_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_enrolments
+    ADD CONSTRAINT org_enrolments_invite_code_id_fkey FOREIGN KEY (invite_code_id) REFERENCES public.invite_codes(id) ON DELETE SET NULL;
+
+
+--
+-- Name: org_enrolments org_enrolments_learner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_enrolments
+    ADD CONSTRAINT org_enrolments_learner_id_fkey FOREIGN KEY (learner_id) REFERENCES public.learners(id) ON DELETE CASCADE;
+
+
+--
+-- Name: org_enrolments org_enrolments_prior_subscription_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_enrolments
+    ADD CONSTRAINT org_enrolments_prior_subscription_id_fkey FOREIGN KEY (prior_subscription_id) REFERENCES public.subscriptions(id) ON DELETE SET NULL;
 
 
 --
@@ -19654,6 +19811,27 @@ ALTER TABLE public.orchestrator_messages ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY orchestrator_messages_public_read ON public.orchestrator_messages FOR SELECT TO authenticated, anon USING (true);
+
+
+--
+-- Name: org_enrolment_policies; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.org_enrolment_policies ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: org_enrolments; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.org_enrolments ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: org_enrolments org_enrolments_select_own; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY org_enrolments_select_own ON public.org_enrolments FOR SELECT TO authenticated USING ((learner_id IN ( SELECT learners.id
+   FROM public.learners
+  WHERE (learners.user_id = (auth.uid())::text))));
 
 
 --
@@ -21400,6 +21578,22 @@ GRANT ALL ON FUNCTION public.null_seed_audio_on_text_change() TO service_role;
 
 
 --
+-- Name: FUNCTION org_enrolment_roster(p_group_ids uuid[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.org_enrolment_roster(p_group_ids uuid[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.org_enrolment_roster(p_group_ids uuid[]) TO service_role;
+
+
+--
+-- Name: FUNCTION org_enrolment_window_seconds(p_group_ids uuid[], p_from date, p_to date); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.org_enrolment_window_seconds(p_group_ids uuid[], p_from date, p_to date) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.org_enrolment_window_seconds(p_group_ids uuid[], p_from date, p_to date) TO service_role;
+
+
+--
 -- Name: FUNCTION position_derived_seconds_per_lego(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -22026,8 +22220,15 @@ GRANT ALL ON TABLE public.checkpoint_approvals TO service_role;
 -- Name: TABLE classes; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,REFERENCES,TRIGGER,MAINTAIN,UPDATE ON TABLE public.classes TO authenticated;
+GRANT SELECT,REFERENCES,TRIGGER,MAINTAIN ON TABLE public.classes TO authenticated;
 GRANT ALL ON TABLE public.classes TO service_role;
+
+
+--
+-- Name: COLUMN classes.last_lego_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(last_lego_id) ON TABLE public.classes TO authenticated;
 
 
 --
@@ -22906,6 +23107,15 @@ GRANT ALL ON TABLE public.onboarding_messages TO service_role;
 
 
 --
+-- Name: TABLE orchestrator_messages; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.orchestrator_messages TO service_role;
+GRANT SELECT ON TABLE public.orchestrator_messages TO anon;
+GRANT SELECT ON TABLE public.orchestrator_messages TO authenticated;
+
+
+--
 -- Name: TABLE org_enrolment_policies; Type: ACL; Schema: public; Owner: -
 --
 
@@ -22918,15 +23128,6 @@ GRANT ALL ON TABLE public.org_enrolment_policies TO service_role;
 
 GRANT ALL ON TABLE public.org_enrolments TO service_role;
 GRANT SELECT ON TABLE public.org_enrolments TO authenticated;
-
-
---
--- Name: TABLE orchestrator_messages; Type: ACL; Schema: public; Owner: -
---
-
-GRANT ALL ON TABLE public.orchestrator_messages TO service_role;
-GRANT SELECT ON TABLE public.orchestrator_messages TO anon;
-GRANT SELECT ON TABLE public.orchestrator_messages TO authenticated;
 
 
 --

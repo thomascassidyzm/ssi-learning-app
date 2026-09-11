@@ -1,3 +1,40 @@
+## 2026-09-11 — The premium-course hole is closed at the database: the browser can neither open a class nor change its course (job #203, branch cs/203-close-premium-course-entitlement)
+
+Tom's ruling this morning, by number: *"8 - yes"* against *"the premium-course hole — a teacher can
+still insert an uncovered premium course straight into the DB; only the browser path was closed.
+Recommend: yes, fix it."* Watson's commission was *"RLS/constraint, not UI."*
+
+- **The shape: take the privilege away, so the endpoint is the only door.** `authenticated` held
+  INSERT and whole-table UPDATE on `public.classes`, and both RLS policies ask only "is this my
+  row?". The entitlement ladder in `api/_utils/classCourseEntitlement.ts` runs on the service-role
+  key and the database never met it. `supabase/migrations/20260911_classes_writes_server_mediated.sql`
+  revokes INSERT and UPDATE from `authenticated` and re-grants UPDATE on exactly one column,
+  `last_lego_id`, the Class Play resume point. No policy changed, no trigger added, no premium
+  list copied into SQL: premium-ness stays in `isCommercialCourse` alone, which is the house
+  doctrine and the Simpler and Cheaper legs at once.
+- **The second mouth was real and is closed in the same pass.** With whole-table UPDATE a teacher
+  could open a heritage class through the endpoint and flip its `course_code` to a premium one from
+  the browser. The column-scoped grant was taken because the legitimate browser column set was
+  enumerated exhaustively and proved live: every `.from('classes')` write in `packages/player-vue/src`
+  is one of two `last_lego_id` updates; no SQL function writes the table; every API writer
+  (create-class, teacher/classes, rename-class, remove-staff, class-teachers, provision,
+  delete-class, the demo refreshers) holds the service-role key; Popty never touches it.
+- **Applied live, canaried, 19 of 19.** `supabase/secfix-toolkit/canary_classes_writes_server_mediated.cjs`
+  ran in one transaction against the shared database: before the change the bypass insert of a
+  `spa_for_eng` class and the course_code flip both went through as a real teacher; after it both
+  are refused with "permission denied for table classes"; the owner and co-teacher `last_lego_id`
+  writes, teacher, school-admin and tagged-student SELECTs, and service-role INSERT, UPDATE and
+  DELETE all stay alive. Committed on green, PostgREST reloaded, `schema.sql` re-snapshotted.
+- **The guard for the opposite failure.** dev, staging and main share the database, so a browser
+  write to an ungranted column would fail silently on production the day it shipped.
+  `packages/player-vue/src/security/classUpdateColumnGrant.security.test.ts` pins the browser's
+  written columns to the grant's column list in both directions; the repair for a new column is a
+  new canaried migration or a service-role endpoint, never a silent widening.
+- **Not touched, by ruling.** Whether a heritage-trial school with no named course should be
+  refused a premium class or re-stamped with a 30-day premium trial is a founder call logged in the
+  cs/84 write-up; current behaviour is refusal and it is preserved. The course dropdown still
+  offers everything; that is a known, separate item.
+
 ## 2026-09-10 — The layer-1 voice order is settled: v2 third, not last (job #74, branch cs/74-glossary-voice-order-ruling)
 
 Tom ruled on the one open question the vocabulary glossary was carrying. Asked whether the code was
