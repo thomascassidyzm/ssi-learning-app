@@ -12,6 +12,7 @@ import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { formatPracticeMinutes, secondsToMinutes } from '@/composables/schools/practiceMinutes'
+import { fetchClassPractice7d, type ClassAccountProgress } from '@/composables/schools/classPractice7d'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useClassesData, type ClassReport } from '@/composables/schools/useClassesData'
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
@@ -93,8 +94,7 @@ const practice7dDays = ref<Record<string, number>>({})
 // ruling, 2026-09-11, job #265): a class is one learner account, so its row
 // shows that account's journey, belt, activity and minutes — never a
 // per-pupil count, which on a shared-screen class is always 0 and lies.
-interface ClassAccount { started: boolean; journeyDone: number; journeyTotal: number; seedNumber: number | null; lastPractisedAt: string | null; phrases7d: number; minutesByDay: number[] }
-const classAccounts = ref<Record<string, ClassAccount>>({})
+const classAccounts = ref<Record<string, ClassAccountProgress>>({})
 const practiceLoaded = ref(false)
 
 async function loadPractice7d() {
@@ -102,25 +102,16 @@ async function loadPractice7d() {
   const classIds = classesData.value.map(c => c.id)
   if (classIds.length === 0) { practice7dSeconds.value = {}; practice7dDays.value = {}; return }
   try {
-    const { data: { session } } = await supabase.value.auth.getSession()
-    const token = session?.access_token
-    if (!token) return
-    // Under View-as / the admin read-view this runs as the ssi_admin, whose
-    // own scope is EMPTY — every class then read 0 min as if real (job #265,
-    // 2026-09-11). Name the school being read; the server verifies the admin.
-    const u = selectedUser.value
-    const schoolParam = u?._scopeSource === 'admin-view' && u.school_id ? `&school_id=${encodeURIComponent(u.school_id)}` : ''
-    const res = await fetch(`/api/school/class-practice-7d?class_ids=${classIds.join(',')}${schoolParam}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    if (!res.ok) return
-    const data = await res.json()
-    practice7dSeconds.value = (data?.practiceByClass as Record<string, number>) || {}
-    practice7dDays.value = (data?.activeDaysByClass as Record<string, number>) || {}
-    classAccounts.value = (data?.classAccountByClass as Record<string, ClassAccount>) || {}
+    // Shared with the class page (classPractice7d.ts) so both read the same
+    // class-account figures; under View-as it names the school being read.
+    const data = await fetchClassPractice7d(classIds, selectedUser.value, supabase.value)
+    if (!data) return
+    practice7dSeconds.value = data.practiceByClass
+    practice7dDays.value = data.activeDaysByClass
+    classAccounts.value = data.classAccountByClass
     practiceLoaded.value = true
   } catch {
-    /* non-fatal — minutesWk falls back to 0 */
+    /* non-fatal — the rows stay honestly unloaded */
   }
 }
 
