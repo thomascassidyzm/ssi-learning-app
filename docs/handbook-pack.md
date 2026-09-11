@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `f1bce6285111` · generated 2026-09-11 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `c81f9cce60ca` · generated 2026-09-11 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -394,7 +394,7 @@ Section: running-classes · roles: school_admin, teacher · anchor: `classes-fil
 1. Open **My Classes**.
 2. Pick a language under **Course** to see only the classes learning it.
 3. Pick a state under **Health** to pull out the classes that need attention.
-4. Change **Sort** to order by students, hours this week or progress.
+4. Change **Sort by** to order by students, time in app this week or average seeds. On a phone it is the first control, and the number you sorted by shows beside each class name.
 
 **Worth knowing.** The totals above the table follow the filter, so the student count and the hours are always the total of what you are actually looking at.
 
@@ -808,7 +808,7 @@ Section: running-classes · roles: school_admin, teacher · anchor: `classes-tab
 
 **What it's for.** One row per class, showing at a glance how each one is doing: how many students, what belt the class has reached, hours in the app this week, the shape of the last seven days, and a health mark for classes worth a look. Time in app is the time the class, and any students on their own accounts, spent in the app with the lesson running, pauses included — so it is the time they were in the lesson.
 
-**Where it is.** **My Classes**, the table filling most of the page.
+**Where it is.** **My Classes**, the table filling most of the page. On a phone each class is a card instead, with the number you sorted by beside its name and the rest underneath.
 
 1. Open **My Classes**.
 2. Read down the health column first, because that is where the app is pointing you.
