@@ -2,7 +2,8 @@
   "id": "invite-a-supply-teacher",
   "title": "Invite a teacher who isn't here yet",
   "personas": [
-    "teacher"
+    "teacher",
+    "school_admin"
   ],
   "place": {
     "route": "class-detail"
