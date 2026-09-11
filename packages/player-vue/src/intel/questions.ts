@@ -90,7 +90,7 @@ export const QUESTIONS: readonly Question[] = [
     tab: 'Where and what',
     question: 'Where in the world are people using us, and on what?',
     group: 'Business',
-    built: false,
+    built: true,
   },
   {
     n: 9,
