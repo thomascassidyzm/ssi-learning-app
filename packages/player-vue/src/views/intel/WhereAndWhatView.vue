@@ -18,6 +18,7 @@ import Chip from '@/intel/Chip.vue'
 import { useIntelApi } from '@/intel/useIntelApi'
 import { questionBySlug } from '@/intel/questions'
 import { metric } from '@/intel/metrics'
+import { singulariseUnit } from '@/insight/units'
 import type { AnyInsightSpec, ResolvedInsight } from '@/insight/spec'
 
 type Device = 'mobile' | 'tablet' | 'desktop' | 'unknown'
@@ -49,6 +50,11 @@ const DEVICES: Device[] = ['mobile', 'tablet', 'desktop', 'unknown']
 /** The two lenses, read from the URL. */
 const country = computed(() => (typeof route.query.country === 'string' ? route.query.country : null))
 const device = computed<Device | null>(() => (DEVICES.includes(route.query.device as Device) ? (route.query.device as Device) : null))
+
+/** A count's own word: one person, not one people. */
+function word(plural: string, n: number): string {
+  return n === 1 ? singulariseUnit(plural) : plural
+}
 
 const regionNames = typeof Intl !== 'undefined' && 'DisplayNames' in Intl ? new Intl.DisplayNames(['en-GB'], { type: 'region' }) : null
 function countryName(code: string): string {
@@ -182,10 +188,10 @@ const shellLine = computed(() => (data.value?.shells ?? []).map((s) => `${SHELL_
             <span v-if="r.country !== 'unknown'" class="code">{{ r.country }}</span>
           </span>
           <span class="values">
-            <span class="cell"><span class="num">{{ shown(r) }}</span><span class="lbl">{{ device ? DEVICE_WORD[device] : 'people' }}</span></span>
-            <span class="cell"><span class="num">{{ r.byDevice.mobile }}</span><span class="lbl">phones</span></span>
-            <span class="cell"><span class="num">{{ r.byDevice.tablet }}</span><span class="lbl">tablets</span></span>
-            <span class="cell"><span class="num">{{ r.byDevice.desktop }}</span><span class="lbl">desktops</span></span>
+            <span class="cell"><span class="num">{{ shown(r) }}</span><span class="lbl">{{ word(device ? DEVICE_WORD[device] : 'people', shown(r)) }}</span></span>
+            <span class="cell"><span class="num">{{ r.byDevice.mobile }}</span><span class="lbl">{{ word('phones', r.byDevice.mobile) }}</span></span>
+            <span class="cell"><span class="num">{{ r.byDevice.tablet }}</span><span class="lbl">{{ word('tablets', r.byDevice.tablet) }}</span></span>
+            <span class="cell"><span class="num">{{ r.byDevice.desktop }}</span><span class="lbl">{{ word('desktops', r.byDevice.desktop) }}</span></span>
             <span class="cell"><span class="num">{{ r.byShell.webview }}</span><span class="lbl">in the app</span></span>
             <span class="cell"><span class="num">{{ r.byShell.web }}</span><span class="lbl">browser</span></span>
           </span>
