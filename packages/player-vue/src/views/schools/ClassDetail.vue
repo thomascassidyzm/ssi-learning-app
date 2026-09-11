@@ -24,6 +24,7 @@ import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 import MailboxCheckPrompt from '@/components/schools/MailboxCheckPrompt.vue'
 import { useMailboxPrompt } from '@/composables/useMailboxPrompt'
 import WalkOffer from '@/components/admin/WalkOffer.vue'
+import CopyTeacherPlayCard from '@/components/schools/CopyTeacherPlayCard.vue'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { formatPracticeMinutes } from '@/composables/schools/practiceMinutes'
@@ -1371,6 +1372,16 @@ const mailboxPrompt = useMailboxPrompt()
             <template v-else>{{ t('schools.classDetail.reachedBlackBelt', 'Reached Black belt — top of the ladder.') }}</template>
           </p>
         </div>
+
+        <!-- School leaders only: the repair for a teacher who played as themselves.
+             The server accepts teachers of the class too, but the card is a
+             leader's tool by commission (Angharad, 2026-09-11). -->
+        <CopyTeacherPlayCard
+          v-if="!isAdminView && (isSchoolAdmin || isGovtAdmin) && classIdParam"
+          :class-id="classIdParam"
+          :teachers="classTeachers.map(x => ({ user_id: x.user_id, name: x.name }))"
+          @copied="loadClass"
+        />
 
         <div class="schools-card schools-card-pad rail-card">
           <div class="schools-kicker rail-kicker">{{ t('schools.classDetail.beltDistributionKicker', 'Belt distribution') }}</div>

@@ -257,7 +257,9 @@ const metricDesc = computed(() => {
            4. Use **Compare to** to put an average alongside.
            5. **Overview** takes you back to the same place's home page.
            Worth knowing. Everything here is a rate, not a raw total, so groups of very
-           different sizes still compare fairly.
+           different sizes still compare fairly. A class that practises from the front
+           is counted through its own class account, so whole-class lessons show here
+           the same as any other practice.
            checked: d02609b0.1e86d15d
       -->
       <label v-if="showMeasurePicker" class="nre-field nre-field-wide" data-walk="insights-measure">

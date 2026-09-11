@@ -639,3 +639,45 @@ because the sentence was right and the code was wrong; `--check` stays green.
 reads `analytics_class_sessions_scoped` over the dead `class_sessions` table and reports "no
 practice recorded" for this school — logged for job #215·G), or any copy. It sends no notice to
 anyone. Pinned by `classHealth.test.ts`, seen red on the old rule and green on the new one.
+
+## 2026-09-11 — copying a teacher's mistaken own-account play onto the class account (job #266)
+
+**The case.** Chepstow's teachers have been running lessons signed in as themselves. Read live on
+11 September: thirty-odd classes on cym_s_for_eng whose teacher's own learner row carries the
+sessions and the diary, while the class's own account carries nothing. Under job #265's rule that
+a class row reads the class account, those classes say "not started" forever. Tom's ask, verbatim:
+"IF the teachers have by mistake played as themselves, Angharad needs to be able to copy all
+progress data and telemetry and everything to the play as class account."
+
+**Copy and keep, not move.** Tom said "copy", so the teacher's rows stay where they are and
+re-keyed copies land on the class learner. The price of that is a second run doubling everything,
+which is paid by the audit record: every apply writes one `class_progress_copy_audit` row naming
+every source id it copied, and the next preview skips all of them. Natural-key tables are
+insert-if-absent on the class side. Practice minutes on the enrollment are added once, on the
+first run for a pair. Seen in the test: a second apply changes no table and still writes its record.
+
+**Scoped to the class's course.** Only rows whose course is `classes.course_code` move. A teacher
+who learns Welsh for themselves on a Spanish class keeps that Welsh. If Tom means "everything"
+more widely than that, it is one parameter, not a redesign.
+
+**The cursor is the further of the two.** The class enrollment is never duplicated. Position is the
+last LEGO actually played, which on the live rows is `last_completed_lego_id` and its round index,
+not the seed number and not `highest_completed_lego_id`, which is null on every Chepstow row read.
+When the teacher is further, the class takes the teacher's cursor and helix state whole.
+
+**Thirteen tables copy, thirteen are named as skipped.** The inventory came from
+`information_schema` live, not from a doc: every `learner_id` column plus `player_events.user_id`,
+which holds the learner PK. Identity, roles, billing, leases, entitlements and audit tables are
+never copied and every record says so with the reason. `learner_practice_history` is skipped
+because it carries no course and its session ids never match `sessions` rows, so no row can be
+attributed to the class's course.
+
+**Who may run it.** The server accepts `canTeachClass`: the school admin under either spelling,
+ssi_admin, or an active teacher of the class, because a teacher fixing their own mistake is the
+commonest case and costs nothing extra. The card is shown to school leaders only. Under View-as
+the preview works and the apply is refused with the standard 403; Tom checking on staging as
+Angharad will see exactly that, and it is not a bug.
+
+**The audit table is live.** `20260911b_class_progress_copy_audit.sql` was applied to the shared
+project by `canary_class_progress_copy_audit.cjs`: nine assertions, anon and authenticated denied
+on read and write, service_role writes and reads back by pair, then COMMIT of the DDL alone.

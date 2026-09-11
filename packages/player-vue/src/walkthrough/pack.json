@@ -1,5 +1,5 @@
 {
-  "version": "722b5e631d94",
+  "version": "9dfff707ad44",
   "generatedAt": "2026-09-11",
   "walks": [
     {
@@ -1517,6 +1517,37 @@
       "note": "Tapping a link chip does not open the school — the rest of the row does that. A school still flagged as awaiting admin is one whose admin link nobody has opened yet."
     },
     {
+      "id": "copy-a-teacher-s-own-play-onto-the-class",
+      "title": "Copy a teacher's own play onto the class",
+      "section": "running-classes",
+      "personas": [
+        "school_admin"
+      ],
+      "keywords": [
+        "copy",
+        "teacher",
+        "play as class",
+        "progress",
+        "mistake",
+        "own account"
+      ],
+      "place": {
+        "route": "class-detail"
+      },
+      "anchor": "class-copy-play-preview",
+      "surface": "schools",
+      "source": "packages/player-vue/src/components/schools/CopyTeacherPlayCard.vue",
+      "walk": null,
+      "what": "Putting right a class whose teacher ran lessons signed in as themselves instead of using Play as class, so the class carries the progress it really made.",
+      "where": "The class page, the **Played as themselves by mistake?** card beside the roster.",
+      "how": [
+        "Pick the teacher from the list.",
+        "Tap **See what would move** and read the sessions, the time in the app and where the class will be afterwards.",
+        "Tap **Copy onto the class**. One line tells you what was copied."
+      ],
+      "note": "The teacher keeps their own record. Only play on this class's course moves, the class ends up at the further of the two places, and running it again copies nothing twice. While viewing as someone else you can see what would move but not copy it."
+    },
+    {
       "id": "create-your-first-classes",
       "title": "Create your first classes",
       "section": "running-classes",
@@ -2789,7 +2820,7 @@
         "Use **Compare to** to put an average alongside.",
         "**Overview** takes you back to the same place's home page."
       ],
-      "note": "Everything here is a rate, not a raw total, so groups of very different sizes still compare fairly."
+      "note": "Everything here is a rate, not a raw total, so groups of very different sizes still compare fairly. A class that practises from the front is counted through its own class account, so whole-class lessons show here the same as any other practice."
     },
     {
       "id": "remove-a-student-from-a-class",
@@ -3600,7 +3631,7 @@
         "Read the uptake figure first — it is how many learners this is based on.",
         "Open a class or a learner within it to see the same reading at a smaller scope."
       ],
-      "note": "A learner with no microphone data is absent from these figures rather than counted as a zero, so the denominator is always stated."
+      "note": "A learner with no microphone data is absent from these figures rather than counted as a zero, so the denominator is always stated. A class that practises from the front counts as one learner, its own class account, so a school with no pupil accounts still has a roster here."
     },
     {
       "id": "walking-down-to-a-school-a-class-or-a-person",

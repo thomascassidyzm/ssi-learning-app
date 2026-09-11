@@ -60,6 +60,7 @@ import { verifyAuthToken } from '../_utils/auth'
 import { resolveVisibleScope } from '../_utils/schoolScope'
 import { descendantIds } from '../_utils/groupSubtree'
 import { isEntityCoverageExpired } from '../_utils/schoolCoverageGate'
+import { loadScopedSessionRows } from '../_utils/diarySessionRows'
 import {
   aggregateWindowPace,
   aggregateWeeklyTrend,
@@ -383,12 +384,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     const fetchDays = Math.max(days, (TREND_WEEKS + 1) * 7)
     const allClassIds = [...new Set([...entity.classIds, ...cohort.members.flatMap((m) => m.classIds)])].slice(0, MAX_COHORT_IDS)
-    const { data: rawRows, error: rpcError } = await svc.rpc('analytics_class_sessions_scoped', {
-      p_class_ids: allClassIds,
-      p_days: fetchDays,
-    })
+    const { data: rawRows, error: rpcError } = await loadScopedSessionRows(svc, allClassIds, fetchDays, false)
     if (rpcError) {
-      console.error('[rate-compare] analytics_class_sessions_scoped error:', rpcError.message)
+      console.error('[rate-compare] session rows error:', rpcError.message)
       res.status(500).json({ error: 'Failed to load rate data' })
       return
     }

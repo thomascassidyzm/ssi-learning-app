@@ -188,7 +188,20 @@ export async function schoolIdsForNodeSubtree(svc: SupabaseClient, nodeId: strin
   return [...ids]
 }
 
-interface ClassMetaRow { id: string; class_name: string | null; course_code: string | null }
+interface ClassMetaRow { id: string; class_name: string | null; course_code: string | null; class_learner_id?: string | null }
+
+/**
+ * A class's roster for the voice panel: its tagged pupils PLUS its own account
+ * (`classes.class_learner_id`, THE-MODEL I6). A school that plays from the
+ * front has no pupil accounts at all, so before this the whole school had an
+ * empty roster and read as if it had no learners; the class account is the
+ * learner that actually did the practising and is counted once, as itself.
+ */
+function rosterFor(c: ClassMetaRow, pupils: string[] | undefined): string[] {
+  const set = new Set(pupils ?? [])
+  if (c.class_learner_id) set.add(c.class_learner_id)
+  return [...set]
+}
 
 /** Active classes for a set of schools, with the metadata the panel labels them by. */
 async function classesForSchools(svc: SupabaseClient, schoolIds: string[]): Promise<ClassMetaRow[]> {
@@ -196,7 +209,7 @@ async function classesForSchools(svc: SupabaseClient, schoolIds: string[]): Prom
   for (const batch of chunk(schoolIds)) {
     const { data } = await svc
       .from('classes')
-      .select('id, class_name, course_code')
+      .select('id, class_name, course_code, class_learner_id')
       .in('school_id', batch)
       .eq('is_active', true)
     for (const c of (data ?? []) as ClassMetaRow[]) out.set(c.id, c)
@@ -308,11 +321,11 @@ export async function resolveVadScope(
   if (classId) {
     const { data: cls } = await svc
       .from('classes')
-      .select('id, class_name, course_code, school_id, group_id')
+      .select('id, class_name, course_code, school_id, group_id, class_learner_id')
       .eq('id', classId)
       .maybeSingle()
     if (!cls) return { denied: true, status: 404, error: 'Not found' }
-    const c = cls as { id: string; class_name: string | null; course_code: string | null; school_id: string | null; group_id: string | null }
+    const c = cls as { id: string; class_name: string | null; course_code: string | null; school_id: string | null; group_id: string | null; class_learner_id?: string | null }
 
     const allowed = caller.isAdmin
       || caller.scope.classIds.includes(classId)
@@ -322,7 +335,7 @@ export async function resolveVadScope(
     }
 
     const byClass = await studentLearnerIdsByClass(svc, [classId])
-    const learnerIds = byClass[classId] ?? []
+    const learnerIds = rosterFor(c, byClass[classId])
     return {
       kind: 'class',
       id: classId,
@@ -367,8 +380,8 @@ export async function resolveVadScope(
   const classes: VadClassScope[] = []
   const union = new Set<string>()
   for (const c of classRows) {
-    const ids = byClass[c.id]
-    if (!ids || ids.length === 0) continue          // empty classes carry no read
+    const ids = rosterFor(c, byClass[c.id])
+    if (ids.length === 0) continue          // empty classes carry no read
     classes.push({
       classId: c.id,
       className: c.class_name || 'Unnamed class',
