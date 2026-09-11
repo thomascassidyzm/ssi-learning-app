@@ -1,0 +1,137 @@
+{
+  "sourceCommit": "deb32995e759730ff10d3a63d429438de008afa3",
+  "started": "2026-09-10T22:36:46.943Z",
+  "scratch": "/home/tomcassidy/.cs-scratch/cs-11b0a333-425e-4425-98b3-84872f99048a/tmp/test-loop-5tvCVr/checkout",
+  "build": "built and served on 127.0.0.1:4173; controls stub routes, so this is NOT an app journey pass",
+  "entries": [
+    {
+      "id": "silent-audio",
+      "status": "MISS",
+      "applied": true,
+      "check": "journeys/lib.mjs instrument + waitAudible; release-audible-control.mjs qualifies that instrument",
+      "run": {
+        "exit": 1,
+        "stdout": "FAIL — audible silence control :: Silent PCM was classified as lesson audible\n",
+        "stderr": "",
+        "evidence": {
+          "verdict": "red",
+          "pcmFrames": 16000,
+          "nonzeroPcmSamples": 0,
+          "observed": {
+            "firstPlayCall": 242.59999990463257,
+            "firstAnyAudible": 507.59999990463257,
+            "firstLessonAudible": 507.6999999284744,
+            "firstLessonSrc": "blob:https://release-probe.invalid/c6343c24-c715-4826-aa3d-4575068ac75d",
+            "srcs": [
+              {
+                "t": 243,
+                "src": "blob:https://release-probe.invalid/c6343c24-c715-4826-aa3d-4575068ac75d"
+              }
+            ]
+          },
+          "clock": 0.212616,
+          "note": "Silent PCM was classified as lesson audible"
+        }
+      },
+      "reverted": true
+    },
+    {
+      "id": "belt-frozen",
+      "status": "GAP",
+      "applied": true,
+      "check": "TESTER-SHEET step 1; journeys j1 measures first audio only; _verify-belt-ceiling.mjs claims belt ceilings, not earned progression",
+      "reason": "No local course/playback fixture reaching the first belt transition. Existing live probes are not a safe substitute.",
+      "reverted": true
+    },
+    {
+      "id": "subscribe-wall-missing",
+      "status": "GAP",
+      "applied": true,
+      "check": "TESTER-SHEET step 2; _255-double-subscription-probe.mjs covers subscription state, not this round-to-wall transition",
+      "reason": "Local authenticated wall-account/backend fixture is absent. Password variable names exist on this box; credentials are not the gap. Do not use live Supabase.",
+      "reverted": true
+    },
+    {
+      "id": "settings-wrong-server",
+      "status": "GAP",
+      "applied": true,
+      "check": "TESTER-SHEET step 4; journeys j5 measures screen timing, not the displayed address",
+      "reason": "No local Settings render fixture asserting the displayed host. apiBase tests check request routing, not this label.",
+      "reverted": true
+    },
+    {
+      "id": "duration-not-written",
+      "status": "GAP",
+      "applied": true,
+      "check": "SessionStore.test.ts asserts duration payloads (unit only); chepstow-three-bugs-probe.mjs examines school behaviour; no local end-to-end duration checkpoint assertion",
+      "reason": "CODE-level mutation affects both endSession and checkpointSession payloads. No isolated local database/session fixture proving ongoing classroom duration writes. Unit coverage is not a learner-level catch.",
+      "reverted": true
+    },
+    {
+      "id": "blob-unrecognised",
+      "status": "CATCH",
+      "applied": true,
+      "check": "journeys/lib.mjs URL classification; ADDED release-blob-control.mjs asserts a non-zero blob is recognised",
+      "run": {
+        "exit": 1,
+        "stdout": "{\"verdict\":\"red\",\"pcmFrames\":16000,\"amplitude\":12000,\"observed\":null,\"clock\":1}\n",
+        "stderr": "",
+        "evidence": {
+          "verdict": "red",
+          "pcmFrames": 16000,
+          "amplitude": 12000,
+          "observed": null,
+          "clock": 1
+        }
+      },
+      "reverted": true
+    }
+  ],
+  "positiveBaseline": {
+    "exit": 0,
+    "stdout": "{\"verdict\":\"green\",\"pcmFrames\":16000,\"amplitude\":12000,\"observed\":{\"firstPlayCall\":259.10000002384186,\"firstAnyAudible\":515.3000000715256,\"firstLessonAudible\":515.3999999761581,\"firstLessonSrc\":\"blob:http://localhost:4173/55cd5626-1dc2-4b5c-b367-0107a72c9e96\",\"srcs\":[{\"t\":259,\"src\":\"blob:http://localhost:4173/55cd5626-1dc2-4b5c-b367-0107a72c9e96\"}]},\"clock\":0.197464}\n",
+    "stderr": "",
+    "evidence": {
+      "verdict": "green",
+      "pcmFrames": 16000,
+      "amplitude": 12000,
+      "observed": {
+        "firstPlayCall": 259.10000002384186,
+        "firstAnyAudible": 515.3000000715256,
+        "firstLessonAudible": 515.3999999761581,
+        "firstLessonSrc": "blob:http://localhost:4173/55cd5626-1dc2-4b5c-b367-0107a72c9e96",
+        "srcs": [
+          {
+            "t": 259,
+            "src": "blob:http://localhost:4173/55cd5626-1dc2-4b5c-b367-0107a72c9e96"
+          }
+        ]
+      },
+      "clock": 0.197464
+    }
+  },
+  "positiveAfter": {
+    "exit": 0,
+    "stdout": "{\"verdict\":\"green\",\"pcmFrames\":16000,\"amplitude\":12000,\"observed\":{\"firstPlayCall\":293.5,\"firstAnyAudible\":553.9000000953674,\"firstLessonAudible\":554,\"firstLessonSrc\":\"blob:http://localhost:4173/859516bb-819d-400b-8d75-397d56300639\",\"srcs\":[{\"t\":294,\"src\":\"blob:http://localhost:4173/859516bb-819d-400b-8d75-397d56300639\"}]},\"clock\":0.210388}\n",
+    "stderr": "",
+    "evidence": {
+      "verdict": "green",
+      "pcmFrames": 16000,
+      "amplitude": 12000,
+      "observed": {
+        "firstPlayCall": 293.5,
+        "firstAnyAudible": 553.9000000953674,
+        "firstLessonAudible": 554,
+        "firstLessonSrc": "blob:http://localhost:4173/859516bb-819d-400b-8d75-397d56300639",
+        "srcs": [
+          {
+            "t": 294,
+            "src": "blob:http://localhost:4173/859516bb-819d-400b-8d75-397d56300639"
+          }
+        ]
+      },
+      "clock": 0.210388
+    }
+  },
+  "finished": "2026-09-10T22:37:19.823Z"
+}

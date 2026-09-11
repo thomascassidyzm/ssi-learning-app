@@ -1,5 +1,11 @@
 # The test pass — the same six steps, every time
 
+> **Since 2026-09-11 this sheet is not a gate on promotion.** Tom's ruling that morning — "ok, remove
+> that gate, we're not slaves to the system we created" — removed the human test-pass requirement
+> from `promote.sh`. The sheet stays because it is the checklist the automated release-test loop
+> (`tools/test-loop/`) derives its controls from and cites by step number. Nobody has to run it by
+> hand for a release to ship. See `docs/DECISIONS.md`, 2026-09-11.
+
 This is the fixed sheet. It does not change from week to week, and that is the point: when the same
 six things are done the same way each time, a difference between one week and the next means
 something. It takes about forty minutes.

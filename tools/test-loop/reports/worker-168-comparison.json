@@ -1,0 +1,72 @@
+{
+  "reference": "origin/cs/168-fix-the-audio-audible-check-to-m",
+  "sha": "7a3e4a67308765cb10f330e289d19815ac04a52d",
+  "note": "Temporary scratch comparison only; not merged or imported into this branch.",
+  "runs": [
+    {
+      "control": "audible",
+      "exit": 0,
+      "evidence": {
+        "verdict": "green",
+        "pcmFrames": 16000,
+        "nonzeroPcmSamples": 0,
+        "observed": null,
+        "clock": 1,
+        "note": "Silent PCM correctly refused"
+      }
+    },
+    {
+      "control": "blob",
+      "exit": 0,
+      "evidence": {
+        "verdict": "green",
+        "pcmFrames": 16000,
+        "amplitude": 12000,
+        "observed": {
+          "firstPlayCall": 280.10000002384186,
+          "firstAnyAudible": 443.5,
+          "firstLessonAudible": 443.5,
+          "firstLessonSrc": "blob:http://localhost:4173/8d5d120a-5f89-4944-9d86-2abc1d1e026b",
+          "srcs": [
+            {
+              "t": 280,
+              "src": "blob:http://localhost:4173/8d5d120a-5f89-4944-9d86-2abc1d1e026b"
+            }
+          ],
+          "firstAnyProgressed": null,
+          "firstLessonProgressed": null,
+          "lessonLevel": {
+            "rmsDbfs": -11.7,
+            "peakDbfs": -8.7,
+            "aboveFloorPct": 100,
+            "aboveFloorMs": 160,
+            "elapsedMs": 160
+          },
+          "meters": [
+            {
+              "src": "blob:http://localhost:4173/8d5d120a-5f89-4944-9d86-2abc1d1e026b",
+              "elapsedMs": 200.19999992847443,
+              "aboveFloorMs": 200.19999992847443,
+              "maxRmsDbfs": -11.7,
+              "peakDbfs": -8.7,
+              "aboveFloorPct": 100,
+              "tapError": null
+            }
+          ],
+          "tapErrors": [],
+          "audioCtxState": "running",
+          "config": {
+            "floorDbfs": -45,
+            "minFraction": 0.2,
+            "minAboveFloorMs": 150,
+            "sampleIntervalMs": 20,
+            "maxTickMs": 100,
+            "dbMin": -120
+          },
+          "__ctx": {}
+        },
+        "clock": 0.224
+      }
+    }
+  ]
+}

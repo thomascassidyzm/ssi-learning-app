@@ -90,6 +90,17 @@ export const FOSSILS: readonly Fossil[] = [
   },
 ] as const
 
+/**
+ * The route name a fossil carries WHILE IT IS ALIVE, as the router writes it:
+ * the path with every non-letter run collapsed to a hyphen. A dead fossil is a
+ * bare redirect and has no name at all. This lives here rather than in the
+ * router so the continuity pin can assert the absence of the name the code
+ * really generates, rather than of a name nobody ever defined.
+ */
+export function fossilRouteName(f: Fossil): string {
+  return `admin-${f.path.replace(/[^a-z]+/g, '-').replace(/-$/, '')}`
+}
+
 /** True once every question a fossil served is built — the day it redirects. */
 export function fossilIsDead(f: Fossil): boolean {
   if (f.questions.length === 0) return FINDINGS_ON_QUESTIONS

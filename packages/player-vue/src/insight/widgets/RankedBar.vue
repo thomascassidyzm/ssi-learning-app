@@ -26,6 +26,10 @@ import {
   registerInsightTheme, INSIGHT_THEME_NAME, palette, tone, toneRgb, hGradient, FONT_MONO,
   type EChartsLike,
 } from '../theme'
+import { formatWithUnit } from '../units'
+
+// Breathing room between the end of a y-axis label and the axis itself.
+const LABEL_GAP = 14
 
 const props = withDefaults(defineProps<{
   data: RankedBarData
@@ -89,12 +93,23 @@ function barFill(ec: EChartsLike, id: string, barTone?: Tone): unknown {
   return hGradient(ec, p.paper2, col)
 }
 
-// Value formatter: show integer values plain; fractions to 1dp; append unit if present.
+// Value formatter: integers plain, fractions to 1dp, unit suffix singularised at 1.
 function formatValue(v: number): string {
-  const n = Number.isInteger(v) ? String(v) : v.toFixed(1)
-  const u = props.data.unit
-  if (!u) return n
-  return u === '%' ? `${n}%` : `${n} ${u}`
+  return formatWithUnit(v, props.data.unit)
+}
+
+// Measure a label in the axis font rather than guessing 7.5px a character — the
+// guess under-read every label and the canvas clipped the START of the longest
+// one ("United Kingdom" arrived as "nited Kingdom").
+const LABEL_FONT = `13px ${FONT_MONO}`
+let measureCtx: CanvasRenderingContext2D | null = null
+function measureLabel(text: string): number {
+  if (!measureCtx) {
+    measureCtx = document.createElement('canvas').getContext('2d')
+    if (measureCtx) measureCtx.font = LABEL_FONT
+  }
+  if (!measureCtx) return text.length * 8
+  return measureCtx.measureText(text).width
 }
 
 function buildOption(): Record<string, unknown> {
@@ -138,9 +153,15 @@ function buildOption(): Record<string, unknown> {
     }
   })
 
-  // Dynamic grid: left margin scales with the longest label string.
-  const maxLabelLen = Math.max(...categories.map(c => c.length))
-  const leftGap = Math.min(Math.max(maxLabelLen * 7.5, 48), 160)
+  // Dynamic grid: left margin is the measured width of the longest label, plus the
+  // gap between label and axis, capped at 45% of the chart so the bars keep their room.
+  const chartWidth = chartEl.value?.clientWidth ?? 0
+  const widest = Math.max(...categories.map(measureLabel))
+  const gapCap = chartWidth > 0 ? Math.max(96, chartWidth * 0.45) : 220
+  const leftGap = Math.min(Math.max(widest + LABEL_GAP, 48), gapCap)
+  // Anything still too long is truncated with an ellipsis at the END, where the
+  // reader can live without it — the tooltip carries the full label.
+  const labelWidth = Math.max(leftGap - LABEL_GAP, 24)
 
   return {
     grid: {
@@ -167,6 +188,9 @@ function buildOption(): Record<string, unknown> {
         fontFamily: FONT_MONO,
         fontSize: 13,
         color: p.ink2,
+        width: labelWidth,
+        overflow: 'truncate',
+        ellipsis: '…',
         // Annotated label: bold + annotation tone colour.
         formatter: (label: string) => {
           const bar = reversed.find(b => b.label === label)
@@ -181,6 +205,9 @@ function buildOption(): Record<string, unknown> {
             fontSize: 13,
             fontWeight: 700,
             color: p.ink,
+            width: labelWidth,
+            overflow: 'truncate',
+            ellipsis: '…',
           },
         },
       },
@@ -221,7 +248,12 @@ async function ensureChart() {
 onMounted(async () => {
   await ensureChart()
   if (chartEl.value) {
-    resizeObserver = new ResizeObserver(() => chart?.resize())
+    // Rebuild as well as resize: the left margin is derived from the chart width.
+    resizeObserver = new ResizeObserver(() => {
+      if (!chart) return
+      chart.resize()
+      chart.setOption(buildOption())
+    })
     resizeObserver.observe(chartEl.value)
   }
 })

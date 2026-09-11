@@ -15,6 +15,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import router from './index'
+import { FOSSILS, fossilRouteName } from '@/intel/fossils'
 
 describe('THE VIEW — one continuous surface', () => {
   it('CONTINUITY PIN: group and class homes share the same container + view components (rail stays mounted)', () => {
@@ -61,8 +62,14 @@ describe('THE VIEW — one continuous surface', () => {
     const end = router.resolve(landing.path)
     expect(end.name).toBe('intel-person')
     expect(end.matched[end.matched.length - 1].components?.default).toBeTruthy()
-    // And the old named routes are gone entirely.
+    // And the old named routes are gone entirely. The fossil's own name is
+    // the one fossilRoute() would give it if it came back to life — asserted
+    // through the same function the router uses, so a resurrected page fails
+    // here. (An earlier pin asserted the absence of 'admin-user-detail', a
+    // name no commit ever defined; that line could never fail and is gone.)
+    const userFossil = FOSSILS.find((f) => f.path === 'users/:learnerId')!
+    expect(fossil.name).toBeUndefined()
+    expect(router.hasRoute(fossilRouteName(userFossil))).toBe(false)
     expect(router.hasRoute('admin-user-progress')).toBe(false)
-    expect(router.hasRoute('admin-user-detail')).toBe(false)
   })
 })

@@ -75,3 +75,19 @@ test('the SHIPPED guard commits nothing when the notes are unchanged', () => {
   execFileSync('bash', ['-c', shippedGuard()], { cwd: dir })
   assert.equal(git(dir, 'rev-parse', 'HEAD'), before)
 })
+
+// 2026-09-11 (job #211): the human test-sheet gate is REMOVED, not disabled. Tom's ruling that
+// morning — "ok, remove that gate, we're not slaves to the system we created" — superseded
+// "10 — gate it" of the day before (docs/DECISIONS.md, 2026-09-11). A defanged limb, a bypass flag
+// or a commented-out call would become the ordinary path inside a month, so this pins ABSENCE.
+// The positive half pins what stays, so the test proves the right thing was removed and nothing else.
+test('promote.sh carries no human test-pass gate, and keeps its automated refusals', () => {
+  const sh = readFileSync(join(HERE, 'promote.sh'), 'utf8')
+  assert.doesNotMatch(sh, /HUMAN-PASS-GATE/, 'the gate markers must be gone, not fenced off')
+  assert.doesNotMatch(sh, /human-pass\.mjs/, 'promote.sh must not call the retired decision module')
+  assert.doesNotMatch(sh, /accept-drift|ACCEPT_DRIFT/, 'the gate-only argument must go with the gate')
+  assert.doesNotMatch(sh, /HUMAN TEST PASS|record-pass|passes\//, 'the header must not describe a gate that no longer exists')
+  assert.match(sh, /merge-base --is-ancestor "\$MAIN" "\$STAGING"/, 'the ancestry refusal stays')
+  assert.match(sh, /THE PROMOTE LANDED\. THE RELEASE NOTES DID NOT\./, 'the notes-did-not-finalise loud failure stays')
+  assert.match(sh, /\[\[ "\$GO" -ne 1 \]\]/, 'the --go requirement stays')
+})

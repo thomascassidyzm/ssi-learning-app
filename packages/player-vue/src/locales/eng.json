@@ -2200,6 +2200,31 @@
         "userFallback": "User",
         "userMenuAriaLabel": "User menu"
       }
+    },
+    "support": {
+      "title": "Support",
+      "lede": "Ask us anything about the dashboard. Answers appear here, and you can come back to this thread any time.",
+      "menuSupport": "Support",
+      "unreadAria": "Unread replies",
+      "doorTitle": "Does this look wrong?",
+      "doorAffordance": "Does this look wrong?",
+      "youAskedAbout": "You are asking about: {label} — it reads {value}",
+      "tellUs": "Tell us what you see",
+      "doorLine": "This thread belongs to your school, and any admin of your school can read it.",
+      "send": "Send",
+      "sending": "Sending…",
+      "sendFailed": "Could not send. Try again.",
+      "sentNote": "Sent. A reply will appear in Support, usually within a minute.",
+      "notNow": "Not now",
+      "close": "Close",
+      "openSupport": "Open Support",
+      "loadFailed": "Could not load the thread.",
+      "empty": "Nothing here yet. Ask anything about the dashboard, or tell us when a number looks wrong.",
+      "writeMessage": "Write a message",
+      "waitingOnTom": "Waiting on Tom since {time}",
+      "you": "You",
+      "handbookMarkAria": "What this is",
+      "readInHandbook": "Read in the Handbook"
     }
   },
   "teach": {

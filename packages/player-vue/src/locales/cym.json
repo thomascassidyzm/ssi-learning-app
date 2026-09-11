@@ -1392,6 +1392,31 @@
         "userFallback": "Defnyddiwr",
         "userMenuAriaLabel": "Dewislen defnyddiwr"
       }
+    },
+    "support": {
+      "title": "Cymorth",
+      "lede": "Gofynnwch unrhyw beth i ni am y dangosfwrdd. Mae atebion yn ymddangos yma, a gallwch ddod yn ôl i'r sgwrs hon unrhyw bryd.",
+      "menuSupport": "Cymorth",
+      "unreadAria": "Atebion heb eu darllen",
+      "doorTitle": "Ydy hyn yn edrych yn anghywir?",
+      "doorAffordance": "Ydy hyn yn edrych yn anghywir?",
+      "youAskedAbout": "Rydych chi'n gofyn am: {label} — mae'n dangos {value}",
+      "tellUs": "Dywedwch wrthym beth rydych chi'n ei weld",
+      "doorLine": "Mae'r sgwrs hon yn eiddo i'ch ysgol, a gall unrhyw weinyddwr yn eich ysgol ei darllen.",
+      "send": "Anfon",
+      "sending": "Yn anfon…",
+      "sendFailed": "Methwyd anfon. Rhowch gynnig arall arni.",
+      "sentNote": "Wedi'i anfon. Bydd ateb yn ymddangos yn Cymorth, fel arfer o fewn munud.",
+      "notNow": "Nid nawr",
+      "close": "Cau",
+      "openSupport": "Agor Cymorth",
+      "loadFailed": "Methwyd llwytho'r sgwrs.",
+      "empty": "Dim byd yma eto. Gofynnwch unrhyw beth am y dangosfwrdd, neu dywedwch wrthym pan fydd rhif yn edrych yn anghywir.",
+      "writeMessage": "Ysgrifennwch neges",
+      "waitingOnTom": "Yn aros am Tom ers {time}",
+      "you": "Chi",
+      "handbookMarkAria": "Beth yw hwn",
+      "readInHandbook": "Darllen yn y Llawlyfr"
     }
   },
   "teach": {

@@ -23,6 +23,7 @@ import {
   FONT_MONO,
   type EChartsLike,
 } from '../theme'
+import { singulariseUnit } from '../units'
 
 const props = withDefaults(defineProps<{
   data: TreemapData
@@ -90,7 +91,8 @@ function buildOption(): Record<string, unknown> {
       formatter: (params: { name: string; value: number }) => {
         const v = params.value
         const display = v >= 1000 ? (v / 1000).toFixed(1) + 'k' : String(v)
-        return `${params.name}: ${display}${unit ? ' ' + unit : ''}`
+        const u = unit && v === 1 ? singulariseUnit(unit) : unit
+        return `${params.name}: ${display}${u ? ' ' + u : ''}`
       },
     },
     series: [{

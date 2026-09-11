@@ -12412,6 +12412,70 @@ COMMENT ON COLUMN public.teachers.platform_expires_at IS 'Tutor dashboard gate: 
 
 
 --
+-- Name: support_messages; Type: TABLE; Schema: public; Owner: -
+-- (declared by hand from supabase/migrations/20260911_support_channel.sql,
+--  which is UNAPPLIED as of 2026-09-11; ./supabase/snapshot-schema.sh will
+--  re-emit these three tables verbatim once it is applied)
+--
+
+CREATE TABLE public.support_messages (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    thread_id uuid NOT NULL,
+    body text NOT NULL,
+    direction text NOT NULL,
+    author_source text NOT NULL,
+    author_name text,
+    author_via text,
+    author_user_id text,
+    in_reply_to uuid,
+    envelope jsonb,
+    signal_key text,
+    escalated_at timestamp with time zone,
+    escalation_test text,
+    escalation_evidence text,
+    escalation_resolved_at timestamp with time zone,
+    draft_reply text,
+    answered_at timestamp with time zone,
+    handbook_anchors text[],
+    handbook_hit boolean,
+    doorbell_sent_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT support_messages_author_source_check CHECK ((author_source = ANY (ARRAY['human'::text, 'agent'::text, 'worker'::text, 'surface'::text, 'unknown'::text]))),
+    CONSTRAINT support_messages_direction_check CHECK ((direction = ANY (ARRAY['in'::text, 'out'::text])))
+);
+
+
+--
+-- Name: support_signals; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.support_signals (
+    signal_key text NOT NULL,
+    school_id uuid NOT NULL,
+    first_seen_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_seen_at timestamp with time zone DEFAULT now() NOT NULL,
+    seen_count integer DEFAULT 1 NOT NULL
+);
+
+
+--
+-- Name: support_threads; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.support_threads (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    school_id uuid,
+    group_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_message_at timestamp with time zone,
+    last_read_at timestamp with time zone,
+    language text,
+    standing_notes jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT support_threads_one_owner CHECK ((((school_id IS NOT NULL) AND (group_id IS NULL)) OR ((school_id IS NULL) AND (group_id IS NOT NULL))))
+);
+
+
+--
 -- Name: tester_feedback; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -20211,6 +20275,24 @@ CREATE POLICY teachers_update_own_or_admin ON public.teachers FOR UPDATE USING (
    FROM public.learners
   WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))) OR public.is_ssi_admin()));
 
+
+--
+-- Name: support_messages; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.support_messages ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: support_signals; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.support_signals ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: support_threads; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.support_threads ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: tester_feedback; Type: ROW SECURITY; Schema: public; Owner: -

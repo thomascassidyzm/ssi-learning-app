@@ -1,3 +1,47 @@
+## 2026-09-11 — The in-app support channel for school and org admins is built, reconciled to Tom's two rulings (job #214, branch cs/214-build-the-in-app-support-channel)
+
+Spec `/d/8e1fce9d` §14, built as written except where Tom's two later rulings changed it: **admins
+only** ("not individual teachers — a bridge too far at the moment", 2026-09-10 21:55Z) and **DB
+writes as turn-taking and as surfacing data points for the handbook page**. The transport is the
+database: her question is a row through `POST /api/support/messages`, the answer is a row the
+watcher on watson-1 writes back, and there is no reply-in endpoint. Decisions taken where the spec
+was silent or ambiguous, each overturnable in a word:
+
+- **Support sits directly under Handbook in the user menu.** The commission doubted the Handbook
+  entry existed in `SchoolsTopBar.vue`; it does, at the top of the menu, so the spec's placement
+  stands. Shown only to `isSchoolAdmin || isGovtAdmin`; the routes refuse a teacher with 403.
+- **The Handbook data points are a third signal key, not a page.** Every answer row records
+  `handbook_anchors` and `handbook_hit`; a how-to the pack could not answer mints
+  `handbook-gap:<anchor-or-topic>` on `support_signals`, so the count of what people have to ask
+  about accumulates by itself and is readable from the table. The admin-facing half is the quiet
+  question mark beside the stats row and the class-practice card, reading the compiled sentence by
+  anchor. No authoring tool, no editor, no second corpus (§15).
+- **The endpoint does not call the agent inline.** §14 item 6 says "calls the agent, writes the
+  agent's reply, returns both"; the reconciled architecture has the agent on watson-1, so the route
+  writes her row and the watcher takes the turn seconds later. Simpler: one agent, one place, and
+  the app never holds a model key. The thread view polls every 15s while visible, and on focus.
+- **A thread is keyed by school OR by group.** `support_threads.school_id` / `group_id`, exactly one
+  set, so an org leader has a thread of their own without pretending to be a school.
+- **Three columns the sketch did not have:** `draft_reply` on the question (the card's draft, so
+  `yes` is one INSERT with no retyping), `last_read_at` on the thread (the unread dot and the
+  doorbell key on it), `escalation_resolved_at` (what turns "Waiting on Tom since …" off).
+- **Population counts OTHER schools**, the caller's own excluded, so the integer reads as the
+  sentence the agent says.
+- **The doorbell is a Vercel cron, not the watcher.** `api/cron/support-doorbell.ts`, hourly at
+  :20 — the Resend key already lives in Vercel and nowhere on watson-1. Rings once per reply,
+  after three hours unopened, to the admin who asked, in the thread's language.
+- **Tom's one word maps to one flag on one script.** `tools/support/reply.cjs --message <id>`
+  with `--yes` (the draft, in his name), `--body "…"` (verbatim, in his name) or `--no` (SSi says
+  a person is looking). Author stamps are author-stamp.js's vocabulary: human · Tom · login-header.
+- **The estate side lives on a command-surface branch made in a git worktree**, never on the live
+  checkout that the running surface reads from. `cs/214-support-channel-watcher`, not merged.
+- **The watcher is written and not armed.** `ops/ssi-support-watcher.service` is not installed;
+  the file says what arming takes. `SUPPORT_PACK_PATH` must point at a `dev` checkout with the
+  handbook compiled — the shared checkout's pack had no handbook section on 2026-09-11, and the
+  loader now says so out loud rather than answering every how-to with "I don't know" quietly.
+- **The migration is unapplied.** `supabase/migrations/20260911_support_channel.sql`; the three
+  tables are declared by hand in `schema.sql` so the snapshot gate stays honest until it is.
+
 ## 2026-09-10 — The layer-1 voice order is settled: v2 third, not last (job #74, branch cs/74-glossary-voice-order-ruling)
 
 Tom ruled on the one open question the vocabulary glossary was carrying. Asked whether the code was
@@ -408,3 +452,131 @@ player deploy.
 `/api/school/class-progress` (service role, teacher-authorised) and the class session opened at play
 start: a player deploy, not a Friday hotfix. The Lens needs re-pointing off `class_sessions`.
 
+
+## 2026-09-11 — the human test-sheet gate on staging→main is removed, not disabled (job #211)
+
+**The three rulings, in order.**
+
+- **2026-09-10, Tom: "10 — gate it."** A human test pass on the fixed `colombo-pass-v1` sheet
+  became a required gate on `staging → main`. It lived in `tools/release-train/human-pass.mjs`,
+  was recorded by `record-pass.mjs` from the tester's own words into `passes/<sha7>.json`, and
+  `promote.sh` refused without it. Every step had to read `pass` on both the web run and the
+  Android run, an unanswered step blocked exactly as a failed one did, and there was deliberately
+  no bypass flag.
+- **2026-09-10, later the same evening.** Tom's own words, as the ledger noted them at 21:55Z:
+  the third thrust is a "live agent as real learner on the web, testing suite run by Astra".
+  Watson recorded the ruling as "release testing is automatic and run by Astra; nobody hands Tom a
+  test sheet." The ledger line is the nearest original wording found; Watson's is the paraphrase
+  the commission carried. Both are given here so the reader can see the distance between them.
+- **2026-09-11, Tom: "ok, remove that gate, we're not slaves to the system we created."** The
+  ruling that removed it in code, when Watson offered three ways round the gate — someone runs the
+  sheet, Tom waives it once, or hold the release — and Tom rejected the frame.
+
+**What was removed.** The `HUMAN-PASS-GATE` limb in `promote.sh`, the `--accept-drift` argument
+that existed only to feed it, and the header paragraph describing it. `human-pass.mjs`,
+`record-pass.mjs`, `human-pass.test.mjs` and `passes/` are deleted, `package.json` loses
+`test:human-pass`, and Thursday's candidate report no longer prints "the promote will REFUSE".
+No pass was ever recorded; the gate blocked exactly one release, today's, for the eleven hours it
+existed on the branch that ships. Removed rather than defanged because a bypass flag on the
+ordinary path becomes the ordinary path inside a month — the script's own header said so.
+
+**What replaced it.** The semi-automatic release-test loop landed on `dev` by job #208 earlier
+today: a nightly user timer at 00:45Z that works the same checklist against staging as a real
+learner would, records what it saw, and reports. It deliberately gates nothing yet. The sheet
+`TESTER-SHEET.md` stays as the named source of the loop's controls, with a line at the top saying
+it is no longer a gate. Nobody hands Tom a test sheet.
+
+**What is still enforced in `promote.sh`, untouched.** Nothing runs without `--go`. The script
+refuses when `origin/main` is not an ancestor of `origin/staging`, which is how an un-back-merged
+hotfix announces itself. It regenerates the release notes from the range actually promoted and
+commits them onto the merge, and if the notes fail to finalise it exits non-zero and says THE
+PROMOTE LANDED. THE RELEASE NOTES DID NOT. It is never cronned. The removal is pinned by a case in
+`promote-notes-commit.test.mjs` that asserts the gate's absence and those refusals' presence,
+seen red on the old script and green on the new one. This was a supersession, not an erosion.
+
+**The word that reverts it:** gate. The deleted files are one `git revert` away on `dev`.
+
+## 2026-09-11 — a class has started when it has practised, not when it was assigned a course (job #215)
+
+**Better × Simpler × Cheaper.** Better: the two sentences a school leader reads on one screen,
+"13 have never started" and "30 of 34 have started", now describe the same fact and add up to the
+school. Simpler: one rule, written once in `api/org/intel.ts`, decides what "started" means for
+both QUIET and JOURNEY and for each class row's position; no widget hidden, no second read.
+Cheaper: a reading-side change to one function and one proving test; no write path touched, no
+migration, no shared database change.
+
+**What was wrong.** Opening the class player writes a live position to the enrollment WITHOUT a
+practice stamp, by design since 2026-06-11 so that a boot does not read as practice. JOURNEY read
+that cursor as "started"; QUIET read the missing practice stamp as "never started". Nine of
+Chepstow's thirty-four classes carried a cursor at sentence 1 and no practice, and were counted
+both ways.
+
+**The principle, Tom's.** "They know that SSi works, and all it needs is regular use." Assignment
+is an intention; practice is what the school is being asked about. So started means practised.
+
+**What changed.** `computeOrgIntel` gives a class a position only when it has practice evidence,
+the same evidence QUIET already uses. Pinned by a test that was seen red on the old code and green
+on the new: a class with a cursor and no practice is counted never-started by both questions.
+
+**Follow-up, not done here.** The boot-time save still leaves a cursor on a class that never
+played. The node home reads that cursor for its journey bar too. Whether a bare boot should write a
+cursor at all is a write-path question for its own job.
+---
+
+## 2026-09-11 — the support channel's three tables are live; the watcher is not
+
+**Decision.** Job #214 left three questions open. Two of them were answered yes and are done here:
+the two branches are merged and the migration is applied. The third — arming the watcher — is
+Tom's alone and was not touched.
+
+**The migration.** `20260911_support_channel.sql` was applied to the live shared project by
+`supabase/secfix-toolkit/canary_support_channel.cjs`, canary style: one transaction, the DDL, then
+fixtures on real schools and a real council group, then thirty-seven assertions, then a rollback of
+the fixtures and a COMMIT of the DDL alone. Leak-closed: anon reads nothing; a school admin sees
+their own thread and their own turns and nothing of the school next door, cannot see an org thread,
+cannot read `support_signals` at all, and cannot insert, update or delete anything anywhere — every
+write is the server's or the service key's. Legit paths alive: `ensureThread`'s select, the
+messages POST, the thread GET's `last_read_at` stamp, the doorbell's `doorbell_sent_at` stamp, the
+population count as an integer, the signals upsert, and the watcher's unanswered-questions query.
+The shape holds too — a thread owns exactly one of a school or a group, and there is one thread per
+school forever. Live posture after commit: RLS on all three, one SELECT policy each on threads and
+messages, zero policies and zero grants on `support_signals`, and SELECT the only privilege
+`authenticated` holds anywhere in the set.
+
+**One red the merge found.** `SEC0901-A-03` keeps the cron inventory as an explicit list so that
+adding a cron is a deliberate edit to the security file. The doorbell was added to `vercel.json` on
+the branch without that edit, so `test:api` went red the moment the branch met `dev`. The
+deliberate edit is made; the handler already carried `checkCronAuth`, which the gate's derived
+second assertion proves independently. The gate worked exactly as designed.
+
+**The doorbell cannot ring yet, and that is structural, not a promise.** It selects `out` rows
+older than three hours. Nothing writes an `out` row but the watcher and Tom's reply tool, and the
+watcher is unarmed — so no school admin can receive an email from this until somebody arms it.
+
+**The watcher stays unarmed.** `ops/ssi-support-watcher.service` in command-surface is committed
+and installed nowhere: not in `~/.config/systemd/user`, no `~/.config/ssi-support/env`, never
+enabled, never started. Arming it means an AI begins drafting replies to real school admins.
+That is an intention-level call and it is being asked of Tom separately.
+## 2026-09-11 — a class with no pupil accounts is not "inactive" by fiat (job #217·G)
+
+**The case.** Ysgol Cas-gwent runs 34 classes as whole-class play from the front, with no pupil
+accounts at all. On the morning of 11 September its head of department sent screenshots of her
+class list reading "Inactive" on every row, next to "0h this week". By 12:03Z the in-app-time
+release (`5ea385e88`) had made the hours column true, and the node home true, but the health mark
+stayed "Inactive" for every class — the rule in `TeacherDashboard.vue` said "no pupil accounts
+means inactive" before it looked at whether the class had practised at all.
+
+**The ruling applied.** The Handbook sentence for that column already says what the rule is:
+"Health is worked out from how many of the last seven days the class practised on." The code now
+does that. `/api/school/class-practice-7d` carries `activeDaysByClass` — distinct days with any
+play in the window, the class account and its pupils together — from the same diary read that
+already produces the in-app seconds. `deriveClassHealth` (`views/schools/classHealth.ts`) takes
+the higher of the report's active days and the diary's, tiers as before (5+ excellent, 2+ good,
+1 needs attention), and only then falls back to the old pupil-count rule for a class with no play
+on either record. Classes with pupils keep the answer they had. No Handbook sentence changed,
+because the sentence was right and the code was wrong; `--check` stays green.
+
+**What this does not do.** It does not touch the node home, the Insights rate engine (which still
+reads `analytics_class_sessions_scoped` over the dead `class_sessions` table and reports "no
+practice recorded" for this school — logged for job #215·G), or any copy. It sends no notice to
+anyone. Pinned by `classHealth.test.ts`, seen red on the old rule and green on the new one.

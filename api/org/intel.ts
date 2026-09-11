@@ -51,6 +51,17 @@
  * labelled with the first LEGO of that sentence when every class shares one
  * course.
  *
+ * STARTED MEANS PRACTISED (2026-09-11). A class has started when it has
+ * practised together, not when an adult assigned it a course or opened the
+ * player: opening the class player writes a live position to the enrollment
+ * WITHOUT a practice stamp (LearningPlayer persistLivePositionToDb on init,
+ * touchPracticedAt=false), so a cursor alone is not evidence of a lesson.
+ * Nine of Chepstow's classes carried such a cursor and were counted "never
+ * started" by QUIET and "started" by JOURNEY on the same screen. So a class
+ * with no practice evidence has NO position here, and QUIET's never-started
+ * and JOURNEY's started partition the classes exactly. The write side still
+ * leaves the cursor; that is a separate follow-up.
+ *
  * NOTHING HERE COMPARES THIS NODE WITH ANY OTHER. Every figure is the node's
  * own subtree. The anonymous, k-floored rate comparison lives in
  * rate-compare.ts and stays there.
@@ -285,8 +296,11 @@ export async function computeOrgIntel(
 
   const singleCourse = courseCodes.length === 1 ? courseCodes[0] : null
   const wantedText: { course: string; legoId: string }[] = [...positionByLearner.values()].filter((p) => p.course)
+  // A class that has never practised has no position, whatever its cursor
+  // says — see STARTED MEANS PRACTISED in the header.
+  const hasPractised = (c: ClassRow): boolean => !!practice.get(c.id)?.lastPractisedAt
   const stageSentences = journeyStages(
-    classes.map((c) => (c.class_learner_id ? seedOf(positionByLearner.get(c.class_learner_id)?.legoId) : null)),
+    classes.map((c) => (c.class_learner_id && hasPractised(c) ? seedOf(positionByLearner.get(c.class_learner_id)?.legoId) : null)),
     singleCourse ? courseLengths.get(singleCourse) ?? null : null,
   )
   if (singleCourse) {
@@ -298,6 +312,7 @@ export async function computeOrgIntel(
   ])
 
   const positionFor = (c: ClassRow): OrgIntelPosition | null => {
+    if (!hasPractised(c)) return null
     const p = c.class_learner_id ? positionByLearner.get(c.class_learner_id) : undefined
     if (!p) return null
     const sentence = seedOf(p.legoId)

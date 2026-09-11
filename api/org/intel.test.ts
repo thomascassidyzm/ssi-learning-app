@@ -260,6 +260,30 @@ describe('GET /api/org/intel — the three answers', () => {
     expect(res.body.journey.stages[4].label).toMatchObject({ knownText: 'I still want', targetText: 'dw i dal yn moyn' })
   })
 
+  it('a class with a cursor but no practice is NOT started: QUIET and JOURNEY agree on it', async () => {
+    // Opening the class player writes a live position without a practice
+    // stamp (LearningPlayer persistLivePositionToDb(undefined, false) on init).
+    // Nine of Chepstow's classes are in exactly this state: a cursor at
+    // sentence 1, no diary clip, no last_practiced_at. Seen RED before the fix:
+    // Quiet said 2 never started and Journey said 3 of 4 started — 5 of 4.
+    TABLES.classes.push({ id: 'class-4', class_name: '10T', course_code: 'cym_s_for_eng', school_id: 'school-1', group_id: 'school-node', teacher_user_id: 'teacher-3', class_learner_id: 'cl-4', is_active: true })
+    TABLES.course_enrollments.push({ learner_id: 'cl-4', course_id: 'cym_s_for_eng', highest_completed_lego_id: null, last_completed_lego_id: 'S0001L01', last_practiced_at: null })
+    const res = makeRes()
+    await handler(makeReq('school-1'), res)
+    expect(res.statusCode).toBe(200)
+    const started = res.body.journey.stages[0].classes
+    const { neverCount } = res.body.quiet
+    // The two questions partition the school: every class has either
+    // practised or it has not.
+    expect(started + neverCount).toBe(res.body.practising.classCount)
+    expect(neverCount).toBe(2)
+    expect(started).toBe(2)
+    // And the class row itself says the same thing: no practice, no position.
+    const c4 = res.body.classes.find((c: any) => c.id === 'class-4')
+    expect(c4.lastPractisedAt).toBeNull()
+    expect(c4.position).toBeNull()
+  })
+
   it('the pure rules: quiet buckets and journey stages', () => {
     const now = Date.now()
     expect(pure.quietBucket(null, now)).toBe('never')

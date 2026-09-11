@@ -1,0 +1,13 @@
+{
+  "id": "subscribe-wall-missing",
+  "feel": "A walled account plays indefinitely without the subscribe screen.",
+  "patch": {
+    "file": "packages/player-vue/src/components/LearningPlayer.vue",
+    "before": "v-if=\"showPaywall\" class=\"paywall-overlay\"",
+    "after": "v-if=\"false\" class=\"paywall-overlay\"",
+    "count": 1
+  },
+  "check": "TESTER-SHEET step 2; _255-double-subscription-probe.mjs covers subscription state, not this round-to-wall transition",
+  "gap": "Local authenticated wall-account/backend fixture is absent. Password variable names exist on this box; credentials are not the gap. Do not use live Supabase.",
+  "revert": "Runner restores the original bytes in finally and asserts git status is clean before the next entry. Fixture pages are destroyed with their browser."
+}
