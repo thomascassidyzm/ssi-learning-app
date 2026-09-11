@@ -90,12 +90,6 @@ export interface UseSubscriptionReturn {
   /** True when this learner IS a parent-minted child account — never offered a
    *  checkout (job #376·F, D7). */
   isChildAccount: Ref<boolean>
-  /** True when the SERVER says this learner is an ssi_admin. Suppresses every
-   *  upgrade affordance: a platform admin outranks Premium and is never sold
-   *  anything (Tom, 2026-09-08). Read from /api/subscription, which resolves it
-   *  from the learner row — deliberately NOT from useUserRole, whose cache is
-   *  localStorage and is writable by the browser. */
-  isPlatformAdmin: Ref<boolean>
   /** The funded-org grant paying for this learner's access, if any. */
   freeAccess: Ref<OrgFreeAccess | null>
   /** NOBODY WHOSE ACCESS IS ALREADY FREE IS EVER SHOWN A PRICE.
@@ -104,6 +98,12 @@ export interface UseSubscriptionReturn {
    *  new surface asks the same question as the old ones instead of inventing
    *  its own idea of "free". */
   hasFreeAccess: ComputedRef<boolean>
+  /** True when the SERVER says this learner is an ssi_admin. Suppresses every
+   *  upgrade affordance: a platform admin outranks Premium and is never sold
+   *  anything (Tom, 2026-09-08). Read from /api/subscription, which resolves it
+   *  from the learner row — deliberately NOT from useUserRole, whose cache is
+   *  localStorage and is writable by the browser. */
+  isPlatformAdmin: Ref<boolean>
 }
 
 // ============================================================================
@@ -122,14 +122,14 @@ export function useSubscription(): UseSubscriptionReturn {
   // A parent-minted child account: no email of their own, no way to pay, so
   // no checkout is ever opened for them (job #376·F, D7).
   const isChildAccount = ref(false)
-  // Server-decided; see the interface note. Defaults false, so a failed or
-  // unauthenticated fetch never quietly grants anybody the admin treatment.
-  const isPlatformAdmin = ref(false)
   // Free through a funded org enrolment (Canolfan's free year) — see
   // api/_utils/orgFreeAccess.ts. Drives prompt suppression, never access:
   // the courses the grant unlocks are carried by user_entitlements, which
   // checkCourseAccess already honours.
   const freeAccess = ref<OrgFreeAccess | null>(null)
+  // Server-decided; see the interface note. Defaults false, so a failed or
+  // unauthenticated fetch never quietly grants anybody the admin treatment.
+  const isPlatformAdmin = ref(false)
 
   // Computed
   const isSubscribed = computed(() => {
@@ -199,7 +199,6 @@ export function useSubscription(): UseSubscriptionReturn {
     // `subscription`, so it follows automatically.
     subscription.value = null
     freeAccess.value = null
-    isPlatformAdmin.value = false
     try {
       localStorage.removeItem(SUBSCRIPTION_KEY)
     } catch {
@@ -231,8 +230,8 @@ export function useSubscription(): UseSubscriptionReturn {
         // (guest), so hydration is complete.
         subscription.value = null
         isChildAccount.value = false
-        isPlatformAdmin.value = false
         freeAccess.value = null
+        isPlatformAdmin.value = false
         hasHydrated.value = true
         return
       }
@@ -259,8 +258,8 @@ export function useSubscription(): UseSubscriptionReturn {
 
       subscription.value = data.subscription
       isChildAccount.value = !!data.isChildAccount
-      isPlatformAdmin.value = !!data.isPlatformAdmin
       freeAccess.value = data.freeAccess ?? null
+      isPlatformAdmin.value = !!data.isPlatformAdmin
       saveToCache(data.subscription, data.isSubscribed, freeAccess.value)
       hasHydrated.value = true
     } catch (err) {
@@ -408,9 +407,9 @@ export function useSubscription(): UseSubscriptionReturn {
 
   return {
     isChildAccount,
-    isPlatformAdmin,
     freeAccess,
     hasFreeAccess,
+    isPlatformAdmin,
     subscription,
     isSubscribed,
     isLoading,

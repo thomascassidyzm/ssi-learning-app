@@ -411,21 +411,39 @@ describe('NodeHomeView — one grammar at every level', () => {
   it('CLASS-PRACTICE PIN: class home LEADS with the class practising together — practice card first, journey + belt from class play, students below as the bonus layer', async () => {
     routeMock.params = { id: 'class-1' }
     const payload = classPayload()
-    ;(payload as any).classPractice = { weekSessions: 2, sessions28d: 2, totalSessions: 3, lastSessionAt: new Date().toISOString(), hours: 1.3 }
+    // The in-app-session-time shape home.ts emits for a class since 25fe2f46d
+    // (founder ruling 2026-09-10: minutes in the app are the headline, phrases
+    // spoken beside them, audio-played demoted) — never session counts.
+    ;(payload as any).classPractice = {
+      windowDays: 7,
+      phrases7d: 42,
+      inAppMinutes7d: 78,
+      lastPractisedAt: new Date().toISOString(),
+      phrases: [{ known: 'I want', target: 'quiero', count: 9 }],
+    }
     payload.journey = { done: 238, total: 320, source: 'class-play', legoId: 'S0060L02', seedNumber: 60 } as any
     setupFetch(payload)
     const wrapper = mountView()
     await flushPromises()
 
     const text = wrapper.text()
-    // Stats row leads with class practice, not individual hours.
-    expect(text).toContain('Class sessions this week')
-    expect(text).toContain('1.3h')
+    // Stats row LEADS with the class practising together — phrases spoken,
+    // then minutes in the app — before any people count, and never the
+    // individual practice-hours figure or a session count.
+    const statWords = wrapper.findAll('.stat-card .stat-word').map((w) => w.text())
+    expect(statWords.slice(0, 2)).toEqual(['Phrases spoken this week', 'Minutes in the app this week'])
+    const statValues = wrapper.findAll('.stat-card .stat-value').map((v) => v.text())
+    expect(statValues.slice(0, 2)).toEqual(['42', '78'])
+    expect(text).not.toContain('Practice hours')
+    expect(text).not.toMatch(/sessions? this week/i)
     // The Class practice card renders FIRST among the class cards.
     const cards = wrapper.findAll('.class-card .schools-kicker').map((k) => k.text())
     expect(cards[0]).toBe('Class practice')
-    expect(text).toContain('sessions this week')
-    expect(text).toContain('Last class session')
+    expect(text).toMatch(/42\s*phrases spoken this week/)
+    expect(text).toContain('Last practised together')
+    expect(text).toContain('78 minutes in the app together this week')
+    // The phrase-by-count list — what the class actually said — sits in the card.
+    expect(text).toContain('quiero')
     // Journey rides the CLASS's own play-as-class position (LEGO units).
     expect(text).toContain('The class has travelled 238 of 320 LEGOs together')
     // Belt comes from the class's play position (seed 60 → green → Blue next).
@@ -439,7 +457,7 @@ describe('NodeHomeView — one grammar at every level', () => {
   it('a class with NO class practice yet: teaching invitation copy, journey falls back to the students\' average', async () => {
     routeMock.params = { id: 'class-1' }
     const payload = classPayload()
-    ;(payload as any).classPractice = { weekSessions: 0, sessions28d: 0, totalSessions: 0, lastSessionAt: null, hours: 0 }
+    ;(payload as any).classPractice = { windowDays: 7, phrases7d: 0, inAppMinutes7d: 0, lastPractisedAt: null, phrases: [] }
     payload.journey = { done: 60, total: 320, source: 'estimate', legoId: null, seedNumber: null } as any
     setupFetch(payload)
     const wrapper = mountView()

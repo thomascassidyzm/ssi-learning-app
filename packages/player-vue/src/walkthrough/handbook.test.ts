@@ -95,3 +95,24 @@ describe('place links', () => {
     }
   })
 })
+
+// ONE PACK, TWO SURFACES (2026-09-10). The intelligence surface describes its
+// capabilities with the same comment mechanism under data-intel, and the
+// compiler stamps each entry with the surface its anchor belongs to. The
+// schools Handbook page must show its own only — an SSi-internal capability
+// under "Seeing how it is going" would be noise to a teacher — and the
+// intelligence surface must be able to find its own from the same pack.
+describe('one compiled pack carries two surfaces', () => {
+  it('keeps the intelligence surface out of the schools handbook by default', () => {
+    const schools = handbookEntries()
+    expect(schools.length).toBeGreaterThan(0)
+    expect(schools.every((e) => (e.surface ?? 'schools') === 'schools')).toBe(true)
+    expect(schools.some((e) => e.place.route === 'intel')).toBe(false)
+  })
+
+  it('hands the intelligence surface its own entries, every one anchored there', () => {
+    const intel = handbookEntries('intel')
+    expect(intel.length).toBeGreaterThan(0)
+    expect(intel.every((e) => e.surface === 'intel' && e.place.route === 'intel')).toBe(true)
+  })
+})

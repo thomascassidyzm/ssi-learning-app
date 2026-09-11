@@ -20,14 +20,16 @@
       "say": "One teacher on a class is the **lead** — the one the class is listed under, and the one a school admin comes to about it. When you move on from a class, that name should move too.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "296f8502.bc9ac319"
     },
     {
       "anchor": "class-teacher-make-lead",
       "say": "**Make lead** hands it to a colleague already on the class. It takes effect straight away, so add them first and hand over once you have.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "f6b058e5.9f56429a"
     },
     {
       "anchor": "class-teachers",
@@ -35,7 +37,8 @@
       "advance": {
         "on": "next"
       },
-      "terminal": "That's handover — the lead is a name, not a wall. Nothing changed while you read this; only your own taps do."
+      "terminal": "That's handover — the lead is a name, not a wall. Nothing changed while you read this; only your own taps do.",
+      "checked": "296f8502.edac49b6"
     }
   ]
 }

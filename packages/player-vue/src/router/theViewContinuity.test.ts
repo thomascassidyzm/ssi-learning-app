@@ -10,7 +10,8 @@
  *    route carries meta.nodeSurface, which scrollBehavior uses to hold the
  *    scroll position.
  * 3. "There's no need for an individual learner page." The route is GONE —
- *    but its URL redirects (never 404s) to the admin user detail page.
+ *    but its URL redirects (never 404s) — through the dead user-detail fossil —
+ *    into the person question (/intel/person), the page that now answers it.
  */
 import { describe, it, expect } from 'vitest'
 import router from './index'
@@ -43,9 +44,25 @@ describe('THE VIEW — one continuous surface', () => {
     expect(typeof record.redirect).toBe('function')
     const target = (record.redirect as (to: unknown) => { path: string })({ params: { learnerId: 'learner-9' } })
     expect(target.path).toBe('/admin/users/learner-9')
-    // The redirect target is a real, renderable route (never a 404).
-    expect(router.resolve(target.path).name).toBe('admin-user-detail')
-    // And the old named route is gone entirely.
+    // That page is itself a DEAD FOSSIL since Question 6 was built (a8194fcf2):
+    // it renders nothing and redirects on into the person question with the
+    // person preserved — so the chain is redirect → redirect → a page.
+    const hop = router.resolve(target.path)
+    const fossil = hop.matched[hop.matched.length - 1]
+    expect(fossil).toBeTruthy()
+    expect(fossil.components ?? null).toBeNull()
+    expect(typeof fossil.redirect).toBe('function')
+    const landing = (fossil.redirect as (to: unknown) => { path: string; query?: Record<string, string> })({
+      params: { learnerId: 'learner-9' },
+      query: {},
+    })
+    expect(landing).toEqual({ path: '/intel/person', query: { person: 'learner-9' } })
+    // The end of the chain is a real, renderable route (never a 404).
+    const end = router.resolve(landing.path)
+    expect(end.name).toBe('intel-person')
+    expect(end.matched[end.matched.length - 1].components?.default).toBeTruthy()
+    // And the old named routes are gone entirely.
     expect(router.hasRoute('admin-user-progress')).toBe(false)
+    expect(router.hasRoute('admin-user-detail')).toBe(false)
   })
 })

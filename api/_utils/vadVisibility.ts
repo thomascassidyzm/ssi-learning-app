@@ -171,7 +171,7 @@ export function isDenied(r: VadScopeResult): r is VadScopeDenied {
  * this takes the same union api/groups/[id]/home.ts counts through, rather than
  * quietly under-reporting a leader's own subtree.
  */
-async function schoolIdsForNodeSubtree(svc: SupabaseClient, nodeId: string): Promise<string[]> {
+export async function schoolIdsForNodeSubtree(svc: SupabaseClient, nodeId: string): Promise<string[]> {
   const { data: forest } = await svc.from('groups').select('id, parent_id')
   const groupIds = descendantIds((forest ?? []) as ParentLinked[], nodeId)
   if (groupIds.length === 0) return []

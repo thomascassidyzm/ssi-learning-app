@@ -135,8 +135,9 @@ function openClass(id: string): void {
            1. Open a group or a school.
            2. Tap a caret to open or close what sits under a name.
            3. Tap any name to go to that level — the numbers and the tree redraw for it.
-           4. A class row names its teachers and its student count without you opening
-              it.
+           4. A class row names its teachers, its student count, and how many phrases
+              it spoke together in the last seven days, or says plainly that it has not
+              practised together this week, without you opening it.
            5. Where there are more than eight classes or people, a **more** button
               reveals the rest.
            Worth knowing. The top two levels open themselves and deeper ones wait to be
@@ -185,6 +186,15 @@ function openClass(id: string): void {
         <span v-if="c.teachers.length" class="tree-teachers">{{ c.teachers.join(', ') }}</span>
         <span v-if="c.studentCount" class="tree-count frost-mono-nums">
           {{ pluralN(c.studentCount, 'org.ui.nodeBelowTree.studentOne', '{n} student', 'org.ui.nodeBelowTree.studentsMany', '{n} students') }}
+        </span>
+        <!-- Whole-class play this week, off the class account's diary. A
+             class with nothing this week says so in words — never a 0 that
+             reads as a measurement (job #159). -->
+        <span v-if="c.phrases7d > 0" class="tree-count tree-phrases frost-mono-nums">
+          {{ pluralN(c.phrases7d, 'org.ui.nodeBelowTree.phraseOne', '{n} phrase this week', 'org.ui.nodeBelowTree.phrasesMany', '{n} phrases this week') }}
+        </span>
+        <span v-else class="tree-count tree-quiet">
+          {{ c.lastPractisedAt ? t('org.ui.nodeBelowTree.notThisWeek', 'not this week') : t('org.ui.nodeBelowTree.notYetTogether', 'not yet practised together') }}
         </span>
       </div>
 
@@ -333,6 +343,9 @@ function openClass(id: string): void {
   font-size: var(--text-xs);
   color: var(--schools-fg-3, #8A8078);
 }
+.tree-count + .tree-count { margin-left: 0; }
+.tree-quiet { font-style: italic; opacity: 0.75; }
+
 
 /* A person is not a class. The page already speaks in initialled avatars, so
    people carry a small quiet one and read as people at a glance — without it,

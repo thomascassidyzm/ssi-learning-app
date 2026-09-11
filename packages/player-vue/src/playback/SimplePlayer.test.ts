@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { SimplePlayer, type AudioFailedEvent, type Round } from './SimplePlayer'
+import { SimplePlayer, phaseStartTimeoutCoversItsAwaits, type AudioFailedEvent, type Round } from './SimplePlayer'
 import { PlayerConductor, type ConductorEngine } from './PlayerConductor'
 
 // The background-safe PAUSE clip is a self-contained silent WAV data: URI
@@ -96,9 +96,17 @@ describe('SimplePlayer — failure handling', () => {
     vi.unstubAllGlobals()
   })
 
-  it('does NOT emit audio_failed after repeated safety timeouts — ploughs on instead', async () => {
-    // Learner experience must never stall on a broken UUID / 404 / stall.
-    // The old circuit breaker halted after 3 failures; now we log and advance.
+  it('a stalled clip is REPORTED as well as ploughed past (job #77)', async () => {
+    // Learner experience must never stall on a broken UUID / 404 / stall — the
+    // player still advances, and that half of this test is unchanged.
+    //
+    // What changed on 2026-09-10: it used to advance in SILENCE. This assertion
+    // was `expect(failedEvents.length).toBe(0)`, and that zero was the whole
+    // reason a live "no English before the pause" defect was invisible —
+    // `audio_play` is logged on phase ENTRY, so the telemetry said the prompt
+    // played while the learner heard nothing, and the stall watchdog was the
+    // one advance-on-failure path in the engine that emitted nothing at all.
+    // A clip the learner did not hear must say so. Deliberate flip.
     const player = new SimplePlayer([makeRound('S0001L01')])
     const failedEvents: AudioFailedEvent[] = []
     player.on('audio_failed', (e) => failedEvents.push(e as AudioFailedEvent))
@@ -111,7 +119,43 @@ describe('SimplePlayer — failure handling', () => {
       await vi.advanceTimersByTimeAsync(10_000)
     }
 
-    expect(failedEvents.length).toBe(0)
+    // It ploughed on — through every phase of the round and out the far side.
+    expect(player.currentState.roundIndex).toBe(0)
+    // And it said so, with the identity of what went unheard.
+    const stalls = failedEvents.filter((e) => e.lastError === 'stall-watchdog-no-progress')
+    expect(stalls.length).toBeGreaterThan(0)
+    expect(stalls[0].attempt).toBe(2)
+    expect(stalls[0].cycleId).toBe('S0001L01-c1')
+    expect(stalls[0].role).toBeDefined()
+  })
+
+  it('a speaking cycle with NO known audio url reports the gap instead of silently shortening the cycle (job #77)', async () => {
+    // The literal shape Beuno reported: prompt phase entered, no English, the
+    // cycle drops straight into the pause. Console-only made it invisible to
+    // anyone without devtools open. It must reach telemetry.
+    const round = makeRound('S0001L01')
+    round.cycles[0].known.audioUrl = ''
+    const player = new SimplePlayer([round])
+    const failedEvents: AudioFailedEvent[] = []
+    player.on('audio_failed', (e) => failedEvents.push(e as AudioFailedEvent))
+
+    player.play()
+    await vi.advanceTimersByTimeAsync(50)
+
+    const gaps = failedEvents.filter((e) => e.lastError === 'no-audio-url')
+    expect(gaps.length).toBe(1)
+    expect(gaps[0].role).toBe('known')
+    expect(gaps[0].cycleId).toBe('S0001L01-c1')
+  })
+
+  it('the phase watchdog outlasts every bounded await it covers (job #77)', () => {
+    // PROMPT is the only phase carrying BOTH bounded awaits — ensureKnownReady
+    // (5s) then resolveUrl (4s) — and the watchdog ceiling was 8s, i.e. one
+    // second SHORT of the 9s its own docblock says it covers. A slow-but-working
+    // prompt resolve would be skipped by the very timer meant to be its
+    // backstop, and the learner would drop into the pause with no known audio.
+    // Asserted as a relationship so a new bounded await cannot reopen the gap.
+    expect(phaseStartTimeoutCoversItsAwaits()).toBe(true)
   })
 
   it('emits audio_failed with reason=needs-gesture on NotAllowedError from play()', async () => {
@@ -1406,11 +1450,20 @@ describe('SimplePlayer — never stalls on one item (the ruling)', () => {
     expect(player.currentState.isPlaying).toBe(true)
   })
 
-  it('when EVERY await on the path hangs, the phase watchdog skips the clip and playback continues', async () => {
-    // Backstop test: both pre-play awaits hang (a wedged ensureKnownReady gate
-    // AND a wedged resolver). Nothing can produce a playable URL, so the
-    // phase-start watchdog must fire and advance rather than let the session
-    // die on this one item — the ruling, enforced structurally.
+  it('when EVERY await on the path hangs, both bounds expire and the clip STILL PLAYS (job #77)', async () => {
+    // Both pre-play awaits hang (a wedged ensureKnownReady gate AND a wedged
+    // resolver). Each is bounded — 5s then 4s — and the resolver's bound falls
+    // back to the original network URL, so at ~9s there IS a playable URL.
+    //
+    // This used to assert the opposite: that the phase watchdog fired and the
+    // clip was SKIPPED. That only happened because the watchdog ceiling (8s)
+    // was shorter than the 5s + 4s it covers, so the backstop pre-empted a
+    // slow-but-working resolve one second before it succeeded — the learner
+    // dropping into the pause with no known audio, which is the defect job #77
+    // was raised on. The ruling is "never stall on one item", and playing the
+    // clip a second late honours it better than skipping it. The watchdog is
+    // still armed and still the backstop for an await nobody bounded; its
+    // coverage is asserted by phaseStartTimeoutCoversItsAwaits().
     const never = <T,>() => new Promise<T>(() => { /* deliberately never */ })
     const player = new SimplePlayer(
       [distinctRound('S0001L01', 'https://example.com/r1-known.mp3')],
@@ -1424,16 +1477,22 @@ describe('SimplePlayer — never stalls on one item (the ruling)', () => {
     expect(mockAudio.src).toBe('')
 
     const phasesSeen = new Set<string>()
+    const srcsSeen: string[] = []
     for (let i = 0; i < 40; i++) {
       await vi.advanceTimersByTimeAsync(2_000)
       await flush()
       phasesSeen.add(player.currentState.phase)
+      if (mockAudio.src && srcsSeen[srcsSeen.length - 1] !== mockAudio.src) srcsSeen.push(mockAudio.src)
     }
 
     // It did not sit in the entry phase forever — the machine moved on.
     expect(phasesSeen.size).toBeGreaterThan(1)
-    // And it said so loudly, with the diagnostics payload intact.
-    expect(failedEvents.some((e) => e.lastError === 'phase-watchdog-resolve-hang')).toBe(true)
+    // And the known clip was HEARD: the resolver's own bound handed back the
+    // original URL and the element was told to play it, rather than the
+    // backstop skipping a clip that was one second from working. It is the
+    // FIRST thing the element ever sounded, as a prompt should be.
+    expect(srcsSeen[0]).toBe('https://example.com/r1-known.mp3')
+    expect(failedEvents.some((e) => e.lastError === 'phase-watchdog-resolve-hang')).toBe(false)
   })
 
   it('a clip whose audio element errors on every attempt is skipped, not halted', async () => {

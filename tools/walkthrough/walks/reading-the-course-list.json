@@ -33,21 +33,24 @@
       "say": "Each card names the language you would be learning, and under it, the language it would be taught in. That second line is the one worth reading — it is what you will hear the prompts in.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "5d09b67b.51ba992f"
     },
     {
       "anchor": "library-course-card",
       "say": "The right-hand side tells you where you stand. A coloured dot and a position means you have already started that one and it is holding your place for you.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "5d09b67b.3143d2a9"
     },
     {
       "anchor": "library-course-card",
       "say": "**Premium** with **Try free** next to it means the course is a paid one, and that you can properly get going in it first. You carry on until the app asks — nothing stops you mid-thought and nothing is taken before you have said yes.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "5d09b67b.e8a97b26"
     },
     {
       "anchor": "library-course-grid",
@@ -55,7 +58,8 @@
       "advance": {
         "on": "next"
       },
-      "terminal": "Nothing here commits you. Tapping a card takes you into it, and every course you have touched keeps its own place waiting."
+      "terminal": "Nothing here commits you. Tapping a card takes you into it, and every course you have touched keeps its own place waiting.",
+      "checked": "8d798d54.cdad33ba"
     }
   ]
 }

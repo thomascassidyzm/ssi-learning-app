@@ -57,6 +57,8 @@ import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { isMemberNodeSurface, nodeInsightsPath } from '@/composables/nodeSurfacePaths'
 import { derivePreset } from '@/composables/nodeTerminology'
 import { timeAgo } from '@/composables/admin/adminUtils'
+import InsightTable from '@/insight/widgets/Table.vue'
+import type { TableData } from '@/insight/spec'
 
 const route = useRoute()
 const { getClient, getAuthToken } = useAdminClient()
@@ -374,6 +376,15 @@ const labelWord = computed(() => {
 // leader is a real gap worth naming, rather than normal for a child node.
 const isRootNode = computed(() => !(home.value?.ancestors?.length))
 const classPractice = computed(() => home.value?.classPractice ?? null)
+// THE BOARD (job #159, 2026-09-10). Whole-class play is recorded per clip in
+// the diary and nowhere else, so it is counted in PHRASES SPOKEN — Tom's
+// term for cycles played. TIME is MINUTES IN THE APP (founder ruling, later
+// the same evening: "in-app time is in-class time, they want to know that
+// precisely") — sessionised off the diary's timestamps, pauses included, for
+// the classes' own accounts and staff/students' own accounts, each once
+// (api/_utils/inAppTime.ts). Audio-played minutes off the ledger are the
+// secondary figure, named in the sentence under the row. Every figure here is
+// backed by a live record.
 const stats = computed(() => {
   const n = home.value?.node
   if (!n) return []
@@ -381,8 +392,8 @@ const stats = computed(() => {
   const cp = classPractice.value
   if (isClass.value) {
     return [
-      { value: cp?.weekSessions ?? 0, word: t('org.nodeHome.statClassSessionsThisWeek', 'Class sessions this week') },
-      { value: `${cp?.hours ?? 0}h`, word: t('org.nodeHome.statClassPractice', 'Class practice') },
+      { value: cp?.phrases7d ?? 0, word: t('org.nodeHome.statPhrasesSpokenThisWeek', 'Phrases spoken this week') },
+      { value: cp?.inAppMinutes7d ?? 0, word: t('org.nodeHome.statMinutesInAppThisWeek', 'Minutes in the app this week') },
       { value: r.learnerCount ?? 0, word: t('org.nodeHome.statStudents', 'Students') },
       { value: r.teacherCount ?? 0, word: t('org.nodeHome.statTeachers', 'Teachers') },
     ]
@@ -395,13 +406,40 @@ const stats = computed(() => {
       { value: r.learnerCount ?? 0, word: t('org.nodeHome.statLearners', 'Learners') },
     ]
   }
+  if (!cp) {
+    return [
+      { value: `${home.value?.practiceHours ?? 0}h`, word: t('org.nodeHome.statPracticeHours', 'Practice hours') },
+      { value: r.classCount ?? 0, word: t('org.nodeHome.statClasses', 'Classes') },
+      { value: r.teacherCount ?? 0, word: t('org.nodeHome.statTeachers', 'Teachers') },
+      { value: r.learnerCount ?? 0, word: t('org.nodeHome.statLearners', 'Learners') },
+    ]
+  }
   return [
-    { value: cp ? `${cp.hours}h` : `${home.value?.practiceHours ?? 0}h`, word: t('org.nodeHome.statClassPractice', 'Class practice') },
-    { value: cp ? `${cp.activeClasses7d}/${cp.classCount || r.classCount || 0}` : (r.classCount ?? 0), word: cp ? t('org.nodeHome.statClassesPractisingThisWeek', 'Classes practising this week') : t('org.nodeHome.statClasses', 'Classes') },
+    { value: cp.phrases7d ?? 0, word: t('org.nodeHome.statPhrasesSpokenThisWeek', 'Phrases spoken this week') },
+    { value: `${cp.activeClasses7d ?? 0}/${cp.classCount || r.classCount || 0}`, word: t('org.nodeHome.statClassesPractisingThisWeek', 'Classes practising this week') },
+    { value: cp.inAppMinutes7d ?? 0, word: t('org.nodeHome.statMinutesInAppThisWeek', 'Minutes in the app this week') },
     { value: r.teacherCount ?? 0, word: t('org.nodeHome.statTeachers', 'Teachers') },
-    { value: r.learnerCount ?? 0, word: t('org.nodeHome.statLearners', 'Learners') },
   ]
 })
+// The phrase-by-count list — what the classes actually said, and how often
+// each phrase came round: the spaced-repetition mechanism visible on the
+// page. School and group nodes carry the top phrases across every class
+// below; a class carries its own list.
+const phraseRows = computed<{ known: string; target: string; count: number }[]>(() => {
+  const cp = classPractice.value
+  if (!cp) return []
+  return (isClass.value ? cp.phrases : cp.topPhrases7d) ?? []
+})
+const phrasesTable = computed<TableData>(() => ({
+  kind: 'table',
+  columns: [
+    { key: 'known', label: t('org.nodeHome.phraseColPrompt', 'Prompt') },
+    { key: 'target', label: t('org.nodeHome.phraseColPhrase', 'Phrase') },
+    { key: 'count', label: t('org.nodeHome.phraseColTimes', 'Times this week'), align: 'right', format: 'number' },
+  ],
+  rows: phraseRows.value.map((p, i) => ({ id: `${i}-${p.known}`, cells: { known: p.known, target: p.target, count: p.count } })),
+}))
+const showPhrasesCard = computed(() => !!classPractice.value && !neutral.value && !isClass.value)
 
 // Node verbs (invite / add / rename / mint / delete / courses) live in
 // NodeActionBar.vue, which calls the endpoints and emits `changed` → fetchHome.
@@ -873,14 +911,21 @@ const listPayload = computed(() => {
                class, under the name.
                How you do it.
                1. Open the level you want — a group, a school or a class.
-               2. **Class practice** is the hours classes have practised together
-                  beneath this level.
-               3. **Classes practising this week** is how many of them have run a
-                  session in the last seven days.
-               4. **Teachers** and **Learners** count the people below this level,
-                  each once however many classes they are in.
-               5. On a class the same row switches to that class's own sessions this
-                  week, its practice hours, its students and its teachers.
+               2. **Phrases spoken this week** is how many phrases the classes beneath
+                  this level were prompted and said back in whole-class play over the
+                  last seven days. It is recorded for every clip the app plays, so it
+                  is the truest picture of a lesson.
+               3. **Classes practising this week** is how many of them played together
+                  in the last seven days, out of all the classes below.
+               4. **Minutes in the app this week** is the time the classes beneath
+                  this level, and their staff and students on their own accounts,
+                  spent in the app over the last seven days, pauses included — the
+                  time they were in the lesson. The sentence under the row says how
+                  much of it was whole-class play and how much was audio playing.
+               5. **Teachers** counts the staff below this level, each once however
+                  many classes they take.
+               6. On a class the row switches to that class's own phrases spoken this
+                  week, its minutes in the app, its students and its teachers.
                Worth knowing. An organisation that is not school-shaped sees the same
                row worded as practice hours, groups and learners instead.
                checked: b278e3a1.b7def846
@@ -890,6 +935,42 @@ const listPayload = computed(() => {
               <span class="stat-value frost-mono-nums">{{ switching ? NBSP : s.value }}</span>
               <span class="stat-word">{{ s.word }}</span>
             </div>
+          </div>
+          <p v-if="showPhrasesCard && !switching" class="stats-note">
+            {{ t('org.nodeHome.statsNoteInAppTime', 'Minutes in the app is the time your classes, staff and students spent in the app over the last seven days, pauses included — the time they were in the lesson. Whole-class play accounts for {classMinutes} of those minutes. Audio actually playing came to {audioMinutes} minutes.').replace('{classMinutes}', String(classPractice?.classInAppMinutes7d ?? 0)).replace('{audioMinutes}', String(classPractice?.audioPlayedMinutes7d ?? 0)) }}
+          </p>
+
+          <!-- WHAT THEY PRACTISED — the phrase-by-count list across every
+               class below. This is the teaching story, not the register: it
+               shows a head of department what her classes actually said last
+               week and how often each phrase came round. -->
+          <!-- HANDBOOK What your classes actually practised
+               section: seeing-progress
+               roles: admin, leader, school_admin
+               place: node-home
+               keywords: phrases, practised, spoken, list, what they said, repetition, this week
+               What it's for. A list of the phrases the classes beneath this level
+               said together in the last seven days, with how many times each one
+               came round. A phrase that appears again and again is the course
+               bringing it back on purpose, which is how it sticks.
+               Where it is. The **What they practised this week** card under the row
+               of numbers on a group or school page, and on a class page under its
+               own practice card.
+               How you do it.
+               1. Open a group, a school or a class.
+               2. Read the list: the prompt, the phrase the class said back, and the
+                  number of times it came round this week.
+               3. Tap a column heading to sort by it.
+               Worth knowing. A level whose classes have not played together this
+               week says so in words instead of showing an empty list. Only
+               whole-class play appears here; what staff and students practise on
+               their own accounts is counted in the minutes in the app figure above.
+               checked: ca3dd707.d42ce48a
+          -->
+          <div v-if="showPhrasesCard" class="schools-card phrases-card" :class="{ 'is-switching': switching }" data-walk="node-phrases">
+            <span class="schools-kicker">{{ t('org.nodeHome.phrasesCardTitle', 'What they practised this week') }}</span>
+            <InsightTable v-if="phraseRows.length" :data="phrasesTable" />
+            <p v-else class="class-card-note">{{ t('org.nodeHome.noClassPlayThisWeek', 'No whole-class practice recorded in the last seven days.') }}</p>
           </div>
 
           <!-- NOTICING INVITATIONS — the pack's rules over the payload just
@@ -913,35 +994,39 @@ const listPayload = computed(() => {
                  roles: admin, leader, school_admin
                  place: node-home
                  keywords: class practice, sessions, together, this week, last session, play as class
-                 What it's for. The headline card on a class: how many sessions it
-                 has run this week, how long ago the last one was, and the total
-                 hours it has practised together. Classes practising together is
-                 what a language programme lives on, so this leads over anything
-                 individual students do alone.
+                 What it's for. The headline card on a class: how many phrases the
+                 class was prompted and said back together in the last seven days,
+                 when it last practised, and the list of those phrases with how often
+                 each came round. Classes practising together is what a language
+                 programme lives on, so this leads over anything individual students
+                 do alone.
                  Where it is. The **Class practice** card on a class page.
                  How you do it.
                  1. Open a class from the tree or the map.
-                 2. Read the big figure for sessions run this week.
-                 3. The line under it gives the time since the last session and the
-                    running total of hours and sessions.
-                 Worth knowing. A class that has never played together says so
-                 plainly and names the teacher's **Play as class** button as the
-                 thing that starts the first one.
+                 2. Read the big figure for phrases spoken this week.
+                 3. The line under it gives the time since the class last practised
+                    and its minutes in the app this week.
+                 4. The list beneath is every phrase the class said this week and the
+                    number of times it came round.
+                 Worth knowing. The minutes are time in the app with the lesson
+                 running, pauses included, so they are the time the class was in the
+                 lesson. A class that has never played together says so plainly and
+                 names the teacher's **Play as class** button as the thing that starts
+                 the first lesson.
                  checked: 2423aa12.0aca4ce8
             -->
             <div class="schools-card class-card" data-walk="class-practice">
               <span class="schools-kicker">{{ t('org.nodeHome.statClassPractice', 'Class practice') }}</span>
-              <template v-if="classPractice?.totalSessions">
+              <template v-if="classPractice?.lastPractisedAt">
                 <p class="class-practice-headline frost-mono-nums">
-                  {{ classPractice.weekSessions }}<span class="class-practice-unit"> {{ classPractice.weekSessions === 1 ? t('org.nodeHome.sessionThisWeek', 'session this week') : t('org.nodeHome.sessionsThisWeek', 'sessions this week') }}</span>
+                  {{ classPractice.phrases7d }}<span class="class-practice-unit"> {{ classPractice.phrases7d === 1 ? t('org.nodeHome.phraseSpokenThisWeek', 'phrase spoken this week') : t('org.nodeHome.phrasesSpokenThisWeek', 'phrases spoken this week') }}</span>
                 </p>
                 <p class="class-card-note">
-                  {{ t('org.nodeHome.lastClassSession', 'Last class session {time}.').replace('{time}', classPractice.lastSessionAt ? timeAgo(classPractice.lastSessionAt) : '—') }}<br />
-                  {{ (classPractice.totalSessions === 1
-                        ? t('org.nodeHome.practisedTogetherSingular', '{hours}h practised together over {total} session.')
-                        : t('org.nodeHome.practisedTogetherPlural', '{hours}h practised together over {total} sessions.')
-                      ).replace('{hours}', String(classPractice.hours)).replace('{total}', String(classPractice.totalSessions)) }}
+                  {{ t('org.nodeHome.lastPractisedTogether', 'Last practised together {time}.').replace('{time}', timeAgo(classPractice.lastPractisedAt)) }}
+                  {{ t('org.nodeHome.classMinutesInAppThisWeek', '{n} minutes in the app together this week, pauses included.').replace('{n}', String(classPractice.inAppMinutes7d ?? 0)) }}
                 </p>
+                <InsightTable v-if="phraseRows.length" :data="phrasesTable" />
+                <p v-else class="class-card-note">{{ t('org.nodeHome.noClassPlayThisWeek', 'No whole-class practice recorded in the last seven days.') }}</p>
               </template>
               <p v-else class="class-card-note">{{ t('org.nodeHome.noClassPracticeYet', "No class practice yet — the teacher's Play as class button starts the first session.") }}</p>
             </div>
@@ -1364,6 +1449,9 @@ const listPayload = computed(() => {
   font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--schools-red, #DB1E17);
 }
 .class-card-note { margin: 0; font-size: var(--text-sm); color: var(--schools-fg-2, #555); line-height: 1.5; }
+.stats-note { margin: var(--space-2) 0 0; font-size: var(--text-sm); color: var(--schools-fg-2, #555); line-height: 1.5; }
+.phrases-card { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); margin-top: var(--space-3); }
+.phrases-card.is-switching > :not(.schools-kicker) { visibility: hidden; }
 .class-practice-headline { margin: 0; font-size: 28px; font-weight: 700; color: var(--schools-fg-1, #222); line-height: 1.1; }
 .class-practice-unit { font-size: var(--text-sm); font-weight: 500; color: var(--schools-fg-2, #555); }
 .belt-legend { display: flex; gap: var(--space-4); flex-wrap: wrap; }

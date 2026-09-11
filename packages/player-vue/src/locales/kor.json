@@ -993,7 +993,6 @@
       "resetFilters": "필터 초기화",
       "retry": "다시 시도",
       "sortAvgSeeds": "평균 시드 수",
-      "sortHours": "시간/주",
       "sortLabel": "정렬",
       "sortName": "이름",
       "sortStudents": "학생",
@@ -1004,7 +1003,6 @@
       "tableHeaderClass": "학급",
       "tableHeaderCourse": "코스",
       "tableHeaderHealth": "의료·건강",
-      "tableHeaderHours": "시간/주",
       "tableHeaderShare": "공유",
       "tableHeaderStudents": "학생",
       "tryWideningFilter": "코스 또는 상태 필터 범위를 넓혀 보세요."

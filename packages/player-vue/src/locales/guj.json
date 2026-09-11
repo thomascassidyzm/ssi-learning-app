@@ -993,7 +993,6 @@
       "resetFilters": "ફિલ્ટર રીસેટ કરો",
       "retry": "ફરી પ્રયાસ કરો",
       "sortAvgSeeds": "સરેરાશ સીડ્સ",
-      "sortHours": "કલાકો/અઠવાડિયું",
       "sortLabel": "ક્રમમાં ગોઠવો",
       "sortName": "નામ",
       "sortStudents": "વિદ્યાર્થીઓ",
@@ -1004,7 +1003,6 @@
       "tableHeaderClass": "વર્ગ",
       "tableHeaderCourse": "કોર્સ",
       "tableHeaderHealth": "આરોગ્ય",
-      "tableHeaderHours": "કલાકો/અઠવાડિયું",
       "tableHeaderStudents": "વિદ્યાર્થીઓ",
       "tryWideningFilter": "કોર્સ અથવા આરોગ્ય ફિલ્ટર વિસ્તૃત કરવાનો પ્રયાસ કરો."
     },

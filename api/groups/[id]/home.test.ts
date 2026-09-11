@@ -41,11 +41,49 @@ function resetTables(): void {
       { id: 'class-1', class_name: 'Year 6 Hindi', course_code: 'hin_for_eng', school_id: 'school-1', group_id: 'school-node', teacher_user_id: 'teacher-uid-1', is_active: true, current_seed: 60, last_lego_id: 'S0060L02', class_learner_id: 'class-learner-1' },
     ],
     // PLAY-AS-CLASS: the class's own teacher-led sessions (the primary
-    // metric) + the class-entity's enrollment cursor (THE-MODEL I6).
-    class_sessions: [
-      { class_id: 'class-1', started_at: new Date().toISOString(), ended_at: new Date().toISOString(), duration_seconds: 1800, cycles_completed: 160, end_lego_id: 'S0060L02' },
-      { class_id: 'class-1', started_at: new Date(Date.now() - 3 * 86400000).toISOString(), ended_at: new Date(Date.now() - 3 * 86400000).toISOString(), duration_seconds: 1200, cycles_completed: 110, end_lego_id: 'S0059L03' },
-      { class_id: 'class-1', started_at: new Date(Date.now() - 35 * 86400000).toISOString(), ended_at: new Date(Date.now() - 35 * 86400000).toISOString(), duration_seconds: 1500, cycles_completed: 130, end_lego_id: 'S0054L01' },
+    // metric) + the class-entity's enrollment cursor (THE-MODEL I6). Both
+    // hang off the class's OWN learner id — since the 2026-08-19 re-anchor
+    // that is where class practice lives, and `class_sessions` is dead estate
+    // (api/_utils/classPractice.ts).
+    sessions: [
+      { learner_id: 'class-learner-1', course_id: 'hin_for_eng', started_at: new Date().toISOString(), ended_at: new Date().toISOString(), duration_seconds: 1800, items_practiced: 160 },
+      { learner_id: 'class-learner-1', course_id: 'hin_for_eng', started_at: new Date(Date.now() - 3 * 86400000).toISOString(), ended_at: new Date(Date.now() - 3 * 86400000).toISOString(), duration_seconds: 1200, items_practiced: 110 },
+      { learner_id: 'class-learner-1', course_id: 'hin_for_eng', started_at: new Date(Date.now() - 35 * 86400000).toISOString(), ended_at: new Date(Date.now() - 35 * 86400000).toISOString(), duration_seconds: 1500, items_practiced: 130 },
+    ],
+    // The table the dashboard USED to read. Nothing has written it since
+    // 2026-08-19; it stays here, populated, so any read of it would show up
+    // as a number no test asked for.
+    class_sessions: [],
+    // THE DIARY (job #159, 2026-09-10): the only ledger that records
+    // whole-class play. One row per clip; a `target2` clip is one phrase
+    // spoken. Two lessons this week under the class's own learner id — three
+    // phrases, one of them twice — plus one clip eight days old (outside the
+    // window) and one under somebody else's learner id.
+    player_events: [
+      ...['a-1', 'a-2', 'a-1', 'a-3'].map((audio, i) => ({
+        learner_id: 'class-learner-1', event_type: 'audio_play', 'payload->>role': 'target2',
+        occurred_at: new Date(Date.now() - (i < 2 ? 1 : 2) * 86400000 + i * 1000).toISOString(),
+        payload: { role: 'target2', url: `/api/audio/${audio}`, legoId: 'S0060L02' },
+      })),
+      { learner_id: 'class-learner-1', event_type: 'audio_play', 'payload->>role': 'target2', occurred_at: new Date(Date.now() - 8 * 86400000).toISOString(), payload: { role: 'target2', url: '/api/audio/a-1' } },
+      { learner_id: 'learner-1', event_type: 'audio_play', 'payload->>role': 'target2', occurred_at: new Date().toISOString(), payload: { role: 'target2', url: '/api/audio/a-1' } },
+      // IN-APP TIME (founder ruling 2026-09-10): the diary carries every kind
+      // of event, and TIME is sessionised off their timestamps. The class
+      // account: a 20-minute whole-class lesson yesterday (a `known` clip every
+      // five minutes), a 40-minute silence, then five more minutes — 25 min in
+      // two blocks. The student learner-1: ten minutes in the app today, of
+      // which the ledger above times 10 min of audio yesterday + today.
+      ...[0, 5, 10, 15, 20, 60, 65].map((min) => ({
+        learner_id: 'class-learner-1', event_type: 'audio_play', 'payload->>role': 'known',
+        occurred_at: new Date(Date.now() - 86400000 - (65 - min) * 60000).toISOString(), payload: { role: 'known', url: '/api/audio/k-1' },
+      })),
+      ...[0, 4, 7, 10].map((min) => ({
+        learner_id: 'learner-1', event_type: 'phase_skip', occurred_at: new Date(Date.now() - (10 - min) * 60000).toISOString(), payload: {},
+      })),
+    ],
+    course_practice_phrases: [
+      { target2_audio_id: 'a-1', known_text: 'I want', target_text: 'quiero' },
+      { target2_audio_id: 'a-2', known_text: 'I want to speak', target_text: 'quiero hablar' },
     ],
     course_enrollments: [
       { learner_id: 'class-learner-1', course_id: 'hin_for_eng', highest_completed_lego_id: 'S0060L02', last_completed_lego_id: 'S0060L02', last_practiced_at: new Date().toISOString(), total_practice_minutes: 75 },
@@ -60,7 +98,7 @@ function resetTables(): void {
     ],
     // 80 seeds × 4 legos — seed_number/lego_index carried so the class
     // journey's LEGO-ordinal math (legoOrdinal) is exercised for real.
-    course_legos: Array.from({ length: 320 }, (_, i) => ({ id: `lego-${i}`, course_code: 'hin_for_eng', seed_number: Math.floor(i / 4) + 1, lego_index: (i % 4) + 1 })),
+    course_legos: Array.from({ length: 320 }, (_, i) => ({ id: `lego-${i}`, course_code: 'hin_for_eng', seed_number: Math.floor(i / 4) + 1, lego_index: (i % 4) + 1, target2_audio_id: i === 0 ? 'a-3' : null, known_text: i === 0 ? 'to learn' : null, target_text: i === 0 ? 'aprender' : null })),
     class_activity_stats: [
       { class_id: 'class-1', total_practice_seconds: 10800, active_students: 2, school_id: 'school-1', region_code: null, course_code: 'hin_for_eng' },
     ],
@@ -81,6 +119,9 @@ function resetTables(): void {
     learners: [
       { user_id: 'teacher-uid-1', display_name: 'Ms Mehta' },
       { user_id: 'teacher-uid-2', display_name: 'Mr Rao' },
+      // The two students' own learner rows — the ledger is keyed by learner id.
+      { id: 'learner-1', user_id: 'student-uid-1', display_name: 'Asha' },
+      { id: 'learner-2', user_id: 'student-uid-2', display_name: 'Ravi' },
     ],
     govt_admins: [
       { user_id: 'leader-1', group_id: 'programme' },
@@ -107,6 +148,7 @@ function applyFilters(rows: any[], calls: { method: string; args: any[] }[]): an
       result = [...result].sort((a, b) => (a[col] < b[col] ? -1 : a[col] > b[col] ? 1 : 0) * (asc ? 1 : -1))
     }
     else if (c.method === 'limit') result = result.slice(0, c.args[0])
+    else if (c.method === 'range') result = result.slice(c.args[0], c.args[1] + 1)
     else if (c.method === 'like') {
       const pattern = c.args[1] as string
       const prefix = pattern.endsWith('%') ? pattern.slice(0, -1) : pattern
@@ -130,6 +172,7 @@ function makeChainable(table: string) {
   builder.like = chain('like')
   builder.order = chain('order')
   builder.limit = chain('limit')
+  builder.range = chain('range')
   builder.insert = chain('insert')
   builder.single = () => {
     const rows = applyFilters(TABLES[table] || [], calls)
@@ -214,7 +257,7 @@ describe('GET /api/groups/:id/home', () => {
     // A class is a leaf ON its own node — the defect this replaces was a
     // school whose classes hung off itself reading as "nothing below this".
     expect(tree.classes).toEqual([
-      { id: 'class-1', name: 'Year 6 Hindi', nodeId: 'school-node', teachers: ['Mr Rao', 'Ms Mehta'], studentCount: 2 },
+      { id: 'class-1', name: 'Year 6 Hindi', nodeId: 'school-node', teachers: ['Mr Rao', 'Ms Mehta'], studentCount: 2, phrases7d: 4, lastPractisedAt: expect.any(String) },
     ])
     // People are drawn, on the node they sit on: the verbs that belong to a
     // person (assign to a class, access code) need a row to live on.
@@ -300,20 +343,28 @@ describe('GET /api/groups/:id/home', () => {
     expect(res.body.benchmark).toEqual({ class: 90, school: 30, course: 24 })
   })
 
-  it('CLASS-PRACTICE PIN: class home leads with the class practising together — classPractice block from class_sessions, journey from the class-entity enrollment', async () => {
+  it('CLASS-PRACTICE PIN: class home leads with the class practising together — classPractice block from the class-entity sessions, journey from its enrollment', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
     await handler(makeReq('class-1'), res)
     expect(res.statusCode).toBe(200)
-    // Two of the three teacher-led sessions land in the last 7 days; the
-    // newest one is today. 4500s total = 1.3h (1dp).
-    expect(res.body.classPractice).toMatchObject({
-      weekSessions: 2,
-      sessions28d: 2,
-      totalSessions: 3,
-      hours: 1.3,
-    })
-    expect(typeof res.body.classPractice.lastSessionAt).toBe('string')
+    // Four target2 clips this week under the class's own learner id = four
+    // phrases spoken; the eight-day-old clip and the other learner's clip do
+    // not count. No hours and no session count: the class account's
+    // `sessions` rows do not describe its lessons (_utils/classPractice.ts).
+    // IN-APP TIME (founder ruling 2026-09-10): the class account's two
+    // blocks yesterday, 25 minutes, the silence between them not counted.
+    expect(res.body.classPractice).toMatchObject({ windowDays: 7, phrases7d: 4, inAppMinutes7d: 25 })
+    expect(res.body.classPractice).not.toHaveProperty('hours')
+    expect(res.body.classPractice).not.toHaveProperty('weekSessions')
+    expect(typeof res.body.classPractice.lastPractisedAt).toBe('string')
+    // The class's own phrase-by-count list, most-repeated first, text
+    // resolved from course_practice_phrases and (for the LEGO itself) course_legos.
+    expect(res.body.classPractice.phrases).toEqual([
+      { known: 'I want', target: 'quiero', count: 2 },
+      { known: 'I want to speak', target: 'quiero hablar', count: 1 },
+      { known: 'to learn', target: 'aprender', count: 1 },
+    ])
     // Journey rides the class-entity's own play-as-class cursor.
     expect(res.body.journey.source).toBe('class-play')
     expect(res.body.journey.done).toBe(238)
@@ -321,23 +372,104 @@ describe('GET /api/groups/:id/home', () => {
 
   it('a class with NO play-as-class history falls back to the current_seed journey estimate', async () => {
     verifyAdminResult = { userId: 'admin-1' }
-    TABLES.class_sessions = []
+    TABLES.sessions = []
     TABLES.course_enrollments = []
     TABLES.classes[0].last_lego_id = null
     TABLES.classes[0].class_learner_id = null
     const res = makeRes()
     await handler(makeReq('class-1'), res)
     expect(res.statusCode).toBe(200)
-    expect(res.body.classPractice).toMatchObject({ weekSessions: 0, totalSessions: 0, hours: 0, lastSessionAt: null })
+    expect(res.body.classPractice).toMatchObject({ phrases7d: 0, lastPractisedAt: null, phrases: [] })
     expect(res.body.journey).toEqual({ done: 60, total: 320, source: 'estimate', legoId: null, seedNumber: null })
   })
 
-  it('node home carries the subtree CLASS PRACTICE rollup (hours, weekly sessions, active classes)', async () => {
+  // ─── THE PROVING TEST for job #159 (2026-09-10). Pre-change the node
+  // rollup was { hours, sessions7d, activeClasses7d, classCount } off the
+  // class account's `sessions` rows — which for Chepstow's 19 real lessons
+  // did not exist, so the board said 0h against 1,310 clips. Post-change the
+  // rollup is PHRASES SPOKEN off the diary, the phrase list, and the
+  // own-account minutes off the playback ledger, with no hours field at all.
+  // Seen RED on the pre-change handler (phrases7d undefined) and GREEN after. ───
+  it('PHRASES PIN: node home carries the subtree CLASS PRACTICE rollup as phrases spoken off the diary — never hours off class-account sessions', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
     await handler(makeReq('programme'), res)
     expect(res.statusCode).toBe(200)
-    expect(res.body.classPractice).toEqual({ hours: 1.3, sessions7d: 2, activeClasses7d: 1, classCount: 1 })
+    expect(res.body.classPractice).toEqual({
+      windowDays: 7,
+      classCount: 1,
+      activeClasses7d: 1,
+      phrases7d: 4,
+      classesWithPhrases7d: 1,
+      topPhrases7d: [
+        { known: 'I want', target: 'quiero', count: 2 },
+        { known: 'I want to speak', target: 'quiero hablar', count: 1 },
+        { known: 'to learn', target: 'aprender', count: 1 },
+      ],
+      // IN-APP TIME leads (founder ruling 2026-09-10): the class account's
+      // 25 minutes of whole-class play plus learner-1's 10 minutes in the app
+      // today, each learner id once. The silence between the class's two
+      // blocks is not counted.
+      inAppMinutes7d: 35,
+      classInAppMinutes7d: 25,
+      // learner-1 is a student on class-1: 600s today + 1200s yesterday on
+      // the ledger = 30 minutes, one person — AUDIO PLAYED, the secondary
+      // figure. The class account has no ledger rows and never can.
+      audioPlayedMinutes7d: 30,
+      ownAccountMinutes7d: 30,
+      ownAccountPeople7d: 1,
+    })
+    // The tree row a head of department reads on a Monday morning.
+    expect(res.body.tree.classes[0]).toMatchObject({ id: 'class-1', phrases7d: 4 })
+    expect(typeof res.body.tree.classes[0].lastPractisedAt).toBe('string')
+  })
+
+  it('a class with no diary rows this week says so — 0 phrases, and the row keeps its last-practised stamp', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    TABLES.player_events = []
+    const res = makeRes()
+    await handler(makeReq('programme'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.classPractice).toMatchObject({ phrases7d: 0, classesWithPhrases7d: 0, topPhrases7d: [], activeClasses7d: 1 })
+    expect(res.body.tree.classes[0]).toMatchObject({ phrases7d: 0 })
+    expect(typeof res.body.tree.classes[0].lastPractisedAt).toBe('string')
+  })
+
+  // ─── FIELD DEFECT 2026-09-10: the rollup read `class_sessions`, which
+  // nothing has written since the play-as-class re-anchor of 2026-08-19
+  // (verified live: max(started_at) = 2026-08-19T20:18Z). Every class created
+  // after that date reported 0h however much it had practised — 30 of the 103
+  // such classes had real class-entity practice, one of them that same day. ───
+  it('DEAD-TABLE PIN: class practice is read off the class-entity spine, never class_sessions', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // A class of the post-re-anchor shape: real `sessions` and a fresh cursor
+    // stamp on its OWN learner id, and not one class_sessions row anywhere.
+    TABLES.class_sessions = []
+    const res = makeRes()
+    await handler(makeReq('programme'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.classPractice).toMatchObject({ phrases7d: 4, activeClasses7d: 1, classCount: 1 })
+    // And a stale class_sessions row, or a class-account `sessions` row, can
+    // no longer put a number on the board — neither table is read at all.
+    TABLES.class_sessions = [{ class_id: 'class-1', started_at: new Date().toISOString(), duration_seconds: 36000 }]
+    TABLES.sessions = [{ learner_id: 'class-learner-1', course_id: 'hin_for_eng', started_at: new Date().toISOString(), ended_at: null, duration_seconds: 36000, items_practiced: 999 }]
+    const res2 = makeRes()
+    await handler(makeReq('programme'), res2)
+    expect(res2.body.classPractice).toMatchObject({ phrases7d: 4 })
+    expect(res2.body.classPractice).not.toHaveProperty('hours')
+  })
+
+  it('a class that practised without opening a session row still counts as practising this week', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // The live majority case: /api/school/class-progress stamps the cursor on
+    // every save, but a session row is only opened and closed on a clean
+    // start/finish (live: 30 classes practised in the window, 12 session rows).
+    TABLES.sessions = []
+    TABLES.player_events = []
+    const res = makeRes()
+    await handler(makeReq('programme'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.classPractice).toMatchObject({ phrases7d: 0, activeClasses7d: 1, classCount: 1 })
   })
 
   // ─── FIELD DEFECT 2026-08-06: an org whose people are invited straight into
@@ -477,7 +609,8 @@ describe('GET /api/groups/:id/home', () => {
     await handler(makeReq('programme', { lens: 'classes' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.classes).toHaveLength(1)
-    expect(res.body.classes[0]).toMatchObject({ name: 'Year 6 Hindi', studentCount: 2, practiceHours: 3, classPracticeHours: 1.3 })
+    expect(res.body.classes[0]).toMatchObject({ name: 'Year 6 Hindi', studentCount: 2, practiceHours: 3, phrases7d: 4 })
+    expect(res.body.classes[0]).not.toHaveProperty('classPracticeHours')
     expect(typeof res.body.classes[0].lastClassSessionAt).toBe('string')
   })
 

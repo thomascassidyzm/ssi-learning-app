@@ -3,7 +3,9 @@
   "outputDirectory": "packages/player-vue/dist",
   "installCommand": "npm install -g pnpm && pnpm install",
   "framework": "vite",
-  "regions": ["dub1"],
+  "regions": [
+    "dub1"
+  ],
   "functions": {
     "api/audio/[audioId].ts": {
       "maxDuration": 10
@@ -19,12 +21,30 @@
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains" },
-        { "key": "Permissions-Policy", "value": "camera=(), geolocation=(), microphone=(self)" },
-        { "key": "Content-Security-Policy", "value": "frame-ancestors 'none'" },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), geolocation=(), microphone=(self)"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "frame-ancestors 'none'"
+        },
         {
           "key": "Content-Security-Policy-Report-Only",
           "value": "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'none'; script-src 'self' 'sha256-uI196FxbxQEjHrmPOWQhwQAJ6tzcrY+3t0JvoWWHbYo=' 'sha256-P61JYclv90ZRpx5dbC0HT/wLWBFnxHPiIJ4ZkvrQSIQ=' https://*.paddle.com https://*.profitwell.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.paddle.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://*.paddle.com; media-src 'self' data: blob: https://*.s3.eu-west-1.amazonaws.com https://*.s3.amazonaws.com; connect-src 'self' https://swfvymspfxmnfhevgdkg.supabase.co wss://swfvymspfxmnfhevgdkg.supabase.co https://*.s3.eu-west-1.amazonaws.com https://*.s3.amazonaws.com https://fonts.googleapis.com https://fonts.gstatic.com https://*.paddle.com https://*.profitwell.com https://popty.app; frame-src 'self' https://*.paddle.com; worker-src 'self' blob:; manifest-src 'self'"
@@ -34,8 +54,14 @@
     {
       "source": "/_schools-mockups/(.*)",
       "headers": [
-        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
-        { "key": "Content-Security-Policy", "value": "frame-ancestors 'self'" }
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "frame-ancestors 'self'"
+        }
       ]
     },
     {
@@ -58,36 +84,97 @@
     {
       "source": "/api/audio/(.*)",
       "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" }
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        }
       ]
     },
     {
       "source": "/version.json",
       "headers": [
-        { "key": "Cache-Control", "value": "no-store" }
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        }
       ]
     }
   ],
   "rewrites": [
-    { "source": "/schools", "destination": "/schools/index.html" },
-    { "source": "/schools/(.*)", "destination": "/schools/index.html" },
-    { "source": "/gaplab", "destination": "/gaplab/index.html" },
-    { "source": "/gaplab/", "destination": "/gaplab/index.html" },
-    { "source": "/methodology", "destination": "/methodology/index.html" },
-    { "source": "/methodology/", "destination": "/methodology/index.html" },
-    { "source": "/paddle-review", "destination": "/paddle-review/index.html" },
-    { "source": "/croeso", "destination": "/croeso/index.html" },
-    { "source": "/croeso/", "destination": "/croeso/index.html" },
-    { "source": "/terms", "destination": "/terms/index.html" },
-    { "source": "/privacy", "destination": "/privacy/index.html" },
-    { "source": "/refunds", "destination": "/refunds/index.html" },
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    {
+      "source": "/schools",
+      "destination": "/schools/index.html"
+    },
+    {
+      "source": "/schools/(.*)",
+      "destination": "/schools/index.html"
+    },
+    {
+      "source": "/gaplab",
+      "destination": "/gaplab/index.html"
+    },
+    {
+      "source": "/gaplab/",
+      "destination": "/gaplab/index.html"
+    },
+    {
+      "source": "/methodology",
+      "destination": "/methodology/index.html"
+    },
+    {
+      "source": "/methodology/",
+      "destination": "/methodology/index.html"
+    },
+    {
+      "source": "/paddle-review",
+      "destination": "/paddle-review/index.html"
+    },
+    {
+      "source": "/croeso",
+      "destination": "/croeso/index.html"
+    },
+    {
+      "source": "/croeso/",
+      "destination": "/croeso/index.html"
+    },
+    {
+      "source": "/terms",
+      "destination": "/terms/index.html"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/privacy/index.html"
+    },
+    {
+      "source": "/refunds",
+      "destination": "/refunds/index.html"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
   ],
   "crons": [
-    { "path": "/api/cron/teacher-payouts", "schedule": "0 6 1 * *" },
-    { "path": "/api/cron/expire-demo-schools", "schedule": "0 5 * * *" },
-    { "path": "/api/cron/org-free-year-warnings", "schedule": "0 7 * * *" },
-    { "path": "/api/cron/org-entitlement-reconcile", "schedule": "30 7 * * *" }
-  ]
+    {
+      "path": "/api/cron/teacher-payouts",
+      "schedule": "0 6 1 * *"
+    },
+    {
+      "path": "/api/cron/expire-demo-schools",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/org-free-year-warnings",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/org-entitlement-reconcile",
+      "schedule": "30 7 * * *"
+    }
+  ],
+  "ignoreCommand": "bash -c 'case \"$VERCEL_GIT_COMMIT_REF\" in main|dev|staging) exit 1;; *) exit 0;; esac'"
 }

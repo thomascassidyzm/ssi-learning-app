@@ -990,7 +990,6 @@
       "resetFilters": "Athshocraigh scagairí",
       "retry": "Bain triail eile as",
       "sortAvgSeeds": "Meán-síolta",
-      "sortHours": "Uaireanta/scht",
       "sortLabel": "Sórtáil",
       "sortName": "Ainm",
       "summaryNeedsEyes": "Súile de dhíth air",
@@ -1000,7 +999,6 @@
       "tableHeaderClass": "Rang",
       "tableHeaderCourse": "Cúrsa",
       "tableHeaderHealth": "Sláinte",
-      "tableHeaderHours": "Uaireanta/scht",
       "tableHeaderShare": "Comhroinn",
       "tryWideningFilter": "Bain triail as an scagaire cúrsa nó sláinte a leathnú."
     },

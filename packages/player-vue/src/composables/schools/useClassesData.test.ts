@@ -32,6 +32,9 @@ function createMockClient(responses: Record<string, any>) {
   }
   return {
     from: vi.fn((table: string) => builderFor(table)),
+    // createClass is server-mediated now, so it needs a token to send. Every
+    // other call in here ignores this.
+    auth: { getSession: vi.fn(async () => ({ data: { session: { access_token: 'tok' } } })) },
   } as any
 }
 
@@ -246,54 +249,75 @@ describe('useClassesData', () => {
 
   // --- createClass ---
 
-  it('createClass inserts and returns ClassInfo', async () => {
-    const cd = await setup({
-      classes: { data: {
+  it('createClass POSTs the school lane, never a raw classes insert', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 201,
+      json: async () => ({ class: {
         id: 'new-c', class_name: 'New Class', course_code: 'cym', school_id: 's1',
         teacher_user_id: 'u-teacher', student_join_code: 'JOIN1', current_seed: 1,
-        is_active: true, created_at: '2025-03-01'
-      }, error: null },
-      invite_codes: { data: null, error: null },
-    })
+        class_learner_id: 'cl-1', is_active: true, created_at: '2025-03-01',
+      } }),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    const cd = await setup()
     const result = await cd.createClass({ class_name: 'New Class', course_code: 'cym', school_id: 's1' })
+
     expect(result?.class_name).toBe('New Class')
     expect(result?.student_count).toBe(0)
+    expect(result?.teachers).toEqual([{ user_id: 'u-teacher', is_lead: true }])
+    // THE POINT: the entitlement-checked endpoint, not the Supabase client.
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toBe('/api/school/create-class')
+    expect(JSON.parse(init.body as string)).toEqual({
+      school_id: 's1', class_name: 'New Class', course_code: 'cym',
+    })
+    vi.unstubAllGlobals()
   })
 
-  it('createClass surfaces failure and drops the lead assertion when the teacher link fails', async () => {
-    // The mock client exposes no `auth`, so the service-role class-teacher
-    // write (addClassTeacher -> callClassTeachersApi) resolves false. createClass
-    // must NOT silently assert an is_lead teacher; it must set error.value and
-    // return the class with an empty teachers list.
-    const cd = await setup({
-      classes: { data: {
-        id: 'new-c', class_name: 'Orphan Class', course_code: 'cym', school_id: 's1',
-        teacher_user_id: 'u-teacher', student_join_code: 'JOIN1', current_seed: 1,
-        is_active: true, created_at: '2025-03-01'
-      }, error: null },
-      invite_codes: { data: null, error: null },
-    })
-    const result = await cd.createClass({ class_name: 'Orphan Class', course_code: 'cym', school_id: 's1' })
-    // Class still returned so the UI shows it...
-    expect(result?.class_name).toBe('Orphan Class')
-    // ...but the lead teacher was NOT silently asserted...
-    expect(result?.teachers).toEqual([])
-    // ...and the failure is surfaced truthfully rather than swallowed.
-    expect(cd.error.value).toBeTruthy()
+  it('createClass surfaces the endpoint\'s own refusal, so a premium-course 403 is readable', async () => {
+    // The gap this closes (2026-09-10): the raw client insert could not be
+    // refused for the COURSE at all — RLS only asks whose row it is. Now the
+    // ladder in api/_utils/classCourseEntitlement.ts can say no, and its words
+    // must reach the teacher rather than becoming "Failed to create class".
+    const fetchMock = vi.fn(async () => ({
+      ok: false,
+      status: 403,
+      json: async () => ({
+        error: 'That course is not covered by this subscription. Subscribe to add it, or pick a course you already have.',
+        requires_checkout: true,
+      }),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    const cd = await setup()
+    const result = await cd.createClass({ class_name: 'Premium Class', course_code: 'spa_for_eng', school_id: 's1' })
+
+    expect(result).toBeNull()
+    expect(cd.error.value).toContain('not covered by this subscription')
+    vi.unstubAllGlobals()
   })
 
-  it('createClass accepts a null school_id (groupless tutor, THE-MODEL I5)', async () => {
-    const cd = await setup({
-      classes: { data: {
-        id: 'new-c', class_name: 'Tutor Class', course_code: 'cym', school_id: null,
-        teacher_user_id: 'u-teacher', student_join_code: 'JOIN2', current_seed: 1,
-        is_active: true, created_at: '2025-03-01'
-      }, error: null },
-      invite_codes: { data: null, error: null },
-    })
+  it('createClass routes a null school_id to the personal tutor endpoint (THE-MODEL I5)', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 201,
+      json: async () => ({ class: {
+        id: 'new-c', class_name: 'Tutor Class', course_code: 'cym',
+        student_join_code: 'JOIN2', current_seed: 1, class_learner_id: 'cl-2',
+        is_active: true, created_at: '2025-03-01',
+      } }),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    const cd = await setup()
     const result = await cd.createClass({ class_name: 'Tutor Class', course_code: 'cym', school_id: null })
+
     expect(result?.class_name).toBe('Tutor Class')
     expect(result?.school_id).toBeNull()
+    // A class with no school grants no class coverage (classCoverage.ts skips
+    // rows without a school), so this lane is the tutor's own subscription's
+    // business — api/teacher/classes.ts, not the school endpoint.
+    expect((fetchMock.mock.calls[0] as unknown as [string])[0]).toBe('/api/teacher/classes')
+    vi.unstubAllGlobals()
   })
 
   // --- totalStudentsInClasses ---

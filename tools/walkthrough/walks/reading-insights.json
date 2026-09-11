@@ -23,21 +23,24 @@
       "say": "The **measure** picks what's being counted — progress, practice, class sessions. The line underneath the pickers says exactly what the current one means.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "ee636721.5ccfae1b"
     },
     {
       "anchor": "insights-window",
       "say": "The **window** is the period the rate is computed over — shorter windows react faster, longer ones smooth the noise.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "e4bdf6b9.3be7e37a"
     },
     {
       "anchor": "insights-compare",
       "say": "**Compare to** puts an average alongside. Everything here is a rate, not a raw total — so groups of different sizes compare fairly.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "dcff4a14.97ac1945"
     },
     {
       "anchor": "insights-overview",
@@ -45,7 +48,8 @@
       "advance": {
         "on": "next"
       },
-      "terminal": "Rates lead, position is context — and the picker text always says what a measure means."
+      "terminal": "Rates lead, position is context — and the picker text always says what a measure means.",
+      "checked": "752118a0.bf185ab9"
     }
   ]
 }

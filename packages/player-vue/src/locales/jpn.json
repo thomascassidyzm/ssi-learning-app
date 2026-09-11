@@ -993,7 +993,6 @@
       "resetFilters": "フィルターをリセット",
       "retry": "再試行",
       "sortAvgSeeds": "平均シード数",
-      "sortHours": "時間/週",
       "sortLabel": "並び替え",
       "sortName": "名前",
       "sortStudents": "生徒",
@@ -1004,7 +1003,6 @@
       "tableHeaderClass": "クラス",
       "tableHeaderCourse": "コース",
       "tableHeaderHealth": "医療・健康",
-      "tableHeaderHours": "時間/週",
       "tableHeaderShare": "共有",
       "tableHeaderStudents": "生徒",
       "tryWideningFilter": "コースまたは状態のフィルターを広げてみてください。"

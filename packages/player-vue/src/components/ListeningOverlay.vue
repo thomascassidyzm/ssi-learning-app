@@ -333,13 +333,13 @@ const loopScene = ref(false)
 // main-flow mismatch. Two target-only practice modes:
 //   immersion — the whole scene, target only, at the learner's chosen speed
 //               (the speed row). Continuous, natural conversation.
-//   drill     — each line three times: 1× · 2× · 2×, target only. Tight
-//               repetition to lock a line in.
+//   drill     — each line four times, one speed: target, known, target,
+//               target (t·k·t·t). Tight repetition to lock a line in.
 // Two target-only practice modes (admin Progression preview retired 2026-06-24
 // — it now lives in the dashboard Listening Config tool's full-arc preview).
 const BASE_LISTEN_MODES = [
   { key: 'immersion', label: 'Immersion', desc: 'The whole scene in the target language, at your pace' },
-  { key: 'drill',     label: 'Drill',     desc: 'Each line three times — once normal, then twice fast' },
+  { key: 'drill',     label: 'Drill',     desc: 'Each line four times — target, its meaning, then target twice more' },
 ]
 const LISTEN_MODES = computed(() => BASE_LISTEN_MODES)
 const validModeKeys = computed(() => new Set(LISTEN_MODES.value.map((m) => m.key)))

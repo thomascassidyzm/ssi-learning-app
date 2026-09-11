@@ -993,7 +993,6 @@
       "resetFilters": "ਫਿਲਟਰ ਰੀਸੈੱਟ ਕਰੋ",
       "retry": "ਮੁੜ ਕੋਸ਼ਿਸ਼",
       "sortAvgSeeds": "ਔਸਤ ਸੀਡਸ",
-      "sortHours": "ਘੰਟੇ/ਹਫ਼ਤਾ",
       "sortLabel": "ਕ੍ਰਮਬੱਧ ਕਰੋ",
       "sortName": "ਨਾਮ",
       "sortStudents": "ਵਿਦਿਆਰਥੀ",
@@ -1004,7 +1003,6 @@
       "tableHeaderClass": "ਕਲਾਸ",
       "tableHeaderCourse": "ਕੋਰਸ",
       "tableHeaderHealth": "ਸਿਹਤ",
-      "tableHeaderHours": "ਘੰਟੇ/ਹਫ਼ਤਾ",
       "tableHeaderStudents": "ਵਿਦਿਆਰਥੀ",
       "tryWideningFilter": "ਕੋਰਸ ਜਾਂ ਸਿਹਤ ਫਿਲਟਰ ਨੂੰ ਵਿਸ਼ਾਲ ਕਰਨ ਦੀ ਕੋਸ਼ਿਸ਼ ਕਰੋ।"
     },

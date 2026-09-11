@@ -75,12 +75,18 @@ export default async function handler(
       res.status(200).json({
         subscription: null,
         isSubscribed: false,
-        isPlatformAdmin: false,
         freeAccess: null,
+        isPlatformAdmin: false,
       })
       return
     }
 
+    // FREE THROUGH A FUNDED ORG ENROLMENT. Reported alongside the subscription
+    // because every upgrade prompt in the app already asks this endpoint "is
+    // this person a payer?" — and a Canolfan learner whose year is funded must
+    // answer that question the same way a payer does, from the grant rather
+    // than from a payment (api/_utils/orgFreeAccess.ts).
+    const freeAccess = await resolveOrgFreeAccess(supabase, learner.id)
     // A PLATFORM ADMIN IS NEVER SOLD A PLAN (Tom, 2026-09-08: "I'm being shown
     // an upgrade button, which I probably shouldn't be shown as I am a platform
     // admin"). He outranks Premium, holds no Paddle subscription, and so fell
@@ -94,13 +100,6 @@ export default async function handler(
     // fact the client renders rather than a client-decided one it asserts.
     // Only 'ssi_admin' — 'tester' is deliberately NOT included.
     const isPlatformAdmin = learner.platform_role === 'ssi_admin'
-
-    // FREE THROUGH A FUNDED ORG ENROLMENT. Reported alongside the subscription
-    // because every upgrade prompt in the app already asks this endpoint "is
-    // this person a payer?" — and a Canolfan learner whose year is funded must
-    // answer that question the same way a payer does, from the grant rather
-    // than from a payment (api/_utils/orgFreeAccess.ts).
-    const freeAccess = await resolveOrgFreeAccess(supabase, learner.id)
 
     // A CHILD ACCOUNT IS NEVER OFFERED A CHECKOUT (job #376·F, D7). A child
     // signs in on a synthetic address a parent never sees; binding a Paddle
@@ -123,8 +122,8 @@ export default async function handler(
         subscription: null,
         isSubscribed: false,
         isChildAccount,
-        isPlatformAdmin,
         freeAccess,
+        isPlatformAdmin,
       })
       return
     }
@@ -172,8 +171,8 @@ export default async function handler(
       },
       isSubscribed,
       isChildAccount,
-      isPlatformAdmin,
       freeAccess,
+      isPlatformAdmin,
     })
   } catch (err) {
     console.error('[subscription] Error:', err)

@@ -1,3 +1,29 @@
+## 2026-09-10 — The layer-1 voice order is settled: v2 third, not last (job #74, branch cs/74-glossary-voice-order-ruling)
+
+Tom ruled on the one open question the vocabulary glossary was carrying. Asked whether the code was
+right or whether target voice 2 should come last, he answered: *"this order is fine: The voice
+ordering inside drill — code plays target v1, known, target v2, target v1. You'd said v2 last."* His
+earlier stated order, with v2 last, is withdrawn by him. The code was already correct and does not
+change.
+
+- **The ruling settles the pattern everywhere, not just in drill.** The question was put about
+  drill; the constant is `DEFAULT_LISTENING_PATTERN` at `listeningExposureRamp.ts:84`, which is one
+  pattern, mode-agnostic and layer-agnostic — layer 1 maps it onto a seed's two recorded voices,
+  layer 2 onto a pod sentence's target and translation clips. So the entry it closes is
+  `LAYER-1 SEEDS PLAY t k t t ALWAYS` in `tools/vocabulary-pointers.json`, now `clean`, carrying his
+  words rather than a summary of them.
+- **The dead `seedPlaylist` DB row was aligned rather than left holding the rejected order.**
+  `algorithm_config['listening'].seedPlaylist` held `['t1','known','t1','t2']` — the withdrawn
+  order. It is dead on the learner path: `LearningPlayer.vue:4421` always supplies a
+  `listeningPolicy`, so neither ternary at `useLayer1Scheduler.ts:819` or `:881` takes the
+  `c.seedPlaylist` arm for a real learner. Dead is not unreachable, though: the field stays
+  admin-editable on the Listening config page, so a value Tom has just rejected sitting there is a
+  landmine for the next admin. It was written to `['t1','known','t2','t1']` and read back. Zero
+  effect on what any learner hears, by definition of the arm never being taken.
+- **Two pointers added, no prose about behaviour.** The second live ternary at `:881` and the
+  config read at `LearningPlayer.vue:4392` were unpointed; they are pointers now. 63 pointers across
+  17 terms, all resolving.
+
 ## 2026-09-08 — The 30-day grace: a family member's cover outlives the plan name (job #402)
 
 Tom's ruling, superseding #376·F **D8** ("no grace discount, the end-of-period window is the
@@ -352,3 +378,33 @@ until it is applied; that red is the truth.
 **The word that reverts it:** claims. Drop the `school_identity_claims` table and the arrival check
 in `api/auth/possession-redeem.ts` becomes a no-op; the contest card keys off `unclaimedMint.ts`
 alone and survives either way.
+
+## 2026-09-10 — the school board counts phrases spoken, not hours it never measured (job #159)
+
+**The finding.** Every clip a class plays is in `player_events`, with its audio id, for every kind
+of account. The playback ledger — the one definition of a minute since 2026-08-19 — cannot be
+written by a class account: `bump_speaking_opportunities` checks `learners.user_id = auth.uid()`,
+and a class's user_id is `class-learner:<id>`, so the write is refused and the player only logs it.
+The class account's `sessions` rows are inverted: none for Chepstow's nineteen real lessons this
+week, eight for app opens with no play. So the board's "Class practice 0h" was reading a ledger
+that cannot see lessons, while throwing away the school_summary hours it had already computed, and
+the Lens still reads `class_sessions`, dead since 19 August.
+
+**The decision.** Whole-class play is shown as PHRASES SPOKEN — Tom's term for cycles played, one
+per `target2` clip, the same count the ledger banks as `opportunities` for own accounts — plus the
+phrase-by-count list, off the diary joined to the phrase tables. Practice minutes on the board are
+own accounts only, off the ledger, as their own field. Whole-class practice TIME is not shown as any
+number: no ledger measures it and no proxy stands in for it; one sentence under the row says so.
+The hours tile, the class sessions count and the "Xh practised together" line are deleted, not
+relabelled. Learners leaves the school-shaped stats row; it stays in the tree.
+
+**Better × Simpler × Cheaper.** Better: every tile is backed by a live record, and the page shows
+what was practised. Simpler: two dead tiles and three dead sentences gone; the phrase list is the
+existing insight Table widget. Cheaper: one paged, JSON-path-filtered read of class-account diary
+rows over seven days — a few thousand rows estate-wide, 596 ms live for Chepstow — no migration, no
+player deploy.
+
+**Not done, named.** Timing whole-class play needs the class account's ledger bump routed through
+`/api/school/class-progress` (service role, teacher-authorised) and the class session opened at play
+start: a player deploy, not a Friday hotfix. The Lens needs re-pointing off `class_sessions`.
+
