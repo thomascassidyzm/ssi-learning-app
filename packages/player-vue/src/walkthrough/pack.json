@@ -1,5 +1,5 @@
 {
-  "version": "0e7c3a9d6d05",
+  "version": "98cd15e5ddac",
   "generatedAt": "2026-09-11",
   "walks": [
     {
@@ -3931,15 +3931,14 @@
       "surface": "schools",
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
       "walk": null,
-      "what": "How far the class has travelled through its course, as a bar with the class average behind it and the next belt named. A class carries its own place on the course, moved by the sessions you run together.",
+      "what": "How far the class has travelled through its course, as a bar in LEGOs with the next belt named. A class is one learner account played from the front, so this is the class's own place on the course, moved by the sessions you run together.",
       "where": "The class page, the **Course Journey** card in the column beside the roster.",
       "how": [
         "Open the class from **My Classes**.",
         "Read the bar for how much of the course the class has covered.",
-        "Read the line under it for the class average and how far it is to the next belt.",
-        "Compare that with the belt spread underneath, which shows how tightly the class is travelling together."
+        "Read the line under it for how far it is to the next belt."
       ],
-      "note": "The class average is the honest number for planning a lesson. The belt spread is the one that tells you whether the class is holding together or pulling apart."
+      "note": "A class that has never played says **Not started** in words; it is never shown as a bar of zero."
     },
     {
       "id": "whether-a-class-is-practising-together",

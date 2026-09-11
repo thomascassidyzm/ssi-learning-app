@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `0e7c3a9d6d05` · generated 2026-09-11 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `98cd15e5ddac` · generated 2026-09-11 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -1341,16 +1341,15 @@ Section: seeing-progress · roles: admin · anchor: `question-where-and-what` ·
 
 Section: seeing-progress · roles: leader, school_admin, teacher · anchor: `class-journey` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
 
-**What it's for.** How far the class has travelled through its course, as a bar with the class average behind it and the next belt named. A class carries its own place on the course, moved by the sessions you run together.
+**What it's for.** How far the class has travelled through its course, as a bar in LEGOs with the next belt named. A class is one learner account played from the front, so this is the class's own place on the course, moved by the sessions you run together.
 
 **Where it is.** The class page, the **Course Journey** card in the column beside the roster.
 
 1. Open the class from **My Classes**.
 2. Read the bar for how much of the course the class has covered.
-3. Read the line under it for the class average and how far it is to the next belt.
-4. Compare that with the belt spread underneath, which shows how tightly the class is travelling together.
+3. Read the line under it for how far it is to the next belt.
 
-**Worth knowing.** The class average is the honest number for planning a lesson. The belt spread is the one that tells you whether the class is holding together or pulling apart.
+**Worth knowing.** A class that has never played says **Not started** in words; it is never shown as a bar of zero.
 
 ## Whether a class is practising together
 

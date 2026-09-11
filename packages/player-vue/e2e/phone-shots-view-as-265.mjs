@@ -28,7 +28,9 @@ const REF = new URL(SUPABASE_URL).hostname.split('.')[0]
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'thomas.cassidy+ssi@gmail.com'
 fs.mkdirSync(SHOTS, { recursive: true })
 
-const PAGES = [['schools-home', '/schools'], ['schools-classes', '/schools/classes'], ['schools-students', '/schools/students']]
+// Chepstow's 8H (played this week) and 11E (never played) — the class page must
+// read the class account and say "Not started" in words where it never played.
+const PAGES = [['schools-home', '/schools'], ['schools-classes', '/schools/classes'], ['schools-students', '/schools/students'], ['class-8h', '/schools/classes/01041bae-ef81-4c78-bc21-b1a8f0def808'], ['class-11e-never-played', '/schools/classes/fc55b08b-95d6-4aa5-a964-12f5713e76e1']]
 
 async function mint(email) {
   const gl = await fetch(`${SUPABASE_URL}/auth/v1/admin/generate_link`, {
