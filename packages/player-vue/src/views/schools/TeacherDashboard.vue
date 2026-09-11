@@ -96,7 +96,12 @@ async function loadPractice7d() {
     const { data: { session } } = await supabase.value.auth.getSession()
     const token = session?.access_token
     if (!token) return
-    const res = await fetch(`/api/school/class-practice-7d?class_ids=${classIds.join(',')}`, {
+    // Under View-as / the admin read-view this runs as the ssi_admin, whose
+    // own scope is EMPTY — every class then read 0 min as if real (job #265,
+    // 2026-09-11). Name the school being read; the server verifies the admin.
+    const u = selectedUser.value
+    const schoolParam = u?._scopeSource === 'admin-view' && u.school_id ? `&school_id=${encodeURIComponent(u.school_id)}` : ''
+    const res = await fetch(`/api/school/class-practice-7d?class_ids=${classIds.join(',')}${schoolParam}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
     if (!res.ok) return
