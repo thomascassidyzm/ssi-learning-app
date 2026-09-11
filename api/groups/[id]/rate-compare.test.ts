@@ -113,6 +113,8 @@ function applyFilters(rows: any[], calls: { method: string; args: any[] }[]): an
     else if (c.method === 'in') result = result.filter((r) => (c.args[1] as any[]).includes(r[c.args[0]]))
     else if (c.method === 'is') result = result.filter((r) => r[c.args[0]] === c.args[1])
     else if (c.method === 'not') result = result.filter((r) => r[c.args[0]] !== null)
+    else if (c.method === 'gte') result = result.filter((r) => r[c.args[0]] >= c.args[1])
+    else if (c.method === 'range') result = result.slice(c.args[0], c.args[1] + 1)
     else if (c.method === 'like') {
       const pattern = c.args[1] as string
       const prefix = pattern.endsWith('%') ? pattern.slice(0, -1) : pattern
@@ -126,7 +128,7 @@ function makeChainable(table: string) {
   const calls: { method: string; args: any[] }[] = []
   const builder: any = {}
   const chain = (method: string) => (...args: any[]) => { calls.push({ method, args }); return builder }
-  for (const m of ['select', 'eq', 'neq', 'in', 'is', 'not', 'like', 'order', 'limit']) builder[m] = chain(m)
+  for (const m of ['select', 'eq', 'neq', 'in', 'is', 'not', 'like', 'gte', 'order', 'limit', 'range']) builder[m] = chain(m)
   builder.maybeSingle = () => {
     const rows = applyFilters(TABLES[table] || [], calls)
     return Promise.resolve({ data: rows[0] || null, error: null })
@@ -802,5 +804,52 @@ describe('GET /api/groups/:id/rate-compare — measures (?measure=)', () => {
     await handler(makeReq('c1', { compare_to: 'programme', measure: 'bogus' }), res)
     expect(res.body.applied.measure).toBe('rate')
     expect(res.body.metricLabel).toBe('Rate of progress')
+  })
+})
+
+describe('GET /api/groups/:id/rate-compare — whole-class play lives in the diary (Tom, 2026-09-11: "the data IS all there")', () => {
+  // A class that plays from the front has NO class_sessions rows (nothing has
+  // written that table since the 2026-08-19 re-anchor) and no pupil accounts.
+  // Its only record is the diary under its own account. Before the fix the
+  // engine read it as never having practised.
+  function seedDiaryClass(): void {
+    TABLES.classes.push({ id: 'c6', class_name: '7P', course_code: 'hin_for_eng', school_id: 'school-1', group_id: 's1-node', is_active: true, class_learner_id: 'CL6' })
+    for (let i = 1; i <= 10; i++) TABLES.course_legos.push({ course_code: 'hin_for_eng', lego_id: `S${i}L01`, seed_number: i, lego_index: 1 })
+    const lesson = NOW - 3 * DAY
+    TABLES.player_events = [
+      { id: 1, learner_id: 'CL6', course_code: 'hin_for_eng', occurred_at: new Date(lesson).toISOString(), lego: null },
+      { id: 2, learner_id: 'CL6', course_code: 'hin_for_eng', occurred_at: new Date(lesson + 10_000).toISOString(), lego: 'S1L01' },
+      { id: 3, learner_id: 'CL6', course_code: 'hin_for_eng', occurred_at: new Date(lesson + 20_000).toISOString(), lego: 'S3L01' },
+      { id: 4, learner_id: 'CL6', course_code: 'hin_for_eng', occurred_at: new Date(lesson + 40_000).toISOString(), lego: 'S5L01' },
+    ]
+  }
+
+  it('a class whose only record is the diary has a non-zero rate and non-zero minutes', async () => {
+    seedDiaryClass()
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('c6', { compare_to: 'programme' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.insufficientData).toBe(false)
+    expect(res.body.entity.value).toBeGreaterThan(0)       // LEGOs per week off the diary
+    expect(res.body.contextLine).toBeUndefined()           // S5L01 has no content row in this fixture: no line, never a raw id
+
+    const mins = makeRes()
+    await handler(makeReq('c6', { compare_to: 'programme', measure: 'minutes_per_class' }), mins)
+    expect(mins.statusCode).toBe(200)
+    expect(mins.body.entity.value).toBeGreaterThan(0)      // in-app minutes off the same diary blocks
+  })
+
+  it('a school whose classes ALL play from the front is no longer dark', async () => {
+    seedDiaryClass()
+    verifyAdminResult = { userId: 'admin-1' }
+    // school-1 keeps c1 (class_sessions rows) — take them away so the school
+    // has ONLY diary practice, the Chepstow shape.
+    SESSION_ROWS = SESSION_ROWS.filter((r) => r.class_id !== 'c1')
+    const res = makeRes()
+    await handler(makeReq('school-1', { compare_to: 'programme' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.insufficientData).toBe(false)
+    expect(res.body.entity.value).toBeGreaterThan(0)
   })
 })
