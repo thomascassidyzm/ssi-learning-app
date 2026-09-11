@@ -408,3 +408,46 @@ player deploy.
 `/api/school/class-progress` (service role, teacher-authorised) and the class session opened at play
 start: a player deploy, not a Friday hotfix. The Lens needs re-pointing off `class_sessions`.
 
+
+## 2026-09-11 — the human test-sheet gate on staging→main is removed, not disabled (job #211)
+
+**The three rulings, in order.**
+
+- **2026-09-10, Tom: "10 — gate it."** A human test pass on the fixed `colombo-pass-v1` sheet
+  became a required gate on `staging → main`. It lived in `tools/release-train/human-pass.mjs`,
+  was recorded by `record-pass.mjs` from the tester's own words into `passes/<sha7>.json`, and
+  `promote.sh` refused without it. Every step had to read `pass` on both the web run and the
+  Android run, an unanswered step blocked exactly as a failed one did, and there was deliberately
+  no bypass flag.
+- **2026-09-10, later the same evening.** Tom's own words, as the ledger noted them at 21:55Z:
+  the third thrust is a "live agent as real learner on the web, testing suite run by Astra".
+  Watson recorded the ruling as "release testing is automatic and run by Astra; nobody hands Tom a
+  test sheet." The ledger line is the nearest original wording found; Watson's is the paraphrase
+  the commission carried. Both are given here so the reader can see the distance between them.
+- **2026-09-11, Tom: "ok, remove that gate, we're not slaves to the system we created."** The
+  ruling that removed it in code, when Watson offered three ways round the gate — someone runs the
+  sheet, Tom waives it once, or hold the release — and Tom rejected the frame.
+
+**What was removed.** The `HUMAN-PASS-GATE` limb in `promote.sh`, the `--accept-drift` argument
+that existed only to feed it, and the header paragraph describing it. `human-pass.mjs`,
+`record-pass.mjs`, `human-pass.test.mjs` and `passes/` are deleted, `package.json` loses
+`test:human-pass`, and Thursday's candidate report no longer prints "the promote will REFUSE".
+No pass was ever recorded; the gate blocked exactly one release, today's, for the eleven hours it
+existed on the branch that ships. Removed rather than defanged because a bypass flag on the
+ordinary path becomes the ordinary path inside a month — the script's own header said so.
+
+**What replaced it.** The semi-automatic release-test loop landed on `dev` by job #208 earlier
+today: a nightly user timer at 00:45Z that works the same checklist against staging as a real
+learner would, records what it saw, and reports. It deliberately gates nothing yet. The sheet
+`TESTER-SHEET.md` stays as the named source of the loop's controls, with a line at the top saying
+it is no longer a gate. Nobody hands Tom a test sheet.
+
+**What is still enforced in `promote.sh`, untouched.** Nothing runs without `--go`. The script
+refuses when `origin/main` is not an ancestor of `origin/staging`, which is how an un-back-merged
+hotfix announces itself. It regenerates the release notes from the range actually promoted and
+commits them onto the merge, and if the notes fail to finalise it exits non-zero and says THE
+PROMOTE LANDED. THE RELEASE NOTES DID NOT. It is never cronned. The removal is pinned by a case in
+`promote-notes-commit.test.mjs` that asserts the gate's absence and those refusals' presence,
+seen red on the old script and green on the new one. This was a supersession, not an erosion.
+
+**The word that reverts it:** gate. The deleted files are one `git revert` away on `dev`.
