@@ -20,6 +20,7 @@ import { provisionSchoolPlatformTrial } from '../_utils/schoolPlatformTrial'
 import { isOperatorAccount, OPERATOR_CAPTURE_ERROR } from '../_utils/operatorGuard'
 import { isStrongCodeFormat, redactCode } from '../_utils/codeGen'
 import { isSchoolSeatCapReached, seatCapMessage } from '../_utils/schoolSeats'
+import { insertTagReactivating, affiliateToGroupNode } from '../_utils/groupAffiliation'
 import {
   getClientIp,
   hashIp,
@@ -79,117 +80,6 @@ async function claimCodeUse(
   return true
 }
 
-/**
- * Insert a `user_tags` membership row, REACTIVATING a soft-removed one on
- * conflict — the same pattern as `_utils/classTeacherTag.ts`'s
- * ensureClassTeacherTag, and for the same reason.
- *
- * The constraint that fires here is `unique_active_tag UNIQUE (user_id,
- * tag_type, tag_value)`, which is TOTAL — it carries NO `WHERE removed_at IS
- * NULL`. So a REMOVED tag still occupies the unique slot, and re-inviting
- * somebody who was previously removed from a class/school raised 23505,
- * inserted nothing, and — because every branch in this file used to read 23505
- * as "already tagged, idempotent success" — reported SUCCESS while the person
- * was NOT re-added. Silent, and the UI said it worked.
- *
- * 23505 therefore does not mean "already granted"; it means "the key is taken",
- * and this asks by WHOM:
- *   - taken by an ACTIVE row  → the genuine idempotent no-op (concurrent or
- *     retried redemption), unchanged behaviour.
- *   - taken by a REMOVED row  → reactivate it, which is what the re-invite was
- *     actually asking for.
- *   - no row at all           → nothing to reactivate; treated as the no-op it
- *     was before, since a lost race can also be re-read as empty here.
- *
- * Returns an error message on a real failure, or null on success/no-op.
- */
-async function insertTagReactivating(
-  supabase: SupabaseClient,
-  tag: {
-    user_id: string
-    tag_type: string
-    tag_value: string
-    role_in_context: string
-    added_by: string
-  }
-): Promise<string | null> {
-  const { error } = await supabase.from('user_tags').insert(tag)
-  if (!error) return null
-  if (error.code !== '23505') return error.message || 'user_tags insert failed'
-
-  const { data: existing, error: readError } = await supabase
-    .from('user_tags')
-    .select('id, removed_at')
-    .eq('user_id', tag.user_id)
-    .eq('tag_type', tag.tag_type)
-    .eq('tag_value', tag.tag_value)
-    .maybeSingle()
-  if (readError) return readError.message || 'user_tags re-read failed'
-  const row = existing as { id?: string; removed_at?: string | null } | null
-  if (!row || !row.removed_at) return null
-
-  const { error: reactivateError } = await supabase
-    .from('user_tags')
-    .update({
-      removed_at: null,
-      role_in_context: tag.role_in_context,
-      added_at: new Date().toISOString(),
-      added_by: tag.added_by,
-    })
-    .eq('id', row.id)
-  if (reactivateError) return reactivateError.message || 'user_tags reactivate failed'
-  return null
-}
-
-/**
- * Group-scoped teacher/student affiliation (THE-MODEL.md §6, I8; I7 — any
- * node, not just leaves). Writes the GROUP: tag at the invited node, and —
- * if that node IS a school's own node (schools.node_group_id) — dual-writes
- * the legacy SCHOOL:<id> tag too (§5 item 5), so every deployed dashboard
- * still sees the person tonight without waiting on a reader repoint.
- * Returns an error message on failure, or null on success.
- */
-async function affiliateToGroupNode(
-  supabase: SupabaseClient,
-  userId: string,
-  groupId: string,
-  roleInContext: 'teacher' | 'student'
-): Promise<string | null> {
-  // 23505 is resolved by insertTagReactivating: an ACTIVE duplicate is the
-  // idempotent no-op (concurrent/retried redemption already tagged this user
-  // for this group), a REMOVED duplicate is REACTIVATED — re-affiliating
-  // somebody previously removed from this group is exactly what this call is
-  // for, and swallowing the conflict used to drop it silently.
-  const groupTagError = await insertTagReactivating(supabase, {
-    user_id: userId,
-    tag_type: 'group',
-    tag_value: `GROUP:${groupId}`,
-    role_in_context: roleInContext,
-    added_by: userId,
-  })
-  if (groupTagError) return groupTagError
-
-  const { data: schoolNode } = await supabase
-    .from('schools')
-    .select('id')
-    .eq('node_group_id', groupId)
-    .maybeSingle()
-  if (schoolNode) {
-    // 23505 here is reachable DETERMINISTICALLY, not just via a race: a user
-    // already carrying this SCHOOL: tag (e.g. from an earlier school-scoped
-    // code) who then redeems a group code whose node IS this school. Active
-    // duplicate → no-op; removed duplicate → reactivated.
-    const schoolTagError = await insertTagReactivating(supabase, {
-      user_id: userId,
-      tag_type: 'school',
-      tag_value: `SCHOOL:${(schoolNode as any).id}`,
-      role_in_context: roleInContext,
-      added_by: userId,
-    })
-    if (schoolTagError) return schoolTagError
-  }
-  return null
-}
 
 export default async function handler(
   req: VercelRequest,
@@ -490,10 +380,40 @@ async function redeemInviteCode(
     learnerUpdate.platform_role = 'ssi_admin'
   } else if (codeType === 'tester') {
     learnerUpdate.platform_role = 'tester'
+    // A tester is not a learner, and the exclusion must say so at the MECHANISM
+    // rather than by luck. test_learner_ids() — the canonical exclusion every
+    // board number and daily-contribution count runs through — tests is_demo,
+    // is_internal, is_class_entity and the thomas.cassidy+ address pattern. It
+    // does NOT know the tester role exists. Every tester row alive today happens
+    // to carry is_internal because of a one-off backfill; without this line the
+    // next person to redeem a tester code counts as a real learner everywhere.
+    learnerUpdate.is_internal = true
   } else if (codeType === 'school_admin_join') {
     learnerUpdate.educational_role = 'school_admin'
   } else {
     learnerUpdate.educational_role = codeType
+  }
+
+  // BORN EXCLUDED (2026-09-10). A platform_role means staff or QA, and staff
+  // and QA are not real learners in any number we report.
+  //
+  // The canonical exclusion in the database, test_learner_ids()
+  // (20260715_test_learner_exclusion.sql), tests is_demo, is_internal, the
+  // thomas.cassidy+ address pattern and is_test schools. It has never heard of
+  // the `tester` role. And nothing in this codebase has ever SET is_internal —
+  // it was back-filled once by that migration and set by hand since. Every
+  // tester and admin row happens to carry it today; the mechanism that would
+  // keep it that way did not exist, so the next tester code redeemed would have
+  // granted full content access and counted as a real learner in every board
+  // number and every daily contribution from that moment on.
+  //
+  // The flag now rides WITH the role, in the same update, so exclusion is a
+  // property of granting privilege rather than of somebody remembering a
+  // back-fill. Educational roles are untouched: a school admin is a real person
+  // and must keep counting. Exclusion follows staff and test, never free and
+  // never privileged.
+  if (learnerUpdate.platform_role) {
+    learnerUpdate.is_internal = true
   }
   const { error: learnerError } = await supabase
     .from('learners')

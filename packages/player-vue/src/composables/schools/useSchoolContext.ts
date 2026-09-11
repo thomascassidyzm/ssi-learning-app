@@ -22,6 +22,7 @@
 import { ref, computed } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSchoolsClient } from './client'
+import { isPlatformActive, isUnstampedTrialLapsed } from '@ssi/core'
 
 // 'tutor' = the freelance (no-school) teacher role provision.ts writes —
 // deliberately distinct from the school 'teacher' so /schools guards can
@@ -45,6 +46,9 @@ export interface SchoolUser {
   // Absent/undefined (legacy row or pre-migration DB) ⇒ treated as ACTIVE.
   platform_status?: string | null
   platform_expires_at?: string | null
+  /** The gating ROW's own created_at (school, or teacher for a tutor). Bounds
+   *  an unstamped trial's grace — see @ssi/core's platformStatus. */
+  platform_created_at?: string | null
   // Internal — which loader populated this context. loadFromAuth uses this
   // (not mere presence) to decide whether it's safe to no-op: a stale
   // admin-view/persona scope must never be mistaken for "self already
@@ -92,16 +96,20 @@ const isSchoolStaff = computed(() => isTeacher.value || isSchoolAdmin.value)
  *   active = status === 'active'
  *         || status === 'past_due'                 (dunning grace — see below)
  *         || status == null                       (legacy / pre-migration)
- *         || (status === 'trial' && (expires_at == null || expires_at > now))
+ *         || (status === 'trial' && expires_at > now)
+ *         || (status === 'trial' && no expiry && row created within the grace)
  * A NULL/absent status (legacy school, pre-migration DB, govt/admin context, or
- * a demo persona) resolves to ACTIVE, AND a 'trial' with no expiry resolves to
- * ACTIVE (the bare DEFAULT 'trial' the migration writes before provision.ts
- * stamps a real window — see below). A 'past_due' school ALSO resolves to
+ * a demo persona) resolves to ACTIVE. A 'past_due' school ALSO resolves to
  * ACTIVE, mirroring the tutor lane's teacher_paid grace: Paddle is still
  * billing and retrying the card, so instant lockout would strand a school
  * mid-dunning over a declined card. Use `platformPastDue` to show the
- * payment-problem banner. Only an explicit expired/cancelled or an ELAPSED
- * trial (non-null expiry in the past) returns false.
+ * payment-problem banner. An explicit expired/cancelled, an ELAPSED trial, or
+ * a NO-END-DATE trial past its provisioning grace returns false.
+ *
+ * The trial/expiry math itself is @ssi/core's `isPlatformActive` — the SAME
+ * function every api/ caller uses, so the browser and the server cannot answer
+ * this differently. Only the two states that are deliberately client-specific
+ * (govt_admin, past_due) are decided here.
  */
 const platformActive = computed((): boolean => {
   const u = currentUser.value
@@ -109,19 +117,20 @@ const platformActive = computed((): boolean => {
   // govt admins / cross-school views aren't gated by a single school's billing.
   if (u.educational_role === 'govt_admin') return true
   const status = u.platform_status
-  if (status == null) return true // legacy / pre-migration / unloaded → fail open
-  if (status === 'active') return true
   if (status === 'past_due') return true // dunning grace — still a live, billed subscription
-  if (status === 'trial') {
-    // A 'trial' with NO expiry = grandfathered / not-yet-stamped: the bare
-    // schools.platform_status DEFAULT 'trial' (migration 20260616) before
-    // provision.ts stamps an expiry, a pre-lever-3 school, or an orphaned row
-    // left by an email-burn 409. Treat as active — only an ELAPSED trial (a
-    // real, non-null expiry in the past) locks the dashboard.
-    if (!u.platform_expires_at) return true
-    return new Date(u.platform_expires_at).getTime() > Date.now()
-  }
-  return false // expired | cancelled
+  return isPlatformActive(status, u.platform_expires_at, u.platform_created_at)
+})
+
+/**
+ * A trial that carries NO END DATE and is past its provisioning grace — the
+ * state that used to mean free access forever. Locked like any other lapse,
+ * but it needs its own word on screen: "your trial ended" is a lie about a
+ * trial that never had a window, and leaves nobody able to see what happened.
+ */
+const platformNoEndDate = computed((): boolean => {
+  const u = currentUser.value
+  if (!u || u.educational_role === 'govt_admin') return false
+  return isUnstampedTrialLapsed(u.platform_status, u.platform_expires_at, u.platform_created_at)
 })
 
 /** True while a payment-problem banner should show (dunning in progress). */
@@ -226,6 +235,7 @@ export function useSchoolContext() {
           user.region_code = school.region_code
           user.platform_status = school.platform_status
           user.platform_expires_at = school.platform_expires_at
+          user.platform_created_at = school.created_at
         }
       } else {
         // Fallback: check if they're the admin_user_id on a school.
@@ -236,6 +246,7 @@ export function useSchoolContext() {
           user.region_code = school.region_code
           user.platform_status = school.platform_status
           user.platform_expires_at = school.platform_expires_at
+          user.platform_created_at = school.created_at
         }
       }
 
@@ -245,6 +256,7 @@ export function useSchoolContext() {
       if (teacher && !user.school_id) {
         user.platform_status = teacher.platform_status
         user.platform_expires_at = teacher.platform_expires_at
+        user.platform_created_at = teacher.created_at
       }
     }
 
@@ -267,10 +279,11 @@ export function useSchoolContext() {
     region_code: string | null
     platform_status: string | null
     platform_expires_at: string | null
+    created_at: string | null
   } | null> {
     const { data, error } = await c
       .from('schools')
-      .select('id, school_name, region_code, platform_status, platform_expires_at')
+      .select('id, school_name, region_code, platform_status, platform_expires_at, created_at')
       .eq(keyCol, keyVal)
       .limit(1)
       .maybeSingle()
@@ -283,7 +296,7 @@ export function useSchoolContext() {
         .limit(1)
         .maybeSingle()
       if (!legacy) return null
-      return { ...(legacy as any), platform_status: null, platform_expires_at: null }
+      return { ...(legacy as any), platform_status: null, platform_expires_at: null, created_at: null }
     }
     return null
   }
@@ -292,10 +305,14 @@ export function useSchoolContext() {
   async function loadTeacherRow(
     c: SupabaseClient,
     learnerId: string,
-  ): Promise<{ platform_status: string | null; platform_expires_at: string | null } | null> {
+  ): Promise<{
+    platform_status: string | null
+    platform_expires_at: string | null
+    created_at: string | null
+  } | null> {
     const { data, error } = await c
       .from('teachers')
-      .select('platform_status, platform_expires_at')
+      .select('platform_status, platform_expires_at, created_at')
       .eq('learner_id', learnerId)
       .limit(1)
       .maybeSingle()
@@ -451,6 +468,7 @@ export function useSchoolContext() {
     isStudent,
     isSchoolStaff,
     platformActive,
+    platformNoEndDate,
     platformPastDue,
     loadFromAuth,
     loadAsPersona,

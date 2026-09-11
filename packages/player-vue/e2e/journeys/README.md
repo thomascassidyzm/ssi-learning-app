@@ -33,11 +33,32 @@ BASE_URL=https://staging.saysomethingin.app JOURNEY=j3 NET=slow3g RUNS=5 node e2
 
 ## What it refuses to fake
 
-- **Audible ≠ `play()`.** A resolved `play()` promise proves nothing — a
-  buffering-stalled element resolves it and never makes a sound. The harness
-  hooks `HTMLMediaElement.prototype.play` at document-start and waits for a
-  `timeupdate` with `currentTime > 0.05s`. Brand chimes and silent keepalives
-  are excluded by URL pattern so they can't flatter the number.
+- **Audible ≠ `play()`, and audible ≠ a clock that moves.** A resolved
+  `play()` promise proves nothing, and `currentTime > 0.05s` proves only that
+  playback PROGRESSED — total silence progresses perfectly well. Measured
+  2026-09-10: a one-second WAV of 16,000 zero PCM samples scored
+  `firstLessonAudible=538.5ms` under the old rule, as did a clip that is 95%
+  silence with one 100ms tone at the end. The harness now hooks
+  `HTMLMediaElement.prototype.play` at document-start, routes each element
+  through a Web Audio `AnalyserNode`, and requires RMS above **−45 dBFS** for
+  at least **20%** of elapsed play time and at least **150ms** absolute. The
+  predicate is pure and unit-tested in `audibility.mjs`; the browser copy is
+  built from that same source, so the two cannot drift. Brand chimes and
+  silent keepalives are still excluded by URL pattern — which is a filter,
+  never the test, since it cannot see inside a `blob:` URL.
+- **The level is reported, not just a boolean.** Every journey row carries
+  `lessonLevel` (peak dBFS, RMS dBFS, above-floor %) and `audibleLagMs`, the
+  gap between the energy criterion being satisfied and the old progress
+  inference firing. A clip that is technically audible but recorded far too
+  quietly is a real content problem, and this is where it shows.
+- **A tap that could not be made is a gap, not silence.** If
+  `createMediaElementSource` throws, the error is recorded in
+  `audioTapErrors` rather than being read as a quiet clip.
+- **Controls, both directions.** `e2e/release-audible-control.mjs` runs three
+  clips through the real instrument: silence must be refused, a 95%-silent
+  clip with a click at the end must be refused, a real bundled lesson clip
+  must be heard. `node --test e2e/journeys/audibility.test.mjs` runs those
+  plus the pure predicate.
 - **Painted ≠ "the DOM changed".** A MutationObserver waits for real
   structural change, then a double `requestAnimationFrame`, so the number is
   when pixels could have hit the glass.

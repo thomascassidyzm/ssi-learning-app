@@ -20,21 +20,24 @@
       "say": "A class does not have to be yours alone. **Teachers** lists everyone who teaches it, with the lead marked — a job share, a department colleague, a supply teacher covering for a fortnight.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "296f8502.e869be89"
     },
     {
       "anchor": "class-teacher-add",
       "say": "**Add another teacher** is how you share it. Nobody is added until you pick a name and confirm.",
       "advance": {
         "on": "click"
-      }
+      },
+      "checked": "fe2d40b2.bf0f349d"
     },
     {
       "anchor": "class-teacher-picker",
       "say": "You can pick anyone already teaching at your school. If the list is empty, your colleague has not joined the school yet — the link underneath brings them straight in.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "fefdd41f.565692a4"
     },
     {
       "anchor": "class-teachers",
@@ -42,7 +45,8 @@
       "advance": {
         "on": "next"
       },
-      "terminal": "That's sharing a class — same class, two teachers, one lead. This tour added nobody; only your own taps do."
+      "terminal": "That's sharing a class — same class, two teachers, one lead. This tour added nobody; only your own taps do.",
+      "checked": "296f8502.6347e3f4"
     }
   ]
 }

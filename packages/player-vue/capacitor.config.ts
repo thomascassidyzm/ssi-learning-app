@@ -15,12 +15,20 @@ import type { CapacitorConfig } from '@capacitor/cli'
  * the shell it precaches is the deployment's own shell. See
  * src/platform/capabilities.ts.
  *
- * ONE LINE SWITCHES THE ORIGIN. `SHELL_ORIGIN` below is the whole switch, and
- * as of Tom's ruling on 2026-09-08 it points at PRODUCTION — "We also want the
- * Android app to be serving main now right? Now we've tested it." The staging
- * wrap was the proving ground and it proved; the shell is now a window onto
- * https://saysomethingin.app. Export SSI_SHELL_ORIGIN before building to point
- * one build somewhere else, e.g. back at staging for a field test.
+ * ONE LINE SWITCHES THE ORIGIN, AND ITS DEFAULT IS STAGING. Tom's ruling,
+ * 2026-09-10, overturning the default set on 2026-09-08: production is for
+ * live learners, and the only honest reason to test there is to fix a problem
+ * that is live — never to compare builds or platforms. So a build that lands
+ * on production BY ACCIDENT is always wrong, and an unset SSI_SHELL_ORIGIN
+ * must therefore yield staging. Production is still one command away, but it
+ * has to be asked for out loud:
+ *
+ *     SSI_SHELL_ORIGIN=https://saysomethingin.app scripts/build-android-apk.sh
+ *     scripts/build-android-apk.sh https://saysomethingin.app   # same thing
+ *
+ * This costs a forgetful builder nothing worse than a tester on staging, which
+ * is where a tester belongs. The reverse mistake put Colombo on production
+ * without anyone choosing it.
  *
  * APPLICATION ID IS DELIBERATELY LOCAL. `com.saysomethingin.devwrap` is a
  * throwaway dev identifier. It is NOT `com.automagic.a3f`, the live published
@@ -29,8 +37,13 @@ import type { CapacitorConfig } from '@capacitor/cli'
  * Nothing here presumes it.
  */
 
-/** The deployment this shell is a window onto. Production, by Tom's ruling. */
-const SHELL_ORIGIN = (process.env.SSI_SHELL_ORIGIN || 'https://saysomethingin.app').replace(/\/+$/, '')
+/**
+ * The deployment this shell is a window onto. STAGING unless someone says
+ * otherwise — see the ruling above. scripts/build-android-apk.sh reads this
+ * very line for its own default, so the two cannot drift apart.
+ */
+const SHELL_DEFAULT_ORIGIN = 'https://staging.saysomethingin.app'
+const SHELL_ORIGIN = (process.env.SSI_SHELL_ORIGIN || SHELL_DEFAULT_ORIGIN).replace(/\/+$/, '')
 
 const config: CapacitorConfig = {
   appId: 'com.saysomethingin.devwrap',

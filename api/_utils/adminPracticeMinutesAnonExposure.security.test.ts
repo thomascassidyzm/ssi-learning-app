@@ -155,7 +155,6 @@ describe('SEC25-D-02: admin_practice_minutes(_by_course) — DEFINER, anon-grant
   it('the repointed callers all go through the scoped endpoint helper', () => {
     const files = [
       '../../packages/player-vue/src/composables/admin/useAdminCourses.ts',
-      '../../packages/player-vue/src/composables/admin/useAdminUserDetail.ts',
       '../../packages/player-vue/src/composables/schools/useAnalyticsData.ts',
       '../../packages/player-vue/src/views/schools/StudentProgressView.vue',
     ]
@@ -175,11 +174,29 @@ describe('SEC25-D-02: admin_practice_minutes(_by_course) — DEFINER, anon-grant
     expect(migration).toContain("notify pgrst, 'reload schema';")
   })
 
-  it('the server-side caller (api/admin/attention.ts) is not the only path — RPC has no gate of its own', () => {
-    const attention = readFileSync(resolve(here, '../admin/attention.ts'), 'utf8')
-    expect(attention).toContain(".rpc('admin_practice_minutes'")
-    // Whatever admin check attention.ts performs before this line protects
-    // ONLY this call site — the RPC itself remains reachable by anon from any
-    // other caller, browser or otherwise, per the grant above.
+  it('every server-side caller of the RPC gates on verifyAdmin first — the RPC has no gate of its own', () => {
+    // api/admin/attention.ts, the original fixture here, died on 2026-09-10
+    // when question 2 of the intelligence surface replaced it. The rule it
+    // illustrated is general, so it is now checked generally: any api/ file
+    // that calls the RPC must call verifyAdmin, because whatever admin check
+    // a caller performs protects ONLY that call site — the RPC itself remains
+    // reachable by anon from any other caller, browser or otherwise, per the
+    // grant above.
+    const apiRoot = resolve(here, '..')
+    const callers: string[] = []
+    const walkApi = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name)
+        if (entry.isDirectory()) walkApi(full)
+        else if (/\.ts$/.test(entry.name) && !/\.test\.ts$/.test(entry.name)) {
+          const src = readFileSync(full, 'utf8')
+          if (src.includes(".rpc('admin_practice_minutes'")) callers.push(full)
+        }
+      }
+    }
+    walkApi(apiRoot)
+    for (const f of callers) {
+      expect(readFileSync(f, 'utf8'), f).toContain('verifyAdmin(')
+    }
   })
 })

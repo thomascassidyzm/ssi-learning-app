@@ -8,21 +8,41 @@
 import { ref, computed } from 'vue'
 
 const STORAGE_KEY = 'ssi-user-role'
+// View-as overlay, sessionStorage-backed: a reload keeps it inside the tab,
+// closing the tab drops it. Never localStorage — a borrowed identity must
+// never outlive the window it was borrowed in.
+const VIEW_AS_KEY = 'ssi-viewing-as'
 
 /**
- * A person candidate (name/role/ids) for admin-facing displays — e.g. the
- * "leader: X" text in the Structure detail panel. Historically also fed the
- * removed act-as/view-as UI (THE-MODEL.md §1.8); the shape survives for
- * read-only display, the persona-minting behaviour does not.
+ * A view-as persona: the role the UI should wear, and — when the admin picked
+ * a real person rather than a bare role — that person's ids so their own
+ * school/group/class scope can be loaded (useSchoolContext.loadAsPersona).
+ *
+ * `userId` empty string = ROLE-ONLY view-as ("show me any plain learner's
+ * app"), which needs no person and loads no foreign scope.
  */
-export interface ActAsPersona {
+export interface ViewAsPersona {
   key: string
   userId: string
   role: 'teacher' | 'school_admin' | 'govt_admin' | 'student'
   name: string
-  // Only used for role 'student' — AdminUserProgress.vue's route needs the
-  // learner PK, not the auth uid (learners.id vs learners.user_id).
+  // Only used for role 'student' — the learner PK, not the auth uid
+  // (learners.id vs learners.user_id).
   learnerId?: string
+}
+
+/** Human label for a persona's role, for the view-as banner and picker. */
+export function roleLabel(role: ViewAsPersona['role']): string {
+  switch (role) {
+    case 'teacher':
+      return 'Teacher'
+    case 'school_admin':
+      return 'School leader'
+    case 'govt_admin':
+      return 'Group leader'
+    case 'student':
+      return 'Learner'
+  }
 }
 
 // State (module-level singleton)
@@ -30,37 +50,63 @@ const platformRole = ref<string | null>(null)
 const educationalRole = ref<string | null>(null)
 const isInitialized = ref(false)
 
+// View-as overlay: when an ssi_admin steps into a role/persona, this holds it.
+// The REAL platformRole stays 'ssi_admin' throughout (isSsiAdmin below is the
+// raw truth, so the exit banner and the admin's own session survive) — what
+// changes is every EFFECTIVE capability the UI and the router read.
+const viewingAs = ref<ViewAsPersona | null>(null)
+const isViewingAs = computed(() => viewingAs.value !== null)
+
+// The school role the UI should reflect — the persona's while viewing-as,
+// otherwise the user's own. Drives the member-surface route guard and every
+// role capability below.
+const effectiveEducationalRole = computed(() => {
+  if (!viewingAs.value) return educationalRole.value
+  // A learner persona has NO educational role — that absence is the point:
+  // it is what makes every staff surface correctly disappear.
+  return viewingAs.value.role === 'student' ? null : viewingAs.value.role
+})
+
 // Role hierarchy: ssi_admin > govt_admin > school_admin > teacher > student
 // ('god' was collapsed into the ssi_admin platform role — 2026-06-16)
 const isSsiAdmin = computed(() => platformRole.value === 'ssi_admin')
 // Deprecated alias: 'god' is now just ssi_admin. Kept so any stray caller still resolves.
 const isGod = isSsiAdmin
-const isGovtAdmin = computed(() => educationalRole.value === 'govt_admin')
+const isGovtAdmin = computed(() => effectiveEducationalRole.value === 'govt_admin')
 const isSchoolAdmin = computed(() =>
-  ['school_admin', 'govt_admin'].includes(educationalRole.value || '')
+  ['school_admin', 'govt_admin'].includes(effectiveEducationalRole.value || '')
 )
 // THE-MODEL §1.3/§2.1/I5: 'tutor' is a groupless teacher, not a separate
 // type — the tutor/schools shell split dissolves, so every role gate that
 // admits 'teacher' admits 'tutor' too.
 const isTeacher = computed(() =>
-  ['teacher', 'tutor', 'school_admin', 'govt_admin'].includes(educationalRole.value || '')
+  ['teacher', 'tutor', 'school_admin', 'govt_admin'].includes(effectiveEducationalRole.value || '')
 )
 
 // True for users whose educational role is school-scoped.
 const hasSchoolRole = computed(() =>
-  ['teacher', 'tutor', 'school_admin', 'govt_admin'].includes(educationalRole.value || '')
+  ['teacher', 'tutor', 'school_admin', 'govt_admin'].includes(effectiveEducationalRole.value || '')
 )
 
-const isTester = computed(() => platformRole.value === 'tester' || isSsiAdmin.value)
+const isTester = computed(() => !isViewingAs.value && (platformRole.value === 'tester' || isSsiAdmin.value))
 
 // Capabilities
-const canAccessAdmin = computed(() => isSsiAdmin.value)
+// NOT raw isSsiAdmin: while viewing-as, the admin estate must be ABSENT —
+// that is the whole point of checking what a persona sees. The way back is
+// the view-as banner's Exit (which drops the overlay first), never a stray
+// admin link that the persona would never have.
+const canAccessAdmin = computed(() => isSsiAdmin.value && !isViewingAs.value)
 // ssi_admins reach the schools area too — they're the platform operator, not a
 // school member, so they must never hit the "no school access / join code" wall
 // (which is for a signed-in learner with no school). Restores the pre-collapse
 // behaviour, where god — now folded into ssi_admin — passed this gate.
-const canAccessSchools = computed(() => isTeacher.value || isSsiAdmin.value)
+// The raw-admin arm drops while viewing-as, so a learner persona loses the
+// Schools door exactly as a real learner has never had one.
+const canAccessSchools = computed(() => isTeacher.value || (isSsiAdmin.value && !isViewingAs.value))
 const canImpersonate = computed(() => isSsiAdmin.value)
+// Who may step into a role/persona. Raw platform role — an admin already
+// viewing-as may switch persona without exiting first.
+const canViewAs = computed(() => isSsiAdmin.value)
 
 /**
  * Initialize from known role values (called after DB fetch).
@@ -124,6 +170,17 @@ if (import.meta.env.DEV && typeof window !== 'undefined') {
  * Used by the router guard on page reload.
  */
 function restoreFromCache(): void {
+  // Always rehydrate an in-flight view-as (sessionStorage) so the router
+  // guards see the persona on a hard reload, independent of whether the real
+  // role cache is initialized yet.
+  if (!viewingAs.value) {
+    try {
+      const a = sessionStorage.getItem(VIEW_AS_KEY)
+      if (a) viewingAs.value = JSON.parse(a)
+    } catch {
+      // malformed or unavailable
+    }
+  }
   if (isInitialized.value) return
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
@@ -139,12 +196,46 @@ function restoreFromCache(): void {
 }
 
 /**
+ * Begin viewing as a persona. The real platformRole ('ssi_admin') is left
+ * intact; only the EFFECTIVE role changes. Persisted to sessionStorage.
+ */
+function startViewing(persona: ViewAsPersona): void {
+  viewingAs.value = persona
+  try {
+    sessionStorage.setItem(VIEW_AS_KEY, JSON.stringify(persona))
+  } catch {
+    // sessionStorage unavailable
+  }
+}
+
+/** Stop viewing-as and return to the admin's own identity. */
+function stopViewing(): void {
+  viewingAs.value = null
+  try {
+    sessionStorage.removeItem(VIEW_AS_KEY)
+  } catch {
+    // sessionStorage unavailable
+  }
+}
+
+/**
+ * Header attached to every write-endpoint fetch made while viewing-as, so the
+ * server rejects it (api/_utils/actAsGuard.ts) even on endpoints carrying a
+ * deliberate ssi_admin support bypass. A real teacher/school-admin session
+ * never sends it, so its presence alone is a safe reject signal.
+ */
+export function viewAsRequestHeaders(): Record<string, string> {
+  return isViewingAs.value ? { 'X-Ssi-View-As': '1' } : {}
+}
+
+/**
  * Clear on logout
  */
 function clear(): void {
   platformRole.value = null
   educationalRole.value = null
   isInitialized.value = false
+  stopViewing()
   try {
     localStorage.removeItem(STORAGE_KEY)
   } catch {
@@ -158,6 +249,9 @@ export function useUserRole() {
     platformRole,
     educationalRole,
     isInitialized,
+    viewingAs,
+    isViewingAs,
+    effectiveEducationalRole,
 
     // Role booleans
     isGod,
@@ -172,11 +266,14 @@ export function useUserRole() {
     canAccessAdmin,
     canAccessSchools,
     canImpersonate,
+    canViewAs,
 
     // Actions
     initialize,
     setAuthoritative,
     restoreFromCache,
+    startViewing,
+    stopViewing,
     clear,
   }
 }

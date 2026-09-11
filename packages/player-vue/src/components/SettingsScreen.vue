@@ -14,6 +14,7 @@ import { useRouter } from 'vue-router'
 import { getLanguageName, getLanguageEndonym, setLocale, useI18n } from '../composables/useI18n'
 import { courseTargetName } from '../utils/courseDisplayName'
 import { useSharedSubscription } from '../composables/useSubscription'
+import { useOrgFreeAccess } from '../composables/useOrgFreeAccess'
 import { usePendingPurchase } from '../composables/usePendingPurchase'
 import { useFamilyModal } from '@/composables/useFamilyModal'
 import { useCheckout } from '../composables/useCheckout'
@@ -34,6 +35,8 @@ import { updateAvailable as pwaUpdateAvailable } from '../composables/usePwaUpda
 import { formatFurthestPoint, formatFurthestTarget, canRecoverToFurthest } from '../utils/furthestProgress'
 import { isPlaceholderEmail } from '../utils/placeholderEmail'
 import { isAlreadyLinkedEmail } from '../utils/emailVerifyGuard'
+import { supportIdForLearnerId } from '@ssi/core'
+import { readLastKnownIdentity } from '@/composables/lastKnownIdentity'
 import { sendSignInCode } from '../auth/sendSignInCode'
 
 const emit = defineEmits(['close', 'openExplorer', 'settingChanged'])
@@ -630,6 +633,26 @@ const {
   refresh: refreshSubscription,
   isPlatformAdmin,
 } = useSharedSubscription()
+
+// FUNDED FREE ACCESS (the Canolfan free year). Not a subscription — there is
+// no payment, no portal, nothing to cancel — but equally not somebody to sell
+// to. In the place the Upgrade row used to sit they get a plain statement of
+// WHICH languages their funder has bought and until when, because the grant
+// covers those and not the rest of the catalogue: a learner who later wants
+// Spanish should not read this line and think they already have it. Access to
+// the courses themselves rides on their user_entitlements row, not on this.
+const { coverLine: orgCoverLine, coveredCourses: orgCoveredCourses, orgName: orgFunderName } = useOrgFreeAccess()
+const showOrgFreeRow = computed(() => orgCoveredCourses.value.length > 0)
+const orgFreeLabel = computed(() =>
+  orgFunderName.value
+    ? `${t('settings.freeThrough', 'Free through')} ${orgFunderName.value}`
+    : t('settings.subscription')
+)
+const orgFreeLine = computed(() =>
+  orgCoverLine.value
+    ? `${orgCoverLine.value}. ${t('settings.otherLanguagesOwnSubscription', 'Other languages need their own subscription.')}`
+    : t('settings.active')
+)
 const portalFeedback = ref('')
 
 // This is the screen a buyer opens to check what they bought, so it is the one
@@ -920,6 +943,49 @@ const userName = computed(
     auth?.learner?.value?.display_name ||
     '',
 )
+
+// ── "You are signed in as ———" ────────────────────────────────────────────
+//
+// Tom, 2026-09-09: "Most of the time we have support issues with people who
+// cannot remember which email they signed up with. So we have no idea who they
+// are." Sign-in is a code to an address and there are no passwords, so that
+// person is stuck and so is support. If they can open the app, THE APP ALREADY
+// KNOWS — it just never said. This says it, at the top of Account, without
+// hunting. Nothing about identity changes; this is disclosure of what the
+// client already holds.
+//
+// It reads the LIVE SESSION first, because a person will read this out to
+// support as fact and a stale answer is worse than no answer. Offline there is
+// no session to read — useAuth then knows the learner from the last-known
+// identity record — so the address is still shown, and plainly labelled as the
+// last one we confirmed rather than passed off as checked just now.
+const liveSessionEmail = computed(() => auth?.user?.value?.email || '')
+const identityIsLive = computed(() => !!liveSessionEmail.value)
+const identityEmail = computed(
+  () => liveSessionEmail.value || readLastKnownIdentity()?.email || '',
+)
+const identityEmailIsPlaceholder = computed(() => isPlaceholderEmail(identityEmail.value))
+// Derived from the learner's own id, so there is nothing to store and nothing
+// to keep in step. It NAMES the account; it authorises nothing — see
+// packages/core/src/identity/supportId.ts.
+const supportId = computed(() => supportIdForLearnerId(auth?.learner?.value?.id || null))
+
+const copiedField = ref<'email' | 'supportId' | null>(null)
+let copiedTimer: ReturnType<typeof setTimeout> | null = null
+async function copyIdentity(field: 'email' | 'supportId') {
+  const value = field === 'email' ? identityEmail.value : supportId.value
+  if (!value) return
+  try {
+    await navigator.clipboard.writeText(value)
+    copiedField.value = field
+  } catch {
+    // No clipboard permission — the text is on screen and readable, which is
+    // the point. Say nothing rather than raise an error about a convenience.
+    return
+  }
+  if (copiedTimer) clearTimeout(copiedTimer)
+  copiedTimer = setTimeout(() => { copiedField.value = null }, 2000)
+}
 
 // Roles from DB (learners.platform_role) — shared cache with the router
 // guards (useUserRole), kept authoritative by useAuth on sign-in. Was
@@ -2107,12 +2173,57 @@ const confirmReset = async () => {
       <!-- Account Section (signed-in users) -->
       <section class="section" v-if="isSignedIn">
         <h3 class="section-title">{{ t('settings.account') }}</h3>
+
+        <!-- HANDBOOK Find out which email you are signed in with
+             section: your-own-account
+             roles: teacher, school_admin, leader
+             place: settings
+             keywords: email, signed in, which address, support, identify, code
+             What it's for. Telling you which email address this account uses, so you never have to guess when you sign in on another device or ask us for help.
+             Where it is. **Settings**, at the top of **Account**.
+             How you do it.
+             1. Open **Settings**.
+             2. Read the address under **You are signed in as**. Tap it to copy it.
+             3. Under it is your account code. Tap to copy that too, and give it to us if you ever get in touch.
+             Worth knowing. The account code names your account and nothing more. It does not let anybody in, so it is safe to read out or put in a message.
+             checked: 6195847f.f4d0ecc8
+        -->
+        <div class="card identity-card" data-walk="account-identity">
+          <p class="identity-lead">{{ t('settings.identityLead') }}</p>
+          <button
+            v-if="!identityEmailIsPlaceholder && identityEmail"
+            type="button"
+            class="identity-value"
+            @click="copyIdentity('email')"
+          >
+            {{ identityEmail }}
+            <span class="identity-copy">{{ copiedField === 'email' ? 'Copied' : 'Tap to copy' }}</span>
+          </button>
+          <p v-else class="identity-value identity-value--none">
+            {{ t('settings.identityNoEmail') }}
+          </p>
+
+          <p v-if="!identityIsLive && identityEmail" class="identity-note">
+            {{ t('settings.identityLastConfirmed') }}
+          </p>
+
+          <div v-if="supportId" class="identity-support">
+            <span class="identity-support-label">{{ t('settings.identitySupportLabel') }}</span>
+            <button type="button" class="identity-code" @click="copyIdentity('supportId')">
+              {{ supportId }}
+              <span class="identity-copy">{{ copiedField === 'supportId' ? 'Copied' : 'Tap to copy' }}</span>
+            </button>
+            <p class="identity-note">
+              {{ t('settings.identitySupportNote') }}
+            </p>
+          </div>
+        </div>
+
         <div class="card">
           <!-- User Info / Display Name -->
           <div class="setting-row clickable" v-if="userName || userEmail" @click="showDisplayNameForm = !showDisplayNameForm; displayNameInput = userName; displayNameError = ''; displayNameSuccess = false">
             <div class="setting-info">
               <span class="setting-label">{{ userName || 'User' }}</span>
-              <span class="setting-desc">{{ userEmail }}</span>
             </div>
             <svg class="chevron" :class="{ rotated: showDisplayNameForm }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>
@@ -2668,6 +2779,18 @@ const confirmReset = async () => {
               </div>
             </template>
           </template>
+          <!-- FREE THROUGH A FUNDED ORG (Canolfan). Never the Upgrade row:
+               offering a £15 subscription to somebody whose year is already
+               paid for is the whole of the defect this replaces — and to a
+               nervous learner a payment prompt reads as a bill they missed. -->
+          <template v-else-if="showOrgFreeRow">
+            <div class="setting-row">
+              <div class="setting-info">
+                <span class="setting-label">{{ orgFreeLabel }}</span>
+                <span class="setting-desc">{{ orgFreeLine }}</span>
+              </div>
+            </div>
+          </template>
           <!-- Not subscribed -->
           <template v-else>
             <!-- No purchase route in this build (store shell, Play Billing not
@@ -3144,6 +3267,89 @@ const confirmReset = async () => {
 /* Section */
 .section {
   margin-bottom: 1.5rem;
+}
+
+.identity-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.875rem 1rem;
+}
+
+.identity-lead {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.identity-value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  font: inherit;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  word-break: break-all;
+  cursor: pointer;
+}
+
+.identity-value--none {
+  font-size: 0.9375rem;
+  font-weight: 400;
+  color: var(--text-primary);
+  cursor: default;
+}
+
+.identity-copy {
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: normal;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.identity-note {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.identity-support {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.08));
+}
+
+.identity-support-label {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.identity-code {
+  align-self: flex-start;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text-primary);
+  cursor: pointer;
 }
 
 .section-title {
@@ -4172,6 +4378,10 @@ const confirmReset = async () => {
   }
 
   .setting-row {
+    padding: 1rem 1.25rem;
+  }
+
+  .identity-card {
     padding: 1rem 1.25rem;
   }
 

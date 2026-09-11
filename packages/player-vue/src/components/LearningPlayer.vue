@@ -113,6 +113,7 @@ const PronunciationOverlay = defineAsyncComponent(() => import('./PronunciationO
 import { useScriptMode } from '../composables/useScriptMode'
 import { t } from '../composables/useI18n'
 import { courseTargetName } from '../utils/courseDisplayName'
+import { useOrgFreeAccess } from '../composables/useOrgFreeAccess'
 import { hasSeenBrandWelcome, markBrandWelcomeSeen, playBrandWelcome } from '../composables/useBrandWelcome'
 import { updateAvailable as pwaUpdateAvailable, userDismissed as pwaUserDismissed, applyUpdate as pwaApplyUpdate } from '../composables/usePwaUpdate'
 import LanguageFlag from './schools/shared/LanguageFlag.vue'
@@ -2278,6 +2279,17 @@ const { startCheckout, isOpeningCheckout } = useCheckout()
 // platform/paymentRoute: the wall still explains why play stopped, but it only
 // offers a Subscribe button when there is a route that can honour it.
 const purchaseAvailable = computed(() => canTakePayment())
+
+// A FUNDED LEARNER AT A WALL FOR A LANGUAGE THEY WERE NEVER GIVEN. The price
+// is correct — the Canolfan grant buys Welsh, not Spanish — but "you need a
+// subscription", bare, in front of somebody who has just been told their year
+// is free, reads as a contradiction and frightens exactly the learner this
+// cohort is full of (Kai, 2026-09-08). So the wall says both halves. Empty
+// for everybody else, and the ordinary copy is untouched.
+const { needsOwnSubscription } = useOrgFreeAccess()
+const orgFreeExplainer = computed(() =>
+  needsOwnSubscription(courseCode.value || null, courseDisplayName.value || null)
+)
 function handleSubscribe() {
   // No plan named, so this opens the picker first — see useCheckout.startCheckout.
   startCheckout({ courseCode: courseCode.value || null })
@@ -4226,6 +4238,12 @@ const scriptItemToPlayableItem = async (scriptItem) => {
 }
 
 // Initialize learning session composable
+// True while ANY audio path is sounding. Set by the watcher near the bottom of
+// this file, which is the same place markPlayStart/markPlayStop are driven
+// from. It lives up here as a plain ref rather than the computed itself
+// because that computed's sources are declared far below this call.
+const audioAudible = ref(false)
+
 const learningSession = useLearningSession({
   // Class-aware wrapper — see activeProgressStore above. recordCycleComplete/
   // endSession call getLegoProgressById/saveLegoProgress/updateLegoProgress/
@@ -4250,6 +4268,10 @@ const learningSession = useLearningSession({
   // which can hold look-ahead material, and the mode is off on the slow-
   // connection and no-round-map paths. Same suppression, one predicate.
   isPractising: () => progressWritesSuppressed(),
+  // Lets the session re-arm the play timer when the app comes back to the
+  // foreground with audio still sounding. Without it a backgrounded session
+  // stopped counting for good — see handleVisibilityChange.
+  isAudioActive: () => audioAudible.value,
 })
 
 // Use items from session (will be demo items if database not available)
@@ -7717,6 +7739,7 @@ watch(
     || isPlayingIntroduction.value
     || isPlayingWelcome.value,
   (active) => {
+    audioAudible.value = active
     if (active) learningSession.markPlayStart()
     else learningSession.markPlayStop()
   },
@@ -16996,6 +17019,8 @@ defineExpose({
     <div v-if="showPaywall" class="paywall-overlay" @click.self="dismissPaywall">
       <div class="paywall-card">
         <h2 class="paywall-title">{{ t('player.youveReachedEndFree') }}</h2>
+        <!-- Says what they DO have before it says what this costs. -->
+        <p v-if="orgFreeExplainer" class="paywall-org-free">{{ orgFreeExplainer }}</p>
         <p class="paywall-subtitle">{{ t('player.choosePlanCancel') }}</p>
         <ul class="paywall-benefits">
           <li>{{ t('player.everyCourseLanguagesFully') }}</li>
@@ -18074,6 +18099,16 @@ defineExpose({
   font-size: 0.875rem;
   color: var(--text-secondary, rgba(255, 255, 255, 0.7));
   margin: 0 0 1rem;
+  line-height: 1.5;
+}
+
+/* The reassurance, above the price and reading before it. */
+.paywall-org-free {
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  color: var(--text-primary, #fff);
+  font-weight: 600;
+  margin: 0 0 0.5rem;
   line-height: 1.5;
 }
 

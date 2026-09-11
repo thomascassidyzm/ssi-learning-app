@@ -11,6 +11,7 @@ import { hasLiveSessionFor, useLoginCodeAudit } from '@/auth/loginCode'
 import '@/styles/schools-tokens.css'
 import { sendSignInCode } from '../../auth/sendSignInCode'
 import { useI18n } from '@/composables/useI18n'
+import { rememberCourse } from '../../platform/courseChoice'
 
 const route = useRoute()
 const supabase = inject('supabase', ref(null)) as any
@@ -196,7 +197,7 @@ async function proceedAfterAuth() {
 function goToPlayer() {
   try {
     if (classInfo.value?.course_code) {
-      localStorage.setItem('ssi-last-course', classInfo.value.course_code)
+      rememberCourse(classInfo.value.course_code, 'chosen')
     }
   } catch { /* storage best-effort */ }
   window.location.href = '/'

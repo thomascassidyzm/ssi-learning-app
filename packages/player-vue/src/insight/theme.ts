@@ -108,8 +108,28 @@ export function palette(): FrostwellPalette {
   return _palette
 }
 
+// ---- The intelligence surface's four tones ----
+// Inside .intel-surface the four tones resolve from --intel-* (styles/
+// schools-design.css), which alias the schools tokens the design names, so a
+// chart drawn there and a pill beside it cannot disagree. Outside it, nothing
+// changes: the Frostwell triplets below still paint the org boards.
+const INTEL_TONE_VAR: Record<Tone, string> = {
+  good: '--intel-good',
+  warn: '--intel-watch',
+  alarm: '--intel-alarm',
+  neutral: '--intel-quiet',
+}
+function intelTone(t: Tone): string {
+  if (typeof document === 'undefined' || typeof getComputedStyle === 'undefined') return ''
+  const host = document.querySelector('.intel-surface')
+  if (!host) return ''
+  return getComputedStyle(host).getPropertyValue(INTEL_TONE_VAR[t]).trim()
+}
+
 // ---- Tone -> colour (the spine's tonal map; widgets call this, never a hex) ----
 export function tone(t: Tone): string {
+  const intel = intelTone(t)
+  if (intel) return intel
   const p = palette()
   switch (t) {
     case 'good': return p.green

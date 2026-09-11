@@ -79,6 +79,18 @@ export async function applyDashboardRole(
 
   const learnerUpdate: Record<string, unknown> = {
     platform_role: spec.grants_platform_role,
+    // BORN EXCLUDED, the other half of the fix landed in api/code/redeem.ts.
+    // That one covers invite codes; this is the path an ENTITLEMENT code takes
+    // when it grants dashboard access, and it grants exactly the same staff
+    // roles — ssi_admin, tester, popty_user, the only three the column allows.
+    // Staff and QA are not real learners in any number we report, and the flag
+    // rides with the role so exclusion is a property of granting privilege
+    // rather than of somebody remembering a back-fill.
+    //
+    // A GIFT does not come through here: this function returns at the top when
+    // there is no grants_platform_role, so a comped learner never acquires the
+    // flag. Free is not fake (Tom's ruling, 2026-09-10).
+    is_internal: true,
   }
   if (spec.grants_dashboard_courses) {
     learnerUpdate.dashboard_courses = spec.grants_dashboard_courses
@@ -108,4 +120,103 @@ export async function applyDashboardRole(
     detail: spec.grants_dashboard_courses ? { dashboard_courses: spec.grants_dashboard_courses } : null,
   })
   return true
+}
+
+// ============================================================================
+// GIFTING — a real person whom billing must not expect money from
+// ============================================================================
+
+/**
+ * The shape of a gift. Deliberately the same four fields
+ * api/admin/grant-entitlement.ts has always taken, because a gift IS an
+ * admin-granted entitlement — Tom's ruling of 2026-09-10 is that gifting needs
+ * no new status, only the entitlement machinery that already exists.
+ */
+export interface GiftSpec {
+  access_type: 'full' | 'courses'
+  granted_courses?: string[] | null
+  duration_type?: 'lifetime' | 'time_limited' | null
+  duration_days?: number | null
+}
+
+export interface GiftAuditCtx {
+  actorUserId?: string | null
+  source?: 'grant-entitlement' | 'mint-learner'
+}
+
+/** Reject a malformed gift before it reaches the database. Returns null when fine. */
+export function validateGift(gift: GiftSpec | null | undefined): string | null {
+  if (!gift) return 'gift is required'
+  if (!gift.access_type || !['full', 'courses'].includes(gift.access_type)) {
+    return 'Invalid access_type'
+  }
+  if (gift.access_type === 'courses' && (!Array.isArray(gift.granted_courses) || gift.granted_courses.length === 0)) {
+    return 'granted_courses required for "courses" access type'
+  }
+  if (gift.duration_type && !['lifetime', 'time_limited'].includes(gift.duration_type)) {
+    return 'Invalid duration_type'
+  }
+  return null
+}
+
+export type GiftOutcome = { ok: true; entitlement: unknown } | { ok: false; detail?: string }
+
+/**
+ * Write the gift. One writer for both doors — api/admin/grant-entitlement.ts
+ * gifting somebody who already exists, and mintPerson() gifting somebody at
+ * birth — so the row they produce cannot drift apart.
+ *
+ * The gift also leaves a record. `role_change_audit` is the estate's existing
+ * "who did what to whom" table and it already carries a `detail` jsonb, so the
+ * gift needs no table of its own: field `entitlement`, new value the access
+ * type, source naming the door. That row is what lets somebody later ask who
+ * comped a particular learner, which the cohort read alone cannot answer.
+ *
+ * The audit is best-effort inside recordRoleChange, exactly as every other
+ * privilege change on this estate is: a logging blip must never cost the
+ * learner the access they were just given.
+ */
+export async function grantGiftEntitlement(
+  supabase: ServiceClient,
+  learnerId: string,
+  gift: GiftSpec,
+  audit?: GiftAuditCtx,
+): Promise<GiftOutcome> {
+  const expires_at = computeEntitlementExpiry({
+    access_type: gift.access_type,
+    duration_type: gift.duration_type ?? 'lifetime',
+    duration_days: gift.duration_days ?? null,
+  })
+
+  const { data, error } = await supabase
+    .from('user_entitlements')
+    .insert({
+      learner_id: learnerId,
+      entitlement_code_id: null,
+      access_type: gift.access_type,
+      granted_courses: gift.access_type === 'courses' ? gift.granted_courses ?? null : null,
+      expires_at,
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('[entitlementGrant] gift insert failed:', error.message)
+    return { ok: false, detail: error.message }
+  }
+
+  await recordRoleChange(supabase, {
+    actorUserId: audit?.actorUserId ?? null,
+    targetLearnerId: learnerId,
+    field: 'entitlement',
+    oldValue: null,
+    newValue: gift.access_type,
+    source: audit?.source ?? 'grant-entitlement',
+    detail: {
+      granted_courses: gift.access_type === 'courses' ? gift.granted_courses ?? null : null,
+      expires_at,
+    },
+  })
+
+  return { ok: true, entitlement: data }
 }

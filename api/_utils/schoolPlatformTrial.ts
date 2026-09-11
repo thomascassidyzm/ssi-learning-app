@@ -145,6 +145,28 @@ async function setSchoolTrialColumns(
 }
 
 /**
+ * A trial was REFUSED for this school (its email had already burned one), so
+ * the row must not be left in the bare DEFAULT 'trial'-with-no-expiry state
+ * that reads as free access. 'expired' is the honest word: no trial window
+ * ever ran, and the way in is checkout.
+ *
+ * Guarded on `platform_status = 'trial'` AND a null expiry so it can only ever
+ * touch the unstamped state — a school that is paying, or already holds a real
+ * trial window, is never downgraded by a later denied re-provision.
+ */
+async function markSchoolTrialRefused(supabase: any, schoolId: string): Promise<void> {
+  const { error } = await supabase
+    .from('schools')
+    .update({ platform_status: 'expired', platform_expires_at: new Date().toISOString() })
+    .eq('id', schoolId)
+    .eq('platform_status', 'trial')
+    .is('platform_expires_at', null)
+  if (error && !isMissingPlatformSchema(error)) {
+    console.warn('[schoolPlatformTrial] trial-refused write failed (fail-open):', error.code, error.message)
+  }
+}
+
+/**
  * Record the language a trial school is actually trialling, at the honest
  * moment it commits to one: the creation of its first class with a course.
  *
@@ -254,6 +276,15 @@ export async function provisionSchoolPlatformTrial(
       await setSchoolTrialColumns(supabase, schoolId, courseCode, kind, expiresAt)
       return { trial: { track: 'school', kind, expires_at: expiresAt, days }, burned: false, denied: false }
     }
+    // DENIED — and this is where the "trial with no end date" rows came from
+    // (traced 2026-09-09). provision.ts has ALREADY inserted the school row by
+    // the time it gets here, and that row carries the bare `platform_status`
+    // DEFAULT 'trial' with no expiry. Returning denied and leaving it that way
+    // is what produced three unstamped production schools — each one a
+    // permanent free dashboard under the old fail-open reading. So say NO on
+    // the row itself: no trial ran, and the way in is checkout. Fail-open like
+    // every other write here — bookkeeping must never fail a signup.
+    await markSchoolTrialRefused(supabase, schoolId)
     return { trial: null, burned: true, denied: true }
   }
 

@@ -1,6 +1,6 @@
 {
-  "version": "4624146a02ac",
-  "generatedAt": "2026-09-07",
+  "version": "525131d5baef",
+  "generatedAt": "2026-09-11",
   "truth": {
     "verbs": [
       {
@@ -55,13 +55,15 @@
     "statWords": [
       "Demo",
       "Paid — all courses",
-      "Class sessions this week",
-      "Class practice",
+      "No end date — inactive",
+      "Phrases spoken this week",
+      "Minutes in the app this week",
       "Students",
       "Teachers",
       "Practice hours",
       "Groups",
       "Learners",
+      "Classes",
       "Classes practising this week"
     ],
     "measures": [
@@ -147,12 +149,16 @@
       ],
       "when": [
         {
-          "path": "classPractice.totalSessions",
-          "op": "gt",
+          "path": "classPractice.lastPractisedAt",
+          "op": "truthy"
+        },
+        {
+          "path": "classPractice.inAppMinutes7d",
+          "op": "eq",
           "value": 0
         },
         {
-          "path": "classPractice.weekSessions",
+          "path": "classPractice.phrases7d",
           "op": "eq",
           "value": 0
         }
@@ -181,7 +187,7 @@
           "value": 0
         },
         {
-          "path": "classPractice.sessions7d",
+          "path": "classPractice.activeClasses7d",
           "op": "eq",
           "value": 0
         }
@@ -354,9 +360,8 @@
       "min": 1,
       "when": [
         {
-          "path": "classPractice.totalSessions",
-          "op": "gt",
-          "value": 0
+          "path": "classPractice.lastPractisedAt",
+          "op": "truthy"
         }
       ],
       "invitation": "{count} of the students haven't practised on their own this week — the rows below show who.",

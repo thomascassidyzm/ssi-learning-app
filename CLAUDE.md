@@ -70,6 +70,23 @@ Three rules `--check` enforces, all of them failures:
 - a description whose anchor no longer exists — delete the button, the check tells you;
 - a description that has not been re-read since the capability changed.
 
+**Walkthrough clips carry the same stamp.** A walk step is a sentence about a button too, so every
+step in `tools/walkthrough/walks/*.json` carries its own `"checked"` field pinned to the element it
+points at. Change what that element does and `--check` names the walk file, the step and the repair:
+
+```bash
+node tools/walkthrough/compile.mjs --reconfirm-walks ["<walk-id>:<anchor>" [--unchanged]]
+```
+
+Rewrite what the step says and a bare `--reconfirm-walks` re-pins it. A step whose words you did NOT
+change has to be named one at a time with `--unchanged`, exactly like a description — same reason.
+The stamp is stripped from the shipped `pack.json`, so re-pinning never churns what the player loads.
+
+**Anchor attributes are a list, not a name.** `ANCHOR_ATTRS` in `tools/walkthrough/handbookSource.mjs`
+is `['data-walk', 'data-intel']`, and every scan — the Handbook parser, the anchor gate, the two
+freshness stamps — takes it. A third namespace is that one line. An anchored element in a namespace
+whose surface has not landed on `dev` yet warns rather than failing the tree.
+
 New capability? Put a `data-walk="<kebab-id>"` on the element and write the comment above it. No
 parentheses in the prose, British English, mechanism only — the voice is set by
 `tools/explainer/rulings/*.md`.
@@ -98,6 +115,12 @@ At the start of every session, run:
 git checkout dev
 git pull origin dev
 ```
+
+Working on the learning flow? `tools/vocabulary-pointers.json` maps Tom's vocabulary — listening
+exercise, layer 1, layer 2, lap, stage, round, known side, target side — onto the file and line that
+DECIDES each one, with the deciding line quoted. Look a term up there before reading anything else.
+It carries no explanation of behaviour on purpose; `node tools/vocabulary-pointers-check.mjs` walks
+every pointer and exits non-zero on any that no longer resolves.
 
 Then **read [`WORKLIST.md`](./WORKLIST.md) (repo root)** — the shared multi-agent worklist (the live "what's next"). Before starting anything substantial, **claim your item there** (`[ ]`→`[~] @you MM-DD`, one-line commit) so parallel agents don't double-grab it. The full protocol is in its header.
 

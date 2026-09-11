@@ -27,12 +27,19 @@ import { isPlatformActive } from './platformStatus'
  *
  * NULL / absent status fails OPEN (entitled), exactly as `isPlatformActive`
  * does, so a legacy or pre-migration row is protected rather than exposed.
+ *
+ * An UNSTAMPED TRIAL (status 'trial', no expiry) also stays protected here even
+ * though isPlatformActive now bounds it to a 24h grace (2026-09-09). That bound
+ * answers "may they use the dashboard"; this answers "would overwriting this
+ * row's billing take something from someone", and for a row somebody may be
+ * about to rescue with a real trial window the honest answer is still yes.
  */
 export function holdsLivePlatformEntitlement(
   status: string | null | undefined,
   expiresAt: string | null | undefined,
 ): boolean {
   if (status === 'past_due') return true
+  if (status === 'trial' && !expiresAt) return true
   return isPlatformActive(status, expiresAt)
 }
 

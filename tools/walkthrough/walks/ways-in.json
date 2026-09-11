@@ -29,28 +29,32 @@
       "say": "Every way in, in one ledger: personal sign-in links and shareable join links, for everywhere below here. Filter by role or by place with the chips.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "3bede94f.8c9dafac"
     },
     {
       "anchor": "ways-in-copy",
       "say": "**Copy** re-shares the same live link — always safe, nothing changes.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "88e47312.02b74e74"
     },
     {
       "anchor": "ways-in-remint",
       "say": "**Re-mint** sits on a person's OWN sign-in link, and only there: it makes that person a new link and the old one stops working the moment you tap — if they bookmarked the old one they are locked out until you send them the new one. A shareable link has no Re-mint, because there is nobody to re-bind it to.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "8946b2ff.5aa5f690"
     },
     {
       "anchor": "ways-in-revoke",
       "say": "**Revoke** switches a link off. It's undoable — a revoked row grows a **Put back** button. For a shareable link this is how you retire it: revoke the old one, then make a fresh one.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "55a4bf58.5b200125"
     },
     {
       "anchor": "verb-shareable-link",
@@ -58,7 +62,8 @@
       "advance": {
         "on": "next"
       },
-      "terminal": "The short version: copy is safe, revoke can always be undone, re-mint is for one person's own link — and a new shareable link is made at the top of the page, not in the ledger."
+      "terminal": "The short version: copy is safe, revoke can always be undone, re-mint is for one person's own link — and a new shareable link is made at the top of the page, not in the ledger.",
+      "checked": "0bd848a7.55f1b67a"
     }
   ]
 }

@@ -32,6 +32,14 @@ const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 const ALLOWED_PLATFORM_ROLES = new Set(['ssi_admin', 'popty_user', 'tester'])
 const ALLOWED_EDUCATIONAL_ROLES = new Set(['student', 'teacher', 'tutor', 'school_admin', 'govt_admin'])
 
+/** The is_internal flag a role change carries: staff roles are born excluded. */
+export function bornExcludedFor(field: string, value: string | null): { is_internal?: true } {
+  if (field === 'platform_role' && (value === 'ssi_admin' || value === 'tester' || value === 'popty_user')) {
+    return { is_internal: true }
+  }
+  return {}
+}
+
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse

@@ -13,7 +13,12 @@ const PAST = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 interface DB {
   user_tags: Array<{ user_id: string; tag_type: string; role_in_context: string; removed_at: string | null; tag_value: string }>
   classes: Array<{ id: string; school_id: string | null; course_code: string | null }>
-  schools: Array<{ id: string; platform_status: string | null; platform_expires_at: string | null }>
+  schools: Array<{
+    id: string
+    platform_status: string | null
+    platform_expires_at: string | null
+    created_at?: string | null
+  }>
 }
 
 function makeChainable(table: string, db: DB) {
@@ -39,14 +44,40 @@ function studentTag(classId: string, userId = 'stu-1'): DB['user_tags'][number] 
   return { user_id: userId, tag_type: 'class', role_in_context: 'student', removed_at: null, tag_value: `CLASS:${classId}` }
 }
 
+function teacherTag(classId: string, userId = 'tea-1'): DB['user_tags'][number] {
+  return { user_id: userId, tag_type: 'class', role_in_context: 'teacher', removed_at: null, tag_value: `CLASS:${classId}` }
+}
+
 describe('resolveClassCourseCoverage', () => {
+  // Founder report 2026-09-09 (Chepstow): the class TEACHER got nothing while
+  // her own students played the school's trialled course in full.
+  it('grants the class course to the class TEACHER while the school is covered', async () => {
+    const db: DB = {
+      user_tags: [teacherTag('c1')],
+      classes: [{ id: 'c1', school_id: 's1', course_code: 'cym_s_for_eng' }],
+      schools: [{ id: 's1', platform_status: 'trial', platform_expires_at: FUTURE }],
+    }
+    const { courses } = await resolveClassCourseCoverage(makeSupabase(db), 'tea-1')
+    expect(courses).toEqual(['cym_s_for_eng'])
+  })
+
+  it('withholds the class course from the teacher once the school trial has expired', async () => {
+    const db: DB = {
+      user_tags: [teacherTag('c1')],
+      classes: [{ id: 'c1', school_id: 's1', course_code: 'cym_s_for_eng' }],
+      schools: [{ id: 's1', platform_status: 'trial', platform_expires_at: PAST }],
+    }
+    const { courses } = await resolveClassCourseCoverage(makeSupabase(db), 'tea-1')
+    expect(courses).toEqual([])
+  })
+
   it('grants the class course when the school is on a live (unexpired) trial', async () => {
     const db: DB = {
       user_tags: [studentTag('c1')],
       classes: [{ id: 'c1', school_id: 's1', course_code: 'fra_for_eng' }],
       schools: [{ id: 's1', platform_status: 'trial', platform_expires_at: FUTURE }],
     }
-    const courses = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
+    const { courses } = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
     expect(courses).toEqual(['fra_for_eng'])
   })
 
@@ -56,7 +87,7 @@ describe('resolveClassCourseCoverage', () => {
       classes: [{ id: 'c1', school_id: 's1', course_code: 'spa_for_eng' }],
       schools: [{ id: 's1', platform_status: 'active', platform_expires_at: null }],
     }
-    const courses = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
+    const { courses } = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
     expect(courses).toEqual(['spa_for_eng'])
   })
 
@@ -66,7 +97,7 @@ describe('resolveClassCourseCoverage', () => {
       classes: [{ id: 'c1', school_id: 's1', course_code: 'fra_for_eng' }],
       schools: [{ id: 's1', platform_status: 'trial', platform_expires_at: PAST }],
     }
-    const courses = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
+    const { courses } = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
     expect(courses).toEqual([])
   })
 
@@ -77,9 +108,44 @@ describe('resolveClassCourseCoverage', () => {
         classes: [{ id: 'c1', school_id: 's1', course_code: 'fra_for_eng' }],
         schools: [{ id: 's1', platform_status: status, platform_expires_at: null }],
       }
-      const courses = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
+      const { courses } = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
       expect(courses, `status=${status}`).toEqual([])
     }
+  })
+
+  // A TRIAL WITH NO END DATE MUST NOT MEAN FOREVER (Tom, 2026-09-09). Three
+  // production schools sat unstamped for days, each one still handing its
+  // members free access. The cascade is where that access actually lands, so
+  // it is where the bound has to hold — including for the offline lease, which
+  // resolves through this same function (resolveEntitlements.ts).
+  it('grants the class course while an unstamped trial is inside its provisioning grace', async () => {
+    const db: DB = {
+      user_tags: [studentTag('c1')],
+      classes: [{ id: 'c1', school_id: 's1', course_code: 'fra_for_eng' }],
+      schools: [{
+        id: 's1',
+        platform_status: 'trial',
+        platform_expires_at: null,
+        created_at: new Date(Date.now() - 60 * 1000).toISOString(),
+      }],
+    }
+    const { courses } = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
+    expect(courses).toEqual(['fra_for_eng'])
+  })
+
+  it('withholds the class course once an unstamped trial is past its grace', async () => {
+    const db: DB = {
+      user_tags: [studentTag('c1')],
+      classes: [{ id: 'c1', school_id: 's1', course_code: 'fra_for_eng' }],
+      schools: [{
+        id: 's1',
+        platform_status: 'trial',
+        platform_expires_at: null,
+        created_at: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000).toISOString(),
+      }],
+    }
+    const { courses } = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
+    expect(courses).toEqual([])
   })
 
   it('returns no grants for a student with no class affiliation', async () => {
@@ -88,7 +154,7 @@ describe('resolveClassCourseCoverage', () => {
       classes: [{ id: 'c1', school_id: 's1', course_code: 'fra_for_eng' }],
       schools: [{ id: 's1', platform_status: 'trial', platform_expires_at: FUTURE }],
     }
-    const courses = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
+    const { courses } = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
     expect(courses).toEqual([])
   })
 
@@ -98,7 +164,7 @@ describe('resolveClassCourseCoverage', () => {
       classes: [{ id: 'c1', school_id: 's1', course_code: 'gle_for_eng' }],
       schools: [{ id: 's1', platform_status: 'trial', platform_expires_at: FUTURE }],
     }
-    const courses = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
+    const { courses } = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
     expect(courses).toEqual(['gle_for_eng'])
   })
 
@@ -114,7 +180,7 @@ describe('resolveClassCourseCoverage', () => {
         { id: 's2', platform_status: 'trial', platform_expires_at: PAST },
       ],
     }
-    const courses = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
+    const { courses } = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
     expect(courses).toEqual(['fra_for_eng'])
   })
 
@@ -124,7 +190,7 @@ describe('resolveClassCourseCoverage', () => {
       classes: [{ id: 'c1', school_id: 'missing-school', course_code: 'fra_for_eng' }],
       schools: [],
     }
-    const courses = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
+    const { courses } = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
     expect(courses).toEqual([])
   })
 
@@ -134,7 +200,7 @@ describe('resolveClassCourseCoverage', () => {
       classes: [{ id: 'c1', school_id: null, course_code: 'fra_for_eng' }],
       schools: [],
     }
-    const courses = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
+    const { courses } = await resolveClassCourseCoverage(makeSupabase(db), 'stu-1')
     expect(courses).toEqual([])
   })
 })

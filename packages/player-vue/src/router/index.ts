@@ -68,6 +68,9 @@ const AdminContainer = () => import('@/containers/AdminContainer.vue')
 const AdminSchoolsContainer = () => import('@/containers/AdminSchoolsContainer.vue')
 const AdminGroupContainer = () => import('@/containers/AdminGroupContainer.vue')
 const MethodologyContainer = () => import('@/containers/MethodologyContainer.vue')
+import { QUESTIONS } from '@/intel/questions'
+import { FOSSILS, fossilIsDead, fossilLanding } from '@/intel/fossils'
+
 // Schools views (lazy-loaded)
 const DashboardView = () => import('@/views/schools/DashboardView.vue')
 const TeachersView = () => import('@/views/schools/TeachersView.vue')
@@ -83,6 +86,43 @@ const SetupView = () => import('@/views/schools/SetupView.vue')
 // HANDBOOK (2026-09-07) — the compiled map of every capability, shared by the
 // /schools and /org mounts: one component, one address per lane.
 const HandbookView = () => import('@/views/schools/HandbookView.vue')
+// THE INTELLIGENCE SURFACE — the question pages. They ride AdminContainer,
+// the ONE shell over SSi's internal surfaces (Tom's ruling 2026-09-10:
+// "share"), whose bar carries the ten questions.
+const NotYetBuiltView = () => import('@/views/intel/NotYetBuiltView.vue')
+const INTEL_VIEWS: Record<string, () => Promise<unknown>> = {
+  pulse: () => import('@/views/intel/PulseView.vue'),
+  leaving: () => import('@/views/intel/LeavingView.vue'),
+  person: () => import('@/views/intel/PersonView.vue'),
+  'weak-points': () => import('@/views/intel/WeakPointsView.vue'),
+  courses: () => import('@/views/intel/CoursesView.vue'),
+  working: () => import('@/views/intel/WorkingView.vue'),
+}
+// THE FOSSILS — the old admin pages a question replaces. Each renders only
+// while a question it serves is unbuilt; the day the last one is built the
+// same path becomes a redirect into the question, scope preserved. The rule
+// lives in @/intel/fossils.ts and intel/grammar.test.ts enforces it, so a
+// question cannot be built without killing the page it replaces.
+// Only the fossils still ALIVE keep a loader: a dead one's view is deleted
+// with it, and the grammar test refuses a live fossil with no loader.
+const FOSSIL_VIEWS: Record<string, () => Promise<unknown>> = {
+  stats: () => import('@/views/admin/AdminStatsView.vue'),
+}
+const FOSSIL_META: Record<string, { title: string; description: string }> = {
+  stats: { title: 'Stats', description: 'Insight Engine boards — lifecycle, rates, content, ops' },
+}
+function fossilRoute(f: (typeof FOSSILS)[number]): RouteRecordRaw {
+  if (fossilIsDead(f)) {
+    return { path: f.path, redirect: (to) => fossilLanding(f, to.query as Record<string, unknown>, to.params as Record<string, unknown>) }
+  }
+  return {
+    path: f.path,
+    name: `admin-${f.path.replace(/[^a-z]+/g, '-').replace(/-$/, '')}`,
+    component: FOSSIL_VIEWS[f.path],
+    meta: FOSSIL_META[f.path],
+  }
+}
+const fossilRoutes: RouteRecordRaw[] = FOSSILS.map(fossilRoute)
 // THE VIEW — the one recursive node home (archive/docs-retired-2026-08-24/THE-VIEW.md)
 const NodeHomeView = () => import('@/views/admin/NodeHomeView.vue')
 // Referenced ONLY from the INSTITUTIONAL_PURCHASE_IN_BUILD branches below, so a
@@ -558,35 +598,14 @@ const routes: RouteRecordRaw[] = [
         redirect: '/admin/structure',
       },
       {
-        path: 'analytics',
-        name: 'admin-analytics',
-        component: () => import('@/views/admin/AdminAnalytics.vue'),
-        meta: { title: 'Admin Analytics', description: 'Platform-wide analytics dashboard' },
-      },
-      {
+        // People — the list you find one person in. A scope picker for the
+        // questions, like Structure is for organisations; not a fossil.
         path: 'users',
         name: 'admin-users',
         component: () => import('@/views/admin/AdminUsers.vue'),
-        meta: { title: 'Admin Users', description: 'All platform users and enrollments' },
+        meta: { title: 'People', description: 'Find one person by name, email or support id' },
       },
-      {
-        path: 'users/:learnerId',
-        name: 'admin-user-detail',
-        component: () => import('@/views/admin/AdminUserDetail.vue'),
-        meta: { title: 'User Detail', description: 'Individual user profile and progress' },
-      },
-      {
-        path: 'attention',
-        name: 'admin-attention',
-        component: () => import('@/views/admin/AdminAttention.vue'),
-        meta: { title: 'Needs Attention', description: 'Subscribers who need attention' },
-      },
-      {
-        path: 'activity',
-        name: 'admin-activity',
-        component: () => import('@/views/admin/AdminActivity.vue'),
-        meta: { title: 'Admin Activity', description: 'Live activity and recent sessions' },
-      },
+      ...fossilRoutes,
       {
         // The Handbook on the ADMIN surface. It has to exist here because an
         // ssi_admin is NOT a member of any school: memberSurfaceGuard (above)
@@ -602,12 +621,6 @@ const routes: RouteRecordRaw[] = [
           title: 'Handbook',
           description: 'Everything this dashboard can do, compiled from the same source that gates the live dashboard',
         },
-      },
-      {
-        path: 'courses',
-        name: 'admin-courses',
-        component: () => import('@/views/admin/AdminCourses.vue'),
-        meta: { title: 'Admin Courses', description: 'Course overview with enrollment stats' },
       },
       {
         path: 'pod-auditioner',
@@ -654,24 +667,33 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/AdminMethodology.vue'),
         meta: { title: 'Measuring progress', description: 'Methodology papers and demos' },
       },
-      {
-        path: 'insights',
-        name: 'admin-insights',
-        component: () => import('@/insight/InsightsView.vue'),
-        meta: { title: 'Insights', description: 'Insight Engine — what Claude surfaced (discovery feed)' },
-      },
-      {
-        path: 'stats',
-        name: 'admin-stats',
-        component: () => import('@/views/admin/AdminStatsView.vue'),
-        meta: { title: 'Stats', description: 'Insight Engine boards — lifecycle, rates, content, ops' },
-      },
-      {
-        path: 'board',
-        name: 'admin-board',
-        component: () => import('@/views/admin/BoardReportView.vue'),
-        meta: { title: 'Board', description: 'Living board report — live business state + authored reports' },
-      },
+    ],
+  },
+  // ═══════════════════════════════════════════════════════════════════
+  // THE INTELLIGENCE SURFACE — the ten questions.
+  //
+  // docs/delivery-side-intelligence-surface.md is the frame; every route here
+  // is generated from @/intel/questions.ts, which is the ONE place the ten are
+  // written down. One route per question is a rule the design makes checkable,
+  // and generating the routes from the list is what makes it true rather than
+  // remembered.
+  //
+  // A question whose page is not built yet still has its route and still sits
+  // in the bar, rendering the honest not-yet card. The frame is ten from the
+  // first day.
+  // ═══════════════════════════════════════════════════════════════════
+  {
+    path: '/intel',
+    component: AdminContainer,
+    meta: { hideAppEscape: true },
+    children: [
+      { path: '', redirect: '/intel/pulse' },
+      ...QUESTIONS.map((q) => ({
+        path: q.slug,
+        name: `intel-${q.slug}`,
+        component: q.built ? INTEL_VIEWS[q.slug] : NotYetBuiltView,
+        meta: { title: q.tab, description: q.question },
+      })),
     ],
   },
   // Admin read-views — view a specific school's dashboard as ssi_admin
@@ -822,12 +844,33 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/JoinWithCode.vue'),
     meta: { title: 'Sign in with your access code' },
   },
+  // The funded-cohort door (Kai's spec, 2026-09-08). ONE link, never two: the
+  // old system's separate under-25 link put people in the wrong cohort and
+  // nobody could tell afterwards, so age is a tick on this page instead. Open
+  // to signed-out visitors — the page reads what it is asking them to agree to
+  // BEFORE it asks them to make an account.
+  {
+    path: '/enrol/:code?',
+    name: 'org-enrolment',
+    component: () => import('@/views/OrgEnrolment.vue'),
+    meta: { title: 'Claim your free year' },
+  },
   // Try link gateway (no auth required — zero-friction course preview)
   {
     path: '/try/:code',
     name: 'try-link',
     component: () => import('@/views/TryLinkGateway.vue'),
     meta: { title: 'Try SaySomethingin' },
+  },
+  // The framed marketing demo (no auth, no storage, no service worker). The
+  // ONE surface the app allows to be framed, and only by saysomethingin.com —
+  // see the /embed/(.*) header rule in vercel.json and platform/embedMode.ts.
+  // hideAppEscape because the frame has no "out" but its own single deep link.
+  {
+    path: '/embed/demo',
+    name: 'embed-demo',
+    component: () => import('@/views/EmbedDemoView.vue'),
+    meta: { title: 'SaySomethingin', hideAppEscape: true },
   },
   // Frozen board-report snapshot (no auth — capability-by-unguessability,
   // living-board-report-spec.md §5). Renders only the stored payload.
@@ -951,7 +994,7 @@ router.afterEach((to) => {
 // which gates rendering on the shared resolved-session gate and corrects
 // (redirects) once resolution genuinely says non-admin.
 router.beforeEach((to, _from, next) => {
-  const requiresAdmin = to.path.startsWith('/admin') || to.path.startsWith('/methodology')
+  const requiresAdmin = to.path.startsWith('/admin') || to.path.startsWith('/intel') || to.path.startsWith('/methodology')
   if (!requiresAdmin) return next()
   const { canAccessAdmin, isInitialized, restoreFromCache } = useUserRole()
   restoreFromCache()

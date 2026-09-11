@@ -168,6 +168,34 @@ function mockPayload(courseCode: string | null): LearnerProfilePayload {
   }
 }
 
+/**
+ * Total playback seconds for a learner, across every course, from the ledger.
+ *
+ * Paginated for the same reason engaged-time.ts is: one row accrues per course
+ * per day, which passes the default PostgREST page cap inside a year, and an
+ * unpaginated read would silently truncate the total DOWNWARDS — a learner
+ * quietly losing hours they really did do.
+ */
+async function sumPlaySeconds(supabase: SupabaseClient, learnerId: string): Promise<number> {
+  let playSeconds = 0
+  const PAGE = 1000
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('learner_speaking_opportunities')
+      .select('play_seconds')
+      .eq('learner_id', learnerId)
+      .range(from, from + PAGE - 1)
+    if (error) {
+      console.error('[me/profile] ledger error:', error)
+      return playSeconds
+    }
+    if (!data || data.length === 0) break
+    for (const row of data) playSeconds += Number((row as any).play_seconds || 0)
+    if (data.length < PAGE) break
+  }
+  return playSeconds
+}
+
 async function buildPayload(
   supabase: SupabaseClient,
   learnerId: string,
@@ -182,7 +210,7 @@ async function buildPayload(
   // --- Layer 1: adherence. Goes + speaking seconds, per day, from the live
   // per-day rollup. We read only days that HAVE rows; a day with no row is
   // simply not in the set. There is no iteration over "days since" anywhere.
-  const [goesWeekRes, goesAllRes, listeningRes, metricsRes, sessionsRes] = await Promise.all([
+  const [goesWeekRes, goesAllRes, listeningRes, metricsRes, sessionCountRes] = await Promise.all([
     supabase
       .from('learner_speaking_opportunities')
       .select('day, opportunities, play_seconds')
@@ -204,11 +232,11 @@ async function buildPayload(
       .eq('learner_id', learnerId)
       .order('last_seen_at', { ascending: true })
       .limit(2000),
+    // Existence only, never summed — see the plan block below for why.
     supabase
       .from('sessions')
-      .select('duration_seconds')
-      .eq('learner_id', learnerId)
-      .limit(5000),
+      .select('id', { count: 'exact', head: true })
+      .eq('learner_id', learnerId),
   ])
 
   const weekRows = goesWeekRes.data ?? []
@@ -227,11 +255,33 @@ async function buildPayload(
     : mock.adherence
 
   // --- Total engaged hours (plan progress + the mirror's x-axis).
-  const totalSeconds = (sessionsRes.data ?? []).reduce(
-    (n: number, r: any) => n + Number(r.duration_seconds || 0), 0
-  )
+  //
+  // ONE DEFINITION OF A MINUTE (founder ruling 2026-08-19, "no cap — make the
+  // measurement accurate"): a minute in which the app was actually PLAYING.
+  // That is `learner_speaking_opportunities.play_seconds`, the same counter
+  // the learner's own Total Time tile reads (api/me/engaged-time.ts).
+  //
+  // This used to sum `sessions.duration_seconds`, which on rows whose
+  // accumulator never closed was WALL CLOCK — `ended_at - started_at`, one
+  // real session claiming a 128-hour sitting. So the Library tile and this
+  // page showed the same learner two different totals, and the plan panel
+  // showed the wrong one. Not a cap: a different, correct counter.
+  //
+  // KNOWN GAP, STATED: the ledger begins 2026-05-14 and sessions go back to
+  // 2026-03-18, so for the longest-standing accounts this is a floor — exactly
+  // as the Total Time tile already is. Both now agree, which is the point.
+  //
+  // WHY THE SESSION COUNT IS STILL READ: a learner who has turned up but has
+  // no ledger rows at all — 431 accounts on 2026-09-08, 95 of them active in
+  // the last month, nearly all of them zero-duration "opened it and stopped"
+  // rows — must not be handed the SAMPLE figure of 7.5 hours as if it were
+  // theirs. Their honest total is zero recorded playback, which is exactly
+  // what their Library Total Time tile already tells them. So the count
+  // decides real-versus-sample; the ledger alone decides the number.
+  const totalSeconds = await sumPlaySeconds(supabase, learnerId)
   const hoursDone = totalSeconds / 3600
-  const plan = totalSeconds > 0
+  const hasTurnedUp = totalSeconds > 0 || (sessionCountRes.count ?? 0) > 0
+  const plan = hasTurnedUp
     ? { hoursDone: Math.round(hoursDone * 10) / 10, targetHours: PLAN_TARGET_HOURS, source: 'real' as SourceTag }
     : mock.plan
 

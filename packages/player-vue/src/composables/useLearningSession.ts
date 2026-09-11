@@ -18,6 +18,7 @@ import {
 } from '@ssi/core'
 import type { CourseDataProvider, LearningItem } from '../providers/CourseDataProvider'
 import { isBundleBootstrapEnabled } from './useInstantPlayback'
+import { useUserRole } from './useUserRole'
 
 // Accept either a value or a Ref — read lazily to avoid setup-time null captures
 type MaybeRef<T> = T | Ref<T>
@@ -49,6 +50,14 @@ export interface UseLearningSessionOptions {
    *  recycled round on the playhead. The caller composes both — see
    *  progressWritesSuppressed in LearningPlayer. */
   isPractising?: () => boolean
+  /**
+   * True while any audio path is sounding — cycles, pod laps, commentary,
+   * intros, welcome. The caller already computes this to drive
+   * markPlayStart/markPlayStop; the play timer needs it a second time, on
+   * return from the background, to know whether to re-arm. See
+   * handleVisibilityChange.
+   */
+  isAudioActive?: () => boolean
 }
 
 export interface LearningSessionState {
@@ -68,6 +77,8 @@ export interface RoundInfo {
 
 export function useLearningSession(options: UseLearningSessionOptions = {}) {
   const demoItems = options.demoItems ?? []
+  // An ssi_admin viewing the app as a learner is LOOKING, not learning.
+  const { isViewingAs } = useUserRole()
 
   /**
    * PRACTISING — replaying material because the next new LEGO could not be
@@ -356,7 +367,11 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
         courseId,
         isGuest: learnerId ? isGuestLearner(learnerId) : 'n/a',
       })
-      if (sessionStore && learnerId && courseId && !isGuestLearner(learnerId)) {
+      // A VIEWING session leaves nothing behind (job #793): an ssi_admin
+      // looking at the app as a learner must not open a session row or an
+      // enrolment under their own id. The banner says read-only; this is what
+      // makes that true rather than decorative.
+      if (sessionStore && learnerId && courseId && !isGuestLearner(learnerId) && !isViewingAs.value) {
         try {
           const session = await sessionStore.startSession(learnerId, courseId)
           sessionId.value = session.id
@@ -378,7 +393,7 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
       }
 
       // Get or create enrollment if database is available (skip for guests)
-      if (progressStore && learnerId && courseId && !isGuestLearner(learnerId)) {
+      if (progressStore && learnerId && courseId && !isGuestLearner(learnerId) && !isViewingAs.value) {
         try {
           let enrollment = await progressStore.getEnrollment(learnerId, courseId)
           if (!enrollment) {
@@ -710,7 +725,31 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
     if (document.visibilityState === 'hidden') {
       markPlayStop()
       checkpointSession()
+      return
     }
+    // BACK IN THE FOREGROUND, AUDIO STILL SOUNDING — RE-ARM THE TIMER.
+    //
+    // Without this the play timer never restarted after a background. The
+    // only thing that opens a segment is the caller's watcher on "is any
+    // audio sounding", and that watcher fires on CHANGE. Lock the phone
+    // mid-session and playback continues on the lock screen, so the flag
+    // never goes false and never comes back true — but the hidden branch
+    // above has already closed the segment. Every second from that moment
+    // until the learner happened to pause and resume was banked nowhere.
+    //
+    // Measured against production, 2026-09-08: on the 222 learner-days since
+    // the 2026-08-20 fix carrying real audio, 49 banked LESS play time than
+    // the raw duration of the audio files they demonstrably played — which is
+    // arithmetically impossible for an accurate counter. On real learners
+    // that is 511 minutes of audio against 221 minutes banked. Those days
+    // carry roughly half the pause-taps of the healthy ones and more cold
+    // starts, which is the signature of exactly this path.
+    //
+    // Deliberately conservative: it re-arms on RETURN, so time spent listening
+    // while the app is in the background is still not counted. That under-
+    // counts, which is the safe direction and consistent with the founder
+    // ruling of 2026-08-19 — the number may be a floor, it may never inflate.
+    if (options.isAudioActive?.() === true) markPlayStart()
   }
 
   const handleBeforeUnload = () => {

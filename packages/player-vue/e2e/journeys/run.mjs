@@ -426,6 +426,16 @@ async function finish({ i, ctx, page, dir, rows, errs, t0, tReady, tPress, tAudi
     t_ready_ms: tReady, t_press_ms: tPress, t_firstWordHeard_ms: tAudible,
     neverPlayed: tAudible == null,
     firstLessonSrc: audio?.firstLessonSrc || null,
+    // Level, not a boolean. A clip that is technically audible but recorded
+    // far too quietly is a real content problem, and this is where it shows.
+    lessonLevel: audio?.lessonLevel || null,
+    // How much later the energy criterion was satisfied than the old
+    // progressed-therefore-audible inference fired. Both are page-clock, so
+    // the difference is the honest cost of measuring sound instead of time.
+    audibleLagMs: audio?.firstLessonAudible != null && audio?.firstLessonProgressed != null
+      ? Math.round(audio.firstLessonAudible - audio.firstLessonProgressed) : null,
+    // A tap that could not be made is a GAP, never a silent verdict.
+    audioTapErrors: audio?.tapErrors?.length ? audio.tapErrors : null,
     breakdown,
     unexplainedMs: tAudible == null ? null : Math.max(0, tAudible - networkBusy),
     longestLongTaskMs: longTasks.length ? Math.max(...longTasks.map((t) => t.dur)) : null,
@@ -480,6 +490,10 @@ if (JOURNEY === 'j5') {
   summary.press = stat(results.map((r) => r.t_press_ms))
   summary.firstWordHeard = stat(results.map((r) => r.t_firstWordHeard_ms))
   summary.neverPlayedRuns = results.filter((r) => r.neverPlayed || r.threw).length
+  summary.lessonRmsDbfs = stat(results.map((r) => r.lessonLevel?.rmsDbfs))
+  summary.lessonPeakDbfs = stat(results.map((r) => r.lessonLevel?.peakDbfs))
+  summary.audibleLagMs = stat(results.map((r) => r.audibleLagMs))
+  summary.audioTapErrorRuns = results.filter((r) => r.audioTapErrors).length
   summary.unexplained = stat(results.map((r) => r.unexplainedMs))
   const legs = {}
   for (const r of results) for (const [k, v] of Object.entries(r.breakdown || {})) (legs[k] ||= []).push(v.busyMs)

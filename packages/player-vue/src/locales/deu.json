@@ -993,7 +993,6 @@
       "resetFilters": "Filter zurücksetzen",
       "retry": "Erneut versuchen",
       "sortAvgSeeds": "Durchschnittliche Seeds",
-      "sortHours": "Std./Woche",
       "sortLabel": "Sortieren",
       "sortName": "Name",
       "sortStudents": "Schüler",
@@ -1004,7 +1003,6 @@
       "tableHeaderClass": "Klasse",
       "tableHeaderCourse": "Kurs",
       "tableHeaderHealth": "Gesundheit",
-      "tableHeaderHours": "Std./Woche",
       "tableHeaderShare": "Teilen",
       "tableHeaderStudents": "Schüler",
       "tryWideningFilter": "Versuchen Sie, den Kurs- oder Zustandsfilter zu erweitern."

@@ -65,21 +65,29 @@ async function affiliatedGroupIds(svc: SupabaseClient, authUid: string): Promise
 
 /**
  * Walk up from each seed node to the nearest ancestor carrying a
- * platform_status, and report whether ANY of them is currently live.
+ * platform_status, and report whether ANY of them is currently live — and, if
+ * so, the EARLIEST window among the live ones. That date is the next moment
+ * this answer changes, which is what an offline lease must be capped at.
  *
  * Fetches one level at a time across ALL still-walking branches, so a member in
- * three orgs costs depth round trips, not 3×depth.
+ * three orgs costs depth round trips, not 3×depth. It no longer short-circuits
+ * on the first live ancestor, because the window needs every live one.
  */
-async function anyAncestorOrgActive(svc: SupabaseClient, seedIds: string[]): Promise<boolean> {
+async function activeAncestorOrgWindow(
+  svc: SupabaseClient,
+  seedIds: string[],
+): Promise<{ active: boolean; expiresAt: string | null }> {
   let frontier = [...seedIds]
   const visited = new Set<string>(frontier)
+  let active = false
+  let expiresAt: string | null = null
 
   for (let depth = 0; depth < MAX_ANCESTRY_DEPTH && frontier.length > 0; depth++) {
     const rows: any[] = []
     for (const batch of chunk(frontier)) {
       const { data } = await svc
         .from('groups')
-        .select('id, parent_id, platform_status, platform_expires_at')
+        .select('id, parent_id, platform_status, platform_expires_at, created_at')
         .in('id', batch)
       for (const r of data ?? []) rows.push(r)
     }
@@ -90,8 +98,12 @@ async function anyAncestorOrgActive(svc: SupabaseClient, seedIds: string[]): Pro
       // the billed node. Keep climbing to find the one that is. Only a node
       // that HAS a status answers the question.
       if (row.platform_status) {
-        if (isPlatformActive(row.platform_status, row.platform_expires_at)) return true
-        continue // this org's clock has run out — its subtree is not covered
+        if (isPlatformActive(row.platform_status, row.platform_expires_at, row.created_at)) {
+          active = true
+          const exp = row.platform_expires_at
+          if (exp && (!expiresAt || new Date(exp) < new Date(expiresAt))) expiresAt = exp
+        }
+        continue // a node WITH a status answers for its whole subtree, live or not
       }
       if (row.parent_id && !visited.has(row.parent_id)) {
         visited.add(row.parent_id)
@@ -100,25 +112,39 @@ async function anyAncestorOrgActive(svc: SupabaseClient, seedIds: string[]): Pro
     }
     frontier = next
   }
-  return false
+  return { active, expiresAt }
 }
 
+export interface OrgCoverage {
+  courses: string[]
+  /**
+   * The covering org's own `platform_expires_at`, earliest among the live
+   * ancestors that answered. Null when none records one. Same convention and
+   * same reason as ClassCoverage.expiresAt: online play recomputes, a download
+   * does not, so the lease is capped at this boundary.
+   */
+  expiresAt: string | null
+}
+
+const NOTHING: OrgCoverage = { courses: [], expiresAt: null }
+
 /**
- * Resolve the course codes a member is entitled to via live ORG affiliation.
- * `authUid` MUST come from a verified JWT.
+ * Resolve the course codes a member is entitled to via live ORG affiliation,
+ * and the window that cover runs to. `authUid` MUST come from a verified JWT.
  *
  * Returns every live course code when the member's org has live coverage, and
- * an empty array otherwise — including for a user with no org affiliation at
- * all, which is the overwhelmingly common case and costs exactly one query.
+ * nothing otherwise — including for a user with no org affiliation at all,
+ * which is the overwhelmingly common case and costs exactly one query.
  */
 export async function resolveOrgCourseCoverage(
   svc: SupabaseClient,
   authUid: string,
-): Promise<string[]> {
+): Promise<OrgCoverage> {
   const groupIds = await affiliatedGroupIds(svc, authUid)
-  if (groupIds.length === 0) return []
+  if (groupIds.length === 0) return NOTHING
 
-  if (!(await anyAncestorOrgActive(svc, groupIds))) return []
+  const window = await activeAncestorOrgWindow(svc, groupIds)
+  if (!window.active) return NOTHING
 
   // "Covering ALL languages" — resolved at check time so a newly published
   // course is covered without touching any org row. The predicate is copied
@@ -128,11 +154,13 @@ export async function resolveOrgCourseCoverage(
     .from('courses')
     .select('course_code')
     .in('new_app_status', ['live', 'beta'])
-  return [
+  const codes = [
     ...new Set(
       (courses ?? [])
         .map((c: any) => c?.course_code)
         .filter((code: unknown): code is string => typeof code === 'string' && code.length > 0),
     ),
   ]
+  if (codes.length === 0) return NOTHING
+  return { courses: codes, expiresAt: window.expiresAt }
 }

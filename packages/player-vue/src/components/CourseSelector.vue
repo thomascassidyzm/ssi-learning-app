@@ -19,6 +19,7 @@ import LanguageFlag from './schools/shared/LanguageFlag.vue'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { hasTryEntitlement } from '../composables/useEntitlement'
 import { useSharedSubscription } from '../composables/useSubscription'
+import { useOrgFreeAccess } from '../composables/useOrgFreeAccess'
 import { useCheckout } from '../composables/useCheckout'
 import { canTakePayment } from '../platform/paymentRoute'
 import { useUserRole } from '../composables/useUserRole'
@@ -45,6 +46,7 @@ watch(iSpeak, (v) => {
 // Entitlement + subscription singletons (initialized by App.vue)
 const { entitlements: userEntitlements } = useSharedUserEntitlements()
 const { isSubscribed: hasActiveSubscription } = useSharedSubscription()
+const { coversCourse, coverLine, coveredCourses } = useOrgFreeAccess()
 const { platformRole } = useUserRole()
 
 // Check if user has full access to a course (not just preview)
@@ -114,6 +116,14 @@ const props = defineProps({
   isAdmin: {
     type: Boolean,
     default: false
+  },
+  // Course codes to restrict the picker to. Empty = the whole catalogue.
+  // Set by the org-enrolment flow, where a learner on a Canolfan policy that
+  // grants North and South Welsh should be choosing between those two and
+  // nothing else — not scrolling the world's languages to find Welsh.
+  onlyCourses: {
+    type: Array,
+    default: () => []
   }
 })
 
@@ -124,7 +134,31 @@ const emit = defineEmits(['close', 'selectCourse'])
 // Signed-out users get the auth modal after choosing, then continue to Paddle.
 const { startCheckout } = useCheckout()
 // The one payment-route question (platform/paymentRoute). No route, no CTA.
-const purchaseAvailable = computed(() => canTakePayment())
+// NEVER SELL SOMEBODY THE COURSE THEY ALREADY HAVE — and never pretend the
+// rest of the catalogue is theirs either. A funded learner's grant names
+// COURSES: Welsh is already paid for, Spanish is not. So the price and the
+// Upgrade button go only when everything premium on this screen is covered,
+// which is what a scoped picker shows a Canolfan learner; the moment a
+// language they have no grant for is in the list, the ordinary offer is the
+// honest one and it comes back (Kai, 2026-09-08). Their own rows say so for
+// themselves, one by one, below.
+const isOrgFree = (course) => coversCourse(course?.course_code)
+const allPremiumCoveredFree = computed(() =>
+  coveredCourses.value.length > 0 &&
+  premiumGroups.value.length > 0 &&
+  premiumGroups.value.every(g => g.courses.every(c => isOrgFree(c)))
+)
+const purchaseAvailable = computed(() => canTakePayment() && !allPremiumCoveredFree.value)
+
+// WHETHER THE PREMIUM SECTION HEADER APPEARS AT ALL. A scoped picker is
+// normally a Canolfan learner choosing between the two Welsh dialects their
+// funder granted, so the '£15/mo' banner is noise above two rows they already
+// own — hence the header goes. But 'the picker is scoped' only PREDICTS 'it is
+// all paid for'; the grant itself is the ground truth, and when the two
+// disagree the grant wins. An expired year, or a policy that stopped covering
+// one of the courses still on screen, means there IS something to sell again
+// and the ordinary offer comes back at full strength, scoped or not.
+const hidePremiumHeader = computed(() => isRestricted.value && allPremiumCoveredFree.value)
 function goPremium() {
   startCheckout()
   emit('close')
@@ -179,11 +213,27 @@ const getForLabel = (course) => {
   return knownName
 }
 
+// True when a caller has scoped the picker to a named set of courses.
+const isRestricted = computed(() => (props.onlyCourses?.length || 0) > 0)
+
 // All visible courses — premium courses ARE shown to non-subscribers
 // (previewable; playing past the free preview raises the in-player paywall) so
 // the catalogue advertises the offer.
 const visibleCourses = computed(() => {
   let courses = allCourses.value
+
+  // Scoped picker (org enrolment): these codes and no others, and no
+  // I-speak or search narrowing on top — the whole list is already the
+  // answer to "which of your granted courses?".
+  if (isRestricted.value) {
+    const only = new Set(props.onlyCourses)
+    const scoped = courses.filter(c => only.has(c.course_code))
+    // Never a dead end: if none of the named codes are in the catalogue we
+    // have loaded, show the ordinary catalogue rather than an empty sheet.
+    if (scoped.length > 0) {
+      return scoped.sort((a, b) => (a.course_code || '').localeCompare(b.course_code || ''))
+    }
+  }
 
   // I-speak filter — drops the long tail of "X for Y speakers" rows where
   // Y isn't the user's known language. Search bypasses the filter so users
@@ -437,6 +487,17 @@ watch(() => props.isOpen, (newVal) => {
   }
 })
 
+// A scoped picker of two dialects of one language groups into a single
+// "Welsh — 2 variants" row, which would hide the actual choice behind a tap.
+// Expand it, so North and South are both on screen the moment it opens.
+watch([() => props.isOpen, courseGroups], () => {
+  if (!props.isOpen || !isRestricted.value) return
+  const groups = courseGroups.value
+  if (groups.length === 1 && groups[0].courses.length > 1) {
+    expandedLangGroup.value = `${groups[0].target_lang}_${groups[0].known_lang}`
+  }
+}, { immediate: true })
+
 // Initial load
 onMounted(() => {
   if (allCourses.value.length === 0) adoptParentCatalogue()
@@ -457,13 +518,14 @@ onMounted(() => {
               <button class="close-btn" @click="emit('close')" :aria-label="t('sector.close')">&#x2715;</button>
             </div>
             <input
+              v-if="!isRestricted"
               v-model="searchQuery"
               type="text"
               class="course-search-input"
               :placeholder="t('courseSelector.searchPlaceholder')"
               autocomplete="off"
             />
-            <div v-if="availableKnownLangs.length > 1 && !searchQuery.trim()" class="i-speak-row">
+            <div v-if="!isRestricted && availableKnownLangs.length > 1 && !searchQuery.trim()" class="i-speak-row">
               <div class="i-speak-pills">
                 <input
                   v-model="iSpeakQuery"
@@ -510,10 +572,21 @@ onMounted(() => {
 
           <!-- Premium section -->
           <template v-if="premiumGroups.length > 0">
-            <div class="section-header section-header--premium">
+            <!--
+              No Premium header, and no Upgrade button, in a scoped picker
+              whose courses are ALL already paid for by the learner's funder.
+              A Canolfan learner has just been told their Welsh year is free
+              and is choosing between the two dialects their org granted;
+              '£15/mo — unlimited access to all languages' sitting directly
+              above those two rows contradicts that, and there is nothing in
+              a two-option scoped picker to upgrade TO. If any course here is
+              NOT covered — no grant for it, or the free year has run out —
+              the header is honest again and returns in full.
+            -->
+            <div v-if="!hidePremiumHeader" class="section-header section-header--premium">
               <div class="section-header__text">
                 <span class="section-header__title">{{ t('browse.premium') }}</span>
-                <span class="section-header__sub">{{ t('courseSelector.moUnlimitedAccessAll') }}</span>
+                <span class="section-header__sub">{{ allPremiumCoveredFree ? coverLine : t('courseSelector.moUnlimitedAccessAll') }}</span>
               </div>
               <button v-if="purchaseAvailable" class="section-header__cta" @click="goPremium()">
                 {{ t('settings.upgrade') }}
@@ -542,6 +615,12 @@ onMounted(() => {
                           <path d="M6 9l6 6 6-6" />
                         </svg>
                       </template>
+                      <!-- Already paid for by their funder, and nothing to
+                           report yet. Progress, once there is any, still wins
+                           this slot: it is what they came to see. -->
+                      <template v-else-if="isOrgFree(group.courses[0]) && !getProgress(group.courses[0].course_code)">
+                        <span class="org-free">{{ t('courseSelector.freeThroughGroup', 'Free through your group') }}</span>
+                      </template>
                       <template v-else-if="group.courses.some(c => isEnrolled(c.course_code))">
                         <span class="belt-dot" :style="{ background: getBeltColor(group.courses[0].course_code) }"></span>
                         {{ getProgress(group.courses[0].course_code) }}
@@ -564,7 +643,8 @@ onMounted(() => {
                       <LanguageFlag :code="course.course_code" :size="18" class="row-flag" />
                       <span class="row-name">{{ getVariantLabel(course) || course.display_name }}</span>
                       <span class="row-status">
-                        <template v-if="isEnrolled(course.course_code)"><span class="belt-dot" :style="{ background: getBeltColor(course.course_code) }"></span> {{ getProgress(course.course_code) }}</template>
+                        <template v-if="isOrgFree(course) && !getProgress(course.course_code)"><span class="org-free">{{ t('courseSelector.freeThroughGroup', 'Free through your group') }}</span></template>
+                        <template v-else-if="isEnrolled(course.course_code)"><span class="belt-dot" :style="{ background: getBeltColor(course.course_code) }"></span> {{ getProgress(course.course_code) }}</template>
                         <template v-else-if="isPreviewOnly(course)"><span class="try-free">{{ t('browse.tryFree') }}</span></template>
                       </span>
                     </button>
@@ -576,7 +656,7 @@ onMounted(() => {
 
           <!-- Free section -->
           <template v-if="freeGroups.length > 0">
-            <div class="section-header">
+            <div v-if="!isRestricted" class="section-header">
               <div class="section-header__text">
                 <span class="section-header__title">{{ t('courseSelector.free') }}</span>
                 <span class="section-header__sub">{{ t('courseSelector.freeForever') }}</span>
@@ -1374,6 +1454,15 @@ onMounted(() => {
 .row-status .try-free {
   color: #b8893c;
   font-weight: 700;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+}
+
+/* Already paid for by their funder. Deliberately quieter than .try-free:
+   it is a statement of fact, not an offer. */
+.row-status .org-free {
+  color: var(--text-muted);
+  font-weight: 600;
   font-family: var(--font-body);
   font-size: 0.75rem;
 }

@@ -11,7 +11,7 @@ const groupHome = (over: Record<string, unknown> = {}) => ({
   kind: 'node',
   node: { id: 'g1', name: 'IME Demo Programme', label: 'programme', commercial: null, hasSchool: false },
   children: [],
-  classPractice: { hours: 12, sessions7d: 3, activeClasses7d: 2, classCount: 5 },
+  classPractice: { inAppMinutes7d: 720, phrases7d: 300, activeClasses7d: 2, classCount: 5 },
   ...over,
 })
 
@@ -19,7 +19,7 @@ const classHome = (over: Record<string, unknown> = {}) => ({
   kind: 'class',
   node: { id: 'c1', name: 'Grade 6A', label: 'class', commercial: null },
   students: [],
-  classPractice: { weekSessions: 2, sessions28d: 6, totalSessions: 40, lastSessionAt: '2026-07-25', hours: 18 },
+  classPractice: { phrases7d: 120, inAppMinutes7d: 95, lastPractisedAt: '2026-07-25', phrases: [] },
   ...over,
 })
 
@@ -50,26 +50,26 @@ describe('nodeKindOf', () => {
 
 describe('shipped rules', () => {
   it('silent-class fires only for a class that practised before but not this week', () => {
-    const quiet = classHome({ classPractice: { weekSessions: 0, totalSessions: 40, hours: 18 } })
+    const quiet = classHome({ classPractice: { phrases7d: 0, inAppMinutes7d: 0, lastPractisedAt: '2026-06-01', phrases: [] } })
     const invs = evaluateRules(RULES, quiet, 'admin', false)
     expect(invs.map((i) => i.ruleId)).toContain('silent-class')
     expect(invs.find((i) => i.ruleId === 'silent-class')!.to).toBe('/admin/classes/c1/insights')
 
     // active class → no invitation; never-practised class → no invitation
     expect(evaluateRules(RULES, classHome(), 'admin', false).map((i) => i.ruleId)).not.toContain('silent-class')
-    const never = classHome({ classPractice: { weekSessions: 0, totalSessions: 0, hours: 0 } })
+    const never = classHome({ classPractice: { phrases7d: 0, inAppMinutes7d: 0, lastPractisedAt: null, phrases: [] } })
     expect(evaluateRules(RULES, never, 'admin', false).map((i) => i.ruleId)).not.toContain('silent-class')
   })
 
   it('quiet-subtree fires when classes exist below but none practised this week', () => {
-    const quiet = groupHome({ classPractice: { hours: 0, sessions7d: 0, activeClasses7d: 0, classCount: 5 } })
+    const quiet = groupHome({ classPractice: { inAppMinutes7d: 0, phrases7d: 0, activeClasses7d: 0, classCount: 5 } })
     const invs = evaluateRules(RULES, quiet, 'leader', true)
     const inv = invs.find((i) => i.ruleId === 'quiet-subtree')
     expect(inv).toBeTruthy()
     expect(inv!.text).toContain('5 classes')
     expect(inv!.to).toBe('/org/g1?lens=classes')
     // no classes at all → silence, not a nag
-    const empty = groupHome({ classPractice: { hours: 0, sessions7d: 0, activeClasses7d: 0, classCount: 0 } })
+    const empty = groupHome({ classPractice: { inAppMinutes7d: 0, phrases7d: 0, activeClasses7d: 0, classCount: 0 } })
     expect(evaluateRules(RULES, empty, 'leader', true).map((i) => i.ruleId)).not.toContain('quiet-subtree')
   })
 
@@ -96,7 +96,7 @@ describe('shipped rules', () => {
     expect(inv!.to).toBe('') // students target = this page, no navigation
     // a class that never practises together doesn't nag about home practice
     const dormant = classHome({
-      classPractice: { weekSessions: 0, totalSessions: 0, hours: 0 },
+      classPractice: { phrases7d: 0, inAppMinutes7d: 0, lastPractisedAt: null, phrases: [] },
       students: [student('a', 0, 4)],
     })
     expect(evaluateRules(RULES, dormant, 'admin', false).map((i) => i.ruleId)).not.toContain('students-quiet-week')
@@ -105,7 +105,7 @@ describe('shipped rules', () => {
 
 describe('scoping', () => {
   it('filters by persona and node kind', () => {
-    const quietClass = classHome({ classPractice: { weekSessions: 0, totalSessions: 40, hours: 18 } })
+    const quietClass = classHome({ classPractice: { phrases7d: 0, inAppMinutes7d: 0, lastPractisedAt: '2026-06-01', phrases: [] } })
     // teacher persona is authored but not wired — rules list admin/leader only
     expect(evaluateRules(RULES, quietClass, 'teacher', false)).toHaveLength(0)
     // class-kind rules never fire on a group payload
@@ -114,7 +114,7 @@ describe('scoping', () => {
   })
 
   it('member flag drives member-scoped links', () => {
-    const quiet = classHome({ classPractice: { weekSessions: 0, totalSessions: 40, hours: 18 } })
+    const quiet = classHome({ classPractice: { phrases7d: 0, inAppMinutes7d: 0, lastPractisedAt: '2026-06-01', phrases: [] } })
     const inv = evaluateRules(RULES, quiet, 'leader', true).find((i) => i.ruleId === 'silent-class')
     expect(inv!.to).toBe('/org/c1/insights')
   })
@@ -129,14 +129,14 @@ describe('dressing-aware scoping (org)', () => {
       id: 'g1', name: 'Cardiff Council', label: 'group', commercial: null, hasSchool: false,
       rollup: { childGroupCount: 0, teacherCount: 0, classCount: 0, learnerCount: 0 },
     },
-    classPractice: { hours: 0, sessions7d: 0, activeClasses7d: 0, classCount: 0 },
+    classPractice: { inAppMinutes7d: 0, phrases7d: 0, activeClasses7d: 0, classCount: 0 },
     practiceHours: 0,
     ...over,
   })
 
   it('never hands an org the class/teacher-worded invitations', () => {
     // Same payload, education dressing: the class-worded rule fires.
-    const withClasses = orgHome({ classPractice: { hours: 0, sessions7d: 0, activeClasses7d: 0, classCount: 5 } })
+    const withClasses = orgHome({ classPractice: { inAppMinutes7d: 0, phrases7d: 0, activeClasses7d: 0, classCount: 5 } })
     expect(evaluateRules(RULES, withClasses, 'leader', true).map((i) => i.ruleId)).toContain('quiet-subtree')
     // Neutral dressing: it does not.
     const neutral = evaluateRules(RULES, withClasses, 'leader', true, 'org').map((i) => i.ruleId)

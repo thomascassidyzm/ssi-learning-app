@@ -30,6 +30,7 @@ import { getSharedBeltProgress, getSeedFromLegoId } from '@/composables/useBeltP
 import { useSharedUserEntitlements } from '@/composables/useUserEntitlements'
 import { useCheckout } from '@/composables/useCheckout'
 import { useSectorThread } from '@/composables/useSectorThread'
+import { courseToFallBackTo } from '@/containers/scopedPickerClose'
 import SectorPicker from '@/components/SectorPicker.vue'
 
 // Inject from App
@@ -81,6 +82,9 @@ const showSettings = ref(false)
 const showLibrary = ref(false)
 const showExplorer = ref(false)
 const showCourseSelector = ref(false)
+// Course codes the picker is restricted to, when something opened it scoped
+// (org enrolment). Empty = the whole catalogue, the ordinary case.
+const courseSelectorOnly = ref([])
 
 const learningPlayerRef = ref(null)
 
@@ -630,6 +634,23 @@ const loadModeVisibility = () => {
   showPronunciationBtn.value = localStorage.getItem('ssi-mode-pronunciation') === 'true'
 }
 
+/**
+ * Closing the picker — and, for a SCOPED one, not being dropped somewhere else.
+ *
+ * The rule and the reasoning live in containers/scopedPickerClose; this is the
+ * wiring. 'default', not 'chosen': we picked the dialect for the learner, and
+ * a course we picked is not a choice (job #596).
+ */
+function closeCourseSelector() {
+  const scoped = courseSelectorOnly.value
+  const code = courseToFallBackTo(scoped, activeCourse.value?.course_code)
+  showCourseSelector.value = false
+  courseSelectorOnly.value = []
+  if (!code) return
+  const full = enrolledCourses?.value?.find(c => c.course_code === code)
+  handleCourseSelect?.(full || { course_code: code, id: code }, 'default')
+}
+
 onMounted(() => {
   loadModeVisibility()
   loadAdaptationConsent()
@@ -683,7 +704,16 @@ onMounted(() => {
   // 'Or browse our free courses' on /premium pushes here with ?openCourses=1
   // — open the Choose Your Course modal directly. The modal (CourseSelector)
   // lives at the bottom of this container's template.
-  if (urlParams.get('openCourses') === '1') {
+  //
+  // The org-enrolment flow pushes the granted course codes instead of '1'
+  // (?openCourses=cym_n_for_eng,cym_s_for_eng), and then the picker shows
+  // those and nothing else: a Canolfan learner chooses their dialect, not
+  // their language.
+  const openCoursesParam = urlParams.get('openCourses')
+  if (openCoursesParam) {
+    if (openCoursesParam !== '1') {
+      courseSelectorOnly.value = openCoursesParam.split(',').map(c => c.trim()).filter(Boolean)
+    }
     showCourseSelector.value = true
     // Strip the param so a refresh doesn't keep re-opening the modal.
     router.replace({ path: '/', query: {} })
@@ -860,12 +890,13 @@ onMounted(() => {
     <!-- Course Selector (always mounted, manages own overlay) -->
     <CourseSelector
       :is-open="showCourseSelector"
+      :only-courses="courseSelectorOnly"
       :supabase="supabaseClient"
       :enrolled-courses="enrolledCourses"
       :active-course-id="activeCourse?.course_code"
       :is-admin="isAdmin"
-      @selectCourse="(c) => { showCourseSelector = false; handleCourseSelect(c) }"
-      @close="showCourseSelector = false"
+      @selectCourse="(c) => { showCourseSelector = false; courseSelectorOnly = []; handleCourseSelect(c) }"
+      @close="closeCourseSelector()"
     />
 
     <!-- Unified Auth Modal (shared state with all components) -->

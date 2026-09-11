@@ -990,7 +990,6 @@
       "resetFilters": "Filtrləri sıfırla",
       "retry": "Yenidən cəhd edin",
       "sortAvgSeeds": "Orta toxumlar",
-      "sortHours": "Saat/həftə",
       "sortLabel": "Sırala",
       "sortName": "Ad",
       "summaryNeedsEyes": "Nəzərdən keçirilməlidir",
@@ -1000,7 +999,6 @@
       "tableHeaderClass": "Sinif",
       "tableHeaderCourse": "Kurs",
       "tableHeaderHealth": "Sağlamlıq",
-      "tableHeaderHours": "Saat/həftə",
       "tableHeaderShare": "Paylaş",
       "tryWideningFilter": "Kurs və ya vəziyyət filtrini genişləndirməyi cəhd edin."
     },

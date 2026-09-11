@@ -9,6 +9,8 @@ import { useInviteCode } from '@/composables/useInviteCode'
 import { CONFIG_UNAVAILABLE_MESSAGE } from '@/config/env'
 import { hasLiveSessionFor, useLoginCodeAudit } from '@/auth/loginCode'
 import { sendSignInCode } from '../../auth/sendSignInCode'
+import { startGoogleSignIn, takeOAuthReturnError } from '../../auth/googleSignIn'
+import { readLastSignInEmail, rememberSignInEmail, forgetLastSignInEmail } from '../../auth/lastSignInEmail'
 
 const { isOpen, inviteCodeMode, passwordMode, close } = useAuthModal()
 const loginCodeAudit = useLoginCodeAudit('sign-in-modal')
@@ -18,6 +20,9 @@ const emit = defineEmits<{
 }>()
 
 const supabaseClient = inject<{ value: SupabaseClient | null }>('supabase')
+// Read by the Google door to ask GoTrue whether the provider is switched on
+// before it navigates away. See auth/googleSignIn.ts.
+const appConfig = inject<{ supabase?: { url?: string; anonKey?: string } } | null>('config', null)
 const { pendingCode, validationError, isValidating, validateCode, redeemCode, clearPendingCode } = useInviteCode()
 
 // Form state
@@ -27,12 +32,28 @@ const password = ref('')
 const usePassword = ref(false)
 const step = ref<'code' | 'context' | 'email' | 'verify'>('email')
 const isLoading = ref(false)
+const googleLoading = ref(false)
 const error = ref('')
 // Sign-in succeeded but the pending code did not redeem — see handlePostAuth.
 const redeemFailed = ref(false)
 
 // Invite code input
 const codeInput = ref('')
+
+// The address this device last signed in with, offered rather than an empty
+// box (Tom, 2026-09-09: the commonest support case is a person who cannot
+// remember which address they used — the device already knows). Held
+// separately from `email` so the "use a different address" line disappears
+// the moment they start typing their own.
+const rememberedEmail = ref<string | null>(null)
+const isOfferingRemembered = computed(
+  () => !!rememberedEmail.value && email.value === rememberedEmail.value,
+)
+const useDifferentAddress = () => {
+  forgetLastSignInEmail()
+  rememberedEmail.value = null
+  email.value = ''
+}
 
 // School email gateways (Microsoft quarantine, most often) silently swallow
 // a lot of OTP mail with nothing bounced and nothing a teacher can whitelist.
@@ -47,6 +68,12 @@ watch(isOpen, (open) => {
   if (open) {
     step.value = inviteCodeMode.value ? 'code' : 'email'
     usePassword.value = passwordMode.value
+    rememberedEmail.value = readLastSignInEmail()
+    if (rememberedEmail.value) email.value = rememberedEmail.value
+    // A Google attempt that came back refused, captured at boot before
+    // Supabase stripped the fragment. Read once; it does not haunt the next open.
+    const returned = takeOAuthReturnError()
+    if (returned) error.value = returned
   } else {
     email.value = ''
     verificationCode.value = ''
@@ -55,6 +82,7 @@ watch(isOpen, (open) => {
     error.value = ''
     redeemFailed.value = false
     codeInput.value = ''
+    rememberedEmail.value = null
     // Don't clear pendingCode on close — user may reopen to complete redemption.
     // It's cleared after successful redemption in handlePostAuth.
     step.value = 'email'
@@ -167,6 +195,9 @@ const handleSendCode = async () => {
       return
     }
 
+    // The address worked well enough for us to send a code to it — remember it
+    // for next time. Only the address; never the code.
+    rememberSignInEmail(email.value)
     step.value = 'verify'
     showDeliveryHint.value = false
     if (deliveryHintTimer) clearTimeout(deliveryHintTimer)
@@ -202,6 +233,7 @@ const handlePasswordSignIn = async () => {
       return
     }
 
+    rememberSignInEmail(email.value)
     await handlePostAuth()
   } catch (err: any) {
     console.error('Password sign-in error:', err)
@@ -209,6 +241,26 @@ const handlePasswordSignIn = async () => {
   } finally {
     isLoading.value = false
   }
+}
+
+// ── Google ──
+//
+// A DOOR, not an account type: it ends in a Supabase session attesting an
+// email address, and the existing email-is-the-account machinery takes it from
+// there. Success is not handled here at all — it arrives as a page load with a
+// session on it, which useAuth's listener already owns.
+const handleGoogleSignIn = async () => {
+  googleLoading.value = true
+  error.value = ''
+  const failure = await startGoogleSignIn(supabaseClient?.value as any, window.location, {
+    url: appConfig?.supabase?.url,
+    anonKey: appConfig?.supabase?.anonKey,
+  })
+  if (failure) {
+    error.value = failure
+    googleLoading.value = false
+  }
+  // No else: the browser is leaving for Google, so the spinner stays put.
 }
 
 const handleEmailSubmit = () => {
@@ -486,6 +538,24 @@ const handleClose = () => {
         </span>
       </button>
 
+      <!-- Google, ABOVE the email field. Email OTP below is untouched. -->
+      <button
+        type="button"
+        class="google-btn"
+        :disabled="googleLoading || isLoading"
+        @click="handleGoogleSignIn"
+      >
+        <svg class="google-mark" viewBox="0 0 48 48" aria-hidden="true">
+          <path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.2-.4-4.7H24v8.9h11.8c-.5 2.8-2.1 5.1-4.4 6.7v5.5h7.1c4.2-3.8 6.6-9.5 6.6-16.4z"/>
+          <path fill="#34A853" d="M24 46c6 0 11-2 14.5-5.4l-7.1-5.5c-2 1.3-4.5 2.1-7.4 2.1-5.7 0-10.5-3.8-12.2-9H4.5v5.7C8 41.1 15.4 46 24 46z"/>
+          <path fill="#FBBC05" d="M11.8 28.2c-.4-1.3-.7-2.7-.7-4.2s.2-2.9.7-4.2v-5.7H4.5A22 22 0 0 0 2 24c0 3.6.9 6.9 2.5 9.9l7.3-5.7z"/>
+          <path fill="#EA4335" d="M24 10.4c3.2 0 6.1 1.1 8.4 3.3l6.3-6.3C34.9 3.9 30 2 24 2 15.4 2 8 6.9 4.5 14.1l7.3 5.7c1.7-5.2 6.5-9.4 12.2-9.4z"/>
+        </svg>
+        <span>{{ googleLoading ? t('auth.googleOpening') : t('auth.googleContinue') }}</span>
+      </button>
+
+      <div class="auth-divider"><span>{{ t('auth.or') }}</span></div>
+
       <div class="input-group">
         <label for="auth-email" class="input-label">{{ t('auth.email') }}</label>
         <div class="input-wrapper" :class="{ focused: email, invalid: email && !isEmailValid }">
@@ -502,6 +572,10 @@ const handleClose = () => {
             required
           />
         </div>
+        <p v-if="isOfferingRemembered" class="remembered-email">
+          {{ t('auth.rememberedAddress') }}
+          <button type="button" @click="useDifferentAddress">{{ t('auth.useDifferentAddress') }}</button>
+        </p>
       </div>
 
       <!-- Password input (when using password mode) -->
@@ -777,6 +851,23 @@ const handleClose = () => {
   color: var(--text-muted);
 }
 
+.remembered-email {
+  margin: 0.4rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.remembered-email button {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-left: 0.35rem;
+  font: inherit;
+  color: var(--accent, currentColor);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .otp-hint {
   text-align: center;
   font-size: 0.8125rem;
@@ -785,6 +876,57 @@ const handleClose = () => {
 }
 
 /* Submit button */
+/* Google, above the email field. Deliberately quieter than the red submit
+   button: it is the first thing offered, not the loudest thing on screen. */
+.google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.95rem 1.25rem;
+  background: #ffffff;
+  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.15));
+  border-radius: 12px;
+  color: var(--text-primary, #1f1d1b);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.google-btn:hover:not(:disabled) {
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+.google-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.google-mark {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--text-secondary, rgba(0, 0, 0, 0.5));
+  font-size: 0.85rem;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-color, rgba(0, 0, 0, 0.12));
+}
+
 .submit-btn {
   position: relative;
   padding: 1rem 2rem;

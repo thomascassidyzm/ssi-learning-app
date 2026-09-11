@@ -6,11 +6,14 @@
 // number is produced the same way and a re-run months later is comparable.
 //
 // The two things it refuses to fake:
-//   1. AUDIBLE is not play(). A resolved play() promise proves nothing —
-//      an autoplay-suspended or buffering-stalled element resolves it and
-//      never makes a sound. We hook HTMLMediaElement.prototype.play at
-//      document-start and wait for a `timeupdate` with currentTime > 0.05s,
-//      i.e. the output device genuinely advanced through real samples.
+//   1. AUDIBLE is not play(), and it is not currentTime either. A resolved
+//      play() promise proves nothing, and a clock that advances proves only
+//      that playback PROGRESSED — total silence progresses perfectly well
+//      (measured 2026-09-10: 16,000 zero PCM samples scored 538.5ms). We hook
+//      HTMLMediaElement.prototype.play at document-start, route each element
+//      through a Web Audio AnalyserNode, and require signal energy above a
+//      floor for a meaningful FRACTION of the elapsed play time. Floor and
+//      fraction live in ./audibility.mjs and are unit-tested there.
 //   2. PAINTED is not "the DOM changed". We take a rAF after the mutation
 //      settles, so the number is when pixels could have hit the screen.
 //
@@ -23,6 +26,7 @@ import { execSync } from 'node:child_process'
 import { homedir } from 'node:os'
 import { chromium } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
+import { AUDIBILITY, rmsDbfs, peakDbfs, audibleVerdict } from './audibility.mjs'
 
 // ── Chrome on this box ──────────────────────────────────────────────────────
 // The headless_shell Playwright picks by default is missing libnspr4 here;
@@ -96,12 +100,21 @@ export async function deleteUser(id) {
 // ── The document-start instrument ───────────────────────────────────────────
 // Runs before any app JS. This is what makes the audio hook trustworthy
 // rather than a race against app boot.
-export const instrument = () => {
+const instrumentBody = (CFG, rmsDbfs, peakDbfs, audibleVerdict) => () => {
   window.__t0 = performance.now()
   window.__mark = (name) => { (window.__marks ||= []).push({ name, t: performance.now() }) }
   window.__audio = {
     firstPlayCall: null, firstAnyAudible: null,
     firstLessonAudible: null, firstLessonSrc: null, srcs: [],
+    // The old progressed-therefore-audible inference, kept as a SEPARATE
+    // field so the shift in the recorded baselines is measurable rather than
+    // silent. It is never used as a verdict.
+    firstAnyProgressed: null, firstLessonProgressed: null,
+    // Level, not a boolean: a clip that is technically audible but recorded
+    // far too quietly is a real content problem, and that number is worth
+    // more than pass/fail.
+    lessonLevel: null, meters: [], tapErrors: [], audioCtxState: null,
+    config: CFG,
   }
   window.__rejections = []
   addEventListener('unhandledrejection', (e) => window.__rejections.push(String(e.reason).slice(0, 200)))
@@ -109,24 +122,88 @@ export const instrument = () => {
   // Anything that is not the actual lesson prompt/target audio: a brand
   // welcome chime, a placeholder tone, or the pause-phase silent keepalive.
   // Excluded so a chime can never flatter the "first word heard" number.
+  // NOTE: this is a URL filter and cannot see inside a blob: URL — which is
+  // why it can never be the audible test on its own.
   const isLesson = (src) => !!src && !/welcome|brand|placeholder|silent|keepalive|data:audio/i.test(src)
+  const srcOf = (el) => String(el.src || el.currentSrc || '')
+  const dbOut = (v) => (v > CFG.dbMin ? Math.round(v * 10) / 10 : CFG.dbMin)
 
   const watch = (el) => {
     if (el.__ssiWatched) return
     el.__ssiWatched = true
+
+    const m = {
+      src: srcOf(el).slice(0, 200), elapsedMs: 0, aboveFloorMs: 0,
+      maxRmsDbfs: CFG.dbMin, peakDbfs: CFG.dbMin, aboveFloorPct: 0, tapError: null,
+    }
+    window.__audio.meters.push(m)
+
+    // Legacy progress marker. Recorded, never a verdict.
     el.addEventListener('timeupdate', () => {
-      const src = String(el.src || el.currentSrc || '')
-      if (el.currentTime <= 0.05) return // play() resolved is not sound
-      if (window.__audio.firstAnyAudible === null) window.__audio.firstAnyAudible = performance.now()
-      if (isLesson(src) && window.__audio.firstLessonAudible === null) {
-        window.__audio.firstLessonAudible = performance.now()
-        window.__audio.firstLessonSrc = src.slice(0, 200)
+      if (el.currentTime <= 0.05) return
+      if (window.__audio.firstAnyProgressed === null) window.__audio.firstAnyProgressed = performance.now()
+      if (isLesson(srcOf(el)) && window.__audio.firstLessonProgressed === null) {
+        window.__audio.firstLessonProgressed = performance.now()
       }
     })
+
+    // The ears. The analyser is connected onward to the destination, so the
+    // tap does not change what the element sounds like.
+    let analyser, buf
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext
+      if (!window.__audio.__ctx) window.__audio.__ctx = new AC()
+      const ctx = window.__audio.__ctx
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {})
+      const node = ctx.createMediaElementSource(el)
+      analyser = ctx.createAnalyser()
+      analyser.fftSize = 2048
+      node.connect(analyser)
+      analyser.connect(ctx.destination)
+      buf = new Float32Array(analyser.fftSize)
+      window.__audio.audioCtxState = ctx.state
+    } catch (e) {
+      // A tap that could not be made is a GAP, not silence. It is recorded
+      // as an error so a failed measurement can never read as a false red.
+      m.tapError = String((e && e.message) || e).slice(0, 160)
+      window.__audio.tapErrors.push(m.tapError)
+      return
+    }
+
+    let last = performance.now()
+    setInterval(() => {
+      const now = performance.now()
+      const dt = Math.min(now - last, CFG.maxTickMs)
+      last = now
+      if (el.paused || el.ended || el.currentTime <= 0) return
+      analyser.getFloatTimeDomainData(buf)
+      const r = rmsDbfs(buf, CFG.dbMin)
+      const p = peakDbfs(buf, CFG.dbMin)
+      m.elapsedMs += dt
+      if (r > m.maxRmsDbfs) m.maxRmsDbfs = dbOut(r)
+      if (p > m.peakDbfs) m.peakDbfs = dbOut(p)
+      if (r > CFG.floorDbfs) m.aboveFloorMs += dt
+      m.src = srcOf(el).slice(0, 200)
+      if (window.__audio.__ctx) window.__audio.audioCtxState = window.__audio.__ctx.state
+      const v = audibleVerdict(m, CFG)
+      m.aboveFloorPct = Math.round(v.fraction * 1000) / 10
+      if (!v.audible) return
+      if (window.__audio.firstAnyAudible === null) window.__audio.firstAnyAudible = now
+      if (isLesson(m.src) && window.__audio.firstLessonAudible === null) {
+        window.__audio.firstLessonAudible = now
+        window.__audio.firstLessonSrc = m.src
+        window.__audio.lessonLevel = {
+          rmsDbfs: dbOut(m.maxRmsDbfs), peakDbfs: dbOut(m.peakDbfs),
+          aboveFloorPct: m.aboveFloorPct,
+          aboveFloorMs: Math.round(m.aboveFloorMs), elapsedMs: Math.round(m.elapsedMs),
+        }
+      }
+    }, CFG.sampleIntervalMs)
   }
+
   const origPlay = HTMLMediaElement.prototype.play
   HTMLMediaElement.prototype.play = function (...args) {
-    const src = String(this.src || this.currentSrc || '(nosrc)')
+    const src = srcOf(this) || '(nosrc)'
     if (window.__audio.firstPlayCall === null) window.__audio.firstPlayCall = performance.now()
     window.__audio.srcs.push({ t: Math.round(performance.now()), src: src.slice(0, 160) })
     watch(this)
@@ -179,6 +256,14 @@ export const instrument = () => {
     }).observe({ entryTypes: ['longtask'] })
   } catch { /* not supported — reported as a gap, never as zero */ }
 }
+
+// page.addInitScript() serialises a function with toString() and evaluates it
+// in the page — closures do NOT survive. So the browser copy is BUILT from the
+// same source the unit tests import, inlined, and cannot drift from it.
+const instrumentSource =
+  `(${instrumentBody})(${JSON.stringify(AUDIBILITY)}, ${rmsDbfs}, ${peakDbfs}, ${audibleVerdict})()`
+export const instrument = new Function(instrumentSource)
+
 
 // ── Network waterfall recorder ──────────────────────────────────────────────
 export function attachWaterfall(page, ref) {

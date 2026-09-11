@@ -17,6 +17,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAdmin } from '../_utils/auth'
 import { quoteFilterValue } from '../_utils/postgrestFilter'
 import { applyCors } from '../_utils/cors'
+import { learnerIdRangeFromSupportId } from '../../packages/core/src/identity/supportId'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -328,6 +329,15 @@ export default async function handler(
       const orParts = [`display_name.ilike.${quoteFilterValue(`%${search}%`)}`]
       if (learnerIdsMatchingEmail.length > 0) {
         orParts.push(`id.in.(${learnerIdsMatchingEmail.join(',')})`)
+      }
+      // The account code a learner reads out to support (Tom, 2026-09-09) —
+      // eight characters shown at the top of their own Settings. It is the
+      // front of their learner id in Crockford base32, so it comes back here
+      // as an indexed uuid RANGE rather than a scan-and-compute over every
+      // account. An ordinary search term decodes to null and nothing changes.
+      const codeRange = learnerIdRangeFromSupportId(search)
+      if (codeRange) {
+        orParts.push(`and(id.gte.${codeRange.low},id.lte.${codeRange.high})`)
       }
       query = query.or(orParts.join(','))
     }

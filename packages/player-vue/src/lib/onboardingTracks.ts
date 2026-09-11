@@ -134,3 +134,19 @@ export function courseLabel(c: LiveCourse): string {
 export function targetLabel(c: LiveCourse): string {
   return stripSourceSuffix(courseLabel(c))
 }
+
+/**
+ * The locale key for the offer chip on a signup door's language row, or null
+ * for no chip. Every row on the school door states what you get: silence next
+ * to a neighbour's offer reads as "this one costs money" (founder instruction
+ * 2026-09-10, on the /schools1 dropdown). The tutor door stays unchipped —
+ * its trial is 30 days regardless of course, and it is a different offer with
+ * its own contract. The org door has no language picker at all.
+ */
+export function optionChipKey(
+  track: OnboardingTrack,
+  yearFree: boolean,
+): 'onboarding.freeYear' | 'onboarding.free30Days' | null {
+  if (track !== 'school') return null
+  return yearFree ? 'onboarding.freeYear' : 'onboarding.free30Days'
+}

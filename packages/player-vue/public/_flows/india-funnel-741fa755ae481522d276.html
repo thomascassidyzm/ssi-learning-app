@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>The India funnel — one flow, all nine Indian-language landing pages</title>
+<!--
+  A PICTURE, NOT A SYSTEM. This page reads nothing, writes nothing and is
+  imported by no application code. It is a static file under public/, so it is
+  served verbatim by Vercel with no router, no auth guard and no build step.
+
+  THE LAYOUT IS A PANE SPLIT, BUILT PER STEP. Each <section class="step"> is its
+  own two-column grid: the words on the left, that step's own screens on the
+  right. It is deliberately NOT one page-wide grid with all the prose in one
+  column and all the pictures in another — that shape comes apart on a narrow
+  screen into two columns of unrelated content. Built per step, a narrow screen
+  collapses to step, its screen, next step, its screen, and the pairing cannot
+  be lost.
+
+  MOCK-UPS ARE DRAWN IN THIS FILE, in plain HTML and CSS, and are labelled twice
+  each: a MOCK-UP badge on the frame and a caption saying it is a drawing. The
+  dashed border says it before either word is read. Two screens on this page do
+  not exist yet and those two are the drawings. Everything else is a real
+  capture.
+
+  THE DIAGRAM SOURCE IS THE <pre class="mermaid"> BLOCK BELOW. Edit that text to
+  change the diagram. Mermaid is loaded from a CDN at runtime, so it is a
+  runtime dependency of this one unlinked page and NOT a build-time dependency
+  of the app: pnpm install does not change, the Vite build does not change, and
+  if the CDN is down only this page degrades.
+
+  Unlinked from everywhere and noindexed. Shareable by URL.
+-->
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #f3f0ec;
+    color: #22201d;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.55;
+    padding: 1.25rem max(1.1rem, env(safe-area-inset-left, 0px))
+             calc(3rem + env(safe-area-inset-bottom, 0px))
+             max(1.1rem, env(safe-area-inset-right, 0px));
+    padding-top: calc(1.5rem + env(safe-area-inset-top, 0px));
+  }
+  main { max-width: 64rem; margin: 0 auto; }
+  h1 { font-size: 1.5rem; line-height: 1.25; margin: 0 0 .4rem; }
+  h2 { font-size: 1.15rem; margin: 2.5rem 0 .6rem; }
+  h3 { font-size: 1rem; margin: 1.6rem 0 .3rem; }
+  p, li { font-size: 1.02rem; }
+  .narrow { max-width: 46rem; }
+  .dateline { font-size: .95rem; color: #5b554e; margin: 0 0 .2rem; }
+  .unlisted { font-size: .9rem; color: #6d675f; margin: 0 0 2rem; }
+  .scope { font-size: 1.02rem; color: #3a352f; margin: 0 0 1.4rem; }
+  .lede { font-size: 1.08rem; background: #fff; border-left: 4px solid #4a6fa5;
+          padding: .9rem 1rem; border-radius: 0 8px 8px 0; margin: 0 0 2rem; }
+  .diagram { background: #fff; border: 1px solid #ddd7cf; border-radius: 10px;
+             padding: .75rem .4rem; margin: 1rem 0 .5rem; overflow-x: auto; }
+  .diagram svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+  pre.mermaid { visibility: hidden; }
+  .cost-key { list-style: none; padding: 0; margin: 1rem 0 0; }
+  .cost-key li { display: flex; gap: .6rem; align-items: baseline;
+                 padding: .45rem .6rem; border-radius: 6px; margin-bottom: .35rem; }
+  .cost-key b { font-size: .82rem; letter-spacing: .06em; text-transform: uppercase;
+                min-width: 6.6rem; }
+  .c0 { background: #e8f1e6; } .c1 { background: #e6eef6; }
+  .c2 { background: #f4ecdf; } .c3 { background: #f6e4e2; }
+  .undecided { background: #fff6d9; border: 2px solid #c9922a; border-radius: 10px;
+               padding: 1rem 1.1rem; margin: 1rem 0; }
+  .undecided h3 { margin-top: 0; }
+  .tag { display: inline-block; font-size: .75rem; letter-spacing: .08em;
+         text-transform: uppercase; font-weight: 700; background: #c9922a;
+         color: #fff; padding: .12rem .5rem; border-radius: 4px; }
+  .rail { background: #fff; border: 1px dashed #b9b1a7; border-radius: 10px;
+          padding: 1rem 1.1rem; margin: 1rem 0; }
+
+  /* ---- The pane split. One .step per step of the flow. ---- */
+  .step { display: grid; grid-template-columns: minmax(0, 1fr) 390px; gap: 1.5rem;
+          align-items: start; background: #fff; border: 1px solid #ddd7cf;
+          border-radius: 10px; padding: 1.1rem 1.2rem; margin: 1.1rem 0; }
+  .step > .pane-l > :first-child { margin-top: 0; }
+  .step > .pane-l > :last-child { margin-bottom: 0; }
+  .pane-r { display: flex; flex-direction: column; gap: 1.1rem; min-width: 0; }
+  .stepno { display: inline-block; font-size: .75rem; letter-spacing: .09em;
+            text-transform: uppercase; font-weight: 700; color: #6d675f;
+            background: #eae5df; padding: .12rem .5rem; border-radius: 4px;
+            margin-bottom: .35rem; }
+  @media (max-width: 900px) {
+    .step { grid-template-columns: minmax(0, 1fr); gap: 1.1rem; }
+    .pane-r { align-items: flex-start; }
+  }
+
+  .shot { margin: 0; }
+  .shot img { display: block; width: 100%; max-width: 390px; height: auto;
+              border: 1px solid #ddd7cf; border-radius: 10px; background: #fff; }
+  .shot figcaption { font-size: .92rem; color: #4a453f; margin: .5rem 0 0; }
+
+  /* ---- Mock-ups: drawn, never captured. Dashed, badged and captioned. ---- */
+  .mockwrap { margin: 0; max-width: 390px; }
+  .mockbadge { display: block; font-size: .75rem; letter-spacing: .12em;
+               text-transform: uppercase; font-weight: 800; color: #8a5a00;
+               background: #ffeec2; border: 2px dashed #c9922a; border-bottom: 0;
+               border-radius: 10px 10px 0 0; padding: .3rem .6rem; text-align: center; }
+  .mock { width: 100%; max-width: 390px; aspect-ratio: 390 / 700;
+          border: 2px dashed #c9922a; border-radius: 0 0 10px 10px;
+          background: #e8e3dd; overflow: hidden; position: relative;
+          display: flex; flex-direction: column; font-size: 14px; }
+  .mock.short { aspect-ratio: 390 / 560; }
+  .mockwrap figcaption { font-size: .92rem; color: #4a453f; margin: .5rem 0 0; }
+  .mockwrap figcaption b { color: #8a5a00; }
+
+  .m-top { text-align: center; padding: .7rem 0 .3rem; font-weight: 700;
+           font-size: 15px; color: #22201d; letter-spacing: -.01em; }
+  .m-top i { font-style: normal; color: #b2261e; }
+  .m-ghost { padding: 0 .8rem; opacity: .38; }
+  .m-bar { height: 12px; border-radius: 6px; background: #cdc6bd; margin: .45rem 0; }
+  .m-bar.s { width: 55%; } .m-bar.m { width: 78%; } .m-bar.l { width: 92%; }
+  .m-hills { flex: 1; background:
+      radial-gradient(60% 40% at 25% 100%, #d7d1c8 0 60%, transparent 61%),
+      radial-gradient(70% 46% at 78% 100%, #d2ccc2 0 60%, transparent 61%);
+      opacity: .5; }
+
+  .m-card { position: absolute; left: 5%; right: 5%; top: 20%; background: #fff;
+            border-radius: 16px; padding: 1.1rem .95rem; text-align: center;
+            box-shadow: 0 8px 26px rgba(0,0,0,.14); }
+  .m-lock { width: 30px; height: 30px; display: block; margin: 0 auto; }
+  .m-h { font-weight: 700; font-size: 16px; margin: .55rem 0 .3rem; }
+  .m-sub { font-size: 13px; color: #5b554e; line-height: 1.45; margin: 0 0 .85rem; }
+  .m-btn { background: #b2261e; color: #fff; font-weight: 700; font-size: 14px;
+           border-radius: 999px; padding: .6rem .5rem; }
+  .m-fine { font-size: 11.5px; color: #6d675f; margin: .55rem 0 0; }
+
+  .m-dim { position: absolute; inset: 0; background: rgba(30,27,24,.45); }
+  .m-sheet { position: absolute; left: 0; right: 0; bottom: 0; background: #fff;
+             border-radius: 16px 16px 0 0; padding: .85rem .9rem 1rem; }
+  .m-sheet-h { display: flex; align-items: center; gap: .45rem; font-size: 13px;
+               font-weight: 700; color: #3c4043; margin-bottom: .7rem; }
+  .m-play { width: 15px; height: 17px; background:
+      linear-gradient(135deg, #00a0ff 0 50%, #00d977 50% 100%); border-radius: 2px 6px 6px 2px; }
+  .m-prod { display: flex; align-items: center; gap: .6rem; margin-bottom: .8rem; }
+  .m-ico { width: 40px; height: 40px; border-radius: 9px; background: #f1ede8;
+           display: flex; align-items: center; justify-content: center;
+           font-weight: 800; font-size: 15px; color: #b2261e; flex: 0 0 auto; }
+  .m-prod-t { font-size: 13.5px; font-weight: 600; line-height: 1.3; }
+  .m-prod-s { font-size: 12px; color: #5f6368; }
+  .m-price { margin-left: auto; font-size: 14px; font-weight: 700; white-space: nowrap; }
+  .m-row { display: flex; align-items: center; gap: .55rem; border-top: 1px solid #e4e1dd;
+           border-bottom: 1px solid #e4e1dd; padding: .6rem .1rem; font-size: 13px;
+           color: #3c4043; margin-bottom: .85rem; }
+  .m-upi { font-weight: 800; font-size: 12px; color: #fff; background: #0b6b3a;
+           padding: .14rem .38rem; border-radius: 3px; letter-spacing: .04em; }
+  .m-chev { margin-left: auto; color: #80868b; }
+  .m-gbtn { background: #0b57d0; color: #fff; text-align: center; font-weight: 700;
+            font-size: 14px; border-radius: 999px; padding: .62rem .5rem; }
+  .m-terms { font-size: 10.5px; color: #5f6368; margin: .6rem 0 0; line-height: 1.4; }
+
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #ddd7cf;
+           font-size: .88rem; color: #6d675f; }
+  code { background: #eae5df; padding: .1rem .3rem; border-radius: 4px; font-size: .92em; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>The India funnel: one flow, all nine Indian-language landing pages</h1>
+<p class="dateline">The flow as Tom ruled it, 8 September 2026.</p>
+<p class="unlisted">Unlisted page, shareable by URL. Not linked from anywhere and not indexed.</p>
+
+<p class="scope narrow">This is the same flow for every one of the nine Indian-language landing pages — Hindi, Urdu, Bengali, Marathi, Gujarati, Punjabi, Tamil, Telugu and Kannada. Hindi is shown throughout as the worked example; read every Hindi screen below as "the learner’s own language".</p>
+
+<p class="scope narrow">Each step below has its words on the left and its own screen on the right. Every screen is a real capture of the app as it is today, <b>except where a frame is labelled a mock-up</b> — two screens of this flow do not exist yet, and those two are drawn rather than photographed, dashed and badged so they cannot be mistaken for the real thing.</p>
+
+<p class="lede narrow">Nobody is asked for anything before the thing that makes the ask reasonable exists.
+Play costs nothing. The account arrives when there is progress worth keeping. The install arrives
+when there is something worth buying. Money arrives last, in the app.</p>
+
+<div class="diagram">
+<pre class="mermaid">
+graph TD
+  A["<b>1. The language landing page</b><br/>Hindi shown<br/>on the marketing site<br/>App embedded in the page<br/>One door: PLAY"]
+  B["<b>2. Web trial</b><br/>The web app, in Hindi<br/>No card, no email, no sign-up"]
+  C["<b>3. Create account</b><br/>Triggered by progress<br/>worth keeping<br/>Google preferred,<br/>email as fallback"]
+  D["<b>4. The padlock</b><br/>The only place the<br/>Play Store appears<br/>Link carries course code<br/>+ one-time account token"]
+  E["<b>5. Android app opens</b><br/>Reads the install referrer once<br/>Right language, signed in silently"]
+  F["<b>6. In-app purchase</b><br/>Play billing, UPI, rupees<br/>₹299 a month<br/>Entitlement joined server-side"]
+  G["<b>Institutions</b><br/>Separate rail<br/>Invoice or card, Paddle<br/>Never in-app"]
+
+  A --> B --> C --> D --> E --> F
+  A -.-> G
+
+  A:::free
+  B:::free
+  C:::acct
+  D:::install
+  E:::install
+  F:::money
+  G:::rail
+
+  classDef free fill:#e8f1e6,stroke:#6d9c66,stroke-width:2px,color:#22201d;
+  classDef acct fill:#e6eef6,stroke:#4a6fa5,stroke-width:2px,color:#22201d;
+  classDef install fill:#f4ecdf,stroke:#c9922a,stroke-width:2px,color:#22201d;
+  classDef money fill:#f6e4e2,stroke:#b2564c,stroke-width:2px,color:#22201d;
+  classDef rail fill:#ffffff,stroke:#b9b1a7,stroke-width:2px,stroke-dasharray:4 3,color:#22201d;
+</pre>
+</div>
+
+<h2>Where each cost arrives</h2>
+<ul class="cost-key narrow">
+  <li class="c0"><b>Nothing</b><span>Stages 1 and 2. Play, in the page, with no account. Costs the visitor nothing, not even a name.</span></li>
+  <li class="c1"><b>An account</b><span>Stage 3. Asked for when there is progress worth keeping. The reason is progress, not the store.</span></li>
+  <li class="c2"><b>An install</b><span>Stages 4 and 5. Asked for at the padlock, once they have played enough to want to keep it.</span></li>
+  <li class="c3"><b>Money</b><span>Stage 6. ₹299 a month, through Play billing, inside the app.</span></li>
+</ul>
+
+<h2>The stages, step by screen</h2>
+
+<section class="step">
+<div class="pane-l">
+<span class="stepno">Step 1</span>
+<h3>The language landing page, with the app embedded</h3>
+<p>Each language has its own landing page on the marketing site, and every one of the nine works the same way. Hindi is shown here. The marketing site carries the lesson player as a web component inside the page. Not an iframe, not
+a deep link. Embedded, so back, scroll, the keyboard and the safe area all belong to one document.</p>
+<p>There is one door on that page and it is <b>Play</b>. No account. No store link. No download button.
+No store badge. Nothing to type.</p>
+<p>Tom, on why: <i>"I don't think people are going to download an app they haven't played with. Not these
+days."</i> And on why the store link does not belong at the top: <i>"there is a big delay between clicking
+on the link and just being able to play it, which they don't even need an account for."</i></p>
+<p>The copy line that nothing needs installing stays, and stays true. It is true of the play. It was
+only ever wrong about the purchase, and that is fixed by adding the upgrade story lower down the
+page, not by softening the line.</p>
+</div>
+<div class="pane-r">
+  <figure class="shot">
+    <img src="india-funnel-shots/1-landing-hindi.png" width="390" height="844"
+         alt="The Hindi landing page at phone width, with a free-start button and a demo button.">
+    <figcaption>The Hindi landing page at <code>/eng/hindi</code>, as it is today. Two doors at the top: start free, and listen to the demo.</figcaption>
+  </figure>
+  <figure class="shot">
+    <img src="india-funnel-shots/1b-landing-hindi2.png" width="390" height="844" loading="lazy"
+         alt="A second Hindi landing page design, red, with a start-free button and a demo section.">
+    <figcaption>The second Hindi page at <code>/eng/hindi2</code>. A genuinely different design, live alongside the first. Which one wins is copy work, not flow work.</figcaption>
+  </figure>
+</div>
+</section>
+
+<section class="step">
+<div class="pane-l">
+<span class="stepno">Step 2</span>
+<h3>The web trial, still no account</h3>
+<p>The trial is the web app in the learner’s own language, Hindi here, and it is gate-free. No card, no email, no sign-up.</p>
+<p>The player the visitor taps in the page is the same component as the app itself, so the trial is not a teaser of the product — it <i>is</i> the product, running.</p>
+</div>
+<div class="pane-r">
+  <figure class="shot">
+    <img src="india-funnel-shots/2a-demo-in-page.png" width="390" height="844" loading="lazy"
+         alt="The lesson player sitting inside the Hindi landing page, waiting for a tap.">
+    <figcaption>The player embedded in the landing page itself, waiting for a tap. Same document, no store link, nothing to type.</figcaption>
+  </figure>
+  <figure class="shot">
+    <img src="india-funnel-shots/2b-demo-playing.png" width="390" height="844" loading="lazy"
+         alt="The demo mid-cycle, showing a Hindi sentence with its English gloss underneath.">
+    <figcaption>The demo mid-cycle, captured from its own route at <code>/embed/demo</code> because it will not start under a headless browser on the marketing page. Same component, and the same screen a visitor sees inside the page.</figcaption>
+  </figure>
+  <figure class="shot">
+    <img src="india-funnel-shots/3-web-trial-hindi.jpg" width="390" height="844" loading="lazy"
+         alt="The web app playing the English-for-Hindi course, with the whole interface in Hindi.">
+    <figcaption>The web trial in the app itself, thirty seconds in, every word of the interface in Hindi. The save-progress nudge above the artwork is stage 3 arriving on its own.</figcaption>
+  </figure>
+</div>
+</section>
+
+<section class="step">
+<div class="pane-l">
+<span class="stepno">Step 3</span>
+<h3>Progress worth keeping triggers create-account</h3>
+<p>The account arrives when there is something worth keeping, and that something is progress. The
+reason for the account is not that the store needs one. It is that progress needs one.</p>
+<p>Identity is <b>Google sign-in preferred, email as fallback</b>. Google is preferred because on Android
+the person already has a Google account, Play billing will use it whatever you do, it requires no
+typing in Hindi or English, and, unlike Apple's relay address or a passwordless magic link, it
+returns a real, writable email address.</p>
+</div>
+<div class="pane-r">
+  <figure class="shot">
+    <img src="india-funnel-shots/4-account-screen.png" width="390" height="844" loading="lazy"
+         alt="The app's sign-in panel, asking for an email address and offering a password instead.">
+    <figcaption>The account screen the app has today: an email address and a code, with a password as the alternative. Google sign-in is not on it yet, so the ruled preference for Google with email as the fallback is still to build.</figcaption>
+  </figure>
+</div>
+</section>
+
+<section class="step">
+<div class="pane-l">
+<span class="stepno">Step 4</span>
+<h3>The padlock, and the only place the Play Store appears</h3>
+<p>The store link appears once, at the padlock, after they have played enough to want to keep it.</p>
+<p>The link carries two things in the Play install referrer string: the <b>course code</b>, so the Android
+app opens in the right language on first launch with no language question asked, and a <b>one-time,
+short-lived account token</b> bound to the web account, so the app signs them in silently the first time
+it opens. One mechanism, both doors.</p>
+<p>Read the referrer once, early, on first launch, and store what you found. Fall back to one tap on a
+language if the referrer is empty. A sideload or another store hands the app nothing, and India is
+Play, so that is a corner.</p>
+<p>This is deferred deep linking. It is what removes the manual sign-in step and guarantees the
+purchase attaches to the right account.</p>
+<p>This screen does not exist yet, so the picture that goes with it is a drawing of the ruled step rather
+than a capture of a built one.</p>
+</div>
+<div class="pane-r">
+  <figure class="mockwrap">
+    <span class="mockbadge">Mock-up — this screen does not exist</span>
+    <div class="mock short" role="img" aria-label="Drawing of a padlock screen in the app: the free part is done, with one button out to Google Play.">
+      <div class="m-top">Say<i>Something</i>in</div>
+      <div class="m-ghost">
+        <div class="m-bar l"></div>
+        <div class="m-bar m"></div>
+        <div class="m-bar s"></div>
+      </div>
+      <div class="m-hills"></div>
+      <div class="m-card">
+        <svg class="m-lock" viewBox="0 0 24 24" fill="none" stroke="#b2261e" stroke-width="1.6"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="4" y="10.5" width="16" height="11" rx="2.5"></rect>
+          <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"></path>
+          <circle cx="12" cy="16" r="1.3" fill="#b2261e" stroke="none"></circle>
+        </svg>
+        <div class="m-h">That is the free part done</div>
+        <p class="m-sub">You have got through the free lessons. Keep going in the app — everything you have done comes with you.</p>
+        <div class="m-btn">Get the app on Google Play</div>
+        <p class="m-fine">Opens in Hindi. You will already be signed in.</p>
+      </div>
+    </div>
+    <figcaption><b>A drawing, not a capture.</b> There is no padlock in the app today and no link out to the store. This is what the ruled step looks like: one screen at the point the free content runs out, one link, and no store badge anywhere before it. The link itself carries the course code and a one-time account token in the Play install referrer, which is what makes the app open in Hindi and sign them in without asking. In the built version this screen is in the learner’s own language; it is drawn in English here so the drawing does not invent Hindi copy nobody has written.</figcaption>
+  </figure>
+</div>
+</section>
+
+<section class="step">
+<div class="pane-l">
+<span class="stepno">Step 5</span>
+<h3>The Android app opens and reads the referrer</h3>
+<p>The Android app is a wrap of this same web app, so what it shows on first open is what the web app
+shows on first open. The referrer is what tells it which course and which account it is opening for.</p>
+<p>Read it once, on first launch, and store what you found. With no referrer to read, the app has to
+guess — and the capture that goes with this step shows exactly what that guess looks like.</p>
+</div>
+<div class="pane-r">
+  <figure class="shot">
+    <img src="india-funnel-shots/6-android-first-open.jpg" width="390" height="844" loading="lazy"
+         alt="The web app on a fresh first open, having picked a course by itself.">
+    <figcaption>What the wrapped Android app shows on first open, captured from the web app it wraps rather than from a phone. With no referrer to read it has to guess a course, and here it guessed Chinese. Removing that guess is the whole job of the referrer link.</figcaption>
+  </figure>
+</div>
+</section>
+
+<section class="step">
+<div class="pane-l">
+<span class="stepno">Step 6</span>
+<h3>In-app purchase through Play</h3>
+<p><b>Play billing is wired, and it offers UPI.</b> Tom saw it live on a call to India: the purchase sheet
+came up over the app and UPI was there as a payment option. That is observed behaviour, not a plan.</p>
+<p>There is no photograph of it here because a Play purchase sheet needs a signed-in Android device with
+a Play account on it. A headless browser cannot raise one, so the frame that goes with this step is a drawing
+of the sheet Tom saw rather than a capture of it. The gap is the camera, not the feature.</p>
+<p>Google's rule is satisfied: the web sends people to the store, the app sells in-app, and nothing
+inside the app links out to a web till.</p>
+<p>What is <b>not</b> built on this leg, and should not be read as built:</p>
+<ul>
+  <li>The <b>server-side join</b> of the Play purchase token to the SSi account. Without it a purchase is a
+  Play fact rather than an entitlement on the learner's account.</li>
+  <li>The <b>₹299-a-month product itself</b>. What was seen on the call was a purchase of the existing
+  listing at its existing fee, which is what proves the billing plumbing and the UPI option — it does
+  not prove the price we intend to charge.</li>
+</ul>
+<p>Whether anything sits between those two — a partly-configured subscription product, a half-written
+webhook — is not something this page can stand behind either way, and it is worth an hour of somebody
+reading the Play console and the API before it is asserted in either direction.</p>
+</div>
+<div class="pane-r">
+  <figure class="mockwrap">
+    <span class="mockbadge">Mock-up — drawn, not captured</span>
+    <div class="mock" role="img" aria-label="Drawing of a Google Play purchase sheet over the app, showing a monthly subscription in rupees with UPI as the payment method.">
+      <div class="m-top">Say<i>Something</i>in</div>
+      <div class="m-ghost">
+        <div class="m-bar l"></div>
+        <div class="m-bar m"></div>
+      </div>
+      <div class="m-hills"></div>
+      <div class="m-dim"></div>
+      <div class="m-sheet">
+        <div class="m-sheet-h"><span class="m-play"></span> Google Play</div>
+        <div class="m-prod">
+          <div class="m-ico">Ssi</div>
+          <div>
+            <div class="m-prod-t">SaySomethingin</div>
+            <div class="m-prod-s">Monthly subscription</div>
+          </div>
+          <div class="m-price">₹299<span style="font-weight:400">/mo</span></div>
+        </div>
+        <div class="m-row"><span class="m-upi">UPI</span> Pay by UPI <span class="m-chev">›</span></div>
+        <div class="m-gbtn">Subscribe</div>
+        <p class="m-terms">Renews monthly until cancelled. Cancel any time in Play.</p>
+      </div>
+    </div>
+    <figcaption><b>A drawing, not a capture.</b> This is a plain approximation of the Google Play purchase
+    sheet Tom saw come up over the app on the IME call, with UPI offered as a payment method — deliberately
+    not a pixel copy of Google's own typography. The billing sheet and the UPI option are real and were
+    observed. The ₹299 price shown here is the intended product, not one that has been bought.</figcaption>
+  </figure>
+</div>
+</section>
+
+<div class="rail narrow">
+<h3>Institutions are a separate rail</h3>
+<p>Invoice or card through Paddle, never in-app. It leaves the same landing page, but it is a parallel
+rail rather than a branch of the consumer funnel.</p>
+</div>
+
+<div class="narrow">
+<h2>How we identify someone who writes to support</h2>
+<p>Tom's objection, verbatim: <i>"Identifying them is a nightmare now. How can we know who they are when
+or if they contact support? This is the utter ball ache we have right now with all these super easy
+sign in with methods."</i></p>
+<p>The answer: <b>the lookup key is a property of the account, shown to the customer. It is never a
+property of how they signed in.</b> Concretely, three things, attached to the account stage and the
+purchase stage:</p>
+<ul>
+  <li>A short code on the account screen, with the line <i>quote this if you write to us</i>.</li>
+  <li>A contact-support affordance inside the app that sends the account id, so the artefact declares
+  who they are rather than the person having to remember.</li>
+  <li>For a paying customer, the Play order number on their receipt. That resolves them with no
+  identity question at all, because the server stores the purchase token against the account anyway.</li>
+</ul>
+
+<div class="undecided">
+<h3><span class="tag">Undecided — Tom's</span></h3>
+<p><b>Which Android package id the app ships under: the existing <code>com.automagic.a3f</code> listing, which
+around fifty thousand Indian users already have installed, or a fresh one.</b></p>
+<p>It is permanent and irreversible, and it is the one piece of this flow that is not detectable at the
+moment of violation. Nothing will tell you a fresh id was the wrong call until someone who already has
+the app installed cannot find their subscription.</p>
+<p>It is also the only thing that can make the referrer link land in the wrong app, so it blocks
+end-to-end testing of stages 4 and 5.</p>
+</div>
+</div>
+
+<footer>
+<p>Footnote on the store listing: the Play store page itself is shown in the phone's locale. The
+referrer fixes the app's language, but not the store page. Nine localised store listings are copy
+work that has not been done, so a Hindi visitor would currently read an English store page between
+two Hindi screens.</p>
+</footer>
+
+</main>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({
+    startOnLoad: false,
+    securityLevel: 'loose',
+    theme: 'base',
+    themeVariables: {
+      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+      fontSize: '15px',
+      lineColor: '#8a8279',
+      primaryTextColor: '#22201d'
+    },
+    flowchart: { htmlLabels: true, useMaxWidth: true, nodeSpacing: 26, rankSpacing: 34 }
+  });
+  const block = document.querySelector('pre.mermaid');
+  try {
+    await mermaid.run({ nodes: [block] });
+    block.style.visibility = 'visible';
+  } catch (e) {
+    // The diagram is a summary of the prose below it, so a CDN failure loses
+    // nothing that is not also written out in words.
+    block.remove();
+    document.querySelector('.diagram').remove();
+  }
+</script>
+</body>
+</html>

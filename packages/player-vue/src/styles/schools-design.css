@@ -70,6 +70,24 @@
   --schools-radius-md:   8px;
   --schools-radius-lg:   12px;
   --schools-radius-pill: 999px;
+}
+
+/* ---------- The four tones of the intelligence surface ----------
+ * Design §3.3: four tones carry meaning — good, watch, alarm, quiet — and a
+ * chart and a pill must never disagree. These are ALIASES of tokens already
+ * defined above, scoped to the question pages only; the org tree under the
+ * same shell keeps its own status vocabulary untouched. insight/theme.ts
+ * reads these for every chart drawn inside .intel-surface, and
+ * intel/Pill.vue reads them for every pill, so both resolve from one place.
+ *
+ * Which four values are the four tones ESTATE-WIDE is Tom's call and is not
+ * made here — this is the design document's own answer applied inside the
+ * intelligence surface alone. */
+.schools-surface.intel-surface {
+  --intel-good:  var(--schools-success);
+  --intel-watch: var(--schools-gold);
+  --intel-alarm: var(--schools-red);
+  --intel-quiet: var(--schools-fg-3);
 
   /* ---------- Typography defaults inside schools ---------- */
   font-family: var(--font-body);

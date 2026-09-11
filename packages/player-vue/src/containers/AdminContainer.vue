@@ -25,7 +25,10 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
 </script>
 
 <template>
-  <div ref="containerEl" class="admin-container schools-surface" :class="{ 'is-mounted': mounted }">
+  <!-- `intel-surface` scopes the four tones (styles/schools-design.css) to the
+       question pages only, so the org tree under this same shell keeps its
+       own status vocabulary untouched. -->
+  <div ref="containerEl" class="admin-container schools-surface" :class="{ 'is-mounted': mounted, 'intel-surface': route.path.startsWith('/intel') }">
     <!-- Pull-to-refresh indicator (touch) — same action as the navbar refresh -->
     <div
       v-if="isPulling"
@@ -66,42 +69,23 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
         </svg>
         <span>App</span>
       </router-link>
-      <router-link to="/schools" class="bottom-nav-item">
+      <router-link to="/intel/pulse" class="bottom-nav-item" :class="{ active: route.path.startsWith('/intel') }">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-          <polyline points="9 22 9 12 15 12 15 22"/>
+          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/><circle cx="12" cy="12" r="10"/>
         </svg>
-        <span>Schools</span>
+        <span>Questions</span>
       </router-link>
-      <router-link to="/admin/structure" class="bottom-nav-item" :class="{ active: route.path.startsWith('/admin/structure') }">
+      <router-link to="/admin/structure" class="bottom-nav-item" :class="{ active: route.path.startsWith('/admin/structure') || route.path.startsWith('/admin/groups') || route.path.startsWith('/admin/classes') }">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/>
         </svg>
-        <span>Structure</span>
+        <span>Organisations</span>
       </router-link>
       <router-link to="/admin/users" class="bottom-nav-item" :class="{ active: route.path.startsWith('/admin/users') }">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
         </svg>
-        <span>Users</span>
-      </router-link>
-      <router-link to="/admin/attention" class="bottom-nav-item" :class="{ active: route.path === '/admin/attention' }">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-        </svg>
-        <span>Attention</span>
-      </router-link>
-      <router-link to="/admin/courses" class="bottom-nav-item" :class="{ active: route.path === '/admin/courses' }">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-        </svg>
-        <span>Courses</span>
-      </router-link>
-      <router-link to="/admin/analytics" class="bottom-nav-item" :class="{ active: route.path === '/admin/analytics' }">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
-        </svg>
-        <span>Stats</span>
+        <span>People</span>
       </router-link>
       <router-link to="/admin/release-notes" class="bottom-nav-item" :class="{ active: route.path === '/admin/release-notes' }">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -119,9 +103,10 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
 
 <style scoped>
 /* ================================================================
- * ADMIN CONTAINER — schools design system + dark top bar
- * Putty body, white cards, Arsenal headings, Open Sans body
- * Dark top bar signals "admin / elevated tooling" mode
+ * ADMIN CONTAINER — the one shell over /admin and /intel
+ * Putty body, white cards, Arsenal headings, Open Sans body, and the
+ * schools top bar's own white-on-putty chrome — the dark bar died on
+ * 2026-09-10 (design §3.3, Tom: "share").
  * ================================================================ */
 
 .admin-container {
@@ -129,8 +114,8 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  background: var(--schools-bg, #f6f5f1);
-  color: var(--schools-fg, #0F1212);
+  background: var(--schools-bg);
+  color: var(--schools-fg);
   position: relative;
 }
 
@@ -145,9 +130,9 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  background: #fff;
-  color: #0F1212;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
+  background: var(--schools-card);
+  color: var(--schools-fg);
+  box-shadow: var(--schools-shadow-md);
   pointer-events: none;
 }
 
@@ -171,14 +156,14 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
   justify-content: center;
   height: 100vh;
   gap: 16px;
-  color: var(--schools-fg-3, #8a8078);
+  color: var(--schools-fg-3);
 }
 
 .loading-spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid var(--border-subtle, rgba(44, 38, 34, 0.1));
-  border-top-color: var(--schools-red, #DB1E17);
+  border: 3px solid var(--schools-border);
+  border-top-color: var(--schools-red);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -219,7 +204,7 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
 }
 
 /* ================================================================
- * BOTTOM NAV — Dark chrome, matching header
+ * BOTTOM NAV — white on putty, matching the bar
  * ================================================================ */
 
 .bottom-nav {
@@ -234,8 +219,8 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
     left: 0;
     right: 0;
     z-index: 60;
-    background: #050508;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--schools-card);
+    border-top: 1px solid var(--schools-border);
     padding: 0.5rem 0.25rem;
     padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
   }
@@ -248,7 +233,7 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
     gap: 2px;
     padding: 0.375rem 0;
     text-decoration: none;
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--schools-fg-3);
     font-size: 10px;
     font-family: 'Open Sans', system-ui, sans-serif;
     font-weight: 500;
@@ -258,19 +243,15 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
 
   .bottom-nav-item:hover,
   .bottom-nav-item.active {
-    color: #fff;
+    color: var(--schools-fg);
   }
 
   .bottom-nav-item.active svg {
-    color: var(--schools-gold, #FEC902);
-  }
-
-  .bottom-nav-item.back-item {
-    color: rgba(255, 255, 255, 0.55);
+    color: var(--schools-red);
   }
 
   .bottom-nav-item.back-item:hover {
-    color: var(--schools-gold, #FEC902);
+    color: var(--schools-red);
   }
 
   .admin-main {

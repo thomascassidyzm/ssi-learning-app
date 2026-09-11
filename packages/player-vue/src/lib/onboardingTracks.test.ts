@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isFreeTier, isYearTrialCourse, targetLabel, type LiveCourse } from './onboardingTracks'
+import { isFreeTier, isYearTrialCourse, optionChipKey, targetLabel, type LiveCourse } from './onboardingTracks'
 
 function course(partial: Partial<LiveCourse>): LiveCourse {
   return {
@@ -45,5 +45,24 @@ describe('targetLabel — strips the source-language suffix, keeps variants', ()
 
   it('preserves dialect/region variants', () => {
     expect(targetLabel(course({ display_name: 'North Welsh for English Speakers' }))).toBe('North Welsh')
+  })
+})
+
+describe('optionChipKey — every school-door row states what you get', () => {
+  it('chips a premium school row "Free for 30 days", not silence', () => {
+    expect(optionChipKey('school', false)).toBe('onboarding.free30Days')
+  })
+
+  it('keeps the year chip on the heritage/free rows', () => {
+    expect(optionChipKey('school', true)).toBe('onboarding.freeYear')
+  })
+
+  it('never chips the tutor door: its trial is 30 days whatever the course', () => {
+    expect(optionChipKey('tutor', true)).toBeNull()
+    expect(optionChipKey('tutor', false)).toBeNull()
+  })
+
+  it('never chips the org door, which has no language picker', () => {
+    expect(optionChipKey('org', true)).toBeNull()
   })
 })

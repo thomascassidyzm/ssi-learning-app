@@ -990,7 +990,6 @@
       "resetFilters": "Reimposta filtri",
       "retry": "Riprova",
       "sortAvgSeeds": "Seed medi",
-      "sortHours": "Ore/sett",
       "sortLabel": "Ordina",
       "sortName": "Nome",
       "summaryNeedsEyes": "Da tenere d'occhio",
@@ -1000,7 +999,6 @@
       "tableHeaderClass": "Classe",
       "tableHeaderCourse": "Corso",
       "tableHeaderHealth": "Salute",
-      "tableHeaderHours": "Ore/sett",
       "tableHeaderShare": "Condividi",
       "tryWideningFilter": "Prova ad ampliare il filtro corso o stato di salute."
     },

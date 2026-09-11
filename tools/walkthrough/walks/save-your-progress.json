@@ -33,7 +33,8 @@
       "say": "Right now everything you have done lives on this device alone. It works perfectly well — but a cleared browser or a new phone takes it with it.",
       "advance": {
         "on": "next"
-      }
+      },
+      "checked": "ad459ab8.9150e945"
     },
     {
       "anchor": "library-save-progress",
@@ -41,7 +42,8 @@
       "advance": {
         "on": "next"
       },
-      "terminal": "Everything you have already done comes with you — signing in adds your account to it, it never starts you again."
+      "terminal": "Everything you have already done comes with you — signing in adds your account to it, it never starts you again.",
+      "checked": "ad459ab8.753284b6"
     }
   ]
 }

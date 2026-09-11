@@ -1,4 +1,5 @@
 import { ref, readonly } from 'vue'
+import { isEmbedContext } from '../platform/embedMode'
 
 export type Theme = 'cosmos' | 'mist'
 
@@ -33,11 +34,15 @@ function initTheme() {
     return
   }
 
-  // Force mist, clear any stored cosmos preference
-  try {
-    localStorage.setItem(THEME_STORAGE_KEY, 'mist')
-  } catch (e) {
-    // Ignore storage errors
+  // Force mist, clear any stored cosmos preference. NOT in the framed demo:
+  // there is only one theme, so the write buys nothing there, and the demo's
+  // whole claim is that it writes nothing on somebody else's page.
+  if (!isEmbedContext()) {
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, 'mist')
+    } catch (e) {
+      // Ignore storage errors
+    }
   }
 
   applyTheme('mist')

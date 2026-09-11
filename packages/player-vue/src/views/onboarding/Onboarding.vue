@@ -19,6 +19,7 @@ import {
   targetLabel,
   knownLangName,
   courseLabel,
+  optionChipKey,
   type OnboardingTrack,
   type LiveCourse,
 } from '@/lib/onboardingTracks'
@@ -347,6 +348,13 @@ const yearTrialTargets = computed(() => {
   }
   return set
 })
+
+// The chip on one dropdown row. Language-level doors badge off
+// yearTrialTargets, course-level ones off the option's own yearFree; the text
+// itself is the one rule in optionChipKey.
+function chipKeyFor(o: { value: string; yearFree: boolean }) {
+  return optionChipKey(props.track, o.yearFree || yearTrialTargets.value.has(o.value))
+}
 // Watch all three: courses changes when the target (or catalogue) changes;
 // visibleCourses changes as the user types; targetOptions covers the heritage
 // door's single-course commit. { immediate } covers the catalogue arriving
@@ -1033,9 +1041,12 @@ async function continueIn() {
                   >
                     <span class="ob-known-opt-name">
                       {{ o.name }}
-                      <!-- The attractive signal: languages on the year-long
-                           school offer, visible at the choice point. -->
-                      <span v-if="o.yearFree || yearTrialTargets.has(o.value)" class="ob-tier">{{ t('onboarding.freeYear') }}</span>
+                      <!-- EVERY row states what you get: a year on the
+                           heritage offer, thirty days on the premium ones.
+                           A silent row next to a chipped one reads as "this
+                           one costs money", which is not what the door
+                           offers. -->
+                      <span v-if="chipKeyFor(o)" class="ob-tier">{{ t(chipKeyFor(o)!) }}</span>
                     </span>
                     <svg v-if="isOptionActive(o)" class="ob-known-tick" viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M5 12.5l4.2 4.2L19 7" />

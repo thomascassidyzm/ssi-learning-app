@@ -62,8 +62,18 @@ const SRC = join(dirname(fileURLToPath(import.meta.url)), '..')
  * views/admin is NOT excluded as a whole — NodeHomeView and NodeInsightsView
  * live there and are exactly where a school admin lands, which is why the
  * exclusion below is by file prefix rather than by directory.
+ *
+ * The view-as pair joins that list on 2026-09-10, by the same criterion rather
+ * than as an escape from it. ViewAsPicker.vue is mounted in exactly one place —
+ * inside AdminTopBar.vue, which is already excluded here — and ViewingAsBanner
+ * .vue renders only while `isViewingAs` is on, which the server grants to an
+ * ssi_admin and refuses to everybody else with a 403. Neither string can reach
+ * a learner, a teacher or a school leader in any language, so keying them would
+ * mint eleven English entries in the pending-translation register for text no
+ * translator will ever be asked to translate.
  */
-const STAFF_ONLY = /^(views\/admin\/Admin|views\/admin\/BoardReport|components\/admin\/(AdminTopBar|BoardInlineSegments|GroupTreeNode|StructureTreeNode))/
+const STAFF_ONLY =
+  /^(views\/admin\/Admin|views\/admin\/BoardReport|components\/ViewingAsBanner|components\/admin\/(AdminTopBar|BoardInlineSegments|GroupTreeNode|StructureTreeNode|ViewAsPicker))/
 
 const LEARNER_FACING = [
   'components',

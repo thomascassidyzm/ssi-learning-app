@@ -7,8 +7,9 @@
       "kinds": ["class"],
       "personas": ["admin", "leader"],
       "when": [
-        { "path": "classPractice.totalSessions", "op": "gt", "value": 0 },
-        { "path": "classPractice.weekSessions", "op": "eq", "value": 0 }
+        { "path": "classPractice.lastPractisedAt", "op": "truthy" },
+        { "path": "classPractice.inAppMinutes7d", "op": "eq", "value": 0 },
+        { "path": "classPractice.phrases7d", "op": "eq", "value": 0 }
       ],
       "invitation": "This class practises together, but not this week — worth a look at how the pace is holding?",
       "cta": { "label": "See the pace", "target": "insights" }
@@ -20,7 +21,7 @@
       "personas": ["admin", "leader"],
       "when": [
         { "path": "classPractice.classCount", "op": "gt", "value": 0 },
-        { "path": "classPractice.sessions7d", "op": "eq", "value": 0 }
+        { "path": "classPractice.activeClasses7d", "op": "eq", "value": 0 }
       ],
       "invitation": "None of the {classPractice.classCount} classes below have practised together this week — the class list shows who last played when.",
       "cta": { "label": "See the classes", "target": "lens:classes" }
@@ -98,7 +99,7 @@
       ],
       "min": 1,
       "when": [
-        { "path": "classPractice.totalSessions", "op": "gt", "value": 0 }
+        { "path": "classPractice.lastPractisedAt", "op": "truthy" }
       ],
       "invitation": "{count} of the students haven't practised on their own this week — the rows below show who.",
       "cta": { "label": "See the students", "target": "students" }

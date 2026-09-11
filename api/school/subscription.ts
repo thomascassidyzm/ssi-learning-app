@@ -114,7 +114,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     if (schoolId) {
       const { data: school, error: schoolErr } = await supabase
         .from('schools')
-        .select('id, platform_status, platform_expires_at, trial_course_code, trial_kind, teacher_seats')
+        .select('id, platform_status, platform_expires_at, trial_course_code, trial_kind, teacher_seats, created_at')
         .eq('id', schoolId)
         .maybeSingle()
       if (schoolErr && isMissingPlatformSchema(schoolErr)) {
@@ -134,7 +134,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     if (learner?.id) {
       const { data: teacher, error: teacherErr } = await supabase
         .from('teachers')
-        .select('platform_status, platform_expires_at')
+        .select('platform_status, platform_expires_at, created_at')
         .eq('learner_id', learner.id)
         .maybeSingle()
       if (teacherErr && isMissingPlatformSchema(teacherErr)) {
@@ -165,7 +165,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const schoolActive =
       schoolPastDue ||
       (schoolOut
-        ? isPlatformActive(schoolOut.platform_status as string | null, schoolOut.platform_expires_at as string | null)
+        ? isPlatformActive(
+            schoolOut.platform_status as string | null,
+            schoolOut.platform_expires_at as string | null,
+            schoolOut.created_at as string | null,
+          )
         : false)
 
     // PAID = a live Paddle platform subscription exists on the teacher row —
@@ -219,7 +223,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const teacherActive =
       teacherPaid ||
       (teacherOut
-        ? isPlatformActive(teacherOut.platform_status as string | null, teacherOut.platform_expires_at as string | null)
+        ? isPlatformActive(
+            teacherOut.platform_status as string | null,
+            teacherOut.platform_expires_at as string | null,
+            teacherOut.created_at as string | null,
+          )
         : false)
 
     // Active if EITHER the school or the tutor record is active. (A school admin

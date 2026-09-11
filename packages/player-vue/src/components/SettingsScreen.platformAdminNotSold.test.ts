@@ -34,6 +34,10 @@ vi.mock('../composables/useSubscription', () => ({
     cancelSubscription: vi.fn(),
     refresh: vi.fn(),
     isPlatformAdmin,
+    // dev's funded-org free access, which useOrgFreeAccess reads off this same
+    // composable. A mock that omits them renders the screen against undefined.
+    freeAccess: ref(null),
+    hasFreeAccess: ref(false),
   }),
 }))
 vi.mock('../platform/paymentRoute', () => ({

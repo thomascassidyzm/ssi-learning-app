@@ -60,6 +60,8 @@ export const ROLE_BADGES: Record<WalkPersona, string> = {
  */
 type PlaceLink = (node: string) => string | null
 
+// `intel` is the intelligence surface: every question page and verb there
+// carries the same description mechanism, and its home is the first question.
 export const PLACE_LINKS: Record<string, PlaceLink> = {
   'node-home': (node) => (node ? `/org/${node}` : null),
   'node-insights': (node) => (node ? `/org/${node}/insights` : null),
@@ -74,6 +76,7 @@ export const PLACE_LINKS: Record<string, PlaceLink> = {
   analytics: () => '/schools/analytics',
   upgrade: () => '/schools/upgrade',
   'admin-invites': () => '/admin/invites',
+  intel: () => '/intel',
   library: () => '/',
 }
 
@@ -83,6 +86,8 @@ export function placeLink(entry: HandbookEntry, nodeId: string | null | undefine
   return resolve ? resolve(nodeId ?? '') : null
 }
 
+export type HandbookSurface = 'schools' | 'intel'
+
 export interface HandbookEntry {
   /** Slug of the title — the compiler's own key, stable while the title is. */
   id: string
@@ -91,6 +96,12 @@ export interface HandbookEntry {
   source?: string
   section: HandbookSectionId
   personas: WalkPersona[]
+  /**
+   * Which surface the capability lives on. The compiler reads it from the
+   * anchor's namespace: data-walk is the schools dashboard, data-intel the
+   * intelligence surface. Absent means schools, so an older pack still reads.
+   */
+  surface?: HandbookSurface
   keywords: string[]
   place: { route: string; kinds?: string[] }
   anchor: string
@@ -104,11 +115,19 @@ export interface HandbookEntry {
 
 const entries = (pack as unknown as { handbook: HandbookEntry[] }).handbook
 
-/** Every handbook entry, in section then title order. */
-export function handbookEntries(): HandbookEntry[] {
+/**
+ * The entries for ONE surface, sorted for the page. One compiled pack carries
+ * both the schools dashboard's capabilities and the intelligence surface's;
+ * the schools Handbook page shows its own only, and the intelligence surface
+ * reads its own on its own pages. Absent surface means schools, so an older
+ * pack still reads.
+ */
+export function handbookEntries(surface: HandbookSurface = 'schools'): HandbookEntry[] {
   const order = HANDBOOK_SECTIONS.map((s) => s.id)
-  return [...entries].sort((a, b) =>
-    order.indexOf(a.section) - order.indexOf(b.section) || a.title.localeCompare(b.title))
+  return entries
+    .filter((e) => (e.surface ?? 'schools') === surface)
+    .sort((a, b) =>
+      order.indexOf(a.section) - order.indexOf(b.section) || a.title.localeCompare(b.title))
 }
 
 /** Entries grouped into the sections that actually have any. */

@@ -26,6 +26,9 @@ export * from './audio';
 // Pricing (Big 10 languages, access control)
 export * from './pricing';
 
+// Platform subscription gate (trial/paid, and the bounded no-end-date grace)
+export * from './platform';
+
 // Course display names (code → "French for English speakers")
 export * from './courses';
 
@@ -34,3 +37,6 @@ export * from './script';
 
 // Text measurement (per-language syllable counting registry)
 export * from './text';
+
+// Support identifier (the short name a learner reads out to support)
+export * from './identity';

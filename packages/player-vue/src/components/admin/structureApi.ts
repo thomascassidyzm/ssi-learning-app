@@ -17,6 +17,8 @@ export interface StructureCommercial {
   trialCourseCode: string | null
   trialKind: string | null
   platformExpiresAt: string | null
+  /** The school row's creation time — bounds a no-end-date trial's grace. */
+  createdAt?: string | null
   teacherSeats: number
 }
 

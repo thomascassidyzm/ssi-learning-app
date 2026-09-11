@@ -13,6 +13,7 @@ import { getAuthUserId } from '../_utils/auth'
 import { applyCors } from '../_utils/cors'
 import { resolveEffectiveSubscription } from '../_utils/familyAccess'
 import { familyCoverEndsAt } from '../_utils/familyGrace'
+import { resolveOrgFreeAccess } from '../_utils/orgFreeAccess'
 
 // Supabase client with service role (to bypass RLS for reading)
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -74,11 +75,18 @@ export default async function handler(
       res.status(200).json({
         subscription: null,
         isSubscribed: false,
+        freeAccess: null,
         isPlatformAdmin: false,
       })
       return
     }
 
+    // FREE THROUGH A FUNDED ORG ENROLMENT. Reported alongside the subscription
+    // because every upgrade prompt in the app already asks this endpoint "is
+    // this person a payer?" — and a Canolfan learner whose year is funded must
+    // answer that question the same way a payer does, from the grant rather
+    // than from a payment (api/_utils/orgFreeAccess.ts).
+    const freeAccess = await resolveOrgFreeAccess(supabase, learner.id)
     // A PLATFORM ADMIN IS NEVER SOLD A PLAN (Tom, 2026-09-08: "I'm being shown
     // an upgrade button, which I probably shouldn't be shown as I am a platform
     // admin"). He outranks Premium, holds no Paddle subscription, and so fell
@@ -114,6 +122,7 @@ export default async function handler(
         subscription: null,
         isSubscribed: false,
         isChildAccount,
+        freeAccess,
         isPlatformAdmin,
       })
       return
@@ -162,6 +171,7 @@ export default async function handler(
       },
       isSubscribed,
       isChildAccount,
+      freeAccess,
       isPlatformAdmin,
     })
   } catch (err) {
