@@ -50,7 +50,7 @@ function clean() {
 // Restore those files (the built dist already holds the compile), record it,
 // and throw if the build changed anything beyond a generation date.
 function restoreBuildStamps() {
-  const changed = requireOK(command('git', ['status', '--porcelain']), 'status').stdout.trim().split('\n').filter(Boolean).map(l => l.slice(3))
+  const changed = requireOK(command('git', ['status', '--porcelain']), 'status').stdout.split('\n').filter(Boolean).map(l => l.slice(3))
   if (!changed.length) return
   const diff = requireOK(command('git', ['diff', '-U0', '--', ...changed]), 'diff').stdout
   const lines = diff.split('\n').filter(l => /^[+-]/.test(l) && !/^(\+\+\+|---)/.test(l))
