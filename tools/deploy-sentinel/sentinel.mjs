@@ -28,6 +28,7 @@ import { dirname, join } from 'node:path'
 import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { isProbeHealthy } from './probeStatus.mjs'
+import { findChrome } from './chromeBin.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const REPO = join(HERE, '..', '..')
@@ -164,9 +165,10 @@ function githubDeployState(sha) {
 // small-N traffic hours — twice, 2026-08-01 and 2026-08-06). Returns
 // { ran, ok, detail }; ran:false when no browser/libs exist on this machine.
 function playProbe() {
-  const chromeDirs = ['chromium-1234', 'chromium-1228', 'chromium-1208']
-    .map((d) => join(process.env.HOME, '.cache/ms-playwright', d, 'chrome-linux64/chrome'))
-  const chrome = chromeDirs.find((p) => existsSync(p))
+  // Scan the cache rather than naming build numbers: a playwright bump moved
+  // the binary to chromium-1243 on 2026-09-10 and silently switched the probe
+  // off (see chromeBin.mjs).
+  const chrome = findChrome(join(process.env.HOME, '.cache/ms-playwright'))
   const libs = join(process.env.HOME, '.ssi-sentinel-libs')
   const script = join(REPO, 'packages/player-vue/e2e/deploy-sentinel-play-probe.mjs')
   if (!chrome || !existsSync(libs) || !existsSync(script)) {
