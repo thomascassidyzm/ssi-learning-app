@@ -98,6 +98,7 @@ const INTEL_VIEWS: Record<string, () => Promise<unknown>> = {
   'weak-points': () => import('@/views/intel/WeakPointsView.vue'),
   courses: () => import('@/views/intel/CoursesView.vue'),
   working: () => import('@/views/intel/WorkingView.vue'),
+  'where-and-what': () => import('@/views/intel/WhereAndWhatView.vue'),
 }
 // THE FOSSILS — the old admin pages a question replaces. Each renders only
 // while a question it serves is unbuilt; the day the last one is built the
