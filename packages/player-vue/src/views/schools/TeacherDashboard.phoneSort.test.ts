@@ -65,6 +65,13 @@ vi.mock('@/composables/useMailboxPrompt', () => ({
 }))
 
 async function mountView() {
+  // The class-practice payload the rows read (job #265): without it a row
+  // shows "…" — honestly unloaded — so this pins the loaded shape.
+  globalThis.fetch = vi.fn(async (url: any) => {
+    const u = String(url)
+    if (u.includes('class-practice-7d')) return { ok: true, json: async () => ({ practiceByClass: { 'c-7h': 2100, 'c-6s': 600 }, activeDaysByClass: { 'c-7h': 2, 'c-6s': 1 }, rollup: { windowDays: 7, classCount: 2, activeClasses7d: 2, inAppMinutes7d: 45 }, classAccountByClass: { 'c-7h': { started: true, journeyDone: 9, journeyTotal: 334, seedNumber: 3, lastPractisedAt: new Date().toISOString(), phrases7d: 20, minutesByDay: [0, 5, 0, 10, 10, 0, 10] }, 'c-6s': { started: true, journeyDone: 2, journeyTotal: 334, seedNumber: 1, lastPractisedAt: new Date().toISOString(), phrases7d: 4, minutesByDay: [0, 0, 0, 0, 0, 0, 10] } } }) } as any
+    return { ok: true, json: async () => ({}) } as any
+  }) as any
   const { useSchoolContext } = await import('@/composables/schools/useSchoolContext')
   useSchoolContext().currentUser.value = {
     user_id: 'u1', learner_id: 'l1', display_name: 'Angharad', educational_role: 'school_admin',
@@ -73,7 +80,7 @@ async function mountView() {
   const mod = await import('./TeacherDashboard.vue')
   const wrapper = mount(mod.default, {
     global: {
-      provide: { isAdminView: false, supabase: ref(null) },
+      provide: { isAdminView: false, supabase: ref({ auth: { getSession: async () => ({ data: { session: { access_token: 'tok' } } }) } } as any) },
       stubs: {
         BeltDot: true, HealthDot: true, Sparkline: true, UpdatedStamp: true,
         CreateClassModal: true, SchoolsPasswordPrompt: true, ClassCreatedModal: true, MailboxCheckPrompt: true,
@@ -81,6 +88,7 @@ async function mountView() {
       },
     },
   })
+  await flushPromises()
   await flushPromises()
   return wrapper
 }
@@ -106,14 +114,14 @@ describe('TeacherDashboard — the sorted metric is reachable on a phone', () =>
     expect(pinned[0].text()).toMatch(/ min$/)
 
     const labelled = wrapper.findAll('tbody tr:first-child td[data-label]').map(td => td.attributes('data-label'))
-    expect(labelled).toEqual(['Course', 'Students', 'Belt', 'Avg seeds', 'Time in app, min/wk', 'Activity', 'Health'])
+    expect(labelled).toEqual(['Course', 'Belt', 'Journey, LEGOs', 'Time in app, min/wk', 'Activity', 'Health'])
   })
 
   it('sorting by name still pins time in app, the school metric', async () => {
     const wrapper = await mountView()
     expect(wrapper.find('table[data-walk="classes-table"]').attributes('data-sorted')).toBe('hours')
-    await wrapper.find('.filter-sort select').setValue('students')
-    expect(wrapper.find('table[data-walk="classes-table"]').attributes('data-sorted')).toBe('students')
-    expect(wrapper.find('tbody td.is-sorted').attributes('data-label')).toBe('Students')
+    await wrapper.find('.filter-sort select').setValue('journey')
+    expect(wrapper.find('table[data-walk="classes-table"]').attributes('data-sorted')).toBe('journey')
+    expect(wrapper.find('tbody td.is-sorted').attributes('data-label')).toBe('Journey, LEGOs')
   })
 })

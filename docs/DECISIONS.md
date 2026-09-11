@@ -1,3 +1,31 @@
+## 2026-09-11 — a class row is the class account's own progress; per-pupil framing leaves the class list and the class page (job #265, Tom's ruling)
+
+Tom, on the Chepstow classes list under View-as: every one of 34 cards read Students 0, Belt White,
+Avg seeds 0, a flat line, Inactive — while the 8H class page read 53 phrases and 24 minutes this
+week. His ruling: "each class row shows the class's progress read from the play-as-class learner
+account, obviously"; a per-pupil student count on a class is meaningless because a class IS one
+learner account; where the account has never played, say "not started" in words, never zeros;
+minutes per week, never hours.
+
+- **One source.** `/api/school/class-practice-7d` now carries `classAccountByClass` — started,
+  journey in LEGOs (the same chain the class node home uses: enrollment ceiling → last completed →
+  `classes.last_lego_id`, as an ordinal via the shared `legoOrdinal`), the seed the class has reached
+  for its belt, the cursor stamp, phrases this week and the class account's own in-app minutes per
+  UTC day for the sparkline. The list reads only that; `class_sessions` (dead since 2026-08-19) and
+  `class_student_progress` averages no longer drive any cell.
+- **Gone from the list:** the Students column, the Students sort, "Avg seeds". **In:** "Journey,
+  LEGOs" as done / total, sortable. Header line: "34 classes across School · 352 min in the app
+  this week". A never-played account reads **Not started** in the belt, journey, time and health
+  cells and shows no sparkline.
+- **Gone from the class page:** the Students stat tile (now "LEGOs travelled together"), the
+  "Students average N LEGOs on their own" sentence, the Belt distribution card and the Practice
+  min/student/week card, with their Handbook entries. The student roster section stays — it is the
+  invite target, and "No students in this class yet" is words, not a zero.
+- **Verified live for Chepstow (query in the job report):** 34 class accounts, 30 with diary
+  events, 4 never played (11E, 11H, 8S, "Rachel Tiller Cleaves Personal"); no account carries a
+  `highest_completed_lego_id`, so the journey comes off `last_completed_lego_id` / `last_lego_id`.
+  35 of 39 staff accounts have played as themselves — reported, not moved.
+
 ## 2026-09-11 — practice is MINUTES on every school surface, and the school headline is this week's in-app minutes, the number the admin reads (job #265)
 
 Tom on staging: "why the fucking hell are they all showing 0h progress. Why the fuck is hours a thing

@@ -364,3 +364,21 @@ export async function inAppTimeSeconds(
   }
   return { seconds, classSeconds }
 }
+
+/**
+ * LEGO ordinal for a `S{NNNN}L{NN}` position id within a course — the same
+ * (seed_number, lego_index) row-number ordering analytics_class_sessions_scoped
+ * uses, computed as two indexed head-counts. Returns 0 when the id doesn't
+ * parse (null/legacy values), so callers can fall back.
+ */
+export async function legoOrdinal(svc: SupabaseClient, courseCode: string, legoId: string | null | undefined): Promise<number> {
+  const m = typeof legoId === 'string' ? legoId.match(/S(\d+)L(\d+)/) : null
+  if (!m) return 0
+  const seed = parseInt(m[1], 10)
+  const lego = parseInt(m[2], 10)
+  const [{ count: before }, { count: within }] = await Promise.all([
+    svc.from('course_legos').select('id', { count: 'exact', head: true }).eq('course_code', courseCode).lt('seed_number', seed),
+    svc.from('course_legos').select('id', { count: 'exact', head: true }).eq('course_code', courseCode).eq('seed_number', seed).lte('lego_index', lego),
+  ])
+  return (before ?? 0) + (within ?? 0)
+}
