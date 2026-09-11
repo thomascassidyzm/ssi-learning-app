@@ -124,9 +124,10 @@ describe('NodeHomeView — one grammar at every level', () => {
     // Identity header
     expect(wrapper.find('.identity-name').text()).toBe('IME Demo Programme')
     expect(text).toContain('Demo')
-    // Stats row — subtree totals + hours
+    // Stats row — subtree totals + practice in MINUTES (job #265): 266.4h → 15984 min
     expect(text).toContain('80')
-    expect(text).toContain('266.4h')
+    expect(text).toContain('15984 min')
+    expect(text).not.toMatch(/\d+(\.\d+)?h\b/)
     // BELOW THIS — the containment structure, drawn: this node as the trunk,
     // its school nested under it, that school's class nested under THAT, and
     // its teacher as a person row. No chips: the tree says all of it at once.
@@ -434,7 +435,7 @@ describe('NodeHomeView — one grammar at every level', () => {
     expect(statWords.slice(0, 2)).toEqual(['Phrases spoken this week', 'Minutes in the app this week'])
     const statValues = wrapper.findAll('.stat-card .stat-value').map((v) => v.text())
     expect(statValues.slice(0, 2)).toEqual(['42', '78'])
-    expect(text).not.toContain('Practice hours')
+    expect(text).not.toContain('Minutes practised')
     expect(text).not.toMatch(/sessions? this week/i)
     // The Class practice card renders FIRST among the class cards.
     const cards = wrapper.findAll('.class-card .schools-kicker').map((k) => k.text())
@@ -508,7 +509,7 @@ describe('NodeHomeView — one grammar at every level', () => {
 
     const text = wrapper.text()
     // Stats: practice / groups / learners — never TEACHERS or CLASSES tiles.
-    expect(text).toContain('Practice hours')
+    expect(text).toContain('Minutes practised')
     expect(text).toContain('Groups')
     expect(text).toContain('Learners')
     expect(text).not.toContain('Teachers')
@@ -603,7 +604,7 @@ describe('NodeHomeView — one grammar at every level', () => {
     expect(wrapper.text()).toContain("you're here")
     expect(wrapper.find('.identity-name').text()).toBe('IME Demo Programme')
     // Stats render the still-correct cached values (same node, seconds old).
-    expect(wrapper.text()).toContain('266.4h')
+    expect(wrapper.text()).toContain('15984 min')
   })
 
   it('MEMBER-MOUNT PIN (/org/:id): same page for a leader — links stay in member scope, no admin escape, invite verbs only', async () => {

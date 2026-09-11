@@ -26,6 +26,7 @@ import { useMailboxPrompt } from '@/composables/useMailboxPrompt'
 import WalkOffer from '@/components/admin/WalkOffer.vue'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
+import { formatPracticeMinutes } from '@/composables/schools/practiceMinutes'
 import { getLanguageName, useI18n } from '@/composables/useI18n'
 import { deriveBelt, BELTS, type Belt } from '@/composables/schools/belts'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
@@ -196,7 +197,8 @@ const students = computed(() => {
       belt,
       seeds_completed: s.seeds_completed,
       legos_mastered: s.legos_mastered,
-      hours7d: Math.round((s.total_practice_minutes / 60) * 10) / 10,
+      // MINUTES, never hours (Tom, 2026-09-11, job #265).
+      practiceMinutes: Math.round(s.total_practice_minutes || 0),
       last_active_display: formatLastActive(s.last_active_at),
       health: deriveStudentHealth(s.seeds_completed, s.last_active_at, avg),
     }
@@ -1282,7 +1284,7 @@ const mailboxPrompt = useMailboxPrompt()
                   </span>
                 </td>
                 <td>{{ s.legos_mastered }}</td>
-                <td>{{ s.hours7d }}h</td>
+                <td>{{ formatPracticeMinutes(s.practiceMinutes) }}</td>
                 <td><span class="schools-subtle">{{ s.last_active_display }}</span></td>
                 <td class="row-action">
                   <!-- HANDBOOK Remove a student from a class

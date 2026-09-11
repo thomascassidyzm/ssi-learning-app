@@ -1,3 +1,34 @@
+## 2026-09-11 — practice is MINUTES on every school surface, and the school headline is this week's in-app minutes, the number the admin reads (job #265)
+
+Tom on staging: "why the fucking hell are they all showing 0h progress. Why the fuck is hours a thing
+anyway? How many TIMES do I have to tell you guys to get the damn data displaying properly." Two
+faults, both closed:
+
+- **Hours are not a unit.** One formatter, `composables/schools/practiceMinutes.ts` — "352 min",
+  nothing else, no "h m", no "1.2h". The DB views still carry hours; `useSchoolData` converts at its
+  boundary, `roster.ts` returns minutes, `groups/[id]/home.ts` sends `practiceMinutes` beside the
+  hour fields it keeps for older readers. Eleven locale keys named for hours were deleted from all
+  25 locale files and fourteen minutes keys minted in English, enrolled in `pending-translation.json`.
+- **The school dashboard headline changed SOURCE, not just unit.** It read all-time hours off
+  `school_summary`, while the admin's node home read minutes in the app this week off the
+  class-practice spine — two different measures of one school, never able to agree, and the school
+  one rounding to "0h". The dashboard now reads `/api/school/class-practice-7d`'s new `rollup`,
+  computed by the same helpers and rule as the admin page: minutes in the app this week and "X of Y
+  classes practising this week". Not loaded → a dash and a sentence, never a zero.
+- **Role-only View-as for a school role no longer exists.** It sent no userId, so no scope loaded and
+  every count painted 0 as if real — a silent lie. The role buttons now pick the most recently active
+  real person of that role (`/api/admin/users?role=`), whose real school then loads; a learner stays
+  role-only because a learner has no school scope to fake. Chosen over an explicit "no school
+  selected" state on every stat because it deletes a whole state instead of adding one to every page.
+- **The admin's empty scope is passed around, not widened.** Under View-as every fetch runs as the
+  ssi_admin, whose `resolveVisibleScope` is empty. `class-practice-7d` takes `?school_id=` for that
+  caller only, behind `verifyAdmin`; a staff caller's own scope is never widened by the parameter.
+  Same shape as `group-summary.ts`'s `?groupId=` passthrough.
+
+Proof: `DashboardView.minutesHeadline.test.ts` mounts the real SFC and is red on the pre-#265 code
+(no minutes headline, "6m" from a 0.1h row) and green after; `class-practice-7d.test.ts` pins the
+rollup composition and the passthrough's refusal of a non-admin.
+
 ## 2026-09-11 — The in-app support channel for school and org admins is built, reconciled to Tom's two rulings (job #214, branch cs/214-build-the-in-app-support-channel)
 
 Spec `/d/8e1fce9d` §14, built as written except where Tom's two later rulings changed it: **admins

@@ -1,5 +1,5 @@
 # APML: Node Home — THE VIEW's one recursive dashboard
-# Last updated: 2026-09-10 (job #159: the stats row is PHRASES SPOKEN off the diary, never
+# Last updated: 2026-09-11 (job #265: practiceMinutes / practice_minutes ride beside the hour fields — MINUTES is the only unit any human-facing surface shows). 2026-09-10 (job #159: the stats row is PHRASES SPOKEN off the diary, never
 #               hours off class-account sessions; the phrase-by-count card; own-account minutes
 #               off the playback ledger as their own field — see class_practice below;
 #               2026-09-07: class-level Invite students verb + class-scoped ways-in ledger;
@@ -271,6 +271,7 @@ data:
     NO hours and NO session counts anywhere in this block: the old fields read class-account
     `sessions.duration_seconds` and put 0h on a school that played 1,310 clips (Chepstow).
   tree.classes[]: + phrases7d, lastPractisedAt — the Monday-morning row: who did it, who has gone quiet.
+  practiceMinutes / practice_minutes: the same figures in MINUTES (job #265, Tom 2026-09-11: hours are not a unit on any school or admin surface); the client formats these through composables/schools/practiceMinutes.ts and falls back to hours×60 only for a cached pre-#265 payload.
   practice_hours: subtree school_summary sum (incl. staff practice) — still in the payload for the neutral
     (non-school-shaped) row; on a school-shaped node the row reads class_practice instead
     + directly group-attached people's sessions (api/_utils/directMemberPractice.ts) — a group whose

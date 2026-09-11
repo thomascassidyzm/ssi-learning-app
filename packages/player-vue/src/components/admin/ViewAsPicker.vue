@@ -5,7 +5,13 @@
  * a tree that has since been redesigned.
  *
  * Two ways to pick, which is exactly the two questions being asked:
- *   - a ROLE ("show me what any learner sees") — no person, no foreign scope;
+ *   - a ROLE ("show me what any school leader sees") — for a school role this
+ *     picks a REAL person of that role, the one most recently active, so the
+ *     pages carry a real school's numbers. A bare role with no scope rendered
+ *     every count as 0 as if that were the truth (Tom on staging, 2026-09-11,
+ *     job #265: "why the fucking hell are they all showing 0h progress") — a
+ *     silent lie, so it no longer exists. Learner stays role-only: a learner
+ *     has no school scope to fake.
  *   - a PERSON (search) — their role AND their real school/group/class scope,
  *     so the pages render with their actual data.
  *
@@ -28,16 +34,54 @@ const searching = ref(false)
 
 const ROLES: { role: ViewAsPersona['role']; label: string; hint: string }[] = [
   { role: 'student', label: 'Learner', hint: 'the app with no staff surfaces at all' },
-  { role: 'teacher', label: 'Teacher', hint: 'a class-scoped teacher' },
-  { role: 'school_admin', label: 'School leader', hint: 'a whole school' },
-  { role: 'govt_admin', label: 'Group leader', hint: 'a group of schools' },
+  { role: 'teacher', label: 'Teacher', hint: 'the most recently active teacher, with their real classes' },
+  { role: 'school_admin', label: 'School leader', hint: 'the most recently active school leader, with their real school' },
+  { role: 'govt_admin', label: 'Group leader', hint: 'the most recently active group leader, with their real group' },
 ]
 
-function asRole(role: ViewAsPersona['role'], label: string): void {
-  open.value = false
-  // Role-only: no userId, so nothing foreign is loaded — the app simply
-  // wears that role. Pick a person below to get their real data too.
-  void viewAs({ key: `role:${role}`, userId: '', role, name: label })
+const resolvingRole = ref<ViewAsPersona['role'] | null>(null)
+
+function toPersona(u: any): ViewAsPersona {
+  return {
+    key: u.user_id,
+    userId: u.user_id,
+    learnerId: u.id,
+    role: u.educational_role as ViewAsPersona['role'],
+    name: u.display_name || u.primary_email || 'Unnamed',
+  }
+}
+
+/**
+ * A school role always lands on a REAL person of that role — the most
+ * recently active one, so the pages carry live numbers — never a bare role
+ * with no scope, which painted zeros as if they were true.
+ */
+async function asRole(role: ViewAsPersona['role'], label: string): Promise<void> {
+  if (role === 'student') {
+    open.value = false
+    void viewAs({ key: `role:${role}`, userId: '', role, name: label })
+    return
+  }
+  resolvingRole.value = role
+  try {
+    const auth = await getAuthToken()
+    const res = await fetch(`/api/admin/users?limit=50&role=${encodeURIComponent(role)}`, {
+      headers: auth ? { Authorization: `Bearer ${auth}` } : {},
+    })
+    const data = await res.json().catch(() => ({}))
+    const users: any[] = (Array.isArray(data?.users) ? data.users : []).filter((u: any) => u.educational_role === role)
+    if (users.length === 0) {
+      viewAsError.value = `Nobody with the ${label.toLowerCase()} role has an account yet — search for a person instead.`
+      return
+    }
+    users.sort((a, b) => String(b.last_active || '').localeCompare(String(a.last_active || '')))
+    open.value = false
+    await viewAs(toPersona(users[0]))
+  } catch {
+    viewAsError.value = 'Could not find a person with that role — network error.'
+  } finally {
+    resolvingRole.value = null
+  }
 }
 
 const VIEW_AS_ROLES = new Set(['teacher', 'school_admin', 'govt_admin', 'student'])
@@ -61,13 +105,7 @@ async function search(): Promise<void> {
     const users = Array.isArray(data?.users) ? data.users : []
     results.value = users
       .filter((u: any) => u.educational_role && VIEW_AS_ROLES.has(u.educational_role))
-      .map((u: any) => ({
-        key: u.user_id,
-        userId: u.user_id,
-        learnerId: u.id,
-        role: u.educational_role as ViewAsPersona['role'],
-        name: u.display_name || u.primary_email || 'Unnamed',
-      }))
+      .map(toPersona)
   } catch {
     if (token === searchToken) results.value = []
   } finally {
@@ -113,10 +151,11 @@ const errorText = computed(() => viewAsError.value)
         type="button"
         class="vap-item"
         :data-testid="`view-as-role-${r.role}`"
+        :disabled="resolvingRole !== null"
         @click="asRole(r.role, r.label)"
       >
         <span class="vap-item-label">{{ r.label }}</span>
-        <span class="vap-item-hint">{{ r.hint }}</span>
+        <span class="vap-item-hint">{{ resolvingRole === r.role ? 'Finding the most recently active one…' : r.hint }}</span>
       </button>
 
       <p class="vap-head">Or a real person, with their own school and classes</p>
