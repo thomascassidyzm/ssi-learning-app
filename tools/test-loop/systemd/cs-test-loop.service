@@ -1,0 +1,22 @@
+[Unit]
+Description=Self-improving release-test loop: one report-only cycle against origin/dev (SEMI-AUTOMATIC, never a gate)
+
+[Service]
+Type=oneshot
+Slice=cs-workers.slice
+Nice=15
+IOSchedulingClass=idle
+# Measured full cycle 2026-09-11: 46 s wall-clock (clone, two builds, preview,
+# four serial browser controls) on a lightly loaded box. 600 s is ~13x headroom
+# for a cold cache and a contended night; a run that needs more is wedged.
+RuntimeMaxSec=600
+Environment=HOME=/home/tomcassidy
+Environment=TEST_LOOP_SOURCE=/home/tomcassidy/SSi/ssi-learning-app
+Environment=TEST_LOOP_REF=origin/dev
+Environment=TEST_LOOP_REPORTS=/home/tomcassidy/SSi/test-loop-reports
+Environment=CS_SCRATCH=/home/tomcassidy/.cache/ssi-test-loop
+# The runner AND the wrapper are taken from the tested ref itself, so neither
+# depends on which branch the shared checkout happens to have checked out.
+ExecStart=/bin/bash -c 'set -euo pipefail; cd "$TEST_LOOP_SOURCE"; git fetch --quiet origin dev; d="$CS_SCRATCH/runner"; mkdir -p "$d" "$CS_SCRATCH/tmp"; for f in run.mjs nightly.sh; do git show origin/dev:tools/test-loop/$f > "$d/$f"; done; exec bash "$d/nightly.sh"'
+# Exit 1 (misses) and 2 (gaps) are honest results, not unit failures.
+SuccessExitStatus=1 2
