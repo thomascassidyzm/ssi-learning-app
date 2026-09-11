@@ -70,6 +70,10 @@ const schoolAvailableCourses = computed(() => {
 
 const courseFilter = ref<string>('all')
 const sortKey = ref<SortKey>('name')
+// At phone width the table becomes one card per class, and the ONE number the
+// admin sorted by sits beside the class name; the rest stack underneath. When
+// the sort is by name, the pinned number is time in app, the school metric.
+const pinnedKey = computed<Exclude<SortKey, 'name'>>(() => (sortKey.value === 'name' ? 'hours' : sortKey.value))
 const healthFilter = ref<'all' | Health>('all')
 
 const classReports = reactive(new Map<string, ClassReport>())
@@ -486,7 +490,9 @@ function exportCsv() {
          1. Open **My Classes**.
          2. Pick a language under **Course** to see only the classes learning it.
          3. Pick a state under **Health** to pull out the classes that need attention.
-         4. Change **Sort** to order by students, hours this week or progress.
+         4. Change **Sort by** to order by students, time in app this week or
+            average seeds. On a phone it is the first control, and the number you
+            sorted by shows beside each class name.
          Worth knowing. The totals above the table follow the filter, so the student count
          and the hours are always the total of what you are actually looking at.
          checked: 35143594.4526edb3
@@ -512,7 +518,7 @@ function exportCsv() {
       </label>
 
       <div class="filter filter-sort">
-        <span class="filter-label">{{ t('schools.teacherDashboard.sortLabel', 'Sort') }}</span>
+        <span class="filter-label">{{ t('schools.teacherDashboard.sortLabel', 'Sort by') }}</span>
         <select v-model="sortKey" class="filter-select">
           <option value="name">{{ t('schools.teacherDashboard.sortName', 'Name') }}</option>
           <option value="students">{{ t('schools.teacherDashboard.sortStudents', 'Students') }}</option>
@@ -535,7 +541,9 @@ function exportCsv() {
            a look. Time in app is the time the class, and any students on their own
            accounts, spent in the app with the lesson running, pauses included — so
            it is the time they were in the lesson.
-           Where it is. **My Classes**, the table filling most of the page.
+           Where it is. **My Classes**, the table filling most of the page. On a
+           phone each class is a card instead, with the number you sorted by beside
+           its name and the rest underneath.
            How you do it.
            1. Open **My Classes**.
            2. Read down the health column first, because that is where the app is
@@ -546,9 +554,9 @@ function exportCsv() {
            Worth knowing. Health is worked out from how many of the last seven days the
            class practised on. A quiet week reads as needing eyes, which is a prompt for
            a word rather than a worry.
-           checked: c4749cd2.6f5290e2
+           checked: f93e3ed0.340055e2
       -->
-      <table class="ssi-table" data-walk="classes-table">
+      <table class="ssi-table" data-walk="classes-table" :data-sorted="pinnedKey">
         <thead>
           <tr>
             <th>{{ t('schools.teacherDashboard.tableHeaderClass', 'Class') }}</th>
@@ -593,22 +601,22 @@ function exportCsv() {
             @click="openClass(cls)"
             @keyup.enter="openClass(cls)"
           >
-            <td>
+            <td class="cell-class">
               <div class="cell-name">{{ cls.class_name }}</div>
               <div class="cell-code">{{ cls.join_code }}</div>
             </td>
-            <td><span class="schools-subtle">{{ cls.course_label }}</span></td>
-            <td>{{ cls.student_count }}</td>
-            <td>
+            <td :data-label="t('schools.teacherDashboard.tableHeaderCourse', 'Course')"><span class="schools-subtle">{{ cls.course_label }}</span></td>
+            <td :data-label="t('schools.teacherDashboard.tableHeaderStudents', 'Students')" :class="{ 'is-sorted': pinnedKey === 'students' }">{{ cls.student_count }}</td>
+            <td :data-label="t('schools.teacherDashboard.tableHeaderBelt', 'Belt')">
               <div class="cell-belt">
                 <BeltDot :belt="cls.class_belt" :size="16" ring />
                 <span class="belt-name">{{ cls.class_belt }}</span>
               </div>
             </td>
-            <td>{{ cls.avg_seeds_completed }}</td>
-            <td>{{ cls.hoursWk }}h</td>
-            <td><Sparkline :data="cls.activity" :width="80" :height="20" /></td>
-            <td>
+            <td :data-label="t('schools.teacherDashboard.tableHeaderAvgSeeds', 'Avg seeds')" :class="{ 'is-sorted': pinnedKey === 'journey' }">{{ cls.avg_seeds_completed }}</td>
+            <td :data-label="t('schools.teacherDashboard.tableHeaderTimeInApp', 'Time in app, hrs/wk')" :class="{ 'is-sorted': pinnedKey === 'hours' }">{{ cls.hoursWk }}h</td>
+            <td :data-label="t('schools.teacherDashboard.tableHeaderActivity', 'Activity')"><Sparkline :data="cls.activity" :width="80" :height="20" /></td>
+            <td :data-label="t('schools.teacherDashboard.tableHeaderHealth', 'Health')">
               <span class="cell-health">
                 <HealthDot :health="cls.health" />
                 <span class="health-label">{{ healthDisplayLabel(cls.health) }}</span>
@@ -1010,5 +1018,38 @@ function exportCsv() {
   .filter-sort { margin-left: 0; }
   .table-card { overflow-x: auto; }
   .table-card .ssi-table { min-width: 760px; }
+}
+
+/* PHONE: one card per class. A 760px table at 390px hid Time in app, Activity,
+   Health and Share off the right edge with no cue (job #259, 2026-09-11). The
+   sort picker comes first and the number sorted by sits beside the class name;
+   every other cell stacks underneath with its column name in front of it. */
+@media (max-width: 640px) {
+  .filters-bar { gap: 10px; padding: 12px 14px; }
+  .filter, .filter-sort { display: flex; width: 100%; justify-content: space-between; }
+  .filter-sort { order: -1; }
+  .filter-sort .filter-label { font-weight: 600; color: var(--schools-fg); }
+  .filter-select { flex: 0 1 60%; }
+
+  .table-card { overflow: visible; }
+  .table-card .ssi-table { min-width: 0; display: block; }
+  .table-card .ssi-table thead { display: none; }
+  .table-card .ssi-table tbody { display: block; }
+  .table-card .ssi-table tbody tr {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    column-gap: 12px;
+    row-gap: 6px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--schools-border);
+  }
+  .table-card .ssi-table tbody tr:last-child { border-bottom: none; }
+  .table-card .ssi-table tbody td { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 0; border: none; background: none; grid-column: 1 / -1; font-size: 12.5px; }
+  .table-card .ssi-table tbody td[data-label]::before { content: attr(data-label); color: var(--schools-fg-2); }
+  .table-card .ssi-table tbody td.cell-class { grid-column: 1; grid-row: 1; display: block; }
+  .table-card .ssi-table tbody td.is-sorted { grid-column: 2; grid-row: 1; flex-direction: column; align-items: flex-end; gap: 0; font-size: 1.25rem; font-weight: 600; color: var(--schools-fg); }
+  .table-card .ssi-table tbody td.is-sorted::before { font-size: 11px; font-weight: 400; }
+  .table-card .ssi-table tbody td.cell-share,
+  .table-card .ssi-table tbody td.cell-action { grid-column: auto; justify-content: flex-start; padding-top: 4px; }
 }
 </style>
