@@ -2744,7 +2744,11 @@
         "honest": "A class is counted in phrases spoken. No record measures how long a whole class practised together, so no time is shown for it; minutes are people's own logins only.",
         "rowsClasses": "Classes, by phrases spoken this week",
         "rowsEmpty": "No class has practised together in the last fourteen days.",
-        "rowsPeople": "People on their own account, minutes this week"
+        "rowsPeople": "People on their own account, minutes this week",
+        "classYesMinutes": "This class practised together this week, {phrases} phrases spoken, {change}, {minutes} in the app.",
+        "classesMinutes": "{n} of your {total} classes practised together this week, {change}, {phrases} phrases spoken, {minutes} in the app.",
+        "classTime": "A class's minutes are time in the app on its own class account, the gaps between phrases included. People's minutes are their own logins.",
+        "rowsClassesMinutes": "Classes, by phrases spoken this week, with minutes in the app"
       },
       "byDay": "by day",
       "quiet": {
