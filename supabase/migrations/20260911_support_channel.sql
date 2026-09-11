@@ -102,6 +102,9 @@ CREATE TABLE IF NOT EXISTS public.support_messages (
   -- Set when Tom's word arrives (his row, or a hold). Until then the thread
   -- shows "Waiting on Tom since …".
   escalation_resolved_at timestamptz,
+  -- The reply the agent drafted in Tom's name, carried on the needs-you card.
+  -- `yes` writes it as his row verbatim; a typed sentence replaces it.
+  draft_reply           text,
   -- The watcher selects on THIS: an 'in' row with answered_at IS NULL is a
   -- turn not yet taken. Set when the agent's reply row is written.
   answered_at           timestamptz,

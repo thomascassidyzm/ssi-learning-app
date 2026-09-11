@@ -12434,6 +12434,7 @@ CREATE TABLE public.support_messages (
     escalation_test text,
     escalation_evidence text,
     escalation_resolved_at timestamp with time zone,
+    draft_reply text,
     answered_at timestamp with time zone,
     handbook_anchors text[],
     handbook_hit boolean,
