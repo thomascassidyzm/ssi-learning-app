@@ -23,6 +23,9 @@ const ref = refIndex >= 0 ? process.argv[refIndex + 1] : null
 if (refIndex >= 0 && !/^[\w.-]+\/[\w./-]+$/.test(ref || '')) throw new Error('--ref needs <remote>/<branch>')
 if (ref) requireOK(command('git', ['fetch', '--quiet', ...ref.split('/', 1), ref.slice(ref.indexOf('/') + 1)], source, 60000), 'fetch ref')
 const report = { ref: ref || 'HEAD of source', sourceCommit: requireOK(command('git', ['rev-parse', ref || 'HEAD'], source), 'rev-parse').stdout.trim(), started: new Date().toISOString(), scratch, build: 'not-run', entries: [] }
+// The repo pins pnpm through corepack; a bare `pnpm` may be absent from a
+// non-login shell (systemd, this runner's own spawn). Prefer the pinned one.
+const PNPM = spawnSync('pnpm', ['--version'], { encoding: 'utf8' }).status === 0 ? ['pnpm'] : ['corepack', 'pnpm']
 let preview
 function stopPreview() {
   if (preview?.pid) { try { process.kill(-preview.pid, 'SIGTERM') } catch {} }
@@ -79,11 +82,11 @@ try {
   if (!process.argv.includes('--controls-only')) {
     console.log('Serial, niced core and player builds establish a local preview from the measured commit; this is not a release verification.')
     for (const args of [['--filter', '@ssi/core', 'exec', 'tsup', '--no-dts'], ['--filter', 'player-vue', 'build']]) {
-      const r = command('nice', ['-n', '15', 'pnpm', ...args], scratch, 180000)
+      const r = command('nice', ['-n', '15', ...PNPM, ...args], scratch, 180000)
       writeFileSync(join(out, `build-${args[1].replace('@ssi/', '')}.log`), (r.stdout || '') + (r.stderr || ''))
       requireOK(r, 'scratch build')
     }
-    preview = spawn('nice', ['-n', '15', 'pnpm', '--filter', 'player-vue', 'exec', 'vite', 'preview', '--host', '127.0.0.1', '--port', '4173', '--strictPort'], { cwd: scratch, detached: true, stdio: ['ignore', 'pipe', 'pipe'] })
+    preview = spawn('nice', ['-n', '15', ...PNPM, '--filter', 'player-vue', 'exec', 'vite', 'preview', '--host', '127.0.0.1', '--port', '4173', '--strictPort'], { cwd: scratch, detached: true, stdio: ['ignore', 'pipe', 'pipe'] })
     let log = ''; preview.stdout.on('data', b => { log += b; process.stdout.write(b) }); preview.stderr.on('data', b => { log += b })
     preview.on('error', e => { log += e.message })
     for (let i = 0; i < 100 && !log.includes('http://127.0.0.1:4173'); i++) {
