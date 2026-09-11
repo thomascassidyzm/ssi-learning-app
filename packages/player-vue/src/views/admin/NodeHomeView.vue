@@ -51,9 +51,6 @@ import { nodeKindOf } from '@/explainer/evaluateRules'
 import { useNoticingInvitations } from '@/explainer/useNoticingInvitations'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
-import BeltStrip from '@/components/schools/shared/BeltStrip.vue'
-import BeltDot from '@/components/schools/shared/BeltDot.vue'
-import Bench from '@/components/schools/shared/Bench.vue'
 import { deriveBelt, BELTS, type Belt } from '@/composables/schools/belts'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { formatPracticeMinutes, hoursToMinutes } from '@/composables/schools/practiceMinutes'
@@ -405,7 +402,9 @@ const stats = computed(() => {
     return [
       { value: cp?.phrases7d ?? 0, word: t('org.nodeHome.statPhrasesSpokenThisWeek', 'Phrases spoken this week') },
       { value: cp?.inAppMinutes7d ?? 0, word: t('org.nodeHome.statMinutesInAppThisWeek', 'Minutes in the app this week') },
-      { value: r.learnerCount ?? 0, word: t('org.nodeHome.statStudents', 'Students') },
+      // The class's own journey — never a per-pupil count on a class, which
+      // is one learner account (Tom's ruling, 2026-09-11, job #265).
+      { value: journey.value ? `${journey.value.source === 'class-play' ? journey.value.done : 0}/${journey.value.total}` : '—', word: t('org.nodeHome.statJourneyLegos', 'LEGOs travelled together') },
       { value: r.teacherCount ?? 0, word: t('org.nodeHome.statTeachers', 'Teachers') },
     ]
   }
@@ -512,12 +511,6 @@ const classAvgSeeds = computed(() => {
   return Math.round(list.reduce((s: number, x: any) => s + (x.seeds_completed || 0), 0) / list.length)
 })
 
-const classAvgLegos = computed(() => {
-  const list = home.value?.students ?? []
-  if (!list.length) return 0
-  return Math.round(list.reduce((s: number, x: any) => s + (x.legos_mastered || 0), 0) / list.length)
-})
-
 // The class's OWN belt comes from its play-as-class position (the journey's
 // seed number) when the class has practised together; students' average is
 // the fallback for classes that have never pressed Play as class.
@@ -535,21 +528,7 @@ const nextBeltInfo = computed(() => {
   return { name: next.name, remaining: Math.max(0, next.min - seeds) }
 })
 
-const beltDistribution = computed<Record<string, number>>(() => {
-  const dist: Record<string, number> = {}
-  for (const s of home.value?.students ?? []) {
-    const belt = deriveBelt(s.seeds_completed || 0)
-    dist[belt] = (dist[belt] || 0) + 1
-  }
-  return dist
-})
-
-const beltDistributionOrdered = computed(() =>
-  BELTS.filter((b) => beltDistribution.value[b.key]).map((b) => ({ belt: b.key, count: beltDistribution.value[b.key] })),
-)
-
 const journey = computed(() => home.value?.journey ?? null)
-const benchmark = computed(() => home.value?.benchmark ?? null)
 
 const enrichedStudents = computed(() => {
   const avg = classAvgSeeds.value
@@ -1080,20 +1059,17 @@ const listPayload = computed(() => {
                  keywords: journey, progress, legos, position, course, belt, how far
                  What it's for. A bar showing where a class has got to in its
                  course, measured in LEGOs — the individual pieces of language the
-                 course teaches. The class's own shared position leads, and the
-                 average its students have reached on their own sits alongside it.
+                 course teaches. A class is one learner account played from the
+                 front, so the position is the class's own.
                  Where it is. The **Course journey** card on a class page.
                  How you do it.
                  1. Open a class.
                  2. Read the bar for how much of the course the class has covered
                     together.
-                 3. The line underneath gives both figures: the class's shared
-                    position, and the average students have reached learning alone.
-                 4. It also names the next belt and how many LEGOs are left to
-                    reach it.
-                 Worth knowing. A class that has never played together has no
-                 shared position, so the bar falls back to the students' own
-                 average and says so.
+                 3. The line underneath gives the figure in LEGOs, then names the
+                    next belt and how many LEGOs are left to reach it.
+                 Worth knowing. A class that has never played together says
+                 **Not started** in words; it is never shown as a bar of zero.
                  checked: 37cd9c93.325026db
             -->
             <div class="schools-card class-card" data-walk="class-journey">
@@ -1109,81 +1085,15 @@ const listPayload = computed(() => {
                 :done="journey.done"
                 :total="Math.max(journey.total, journey.done)"
               />
-              <JourneyBar v-else-if="journey" :done="classAvgLegos" :total="Math.max(journey.total, classAvgLegos)" />
+              <JourneyBar v-else-if="journey" :done="0" :total="journey.total" />
               <p class="class-card-note">
                 <template v-if="journey && journey.source === 'class-play'">
-                  {{ t('org.nodeHome.classTravelled', 'The class has travelled {done} of {total} LEGOs together.').replace('{done}', String(journey.done)).replace('{total}', String(journey.total)) }}
-                  {{ t('org.nodeHome.studentsAverageLegos', 'Students average {n} LEGOs on their own.').replace('{n}', String(classAvgLegos)) }}<br />
+                  {{ t('org.nodeHome.classTravelled', 'The class has travelled {done} of {total} LEGOs together.').replace('{done}', String(journey.done)).replace('{total}', String(journey.total)) }}<br />
                 </template>
-                <template v-else>{{ t('org.nodeHome.legosMasteredAverage', '{n} LEGOs mastered on average across the class.').replace('{n}', String(classAvgLegos)) }}<br /></template>
+                <template v-else>{{ t('org.nodeHome.classNotStartedJourney', 'Not started — the class has not played together yet.') }}<br /></template>
                 <template v-if="nextBeltInfo">{{ t('org.nodeHome.moreToBelt', '{n} more to {belt} belt.').replace('{n}', String(nextBeltInfo.remaining)).replace('{belt}', nextBeltInfo.name) }}</template>
                 <template v-else>{{ t('org.nodeHome.reachedBlackBelt', 'Reached Black belt — top of the ladder.') }}</template>
               </p>
-            </div>
-            <!-- HANDBOOK Reading the belts
-                 section: seeing-progress
-                 roles: admin, leader, school_admin
-                 place: node-home
-                 keywords: belt, belts, white, black, distribution, spread, seeds
-                 What it's for. How a class is spread across the eight belts, from
-                 white to black. A belt is earned by completing whole sentences of
-                 the course, so it is a coarse, honest badge of distance travelled
-                 rather than a score or a grade.
-                 Where it is. The **Belt distribution** card on a class page.
-                 How you do it.
-                 1. Open a class.
-                 2. Read the coloured strip for the shape of the class — a wide
-                    band of one colour means everyone is together.
-                 3. The list underneath names each belt and how many students hold
-                    it.
-                 4. The ladder runs white, yellow, orange, green, blue, purple,
-                    brown, black, reached at 8, 20, 40, 80, 150, 280 and 400
-                    completed sentences.
-                 Worth knowing. Every screen in the product uses that one ladder,
-                 so a student never shows a different belt in two places.
-                 checked: fa2db137.ed26d442
-            -->
-            <div class="schools-card class-card" data-walk="class-belts">
-              <span class="schools-kicker">{{ t('org.nodeHome.beltDistribution', 'Belt distribution') }}</span>
-              <template v-if="enrichedStudents.length">
-                <BeltStrip :distribution="beltDistribution" :height="8" />
-                <div class="belt-legend">
-                  <div v-for="row in beltDistributionOrdered" :key="row.belt" class="belt-legend-item">
-                    <BeltDot :belt="row.belt" :size="18" ring />
-                    <span class="belt-legend-count frost-mono-nums">{{ row.count }}</span>
-                    <span class="belt-legend-label">{{ row.belt }}</span>
-                  </div>
-                </div>
-              </template>
-              <p v-else class="class-card-note">{{ t('org.nodeHome.noStudentsYet', 'No students in this class yet.') }}</p>
-            </div>
-            <!-- HANDBOOK Practice per student per week
-                 section: seeing-progress
-                 roles: admin, leader, school_admin
-                 place: node-home
-                 keywords: benchmark, minutes, per student, per week, average, compare, rate
-                 What it's for. Minutes of practice per student per week for this
-                 class, set against the same figure for its school and for everyone
-                 doing the course. Dividing by students and by weeks is what lets a
-                 class of nine and a class of thirty be compared honestly.
-                 Where it is. The **Practice min/student/week** card on a class
-                 page.
-                 How you do it.
-                 1. Open a class.
-                 2. Read the top bar for this class's own minutes per student per
-                    week.
-                 3. The bars below it are the school average and the global average
-                    for the course.
-                 4. Compare the lengths — the numbers at the end give the exact
-                    figures.
-                 Worth knowing. A class with too little practice recorded shows a
-                 plain line saying so rather than a bar built from almost nothing.
-                 checked: 3079497c.7623dd0e
-            -->
-            <div class="schools-card class-card" data-walk="class-benchmark">
-              <span class="schools-kicker">{{ t('org.nodeHome.practiceMinStudentWeek', 'Practice min/student/week') }}</span>
-              <Bench v-if="benchmark" :data="benchmark" unit="m" />
-              <p v-else class="class-card-note">{{ t('org.nodeHome.notEnoughPractice', 'Not enough practice recorded yet.') }}</p>
             </div>
           </div>
 

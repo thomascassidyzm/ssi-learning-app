@@ -59,7 +59,7 @@ async function mountView(scopeSource: 'self' | 'admin-view') {
   globalThis.fetch = vi.fn(async (url: any) => {
     const u = String(url)
     calls.push(u)
-    if (u.includes('class-practice-7d')) return { ok: true, json: async () => ({ practiceByClass: { 'c-7h': 2100 }, activeDaysByClass: { 'c-7h': 2 }, rollup: { windowDays: 7, classCount: 1, activeClasses7d: 1, inAppMinutes7d: 35 } }) } as any
+    if (u.includes('class-practice-7d')) return { ok: true, json: async () => ({ practiceByClass: { 'c-7h': 2100 }, activeDaysByClass: { 'c-7h': 2 }, rollup: { windowDays: 7, classCount: 1, activeClasses7d: 1, inAppMinutes7d: 35 }, classAccountByClass: { 'c-7h': { started: true, journeyDone: 6, journeyTotal: 679, seedNumber: 3, lastPractisedAt: new Date().toISOString(), phrases7d: 53, minutesByDay: [0, 0, 0, 0, 10, 0, 25] } } }) } as any
     return { ok: true, json: async () => ({}) } as any
   }) as any
   const { useSchoolContext } = await import('@/composables/schools/useSchoolContext')
@@ -95,6 +95,9 @@ describe('TeacherDashboard — class practice under the admin read-view (job #26
     expect(practice[0]).toContain('class_ids=c-7h')
     expect(wrapper.text()).toContain('35 min')
     expect(wrapper.text()).not.toMatch(/\b\d+(\.\d+)?h\b/)
+    // The row is the CLASS ACCOUNT's own progress: its journey in LEGOs, no pupil count.
+    expect(wrapper.text()).toContain('6 / 679')
+    expect(wrapper.text()).not.toContain('Students')
   })
 
   it('a leader on their own session sends no school_id — their own scope is the truth', async () => {
