@@ -44,6 +44,20 @@ function clean() {
   const r = requireOK(command('git', ['status', '--porcelain']), 'status')
   if (r.stdout.trim()) throw new Error(`Scratch tree not clean: ${r.stdout}`)
 }
+// The player build's prebuild step recompiles the walkthrough/handbook packs
+// and stamps today's date into three tracked files, so on any day after the
+// last committed compile the scratch tree is dirty before the first entry.
+// Restore those files (the built dist already holds the compile), record it,
+// and throw if the build changed anything beyond a generation date.
+function restoreBuildStamps() {
+  const changed = requireOK(command('git', ['status', '--porcelain']), 'status').stdout.trim().split('\n').filter(Boolean).map(l => l.slice(3))
+  if (!changed.length) return
+  const diff = requireOK(command('git', ['diff', '-U0', '--', ...changed]), 'diff').stdout
+  const lines = diff.split('\n').filter(l => /^[+-]/.test(l) && !/^(\+\+\+|---)/.test(l))
+  if (!lines.length || !lines.every(l => /generated(At)?\b.*\d{4}-\d{2}-\d{2}/.test(l))) throw new Error(`Build modified tracked files beyond a generation date:\n${diff}`)
+  requireOK(command('git', ['checkout', '--', ...changed]), 'restore build stamps')
+  report.buildRewroteDateStamps = changed
+}
 function dependencies(pkg) {
   const dest = join(scratch, 'packages', pkg, 'node_modules')
   mkdirSync(dest, { recursive: true })
@@ -97,6 +111,7 @@ try {
     const response = await fetch('http://127.0.0.1:4173', { signal: AbortSignal.timeout(3000) })
     if (!response.ok || !(await response.text()).includes('<html')) throw new Error('Preview did not serve HTML')
     report.build = 'built and served on 127.0.0.1:4173; controls stub routes, so this is NOT an app journey pass'
+    restoreBuildStamps()
   }
   clean()
   const baseline = probe('blob')
