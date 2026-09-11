@@ -69,7 +69,7 @@ const AdminSchoolsContainer = () => import('@/containers/AdminSchoolsContainer.v
 const AdminGroupContainer = () => import('@/containers/AdminGroupContainer.vue')
 const MethodologyContainer = () => import('@/containers/MethodologyContainer.vue')
 import { QUESTIONS } from '@/intel/questions'
-import { FOSSILS, fossilIsDead, fossilLanding } from '@/intel/fossils'
+import { FOSSILS, fossilIsDead, fossilLanding, fossilRouteName } from '@/intel/fossils'
 
 // Schools views (lazy-loaded)
 const DashboardView = () => import('@/views/schools/DashboardView.vue')
@@ -118,7 +118,7 @@ function fossilRoute(f: (typeof FOSSILS)[number]): RouteRecordRaw {
   }
   return {
     path: f.path,
-    name: `admin-${f.path.replace(/[^a-z]+/g, '-').replace(/-$/, '')}`,
+    name: fossilRouteName(f),
     component: FOSSIL_VIEWS[f.path],
     meta: FOSSIL_META[f.path],
   }
