@@ -249,6 +249,24 @@ export const pickListeningExtras = (
 const inFlightListening = new Map<string, Promise<ListeningPod[]>>()
 
 /**
+ * Courses whose Listening Mode list this session did NOT get from a live
+ * server read — it came from the offline snapshot, from the timeout/error
+ * fallback, or from the last-ditch served-pod-alone catch. Read by
+ * listeningMetaCache so a snapshot written off a fallback list is not filed
+ * as "every slot known" (job #424: one bad first fetch on a device with no
+ * cached extras wrote `extraPods: []`, and the once-per-boot heal never ran
+ * again while the content stamp stood still).
+ */
+const degradedListening = new Set<string>()
+
+/**
+ * Was this session's Listening Mode list for the course a fallback rather
+ * than a live read? False until resolveListeningPods has settled.
+ */
+export const isListeningPodLookupDegraded = (courseCode: string): boolean =>
+  degradedListening.has(courseCode)
+
+/**
  * The extra pods (and their titles) the offline snapshot was built from —
  * re-gated through the allow-list, like the served slug. Never throws.
  */
@@ -289,6 +307,7 @@ const resolveListeningOnce = async (
   if (isOfflineish()) {
     const offline = await cachedExtras(courseCode)
     if (offline) {
+      degradedListening.add(courseCode)
       const cached = await getCachedListeningMeta(courseCode).catch(() => null)
       return asListening(offline, cached?.podTitle ?? null)
     }
@@ -317,11 +336,13 @@ const resolveListeningOnce = async (
   if (result === NETWORK_TIMEOUT || result.error) {
     // Degrade to what this device last knew, else to the served pod alone —
     // today's behaviour, never fewer pods than main flow serves.
+    degradedListening.add(courseCode)
     const fallback = (await cachedExtras(courseCode)) ?? []
     const cached = await getCachedListeningMeta(courseCode).catch(() => null)
     return asListening(fallback, cached?.podTitle ?? null)
   }
 
+  degradedListening.delete(courseCode)
   const rows = result.data ?? []
   const servedRow = rows.find((r) => r.slug === served.slug)
   const servedTitle = typeof servedRow?.title === 'string' ? servedRow.title : null
@@ -341,6 +362,7 @@ export const resolveListeningPods = (
   const existing = inFlightListening.get(courseCode)
   if (existing) return existing
   const pending = resolveListeningOnce(client, courseCode).catch(async () => {
+    degradedListening.add(courseCode)
     const served = await resolveServedPod(client, courseCode)
     return [{ ...served, title: null }]
   })
@@ -352,4 +374,5 @@ export const resolveListeningPods = (
 export const resetServedPodCache = (): void => {
   inFlight.clear()
   inFlightListening.clear()
+  degradedListening.clear()
 }
