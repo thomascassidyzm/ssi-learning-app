@@ -1,3 +1,35 @@
+## 2026-09-12 — leader dashboard design review: top three then show all, sub-tiles by year group, the unfed classes page (job #303·F)
+
+A design review, not a build: no code changed. Tom's brief was that the lists on the school-leader
+home page are noise, that each section should show its top three rows with an expand, and that the
+headline number tiles want a breakdown into smaller tiles beneath them. The review, with mocks at
+phone width in the Mist palette and this week's real numbers for St Alban's and Chepstow, is
+published at https://watson-1.tail4968cb.ts.net/d/81ce6c56.
+
+- **Recommended:** Option A, Tom's top-three-then-show-all as drawn, with two grafts: Ways In
+  collapses to three GROUPED rows (12 class links none used, 1 teacher link used twice, 1 leader
+  link) rather than the first three of fourteen identical rows, and the same year-group sub-tiles
+  go on the classes page. Below this keeps its existing eight-class cap and "N more" as the one
+  expand idiom on the page. Roughly two builder days, every section a template change on data the
+  page already fetches; the one expensive item, minutes per year group, is left out.
+- **Sub-tiles:** year group first, derived on screen from the class name (a leading 6 to 13),
+  never stored; 12 of 12 St Alban's names and 30 of 34 Chepstow names parse, the rest fall into
+  one Other tile, and a school where fewer than half parse falls back to per-class tiles. Teacher
+  is the second variable (3 tiles at St Alban's, 39 at Chepstow); course is one tile at both.
+- **Finding for a separate job:** the classes page under View-as shows "…" and every health tile
+  at 0 while the home page says 20 of 34 practising and 352 minutes. The pages read the same
+  records by different doors: the home endpoint resolves the school from the URL, the per-class
+  endpoint resolves scope from the caller and needs the persona's school id passed along. The
+  admin read-view of the same page at 02:24 today returned 200 with 174 minutes and 8 Good / 14
+  Needs eyes, so the data and the rule are fine and the View-as route is what fails. A second
+  mismatch rides with it: the classes subtitle's minutes exclude staff and pupil accounts that the
+  home headline includes, and the endpoint already returns the home page's figure in a rollup
+  field the page ignores.
+- **Held, not rejected:** Option C, "what changed since last week" — both schools started on 8
+  September, so every row would read "new" this week; revisit from the third week of term.
+- **Two taste calls put to Tom:** does the phrase table stay on the home page at three rows or
+  become a sentence; year group only for now, or teacher too.
+
 ## 2026-09-12 — support_messages is column-granted, and the govt_admin subtree is parent_id in SQL too (job #300)
 
 Two live security gaps, found by job #297's audit and confirmed against the real database by job
