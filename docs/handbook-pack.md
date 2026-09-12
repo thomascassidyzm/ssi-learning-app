@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `91f8a04e924b` · generated 2026-09-12 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `07cc9810b814` · generated 2026-09-12 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -837,7 +837,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class
 **Where it is.** The **Students** list at the bottom of a class page.
 
 1. Open a class.
-2. Read down the rows — the bar on each is that student's own position in the course, in LEGOs.
+2. Read down the rows — the bar on each is that student's own position in the course, in LEGOs. The first three show; tap **Show all** under them for the rest.
 3. The small chart beside it is their practice over the past week, with the minutes named.
 4. The dot and word at the start of a row say whether they are excellent, good, needing attention or inactive.
 5. Tap a row to open that person.
@@ -1233,7 +1233,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `below
 2. Tap a caret to open or close what sits under a name.
 3. Tap any name to go to that level — the numbers and the tree redraw for it.
 4. A class row names its teachers, its student count, and how many phrases it practised together in the last seven days, or says plainly that it has not practised together this week, without you opening it.
-5. Where there are more than eight classes or people, a **more** button reveals the rest.
+5. Where there are more than three groups, classes or people under a name, the first three show and **Show all** reveals the rest; **Show fewer** folds them away again.
 
 **Worth knowing.** The top two levels open themselves and deeper ones wait to be tapped, so a large organisation shows you its shape instead of eighty-five rows.
 
@@ -1276,8 +1276,9 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-
 **Where it is.** The **What they practised this week** card under the row of numbers on a group or school page, and on a class page under its own practice card.
 
 1. Open a group, a school or a class.
-2. Read the list: the prompt, the phrase the class said back, and the number of times it came round this week.
-3. Tap a column heading to sort by it.
+2. Read the three rows: the prompt, the phrase the class practised, and the number of times it came round this week. The three most practised come first.
+3. Tap **Show all** under them to see every phrase; **Show fewer** folds the list back.
+4. Tap a column heading to sort by it.
 
 **Worth knowing.** A level whose classes have not played together this week says so in words instead of showing an empty list. Only whole-class play appears here; what staff and students practise on their own accounts is counted in the minutes in the app figure above.
 
@@ -1362,7 +1363,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class
 1. Open a class from the tree or the map.
 2. Read the big figure for phrases practised this week.
 3. The line under it gives the time since the class last practised and its minutes in the app this week.
-4. The list beneath is every phrase the class practised this week and the number of times it came round.
+4. The list beneath is the three phrases the class practised most this week and the number of times each came round; **Show all** under it opens the whole list.
 
 **Worth knowing.** The minutes are time in the app with the lesson running, pauses included, so they are the time the class was in the lesson. A class that has never played together says so plainly and names the teacher's **Play as class** button as the thing that starts the first lesson.
 

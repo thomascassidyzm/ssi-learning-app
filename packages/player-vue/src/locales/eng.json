@@ -2422,6 +2422,9 @@
       "phraseSpokenThisWeek": "phrase practised this week",
       "phrasesCardTitle": "What they practised this week",
       "phrasesSpokenThisWeek": "phrases practised this week",
+      "showAllPhrases": "Show all {n} phrases",
+      "showAllPeople": "Show all {n} people",
+      "showAllStudents": "Show all {n} students",
       "practisedTogetherPlural": "{hours}h practised together over {total} sessions.",
       "practisedTogetherSingular": "{hours}h practised together over {total} session.",
       "reachedBlackBelt": "Reached Black belt — top of the ladder.",
@@ -2574,6 +2577,9 @@
         "theirEmailWeSend": "Their email — we'll send the invite",
         "theirName": "Their name"
       },
+      "showAll": {
+        "showFewer": "Show fewer"
+      },
       "nodeBelowTree": {
         "closeNode": "Close {name}",
         "demo": "Demo",
@@ -2595,7 +2601,10 @@
         "phrasesMany": "{n} phrases this week",
         "notThisWeek": "not this week",
         "notYetTogether": "not yet practised together",
-        "studentsMany": "{n} students"
+        "studentsMany": "{n} students",
+        "showAllGroups": "Show all {n} groups",
+        "showAllClasses": "Show all {n} classes",
+        "showAllPeople": "Show all {n} people"
       },
       "nodeChildrenList": {
         "awaitingAdmin": "Awaiting admin",

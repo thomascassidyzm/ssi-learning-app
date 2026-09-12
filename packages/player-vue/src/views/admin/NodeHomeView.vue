@@ -50,6 +50,8 @@ import { courseShortName } from '@ssi/core'
 import { nodeKindOf } from '@/explainer/evaluateRules'
 import { useNoticingInvitations } from '@/explainer/useNoticingInvitations'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
+import ShowAll from '@/components/shared/ShowAll.vue'
+import { topThree } from '@/components/shared/topThree'
 import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
 import { deriveBelt, BELTS, type Belt } from '@/composables/schools/belts'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
@@ -441,6 +443,12 @@ const phraseRows = computed<{ known: string; target: string; count: number }[]>(
   if (!cp) return []
   return (isClass.value ? cp.phrases : cp.topPhrases7d) ?? []
 })
+// TOP THREE THEN SHOW ALL (Tom, 2026-09-12; components/shared/topThree.ts):
+// every list on this page renders its first three rows and one control that
+// shows the rest. The phrase table stays a table rather than becoming a
+// sentence — the three rows already say what the classes practised most.
+const showAllPhrases = ref(false)
+const phrasesShown = computed(() => topThree(phraseRows.value, showAllPhrases.value))
 const phrasesTable = computed<TableData>(() => ({
   kind: 'table',
   columns: [
@@ -448,8 +456,24 @@ const phrasesTable = computed<TableData>(() => ({
     { key: 'target', label: t('org.nodeHome.phraseColPhrase', 'Phrase') },
     { key: 'count', label: t('org.nodeHome.phraseColTimes', 'Times this week'), align: 'right', format: 'number' },
   ],
-  rows: phraseRows.value.map((p, i) => ({ id: `${i}-${p.known}`, cells: { known: p.known, target: p.target, count: p.count } })),
+  rows: phrasesShown.value.shown.map((p, i) => ({ id: `${i}-${p.known}`, cells: { known: p.known, target: p.target, count: p.count } })),
 }))
+const showAllPhrasesLabel = computed(() => t('org.nodeHome.showAllPhrases', 'Show all {n} phrases').replace('{n}', String(phraseRows.value.length)))
+// The class's students, and the names in the identity header, take the same
+// three-then-show-all as every other list. Per section, never sticky.
+const showAllStudents = ref(false)
+const showAllTeachers = ref(false)
+const showAllLeaders = ref(false)
+const teachersShown = computed(() => topThree<any>(home.value?.teachers ?? [], showAllTeachers.value))
+const leadersShown = computed(() => topThree<any>(home.value?.leaders ?? [], showAllLeaders.value))
+const showAllPeopleLabel = (n: number) => t('org.nodeHome.showAllPeople', 'Show all {n} people').replace('{n}', String(n))
+// A node switch is a new page: every list starts collapsed again.
+watch(() => route.params.id, () => {
+  showAllPhrases.value = false
+  showAllStudents.value = false
+  showAllTeachers.value = false
+  showAllLeaders.value = false
+})
 const showPhrasesCard = computed(() => !!classPractice.value && !neutral.value && !isClass.value)
 
 // DOOR ONE of the support channel (spec §2; Tom, 2026-09-10: admins only).
@@ -695,9 +719,11 @@ async function handleAssignConfirm(tickedClassIds: string[]): Promise<void> {
 }
 
 // ─── Children payload for the list ───
+const studentsShown = computed(() => topThree(enrichedStudents.value, showAllStudents.value))
+const showAllStudentsLabel = computed(() => t('org.nodeHome.showAllStudents', 'Show all {n} students').replace('{n}', String(enrichedStudents.value.length)))
 const listPayload = computed(() => {
   if (!home.value) return {}
-  if (isClass.value) return { students: enrichedStudents.value }
+  if (isClass.value) return { students: studentsShown.value.shown }
   if (lens.value === 'children') return { children: home.value.children || [] }
   return home.value
 })
@@ -802,9 +828,10 @@ const listPayload = computed(() => {
                 <template v-if="switching">{{ NBSP }}</template>
                 <template v-else>
                   {{ t('org.nodeHome.taughtBy', 'Taught by') }}
-                  <template v-for="(tch, i) in home.teachers" :key="tch.user_id">
-                    <strong>{{ tch.name }}</strong><span v-if="tch.is_lead" class="lead-tag"> ({{ t('org.nodeHome.leadTag', 'lead') }})</span><span v-if="i < home.teachers.length - 1">, </span>
+                  <template v-for="(tch, i) in teachersShown.shown" :key="tch.user_id">
+                    <strong>{{ tch.name }}</strong><span v-if="tch.is_lead" class="lead-tag"> ({{ t('org.nodeHome.leadTag', 'lead') }})</span><span v-if="i < teachersShown.shown.length - 1">, </span>
                   </template>
+                  <ShowAll v-if="teachersShown.collapsible" class="show-all-inline" :expanded="showAllTeachers" :label="showAllPeopleLabel(home.teachers.length)" @toggle="showAllTeachers = !showAllTeachers" />
                 </template>
               </p>
               <!-- WHO LEADS THIS GROUP. Until 2026-08-06 a node named its
@@ -817,9 +844,10 @@ const listPayload = computed(() => {
                 <template v-if="switching">{{ NBSP }}</template>
                 <template v-else>
                   {{ t('org.nodeHome.ledBy', 'Led by') }}
-                  <template v-for="(l, i) in home.leaders" :key="l.user_id">
-                    <strong>{{ l.name }}</strong><span v-if="i < home.leaders.length - 1">, </span>
+                  <template v-for="(l, i) in leadersShown.shown" :key="l.user_id">
+                    <strong>{{ l.name }}</strong><span v-if="i < leadersShown.shown.length - 1">, </span>
                   </template>
+                  <ShowAll v-if="leadersShown.collapsible" class="show-all-inline" :expanded="showAllLeaders" :label="showAllPeopleLabel(home.leaders.length)" @toggle="showAllLeaders = !showAllLeaders" />
                 </template>
               </p>
               <p v-else-if="!isClass && isRootNode" class="identity-teachers identity-noleader">
@@ -978,9 +1006,12 @@ const listPayload = computed(() => {
                own practice card.
                How you do it.
                1. Open a group, a school or a class.
-               2. Read the list: the prompt, the phrase the class said back, and the
-                  number of times it came round this week.
-               3. Tap a column heading to sort by it.
+               2. Read the three rows: the prompt, the phrase the class practised, and
+                  the number of times it came round this week. The three most
+                  practised come first.
+               3. Tap **Show all** under them to see every phrase; **Show fewer**
+                  folds the list back.
+               4. Tap a column heading to sort by it.
                Worth knowing. A level whose classes have not played together this
                week says so in words instead of showing an empty list. Only
                whole-class play appears here; what staff and students practise on
@@ -991,6 +1022,7 @@ const listPayload = computed(() => {
             <span class="schools-kicker">{{ t('org.nodeHome.phrasesCardTitle', 'What they practised this week') }}</span>
             <InsightTable v-if="phraseRows.length" :data="phrasesTable" />
             <p v-else class="class-card-note">{{ t('org.nodeHome.noClassPlayThisWeek', 'No whole-class practice recorded in the last seven days.') }}</p>
+            <ShowAll v-if="phrasesShown.collapsible" :expanded="showAllPhrases" :label="showAllPhrasesLabel" @toggle="showAllPhrases = !showAllPhrases" />
           </div>
 
           <!-- NOTICING INVITATIONS — the pack's rules over the payload just
@@ -1026,8 +1058,9 @@ const listPayload = computed(() => {
                  2. Read the big figure for phrases practised this week.
                  3. The line under it gives the time since the class last practised
                     and its minutes in the app this week.
-                 4. The list beneath is every phrase the class practised this week and
-                    the number of times it came round.
+                 4. The list beneath is the three phrases the class practised most this
+                    week and the number of times each came round; **Show all** under
+                    it opens the whole list.
                  Worth knowing. The minutes are time in the app with the lesson
                  running, pauses included, so they are the time the class was in the
                  lesson. A class that has never played together says so plainly and
@@ -1047,6 +1080,7 @@ const listPayload = computed(() => {
                 </p>
                 <InsightTable v-if="phraseRows.length" :data="phrasesTable" />
                 <p v-else class="class-card-note">{{ t('org.nodeHome.noClassPlayThisWeek', 'No whole-class practice recorded in the last seven days.') }}</p>
+                <ShowAll v-if="phrasesShown.collapsible" :expanded="showAllPhrases" :label="showAllPhrasesLabel" @toggle="showAllPhrases = !showAllPhrases" />
               </template>
               <p v-else class="class-card-note">{{ t('org.nodeHome.noClassPracticeYet', "No class practice yet — the teacher's Play as class button starts the first session.") }}</p>
               <p v-if="canAskSupport" class="stats-ask">
@@ -1148,7 +1182,8 @@ const listPayload = computed(() => {
                    How you do it.
                    1. Open a class.
                    2. Read down the rows — the bar on each is that student's own
-                      position in the course, in LEGOs.
+                      position in the course, in LEGOs. The first three show; tap
+                      **Show all** under them for the rest.
                    3. The small chart beside it is their practice over the past
                       week, with the minutes named.
                    4. The dot and word at the start of a row say whether they are
@@ -1157,16 +1192,20 @@ const listPayload = computed(() => {
                    Worth knowing. Needing attention means either nothing for a
                    fortnight or less than half the class average, so it is a
                    prompt to look rather than a verdict.
-                   checked: de9f5595.2581504f
+                   checked: 3d58c818.02d40a0c
               -->
-              <NodeChildrenList
-                v-else
-                data-walk="class-students"
-                :lens="lens"
-                :payload="listPayload"
-              >
-                <template #empty>{{ t('org.nodeHome.noStudentsYet', 'No students in this class yet.') }}</template>
-              </NodeChildrenList>
+              <template v-else>
+                <NodeChildrenList
+                  data-walk="class-students"
+                  :lens="lens"
+                  :payload="listPayload"
+                >
+                  <template #empty>{{ t('org.nodeHome.noStudentsYet', 'No students in this class yet.') }}</template>
+                </NodeChildrenList>
+                <div v-if="studentsShown.collapsible" class="children-show-all">
+                  <ShowAll :expanded="showAllStudents" :label="showAllStudentsLabel" @toggle="showAllStudents = !showAllStudents" />
+                </div>
+              </template>
             </div>
           </section>
 
@@ -1431,6 +1470,8 @@ const listPayload = computed(() => {
 .children-bare { padding: 0 var(--space-4) var(--space-5, 20px); margin: 0; text-align: center; color: var(--schools-fg-3, #8A8078); font-size: var(--text-sm); }
 .children-body { display: flex; flex-direction: column; }
 .children-loading { padding: var(--space-6); text-align: center; color: var(--schools-fg-3, #8A8078); font-size: var(--text-sm); margin: auto 0; }
+.children-show-all { padding: 0 var(--space-4) var(--space-3); }
+.show-all-inline { padding: 0 2px; font-size: var(--text-sm); }
 
 /* Mid-switch, the class cards blank their values (they'd be the previous
    node's) but keep their boxes — kickers stay, bodies go invisible. */

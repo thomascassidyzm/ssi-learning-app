@@ -227,12 +227,17 @@ describe('NodeHomeView — one grammar at every level', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    // Trunk + 8 classes + 8 people, and the rest one tap away.
-    expect(wrapper.findAll('.tree-name')).toHaveLength(17)
+    // Trunk + 3 classes + 3 people, and the rest one tap away — THE page's
+    // one idiom, three then Show all (Tom, 2026-09-12; job #306). This used to
+    // pin eight-then-"N more"; flipped deliberately.
+    expect(wrapper.findAll('.tree-name')).toHaveLength(7)
     const more = wrapper.findAll('.tree-more-btn').map((b) => b.text())
-    expect(more).toEqual(['41 more classes', '31 more people'])
+    expect(more).toEqual(['▸ Show all 49 classes', '▸ Show all 39 people'])
     await wrapper.findAll('.tree-more-btn')[0].trigger('click')
-    expect(wrapper.findAll('.tree-name')).toHaveLength(58)
+    expect(wrapper.findAll('.tree-name')).toHaveLength(53)
+    expect(wrapper.findAll('.tree-more-btn')[0].text()).toBe('▾ Show fewer')
+    await wrapper.findAll('.tree-more-btn')[0].trigger('click')
+    expect(wrapper.findAll('.tree-name')).toHaveLength(7)
   })
 
   it('an org with nothing below it says so once, and draws no phantom rows', async () => {
@@ -730,5 +735,67 @@ describe('NodeHomeView — org platform trial/upgrade (member surface, govt_admi
 
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/api/org/subscription'), expect.anything())
     expect(wrapper.text()).not.toContain('free trial')
+  })
+})
+
+// TOP THREE THEN SHOW ALL (Tom, 2026-09-12, job #306): every list on the page
+// renders three rows and one control that shows the rest. Under three rows no
+// control renders. Red on the pre-change page (22 phrase rows, no control).
+describe('NodeHomeView — three rows then Show all, on every list', () => {
+  it('the phrase table shows three rows and a control naming the rest; tapping shows all, and again folds back', async () => {
+    routeMock.params = { id: 'school-1' }
+    const payload = nodePayload({
+      node: { id: 'school-node', name: 'St Albans', label: 'school', is_demo: false, hasSchool: true, rollup: { ...ROLLUP, classCount: 12 }, commercial: { schoolId: 'school-1', platformStatus: 'trial', trialCourseCode: 'cym_s_for_eng', platformExpiresAt: TRIAL_ENDS } },
+      children: [],
+    })
+    ;(payload as any).classPractice = {
+      windowDays: 7, phrases7d: 118, activeClasses7d: 9, classCount: 12, inAppMinutes7d: 124, lastPractisedAt: new Date().toISOString(),
+      topPhrases7d: Array.from({ length: 22 }, (_, i) => ({ known: `prompt ${i}`, target: `phrase ${i}`, count: 22 - i })),
+    }
+    setupFetch(payload)
+    const wrapper = mountView()
+    await flushPromises()
+
+    const card = wrapper.find('[data-walk="node-phrases"]')
+    expect(card.findAll('tbody tr')).toHaveLength(3)
+    const control = card.find('.show-all')
+    expect(control.exists()).toBe(true)
+    expect(control.text()).toContain('Show all 22 phrases')
+    await control.trigger('click')
+    expect(card.findAll('tbody tr')).toHaveLength(22)
+    expect(card.find('.show-all').text()).toContain('Show fewer')
+    await card.find('.show-all').trigger('click')
+    expect(card.findAll('tbody tr')).toHaveLength(3)
+  })
+
+  it('three phrases or fewer render whole, with no control', async () => {
+    routeMock.params = { id: 'school-1' }
+    const payload = nodePayload({ children: [] })
+    ;(payload as any).classPractice = {
+      windowDays: 7, phrases7d: 5, activeClasses7d: 1, classCount: 1, inAppMinutes7d: 4, lastPractisedAt: new Date().toISOString(),
+      topPhrases7d: [{ known: 'I want', target: 'dw i moyn', count: 3 }, { known: 'to learn', target: 'dysgu', count: 2 }],
+    }
+    setupFetch(payload)
+    const wrapper = mountView()
+    await flushPromises()
+    const card = wrapper.find('[data-walk="node-phrases"]')
+    expect(card.findAll('tbody tr')).toHaveLength(2)
+    expect(card.find('.show-all').exists()).toBe(false)
+  })
+
+  it('a class with seven students lists three and a Show all 7 students control', async () => {
+    routeMock.params = { id: 'class-1' }
+    const payload = classPayload()
+    payload.students = Array.from({ length: 7 }, (_, i) => ({ learner_id: `l${i}`, name: `Pupil ${i}`, seeds_completed: i, legos_mastered: i * 3, practice_hours: 1, last_active_at: null, last7_minutes: [0, 0, 0, 0, 0, 0, 0], week_minutes: 0 }))
+    setupFetch(payload)
+    const wrapper = mountView()
+    await flushPromises()
+    const list = wrapper.find('[data-walk="class-students"]')
+    expect(list.text()).toContain('Pupil 2')
+    expect(list.text()).not.toContain('Pupil 3')
+    const control = wrapper.find('.children-show-all .show-all')
+    expect(control.text()).toContain('Show all 7 students')
+    await control.trigger('click')
+    expect(wrapper.find('[data-walk="class-students"]').text()).toContain('Pupil 6')
   })
 })
