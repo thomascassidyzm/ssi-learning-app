@@ -100,7 +100,9 @@ const securityTestFiles = allApiFiles.filter((f) => f.endsWith('.security.test.t
 // exactly the behaviour it was written for. Do not replace it with a glob.
 describe('security-test machinery integrity — pinned roster', () => {
   // Pinned as of 2026-08-25; grown 2026-09-06 with the six sec0905 files
-  // (the 2026-09-05 audit, reconciled onto dev). A file dropping off either list — deleted,
+  // (the 2026-09-05 audit, reconciled onto dev) and 2026-09-12 with the two
+  // sec0912 files (the ninth audit: org tenancy + the support channel).
+  // A file dropping off either list — deleted,
   // renamed to a non-matching suffix, or moved out of api/ — fails here.
   // Growing the list is fine (update the pin); shrinking it without a
   // corresponding entry in the area-d/area-audit report is the bug this test
@@ -124,6 +126,8 @@ describe('security-test machinery integrity — pinned roster', () => {
     'api/_security/sec0905-d-01-content-edit-identity-migrations.security.test.ts',
     'api/_security/sec0905-x-audio-cors-and-volume.security.test.ts',
     'api/_security/sec0905-x-coordinator.security.test.ts',
+    'api/_security/sec0912-a-org-tenancy.security.test.ts',
+    'api/_security/sec0912-b-support-channel.security.test.ts',
     'api/_utils/actAsGuard.advisory.security.test.ts',
     'api/_utils/adminPracticeMinutesAnonExposure.security.test.ts',
     'api/_utils/codeAttemptThrottle.security.test.ts',
