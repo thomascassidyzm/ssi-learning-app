@@ -210,3 +210,12 @@ select * from prev where lc = last_before_belt and (max_practised > lc or hc > l
 ```
 
 Zero learners need a cursor repair for the old rewind rule.
+
+### 9a. Live check, staging 19c43ec
+
+Test learner set to cursor S0025L01, `last_practiced_at` 70 days ago, fresh signed-in profile,
+`/?course=cym_s_for_eng&bundle=0`: landed on S0025 (Orange, round index 43), no
+`resume_ttl_belt_regression` cursor move, `last_practiced_at` stamped to now. The only site that
+reads `beltRegressionDays` is the legacy eagerLoad resume in `LearningPlayer.vue`; the cache
+fast-path and the instant-playback bootstrap both resume before it runs. So the rewind, capped or
+not, is not reached on the live boot paths. The cap is verified by `beltRewindTarget.test.ts`.
