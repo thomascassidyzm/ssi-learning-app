@@ -695,7 +695,12 @@
     "playAllScenes": "সব দৃশ্য চালান",
     "speed": "গতি",
     "noneSavedDeviceYet": "এর কোনোটাই এখনও আপনার ডিভাইসে সংরক্ষিত নেই, তাই অফলাইনে শোনার মতো কিছু নেই। একবার সংযুক্ত হন এবং অফলাইনের জন্য ডাউনলোড করুন যাতে এটা সাথে নিতে পারেন।",
-    "tapPlay": "চালাতে ট্যাপ করুন"
+    "tapPlay": "চালাতে ট্যাপ করুন",
+    "podFallbackTitle": "Pod {n}",
+    "podScenesCount": "{n} scenes",
+    "podReadyOffline": "Ready offline",
+    "podDownloading": "Downloading",
+    "podNotYet": "Not yet"
   },
   "progress": {
     "infinitePlayRandomReview": "অসীম প্লে — আপনি যা শিখেছেন তার এলোমেলো পর্যালোচনা",

@@ -695,7 +695,12 @@
     "playAllScenes": "Alle Szenen abspielen",
     "speed": "Geschwindigkeit",
     "noneSavedDeviceYet": "Davon ist noch nichts auf deinem Gerät gespeichert, also gibt es nichts offline zu hören. Verbinde dich einmal und lade herunter, um es offline mitzunehmen.",
-    "tapPlay": "Zum Abspielen tippen"
+    "tapPlay": "Zum Abspielen tippen",
+    "podFallbackTitle": "Pod {n}",
+    "podScenesCount": "{n} scenes",
+    "podReadyOffline": "Ready offline",
+    "podDownloading": "Downloading",
+    "podNotYet": "Not yet"
   },
   "progress": {
     "infinitePlayRandomReview": "Endlos-Wiedergabe — zufällige Wiederholung von allem, was du gelernt hast",

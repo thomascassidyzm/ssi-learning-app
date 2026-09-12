@@ -695,7 +695,12 @@
     "playAllScenes": "ਸਾਰੇ ਸੀਨ ਚਲਾਓ",
     "speed": "ਗਤੀ",
     "noneSavedDeviceYet": "ਇਸ ਵਿੱਚੋਂ ਕੁਝ ਵੀ ਅਜੇ ਤੁਹਾਡੀ ਡਿਵਾਈਸ 'ਤੇ ਸੰਭਾਲਿਆ ਨਹੀਂ ਗਿਆ, ਇਸ ਲਈ ਆਫਲਾਈਨ ਸੁਣਨ ਲਈ ਕੁਝ ਨਹੀਂ ਹੈ। ਇੱਕ ਵਾਰ ਕਨੈਕਟ ਕਰੋ ਅਤੇ ਆਫਲਾਈਨ ਲਈ ਡਾਊਨਲੋਡ ਕਰੋ ਤਾਂ ਜੋ ਇਸਨੂੰ ਆਪਣੇ ਨਾਲ ਲਿਜਾ ਸਕੋ।",
-    "tapPlay": "ਚਲਾਉਣ ਲਈ ਟੈਪ ਕਰੋ"
+    "tapPlay": "ਚਲਾਉਣ ਲਈ ਟੈਪ ਕਰੋ",
+    "podFallbackTitle": "Pod {n}",
+    "podScenesCount": "{n} scenes",
+    "podReadyOffline": "Ready offline",
+    "podDownloading": "Downloading",
+    "podNotYet": "Not yet"
   },
   "progress": {
     "infinitePlayRandomReview": "ਅਨੰਤ ਪਲੇ — ਤੁਸੀਂ ਜੋ ਕੁਝ ਸਿੱਖਿਆ ਹੈ ਉਸਦੀ ਬੇਤਰਤੀਬ ਸਮੀਖਿਆ",

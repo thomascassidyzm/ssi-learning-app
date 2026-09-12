@@ -698,7 +698,12 @@
     "playAllScenes": "Chwarae pob golygfa",
     "speed": "Cyflymder",
     "noneSavedDeviceYet": "Nid oes dim o hyn wedi'i gadw ar eich dyfais eto, felly does dim i wrando arno all-lein. Cysylltwch unwaith a llwythwch i lawr ar gyfer all-lein i fynd ag ef gyda chi.",
-    "tapPlay": "Tapiwch i chwarae"
+    "tapPlay": "Tapiwch i chwarae",
+    "podFallbackTitle": "Pod {n}",
+    "podScenesCount": "{n} scenes",
+    "podReadyOffline": "Ready offline",
+    "podDownloading": "Downloading",
+    "podNotYet": "Not yet"
   },
   "progress": {
     "infinitePlayRandomReview": "Chwarae diderfyn — adolygu ar hap o bopeth rydych chi wedi'i ddysgu",

@@ -695,7 +695,12 @@
     "playAllScenes": "બધા દ્રશ્યો ચલાવો",
     "speed": "ઝડપ",
     "noneSavedDeviceYet": "આમાંથી કંઈ પણ હજુ સુધી તમારા ડિવાઇસ પર સાચવેલું નથી, તેથી ઑફલાઇન સાંભળવા માટે કંઈ નથી. એકવાર જોડાઓ અને ઑફલાઇન માટે ડાઉનલોડ કરો જેથી તેને તમારી સાથે લઈ જઈ શકો.",
-    "tapPlay": "ચલાવવા ટૅપ કરો"
+    "tapPlay": "ચલાવવા ટૅપ કરો",
+    "podFallbackTitle": "Pod {n}",
+    "podScenesCount": "{n} scenes",
+    "podReadyOffline": "Ready offline",
+    "podDownloading": "Downloading",
+    "podNotYet": "Not yet"
   },
   "progress": {
     "infinitePlayRandomReview": "અનંત પ્લે — તમે જે શીખ્યા છો તેની રેન્ડમ સમીક્ષા",

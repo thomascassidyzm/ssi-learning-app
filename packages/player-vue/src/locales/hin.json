@@ -695,7 +695,12 @@
     "playAllScenes": "सभी दृश्य चलाएं",
     "speed": "गति",
     "noneSavedDeviceYet": "इसमें से कुछ भी अभी तक आपके डिवाइस पर सेव नहीं है, इसलिए ऑफ़लाइन सुनने के लिए कुछ नहीं है। एक बार कनेक्ट करें और ऑफ़लाइन के लिए डाउनलोड करें ताकि इसे अपने साथ ले जा सकें।",
-    "tapPlay": "चलाने के लिए टैप करें"
+    "tapPlay": "चलाने के लिए टैप करें",
+    "podFallbackTitle": "Pod {n}",
+    "podScenesCount": "{n} scenes",
+    "podReadyOffline": "Ready offline",
+    "podDownloading": "Downloading",
+    "podNotYet": "Not yet"
   },
   "progress": {
     "infinitePlayRandomReview": "अनंत प्ले — आपने जो कुछ सीखा है उसकी रैंडम समीक्षा",

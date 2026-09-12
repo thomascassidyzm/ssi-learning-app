@@ -695,7 +695,12 @@
     "playAllScenes": "Riproduci tutte le scene",
     "speed": "Velocità",
     "noneSavedDeviceYet": "Niente di tutto questo è ancora salvato sul tuo dispositivo, quindi non c'è nulla da ascoltare offline. Connettiti una volta e scarica per l'offline per portarlo con te.",
-    "tapPlay": "Tocca per riprodurre"
+    "tapPlay": "Tocca per riprodurre",
+    "podFallbackTitle": "Pod {n}",
+    "podScenesCount": "{n} scenes",
+    "podReadyOffline": "Ready offline",
+    "podDownloading": "Downloading",
+    "podNotYet": "Not yet"
   },
   "progress": {
     "infinitePlayRandomReview": "Riproduzione infinita — ripasso casuale di tutto ciò che hai imparato",

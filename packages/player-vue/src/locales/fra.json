@@ -695,7 +695,12 @@
     "playAllScenes": "Lire toutes les scènes",
     "speed": "Vitesse",
     "noneSavedDeviceYet": "Rien de tout cela n'est encore enregistré sur votre appareil, il n'y a donc rien à écouter hors ligne. Connectez-vous une fois et téléchargez pour l'emporter hors ligne.",
-    "tapPlay": "Appuyez pour lire"
+    "tapPlay": "Appuyez pour lire",
+    "podFallbackTitle": "Pod {n}",
+    "podScenesCount": "{n} scenes",
+    "podReadyOffline": "Ready offline",
+    "podDownloading": "Downloading",
+    "podNotYet": "Not yet"
   },
   "progress": {
     "infinitePlayRandomReview": "Lecture infinie — révision aléatoire de tout ce que vous avez appris",

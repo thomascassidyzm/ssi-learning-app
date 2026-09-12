@@ -695,7 +695,12 @@
     "playAllScenes": "تمام مناظر چلائیں",
     "speed": "رفتار",
     "noneSavedDeviceYet": "اس میں سے کچھ بھی ابھی آپ کی ڈیوائس پر محفوظ نہیں ہوا، اس لیے آف لائن سننے کو کچھ نہیں ہے۔ ایک بار رابطہ کریں اور آف لائن کے لیے ڈاؤن لوڈ کریں تاکہ اسے اپنے ساتھ لے جا سکیں۔",
-    "tapPlay": "چلانے کے لیے تھپتھپائیں"
+    "tapPlay": "چلانے کے لیے تھپتھپائیں",
+    "podFallbackTitle": "Pod {n}",
+    "podScenesCount": "{n} scenes",
+    "podReadyOffline": "Ready offline",
+    "podDownloading": "Downloading",
+    "podNotYet": "Not yet"
   },
   "progress": {
     "infinitePlayRandomReview": "لامحدود پلے — آپ نے جو کچھ سیکھا اس کا بے ترتیب جائزہ",

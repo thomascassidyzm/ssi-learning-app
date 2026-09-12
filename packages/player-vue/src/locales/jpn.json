@@ -695,7 +695,12 @@
     "playAllScenes": "すべてのシーンを再生",
     "speed": "速度",
     "noneSavedDeviceYet": "まだデバイスに何も保存されていないため、オフラインで聞けるものがありません。一度接続して、オフライン用にダウンロードして持ち歩きましょう。",
-    "tapPlay": "タップして再生"
+    "tapPlay": "タップして再生",
+    "podFallbackTitle": "Pod {n}",
+    "podScenesCount": "{n} scenes",
+    "podReadyOffline": "Ready offline",
+    "podDownloading": "Downloading",
+    "podNotYet": "Not yet"
   },
   "progress": {
     "infinitePlayRandomReview": "無限再生 — これまで学んだすべての内容をランダムに復習",
