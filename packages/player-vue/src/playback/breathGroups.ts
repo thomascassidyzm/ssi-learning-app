@@ -12,16 +12,24 @@
  * Azure word boundaries, 55,368 word gaps, measured 2026-09-12): gaps inside a
  * phrase sit at 0–100 ms (p95 of the no-punctuation gaps is 100 ms, and the
  * histogram is empty by 300 ms bar a tail); real pauses sit at 400 ms and up
- * (after a full stop, 700–1,250 ms). 250 ms is the floor of the empty band
- * between the two populations.
+ * (after a full stop, 700–1,250 ms). 250 ms is a CHOSEN floor between the
+ * two populations, not an empty band: re-measured on the 4,798 pod sentence
+ * clips with word boundaries (33,423 gaps, 2026-09-12, job #425) the band
+ * 250–399 ms holds 22 gaps, against 815 at 100–249 and 3,048 at 400+.
  *
  * Two raw shapes are accepted, because two writers exist:
  *   - the #407 contract: { source, words[], starts[], ends[] } in seconds;
  *   - the Azure shape already on course_audio.word_boundaries:
  *     [{ text, offset, duration }] in milliseconds, punctuation as its own
  *     token (merged into the word before it here — a comma is not a word).
- * Anything else, anything degenerate (the 19 all-zero [[0,0],…] rows), and
- * null all normalise to null, and null renders exactly as today.
+ * A THIRD shape on course_audio.word_boundaries is not word timings at all:
+ * [[offset_ms, viseme_id], …] — Azure viseme frames (ids 0–21, several per
+ * word, no text), written for ~375k course-phrase clips and, across the
+ * 29,496 pod sentence clips, present on 5 reused course-phrase clips
+ * (measured live 2026-09-12, job #425). No words, so nothing to track: it
+ * normalises to null on purpose, and so does anything else, anything
+ * degenerate (the 19 all-zero [[0,0],…] rows) and null — null renders
+ * exactly as today.
  */
 
 export const BREATH_PAUSE_SEC = 0.25
@@ -111,13 +119,17 @@ export function normaliseWordTimings(raw: unknown): WordTimings | null {
   return fromContract(raw as ContractShape)
 }
 
+const msOf = (sec: number) => Math.round(sec * 1000)
+
 /** Split timings into breath groups at every pause ≥ threshold. Group text is
  *  the timing words joined; see alignBreathGroups for the sentence-text slice. */
 export function buildBreathGroups(t: WordTimings, thresholdSec: number = BREATH_PAUSE_SEC): BreathGroup[] {
   const groups: BreathGroup[] = []
   let from = 0
   for (let i = 1; i <= t.words.length; i++) {
-    const boundary = i === t.words.length || t.starts[i] - t.ends[i - 1] >= thresholdSec
+    // Compared in whole milliseconds: 0.35 - 0.1 is 0.24999… in binary, so
+    // a gap of exactly the threshold would otherwise fail to split (job #425).
+    const boundary = i === t.words.length || msOf(t.starts[i]) - msOf(t.ends[i - 1]) >= msOf(thresholdSec)
     if (!boundary) continue
     groups.push({ text: t.words.slice(from, i).join(' '), start: t.starts[from], end: t.ends[i - 1], wordFrom: from, wordTo: i })
     from = i
