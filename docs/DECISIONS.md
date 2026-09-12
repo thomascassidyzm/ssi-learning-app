@@ -1360,3 +1360,37 @@ that is page content, outside #340's nav-only scope.
 paragraph.** The census sentence is corrected in place and the four #343 paragraphs that a merge
 had spliced into the #326·F entry are back under the #343 heading. The rewind stays unreachable;
 wiring it into the live boot paths is Tom's design call.
+
+## 2026-09-12 — the service worker's navigation fallback is the precached shell, never a runtime copy (job #377)
+
+**Why.** Tom's staging PWA, with ~250 MB of clips downloaded, showed Safari's own "not connected"
+page in airplane mode: no service worker answered the navigation at all. Production, same code
+for the worker, loaded fine. The worker config, registration, index.html and boot watchdog are
+byte-identical between `main` and `staging`; the delta was six staging deploys in an hour.
+
+**The chain, reproduced end to end** (`packages/player-vue/e2e/sw-stale-shell-redeploy-probe.mjs`,
+two real builds, 1a99888 then f731f19). The navigation route kept its own copy of index.html in
+`navigation-cache`. A new worker installs, the app closes, the worker activates and the precache
+drops the old build's chunks — but the runtime copy still names them. One navigation where
+index.html takes longer than the route's 3s NetworkFirst timeout serves that stale shell; its
+chunks come back as index.html through Vercel's catch-all rewrite; the inline boot watchdog sees a
+same-origin module failure on a live network, concludes the deploy is broken, and heals:
+unregisters the worker and wipes every cache. The app reloads fresh and works online, so nothing
+looks wrong, but the worker is now reinstalling 545 files, and the next airplane-mode launch
+before that finishes is the browser's own error page. The probe's control run shows exactly this:
+heal attempts 1, two document loads, worker `installing` with a one-entry precache at boot, and
+`net::ERR_INTERNET_DISCONNECTED` on relaunch. IndexedDB, where the clips live, survives the heal
+untouched (a marker proves it), so no learner re-downloads anything.
+
+**Decision.** The route never stores a runtime shell and every cache read answers with the
+precached index.html (`src/sw/precachedShellPlugin.js`, stringified into sw.js by workbox-build;
+the route itself is `src/sw/navigationRoute.js`, pinned by its test). The precached shell and its
+chunks are installed and retired together, so it cannot go stale that way. Fresh deploys still
+propagate: a network that answers inside 3s wins as before. The probe's fixed run: one document
+load, from the precache, no heal, the worker still active, offline relaunch boots.
+
+**Not changed, on purpose.** The heal ladder still unregisters and wipes on a same-origin script
+failure with a live network; with the stale-shell trigger gone its remaining triggers are real
+breakage. Whether a heal should keep the precache when a precached shell exists is a separate
+design question, noted, not taken here. Not verified: iOS itself — no device or simulator on this
+box; the reproduction is headless Chromium against the same worker code.
