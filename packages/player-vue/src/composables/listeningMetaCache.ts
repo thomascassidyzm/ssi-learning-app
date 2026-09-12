@@ -187,6 +187,12 @@ export interface CachedListeningMeta {
    *  by every extra pod's rows — the overlay's per-sentence display-text
    *  oracle (splitRowUnits). */
   clipTexts: Record<string, string>
+  /** course_audio id → word timings (as stored) for every pod target clip
+   *  that has them — the Immersion tracker's raw material (job #408). Rides
+   *  with the clip in the same snapshot, no cache of its own. Absent on
+   *  entries written before the tracker → no timings offline until the
+   *  next refresh, which renders exactly as before. */
+  clipTimings?: Record<string, unknown>
   /** bookend_listen_intro / bookend_listen_outro rows. */
   bookends: CachedBookend[]
   /** pod_fine_known clips: text_normalized → clip id (fusion-rung knowns). */
@@ -360,6 +366,24 @@ const POD_ROW_COLUMNS =
   // walk — a learner's walk lengthening on a plane, silently.
   'variant_key, attach_sentence_number'
 
+/** Column list for the pod CLIP read (split-clip texts + word timings) —
+ *  shared with useListeningPods so online and offline read the same shape.
+ *  `word_boundaries` is the column that exists today (Azure shape); the #407
+ *  `word_timings` column joins this list when its migration lands. */
+export const POD_CLIP_COLUMNS = 'id, text, word_boundaries'
+
+/** The timing payload of one course_audio row, whichever column carries it.
+ *  The #407 contract column wins when present; the Azure boundaries are the
+ *  fallback. Null when neither is set. Normalised at render time by
+ *  playback/breathGroups.ts — stored as-is so the snapshot stays raw. */
+export const readClipTimings = (clip: { word_timings?: unknown; word_boundaries?: unknown } | null | undefined): unknown | null => {
+  if (!clip) return null
+  const raw = clip.word_timings ?? clip.word_boundaries ?? null
+  if (!raw || typeof raw !== 'object') return null
+  if (Array.isArray(raw) && raw.length === 0) return null
+  return raw
+}
+
 const PAGE = 1000
 
 /**
@@ -486,23 +510,35 @@ const fetchAndCacheListeningMetaOnce = async (
     // Split-clip display texts (the overlay's per-sentence oracle) — chunked
     // to keep the PostgREST in() URL short, mirroring useListeningPods.
     const clipIds = new Set<string>()
+    // Whole-turn target clips ride the same read for their word timings (the
+    // Immersion tracker, job #408); they never enter clipTexts' oracle.
+    const turnClipIds = new Set<string>()
     for (const row of [...podRows, ...extraPods.flatMap((e) => e.podRows)]) {
       for (const id of row.sentence_audio_ids || []) if (id) clipIds.add(id)
       for (const id of row.sentence_known_audio_ids || []) if (id) clipIds.add(id)
+      if (row.target_audio_id) turnClipIds.add(row.target_audio_id)
     }
     // clipIds now carry `.vN`, but course_audio is keyed by the BARE uuid — so
     // query bare and key the result by the stamped ref the overlay will look up.
     const clipTexts: Record<string, string> = {}
-    const idArr = Array.from(clipIds)
-    const stampedByBare = new Map(idArr.map((ref) => [bareAudioId(ref), ref]))
-    const bareArr = Array.from(stampedByBare.keys())
+    const clipTimings: Record<string, unknown> = {}
+    const stampedByBare = new Map(Array.from(clipIds).map((ref) => [bareAudioId(ref), ref]))
+    const turnStampedByBare = new Map(Array.from(turnClipIds).map((ref) => [bareAudioId(ref), ref]))
+    const bareArr = Array.from(new Set([...stampedByBare.keys(), ...turnStampedByBare.keys()]))
     for (let i = 0; i < bareArr.length; i += 150) {
       const { data: clips, error: clipErr } = await client
         .from('course_audio')
-        .select('id, text')
+        .select(POD_CLIP_COLUMNS)
         .in('id', bareArr.slice(i, i + 150))
       if (clipErr) throw new Error(`split-clip texts: ${clipErr.message}`)
-      for (const c of clips || []) clipTexts[stampedByBare.get(c.id) ?? c.id] = c.text || ''
+      for (const c of clips || []) {
+        const splitRef = stampedByBare.get(c.id)
+        if (splitRef) clipTexts[splitRef] = c.text || ''
+        const timings = readClipTimings(c)
+        if (timings) {
+          for (const ref of [splitRef, turnStampedByBare.get(c.id)]) if (ref) clipTimings[ref] = timings
+        }
+      }
     }
 
     // Fine-known clips (fusion-rung glosses) — paged under PostgREST's cap.
@@ -597,6 +633,7 @@ const fetchAndCacheListeningMetaOnce = async (
       podTitle: podTitle ?? undefined,
       extraPods,
       clipTexts,
+      clipTimings,
       bookends: stampRowAudioRefs(revisedRefs, (bookendsResult.data || []) as CachedBookend[]),
       fineKnowns,
       coreSeeds,

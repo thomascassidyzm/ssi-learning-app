@@ -11,6 +11,7 @@ import { useListeningPods, SPEAKER_PALETTE } from '../composables/useListeningPo
 import { getCachedListeningMeta } from '../composables/listeningMetaCache'
 import { buildSilentWavDataUri } from '../playback/silentWav'
 import { buildModalQueue as buildPodModalQueue } from '../playback/podModalQueue'
+import { breathGroupsForClip, trackPosition } from '../playback/breathGroups'
 import ListeningModeToggle from './ListeningModeToggle.vue'
 import TeleprompterScroll from './TeleprompterScroll.vue'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
@@ -509,6 +510,82 @@ const fusionStripsFor = (phrase) => {
 const showGloss = ref(localStorage.getItem('ssi-listening-gloss') !== 'off')
 watch(showGloss, (v) => { try { localStorage.setItem('ssi-listening-gloss', v ? 'on' : 'off') } catch {} })
 
+// ── Immersion: translations OFF, the target sentence is the only tracker ──
+// (Tom 2026-09-12: "I think we use this feature for Immersion only, where the
+// only tracker is the target sentence… think about how to switch off the
+// translations in immersion as well"). A dialogue scene in Immersion keeps
+// its own eye state, default OFF, so the drilled-in habit of showing glosses
+// elsewhere never leaks into an immersion listen. Two single-tap reveals and
+// nothing else (no swipe, no long-press): the eye turns every gloss on for
+// the sitting; a tap on the CURRENT card reveals that one line until the
+// next line sounds. Both are Tom's to redline by feel.
+const inImmersionScene = computed(() => isDialogueScene.value && listenMode.value === 'immersion')
+const immersionGloss = ref(localStorage.getItem('ssi-listening-gloss-immersion') === 'on')
+watch(immersionGloss, (v) => { try { localStorage.setItem('ssi-listening-gloss-immersion', v ? 'on' : 'off') } catch {} })
+const glossVisible = computed(() => (inImmersionScene.value ? immersionGloss.value : showGloss.value))
+const toggleGloss = () => {
+  if (inImmersionScene.value) immersionGloss.value = !immersionGloss.value
+  else showGloss.value = !showGloss.value
+}
+/** Row id whose gloss was tap-revealed (one line, cleared when the row moves on). */
+const revealedRowId = ref(null)
+watch(currentIndex, () => { revealedRowId.value = null })
+
+// ── Immersion breath-group tracker (job #408) ────────────────────────────
+// The grain comes from the clip's word timings, never from the text: a
+// sentence with two or more breath groups renders as a stack (said / lit /
+// to come) with a fill walking inside the lit group at the clip's own clock.
+// One breath group → null → the existing card, unchanged. Drill and every
+// other surface → null by construction (see playback/breathGroups.ts and
+// ListeningOverlay.breathTracker.test.ts).
+let breathGroupCache = new Map()
+const trackerGroupsFor = (phrase) => {
+  if (!inImmersionScene.value) return null
+  const s = phrase?.sentences?.[0]
+  if (!s?.wordTimings || !s.targetAudioId) return null
+  const key = phrase.id
+  if (breathGroupCache.has(key)) return breathGroupCache.get(key)
+  const groups = breathGroupsForClip(s.wordTimings, s.targetText || phrase.targetText || '')
+  breathGroupCache.set(key, groups)
+  return groups
+}
+// The clip clock: seconds into the clip currently sounding, read off the
+// shared Audio element each animation frame while a tracked target clip
+// plays. Media time, so the chosen speed costs nothing here. A locked
+// screen freezes rAF, and nobody is looking at a locked screen.
+const trackClipId = ref(null)
+const trackClock = ref(0)
+let clockRaf = null
+const stopClipClock = (clear = true) => {
+  if (clockRaf) cancelAnimationFrame(clockRaf)
+  clockRaf = null
+  if (clear) trackClipId.value = null
+}
+const startClipClock = (id) => {
+  stopClipClock(false)
+  trackClipId.value = id
+  trackClock.value = 0
+  const tick = () => {
+    const a = audioController.value?.audio
+    trackClock.value = a ? (a.currentTime || 0) : 0
+    clockRaf = requestAnimationFrame(tick)
+  }
+  clockRaf = requestAnimationFrame(tick)
+}
+const trackPos = computed(() => {
+  const phrase = availablePhrases.value[currentIndex.value]
+  const groups = phrase ? trackerGroupsFor(phrase) : null
+  if (!groups) return { index: -1, fill: 0 }
+  const live = trackClipId.value && trackClipId.value === phrase.sentences[0].targetAudioId
+  return trackPosition(groups, live ? trackClock.value : 0)
+})
+const breathClass = (gi) => ({
+  said: gi < trackPos.value.index,
+  live: gi === trackPos.value.index,
+  ahead: gi > trackPos.value.index,
+})
+const breathStyle = (gi) => (gi === trackPos.value.index ? { '--fill': `${Math.round(trackPos.value.fill * 1000) / 10}%` } : null)
+
 // Dialogue rows are per-CHUNK, so the gloss is a single line under a single
 // phrase (never a paragraph wall) — it follows the gloss eye in every mode,
 // target-first by leaving the eye where the learner sets it.
@@ -671,6 +748,7 @@ const openScene = (scene) => {
   // Fusion drill: pull the shared two-doors counters + main-flow floor (the
   // rungs this scene's sentences resume at), and the fine-known clip map.
   fusionComposeCache = new Map()
+  breathGroupCache = new Map()
   void ensurePodState()
   if (scene.turns.some((t) => t.sentences?.[0]?.fusionGroups)) void ensureFineKnowns()
   // Flatten the scene's turns into ONE ROW PER CHUNK (per-phrase granularity,
@@ -1488,9 +1566,12 @@ const playCurrentPhrase = async (myPlaybackId) => {
     // try-scoped const threw ReferenceError after the first clip, which
     // killed Listening Mode playback on staging build 3004383 (job #339).
     const effectiveRate = modeSurface.value ? (rate ?? 1) : rate
+    // Immersion tracker: run the clip clock for the tracked target clip only.
+    const tracked = item.role === 'target' && !!trackerGroupsFor(phrase) && id === phrase.sentences?.[0]?.targetAudioId
     try {
       // Fusion-drill strips: light the strip this step belongs to.
       activeStripIndex.value = stripIndex ?? -1
+      if (tracked) startClipClock(id)
       await audioController.value.play(
         audioUrl,
         effectiveRate,
@@ -1499,6 +1580,12 @@ const playCurrentPhrase = async (myPlaybackId) => {
     } catch (err) {
       clipOk = false
       console.error('[ListeningOverlay] Audio play failed:', err)
+    }
+    if (tracked) {
+      // Clip over: stop reading the element (the silent gap plays on it next)
+      // and hold the stack at its end until the row moves on.
+      stopClipClock(false)
+      trackClock.value = Number.MAX_SAFE_INTEGER
     }
     // Per-clip row, same shape as a main-flow pod play (job #325). The
     // 30 s listening_tick below stays; this is the signal beside it.
@@ -1663,6 +1750,7 @@ const stopPlayback = () => {
   playbackId++
   isPlaying.value = false
   activeStripIndex.value = -1
+  stopClipClock()
   audioController.value?.stop()
 }
 
@@ -1672,6 +1760,14 @@ const scrollCurrentIntoView = () => {
 }
 
 const handlePhraseClick = (displayIndex) => {
+  // Immersion: a tap on the card that is sounding reveals its one line of
+  // translation (tap again to hide); it does not restart the line. Every
+  // other row still jumps there, as before.
+  if (inImmersionScene.value && displayIndex === currentIndex.value) {
+    const phrase = availablePhrases.value[displayIndex]
+    if (phrase) revealedRowId.value = revealedRowId.value === phrase.id ? null : phrase.id
+    return
+  }
   stopPlayback()
   playFromIndex(displayIndex)
 }
@@ -1889,6 +1985,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  stopClipClock()
   stopPlayback()
   releaseWakeLock()
   clearMediaSession()
@@ -2153,16 +2250,16 @@ watch(
       <!-- Gloss eye: show/hide the known-language line under each phrase. -->
       <button
         class="edge-glyph gloss-toggle"
-        :class="{ active: showGloss }"
+        :class="{ active: glossVisible }"
         type="button"
-        :title="showGloss ? 'Hide translations' : 'Show translations'"
-        :aria-pressed="showGloss"
-        @click="showGloss = !showGloss"
+        :title="glossVisible ? 'Hide translations' : 'Show translations'"
+        :aria-pressed="glossVisible"
+        @click="toggleGloss"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
           <circle cx="12" cy="12" r="3"/>
-          <line v-if="!showGloss" x1="3" y1="3" x2="21" y2="21"/>
+          <line v-if="!glossVisible" x1="3" y1="3" x2="21" y2="21"/>
         </svg>
       </button>
     </div>
@@ -2260,19 +2357,39 @@ watch(
                 <div :lang="courseKnownLang" v-if="showGloss && strip.known" class="phrase-known interleaved" :dir="dirFor(strip.known)">{{ strip.known }}</div>
               </div>
             </template>
+            <!-- Immersion tracker (job #408): a sentence with two or more
+                 BREATH GROUPS (pauses in the clip's own word timings) is a
+                 stack — said / lit / to come — and a fill walks inside the
+                 lit group with the clip's clock. One breath group, no
+                 timings, or any other mode → this branch is null and the
+                 card below renders exactly as before. -->
+            <template v-else-if="isCurrent && trackerGroupsFor(phrase)">
+              <div class="breath-stack" :dir="dirFor(phrase.targetText)">
+                <div
+                  v-for="(g, gi) in trackerGroupsFor(phrase)"
+                  :key="gi"
+                  :lang="courseTargetLang"
+                  class="phrase-target breath-group"
+                  :class="breathClass(gi)"
+                  :style="breathStyle(gi)"
+                >{{ g.text }}</div>
+              </div>
+              <div :lang="courseKnownLang" v-if="(glossVisible || revealedRowId === phrase.id) && phrase.knownText" class="phrase-known" :dir="dirFor(phrase.knownText)">{{ phrase.knownText }}</div>
+            </template>
             <!-- Current dialogue turn: interleave target and gloss sentence
                  by sentence (aligned from per-sentence data + faithful-canon
                  sentence splitting) so long turns stay matchable. Other rows
-                 keep the plain paragraph. Gloss honours the eye toggle. -->
+                 keep the plain paragraph. Gloss honours the eye toggle (and,
+                 in Immersion, the one-line tap reveal). -->
             <template v-else-if="isCurrent && Array.isArray(phrase.sentences) && phrase.sentences.length">
               <div v-for="(pair, pi) in glossPairsFor(phrase)" :key="pi" class="phrase-pair">
                 <div :lang="courseTargetLang" class="phrase-target">{{ pair.target }}</div>
-                <div :lang="courseKnownLang" v-if="showGloss && pair.known" class="phrase-known interleaved" :dir="dirFor(pair.known)">{{ pair.known }}</div>
+                <div :lang="courseKnownLang" v-if="(glossVisible || revealedRowId === phrase.id) && pair.known" class="phrase-known interleaved" :dir="dirFor(pair.known)">{{ pair.known }}</div>
               </div>
             </template>
             <template v-else>
               <div :lang="courseTargetLang" class="phrase-target">{{ phrase.targetText }}</div>
-              <div :lang="courseKnownLang" v-if="isCurrent && showGloss && phrase.knownText" class="phrase-known" :dir="dirFor(phrase.knownText)">{{ phrase.knownText }}</div>
+              <div :lang="courseKnownLang" v-if="isCurrent && (glossVisible || revealedRowId === phrase.id) && phrase.knownText" class="phrase-known" :dir="dirFor(phrase.knownText)">{{ phrase.knownText }}</div>
             </template>
           </template>
         </TeleprompterScroll>
@@ -3256,6 +3373,49 @@ watch(
 }
 .phrase-known.interleaved {
   margin-top: 0.1rem;
+}
+
+/* Immersion breath-group stack (job #408) — Spotify-transcript grammar on
+ * ONE card: the group being spoken lit, groups already said quiet, groups to
+ * come dim. The fill inside the lit group is the text itself painted up to
+ * --fill (background-clip: text), walking with the clip's clock. Lines never
+ * reflow between states: state is colour, never size or weight. */
+.breath-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+  unicode-bidi: isolate;
+}
+.breath-group {
+  transition: color 0.25s ease;
+}
+.breath-group.said {
+  color: var(--text-secondary);
+}
+.breath-group.ahead {
+  color: var(--text-muted);
+}
+.breath-group.live {
+  --fill: 0%;
+  color: transparent;
+  background-image: linear-gradient(
+    90deg,
+    var(--text-primary) 0,
+    var(--text-primary) calc(var(--fill) - 2%),
+    var(--text-muted) calc(var(--fill) + 2%),
+    var(--text-muted) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.breath-stack[dir="rtl"] .breath-group.live {
+  background-image: linear-gradient(
+    270deg,
+    var(--text-primary) 0,
+    var(--text-primary) calc(var(--fill) - 2%),
+    var(--text-muted) calc(var(--fill) + 2%),
+    var(--text-muted) 100%
+  );
 }
 
 /* Fusion-drill strips — the sentence at its current rung, one strip per
