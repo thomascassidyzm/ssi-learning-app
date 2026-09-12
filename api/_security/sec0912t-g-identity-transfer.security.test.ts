@@ -119,6 +119,15 @@ describe('SEC0912T-G-01 — the two identity-transfer doors prove orphanhood, ne
     )
   })
 
+  it('the client calls the RPC DIRECTLY, which is the reachability proof', () => {
+    // Not a server-mediated path: useAuth.ts invokes the SECURITY DEFINER
+    // function over PostgREST with the browser's own session, so whatever the
+    // function permits, any signed-in caller permits themselves.
+    const useAuth = read('packages/player-vue/src/composables/useAuth.ts')
+    expect(useAuth).toContain("supabase.value.rpc('relink_user_tags', { old_user_id: oldUserId })")
+    expect(useAuth).toContain("fetch('/api/auth/cascade-user-id'")
+  })
+
   it('relink_user_tags gates on orphanhood alone — no clause ties old_user_id to the caller', () => {
     const body = relinkUserTagsBody()
     // The guard that IS there.

@@ -63,6 +63,12 @@ hard to guess — a UUID treated as a secret by a system that does not treat it 
    restriction to tags the caller could already manage. **Every** tag the departed identity held
    moves, including ones at schools, classes and orgs the caller has never touched.
 
+**Reachability is not theoretical.** `packages/player-vue/src/composables/useAuth.ts:325` calls
+`supabase.rpc('relink_user_tags', { old_user_id })` **from the browser**, with the user's own
+session — the function is a client-facing RPC, not a server-mediated one — and then `fetch`es
+`/api/auth/cascade-user-id` beside it. Whatever the function permits, any signed-in caller permits
+themselves, by editing one argument.
+
 **Blast radius.** The caller acquires `role_in_context = 'admin'` rows — which the `user_tags`
 INSERT policy and the self-branch of its UPDATE policy both explicitly forbid anyone granting
 themselves (`role_in_context IS DISTINCT FROM 'admin'`, twice). A `SECURITY DEFINER` function runs
