@@ -38,8 +38,12 @@ export const GAP_IMMERSION_JOIN_MS = 50 // same-speaker sentence join in Immersi
  *  last audible word the interrupter lands, in media milliseconds. */
 export const JUMP_IN_OVERLAP_MS = 120
 /** What a jump-in leads by when the previous clip carries no word timings, so
- *  its trailing silence is unknown: enough to eat a typical TTS tail. */
-export const JUMP_IN_LEAD_UNTIMED_MS = 200
+ *  its trailing silence is unknown. Measured on the Italian method pod's 37
+ *  interrupted-line clips (none timed), trailing silence at -45 dB is 107 ms
+ *  at the median, 146 at p75, 203 at p90, 300 at most — so 250 ms puts the
+ *  interrupter about 140 ms into the last audible word on a typical clip and
+ *  never before it on the quietest tail. */
+export const JUMP_IN_LEAD_UNTIMED_MS = 250
 /** Ceiling on the lead, so a clip with a long silent tail never has its last
  *  word swallowed by the interrupter. */
 export const JUMP_IN_LEAD_MAX_MS = 700
