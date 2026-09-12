@@ -26,6 +26,17 @@
  * that is lock-fragile. Everything after the head is pods, then the course.
  */
 
+/**
+ * THE one builder. Tiers in priority order → one flat id array, deduped to
+ * the EARLIEST position so an id claimed by two tiers keeps its highest
+ * priority. The two exported builders below are typed views onto this: they
+ * name the tiers each path has (the deliberate download has a `tail`, the
+ * automatic fetch-ahead has `layer1` and a rolling `span`), and nothing else.
+ */
+export function orderTiers(...tiers: ReadonlyArray<readonly string[]>): string[] {
+  return [...new Set(tiers.flat())]
+}
+
 export interface OfflineQueueTiers {
   /** A few rounds from the cursor — enough to start practising immediately. */
   head: readonly string[]
@@ -46,7 +57,7 @@ export interface OfflineQueueTiers {
  */
 export function buildOfflineDownloadQueue(tiers: OfflineQueueTiers): string[] {
   const { head, priority, main, tail } = tiers
-  return [...new Set([...head, ...priority, ...main, ...tail])]
+  return orderTiers(head, priority, main, tail)
 }
 
 export interface FetchAheadTiers {
@@ -68,5 +79,5 @@ export interface FetchAheadTiers {
  */
 export function buildFetchAheadOrder(tiers: FetchAheadTiers): string[] {
   const { head, pods, layer1, span } = tiers
-  return [...new Set([...head, ...pods, ...layer1, ...span])]
+  return orderTiers(head, pods, layer1, span)
 }

@@ -12863,7 +12863,7 @@ const collectListeningModeAudioIds = async (): Promise<{ all: string[]; pods: st
 const collectAuxiliaryAudioIds = async (): Promise<{ ids: string[]; podIds: string[]; auxIncomplete: boolean }> => {
   const ids = new Set<string>()
   // Pod clips, tracked separately so the download queue can fetch the WHOLE pod
-  // first (Tom 2026-09-01). Every id here is ALSO in `ids` — the queue builder
+  // first (Tom 2026-09-12, job #379). Every id here is ALSO in `ids` — the queue builder
   // dedupes to the earliest tier, so appearing twice costs nothing and the
   // totals, the progress accounting and "Ready ✓" keep meaning what they meant.
   const podIds = new Set<string>()
@@ -13763,11 +13763,10 @@ const startOfflineDownloadInfPlay = async (): Promise<void> => {
   ])
   const { ids: auxIds, podIds, auxIncomplete } = auxResult
   if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // cancelled during prepare
-  // Same woven pod priority as the mid-course download (Tom 2026-09-01: "Not
-  // first. But prioritised."). INF PLAY still plays pods, so they are pulled
-  // forward here too — through the USE phrases rather than in front of them,
-  // so an interrupted download always leaves something to play. Same set of
-  // ids as before; only the order changes.
+  // Same order as the mid-course download (Tom, 2026-09-12, job #379:
+  // listening FIRST). INF PLAY still plays pods, so every pod clip comes
+  // before the USE phrases here too; an interrupted download then always
+  // carries the whole pod. Same set of ids as before; only the order.
   const ids = buildOfflineDownloadQueue({
     head: [],
     priority: podIds,
