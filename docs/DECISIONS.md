@@ -20,7 +20,7 @@ banner's Pages list names Support only because it lists every route the account 
 **Corrected by Tom the same night: the support channel is the DB-backed message thread, not the
 explainer doors.** Signed in for real as Tom's test-scenario admin, Angharad ZZ Test, and posted two
 labelled test messages: entry point, compose, posted message and the stats-door sheet are shot at
-https://watson-1.tail4968cb.ts.net/d/3377ab80. Both rows sit unanswered because the watcher on
+https://watson-1.tail4968cb.ts.net/d/ff20f840. Both rows sit unanswered because the watcher on
 command-surface main, `tools/support/watcher.cjs` from jobs #214 and #220, is not armed: no unit
 installed, no env file, no log. Against Tom's three-rule spec, once armed: rule 1, point to the clip,
 is unbuilt, nothing in tools/support reads a walk; rule 2, point and show the Handbook entry, is
