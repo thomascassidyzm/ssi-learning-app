@@ -7,12 +7,20 @@
  * the top bar. This file is the single place they are written down, so the top
  * bar, the router and the tests all read the same list and cannot drift.
  *
+ * Array order is the top bar's order; `n` is the design document's number and
+ * never changes when the order does.
+ *
  * `built: false` means the page has not been built yet and the route renders the
  * honest not-yet card. That is a deliberate state, not a placeholder to be
  * quietly filled: the frame is ten and the surface says so from the first day.
  */
 
-export type QuestionGroup = 'Learners' | 'Content' | 'Business'
+/**
+ * The scope a question is asked at — the ScopeRail's own vocabulary (job 340,
+ * Tom 2026-09-12: "Yes to admin nav"). The top bar groups the ten by this, in
+ * the order below, so the bar and the sidebar say the same three words.
+ */
+export type QuestionGroup = 'Everyone' | 'One person' | 'One organisation'
 
 export interface Question {
   /** 1-10, the number used in the design document. */
@@ -33,7 +41,7 @@ export const QUESTIONS: readonly Question[] = [
     slug: 'pulse',
     tab: 'Pulse',
     question: 'How many real people practised this week, and is that more or less than last week?',
-    group: 'Learners',
+    group: 'Everyone',
     built: true,
   },
   {
@@ -41,23 +49,7 @@ export const QUESTIONS: readonly Question[] = [
     slug: 'leaving',
     tab: 'Leaving',
     question: 'Who is about to leave, and who has already gone quiet?',
-    group: 'Learners',
-    built: true,
-  },
-  {
-    n: 3,
-    slug: 'losing-people',
-    tab: 'Losing people',
-    question: 'Where is each course losing people?',
-    group: 'Content',
-    built: false,
-  },
-  {
-    n: 4,
-    slug: 'weak-points',
-    tab: 'Weak points',
-    question: 'Which bits of a course make people stumble, skip or retry?',
-    group: 'Content',
+    group: 'Everyone',
     built: true,
   },
   {
@@ -65,31 +57,15 @@ export const QUESTIONS: readonly Question[] = [
     slug: 'courses',
     tab: 'Courses',
     question: 'Which courses are worth our attention, and which are people actually finishing?',
-    group: 'Content',
+    group: 'Everyone',
     built: true,
   },
   {
-    n: 6,
-    slug: 'person',
-    tab: 'One person',
-    question: "What is this one person's story, and what has gone wrong for them?",
-    group: 'Learners',
-    built: true,
-  },
-  {
-    n: 7,
-    slug: 'working',
-    tab: 'Working now',
-    question: 'Is the app working right now, and did my last fix land?',
-    group: 'Business',
-    built: true,
-  },
-  {
-    n: 8,
-    slug: 'where-and-what',
-    tab: 'Where and what',
-    question: 'Where in the world are people using us, and on what?',
-    group: 'Business',
+    n: 4,
+    slug: 'weak-points',
+    tab: 'Weak points',
+    question: 'Which bits of a course make people stumble, skip or retry?',
+    group: 'Everyone',
     built: true,
   },
   {
@@ -97,20 +73,52 @@ export const QUESTIONS: readonly Question[] = [
     slug: 'paying',
     tab: 'Paying',
     question: 'Who is paying us, through which door, and who has stopped?',
-    group: 'Business',
+    group: 'Everyone',
     built: false,
+  },
+  {
+    n: 3,
+    slug: 'losing-people',
+    tab: 'Losing people',
+    question: 'Where is each course losing people?',
+    group: 'Everyone',
+    built: false,
+  },
+  {
+    n: 7,
+    slug: 'working',
+    tab: 'Working now',
+    question: 'Is the app working right now, and did my last fix land?',
+    group: 'Everyone',
+    built: true,
+  },
+  {
+    n: 8,
+    slug: 'where-and-what',
+    tab: 'Where and what',
+    question: 'Where in the world are people using us, and on what?',
+    group: 'Everyone',
+    built: true,
+  },
+  {
+    n: 6,
+    slug: 'person',
+    tab: 'One person',
+    question: "What is this one person's story, and what has gone wrong for them?",
+    group: 'One person',
+    built: true,
   },
   {
     n: 10,
     slug: 'organisations',
-    tab: 'Organisations',
+    tab: 'One organisation',
     question: 'Which organisations and schools are alive, which trials are about to end, and which have gone dark?',
-    group: 'Business',
+    group: 'One organisation',
     built: false,
   },
 ] as const
 
-export const QUESTION_GROUPS: readonly QuestionGroup[] = ['Learners', 'Content', 'Business'] as const
+export const QUESTION_GROUPS: readonly QuestionGroup[] = ['Everyone', 'One person', 'One organisation'] as const
 
 export function questionPath(q: Question): string {
   return `/intel/${q.slug}`

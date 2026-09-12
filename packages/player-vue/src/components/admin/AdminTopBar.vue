@@ -1,8 +1,7 @@
 <script setup lang="ts">
 /**
- * AdminTopBar — the ONE bar over SSi's internal surfaces: the ten questions
- * under /intel and the organisation tree, the people list and the tools
- * under /admin.
+ * AdminTopBar — the ONE bar over SSi's internal surfaces, in TWO MODES with
+ * ONE switch (job 340; Tom 2026-09-12 11:57Z: "Yes to admin nav").
  *
  * THE DARK BAR DIED HERE (design §3.3; Tom's ruling 2026-09-10: "share"). A
  * black bar with a gold indicator above a putty-and-white page shared
@@ -12,15 +11,26 @@
  * internal surfaces and the org dashboard are one visual family. It uses the
  * existing --schools-* tokens and introduces no hex value of its own.
  *
- * WHAT IS IN IT, and why nothing else. The ten questions, grouped as
- * Learners, Content and Business, every one of them one tap from every page
- * of the surface — the tap-count rule the design makes checkable and
- * AdminTopBar.test.ts walks. Organisations is the org tree, which stays
- * exactly as it is and which question 10 links into. People is the list you
- * find one person in. Tools is the door for the chores that are not
- * questions: release notes, the invites audit list, the methodology papers
- * and the Handbook. Below 1180px the same destinations collapse into one menu
- * whose trigger names the CURRENT section, so "where am I" survives.
+ * THE TWO MODES, and why. The bar used to carry three small-caps question
+ * groups, a divider and an unlabelled schools-admin group on one row, so
+ * "Organisations" meant two things and the row wrapped at laptop width while
+ * the ScopeRail already tracked scope. The route now decides the mode, never
+ * local state, so a deep link lands in the right one:
+ *   INTELLIGENCE (/intel/*) — the ten questions, one row, grouped by scope in
+ *   the ScopeRail's own words: Everyone, One person, One organisation. Every
+ *   question is one tap from every question page — the tap-count rule the
+ *   design makes checkable and AdminTopBar.test.ts walks. Question 10's tab
+ *   reads "One organisation"; its path is unchanged.
+ *   ADMIN (/admin/*) — Structure (the org tree, which stays exactly as it is
+ *   and which question 10 links into), People (the list you find one person
+ *   in) and Tools, the door for the chores that are not questions: release
+ *   notes, the invites audit list, the methodology papers and the Handbook.
+ * The switch sits where the wordmark meets the tabs; Intelligence lands on
+ * /intel/pulse, Admin on /admin/structure. View-as and Refresh are controls,
+ * not destinations, and stay right-anchored in both modes. Below the collapse
+ * width (1380px for the ten-tab Intelligence row, 1180px for Admin) the
+ * switch stays and the CURRENT mode's destinations collapse into one menu
+ * whose trigger names the current section, so "where am I" survives.
  */
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
@@ -52,16 +62,25 @@ function questionItem(q: Question): NavMenuItem {
   }
 }
 
-/** The ten, grouped — one group per design group, in the design's order. */
+/** Which mode the route implies — never local state, so deep links land right. */
+const mode = computed<'intel' | 'admin'>(() => (route.path.startsWith('/intel') ? 'intel' : 'admin'))
+
+/** The switch: two doors, each the front page of its mode. */
+const modeSwitch = [
+  { key: 'intel', label: 'Intelligence', to: '/intel/pulse' },
+  { key: 'admin', label: 'Admin', to: '/admin/structure' },
+] as const
+
+/** The ten, grouped by scope in the ScopeRail's order. */
 const questionGroups: NavMenuGroup[] = QUESTION_GROUPS.map((group) => ({
   label: group,
   items: QUESTIONS.filter((q) => q.group === group).map(questionItem),
 }))
 
-/** The scope pickers: the two trees you find a named thing in. */
-const scopeTabs: NavMenuItem[] = [
+/** Admin: the two trees you find a named thing in. */
+const adminTabs: NavMenuItem[] = [
   {
-    label: 'Organisations',
+    label: 'Structure',
     to: '/admin/structure',
     desc: 'The organisation tree — groups, schools, classes, ways in',
     iconPaths: ICONS.tree,
@@ -78,21 +97,23 @@ const scopeTabs: NavMenuItem[] = [
   },
 ]
 
-/** The chores that are not questions, behind one door. */
+/** Admin: the chores that are not questions, behind one door. */
 const toolGroups: NavMenuGroup[] = [
   {
     label: 'Tools',
     items: [
       { label: 'Release notes', to: '/admin/release-notes', desc: "Curate the What's New panel in Settings", iconPaths: ICONS.notes, match: (p) => p.startsWith('/admin/release-notes') },
-      { label: 'Invites audit', to: '/admin/invites', desc: 'Every code ever minted — make new ones from a node in Organisations', iconPaths: ICONS.access, match: (p) => p.startsWith('/admin/invites') },
+      { label: 'Invites audit', to: '/admin/invites', desc: 'Every code ever minted — make new ones from a node in Structure', iconPaths: ICONS.access, match: (p) => p.startsWith('/admin/invites') },
       { label: 'Methodology', to: '/admin/methodology', desc: 'Measuring-progress papers and demos', iconPaths: ICONS.book, match: (p) => p.startsWith('/admin/methodology') },
       { label: 'Handbook', to: '/admin/handbook', desc: 'Everything the org dashboard can do, compiled from the code', iconPaths: ICONS.book, match: (p) => p.startsWith('/admin/handbook') },
     ],
   },
 ]
 
-/** Collapsed: everything, one menu, questions first. */
-const allGroups: NavMenuGroup[] = [...questionGroups, { label: 'Find', items: scopeTabs }, ...toolGroups]
+/** Collapsed: the current mode's destinations, one menu. */
+const collapsedGroups = computed<NavMenuGroup[]>(() =>
+  mode.value === 'intel' ? questionGroups : [{ label: 'Admin', items: adminTabs }, ...toolGroups],
+)
 
 function isActive(item: NavMenuItem): boolean {
   return item.match ? item.match(route.path) : route.path.startsWith(item.to)
@@ -100,13 +121,13 @@ function isActive(item: NavMenuItem): boolean {
 
 // The collapsed trigger names the CURRENT section — identity over chrome.
 const currentSectionLabel = computed(() => {
-  const all = allGroups.flatMap((g) => g.items)
+  const all = collapsedGroups.value.flatMap((g) => g.items)
   return all.find(isActive)?.label ?? 'Menu'
 })
 </script>
 
 <template>
-  <header class="admin-topbar">
+  <header :class="['admin-topbar', `mode-${mode}`]">
     <div class="left">
       <router-link to="/" class="back-link" aria-label="Back to app">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -119,14 +140,25 @@ const currentSectionLabel = computed(() => {
         <span class="brand-mark">S</span>
         <span class="brand-text">SSi</span>
       </router-link>
+
+      <!-- The ONE switch. Active segment comes from the route, never state. -->
+      <nav class="mode-switch" aria-label="Mode">
+        <router-link
+          v-for="m in modeSwitch"
+          :key="m.key"
+          :to="m.to"
+          :class="['seg', { active: mode === m.key }]"
+          :aria-current="mode === m.key ? 'page' : undefined"
+        >{{ m.label }}</router-link>
+      </nav>
     </div>
 
     <div class="right">
-      <!-- Wide: the ten questions in their groups, the two scope pickers, and
-           the Tools door. Every question is a direct link — one tap. -->
-      <nav class="tabs" aria-label="The ten questions">
-        <div v-for="g in questionGroups" :key="g.label" class="tab-group">
-          <span class="group-name">{{ g.label }}</span>
+      <!-- Wide, Intelligence: the ten questions in their scope groups. Every
+           question is a direct link — one tap. -->
+      <nav v-if="mode === 'intel'" class="tabs" aria-label="The ten questions">
+        <div v-for="(g, gi) in questionGroups" :key="g.label" class="tab-group" :aria-label="g.label">
+          <span v-if="gi > 0" class="divider" aria-hidden="true"></span>
           <router-link
             v-for="item in g.items"
             :key="item.to"
@@ -135,9 +167,12 @@ const currentSectionLabel = computed(() => {
             :title="item.desc"
           >{{ item.label }}</router-link>
         </div>
-        <span class="divider" aria-hidden="true"></span>
+      </nav>
+
+      <!-- Wide, Admin: the two trees and the Tools door. -->
+      <nav v-else class="tabs" aria-label="Admin">
         <router-link
-          v-for="item in scopeTabs"
+          v-for="item in adminTabs"
           :key="item.to"
           :to="item.to"
           :class="['tab', { active: isActive(item) }]"
@@ -146,9 +181,10 @@ const currentSectionLabel = computed(() => {
         <NavMoreMenu :groups="toolGroups" trigger-label="Tools" trigger-class="tab" align="right" />
       </nav>
 
-      <!-- Narrow: everything in one menu; the trigger names the current section. -->
+      <!-- Narrow: the current mode's destinations in one menu; the trigger
+           names the current section. The switch above stays visible. -->
       <nav class="tabs-collapsed" aria-label="Sections">
-        <NavMoreMenu :groups="allGroups" :trigger-label="currentSectionLabel" trigger-class="tab" align="right" />
+        <NavMoreMenu :groups="collapsedGroups" :trigger-label="currentSectionLabel" trigger-class="tab" align="right" />
       </nav>
 
       <ViewAsPicker />
@@ -183,6 +219,13 @@ const currentSectionLabel = computed(() => {
 
 .left { display: flex; align-items: center; gap: 14px; min-width: 0; flex: none; }
 .right { display: flex; align-items: center; gap: 6px; min-width: 0; }
+/* View-as and Refresh are controls: they keep their width in every mode and
+   at every size. When the bar is short of room it is the collapsed section
+   trigger that gives, by truncating its label. */
+.right :deep(.vap), .right :deep(.refresh-button) { flex: none; }
+.tabs-collapsed { min-width: 0; }
+.tabs-collapsed :deep(.nvm), .tabs-collapsed :deep(.nvm-trigger) { min-width: 0; max-width: 100%; }
+.tabs-collapsed :deep(.nvm-trigger-label) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .back-link {
   display: inline-flex;
@@ -225,15 +268,33 @@ const currentSectionLabel = computed(() => {
 .tabs-collapsed { display: none; align-items: center; }
 
 .tab-group { display: flex; align-items: center; gap: 2px; }
-.group-name {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--schools-red);
-  padding: 0 4px 0 10px;
-}
+/* Scope groups part with a quiet rule, not a label: the tabs already say
+   "One person" and "One organisation", and the ScopeRail says the rest. */
 .divider { width: 1px; height: 22px; background: var(--schools-border); margin: 0 6px; }
+
+.mode-switch {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border: 1px solid var(--schools-border);
+  border-radius: var(--schools-radius-md);
+  background: var(--schools-bg);
+  flex: none;
+}
+.seg {
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  color: var(--schools-fg-2);
+  border-radius: calc(var(--schools-radius-md) - 2px);
+  white-space: nowrap;
+  transition: color 120ms ease-out, background 120ms ease-out;
+}
+.seg:hover { color: var(--schools-fg); }
+.seg.active { color: var(--schools-card); background: var(--schools-red); }
+.seg.active:hover { background: var(--schools-red-deep); }
 
 .tab,
 .tabs :deep(.tab),
@@ -257,6 +318,13 @@ const currentSectionLabel = computed(() => {
 }
 .tab.active:hover { background: var(--schools-red-deep); }
 
+/* The Intelligence row needs ~1365px for ten tabs, the switch, View-as and
+   Refresh on one line. Rather than shrink the type, it collapses earlier than
+   the three-tab Admin row does — the breakpoint moves before the font. */
+@media (max-width: 1380px) {
+  .mode-intel .tabs { display: none; }
+  .mode-intel .tabs-collapsed { display: flex; }
+}
 @media (max-width: 1180px) {
   .tabs { display: none; }
   .tabs-collapsed { display: flex; }
@@ -267,5 +335,6 @@ const currentSectionLabel = computed(() => {
   .back-link span { display: none; }
   .brand-text { display: none; }
   .left { gap: 8px; }
+  .seg { padding: 4px 8px; font-size: 11.5px; }
 }
 </style>
