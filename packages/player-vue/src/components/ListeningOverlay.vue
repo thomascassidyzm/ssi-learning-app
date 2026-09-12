@@ -296,6 +296,12 @@ const supabase = inject('supabase', null)
 // edge fade-mask (see CSS) hints that more belts exist either side.
 const beltStripEl = ref<HTMLElement | null>(null)
 const activeBeltPipEl = ref<HTMLElement | null>(null)
+// Template ref callback for the active pip. Assigning the ref itself from the
+// template compiled to `const = el` and threw "Assignment to constant
+// variable" on every strip render since 2026-05-15; write .value here instead.
+const setActiveBeltPip = (el, point) => {
+  if (point.beltIndex === currentBeltIndex.value) activeBeltPipEl.value = el
+}
 
 // State
 const isLoading = ref(true)
@@ -1473,11 +1479,14 @@ const playCurrentPhrase = async (myPlaybackId) => {
     if (myPlaybackId !== playbackId) return
     const clipStartedAt = Date.now()
     let clipOk = true
+    // Dialogue queues always carry an explicit per-clip rate (Immersion =
+    // chosen speed, Drill = 1×/2×/2×), so a Core/All speed never leaks in.
+    // Core/All pass rate=null and lean on the controller's rate watch.
+    // Declared OUTSIDE the try: the per-clip row below reads it, and a
+    // try-scoped const threw ReferenceError after the first clip, which
+    // killed Listening Mode playback on staging build 3004383 (job #339).
+    const effectiveRate = modeSurface.value ? (rate ?? 1) : rate
     try {
-      // Dialogue queues always carry an explicit per-clip rate (Immersion =
-      // chosen speed, Drill = 1×/2×/2×), so a Core/All speed never leaks in.
-      // Core/All pass rate=null and lean on the controller's rate watch.
-      const effectiveRate = modeSurface.value ? (rate ?? 1) : rate
       // Fusion-drill strips: light the strip this step belongs to.
       activeStripIndex.value = stripIndex ?? -1
       await audioController.value.play(
@@ -2182,7 +2191,7 @@ watch(
       <button
         v-for="point in beltJumpPoints"
         :key="point.beltIndex"
-        :ref="(el) => { if (point.beltIndex === currentBeltIndex) activeBeltPipEl = el }"
+        :ref="(el) => setActiveBeltPip(el, point)"
         class="belt-jump-pip"
         :class="{ active: point.beltIndex === currentBeltIndex }"
         :style="{ '--pip-color': point.beltColor }"

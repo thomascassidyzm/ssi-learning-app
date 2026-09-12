@@ -355,7 +355,7 @@ describe('usePlayerLog — the log context stamps mode, belt, seed and round on 
 
   const lastBatch = () => {
     const spy = fetch as unknown as ReturnType<typeof vi.fn>
-    const [, init] = spy.mock.calls.at(-1) as [string, RequestInit]
+    const [, init] = spy.mock.calls[spy.mock.calls.length - 1] as [string, RequestInit]
     return JSON.parse(init.body as string).events as Array<{ event_type: string; payload: Record<string, unknown> }>
   }
 

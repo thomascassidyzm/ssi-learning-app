@@ -2448,7 +2448,11 @@ simplePlayer.onPhaseChanged((phase) => {
       cycleId: cycle.id,
       cycleType: cycle.type ?? null,
       legoId: cycle.legoId ?? null,
-      seedId: cycle.seedId ?? null,
+      // Only when the cycle carries one. An explicit null here wins over the
+      // log context, and no main-flow cycle ever had a seedId: 47,336 of
+      // 47,336 production audio_play rows in the week to 2026-09-12 were null.
+      // Left absent, the context stamps the seed the cursor is on (job #339).
+      ...(cycle.seedId ? { seedId: cycle.seedId } : {}),
       playbackSpeed: cycle.playbackSpeed ?? 1.0,
       cacheHit,
     })
