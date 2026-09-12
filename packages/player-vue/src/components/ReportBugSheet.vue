@@ -7,7 +7,7 @@
  * learner. Opened from Settings and from the learner's own page; both mount
  * this same sheet.
  */
-import { ref, computed, onBeforeUnmount } from 'vue'
+import { ref, computed, onBeforeUnmount, Teleport } from 'vue'
 import { useI18n } from '@/composables/useI18n'
 import { useBugReport } from '@/composables/useBugReport'
 
@@ -100,6 +100,10 @@ onBeforeUnmount(() => { if (closeTimer) clearTimeout(closeTimer) })
        Worth knowing. Tapping outside the sheet closes it without sending. Nobody replies through the app: the note goes to one place where we read it.
        checked: b0c2520c.7fd68307
   -->
+  <!-- Teleported to body: Settings mounts this inside .settings-overlay, a fixed
+       z-index 2000 stacking context, so any z-index set here stayed under the
+       bottom nav's 3000 and a real phone tap on Send hit Play (job #361). -->
+  <Teleport to="body">
   <div class="bug-scrim" data-walk="report-bug-sheet" @click.self="emit('close')">
     <section class="bug-sheet" role="dialog" aria-modal="true" :aria-label="t('bugReport.title')">
       <template v-if="sent">
@@ -175,6 +179,7 @@ onBeforeUnmount(() => { if (closeTimer) clearTimeout(closeTimer) })
       </template>
     </section>
   </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -183,7 +188,8 @@ onBeforeUnmount(() => { if (closeTimer) clearTimeout(closeTimer) })
   inset: 0;
   /* Above the bottom nav (3000) and the player's overlays (up to 3200): the
      sheet's Send sits where the nav's Play button is on a phone, and at 1200
-     a real tap reached Play, not Send (job #361, 2026-09-12). */
+     a real tap reached Play, not Send (job #361, 2026-09-12). Only effective
+     because the sheet teleports to body, out of .settings-overlay's context. */
   z-index: 3300;
   background: rgba(44, 38, 34, 0.45);
   display: flex;

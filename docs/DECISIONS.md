@@ -1034,9 +1034,11 @@ that probe submitted with `el.click()`, which skips hit-testing. A headless phon
 a touch context, opening the sheet from Settings and tapping Send at its own coordinates, closed
 the sheet and Settings and posted nothing: the point under the thumb was the bottom nav's Play
 button, because the scrim sat at z-index 1200 under the nav's 3000. So delivery worked and normal
-phone submission was broken, exactly as Astra said. Fix: the scrim now stacks at 3300, above the
-nav and the player's overlays; a test reads both z-indexes and is red on 1200, green on 3300.
-Probe kept as `packages/player-vue/e2e/_361-postbox-tap-probe.mjs`.
+phone submission was broken, exactly as Astra said. Raising the scrim to 3300 alone did nothing on
+staging: Settings mounts the sheet inside `.settings-overlay`, a fixed z-index 2000 stacking
+context, so the sheet could never outrank the nav from there. Fix: the sheet teleports to body
+and stacks at 3300; a test asserts the scrim is a direct child of body, red on the old component,
+green on the fix. Probe kept as `packages/player-vue/e2e/_361-postbox-tap-probe.mjs`.
 
 **Decision: guests may report.** A guest has no bearer, so the route accepts an unauthenticated
 report with learner_id and auth_user_id null and only the client's unflushed buffer for events.
@@ -1342,8 +1344,10 @@ no round. Sentence corrected in the #339 entry; no code change.
 
 **Item 2, #347's "whole pipeline proven": CONFIRMED, and a real bug.** A 390x844 touch-context
 tap on Send at its own coordinates hit the bottom nav's Play button beneath the sheet (scrim
-z-index 1200, nav 3000). Fix: scrim at 3300; test red on 1200, green on 3300; recorded in the
-#327·F entry; probe `packages/player-vue/e2e/_361-postbox-tap-probe.mjs`.
+z-index 1200, nav 3000, and the sheet trapped inside `.settings-overlay`'s z-index 2000 stacking
+context). Fix: the sheet teleports to body at z-index 3300; test asserts the scrim is a child of
+body, red on the old component, green on the fix; recorded in the #327·F entry; probe
+`packages/player-vue/e2e/_361-postbox-tap-probe.mjs`.
 
 **Item 3, #340's "Refresh in both modes": CONFIRMED.** `RefreshButton` renders only with a
 registered handler and no `views/intel/*` file calls `registerRefresh`. Sentence corrected in the

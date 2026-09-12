@@ -39,19 +39,32 @@ const mountSheet = () =>
     props: { courseCode: 'cym_for_eng' },
     global: { provide: { supabase, activeCourse: ref({ course_code: 'cym_for_eng' }) } },
   })
+// The sheet teleports to body, so its elements are found there, not under the wrapper.
+const el = <T extends HTMLElement>(walk: string): T => {
+  const node = document.body.querySelector<T>(`[data-walk="${walk}"]`)
+  if (!node) throw new Error(`no [data-walk="${walk}"] on body`)
+  return node
+}
+const setText = async (value: string) => {
+  const ta = el<HTMLTextAreaElement>('report-bug-text')
+  ta.value = value
+  ta.dispatchEvent(new Event('input', { bubbles: true }))
+  await new Promise((r) => setTimeout(r, 0))
+}
+afterEach(() => { document.body.innerHTML = '' })
 
 describe('ReportBugSheet', () => {
   it('does not send an empty report', async () => {
     const w = mountSheet()
-    expect((w.get('[data-walk="report-bug-send"]').element as HTMLButtonElement).disabled).toBe(true)
-    await w.get('[data-walk="report-bug-send"]').trigger('click')
+    expect(el<HTMLButtonElement>('report-bug-send').disabled).toBe(true)
+    el('report-bug-send').click()
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
   it('posts the text with the client envelope and shows only the thank-you', async () => {
     const w = mountSheet()
-    await w.get('[data-walk="report-bug-text"]').setValue('I ended a session and came back at the start of White.')
-    await w.get('[data-walk="report-bug-send"]').trigger('click')
+    await setText('I ended a session and came back at the start of White.')
+    el('report-bug-send').click()
     await new Promise((r) => setTimeout(r, 0))
     await w.vm.$nextTick()
     expect(fetchSpy).toHaveBeenCalledTimes(1)
@@ -66,8 +79,8 @@ describe('ReportBugSheet', () => {
     expect(body.route).toBe('/me')
     expect(body.recent_events).toEqual([{ event_type: 'tap_pause', occurred_at: '2026-09-12T10:00:00.000Z', payload: null }])
     expect(typeof body.device.user_agent).toBe('string')
-    expect(w.find('[data-walk="report-bug-thanks"]').exists()).toBe(true)
-    expect(w.find('[data-walk="report-bug-text"]').exists()).toBe(false)
+    expect(document.body.querySelector('[data-walk="report-bug-thanks"]')).not.toBeNull()
+    expect(document.body.querySelector('[data-walk="report-bug-text"]')).toBeNull()
   })
 })
 
@@ -92,5 +105,12 @@ describe('ReportBugSheet stacking', () => {
   }
   it('the sheet stacks above the bottom nav so a real tap on Send reaches Send', () => {
     expect(zOf('./ReportBugSheet.vue', '.bug-scrim')).toBeGreaterThan(zOf('./BottomNav.vue', '.bottom-nav'))
+  })
+  it('the scrim is a direct child of body, outside the settings overlay stacking context', () => {
+    const w = mountSheet()
+    const scrim = document.body.querySelector('.bug-scrim')
+    expect(scrim).not.toBeNull()
+    expect(scrim!.parentElement).toBe(document.body)
+    expect(w.element.contains(scrim)).toBe(false)
   })
 })
