@@ -29,7 +29,7 @@ import { __resetNetworkGateForTests } from '../config/networkGate'
 
 /** Fake client returning the given listening_pods rows, counting round-trips. */
 function makeClient(
-  rows: Array<{ slug: string; pod_type?: string; required_role?: string | null }> | null,
+  rows: Array<{ slug: string; pod_type?: string; required_role?: string | null; title?: string }> | null,
   error: { message: string } | null = null,
 ) {
   const calls = { count: 0, lastFilters: {} as Record<string, unknown> }
@@ -217,7 +217,7 @@ describe('resolveServedPod — offline lane', () => {
 })
 
 /** A client that answers every table the meta download touches. */
-function makeFullClient(pods: Array<{ slug: string }>) {
+function makeFullClient(pods: Array<{ slug: string; title?: string }>) {
   return {
     from(table: string) {
       const filters: Record<string, unknown> = {}
@@ -232,7 +232,11 @@ function makeFullClient(pods: Array<{ slug: string }>) {
         maybeSingle: () => chain,
         then: (resolve: (r: unknown) => void) => {
           if (table === 'listening_pods') {
-            const allowed = filters.slug as string[] | undefined
+            const or = filters.or as string | undefined
+            const allowedFromOr = or
+              ? (or.match(/slug\.in\.\(([^)]*)\)/)?.[1] ?? '').split(',').filter(Boolean)
+              : undefined
+            const allowed = (filters.slug as string[] | undefined) ?? allowedFromOr
             return resolve({
               data: pods.filter((p) => !allowed || allowed.includes(p.slug)),
               error: null,
@@ -277,5 +281,93 @@ describe('resolveServedPod — role-addressed content', () => {
     const served = await resolveServedPod(client, 'cym_n_for_eng')
     expect(served.podId).toBe('cym_n_for_eng:senedd-s4c-steve')
     expect(calls.count).toBe(1)
+  })
+})
+
+/**
+ * Rule 6 (Tom, 2026-09-12, job #354): Listening Mode lists the served pod
+ * AND the named extra slots; main flow keeps resolving exactly one pod.
+ * RECORDED RED against the pre-fix module: `resolveListeningPods` and
+ * `LISTENING_EXTRA_POD_SLUGS` did not exist, so every test below failed at
+ * import, and the "main flow still answers pod-1" case was the one that
+ * mattered — it passes before AND after, which is the point of it.
+ */
+describe('resolveListeningPods — the third slot (rule 6)', () => {
+  const ITA = [
+    { slug: 'pod-1', title: 'Pod 1 — Italian dialogues' },
+    { slug: 'method-pod', title: 'Italian Method Pod — Tom and Aran Talk Bollocks' },
+    { slug: 'pod-1-retired-2026-08-22', title: 'retired' },
+  ]
+
+  it('lists the served pod FIRST, then the method pod, each with its own title', async () => {
+    const { resolveListeningPods } = await import('./servedPod')
+    const { client } = makeClient(ITA)
+    const pods = await resolveListeningPods(client, 'ita_for_eng')
+    expect(pods.map((p) => p.podId)).toEqual(['ita_for_eng:pod-1', 'ita_for_eng:method-pod'])
+    expect(pods[0].title).toBe('Pod 1 — Italian dialogues')
+    expect(pods[1].title).toBe('Italian Method Pod — Tom and Aran Talk Bollocks')
+  })
+
+  it('MAIN FLOW is untouched: resolveServedPod still answers pod-1 when a method pod exists', async () => {
+    const { client, calls } = makeClient(ITA)
+    const served = await resolveServedPod(client, 'ita_for_eng')
+    expect(served.slug).toBe('pod-1')
+    // and the main-flow query never asked for the extra slot
+    expect(String(calls.lastFilters.or)).not.toContain('method-pod')
+  })
+
+  it('a course with no extra slot lists exactly the served pod — today for ~68 courses', async () => {
+    const { resolveListeningPods } = await import('./servedPod')
+    const { client } = makeClient([{ slug: 'pod-0', title: 'Pod 0' }])
+    const pods = await resolveListeningPods(client, 'spa_for_eng_v2')
+    expect(pods.map((p) => p.slug)).toEqual(['pod-0'])
+  })
+
+  it('never lists a pod on an un-named slug, even if the server sent it (closed allow-list)', async () => {
+    const { pickListeningExtras, LISTENING_EXTRA_POD_SLUGS } = await import('./servedPod')
+    expect(LISTENING_EXTRA_POD_SLUGS).toEqual(['method-pod'])
+    expect(
+      pickListeningExtras([
+        { slug: 'pod-0-unrecorded', title: 'parked' },
+        { slug: 'travel-situations', title: 'choice' },
+        { slug: 'method-pod', title: 'method', pod_type: 'choice' }, // wrong type
+      ]),
+    ).toEqual([])
+    expect(pickListeningExtras([{ slug: 'method-pod', title: 'method' }])).toEqual([
+      { slug: 'method-pod', title: 'method' },
+    ])
+  })
+
+  it('a HELD method pod is simply absent to the anon client — so it is not listed', async () => {
+    const { resolveListeningPods } = await import('./servedPod')
+    // The mock IS the server: RLS returns no held row, so the fixture has none.
+    const { client } = makeClient([{ slug: 'pod-1', title: 'Pod 1' }])
+    const pods = await resolveListeningPods(client, 'ita_for_eng')
+    expect(pods.map((p) => p.slug)).toEqual(['pod-1'])
+  })
+
+  it('degrades to the served pod alone on a query error — never fewer than main flow', async () => {
+    const { resolveListeningPods } = await import('./servedPod')
+    const { client } = makeClient(null, { message: 'permission denied' })
+    const pods = await resolveListeningPods(client, 'ita_for_eng')
+    expect(pods.map((p) => p.slug)).toEqual(['pod-0'])
+  })
+
+  it('offline: lists the extra slots the download snapshot carried, with no round-trip', async () => {
+    const { resolveListeningPods } = await import('./servedPod')
+    const { getCachedListeningMeta } = await import('./listeningMetaCache')
+    const { fetchAndCacheListeningMeta } = await import('./listeningMetaCache')
+    await fetchAndCacheListeningMeta(makeFullClient(ITA), 'ita_for_eng')
+    const entry = (await getCachedListeningMeta('ita_for_eng'))!
+    expect(entry.podSlug).toBe('pod-1')
+    expect(entry.extraPods?.map((e) => e.slug)).toEqual(['method-pod'])
+
+    resetServedPodCache()
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+    const { client, calls } = makeClient([])
+    const pods = await resolveListeningPods(client, 'ita_for_eng')
+    expect(pods.map((p) => p.slug)).toEqual(['pod-1', 'method-pod'])
+    expect(pods[1].title).toBe('Italian Method Pod — Tom and Aran Talk Bollocks')
+    expect(calls.count).toBe(0)
   })
 })

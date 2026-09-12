@@ -19,7 +19,7 @@
 
 import { openDB, deleteDB, type IDBPDatabase } from 'idb'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { resolveServedPod } from './servedPod'
+import { resolveListeningPods } from './servedPod'
 import {
   type L1FallbackPhraseRow,
   computeSeedLastLegoIndex,
@@ -172,8 +172,20 @@ export interface CachedListeningMeta {
    *  offline with no round-trip. Absent on entries written before the flip →
    *  those are `pod-0` snapshots by definition. */
   podSlug?: string
-  /** course_audio id → text for the split-clip ids referenced by podRows —
-   *  the overlay's per-sentence display-text oracle (splitRowUnits). */
+  /** `listening_pods.title` of the served pod — Listening Mode's group heading
+   *  when the course lists more than one pod. Absent on older entries. */
+  podTitle?: string
+  /** EXTRA Listening Mode slots (servedPod rule 6, job #354): the named
+   *  extra pods this course had when the snapshot was taken, each with its
+   *  own rows, so OFFLINE Listening Mode lists them too. `podRows`/`podSlug`
+   *  keep meaning the ONE served pod that main flow reads — this field is
+   *  separate on purpose so servedPod's offline lane is unchanged. Absent on
+   *  entries written before the third slot existed → no extras until the next
+   *  refresh, which is exactly the pre-slot behaviour. */
+  extraPods?: CachedExtraPod[]
+  /** course_audio id → text for the split-clip ids referenced by podRows and
+   *  by every extra pod's rows — the overlay's per-sentence display-text
+   *  oracle (splitRowUnits). */
   clipTexts: Record<string, string>
   /** bookend_listen_intro / bookend_listen_outro rows. */
   bookends: CachedBookend[]
@@ -189,6 +201,13 @@ export interface CachedListeningMeta {
    *  written before the fallback existed — those seeds just skip offline,
    *  which is the pre-fallback behaviour, until the next refresh. */
   l1FallbackPhrases?: CachedL1FallbackPhrase[]
+}
+
+/** One extra Listening Mode pod in the snapshot. */
+export interface CachedExtraPod {
+  slug: string
+  title: string | null
+  podRows: CachedPodRow[]
 }
 
 /** Mirrors useLayer1Scheduler's L1FallbackPhraseRow (kept structural, not
@@ -315,10 +334,13 @@ const setCachedListeningMeta = async (meta: CachedListeningMeta): Promise<void> 
 export const clearCachedListeningPodRows = async (courseCode: string): Promise<void> => {
   try {
     const existing = await getCachedListeningMeta(courseCode)
-    if (!existing || existing.podRows.length === 0) return
+    if (!existing || (existing.podRows.length === 0 && !(existing.extraPods?.length))) return
     // Drop podSlug with the rows: the snapshot no longer describes any pod,
-    // so it must not keep asserting one to servedPod's offline lane.
-    await setCachedListeningMeta({ ...existing, podRows: [], clipTexts: {}, podSlug: undefined })
+    // so it must not keep asserting one to servedPod's offline lane. The
+    // extra slots go with it — they are listed under the served pod.
+    await setCachedListeningMeta({
+      ...existing, podRows: [], clipTexts: {}, podSlug: undefined, podTitle: undefined, extraPods: [],
+    })
     console.log('[ListeningMeta] dropped', existing.podRows.length,
       'stale offline pod rows for', courseCode, '— course reports no pods live')
   } catch (err) {
@@ -410,13 +432,19 @@ const fetchAndCacheListeningMetaOnce = async (
   courseCode: string,
 ): Promise<CachedListeningMeta | null> => {
   try {
-    const { podId, slug: podSlug } = await resolveServedPod(client, courseCode)
-    const [podsResult, bookendsResult, stampResult] = await Promise.all([
+    // Served pod first (rule 1), then the named extra Listening Mode slots
+    // the course has (rule 6). One sentence read per pod.
+    const listeningPods = await resolveListeningPods(client, courseCode)
+    const [servedEntry, ...extraEntries] = listeningPods
+    const { podId, slug: podSlug, title: podTitle } = servedEntry
+    const readRows = (id: string) =>
       client
         .from('listening_pod_sentences')
         .select(POD_ROW_COLUMNS)
-        .eq('pod_id', podId)
-        .order('global_order', { ascending: true }),
+        .eq('pod_id', id)
+        .order('global_order', { ascending: true })
+    const [podsResult, bookendsResult, stampResult, ...extraResults] = await Promise.all([
+      readRows(podId),
       client
         .from('course_audio')
         .select('role, text, id, duration_ms')
@@ -427,8 +455,12 @@ const fetchAndCacheListeningMetaOnce = async (
         .select('content_stamp, audio_stamp')
         .eq('course_code', courseCode)
         .maybeSingle(),
+      ...extraEntries.map((e) => readRows(e.podId)),
     ])
     if (podsResult.error) throw new Error(`listening_pod_sentences: ${podsResult.error.message}`)
+    for (const r of extraResults) {
+      if (r.error) throw new Error(`listening_pod_sentences (extra slot): ${r.error.message}`)
+    }
     if (bookendsResult.error) throw new Error(`bookends: ${bookendsResult.error.message}`)
     // A-86: this snapshot is the OFFLINE source of truth for the listening
     // lane, so it must be written with per-clip versioned refs (`<uuid>.v<N>`)
@@ -442,11 +474,19 @@ const fetchAndCacheListeningMetaOnce = async (
       revisedRefs,
       (podsResult.data || []) as unknown as CachedPodRow[],
     )
+    const extraPods: CachedExtraPod[] = extraEntries.map((e, i) => ({
+      slug: e.slug,
+      title: e.title,
+      podRows: stampRowAudioRefs(
+        revisedRefs,
+        (extraResults[i]?.data || []) as unknown as CachedPodRow[],
+      ),
+    }))
 
     // Split-clip display texts (the overlay's per-sentence oracle) — chunked
     // to keep the PostgREST in() URL short, mirroring useListeningPods.
     const clipIds = new Set<string>()
-    for (const row of podRows) {
+    for (const row of [...podRows, ...extraPods.flatMap((e) => e.podRows)]) {
       for (const id of row.sentence_audio_ids || []) if (id) clipIds.add(id)
       for (const id of row.sentence_known_audio_ids || []) if (id) clipIds.add(id)
     }
@@ -554,6 +594,8 @@ const fetchAndCacheListeningMetaOnce = async (
       audioStamp,
       podRows,
       podSlug,
+      podTitle: podTitle ?? undefined,
+      extraPods,
       clipTexts,
       bookends: stampRowAudioRefs(revisedRefs, (bookendsResult.data || []) as CachedBookend[]),
       fineKnowns,
@@ -662,10 +704,17 @@ export const isCachedListeningMetaStale = async (courseCode: string): Promise<bo
  * pods rather than a scattering of everything. Core seed audio is deliberately
  * NOT here — Core is the whole-course listening bundle, not a pod.
  */
+/** The served pod's rows followed by every extra slot's rows — the full set
+ *  of pod sentences a snapshot can play offline. */
+export const allCachedPodRows = (meta: CachedListeningMeta): CachedPodRow[] => [
+  ...meta.podRows,
+  ...(meta.extraPods || []).flatMap((e) => e.podRows || []),
+]
+
 export const collectListeningMetaPodAudioIds = (meta: CachedListeningMeta): string[] => {
   const ids = new Set<string>()
   const add = (id?: string | null) => { if (id) ids.add(id) }
-  for (const row of meta.podRows) {
+  for (const row of allCachedPodRows(meta)) {
     add(row.target_audio_id); add(row.known_audio_id); add(row.explainer_audio_id)
     for (const id of row.sentence_audio_ids || []) add(id)
     for (const id of row.sentence_known_audio_ids || []) add(id)
@@ -694,7 +743,7 @@ export const collectListeningMetaAudioIds = (meta: CachedListeningMeta): string[
   for (const p of meta.l1FallbackPhrases || []) {
     add(p.known_audio_id); add(p.target1_audio_id); add(p.target2_audio_id)
   }
-  for (const row of meta.podRows) {
+  for (const row of allCachedPodRows(meta)) {
     add(row.target_audio_id); add(row.known_audio_id); add(row.explainer_audio_id)
     for (const id of row.sentence_audio_ids || []) add(id)
     for (const id of row.sentence_known_audio_ids || []) add(id)

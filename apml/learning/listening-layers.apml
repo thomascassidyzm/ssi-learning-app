@@ -2,7 +2,7 @@
 # SSI Learning App v1.0.0
 # Version: 1.0.0 (2025-12-03)
 # Status: Superseded in part (2026-04-29) — see banner below
-# Last updated: 2026-09-06 (LAYER-1 CUP FALLBACK — a cup plays the seed or the longest last-LEGO phrase)
+# Last updated: 2026-09-12 (LISTENING MODE THIRD SLOT — method-pod beside Pod 1, servedPod rule 6, job #354)
 # Source: Aran Jones methodology insights, 2025-12-03
 
 # =============================================================================
@@ -416,6 +416,24 @@
 # FAILURE POSTURE: every unknown resolves to `pod-0` — no rows, no pod-1, a
 # query error, a timeout. Today's behaviour is the floor, so a transient
 # failure degrades to what shipped yesterday and never to "no pods".
+#
+# UPDATE (2026-09-12, Tom's ruling, job #354): LISTENING MODE MAY LIST EXTRA
+# SLOTS; MAIN FLOW NEVER DOES. The Italian method pod sits ALONGSIDE Pod 1 in
+# Listening Mode as a third slot, never replacing or re-slugging it. servedPod
+# rule 6 adds a SECOND closed allow-list, LISTENING_EXTRA_POD_SLUGS =
+# ['method-pod'], read only by `resolveListeningPods` (served pod first, then
+# the named extras the course actually has, one memoised round-trip, same
+# offline/timeout degradation). Readers: useListeningPods (the Dialogues list,
+# scenes built per pod, identity by pod-qualified `sceneKey`; sceneNumber stays
+# pod-local) and listeningMetaCache (snapshot field `extraPods`, separate from
+# `podRows`/`podSlug` so the served-pod offline lane is unchanged; old
+# snapshots without it load as before). The offline bundle route widens its
+# slug `.in()` to the union, still behind visibility='live', pod_type='core'
+# and required_role IS NULL. usePodLapScheduler, usePodStage0 and
+# generateLearningScript keep calling resolveServedPod and still get ONE pod.
+# Visibility is NOT a client filter: a held extra pod is absent to the anon
+# client (RLS), exactly like a held served pod, so the flip to 'live' is the
+# release. Popty's tools/pods/serving-slug.cjs widened in lockstep.
 #
 # OFFLINE: the deliberate-download snapshot (listeningMetaCache) persists the
 # slug it was built from (CachedListeningMeta.podSlug), and the resolver reads

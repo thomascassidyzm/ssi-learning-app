@@ -1,3 +1,17 @@
+## 2026-09-12 — zho_for_eng lost every pod dialogue in main flow: the Drill lift was completing cohorts; completion now counts main-flow laps only (job #350)
+
+**Tom's report.** "Chinese in main has no PODS (the dialogues at all now)." Staging. Regression, not a held course.
+
+**What the DB said, read-only.** `zho_for_eng:pod-1` is live, core, on a serving slug, `required_role` null, 231 base sentences, nothing touched since 2026-08-24; the anon-key resolver query returns it exactly as it does for a GREEN course such as fra_for_eng. None of today's Popty commits wrote to `listening_pods` or `listening_pod_sentences`. The bundle route is `previewOnly` for an unauthenticated caller and returns `pods: []` for fra too, so it was not the signal. The detector does not list zho because its only recent learner is internal.
+
+**The cause.** Commit `1fc9676c8` (2026-09-06, "the top of the ladder COMPLETES") made a cohort leave the sequence once `alive` passes the ladder length, and `alive` in the lap composer is `max(derivedAlive, storedLift)`, where `storedLift` is the Listening-mode Drill's shared `learner_pod_state` counter. Tom's learner `81987d60` has 367 zho pod-state rows, all written in one moment on 2026-09-06 13:28, with exposures 96 to 461 on every sentence, against a main-flow ratchet of 45. Under the live pods config the ladder is 37 rounds, so every cohort, including ones the main flow had never debuted, read as completed the moment it was taken in, and `nextLap()` composed nothing. `allCohortsCompleted()` already judged on derived age only, so the fire gate kept claiming boundaries the composer could not fill. Four other learners have rows past 37 on fra, swe, ron and cym_n; they were losing individual cohorts the same way.
+
+**Decision.** Completion is judged on the derived age alone, the laps the main flow has actually served that cohort. The Drill lift still raises the rung a cohort is served at, as far as the top one, and still writes back; it cannot take a cohort out of the sequence. Better: a lap the learner never heard cannot count towards leaving the ladder, which is what "top of the ladder it THEN goes" means. Simpler: one identifier changes, and the composer now agrees with the gate above it. Cheaper: no data write, no migration, nobody's pod state is repaired, per the standing rule never to repair a learner position.
+
+**Proof.** One test in `usePodLapScheduler.test.ts` with exposures 459 to 461 on three sentences and a ratchet of 3: red on the pre-fix source with `nextLap()` returning null, green after with all three sentences served at the top rung. The other 62 scheduler tests stay green. Projected onto Tom's live rows: cohort 1 is genuinely past the ladder at derived age 45 and stays gone; cohorts 9 to 45 return to the sequence.
+
+**Not shared with the Listening-mode auto-advance regression.** `ListeningOverlay.vue` never reads completion; its only link to this code is the exposures counter it writes.
+
 ## 2026-09-12 — usePlayerLog: #317's "closed" was "narrowed"; the bound is now stated as a trade-off and lifted wherever the page is safe; a refused beacon no longer drops its batch (job #320)
 
 **What Astra proved about #317 (#319, cold verification on staging build 1ed0496).** Two findings. First, the 800 ms bound was a narrowing, not a close: a bearer that resolves after 800 ms still saw its batch beaconed unattributed, while the commit and the #317 entry below said "the gap is closed, not narrowed". Second, a plain miss independent of any race: `navigator.sendBeacon` returns false when the browser declines to queue the payload, and the code treated that as sent, so the batch was silently dropped with no fetch fallback.
@@ -1188,6 +1202,38 @@ defined`; two console `TypeError: Assignment to constant variable` from `Listeni
 `ref`; the belt strip drew 8 pips regardless. Listening Mode produced one `listening_tick` and
 ZERO `audio_play` rows. Every main-flow `audio_play` row had `seedId=null` while the
 `round_complete` / `tap_*` rows beside them carried `S0001`.
+## 2026-09-12 — the Italian method pod is a THIRD Listening Mode slot beside Pod 1 (job #354·F)
+
+**Tom's ruling (12:36Z).** "Yes." to Watson's proposal: serve the method pod as a third slot so it
+sits alongside Pod 1 for everyone rather than replacing it. The "swap it into the Pod 1 slot" and
+"gate it to a role" alternatives are closed.
+
+**What widened, and what did not.** `servedPod.ts` gains rule 6 and a second closed allow-list,
+`LISTENING_EXTRA_POD_SLUGS = ['method-pod']`, read only by the new `resolveListeningPods`, which
+answers the served pod first and then the named extras the course actually has. `SERVING_POD_SLUGS`
+and `resolveServedPod` are byte-for-byte the main-flow answer they were, so the pod-lap scheduler,
+stage 0 and the script generator still get exactly one pod. The Dialogues list builds scenes per pod
+and tells them apart by a pod-qualified `sceneKey`; scene numbers stay local to their pod and a group
+heading, the pod's own title from the data, appears only when a course lists more than one pod. The
+offline snapshot carries the extras in a separate `extraPods` field so the served-pod offline lane is
+untouched and older snapshots load as before. The bundle route's slug list becomes the union, behind
+the same three gates. Popty's `serving-slug.cjs` widened in the same hour so a write onto
+`method-pod` is refused as a serving write.
+
+**Why visibility is not a client filter.** A held row is absent to the anon key under RLS, so the
+player has nothing to filter and pretending otherwise would name the client as the enforcement. The
+service-role bundle route keeps its explicit `visibility='live'`. The proof is the order of events:
+staging with the pod still held shows only Pod 1 and the bundle carries only pod-1; then the one
+UPDATE flips `ita_for_eng:method-pod` live and both surfaces show it. Production main never serves
+the `method-pod` slug, so the flip changes nothing there until the next promotion.
+
+**Taste defaults, flagged.** The group heading uses the DB title as-is, "Italian Method Pod — Tom
+and Aran Talk Bollocks", even though it contains the word "Pod" (Pod 1's title already does). The
+auto-advance playlist is flat, so Pod 1's last scene flows into the method pod's first and the whole
+list wraps to Pod 1 scene 1. An extra slot's sentences carry `podOrdinal` 0, so the drill's derived
+main-flow maturity never credits the ratchet against a pod main flow has not played. No learner
+progress migration: `learner_pod_state` is keyed by sentence id and the method pod's ids are its own.
+
 ## 2026-09-12 — SSi admin top bar: Intelligence | Admin, two modes, one switch (job #340·F)
 
 **What was wrong.** The bar over `/intel/*` and `/admin/*` carried three small-caps question groups
@@ -1231,3 +1277,33 @@ after.
 31 August, and no real learner on any course sits on the round before a belt start with practice
 or a ceiling beyond it, so no cursor needs repairing under the old rule. The 8 September report's
 24 real learners idle 60+ days above White will be rewound to their own belt start on return.
+
+**After, on staging build 9b3a78c (the #339 fix), session `4eb21a1b-89d7-4985-abed-82bb76d3320a`.**
+No page error. Listening Mode wrote 15 `audio_play` rows with `mode: 'listening'`, one per clip,
+`seedId` S0001 → S0015, `belt` white then yellow as the queue crossed the belt boundary, and the
+`listening_tick` beside them. Every main-flow `audio_play` row now carries `seedId: 'S0001'`. So
+the regression from #325 is closed and the seedId fix is proven on the row.
+
+**Found on that same build, fixed in this job.** Three console errors per strip render: `TypeError:
+Cannot create property 'value' on number '0'` from #339's pip setter. Cause: the file has no
+`lang="ts"`, so `ref<HTMLElement | null>(null)` is JavaScript — `(ref < HTMLElement) | (null >
+null)` — and evaluates to 0. Both belt-strip "refs" had been 0 since 2026-05-15; the strip's
+auto-scroll read `.value` of 0 and did nothing, silently. Fix: `ref(null)` for both; the scope test
+now fails on any `ref/computed/inject/reactive<…>(` in the file. It was the only plain-JS SFC in
+`src/components` and `src/views` with a type argument. Promoted as 19c43ecf9.
+
+**After, on staging build 19c43ec, session `6aef0380-828f-4c10-9f62-125dfedd75ab`.** Zero page
+errors, zero console errors, belt-jump strip rendered 8 pips, 14 per-clip listening `audio_play`
+rows S0001 → S0014, main-flow rows stamped S0001. Probe kept as
+`packages/player-vue/e2e/_343-listening-probe.mjs`; rows read back by `session_id` with the
+service key.
+
+**Not done.** Production still serves the #325 regression until the next staging → main promotion,
+which is Tom's. The `localiseWalk` pair stays red on dev; walkthrough copy, someone else's.
+**Found verifying live, staging build 19c43ec.** A 70-day-idle test learner with the cursor at
+S0025L01 on cym_s_for_eng, fresh device, signed in, `?bundle=0`: the instant-playback boot resumed
+straight onto S0025 and stamped `last_practiced_at`; no rewind fired and no cursor move was
+written. The rewind lives only in the legacy eagerLoad resume, which neither the cache fast-path
+nor the bootstrap reaches, so on the live boot paths the 60-day rewind is effectively unreachable.
+The cap is proven by its test and is in place where the rewind lives; making the rewind reachable
+again is a design call for Tom, not part of this job.

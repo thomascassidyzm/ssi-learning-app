@@ -56,14 +56,33 @@
  *    Today that is exactly one learner-facing route: api/courses/[code]/bundle.ts,
  *    which builds its client from SUPABASE_SERVICE_ROLE_KEY and would otherwise
  *    ship a held pod's sentences into the offline bundle.
+ *
+ * 6. LISTENING MODE MAY SHOW EXTRA SLOTS; MAIN FLOW NEVER DOES. Tom's ruling
+ *    (2026-09-12, job #354): the Italian method pod sits ALONGSIDE Pod 1 in
+ *    Listening Mode as a third slot, never replacing it and never re-slugging
+ *    it. `LISTENING_EXTRA_POD_SLUGS` is a second CLOSED allow-list of named
+ *    slugs, read only by `resolveListeningPods` — the Dialogues list and the
+ *    offline snapshot. `resolveServedPod`, and therefore every MAIN-FLOW reader
+ *    (usePodLapScheduler, usePodStage0, generateLearningScript), still answers
+ *    with exactly ONE pod from rule 1 and never sees the extra list. Rule 1 is
+ *    unchanged as written: nothing here falls through to "whatever pod
+ *    exists", and a held extra pod is absent to the anon client exactly as a
+ *    held served pod is (rule 5), so flipping its visibility is the release.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { isOfflineish, withNetworkTimeout, NETWORK_TIMEOUT } from '../config/networkGate'
 import { getCachedListeningMeta } from './listeningMetaCache'
 
-/** The only slugs a learner path may ever read, in preference order. */
+/** The only slugs a MAIN-FLOW learner path may ever read, in preference order. */
 export const SERVING_POD_SLUGS = ['pod-1', 'pod-0'] as const
+
+/**
+ * Extra slots LISTENING MODE lists after the served pod (rule 6). A closed
+ * allow-list of NAMED slugs, exactly like rule 1 — never a fall-through. Main
+ * flow never reads this list.
+ */
+export const LISTENING_EXTRA_POD_SLUGS = ['method-pod'] as const
 
 /** What every unknown resolves to — today's behaviour for all ~68 courses. */
 export const FALLBACK_POD_SLUG = 'pod-0'
@@ -89,10 +108,18 @@ const servedPod = (courseCode: string, slug: string): ServedPod => ({
   podId: `${courseCode}:${slug}`,
 })
 
+/** One entry of the Listening Mode pod list: the served pod, then extras. */
+export interface ListeningPod extends ServedPod {
+  /** `listening_pods.title` — the group heading Listening Mode shows when a
+   *  course lists more than one pod. Null when the row carried none. */
+  title: string | null
+}
+
 export interface PodRow {
   slug: string
   /** `listening_pods.required_role` — NULL/absent means "everyone". */
   required_role?: string | null
+  title?: string | null
 }
 
 /**
@@ -195,7 +222,134 @@ export const resolveServedPod = (
   return pending
 }
 
+const isExtraSlug = (slug: unknown): slug is string =>
+  typeof slug === 'string' && (LISTENING_EXTRA_POD_SLUGS as readonly string[]).includes(slug)
+
+/**
+ * Which extra pods do these rows carry, in allow-list order? Pure. Only a
+ * core pod on a NAMED extra slug counts — a row on any other slug is ignored
+ * even if the server sent it, so this is a gate in its own right and not just
+ * a mirror of the query's `.in()`.
+ */
+export const pickListeningExtras = (
+  rows: Array<PodRow & { pod_type?: string | null }> | null | undefined,
+): Array<{ slug: string; title: string | null }> => {
+  const list = rows ?? []
+  const out: Array<{ slug: string; title: string | null }> = []
+  for (const slug of LISTENING_EXTRA_POD_SLUGS) {
+    const hit = list.find(
+      (r) => r.slug === slug && (r.pod_type == null || r.pod_type === 'core'),
+    )
+    if (hit) out.push({ slug, title: typeof hit.title === 'string' ? hit.title : null })
+  }
+  return out
+}
+
+/** courseCode → the one in-flight/settled Listening Mode list for this session. */
+const inFlightListening = new Map<string, Promise<ListeningPod[]>>()
+
+/**
+ * The extra pods (and their titles) the offline snapshot was built from —
+ * re-gated through the allow-list, like the served slug. Never throws.
+ */
+const cachedExtras = async (
+  courseCode: string,
+): Promise<Array<{ slug: string; title: string | null }> | null> => {
+  try {
+    const cached = await getCachedListeningMeta(courseCode)
+    if (!cached) return null
+    const extras = Array.isArray(cached.extraPods) ? cached.extraPods : []
+    return extras
+      .filter((e) => isExtraSlug(e?.slug))
+      .map((e) => ({ slug: e.slug, title: typeof e.title === 'string' ? e.title : null }))
+  } catch {
+    return null
+  }
+}
+
+const resolveListeningOnce = async (
+  client: SupabaseClient,
+  courseCode: string,
+): Promise<ListeningPod[]> => {
+  // The served pod is rule 1, unchanged and already memoised; it is always
+  // the first slot. Offline it comes from the snapshot's `podSlug`.
+  const served = await resolveServedPod(client, courseCode)
+  const asListening = (
+    extras: Array<{ slug: string; title: string | null }>,
+    servedTitle: string | null,
+  ): ListeningPod[] => [
+    { ...served, title: servedTitle },
+    ...extras
+      // An extra slot never duplicates the served pod (rule 5 can serve a
+      // role-addressed pod on any slug, including in principle an extra one).
+      .filter((e) => e.slug !== served.slug)
+      .map((e) => ({ ...servedPod(courseCode, e.slug), title: e.title })),
+  ]
+
+  if (isOfflineish()) {
+    const offline = await cachedExtras(courseCode)
+    if (offline) {
+      const cached = await getCachedListeningMeta(courseCode).catch(() => null)
+      return asListening(offline, cached?.podTitle ?? null)
+    }
+  }
+
+  // One round-trip: the extra slots plus the served pod's own title. The
+  // extra arm is a closed `.in()` on named slugs and is re-gated client-side
+  // by pickListeningExtras. No visibility filter, on purpose (rule 5): a held
+  // row is absent to the anon client, so a held method pod simply is not here.
+  let result:
+    | { data: Array<PodRow & { pod_type?: string | null }> | null; error: unknown }
+    | typeof NETWORK_TIMEOUT
+  try {
+    result = await withNetworkTimeout(
+      client
+        .from('listening_pods')
+        .select('slug, title, pod_type, required_role')
+        .eq('course_code', courseCode)
+        .eq('pod_type', 'core')
+        .in('slug', [...LISTENING_EXTRA_POD_SLUGS, served.slug]),
+    )
+  } catch {
+    result = NETWORK_TIMEOUT
+  }
+
+  if (result === NETWORK_TIMEOUT || result.error) {
+    // Degrade to what this device last knew, else to the served pod alone —
+    // today's behaviour, never fewer pods than main flow serves.
+    const fallback = (await cachedExtras(courseCode)) ?? []
+    const cached = await getCachedListeningMeta(courseCode).catch(() => null)
+    return asListening(fallback, cached?.podTitle ?? null)
+  }
+
+  const rows = result.data ?? []
+  const servedRow = rows.find((r) => r.slug === served.slug)
+  const servedTitle = typeof servedRow?.title === 'string' ? servedRow.title : null
+  return asListening(pickListeningExtras(rows), servedTitle)
+}
+
+/**
+ * Every pod Listening Mode lists for this course, served pod FIRST, then the
+ * named extra slots the course actually has (rule 6). Memoised per course for
+ * the session; every failure mode resolves (never rejects) to at least the
+ * served pod. Main flow must never call this — it wants resolveServedPod.
+ */
+export const resolveListeningPods = (
+  client: SupabaseClient,
+  courseCode: string,
+): Promise<ListeningPod[]> => {
+  const existing = inFlightListening.get(courseCode)
+  if (existing) return existing
+  const pending = resolveListeningOnce(client, courseCode).catch(async () => {
+    const served = await resolveServedPod(client, courseCode)
+    return [{ ...served, title: null }]
+  })
+  inFlightListening.set(courseCode, pending)
+  return pending
+}
+
 /** Drop the memo — tests, and any future content-version reset. */
 export const resetServedPodCache = (): void => {
   inFlight.clear()
+  inFlightListening.clear()
 }
