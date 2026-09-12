@@ -1188,6 +1188,38 @@ defined`; two console `TypeError: Assignment to constant variable` from `Listeni
 `ref`; the belt strip drew 8 pips regardless. Listening Mode produced one `listening_tick` and
 ZERO `audio_play` rows. Every main-flow `audio_play` row had `seedId=null` while the
 `round_complete` / `tap_*` rows beside them carried `S0001`.
+## 2026-09-12 — the Italian method pod is a THIRD Listening Mode slot beside Pod 1 (job #354·F)
+
+**Tom's ruling (12:36Z).** "Yes." to Watson's proposal: serve the method pod as a third slot so it
+sits alongside Pod 1 for everyone rather than replacing it. The "swap it into the Pod 1 slot" and
+"gate it to a role" alternatives are closed.
+
+**What widened, and what did not.** `servedPod.ts` gains rule 6 and a second closed allow-list,
+`LISTENING_EXTRA_POD_SLUGS = ['method-pod']`, read only by the new `resolveListeningPods`, which
+answers the served pod first and then the named extras the course actually has. `SERVING_POD_SLUGS`
+and `resolveServedPod` are byte-for-byte the main-flow answer they were, so the pod-lap scheduler,
+stage 0 and the script generator still get exactly one pod. The Dialogues list builds scenes per pod
+and tells them apart by a pod-qualified `sceneKey`; scene numbers stay local to their pod and a group
+heading, the pod's own title from the data, appears only when a course lists more than one pod. The
+offline snapshot carries the extras in a separate `extraPods` field so the served-pod offline lane is
+untouched and older snapshots load as before. The bundle route's slug list becomes the union, behind
+the same three gates. Popty's `serving-slug.cjs` widened in the same hour so a write onto
+`method-pod` is refused as a serving write.
+
+**Why visibility is not a client filter.** A held row is absent to the anon key under RLS, so the
+player has nothing to filter and pretending otherwise would name the client as the enforcement. The
+service-role bundle route keeps its explicit `visibility='live'`. The proof is the order of events:
+staging with the pod still held shows only Pod 1 and the bundle carries only pod-1; then the one
+UPDATE flips `ita_for_eng:method-pod` live and both surfaces show it. Production main never serves
+the `method-pod` slug, so the flip changes nothing there until the next promotion.
+
+**Taste defaults, flagged.** The group heading uses the DB title as-is, "Italian Method Pod — Tom
+and Aran Talk Bollocks", even though it contains the word "Pod" (Pod 1's title already does). The
+auto-advance playlist is flat, so Pod 1's last scene flows into the method pod's first and the whole
+list wraps to Pod 1 scene 1. An extra slot's sentences carry `podOrdinal` 0, so the drill's derived
+main-flow maturity never credits the ratchet against a pod main flow has not played. No learner
+progress migration: `learner_pod_state` is keyed by sentence id and the method pod's ids are its own.
+
 ## 2026-09-12 — SSi admin top bar: Intelligence | Admin, two modes, one switch (job #340·F)
 
 **What was wrong.** The bar over `/intel/*` and `/admin/*` carried three small-caps question groups
