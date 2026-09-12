@@ -991,3 +991,80 @@ LEGOs", would resolve it from data the diary already carries. That is class-page
 waits for Tom. A separate different-phrases tile is not recommended; the phrase table already
 lists every distinct phrase with its count. Findings, queries and the full phrase-to-LEGO
 table: https://watson-1.tail4968cb.ts.net/d/1dad23b0
+
+## 2026-09-12 — mode and belt on every play row, Listening Mode per-clip events, the JP/FI rule corrected (job #325·F)
+
+**Tom's ruling.** "Yes. Telemetry fixes. Certainly." at 11:16Z, answering the #318 census gaps:
+mode on no per-play row, belt derived from seedId, Listening Mode with no per-clip event, and
+59 real learners erased whole by the machine-country rule.
+
+**Differential, before.** Production, fixed window 2026-09-05T00:00Z to 2026-09-12T00:00Z:
+
+```sql
+SELECT event_type, count(*) AS rows,
+  count(*) FILTER (WHERE payload ? 'mode') AS has_mode,
+  count(*) FILTER (WHERE payload ? 'belt') AS has_belt,
+  count(*) FILTER (WHERE payload ? 'seedId') AS has_seedId,
+  count(*) FILTER (WHERE payload ? 'roundIndex') AS has_roundIndex,
+  count(*) FILTER (WHERE payload->>'cycleType' = 'listening_mode') AS listening_mode_rows
+FROM player_events
+WHERE env='production' AND occurred_at >= '2026-09-05T00:00:00Z' AND occurred_at < '2026-09-12T00:00:00Z'
+  AND event_type IN ('audio_play','round_complete','listening_tick','tap_play','tap_pause','tap_skip','phase_skip','learning_mode_toggle','learning_mode_selection')
+GROUP BY 1 ORDER BY 2 DESC;
+```
+
+| event_type | rows | has_mode | has_belt | has_seedId | has_roundIndex | listening_mode_rows |
+|---|---|---|---|---|---|---|
+| audio_play | 44,919 | 0 | 0 | 44,919 | 0 | 0 |
+| phase_skip | 1,217 | 0 | 0 | 0 | 0 | 0 |
+| tap_pause | 791 | 0 | 0 | 0 | 791 | 0 |
+| round_complete | 698 | 0 | 0 | 698 | 698 | 0 |
+| tap_play | 581 | 0 | 0 | 0 | 581 | 0 |
+| tap_skip | 285 | 0 | 0 | 0 | 285 | 0 |
+| learning_mode_selection | 256 | 256 | 0 | 0 | 0 | 0 |
+| learning_mode_toggle | 47 | 47 | 0 | 0 | 0 | 0 |
+| listening_tick | 1 | 0 | 0 | 0 | 0 | 0 |
+
+A play row: `{url, role, cycleId, cycleType, legoId, seedId, playbackSpeed, cacheHit, learnerId}`. A
+round row: `{roundIndex, legoId, seedId, learnerId}`. A Listening Mode session: `listening_tick
+{view}` every 30 s and nothing else.
+
+**Differential, after.** Every row the player logs additionally carries `mode` ('easy' | 'fast'),
+`belt` (name), `seedId` and `roundIndex`, filled at the instant of logging. A Listening Mode
+session carries one `audio_play` per clip with `cycleType: 'listening_mode'`, `mode: 'listening'`,
+the pod-play keys, plus `view`, `listenMode`, `scene`; the tick stays. The same query, run over
+rows from a build carrying this change, shows has_mode = has_belt = rows for every player event
+type. Old rows are unchanged and every query that ran before still runs: these are payload keys,
+no column, no migration, no rename.
+
+**Decision: stamp at the pipeline, once.** `usePlayerLog` takes a `context` provider called at
+log time and fills only the keys a call site left absent. "Every row carries mode" is then true
+by construction rather than by auditing forty call sites, which is the Better × Simpler ×
+Cheaper reading. An explicit key from the caller, even null, wins: a pod play's `seedId: null`
+means "no seed" and stays that way.
+
+**Decision: belt is the belt PLAYED.** `playingBelt.name`, which in `useBeltProgress` is the
+same `playingBeltIndex` that `currentBelt` reads, so the badge and the row agree. Not the belt
+achieved. Stored so a future move of the thresholds cannot rewrite history.
+
+**Decision: Listening Mode rows say `mode: 'listening'`.** There is no Easy/Fast in the overlay;
+a null would read as "unknown" when the truth is "a different surface". Its `belt` is the focal
+row's own belt in the Core and All views and null in a pod scene, which carries none.
+
+**Decision: the country rule applies only to unattributed rows.** `isMachineEvent(row, realIds)`
+replaces `isMachineCountry` at every consumer in `api/intel/*`. Read live on 2026-09-12, the 59
+"real learners" the old rule erased were: 49 dangling learner ids with no `learners` row, every
+one on a probe day (5 Aug, 2 Sep, 7 Sep, all FI, 1 to 22 events each); 7 accounts that are
+probes by their own names (`claude-signup-proof-*@saysomethingin.com` ×3, `zz-probe-*@ssi-probe.test`,
+`cs-probe-*@example.com`, one invite-link student, and Tom's own gmail); and 3 people in Finland
+on iPhones, one with 15,706 production events across twelve courses since June. The narrowest
+rule that keeps the humans is "a signed-in real learner is never dropped by country". The seven
+probe accounts are not a country problem: they belong in `test_learner_ids()` (is_internal), and
+that is left as a data-hygiene candidate rather than done here, because it changes board metrics
+and the contributions trigger and is a one-look decision. The k-floor test that pinned the old
+behaviour was flipped deliberately. The census SQL on branch `cs/318-…` still inlines the old
+rule; it is a read-only artefact of that job and was not edited.
+
+**Not done, deliberately.** No column, no index, no backfill, no engine. The nightly
+insight-discovery digest applies no country rule at all, so it needed no change; its population
+still differs from the resolver's, as the census already said.
