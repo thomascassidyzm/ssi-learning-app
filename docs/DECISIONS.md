@@ -1360,3 +1360,32 @@ that is page content, outside #340's nav-only scope.
 paragraph.** The census sentence is corrected in place and the four #343 paragraphs that a merge
 had spliced into the #326·F entry are back under the #343 heading. The rewind stays unreachable;
 wiring it into the live boot paths is Tom's design call.
+
+## 2026-09-12 — "cancelled Family plan has zero access" was the app offline, not the cancellation (job #378·G)
+
+**Tom's report.** He paid £25 for SSi Family on `thomas.cassidy+family_002@gmail.com`, cancelled it on
+8 September, and on 12 September the account showed zero access on production build 5ea385e.
+
+**What the live rows say.** `subscriptions` row `b119e295-2faf-4d44-b018-cee49cb3d797`: status
+`active`, plan `SSi Family`, `cancel_at_period_end = true`, `current_period_end = 2026-10-07T23:41Z`,
+Paddle `sub_01m1z3z0k2b6htg77tctxwa5ty`. Two active child members (Lewis, Bovis) and one open invite.
+Signed in as that account against production, `/api/subscription` answers `isSubscribed: true`,
+`/api/family` answers `hasFamilyPlan: true`, and both course bundles come back whole. No row on
+production has `status = cancelled` with a paid period still running. The cancellation path is
+correct and nothing was repaired.
+
+**What actually happened.** His screenshots carry the airplane icon and Settings reads "we will
+check it again as soon as you are online". The localStorage mirror of the last `/api/subscription`
+answer carried a five-minute TTL; a boot more than five minutes after the last online one threw it
+away, the fetch failed instantly with no network, `initialize()` declared hydration done with
+`subscription === null`, and every premium course fell to the free preview. Any paying subscriber
+who reopens the app offline hit the same wall.
+
+**Decision.** The mirror has no TTL. An online answer overwrites it when one lands, sign-out and a
+401 clear it, and `isSubscribed` still checks the paid period's end date against the clock, so a
+period that has genuinely ended fails closed however old the copy is. A device that has never held
+an answer still fails closed. Test red on the old code at the offline-reopen case, green after.
+
+**Gaps.** The Paddle API key lives only as an encrypted Vercel secret, so Paddle's own event log for
+the subscription was not read; the row and the live endpoints were the evidence. Vercel runtime
+logs reach back only a few hours, so the 8 September webhook delivery itself was not observed.

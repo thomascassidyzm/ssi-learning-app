@@ -127,3 +127,92 @@ describe('useSubscription — hydration timeout', () => {
     }
   })
 })
+
+/**
+ * OFFLINE REOPEN (Tom, 2026-09-12, job #378·G). A paying Family owner opened
+ * the app in airplane mode and Settings offered him nothing — "zero access".
+ * The server rows were right all along. What happened on the device: the
+ * localStorage mirror of /api/subscription carried a 5-minute TTL, so a boot
+ * more than five minutes after the last online one threw the mirror away,
+ * the fetch failed instantly with no network, `initialize()` then declared
+ * hydration done with `subscription === null`, and every premium course fell
+ * to the free preview. The mirror is the ONLY answer the app has offline, so
+ * its age must never be a reason to discard it: the fetch overwrites it the
+ * moment a real answer arrives, and `isSubscribed` still checks the paid
+ * period's end date against the clock, so a lapsed period fails closed
+ * regardless of how old the mirror is.
+ */
+describe('useSubscription — offline reopen keeps the last known subscription', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    Object.keys(store).forEach((k) => delete store[k])
+    vi.unstubAllGlobals()
+  })
+
+  const paidUntilNextMonth = {
+    id: 'fam-1',
+    learnerId: 'owner',
+    status: 'active',
+    planId: 'pri_family_monthly',
+    planName: 'SSi Family',
+    currentPeriodEnd: new Date(Date.now() + 25 * 24 * 60 * 60 * 1000).toISOString(),
+    cancelAtPeriodEnd: true,
+    provider: 'paddle',
+  }
+
+  it('a mirror older than five minutes still grants access when the fetch fails offline', async () => {
+    store['ssi_subscription'] = JSON.stringify({
+      subscription: paidUntilNextMonth,
+      isSubscribed: true,
+      freeAccess: null,
+      cachedAt: Date.now() - 2 * 60 * 60 * 1000, // last online boot was two hours ago
+    })
+    // Airplane mode: fetch rejects at once, the way the browser does.
+    const sub = await setup(() => Promise.reject(new TypeError('Failed to fetch')))
+
+    await sub.initialize()
+
+    expect(sub.hasHydrated.value).toBe(true)
+    expect(sub.subscription.value?.planName).toBe('SSi Family')
+    expect(sub.isSubscribed.value).toBe(true)
+  })
+
+  it('a mirror whose paid period has already ended still fails closed offline', async () => {
+    store['ssi_subscription'] = JSON.stringify({
+      subscription: {
+        ...paidUntilNextMonth,
+        currentPeriodEnd: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      },
+      isSubscribed: true,
+      freeAccess: null,
+      cachedAt: Date.now() - 2 * 60 * 60 * 1000,
+    })
+    const sub = await setup(() => Promise.reject(new TypeError('Failed to fetch')))
+
+    await sub.initialize()
+
+    expect(sub.hasHydrated.value).toBe(true)
+    expect(sub.isSubscribed.value).toBe(false)
+  })
+
+  it('a fresh online answer replaces the mirror, however old the mirror was', async () => {
+    store['ssi_subscription'] = JSON.stringify({
+      subscription: paidUntilNextMonth,
+      isSubscribed: true,
+      freeAccess: null,
+      cachedAt: Date.now() - 2 * 60 * 60 * 1000,
+    })
+    const sub = await setup(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ subscription: null, isSubscribed: false }),
+      }),
+    )
+
+    await sub.initialize()
+
+    expect(sub.hasHydrated.value).toBe(true)
+    expect(sub.subscription.value).toBeNull()
+    expect(sub.isSubscribed.value).toBe(false)
+  })
+})
