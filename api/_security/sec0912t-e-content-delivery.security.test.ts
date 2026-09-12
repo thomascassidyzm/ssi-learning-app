@@ -197,6 +197,37 @@ describe('SEC0912T-E-02 [CHARACTERIZATION] — bundle.ts 503 body carries the op
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
+// SEC0912T-E-04 — the empty-body 502 ships with a one-year immutable cache
+// ═══════════════════════════════════════════════════════════════════════════
+// Raised by the cross-family verification of this area (GPT-6 Astra, job
+// #451·G) and confirmed here against the source. The area cleared "every
+// non-200 path that PRECEDES the bytes is no-store" — accurate as written, and
+// the write-up then generalised it to "every error path", which is not. The
+// success headers are set at :164, BEFORE the body is checked at :201, so an
+// empty S3 body returns 502 carrying `public, max-age=31536000, immutable`.
+// The CDN is spared (both CDN headers are no-store) but the learner's own
+// browser pins that failure for a year: the clip is dead for them until they
+// clear storage. Availability, not disclosure.
+// CHARACTERIZATION: goes red when the 502 resets Cache-Control, or when the
+// success headers move below the body check.
+describe('SEC0912T-E-04 — the empty-body 502 inherits the success cache headers', () => {
+  it('the one-year immutable header is set before the body is checked', () => {
+    const immutable = audioProxy.indexOf("res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')")
+    const emptyBody = audioProxy.indexOf("res.status(502).json({ error: 'Empty body from S3' })")
+    expect(immutable).toBeGreaterThan(-1)
+    expect(emptyBody).toBeGreaterThan(-1)
+    expect(emptyBody).toBeGreaterThan(immutable)
+  })
+
+  it('nothing between them resets it', () => {
+    const immutable = audioProxy.indexOf("res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')")
+    const emptyBody = audioProxy.indexOf("res.status(502).json({ error: 'Empty body from S3' })")
+    const between = audioProxy.slice(immutable + 10, emptyBody)
+    expect(between).not.toContain("setHeader('Cache-Control'")
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
 // SEC0912T-E-03 — sectors.ts: public edge cache is safe only while ungated
 // ═══════════════════════════════════════════════════════════════════════════
 describe('SEC0912T-E-03 [TRIPWIRE] — sectors.ts must not become gated-and-public', () => {
@@ -210,6 +241,12 @@ describe('SEC0912T-E-03 [TRIPWIRE] — sectors.ts must not become gated-and-publ
     expect(varies).toBe(false)
   })
 
+  // NARROWED 2026-09-12 after job #451 pointed out the overclaim: this pair of
+  // assertions cannot distinguish a CORRECT gate-and-recache fix from a broken
+  // gate-only one — the first `it` requires `gated === false`, so ANY gate
+  // turns it red. That is acceptable for a characterization test (red means
+  // "read me"), but it is not the selective tripwire the write-up described,
+  // and the gate sniff recognises only three function names.
   it('invariant: if a gate is ever added, the body must stop being publicly edge-cacheable and must Vary on Authorization', () => {
     // Vacuous today. The moment someone fixes C-01 by adding a gate and leaves
     // the header alone, this is the assertion that goes red — before the edge

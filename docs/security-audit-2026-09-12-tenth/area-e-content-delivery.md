@@ -63,11 +63,36 @@ protect.
 Then (a) infplay-cycles returns 403 before touching content; (b) bundle applies
 `.lte('seed_number', previewMaxSeed)` to the lego, phrase-count/phrase-page, round-index and seed reads
 for a preview caller, and skips the pace RPC (or moves it after the gate with an `AbortController`
-wired through `.abortSignal()` so a lost race also cancels the statement). `cycles.ts` is the sibling
-that already bounds its work by the clamped limit and is the pattern to copy.
+wired through `.abortSignal()` so a lost race also cancels the statement). **CORRECTED 2026-09-12**
+— this originally said `cycles.ts` "is the sibling that already does it right". It is not:
+`cycles.ts:402` runs `get_course_cycles_window` and its round-map read before the 403 at `:483`, so
+it is a *third* instance of read-before-gate, not the pattern to copy. What `cycles.ts` does do well
+is BOUND the work (`from` matched against `^S\d{4}L\d{2}$`, `limit` clamped to 50, window to 52) —
+copy the bounding, not the ordering. Refuted by cross-family verification, job #451·G.
 
 **Test.** `SEC0912T-E-01` blocks — characterization; goes red when the gate precedes the reads or the
 reads carry a ceiling, and when the pace RPC becomes abortable.
+
+### SEC0912T-E-04 — LOW — an empty-body 502 from S3 ships with a one-year immutable browser cache
+
+**Raised by cross-family verification** (GPT-6 Astra, job #451·G), confirmed here against source.
+
+**Where.** `api/audio/[audioId].ts:164` sets `Cache-Control: public, max-age=31536000, immutable` on
+the success path; the body is only checked at `:201`, which returns 502 with those headers already
+on the response.
+
+**Why it is a defect.** The CDN is spared — `Vercel-CDN-Cache-Control` and `CDN-Cache-Control` are
+both `no-store` — but the learner's own browser is told to keep that failure for a year. The clip is
+then dead for that person until they clear site storage, and the app's own retry cannot get past it.
+Availability, not disclosure.
+
+**What this area originally cleared, and why it was too broad.** The assertion was *"every non-200
+path that PRECEDES the bytes is no-store"* — which is true and still passes. The write-up
+generalised it to "every error path is no-store". It is not: this one, the S3-exception path and the
+invalid-method path all sit after or outside that set.
+
+**Fix shape (not applied).** Reset `Cache-Control` to `no-store` on the 502 and the S3-exception
+path, or move the success headers below the body check.
 
 ### SEC0912T-E-02 — LOW — bundle.ts's 503 body hands an anonymous caller the operator remedy
 
@@ -158,3 +183,36 @@ is vacuous now and goes red on the wrong fix.
   either is stale the finding drops to LOW.
 - **Out of scope, not cleared.** `api/audio/batch-urls.ts` and round-map (prior coverage), the client
   caches (`ssi-script-cache`, `AudioCache`), and CORS (09-05 Area B).
+
+
+---
+
+## Addendum — what the cross-family verification settled (job #451·G, 2026-09-12)
+
+GPT-6 Astra was given this area's claim and its published evidence, never the brief or the
+reasoning. It returned 8 verified, 4 refuted, 2 unknown. All four refutations hold on a house
+re-check and are folded in above and into the test file. Two of them produced real corrections
+(`cycles.ts` is not the pattern to copy; E-04), two narrowed prose (the E-03 tripwire cannot
+distinguish a correct fix from a broken one, and "every caller param is bounded" means *bound as a
+query parameter*, not *length-limited* — the course-code regexes carry no length ceiling and
+`sectors.ts:78` accepts any non-empty code).
+
+**It also closed this area's stated honest gap, by probing production.** This audit read no live
+state by rule; the verifier did. A credential-free `GET /api/audio/<uuid>` with a one-byte Range
+returned **206 with `X-SSi-Entitlement: no-token-open`** on a premium Spanish clip at seed 20 —
+past the preview ceiling.
+
+**That is not a missed finding, and it should not be reported as one.** It is the documented
+posture: `api/_utils/audioAccess.ts:425-429` says so in terms — *"Strict mode (opt-in via env) FAILS
+CLOSED on premium-past-preview when no valid entitlement is presented. DEFAULT is fail-OPEN so this
+code can NOT lock out a single live payer before the client begins attaching entitlement tokens."*
+The probe establishes the one fact the audit could not read: **`ENTITLEMENT_ENFORCE` is not
+`strict` in production**, so the single-clip gate is inert and premium audio past seed 19 is served
+to anyone holding the clip uuid.
+
+What follows from that is a **decision, not a repair**, and it is above this audit's altitude:
+whether to arm strict mode. The code names its own precondition — the `S####` prefix of `lego_id`
+must be the seed ordinal on the same scale as `PREMIUM_PREVIEW_MAX_SEED`, *"until confirmed, the
+gate is fail-OPEN and inert"* — and a subscriber-side mint site must exist and resolve through
+`resolveEffectiveSubscription` first, or arming it fails a family member closed. Both are stated in
+the source; neither was verified live here.

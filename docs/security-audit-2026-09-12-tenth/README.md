@@ -88,9 +88,9 @@ enrolment; the learner is told `alreadyEnrolled` and the second org's free year 
 
 ### Index
 
-20 findings: 3 HIGH, 10 MEDIUM, 7 LOW. Each is carried in full by its area write-up.
+21 findings: 3 HIGH, 10 MEDIUM, 8 LOW. Each is carried in full by its area write-up.
 
-**One area was cross-family verified.** Area C's report was handed to GPT-6 Astra (job #449·G) with
+**Two areas were cross-family verified.** Area C's report was handed to GPT-6 Astra (job #449·G) with
 the claim and the published evidence only — never the brief, never the reasoning. It returned 12
 verified, 3 refuted, 1 unknown, and all three refutations hold on a house re-check: the area's
 *assertions* were accurate throughout, its *prose* was not. That produced **SEC0912T-C-02** (a
@@ -99,6 +99,15 @@ and showed C-01's proposed fix to be insufficient on its own — a parent export
 of 11/5 both clear a per-export floor of five, yet the difference names the excluded person. The
 lesson is recorded in the area file: a clearance is a claim like any other, and this one described
 the endpoint's intent rather than its statement order.
+
+Area E went the same way (job #451·G): 8 verified, 4 refuted, all four holding on re-check. It
+produced **SEC0912T-E-04**, killed the fix-shape line that named `cycles.ts` as the sibling doing it
+right — `cycles.ts` reads before its gate too, so it is a third instance rather than the pattern —
+and narrowed two clearances. It also **closed Area E's honest gap by probing production**, which
+this audit did not do: `ENTITLEMENT_ENFORCE` is not `strict`, so the single-clip audio gate is inert
+and premium audio past seed 19 is served credential-free. That is the documented default posture,
+not an overlooked hole (`audioAccess.ts:425`), so it is recorded as a **decision for Tom** in
+`area-e-content-delivery.md` rather than as a finding.
 
 | ID | Severity | One line | Area |
 |---|---|---|---|
@@ -117,6 +126,7 @@ the endpoint's intent rather than its statement order.
 | SEC0912T-X-01 | MEDIUM | The money path still decides "same org" on a name-derived slug, against the database's own ruling | X (coordinator) |
 | SEC0912T-D-04 | LOW | The parent sign-in minter has no volume bound and writes no audit row | D |
 | SEC0912T-D-05 | LOW | A try-link's entitlement token names no link, so deactivation cannot revoke it for up to 30 days | D |
+| SEC0912T-E-04 | LOW | An empty-body 502 from the audio proxy ships with a one-year immutable browser cache, pinning the failure for that learner | E |
 | SEC0912T-E-02 | LOW | `bundle.ts`'s 503 body hands an anonymous caller the operator remedy | E |
 | SEC0912T-E-03 | LOW | `sectors.ts` is publicly edge-cached — safe only because it is ungated today | E |
 | SEC0912T-F-04 | LOW | `identity-claims`: correct scope, stale contract, skipped tenant rule | F |
