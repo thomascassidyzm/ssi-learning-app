@@ -52,6 +52,8 @@ import { useNoticingInvitations } from '@/explainer/useNoticingInvitations'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import ShowAll from '@/components/shared/ShowAll.vue'
 import { topThree } from '@/components/shared/topThree'
+import YearGroupTiles from '@/components/schools/shared/YearGroupTiles.vue'
+import { yearGroupBreakdown, practisedWithin } from '@/views/schools/yearGroup'
 import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
 import { deriveBelt, BELTS, type Belt } from '@/composables/schools/belts'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
@@ -475,6 +477,22 @@ watch(() => route.params.id, () => {
   showAllLeaders.value = false
 })
 const showPhrasesCard = computed(() => !!classPractice.value && !neutral.value && !isClass.value)
+// YEAR-GROUP SUB-TILES under the headline numbers (Option A, job #306). Year
+// group is derived on screen from each class's name (views/schools/yearGroup.ts)
+// and the numbers are the tree payload's own — phrases this week and last
+// practised per class, which the Below this rows already read. Practising
+// uses the headline's rule: last practised inside the board window.
+const yearGroups = computed(() => {
+  const windowDays = classPractice.value?.windowDays ?? 7
+  const classes: any[] = home.value?.tree?.classes ?? []
+  return yearGroupBreakdown(classes.map((c) => ({
+    id: String(c.id),
+    name: String(c.name ?? ''),
+    phrases7d: c.phrases7d ?? 0,
+    practising: practisedWithin(c.lastPractisedAt, windowDays),
+  })))
+})
+const showYearGroups = computed(() => showPhrasesCard.value && yearGroups.value.tiles.length > 0)
 
 // DOOR ONE of the support channel (spec §2; Tom, 2026-09-10: admins only).
 // "Does this look wrong?" under the figures, opening a sheet that already
@@ -980,6 +998,33 @@ const listPayload = computed(() => {
               <span class="stat-word">{{ s.word }}</span>
             </div>
           </div>
+          <!-- HANDBOOK The numbers by year group
+               section: seeing-progress
+               roles: admin, leader, school_admin
+               place: node-home
+               keywords: year group, year 7, tiles, breakdown, classes practising, phrases, by class
+               What it's for. The row of small tiles under the numbers, one per year
+               group, so a head can see at a glance which years are doing it and
+               which have barely started. Each tile gives the phrases the year's
+               classes practised this week and how many of its classes practised
+               out of how many there are.
+               Where it is. The **By year group** card directly under the row of
+               numbers on a school or group page.
+               How you do it.
+               1. Open a school or a group.
+               2. Read the big figure on each tile for phrases practised this week.
+               3. Read the line under it for classes practising out of classes in
+                  that year.
+               4. A tile reading **Other** holds the classes whose names carry no
+                  year.
+               Worth knowing. The year is read off the class name — a leading number
+               from 6 to 13, so **7B**, **Year 9 French** and **10 Set 1** all count
+               — and is never stored. If fewer than half your class names carry a
+               year the card reads **By class** instead, busiest first, three then
+               **Show all**. No minutes are shown per year group.
+               checked: 38696cd6.94b8442d
+          -->
+          <YearGroupTiles v-if="showYearGroups" data-walk="node-year-groups" :breakdown="yearGroups" :class="{ 'is-switching': switching }" />
           <p v-if="canAskSupport && !switching" class="stats-ask">
             <button type="button" class="ask-support" @click="askAboutStats">{{ t('schools.support.doorAffordance', 'Does this look wrong?') }}</button>
             <HandbookMark anchor="node-stats" />

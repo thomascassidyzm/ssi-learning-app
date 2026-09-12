@@ -21,6 +21,10 @@ import { deriveBelt } from '@/composables/schools/belts'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
 
 import { deriveClassHealth, type ClassHealth as Health } from './classHealth'
+import { yearGroupBreakdown, practisedWithin } from './yearGroup'
+import YearGroupTiles from '@/components/schools/shared/YearGroupTiles.vue'
+import ShowAll from '@/components/shared/ShowAll.vue'
+import { topThree } from '@/components/shared/topThree'
 // A class IS one learner account (Tom's ruling, 2026-09-11, job #265), so
 // there is no per-pupil sort: name, time in app, or how far the class has got.
 type SortKey = 'name' | 'hours' | 'journey'
@@ -213,6 +217,25 @@ const filtered = computed(() => {
 })
 
 const totalMinutes = computed(() => filtered.value.reduce((sum, c) => sum + c.minutesWk, 0))
+
+// THREE ROWS THEN SHOW ALL (Tom, 2026-09-12; components/shared/topThree.ts):
+// the table renders the first three of the filtered, sorted rows and one
+// control that shows the rest. A filter or sort changes which three; the
+// fold applies to whatever the pickers produced. Per visit, never sticky.
+const showAllClasses = ref(false)
+const rowsShown = computed(() => topThree(filtered.value, showAllClasses.value))
+const showAllClassesLabel = computed(() => t('schools.teacherDashboard.showAllClasses', 'Show all {n} classes').replace('{n}', String(filtered.value.length)))
+
+// YEAR-GROUP SUB-TILES under the health strip (Option A, job #306): the same
+// rule and the same tiles as the leader home (views/schools/yearGroup.ts,
+// YearGroupTiles.vue), fed from the class-account figures this page already
+// holds. Drawn only once the practice payload has landed — before that the
+// numbers would be zeros that read like data.
+const yearGroups = computed(() => yearGroupBreakdown(enrichedClasses.value.map(c => {
+  const acct = classAccounts.value[c.id]
+  return { id: c.id, name: c.class_name, phrases7d: acct?.phrases7d ?? 0, practising: practisedWithin(acct?.lastPractisedAt) }
+})))
+const showYearGroups = computed(() => practiceLoaded.value && enrichedClasses.value.length > 0)
 
 const healthCounts = computed(() => {
   const acc: Record<string, number> = {}
@@ -497,6 +520,31 @@ function exportCsv() {
       </div>
     </div>
 
+    <!-- HANDBOOK The classes by year group
+         section: running-classes
+         roles: school_admin, teacher
+         place: classes
+         keywords: year group, year 7, tiles, breakdown, classes practising, phrases, by class
+         What it's for. A row of small tiles under the health strip, one per year
+         group: the phrases that year's classes practised this week and how many of
+         them practised out of how many there are. It says in one glance which
+         years are the school's engine and which have barely started.
+         Where it is. **My Classes**, the **By year group** card under the health
+         tiles, once this week's practice has loaded.
+         How you do it.
+         1. Open **My Classes**.
+         2. Read the big figure on each tile for phrases practised this week.
+         3. Read the line under it for classes practising out of classes in that
+            year.
+         4. A tile reading **Other** holds the classes whose names carry no year.
+         Worth knowing. The year is read off the class name — a leading number from
+         6 to 13, so **7B**, **Year 9 French** and **10 Set 1** all count — and is
+         never stored. If fewer than half your class names carry a year the card
+         reads **By class** instead, busiest first, three then **Show all**.
+         checked: fe07be7c.eeedfa69
+    -->
+    <YearGroupTiles v-if="showYearGroups" data-walk="classes-year-groups" class="year-groups" :breakdown="yearGroups" />
+
     <!-- Filters -->
     <!-- HANDBOOK Find a class in a long list
          section: running-classes
@@ -515,7 +563,9 @@ function exportCsv() {
             through the course each class has got. On a phone it is the first
             control, and the number you sorted by shows beside each class name.
          Worth knowing. The totals above the table follow the filter, so the minutes
-         are always the total of what you are actually looking at.
+         are always the total of what you are actually looking at. The table shows
+         the first three of whatever the pickers produce; **Show all** under it
+         shows the rest.
          checked: 35143594.4526edb3
     -->
     <div data-walk="classes-filters" v-if="enrichedClasses.length > 0" class="filters-bar schools-card">
@@ -568,11 +618,13 @@ function exportCsv() {
            its name and the rest underneath.
            How you do it.
            1. Open **My Classes**.
-           2. Read down the health column first, because that is where the app is
+           2. The first three classes show; tap **Show all** under the table for
+              the rest, and **Show fewer** to fold them back.
+           3. Read down the health column first, because that is where the app is
               pointing you.
-           3. Use the small chart in each row to see whether practice is steady or has
+           4. Use the small chart in each row to see whether practice is steady or has
               stopped.
-           4. Compare time in the app this week between classes taking the same course.
+           5. Compare time in the app this week between classes taking the same course.
            Worth knowing. Health is worked out from how many of the last seven days the
            class practised on. A quiet week reads as needing eyes, which is a prompt for
            a word rather than a worry.
@@ -609,10 +661,10 @@ function exportCsv() {
                Worth knowing. The row is a button in its own right, so a keyboard
                works too. The buttons at the right of the row do their own jobs and
                do not open the class.
-               checked: 9d656f72.5d707d0d
+               checked: 0a6c4f98.5d707d0d
           -->
           <tr
-            v-for="cls in filtered"
+            v-for="cls in rowsShown.shown"
             :key="cls.id"
             class="row-clickable"
             data-walk="classes-row"
@@ -705,6 +757,9 @@ function exportCsv() {
           </tr>
         </tbody>
       </table>
+      <div v-if="rowsShown.collapsible" class="table-show-all">
+        <ShowAll :expanded="showAllClasses" :label="showAllClassesLabel" @toggle="showAllClasses = !showAllClasses" />
+      </div>
     </div>
 
     <!-- Filtered-empty state (classes exist but filters hide them) -->
@@ -913,6 +968,8 @@ function exportCsv() {
 .table-card {
   overflow: hidden;
 }
+.table-show-all { padding: 6px 14px 10px; border-top: 1px solid var(--schools-border, #d8d4cd); }
+.year-groups { margin-bottom: 14px; }
 
 .cell-name {
   font-weight: 600;

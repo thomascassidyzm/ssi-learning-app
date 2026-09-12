@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `293516ec046a` · generated 2026-09-12 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `a0f3fa6f4407` · generated 2026-09-12 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -410,7 +410,7 @@ Section: running-classes · roles: school_admin, teacher · anchor: `classes-fil
 3. Pick a state under **Health** to pull out the classes that need attention.
 4. Change **Sort by** to order by time in app this week or by how far through the course each class has got. On a phone it is the first control, and the number you sorted by shows beside each class name.
 
-**Worth knowing.** The totals above the table follow the filter, so the minutes are always the total of what you are actually looking at.
+**Worth knowing.** The totals above the table follow the filter, so the minutes are always the total of what you are actually looking at. The table shows the first three of whatever the pickers produce; **Show all** under it shows the rest.
 
 ## Find out which email you are signed in with
 
@@ -837,9 +837,10 @@ Section: running-classes · roles: school_admin, teacher · anchor: `classes-tab
 **Where it is.** **My Classes**, the table filling most of the page. On a phone each class is a card instead, with the number you sorted by beside its name and the rest underneath.
 
 1. Open **My Classes**.
-2. Read down the health column first, because that is where the app is pointing you.
-3. Use the small chart in each row to see whether practice is steady or has stopped.
-4. Compare time in the app this week between classes taking the same course.
+2. The first three classes show; tap **Show all** under the table for the rest, and **Show fewer** to fold them back.
+3. Read down the health column first, because that is where the app is pointing you.
+4. Use the small chart in each row to see whether practice is steady or has stopped.
+5. Compare time in the app this week between classes taking the same course.
 
 **Worth knowing.** Health is worked out from how many of the last seven days the class practised on. A quiet week reads as needing eyes, which is a prompt for a word rather than a worry.
 
@@ -1189,6 +1190,21 @@ Section: seeing-progress · roles: leader, school_admin, teacher · anchor: `cla
 
 **Worth knowing.** A student who has never started shows as inactive rather than as behind, because nothing has happened yet to judge. A class nobody has joined yet shows its empty places instead of a table, with **Add students** in it.
 
+## The classes by year group
+
+Section: running-classes · roles: school_admin, teacher · anchor: `classes-year-groups` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
+
+**What it's for.** A row of small tiles under the health strip, one per year group: the phrases that year's classes practised this week and how many of them practised out of how many there are. It says in one glance which years are the school's engine and which have barely started.
+
+**Where it is.** **My Classes**, the **By year group** card under the health tiles, once this week's practice has loaded.
+
+1. Open **My Classes**.
+2. Read the big figure on each tile for phrases practised this week.
+3. Read the line under it for classes practising out of classes in that year.
+4. A tile reading **Other** holds the classes whose names carry no year.
+
+**Worth knowing.** The year is read off the class name — a leading number from 6 to 13, so **7B**, **Year 9 French** and **10 Set 1** all count — and is never stored. If fewer than half your class names carry a year the card reads **By class** instead, busiest first, three then **Show all**.
+
 ## The invites desk
 
 Section: getting-people-in · roles: admin · anchor: `invites-mode-strip` · in `packages/player-vue/src/components/admin/invites/InviteCreateCard.vue` · has a walk
@@ -1203,6 +1219,21 @@ Section: getting-people-in · roles: admin · anchor: `invites-mode-strip` · in
 4. Use the active toggle to read live invites rather than spent ones.
 
 **Worth knowing.** This is the operator's desk, not a school's. A school brings its own people in from its own home page.
+
+## The numbers by year group
+
+Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-year-groups` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
+
+**What it's for.** The row of small tiles under the numbers, one per year group, so a head can see at a glance which years are doing it and which have barely started. Each tile gives the phrases the year's classes practised this week and how many of its classes practised out of how many there are.
+
+**Where it is.** The **By year group** card directly under the row of numbers on a school or group page.
+
+1. Open a school or a group.
+2. Read the big figure on each tile for phrases practised this week.
+3. Read the line under it for classes practising out of classes in that year.
+4. A tile reading **Other** holds the classes whose names carry no year.
+
+**Worth knowing.** The year is read off the class name — a leading number from 6 to 13, so **7B**, **Year 9 French** and **10 Set 1** all count — and is never stored. If fewer than half your class names carry a year the card reads **By class** instead, busiest first, three then **Show all**. No minutes are shown per year group.
 
 ## The numbers on any level
 

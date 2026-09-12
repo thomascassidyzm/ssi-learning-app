@@ -799,3 +799,47 @@ describe('NodeHomeView — three rows then Show all, on every list', () => {
     expect(wrapper.find('[data-walk="class-students"]').text()).toContain('Pupil 6')
   })
 })
+
+// YEAR-GROUP SUB-TILES (Option A, job #306): derived on screen from the tree
+// payload's class names, fed with the phrases and last-practised the tree
+// rows already carry. Red on the pre-change page (no tiles at all).
+describe('NodeHomeView — year-group tiles under the headline numbers', () => {
+  it('a school with 7H, 7O, 8H and B8 shows Year 7, Year 8 and Other, with the headline rule for practising', async () => {
+    routeMock.params = { id: 'school-1' }
+    const now = new Date().toISOString()
+    const payload = nodePayload({
+      node: { id: 'school-node', name: 'Chepstow', label: 'school', is_demo: false, hasSchool: true, rollup: { ...ROLLUP, classCount: 4 }, commercial: null },
+      children: [],
+      tree: {
+        nodes: [],
+        classes: [
+          { id: 'c1', name: '7H', nodeId: 'school-node', teachers: [], studentCount: 0, phrases7d: 52, lastPractisedAt: now },
+          { id: 'c2', name: '7O', nodeId: 'school-node', teachers: [], studentCount: 0, phrases7d: 0, lastPractisedAt: '2026-08-01T08:00:00Z' },
+          { id: 'c3', name: '8H', nodeId: 'school-node', teachers: [], studentCount: 0, phrases7d: 53, lastPractisedAt: now },
+          { id: 'c4', name: 'B8', nodeId: 'school-node', teachers: [], studentCount: 0, phrases7d: 0, lastPractisedAt: null },
+        ],
+        staff: [],
+      },
+    })
+    ;(payload as any).classPractice = { windowDays: 7, phrases7d: 105, activeClasses7d: 2, classCount: 4, inAppMinutes7d: 40, lastPractisedAt: now, topPhrases7d: [] }
+    setupFetch(payload)
+    const wrapper = mountView()
+    await flushPromises()
+    const tiles = wrapper.find('[data-walk="node-year-groups"]')
+    expect(tiles.exists()).toBe(true)
+    const read = tiles.findAll('.year-tile').map((t) => [t.find('.year-tile-value').text(), t.find('.year-tile-word').text(), t.find('.year-tile-sub').text()])
+    expect(read).toEqual([
+      ['52', 'Year 7', '1 of 2 classes'],
+      ['53', 'Year 8', '1 of 1 class'],
+      ['—', 'Other', 'none of 1 yet'],
+    ])
+  })
+
+  it('no tiles on a class page, and none on a neutral org', async () => {
+    routeMock.params = { id: 'class-1' }
+    setupFetch(classPayload())
+    const onClass = mountView()
+    await flushPromises()
+    expect(onClass.find('[data-walk="node-year-groups"]').exists()).toBe(false)
+  })
+})

@@ -1387,6 +1387,18 @@
     }
   },
   "schools": {
+    "yearGroupTiles": {
+      "byYearGroup": "By year group",
+      "byClass": "By class",
+      "year": "Year {n}",
+      "other": "Other",
+      "ofClassesOne": "{n} of {total} class",
+      "ofClassesMany": "{n} of {total} classes",
+      "noneOfYet": "none of {total} yet",
+      "classPractised": "practised this week",
+      "classNotThisWeek": "not this week",
+      "showAllClasses": "Show all {n} classes"
+    },
     "setup": {
       "addAnotherClass": "+ Add another class",
       "added": "Added",
@@ -1553,6 +1565,7 @@
       "worthKnowing": "Worth knowing"
     },
     "teacherDashboard": {
+      "showAllClasses": "Show all {n} classes",
       "across": "Across",
       "allCourses": "All courses",
       "allFilterOption": "All",
