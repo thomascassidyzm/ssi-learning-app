@@ -22,9 +22,20 @@ await ctx.addInitScript(({ ref, sess }) => {
   localStorage.setItem('ssi-last-course-origin', 'chosen')
 }, { ref: REF, sess: session })
 const page = await ctx.newPage()
-const jsErrors = [], consoleErrors = []
+const jsErrors = [], consoleErrors = [], podLogs = [], podResponses = []
 page.on('pageerror', (e) => jsErrors.push(String(e).slice(0, 200)))
-page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text().slice(0, 200)) })
+page.on('console', (m) => {
+  if (m.type() === 'error') consoleErrors.push(m.text().slice(0, 200))
+  if (/useListeningPods|ListeningMeta|servedPod/.test(m.text())) podLogs.push(m.text().slice(0, 240))
+})
+page.on('response', async (r) => {
+  const u = r.url()
+  if (/listening_pod|\/bundle/.test(u)) {
+    let len = -1
+    try { len = (await r.text()).length } catch {}
+    podResponses.push({ url: u.replace(/^https:\/\/[^/]+/, '').slice(0, 160), status: r.status(), len })
+  }
+})
 const out = { url: URL }
 await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: 45000 })
 out.version = await page.evaluate(() => fetch('/version.json').then((r) => r.json())).catch((e) => String(e))
@@ -39,7 +50,12 @@ if (out.modeTriggerFound) {
   out.trayItems = await items.allInnerTexts().catch(() => [])
   const listen = items.filter({ hasText: /listen/i }).first()
   if (await listen.count()) await listen.click({ timeout: 5000 }).catch((e) => (out.listenError = String(e).slice(0, 150)))
-  await page.waitForTimeout(9000)
+  // The Dialogues list fetches every listed pod's sentences before it renders
+  // a single card; on a cold staging deploy that is well past 9 s. Wait for
+  // the first card (or the empty/error state), up to 90 s.
+  await page.locator('.scene-card, .scene-empty, .scene-list-wrap .error').first()
+    .waitFor({ state: 'visible', timeout: 90000 }).catch((e) => (out.listWaitError = String(e).slice(0, 120)))
+  await page.waitForTimeout(1500)
   out.viewTabs = await page.locator('.view-tab').allInnerTexts().catch(() => [])
   out.groupHeadings = await page.locator('.scene-group-heading').allInnerTexts().catch(() => [])
   out.sceneCards = await page.locator('.scene-card').count()
@@ -55,5 +71,6 @@ if (out.modeTriggerFound) {
   await page.screenshot({ path: `${OUT_DIR}/${TAG}-list-bottom.png` }).catch(() => {})
 }
 out.jsErrors = jsErrors; out.consoleErrors = consoleErrors.slice(0, 8)
+out.podLogs = podLogs.slice(0, 12); out.podResponses = podResponses.slice(0, 12)
 console.log(JSON.stringify(out, null, 1))
 await browser.close()
