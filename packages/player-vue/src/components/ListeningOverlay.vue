@@ -161,11 +161,53 @@ class ListeningAudioController {
     return this._playOn(this._ensureAudio(), url, rateOverride, slice, nearEnd)
   }
 
-  /** Start a jump-in clip on the SECOND element while `audio` is still
-   *  sounding. Resolves on its natural end exactly like play(); rejects when
-   *  the platform refuses the gesture-less start (see primeOverlap). */
+  /** Start a jump-in clip on the IDLE element while the other is still
+   *  sounding — normally the second element; the main one when the sounding
+   *  clip is itself a jump-in (two interruptions in a row). Resolves on its
+   *  natural end exactly like play(); rejects when the platform refuses the
+   *  gesture-less start (see primeOverlap). */
   async playOverlap(url, rateOverride = null) {
-    return this._playOn(this._ensureAudioB(), url, rateOverride, null, null)
+    const el = this.active === this.audio ? this._ensureAudioB() : this._ensureAudio()
+    return this._playOn(el, url, rateOverride, null, null)
+  }
+
+  /** rAF watch on `el`: once, when the clip is within `nearEnd.leadFor(dur)`
+   *  media-ms of its end, call nearEnd.fire(). `done()` says the clip is
+   *  over (settled, or the element stopped). Returns a cancel function. */
+  _watchNearEnd(el, nearEnd, done) {
+    let raf = null
+    let leadSec = null
+    const watch = () => {
+      raf = null
+      if (done()) return
+      const dur = el.duration
+      if (Number.isFinite(dur) && dur > 0) {
+        if (leadSec === null) leadSec = Math.max(0, Number(nearEnd.leadFor(dur)) || 0) / 1000
+        if (dur - (el.currentTime || 0) <= leadSec) {
+          try { nearEnd.fire() } catch (e) { console.warn('[ListeningAudio] jump-in fire failed', e) }
+          return
+        }
+      }
+      raf = requestAnimationFrame(watch)
+    }
+    raf = requestAnimationFrame(watch)
+    return () => { if (raf !== null) { cancelAnimationFrame(raf); raf = null } }
+  }
+
+  /** Arm the near-end hook on the clip sounding NOW — an adopted jump-in that
+   *  was started before its own row's loop ran, and is itself followed by a
+   *  jump-in. */
+  armNearEnd(nearEnd) {
+    this._cancelExternalNearEnd()
+    const el = this.active
+    if (!el || !nearEnd) return
+    this._extEl = el
+    this._extCancel = this._watchNearEnd(el, nearEnd, () => el !== this.active || el.ended || el.paused || !!el.error)
+  }
+
+  _cancelExternalNearEnd() {
+    if (this._extCancel) { this._extCancel(); this._extCancel = null }
+    this._extEl = null
   }
 
   async _playOn(el, url, rateOverride = null, slice = null, nearEnd = null) {
@@ -177,6 +219,7 @@ class ListeningAudioController {
     // A new play on the main element always cancels the previous slice
     // watchers (reused element).
     if (el === this.audio && this._cancelSlice) { this._cancelSlice(); this._cancelSlice = null }
+    if (this._extEl === el) this._cancelExternalNearEnd()
     this.active = el
 
     el.src = url
@@ -188,18 +231,19 @@ class ListeningAudioController {
       let stallCheck = null
       let sliceRaf = null
       let sliceTimer = null
-      let nearEndRaf = null
+      let cancelNearEnd = null
 
       const cleanup = () => {
         if (safetyTimer) { clearTimeout(safetyTimer); safetyTimer = null }
         if (stallCheck) { clearInterval(stallCheck); stallCheck = null }
         if (sliceRaf) { cancelAnimationFrame(sliceRaf); sliceRaf = null }
         if (sliceTimer) { clearTimeout(sliceTimer); sliceTimer = null }
-        if (nearEndRaf) { cancelAnimationFrame(nearEndRaf); nearEndRaf = null }
+        if (cancelNearEnd) { cancelNearEnd(); cancelNearEnd = null }
         if (el === this.audio) this._cancelSlice = null
         el.removeEventListener('ended', onEnded)
         el.removeEventListener('error', onError)
         el.removeEventListener('loadedmetadata', onMetadata)
+        el.removeEventListener('durationchange', onDuration)
       }
 
       const onEnded = () => {
@@ -237,27 +281,6 @@ class ListeningAudioController {
         sliceTimer = setTimeout(endSlice, spanMs / rate + 400)
       }
 
-      // Jump-in hook: fire once when the clip is within its lead of the end.
-      // Media time on both sides, so the playback speed cancels out.
-      const armNearEnd = () => {
-        let fired = false
-        let leadSec = null
-        const watch = () => {
-          if (settled || fired) return
-          const dur = el.duration
-          if (Number.isFinite(dur) && dur > 0) {
-            if (leadSec === null) leadSec = Math.max(0, Number(nearEnd.leadFor(dur)) || 0) / 1000
-            if (dur - (el.currentTime || 0) <= leadSec) {
-              fired = true
-              try { nearEnd.fire() } catch (e) { console.warn('[ListeningAudio] jump-in fire failed', e) }
-              return
-            }
-          }
-          nearEndRaf = requestAnimationFrame(watch)
-        }
-        nearEndRaf = requestAnimationFrame(watch)
-      }
-
       const onMetadata = () => {
         if (settled || !slice) return
         try { el.currentTime = slice.startMs / 1000 } catch { /* pre-seek race — play from 0 */ }
@@ -274,7 +297,11 @@ class ListeningAudioController {
         if (el.readyState >= 1) onMetadata()
         else el.addEventListener('loadedmetadata', onMetadata)
       }
-      if (nearEnd && typeof nearEnd.fire === 'function' && typeof nearEnd.leadFor === 'function') armNearEnd()
+      // Jump-in hook: fire once when the clip is within its lead of the end.
+      // Media time on both sides, so the playback speed cancels out.
+      if (nearEnd && typeof nearEnd.fire === 'function' && typeof nearEnd.leadFor === 'function') {
+        cancelNearEnd = this._watchNearEnd(el, nearEnd, () => settled)
+      }
 
       // Stall detection: resolve if currentTime stops advancing for 3s
       let lastTime = -1
@@ -288,13 +315,27 @@ class ListeningAudioController {
         lastTime = ct
       }, 1500)
 
-      // Safety timeout: no clip should take more than 15s
-      safetyTimer = setTimeout(() => {
-        if (!settled) {
-          console.warn('[ListeningAudio] Safety timeout, skipping')
-          onEnded()
-        }
-      }, 15000)
+      // Safety timeout: a clip that never ends must not hang the list. 15 s
+      // flat used to be the ceiling, and it CUT every pod line longer than
+      // that — the Italian method pod has 19-20 s lines, skipped at 15 s
+      // with a "Safety timeout" warning on dev and staging (job #470 trace).
+      // Once the duration is known the ceiling is the clip's own length at
+      // its rate plus a beat, never less than 15 s.
+      const armSafety = () => {
+        if (safetyTimer) clearTimeout(safetyTimer)
+        const dur = el.duration
+        const rate = el.playbackRate || 1
+        const ms = Number.isFinite(dur) && dur > 0 ? Math.max(15000, (dur / rate) * 1000 + 5000) : 15000
+        safetyTimer = setTimeout(() => {
+          if (!settled) {
+            console.warn('[ListeningAudio] Safety timeout, skipping')
+            onEnded()
+          }
+        }, ms)
+      }
+      armSafety()
+      const onDuration = () => { if (!settled) armSafety() }
+      el.addEventListener('durationchange', onDuration)
 
       // Set playbackRate right before play() - some browsers reset it after load()
       el.playbackRate = rateOverride ?? this.playbackRate
@@ -304,6 +345,7 @@ class ListeningAudioController {
 
   stop() {
     if (this._cancelSlice) { this._cancelSlice(); this._cancelSlice = null }
+    this._cancelExternalNearEnd()
     this.active = null
     if (this.audioB) {
       this.audioB.pause()
@@ -1766,6 +1808,9 @@ const playCurrentPhrase = async (myPlaybackId) => {
       let played = false
       if (adopted) {
         clipStartedAt = adopted.startedAt
+        // Two jump-ins in a row: this clip is already sounding, so the hook
+        // for the NEXT one goes on it here rather than through play().
+        if (nearEnd) audioController.value.armNearEnd(nearEnd)
         played = (await adopted.promise).ok
         if (myPlaybackId !== playbackId) return
       }

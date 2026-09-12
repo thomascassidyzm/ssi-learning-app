@@ -1,7 +1,16 @@
 # APML Interface: Listening MODE — Dialogue surface
 # SSI Learning App
-# Version: 1.4.0
-# Last updated: 2026-09-12 (job #429 tidy, behaviour byte-identical: the speed
+# Version: 1.5.0
+# Last updated: 2026-09-12 (job #470: a pod line marked jumpIn — Popty's
+#               listening_pod_sentences.jump_in, read by useListeningPods and
+#               the offline snapshot — plays with NO gap after the previous
+#               line in Immersion and starts on a SECOND audio element while
+#               the previous clip's tail is still sounding; a genuine turn
+#               keeps the 90/50 ms gaps below, pinned by
+#               playback/podChangeover.test.ts. The controller's flat 15 s
+#               safety timeout now scales with the clip's own duration, so
+#               19-20 s method-pod lines are no longer cut at 15 s.)
+# Prev: 2026-09-12 (job #429 tidy, behaviour byte-identical: the speed
 #               row is unconditional in the template — the always-true
 #               showSpeedRow computed is gone; play-loop and prefetch comments
 #               now name GAP_DEFAULT_MS / GAP_DRILL_MS / GAP_IMMERSION_JOIN_MS
@@ -234,7 +243,19 @@ PLAYBACK:
     GAP_DEFAULT_MS=90 (Core/All between phrases + dialogue speaker-change, was
     800), GAP_DRILL_MS=90 (between Drill reps + Drill within-turn, was 300/350),
     GAP_IMMERSION_JOIN_MS=50 (same-speaker sentence join in Immersion, the only
-    deliberately-tighter gap).
+    deliberately-tighter gap). All three live in playback/podChangeover.ts
+    with the JUMP-IN rule (job #470): when the NEXT row carries jumpIn (the
+    line interrupts the previous speaker — Popty marks listening_pod_sentences
+    .jump_in, job #471) and the mode is Immersion, changeoverGapMs is 0 and
+    the row before it arms a near-end hook on its last clip: jumpInLeadMs
+    media-ms before that clip ends (its trailing silence from its word
+    timings + 120 ms, 200 ms untimed, ≤700 ms) the jump-in clip starts on the
+    controller's SECOND element (primed with a silent one-shot inside the
+    learner's play tap, since iOS unlocks per element per gesture); the next
+    row adopts the sounding clip. Refused early start or frozen rAF under
+    lock → zero-gap floor: no silence, URL pre-resolved, one src swap. Drill
+    keeps its gaps for a marked line (the sound before a Drill line is the
+    previous line's third rep, not the other speaker's turn).
   rate_handling: |
     Modal queues (dialogue + Core) always carry an explicit per-clip rate, so a
     speed picked elsewhere never leaks. "All" passes rate=null and relies on the
