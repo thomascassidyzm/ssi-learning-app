@@ -733,3 +733,31 @@ Wiring school_admin and teacher fails on twelve org-lens verbs those rulings nev
 they were written for the legacy /schools surface. Re-authoring rulings is Tom's prose, not a
 worker's. The full persona × place × clip inventory, including the class-node clips gap on the org
 lens, is the published gaps list for this job.
+
+## 2026-09-12 — class 8H's "6 of 679 LEGOs" and "53 phrases" are right; no code change (job #298·F)
+
+**What Tom saw.** The org-lens class page for 8H at Chepstow said the class had travelled 6 of
+679 LEGOs and spoken 53 phrases this week, above a table of 22 different phrases. Six LEGOs
+looked too few to make that many phrases.
+
+**What the live DB says.** The class account's diary carries five `round_complete` rows, LEGOs
+S0001L01 to S0002L02, all on 8 Sept, and the sixth round, S0003L01, started on 8 Sept and again
+on 11 Sept without finishing. The enrollment cursor reads S0003L01, ordinal 6 of 679, which is
+the second link in the journey chain because the class-progress endpoint never writes
+`highest_completed_lego_id`. The 53 phrases are the 53 target2 clips in the window, 22 distinct
+audio ids, and every one of the 22 phrases is built from exactly the six chunks "dw i'n moyn",
+"siarad", "Cymraeg", "dysgu", "dw i'n trio" and "dw i'n mynd i". The teacher has no enrollment
+of their own, so no class play landed elsewhere; every Chepstow class that played on 8 Sept
+did so in the same 07:50 to 08:03 slot, so nothing is missing from the diary.
+
+**Decision: the figures stand.** Six is the number of rounds the class has entered, five
+completed and one in progress, which is Tom's definition of LEGOs travelled. Twenty-two
+different phrases from six LEGOs is the method working: the sixth round alone recombines the
+earlier five into eight new sentences. No computation changed, no label changed.
+
+**Not shipped, offered.** A leader reading 6 LEGOs above 22 phrases hits the same doubt. One
+sentence under the journey bar, "Every phrase the class spoke this week is built from those 6
+LEGOs", would resolve it from data the diary already carries. That is class-page copy, so it
+waits for Tom. A separate different-phrases tile is not recommended; the phrase table already
+lists every distinct phrase with its count. Findings, queries and the full phrase-to-LEGO
+table: https://watson-1.tail4968cb.ts.net/d/1dad23b0
