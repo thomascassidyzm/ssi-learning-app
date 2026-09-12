@@ -3379,42 +3379,48 @@ watch(
  * ONE card: the group being spoken lit, groups already said quiet, groups to
  * come dim. The fill inside the lit group is the text itself painted up to
  * --fill (background-clip: text), walking with the clip's clock. Lines never
- * reflow between states: state is colour, never size or weight. */
+ * reflow between states: state is colour, never size or weight. Selectors
+ * carry `.phrase-row.current` because the card's own target rule does, and
+ * the state colour has to beat it (the first staging build painted every
+ * group the same black for exactly that reason). */
 .breath-stack {
+  --breath-said: #6f6761;
+  --breath-dim: rgba(138, 128, 120, 0.62);
   display: flex;
   flex-direction: column;
   gap: 0.35em;
   unicode-bidi: isolate;
 }
-.breath-group {
+.phrase-row.current .phrase-target.breath-group {
   transition: color 0.25s ease;
 }
-.breath-group.said {
-  color: var(--text-secondary);
+.phrase-row.current .phrase-target.breath-group.said {
+  color: var(--breath-said);
 }
-.breath-group.ahead {
-  color: var(--text-muted);
+.phrase-row.current .phrase-target.breath-group.ahead {
+  color: var(--breath-dim);
 }
-.breath-group.live {
+.phrase-row.current .phrase-target.breath-group.live {
   --fill: 0%;
   color: transparent;
   background-image: linear-gradient(
     90deg,
     var(--text-primary) 0,
     var(--text-primary) calc(var(--fill) - 2%),
-    var(--text-muted) calc(var(--fill) + 2%),
-    var(--text-muted) 100%
+    var(--breath-dim) calc(var(--fill) + 2%),
+    var(--breath-dim) 100%
   );
   -webkit-background-clip: text;
   background-clip: text;
 }
-.breath-stack[dir="rtl"] .breath-group.live {
+.breath-stack[dir="rtl"] .phrase-row.current .phrase-target.breath-group.live,
+.phrase-row.current .breath-stack[dir="rtl"] .phrase-target.breath-group.live {
   background-image: linear-gradient(
     270deg,
     var(--text-primary) 0,
     var(--text-primary) calc(var(--fill) - 2%),
-    var(--text-muted) calc(var(--fill) + 2%),
-    var(--text-muted) 100%
+    var(--breath-dim) calc(var(--fill) + 2%),
+    var(--breath-dim) 100%
   );
 }
 
