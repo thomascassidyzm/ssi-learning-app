@@ -415,6 +415,23 @@ describe('useListeningPods offline fallback', () => {
     expect((await getCachedListeningMeta('zho_for_eng'))!.cachedAt).toBe(before)
   })
 
+  // The Italian method pod (job #354, third Listening Mode slot) vanished from
+  // Tom's airplane-mode list on 2026-09-12: his snapshot predated the slot, so
+  // it had no `extraPods` and nothing refreshed it while the content stamp
+  // stood still. A pre-slot entry is refreshed once.
+  it('refreshes a snapshot written before the extra pod slots existed (job #379)', async () => {
+    await fetchAndCacheListeningMeta(happyClient, 'ita_for_eng')
+    const db = await openDB('ssi-listening-meta')
+    const entry = await db.get('meta', 'ita_for_eng')
+    delete entry.extraPods
+    await db.put('meta', entry, 'ita_for_eng')
+    db.close()
+    expect((await getCachedListeningMeta('ita_for_eng'))!.extraPods).toBeUndefined()
+    expect(await ensureListeningMetaSnapshot(happyClient, 'ita_for_eng')).toBe(true)
+    expect(Array.isArray((await getCachedListeningMeta('ita_for_eng'))!.extraPods)).toBe(true)
+    expect(await ensureListeningMetaSnapshot(happyClient, 'ita_for_eng')).toBe(false)
+  })
+
   it('serves scenes from the cached metadata when the live fetch fails', async () => {
     await fetchAndCacheListeningMeta(happyClient, 'ita_for_eng') // downloaded earlier, online
     const { pods, flush } = mountPods(failAll, 'ita_for_eng')

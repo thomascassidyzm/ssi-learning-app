@@ -694,14 +694,22 @@ export const refreshListeningMetaIfStale = async (
  * reads the schedulers make on every online boot), never audio, so it stays
  * inside the 2026-09-01 ruling that the automatic path never loads a corpus
  * up front. Once per device per course: an existing entry, fresh or stale, is
- * left to refreshListeningMetaIfStale. Never throws, never blocks.
+ * left to refreshListeningMetaIfStale — except one written before the extra
+ * pod slots existed, which is refreshed once so every slot lists offline.
+ * Never throws, never blocks.
  */
 export const ensureListeningMetaSnapshot = async (
   client: SupabaseClient,
   courseCode: string,
 ): Promise<boolean> => {
   try {
-    if (await getCachedListeningMeta(courseCode)) return false
+    const cached = await getCachedListeningMeta(courseCode)
+    // An entry written before the extra Listening Mode slots existed (job #354,
+    // 2026-09-12) has no `extraPods` field and would list the served pod alone
+    // offline for as long as the content stamp stands still — which is how the
+    // Italian method pod vanished from Tom's airplane-mode list the same day.
+    // Refresh it once; from then on it carries every slot.
+    if (cached && Array.isArray(cached.extraPods)) return false
     return !!(await fetchAndCacheListeningMeta(client, courseCode))
   } catch {
     return false

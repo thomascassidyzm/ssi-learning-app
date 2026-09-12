@@ -1,23 +1,24 @@
 /**
  * THE BOUNDARY between the two audio-delivery paths, enforced by source scan.
  *
- * Tom's ruling, 2026-09-01:
- *   "Should be progressively loaded, yes. Never upfront loaded."
- *   "Because people still have the option if they choose to select the
- *    Offline Mode itself."
+ * Tom's ruling, 2026-09-01, as amended 2026-09-12 (job #379):
+ *   "Should be progressively loaded, yes. Never upfront loaded." — for the
+ *   COURSE. Listening exercises are the exception he ruled on 2026-09-12:
+ *   every pod slot's list, metadata and audio are fetched FIRST, on both
+ *   paths, so an unexpectedly offline learner can always play them.
  *
- * PATH 1 — PROGRESSIVE (automatic). Warms content scoped to the learner's
- *   CURSOR and rolls forward with it: the next cycle (SimplePlayer), the head
- *   rounds and the span ahead (LearningPlayer's rolling filler), the next pod
- *   / Layer-1 lap. Bounded, gentle, position-scoped.
+ * PATH 1 — PROGRESSIVE (automatic). Head rounds, then EVERY pod, then the
+ *   Layer-1 cups and the span ahead, rolling forward with the cursor. The
+ *   course part stays position-scoped; the pods do not.
  *
- * PATH 2 — DELIBERATE (Offline Mode). Course-scale and corpus-scale downloads,
- *   run only because the learner asked for them.
+ * PATH 2 — DELIBERATE ("fetch more ahead"). Course-scale downloads the
+ *   learner asked for, in the same order: head, pods, course.
  *
- * A unit test can't watch a browser, so it watches the SOURCE for the two ways
+ * A unit test can't watch a browser, so it watches the SOURCE for the ways
  * the boundary has actually been crossed before:
  *   (a) the bulk downloader being imported somewhere new;
- *   (b) a corpus-wide collector being spliced into the automatic warm.
+ *   (b) a course-wide cycle collector being spliced into the automatic warm;
+ *   (c) the pod corpus dropping OUT of the automatic warm again.
  *
  * If you are here because this test failed: it is probably right. Read the
  * ruling above before you edit the allowlist.
@@ -72,7 +73,7 @@ describe('progressive-prefetch boundary (Tom 2026-09-01)', () => {
     }
   })
 
-  it('the automatic rolling filler warms only cursor-scoped content', () => {
+  it('the automatic rolling filler warms head, then every pod, then the cursor-scoped span', () => {
     const src = readFileSync(join(SRC, 'components/LearningPlayer.vue'), 'utf-8')
     const start = src.indexOf('const fillBuffer = async (')
     expect(start).toBeGreaterThan(-1)
@@ -90,20 +91,25 @@ describe('progressive-prefetch boundary (Tom 2026-09-01)', () => {
     // The bulk downloader must never be reachable from the automatic warm.
     expect(fillBuffer).not.toMatch(/bulkDownloadAudio/)
 
-    // Corpus-wide collectors take no cursor and no span, so they cannot roll
-    // forward with the learner. collectAllListeningAudioIds was spliced in
-    // here until 2026-09-01 and pulled ~100 MB before the first cycle played.
-    expect(fillBuffer).not.toMatch(/collectAllListeningAudioIds/)
+    // Course-wide CYCLE collectors take no cursor and no span, so they cannot
+    // roll forward with the learner. Those stay out.
     expect(fillBuffer).not.toMatch(/collectInfPlayUseAudioIds/)
     expect(fillBuffer).not.toMatch(/collectAuxiliaryAudioIds/)
     expect(fillBuffer).not.toMatch(/collectRoundsAudioIds/)
 
-    // …and what it DOES warm is span- or cursor-scoped. These are the shapes
-    // the ruling calls correct; losing them is how a learner hits silence.
-    expect(fillBuffer).toMatch(/collectHeadRoundsAudioIds\(PREFETCH_HEAD_ROUNDS\)/)
-    expect(fillBuffer).toMatch(/collectSpanAudioIds\(spanMs\)/)
-    expect(fillBuffer).toMatch(/collectPodSpanAudioIds\(spanMs\)/)
-    expect(fillBuffer).toMatch(/collectLayer1SpanAudioIds\(spanMs\)/)
+    // …and the order is pinned through the one builder both paths share:
+    // head, then every pod slot (Tom 2026-09-12), then Layer-1, then the span.
+    const call = fillBuffer.match(/buildFetchAheadOrder\(\{([\s\S]*?)\}\)/)
+    expect(call, 'fillBuffer must order through buildFetchAheadOrder').not.toBeNull()
+    const tiers = call![1]
+    const at = (re: RegExp) => { const i = tiers.search(re); expect(i, String(re)).toBeGreaterThan(-1); return i }
+    const head = at(/head:\s*collectHeadRoundsAudioIds\(PREFETCH_HEAD_ROUNDS\)/)
+    const pods = at(/pods:\s*await collectAllPodAudioIds\(\)/)
+    const layer1 = at(/layer1:\s*collectLayer1SpanAudioIds\(spanMs\)/)
+    const span = at(/span:\s*collectSpanAudioIds\(spanMs\)/)
+    expect(head).toBeLessThan(pods)
+    expect(pods).toBeLessThan(layer1)
+    expect(layer1).toBeLessThan(span)
   })
 
   it('the corpus-wide listening collector is used by Offline Mode alone', () => {
