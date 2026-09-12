@@ -93,6 +93,7 @@ import { isContentBlackoutActive, reportBlackoutProbe } from '../playback/conten
 import { practisingOverrideActive } from '../playback/practisingOverride'
 import { resolveResumeAnchor } from '../utils/resolveResumeAnchor'
 import { cachedScriptCoversLearner } from '../utils/cachedScriptCoversLearner'
+import { beltRewindTarget } from '../utils/beltRewindTarget'
 import { resolveResumeStart } from '../utils/resolveResumeStart'
 import { resolveAuthoritativePosition } from '../utils/resolveAuthoritativePosition'
 import {
@@ -15766,6 +15767,9 @@ onMounted(async () => {
                 // jumps that change which round is "current") fall back to
                 // cycle 0 because the saved index doesn't apply there.
                 let resumeCycle = savedCurrentCycleIndex.value
+                // Set by the belt rewind below: the round to land ON, not the
+                // round to resume AFTER.
+                let rewindLandingIdx: number | null = null
 
                 // Resume TTL — re-engage long-absent learners with material
                 // they're starting to forget. Compute against the saved DB
@@ -15777,43 +15781,37 @@ onMounted(async () => {
                   const minutesSince = msSince / (1000 * 60)
                   const ttl = resumeConfig.value
                   if (daysSince >= ttl.beltRegressionDays && resumeLegoId) {
-                    // Belt regression: walk the cursor back to the start of
-                    // the learner's current belt. Ceiling preserved by the
+                    // Belt regression: walk the learner back to the FIRST
+                    // round of the belt they currently hold — never before it
+                    // (Tom, 2026-09-12: a learner past Yellow rewinds to the
+                    // start of Yellow, or whichever belt they hold, never to
+                    // White). The old code stored the round before the belt
+                    // start so a "+1" resume would land on it, which left the
+                    // cursor, and the badge read from it, one belt down. The
+                    // cursor now IS the belt's first round and the jump lands
+                    // on it directly. Ceiling preserved by the
                     // setEnrollmentCursor write — that update doesn't lower
                     // highest_completed_*.
-                    const seed = getSeedFromLegoId(resumeLegoId)
-                    if (seed !== null) {
-                      let beltIdx = 0
-                      for (let i = BELTS.length - 1; i >= 0; i--) {
-                        if (seed >= BELTS[i].seedsRequired) { beltIdx = i; break }
-                      }
-                      const beltStartSeed = Math.max(BELTS[beltIdx].seedsRequired, 1)
-                      // NEAREST >= match: the belt's first LEGO is the first
-                      // round at/above its threshold seed (rarely exactly on
-                      // it). Exact-seed matching silently no-op'd the
-                      // regression for belts not starting on the threshold.
-                      const beltStartRoundIdx = simplePlayer.findRoundIndexForBeltThreshold(beltStartSeed)
-                      if (beltStartRoundIdx > 0) {
-                        const priorRound = simpleRounds[beltStartRoundIdx - 1]
-                        if (priorRound?.legoId) {
-                          console.log(`[ResumeTTL] ${Math.round(daysSince)}d gap → belt regression to ${BELTS[beltIdx].name} (seed ${beltStartSeed}, lego ${priorRound.legoId})`)
-                          resumeLegoId = priorRound.legoId
-                          resumeCycle = 0
-                          if (!isGuestLearner.value && progressStore?.value) {
-                            activeProgressStore.value.setEnrollmentCursor(
-                              learnerId.value, courseCode.value,
-                              priorRound.legoId, beltStartRoundIdx - 1,
-                              // A REGRESSION the learner did not ask for (a
-                              // long absence rewound them to a belt start).
-                              // Legitimate, but exactly the kind of move that
-                              // looks like a bug when it cannot be named.
-                              { reason: 'resume_ttl_belt_regression',
-                                from: { legoId: resumeLegoId ?? null, roundIndex: null } },
-                            ).catch((err: unknown) => {
-                              console.warn('[ResumeTTL] setEnrollmentCursor failed:', err)
-                            })
-                          }
-                        }
+                    const target = beltRewindTarget(resumeLegoId, simpleRounds as any[], BELTS)
+                    if (target) {
+                      console.log(`[ResumeTTL] ${Math.round(daysSince)}d gap → belt regression to ${target.beltName} (lego ${target.legoId}, round index ${target.roundIndex})`)
+                      const rewoundFrom = resumeLegoId
+                      resumeLegoId = target.legoId
+                      resumeCycle = 0
+                      rewindLandingIdx = target.roundIndex
+                      if (!isGuestLearner.value && progressStore?.value) {
+                        activeProgressStore.value.setEnrollmentCursor(
+                          learnerId.value, courseCode.value,
+                          target.legoId, target.roundIndex,
+                          // A REGRESSION the learner did not ask for (a
+                          // long absence rewound them to a belt start).
+                          // Legitimate, but exactly the kind of move that
+                          // looks like a bug when it cannot be named.
+                          { reason: 'resume_ttl_belt_regression',
+                            from: { legoId: rewoundFrom ?? null, roundIndex: null } },
+                        ).catch((err: unknown) => {
+                          console.warn('[ResumeTTL] setEnrollmentCursor failed:', err)
+                        })
                       }
                     }
                   } else if (minutesSince >= ttl.cycleResetMinutes) {
@@ -15878,6 +15876,10 @@ onMounted(async () => {
                     console.warn('[eagerLoad] Infinite play flagged but no infinite-play round found in simpleRounds — staying at last main-loop round')
                     simplePlayer.jumpToRound(simpleRounds.length - 1)
                   }
+                } else if (rewindLandingIdx !== null) {
+                  // Belt rewind: land ON the belt's first round, not after it.
+                  console.debug(`[eagerLoad] ${modeTag}: belt rewind landing on ${resumeLegoId} (round ${rewindLandingIdx})`)
+                  simplePlayer.jumpToRound(rewindLandingIdx, 0)
                 } else if (resumeLegoId) {
                   // Main-loop resume — legoId is canonical. Find it and
                   // start at the NEXT round (so the learner doesn't

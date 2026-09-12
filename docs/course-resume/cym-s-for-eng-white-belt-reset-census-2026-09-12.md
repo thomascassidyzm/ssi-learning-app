@@ -162,6 +162,15 @@ lets a fresher local snapshot outrank the server only when it is at or past the 
 fresher-but-behind is a stale cache. Test red on the pre-fix code, green after. Offline progress
 ahead of the cursor still wins as before.
 
+### 6b. Verified live on staging, build 890c379 (2026-09-12 12:17Z)
+
+- Guest plays on a fresh profile (script cache 33 rounds), signs in as the entitled test account
+  whose cursor is S0020L01, reloads: header "0 percent to green belt", screen Orange Belt,
+  `cold_start {seedId: S0020, roundIndex: 33}`, cache rewritten to 3,262 rounds. Before the fix
+  the same walk landed on White.
+- Same signed-in profile with the local snapshot forced to S0001L01 stamped now, behind the
+  server cursor: reload lands on Orange, `cold_start {seedId: S0020, roundIndex: 33}`.
+
 ## 7. Cursor repairs
 
 None needed. No real learner's cursor moved backwards; the four learners past Yellow keep the
@@ -177,3 +186,27 @@ premium at all is Tom's call and is outside this job.
   whose events predate the 60-day window used here.
 - `pnpm --filter player-vue typecheck` fails on `views/schools/HandbookView.showMe.test.ts`, a file
   this job did not touch, on current `dev`.
+
+## 9. The 60-day rewind cap (Tom's ruling, 2026-09-12 11:27Z)
+
+The rewind now lands on the first round of the learner's own belt (`utils/beltRewindTarget.ts`),
+never the round before it. Census of learners rewound below their belt start under the old rule:
+
+```sql
+-- rewind telemetry, all time, all courses: 0 rows
+select * from player_events where event_type='cursor_move' and payload->>'reason'='resume_ttl_belt_regression';
+-- cursor on the last LEGO before a belt-start seed, with practice or a ceiling beyond it: 0 rows
+with thr as (select unnest(array[8,20,40,80,150,280,400]) t),
+e as (select e.learner_id, e.course_id, e.last_completed_lego_id lc, e.highest_completed_lego_id hc, l.display_name,
+        substring(e.last_completed_lego_id,2,4)::int cs
+      from course_enrollments e join learners l on l.id=e.learner_id
+      where not (l.is_demo or l.is_internal or l.is_class_entity) and e.last_completed_lego_id ~ '^S[0-9]{4}L[0-9]{2}$'),
+cand as (select e.*, t from e join thr on e.cs < t and e.cs >= t-3),
+prev as (select c.*,
+  (select max(lego_id) from course_legos cl where cl.course_code=c.course_id and cl.seed_number < c.t) last_before_belt,
+  (select max(lego_id) from lego_progress lp where lp.learner_id=c.learner_id and lp.course_id=c.course_id) max_practised
+  from cand c)
+select * from prev where lc = last_before_belt and (max_practised > lc or hc > lc);
+```
+
+Zero learners need a cursor repair for the old rewind rule.
