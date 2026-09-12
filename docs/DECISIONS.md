@@ -1188,3 +1188,4 @@ page content was touched.
 before the font: Intelligence collapses into the one menu below 1380px, Admin below 1180px as
 before. On phones the switch stays visible and the section trigger truncates its label rather than
 squeezing View-as.
+https://watson-1.tail4968cb.ts.net/d/d715f061
