@@ -133,6 +133,7 @@ describe('security-test machinery integrity — pinned roster', () => {
     'api/_security/sec0912t-e-content-delivery.security.test.ts',
     'api/_security/sec0912t-f-school-teacher.security.test.ts',
     'api/_security/sec0912t-g-identity-transfer.security.test.ts',
+    'api/_security/sec0912t-x-org-enrolment-path.security.test.ts',
     'api/_utils/actAsGuard.advisory.security.test.ts',
     'api/_utils/adminPracticeMinutesAnonExposure.security.test.ts',
     'api/_utils/codeAttemptThrottle.security.test.ts',
