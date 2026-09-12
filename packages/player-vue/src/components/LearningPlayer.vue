@@ -92,6 +92,7 @@ import { nextPractisingState, choosePractisedPosition, cycleIntroducesMaterial, 
 import { isContentBlackoutActive, reportBlackoutProbe } from '../playback/contentBlackout'
 import { practisingOverrideActive } from '../playback/practisingOverride'
 import { resolveResumeAnchor } from '../utils/resolveResumeAnchor'
+import { cachedScriptCoversLearner } from '../utils/cachedScriptCoversLearner'
 import { resolveResumeStart } from '../utils/resolveResumeStart'
 import { resolveAuthoritativePosition } from '../utils/resolveAuthoritativePosition'
 import {
@@ -899,6 +900,9 @@ const instantPlayback = useInstantPlayback(courseCode, {
         },
         onSeedFallback: (cursor, anchor) => {
           console.warn(`[InstantPlayback] cursor ${cursor} is gone from the course; landing on its seed at ${anchor}`)
+        },
+        onBeyondMap: (cursor, last) => {
+          console.warn(`[InstantPlayback] cursor ${cursor} lies beyond the round-map (last ${last}) — a sliced map; landing on its last round, not R1`)
         },
       })
     } catch (err) {
@@ -14778,7 +14782,30 @@ onMounted(async () => {
         if (inferEnrollmentMode === 'main') {
           try {
             const cachedScript = await getCachedScript(courseCode.value)
-            if (cachedScript && cachedScript.rounds.length > 0) {
+            // A cached script that cannot place this learner is not their
+            // course view — on a bundle-booted premium course it is the free
+            // PREVIEW slice (33 rounds through Yellow on cym_s_for_eng) written
+            // while the device was a guest, unentitled, or fetched the bundle
+            // before its session restored. The bundle heals when entitlement
+            // arrives; this cache never did, and hydrating from it resolved a
+            // cursor past Yellow against 33 rounds, found nothing, and started
+            // the learner at White belt round 1 (job #326, 2026-09-12). Skip
+            // the fast-path: the bootstrap below resolves against the live
+            // bundle's round map, and the full-script handoff rewrites the
+            // cache so the next cold start is warm again. Guests and deep
+            // links carry no server position to test against.
+            const cacheCoversLearner =
+              !cachedScript || isGuestLearner.value || !!deepLinkStart.value ||
+              cachedScriptCoversLearner(cachedScript.rounds as any[], inferCursorLegoId, inferCeilingLegoId)
+            if (cachedScript && cachedScript.rounds.length > 0 && !cacheCoversLearner) {
+              console.warn(
+                `[InstantPlayback] cache fast-path SKIPPED: cached script (${cachedScript.rounds.length} rounds, ` +
+                `last ${cachedScript.rounds[cachedScript.rounds.length - 1]?.legoId ?? '?'}) holds neither cursor ` +
+                `${inferCursorLegoId ?? 'null'} nor ceiling ${inferCeilingLegoId ?? 'null'} — a truncated cache; ` +
+                'resolving against the live round map instead',
+              )
+            }
+            if (cachedScript && cachedScript.rounds.length > 0 && cacheCoversLearner) {
               console.log(`[InstantPlayback] Cache fast-path: hydrating ${cachedScript.rounds.length} rounds from localStorage`)
               // SWR: this hydration deliberately serves even a STALE-stamped
               // entry (checkContentVersion no longer drops it) — play now,

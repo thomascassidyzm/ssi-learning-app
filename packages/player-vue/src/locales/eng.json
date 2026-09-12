@@ -3044,5 +3044,18 @@
     "cancelOnPlan": " on the {plan} plan",
     "freeBanner": "Your course is free — nothing to pay for a whole year.",
     "freeBannerNamed": "Your {language} course is free — nothing to pay for a whole year."
+  },
+  "bugReport": {
+    "title": "Report a bug",
+    "menuLabel": "Report a bug",
+    "menuDesc": "Tell us what went wrong. We attach the details for you.",
+    "placeholder": "What happened?",
+    "addScreenshot": "Add a screenshot",
+    "removeScreenshot": "Remove screenshot",
+    "tooLarge": "The image must be under 5MB",
+    "send": "Send",
+    "sending": "Sending…",
+    "thanks": "Got it, thank you.",
+    "failed": "That did not send. Please try again."
   }
 }

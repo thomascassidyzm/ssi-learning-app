@@ -102,6 +102,23 @@ const HIDDEN_TOKEN_WAIT_MS = 800
 const SAFE_TOKEN_WAIT_MS = 10_000
 
 let nextSessionId: string | null = null
+
+// Live player logs, for the learner bug-report postbox (job #327): the report
+// flushes every buffer first so the server can read the last five minutes from
+// player_events, and carries whatever is STILL unflushed in its own body as a
+// fallback. Registered on mount, removed on unmount; nothing else reads this.
+interface LiveLog { flush: () => Promise<void>; pending: () => PlayerEvent[] }
+const liveLogs = new Set<LiveLog>()
+
+/** Flush every mounted player log now. Silent on failure, like flush itself. */
+export async function flushAllPlayerLogs(): Promise<void> {
+  await Promise.all([...liveLogs].map((l) => l.flush().catch(() => {})))
+}
+
+/** Every event still buffered in a mounted player log, in arrival order. */
+export function pendingPlayerEvents(): PlayerEvent[] {
+  return [...liveLogs].flatMap((l) => l.pending())
+}
 function genSessionId(): string {
   // Prefer crypto.randomUUID where available (modern browsers).
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -346,6 +363,8 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
     }
   }
 
+  const live: LiveLog = { flush: () => flush(), pending: () => [...buffer] }
+
   onMounted(() => {
     if (typeof window === 'undefined') return
     // Prime the bearer cache NOW, not on the first timed flush: the sync path
@@ -354,9 +373,11 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
     void refreshToken()
     flushTimer = setInterval(() => { void flush() }, flushIntervalMs)
     document.addEventListener('visibilitychange', handleVisibilityChange)
+    liveLogs.add(live)
   })
 
   onBeforeUnmount(() => {
+    liveLogs.delete(live)
     if (flushTimer) { clearInterval(flushTimer); flushTimer = null }
     if (typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
