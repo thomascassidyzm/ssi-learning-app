@@ -66,6 +66,12 @@ rule. Full chain and three alternative fix shapes: `area-g-identity-transfer.md`
 
 | ID | Severity | One line | Area |
 |---|---|---|---|
+| SEC0912T-D-01 | MEDIUM | `family/create-child` is an unbounded, plan-gate-free identity mint — create/remove/create loops forever | D |
+| SEC0912T-D-02 | MEDIUM | `family/invite` emails any address on any signed-in caller's say-so, subject line caller-controlled | D |
+| SEC0912T-D-03 | MEDIUM | The same handler is an account-existence oracle and attaches a real account to a stranger's family without consent | D |
+| SEC0912T-D-04 | LOW | The parent sign-in minter has no volume bound and writes no audit row | D |
+| SEC0912T-D-05 | LOW | A try-link's entitlement token names no link, so deactivation cannot revoke it for up to 30 days | D |
+| SEC0912T-D-06 | MEDIUM | `school_admin` codes are never bounded — the `isPrivileged` clause tests a code type the validator rejects, so it is dead | D |
 | SEC0912T-G-01 | HIGH | Orphaned-identity absorption: a departed colleague's memberships are claimable by anyone who knows their auth uid | G |
 | SEC0912T-G-02 | MEDIUM | Neither identity-transfer door writes a `role_change_audit` row | G |
 | SEC0912T-G-03 | LOW | `bug_reports.screenshot_url` stored from an unauthenticated caller with no scheme allowlist | G |
