@@ -1098,3 +1098,30 @@ rule; it is a read-only artefact of that job and was not edited.
 **Not done, deliberately.** No column, no index, no backfill, no engine. The nightly
 insight-discovery digest applies no country rule at all, so it needed no change; its population
 still differs from the resolver's, as the census already said.
+## 2026-09-12 — cym_s_for_eng learners past Yellow were reset to White belt: a preview-sized script cache was trusted (job #326·F)
+
+**What the learner saw.** Forum complaint via #cyhoeddi: the Southern Welsh course "saves your
+progress, but sends you back to the start of white belt if you ended your session past yellow".
+
+**What production shows.** Since 2026-09-03 cym_s_for_eng boots off a course bundle, and it is the
+only Welsh course that does. A guest, an unentitled learner, or a session that fetched the bundle
+before its token restored gets the free preview: 33 rounds through S0019L01, the end of Yellow.
+The player wrote that script into the IndexedDB script cache, keyed by course alone. The bundle
+heals when entitlement arrives; the cache never did. The cache fast-path then hydrated 33 rounds,
+failed to find a cursor past Yellow in them, warned to the console and started at round 1. The
+cursor row was untouched, which is the "saves your progress" half. One live row shows the whole
+path today: ieuan422, subscribed at 04:17Z, cursor S0215L01, every cold start landing on S0001L01.
+Reproduced headlessly on build 5ea385e with a fresh test account.
+
+**Decision: a cached script that cannot place the learner is not their course view.** The fast-path
+now skips such a cache (`cachedScriptCoversLearner`) and the bootstrap resolves against the live
+bundle's round map, after which the full-script handoff rewrites the cache. Separately,
+`resolveResumeStart` no longer reads a cursor beyond the round map's last seed as "fresh learner":
+it lands on the map's last round, which for an unentitled learner is the paywall wall. Both carry a
+test that fails on the pre-fix code and passes after. No new telemetry, no belt-threshold change, no
+cursor repairs: no real learner's cursor moved backwards.
+
+**Left for Tom.** Whether Welsh should be `pricing_tier = premium` at all; three unentitled
+learners sit past the wall (fransetter S0217, lea.weber94 and reillyfeatherstone in infinite play)
+and will meet the paywall on return rather than round 1. Census, queries and reproduction:
+https://watson-1.tail4968cb.ts.net/d/00ee37b1

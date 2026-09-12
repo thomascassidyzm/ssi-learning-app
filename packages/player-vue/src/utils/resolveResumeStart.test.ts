@@ -77,4 +77,30 @@ describe('resolveResumeStart', () => {
       fetchRoundMap: async () => ({ rounds: ROUNDS }),
     })).rejects.toThrow('CourseEndNoNextLego')
   })
+  // A cursor past the end of a SLICED map (the free preview stops at the end
+  // of Yellow) is a learner with a place beyond it, not a fresh learner —
+  // land on the last round the map holds, never on round 1 (job #326).
+  it('lands on the last round when the cursor lies beyond a sliced map — never null', async () => {
+    const onBeyondMap = vi.fn()
+    const preview = [
+      { legoId: 'S0001L01', seed: 1 }, { legoId: 'S0008L01', seed: 8 }, { legoId: 'S0019L01', seed: 19 },
+    ]
+    await expect(resolveResumeStart({
+      lastCompletedLegoId: 'S0215L01',
+      ceilingLegoId: 'S0215L01',
+      hasReachedInfinitePlay: noInfPlay,
+      fetchRoundMap: async () => ({ rounds: preview }),
+      onBeyondMap,
+    })).resolves.toBe('S0019L01')
+    expect(onBeyondMap).toHaveBeenCalledWith('S0215L01', 'S0019L01')
+  })
+
+  it('still resolves null for a cursor the map should hold but does not (inside its range)', async () => {
+    await expect(resolveResumeStart({
+      lastCompletedLegoId: 'S0001L09',
+      ceilingLegoId: null,
+      hasReachedInfinitePlay: noInfPlay,
+      fetchRoundMap: async () => ({ rounds: [{ legoId: 'S0002L01', seed: 2 }] }),
+    })).resolves.toBeNull()
+  })
 })
