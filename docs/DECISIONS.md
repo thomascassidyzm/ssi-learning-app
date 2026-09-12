@@ -1370,3 +1370,65 @@ that is page content, outside #340's nav-only scope.
 paragraph.** The census sentence is corrected in place and the four #343 paragraphs that a merge
 had spliced into the #326·F entry are back under the #343 heading. The rewind stays unreachable;
 wiring it into the live boot paths is Tom's design call.
+
+## 2026-09-12 — "cancelled Family plan has zero access" was the app offline, not the cancellation (job #378·G)
+
+**Tom's report.** He paid £25 for SSi Family on `thomas.cassidy+family_002@gmail.com`, cancelled it on
+8 September, and on 12 September the account showed zero access on production build 5ea385e.
+
+**What the live rows say.** `subscriptions` row `b119e295-2faf-4d44-b018-cee49cb3d797`: status
+`active`, plan `SSi Family`, `cancel_at_period_end = true`, `current_period_end = 2026-10-07T23:41Z`,
+Paddle `sub_01m1z3z0k2b6htg77tctxwa5ty`. Two active child members (Lewis, Bovis) and one open invite.
+Signed in as that account against production, `/api/subscription` answers `isSubscribed: true`,
+`/api/family` answers `hasFamilyPlan: true`, and both course bundles come back whole. No row on
+production has `status = cancelled` with a paid period still running. The cancellation path is
+correct and nothing was repaired.
+
+**What actually happened.** His screenshots carry the airplane icon and Settings reads "we will
+check it again as soon as you are online". The localStorage mirror of the last `/api/subscription`
+answer carried a five-minute TTL; a boot more than five minutes after the last online one threw it
+away, the fetch failed instantly with no network, `initialize()` declared hydration done with
+`subscription === null`, and every premium course fell to the free preview. Any paying subscriber
+who reopens the app offline hit the same wall.
+
+**Decision.** The mirror has no TTL. An online answer overwrites it when one lands, sign-out and a
+401 clear it, and `isSubscribed` still checks the paid period's end date against the clock, so a
+period that has genuinely ended fails closed however old the copy is. A device that has never held
+an answer still fails closed. Test red on the old code at the offline-reopen case, green after.
+
+**Gaps.** The Paddle API key lives only as an encrypted Vercel secret, so Paddle's own event log for
+the subscription was not read; the row and the live endpoints were the evidence. Vercel runtime
+logs reach back only a few hours, so the 8 September webhook delivery itself was not observed.
+## 2026-09-12 — the service worker's navigation fallback is the precached shell, never a runtime copy (job #377)
+
+**Why.** Tom's staging PWA, with ~250 MB of clips downloaded, showed Safari's own "not connected"
+page in airplane mode: no service worker answered the navigation at all. Production, same code
+for the worker, loaded fine. The worker config, registration, index.html and boot watchdog are
+byte-identical between `main` and `staging`; the delta was six staging deploys in an hour.
+
+**The chain, reproduced end to end** (`packages/player-vue/e2e/sw-stale-shell-redeploy-probe.mjs`,
+two real builds, 1a99888 then f731f19). The navigation route kept its own copy of index.html in
+`navigation-cache`. A new worker installs, the app closes, the worker activates and the precache
+drops the old build's chunks — but the runtime copy still names them. One navigation where
+index.html takes longer than the route's 3s NetworkFirst timeout serves that stale shell; its
+chunks come back as index.html through Vercel's catch-all rewrite; the inline boot watchdog sees a
+same-origin module failure on a live network, concludes the deploy is broken, and heals:
+unregisters the worker and wipes every cache. The app reloads fresh and works online, so nothing
+looks wrong, but the worker is now reinstalling 545 files, and the next airplane-mode launch
+before that finishes is the browser's own error page. The probe's control run shows exactly this:
+heal attempts 1, two document loads, worker `installing` with a one-entry precache at boot, and
+`net::ERR_INTERNET_DISCONNECTED` on relaunch. IndexedDB, where the clips live, survives the heal
+untouched (a marker proves it), so no learner re-downloads anything.
+
+**Decision.** The route never stores a runtime shell and every cache read answers with the
+precached index.html (`src/sw/precachedShellPlugin.js`, stringified into sw.js by workbox-build;
+the route itself is `src/sw/navigationRoute.js`, pinned by its test). The precached shell and its
+chunks are installed and retired together, so it cannot go stale that way. Fresh deploys still
+propagate: a network that answers inside 3s wins as before. The probe's fixed run: one document
+load, from the precache, no heal, the worker still active, offline relaunch boots.
+
+**Not changed, on purpose.** The heal ladder still unregisters and wipes on a same-origin script
+failure with a live network; with the stale-shell trigger gone its remaining triggers are real
+breakage. Whether a heal should keep the precache when a precached shell exists is a separate
+design question, noted, not taken here. Not verified: iOS itself — no device or simulator on this
+box; the reproduction is headless Chromium against the same worker code.

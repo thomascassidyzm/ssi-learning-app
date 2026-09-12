@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
+import { navigationRoute } from './src/sw/navigationRoute.js'
 import { fileURLToPath, URL } from 'node:url'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { resolveBuildBranch } from './scripts/buildBranch.mjs'
@@ -296,26 +297,13 @@ export default defineConfig(({ mode }) => ({
 
         // Runtime caching for fonts/CDN/audio
         runtimeCaching: [
-          // Document navigations (the HTML shell): NetworkFirst so a fresh
-          // deploy propagates on next navigation without the user having to
-          // explicitly tap "Update". Without this, the precache serves the
-          // OLD index.html — which references OLD hashed JS bundles that no
-          // longer exist on Vercel after a redeploy → MIME error on those
-          // chunks. 3s timeout means offline users still fall back to cache.
-          {
-            urlPattern: ({ request }) => request.mode === 'navigate',
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'navigation-cache',
-              networkTimeoutSeconds: 3,
-              expiration: { maxEntries: 4 },
-              // Offline floor: when the network is gone AND navigation-cache
-              // has no entry (cold offline start), serve the precached shell.
-              // This is what makes "airplane-mode open the app" reach the
-              // player at all — the always-play invariant's first link.
-              precacheFallback: { fallbackURL: 'index.html' },
-            },
-          },
+          // Document navigations (the HTML shell). NetworkFirst with a 3s
+          // timeout, falling back to the PRECACHED shell on timeout and on
+          // failure — never to a runtime copy, which outlived redeploys and
+          // took the offline install down with it (2026-09-12, job #377).
+          // The route lives in src/sw/navigationRoute.js with its reasoning;
+          // its plugin is stringified into sw.js by workbox-build.
+          navigationRoute,
           // The non-precached font subsets: per-language coverage (Cyrillic,
           // Greek, Devanagari, Vietnamese) and the schools-only faces. Same
           // origin now — the fonts.googleapis.com / fonts.gstatic.com routes
