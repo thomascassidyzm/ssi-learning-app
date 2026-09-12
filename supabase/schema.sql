@@ -12432,6 +12432,37 @@ COMMENT ON TABLE public.support_settings IS 'The support loop''s tunables. clip_
 
 
 --
+-- Name: bug_reports; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.bug_reports (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    learner_id uuid,
+    auth_user_id text,
+    body text NOT NULL,
+    screenshot_url text,
+    course_code text,
+    "position" jsonb,
+    device jsonb,
+    app_version text,
+    app_shell text,
+    deployment_env text,
+    recent_events jsonb,
+    route text,
+    shape_key text,
+    posted_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE bug_reports; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.bug_reports IS 'The learner postbox: one-way bug reports with diagnostics attached. No reply path by Tom''s ruling of 2026-09-12; posted_at is the poller''s idempotency key.';
+
+
+--
 -- Name: support_signals; Type: TABLE; Schema: public; Owner: -
 --
 
