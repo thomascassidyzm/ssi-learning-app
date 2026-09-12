@@ -1134,3 +1134,36 @@ to overturn.
 learners sit past the wall (fransetter S0217, lea.weber94 and reillyfeatherstone in infinite play)
 and will meet the paywall on return rather than round 1. Census, queries and reproduction:
 https://watson-1.tail4968cb.ts.net/d/00ee37b1
+
+## 2026-09-12 — #325 watched live on staging: main-flow rows proven, Listening Mode found broken and fixed (job #339)
+
+**What was watched.** Staging build 3004383 (promote of #325) served at 11:46Z. A headless
+play-through as a guest from watson-1 (session `3a1b62ee-22c7-4c19-9c37-1aa34e671762`, env
+`staging`, ip_country FI) wrote 17 rows to `player_events`. Every one carries `mode: 'easy'`,
+`belt: 'white'` and `roundIndex`; `round_complete`, `tap_*` and `adaptation_plan` carry `seedId`.
+The one Listening Mode row is a `listening_tick` with `mode: 'listening'`, `belt`, `view`.
+
+**Found 1 — Listening Mode per-clip rows never landed, and playback stopped after one clip.**
+`effectiveRate` was declared inside a `try` in `playCurrentPhrase` and read by the new
+`logEvent('audio_play', …)` after it: `ReferenceError: effectiveRate is not defined` on the first
+clip, the async loop rejected, and the overlay never advanced. ListeningOverlay is plain
+`<script setup>`, so vue-tsc and eslint were both blind. Fix: the const is hoisted above the try.
+Guard: `ListeningOverlay.scope.test.ts` compiles the SFC with the inline template and lints the
+result for `no-undef` and `no-const-assign`; it fails on the staging content and passes on the fix.
+
+**Found 2 — pre-existing since 2026-05-15.** The belt-jump strip's `:ref` callback assigned to the
+`activeBeltPipEl` const binding itself, throwing "Assignment to constant variable" on every strip
+render. Fix: a setup function writes `.value`. The same test catches it.
+
+**Found 3 — `seedId` on main-flow `audio_play` rows was null on every row, before and after.**
+The call site passed `seedId: cycle.seedId ?? null`, an explicit null that wins over the log
+context by #325's own design, and no main-flow cycle carries a seedId: 47,336 of 47,336
+production `audio_play` rows in the week to 2026-09-12 were null. Fix: the key is left absent
+when the cycle has none, so the context stamps the seed the cursor is on, as on every other row.
+Pod plays still pass an explicit null, meaning "no seed".
+
+**JP/FI rule, live.** `isMachineEvent` run from this branch against production rows for
+2026-09-05..12 through the real `resolveRealLearners`: 1,121 unattributed JP/FI rows dropped;
+518 attributed FI rows from six real learners kept; 104 attributed FI rows dropped because their
+learner key has no `learners` row (12 keys) or is internal (1 key). Exactly the rule as written.
+Not exercised through staging's `/api/intel/*` over HTTP, which needs an admin session.
