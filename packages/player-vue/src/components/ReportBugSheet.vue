@@ -7,7 +7,7 @@
  * learner. Opened from Settings and from the learner's own page; both mount
  * this same sheet.
  */
-import { ref, computed, onBeforeUnmount, Teleport } from 'vue'
+import { ref, computed, onBeforeUnmount } from 'vue'
 import { useI18n } from '@/composables/useI18n'
 import { useBugReport } from '@/composables/useBugReport'
 

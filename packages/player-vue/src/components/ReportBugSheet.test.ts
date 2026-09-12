@@ -55,7 +55,7 @@ afterEach(() => { document.body.innerHTML = '' })
 
 describe('ReportBugSheet', () => {
   it('does not send an empty report', async () => {
-    const w = mountSheet()
+    mountSheet()
     expect(el<HTMLButtonElement>('report-bug-send').disabled).toBe(true)
     el('report-bug-send').click()
     expect(fetchSpy).not.toHaveBeenCalled()
