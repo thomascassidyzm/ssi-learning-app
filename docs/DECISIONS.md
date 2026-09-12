@@ -1,3 +1,13 @@
+## 2026-09-12 — Preview builds are governed by the Vercel dashboard rule alone; the in-repo `ignoreCommand` is gone (job #460, Watson's decision)
+
+**Why.** The Aug 12–Sep 11 Vercel bill was $467, $366 of it Build CPU Minutes from ~8,962 preview deployments, one per push of every worker branch. RBF set an opt-in Ignored Build Step in the Vercel dashboard on every project: main, dev, staging and `preview/*` always build, a commit whose message carries `[preview]` builds, everything else is skipped. But a 2026-09-09 job had written an `ignoreCommand` into `vercel.json` (main|dev|staging build, everything else skipped) and Vercel gives the in-repo key precedence over the dashboard, so the dashboard rule only governed branches that lacked the file, and there was no route to a preview on this repo at all.
+
+**Decision.** One rule, in one place: the dashboard's `commandForIgnoringBuildStep`. The `ignoreCommand` key is deleted and nothing else in `vercel.json` changes. A worker that wants a preview URL pushes a `preview/*` branch or puts `[preview]` in its commit message; it never edits `vercel.json`. Worker branches cut before this landed still carry the old key and are not re-swept: they merge main when they want a preview. Better: previews exist again, opt-in. Simpler: one rule, not two that shadow each other. Cheaper: the build bill falls by the preview share, and nobody maintains a case list in a JSON string.
+
+**Landing.** This is the promotion train's deploy config, not player code, so on Watson's call the identical commit lands on dev, staging and main directly, the same way the key arrived in `d76264d3`.
+
+**Proof.** The Vercel deployment records after landing, read from the API: dev, staging and main each build READY; a `preview/probe-460` branch builds; a plain branch carrying this commit is skipped.
+
 ## 2026-09-12 — Release notes are three learner headlines plus ONE line, enforced by the train; the 2026-09-12 notes hand-edited to that shape and hotfixed to main (job #455)
 
 **Tom's ruling.** "Ok. So, the release notes for the latest version in Main are crazy. 3 biggest headlines and then + plus squished some bugs and stuff." And, relayed the same evening: that shape is already the standing rule for release notes, and this release broke it, so find where the rule lives and why it was bypassed, and make it enforced.
