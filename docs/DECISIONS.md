@@ -991,3 +991,34 @@ LEGOs", would resolve it from data the diary already carries. That is class-page
 waits for Tom. A separate different-phrases tile is not recommended; the phrase table already
 lists every distinct phrase with its count. Findings, queries and the full phrase-to-LEGO
 table: https://watson-1.tail4968cb.ts.net/d/1dad23b0
+
+## 2026-09-12 — "Report a bug" for learners is a postbox, not a thread (job #327·F)
+
+**What Tom ruled.** "We should probably use the in-app support channel for all learners if
+there's a bug or an issue. But not have agents reply to them because that would soon escalate.
+So we want something like 'report a bug' in contradistinction to the in-app general support
+channel we've built for org admins." And, to the proposed shape: "Reports go to one channel yes
+and that can be one of the things we direct you agents to have a look at."
+
+**Decision: a one-way postbox.** A new table `bug_reports` with no reply path at all: no
+direction, no in_reply_to, no answered_at, no status, no priority. The support channel's tables
+were not reused because their whole shape is turn-taking, which is the thing being cut off;
+`tester_feedback` was not reused because it is tester-gated and carries a workflow. The only
+reply a learner ever sees is the client-side "Got it, thank you."
+
+**Decision: one inbox, the ssi-learning-app project channel.** A poller on watson-1
+(`command-surface/tools/bug-reports/poster.cjs`, unit `ssi-bug-report-poster`) posts each row once
+into that room and stamps `posted_at`. Not Tom's Watson, not needs-you, not email. Agents are
+directed at the channel; nothing is spawned from repeats.
+
+**Decision: the shape key is display, not a classifier.** `course_code | app_shell | belt |
+last event_type before the report`. The post opens with "Nth report of this shape in 7 days" so
+repeats are visible to whoever reads the room. That is the whole grouping.
+
+**Decision: guests may report.** A guest has no bearer, so the route accepts an unauthenticated
+report with learner_id and auth_user_id null and only the client's unflushed buffer for events.
+Throttled per attested peer in memory and by a fleet-wide cap of guest rows per quarter hour
+counted from the table. Not a hardened limiter; flagged for Tom's eye.
+
+**Position is the lego.** The report carries the cursor as the lego's own known and target text
+plus the belt name; the channel post renders it that way and never as a seed number.
