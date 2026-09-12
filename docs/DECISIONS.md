@@ -1038,7 +1038,9 @@ phone submission was broken, exactly as Astra said. Raising the scrim to 3300 al
 staging: Settings mounts the sheet inside `.settings-overlay`, a fixed z-index 2000 stacking
 context, so the sheet could never outrank the nav from there. Fix: the sheet teleports to body
 and stacks at 3300; a test asserts the scrim is a direct child of body, red on the old component,
-green on the fix. Probe kept as `packages/player-vue/e2e/_361-postbox-tap-probe.mjs`.
+green on the fix. Verified live on staging build f731f19: the same probe's tap on Send returned 200,
+showed the thank-you and wrote a `bug_reports` row stamped `390x844`, then deleted. Probe kept as
+`packages/player-vue/e2e/_361-postbox-tap-probe.mjs`.
 
 **Decision: guests may report.** A guest has no bearer, so the route accepts an unauthenticated
 report with learner_id and auth_user_id null and only the client's unflushed buffer for events.
