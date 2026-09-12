@@ -3139,7 +3139,7 @@ watch(
 /* Pod cards (job #428) — same family as the scene cards, stacked full-width
  * so a long pod title ("Italian Listening Pods — Pod 1") has room to read. */
 .pod-card { padding: 1.1rem 1.1rem; }
-.pod-card-title { white-space: normal; }
+.scene-card.pod-card .scene-card-title { white-space: normal; overflow: visible; text-overflow: clip; }
 .pod-offline-empty { margin: 0; }
 /* Readiness chip — a word, not a bar and not a percentage. */
 .pod-chip {
