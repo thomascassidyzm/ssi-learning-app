@@ -229,8 +229,9 @@ export function trackPosition(groups: BreathGroup[], clockSec: number): { index:
 // recordings, viseme-only rows) renders in the same stack with its lines cut
 // from the sentence itself — layout only: no lit line, no fill, no clock.
 //
-// Cut order: sentence enders → clause punctuation → a length cap, words kept
-// whole and the overflow balanced rather than a long line plus an orphan.
+// Cut order: sentence enders → clause punctuation, packed up to the cap so a
+// list of short clauses is one breath rather than stubs → a length cap, words
+// kept whole and the overflow balanced rather than a long line plus an orphan.
 // The cap comes from the audio, not a guess: across 1,455 timed pod sentence
 // clips with two or more breath groups (3,942 groups, measured live
 // 2026-09-12) a real breath group is 23 chars at the median, 52 at p90 and
@@ -272,16 +273,34 @@ function balancedWrap(piece: string, cap: number): string[] {
   return pack(cap)
 }
 
+/** Clauses of one over-long sentence, packed in order up to the cap so a
+ *  list ("en Nueva York, en Tokio, en Buenos Aires") reads as one breath
+ *  rather than three stubs. A cut only counts when the clause after it fits
+ *  the cap: one that overflows on its own joins what precedes it and the
+ *  run is word-wrapped, so "Bueno," never stands alone above a wrapped
+ *  remainder. */
+function clauseLines(sentence: string, cap: number): string[] {
+  const lines: string[] = []
+  let cur = ''
+  for (const clause of pieces(sentence, CLAUSE_PIECES)) {
+    const next = cur ? `${cur} ${clause}` : clause
+    if (cur && next.length > cap && clause.length <= cap) { lines.push(...balancedWrap(cur, cap)); cur = clause } else cur = next
+  }
+  if (cur) lines.push(...balancedWrap(cur, cap))
+  return lines
+}
+
 /** The stack's lines for an untimed sentence, or null when the text yields a
  *  single line — the existing card, unchanged, exactly as one breath group
- *  does for a timed clip. */
+ *  does for a timed clip. Sentences are never packed together: the sentence
+ *  is the unit; only clauses inside one are. */
 export function textLinesForSentence(sentenceText: string, cap: number = TEXT_LINE_MAX_CHARS): string[] | null {
   const text = String(sentenceText || '').trim()
   if (!text) return null
   const lines: string[] = []
   for (const sentence of pieces(text, SENTENCE_PIECES)) {
-    if (sentence.length <= cap) { lines.push(sentence); continue }
-    for (const clause of pieces(sentence, CLAUSE_PIECES)) lines.push(...balancedWrap(clause, cap))
+    if (sentence.length <= cap) lines.push(sentence)
+    else lines.push(...clauseLines(sentence, cap))
   }
   if (lines.length < 2) return null
   return lines

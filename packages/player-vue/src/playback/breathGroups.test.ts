@@ -234,12 +234,19 @@ describe('textLinesForSentence — untimed clips cut from the text (job #430)', 
       .toEqual(['Creo que lo estás haciendo muy bien.', 'Estoy impresionado.', '¿Verdad?'])
   })
 
-  it('a sentence over the cap falls to clause punctuation; short sentences stay whole', () => {
+  it('a sentence over the cap falls to clause punctuation, clauses packed up to the cap; short sentences stay whole', () => {
     const text = 'Bueno, la verdad es que hay un grupo de artistas enormes que ganan millones y otro grupo inmenso que gana casi nada.'
     expect(textLinesForSentence(text)).toEqual([
-      'Bueno,',
-      'la verdad es que hay un grupo de artistas enormes que',
-      'ganan millones y otro grupo inmenso que gana casi nada.',
+      'Bueno, la verdad es que hay un grupo de artistas enormes',
+      'que ganan millones y otro grupo inmenso que gana casi nada.',
+    ])
+    // spa_for_eng:music scene 3 #76 — a list of short clauses is packed, not
+    // left as "Entonces," and "en Tokio," stubs.
+    const list = 'Entonces, aunque a los puristas no les guste, el flamenco hoy se escucha en Nueva York, en Tokio, en Buenos Aires gracias en parte a Rosalía.'
+    expect(textLinesForSentence(list)).toEqual([
+      'Entonces, aunque a los puristas no les guste,',
+      'el flamenco hoy se escucha en Nueva York, en Tokio,',
+      'en Buenos Aires gracias en parte a Rosalía.',
     ])
   })
 
