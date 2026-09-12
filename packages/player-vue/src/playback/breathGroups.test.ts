@@ -63,9 +63,41 @@ const CONTRACT = {
   ends: [0.55, 1.08, 1.3, 1.7],
 }
 
+// The first LIVE #407 row: course_audio 04f7c18e-9688-4a11-bd78-9160df55768b
+// (zzz_test2_for_eng), word_timings verbatim as read on 2026-09-12 — seconds,
+// punctuation attached to the words rather than tokenised on its own.
+const LIVE_407_ROW = {
+  id: '04f7c18e-9688-4a11-bd78-9160df55768b',
+  text: 'A black coffee, please.',
+  word_boundaries: null,
+  word_timings: {
+    source: 'cartesia',
+    words: ['A', 'black', 'coffee,', 'please.'],
+    starts: [0.04, 0.12, 0.52, 0.841],
+    ends: [0.12, 0.44, 0.84, 1.32],
+  },
+}
+
 describe('normaliseWordTimings', () => {
   it('accepts the #407 contract shape as-is (seconds)', () => {
     expect(normaliseWordTimings(CONTRACT)).toEqual({ words: CONTRACT.words, starts: CONTRACT.starts, ends: CONTRACT.ends })
+  })
+  it('accepts the live Cartesia row exactly as course_audio.word_timings carries it', () => {
+    const t = normaliseWordTimings(LIVE_407_ROW.word_timings)
+    expect(t).toEqual({
+      words: ['A', 'black', 'coffee,', 'please.'],
+      starts: [0.04, 0.12, 0.52, 0.841],
+      ends: [0.12, 0.44, 0.84, 1.32],
+    })
+    // One breath (largest gap is 80 ms at "coffee, please"): the attached
+    // punctuation does not fool the alignment, the group takes the sentence's
+    // own text, and breathGroupsForClip stays null as it does for every
+    // single-breath sentence (the existing card renders unchanged).
+    const groups = alignBreathGroups(buildBreathGroups(t!), t!, LIVE_407_ROW.text)
+    expect(groups.map((g) => g.text)).toEqual(['A black coffee, please.'])
+    expect(groups[0].start).toBeCloseTo(0.04, 3)
+    expect(groups[0].end).toBeCloseTo(1.32, 3)
+    expect(breathGroupsForClip(LIVE_407_ROW.word_timings, LIVE_407_ROW.text)).toBeNull()
   })
   it('converts the Azure word_boundaries shape to seconds and folds punctuation into the word before it', () => {
     const t = normaliseWordTimings(SPA_ONE_BREATH_AZURE)!

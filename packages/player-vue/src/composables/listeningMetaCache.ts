@@ -368,9 +368,11 @@ const POD_ROW_COLUMNS =
 
 /** Column list for the pod CLIP read (split-clip texts + word timings) —
  *  shared with useListeningPods so online and offline read the same shape.
- *  `word_boundaries` is the column that exists today (Azure shape); the #407
- *  `word_timings` column joins this list when its migration lands. */
-export const POD_CLIP_COLUMNS = 'id, text, word_boundaries'
+ *  `word_boundaries` is the Azure shape; `word_timings` is the #407 contract
+ *  column, live on course_audio since 2026-09-12 and written by Cartesia-minted
+ *  pod clips. There was no backfill, so every older clip carries NULL there
+ *  and falls through to `word_boundaries` in readClipTimings. */
+export const POD_CLIP_COLUMNS = 'id, text, word_boundaries, word_timings'
 
 /** The timing payload of one course_audio row, whichever column carries it.
  *  The #407 contract column wins when present; the Azure boundaries are the

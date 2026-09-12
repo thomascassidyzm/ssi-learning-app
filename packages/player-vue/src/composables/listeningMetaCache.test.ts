@@ -24,6 +24,8 @@ import {
   collectListeningMetaAudioIds,
   refreshListeningMetaIfStale,
   isCachedListeningMetaStale,
+  POD_CLIP_COLUMNS,
+  readClipTimings,
 } from './listeningMetaCache'
 import { openDB } from 'idb'
 import { useListeningPods, type UseListeningPodsReturn } from './useListeningPods'
@@ -354,6 +356,21 @@ describe('self-healing snapshot (no META_VERSION)', () => {
 
   it('never reports stale for a course that was never downloaded', async () => {
     expect(await isCachedListeningMetaStale('never_downloaded_at_all')).toBe(false)
+  })
+})
+
+describe('POD_CLIP_COLUMNS + readClipTimings — the #407 column is requested and wins', () => {
+  it('requests word_timings alongside word_boundaries', () => {
+    expect(POD_CLIP_COLUMNS.split(',').map((c) => c.trim())).toEqual(['id', 'text', 'word_boundaries', 'word_timings'])
+  })
+  it('prefers a live Cartesia word_timings payload and falls back to word_boundaries when it is NULL', () => {
+    // course_audio 04f7c18e-9688-4a11-bd78-9160df55768b (zzz_test2_for_eng), verbatim 2026-09-12.
+    const cartesia = { source: 'cartesia', words: ['A', 'black', 'coffee,', 'please.'], starts: [0.04, 0.12, 0.52, 0.841], ends: [0.12, 0.44, 0.84, 1.32] }
+    const azure = [{ text: 'Hola', offset: 50, duration: 300 }]
+    expect(readClipTimings({ word_timings: cartesia, word_boundaries: azure })).toBe(cartesia)
+    // Older clips: no backfill, so word_timings is NULL and Azure still serves.
+    expect(readClipTimings({ word_timings: null, word_boundaries: azure })).toBe(azure)
+    expect(readClipTimings({ word_timings: null, word_boundaries: null })).toBeNull()
   })
 })
 
