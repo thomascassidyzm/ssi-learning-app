@@ -1258,7 +1258,12 @@ Intelligence: the ten questions on one row, grouped by scope in the ScopeRail's 
 Everyone / One person / One organisation, parted by quiet rules rather than labels. `/admin/*` is
 Admin: Structure, People, Tools. The switch sits where the wordmark meets the tabs; Intelligence
 lands on `/intel/pulse`, Admin on `/admin/structure`. View-as and Refresh are controls, not
-destinations, and stay right-anchored in both modes. "Organisations" now means one thing: question
+destinations, and keep their right-anchored slot in both modes; Refresh itself renders only on a
+page that registers a refresh handler, which today means the Admin pages, since no Intelligence
+view registers one. (Corrected by job #361 on 2026-09-12: this entry first said both controls
+"stay right-anchored in both modes", read as Refresh being visible in both, which Astra refuted
+and a grep confirmed. Registering handlers in the Intelligence views would be page content, which
+#340 did not touch.) "Organisations" now means one thing: question
 10's sentence. Its tab reads "One organisation"; its path is unchanged. No route was renamed and no
 page content was touched.
 

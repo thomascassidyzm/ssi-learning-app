@@ -27,7 +27,9 @@
  *   notes, the invites audit list, the methodology papers and the Handbook.
  * The switch sits where the wordmark meets the tabs; Intelligence lands on
  * /intel/pulse, Admin on /admin/structure. View-as and Refresh are controls,
- * not destinations, and stay right-anchored in both modes. Below the collapse
+ * not destinations, and keep their right-anchored slot in both modes; Refresh
+ * only renders on a page that registers a handler with useDashboardRefresh,
+ * which today is the Admin pages, none of the Intelligence views. Below the collapse
  * width (1380px for the ten-tab Intelligence row, 1180px for Admin) the
  * switch stays and the CURRENT mode's destinations collapse into one menu
  * whose trigger names the current section, so "where am I" survives.
