@@ -14,16 +14,18 @@
  * to ask. "Just what I can do" is a one-tap narrowing, never the default.
  */
 import { ref, computed, watch, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useI18n } from '@/composables/useI18n'
 import {
   handbookEntries, handbookSections, searchHandbook, viewerPersona, isMine, badgesFor, placeLink,
   type HandbookEntry,
 } from '@/walkthrough/handbook'
+import { walkById, deferWalk, type Walk } from '@/walkthrough/useWalkthrough'
 
 const { t } = useI18n()
 const route = useRoute()
+const router = useRouter()
 const { currentUser } = useSchoolContext()
 
 const persona = computed(() => viewerPersona(
@@ -92,6 +94,35 @@ const nodeId = computed(() => currentUser.value?.group_id || currentUser.value?.
 function goTo(entry: HandbookEntry): string | null {
   return placeLink(entry, nodeId.value)
 }
+
+// THE CLIP, WHERE ONE EXISTS (job #302, 2026-09-12). Tom: "the How This
+// Works clips don't surface in the handbook". An entry whose capability has
+// a walk in the pack offers it here with the same words the How-this-works
+// panel uses, under the same rule that panel applies: only where the walk is
+// for the reader's own persona, because a walk steps real anchors and a
+// school admin's walk would point a teacher at controls they do not have.
+// The walk cannot run on this page — its anchors live on the page the
+// capability lives on — so the tap defers it and goes there; the place's own
+// "Show me" surface claims it on mount and it runs on real data. Nothing
+// here ever plays without that tap.
+function walkFor(entry: HandbookEntry): Walk | null {
+  if (!entry.walk) return null
+  const walk = walkById(entry.walk)
+  return walk && walk.personas.includes(persona.value) ? walk : null
+}
+
+function showMeTo(entry: HandbookEntry): string | null {
+  const walk = walkFor(entry)
+  return walk ? placeLink({ ...entry, place: walk.place }, nodeId.value) : null
+}
+
+async function showMe(entry: HandbookEntry): Promise<void> {
+  const walk = walkFor(entry)
+  const to = showMeTo(entry)
+  if (!walk || !to) return
+  deferWalk(walk.id)
+  await router.push(to)
+}
 </script>
 
 <template>
@@ -151,7 +182,14 @@ function goTo(entry: HandbookEntry): string | null {
               <!-- eslint-disable-next-line vue/no-v-html — compiled repo prose, escaped in md() -->
               <p class="entry-p" v-html="md(e.note)"></p>
             </template>
-            <router-link v-if="goTo(e)" class="btn-play entry-goto" :to="goTo(e)!">{{ t('schools.handbookPage.takeMeThere', 'Take me there') }}</router-link>
+            <div class="entry-actions">
+              <button
+                v-if="walkFor(e) && showMeTo(e)" type="button" class="btn-play entry-showme"
+                :data-walk-offer="walkFor(e)!.id"
+                @click="showMe(e)"
+              >{{ t('org.ui.howThisWorks.showMe', 'Show me — {title}').replace('{title}', walkFor(e)!.title) }}</button>
+              <router-link v-if="goTo(e)" class="entry-goto" :class="walkFor(e) && showMeTo(e) ? 'btn-ghost' : 'btn-play'" :to="goTo(e)!">{{ t('schools.handbookPage.takeMeThere', 'Take me there') }}</router-link>
+            </div>
           </div>
         </article>
       </div>
@@ -214,5 +252,7 @@ function goTo(entry: HandbookEntry): string | null {
 .entry-p :deep(strong), .entry-steps :deep(strong) { color: var(--schools-fg, #0F1212); font-weight: var(--font-semibold); }
 .entry-steps { margin: 0; padding-left: 1.4em; list-style: decimal; color: var(--schools-fg-2, #555); font-size: var(--text-sm); line-height: 1.6; }
 .entry-steps li { margin-bottom: 2px; }
-.entry-goto { margin-top: var(--space-4); align-self: flex-start; text-decoration: none; }
+.entry-actions { margin-top: var(--space-4); display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.entry-goto { text-decoration: none; }
+.entry-showme { font: inherit; cursor: pointer; }
 </style>

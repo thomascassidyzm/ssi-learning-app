@@ -15,6 +15,7 @@ import { handbookEntries, ROLE_BADGES } from '@/walkthrough/handbook'
 
 vi.mock('vue-router', () => ({
   useRoute: () => ({ name: 'schools-handbook', params: {}, query: {} }),
+  useRouter: () => ({ push: vi.fn(() => Promise.resolve()), replace: vi.fn() }),
   RouterLink: { name: 'RouterLink', props: ['to'], template: '<a><slot /></a>' },
 }))
 
