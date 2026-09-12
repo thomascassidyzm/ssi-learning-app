@@ -23,6 +23,8 @@ import { PodStateStore, dirFor } from '@ssi/core'
 import { getRevisedAudioRefs, stampRowAudioRefs, applyAudioRef } from '../providers/revisedAudioRefs'
 import { EASY_LISTENING_SPEED } from '../providers/toSimpleRounds'
 import { isOfflineish } from '../config/networkGate'
+import { offlineDlState, offlineDlDone, offlineDownloadActive } from '../composables/useOfflineDownloadStatus'
+import { groupScenesByPod, podAudioIds, cachedFraction, podReadiness } from '../composables/podReadiness'
 import { apiUrl } from '@/platform/apiBase'
 
 // ============================================================================
@@ -619,6 +621,63 @@ const courseCodeRef = computed(() => props.courseCode)
 const pods = useListeningPods(courseCodeRef)
 const selectedScene = ref(null)
 
+// Pod cards (job #428). The Dialogues tab opens on one card per pod slot the
+// course lists; tapping a card opens THAT pod's scene list. selectedPodId is
+// the open pod (null = cards visible). Derived from the scene list itself, so
+// offline it comes from the snapshot exactly as the flat list did, and a pod
+// the data does not list never gets a card.
+const selectedPodId = ref(null)
+const podCards = computed(() => groupScenesByPod(pods.scenes.value))
+const selectedPod = computed(() => podCards.value.find((c) => c.podId === selectedPodId.value) || null)
+/** The scenes the list, play-all and scene→scene continuation walk: the open
+ *  pod's, or every pod's when no pod is open (defensive; every path that opens
+ *  a scene goes through a card). */
+const podScenes = computed(() => (selectedPod.value ? selectedPod.value.scenes : pods.scenes.value))
+// `audioCache.has` is a synchronous, non-reactive Set read (see
+// availablePhrases). The card states re-read it whenever the shared download
+// counters move, the offline prop flips, or the learner comes back to the
+// cards (readinessTick) — no poller.
+const readinessTick = ref(0)
+const podStates = computed(() => {
+  void offlineDlDone.value
+  void offlineDlState.value
+  void readinessTick.value
+  void props.isOffline
+  const ctx = { downloadActive: offlineDownloadActive.value, offline: isOfflineish() }
+  const out = {}
+  for (const card of podCards.value) {
+    const fraction = cachedFraction(podAudioIds(card.scenes), (id) => audioCache.has(id))
+    out[card.podId] = { fraction, state: podReadiness(fraction, ctx) }
+  }
+  return out
+})
+const podState = (card) => podStates.value[card.podId]?.state || 'notYet'
+const podStateLabel = (card) => {
+  const st = podState(card)
+  return st === 'ready' ? t('listening.podReadyOffline') : st === 'downloading' ? t('listening.podDownloading') : t('listening.podNotYet')
+}
+// The pod's own title from the data; a row without one is named by its slot
+// in learner terms ("Pod 1"), never by an internal term.
+const podLabel = (card) => card.podTitle || t('listening.podFallbackTitle').replace('{n}', String(card.podIndex + 1))
+const podScenesLabel = (card) => t('listening.podScenesCount').replace('{n}', String(card.sceneCount))
+/** Offline, the open pod has not one clip on the device: show the existing
+ *  offline message in place of a list that could only play silence. */
+const podNothingListenable = computed(() =>
+  !!selectedPod.value && isOfflineish() && (podStates.value[selectedPod.value.podId]?.fraction || 0) === 0,
+)
+const openPod = (card) => {
+  stopPlayback()
+  selectedScene.value = null
+  selectedPodId.value = card.podId
+  readinessTick.value += 1
+}
+const exitPod = () => {
+  stopPlayback()
+  selectedScene.value = null
+  selectedPodId.value = null
+  readinessTick.value += 1
+}
+
 // A course whose pod-0 holds no sentences has no Dialogues to offer, so the
 // tab is HIDDEN rather than shown leading to an empty shelf (Tom 2026-08-08:
 // the pod is hidden while it's ungated, never offered-but-empty). General
@@ -889,6 +948,7 @@ const setView = (v) => {
   if (view.value === v) return
   stopPlayback()
   selectedScene.value = null
+  selectedPodId.value = null
   view.value = v
   allPhrases.value = []
   loadedCount.value = 0
@@ -1320,7 +1380,7 @@ const warmScene = (scene) => {
 
 const prefetchNextSceneHead = () => {
   if (view.value !== 'pods' || !selectedScene.value || loopScene.value) return
-  const sceneList = pods.scenes.value
+  const sceneList = podScenes.value
   const idx = sceneList.findIndex(s => s.sceneKey === selectedScene.value.sceneKey)
   const next = idx >= 0 ? (sceneList[idx + 1] || sceneList[0]) : null
   if (!next || next.sceneKey === selectedScene.value.sceneKey) return
@@ -1676,7 +1736,10 @@ const handleEndOfList = async (myPlaybackId) => {
   // to the next scene, depending on the loop toggle. Default is auto-
   // advance — the whole pod plays through as a continuous session.
   if (view.value === 'pods' && selectedScene.value && !loopScene.value) {
-    const sceneList = pods.scenes.value
+    // Scoped to the OPEN POD (job #428): a learner who chose a pod plays that
+    // pod, so the playlist wraps within it rather than segueing into the
+    // next pod as the flat list did (job #354).
+    const sceneList = podScenes.value
     // Match by sceneKey (pod-qualified) — PodScene has no `id` field, and
     // the old `s.id === selectedScene.id` compared undefined===undefined,
     // which matched index 0 and made EVERY scene "advance" to scene 2.
@@ -1735,7 +1798,7 @@ const togglePlayback = () => {
  *  through — handleEndOfList already segues scene→scene (loop off), so the
  *  whole pod plays end-to-end as one continuous session. */
 const playAllScenes = async () => {
-  const sceneList = pods.scenes.value
+  const sceneList = podScenes.value
   if (!sceneList || sceneList.length === 0) return
   loopScene.value = false
   openScene(sceneList[0])
@@ -2029,10 +2092,10 @@ watch(
     <!-- Back to scene list — mirrors the close circle at the opposite corner,
          so the top band reads: [back] [tabs] [close]. -->
     <button
-      v-if="view === 'pods' && selectedScene"
+      v-if="view === 'pods' && (selectedScene || selectedPod)"
       class="close-btn back-fab"
-      :title="`Back to scenes — ${selectedScene.title}`"
-      @click.stop="exitScene"
+      :title="selectedScene ? `Back to scenes — ${selectedScene.title}` : 'Back to pods'"
+      @click.stop="selectedScene ? exitScene() : exitPod()"
     >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="15 18 9 12 15 6"/>
@@ -2093,49 +2156,77 @@ watch(
         <p>{{ t('listening.noPodsCourseYet') }}</p>
       </div>
       <div v-else class="scene-list">
-        <!-- Play all scenes end-to-end (Aran 2026-06-29) — opens scene 1 and
-             segues through every scene as one continuous session. -->
-        <button class="scene-play-all" type="button" @click="playAllScenes">
-          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-            <polygon points="7 3 20 12 7 21 7 3"/>
-          </svg>
-          {{ t('listening.playAllScenes') }}
-        </button>
-        <template v-for="(scene, i) in pods.scenes.value" :key="scene.sceneKey">
-          <!-- Group heading when the course lists more than one pod (the
-               served pod, then the method pod — job #354). The heading is the
-               pod's own title from the data, so no internal term is minted
-               here; a single-pod course shows no heading at all. -->
-          <div
-            v-if="pods.scenes.value[pods.scenes.value.length - 1].podIndex > 0 && (i === 0 || pods.scenes.value[i - 1].podId !== scene.podId)"
-            class="scene-group-heading"
-          >{{ scene.podTitle || '' }}</div>
-        <button
-          class="scene-card"
-          type="button"
-          @click="openScene(scene)"
-        >
-          <div class="scene-card-num">{{ scene.sceneNumber }}</div>
-          <div class="scene-card-body">
-            <div class="scene-card-title">{{ scene.title }}</div>
-            <div class="scene-card-meta">
-              <!-- Cast dots — one per character, in their conversation colour -->
-              <span class="scene-card-cast">
-                <span
-                  v-for="sp in scene.speakers"
-                  :key="sp.name"
-                  class="scene-cast-dot"
-                  :style="{ background: SPEAKER_PALETTE[sp.colorIndex % SPEAKER_PALETTE.length] }"
-                  :title="sp.name"
-                ></span>
-              </span>
-              {{ scene.sentenceCount }} sentences
+        <!-- Pod cards (job #428): one per pod slot the course lists, in list
+             order, each carrying its offline-readiness state. A single-pod
+             course still shows its one card — the card is where the state
+             lives. Tapping a card opens that pod's scene list alone. -->
+        <template v-if="!selectedPod">
+          <button
+            v-for="card in podCards"
+            :key="card.podId"
+            class="scene-card pod-card"
+            type="button"
+            @click="openPod(card)"
+          >
+            <div class="scene-card-body">
+              <div class="scene-card-title pod-card-title">{{ podLabel(card) }}</div>
+              <div class="scene-card-meta">
+                {{ podScenesLabel(card) }}
+                <span class="pod-chip" :class="podState(card)">{{ podStateLabel(card) }}</span>
+              </div>
             </div>
+            <svg class="scene-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
+        </template>
+        <template v-else>
+          <!-- The open pod's own title, so the learner knows which pod this
+               list belongs to; the back control is the top-left circle. -->
+          <div class="scene-group-heading">{{ podLabel(selectedPod) }}</div>
+          <!-- Offline with nothing of this pod on the device: the existing
+               offline message, per pod, instead of a silent list. -->
+          <div v-if="podNothingListenable" class="error pod-offline-empty">
+            <p>{{ t('listening.noneSavedDeviceYet') }}</p>
           </div>
-          <svg class="scene-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="9 18 15 12 9 6"/>
-          </svg>
-        </button>
+          <template v-else>
+            <!-- Play all of THIS pod's scenes end-to-end (Aran 2026-06-29) —
+                 opens scene 1 and segues through the pod as one session. -->
+            <button class="scene-play-all" type="button" @click="playAllScenes">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <polygon points="7 3 20 12 7 21 7 3"/>
+              </svg>
+              {{ t('listening.playAllScenes') }}
+            </button>
+            <button
+              v-for="scene in podScenes"
+              :key="scene.sceneKey"
+              class="scene-card"
+              type="button"
+              @click="openScene(scene)"
+            >
+              <div class="scene-card-num">{{ scene.sceneNumber }}</div>
+              <div class="scene-card-body">
+                <div class="scene-card-title">{{ scene.title }}</div>
+                <div class="scene-card-meta">
+                  <!-- Cast dots — one per character, in their conversation colour -->
+                  <span class="scene-card-cast">
+                    <span
+                      v-for="sp in scene.speakers"
+                      :key="sp.name"
+                      class="scene-cast-dot"
+                      :style="{ background: SPEAKER_PALETTE[sp.colorIndex % SPEAKER_PALETTE.length] }"
+                      :title="sp.name"
+                    ></span>
+                  </span>
+                  {{ scene.sentenceCount }} sentences
+                </div>
+              </div>
+              <svg class="scene-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            </button>
+          </template>
         </template>
       </div>
     </div>
@@ -3058,6 +3149,33 @@ watch(
   color: var(--text-muted);
 }
 .scene-group-heading:first-child { margin-top: 0; }
+
+/* Pod cards (job #428) — same family as the scene cards, stacked full-width
+ * so a long pod title ("Italian Listening Pods — Pod 1") has room to read. */
+.pod-card { padding: 1.1rem 1.1rem; }
+.pod-card-title { white-space: normal; }
+.pod-offline-empty { margin: 0; }
+/* Readiness chip — a word, not a bar and not a percentage. */
+.pod-chip {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-muted);
+}
+/* Ink fill, not belt colour — a belt-colour fill vanishes on white belt. */
+.pod-chip.ready {
+  background: var(--text-primary);
+  color: var(--bg-primary, #ffffff);
+}
+.pod-chip.downloading {
+  border: 1px solid var(--text-primary);
+  background: transparent;
+  color: var(--text-primary);
+}
 
 .scene-play-all {
   display: flex;

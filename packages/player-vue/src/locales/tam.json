@@ -695,7 +695,12 @@
     "playAllScenes": "எல்லா காட்சிகளையும் இயக்கு",
     "speed": "வேகம்",
     "noneSavedDeviceYet": "இதில் எதுவும் இன்னும் உங்கள் சாதனத்தில் சேமிக்கப்படவில்லை, எனவே ஆஃப்லைனில் கேட்க எதுவும் இல்லை. ஒருமுறை இணைந்து ஆஃப்லைனுக்காக பதிவிறக்கவும், அதை உங்களுடன் கொண்டு செல்ல.",
-    "tapPlay": "இயக்க தட்டவும்"
+    "tapPlay": "இயக்க தட்டவும்",
+    "podFallbackTitle": "Pod {n}",
+    "podScenesCount": "{n} scenes",
+    "podReadyOffline": "Ready offline",
+    "podDownloading": "Downloading",
+    "podNotYet": "Not yet"
   },
   "progress": {
     "infinitePlayRandomReview": "முடிவற்ற பிளே — நீங்கள் கற்றுக்கொண்ட அனைத்தையும் சீரற்ற முறையில் மீளாய்வு செய்தல்",

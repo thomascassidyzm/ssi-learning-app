@@ -695,7 +695,12 @@
     "playAllScenes": "모든 장면 재생하기",
     "speed": "속도",
     "noneSavedDeviceYet": "아직 기기에 저장된 내용이 없어서 오프라인으로 들을 수 있는 게 없어요. 한 번 연결해서 오프라인용으로 다운로드해 가져가세요.",
-    "tapPlay": "탭해서 재생"
+    "tapPlay": "탭해서 재생",
+    "podFallbackTitle": "Pod {n}",
+    "podScenesCount": "{n} scenes",
+    "podReadyOffline": "Ready offline",
+    "podDownloading": "Downloading",
+    "podNotYet": "Not yet"
   },
   "progress": {
     "infinitePlayRandomReview": "무한 재생 — 지금까지 배운 모든 내용을 무작위로 복습해요",

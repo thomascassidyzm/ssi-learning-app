@@ -695,7 +695,12 @@
     "playAllScenes": "تشغيل كل المشاهد",
     "speed": "السرعة",
     "noneSavedDeviceYet": "لم يُحفظ أي من هذا على جهازك بعد، لذا لا يوجد ما تستمع إليه دون اتصال. اتصل مرة واحدة ونزّل للاستخدام دون اتصال لتحمله معك.",
-    "tapPlay": "اضغط للتشغيل"
+    "tapPlay": "اضغط للتشغيل",
+    "podFallbackTitle": "Pod {n}",
+    "podScenesCount": "{n} scenes",
+    "podReadyOffline": "Ready offline",
+    "podDownloading": "Downloading",
+    "podNotYet": "Not yet"
   },
   "progress": {
     "infinitePlayRandomReview": "التشغيل اللانهائي — مراجعة عشوائية لكل ما تعلّمته",

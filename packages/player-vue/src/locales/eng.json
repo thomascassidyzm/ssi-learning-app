@@ -800,7 +800,12 @@
     "playAllScenes": "Play all scenes",
     "speed": "Speed",
     "noneSavedDeviceYet": "None of this is saved on your device yet, so there's nothing to listen to offline. Connect once and download for offline to bring it with you.",
-    "tapPlay": "Tap to play"
+    "tapPlay": "Tap to play",
+    "podFallbackTitle": "Pod {n}",
+    "podScenesCount": "{n} scenes",
+    "podReadyOffline": "Ready offline",
+    "podDownloading": "Downloading",
+    "podNotYet": "Not yet"
   },
   "progress": {
     "infinitePlayRandomReview": "Infinite play — random review of everything you've learned",

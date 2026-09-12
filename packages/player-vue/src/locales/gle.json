@@ -695,7 +695,12 @@
     "playAllScenes": "Seinn gach radharc",
     "speed": "Luas",
     "noneSavedDeviceYet": "Níl aon cheann de seo sábháilte ar do ghléas fós, mar sin níl aon rud le héisteacht as líne. Ceangail uair amháin agus íoslódáil le haghaidh úsáid as líne chun é a bhreith leat.",
-    "tapPlay": "Tapáil chun é a sheinm"
+    "tapPlay": "Tapáil chun é a sheinm",
+    "podFallbackTitle": "Pod {n}",
+    "podScenesCount": "{n} scenes",
+    "podReadyOffline": "Ready offline",
+    "podDownloading": "Downloading",
+    "podNotYet": "Not yet"
   },
   "progress": {
     "infinitePlayRandomReview": "Seinm gan teorainn — athbhreithniú randamach ar gach rud atá foghlamtha agat",

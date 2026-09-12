@@ -695,7 +695,12 @@
     "playAllScenes": "Groti visas scenas",
     "speed": "Greitis",
     "noneSavedDeviceYet": "Nieko iš to dar neišsaugota jūsų įrenginyje, tad klausytis neprisijungus nėra ko. Prisijunkite kartą ir atsisiųskite naudojimui neprisijungus.",
-    "tapPlay": "Palieskite, kad paleistumėte"
+    "tapPlay": "Palieskite, kad paleistumėte",
+    "podFallbackTitle": "Pod {n}",
+    "podScenesCount": "{n} scenes",
+    "podReadyOffline": "Ready offline",
+    "podDownloading": "Downloading",
+    "podNotYet": "Not yet"
   },
   "progress": {
     "infinitePlayRandomReview": "Begalinis grojimas — atsitiktinė viso to, ko išmokote, apžvalga",

@@ -693,7 +693,12 @@
     "playAllScenes": "ಎಲ್ಲಾ ದೃಶ್ಯಗಳನ್ನು ಪ್ಲೇ ಮಾಡಿ",
     "speed": "ವೇಗ",
     "noneSavedDeviceYet": "ಇದರಲ್ಲಿ ಯಾವುದೂ ಇನ್ನೂ ನಿಮ್ಮ ಸಾಧನದಲ್ಲಿ ಉಳಿಸಿಲ್ಲ, ಹಾಗಾಗಿ ಆಫ್‌ಲೈನ್‌ನಲ್ಲಿ ಕೇಳಲು ಏನೂ ಇಲ್ಲ. ಒಮ್ಮೆ ಸಂಪರ್ಕಿಸಿ ಮತ್ತು ಜೊತೆಗೆ ಒಯ್ಯಲು ಆಫ್‌ಲೈನ್‌ಗಾಗಿ ಡೌನ್‌ಲೋಡ್ ಮಾಡಿ.",
-    "tapPlay": "ಪ್ಲೇ ಮಾಡಲು ಟ್ಯಾಪ್ ಮಾಡಿ"
+    "tapPlay": "ಪ್ಲೇ ಮಾಡಲು ಟ್ಯಾಪ್ ಮಾಡಿ",
+    "podFallbackTitle": "Pod {n}",
+    "podScenesCount": "{n} scenes",
+    "podReadyOffline": "Ready offline",
+    "podDownloading": "Downloading",
+    "podNotYet": "Not yet"
   },
   "progress": {
     "infinitePlayRandomReview": "ಅನಂತ ಪ್ಲೇ — ನೀವು ಕಲಿತ ಎಲ್ಲದರ ಯಾದೃಚ್ಛಿಕ ಪುನರ್ವಿಮರ್ಶೆ",

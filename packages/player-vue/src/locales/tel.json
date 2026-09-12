@@ -695,7 +695,12 @@
     "noneSavedDeviceYet": "ఇది ఇంకా మీ పరికరంలో భద్రపరచబడలేదు, కాబట్టి ఆఫ్‌లైన్‌లో వినడానికి ఏమీ లేదు. ఒకసారి కనెక్ట్ అయి, ఆఫ్‌లైన్ కోసం డౌన్‌లోడ్ చేసి దాన్ని మీతో తీసుకెళ్లండి.",
     "playAllScenes": "అన్ని సన్నివేశాలను ప్లే చేయండి",
     "speed": "వేగం",
-    "tapPlay": "ప్లే చేయడానికి ట్యాప్ చేయండి"
+    "tapPlay": "ప్లే చేయడానికి ట్యాప్ చేయండి",
+    "podFallbackTitle": "Pod {n}",
+    "podScenesCount": "{n} scenes",
+    "podReadyOffline": "Ready offline",
+    "podDownloading": "Downloading",
+    "podNotYet": "Not yet"
   },
   "me": {
     "allThreeGo": "మూడూ సిద్ధంగా ఉన్నాయి.",
