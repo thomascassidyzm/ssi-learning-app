@@ -1442,3 +1442,39 @@ failure with a live network; with the stale-shell trigger gone its remaining tri
 breakage. Whether a heal should keep the precache when a precached shell exists is a separate
 design question, noted, not taken here. Not verified: iOS itself — no device or simulator on this
 box; the reproduction is headless Chromium against the same worker code.
+## 2026-09-12 — Immersion keeps pace inside the sentence by BREATH GROUP, from the clip's own timings (job #408)
+
+**Why.** Tom, RBF room: "for longer sentences it really doesn't show the word by word, or even the
+chunk by chunk breakdown… Pods are never cut below the sentence. So that means we'd have to use
+the timings within the sentence… Immersion only, where the only tracker is the target sentence…
+think about how to switch off the translations in immersion as well." The reference is Spotify's
+podcast transcript: the line being spoken lit, lines said white, lines to come dim, nothing else.
+
+**Decision.** `playback/breathGroups.ts` turns a clip's word timings into breath groups: a run of
+words with no pause between them, a pause being a gap from one word's end to the next word's start
+of 250 ms or more. The threshold is read off the data, not chosen: across 6,036 pod target clips
+with Azure word boundaries (55,368 gaps) the gaps inside a phrase sit at 0–100 ms and the real
+pauses at 400 ms and up, with an empty band between; 250 ms is its floor. Nothing tokenises below
+the ear. Two raw shapes normalise to one: the #407 contract (`{source, words, starts, ends}`,
+seconds) and the Azure `course_audio.word_boundaries` already on 1.5M rows (ms, punctuation as
+tokens, folded into the word before). Group text is a slice of the pod row's own sentence text,
+aligned word by word, so a render-text drift ("cansado" in the clip, "cansada" on the row, "…"
+pause markers) never reaches the screen. The tracked card is a stack — said in secondary, lit in
+primary, ahead in muted — and the lit group's text is painted up to `--fill` with the clip's media
+clock, read off the shared Audio element per animation frame; media time, so speed costs nothing.
+
+**One condition.** A sentence with one breath group, a clip with no timings, the 19 degenerate
+all-zero rows, Drill, Core, All: `trackerGroupsFor` is null and the existing card renders exactly as
+before. `ListeningOverlay.breathTracker.test.ts` pins the Drill fusion-strip block byte-for-byte.
+
+**Translations in Immersion.** OFF by default, on their own persisted eye state
+(`ssi-listening-gloss-immersion`) so the shared eye never leaks a habit in. Two single taps and no
+other affordance: the eye shows every gloss for the sitting; a tap on the card that is sounding
+reveals that one line until the next line sounds, and no longer restarts the line. Tom redlines
+both by feel on staging.
+
+**Data path.** The pod clip read (`POD_CLIP_COLUMNS`, shared by the online loader and the offline
+snapshot) now also fetches whole-turn target clips for their timings; timings ride in the same
+IndexedDB snapshot as `clipTimings`, no cache of their own, and a snapshot written before this
+simply has none until its next refresh. When #407's `word_timings` column lands it joins that
+column list and `readClipTimings` already prefers it over `word_boundaries`.

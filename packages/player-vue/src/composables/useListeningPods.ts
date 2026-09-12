@@ -23,7 +23,7 @@ import { ref, watch, inject, type Ref } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { splitRowUnits } from './podSentenceSplit'
 import { baseSlate, continuationsByBranch, type SlateRow, type PodContinuation } from './podSlate'
-import { getCachedListeningMeta, retryListeningReadOrThrow, clearCachedListeningPodRows, type CachedPodRow } from './listeningMetaCache'
+import { getCachedListeningMeta, retryListeningReadOrThrow, clearCachedListeningPodRows, POD_CLIP_COLUMNS, readClipTimings, type CachedPodRow } from './listeningMetaCache'
 import { resolveListeningPods } from './servedPod'
 import { buildFusionGroups, type FusionGroup } from '@ssi/core/pods'
 import { getRevisedAudioRefs, stampRowAudioRefs, bareAudioId } from '../providers/revisedAudioRefs'
@@ -54,6 +54,11 @@ export interface PodSentence {
    *  main-flow maturity floor: completed = max(0, completed_pod_rounds −
    *  ordinal + 1). */
   podOrdinal: number
+  /** Word timings of the TARGET clip, as stored (the #407 contract shape or
+   *  the Azure word_boundaries shape) — the Immersion tracker's raw material
+   *  (playback/breathGroups.ts normalises it). Null for clips without
+   *  timings, which render exactly as before. */
+  wordTimings: unknown | null
 }
 
 /**
@@ -182,7 +187,7 @@ export function useListeningPods(
 
     /** One pod's rows, in list order (served pod first). */
     type LoadedPod = { podId: string; slug: string; title: string | null; rows: any[] }
-    type Loaded = { pods: LoadedPod[]; textById: Map<string, string> }
+    type Loaded = { pods: LoadedPod[]; textById: Map<string, string>; timingsById: Map<string, unknown> }
 
     // Offline fallback: rows + split-clip texts from the metadata persisted
     // by the deliberate offline download. Null when never downloaded.
@@ -213,7 +218,13 @@ export function useListeningPods(
           rows: (e.podRows || []) as CachedPodRow[],
         })),
       ]
-      return { pods, textById: new Map(Object.entries(cached.clipTexts)) }
+      return {
+        pods,
+        textById: new Map(Object.entries(cached.clipTexts)),
+        // Absent on snapshots written before the tracker existed → no
+        // timings offline until the next refresh, i.e. the pre-tracker render.
+        timingsById: new Map(Object.entries(cached.clipTimings || {})),
+      }
     }
 
     // Live fetch. Throws on any query error (offline, RLS, transient) so the
@@ -249,27 +260,41 @@ export function useListeningPods(
       // turn. Batch-load every split clip's text for this pod (chunked to keep the
       // PostgREST `in()` URL short).
       const clipIds = new Set<string>()
+      // Whole-turn target clips ride the same read for their WORD TIMINGS
+      // (the Immersion tracker, job #408). They never enter textById's
+      // existence oracle — splitRowUnits only consults it for split ids.
+      const turnClipIds = new Set<string>()
       for (const row of rows) {
         for (const id of (row.sentence_audio_ids || [])) if (id) clipIds.add(id)
         for (const id of (row.sentence_known_audio_ids || [])) if (id) clipIds.add(id)
+        if (row.target_audio_id) turnClipIds.add(row.target_audio_id)
       }
       // The ids now carry `.vN` but course_audio is keyed by the BARE uuid, so
       // query bare and key the result by the stamped ref — textById is looked
       // up with the same (stamped) id that rides on the row.
       const textById = new Map<string, string>()
+      const timingsById = new Map<string, unknown>()
       const stampedByBare = new Map(Array.from(clipIds).map((ref) => [bareAudioId(ref), ref]))
-      const idArr = Array.from(stampedByBare.keys())
+      const turnStampedByBare = new Map(Array.from(turnClipIds).map((ref) => [bareAudioId(ref), ref]))
+      const idArr = Array.from(new Set([...stampedByBare.keys(), ...turnStampedByBare.keys()]))
       for (let i = 0; i < idArr.length; i += 150) {
         const { data: clips, error: clipErr } = await supabase
           .from('course_audio')
-          .select('id, text')
+          .select(POD_CLIP_COLUMNS)
           .in('id', idArr.slice(i, i + 150))
         if (clipErr) throw new Error(`split-clip texts: ${clipErr.message}`)
-        // Record EVERY returned id (even empty text) — textById doubles as the
-        // existence oracle splitRowUnits uses to drop stale split slices.
-        for (const c of clips || []) textById.set(stampedByBare.get(c.id) ?? c.id, c.text || '')
+        for (const c of clips || []) {
+          // Record EVERY returned split id (even empty text) — textById doubles
+          // as the existence oracle splitRowUnits uses to drop stale split slices.
+          const splitRef = stampedByBare.get(c.id)
+          if (splitRef) textById.set(splitRef, c.text || '')
+          const timings = readClipTimings(c)
+          if (timings) {
+            for (const ref of [splitRef, turnStampedByBare.get(c.id)]) if (ref) timingsById.set(ref, timings)
+          }
+        }
       }
-      return { pods, textById }
+      return { pods, textById, timingsById }
     }
 
     try {
@@ -304,7 +329,7 @@ export function useListeningPods(
           console.warn('[useListeningPods] live fetch failed — using offline metadata cache:', netErr)
         }
       }
-      const { pods: loadedPods, textById } = loaded
+      const { pods: loadedPods, textById, timingsById } = loaded
       if (myFetch !== activeFetch) return
 
       // The course has no pod live. Bin any offline snapshot so the withdrawn
@@ -318,7 +343,7 @@ export function useListeningPods(
       const sceneList: PodScene[] = []
       const mergedContinuations = new Map<string, Array<PodContinuation<SlateRow>>>()
       loadedPods.forEach((pod, podIndex) => {
-        const built = buildPodScenes(pod.rows, textById, {
+        const built = buildPodScenes(pod.rows, textById, timingsById, {
           podId: pod.podId,
           podSlug: pod.slug,
           podIndex,
@@ -383,6 +408,7 @@ export function useListeningPods(
 function buildPodScenes(
   data: any[],
   textById: Map<string, string>,
+  timingsById: Map<string, unknown>,
   pod: { podId: string; podSlug: string; podIndex: number; podTitle: string | null },
 ): { scenes: PodScene[]; continuations: Map<string, Array<PodContinuation<SlateRow>>> } {
   {
@@ -451,6 +477,7 @@ function buildPodScenes(
             fusionGroups: anchored && anchored.length ? anchored : null,
             fusionContinuation: continuation,
             podOrdinal: pod.podIndex === 0 ? podOrdinal + Math.min(u.index, bareCount - 1) : 0,
+            wordTimings: (u.targetAudioId && timingsById.get(u.targetAudioId)) || null,
           })
         }
         podOrdinal += bareCount
