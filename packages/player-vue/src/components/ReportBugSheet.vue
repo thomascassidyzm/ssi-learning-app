@@ -181,7 +181,10 @@ onBeforeUnmount(() => { if (closeTimer) clearTimeout(closeTimer) })
 .bug-scrim {
   position: fixed;
   inset: 0;
-  z-index: 1200;
+  /* Above the bottom nav (3000) and the player's overlays (up to 3200): the
+     sheet's Send sits where the nav's Play button is on a phone, and at 1200
+     a real tap reached Play, not Send (job #361, 2026-09-12). */
+  z-index: 3300;
   background: rgba(44, 38, 34, 0.45);
   display: flex;
   align-items: flex-end;
