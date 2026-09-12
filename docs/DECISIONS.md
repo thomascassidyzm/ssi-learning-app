@@ -1514,3 +1514,46 @@ order for free. No layout engine, no per-word painting.
 URL, and `fileURLToPath` threw at import, so none of its pins had run since #408 landed. It runs in
 the node environment now, as its sibling scope test does. The dead `audioMap` ref predates #408 and
 went with the same broom.
+
+## 2026-09-12 — Listening Mode tidy: one fetch-order primitive, one snapshot story, comments that match the code (job #429·F)
+
+**Commission.** Tom: "Listening Mode probably needs a Fable tidy up. Let's do these on dev so we can
+promote staging to main cleanly." Dev only, behaviour byte-identical, landed beside job #428's pod
+cards without touching the scene-list region they own. Inventory of the shape first, read-only:
+https://watson-1.tail4968cb.ts.net/d/736f4b9b — 18 items, no genuine bug found.
+
+**One fetch-order primitive.** #379's report said both fetch paths shared "one pure builder"; Astra's
+cold-verify read two. `playback/offlineDownloadOrder.ts` now has one, `orderTiers(...tiers)`, and
+`buildFetchAheadOrder` and `buildOfflineDownloadQueue` are typed views onto it. Order unchanged:
+head rounds, every pod slot, Layer-1, the course. Two comments in `LearningPlayer.vue` that still
+described the retired 2026-09-01 weave now cite #379; the code under them was already right. The
+APML fillBuffer entry said cycles-then-pods, the pre-#379 order; it now says what the code does.
+
+**One snapshot story.** `listeningMetaCache.ts` opens with the snapshot's life in order: write,
+first-write-on-boot with its heal, staleness, read, withdrawal. The #379 and #424 heal reasons are
+one named predicate, `snapshotListsEverySlot`, rather than two paragraphs of exception in the gate.
+`collectListeningMetaAudioIds` composes the pod collector instead of restating it, same ids in the
+same insertion order. In `servedPod.ts` the three degraded arms of `resolveListeningPods` read one
+snapshot helper instead of two cache reads each; the degraded mark is set exactly where it was.
+
+**Overlay, outside #428's region.** The always-true `showSpeedRow` computed and its `v-if` are gone.
+Two orphaned docblocks that described a pre-IndexedDB overlay and an 800 ms gap are replaced by one
+accurate line on each of the two functions they drifted away from. The play-loop comments name the
+`GAP_*` constants and the one-speed t·k·t·t Drill instead of 50/300/800 ms and 1×/2×/2×. The
+exposure-ramp header no longer calls the nine-stage pod playlist retired: it is DB-gated by
+`listeningUseStagePlaylist`, live true, as the vocabulary pointer already recorded.
+
+**Left alone, on purpose.** The three walkers of `podScheduler.podSentences` in `LearningPlayer.vue`
+carry three different field sets; unifying them changes a download's id set, so they stay and the
+inventory says so. `LISTEN_MODES` as a computed over a constant is cosmetic. The scene-list template
+and its script region are byte-identical for #428, and a dry merge of #428's branch onto this one
+auto-merged with no conflict.
+
+**Proof.** No test expectation edited. `offlineDownloadOrder.test.ts` gains one pin that each named
+builder equals `orderTiers` on the existing fixtures, which would have passed before the change.
+Scoped suites green: order and boundary 12, snapshot/servedPod/listening-pods 52, the four overlay
+pins plus the two ramp suites 110; all four overlay test files load and run. Typecheck clean, lint
+0 errors. `tools/vocabulary-pointers-check.mjs` exits zero: 30 pointers had drifted on dev before
+this job by line number only and were refreshed mechanically, and two whose deciding line had been
+reworded by #350 and #325 were re-pinned to the current line.
+
