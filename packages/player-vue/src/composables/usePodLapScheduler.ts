@@ -965,7 +965,17 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       // Listening mode. Applies on BOTH paths (one-mode and the retired
       // stage-playlist escape hatch): the ruling is about the sequence, not
       // about the pattern.
-      if (podCohortHasCompleted(alive, stageDuration, totalStages, stageDurationsMap)) continue
+      //
+      // Judged on the DERIVED age only — the laps the main flow has actually
+      // served this cohort — never on the Drill lift. The lift may raise the
+      // rung a cohort is served at, as far as the top one, but a Listening-mode
+      // drill is not a lap of the sequence and cannot take a cohort out of it.
+      // This is also what allCohortsCompleted() already assumes; the two were
+      // out of step. Job #350 (2026-09-12): Tom's zho_for_eng pod-state rows
+      // carried exposures of 96..461 on every sentence against a ratchet of 45,
+      // so with `alive` here every cohort completed on intake and the main flow
+      // composed no pod dialogue at all.
+      if (podCohortHasCompleted(derivedAlive, stageDuration, totalStages, stageDurationsMap)) continue
 
       const stageInfo = podStageFor(1, alive, stageDuration, totalStages, stageDurationsMap)
       if (!stageInfo) continue
