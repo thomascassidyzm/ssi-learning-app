@@ -59,6 +59,13 @@ export interface PodSentence {
    *  (playback/breathGroups.ts normalises it). Null for clips without
    *  timings, which render exactly as before. */
   wordTimings: unknown | null
+  /** True when this line INTERRUPTS the previous speaker — jumps in, reacts
+   *  mid-flow, finishes their sentence — rather than taking a genuine turn.
+   *  Popty marks it on the pod line row (`jump_in`, job #471); the overlay
+   *  plays such a line with no gap, overlapping the previous clip's tail
+   *  where it can (playback/podChangeover.ts). False or absent = a turn,
+   *  which keeps today's gap exactly. */
+  jumpIn: boolean
 }
 
 /**
@@ -100,6 +107,8 @@ export interface PodTurn {
     podOrdinal: number
     /** Raw word timings of the target clip (see PodSentence.wordTimings). */
     wordTimings: unknown | null
+    /** Jump-in marker (see PodSentence.jumpIn). */
+    jumpIn: boolean
   }>
   /** First sentence's global_order — used for ordering. */
   globalOrder: number
@@ -247,7 +256,7 @@ export function useListeningPods(
       for (const pod of listed) {
         const { data, error: fetchErr } = await supabase
           .from('listening_pod_sentences')
-          .select('id, scene_number, sentence_number, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, sentence_audio_ids, sentence_known_audio_ids, atom_map_fine, window_known_map, takeg_audio_ids, variant_key, attach_sentence_number')
+          .select('id, scene_number, sentence_number, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, sentence_audio_ids, sentence_known_audio_ids, atom_map_fine, window_known_map, takeg_audio_ids, variant_key, attach_sentence_number, jump_in')
           .eq('pod_id', pod.podId)
           .order('global_order', { ascending: true })
         if (fetchErr) throw new Error(`listening_pod_sentences: ${fetchErr.message}`)
@@ -480,6 +489,10 @@ function buildPodScenes(
             fusionContinuation: continuation,
             podOrdinal: pod.podIndex === 0 ? podOrdinal + Math.min(u.index, bareCount - 1) : 0,
             wordTimings: (u.targetAudioId && timingsById.get(u.targetAudioId)) || null,
+            // The marker is per LINE ROW; a row split into sentences jumps in
+            // on its FIRST sentence only — the rest are the same speaker
+            // carrying on, joined by the ordinary within-paragraph gap.
+            jumpIn: u.index === 0 && row.jump_in === true,
           })
         }
         podOrdinal += bareCount
@@ -563,6 +576,7 @@ function buildPodScenes(
                 fusionContinuation: s.fusionContinuation,
                 podOrdinal: s.podOrdinal,
                 wordTimings: s.wordTimings ?? null,
+                jumpIn: s.jumpIn === true,
               },
             ],
             globalOrder: s.globalOrder,

@@ -11,6 +11,7 @@ import { useListeningPods, SPEAKER_PALETTE } from '../composables/useListeningPo
 import { getCachedListeningMeta } from '../composables/listeningMetaCache'
 import { buildSilentWavDataUri } from '../playback/silentWav'
 import { buildModalQueue as buildPodModalQueue } from '../playback/podModalQueue'
+import { changeoverGapMs, isJumpInChangeover, jumpInLeadMs, GAP_DRILL_MS, GAP_IMMERSION_JOIN_MS } from '../playback/podChangeover'
 import { breathGroupsForClip, normaliseWordTimings, textLinesForSentence, trackPosition } from '../playback/breathGroups'
 import ListeningModeToggle from './ListeningModeToggle.vue'
 import TeleprompterScroll from './TeleprompterScroll.vue'
@@ -35,6 +36,18 @@ import { apiUrl } from '@/platform/apiBase'
 class ListeningAudioController {
   constructor() {
     this.audio = null
+    // Second element, for a JUMP-IN only: a line that interrupts the previous
+    // speaker starts on this element while the previous clip is still
+    // sounding on `audio` (podChangeover.ts). Created lazily and primed with
+    // a silent one-shot inside the learner's play tap, because iOS unlocks
+    // autoplay per element and per gesture — an element that never played
+    // inside a gesture rejects its first play() with NotAllowedError, and the
+    // jump-in then falls back to the zero-gap path on `audio`.
+    this.audioB = null
+    this.bPrimed = false
+    // Whichever element most recently started a real clip — the Immersion
+    // tracker reads its clock.
+    this.active = null
     this.playbackRate = 1
     // ms → data: URI cache for the silent gap clips (two sizes in practice).
     this.silenceCache = new Map()
@@ -55,6 +68,31 @@ class ListeningAudioController {
       this.audio.addEventListener('loadedmetadata', this._onTimeUpdate)
     }
     return this.audio
+  }
+
+  _ensureAudioB() {
+    if (!this.audioB) this.audioB = new Audio()
+    return this.audioB
+  }
+
+  /** The element sounding the current clip (the tracker's clock source). */
+  get activeElement() {
+    return this.active || this.audio
+  }
+
+  /** Call inside a user gesture: unlock the jump-in element for later
+   *  gesture-less starts. Idempotent; never throws; a rejection just leaves
+   *  the element unprimed, and every jump-in then takes the zero-gap path. */
+  primeOverlap() {
+    if (this.bPrimed) return
+    try {
+      const b = this._ensureAudioB()
+      b.src = buildSilentWavDataUri(0.03)
+      b.load()
+      const p = b.play()
+      if (p && typeof p.then === 'function') p.then(() => { this.bPrimed = true }, () => {})
+      else this.bPrimed = true
+    } catch { /* stays unprimed */ }
   }
 
   _updatePositionState() {
@@ -80,6 +118,7 @@ class ListeningAudioController {
     if (this.audio) {
       this.audio.playbackRate = rate
     }
+    if (this.audioB) this.audioB.playbackRate = rate
   }
 
   /**
@@ -112,19 +151,36 @@ class ListeningAudioController {
    *  both freeze — the slice then plays to the clip's natural end and the
    *  'ended' handler still advances; drill is a screen-on, eyes-on-strips
    *  activity, so the trade is acceptable.
+   *
+   *  `nearEnd` = { leadFor(durationSec) → ms, fire() }: once, when this clip
+   *  is within `leadFor` media-ms of its end, call fire() — the jump-in hook.
+   *  rAF-driven like the slice stop, so under a locked screen it never fires
+   *  and the changeover lands on the zero-gap floor instead.
    */
-  async play(url, rateOverride = null, slice = null) {
+  async play(url, rateOverride = null, slice = null, nearEnd = null) {
+    return this._playOn(this._ensureAudio(), url, rateOverride, slice, nearEnd)
+  }
+
+  /** Start a jump-in clip on the SECOND element while `audio` is still
+   *  sounding. Resolves on its natural end exactly like play(); rejects when
+   *  the platform refuses the gesture-less start (see primeOverlap). */
+  async playOverlap(url, rateOverride = null) {
+    return this._playOn(this._ensureAudioB(), url, rateOverride, null, null)
+  }
+
+  async _playOn(el, url, rateOverride = null, slice = null, nearEnd = null) {
     if (!url) {
       console.warn('[ListeningAudio] No audio URL')
       return
     }
 
-    this._ensureAudio()
-    // A new play always cancels the previous slice watchers (reused element).
-    if (this._cancelSlice) { this._cancelSlice(); this._cancelSlice = null }
+    // A new play on the main element always cancels the previous slice
+    // watchers (reused element).
+    if (el === this.audio && this._cancelSlice) { this._cancelSlice(); this._cancelSlice = null }
+    this.active = el
 
-    this.audio.src = url
-    this.audio.load()
+    el.src = url
+    el.load()
 
     return new Promise((resolve, reject) => {
       let settled = false
@@ -132,16 +188,18 @@ class ListeningAudioController {
       let stallCheck = null
       let sliceRaf = null
       let sliceTimer = null
+      let nearEndRaf = null
 
       const cleanup = () => {
         if (safetyTimer) { clearTimeout(safetyTimer); safetyTimer = null }
         if (stallCheck) { clearInterval(stallCheck); stallCheck = null }
         if (sliceRaf) { cancelAnimationFrame(sliceRaf); sliceRaf = null }
         if (sliceTimer) { clearTimeout(sliceTimer); sliceTimer = null }
-        this._cancelSlice = null
-        this.audio.removeEventListener('ended', onEnded)
-        this.audio.removeEventListener('error', onError)
-        this.audio.removeEventListener('loadedmetadata', onMetadata)
+        if (nearEndRaf) { cancelAnimationFrame(nearEndRaf); nearEndRaf = null }
+        if (el === this.audio) this._cancelSlice = null
+        el.removeEventListener('ended', onEnded)
+        el.removeEventListener('error', onError)
+        el.removeEventListener('loadedmetadata', onMetadata)
       }
 
       const onEnded = () => {
@@ -161,7 +219,7 @@ class ListeningAudioController {
       // Slice end: pause at endMs and resolve as if the clip ended.
       const endSlice = () => {
         if (settled) return
-        this.audio.pause()
+        el.pause()
         onEnded()
       }
 
@@ -169,39 +227,61 @@ class ListeningAudioController {
         const endSec = slice.endMs / 1000
         const watch = () => {
           if (settled) return
-          if ((this.audio.currentTime || 0) >= endSec) { endSlice(); return }
+          if ((el.currentTime || 0) >= endSec) { endSlice(); return }
           sliceRaf = requestAnimationFrame(watch)
         }
         sliceRaf = requestAnimationFrame(watch)
         // Backstop: expected span length at the effective rate + a beat.
-        const rate = this.audio.playbackRate || 1
+        const rate = el.playbackRate || 1
         const spanMs = Math.max(0, slice.endMs - slice.startMs)
         sliceTimer = setTimeout(endSlice, spanMs / rate + 400)
       }
 
+      // Jump-in hook: fire once when the clip is within its lead of the end.
+      // Media time on both sides, so the playback speed cancels out.
+      const armNearEnd = () => {
+        let fired = false
+        let leadSec = null
+        const watch = () => {
+          if (settled || fired) return
+          const dur = el.duration
+          if (Number.isFinite(dur) && dur > 0) {
+            if (leadSec === null) leadSec = Math.max(0, Number(nearEnd.leadFor(dur)) || 0) / 1000
+            if (dur - (el.currentTime || 0) <= leadSec) {
+              fired = true
+              try { nearEnd.fire() } catch (e) { console.warn('[ListeningAudio] jump-in fire failed', e) }
+              return
+            }
+          }
+          nearEndRaf = requestAnimationFrame(watch)
+        }
+        nearEndRaf = requestAnimationFrame(watch)
+      }
+
       const onMetadata = () => {
         if (settled || !slice) return
-        try { this.audio.currentTime = slice.startMs / 1000 } catch { /* pre-seek race — play from 0 */ }
+        try { el.currentTime = slice.startMs / 1000 } catch { /* pre-seek race — play from 0 */ }
         armSliceStop()
       }
 
-      this.audio.addEventListener('ended', onEnded)
-      this.audio.addEventListener('error', onError)
+      el.addEventListener('ended', onEnded)
+      el.addEventListener('error', onError)
       if (slice) {
         // Cancelling (a new play / stop) resolves the pending promise — the
         // caller's playbackId guard discards the stale continuation.
         this._cancelSlice = () => { if (!settled) onEnded() }
         // Metadata may already be in (cached blob) — seek straight away.
-        if (this.audio.readyState >= 1) onMetadata()
-        else this.audio.addEventListener('loadedmetadata', onMetadata)
+        if (el.readyState >= 1) onMetadata()
+        else el.addEventListener('loadedmetadata', onMetadata)
       }
+      if (nearEnd && typeof nearEnd.fire === 'function' && typeof nearEnd.leadFor === 'function') armNearEnd()
 
       // Stall detection: resolve if currentTime stops advancing for 3s
       let lastTime = -1
       stallCheck = setInterval(() => {
         if (settled) { cleanup(); return }
-        const ct = this.audio?.currentTime || 0
-        if (ct > 0 && ct === lastTime && !this.audio?.paused) {
+        const ct = el.currentTime || 0
+        if (ct > 0 && ct === lastTime && !el.paused) {
           console.warn('[ListeningAudio] Audio stalled, skipping')
           onEnded()
         }
@@ -217,13 +297,18 @@ class ListeningAudioController {
       }, 15000)
 
       // Set playbackRate right before play() - some browsers reset it after load()
-      this.audio.playbackRate = rateOverride ?? this.playbackRate
-      this.audio.play().catch(onError)
+      el.playbackRate = rateOverride ?? this.playbackRate
+      el.play().catch(onError)
     })
   }
 
   stop() {
     if (this._cancelSlice) { this._cancelSlice(); this._cancelSlice = null }
+    this.active = null
+    if (this.audioB) {
+      this.audioB.pause()
+      try { this.audioB.currentTime = 0 } catch { /* no metadata yet */ }
+    }
     if (this.audio) {
       this.audio.pause()
       this.audio.currentTime = 0
@@ -282,11 +367,8 @@ const props = defineProps({
 const SPEED_OPTIONS = [0.8, 1, 1.2, 1.5, 2]
 const playbackSpeed = ref(props.learningMode === 'easy' ? EASY_LISTENING_SPEED : 1)
 
-// Inter-clip / inter-row gaps (Aran 2026-06-29: tighten everything to ≤0.1s).
-// The chosen speed in Drill is the "normal" rate — fast reps are 2× of it.
-const GAP_DEFAULT_MS = 90        // Core/All between phrases + dialogue speaker-change (was 800)
-const GAP_DRILL_MS = 90          // between Drill reps + Drill within-turn (was 300 / 350)
-const GAP_IMMERSION_JOIN_MS = 50 // same-speaker sentence join in Immersion (deliberately tightest)
+// Inter-clip / inter-row gaps (Aran 2026-06-29: tighten everything to ≤0.1s)
+// and the jump-in changeover rule live in playback/podChangeover.ts.
 
 // Inject providers
 const supabase = inject('supabase', null)
@@ -326,6 +408,50 @@ const visiblePhrases = ref([])
 const currentIndex = ref(-1)
 const isPlaying = ref(false)
 const audioController = ref(null)
+// A jump-in clip already sounding on the controller's second element, started
+// on the previous row's last clip: { id, startedAt, promise → {ok} }. The next
+// row's loop adopts it instead of starting the clip again. Null when no
+// jump-in was armed, or the platform refused the early start.
+let pendingJumpIn = null
+
+/**
+ * Arm the jump-in for the row after `phrase`: resolve its first clip's URL now
+ * (an IndexedDB read — the one async step that would otherwise sit in the
+ * changeover) and hand the controller a near-end hook that starts it on the
+ * second element `jumpInLeadMs` before the current clip ends. The lead comes
+ * from the current clip's own trailing silence when it carries word timings
+ * (Immersion tracker data, job #408), else a fixed lead. Null when the next
+ * row has nothing to play (offline, clip not on the device).
+ */
+const armJumpIn = async (phrase, nextPhrase, myPlaybackId) => {
+  const fullNext = buildPlayQueue(nextPhrase)
+  const nextQueue = isOfflineish() ? fullNext.filter((it) => it?.id && audioCache.has(it.id)) : fullNext
+  const first = nextQueue[0]
+  if (!first?.id) return null
+  const proxyUrl = getAudioUrl(first.id)
+  if (!proxyUrl) return null
+  const url = await resolveCachedPlaybackUrl(audioCache, first.id, proxyUrl)
+  if (myPlaybackId !== playbackId) return null
+  const prevTimings = normaliseWordTimings(phrase.sentences?.[0]?.wordTimings)
+  const rate = first.rate ?? 1
+  return {
+    leadFor: (durationSec) => jumpInLeadMs({ prevDurationSec: durationSec, prevTimings }),
+    fire: () => {
+      if (myPlaybackId !== playbackId || !isPlaying.value) return
+      const startedAt = Date.now()
+      const promise = audioController.value.playOverlap(url, rate).then(
+        () => ({ ok: true }),
+        (err) => {
+          // NotAllowedError on an unprimed element, or a load failure: the
+          // next row plays the clip itself on the main element, at zero gap.
+          console.warn('[ListeningOverlay] jump-in early start refused — zero-gap fallback:', err?.name || err)
+          return { ok: false }
+        },
+      )
+      pendingJumpIn = { id: first.id, startedAt, promise }
+    },
+  }
+}
 
 /** Dialogues (pods) loop toggle. OFF (default): on scene-end, auto-
  *  advance to the next scene — the whole pod plays as a continuous
@@ -581,7 +707,7 @@ const startClipClock = (id) => {
   trackClipId.value = id
   trackClock.value = 0
   const tick = () => {
-    const a = audioController.value?.audio
+    const a = audioController.value?.activeElement
     trackClock.value = a ? (a.currentTime || 0) : 0
     clockRaf = requestAnimationFrame(tick)
   }
@@ -892,6 +1018,11 @@ const openScene = (scene) => {
         // True only on a speaker change — drives the speaker-aware gap (tight
         // within a paragraph, a full breath across speakers).
         isTurnStart: paragraphStart,
+        // This line interrupts the previous speaker: no gap before it, and an
+        // overlap where the platform allows (podChangeover.ts). Only a turn's
+        // first chunk can jump in; its later chunks are the same speaker
+        // carrying on.
+        jumpIn: idx === 0 && s.jumpIn === true,
       })
     })
   }
@@ -1423,6 +1554,9 @@ const prefetchTopRows = () => {
 const playFromIndex = async (index) => {
   if (index < 0 || index >= availablePhrases.value.length) return
 
+  // Synchronous, before any await: this is the learner's tap, the one moment
+  // iOS lets the jump-in element earn its autoplay unlock.
+  audioController.value?.primeOverlap()
   const myPlaybackId = ++playbackId
   currentIndex.value = index
   isPlaying.value = true
@@ -1585,6 +1719,12 @@ const playCurrentPhrase = async (myPlaybackId) => {
   // 'ended'-driven silence matches the main flow / INF PLAY / pod-lap
   // protocol (see SimplePlayer's PAUSE phase).
   const interClipGap = (modeSurface.value && listenMode.value === 'drill') ? GAP_DRILL_MS : GAP_IMMERSION_JOIN_MS
+  // The row after this one, and whether it JUMPS IN on this one (Tom
+  // 2026-09-12: an interruption gets no gap and an overlap where possible; a
+  // genuine turn keeps today's gap). Immersion only — podChangeover.ts.
+  const nextPhrase = availablePhrases.value[currentIndex.value + 1]
+  const changeover = { inDialogue: isDialogueScene.value, listenMode: listenMode.value, nextRow: nextPhrase }
+  const jumpInNext = isJumpInChangeover(changeover)
   activeStripIndex.value = -1
   for (let i = 0; i < playQueue.length; i++) {
     if (myPlaybackId !== playbackId) return
@@ -1592,15 +1732,22 @@ const playCurrentPhrase = async (myPlaybackId) => {
     const { id, rate, startMs, endMs, stripIndex } = item
     const proxyUrl = getAudioUrl(id)
     if (!proxyUrl) continue
+    // A jump-in already sounding on the second element (armed by the previous
+    // row): adopt it rather than starting the clip again.
+    let adopted = null
+    if (i === 0 && pendingJumpIn && pendingJumpIn.id === id) { adopted = pendingJumpIn; pendingJumpIn = null }
     // Resolve through the SHARED substrate: a cached WAV blob from IndexedDB
     // (lock-screen-safe — real PCM, no network) when present, else the proxy
     // URL (instant first play on a cold cache). Same primitive the main 4-phase
     // cycle plays through (SimplePlayer.resolveAudioUrl) — this is what makes
     // listening survive background/lock, not just the silent gaps.
     const clipCacheHit = audioCache.has(id)
-    const audioUrl = await resolveCachedPlaybackUrl(audioCache, id, proxyUrl)
+    const audioUrl = adopted ? null : await resolveCachedPlaybackUrl(audioCache, id, proxyUrl)
     if (myPlaybackId !== playbackId) return
-    const clipStartedAt = Date.now()
+    // This row's LAST clip carries the hook that starts a jump-in early.
+    const nearEnd = (jumpInNext && i === playQueue.length - 1) ? await armJumpIn(phrase, nextPhrase, myPlaybackId) : null
+    if (myPlaybackId !== playbackId) return
+    let clipStartedAt = Date.now()
     let clipOk = true
     // Dialogue and Core queues always carry an explicit per-clip rate — the
     // chosen speed, one rate for every clip of a line in both modes — so a
@@ -1616,11 +1763,25 @@ const playCurrentPhrase = async (myPlaybackId) => {
       // Fusion-drill strips: light the strip this step belongs to.
       activeStripIndex.value = stripIndex ?? -1
       if (tracked) startClipClock(id)
-      await audioController.value.play(
-        audioUrl,
-        effectiveRate,
-        startMs != null && endMs != null ? { startMs, endMs } : null,
-      )
+      let played = false
+      if (adopted) {
+        clipStartedAt = adopted.startedAt
+        played = (await adopted.promise).ok
+        if (myPlaybackId !== playbackId) return
+      }
+      if (!played) {
+        // Zero-gap floor: no silence was played before this row, and the URL
+        // is already resolved — the changeover is one src swap on the main
+        // element. Also the landing for an early start the platform refused.
+        const url = audioUrl ?? await resolveCachedPlaybackUrl(audioCache, id, proxyUrl)
+        if (myPlaybackId !== playbackId) return
+        await audioController.value.play(
+          url,
+          effectiveRate,
+          startMs != null && endMs != null ? { startMs, endMs } : null,
+          nearEnd,
+        )
+      }
     } catch (err) {
       clipOk = false
       console.error('[ListeningOverlay] Audio play failed:', err)
@@ -1665,13 +1826,10 @@ const playCurrentPhrase = async (myPlaybackId) => {
   // consecutive chunks close (natural continuous speech) and breathe only on
   // a speaker change (the next row starts a new turn). Elsewhere, the steady
   // between-phrases pause. Immersion runs the tightest within-turn gap; Drill
-  // gives each phrase a touch more room.
-  const nextPhrase = availablePhrases.value[currentIndex.value + 1]
-  let trailingGap = GAP_DEFAULT_MS
-  if (isDialogueScene.value && nextPhrase && !nextPhrase.isTurnStart) {
-    trailingGap = listenMode.value === 'immersion' ? GAP_IMMERSION_JOIN_MS : GAP_DRILL_MS
-  }
-  await audioController.value.playSilence(trailingGap)
+  // gives each phrase a touch more room. A jump-in gets NO gap at all — its
+  // clip may already be sounding on the second element (podChangeover.ts).
+  const trailingGap = changeoverGapMs(changeover)
+  if (trailingGap > 0) await audioController.value.playSilence(trailingGap)
 
   if (myPlaybackId !== playbackId) return
 
@@ -1797,6 +1955,7 @@ const stopPlayback = () => {
   playbackId++
   isPlaying.value = false
   activeStripIndex.value = -1
+  pendingJumpIn = null
   stopClipClock()
   audioController.value?.stop()
 }
