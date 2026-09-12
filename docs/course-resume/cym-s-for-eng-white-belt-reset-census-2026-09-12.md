@@ -186,3 +186,27 @@ premium at all is Tom's call and is outside this job.
   whose events predate the 60-day window used here.
 - `pnpm --filter player-vue typecheck` fails on `views/schools/HandbookView.showMe.test.ts`, a file
   this job did not touch, on current `dev`.
+
+## 9. The 60-day rewind cap (Tom's ruling, 2026-09-12 11:27Z)
+
+The rewind now lands on the first round of the learner's own belt (`utils/beltRewindTarget.ts`),
+never the round before it. Census of learners rewound below their belt start under the old rule:
+
+```sql
+-- rewind telemetry, all time, all courses: 0 rows
+select * from player_events where event_type='cursor_move' and payload->>'reason'='resume_ttl_belt_regression';
+-- cursor on the last LEGO before a belt-start seed, with practice or a ceiling beyond it: 0 rows
+with thr as (select unnest(array[8,20,40,80,150,280,400]) t),
+e as (select e.learner_id, e.course_id, e.last_completed_lego_id lc, e.highest_completed_lego_id hc, l.display_name,
+        substring(e.last_completed_lego_id,2,4)::int cs
+      from course_enrollments e join learners l on l.id=e.learner_id
+      where not (l.is_demo or l.is_internal or l.is_class_entity) and e.last_completed_lego_id ~ '^S[0-9]{4}L[0-9]{2}$'),
+cand as (select e.*, t from e join thr on e.cs < t and e.cs >= t-3),
+prev as (select c.*,
+  (select max(lego_id) from course_legos cl where cl.course_code=c.course_id and cl.seed_number < c.t) last_before_belt,
+  (select max(lego_id) from lego_progress lp where lp.learner_id=c.learner_id and lp.course_id=c.course_id) max_practised
+  from cand c)
+select * from prev where lc = last_before_belt and (max_practised > lc or hc > lc);
+```
+
+Zero learners need a cursor repair for the old rewind rule.

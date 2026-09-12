@@ -1134,3 +1134,24 @@ to overturn.
 learners sit past the wall (fransetter S0217, lea.weber94 and reillyfeatherstone in infinite play)
 and will meet the paywall on return rather than round 1. Census, queries and reproduction:
 https://watson-1.tail4968cb.ts.net/d/d715f061
+
+## 2026-09-12 — the 60-day belt rewind never lands below the learner's own belt start (job #326·F)
+
+**Tom's ruling (11:27Z).** The rewind stays, but it must never send a learner back further than
+the start of the belt they are currently at: past Yellow rewinds to the start of Yellow, or
+whichever belt they hold, never to White.
+
+**What the code did.** The rewind stored the round BEFORE the belt's first round so that the legacy
+"+1" resume would land on the first round. Playback was right; the stored cursor, and the belt
+badge read from it, sat one belt down, and the instant-playback path, which resumes ON the cursor,
+resumed one belt down too.
+
+**Decision.** `beltRewindTarget` names the belt's first round and nothing earlier; the rewind
+writes that round as the cursor and the legacy path jumps onto it rather than after it. A learner
+already at or before their belt's first round is left alone. Test red on the old decision, green
+after.
+
+**Census.** No `resume_ttl_belt_regression` cursor move has fired since telemetry began on
+31 August, and no real learner on any course sits on the round before a belt start with practice
+or a ceiling beyond it, so no cursor needs repairing under the old rule. The 8 September report's
+24 real learners idle 60+ days above White will be rewound to their own belt start on return.
