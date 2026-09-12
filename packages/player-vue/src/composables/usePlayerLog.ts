@@ -29,6 +29,20 @@ interface PlayerEvent {
   client_version?: string | null
 }
 
+/**
+ * What a play-state context can stamp. Every field optional: a surface that has
+ * no belt (Listening Mode) leaves it out rather than inventing one.
+ */
+export interface PlayerLogContext {
+  /** The learning mode in force: 'easy' | 'fast' in the player, 'listening' in Listening Mode. */
+  mode?: string | null
+  /** Belt name the learner is PLAYING under (playingBelt), not the belt achieved. */
+  belt?: string | null
+  seedId?: string | null
+  roundIndex?: number | null
+  [key: string]: unknown
+}
+
 interface PlayerLogOptions {
   /** Reactive course code — stamped on every event. Optional; can be unresolved at session start. */
   courseCode?: Ref<string | null | undefined> | string | null
@@ -58,6 +72,17 @@ interface PlayerLogOptions {
    * works; the rows just carry no learner id.
    */
   getToken?: () => Promise<string | null>
+  /**
+   * Play-state context, stamped on EVERY event this log emits (job #325, Tom
+   * 2026-09-12: "belt (and seed/round context) stored on the row, not derived
+   * from seedId"). Called at the instant each event is logged, so a row carries
+   * the mode and belt IN FORCE at that play, not the page-load selection and
+   * not a stored preference. Keys the caller already set on its payload, even
+   * to null, are never overwritten: a pod play's deliberate `seedId: null`
+   * stays null. A context that throws stamps nothing and the row goes out as
+   * it always did.
+   */
+  context?: () => PlayerLogContext | null | undefined
 }
 
 const DEFAULT_FLUSH_INTERVAL_MS = 5000
@@ -152,10 +177,22 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
       ...(learnerId ? { learnerId } : {}),
       ...(actorUserId ? { actor_user_id: actorUserId } : {}),
     }
-    const hasExtra = Object.keys(extra).length > 0
+    // Context keys fill only what the caller left ABSENT. `'k' in payload` is
+    // the test, so an explicit null from the caller wins over the context.
+    let context: PlayerLogContext | null | undefined
+    try { context = options.context?.() } catch { context = null }
+    const stamped: Record<string, unknown> = {}
+    if (context) {
+      for (const [k, v] of Object.entries(context)) {
+        if (v === undefined) continue
+        if (payload && k in payload) continue
+        stamped[k] = v
+      }
+    }
+    const hasExtra = Object.keys(extra).length > 0 || Object.keys(stamped).length > 0
     buffer.push({
       event_type: type,
-      payload: hasExtra ? { ...(payload ?? {}), ...extra } : (payload ?? null),
+      payload: hasExtra ? { ...stamped, ...(payload ?? {}), ...extra } : (payload ?? null),
       course_code: resolveCourseCode(),
       session_id: sessionId,
       occurred_at: new Date().toISOString(),
