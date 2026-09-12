@@ -2533,6 +2533,20 @@ const confirmReset = async () => {
         <div class="card">
           <!-- Report a bug: the learner postbox. One way; the only reply is the
                automatic thank-you. Tom's ruling, 2026-09-12. -->
+          <!-- HANDBOOK Report a bug from Settings
+               section: your-own-account
+               roles: teacher, school_admin, leader
+               place: settings
+               keywords: bug, report, problem, feedback, settings, tools
+               What it's for. Opening the report sheet when something in the app has gone wrong.
+               Where it is. **Settings**, under **Tools**, the **Report a bug** row.
+               How you do it.
+               1. Open **Settings**.
+               2. Tap **Report a bug**.
+               3. Describe what happened on the sheet that opens and tap **Send**.
+               Worth knowing. The row is there whether or not you are signed in. What you send goes to one place and nobody replies through the app.
+               checked: 6dad6fe6.1df11bca
+          -->
           <div class="setting-row clickable" data-walk="report-bug" @click="showBugReport = true">
             <div class="setting-info">
               <span class="setting-label">{{ t('bugReport.menuLabel') }}</span>

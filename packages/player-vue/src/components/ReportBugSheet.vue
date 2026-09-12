@@ -87,9 +87,35 @@ onBeforeUnmount(() => { if (closeTimer) clearTimeout(closeTimer) })
 </script>
 
 <template>
+  <!-- HANDBOOK Tell us about something that went wrong
+       section: your-own-account
+       roles: teacher, school_admin, leader
+       place: settings
+       keywords: bug, report, problem, went wrong, feedback, broken
+       What it's for. Sending us a note when the app misbehaves, with the details of your course and device attached for you.
+       Where it is. The sheet that opens from **Report a bug** in **Settings**.
+       How you do it.
+       1. Tap **Report a bug** in Settings.
+       2. Write what happened, add a screenshot if you have one, and tap **Send**.
+       Worth knowing. Tapping outside the sheet closes it without sending. Nobody replies through the app: the note goes to one place where we read it.
+       checked: b0c2520c.7fd68307
+  -->
   <div class="bug-scrim" data-walk="report-bug-sheet" @click.self="emit('close')">
     <section class="bug-sheet" role="dialog" aria-modal="true" :aria-label="t('bugReport.title')">
       <template v-if="sent">
+        <!-- HANDBOOK See that your report arrived
+             section: your-own-account
+             roles: teacher, school_admin, leader
+             place: settings
+             keywords: bug, report, sent, thank you, arrived
+             What it's for. Confirming the note reached us.
+             Where it is. The **Got it, thank you** line that replaces the form once it has sent.
+             How you do it.
+             1. Tap **Send** on the report sheet.
+             2. Read **Got it, thank you**. The sheet closes on its own a moment later, or tap the line to close it now.
+             Worth knowing. That line is the whole reply. There is no ticket number and no message back.
+             checked: f3d3dddb.9de08660
+        -->
         <p class="bug-thanks" role="status" data-walk="report-bug-thanks" @click="emit('close')">{{ t('bugReport.thanks') }}</p>
       </template>
       <template v-else>
@@ -97,6 +123,19 @@ onBeforeUnmount(() => { if (closeTimer) clearTimeout(closeTimer) })
           <h2 class="bug-title">{{ t('bugReport.title') }}</h2>
           <button class="bug-close" type="button" :aria-label="t('sector.close')" @click="emit('close')">×</button>
         </header>
+        <!-- HANDBOOK Say what happened
+             section: your-own-account
+             roles: teacher, school_admin, leader
+             place: settings
+             keywords: bug, report, describe, what happened, text
+             What it's for. The box where you describe the problem in your own words.
+             Where it is. The **What happened?** box on the report sheet.
+             How you do it.
+             1. Tap into the box and write what you saw.
+             2. Keep it under 2,000 characters. Send stays off until you have written something.
+             Worth knowing. Your course and device details are added for you, so you only need to describe what went wrong.
+             checked: 49943f39.54391989
+        -->
         <textarea
           v-model="text"
           class="bug-text"
@@ -117,6 +156,19 @@ onBeforeUnmount(() => { if (closeTimer) clearTimeout(closeTimer) })
           <span v-if="fileError" class="bug-note">{{ t('bugReport.tooLarge') }}</span>
         </div>
         <p v-if="failed" class="bug-note" role="alert">{{ t('bugReport.failed') }}</p>
+        <!-- HANDBOOK Send the report
+             section: your-own-account
+             roles: teacher, school_admin, leader
+             place: settings
+             keywords: bug, report, send, submit, screenshot
+             What it's for. Sending your note, and your screenshot if you added one, to us.
+             Where it is. The **Send** button at the foot of the report sheet.
+             How you do it.
+             1. Write what happened.
+             2. Tap **Send**. It reads **Sending…** while it goes.
+             Worth knowing. If the screenshot cannot upload, the note still goes without it. If the note itself does not send, the sheet says so and you can tap Send again.
+             checked: 223b085a.f159a58e
+        -->
         <button class="bug-send" type="button" data-walk="report-bug-send" :disabled="!canSend" @click="send">
           {{ sending ? t('bugReport.sending') : t('bugReport.send') }}
         </button>
