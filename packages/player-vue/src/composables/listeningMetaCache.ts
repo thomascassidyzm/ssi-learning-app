@@ -19,7 +19,7 @@
 
 import { openDB, deleteDB, type IDBPDatabase } from 'idb'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { resolveListeningPods, isListeningPodLookupDegraded } from './servedPod'
+import { resolveListeningPods, isListeningPodLookupDegraded, wasListeningSnapshotHealed, markListeningSnapshotHealed } from './servedPod'
 import {
   type L1FallbackPhraseRow,
   computeSeedLastLegoIndex,
@@ -760,6 +760,11 @@ export const ensureListeningMetaSnapshot = async (
     // `extraPods` may be `[]` only because the first fetch timed out, and
     // this once-per-boot pass is the only thing that would ever retry it.
     if (cached && Array.isArray(cached.extraPods) && !cached.extrasDegraded) return false
+    // At most once per session per course: this runs on every round advance,
+    // and a snapshot still flagged from a degraded lookup would otherwise be
+    // refetched and rewritten on each one (job #425).
+    if (wasListeningSnapshotHealed(courseCode)) return false
+    markListeningSnapshotHealed(courseCode)
     return !!(await fetchAndCacheListeningMeta(client, courseCode))
   } catch {
     return false
