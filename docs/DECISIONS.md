@@ -1231,3 +1231,26 @@ after.
 31 August, and no real learner on any course sits on the round before a belt start with practice
 or a ceiling beyond it, so no cursor needs repairing under the old rule. The 8 September report's
 24 real learners idle 60+ days above White will be rewound to their own belt start on return.
+
+**After, on staging build 9b3a78c (the #339 fix), session `4eb21a1b-89d7-4985-abed-82bb76d3320a`.**
+No page error. Listening Mode wrote 15 `audio_play` rows with `mode: 'listening'`, one per clip,
+`seedId` S0001 → S0015, `belt` white then yellow as the queue crossed the belt boundary, and the
+`listening_tick` beside them. Every main-flow `audio_play` row now carries `seedId: 'S0001'`. So
+the regression from #325 is closed and the seedId fix is proven on the row.
+
+**Found on that same build, fixed in this job.** Three console errors per strip render: `TypeError:
+Cannot create property 'value' on number '0'` from #339's pip setter. Cause: the file has no
+`lang="ts"`, so `ref<HTMLElement | null>(null)` is JavaScript — `(ref < HTMLElement) | (null >
+null)` — and evaluates to 0. Both belt-strip "refs" had been 0 since 2026-05-15; the strip's
+auto-scroll read `.value` of 0 and did nothing, silently. Fix: `ref(null)` for both; the scope test
+now fails on any `ref/computed/inject/reactive<…>(` in the file. It was the only plain-JS SFC in
+`src/components` and `src/views` with a type argument. Promoted as 19c43ecf9.
+
+**After, on staging build 19c43ec, session `6aef0380-828f-4c10-9f62-125dfedd75ab`.** Zero page
+errors, zero console errors, belt-jump strip rendered 8 pips, 14 per-clip listening `audio_play`
+rows S0001 → S0014, main-flow rows stamped S0001. Probe kept as
+`packages/player-vue/e2e/_343-listening-probe.mjs`; rows read back by `session_id` with the
+service key.
+
+**Not done.** Production still serves the #325 regression until the next staging → main promotion,
+which is Tom's. The `localiseWalk` pair stays red on dev; walkthrough copy, someone else's.
