@@ -27,10 +27,17 @@
  *   3. Class entities — learners.is_class_entity. A class practising together
  *      is one row, and it is not a person.
  *
- *   4. Events from the two known machine countries. Japan and Finland are
- *      machines: Japan alone is 21% of events and 61% of audio retries. This is
- *      an EVENT-level rule rather than a learner-level one, so it is exposed
- *      separately as isMachineCountry().
+ *   4. UNATTRIBUTED events from the two known machine countries. Japan and
+ *      Finland are where the probes run from: Japan alone was 21% of events and
+ *      61% of audio retries, and Finland is watson-1's own egress. This is an
+ *      EVENT-level rule, exposed as isMachineEvent(), and since job #325
+ *      (Tom, 2026-09-12) it applies ONLY to rows that carry no resolved real
+ *      learner: guests, and learner ids that resolve to nobody. A row a real,
+ *      signed-in learner produced is never dropped for its country. The
+ *      2026-09-12 census found the old country-only rule erased 59 whole
+ *      people; read live they were 49 dangling ids, 7 probe accounts and 3
+ *      humans in Finland, one of them 15,706 events deep. The probes with
+ *      accounts belong to test_learner_ids(), not to a country rule.
  *
  * WHAT IS DELIBERATELY NOT EXCLUDED, and this one is a ruling rather than a
  * limitation (Tom, 2026-09-10): PEOPLE WHO DO NOT PAY. A comped teacher, a
@@ -62,6 +69,28 @@ export const MACHINE_COUNTRIES = ['JP', 'FI'] as const
 export function isMachineCountry(country: string | null | undefined): boolean {
   if (!country) return false
   return (MACHINE_COUNTRIES as readonly string[]).includes(country.toUpperCase())
+}
+
+/** The slice of a player_events row the machine rule reads. */
+export interface MachineRuleRow {
+  learner_id?: string | null
+  /** Holds learners.id on older rows that never set learner_id (see CLAUDE.md). */
+  user_id?: string | null
+  ip_country?: string | null
+}
+
+/**
+ * Should this event be dropped as machine traffic? True only when the row is
+ * from a machine country AND has no resolved real learner behind it. The
+ * learner key is coalesce(learner_id, user_id), exactly as the census reads it.
+ *
+ * Every consumer of the population applies THIS, never isMachineCountry()
+ * alone: the country-only rule erased real Finnish learners whole.
+ */
+export function isMachineEvent(row: MachineRuleRow, realIds: ReadonlySet<string>): boolean {
+  if (!isMachineCountry(row.ip_country)) return false
+  const key = row.learner_id || row.user_id || null
+  return !key || !realIds.has(key)
 }
 
 export interface RealLearnerPopulation {
