@@ -679,6 +679,36 @@ export const refreshListeningMetaIfStale = async (
 }
 
 /**
+ * Write the listening snapshot for a course that has NONE yet — the automatic
+ * path's half of "play what you have" (Tom, 2026-08-15; re-ruled 2026-09-12 on
+ * job #379: "the list must come from cache offline").
+ *
+ * Until now the snapshot was written by the deliberate Offline Mode download
+ * alone, so a learner whose clips arrived through the automatic download-ahead
+ * opened Listening Mode in airplane mode and read "Dialogues aren't downloaded
+ * yet" — with the pod's audio already on the device. Reproduced headless on
+ * production 5ea385e, Chinese for English speakers, 2026-09-12: no Offline Mode
+ * download → 0 scenes offline; the same device after the download → 22.
+ *
+ * This is METADATA only (pod rows, clip texts, seeds, catalogue — the same
+ * reads the schedulers make on every online boot), never audio, so it stays
+ * inside the 2026-09-01 ruling that the automatic path never loads a corpus
+ * up front. Once per device per course: an existing entry, fresh or stale, is
+ * left to refreshListeningMetaIfStale. Never throws, never blocks.
+ */
+export const ensureListeningMetaSnapshot = async (
+  client: SupabaseClient,
+  courseCode: string,
+): Promise<boolean> => {
+  try {
+    if (await getCachedListeningMeta(courseCode)) return false
+    return !!(await fetchAndCacheListeningMeta(client, courseCode))
+  } catch {
+    return false
+  }
+}
+
+/**
  * Is the snapshot for this course known to be out of date? True only when a
  * live stamp comparison already said so and the refresh has not landed —
  * never a guess. Readers use it to log a stale fallback rather than to refuse

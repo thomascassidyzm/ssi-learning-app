@@ -28,6 +28,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('./listeningMetaCache', () => ({
   refreshListeningMetaIfStale: vi.fn(async () => false),
+  ensureListeningMetaSnapshot: vi.fn(async () => false),
 }))
 
 import {
@@ -40,7 +41,7 @@ import {
   getOfflineLease,
   type CachedScript,
 } from './useScriptCache'
-import { refreshListeningMetaIfStale } from './listeningMetaCache'
+import { refreshListeningMetaIfStale, ensureListeningMetaSnapshot } from './listeningMetaCache'
 import type { OfflineLease } from '../config/offlineLease'
 
 const NOW = 1_700_000_000_000
@@ -98,6 +99,10 @@ describe('checkContentVersion — content_stamp lane (SWR)', () => {
     // content_stamp still refreshes the downloaded listening snapshot.
     expect(refreshListeningMetaIfStale).toHaveBeenCalledWith(
       expect.anything(), code, '2026-07-22T00:00:00Z', undefined)
+    // Job #379: a device that only ever had the automatic download-ahead must
+    // still carry the listening snapshot, or airplane mode reads "Dialogues
+    // aren't downloaded yet" with the pod audio already on the device.
+    expect(ensureListeningMetaSnapshot).toHaveBeenCalledWith(expect.anything(), code)
   })
 
   it('keeps-but-marks-stale an entry whose vintage differs from the live stamp', async () => {

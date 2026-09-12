@@ -12,7 +12,7 @@ import { ref, type Ref } from 'vue'
 import { openDB, deleteDB, type IDBPDatabase } from 'idb'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { OfflineLease } from '../config/offlineLease'
-import { refreshListeningMetaIfStale } from './listeningMetaCache'
+import { refreshListeningMetaIfStale, ensureListeningMetaSnapshot } from './listeningMetaCache'
 
 // Cache configuration
 // Scripts live in IndexedDB. localStorage's ~5MB cap overflowed on big
@@ -488,6 +488,10 @@ const doCheckContentVersion = async (
     // audio_stamp without necessarily moving content_stamp, and the downloaded
     // snapshot has to pick up the new `<uuid>.vN` refs either way.
     void refreshListeningMetaIfStale(supabase, courseCode, liveStamp, liveAudioStamp).catch(() => {})
+    // No snapshot at all (a device that only ever had the automatic
+    // download-ahead): write one now, in the background, so Listening Mode's
+    // Dialogues list and the main-flow pod exist offline too (job #379).
+    void ensureListeningMetaSnapshot(supabase, courseCode).catch(() => {})
 
     if (liveStamp) {
       liveContentStamps.set(courseCode, liveStamp)

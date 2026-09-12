@@ -19,6 +19,7 @@ import { describe, expect, it, vi, afterEach } from 'vitest'
 import { createApp, ref, type Ref } from 'vue'
 import {
   fetchAndCacheListeningMeta,
+  ensureListeningMetaSnapshot,
   getCachedListeningMeta,
   collectListeningMetaAudioIds,
   refreshListeningMetaIfStale,
@@ -396,6 +397,24 @@ function mountPods(client: any, course: string): { pods: UseListeningPodsReturn;
 }
 
 describe('useListeningPods offline fallback', () => {
+  // Job #379 (Tom, airplane mode, Chinese for English speakers, production
+  // 2026-09-12): the automatic download-ahead had fetched the clips but no
+  // Offline Mode download had ever run, so no snapshot existed and the list
+  // read empty. The online boot lane now writes the snapshot when none exists.
+  it('lists Dialogues offline on a device that only ever booted online (job #379)', async () => {
+    expect(await getCachedListeningMeta('zho_for_eng')).toBeNull()
+    expect(await ensureListeningMetaSnapshot(happyClient, 'zho_for_eng')).toBe(true) // online boot
+    const { pods, flush } = mountPods(failAll, 'zho_for_eng')                          // airplane mode
+    await flush()
+    expect(pods.error.value).toBeNull()
+    expect(pods.scenes.value).toHaveLength(1)
+    // A second boot leaves an existing snapshot alone — freshness is the
+    // stamp lane's job, not this one's.
+    const before = (await getCachedListeningMeta('zho_for_eng'))!.cachedAt
+    expect(await ensureListeningMetaSnapshot(happyClient, 'zho_for_eng')).toBe(false)
+    expect((await getCachedListeningMeta('zho_for_eng'))!.cachedAt).toBe(before)
+  })
+
   it('serves scenes from the cached metadata when the live fetch fails', async () => {
     await fetchAndCacheListeningMeta(happyClient, 'ita_for_eng') // downloaded earlier, online
     const { pods, flush } = mountPods(failAll, 'ita_for_eng')
