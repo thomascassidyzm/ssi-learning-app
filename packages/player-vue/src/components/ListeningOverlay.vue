@@ -449,8 +449,10 @@ const exposuresFor = (sentenceId, podOrdinal) => {
  *  — at most once per sitting (massed reps must not fake the spacing). */
 const rungAdvancedScenes = new Set()
 const advanceScenePodState = (scene) => {
-  if (rungAdvancedScenes.has(scene.sceneNumber)) return
-  rungAdvancedScenes.add(scene.sceneNumber)
+  // Keyed by sceneKey, not sceneNumber: scene 1 of Pod 1 and scene 1 of the
+  // method pod are different scenes (job #354).
+  if (rungAdvancedScenes.has(scene.sceneKey)) return
+  rungAdvancedScenes.add(scene.sceneKey)
   const next = new Map(podExposuresMap.value)
   const rows = []
   for (const t of scene.turns) {
@@ -1244,9 +1246,9 @@ const warmScene = (scene) => {
 const prefetchNextSceneHead = () => {
   if (view.value !== 'pods' || !selectedScene.value || loopScene.value) return
   const sceneList = pods.scenes.value
-  const idx = sceneList.findIndex(s => s.sceneNumber === selectedScene.value.sceneNumber)
+  const idx = sceneList.findIndex(s => s.sceneKey === selectedScene.value.sceneKey)
   const next = idx >= 0 ? (sceneList[idx + 1] || sceneList[0]) : null
-  if (!next || next.sceneNumber === selectedScene.value.sceneNumber) return
+  if (!next || next.sceneKey === selectedScene.value.sceneKey) return
   warmScene(next)
 }
 
@@ -1591,16 +1593,19 @@ const handleEndOfList = async (myPlaybackId) => {
   // advance — the whole pod plays through as a continuous session.
   if (view.value === 'pods' && selectedScene.value && !loopScene.value) {
     const sceneList = pods.scenes.value
-    // Match by sceneNumber — PodScene has no `id` field, and the old
-    // `s.id === selectedScene.id` compared undefined===undefined, which
-    // matched index 0 and made EVERY scene "advance" to scene 2.
-    const currentSceneIdx = sceneList.findIndex(s => s.sceneNumber === selectedScene.value.sceneNumber)
+    // Match by sceneKey (pod-qualified) — PodScene has no `id` field, and
+    // the old `s.id === selectedScene.id` compared undefined===undefined,
+    // which matched index 0 and made EVERY scene "advance" to scene 2.
+    // sceneNumber alone would collide once a course lists a second pod.
+    const currentSceneIdx = sceneList.findIndex(s => s.sceneKey === selectedScene.value.sceneKey)
     // Single continuous playlist: segue into the next scene; after the
-    // last scene, wrap around to the first (Spotify playlist loop).
+    // last scene, wrap around to the first (Spotify playlist loop). The
+    // list runs Pod 1 then any extra slot, so Pod 1's last scene flows into
+    // the method pod's first (job #354).
     const nextScene = currentSceneIdx >= 0
       ? (sceneList[currentSceneIdx + 1] || sceneList[0])
       : null
-    if (nextScene && nextScene.sceneNumber !== selectedScene.value.sceneNumber) {
+    if (nextScene && nextScene.sceneKey !== selectedScene.value.sceneKey) {
       // openScene resets currentIndex to 0 — but it also calls
       // stopPlayback(), which flips isPlaying off. playCurrentPhrase's
       // first guard returns on !isPlaying, so the segue must re-arm it
@@ -2001,9 +2006,16 @@ watch(
           </svg>
           {{ t('listening.playAllScenes') }}
         </button>
+        <template v-for="(scene, i) in pods.scenes.value" :key="scene.sceneKey">
+          <!-- Group heading when the course lists more than one pod (the
+               served pod, then the method pod — job #354). The heading is the
+               pod's own title from the data, so no internal term is minted
+               here; a single-pod course shows no heading at all. -->
+          <div
+            v-if="pods.scenes.value[pods.scenes.value.length - 1].podIndex > 0 && (i === 0 || pods.scenes.value[i - 1].podId !== scene.podId)"
+            class="scene-group-heading"
+          >{{ scene.podTitle || '' }}</div>
         <button
-          v-for="scene in pods.scenes.value"
-          :key="scene.sceneNumber"
           class="scene-card"
           type="button"
           @click="openScene(scene)"
@@ -2029,6 +2041,7 @@ watch(
             <polyline points="9 18 15 12 9 6"/>
           </svg>
         </button>
+        </template>
       </div>
     </div>
 
@@ -2920,6 +2933,16 @@ watch(
   padding: 3rem 1rem;
   color: var(--text-muted);
 }
+
+/* Pod group heading — only rendered when a course lists more than one pod. */
+.scene-group-heading {
+  margin: 0.75rem 0 0.125rem 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+}
+.scene-group-heading:first-child { margin-top: 0; }
 
 .scene-play-all {
   display: flex;

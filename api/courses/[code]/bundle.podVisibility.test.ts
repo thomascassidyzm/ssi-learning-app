@@ -64,6 +64,11 @@ const POD_ROWS = [
   // so RLS is not there to do it. A bundle is per COURSE and cached, so there
   // is no correct way to include restricted content: it is online-only.
   { id: 'cym:pod-1-steve', course_code: 'cym', pod_order: 3, title: 'Restricted', visibility: 'live', pod_type: 'core', slug: 'pod-1', required_role: 'previewer_001' },
+  // From 2026-09-12 (job #354): the THIRD SLOT. `method-pod` is a named extra
+  // Listening Mode slug (servedPod rule 6) and the bundle must carry it — but
+  // only once it is live. Held here, as ita_for_eng:method-pod was on the day
+  // the slug was widened, so the widening alone must leak nothing.
+  { id: 'cym:method-pod', course_code: 'cym', pod_order: 4, title: 'Method pod', visibility: 'held', pod_type: 'core', slug: 'method-pod' },
 ]
 
 const SENTENCE_ROWS = [
@@ -102,6 +107,16 @@ const SENTENCE_ROWS = [
     global_order: 1,
     target_text: 'SECRET-RESTRICTED-SENTENCE',
     known_text: 'addressed to one named person',
+    target_audio_id: null,
+    known_audio_id: null,
+    explainer_audio_id: null,
+    glue_to_next: false,
+  },
+  {
+    pod_id: 'cym:method-pod',
+    global_order: 1,
+    target_text: 'SECRET-METHOD-SENTENCE',
+    known_text: 'held until the flip',
     target_audio_id: null,
     known_audio_id: null,
     explainer_audio_id: null,
@@ -223,7 +238,7 @@ describe('bundle route — listening pod visibility', () => {
     // that; dropping the visibility filter above reopens the held-pod leak.
     const podQuery = queries.find((q) => q.table === 'listening_pods')
     expect(podQuery!.filters.pod_type).toBe('core')
-    expect(podQuery!.filters.slug).toEqual(['pod-1', 'pod-0'])
+    expect(podQuery!.filters.slug).toEqual(['pod-1', 'pod-0', 'method-pod'])
   })
 
   it('omits a retired-slug pod and a choice pod even when both are live', async () => {
@@ -276,5 +291,39 @@ describe('bundle route — listening pod visibility', () => {
     await handler(makeReq(), res)
 
     expect(JSON.stringify(res.body)).not.toContain('SECRET-HELD-SENTENCE')
+  })
+
+  // The third slot (job #354). RECORDED RED against the pre-fix route for
+  // the second test: the slug filter was ['pod-1','pod-0'], so a LIVE
+  // method-pod was never asked for and `podIds` came back ['cym:pod-1'].
+  it('a HELD method pod contributes nothing — widening the slug list is not a release', async () => {
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    const podIds = (res.body.pods as Array<{ podId: string }>).map((p) => p.podId)
+    expect(podIds).toEqual(['cym:pod-1'])
+    expect(JSON.stringify(res.body)).not.toContain('SECRET-METHOD-SENTENCE')
+    const sentenceQuery = queries.find((q) => q.table === 'listening_pod_sentences')
+    expect(sentenceQuery!.filters.pod_id).not.toContain('cym:method-pod')
+  })
+
+  it('a LIVE method pod rides alongside pod-1 — pod-1 still first, nothing displaced', async () => {
+    const original = DB.listening_pods
+    DB.listening_pods = original.map((p) =>
+      p.id === 'cym:method-pod' ? { ...p, visibility: 'live' } : p,
+    )
+    try {
+      const res = makeRes()
+      await handler(makeReq(), res)
+
+      const podIds = (res.body.pods as Array<{ podId: string }>).map((p) => p.podId)
+      expect(podIds).toEqual(['cym:pod-1', 'cym:method-pod'])
+      expect(JSON.stringify(res.body)).toContain('SECRET-METHOD-SENTENCE')
+      // and the flip released nothing else
+      expect(JSON.stringify(res.body)).not.toContain('SECRET-HELD-SENTENCE')
+      expect(JSON.stringify(res.body)).not.toContain('SECRET-RESTRICTED-SENTENCE')
+    } finally {
+      DB.listening_pods = original
+    }
   })
 })
