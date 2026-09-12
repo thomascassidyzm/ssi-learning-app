@@ -1539,9 +1539,12 @@ timings (null, or the viseme-frame shape) → the same stack with lines cut from
 clock, every line in the card's own colour. One text line → null → the card, unchanged. Drill is
 untouched, pinned byte-for-byte as before.
 
-**The cut order and the cap.** Sentence enders first, then clause punctuation, then a length cap
-with words kept whole and the overflow balanced into equal lines rather than a long line plus an
-orphan. The cap is 60 characters, taken from the audio rather than guessed: across 1,455 timed pod
+**The cut order and the cap.** Sentence enders first, never packed together — the sentence is the
+unit. Then clause punctuation inside an over-long sentence, clauses packed up to the cap so a list
+("en Nueva York, en Tokio, en Buenos Aires") is one breath rather than three stubs, and a cut only
+counting when the clause after it fits, so "Bueno," never stands alone above a wrapped remainder.
+Then the cap, words kept whole and the overflow balanced into equal lines rather than a long line
+plus an orphan. The cap is 60 characters, taken from the audio rather than guessed: across 1,455 timed pod
 sentence clips with two or more breath groups, 3,942 real breath groups measure 23 chars at the
 median, 52 at p90 and 66 at p95, so a text-cut line is the size of a long real breath. Scripts
 without spaces cut only at their own punctuation. Nothing heard changes; this is display only.
