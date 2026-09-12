@@ -86,24 +86,33 @@ export function extractBullets(body, heading) {
   return out
 }
 
-// ── the SHAPE rule (Tom's ruling, 2026-09-08) ───────────────────────────────────────────────
-// "I think the release notes are too wordy, we just need 3x headines - no more than a sentence
-// for each one / and then the read more, which is one line on each thing deemed relevant".
+// ── the SHAPE rule (Tom's rulings, 2026-09-08 and 2026-09-12) ─────────────────────────────
+// 2026-09-08: "I think the release notes are too wordy, we just need 3x headines - no more than a
+// sentence for each one / and then the read more, which is one line on each thing deemed relevant".
 //
-// So: at most three headlines under `## What's new`, each ONE SENTENCE; and every read-more item
-// under the catch-all heading is one sentence AND short enough to be one line on a phone. This
-// lives here, beside the markup predicate, for the same reason that one does — two copies of a
-// rule agreeing by coincidence is how the train shipped a truncated bullet on 2026-09-05.
+// 2026-09-12, which WINS where the two differ: "the release notes for the latest version in Main
+// are crazy. 3 biggest headlines and then + plus squished some bugs and stuff". That ship carried
+// forty read-more lines, each one sentence and inside the ceiling below, and the 2026-09-08 gate
+// passed it by construction because nothing had ever capped the catch-all's COUNT.
+//
+// So the shape is: at most three headlines under `## What's new`, each ONE SENTENCE; and exactly
+// ONE line under the catch-all heading, by default READMORE_LINE in Tom's own words. The per-item
+// record of what shipped lives in the draft-only coverage block, which `--finalize` strips, so a
+// human editing the draft before GO still sees it and the learner never does. This lives here,
+// beside the markup predicate, for the same reason that one does — two copies of a rule agreeing
+// by coincidence is how the train shipped a truncated bullet on 2026-09-05.
 //
 // The character ceilings are knobs, not doctrine: Tom moves either with one word.
 
 export const MAX_HEADLINES = 3
 export const HEADLINE_MAX_CHARS = 200
 export const READMORE_MAX_CHARS = 140
+export const MAX_READMORE = 1
+export const READMORE_LINE = 'Plus we squished some bugs and stuff.'
 
-// Notes dated before this predate the ruling and are deliberately grandfathered by the on-disk
-// sweep. The finalise gate has no such exemption — every NEW note is held to the shape.
-export const SHAPE_RULING_DATE = '2026-09-07'
+// Notes SHIPPED before this predate the one-line ruling and are deliberately grandfathered by the
+// on-disk sweep. The finalise gate has no such exemption — every NEW note is held to the shape.
+export const SHAPE_RULING_DATE = '2026-09-12'
 
 // Words that end in a full stop without ending a sentence. Kept deliberately short: the rule is
 // meant to be simple, and the tests are the proof.

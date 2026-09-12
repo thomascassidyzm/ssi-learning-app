@@ -16,7 +16,7 @@ import {
 } from './release-notes.mjs'
 import {
   extractBullets, unrenderableMarkup, isOneSentence, shapeProblems,
-  HEADLINE_MAX_CHARS, READMORE_MAX_CHARS, SHAPE_RULING_DATE,
+  HEADLINE_MAX_CHARS, READMORE_MAX_CHARS, SHAPE_RULING_DATE, READMORE_LINE,
 } from './notes-bullets.mjs'
 
 const commit = (subject) => ({ subject, sha: 'a'.repeat(40), date: '2026-07-30', author: 'x' })
@@ -137,7 +137,7 @@ test('at most three feature headlines, however many features shipped', () => {
   assert.equal(n.overflow.length, 2, 'the rest surface in the draft, never silently binned')
 })
 
-test('every fix is listed, not squeezed out by the feature cap', () => {
+test('every fix is kept in the draft record, not squeezed out by the feature cap', () => {
   const n = notesFor([
     'course-switch READY in 2-3s: kill the cinematic floor',
     'fix(player): transport play-state is PULLED from the engine — kills the play-button desync',
@@ -196,7 +196,7 @@ test('a lower-significance player feature can still outrank a higher schools fea
   assert.match(n.features[0].headline, /unified dashboard view/)
 })
 
-test('overflow features and fixes both land in the one catch-all section, nothing dropped', () => {
+test('overflow features and fixes both land in the draft record, nothing dropped', () => {
   const n = notesFor([
     'course-switch READY in 2-3s: kill the cinematic floor',                                   // feature 1
     'feat(cold-start): course load never blocks past readiness-to-start — SWR + progressive start', // feature 2
@@ -205,7 +205,7 @@ test('overflow features and fixes both land in the one catch-all section, nothin
     'fix(player): transport play-state is PULLED from the engine — kills the play-button desync', // fix
   ])
   assert.equal(n.features.length, 3)
-  assert.equal(n.otherStuff.length, 2, 'the overflow feature and the fix both land in one section')
+  assert.equal(n.otherStuff.length, 2, 'the overflow feature and the fix both land in the record')
   const headlines = n.otherStuff.map((b) => b.headline).join('\n')
   assert.match(headlines, /How this works/)
   assert.match(headlines, /play button/)
@@ -254,14 +254,16 @@ test('finalize stamps the header, keeps hand edits, strips the draft section', (
 // keeps moving — so the final notes are REGENERATED from what was actually promoted, and the
 // draft only contributes the bullets a human typed into it.
 
-test('a commit that shipped AFTER the draft still reaches the final notes', () => {
+test('a commit that shipped AFTER the draft reaches the record, and the fold stays one line', () => {
   const draft = renderedDraft(['- Guided walkthroughs of the product, for learners, teachers and leaders.'], [])
   const promoted = notesFor([
     'feat(walkthrough): compiled walkthrough engine + first 5 walks',
     'THE VIEW: WHERE-YOU-ARE rail stability across Overview <-> Insights',
   ])
-  const out = reconcile(draft, promoted)
-  assert.match(out.fixes.join('\n'), /Where-you-are stays put/)
+  assert.match(promoted.otherStuff.map((b) => b.headline).join('\n'), /Where-you-are stays put/)
+  const final = renderFinal(reconcile(draft, promoted), { shipDate: '2026-09-12', sha: 'c'.repeat(40), count: 2 })
+  assert.doesNotMatch(final, /Where-you-are stays put/, 'nothing per-item ships below the fold')
+  assert.deepEqual(extractBullets(final, 'Other stuff and bug fixes'), [READMORE_LINE])
 })
 
 test('a bullet for work that did NOT ship is dropped from the final notes', () => {
@@ -495,14 +497,77 @@ test('the finalise gate REJECTS an off-shape note, naming the bullet', () => {
 })
 
 test('every notes file from the ruling onward fits the shape, as it stands on disk', () => {
-  // Notes dated before SHAPE_RULING_DATE predate Tom's ruling and are deliberately grandfathered
+  // Notes SHIPPED before SHAPE_RULING_DATE predate Tom's ruling and are deliberately grandfathered
   // — rewriting the whole history of notes was not asked for. The real enforcement is the
-  // finalise gate above, which every NEW note passes through with no exemption.
+  // finalise gate above, which every NEW note passes through with no exemption. Keyed on the
+  // shipped date in the header, not the file name: a Thursday draft is dated before its ship.
   const dir = new URL('./notes/', import.meta.url)
-  const files = readdirSync(dir).filter((n) => n.endsWith('.md') && n.slice(0, 10) >= SHAPE_RULING_DATE)
-  assert.ok(files.length >= 2, 'the sweep must actually be looking at the post-ruling notes')
+  const shipped = (f) => (FINAL_HEADER_RE.exec(readFileSync(new URL(f, dir), 'utf8')) || [])[1] || ''
+  const files = readdirSync(dir).filter((n) => n.endsWith('.md') && shipped(n) >= SHAPE_RULING_DATE)
+  assert.ok(files.length >= 1, 'the sweep must actually be looking at the post-ruling notes')
   for (const f of files) {
     const body = readFileSync(new URL(f, dir), 'utf8')
     assert.doesNotThrow(() => assertShape(body, `notes/${f}`))
   }
+})
+
+// ── the ONE-LINE catch-all (Tom's ruling, 2026-09-12) ────────────────────────────────────────
+// "the release notes for the latest version in Main are crazy. 3 biggest headlines and then +
+// plus squished some bugs and stuff". The 2026-09-12 ship carried forty one-sentence read-more
+// lines, each inside the 140-character ceiling, and the 2026-09-08 gate passed it by
+// construction: nothing had ever capped the catch-all's COUNT. Now it is exactly one line.
+
+test('the final is three headlines plus ONE line below the fold, however much shipped', () => {
+  // More fixes than the fold could ever carry, the shape of the 2026-09-12 ship, straight
+  // through the machine — distinct enough that the near-twin dedupe keeps them all.
+  const subjects = [
+    'fix(player): transport play-state is PULLED from the engine — kills the play-button desync',
+    'player: never cut the awakening typewriter mid-word',
+    'copy: sentence-case the loading + resting messages',
+    "fix stuck 'Updating the app' overlay: hard deadline + tap-to-relaunch on the heal path",
+    'THE VIEW: WHERE-YOU-ARE rail stability across Overview <-> Insights',
+    'feat(walkthrough): playback guardrails — the ship-time rails worklist closed',
+  ]
+  const promoted = notesFor([
+    'course-switch READY in 2-3s: kill the cinematic floor',
+    'feat(cold-start): course load never blocks past readiness-to-start — SWR + progressive start',
+    'schools nav unification: govt_admin tabs land on THE VIEW',
+    ...subjects,
+  ])
+  assert.ok(promoted.otherStuff.length >= 3, 'the fixture must actually overflow the fold')
+  const final = renderFinal(reconcile('', promoted), { shipDate: '2026-09-12', sha: 'c'.repeat(40), count: 219 })
+  assert.equal(extractBullets(final, "What's new").length, 3)
+  assert.deepEqual(extractBullets(final, 'Other stuff and bug fixes'), [READMORE_LINE])
+  assert.doesNotThrow(() => assertShape(final, 'notes/x.md'))
+  // And the gate refuses what the generator no longer produces: two lines below the fold.
+  const twoBelow = `## What's new\n\n- One.\n\n## Other stuff and bug fixes\n\n- Easy is quieter.\n- Downloads are smaller.\n`
+  assert.throws(() => assertShape(twoBelow, 'notes/x.md'), /2 lines under "Other stuff and bug fixes"/)
+})
+
+test("the surface's own merge commits are process, never a bullet", () => {
+  // Both real subjects from the 2026-09-12 range; the second took a headline slot.
+  const n = notesFor([
+    'Merge cs/424-listening-snapshot-empty-extrapo into dev (job #424)',
+    "Merge cs/326: the 60-day belt rewind never lands below the learner's own belt start (job #326)",
+  ])
+  assert.ok(empty(n), 'a merge subject describes no change of its own')
+  assert.equal(n.cond.process_.length, 2)
+})
+
+test('the draft carries the per-item record in its coverage block, and the same one line as the final', () => {
+  const cand = {
+    commits: [
+      commit('course-switch READY in 2-3s: kill the cinematic floor'),
+      commit('fix(player): transport play-state is PULLED from the engine — kills the play-button desync'),
+    ],
+    stagingSha: 'c'.repeat(40),
+  }
+  const body = render(cand, buildNotes(cand), { draftDate: '2026-09-17' })
+  assert.deepEqual(extractBullets(body, 'Other stuff and bug fixes'), [READMORE_LINE])
+  const coverage = body.slice(body.indexOf('<!-- release-notes:draft-only -->'))
+  assert.match(coverage, /Also shipped[\s\S]*play button no longer falls out of step/)
+  // And the record dies with the draft-only block, so it can never leak into a final by stamping.
+  const stamped = finalizeBody(body, { shipDate: '2026-09-18', sha: 'c'.repeat(40), count: 2 })
+  assert.doesNotMatch(stamped, /play button no longer/)
+  assert.doesNotThrow(() => assertShape(stamped, 'notes/x.md'))
 })
