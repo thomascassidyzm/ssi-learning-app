@@ -1620,3 +1620,43 @@ clip texts and rewriting the snapshot on every advance for the rest of the sessi
 at most once per session per course, marked beside the degraded memo in `servedPod.ts` and cleared by
 the same reset. Snapshots written in the few-hours window before #424 that carry an unmarked empty
 `extraPods` are left alone; not worth code.
+
+## 2026-09-12 — Pod dialogue changeovers: a jump-in has no gap and overlaps; a turn keeps its gap (job #470)
+
+**The ruling.** Tom, listening to the Italian method pod in Immersion on staging: "The changeovers
+between speakers need to be different depending on whether the speakers are jumping in — in which
+there should be no gap, in fact it should be overlap if possible, but if not, at least no gap at
+all. Whereas genuine turn taking — asking or answering questions etc. — should be as they are now,
+with whatever gap they currently have. So it's more like a proper conversation." Popty (job #471)
+marks the line: `listening_pod_sentences.jump_in`, nullable boolean, true only for a line that
+interrupts; the app reads it on the same select it already makes and carries it as `jumpIn` on the
+sentence, the turn and the offline snapshot.
+
+**One rule file.** `playback/podChangeover.ts` owns the changeover. `changeoverGapMs` returns the
+overlay's pre-existing gaps for every turn, unchanged and pinned by test — 90 ms on a speaker
+change, 50 ms between one speaker's sentences in Immersion, 90 ms in Drill — and 0 for a jump-in in
+Immersion. `jumpInLeadMs` is the overlap: the previous clip's trailing silence, from its own word
+timings, plus 120 ms into its last word; 200 ms when the clip is untimed; never more than 700 ms or
+the clip itself. Media time on both sides, so the playback speed cancels out.
+
+**Two elements, one hook.** The overlay's audio controller grows a second element used for a
+jump-in only. It is primed with a silent one-shot inside the learner's play tap, because iOS unlocks
+autoplay per element and per gesture. The row before a jump-in resolves the next clip's URL while it
+is still playing and hands `play()` a near-end hook: an rAF watch that starts the jump-in on the
+second element when the sounding clip is within its lead of the end. The next row adopts the clip
+already sounding. Where the platform refuses the early start, or rAF is frozen under a locked
+screen, the changeover lands on the zero-gap floor — no silence clip, URL already resolved, one src
+swap on the main element. Measured in a phone-viewport headless run of the method pod's scene 1:
+today's build on dev plays every changeover at 196–318 ms whether or not the line is a jump-in;
+this build plays a jump-in 165–194 ms BEFORE the previous clip ends and a turn at the same 249–342
+ms as before.
+
+**Drill is untouched, on purpose.** Drill plays each line as target · known · target · target, so
+the sound before a line is the third repetition of the previous line with its translation in
+between, not the other speaker's turn. An interruption of a drill rep is not a conversation.
+
+**A defect the trace exposed, fixed in the same controller.** The safety timeout that stops a clip
+from hanging the list was a flat 15 s, and it cut every pod line longer than that — the method
+pod's 19–20 s lines were skipped at 15 s on dev and staging with a "Safety timeout" warning, which
+also meant a jump-in after one of them could never overlap. The ceiling now scales with the clip's
+own duration at its rate plus five seconds, never less than 15 s.

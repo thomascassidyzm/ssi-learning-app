@@ -91,10 +91,14 @@ git -C "$WT" merge --no-ff origin/staging \
 # to dev as it always did.
 #
 # A notes failure must never block the ship — it is a changelog, not code. So we record the
-# failure, push the merge anyway, and refuse to report success at the end.
+# failure, push the merge anyway, and refuse to report success at the end. The finaliser's own
+# gates (markup the panel cannot render; the shape — three one-sentence headlines plus ONE line
+# below the fold, Tom's ruling 2026-09-12) fail this same way, so their reason is kept and
+# printed in the banner below rather than scrolling off above the push.
 NOTES_ARGS=(--finalize --sha "$STAGING" --count "$COUNT" --base "$MAIN" --head "$STAGING" --worktree "$WT")
 NOTES_OK=1
-if ! node "$REPO/tools/release-train/release-notes.mjs" "${NOTES_ARGS[@]}"; then
+NOTES_LOG=$(mktemp -t promote-notes.XXXXXX)
+if ! node "$REPO/tools/release-train/release-notes.mjs" "${NOTES_ARGS[@]}" 2>&1 | tee "$NOTES_LOG"; then
   NOTES_OK=0
 fi
 
@@ -132,11 +136,16 @@ if [[ "$NOTES_OK" -ne 1 ]]; then
   echo "########################################################################"
   echo "# THE PROMOTE LANDED. THE RELEASE NOTES DID NOT.                       #"
   echo "########################################################################"
-  echo "main is $NEW and deploying. But the notes are still a DRAFT, and a draft"
-  echo "is invisible to learners — the app's 'What's new' will show the PREVIOUS"
-  echo "ship's date until this is fixed. Finish it by hand, now:"
+  echo "main is $NEW and deploying. But no final notes were written, so the app's"
+  echo "'What's new' will show the PREVIOUS ship's date until this is fixed. Why:"
+  grep -E 'FATAL release-notes|does not fit the release-notes shape|cannot render|^  - ' "$NOTES_LOG" \
+    | sed 's/^/    /' || echo "    (no reason captured — read the output above)"
+  echo "A shape refusal means the draft is an essay: the shape is three one-sentence"
+  echo "headlines under 'What's new' and ONE line under 'Other stuff and bug fixes'."
+  echo "Fix the draft bullets on dev, then finish it by hand, now:"
   echo "  node tools/release-train/release-notes.mjs ${NOTES_ARGS[*]}"
-  echo "Then post the done-board card. Do NOT report this ship as done first."
+  echo "Put this failure, and its reason, in the ship's report and the done-board"
+  echo "card. Do NOT report this ship as done first."
   exit 1
 fi
 

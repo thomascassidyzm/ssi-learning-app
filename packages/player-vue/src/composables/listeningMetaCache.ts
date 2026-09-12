@@ -129,6 +129,9 @@ export interface CachedPodRow {
   atom_map_fine?: unknown[] | null
   window_known_map?: unknown[] | null
   takeg_audio_ids?: Array<string | null> | null
+  /** Jump-in marker (job #471) — rides the snapshot so offline changeovers
+   *  match online ones. Absent on snapshots written before the column. */
+  jump_in?: boolean | null
 }
 
 /** course_seeds row — superset of the Core tab's and the L1 scheduler's
@@ -381,7 +384,7 @@ export const clearCachedListeningPodRows = async (courseCode: string): Promise<v
 }
 
 /** Column list for the pod-row union select — keep in sync with CachedPodRow. */
-const POD_ROW_COLUMNS =
+export const POD_ROW_COLUMNS =
   'id, scene_number, sentence_number, global_order, speaker, target_text, known_text, ' +
   'target_audio_id, known_audio_id, explainer_audio_id, glue_to_next, atom_map, ' +
   'sentence_audio_ids, sentence_known_audio_ids, atom_map_fine, window_known_map, takeg_audio_ids, ' +
@@ -389,7 +392,10 @@ const POD_ROW_COLUMNS =
   // online one does. A snapshot without these columns would hand every reader
   // rows it could not classify, and a continuation would read as a line of the
   // walk — a learner's walk lengthening on a plane, silently.
-  'variant_key, attach_sentence_number'
+  'variant_key, attach_sentence_number, ' +
+  // The jump-in changeover marker (job #471) — offline dialogues must
+  // breathe the same way online ones do.
+  'jump_in'
 
 /** Column list for the pod CLIP read (split-clip texts + word timings) —
  *  shared with useListeningPods so online and offline read the same shape.
