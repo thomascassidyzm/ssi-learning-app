@@ -121,18 +121,21 @@ describe('GET /api/intel/weak-points — the k-floor', () => {
     expect(res._json.tooFewToSay).toBe(true)
   })
 
-  it('does not count machine traffic towards the floor', async () => {
+  it('does not count unattributed machine traffic towards the floor, but a real learner in Japan is a person (job #325)', async () => {
     for (let i = 1; i <= 4; i++) {
       learners.push({ id: `p${i}`, is_class_entity: false, platform_role: null })
       events.push(event(`p${i}`, 'audio_play', 'S0001L01'))
     }
+    // A signed-in learner whose rows come from Japan: a person, counted.
     learners.push({ id: 'jp-1', is_class_entity: false, platform_role: null })
     events.push({ ...event('jp-1', 'audio_play', 'S0001L01'), ip_country: 'JP' })
+    // A learner id that resolves to nobody, from Japan: a probe, not counted.
+    events.push({ ...event('ghost-1', 'audio_play', 'S0001L01'), ip_country: 'JP' })
 
     const res = makeRes()
     await handler({ method: 'GET', query: { course: 'spa_for_eng' }, headers: {} } as unknown as VercelRequest, res)
 
-    expect(res._json.learners).toBe(4)
-    expect(res._json.tooFewToSay).toBe(true)
+    expect(res._json.learners).toBe(5)
+    expect(res._json.tooFewToSay).toBe(false)
   })
 })
