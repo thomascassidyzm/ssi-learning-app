@@ -83,6 +83,7 @@ async function mountDashboard(schoolRow: Record<string, unknown>) {
   globalThis.fetch = vi.fn(async (url: any) => {
     const u = String(url)
     if (u.includes('roster')) return { ok: true, json: async () => ({ school: schoolRow }) } as any
+    if (u.includes('class-practice-7d')) return { ok: true, json: async () => ({ practiceByClass: {}, activeDaysByClass: {}, rollup: { windowDays: 7, classCount: 3, activeClasses7d: 2, inAppMinutes7d: 352 } }) } as any
     return { ok: true, json: async () => ({}) } as any
   }) as any
 

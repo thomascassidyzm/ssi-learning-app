@@ -19,13 +19,17 @@ import { describe, expect, it, vi, afterEach } from 'vitest'
 import { createApp, ref, type Ref } from 'vue'
 import {
   fetchAndCacheListeningMeta,
+  ensureListeningMetaSnapshot,
   getCachedListeningMeta,
   collectListeningMetaAudioIds,
   refreshListeningMetaIfStale,
   isCachedListeningMetaStale,
+  POD_CLIP_COLUMNS,
+  readClipTimings,
 } from './listeningMetaCache'
 import { openDB } from 'idb'
 import { useListeningPods, type UseListeningPodsReturn } from './useListeningPods'
+import { resetServedPodCache } from './servedPod'
 
 // ── Fake supabase: a thenable query builder routed per table ──────────────
 
@@ -49,6 +53,7 @@ class FakeQuery {
   select() { return this }
   eq(column: string, value: any) { this.filters[column] = value; return this }
   in(column: string, values: any[]) { this.inFilter = { column, values }; return this }
+  or() { return this }
   order() { return this }
   range() { return this }
   limit() { return this }
@@ -106,8 +111,11 @@ const SEED_ROWS = [
   },
 ]
 
-const happyClient = makeFakeClient({
+const happyRoutes: Record<string, (q: FakeQuery) => RouteResult> = {
   courses: () => ({ data: { content_stamp: 'stamp-1' } as any, error: null }),
+  // A LIVE slot lookup: the course serves pod-1 and has no extra slot, so a
+  // snapshot built from it legitimately carries `extraPods: []`.
+  listening_pods: () => ({ data: [{ slug: 'pod-1', title: 'Pod one', pod_type: 'core' }], error: null }),
   listening_pod_sentences: () => ({ data: POD_ROWS, error: null }),
   course_audio: (q) => {
     if (q.inFilter?.column === 'id') {
@@ -138,7 +146,8 @@ const happyClient = makeFakeClient({
     ],
     error: null,
   }),
-})
+}
+const happyClient = makeFakeClient(happyRoutes)
 
 // bookends use .in('role', ...) too — disambiguate from split texts by column.
 // (Handled above: id-in → texts; role filter eq → fine-knowns; else bookends.)
@@ -356,6 +365,21 @@ describe('self-healing snapshot (no META_VERSION)', () => {
   })
 })
 
+describe('POD_CLIP_COLUMNS + readClipTimings — the #407 column is requested and wins', () => {
+  it('requests word_timings alongside word_boundaries', () => {
+    expect(POD_CLIP_COLUMNS.split(',').map((c) => c.trim())).toEqual(['id', 'text', 'word_boundaries', 'word_timings'])
+  })
+  it('prefers a live Cartesia word_timings payload and falls back to word_boundaries when it is NULL', () => {
+    // course_audio 04f7c18e-9688-4a11-bd78-9160df55768b (zzz_test2_for_eng), verbatim 2026-09-12.
+    const cartesia = { source: 'cartesia', words: ['A', 'black', 'coffee,', 'please.'], starts: [0.04, 0.12, 0.52, 0.841], ends: [0.12, 0.44, 0.84, 1.32] }
+    const azure = [{ text: 'Hola', offset: 50, duration: 300 }]
+    expect(readClipTimings({ word_timings: cartesia, word_boundaries: azure })).toBe(cartesia)
+    // Older clips: no backfill, so word_timings is NULL and Azure still serves.
+    expect(readClipTimings({ word_timings: null, word_boundaries: azure })).toBe(azure)
+    expect(readClipTimings({ word_timings: null, word_boundaries: null })).toBeNull()
+  })
+})
+
 describe('collectListeningMetaAudioIds', () => {
   it('derives every id class: seeds, pod turns, splits, Take-G, fine-knowns, bookends', async () => {
     const meta = await fetchAndCacheListeningMeta(happyClient, 'ita_for_eng')
@@ -396,6 +420,103 @@ function mountPods(client: any, course: string): { pods: UseListeningPodsReturn;
 }
 
 describe('useListeningPods offline fallback', () => {
+  // Job #379 (Tom, airplane mode, Chinese for English speakers, production
+  // 2026-09-12): the automatic download-ahead had fetched the clips but no
+  // Offline Mode download had ever run, so no snapshot existed and the list
+  // read empty. The online boot lane now writes the snapshot when none exists.
+  it('lists Dialogues offline on a device that only ever booted online (job #379)', async () => {
+    expect(await getCachedListeningMeta('zho_for_eng')).toBeNull()
+    expect(await ensureListeningMetaSnapshot(happyClient, 'zho_for_eng')).toBe(true) // online boot
+    const { pods, flush } = mountPods(failAll, 'zho_for_eng')                          // airplane mode
+    await flush()
+    expect(pods.error.value).toBeNull()
+    expect(pods.scenes.value).toHaveLength(1)
+    // A second boot leaves an existing snapshot alone — freshness is the
+    // stamp lane's job, not this one's.
+    const before = (await getCachedListeningMeta('zho_for_eng'))!.cachedAt
+    expect(await ensureListeningMetaSnapshot(happyClient, 'zho_for_eng')).toBe(false)
+    expect((await getCachedListeningMeta('zho_for_eng'))!.cachedAt).toBe(before)
+  })
+
+  // The Italian method pod (job #354, third Listening Mode slot) vanished from
+  // Tom's airplane-mode list on 2026-09-12: his snapshot predated the slot, so
+  // it had no `extraPods` and nothing refreshed it while the content stamp
+  // stood still. A pre-slot entry is refreshed once.
+  it('refreshes a snapshot written before the extra pod slots existed (job #379)', async () => {
+    await fetchAndCacheListeningMeta(happyClient, 'ita_for_eng')
+    const db = await openDB('ssi-listening-meta')
+    const entry = await db.get('meta', 'ita_for_eng')
+    delete entry.extraPods
+    await db.put('meta', entry, 'ita_for_eng')
+    db.close()
+    expect((await getCachedListeningMeta('ita_for_eng'))!.extraPods).toBeUndefined()
+    expect(await ensureListeningMetaSnapshot(happyClient, 'ita_for_eng')).toBe(true)
+    expect(Array.isArray((await getCachedListeningMeta('ita_for_eng'))!.extraPods)).toBe(true)
+    expect(await ensureListeningMetaSnapshot(happyClient, 'ita_for_eng')).toBe(false)
+  })
+
+  // Job #424: on a device that had never cached extras, a first fetch whose
+  // slot lookup timed out or errored wrote `extraPods: []` — the same shape as
+  // "this course has no extra slot" — and the once-per-boot heal above then
+  // read it as complete for as long as the content stamp stood still. An
+  // empty list from a FALLBACK lookup is not a known list.
+  it('refreshes a snapshot whose extra slots came from a failed lookup, not a live read (job #424)', async () => {
+    const slotLookupDown = makeFakeClient({
+      ...happyRoutes,
+      listening_pods: () => ({ data: null, error: { message: 'TypeError: Load failed' } }),
+    })
+    resetServedPodCache()
+    expect(await ensureListeningMetaSnapshot(slotLookupDown, 'ita_for_eng_424')).toBe(true) // bad first boot
+    const written = (await getCachedListeningMeta('ita_for_eng_424'))!
+    expect(written.extraPods).toEqual([])
+    expect(written.extrasDegraded).toBe(true)
+    // Next boot, network fine: the heal must run again rather than trust `[]`.
+    resetServedPodCache()
+    expect(await ensureListeningMetaSnapshot(happyClient, 'ita_for_eng_424')).toBe(true)
+    const healed = (await getCachedListeningMeta('ita_for_eng_424'))!
+    expect(healed.extraPods).toEqual([])
+    expect(healed.extrasDegraded).toBeUndefined()
+    // And a live-read empty list IS a known list: no refetch loop.
+    expect(await ensureListeningMetaSnapshot(happyClient, 'ita_for_eng_424')).toBe(false)
+  })
+
+  // Job #425: the heal is called on every round advance, and the degraded
+  // memo holds for the session, so a flagged snapshot was rebuilt on every
+  // advance — pod rows and clip texts re-read, the snapshot rewritten — for
+  // as long as the session lasted. Two calls in one session fetch once.
+  it('heals a flagged snapshot at most once per session (job #425)', async () => {
+    const podReads = vi.fn(() => ({ data: null, error: { message: 'TypeError: Load failed' } }))
+    const slotLookupDown = makeFakeClient({ ...happyRoutes, listening_pods: podReads })
+    resetServedPodCache()
+    expect(await ensureListeningMetaSnapshot(slotLookupDown, 'ita_for_eng_425')).toBe(true)
+    expect((await getCachedListeningMeta('ita_for_eng_425'))!.extrasDegraded).toBe(true)
+    const readsAfterFirst = podReads.mock.calls.length
+    expect(await ensureListeningMetaSnapshot(slotLookupDown, 'ita_for_eng_425')).toBe(false) // next round advance
+    expect(await ensureListeningMetaSnapshot(slotLookupDown, 'ita_for_eng_425')).toBe(false)
+    expect(podReads.mock.calls.length).toBe(readsAfterFirst)
+    // A new session (the same reset the boot path implies) heals again.
+    resetServedPodCache()
+    expect(await ensureListeningMetaSnapshot(happyClient, 'ita_for_eng_425')).toBe(true)
+  })
+
+  // Job #430: #425 marked the course healed BEFORE the fetch, so a learner
+  // with no snapshot whose first fetch failed on a flaky link got no retry
+  // for the rest of the session. Healed means a successful write.
+  it('a failed first heal stays unmarked, so the next round advance fetches again (job #430)', async () => {
+    const reads = vi.fn(() => ({ data: null, error: { message: 'TypeError: Load failed' } }))
+    const linkDown = makeFakeClient(new Proxy({}, { get: () => reads }) as any)
+    resetServedPodCache()
+    expect(await ensureListeningMetaSnapshot(linkDown, 'ita_for_eng_430')).toBe(false)
+    expect(await getCachedListeningMeta('ita_for_eng_430')).toBeFalsy()
+    const readsAfterFirst = reads.mock.calls.length
+    expect(readsAfterFirst).toBeGreaterThan(0)
+    expect(await ensureListeningMetaSnapshot(linkDown, 'ita_for_eng_430')).toBe(false) // next round advance
+    expect(reads.mock.calls.length).toBeGreaterThan(readsAfterFirst)                    // it tried again
+    // The link comes back: the write lands and the guard holds from then on.
+    expect(await ensureListeningMetaSnapshot(happyClient, 'ita_for_eng_430')).toBe(true)
+    expect(await ensureListeningMetaSnapshot(happyClient, 'ita_for_eng_430')).toBe(false)
+  })
+
   it('serves scenes from the cached metadata when the live fetch fails', async () => {
     await fetchAndCacheListeningMeta(happyClient, 'ita_for_eng') // downloaded earlier, online
     const { pods, flush } = mountPods(failAll, 'ita_for_eng')

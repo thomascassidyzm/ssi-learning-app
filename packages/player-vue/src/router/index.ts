@@ -69,7 +69,7 @@ const AdminSchoolsContainer = () => import('@/containers/AdminSchoolsContainer.v
 const AdminGroupContainer = () => import('@/containers/AdminGroupContainer.vue')
 const MethodologyContainer = () => import('@/containers/MethodologyContainer.vue')
 import { QUESTIONS } from '@/intel/questions'
-import { FOSSILS, fossilIsDead, fossilLanding } from '@/intel/fossils'
+import { FOSSILS, fossilIsDead, fossilLanding, fossilRouteName } from '@/intel/fossils'
 
 // Schools views (lazy-loaded)
 const DashboardView = () => import('@/views/schools/DashboardView.vue')
@@ -86,6 +86,7 @@ const SetupView = () => import('@/views/schools/SetupView.vue')
 // HANDBOOK (2026-09-07) — the compiled map of every capability, shared by the
 // /schools and /org mounts: one component, one address per lane.
 const HandbookView = () => import('@/views/schools/HandbookView.vue')
+const SupportView = () => import('@/views/schools/SupportView.vue')
 // THE INTELLIGENCE SURFACE — the question pages. They ride AdminContainer,
 // the ONE shell over SSi's internal surfaces (Tom's ruling 2026-09-10:
 // "share"), whose bar carries the ten questions.
@@ -97,6 +98,7 @@ const INTEL_VIEWS: Record<string, () => Promise<unknown>> = {
   'weak-points': () => import('@/views/intel/WeakPointsView.vue'),
   courses: () => import('@/views/intel/CoursesView.vue'),
   working: () => import('@/views/intel/WorkingView.vue'),
+  'where-and-what': () => import('@/views/intel/WhereAndWhatView.vue'),
 }
 // THE FOSSILS — the old admin pages a question replaces. Each renders only
 // while a question it serves is unbuilt; the day the last one is built the
@@ -117,7 +119,7 @@ function fossilRoute(f: (typeof FOSSILS)[number]): RouteRecordRaw {
   }
   return {
     path: f.path,
-    name: `admin-${f.path.replace(/[^a-z]+/g, '-').replace(/-$/, '')}`,
+    name: fossilRouteName(f),
     component: FOSSIL_VIEWS[f.path],
     meta: FOSSIL_META[f.path],
   }
@@ -362,6 +364,19 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: 'Handbook',
           description: 'Everything this dashboard can do, compiled from the same source that gates the live dashboard',
+          railFrame: true,
+        },
+      },
+      {
+        // The support channel — one thread per school, admins only (Tom,
+        // 2026-09-10). The route refuses a teacher server-side; the menu
+        // entry is simply not shown to one.
+        path: 'support',
+        name: 'schools-support',
+        component: SupportView,
+        meta: {
+          title: 'Support',
+          description: 'Your school\'s conversation with SSi, inside the app',
           railFrame: true,
         },
       },

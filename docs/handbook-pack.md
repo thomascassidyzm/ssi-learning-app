@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `d7de74a7dd41` · generated 2026-09-11 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `8fab39ea15ff` · generated 2026-09-12 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -275,6 +275,20 @@ Section: getting-people-in · roles: leader · anchor: `schools-list-link-chips`
 
 **Worth knowing.** Tapping a link chip does not open the school — the rest of the row does that. A school still flagged as awaiting admin is one whose admin link nobody has opened yet.
 
+## Copy a teacher's own play onto the class
+
+Section: running-classes · roles: school_admin · anchor: `class-copy-play-preview` · in `packages/player-vue/src/components/schools/CopyTeacherPlayCard.vue`
+
+**What it's for.** Putting right a class whose teacher ran lessons signed in as themselves instead of using Play as class, so the class carries the progress it really made.
+
+**Where it is.** The class page, the **Played as themselves by mistake?** card beside the roster.
+
+1. Pick the teacher from the list.
+2. Tap **See what would move** and read the sessions, the time in the app and where the class will be afterwards.
+3. Tap **Copy onto the class**. One line tells you what was copied.
+
+**Worth knowing.** The teacher keeps their own record. Only play on this class's course moves, the class ends up at the further of the two places, and running it again copies nothing twice. While viewing as someone else you can see what would move but not copy it.
+
 ## Create your first classes
 
 Section: running-classes · roles: school_admin · anchor: `setup-add-class-row` · in `packages/player-vue/src/views/schools/SetupView.vue`
@@ -359,7 +373,7 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `way
 
 **What it's for.** Sending the same invite email a second time to somebody who never found the first one. Nothing changes and no new link is made, so the one they may yet dig out of a spam folder still works.
 
-**Where it is.** The node's home page, the **Ways in** section, **Email again** on their row.
+**Where it is.** The node's home page, the **Ways in** section, **Email again** on their row. Tap **Show all** first if the ledger is folded.
 
 1. Scroll to **Ways in** on the node's home page.
 2. Find the person's row.
@@ -372,7 +386,7 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `way
 
 Section: running-classes · roles: school_admin, teacher · anchor: `classes-export` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
 
-**What it's for.** Taking the class list away as a spreadsheet, with the name, language, student count, belt, hours in the app this week, sessions, health and join code for every class.
+**What it's for.** Taking the class list away as a spreadsheet, with the name, language, belt, journey in LEGOs, minutes in the app this week, sessions, health and join code for every class.
 
 **Where it is.** **My Classes**, the **Export CSV** button along the top.
 
@@ -394,9 +408,9 @@ Section: running-classes · roles: school_admin, teacher · anchor: `classes-fil
 1. Open **My Classes**.
 2. Pick a language under **Course** to see only the classes learning it.
 3. Pick a state under **Health** to pull out the classes that need attention.
-4. Change **Sort** to order by students, hours this week or progress.
+4. Change **Sort by** to order by time in app this week or by how far through the course each class has got. On a phone it is the first control, and the number you sorted by shows beside each class name.
 
-**Worth knowing.** The totals above the table follow the filter, so the student count and the hours are always the total of what you are actually looking at.
+**Worth knowing.** The totals above the table follow the filter, so the minutes are always the total of what you are actually looking at. The table shows the first three of whatever the pickers produce; **Show all** under it shows the rest.
 
 ## Find out which email you are signed in with
 
@@ -495,7 +509,7 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `way
 
 **What it's for.** Giving one group of learners a sign-up link that puts them straight into a named course, when your funded year covers more than one. A North Wales tutor hands out the North Welsh link and nobody in that room is asked which Welsh they meant.
 
-**Where it is.** The node's home page, the **Ways in** section, the course-named buttons on your sign-up link's row.
+**Where it is.** The node's home page, the **Ways in** section, the course-named buttons on your sign-up link's row. Tap **Show all** first if the ledger is folded.
 
 1. Scroll to **Ways in** on the node's home page.
 2. Find the row for your sign-up link.
@@ -540,16 +554,15 @@ Section: seeing-progress · roles: admin · anchor: `question-page` · in `packa
 
 Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-journey` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
 
-**What it's for.** A bar showing where a class has got to in its course, measured in LEGOs — the individual pieces of language the course teaches. The class's own shared position leads, and the average its students have reached on their own sits alongside it.
+**What it's for.** A bar showing where a class has got to in its course, measured in LEGOs — the individual pieces of language the course teaches. A class is one learner account played from the front, so the position is the class's own.
 
 **Where it is.** The **Course journey** card on a class page.
 
 1. Open a class.
 2. Read the bar for how much of the course the class has covered together.
-3. The line underneath gives both figures: the class's shared position, and the average students have reached learning alone.
-4. It also names the next belt and how many LEGOs are left to reach it.
+3. The line underneath gives the figure in LEGOs, then names the next belt and how many LEGOs are left to reach it.
 
-**Worth knowing.** A class that has never played together has no shared position, so the bar falls back to the students' own average and says so.
+**Worth knowing.** A class that has never played together says **Not started** in words; it is never shown as a bar of zero.
 
 ## How fresh these numbers are
 
@@ -702,6 +715,19 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `ver
 
 **Worth knowing.** It is open to anyone holding it, so when a link has travelled further than you meant, revoke it in **Ways in** and make a fresh one. Use **Invite a person** instead when you can name who is coming.
 
+## Minutes in the app this week
+
+Section: seeing-progress · roles: school_admin · anchor: `dash-minutes-this-week` · in `packages/player-vue/src/views/schools/DashboardView.vue`
+
+**What it's for.** How much your school practised this week, in minutes: the time your classes spent in the app with a lesson running, pauses included, plus any teacher or pupil practising on their own account, each counted once. Under it, how many of your classes practised at all this week.
+
+**Where it is.** The stat strip at the top of the schools dashboard.
+
+1. Read the number. It is minutes, never hours, and it is this week only.
+2. Read the line beneath it for how many classes practised.
+
+**Worth knowing.** A dash means this week's figures have not loaded — pull to refresh. It is never shown as a zero that is not real.
+
 ## Move a teacher to another class
 
 Section: running-classes · roles: leader, school_admin, teacher · anchor: `class-teacher-other-classes` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
@@ -760,20 +786,20 @@ Section: running-classes · roles: school_admin, teacher · anchor: `classes-row
 
 **Worth knowing.** The row is a button in its own right, so a keyboard works too. The buttons at the right of the row do their own jobs and do not open the class.
 
-## Practice per student per week
+## Open the folded ledger
 
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-benchmark` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
+Section: getting-people-in · roles: admin, leader, school_admin · anchor: `ways-in-show-all` · in `packages/player-vue/src/components/admin/WaysInLedger.vue`
 
-**What it's for.** Minutes of practice per student per week for this class, set against the same figure for its school and for everyone doing the course. Dividing by students and by weeks is what lets a class of nine and a class of thirty be compared honestly.
+**What it's for.** Turning the one-row-per-role summary of your links into the full ledger, where every link has its own row and its own verbs.
 
-**Where it is.** The **Practice min/student/week** card on a class page.
+**Where it is.** The **Ways in** section, the **Show all** line under the role rows. It only appears when there are more than three links.
 
-1. Open a class.
-2. Read the top bar for this class's own minutes per student per week.
-3. The bars below it are the school average and the global average for the course.
-4. Compare the lengths — the numbers at the end give the exact figures.
+1. Scroll to **Ways in** on the node's home page.
+2. Tap **Show all**.
+3. The ledger opens with its filter chips and every link's row.
+4. Tap **Show fewer** at the bottom to fold it back.
 
-**Worth knowing.** A class with too little practice recorded shows a plain line saying so rather than a bar built from almost nothing.
+**Worth knowing.** Nothing is ever hidden for good: every link is one tap away.
 
 ## Prove your mailbox reaches you
 
@@ -806,14 +832,15 @@ Section: your-own-account · roles: leader, school_admin · anchor: `account-ins
 
 Section: running-classes · roles: school_admin, teacher · anchor: `classes-table` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
 
-**What it's for.** One row per class, showing at a glance how each one is doing: how many students, what belt the class has reached, hours in the app this week, the shape of the last seven days, and a health mark for classes worth a look. Time in app is the time the class, and any students on their own accounts, spent in the app with the lesson running, pauses included — so it is the time they were in the lesson.
+**What it's for.** One row per class, showing at a glance how each one is doing. A class is one learner account, played from the front of the room, so every figure on the row is that account's own: the belt the class has reached, how far through the course it has travelled in LEGOs, minutes in the app this week, the shape of its last seven days, and a health mark for classes worth a look. Time in app is time with the lesson running, pauses included — the time the class was in the lesson. A class that has never played says **Not started** in words rather than showing a row of zeros.
 
-**Where it is.** **My Classes**, the table filling most of the page.
+**Where it is.** **My Classes**, the table filling most of the page. On a phone each class is a card instead, with the number you sorted by beside its name and the rest underneath.
 
 1. Open **My Classes**.
-2. Read down the health column first, because that is where the app is pointing you.
-3. Use the small chart in each row to see whether practice is steady or has stopped.
-4. Compare time in the app this week between classes taking the same course.
+2. The first three classes show; tap **Show all** under the table for the rest, and **Show fewer** to fold them back.
+3. Read down the health column first, because that is where the app is pointing you.
+4. Use the small chart in each row to see whether practice is steady or has stopped.
+5. Compare time in the app this week between classes taking the same course.
 
 **Worth knowing.** Health is worked out from how many of the last seven days the class practised on. A quiet week reads as needing eyes, which is a prompt for a word rather than a worry.
 
@@ -826,27 +853,12 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class
 **Where it is.** The **Students** list at the bottom of a class page.
 
 1. Open a class.
-2. Read down the rows — the bar on each is that student's own position in the course, in LEGOs.
+2. Read down the rows — the bar on each is that student's own position in the course, in LEGOs. The first three show; tap **Show all** under them for the rest.
 3. The small chart beside it is their practice over the past week, with the minutes named.
 4. The dot and word at the start of a row say whether they are excellent, good, needing attention or inactive.
 5. Tap a row to open that person.
 
 **Worth knowing.** Needing attention means either nothing for a fortnight or less than half the class average, so it is a prompt to look rather than a verdict.
-
-## Reading the belts
-
-Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-belts` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
-
-**What it's for.** How a class is spread across the eight belts, from white to black. A belt is earned by completing whole sentences of the course, so it is a coarse, honest badge of distance travelled rather than a score or a grade.
-
-**Where it is.** The **Belt distribution** card on a class page.
-
-1. Open a class.
-2. Read the coloured strip for the shape of the class — a wide band of one colour means everyone is together.
-3. The list underneath names each belt and how many students hold it.
-4. The ladder runs white, yellow, orange, green, blue, purple, brown, black, reached at 8, 20, 40, 80, 150, 280 and 400 completed sentences.
-
-**Worth knowing.** Every screen in the product uses that one ladder, so a student never shows a different belt in two places.
 
 ## Reading your insights
 
@@ -862,7 +874,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `insig
 4. Use **Compare to** to put an average alongside.
 5. **Overview** takes you back to the same place's home page.
 
-**Worth knowing.** Everything here is a rate, not a raw total, so groups of very different sizes still compare fairly.
+**Worth knowing.** Everything here is a rate, not a raw total, so groups of very different sizes still compare fairly. A class that practises from the front is counted through its own class account, so whole-class lessons show here the same as any other practice.
 
 ## Remove a student from a class
 
@@ -924,6 +936,20 @@ Section: your-school · roles: admin · anchor: `verb-rename` · in `packages/pl
 
 **Worth knowing.** If the new name matches something else already sitting beside it you are warned and asked to confirm, because two identical names in one list is usually a mistake rather than a plan.
 
+## Report a bug from Settings
+
+Section: your-own-account · roles: teacher, school_admin, leader · anchor: `report-bug` · in `packages/player-vue/src/components/SettingsScreen.vue`
+
+**What it's for.** Opening the report sheet when something in the app has gone wrong.
+
+**Where it is.** **Settings**, under **Tools**, the **Report a bug** row.
+
+1. Open **Settings**.
+2. Tap **Report a bug**.
+3. Describe what happened on the sheet that opens and tap **Send**.
+
+**Worth knowing.** The row is there whether or not you are signed in. What you send goes to one place and nobody replies through the app.
+
 ## Run your first class session
 
 Section: running-classes · roles: school_admin, teacher · anchor: `class-play` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
@@ -938,6 +964,19 @@ Section: running-classes · roles: school_admin, teacher · anchor: `class-play`
 4. Tap play to start the session.
 
 **Worth knowing.** The join code is the same code all lesson, so a student arriving late still gets in.
+
+## Say what happened
+
+Section: your-own-account · roles: teacher, school_admin, leader · anchor: `report-bug-text` · in `packages/player-vue/src/components/ReportBugSheet.vue`
+
+**What it's for.** The box where you describe the problem in your own words.
+
+**Where it is.** The **What happened?** box on the report sheet.
+
+1. Tap into the box and write what you saw.
+2. Keep it under 2,000 characters. Send stays off until you have written something.
+
+**Worth knowing.** Your course and device details are added for you, so you only need to describe what went wrong.
 
 ## See and download your funder numbers
 
@@ -971,6 +1010,19 @@ Section: seeing-progress · roles: leader · anchor: `schools-list-table` · in 
 
 **Worth knowing.** The list holds still until you refresh it, so a number on screen will not change under you while you are reading. If a refresh fails you are told plainly rather than being shown stale figures as if they were current.
 
+## See that your report arrived
+
+Section: your-own-account · roles: teacher, school_admin, leader · anchor: `report-bug-thanks` · in `packages/player-vue/src/components/ReportBugSheet.vue`
+
+**What it's for.** Confirming the note reached us.
+
+**Where it is.** The **Got it, thank you** line that replaces the form once it has sent.
+
+1. Tap **Send** on the report sheet.
+2. Read **Got it, thank you**. The sheet closes on its own a moment later, or tap the line to close it now.
+
+**Worth knowing.** That line is the whole reply. There is no ticket number and no message back.
+
 ## See what a funded organisation gives its learners
 
 Section: courses-and-content · roles: admin · anchor: `org-enrolment-courses` · in `packages/player-vue/src/components/schools/NodeEntitlementControl.vue`
@@ -999,6 +1051,19 @@ Section: your-school · roles: school_admin · anchor: `settings-billing-plan` �
 4. Tap **Billing & invoices** to reach invoices, change the card, or cancel.
 
 **Worth knowing.** Every payment change happens on the one Upgrade page, so there is a single place to go and no second checkout to get confused with. The invoices button appears once a subscription is running.
+
+## Send the report
+
+Section: your-own-account · roles: teacher, school_admin, leader · anchor: `report-bug-send` · in `packages/player-vue/src/components/ReportBugSheet.vue`
+
+**What it's for.** Sending your note, and your screenshot if you added one, to us.
+
+**Where it is.** The **Send** button at the foot of the report sheet.
+
+1. Write what happened.
+2. Tap **Send**. It reads **Sending…** while it goes.
+
+**Worth knowing.** If the screenshot cannot upload, the note still goes without it. If the note itself does not send, the sheet says so and you can tap Send again.
 
 ## Set or change your password
 
@@ -1163,6 +1228,19 @@ Section: seeing-progress · roles: admin, school_admin, teacher · anchor: `stud
 
 **Worth knowing.** The export follows your filters, not the whole school — so a filtered list gives you a filtered file. Clear the filters first if you want everybody.
 
+## Tell us about something that went wrong
+
+Section: your-own-account · roles: teacher, school_admin, leader · anchor: `report-bug-sheet` · in `packages/player-vue/src/components/ReportBugSheet.vue`
+
+**What it's for.** Sending us a note when the app misbehaves, with the details of your course and device attached for you.
+
+**Where it is.** The sheet that opens from **Report a bug** in **Settings**.
+
+1. Tap **Report a bug** in Settings.
+2. Write what happened, add a screenshot if you have one, and tap **Send**.
+
+**Worth knowing.** Tapping outside the sheet closes it without sending. Nobody replies through the app: the note goes to one place where we read it.
+
 ## The class roster
 
 Section: seeing-progress · roles: leader, school_admin, teacher · anchor: `class-roster` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
@@ -1177,6 +1255,21 @@ Section: seeing-progress · roles: leader, school_admin, teacher · anchor: `cla
 4. Compare a student's practice against the class average shown in the rail beside the table.
 
 **Worth knowing.** A student who has never started shows as inactive rather than as behind, because nothing has happened yet to judge. A class nobody has joined yet shows its empty places instead of a table, with **Add students** in it.
+
+## The classes by year group
+
+Section: running-classes · roles: school_admin, teacher · anchor: `classes-year-groups` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
+
+**What it's for.** A row of small tiles under the health strip, one per year group: the phrases that year's classes practised this week and how many of them practised out of how many there are. It says in one glance which years are the school's engine and which have barely started.
+
+**Where it is.** **My Classes**, the **By year group** card under the health tiles, once this week's practice has loaded.
+
+1. Open **My Classes**.
+2. Read the big figure on each tile for phrases practised this week.
+3. Read the line under it for classes practising out of classes in that year.
+4. A tile reading **Other** holds the classes whose names carry no year.
+
+**Worth knowing.** The year is read off the class name — a leading number from 6 to 13, so **7B**, **Year 9 French** and **10 Set 1** all count — and is never stored. If fewer than half your class names carry a year the card reads **By class** instead, busiest first, three then **Show all**.
 
 ## The invites desk
 
@@ -1193,6 +1286,21 @@ Section: getting-people-in · roles: admin · anchor: `invites-mode-strip` · in
 
 **Worth knowing.** This is the operator's desk, not a school's. A school brings its own people in from its own home page.
 
+## The numbers by year group
+
+Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-year-groups` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
+
+**What it's for.** The row of small tiles under the numbers, one per year group, so a head can see at a glance which years are doing it and which have barely started. Each tile gives the phrases the year's classes practised this week and how many of its classes practised out of how many there are.
+
+**Where it is.** The **By year group** card directly under the row of numbers on a school or group page.
+
+1. Open a school or a group.
+2. Read the big figure on each tile for phrases practised this week.
+3. Read the line under it for classes practising out of classes in that year.
+4. A tile reading **Other** holds the classes whose names carry no year.
+
+**Worth knowing.** The year is read off the class name — a leading number from 6 to 13, so **7B**, **Year 9 French** and **10 Set 1** all count — and is never stored. If fewer than half your class names carry a year the card reads **By class** instead, busiest first, three then **Show all**. No minutes are shown per year group.
+
 ## The numbers on any level
 
 Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-stats` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
@@ -1202,11 +1310,11 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-
 **Where it is.** Across the top of the page for a group, a school or a class, under the name.
 
 1. Open the level you want — a group, a school or a class.
-2. **Phrases spoken this week** is how many phrases the classes beneath this level were prompted and said back in whole-class play over the last seven days. It is recorded for every clip the app plays, so it is the truest picture of a lesson.
+2. **Phrases practised this week** is how many phrases the classes beneath this level were prompted with in whole-class play over the last seven days. It is recorded as each phrase's turn begins, so it counts every phrase the lesson reached.
 3. **Classes practising this week** is how many of them played together in the last seven days, out of all the classes below.
 4. **Minutes in the app this week** is the time the classes beneath this level, and their staff and students on their own accounts, spent in the app over the last seven days, pauses included — the time they were in the lesson. The sentence under the row says how much of it was whole-class play and how much was audio playing.
 5. **Teachers** counts the staff below this level, each once however many classes they take.
-6. On a class the row switches to that class's own phrases spoken this week, its minutes in the app, its students and its teachers.
+6. On a class the row switches to that class's own phrases practised this week, its minutes in the app, its students and its teachers.
 
 **Worth knowing.** An organisation that is not school-shaped sees the same row worded as practice hours, groups and learners instead.
 
@@ -1223,7 +1331,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `insig
 3. Read the uptake figure first — it is how many learners this is based on.
 4. Open a class or a learner within it to see the same reading at a smaller scope.
 
-**Worth knowing.** A learner with no microphone data is absent from these figures rather than counted as a zero, so the denominator is always stated.
+**Worth knowing.** A learner with no microphone data is absent from these figures rather than counted as a zero, so the denominator is always stated. A class that practises from the front counts as one learner, its own class account, so a school with no pupil accounts still has a roster here.
 
 ## Walking down to a school, a class or a person
 
@@ -1236,8 +1344,8 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `below
 1. Open a group or a school.
 2. Tap a caret to open or close what sits under a name.
 3. Tap any name to go to that level — the numbers and the tree redraw for it.
-4. A class row names its teachers, its student count, and how many phrases it spoke together in the last seven days, or says plainly that it has not practised together this week, without you opening it.
-5. Where there are more than eight classes or people, a **more** button reveals the rest.
+4. A class row names its teachers, its student count, and how many phrases it practised together in the last seven days, or says plainly that it has not practised together this week, without you opening it.
+5. Where there are more than three groups, classes or people under a name, the first three show and **Show all** reveals the rest; **Show fewer** folds them away again.
 
 **Worth knowing.** The top two levels open themselves and deeper ones wait to be tapped, so a large organisation shows you its shape instead of eighty-five rows.
 
@@ -1250,10 +1358,11 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `way
 **Where it is.** The node's home page, the **Ways in** section below the lists.
 
 1. Open the node's home page and scroll to **Ways in**.
-2. Read the rows: each one is a live way in, personal or shareable.
-3. **Copy** hands you the link again.
-4. **Re-mint** issues a fresh link and kills the old one on the spot.
-5. **Revoke** closes that way in entirely.
+2. With more than three links, read one row per role — class links, teacher links, leader links — each saying how many there are and how often they have been used. A row with a single link carries **Copy**.
+3. Tap **Show all** to open the full ledger: each row a live way in, personal or shareable, filterable by role and by place with the chips. **Show fewer** folds it back.
+4. **Copy** hands you the link again.
+5. **Re-mint** issues a fresh link and kills the old one on the spot.
+6. **Revoke** closes that way in entirely.
 
 **Worth knowing.** A shareable link is open to anyone who holds it, so revoke is the tool when a link has travelled further than you meant.
 
@@ -1275,13 +1384,14 @@ Section: seeing-progress · roles: admin · anchor: `findings` · in `packages/p
 
 Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-phrases` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
 
-**What it's for.** A list of the phrases the classes beneath this level said together in the last seven days, with how many times each one came round. A phrase that appears again and again is the course bringing it back on purpose, which is how it sticks.
+**What it's for.** A list of the phrases the classes beneath this level practised together in the last seven days, with how many times each one came round. A phrase that appears again and again is the course bringing it back on purpose, which is how it sticks.
 
 **Where it is.** The **What they practised this week** card under the row of numbers on a group or school page, and on a class page under its own practice card.
 
 1. Open a group, a school or a class.
-2. Read the list: the prompt, the phrase the class said back, and the number of times it came round this week.
-3. Tap a column heading to sort by it.
+2. Read the three rows: the prompt, the phrase the class practised, and the number of times it came round this week. The three most practised come first.
+3. Tap **Show all** under them to see every phrase; **Show fewer** folds the list back.
+4. Tap a column heading to sort by it.
 
 **Worth knowing.** A level whose classes have not played together this week says so in words instead of showing an empty list. Only whole-class play appears here; what staff and students practise on their own accounts is counted in the minutes in the app figure above.
 
@@ -1327,33 +1437,46 @@ Section: seeing-progress · roles: leader, school_admin · anchor: `insights-org
 
 **Worth knowing.** A position is the phrase the class last played, in both languages. A sentence is one of the course's own sentences; the count out of the total says how far along that is.
 
+## Where in the world people are using us, and on what
+
+Section: seeing-progress · roles: admin · anchor: `question-where-and-what` · in `packages/player-vue/src/views/intel/WhereAndWhatView.vue`
+
+**What it's for.** Which countries real people practised from in the last thirty days, whether they were on phones, tablets or desktops, and whether they were in the app or in a browser.
+
+**Where it is.** **Where and what**, under What's happening.
+
+1. Read the sentence for how many real people, from how many countries, and the country and device most of them are on.
+2. Read the chart for people by country, most first.
+3. Read the rows, one per country, each with its phone, tablet and desktop split and its in-the-app or in-a-browser split. Tap a country to narrow the page to it; tap a device chip to count only that device. Both choices are written into the page address.
+
+**Worth knowing.** A person seen on two devices is counted once in the headline and once under each device. In the app or in a browser has only been recorded since 10 September 2026, so earlier people read as not recorded rather than being guessed at. Machine traffic is left out by rule.
+
 ## Where the class has got to
 
 Section: seeing-progress · roles: leader, school_admin, teacher · anchor: `class-journey` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
 
-**What it's for.** How far the class has travelled through its course, as a bar with the class average behind it and the next belt named. A class carries its own place on the course, moved by the sessions you run together.
+**What it's for.** How far the class has travelled through its course, as a bar in LEGOs with the next belt named. A class is one learner account played from the front, so this is the class's own place on the course, moved by the sessions you run together.
 
 **Where it is.** The class page, the **Course Journey** card in the column beside the roster.
 
 1. Open the class from **My Classes**.
 2. Read the bar for how much of the course the class has covered.
-3. Read the line under it for the class average and how far it is to the next belt.
-4. Compare that with the belt spread underneath, which shows how tightly the class is travelling together.
+3. Read the line under it for how far it is to the next belt.
 
-**Worth knowing.** The class average is the honest number for planning a lesson. The belt spread is the one that tells you whether the class is holding together or pulling apart.
+**Worth knowing.** A class that has never played says **Not started** in words; it is never shown as a bar of zero.
 
 ## Whether a class is practising together
 
 Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-practice` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
 
-**What it's for.** The headline card on a class: how many phrases the class was prompted and said back together in the last seven days, when it last practised, and the list of those phrases with how often each came round. Classes practising together is what a language programme lives on, so this leads over anything individual students do alone.
+**What it's for.** The headline card on a class: how many phrases the class was prompted with together in the last seven days, when it last practised, and the list of those phrases with how often each came round. Classes practising together is what a language programme lives on, so this leads over anything individual students do alone.
 
 **Where it is.** The **Class practice** card on a class page.
 
 1. Open a class from the tree or the map.
-2. Read the big figure for phrases spoken this week.
+2. Read the big figure for phrases practised this week.
 3. The line under it gives the time since the class last practised and its minutes in the app this week.
-4. The list beneath is every phrase the class said this week and the number of times it came round.
+4. The list beneath is the three phrases the class practised most this week and the number of times each came round; **Show all** under it opens the whole list.
 
 **Worth knowing.** The minutes are time in the app with the lesson running, pauses included, so they are the time the class was in the lesson. A class that has never played together says so plainly and names the teacher's **Play as class** button as the thing that starts the first lesson.
 
@@ -1399,22 +1522,22 @@ Section: seeing-progress · roles: leader, school_admin · anchor: `insights-org
 2. Read the bars for how long since each class last practised.
 3. Open a class row to see where it stopped.
 
-**Worth knowing.** Practised this week counts any sign of practice, a phrase spoken or the course opened and progress saved. The Practising figure above counts phrases spoken only, so it can be lower.
+**Worth knowing.** Practised this week counts any sign of practice, a phrase reached in a lesson or the course opened and progress saved. The Practising figure above counts phrases practised only, so it can be lower.
 
 ## Which classes practised this week
 
 Section: seeing-progress · roles: leader, school_admin · anchor: `insights-org-practising` · in `packages/player-vue/src/insight/OrgIntelPanel.vue`
 
-**What it's for.** Whether your classes are actually doing it: how many practised together in the last seven days against the seven before, how many phrases they spoke, and which people practised on their own account and for how long.
+**What it's for.** Whether your classes are actually doing it: how many practised together in the last seven days against the seven before, how many phrases they practised, and which people practised on their own account and for how long.
 
 **Where it is.** The **Practising** question at the top of any level's insights page.
 
 1. Read the sentence for this week against last week.
-2. Read the line for how many phrases were spoken each day over the last four weeks.
+2. Read the line for how many phrases were practised each day over the last four weeks.
 3. Read the class rows for who practised, when they last practised together and where in the course they are.
 4. Read the people rows for own-account minutes.
 
-**Worth knowing.** A class is counted in phrases spoken, never minutes. Nothing records how long a whole class practised, so no time is invented for it. Minutes appear only for people's own logins.
+**Worth knowing.** A class's minutes are time in the app on its own class account, the gaps between phrases included, the same number its class page shows. People's minutes are their own logins.
 
 ## Which courses are worth attention
 
@@ -1525,13 +1648,13 @@ Section: seeing-progress · roles: teacher · anchor: `dash-class-card` · in `p
 
 Section: seeing-progress · roles: teacher · anchor: `dash-teacher-stats` · in `packages/player-vue/src/views/schools/DashboardView.vue`
 
-**What it's for.** One quiet line totalling your whole teaching load — how many students you have across every class, how many hours they have practised between them, and how many sessions have been run. It is a record of what has happened, never a target.
+**What it's for.** One quiet line totalling your whole teaching load — how many students you have across every class, how many minutes they have practised between them, and how many sessions have been run. It is a record of what has happened, never a target.
 
 **Where it is.** Underneath your classes on the schools dashboard.
 
 1. Open the schools dashboard and scroll past your classes.
 2. **Students** counts every pupil in every class you teach, each person once.
-3. **Hours practised** is real practice time those pupils have logged.
+3. **Minutes practised** is real practice time those pupils have logged, in minutes.
 4. **Sessions** is how many class sessions have been run.
 
 **Worth knowing.** The line only appears once you have at least one class — there is nothing to total before that.

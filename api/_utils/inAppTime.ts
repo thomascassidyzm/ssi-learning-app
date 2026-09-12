@@ -76,6 +76,44 @@ export function sessioniseSeconds(timestampsMs: number[], opts: SessioniseOption
 }
 
 /**
+ * Pure: the distinct UTC days (YYYY-MM-DD) on which a learner has any event —
+ * "how many of the last seven days the class practised on", the sentence the
+ * Handbook already uses for a class's health mark. A day with one clip counts:
+ * presence, not length, is the question here.
+ */
+export function activeDays(timestampsMs: number[]): string[] {
+  const days = new Set<string>()
+  for (const t of timestampsMs) {
+    if (!Number.isFinite(t)) continue
+    days.add(new Date(t).toISOString().slice(0, 10))
+  }
+  return [...days].sort()
+}
+
+export interface InAppTime {
+  /** Sessionised in-app seconds (sessioniseSeconds). */
+  seconds: number
+  /** Distinct UTC days with any event in the window, ascending. */
+  days: string[]
+  /** Sessionised seconds per UTC day (YYYY-MM-DD) — the class list's activity sparkline (job #265). */
+  secondsByDay: Record<string, number>
+}
+
+/** Pure: sessionised seconds per UTC day. A block never spans midnight here — each day's stamps are sessionised alone. */
+export function sessioniseSecondsByDay(timestampsMs: number[], opts: SessioniseOptions = {}): Record<string, number> {
+  const byDay = new Map<string, number[]>()
+  for (const t of timestampsMs) {
+    if (!Number.isFinite(t)) continue
+    const day = new Date(t).toISOString().slice(0, 10)
+    if (!byDay.has(day)) byDay.set(day, [])
+    byDay.get(day)!.push(t)
+  }
+  const out: Record<string, number> = {}
+  for (const [day, ts] of byDay) out[day] = sessioniseSeconds(ts, opts)
+  return out
+}
+
+/**
  * In-app seconds per learner id over [sinceIso, now), off the diary. A learner
  * with no events in the window is absent from the map (read as 0).
  */
@@ -86,6 +124,22 @@ export async function inAppSecondsByLearner(
   opts: SessioniseOptions = {},
 ): Promise<Map<string, number>> {
   const out = new Map<string, number>()
+  for (const [lid, t] of await inAppTimeByLearner(svc, learnerIds, sinceIso, opts)) out.set(lid, t.seconds)
+  return out
+}
+
+/**
+ * In-app time AND active days per learner id over [sinceIso, now), from ONE
+ * diary read — the days ride on the same timestamps the seconds are
+ * sessionised from, so a caller that wants both never pays for the diary twice.
+ */
+export async function inAppTimeByLearner(
+  svc: SupabaseClient,
+  learnerIds: string[],
+  sinceIso: string,
+  opts: SessioniseOptions = {},
+): Promise<Map<string, InAppTime>> {
+  const out = new Map<string, InAppTime>()
   const ids = [...new Set(learnerIds.filter(Boolean))]
   if (ids.length === 0) return out
   const stamps = new Map<string, number[]>()
@@ -111,6 +165,6 @@ export async function inAppSecondsByLearner(
       }
     }),
   )
-  for (const [lid, ts] of stamps) out.set(lid, sessioniseSeconds(ts, opts))
+  for (const [lid, ts] of stamps) out.set(lid, { seconds: sessioniseSeconds(ts, opts), days: activeDays(ts), secondsByDay: sessioniseSecondsByDay(ts, opts) })
   return out
 }

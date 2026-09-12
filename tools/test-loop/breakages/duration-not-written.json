@@ -1,0 +1,13 @@
+{
+  "id": "duration-not-written",
+  "feel": "A school sees zero practice hours despite pupils actually playing lessons.",
+  "patch": {
+    "file": "packages/core/src/persistence/SessionStore.ts",
+    "before": "duration_seconds: durationSeconds,",
+    "after": "duration_seconds: 0,",
+    "count": 2
+  },
+  "check": "SessionStore.test.ts asserts duration payloads (unit only); chepstow-three-bugs-probe.mjs examines school behaviour; no local end-to-end duration checkpoint assertion",
+  "gap": "CODE-level mutation affects both endSession and checkpointSession payloads. No isolated local database/session fixture proving ongoing classroom duration writes. Unit coverage is not a learner-level catch.",
+  "revert": "Runner restores the original bytes in finally and asserts git status is clean before the next entry. Fixture pages are destroyed with their browser."
+}

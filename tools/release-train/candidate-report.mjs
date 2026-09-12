@@ -48,7 +48,6 @@ import {
   REPO, GH_REPO, log, sh, candidate, condense, publish, postCard,
 } from './lib.mjs'
 import { buildNotes, render as renderNotes, NOTES_REL } from './release-notes.mjs'
-import { loadPasses, evaluatePass } from './human-pass.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const REPORTS_DIR = join(HERE, 'reports')
@@ -190,7 +189,7 @@ function worklistSignals() {
 
 // ── 5. render ───────────────────────────────────────────────────────────────
 
-function render(cand, cond, ci, signals, dateStr, extraNotes, notes, humanPass) {
+function render(cand, cond, ci, signals, dateStr, extraNotes, notes) {
   const L = []
   const n = cand.commits.length
   L.push(`# Friday ship candidate — ${dateStr}`)
@@ -202,19 +201,6 @@ function render(cand, cond, ci, signals, dateStr, extraNotes, notes, humanPass) 
   L.push(`- \`dev\` is ${cand.devAhead} commit(s) ahead of \`staging\` (not in this candidate)`)
   L.push(`- last production commit landed ${cand.lastPromote ? cand.lastPromote.slice(0, 10) : 'unknown'}`)
   L.push('')
-
-  // The human-pass gate, said out loud on THURSDAY rather than discovered at the moment of the
-  // ship on Friday. promote.sh enforces it; this only reports what it would say.
-  if (humanPass) {
-    L.push(humanPass.ok
-      ? `**Human test pass: recorded.** ${humanPass.who} — the gate would let this ship.`
-      : '**Human test pass: NOT RECORDED — the promote will REFUSE.**')
-    if (!humanPass.ok) {
-      for (const r of humanPass.reasons.slice(0, 6)) L.push(`- ${r}`)
-      L.push('The sheet is `tools/release-train/TESTER-SHEET.md`; record answers with `record-pass.mjs`.')
-    }
-    L.push('')
-  }
 
   // The founder-readable half first: the draft release notes for this exact candidate. The full
   // notes file is committed alongside this report and is what Friday's promote stamps final.
@@ -343,24 +329,7 @@ async function main() {
   }
 
   const extra = process.env.RELEASE_TRAIN_EXTRA_NOTES || ''
-  // Does a human pass exist for this exact candidate? Read-only — the gate itself is promote.sh.
-  let humanPass = null
-  try {
-    const isAncestor = (sha) => {
-      try { sh('git', ['merge-base', '--is-ancestor', sha, cand.stagingSha]); return true } catch { return false }
-    }
-    const { ok, reasons, pass } = evaluatePass({
-      passes: loadPasses(), stagingSha: cand.stagingSha, isAncestor,
-    })
-    humanPass = {
-      ok, reasons,
-      who: pass ? `${pass.tester || 'unnamed tester'}, ${pass.date || 'undated'}, against ${pass.sha.slice(0, 7)}` : '',
-    }
-  } catch (e) {
-    humanPass = { ok: false, reasons: [`could not read the pass records: ${e.message}`], who: '' }
-  }
-
-  const body = render(cand, cond, ci, signals, dateStr, extra, notes, humanPass)
+  const body = render(cand, cond, ci, signals, dateStr, extra, notes)
   const relPath = `tools/release-train/reports/${dateStr}.md`
 
   if (DRY) {

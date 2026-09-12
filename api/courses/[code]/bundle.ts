@@ -505,9 +505,16 @@ export default async function handler(
         //
         // The source of truth for the slug rule is SERVING_POD_SLUGS in
         // `packages/player-vue/src/composables/servedPod.ts` (rule 1): only
-        // `pod-1` and `pod-0` are ever served, and unreleased content is held
-        // back by parking a pod on a non-serving slug. Mirroring it here makes
-        // the downloader and the player read the same pods by construction.
+        // `pod-1` and `pod-0` are ever served to MAIN FLOW, and unreleased
+        // content is held back by parking a pod on a non-serving slug. Plus
+        // LISTENING_EXTRA_POD_SLUGS (rule 6, job #354, Tom 2026-09-12): the
+        // named extra slot Listening Mode lists AFTER the served pod —
+        // `method-pod`, the Italian method pod alongside Pod 1. Both lists
+        // are closed allow-lists of named slugs; the union here is what the
+        // player can actually play in Listening Mode, so the download carries
+        // the same pods by construction. The two gates above and the role
+        // gate below stand in front of the extra slot exactly as they do in
+        // front of pod-1: a HELD method pod contributes nothing.
         //
         // Both literals are duplicated rather than imported, for the same
         // reason LIVE_POD_VISIBILITY above is: this file's dependency graph is
@@ -519,7 +526,7 @@ export default async function handler(
         // alone kept 69 pods, the slug gate alone 68, both together 67 across
         // 67 courses — and no course that can play a pod today loses one.
         .eq('pod_type', 'core')
-        .in('slug', ['pod-1', 'pod-0'])
+        .in('slug', ['pod-1', 'pod-0', 'method-pod'])
         // RESTRICTED CONTENT IS ONLINE-ONLY. This route reads with
         // SUPABASE_SERVICE_ROLE_KEY and therefore bypasses RLS entirely, so
         // the role gate added on 2026-09-03

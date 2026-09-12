@@ -186,7 +186,7 @@ describe('TeachersView logic', () => {
         display_name: 'Test Teacher',
         class_count: 2,
         student_count: 15,
-        total_practice_hours: 25,
+        total_practice_minutes: 1500,
         joined_at: '2025-01-01T00:00:00Z',
       }
 

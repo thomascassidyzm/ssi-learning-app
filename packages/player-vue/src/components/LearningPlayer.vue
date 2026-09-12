@@ -27,7 +27,7 @@ const ReportIssueButton = defineAsyncComponent(() => import('./ReportIssueButton
 import { useLearningSession } from '../composables/useLearningSession'
 import { useScriptCache, setCachedScript, getScriptStaleness, awaitFreshnessCheck } from '../composables/useScriptCache'
 import { roundsCarryNativeScript } from '../providers/roundsCarryNativeScript'
-import { fetchAndCacheListeningMeta, collectListeningMetaAudioIds, collectListeningMetaPodAudioIds } from '../composables/listeningMetaCache'
+import { fetchAndCacheListeningMeta, collectListeningMetaAudioIds, collectListeningMetaPodAudioIds, ensureListeningMetaSnapshot, getCachedListeningMeta } from '../composables/listeningMetaCache'
 import { LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/useEagerScriptPreload'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { usePodLapScheduler, type PodLap, type PodPlay } from '../composables/usePodLapScheduler'
@@ -78,7 +78,7 @@ import {
 import { resolveNewLearnerMode } from '../composables/newLearnerMode'
 import { computePauseDuration } from '../playback/computePauseDuration'
 import { bulkDownloadAudio, fetchBatchAudioUrls } from '../playback/bulkAudioDownload'
-import { buildOfflineDownloadQueue } from '../playback/offlineDownloadOrder'
+import { buildOfflineDownloadQueue, buildFetchAheadOrder } from '../playback/offlineDownloadOrder'
 import { seguePodWithLayer1, podBoundaryOutcome, podIsWhollyOnDevice } from '../playback/podSegue'
 import { useAuthModal } from '../composables/useAuthModal'
 import { useCheckout } from '../composables/useCheckout'
@@ -92,6 +92,8 @@ import { nextPractisingState, choosePractisedPosition, cycleIntroducesMaterial, 
 import { isContentBlackoutActive, reportBlackoutProbe } from '../playback/contentBlackout'
 import { practisingOverrideActive } from '../playback/practisingOverride'
 import { resolveResumeAnchor } from '../utils/resolveResumeAnchor'
+import { cachedScriptCoversLearner } from '../utils/cachedScriptCoversLearner'
+import { beltRewindTarget } from '../utils/beltRewindTarget'
 import { resolveResumeStart } from '../utils/resolveResumeStart'
 import { resolveAuthoritativePosition } from '../utils/resolveAuthoritativePosition'
 import {
@@ -899,6 +901,9 @@ const instantPlayback = useInstantPlayback(courseCode, {
         },
         onSeedFallback: (cursor, anchor) => {
           console.warn(`[InstantPlayback] cursor ${cursor} is gone from the course; landing on its seed at ${anchor}`)
+        },
+        onBeyondMap: (cursor, last) => {
+          console.warn(`[InstantPlayback] cursor ${cursor} lies beyond the round-map (last ${last}) — a sliced map; landing on its last round, not R1`)
         },
       })
     } catch (err) {
@@ -1728,7 +1733,18 @@ const playerLogActorUserId = computed(() => (props.classContext ? ((auth as any)
 // now, not from the ssi-user-id cookie — so hand the log the session token.
 const playerLogGetToken = (): Promise<string | null> =>
   ((auth as any)?.getToken?.() ?? Promise.resolve(null))
-const playerLog = usePlayerLog({ courseCode, learnerId, actorUserId: playerLogActorUserId, clientVersion: BUILD_VERSION, getToken: playerLogGetToken })
+// Every row this player logs carries the play state IN FORCE at that instant
+// (job #325, Tom 2026-09-12): the live Easy/Fast mode, the belt being PLAYED
+// (playingBelt, not the belt achieved), and the seed and round the cursor is
+// on. Read lazily at log time, so a toggle mid-session changes the very next
+// row, and a payload key the call site set itself is left alone.
+const playerLogContext = () => ({
+  mode: learningMode.value,
+  belt: playingBelt.value?.name ?? null,
+  seedId: simplePlayer.currentRound.value?.seedId ?? null,
+  roundIndex: simplePlayer.isInitialized.value ? simplePlayer.roundIndex.value : null,
+})
+const playerLog = usePlayerLog({ courseCode, learnerId, actorUserId: playerLogActorUserId, clientVersion: BUILD_VERSION, getToken: playerLogGetToken, context: playerLogContext })
 const logEvent = playerLog.event
 
 // ── INF PLAY OBSERVABILITY ──────────────────────────────────────────────────
@@ -2433,7 +2449,11 @@ simplePlayer.onPhaseChanged((phase) => {
       cycleId: cycle.id,
       cycleType: cycle.type ?? null,
       legoId: cycle.legoId ?? null,
-      seedId: cycle.seedId ?? null,
+      // Only when the cycle carries one. An explicit null here wins over the
+      // log context, and no main-flow cycle ever had a seedId: 47,336 of
+      // 47,336 production audio_play rows in the week to 2026-09-12 were null.
+      // Left absent, the context stamps the seed the cursor is on (job #339).
+      ...(cycle.seedId ? { seedId: cycle.seedId } : {}),
       playbackSpeed: cycle.playbackSpeed ?? 1.0,
       cacheHit,
     })
@@ -12450,37 +12470,6 @@ const roundsCoveredBySpan = (spanMs: number): number => {
   return Math.max(1, n)
 }
 
-// Pod-lap audio ids that WILL play within the next `spanMs` of cycle play.
-//
-// Pods advance on a ratchet (completed_pod_rounds), not on a round number, so
-// nextLap() composes only the IMMEDIATELY-NEXT lap (it reads the live ratchet).
-// That's exactly what's needed: pods fire at most once per played lap, each lap
-// reuses a slice of the same small bounded sentence pool, and the per-boundary
-// handler advances the ratchet as laps play. So warming the next due lap keeps
-// the upcoming pod cached even across a backgrounded span that crosses several
-// boundaries — the ratchet hasn't moved for laps not yet played, and once one
-// plays the next round-advance re-warms. Returns [] when no pod is due anywhere
-// in the span (cheap no-op — same shape as collectSpanAudioIds: bare audio ids).
-const collectPodSpanAudioIds = (spanMs: number): string[] => {
-  if (!podScheduler || !podScheduler.isInitialized.value) return []
-  const cursor = Math.max(0, currentRoundIndex.value)
-  const lastRound = cursor + roundsCoveredBySpan(spanMs)
-  // mainRound passed to shouldFireLapAt is 1-based (cursor+1 = current round).
-  // Cheap scan bounded by the span's round count.
-  let firesInSpan = false
-  for (let mr = cursor + 1; mr <= lastRound + 1; mr++) {
-    if (podScheduler.shouldFireLapAt(mr)) { firesInSpan = true; break }
-  }
-  if (!firesInSpan) return []
-  const lap = podScheduler.nextLap()
-  if (!lap) return []
-  const ids = new Set<string>()
-  if (lap.intro?.id) ids.add(lap.intro.id)
-  if (lap.outro?.id) ids.add(lap.outro.id)
-  for (const p of lap.plays) if (p.audioId) ids.add(p.audioId)
-  return [...ids]
-}
-
 /**
  * A FEW ROUNDS — the head of the rolling fill, enough to start practising
  * immediately. Tom, 2026-08-31: "we should put a few ROUNDS in the cache and
@@ -12512,58 +12501,15 @@ const collectHeadRoundsAudioIds = (roundCount: number): string[] => {
 }
 
 /**
- * ALL THE LISTENING — every clip either listening surface can play.
+ * ALL THE LISTENING — every clip either listening surface can play, from the
+ * schedulers' own rows. Used by the deliberate download (pods lead, Layer-1
+ * follows). The automatic fetch-ahead reads the pod corpus from the listening
+ * snapshot instead (collectAllPodAudioIds below), which also carries the split
+ * clips, fine-known glosses and Take-G slices this row shape lacks.
  *
- * OFFLINE MODE ONLY. Tom's ruling, 2026-09-01: "Should be progressively
- * loaded, yes. Never upfront loaded. Because people still have the option if
- * they choose to select the Offline Mode itself." This collector is
- * corpus-wide — it is not scoped to the learner's position and never shrinks
- * — so it is exactly the "upfront loaded" shape that ruling forbids in the
- * automatic path. It was spliced into fillBuffer's rolling warm until
- * 2026-09-01 and is now called from downloadForOffline alone.
- *
- * DO NOT re-add this to fillBuffer, warmBurst, or anything that fires without
- * the learner choosing Offline Mode. The automatic path warms the pod lap and
- * the Layer-1 lap DUE IN THE SPAN (collectPodSpanAudioIds /
- * collectLayer1SpanAudioIds), which is the progressive shape.
- * Regression net: progressivePrefetch.boundary.test.ts.
- *
- * Tom, 2026-09-01, escalating his own earlier ruling: "listening exercises -
- * ALL of them - need to be promoted earlier". The first version of this
- * warmed pod 1 alone; this is the whole of it.
- *
- * TWO POOLS, and they are the two the deliberate offline download already
- * enumerates — nothing new is being invented here, it is the same content
- * moved forward in time:
- *
- *   1. THE SERVED POD. `podSentences` is already scoped by the scheduler to
- *      the one pod this course serves (`resolveServedPod` — `pod-1` for
- *      courses authored since 2026-08-22, `pod-0` for the ~68 older ones).
- *      Retired pods and the `music` pod sit in the same table and are NEVER
- *      served, so they are correctly absent: warming them would be pure waste,
- *      not caution.
- *   2. THE LAYER-1 POOL. Every seed's two target voices — the source of the
- *      comprehensible-input sandwich an L1 cup pours. Laps are chosen at
- *      runtime from whatever has drained by the learner's position, so the
- *      clips cannot be predicted; the pool is bounded, so cache it whole.
- *
- * SIZE, MEASURED PROPERLY (spa_for_eng, 2026-09-01). An earlier note here said
- * ~28.7 MB. That was wrong twice over and is corrected: the bitrate assumed was
- * ~32 kbps when the real corpus median is 12.36 bytes/ms (~99 kbps, a 2.5s clip
- * ≈ 30 KB — cross-checked against 103 clips read straight out of a device's
- * IndexedDB at 30,073 bytes each), and the per-sentence stage renders were
- * missed entirely.
- *
- *   served pod, core clips        571 clips   45.2 min   31.9 MB
- *   served pod, sentence renders  496 clips   15.8 min   11.2 MB
- *   Layer-1 pool (668 seeds)    1,334 clips   80.5 min   56.9 MB
- *   ─────────────────────────────────────────────────────────────
- *   ALL LISTENING               2,401 clips  141.5 min  100.1 MB
- *
- * That is NOT small — and it is the reason this belongs behind the learner's
- * own Offline Mode choice rather than in the automatic warm. 100 MB is a
- * decision a person on a metered connection is entitled to make for
- * themselves; the Offline Mode tray is where they make it.
+ * Tom, 2026-09-12 (job #379): listening exercises are fetched FIRST on both
+ * paths — see playback/offlineDownloadOrder.ts for the ruling and what it
+ * superseded.
  */
 const collectAllListeningAudioIds = (): string[] => {
   const ids = new Set<string>()
@@ -12704,6 +12650,41 @@ const collectRoundsAudioIds = (roundsAhead: number): string[] => {
 // fills DEEP, not just the ~3-round bootstrap window — that shallow cap was the
 // root cause of cold-start lock/offline failures. Re-entrancy guarded so
 // overlapping round-advances don't double-fetch.
+/**
+ * EVERY POD SLOT'S CLIPS for this course — served pod, method pod, any future
+ * slot — from the listening snapshot, list and metadata first. Writes the
+ * snapshot when the device has none (ensureListeningMetaSnapshot; online
+ * only, a no-op once written), then reads it back: pod turns, split
+ * sentences, explainers, Take-G slices, fine-known glosses, bookends. Falls
+ * back to the main-flow scheduler's served-pod rows when the snapshot cannot
+ * be written, so a transient metadata failure still warms the pod that is
+ * due. Never throws.
+ */
+const collectAllPodAudioIds = async (): Promise<string[]> => {
+  const client = supabase.value
+  const code = courseCode.value
+  if (client && code) {
+    try {
+      await ensureListeningMetaSnapshot(client, code)
+      const meta = await getCachedListeningMeta(code)
+      if (meta) return collectListeningMetaPodAudioIds(meta)
+    } catch { /* fall through to the scheduler's rows */ }
+  }
+  const ids = new Set<string>()
+  const addAny = (v: unknown): void => {
+    if (typeof v === 'string' && v) ids.add(v)
+    else if (Array.isArray(v)) for (const x of v) addAny(x)
+  }
+  if (podScheduler?.isInitialized.value) {
+    for (const r of (podScheduler.podSentences.value ?? []) as any[]) {
+      addAny(r?.target_audio_id); addAny(r?.known_audio_id); addAny(r?.explainer_audio_id)
+      addAny(r?.sentence_audio_ids); addAny(r?.sentence_known_audio_ids)
+    }
+    if (podScheduler.introAudio.value?.id) ids.add(podScheduler.introAudio.value.id)
+    if (podScheduler.outroAudio.value?.id) ids.add(podScheduler.outroAudio.value.id)
+  }
+  return [...ids]
+}
 let rollingFillActive = false
 // A function (not an inline `=== 'downloading'`) so TS doesn't narrow the
 // reactive offlineDlState across the early return — its .value genuinely changes
@@ -12766,36 +12747,22 @@ const fillBuffer = async (spanMs: number, concurrency = 1): Promise<void> => {
     // front-to-back, so position in this array IS the priority. Dedupe across
     // all entries so a clip shared by a cycle and a lap is fetched once.
     //
-    // LISTENING IS PROMOTED, BUT POSITION-SCOPED. Two of Tom's rulings meet
-    // here and both are honoured:
-    //
-    //   2026-08-31: "I do not think we included the listening exercises early
-    //   enough in the download ahead of time cache" - so listening sits ahead
-    //   of the rolling span's cycle tail, not behind it. That is the ORDER
-    //   below: head rounds, then the pod lap and the Layer-1 lap due inside
-    //   the span, then rounds 4..N of cycles. The learner cannot reach those
-    //   later cycles before the head rounds are played, so they are the right
-    //   thing to yield.
-    //
-    //   2026-09-01: "Should be progressively loaded, yes. Never upfront
-    //   loaded. Because people still have the option if they choose to select
-    //   the Offline Mode itself." - so what gets promoted is the listening
-    //   DUE IN THIS SPAN, never the whole listening corpus. The corpus-wide
-    //   collector (collectAllListeningAudioIds - 2,401 clips / ~100 MB on
-    //   spa_for_eng, measured 2026-09-01) USED to be spliced in right here,
-    //   and it fired on the very first burst, before the learner had played a
-    //   single cycle. That is upfront bulk by any reading, so it is gone from
-    //   this path. It still runs, unchanged, in downloadForOffline - where the
-    //   learner asked for it.
-    //
-    // Everything in this list is scoped to the cursor and rolls forward with
-    // it. Nothing here is course-wide or corpus-wide. Keep it that way.
-    const ordered = [
-      ...collectHeadRoundsAudioIds(PREFETCH_HEAD_ROUNDS),
-      ...collectPodSpanAudioIds(spanMs),
-      ...collectLayer1SpanAudioIds(spanMs),
-      ...collectSpanAudioIds(spanMs),
-    ]
+    // LISTENING FIRST (Tom, 2026-09-12, job #379): after the head rounds the
+    // learner is about to hear, EVERY pod slot's clips come before anything
+    // else — "so a learner who is unexpectedly offline can always play every
+    // listening exercise … whatever amount was fetched, the pods are in it".
+    // The pod list and its metadata ride in front of the audio: the snapshot
+    // is written first (collectAllPodAudioIds), so the Dialogues list exists
+    // offline before a single pod clip has landed. There is no offline MODE
+    // as such; this is the one order, and the deliberate download uses it
+    // too (playback/offlineDownloadOrder.ts, which records what this
+    // supersedes).
+    const ordered = buildFetchAheadOrder({
+      head: collectHeadRoundsAudioIds(PREFETCH_HEAD_ROUNDS),
+      pods: await collectAllPodAudioIds(),
+      layer1: collectLayer1SpanAudioIds(spanMs),
+      span: collectSpanAudioIds(spanMs),
+    })
     const seen = new Set<string>()
     const missing = ordered.filter((id) => {
       if (seen.has(id) || audioCache.persistent.has(id)) return false
@@ -12983,21 +12950,13 @@ const downloadForOffline = async (roundsAhead: number = Infinity) => {
   // download can be interrupted (signal goes, app closed, user walks away) — so
   // a PARTIAL download is the normal case, and this order decides what it is.
   //
-  // Tom, 2026-09-01: "Not first. But prioritised." Pods are woven THROUGH the
-  // course at an elevated rate, not stacked in front of it: a pods-first prefix
-  // would leave someone who stops early holding complete dialogues and nothing
-  // to play next. The course leads; pods take one slot in eight, about three
-  // times their natural share, so at any interruption the learner has the next
-  // stretch of course AND a disproportionately large share of the pods.
-  //
-  // Pods lead the promoted stream and the Layer-1 pool follows, so the pods are
-  // the part that survives a shallow take. The pod slice deliberately includes
-  // the fine-known glosses and Take-G fusion slices that only the listening
-  // metadata carries — without them, pod dialogue dies the moment a learner
-  // opens a fusion rung.
-  //
-  // The SET of ids is unchanged; only the order is, so the totals, the
-  // progress accounting and "Ready ✓" all mean exactly what they meant before.
+  // Tom, 2026-09-12 (job #379): listening exercises FIRST. After the head
+  // rounds, every pod clip, then the Layer-1 pool, then the course in learner
+  // order — so whatever amount was fetched, the pods are in it. The pod slice
+  // deliberately includes the fine-known glosses and Take-G fusion slices that
+  // only the listening metadata carries — without them, pod dialogue dies the
+  // moment a learner opens a fusion rung. The SET of ids is unchanged; only
+  // the order is, so the totals and "Ready ✓" mean what they meant before.
   const ids = buildOfflineDownloadQueue({
     head: collectHeadRoundsAudioIds(PREFETCH_HEAD_ROUNDS),
     priority: [...new Set([...podIds, ...collectAllListeningAudioIds()])],
@@ -14767,7 +14726,30 @@ onMounted(async () => {
         if (inferEnrollmentMode === 'main') {
           try {
             const cachedScript = await getCachedScript(courseCode.value)
-            if (cachedScript && cachedScript.rounds.length > 0) {
+            // A cached script that cannot place this learner is not their
+            // course view — on a bundle-booted premium course it is the free
+            // PREVIEW slice (33 rounds through Yellow on cym_s_for_eng) written
+            // while the device was a guest, unentitled, or fetched the bundle
+            // before its session restored. The bundle heals when entitlement
+            // arrives; this cache never did, and hydrating from it resolved a
+            // cursor past Yellow against 33 rounds, found nothing, and started
+            // the learner at White belt round 1 (job #326, 2026-09-12). Skip
+            // the fast-path: the bootstrap below resolves against the live
+            // bundle's round map, and the full-script handoff rewrites the
+            // cache so the next cold start is warm again. Guests and deep
+            // links carry no server position to test against.
+            const cacheCoversLearner =
+              !cachedScript || isGuestLearner.value || !!deepLinkStart.value ||
+              cachedScriptCoversLearner(cachedScript.rounds as any[], inferCursorLegoId, inferCeilingLegoId)
+            if (cachedScript && cachedScript.rounds.length > 0 && !cacheCoversLearner) {
+              console.warn(
+                `[InstantPlayback] cache fast-path SKIPPED: cached script (${cachedScript.rounds.length} rounds, ` +
+                `last ${cachedScript.rounds[cachedScript.rounds.length - 1]?.legoId ?? '?'}) holds neither cursor ` +
+                `${inferCursorLegoId ?? 'null'} nor ceiling ${inferCeilingLegoId ?? 'null'} — a truncated cache; ` +
+                'resolving against the live round map instead',
+              )
+            }
+            if (cachedScript && cachedScript.rounds.length > 0 && cacheCoversLearner) {
               console.log(`[InstantPlayback] Cache fast-path: hydrating ${cachedScript.rounds.length} rounds from localStorage`)
               // SWR: this hydration deliberately serves even a STALE-stamped
               // entry (checkContentVersion no longer drops it) — play now,
@@ -15724,6 +15706,9 @@ onMounted(async () => {
                 // jumps that change which round is "current") fall back to
                 // cycle 0 because the saved index doesn't apply there.
                 let resumeCycle = savedCurrentCycleIndex.value
+                // Set by the belt rewind below: the round to land ON, not the
+                // round to resume AFTER.
+                let rewindLandingIdx: number | null = null
 
                 // Resume TTL — re-engage long-absent learners with material
                 // they're starting to forget. Compute against the saved DB
@@ -15735,43 +15720,37 @@ onMounted(async () => {
                   const minutesSince = msSince / (1000 * 60)
                   const ttl = resumeConfig.value
                   if (daysSince >= ttl.beltRegressionDays && resumeLegoId) {
-                    // Belt regression: walk the cursor back to the start of
-                    // the learner's current belt. Ceiling preserved by the
+                    // Belt regression: walk the learner back to the FIRST
+                    // round of the belt they currently hold — never before it
+                    // (Tom, 2026-09-12: a learner past Yellow rewinds to the
+                    // start of Yellow, or whichever belt they hold, never to
+                    // White). The old code stored the round before the belt
+                    // start so a "+1" resume would land on it, which left the
+                    // cursor, and the badge read from it, one belt down. The
+                    // cursor now IS the belt's first round and the jump lands
+                    // on it directly. Ceiling preserved by the
                     // setEnrollmentCursor write — that update doesn't lower
                     // highest_completed_*.
-                    const seed = getSeedFromLegoId(resumeLegoId)
-                    if (seed !== null) {
-                      let beltIdx = 0
-                      for (let i = BELTS.length - 1; i >= 0; i--) {
-                        if (seed >= BELTS[i].seedsRequired) { beltIdx = i; break }
-                      }
-                      const beltStartSeed = Math.max(BELTS[beltIdx].seedsRequired, 1)
-                      // NEAREST >= match: the belt's first LEGO is the first
-                      // round at/above its threshold seed (rarely exactly on
-                      // it). Exact-seed matching silently no-op'd the
-                      // regression for belts not starting on the threshold.
-                      const beltStartRoundIdx = simplePlayer.findRoundIndexForBeltThreshold(beltStartSeed)
-                      if (beltStartRoundIdx > 0) {
-                        const priorRound = simpleRounds[beltStartRoundIdx - 1]
-                        if (priorRound?.legoId) {
-                          console.log(`[ResumeTTL] ${Math.round(daysSince)}d gap → belt regression to ${BELTS[beltIdx].name} (seed ${beltStartSeed}, lego ${priorRound.legoId})`)
-                          resumeLegoId = priorRound.legoId
-                          resumeCycle = 0
-                          if (!isGuestLearner.value && progressStore?.value) {
-                            activeProgressStore.value.setEnrollmentCursor(
-                              learnerId.value, courseCode.value,
-                              priorRound.legoId, beltStartRoundIdx - 1,
-                              // A REGRESSION the learner did not ask for (a
-                              // long absence rewound them to a belt start).
-                              // Legitimate, but exactly the kind of move that
-                              // looks like a bug when it cannot be named.
-                              { reason: 'resume_ttl_belt_regression',
-                                from: { legoId: resumeLegoId ?? null, roundIndex: null } },
-                            ).catch((err: unknown) => {
-                              console.warn('[ResumeTTL] setEnrollmentCursor failed:', err)
-                            })
-                          }
-                        }
+                    const target = beltRewindTarget(resumeLegoId, simpleRounds as any[], BELTS)
+                    if (target) {
+                      console.log(`[ResumeTTL] ${Math.round(daysSince)}d gap → belt regression to ${target.beltName} (lego ${target.legoId}, round index ${target.roundIndex})`)
+                      const rewoundFrom = resumeLegoId
+                      resumeLegoId = target.legoId
+                      resumeCycle = 0
+                      rewindLandingIdx = target.roundIndex
+                      if (!isGuestLearner.value && progressStore?.value) {
+                        activeProgressStore.value.setEnrollmentCursor(
+                          learnerId.value, courseCode.value,
+                          target.legoId, target.roundIndex,
+                          // A REGRESSION the learner did not ask for (a
+                          // long absence rewound them to a belt start).
+                          // Legitimate, but exactly the kind of move that
+                          // looks like a bug when it cannot be named.
+                          { reason: 'resume_ttl_belt_regression',
+                            from: { legoId: rewoundFrom ?? null, roundIndex: null } },
+                        ).catch((err: unknown) => {
+                          console.warn('[ResumeTTL] setEnrollmentCursor failed:', err)
+                        })
                       }
                     }
                   } else if (minutesSince >= ttl.cycleResetMinutes) {
@@ -15836,6 +15815,10 @@ onMounted(async () => {
                     console.warn('[eagerLoad] Infinite play flagged but no infinite-play round found in simpleRounds — staying at last main-loop round')
                     simplePlayer.jumpToRound(simpleRounds.length - 1)
                   }
+                } else if (rewindLandingIdx !== null) {
+                  // Belt rewind: land ON the belt's first round, not after it.
+                  console.debug(`[eagerLoad] ${modeTag}: belt rewind landing on ${resumeLegoId} (round ${rewindLandingIdx})`)
+                  simplePlayer.jumpToRound(rewindLandingIdx, 0)
                 } else if (resumeLegoId) {
                   // Main-loop resume — legoId is canonical. Find it and
                   // start at the NEXT round (so the learner doesn't

@@ -1094,6 +1094,42 @@ describe('usePodLapScheduler — the ladder completes (Tom 2026-09-06)', () => {
     expect(s.nextLap()).toBeNull()
   })
 
+  it('the Drill door lifts a cohort to the top rung but never completes it — completion counts main-flow laps only (job #350)', async () => {
+    // The zho_for_eng regression, 2026-09-12: Tom's learner_pod_state rows
+    // carried exposures of 96..461 on EVERY sentence of the pod (one batch
+    // write from the Listening-mode Drill on 2026-09-06), while his main-flow
+    // ratchet stood at 45. Pre-fix, `alive = max(derived, storedLift)` fed
+    // podCohortHasCompleted, so every cohort — including ones the main flow
+    // had never debuted — read as past the ladder the moment it was taken in,
+    // and nextLap() composed nothing. The pod dialogues vanished from the main
+    // flow entirely.
+    //
+    // The ruling ("top of the ladder it THEN goes") is about the SEQUENCE: a
+    // cohort completes when the main flow has served it every rung. The Drill
+    // lift may still raise the stage it is served at, up to the top rung, but
+    // a lap the main flow never played cannot count towards leaving it.
+    const state = stateAt(3) // round 3 → cohort 1 alive 3, cohort 2 alive 2
+    state.podSentences = [
+      { ...podSentence(1), id: 'p1' },
+      { ...podSentence(2), id: 'p2' },
+      { ...podSentence(3), id: 'p3' },
+    ]
+    state.podState = [
+      { sentence_id: 'p1', exposures: 461 },
+      { sentence_id: 'p2', exposures: 460 },
+      { sentence_id: 'p3', exposures: 459 },
+    ]
+    const s = usePodLapScheduler({ supabase: makeMockSupabase(state), courseCode: 'c', learnerId: 'u' })
+    await s.initialize()
+    expect(s.isLapDue()).toBe(true)
+    const lap = s.nextLap()
+    expect(lap).not.toBeNull()
+    // Every cohort is still in the sequence…
+    expect(new Set(lap!.plays.map((p) => p.sentenceIdx))).toEqual(new Set([1, 2, 3]))
+    // …served at the top rung, which is as far as the Drill may lift it.
+    expect([...new Set(lap!.plays.map((p) => p.stage))]).toEqual([9])
+  })
+
   it('a completed pod is still previewable — the Pods tab half of the ruling, at the scheduler', async () => {
     const state = stateAt(LADDER + 2)
     const s = usePodLapScheduler({ supabase: makeMockSupabase(state), courseCode: 'c', learnerId: 'u' })

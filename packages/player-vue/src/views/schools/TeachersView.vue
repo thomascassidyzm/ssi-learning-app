@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, inject } from 'vue'
+import { formatPracticeMinutes } from '@/composables/schools/practiceMinutes'
 import { useI18n } from '@/composables/useI18n'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useTeachersData } from '@/composables/schools/useTeachersData'
@@ -61,12 +62,9 @@ function getInitials(name: string): string {
   return name.split(/\s+/).map(p => p[0]).join('').toUpperCase().slice(0, 2)
 }
 
-// Teachers trialling the platform practice for minutes, not hours — "0h"
-// for someone who genuinely practised reads as "tracking is broken".
-function formatOwnPractice(minutes: number): string {
-  if (minutes >= 60) return `${Math.round((minutes / 60) * 10) / 10}h`
-  return `${minutes}m`
-}
+// MINUTES, never hours (Tom, 2026-09-11, job #265) — the one formatter in
+// composables/schools/practiceMinutes.ts. "0h" for someone who genuinely
+// practised reads as "tracking is broken".
 
 function formatJoined(joinedAt: string | null | undefined): string {
   const dateStr = joinedAt
@@ -83,7 +81,7 @@ const teachers = computed(() => {
     initials: getInitials(row.display_name),
     classes: row.class_count,
     students: row.student_count,
-    hours7d: row.total_practice_hours,
+    studentMinutes: row.total_practice_minutes,
     ownMinutes: row.own_practice_minutes ?? 0,
     // The school's admin belongs in this list (she is staff, and her practice
     // is in the school's headline) but must be shown as the ADMIN she is —
@@ -346,9 +344,9 @@ async function handleAssignConfirm(tickedClassIds: string[]) {
 }
 
 function exportCsv() {
-  const header = ['Name', 'Classes', 'Students', 'Student hours', 'Own practice minutes', 'Role', 'Status', 'Joined']
+  const header = ['Name', 'Classes', 'Students', 'Student minutes', 'Own practice minutes', 'Role', 'Status', 'Joined']
   const rows = filtered.value.map(t => [
-    t.name, t.classes, t.students, t.hours7d, t.ownMinutes, t.role, t.status, t.joined_at,
+    t.name, t.classes, t.students, t.studentMinutes, t.ownMinutes, t.role, t.status, t.joined_at,
   ].join(','))
   const csv = [header.join(','), ...rows].join('\n')
   const blob = new Blob([csv], { type: 'text/csv' })
@@ -511,7 +509,7 @@ watch(selectedUser, (newUser) => {
             <th>{{ t('schools.teachers.tableHeaderRole', 'Role') }}</th>
             <th>{{ t('schools.teachers.tableHeaderClasses', 'Classes') }}</th>
             <th>{{ t('schools.teachers.tableHeaderStudents', 'Students') }}</th>
-            <th>{{ t('schools.teachers.tableHeaderStudentHours', 'Student hours') }}</th>
+            <th>{{ t('schools.teachers.tableHeaderStudentMinutes', 'Student minutes') }}</th>
             <th>{{ t('schools.teachers.tableHeaderOwnPractice', 'Own practice') }}</th>
             <th>{{ t('schools.teachers.tableHeaderStatus', 'Status') }}</th>
             <th></th>
@@ -551,8 +549,8 @@ watch(selectedUser, (newUser) => {
             </td>
             <td>{{ row.classes }}</td>
             <td>{{ row.students }}</td>
-            <td>{{ row.hours7d }}h</td>
-            <td>{{ formatOwnPractice(row.ownMinutes) }}</td>
+            <td>{{ formatPracticeMinutes(row.studentMinutes) }}</td>
+            <td>{{ formatPracticeMinutes(row.ownMinutes) }}</td>
             <td>
               <span class="status-cell" :class="row.status">
                 <span class="status-dot" />

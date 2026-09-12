@@ -36,6 +36,7 @@ import {
   registerInsightTheme, INSIGHT_THEME_NAME, palette, tone, toneRgb, hGradient, FONT_MONO,
   type EChartsLike,
 } from '../theme'
+import { formatWithUnit } from '../units'
 
 const props = withDefaults(defineProps<{
   data: MapData
@@ -103,12 +104,9 @@ function regionLabel(r: { region: string; label?: string }): string {
   return r.label ?? r.region
 }
 
-// Value formatter: integer or 1dp, with optional unit.
+// Value formatter: integer or 1dp, unit singularised at 1.
 function formatValue(v: number): string {
-  const n = Number.isInteger(v) ? String(v) : v.toFixed(1)
-  const u = props.data.unit
-  if (!u) return n
-  return u === '%' ? `${n}%` : `${n} ${u}`
+  return formatWithUnit(v, props.data.unit)
 }
 
 function buildOption(): Record<string, unknown> {

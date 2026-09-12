@@ -24,6 +24,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { classHomePath, groupHomePath, isMemberNodeSurface } from '@/composables/nodeSurfacePaths'
 import { isEmptyNode, type BelowNode, type BelowPerson } from './belowTree'
 import { useI18n } from '@/composables/useI18n'
+import ShowAll from '@/components/shared/ShowAll.vue'
+import { topThree } from '@/components/shared/topThree'
 
 const { t } = useI18n()
 
@@ -69,9 +71,9 @@ const member = computed(() => isMemberNodeSurface(route.path))
 // opens shut says nothing.
 // Long lists degrade by cap-and-reveal, never by scroll: the biggest real
 // structures are 49 classes flat on one node (Ysgol Gyfun Tredegar) and 39
-// staff on another (Chepstow), and either would bury the shape.
-const CLASS_CAP = 8
-const STAFF_CAP = 8
+// staff on another (Chepstow), and either would bury the shape. The cap is
+// THE page's one idiom — three rows then Show all (Tom, 2026-09-12; the old
+// eight-then-"N more" was the only list on the page cut differently).
 const OPEN_ROWS = 12
 const rowCount = computed(() => props.node.children.length + props.node.classes.length + props.node.staff.length)
 const hasBelow = computed(() => rowCount.value > 0 || props.node.hiddenGroups > 0)
@@ -79,13 +81,14 @@ const hasBelow = computed(() => rowCount.value > 0 || props.node.hiddenGroups > 
 // tapped. Seen live on the 13-node IME tree, opening everything unrolled 85
 // rows and buried the very structure the panel exists to show.
 const open = ref(props.isRoot || (props.depth < 2 && rowCount.value <= OPEN_ROWS))
+const showAllChildren = ref(false)
+const childrenShown = computed(() => topThree(props.node.children, showAllChildren.value))
 const showAllClasses = ref(false)
-const shownClasses = computed(() =>
-  showAllClasses.value ? props.node.classes : props.node.classes.slice(0, CLASS_CAP))
-const hiddenClasses = computed(() => props.node.classes.length - shownClasses.value.length)
+const classesShown = computed(() => topThree(props.node.classes, showAllClasses.value))
+const shownClasses = computed(() => classesShown.value.shown)
 const showAllStaff = ref(false)
-const shownStaff = computed(() => (showAllStaff.value ? props.node.staff : props.node.staff.slice(0, STAFF_CAP)))
-const hiddenStaff = computed(() => props.node.staff.length - shownStaff.value.length)
+const staffShown = computed(() => topThree(props.node.staff, showAllStaff.value))
+const shownStaff = computed(() => staffShown.value.shown)
 
 const childLabelsMixed = computed(() => new Set(props.node.children.map((c) => c.label)).size > 1)
 const showDemoBadge = computed(() => props.node.isDemo && !props.parentIsDemo)
@@ -136,10 +139,11 @@ function openClass(id: string): void {
            2. Tap a caret to open or close what sits under a name.
            3. Tap any name to go to that level — the numbers and the tree redraw for it.
            4. A class row names its teachers, its student count, and how many phrases
-              it spoke together in the last seven days, or says plainly that it has not
-              practised together this week, without you opening it.
-           5. Where there are more than eight classes or people, a **more** button
-              reveals the rest.
+              it practised together in the last seven days, or says plainly that it has
+              not practised together this week, without you opening it.
+           5. Where there are more than three groups, classes or people under a name,
+              the first three show and **Show all** reveals the rest; **Show fewer**
+              folds them away again.
            Worth knowing. The top two levels open themselves and deeper ones wait to be
            tapped, so a large organisation shows you its shape instead of eighty-five
            rows.
@@ -165,7 +169,7 @@ function openClass(id: string): void {
 
     <template v-if="open">
       <NodeBelowTree
-        v-for="child in node.children"
+        v-for="child in childrenShown.shown"
         :key="child.id"
         :node="child"
         :depth="depth + 1"
@@ -176,6 +180,13 @@ function openClass(id: string): void {
         @person-action="emit('person-action', $event)"
         @person-action-2="emit('person-action-2', $event)"
       />
+
+      <div v-if="childrenShown.collapsible" class="tree-more" :class="`depth-${Math.min(depth + 1, 3)}`">
+        <span class="tree-rails" aria-hidden="true">
+          <span v-for="i in depth + 1" :key="i" class="rail"></span>
+        </span>
+        <ShowAll class="tree-more-btn" :expanded="showAllChildren" :label="t('org.ui.nodeBelowTree.showAllGroups', 'Show all {n} groups').replace('{n}', String(node.children.length))" @toggle="showAllChildren = !showAllChildren" />
+      </div>
 
       <div v-for="c in shownClasses" :key="c.id" class="tree-row is-class" :class="`depth-${Math.min(depth + 1, 3)}`">
         <span class="tree-rails" aria-hidden="true">
@@ -198,13 +209,11 @@ function openClass(id: string): void {
         </span>
       </div>
 
-      <div v-if="hiddenClasses > 0" class="tree-more" :class="`depth-${Math.min(depth + 1, 3)}`">
+      <div v-if="classesShown.collapsible" class="tree-more" :class="`depth-${Math.min(depth + 1, 3)}`">
         <span class="tree-rails" aria-hidden="true">
           <span v-for="i in depth + 1" :key="i" class="rail"></span>
         </span>
-        <button type="button" class="tree-more-btn" @click="showAllClasses = true">
-          {{ pluralN(hiddenClasses, 'org.ui.nodeBelowTree.moreClassOne', '{n} more class', 'org.ui.nodeBelowTree.moreClassesMany', '{n} more classes') }}
-        </button>
+        <ShowAll class="tree-more-btn" :expanded="showAllClasses" :label="t('org.ui.nodeBelowTree.showAllClasses', 'Show all {n} classes').replace('{n}', String(node.classes.length))" @toggle="showAllClasses = !showAllClasses" />
       </div>
 
       <!-- People in this node who teach no class. Drawn, so an invited
@@ -231,13 +240,11 @@ function openClass(id: string): void {
         >{{ personAction2Label }}</button>
       </div>
 
-      <div v-if="hiddenStaff > 0" class="tree-more" :class="`depth-${Math.min(depth + 1, 3)}`">
+      <div v-if="staffShown.collapsible" class="tree-more" :class="`depth-${Math.min(depth + 1, 3)}`">
         <span class="tree-rails" aria-hidden="true">
           <span v-for="i in depth + 1" :key="i" class="rail"></span>
         </span>
-        <button type="button" class="tree-more-btn" @click="showAllStaff = true">
-          {{ pluralN(hiddenStaff, 'org.ui.nodeBelowTree.morePersonOne', '{n} more person', 'org.ui.nodeBelowTree.morePeopleMany', '{n} more people') }}
-        </button>
+        <ShowAll class="tree-more-btn" :expanded="showAllStaff" :label="t('org.ui.nodeBelowTree.showAllPeople', 'Show all {n} people').replace('{n}', String(node.staff.length))" @toggle="showAllStaff = !showAllStaff" />
       </div>
 
       <div v-if="node.hiddenGroups > 0" class="tree-more" :class="`depth-${Math.min(depth + 1, 3)}`">
@@ -388,6 +395,8 @@ function openClass(id: string): void {
   cursor: pointer;
 }
 .tree-more-btn:hover { text-decoration: underline; }
+/* Rendered as ShowAll — the tree's row grammar sets the size, the control its words. */
+.tree-more :deep(.show-all) { font-size: var(--text-xs); padding: 2px 4px; }
 
 @media (max-width: 640px) {
   /* The name is the point on a phone; the teacher list is the first thing to

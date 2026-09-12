@@ -10,14 +10,15 @@
 // /intel-only chrome (that rail is the admin's; this page already has the
 // node's own rail).
 //
-// HONEST UNITS. A class is measured in PHRASES SPOKEN, never minutes: whole-
-// class time is in no ledger (api/_utils/classPractice.ts). Minutes appear only
-// for people's own logins. Position is the LEGO last played, shown as its own
+// HONEST UNITS. A class is measured in PHRASES SPOKEN and in IN-APP MINUTES on
+// its own class account (api/_utils/inAppTime.ts, founder ruling 2026-09-10),
+// the same number its class page shows. People's minutes are their own logins. Position is the LEGO last played, shown as its own
 // words in both languages, and a milestone is "sentence N of M" — a seed is
 // one sentence — never a seed number on screen.
 import { computed } from 'vue'
 import { useI18n } from '@/composables/useI18n'
 import { timeAgo } from '@/composables/admin/adminUtils'
+import { formatPracticeMinutes } from '@/composables/schools/practiceMinutes'
 import InsightWidget from './InsightWidget.vue'
 import { ORG_QUESTIONS } from '@/intel/orgQuestions'
 import type { AnyInsightSpec, ResolvedInsight } from './spec'
@@ -66,9 +67,9 @@ const practisingAnswer = computed<string | null>(() => {
   if (!p) return null
   const classes = isClassNode.value
     ? (p.classesThisWeek > 0
-      ? fill(t('org.intel.practising.classYes', 'This class practised together this week, {phrases} phrases spoken, {change}.'), { phrases: p.phrasesThisWeek, change: moreOrFewer(p.phrasesThisWeek, p.phrasesLastWeek) })
+      ? fill(t('org.intel.practising.classYesMinutes', 'This class practised together this week, {phrases} phrases practised, {change}, {minutes} in the app.'), { phrases: p.phrasesThisWeek, change: moreOrFewer(p.phrasesThisWeek, p.phrasesLastWeek), minutes: formatPracticeMinutes(p.classMinutesThisWeek) })
       : t('org.intel.practising.classNo', 'This class did not practise together this week.'))
-    : fill(t('org.intel.practising.classes', '{n} of your {total} classes practised together this week, {change}, {phrases} phrases spoken.'), { n: p.classesThisWeek, total: p.classCount, change: moreOrFewer(p.classesThisWeek, p.classesLastWeek), phrases: p.phrasesThisWeek })
+    : fill(t('org.intel.practising.classesMinutes', '{n} of your {total} classes practised together this week, {change}, {phrases} phrases practised, {minutes} in the app.'), { n: p.classesThisWeek, total: p.classCount, change: moreOrFewer(p.classesThisWeek, p.classesLastWeek), phrases: p.phrasesThisWeek, minutes: formatPracticeMinutes(p.classMinutesThisWeek) })
   const people = p.peopleCount === 0 ? '' : ' ' + fill(t('org.intel.practising.people', '{n} of {total} people practised on their own account, {minutes} minutes between them.'), { n: p.peopleThisWeek, total: p.peopleCount, minutes: p.ownMinutesThisWeek })
   return classes + people
 })
@@ -76,7 +77,7 @@ const practisingSpec = computed<AnyInsightSpec>(() => ({
   widget: 'time-series',
   query: { metric: 'orgPhrasesByDay', window: '28d' },
   frame: 'world',
-  title: t('org.intel.practising.widgetTitle', 'Phrases spoken together, by day'),
+  title: t('org.intel.practising.widgetTitle', 'Phrases practised together, by day'),
   tag: t('org.intel.byDay', 'by day'),
 }))
 const practisingResolved = computed<ResolvedInsight>(() => ({
@@ -85,8 +86,8 @@ const practisingResolved = computed<ResolvedInsight>(() => ({
   data: {
     kind: 'time-series',
     x: (props.payload?.byDay ?? []).map((d) => d.day.slice(5)),
-    series: [{ name: t('org.intel.practising.series', 'phrases spoken'), points: (props.payload?.byDay ?? []).map((d) => d.phrases), tone: 'good' }],
-    yLabel: t('org.intel.practising.series', 'phrases spoken'),
+    series: [{ name: t('org.intel.practising.series', 'phrases practised'), points: (props.payload?.byDay ?? []).map((d) => d.phrases), tone: 'good' }],
+    yLabel: t('org.intel.practising.series', 'phrases practised'),
   },
 }))
 const practisingRows = computed(() => (props.payload?.classes ?? []).filter((c) => c.phrasesThisWeek > 0 || c.phrasesLastWeek > 0))
@@ -204,20 +205,20 @@ const journeyRows = computed(() => [...(props.payload?.classes ?? [])]
          keywords: practised, this week, last week, phrases, classes, people, minutes, adherence
          What it's for. Whether your classes are actually doing it: how many
          practised together in the last seven days against the seven before,
-         how many phrases they spoke, and which people practised on their own
+         how many phrases they practised, and which people practised on their own
          account and for how long.
          Where it is. The **Practising** question at the top of any level's
          insights page.
          How you do it.
          1. Read the sentence for this week against last week.
-         2. Read the line for how many phrases were spoken each day over the
+         2. Read the line for how many phrases were practised each day over the
             last four weeks.
          3. Read the class rows for who practised, when they last practised
             together and where in the course they are.
          4. Read the people rows for own-account minutes.
-         Worth knowing. A class is counted in phrases spoken, never minutes.
-         Nothing records how long a whole class practised, so no time is
-         invented for it. Minutes appear only for people's own logins.
+         Worth knowing. A class's minutes are time in the app on its own class
+         account, the gaps between phrases included, the same number its class
+         page shows. People's minutes are their own logins.
          checked: d824eaac.c640230d
     -->
     <section class="oq" data-walk="insights-org-practising">
@@ -227,14 +228,15 @@ const journeyRows = computed(() => [...(props.payload?.classes ?? [])]
         <p class="oq-sentence">{{ practisingAnswer ?? (isLoading ? t('org.intel.counting', 'Counting…') : '') }}</p>
       </div>
       <InsightWidget :spec="practisingSpec" :resolved="practisingResolved" />
-      <p class="oq-note">{{ t('org.intel.practising.honest', 'A class is counted in phrases spoken. No record measures how long a whole class practised together, so no time is shown for it; minutes are people\'s own logins only.') }}</p>
+      <p class="oq-note">{{ t('org.intel.practising.classTime', 'A class\'s minutes are time in the app on its own class account, the gaps between phrases included. People\'s minutes are their own logins.') }}</p>
       <div v-if="payload && !isClassNode" class="oq-rows">
-        <p class="oq-rows-title">{{ t('org.intel.practising.rowsClasses', 'Classes, by phrases spoken this week') }}</p>
+        <p class="oq-rows-title">{{ t('org.intel.practising.rowsClassesMinutes', 'Classes, by phrases practised this week, with minutes in the app') }}</p>
         <p v-if="practisingRows.length === 0" class="oq-empty">{{ t('org.intel.practising.rowsEmpty', 'No class has practised together in the last fourteen days.') }}</p>
         <router-link v-for="c in practisingRows" :key="c.id" class="oq-row" :to="classLink(c.id)">
           <span class="oq-row-name">{{ c.name }}</span>
           <span class="oq-row-where">{{ positionWords(c.position) }}</span>
           <span class="oq-row-when">{{ c.lastPractisedAt ? timeAgo(c.lastPractisedAt) : '' }}</span>
+          <span class="oq-row-min">{{ formatPracticeMinutes(c.minutesThisWeek) }}</span>
           <span class="oq-row-num">{{ c.phrasesThisWeek }}<span class="oq-row-delta">{{ c.phrasesLastWeek }}</span></span>
         </router-link>
       </div>
@@ -263,8 +265,8 @@ const journeyRows = computed(() => [...(props.payload?.classes ?? [])]
          2. Read the bars for how long since each class last practised.
          3. Open a class row to see where it stopped.
          Worth knowing. Practised this week counts any sign of practice, a
-         phrase spoken or the course opened and progress saved. The Practising
-         figure above counts phrases spoken only, so it can be lower.
+         phrase reached in a lesson or the course opened and progress saved. The
+         Practising figure above counts phrases practised only, so it can be lower.
          checked: cb9d6d4f.7087bea9
     -->
     <section class="oq" data-walk="insights-org-quiet">
@@ -348,13 +350,14 @@ const journeyRows = computed(() => [...(props.payload?.classes ?? [])]
 }
 .oq-empty { margin: 0; padding: 0 16px 14px; font-size: 14px; color: var(--ink-secondary, #5b534c); }
 .oq-row {
-  display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 2fr) minmax(0, 1fr) auto; gap: 12px; align-items: baseline;
+  display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 2fr) minmax(0, 1fr) auto auto; gap: 12px; align-items: baseline;
   padding: 10px 16px; border-top: 1px solid var(--schools-border, rgba(44, 38, 34, 0.1)); color: var(--ink-primary, #2C2622); text-decoration: none;
 }
 a.oq-row:hover { background: rgba(44, 38, 34, 0.04); }
 .oq-row-name { font-size: 14px; font-weight: var(--font-semibold, 600); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .oq-row-where { font-size: 13px; color: var(--ink-secondary, #5b534c); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .oq-row-when { font-size: 12px; color: var(--ink-secondary, #5b534c); text-align: right; white-space: nowrap; }
+.oq-row-min { font-family: var(--font-mono, 'Spline Sans Mono', monospace); font-variant-numeric: tabular-nums; font-size: 13px; color: var(--ink-secondary, #5b534c); text-align: right; white-space: nowrap; }
 .oq-row-num { font-family: var(--font-mono, 'Spline Sans Mono', monospace); font-variant-numeric: tabular-nums; font-size: 15px; text-align: right; }
 .oq-row-delta { font-size: 11px; color: var(--ink-secondary, #5b534c); margin-left: 8px; }
 .oq-row-delta::before { content: '← '; }

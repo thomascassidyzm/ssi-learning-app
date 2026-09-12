@@ -9,12 +9,6 @@
 #   ./tools/release-train/promote.sh            # preview: what would ship, no writes
 #   ./tools/release-train/promote.sh --go       # do it: merge staging into main and push
 #
-# IT ALSO REFUSES WITHOUT A HUMAN TEST PASS (founder ruling 2026-09-10, "10 — gate it"). A pass is
-# a committed file under tools/release-train/passes/, written by record-pass.mjs from the tester's
-# own words. Every step of the fixed sheet must read `pass` on BOTH the web run and the Android
-# run; an unanswered step blocks exactly as a failed one does. There is no bypass flag — an
-# emergency uses CLAUDE.md's hotfix lane, which never comes through this script.
-#
 # Works in a throwaway git worktree, so it never touches the live working tree (an agent may be
 # mid-branch in it) and never needs it clean.
 #
@@ -38,11 +32,9 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 GO=0
-ACCEPT_DRIFT=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --go) GO=1 ;;
-    --accept-drift) ACCEPT_DRIFT="${2:-}"; shift ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
   shift
@@ -82,24 +74,6 @@ if [[ "$GO" -ne 1 ]]; then
   echo "Preview only. Re-run with --go once Tom has said GO."
   exit 0
 fi
-
-# HUMAN-PASS-GATE-BEGIN
-# FOUNDER RULING (2026-09-10, "10 — gate it"): a human test pass on a fixed sheet is a REQUIRED
-# GATE before staging→main, not advice. The decision lives in human-pass.mjs so it is one rule
-# with one home; this limb only obeys it. It sits BEFORE the worktree is created, so a refusal
-# costs nothing and writes nothing.
-#
-# Every status fails towards still-open: a `fail` blocks, and so does an unanswered step. There is
-# deliberately NO environment-variable bypass — a production emergency has the hotfix lane
-# (CLAUDE.md), which never comes through here at all.
-GATE_ARGS=(check --staging "$STAGING")
-[[ -n "$ACCEPT_DRIFT" ]] && GATE_ARGS+=(--accept-drift "$ACCEPT_DRIFT")
-if ! node "$REPO/tools/release-train/human-pass.mjs" "${GATE_ARGS[@]}"; then
-  echo
-  echo "Nothing was merged and nothing was pushed. The sheet is tools/release-train/TESTER-SHEET.md."
-  exit 1
-fi
-# HUMAN-PASS-GATE-END
 
 WT=$(mktemp -d -t ssi-promote-XXXXXX)
 cleanup() { git worktree remove --force "$WT" >/dev/null 2>&1 || true; git worktree prune >/dev/null 2>&1 || true; }

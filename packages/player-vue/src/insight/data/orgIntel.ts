@@ -23,6 +23,8 @@ export interface OrgIntelClassRow {
   courseCode: string | null
   phrasesThisWeek: number
   phrasesLastWeek: number
+  minutesThisWeek: number
+  minutesLastWeek: number
   lastPractisedAt: string | null
   daysSincePractice: number | null
   position: OrgIntelPosition | null
@@ -49,6 +51,8 @@ export interface OrgIntelPayload {
     classesLastWeek: number
     phrasesThisWeek: number
     phrasesLastWeek: number
+    classMinutesThisWeek: number
+    classMinutesLastWeek: number
     peopleCount: number
     peopleThisWeek: number
     peopleLastWeek: number

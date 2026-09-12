@@ -16,16 +16,19 @@ import {
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { getSchoolsClient } from '@/composables/schools/client'
 import BeltDot from '@/components/schools/shared/BeltDot.vue'
-import BeltStrip from '@/components/schools/shared/BeltStrip.vue'
 import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
-import Bench from '@/components/schools/shared/Bench.vue'
 import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 import MailboxCheckPrompt from '@/components/schools/MailboxCheckPrompt.vue'
 import { useMailboxPrompt } from '@/composables/useMailboxPrompt'
-import WalkOffer from '@/components/admin/WalkOffer.vue'
+import HowThisWorks from '@/components/admin/HowThisWorks.vue'
+import { viewerPersona } from '@/walkthrough/handbook'
+import CopyTeacherPlayCard from '@/components/schools/CopyTeacherPlayCard.vue'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
+import { fetchClassPractice7d, type ClassAccountProgress } from '@/composables/schools/classPractice7d'
+import { secondsToMinutes } from '@/composables/schools/practiceMinutes'
+import { formatPracticeMinutes } from '@/composables/schools/practiceMinutes'
 import { getLanguageName, useI18n } from '@/composables/useI18n'
 import { deriveBelt, BELTS, type Belt } from '@/composables/schools/belts'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
@@ -81,6 +84,9 @@ const searchQuery = ref('')
 // SCHOOL id, not the class id. Prefer `classId` when present — see
 // finding #1c, 2026-07-13 audit.
 const classIdParam = computed(() => (route.params.classId as string) || (route.params.id as string))
+// The explainer persona is the viewer's own role — one resolver, shared with
+// the Handbook page, so the door and the map never disagree about who you are.
+const explainerPersona = computed(() => viewerPersona(selectedUser.value?.platform_role, selectedUser.value?.educational_role))
 
 function getInitials(name: string): string {
   return name.split(/\s+/).map(p => p[0]).join('').toUpperCase().slice(0, 2)
@@ -163,24 +169,38 @@ const classAvgSeeds = computed(() => {
   return Math.round(list.reduce((s, x) => s + x.seeds_completed, 0) / list.length)
 })
 
-const classBelt = computed<Belt>(() => deriveBelt(classAvgSeeds.value))
+// THE CLASS ACCOUNT'S OWN PROGRESS (Tom's ruling, 2026-09-11, job #265): a
+// class is one learner account, so its belt, journey and minutes are that
+// account's — from the same payload the classes list reads.
+const classAccount = ref<ClassAccountProgress | null>(null)
+const classMinutesWk = ref<number | null>(null)
+const classPracticeLoaded = ref(false)
+async function loadClassAccount(classId: string) {
+  try {
+    const data = await fetchClassPractice7d([classId], selectedUser.value)
+    classAccount.value = data?.classAccountByClass[classId] ?? null
+    classMinutesWk.value = data ? secondsToMinutes(data.practiceByClass[classId] ?? 0) : null
+    classPracticeLoaded.value = !!data
+  } catch {
+    classAccount.value = null
+    classMinutesWk.value = null
+    classPracticeLoaded.value = false
+  }
+}
+// null = not loaded yet; false = the account has never played (say so in words).
+const classStarted = computed<boolean | null>(() => (classPracticeLoaded.value ? (classAccount.value?.started ?? false) : null))
+const classBelt = computed<Belt>(() => deriveBelt(classAccount.value?.seedNumber ?? 0))
 
 // Customer-facing copy never says "seed" (position-is-LEGO ruling) — belt
 // thresholds are internally seed-cardinality (BELTS' `min`), but the rail
 // note surfaces only the LEGO average and the belt-remaining count, mirroring
 // StudentProgressView.vue's own "X more to your Y belt" phrasing, which never
 // names the unit either.
-const classAvgLegos = computed(() => {
-  const list = classDetail.value?.students ?? []
-  if (!list.length) return 0
-  return Math.round(list.reduce((s, x) => s + x.legos_mastered, 0) / list.length)
-})
-
 const nextBeltInfo = computed(() => {
   const idx = BELTS.findIndex(b => b.key === classBelt.value)
   const next = BELTS[idx + 1]
   if (!next) return null
-  return { name: next.name, remaining: Math.max(0, next.min - classAvgSeeds.value) }
+  return { name: next.name, remaining: Math.max(0, next.min - (classAccount.value?.seedNumber ?? 0)) }
 })
 
 const students = computed(() => {
@@ -196,44 +216,16 @@ const students = computed(() => {
       belt,
       seeds_completed: s.seeds_completed,
       legos_mastered: s.legos_mastered,
-      hours7d: Math.round((s.total_practice_minutes / 60) * 10) / 10,
+      // MINUTES, never hours (Tom, 2026-09-11, job #265).
+      practiceMinutes: Math.round(s.total_practice_minutes || 0),
       last_active_display: formatLastActive(s.last_active_at),
       health: deriveStudentHealth(s.seeds_completed, s.last_active_at, avg),
     }
   })
 })
 
-const beltDistribution = computed<Record<string, number>>(
-  () => classDetail.value?.belt_distribution ?? {},
-)
-
-const beltOrder: Belt[] = ['white', 'yellow', 'orange', 'green', 'blue', 'black']
-const beltDistributionOrdered = computed(() => {
-  return beltOrder
-    .filter(b => beltDistribution.value[b])
-    .map(b => ({ belt: b, count: beltDistribution.value[b] }))
-})
-
-const journeyTotal = computed(() => classDetail.value?.journey_total ?? 60)
-const journeyDone = computed(() => classDetail.value?.journey_done ?? 0)
-
-const benchData = computed(() => {
-  if (!classReport.value) return { class: 0, school: 0, course: 0 }
-  const totalSec = classReport.value.class.total_practice_seconds
-  const studentCount = classReport.value.class.active_students || classData.value.student_count || 1
-  const classMin = Math.round(totalSec / 60 / Math.max(1, studentCount))
-
-  const fromAvg = (avg: ClassReport['schoolAvg']): number => {
-    if (!avg) return 0
-    return Math.round(avg.avg_cycles_per_session * 0.6)
-  }
-
-  return {
-    class: classMin,
-    school: fromAvg(classReport.value.schoolAvg),
-    course: fromAvg(classReport.value.courseAvg),
-  }
-})
+const journeyTotal = computed(() => classAccount.value?.journeyTotal || classDetail.value?.journey_total || 0)
+const journeyDone = computed(() => classAccount.value?.journeyDone ?? 0)
 
 // An empty class has exactly one thing worth doing, and the invite link was
 // the LAST card of the rail — below the teachers panel, the roster, the course
@@ -266,6 +258,9 @@ async function loadReport(classId: string) {
 async function loadClass(): Promise<void> {
   const classId = classIdParam.value
   if (classId && selectedUser.value) {
+    // The class-account read rides alongside; it never holds the roster's
+    // refresh timing (the failed-read honesty tests pin that timing).
+    void loadClassAccount(classId)
     await Promise.all([fetchClassDetail(classId), loadReport(classId)])
   }
 }
@@ -288,6 +283,7 @@ watch(selectedUser, (newUser) => {
   if (newUser && classId) {
     fetchClassDetail(classId)
     loadReport(classId)
+    void loadClassAccount(classId)
   }
 })
 
@@ -299,6 +295,7 @@ watch(classIdParam, (classId, previousClassId) => {
   if (classId && classId !== previousClassId && selectedUser.value) {
     fetchClassDetail(classId)
     loadReport(classId)
+    void loadClassAccount(classId)
   }
 })
 
@@ -851,26 +848,39 @@ const mailboxPrompt = useMailboxPrompt()
           </button>
         </h1>
         <div class="meta-row">
-          <span class="meta-belt">
+          <!-- The class account's own belt and minutes — a class is one learner
+               account, so no pupil count here (Tom's ruling, 2026-09-11). A
+               never-played account says so in words. -->
+          <span v-if="classStarted === false" class="meta-belt">{{ t('schools.classDetail.notStarted', 'Not started') }}</span>
+          <span v-else class="meta-belt">
             <BeltDot :belt="classBelt" :size="12" ring />
             {{ t('schools.classDetail.beltClassLabel', '{belt} belt class').replace('{belt}', classBelt.charAt(0).toUpperCase() + classBelt.slice(1)) }}
           </span>
           <span class="meta-dot">·</span>
-          <!-- Same rule as the panels: with the roster unread, "0 students" is
-               an assertion we have no basis for. -->
-          <span v-if="rosterError || classDetailError">{{ t('schools.classDetail.studentCountUnavailable', 'student count unavailable') }}</span>
-          <span v-else>{{ t('schools.classDetail.studentCount', '{n} students').replace('{n}', String(students.length)) }}</span>
-          <template v-if="classData.last_lego_id">
-            <span class="meta-dot">·</span>
-            <span>{{ t('schools.classDetail.positionLabel', 'Position {id}').replace('{id}', classData.last_lego_id) }}</span>
-          </template>
+          <span v-if="classStarted === null">{{ t('schools.classDetail.minutesThisWeekLoading', 'minutes this week loading…') }}</span>
+          <span v-else-if="classStarted === false">{{ t('schools.classDetail.noMinutesYet', 'no time in the app yet') }}</span>
+          <span v-else>{{ t('schools.classDetail.minutesThisWeek', '{n} min in the app this week').replace('{n}', String(classMinutesWk ?? 0)) }}</span>
           <span class="meta-dot">·</span>
           <UpdatedStamp />
         </div>
       </div>
 
       <div class="page-head-actions">
-        <WalkOffer v-if="!isAdminView" persona="teacher" place="class-detail" />
+        <!-- HOW THIS WORKS (job #286) — the explainer's door on the /schools
+             class page: the persona×class explanation from the compiled pack
+             with the "Show me" clips for this place, then the Handbook as the
+             quieter map. Persona is the viewer's own role, exactly as the
+             Handbook page resolves it, so View-as opens what the impersonated
+             leader or teacher would see. Renders nothing when the pack has no
+             explanation for this persona at a class. -->
+        <HowThisWorks
+          v-if="!isAdminView"
+          :persona="explainerPersona"
+          kind="class"
+          place="class-detail"
+          :node-id="classIdParam || ''"
+          :viewer-id="selectedUser?.user_id || 'anon'"
+        />
         <!-- HANDBOOK Run your first class session
              section: running-classes
              roles: school_admin, teacher
@@ -1282,7 +1292,7 @@ const mailboxPrompt = useMailboxPrompt()
                   </span>
                 </td>
                 <td>{{ s.legos_mastered }}</td>
-                <td>{{ s.hours7d }}h</td>
+                <td>{{ formatPracticeMinutes(s.practiceMinutes) }}</td>
                 <td><span class="schools-subtle">{{ s.last_active_display }}</span></td>
                 <td class="row-action">
                   <!-- HANDBOOK Remove a student from a class
@@ -1343,63 +1353,44 @@ const mailboxPrompt = useMailboxPrompt()
              place: class-detail
              keywords: progress, journey, belt, position, course
              What it's for. How far the class has travelled through its course, as a
-             bar with the class average behind it and the next belt named. A class
-             carries its own place on the course, moved by the sessions you run
-             together.
+             bar in LEGOs with the next belt named. A class is one learner account
+             played from the front, so this is the class's own place on the course,
+             moved by the sessions you run together.
              Where it is. The class page, the **Course Journey** card in the column
              beside the roster.
              How you do it.
              1. Open the class from **My Classes**.
              2. Read the bar for how much of the course the class has covered.
-             3. Read the line under it for the class average and how far it is to the
-                next belt.
-             4. Compare that with the belt spread underneath, which shows how tightly
-                the class is travelling together.
-             Worth knowing. The class average is the honest number for planning a
-             lesson. The belt spread is the one that tells you whether the class is
-             holding together or pulling apart.
+             3. Read the line under it for how far it is to the next belt.
+             Worth knowing. A class that has never played says **Not started** in
+             words; it is never shown as a bar of zero.
              checked: 6c1128ac.c7baf113
         -->
         <div class="schools-card schools-card-pad rail-card" data-walk="class-journey">
           <div class="schools-kicker rail-kicker">{{ t('schools.classDetail.courseJourneyKicker', 'Course Journey') }}</div>
-          <JourneyBar :done="journeyDone" :total="journeyTotal" />
-          <p class="rail-note">
-            {{ t('schools.classDetail.classAvgLegosLabel', '{n} LEGOs mastered avg across the class.').replace('{n}', String(classAvgLegos)) }}<br />
-            <template v-if="nextBeltInfo">{{ t('schools.classDetail.moreToNextBelt', '{n} more to {belt} belt.').replace('{n}', String(nextBeltInfo.remaining)).replace('{belt}', nextBeltInfo.name) }}</template>
-            <template v-else>{{ t('schools.classDetail.reachedBlackBelt', 'Reached Black belt — top of the ladder.') }}</template>
-          </p>
+          <template v-if="classStarted === false">
+            <p class="rail-note">{{ t('schools.classDetail.notStartedJourney', 'Not started — the class has not played together yet.') }}</p>
+          </template>
+          <template v-else>
+            <JourneyBar :done="journeyDone" :total="Math.max(journeyTotal, journeyDone)" />
+            <p class="rail-note">
+              {{ t('schools.classDetail.classTravelled', 'The class has travelled {done} of {total} LEGOs together.').replace('{done}', String(journeyDone)).replace('{total}', String(journeyTotal)) }}<br />
+              <template v-if="nextBeltInfo">{{ t('schools.classDetail.moreToNextBelt', '{n} more to {belt} belt.').replace('{n}', String(nextBeltInfo.remaining)).replace('{belt}', nextBeltInfo.name) }}</template>
+              <template v-else>{{ t('schools.classDetail.reachedBlackBelt', 'Reached Black belt — top of the ladder.') }}</template>
+            </p>
+          </template>
         </div>
 
-        <div class="schools-card schools-card-pad rail-card">
-          <div class="schools-kicker rail-kicker">{{ t('schools.classDetail.beltDistributionKicker', 'Belt distribution') }}</div>
-          <BeltStrip
-            v-if="students.length > 0"
-            :distribution="beltDistribution"
-            :height="8"
-          />
-          <div v-if="students.length > 0" class="belt-legend">
-            <div
-              v-for="row in beltDistributionOrdered"
-              :key="row.belt"
-              class="belt-legend-item"
-            >
-              <BeltDot :belt="row.belt" :size="20" ring />
-              <div class="arsenal belt-legend-count">{{ row.count }}</div>
-              <div class="belt-legend-label">{{ row.belt }}</div>
-            </div>
-          </div>
-          <p v-else-if="classDetailLoading" class="rail-note schools-subtle">{{ t('schools.classDetail.loadingLabel', 'Loading…') }}</p>
-          <p v-else-if="rosterError || classDetailError" class="rail-note schools-subtle">{{ t('schools.classDetail.rosterUnknownError', "Couldn't load the roster, so this is unknown.") }}</p>
-          <p v-else class="rail-note schools-subtle">{{ t('schools.classDetail.noStudentsEnrolled', 'No students enrolled yet.') }}</p>
-        </div>
-
-        <div class="schools-card schools-card-pad rail-card">
-          <div class="schools-kicker rail-kicker">{{ t('schools.classDetail.practiceBenchKicker', 'Practice min/student/week') }}</div>
-          <Bench v-if="classReport" :data="benchData" unit="m" />
-          <p v-else-if="reportResolved" class="rail-note schools-subtle">{{ t('schools.classDetail.benchmarkUnavailable', 'Benchmark unavailable for this class.') }}</p>
-          <p v-else class="rail-note schools-subtle">{{ t('schools.classDetail.benchmarkLoading', 'Benchmark loading...') }}</p>
-        </div>
-
+        <!-- School leaders only: the repair for a teacher who played as themselves.
+             The server accepts teachers of the class too, but the card is a
+             leader's tool by commission (Angharad, 2026-09-11). -->
+        <CopyTeacherPlayCard
+          v-if="!isAdminView && (isSchoolAdmin || isGovtAdmin) && classIdParam"
+          :class-id="classIdParam"
+          :teachers="classTeachers.map(x => ({ user_id: x.user_id, name: x.name }))"
+          :teachers-state="teacherListState"
+          @copied="loadClass"
+        />
 
         <div v-if="!isAdminView" class="schools-card schools-card-pad rail-card join-card" :class="{ 'join-card-first': rosterObservedEmpty }">
           <div class="schools-kicker join-kicker">{{ t('schools.classDetail.inviteStudentsLabel', 'Invite students') }}</div>

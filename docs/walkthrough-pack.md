@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `d7de74a7dd41` · generated 2026-09-11 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `8fab39ea15ff` · generated 2026-09-12 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## choose-something-else-to-learn — Choose something else to learn
 
@@ -22,7 +22,7 @@ Personas: learner · place: library
 
 ## hand-over-the-lead — Hand a class over to another teacher
 
-Personas: teacher · place: class-detail
+Personas: teacher, school_admin · place: class-detail
 
 1. [`class-teachers` · next] One teacher on a class is the **lead** — the one the class is listed under, and the one a school admin comes to about it. When you move on from a class, that name should move too.
 2. [`class-teacher-make-lead` · next] **Make lead** hands it to a colleague already on the class. It takes effect straight away, so add them first and hand over once you have.
@@ -40,7 +40,7 @@ Personas: leader · place: node-home (org/group/school)
 
 ## invite-a-supply-teacher — Invite a teacher who isn't here yet
 
-Personas: teacher · place: class-detail
+Personas: teacher, school_admin · place: class-detail
 
 1. [`class-teachers` · next] Use this when the colleague has no account yet — a supply teacher starting on Monday, or someone new to the school. It saves waiting for an admin to add them first.
 2. [`class-coteacher-link` · next] **Create a co-teacher link** mints a fresh link the moment you tap it. Whoever opens it lands as a teacher of this class, and of this school — not as its lead, and not over any of your other classes.
@@ -79,7 +79,7 @@ Personas: admin · place: admin-invites
 
 ## move-a-teacher-between-classes — Move a teacher to another class
 
-Personas: teacher · place: class-detail
+Personas: teacher, school_admin · place: class-detail
 
 1. [`class-teachers` · next] **Teachers** answers 'who teaches this class?'. A head usually wants the other direction too — 'which classes does this person take?' — and that is the same question read backwards.
 2. [`class-teacher-other-classes` · click] **Other classes** on anyone's row asks it that way round. It never moves anybody on its own — it opens a list for you to change.
@@ -110,7 +110,7 @@ Personas: learner · place: library
 
 ## run-class-session — Run your first class session
 
-Personas: teacher · place: class-detail
+Personas: teacher, school_admin · place: class-detail
 
 1. [`class-join-link` · next] Students join with this link — share it and they sign up straight into this class.
 2. [`class-join-code` · next] Prefer a whiteboard? **Show code instead** reveals a standing code — anyone who enters it at saysomethingin.com/redeem joins this class, until the code changes.
@@ -136,7 +136,7 @@ Personas: leader · place: node-home (org/group/school)
 
 ## share-a-class — Share a class with a colleague
 
-Personas: teacher · place: class-detail
+Personas: teacher, school_admin · place: class-detail
 
 1. [`class-teachers` · next] A class does not have to be yours alone. **Teachers** lists everyone who teaches it, with the lead marked — a job share, a department colleague, a supply teacher covering for a fortnight.
 2. [`class-teacher-add` · click] **Add another teacher** is how you share it. Nobody is added until you pick a name and confirm.
@@ -148,11 +148,12 @@ Personas: teacher · place: class-detail
 
 Personas: admin, leader, school_admin · place: node-home (org/group/school)
 
-1. [`ways-in-ledger` · next] Every way in, in one ledger: personal sign-in links and shareable join links, for everywhere below here. Filter by role or by place with the chips.
-2. [`ways-in-copy` · next] **Copy** re-shares the same live link — always safe, nothing changes.
-3. [`ways-in-remint` · next] **Re-mint** sits on a person's OWN sign-in link, and only there: it makes that person a new link and the old one stops working the moment you tap — if they bookmarked the old one they are locked out until you send them the new one. A shareable link has no Re-mint, because there is nobody to re-bind it to.
-4. [`ways-in-revoke` · next] **Revoke** switches a link off. It's undoable — a revoked row grows a **Put back** button. For a shareable link this is how you retire it: revoke the old one, then make a fresh one.
-5. [`verb-shareable-link` · next] And this is where a brand-new shareable link comes from — **Get a shareable link** at the top of this page, one per role. **Invite a person** next to it makes a personal link for someone you can name.
+1. [`ways-in-ledger` · next] Every way in, in one ledger: personal sign-in links and shareable join links, for everywhere below here. With more than three links it folds to one row per role — how many, and how often they have been used.
+2. [`ways-in-show-all` · click] Tap **Show all** to open the full ledger, every link on its own row with its own verbs. You can filter by role or by place with the chips once it is open.
+3. [`ways-in-copy` · next] **Copy** re-shares the same live link — always safe, nothing changes.
+4. [`ways-in-remint` · next] **Re-mint** sits on a person's OWN sign-in link, and only there: it makes that person a new link and the old one stops working the moment you tap — if they bookmarked the old one they are locked out until you send them the new one. A shareable link has no Re-mint, because there is nobody to re-bind it to.
+5. [`ways-in-revoke` · next] **Revoke** switches a link off. It's undoable — a revoked row grows a **Put back** button. For a shareable link this is how you retire it: revoke the old one, then make a fresh one.
+6. [`verb-shareable-link` · next] And this is where a brand-new shareable link comes from — **Get a shareable link** at the top of this page, one per role. **Invite a person** next to it makes a personal link for someone you can name.
    - terminal: The short version: copy is safe, revoke can always be undone, re-mint is for one person's own link — and a new shareable link is made at the top of the page, not in the ledger.
 
 ## what-your-numbers-mean — What your numbers mean

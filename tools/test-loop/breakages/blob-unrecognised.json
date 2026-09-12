@@ -1,0 +1,13 @@
+{
+  "id": "blob-unrecognised",
+  "feel": "Real lesson audio plays from cache but the measuring instrument fails to recognise it.",
+  "patch": {
+    "file": "packages/player-vue/e2e/journeys/lib.mjs",
+    "before": "const isLesson = (src) => !!src &&",
+    "after": "const isLesson = (src) => !!src && !src.startsWith('blob:') &&",
+    "count": 1
+  },
+  "check": "journeys/lib.mjs URL classification; ADDED release-blob-control.mjs asserts a non-zero blob is recognised",
+  "mode": "blob",
+  "revert": "Runner restores the original bytes in finally and asserts git status is clean before the next entry. Fixture pages are destroyed with their browser."
+}

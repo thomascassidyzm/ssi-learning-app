@@ -37,7 +37,7 @@ import { directMemberPracticeSeconds } from '../../_utils/directMemberPractice'
 import { descendantIds } from '../../_utils/groupSubtree'
 import { leadersForNodes } from '../../_utils/groupLeaderTag'
 import { sortByName } from '../../_utils/alphaSort'
-import { loadClassPractice, practisedSince, topPhrases, ownAccountLearnerIds, ownAccountLedgerSeconds, inAppTimeSeconds, CLASS_PRACTICE_WINDOW_DAYS } from '../../_utils/classPractice'
+import { loadClassPractice, practisedSince, topPhrases, ownAccountLearnerIds, ownAccountLedgerSeconds, inAppTimeSeconds, legoOrdinal, CLASS_PRACTICE_WINDOW_DAYS } from '../../_utils/classPractice'
 import { applyCors } from '../../_utils/cors'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -72,24 +72,6 @@ interface SubtreeClassRow {
 
 function toRef(g: GroupRow, schoolNodeIds: Set<string>): NodeRef {
   return { id: g.id, name: g.name, label: g.type, is_demo: g.is_demo, hasSchool: schoolNodeIds.has(g.id) }
-}
-
-/**
- * LEGO ordinal for a `S{NNNN}L{NN}` position id within a course — the same
- * (seed_number, lego_index) row-number ordering analytics_class_sessions_scoped
- * uses, computed as two indexed head-counts. Returns 0 when the id doesn't
- * parse (null/legacy values), so callers can fall back.
- */
-async function legoOrdinal(svc: SupabaseClient, courseCode: string, legoId: string | null | undefined): Promise<number> {
-  const m = typeof legoId === 'string' ? legoId.match(/S(\d+)L(\d+)/) : null
-  if (!m) return 0
-  const seed = parseInt(m[1], 10)
-  const lego = parseInt(m[2], 10)
-  const [{ count: before }, { count: within }] = await Promise.all([
-    svc.from('course_legos').select('id', { count: 'exact', head: true }).eq('course_code', courseCode).lt('seed_number', seed),
-    svc.from('course_legos').select('id', { count: 'exact', head: true }).eq('course_code', courseCode).eq('seed_number', seed).lte('lego_index', lego),
-  ])
-  return (before ?? 0) + (within ?? 0)
 }
 
 /** Learner display names for a set of auth uids, via learners.user_id. */
@@ -458,6 +440,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
             seeds_completed: Number(s.seeds_completed) || 0,
             legos_mastered: Number(s.legos_mastered) || 0,
             practice_hours: Math.round(((Number(s.total_practice_seconds) || 0) / 3600) * 10) / 10,
+            practice_minutes: Math.round((Number(s.total_practice_seconds) || 0) / 60),
             last_active_at: s.last_active_at,
             joined_class_at: s.joined_class_at,
             last7_minutes: last7,
@@ -553,6 +536,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         benchmark,
         classPractice,
         practiceHours: Math.round(classHours * 10) / 10,
+        practiceMinutes: Math.round(classHours * 60),
         schoolId: classRow.school_id,
         nodeId,
       })
@@ -750,6 +734,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
               classCount: Number(sum?.class_count) || 0,
               studentCount: Number(sum?.student_count) || 0,
               practiceHours: Math.round((Number(sum?.total_practice_hours) || 0) * 10) / 10,
+              practiceMinutes: Math.round((Number(sum?.total_practice_hours) || 0) * 60),
               hasAdmin: Boolean(sum?.has_admin),
               teachers: [...(teacherUidsBySchool.get(s.id) || [])].map((uid) => names.get(uid) || 'Unnamed').sort(),
             }
@@ -857,6 +842,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
             teachers: [...(teachersByClass.get(c.id) || [])].map((uid) => names.get(uid) || 'Unnamed').sort(),
             studentCount: studentCountByClass.get(c.id) || 0,
             practiceHours: Math.round((hoursByClass.get(c.id) || 0) * 10) / 10,
+            practiceMinutes: Math.round((hoursByClass.get(c.id) || 0) * 60),
             phrases7d: phrasesByClass.get(c.id) || 0,
             lastClassSessionAt: lastClassSessionByClass.get(c.id) || null,
           })).sort((a, b) => (a.home || '').localeCompare(b.home || '') || a.name.localeCompare(b.name)),
@@ -893,6 +879,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       siblings,
       children: childRows.map(withExtras),
       practiceHours: Math.round(practiceHours * 10) / 10,
+      // MINUTES is the unit every human-facing surface shows (Tom, 2026-09-11,
+      // job #265). practiceHours stays for older readers, demoted.
+      practiceMinutes: Math.round(practiceHours * 60),
       leaders,
       // Non-null only when this node IS a funded org with a live enrolment
       // policy. The client renders the funder-numbers panel off its presence,

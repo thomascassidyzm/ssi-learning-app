@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, inject } from 'vue'
+import { formatPracticeMinutes } from '@/composables/schools/practiceMinutes'
 import { useRouter } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { getSchoolsClient } from '@/composables/schools/client'
@@ -202,7 +203,8 @@ const initials = computed(() => {
     .join('') || '?'
 })
 
-const last7Hours = computed<number[]>(() => {
+// Per-day MINUTES over the last seven days (minutes, never hours — Tom, 2026-09-11).
+const last7Minutes = computed<number[]>(() => {
   const out: number[] = []
   const today = new Date()
   for (let i = 6; i >= 0; i--) {
@@ -212,15 +214,12 @@ const last7Hours = computed<number[]>(() => {
     const totalSec = recentSessions.value
       .filter(s => s.started_at.split('T')[0] === key)
       .reduce((sum, s) => sum + (s.duration_seconds || 0), 0)
-    out.push(Math.round((totalSec / 3600) * 10) / 10)
+    out.push(Math.round(totalSec / 60))
   }
   return out
 })
 
-const hoursThisWeek = computed(() => {
-  const sum = last7Hours.value.reduce((a, b) => a + b, 0)
-  return Math.round(sum * 10) / 10
-})
+const minutesThisWeek = computed(() => last7Minutes.value.reduce((a, b) => a + b, 0))
 
 const avgSessionMins = computed(() => {
   if (recentSessions.value.length === 0) return 0
@@ -344,7 +343,7 @@ const journeyTotal = computed(() => {
               <!-- No streak stat — streaks are banned (founder ruling
                    2026-07-19, docs/gamification-done-right.md). -->
               <div class="stat">
-                <div class="arsenal stat-val">{{ hoursThisWeek }}h</div>
+                <div class="arsenal stat-val">{{ formatPracticeMinutes(minutesThisWeek) }}</div>
                 <div class="schools-subtle stat-label">{{ t('schools.studentProgress.thisWeekLabel', 'This week') }}</div>
               </div>
               <div class="stat">
@@ -356,7 +355,7 @@ const journeyTotal = computed(() => {
 
           <div class="schools-card schools-card-pad spark-card">
             <div class="schools-kicker">{{ t('schools.studentProgress.last7DaysKicker', 'Last 7 days') }}</div>
-            <Sparkline :data="last7Hours" :width="260" :height="42" />
+            <Sparkline :data="last7Minutes" :width="260" :height="42" />
             <div class="schools-subtle spark-foot">{{ t('schools.studentProgress.sparkFootLabel', 'Sun – Sat · hours practised') }}</div>
           </div>
         </aside>

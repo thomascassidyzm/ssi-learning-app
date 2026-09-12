@@ -1,0 +1,268 @@
+{
+  "ref": "HEAD of source",
+  "sourceCommit": "4bddb1172de5ba6f5236234a12e515c0a7f7d487",
+  "started": "2026-09-11T11:49:30.799Z",
+  "scratch": "/home/tomcassidy/.cs-scratch/cs-7d2f251a-b77a-4416-adb5-784f11750e5f/tmp/test-loop-zFw9YZ/checkout",
+  "build": "built and served on 127.0.0.1:4173; controls stub routes, so this is NOT an app journey pass",
+  "entries": [
+    {
+      "id": "silent-audio",
+      "status": "CATCH",
+      "applied": true,
+      "check": "journeys/lib.mjs instrument + waitAudible on the energy predicate in journeys/audibility.mjs (worker #168, merged to dev as 069ef0c5c); release-audible-control.mjs qualifies that instrument with three cases",
+      "run": {
+        "exit": 0,
+        "stdout": "CORRECT    silence  expect=refused heard=false :: peak -120 dBFS, rms -120 dBFS, above floor 0/980ms = 0%\nCORRECT    click    expect=refused heard=false :: peak -4.3 dBFS, rms -7.3 dBFS, above floor 100/2000ms = 5%\nCORRECT    real     expect=heard heard=true :: peak -3.9 dBFS, rms -12 dBFS, above floor 240/300ms = 79.9%\nPASS — all three controls correct\n",
+        "stderr": "",
+        "evidence": {
+          "thresholds": {
+            "floorDbfs": -45,
+            "minFraction": 0.2,
+            "minAboveFloorMs": 150,
+            "sampleIntervalMs": 20,
+            "maxTickMs": 100,
+            "dbMin": -120
+          },
+          "results": [
+            {
+              "id": "silence",
+              "label": "1s of zero PCM",
+              "expect": "refused",
+              "verdict": "correct",
+              "heard": false,
+              "firstLessonAudibleMs": null,
+              "firstLessonProgressedMs": 520,
+              "level": {
+                "peakDbfs": -120,
+                "maxRmsDbfs": -120,
+                "aboveFloorMs": 0,
+                "elapsedMs": 980,
+                "aboveFloorPct": 0
+              },
+              "clock": 1,
+              "duration": 1,
+              "audioCtxState": "running",
+              "tapErrors": []
+            },
+            {
+              "id": "click",
+              "label": "2s, 95% silence + 100ms tone at the end",
+              "expect": "refused",
+              "verdict": "correct",
+              "heard": false,
+              "firstLessonAudibleMs": null,
+              "firstLessonProgressedMs": 634,
+              "level": {
+                "peakDbfs": -4.3,
+                "maxRmsDbfs": -7.3,
+                "aboveFloorMs": 100,
+                "elapsedMs": 2000,
+                "aboveFloorPct": 5
+              },
+              "clock": 2,
+              "duration": 2,
+              "audioCtxState": "running",
+              "tapErrors": []
+            },
+            {
+              "id": "real",
+              "label": "bundled lesson clip 0B3EB395-78B0-36CD-8F4E-5836D47DDCC6.mp3",
+              "expect": "heard",
+              "verdict": "correct",
+              "heard": true,
+              "firstLessonAudibleMs": 369,
+              "firstLessonProgressedMs": 410,
+              "level": {
+                "peakDbfs": -3.9,
+                "maxRmsDbfs": -12,
+                "aboveFloorMs": 240,
+                "elapsedMs": 300,
+                "aboveFloorPct": 79.9
+              },
+              "clock": 0.330235,
+              "duration": 2.037551,
+              "audioCtxState": "running",
+              "tapErrors": []
+            }
+          ],
+          "clock": 1,
+          "silenceVerdict": "correct",
+          "silenceHeard": false,
+          "silenceLevel": {
+            "peakDbfs": -120,
+            "maxRmsDbfs": -120,
+            "aboveFloorMs": 0,
+            "elapsedMs": 980,
+            "aboveFloorPct": 0
+          }
+        }
+      },
+      "reverted": true
+    },
+    {
+      "id": "belt-frozen",
+      "status": "GAP",
+      "applied": true,
+      "check": "TESTER-SHEET step 1; journeys j1 measures first audio only; _verify-belt-ceiling.mjs claims belt ceilings, not earned progression",
+      "reason": "No local course/playback fixture reaching the first belt transition. Existing live probes are not a safe substitute.",
+      "reverted": true
+    },
+    {
+      "id": "subscribe-wall-missing",
+      "status": "GAP",
+      "applied": true,
+      "check": "TESTER-SHEET step 2; _255-double-subscription-probe.mjs covers subscription state, not this round-to-wall transition",
+      "reason": "Local authenticated wall-account/backend fixture is absent. Password variable names exist on this box; credentials are not the gap. Do not use live Supabase.",
+      "reverted": true
+    },
+    {
+      "id": "settings-wrong-server",
+      "status": "GAP",
+      "applied": true,
+      "check": "TESTER-SHEET step 4; journeys j5 measures screen timing, not the displayed address",
+      "reason": "No local Settings render fixture asserting the displayed host. apiBase tests check request routing, not this label.",
+      "reverted": true
+    },
+    {
+      "id": "duration-not-written",
+      "status": "GAP",
+      "applied": true,
+      "check": "SessionStore.test.ts asserts duration payloads (unit only); chepstow-three-bugs-probe.mjs examines school behaviour; no local end-to-end duration checkpoint assertion",
+      "reason": "CODE-level mutation affects both endSession and checkpointSession payloads. No isolated local database/session fixture proving ongoing classroom duration writes. Unit coverage is not a learner-level catch.",
+      "reverted": true
+    },
+    {
+      "id": "blob-unrecognised",
+      "status": "CATCH",
+      "applied": true,
+      "check": "journeys/lib.mjs URL classification; ADDED release-blob-control.mjs asserts a non-zero blob is recognised",
+      "run": {
+        "exit": 1,
+        "stdout": "{\"verdict\":\"red\",\"pcmFrames\":16000,\"amplitude\":12000,\"observed\":null,\"clock\":1}\n",
+        "stderr": "",
+        "evidence": {
+          "verdict": "red",
+          "pcmFrames": 16000,
+          "amplitude": 12000,
+          "observed": null,
+          "clock": 1
+        }
+      },
+      "reverted": true
+    }
+  ],
+  "buildRewroteDateStamps": [
+    "docs/handbook-pack.md",
+    "docs/walkthrough-pack.md",
+    "packages/player-vue/src/walkthrough/pack.json"
+  ],
+  "positiveBaseline": {
+    "exit": 0,
+    "stdout": "{\"verdict\":\"green\",\"pcmFrames\":16000,\"amplitude\":12000,\"observed\":{\"firstPlayCall\":258,\"firstAnyAudible\":420.5,\"firstLessonAudible\":420.5,\"firstLessonSrc\":\"blob:http://localhost:4173/173d4102-b553-4f91-b0e7-d8525b750e11\",\"srcs\":[{\"t\":258,\"src\":\"blob:http://localhost:4173/173d4102-b553-4f91-b0e7-d8525b750e11\"}],\"firstAnyProgressed\":null,\"firstLessonProgressed\":null,\"lessonLevel\":{\"rmsDbfs\":-11.7,\"peakDbfs\":-8.7,\"aboveFloorPct\":100,\"aboveFloorMs\":160,\"elapsedMs\":160},\"meters\":[{\"src\":\"blob:http://localhost:4173/173d4102-b553-4f91-b0e7-d8525b750e11\",\"elapsedMs\":200.20000004768372,\"aboveFloorMs\":200.20000004768372,\"maxRmsDbfs\":-11.7,\"peakDbfs\":-8.7,\"aboveFloorPct\":100,\"tapError\":null}],\"tapErrors\":[],\"audioCtxState\":\"running\",\"config\":{\"floorDbfs\":-45,\"minFraction\":0.2,\"minAboveFloorMs\":150,\"sampleIntervalMs\":20,\"maxTickMs\":100,\"dbMin\":-120},\"__ctx\":{}},\"clock\":0.232567}\n",
+    "stderr": "",
+    "evidence": {
+      "verdict": "green",
+      "pcmFrames": 16000,
+      "amplitude": 12000,
+      "observed": {
+        "firstPlayCall": 258,
+        "firstAnyAudible": 420.5,
+        "firstLessonAudible": 420.5,
+        "firstLessonSrc": "blob:http://localhost:4173/173d4102-b553-4f91-b0e7-d8525b750e11",
+        "srcs": [
+          {
+            "t": 258,
+            "src": "blob:http://localhost:4173/173d4102-b553-4f91-b0e7-d8525b750e11"
+          }
+        ],
+        "firstAnyProgressed": null,
+        "firstLessonProgressed": null,
+        "lessonLevel": {
+          "rmsDbfs": -11.7,
+          "peakDbfs": -8.7,
+          "aboveFloorPct": 100,
+          "aboveFloorMs": 160,
+          "elapsedMs": 160
+        },
+        "meters": [
+          {
+            "src": "blob:http://localhost:4173/173d4102-b553-4f91-b0e7-d8525b750e11",
+            "elapsedMs": 200.20000004768372,
+            "aboveFloorMs": 200.20000004768372,
+            "maxRmsDbfs": -11.7,
+            "peakDbfs": -8.7,
+            "aboveFloorPct": 100,
+            "tapError": null
+          }
+        ],
+        "tapErrors": [],
+        "audioCtxState": "running",
+        "config": {
+          "floorDbfs": -45,
+          "minFraction": 0.2,
+          "minAboveFloorMs": 150,
+          "sampleIntervalMs": 20,
+          "maxTickMs": 100,
+          "dbMin": -120
+        },
+        "__ctx": {}
+      },
+      "clock": 0.232567
+    }
+  },
+  "positiveAfter": {
+    "exit": 0,
+    "stdout": "{\"verdict\":\"green\",\"pcmFrames\":16000,\"amplitude\":12000,\"observed\":{\"firstPlayCall\":295.09999990463257,\"firstAnyAudible\":458.59999990463257,\"firstLessonAudible\":458.59999990463257,\"firstLessonSrc\":\"blob:http://localhost:4173/37305785-811c-4a38-a4df-3d1064fcff02\",\"srcs\":[{\"t\":295,\"src\":\"blob:http://localhost:4173/37305785-811c-4a38-a4df-3d1064fcff02\"}],\"firstAnyProgressed\":null,\"firstLessonProgressed\":null,\"lessonLevel\":{\"rmsDbfs\":-11.7,\"peakDbfs\":-8.7,\"aboveFloorPct\":100,\"aboveFloorMs\":160,\"elapsedMs\":160},\"meters\":[{\"src\":\"blob:http://localhost:4173/37305785-811c-4a38-a4df-3d1064fcff02\",\"elapsedMs\":200.89999997615814,\"aboveFloorMs\":200.89999997615814,\"maxRmsDbfs\":-11.7,\"peakDbfs\":-8.7,\"aboveFloorPct\":100,\"tapError\":null}],\"tapErrors\":[],\"audioCtxState\":\"running\",\"config\":{\"floorDbfs\":-45,\"minFraction\":0.2,\"minAboveFloorMs\":150,\"sampleIntervalMs\":20,\"maxTickMs\":100,\"dbMin\":-120},\"__ctx\":{}},\"clock\":0.224}\n",
+    "stderr": "",
+    "evidence": {
+      "verdict": "green",
+      "pcmFrames": 16000,
+      "amplitude": 12000,
+      "observed": {
+        "firstPlayCall": 295.09999990463257,
+        "firstAnyAudible": 458.59999990463257,
+        "firstLessonAudible": 458.59999990463257,
+        "firstLessonSrc": "blob:http://localhost:4173/37305785-811c-4a38-a4df-3d1064fcff02",
+        "srcs": [
+          {
+            "t": 295,
+            "src": "blob:http://localhost:4173/37305785-811c-4a38-a4df-3d1064fcff02"
+          }
+        ],
+        "firstAnyProgressed": null,
+        "firstLessonProgressed": null,
+        "lessonLevel": {
+          "rmsDbfs": -11.7,
+          "peakDbfs": -8.7,
+          "aboveFloorPct": 100,
+          "aboveFloorMs": 160,
+          "elapsedMs": 160
+        },
+        "meters": [
+          {
+            "src": "blob:http://localhost:4173/37305785-811c-4a38-a4df-3d1064fcff02",
+            "elapsedMs": 200.89999997615814,
+            "aboveFloorMs": 200.89999997615814,
+            "maxRmsDbfs": -11.7,
+            "peakDbfs": -8.7,
+            "aboveFloorPct": 100,
+            "tapError": null
+          }
+        ],
+        "tapErrors": [],
+        "audioCtxState": "running",
+        "config": {
+          "floorDbfs": -45,
+          "minFraction": 0.2,
+          "minAboveFloorMs": 150,
+          "sampleIntervalMs": 20,
+          "maxTickMs": 100,
+          "dbMin": -120
+        },
+        "__ctx": {}
+      },
+      "clock": 0.224
+    }
+  },
+  "finished": "2026-09-11T11:50:17.061Z"
+}

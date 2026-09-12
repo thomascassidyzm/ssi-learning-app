@@ -29,6 +29,20 @@ interface PlayerEvent {
   client_version?: string | null
 }
 
+/**
+ * What a play-state context can stamp. Every field optional: a surface that has
+ * no belt (Listening Mode) leaves it out rather than inventing one.
+ */
+export interface PlayerLogContext {
+  /** The learning mode in force: 'easy' | 'fast' in the player, 'listening' in Listening Mode. */
+  mode?: string | null
+  /** Belt name the learner is PLAYING under (playingBelt), not the belt achieved. */
+  belt?: string | null
+  seedId?: string | null
+  roundIndex?: number | null
+  [key: string]: unknown
+}
+
 interface PlayerLogOptions {
   /** Reactive course code — stamped on every event. Optional; can be unresolved at session start. */
   courseCode?: Ref<string | null | undefined> | string | null
@@ -58,13 +72,53 @@ interface PlayerLogOptions {
    * works; the rows just carry no learner id.
    */
   getToken?: () => Promise<string | null>
+  /**
+   * Play-state context, stamped on EVERY event this log emits (job #325, Tom
+   * 2026-09-12: "belt (and seed/round context) stored on the row, not derived
+   * from seedId"). Called at the instant each event is logged, so a row carries
+   * the mode and belt IN FORCE at that play, not the page-load selection and
+   * not a stored preference. Keys the caller already set on its payload, even
+   * to null, are never overwritten: a pod play's deliberate `seedId: null`
+   * stays null. A context that throws stamps nothing and the row goes out as
+   * it always did.
+   */
+  context?: () => PlayerLogContext | null | undefined
 }
 
 const DEFAULT_FLUSH_INTERVAL_MS = 5000
 const BATCH_TRIGGER = 10
 const MAX_BUFFER = 200 // hard cap; events past this are dropped
+// How long a HIDDEN-tab flush waits for a pending bearer before securing the
+// batch as an unattributed beacon. Supabase's getSession() answers from local
+// storage in single-digit ms; it takes longer only when the access token has
+// expired and must be refreshed over the network, or the auth client's
+// navigator lock is held by another tab. This is a bounded TRADE-OFF, not a
+// close — see flush() for the floor it sits on.
+const HIDDEN_TOKEN_WAIT_MS = 800
+// A flush whose page is NOT at risk of eviction (a player unmount inside a
+// live tab, or a tab that has come back to the foreground) keeps waiting for
+// the bearer up to this much. It is a guard against a hung auth client only:
+// past it the batch goes out unattributed rather than never.
+const SAFE_TOKEN_WAIT_MS = 10_000
 
 let nextSessionId: string | null = null
+
+// Live player logs, for the learner bug-report postbox (job #327): the report
+// flushes every buffer first so the server can read the last five minutes from
+// player_events, and carries whatever is STILL unflushed in its own body as a
+// fallback. Registered on mount, removed on unmount; nothing else reads this.
+interface LiveLog { flush: () => Promise<void>; pending: () => PlayerEvent[] }
+const liveLogs = new Set<LiveLog>()
+
+/** Flush every mounted player log now. Silent on failure, like flush itself. */
+export async function flushAllPlayerLogs(): Promise<void> {
+  await Promise.all([...liveLogs].map((l) => l.flush().catch(() => {})))
+}
+
+/** Every event still buffered in a mounted player log, in arrival order. */
+export function pendingPlayerEvents(): PlayerEvent[] {
+  return [...liveLogs].flatMap((l) => l.pending())
+}
 function genSessionId(): string {
   // Prefer crypto.randomUUID where available (modern browsers).
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -85,11 +139,20 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
   // Last known access token, refreshed on every async flush so the unload
   // path (which cannot await) still has one to send.
   let cachedToken: string | null = null
-  const refreshToken = async (): Promise<void> => {
-    if (!options.getToken) return
-    try {
-      cachedToken = await options.getToken()
-    } catch { /* silent — telemetry never blocks UX */ }
+  // The refresh currently in flight, if any. A sync flush that finds the
+  // cache empty while this is pending WAITS for it (bounded) rather than
+  // beaconing without a bearer — see flush().
+  let tokenInFlight: Promise<void> | null = null
+  const refreshToken = (): Promise<void> => {
+    if (!options.getToken) return Promise.resolve()
+    if (tokenInFlight) return tokenInFlight
+    const p = (async () => {
+      try {
+        cachedToken = await options.getToken!()
+      } catch { /* silent — telemetry never blocks UX */ }
+    })().finally(() => { if (tokenInFlight === p) tokenInFlight = null })
+    tokenInFlight = p
+    return p
   }
 
   const resolveCourseCode = (): string | null => {
@@ -131,10 +194,22 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
       ...(learnerId ? { learnerId } : {}),
       ...(actorUserId ? { actor_user_id: actorUserId } : {}),
     }
-    const hasExtra = Object.keys(extra).length > 0
+    // Context keys fill only what the caller left ABSENT. `'k' in payload` is
+    // the test, so an explicit null from the caller wins over the context.
+    let context: PlayerLogContext | null | undefined
+    try { context = options.context?.() } catch { context = null }
+    const stamped: Record<string, unknown> = {}
+    if (context) {
+      for (const [k, v] of Object.entries(context)) {
+        if (v === undefined) continue
+        if (payload && k in payload) continue
+        stamped[k] = v
+      }
+    }
+    const hasExtra = Object.keys(extra).length > 0 || Object.keys(stamped).length > 0
     buffer.push({
       event_type: type,
-      payload: hasExtra ? { ...(payload ?? {}), ...extra } : (payload ?? null),
+      payload: hasExtra ? { ...stamped, ...(payload ?? {}), ...extra } : (payload ?? null),
       course_code: resolveCourseCode(),
       session_id: sessionId,
       occurred_at: new Date().toISOString(),
@@ -147,7 +222,7 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
   }
 
   /** Drain the current buffer to the network. Silent on failure. */
-  const flush = async (sync: boolean = false): Promise<void> => {
+  const flush = async (sync: boolean = false, cause: 'hidden' | 'unmount' = 'hidden'): Promise<void> => {
     if (buffer.length === 0) return
     // Don't fire a doomed request when we already know the network is gone.
     // On iOS every failed foreground request is a fresh chance to trip the
@@ -193,18 +268,76 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
     // Attribution rides a VERIFIED bearer, never the cookie (SEC25 INPUT-04).
     // The token is cached from the previous flush so the unload path can use
     // it without awaiting; a background refresh keeps it current.
+    //
+    // The cache is ALSO primed at mount (see onMounted). Before that, the only
+    // things that filled it were an async flush — timed, ten-event batch or
+    // explicit — so any sync flush before the first of those had RESOLVED
+    // beaconed its boot events with no bearer at all, and they landed
+    // unattributed — nine such rows for class 8H, every one a cold_start /
+    // bundle_boot_path / bundle_tier_heal at the head of its session (job
+    // #307, 2026-09-12). Priming narrowed that window; the wait below
+    // narrows it further (job #317), and job #320 states honestly what is
+    // left of it.
     if (!sync) await refreshToken()
-    const token = cachedToken
+    let token = cachedToken
+    if (sync && !token && options.getToken) {
+      // The gap #307 left open (Astra, #316·G): priming at mount starts the
+      // refresh, but a tab hidden or a player unmounted BEFORE getToken()
+      // resolves still found the cache empty and beaconed the boot events
+      // with no bearer. So a sync flush waits for the in-flight refresh
+      // instead of racing it. A keepalive fetch issued after an awaited
+      // promise inside a visibilitychange handler is still inside the
+      // page's lifetime, on the same terms as sendBeacon. If no refresh is in
+      // flight this starts one, so the NEXT sync path also has a token.
+      //
+      // HOW LONG TO WAIT is a trade-off the client cannot settle (Astra,
+      // #319, on #317): a hidden page can be evicted at any moment without
+      // firing anything, and a batch still held in JS at that moment is gone,
+      // while a beacon already handed to the browser survives. Waiting longer
+      // buys attribution and risks the batch; sending sooner secures the
+      // batch and loses attribution. No client-only design closes both — a
+      // full close needs an idempotent re-send the server can dedupe, which
+      // is not built. So:
+      //   • a page NOT at eviction risk — an unmount inside a live tab, or a
+      //     tab that has come back to the foreground while we waited — keeps
+      //     waiting, up to SAFE_TOKEN_WAIT_MS (a hung-client guard only);
+      //   • a page that is hidden and STAYS hidden waits HIDDEN_TOKEN_WAIT_MS
+      //     and then secures the batch as an unattributed beacon. A bearer
+      //     that resolves after that point is NOT applied to this batch:
+      //     that row lands unattributed, by this decision, and the next
+      //     flush carries the token.
+      const pending = refreshToken()
+      const startedAt = Date.now()
+      let settled = false
+      void pending.then(() => { settled = true })
+      while (!settled) {
+        const atRisk = cause === 'hidden'
+          && typeof document !== 'undefined' && document.visibilityState === 'hidden'
+        const budget = atRisk ? HIDDEN_TOKEN_WAIT_MS : SAFE_TOKEN_WAIT_MS
+        const remaining = budget - (Date.now() - startedAt)
+        if (remaining <= 0) break
+        await Promise.race([
+          pending,
+          new Promise<void>((r) => setTimeout(r, Math.min(remaining, HIDDEN_TOKEN_WAIT_MS))),
+        ])
+      }
+      token = cachedToken
+    }
 
     // sendBeacon for unmount/visibilitychange — survives page unload. It can't
     // carry a header, so it's only used when there's no token to carry (guest
     // sessions); a signed-in learner uses keepalive fetch instead, which the
     // same unload path supports.
+    // sendBeacon returns false when the browser declines to queue the payload
+    // — its per-origin beacon quota is full, or the page is being torn down —
+    // and until job #320 that batch was simply dropped (Astra, #319). Now a
+    // refused beacon falls through to the keepalive fetch below, the same
+    // path a bearer-carrying sync flush already takes, so the batch is not
+    // lost. A beacon that THROWS falls through the same way.
     if (sync && !token && typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
       try {
         const blob = new Blob([body], { type: 'application/json' })
-        navigator.sendBeacon(apiUrl('/api/player-events'), blob)
-        return
+        if (navigator.sendBeacon(apiUrl('/api/player-events'), blob)) return
       } catch { /* fall through to fetch */ }
     }
 
@@ -226,22 +359,32 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
   const handleVisibilityChange = (): void => {
     if (typeof document === 'undefined') return
     if (document.visibilityState === 'hidden') {
-      void flush(true)
+      void flush(true, 'hidden')
     }
   }
 
+  const live: LiveLog = { flush: () => flush(), pending: () => [...buffer] }
+
   onMounted(() => {
     if (typeof window === 'undefined') return
+    // Prime the bearer cache NOW, not on the first timed flush: the sync path
+    // (tab hidden, unmount) cannot await and sends whatever is cached, so an
+    // empty cache in the first seconds of a session is an unattributed row.
+    void refreshToken()
     flushTimer = setInterval(() => { void flush() }, flushIntervalMs)
     document.addEventListener('visibilitychange', handleVisibilityChange)
+    liveLogs.add(live)
   })
 
   onBeforeUnmount(() => {
+    liveLogs.delete(live)
     if (flushTimer) { clearInterval(flushTimer); flushTimer = null }
     if (typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-    void flush(true)
+    // The tab is alive here — an unmount is a route change, not an unload —
+    // so this flush may wait the full safe budget for its bearer.
+    void flush(true, 'unmount')
   })
 
   return {

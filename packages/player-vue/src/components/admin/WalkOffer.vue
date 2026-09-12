@@ -4,15 +4,24 @@
 // kind, styled like HowThisWorks' toggle. Nothing renders when no walk
 // matches; nothing EVER auto-plays — a walk runs only because the user
 // tapped one of these or a noticing invitation.
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useI18n } from '@/composables/useI18n'
-import { walksFor, startWalk, type WalkPersona } from '@/walkthrough/useWalkthrough'
+import { walksFor, startWalk, claimDeferredWalk, type WalkPersona } from '@/walkthrough/useWalkthrough'
 
 const { t } = useI18n()
 
 const props = defineProps<{ persona: WalkPersona; place: string; kind?: string }>()
 
 const offers = computed(() => walksFor(props.persona, props.place, props.kind))
+
+// A walk asked for from the Handbook starts here, on its own page, once this
+// mount knows where it stands (job #302). One tap, on the Handbook, is the
+// only thing that ever puts a walk in that queue.
+watch(
+  [() => props.persona, () => props.place, () => props.kind],
+  ([persona, place, kind]) => { claimDeferredWalk(persona, place, kind) },
+  { immediate: true },
+)
 </script>
 
 <template>

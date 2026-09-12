@@ -55,6 +55,11 @@ function resetTables(): void {
       clip('cl-1', 1, 'a-1', 0), clip('cl-1', 1, 'a-2', 1), clip('cl-1', 2, 'a-1', 2),
       clip('cl-1', 9, 'a-1', 0), clip('cl-1', 10, 'a-3', 1),
       clip('cl-2', 10, 'a-1', 0),
+      // class-1 also sat in the app for one 12-minute block this week (taps,
+      // no clips): in-app time counts the gaps, phrases do not.
+      ...[0, 240, 480, 720].map((s) => ({ learner_id: 'cl-1', event_type: 'tap_play', occurred_at: iso(2, s * 1000), payload: {} })),
+      // and a 6-minute block last week
+      ...[0, 180, 360].map((s) => ({ learner_id: 'cl-1', event_type: 'tap_play', occurred_at: iso(9, s * 1000), payload: {} })),
       clip('cl-x', 1, 'a-1', 0), clip('cl-x', 1, 'a-1', 1), clip('cl-x', 1, 'a-1', 2), clip('cl-x', 1, 'a-1', 3), clip('cl-x', 1, 'a-1', 4),
     ],
     course_enrollments: [
@@ -242,6 +247,16 @@ describe('GET /api/org/intel — the three answers', () => {
     expect(t1).toMatchObject({ minutesThisWeek: 10, minutesLastWeek: 5, lastPractisedDay: day(1) })
   })
 
+  it('a class has MINUTES: in-app time on its own class account, this week against last, the same rule as the class page (Tom 2026-09-11: the graphs made no sense because class time was people\'s logins only)', async () => {
+    const res = makeRes()
+    await handler(makeReq('school-1'), res)
+    const c1 = res.body.classes.find((c: any) => c.id === 'class-1')
+    expect(c1).toMatchObject({ minutesThisWeek: 12, minutesLastWeek: 6 })
+    expect(res.body.practising).toMatchObject({ classMinutesThisWeek: 12, classMinutesLastWeek: 6 })
+    // Own-account minutes are untouched by class time.
+    expect(res.body.practising.ownMinutesThisWeek).toBe(10)
+  })
+
   it('QUIET names the classes that have gone quiet and the ones that never started', async () => {
     const res = makeRes()
     await handler(makeReq('school-1'), res)
@@ -258,6 +273,30 @@ describe('GET /api/org/intel — the three answers', () => {
       ['started', 2], ['sentence-2', 2], ['sentence-3', 2], ['sentence-5', 1], ['sentence-8', 1], ['sentence-13', 0],
     ])
     expect(res.body.journey.stages[4].label).toMatchObject({ knownText: 'I still want', targetText: 'dw i dal yn moyn' })
+  })
+
+  it('a class with a cursor but no practice is NOT started: QUIET and JOURNEY agree on it', async () => {
+    // Opening the class player writes a live position without a practice
+    // stamp (LearningPlayer persistLivePositionToDb(undefined, false) on init).
+    // Nine of Chepstow's classes are in exactly this state: a cursor at
+    // sentence 1, no diary clip, no last_practiced_at. Seen RED before the fix:
+    // Quiet said 2 never started and Journey said 3 of 4 started — 5 of 4.
+    TABLES.classes.push({ id: 'class-4', class_name: '10T', course_code: 'cym_s_for_eng', school_id: 'school-1', group_id: 'school-node', teacher_user_id: 'teacher-3', class_learner_id: 'cl-4', is_active: true })
+    TABLES.course_enrollments.push({ learner_id: 'cl-4', course_id: 'cym_s_for_eng', highest_completed_lego_id: null, last_completed_lego_id: 'S0001L01', last_practiced_at: null })
+    const res = makeRes()
+    await handler(makeReq('school-1'), res)
+    expect(res.statusCode).toBe(200)
+    const started = res.body.journey.stages[0].classes
+    const { neverCount } = res.body.quiet
+    // The two questions partition the school: every class has either
+    // practised or it has not.
+    expect(started + neverCount).toBe(res.body.practising.classCount)
+    expect(neverCount).toBe(2)
+    expect(started).toBe(2)
+    // And the class row itself says the same thing: no practice, no position.
+    const c4 = res.body.classes.find((c: any) => c.id === 'class-4')
+    expect(c4.lastPractisedAt).toBeNull()
+    expect(c4.position).toBeNull()
   })
 
   it('the pure rules: quiet buckets and journey stages', () => {

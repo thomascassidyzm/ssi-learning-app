@@ -5,6 +5,7 @@
  */
 
 import { ref, computed } from 'vue'
+import { hoursToMinutes } from './practiceMinutes'
 import { getSchoolsClient } from './client'
 import { useSchoolContext } from './useSchoolContext'
 import { isDemoMode } from '../demo/demoMode'
@@ -22,11 +23,14 @@ interface GroupSummary {
   school_count: number
   teacher_count: number
   student_count: number
-  total_practice_hours: number
-  // Staff's OWN practice, already INCLUDED in total_practice_hours (founder
+  // MINUTES, all time (Tom, 2026-09-11, job #265: hours are not a unit on
+  // any school surface). The DB views still carry hours; converted at the
+  // boundary in fetchSchools via hoursToMinutes.
+  total_practice_minutes: number
+  // Staff's OWN practice, already INCLUDED in total_practice_minutes (founder
   // ruling 2026-07-18). Broken out so the headline can show the honest
-  // "incl. Xm staff practice" composition instead of silently inflating.
-  staff_practice_hours?: number
+  // "incl. X min staff practice" composition instead of silently inflating.
+  staff_practice_minutes?: number
 }
 
 type SchoolHealth = 'excellent' | 'good' | 'needs-attention' | 'inactive'
@@ -42,10 +46,11 @@ export interface School {
   teacher_count: number
   class_count: number
   student_count: number
-  total_practice_hours: number
-  // Staff's OWN practice, already INCLUDED in total_practice_hours (founder
-  // ruling 2026-07-18). Broken out for the "incl. Xm staff practice" line.
-  staff_practice_hours?: number
+  // MINUTES, all time — see GroupSummary. Converted from the view's hours.
+  total_practice_minutes: number
+  // Staff's OWN practice, already INCLUDED in total_practice_minutes (founder
+  // ruling 2026-07-18). Broken out for the "incl. X min staff practice" line.
+  staff_practice_minutes?: number
   created_at: string
   // Drives the "confirm your school's name" first-run card (invite-born
   // admins only — see schools.name_confirmed migration). Optional so
@@ -193,8 +198,8 @@ export function useSchoolData() {
             teacher_count: s.teacher_count,
             class_count: s.class_count,
             student_count: s.student_count,
-            total_practice_hours: s.total_practice_hours,
-            staff_practice_hours: s.staff_practice_hours ?? 0,
+            total_practice_minutes: hoursToMinutes(s.total_practice_hours),
+            staff_practice_minutes: hoursToMinutes(s.staff_practice_hours ?? 0),
             created_at: s.created_at,
             active_days_last_7: activeDays,
             health: bucketSchoolHealth(s.student_count || 0, activeDays),
@@ -211,8 +216,8 @@ export function useSchoolData() {
             school_count: groupData.school_count,
             teacher_count: groupData.teacher_count,
             student_count: groupData.student_count,
-            total_practice_hours: groupData.total_practice_hours,
-            staff_practice_hours: groupData.staff_practice_hours ?? 0,
+            total_practice_minutes: hoursToMinutes(groupData.total_practice_hours),
+            staff_practice_minutes: hoursToMinutes(groupData.staff_practice_hours ?? 0),
           }
         }
       } else if (isGovtAdmin.value && userRegionCode) {
@@ -247,8 +252,8 @@ export function useSchoolData() {
             teacher_count: s.teacher_count,
             class_count: s.class_count,
             student_count: s.student_count,
-            total_practice_hours: s.total_practice_hours,
-            staff_practice_hours: s.staff_practice_hours ?? 0,
+            total_practice_minutes: hoursToMinutes(s.total_practice_hours),
+            staff_practice_minutes: hoursToMinutes(s.staff_practice_hours ?? 0),
             created_at: s.created_at,
             active_days_last_7: activeDays,
             health: bucketSchoolHealth(s.student_count || 0, activeDays),
@@ -325,8 +330,8 @@ export function useSchoolData() {
             teacher_count: data.teacher_count,
             class_count: data.class_count,
             student_count: data.student_count,
-            total_practice_hours: data.total_practice_hours,
-            staff_practice_hours: data.staff_practice_hours ?? 0,
+            total_practice_minutes: hoursToMinutes(data.total_practice_hours),
+            staff_practice_minutes: hoursToMinutes(data.staff_practice_hours ?? 0),
             created_at: data.created_at,
             name_confirmed: data.name_confirmed,
             active_days_last_7: activeDays,
@@ -409,19 +414,19 @@ export function useSchoolData() {
     return schools.value.reduce((sum, s) => sum + s.class_count, 0)
   })
 
-  const totalPracticeHours = computed(() => {
-    if (viewingSchool.value) return viewingSchool.value.total_practice_hours
-    if (groupSummary.value) return groupSummary.value.total_practice_hours
-    return schools.value.reduce((sum, s) => sum + s.total_practice_hours, 0)
+  const totalPracticeMinutes = computed(() => {
+    if (viewingSchool.value) return viewingSchool.value.total_practice_minutes
+    if (groupSummary.value) return groupSummary.value.total_practice_minutes
+    return schools.value.reduce((sum, s) => sum + s.total_practice_minutes, 0)
   })
 
-  // Staff's OWN practice component of totalPracticeHours (founder ruling
-  // 2026-07-18). Drives the honest "incl. Xm staff practice" headline line;
-  // already summed into totalPracticeHours above, never added on top.
-  const totalStaffPracticeHours = computed(() => {
-    if (viewingSchool.value) return viewingSchool.value.staff_practice_hours ?? 0
-    if (groupSummary.value) return groupSummary.value.staff_practice_hours ?? 0
-    return schools.value.reduce((sum, s) => sum + (s.staff_practice_hours ?? 0), 0)
+  // Staff's OWN practice component of totalPracticeMinutes (founder ruling
+  // 2026-07-18). Drives the honest "incl. X min staff practice" headline line;
+  // already summed into totalPracticeMinutes above, never added on top.
+  const totalStaffPracticeMinutes = computed(() => {
+    if (viewingSchool.value) return viewingSchool.value.staff_practice_minutes ?? 0
+    if (groupSummary.value) return groupSummary.value.staff_practice_minutes ?? 0
+    return schools.value.reduce((sum, s) => sum + (s.staff_practice_minutes ?? 0), 0)
   })
 
   return {
@@ -439,8 +444,8 @@ export function useSchoolData() {
     totalStudents,
     totalTeachers,
     totalClasses,
-    totalPracticeHours,
-    totalStaffPracticeHours,
+    totalPracticeMinutes,
+    totalStaffPracticeMinutes,
 
     // Actions
     fetchSchools,

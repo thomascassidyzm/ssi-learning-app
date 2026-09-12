@@ -11,6 +11,7 @@ import {
   resolveRealLearners,
   isMachineCountry,
   MACHINE_COUNTRIES,
+  isMachineEvent,
 } from './realLearnerPopulation'
 
 type Learner = { id: string; is_class_entity: boolean | null; platform_role: string | null }
@@ -115,5 +116,29 @@ describe('isMachineCountry', () => {
     expect(isMachineCountry('fi')).toBe(true)
     expect(isMachineCountry('GB')).toBe(false)
     expect(isMachineCountry(null)).toBe(false)
+  })
+})
+
+describe('isMachineEvent — the country rule never erases a signed-in real learner (job #325)', () => {
+  // The 2026-09-12 census found 59 "real learners" whose every production row
+  // was stamped JP or FI. Read live: 49 were dangling ids with no learners row,
+  // 7 were probe accounts, and 3 were people in Finland with iPhones, one of
+  // them 15,706 events deep across twelve courses. A country is not a machine.
+  const realIds = new Set(['finnish-human'])
+  const svcRow = (learner_id: string | null, ip_country: string | null) => ({ learner_id, ip_country })
+
+  it('keeps a real learner whose rows all come from Finland', () => {
+    expect(isMachineEvent(svcRow('finnish-human', 'FI'), realIds)).toBe(false)
+    expect(isMachineEvent(svcRow('finnish-human', 'JP'), realIds)).toBe(false)
+  })
+
+  it('still drops guest traffic from the machine countries, and rows whose learner id resolves to nobody', () => {
+    expect(isMachineEvent(svcRow(null, 'FI'), realIds)).toBe(true)
+    expect(isMachineEvent(svcRow('deleted-probe', 'JP'), realIds)).toBe(true)
+    expect(isMachineEvent(svcRow(null, 'GB'), realIds)).toBe(false)
+  })
+
+  it('reads the learner key from user_id when learner_id is empty, as the census does', () => {
+    expect(isMachineEvent({ learner_id: null, user_id: 'finnish-human', ip_country: 'FI' }, realIds)).toBe(false)
   })
 })

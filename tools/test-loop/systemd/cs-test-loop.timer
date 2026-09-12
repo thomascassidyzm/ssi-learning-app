@@ -1,0 +1,10 @@
+[Unit]
+Description=Nightly 00:45 UTC report-only run of the release-test loop (outside the 03:30 UTC estate suite)
+
+[Timer]
+OnCalendar=*-*-* 00:45:00 UTC
+Persistent=true
+Unit=cs-test-loop.service
+
+[Install]
+WantedBy=timers.target

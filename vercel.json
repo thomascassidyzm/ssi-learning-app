@@ -172,6 +172,10 @@
       "schedule": "0 7 * * *"
     },
     {
+      "path": "/api/cron/support-doorbell",
+      "schedule": "20 * * * *"
+    },
+    {
       "path": "/api/cron/org-entitlement-reconcile",
       "schedule": "30 7 * * *"
     }

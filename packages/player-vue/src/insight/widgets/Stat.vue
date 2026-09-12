@@ -21,6 +21,7 @@ import {
   registerInsightTheme, INSIGHT_THEME_NAME, palette, tone, toneRgb, FONT_DISPLAY, FONT_MONO,
   type EChartsLike,
 } from '../theme'
+import { formatWithUnit } from '../units'
 
 const props = withDefaults(defineProps<{
   data: StatData
@@ -41,12 +42,8 @@ let resizeObserver: ResizeObserver | null = null
 
 const hasDonut = computed(() => !!props.data.donut && props.data.donut.length > 0)
 
-// Format the headline number: integers plain, fractions to 1dp, with optional unit.
-const displayValue = computed(() => {
-  const v = props.data.value
-  const n = Number.isInteger(v) ? String(v) : v.toFixed(1)
-  return props.data.unit ? `${n}${props.data.unit === '%' ? '%' : ' ' + props.data.unit}` : n
-})
+// Format the headline number: integers plain, fractions to 1dp, unit singularised at 1.
+const displayValue = computed(() => formatWithUnit(props.data.value, props.data.unit))
 
 // The curvature read ("up from 2.4%") with its tone colour.
 const deltaText = computed(() => {

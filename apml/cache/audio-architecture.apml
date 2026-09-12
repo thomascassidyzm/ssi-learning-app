@@ -367,7 +367,7 @@ spec audio_caching_architecture:
       of the SW.
     what_sw_still_does:
       - "Precache the app shell (js/css/html/svg/woff2)"
-      - "NetworkFirst on document navigations (3s timeout → cache) so deploys propagate — real since 2026-08-07: directoryIndex:null stops the precache route shadowing '/' navigations"
+      - "NetworkFirst on document navigations (3s timeout → the PRECACHED shell, never a runtime copy — src/sw/navigationRoute.js, since 2026-09-12 job #377: the runtime copy in navigation-cache outlived redeploys and one slow navigation after a redeploy healed the whole offline install away) so deploys propagate — real since 2026-08-07: directoryIndex:null stops the precache route shadowing '/' navigations"
       - "CacheFirst on Google Fonts (fonts.googleapis.com / fonts.gstatic.com) only"
       - "skipWaiting/clientsClaim FALSE in EVERY environment (registerType:'prompt'). The app never activates a waiting worker: activation deletes every changed chunk from the precache, so a live page loses its own code and dies at its next lazy import. Taking an update is a plain reload; the worker takes over once no client is open. See docs/pwa-lifecycle-design.md §2.1a"
 

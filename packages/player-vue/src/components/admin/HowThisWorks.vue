@@ -12,7 +12,7 @@
 // nothing ever auto-plays.
 import { ref, computed, watch } from 'vue'
 import pack from '@/explainer/pack.json'
-import { walksFor, startWalk } from '@/walkthrough/useWalkthrough'
+import { walksFor, startWalk, claimDeferredWalk, type WalkPersona } from '@/walkthrough/useWalkthrough'
 import type { Invitation } from '@/explainer/evaluateRules'
 import { shouldThrob, markSeen } from '@/explainer/howThisWorksThrob'
 import { useI18n } from '@/composables/useI18n'
@@ -22,26 +22,45 @@ const { t } = useI18n()
 const route = useRoute()
 
 const props = withDefaults(defineProps<{
-  persona: 'admin' | 'leader'
+  persona: WalkPersona
   kind: string
+  /** The walkthrough place this mount stands on: 'node-home' on the org lens,
+   *  'class-detail' on the /schools class page. Walks are offered by
+   *  persona × place × kind, so a mount must name where it is. */
+  place?: string
   /** Current undismissed noticing invitations — drives the panel list + the re-arm signal. */
   invitations?: Invitation[]
   /** Node id for per-node seen state; empty while the payload loads. */
   nodeId?: string
   /** Auth uid where the mount knows it; 'anon' keeps the state per-device. */
   viewerId?: string
-}>(), { invitations: () => [], nodeId: '', viewerId: 'anon' })
+}>(), { place: 'node-home', invitations: () => [], nodeId: '', viewerId: 'anon' })
 
 // Quiet per-persona×place "Show me" links into the walkthrough pack
 // (archive/docs-retired-2026-08-24/walkthrough-engine-scout.md §3.4) — launched by tap only, never auto.
-const walks = computed(() => walksFor(props.persona, 'node-home', props.kind))
+const walks = computed(() => walksFor(props.persona, props.place, props.kind))
 
-// HANDBOOK (founder ruling 2026-09-07) — the louder door. This panel is the
+// A walk the reader asked for from the Handbook starts here, on the page it
+// lives on, once this mount knows its persona × place × kind (job #302).
+// The tap was theirs; this is the page catching up with it, not auto-play.
+watch(
+  [() => props.persona, () => props.place, () => props.kind],
+  ([persona, place, kind]) => { claimDeferredWalk(persona, place, kind) },
+  { immediate: true },
+)
+
+// HANDBOOK (founder ruling 2026-09-07) — the second door. This panel is the
 // just-in-time answer for the place you are standing on; the Handbook is the
 // map of everything, for the leader who does this once a term and cannot
-// search for a capability they do not know exists. The chip sits beside the
-// quiet link rather than replacing this panel, because the panel is also the
-// single surfacing point for the noticing invitations (ruling 2026-07-29).
+// search for a capability they do not know exists. It sits beside this panel
+// rather than replacing it, because the panel is also the single surfacing
+// point for the noticing invitations (ruling 2026-07-29).
+//
+// Which door is louder (job #286, 2026-09-11): Tom, on staging as a school
+// leader on a class page, tapped the bordered Handbook chip and landed on the
+// prose map — "still the prose rather than the explainer 'how this works'
+// clips". The clips live behind THIS panel, so the panel's toggle is now the
+// bordered, first-read affordance and the Handbook is the quiet text link.
 // The surface decides the door, not just the persona. An ssi_admin standing on
 // /admin/groups/:id is a member of no school, so memberSurfaceGuard turns
 // /schools/handbook into a redirect to /admin/structure — which is exactly the
@@ -95,11 +114,11 @@ const html = computed(() => {
 <template>
   <div v-if="text" class="htw">
     <div class="htw-doors">
-      <router-link class="btn-ghost htw-handbook" :to="handbookTo">{{ t('org.ui.howThisWorks.handbook', 'Handbook') }}</router-link>
-      <button type="button" class="htw-toggle" :class="{ 'is-armed': throbbing && !open }" @click="toggle">
+      <button type="button" class="btn-ghost htw-toggle" :class="{ 'is-armed': throbbing && !open }" :aria-expanded="open" @click="toggle">
         <span v-if="throbbing && !open" class="htw-dot" aria-hidden="true"></span>
         {{ open ? t('org.ui.howThisWorks.close', 'Close') : t('org.ui.howThisWorks.howThisWorks', 'How this works') }}
       </button>
+      <router-link class="htw-handbook" :to="handbookTo">{{ t('org.ui.howThisWorks.handbook', 'Handbook') }}</router-link>
     </div>
     <transition name="htw-fade">
       <div v-if="open" class="htw-card schools-card">
@@ -128,16 +147,15 @@ const html = computed(() => {
 <style scoped>
 .htw { display: flex; flex-direction: column; gap: var(--space-3); }
 .htw-doors { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); }
-.htw-handbook { text-decoration: none; }
-.htw-toggle { background: none; border: none; cursor: pointer; padding: 2px 4px;
-  display: inline-flex; align-items: center; gap: 6px;
-  font: inherit; font-size: var(--text-xs); color: var(--schools-fg-3, #8A8078);
+.htw-toggle { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+/* The quiet second door: same register the panel toggle used to carry. */
+.htw-handbook { padding: 2px 4px; font-size: var(--text-xs); color: var(--schools-fg-3, #8A8078);
   text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(44, 38, 34, 0.25);
 }
-.htw-toggle:hover { color: var(--schools-fg-2, #555); }
+.htw-handbook:hover { color: var(--schools-fg-2, #555); }
 /* Armed = discoverable but never attention-trapping (founder acceptance test):
-   the link darkens one step and carries a small soft-pulsing dot. */
-.htw-toggle.is-armed { color: var(--schools-fg-2, #555); }
+   the chip darkens one step and carries a small soft-pulsing dot. */
+.htw-toggle.is-armed { color: var(--ink-primary, #2C2622); }
 .htw-dot {
   width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
   background: var(--schools-red, #DB1E17);

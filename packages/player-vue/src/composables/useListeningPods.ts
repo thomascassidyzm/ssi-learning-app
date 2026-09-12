@@ -2,12 +2,17 @@
  * useListeningPods — fetch the Layer 2 listening pods for a course and
  * present them as a Spotify-style list of scenes the learner can play.
  *
- * One pod per course, split into scenes (each scene is a complete dialogue
- * beat). WHICH pod is resolved per course by servedPod — pods went 1-based on
- * 2026-08-22, so hrv serves `pod-1` while ~68 older courses serve `pod-0`.
+ * The served pod, split into scenes (each scene is a complete dialogue
+ * beat), followed by any EXTRA Listening Mode slot the course has (servedPod
+ * rule 6, job #354: the Italian method pod sits alongside Pod 1, never
+ * replacing it). WHICH pods is resolved per course by servedPod's
+ * `resolveListeningPods` — pods went 1-based on 2026-08-22, so hrv serves
+ * `pod-1` while ~68 older courses serve `pod-0`; main flow reads only the
+ * served pod and never this list.
  *
  * The Pods tab in ListeningOverlay shows the scenes, tap a scene to
- * teleprompter through its sentences.
+ * teleprompter through its sentences. Scenes from different pods are told
+ * apart by `sceneKey` (pod-qualified); `sceneNumber` stays local to its pod.
  *
  * NEVER expose internal terms ("pod", "scene_number") to the user —
  * scenes get user-friendly titles ("Scene 1", "Scene 2" or the scene's
@@ -18,8 +23,8 @@ import { ref, watch, inject, type Ref } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { splitRowUnits } from './podSentenceSplit'
 import { baseSlate, continuationsByBranch, type SlateRow, type PodContinuation } from './podSlate'
-import { getCachedListeningMeta, retryListeningReadOrThrow, clearCachedListeningPodRows } from './listeningMetaCache'
-import { resolveServedPod } from './servedPod'
+import { getCachedListeningMeta, retryListeningReadOrThrow, clearCachedListeningPodRows, POD_CLIP_COLUMNS, readClipTimings, type CachedPodRow } from './listeningMetaCache'
+import { resolveListeningPods } from './servedPod'
 import { buildFusionGroups, type FusionGroup } from '@ssi/core/pods'
 import { getRevisedAudioRefs, stampRowAudioRefs, bareAudioId } from '../providers/revisedAudioRefs'
 import { isOfflineish } from '../config/networkGate'
@@ -49,6 +54,11 @@ export interface PodSentence {
    *  main-flow maturity floor: completed = max(0, completed_pod_rounds −
    *  ordinal + 1). */
   podOrdinal: number
+  /** Word timings of the TARGET clip, as stored (the #407 contract shape or
+   *  the Azure word_boundaries shape) — the Immersion tracker's raw material
+   *  (playback/breathGroups.ts normalises it). Null for clips without
+   *  timings, which render exactly as before. */
+  wordTimings: unknown | null
 }
 
 /**
@@ -88,14 +98,26 @@ export interface PodTurn {
     fusionGroups: FusionGroup[] | null
     fusionContinuation: boolean
     podOrdinal: number
+    /** Raw word timings of the target clip (see PodSentence.wordTimings). */
+    wordTimings: unknown | null
   }>
   /** First sentence's global_order — used for ordering. */
   globalOrder: number
 }
 
 export interface PodScene {
-  /** Local scene number within the pod (1, 2, 3, ...). */
+  /** Local scene number within ITS pod (1, 2, 3, ...). Not unique across
+   *  pods — use `sceneKey` for identity. */
   sceneNumber: number
+  /** Unique across every pod the course lists: `<podSlug>:<sceneNumber>`. */
+  sceneKey: string
+  /** `listening_pods.id` of the pod this scene belongs to. */
+  podId: string
+  /** 0 for the served pod, 1+ for extra slots, in list order. */
+  podIndex: number
+  /** The pod's own `listening_pods.title` — the group heading when the
+   *  course lists more than one pod. Null when the row carried none. */
+  podTitle: string | null
   /** Display title for the scene — derived from first sentence's speaker. */
   title: string
   /** Speaker-grouped turns. Each turn = one or more consecutive
@@ -165,9 +187,13 @@ export function useListeningPods(
     isLoading.value = true
     error.value = null
 
+    /** One pod's rows, in list order (served pod first). */
+    type LoadedPod = { podId: string; slug: string; title: string | null; rows: any[] }
+    type Loaded = { pods: LoadedPod[]; textById: Map<string, string>; timingsById: Map<string, unknown> }
+
     // Offline fallback: rows + split-clip texts from the metadata persisted
     // by the deliberate offline download. Null when never downloaded.
-    const loadFromCache = async (): Promise<{ rows: any[]; textById: Map<string, string> } | null> => {
+    const loadFromCache = async (): Promise<Loaded | null> => {
       const cached = await getCachedListeningMeta(course)
       if (!cached) return null
       // Serve it anyway — a known-stale snapshot still beats a blank overlay
@@ -179,31 +205,55 @@ export function useListeningPods(
           new Date(cached.stale.since).toISOString(),
           `(cached ${cached.contentStamp ?? 'pre-stamp'} → live ${cached.stale.liveContentStamp ?? '?'})`)
       }
-      return { rows: cached.podRows, textById: new Map(Object.entries(cached.clipTexts)) }
+      const pods: LoadedPod[] = [
+        {
+          podId: `${course}:${cached.podSlug ?? 'pod-0'}`,
+          slug: cached.podSlug ?? 'pod-0',
+          title: cached.podTitle ?? null,
+          rows: cached.podRows,
+        },
+        // Extra slots (rule 6) — absent on snapshots older than the slot.
+        ...(cached.extraPods || []).map((e) => ({
+          podId: `${course}:${e.slug}`,
+          slug: e.slug,
+          title: e.title,
+          rows: (e.podRows || []) as CachedPodRow[],
+        })),
+      ]
+      return {
+        pods,
+        textById: new Map(Object.entries(cached.clipTexts)),
+        // Absent on snapshots written before the tracker existed → no
+        // timings offline until the next refresh, i.e. the pre-tracker render.
+        timingsById: new Map(Object.entries(cached.clipTimings || {})),
+      }
     }
 
     // Live fetch. Throws on any query error (offline, RLS, transient) so the
     // caller can fall back to the offline cache.
-    const loadFromNetwork = async (): Promise<{ rows: any[]; textById: Map<string, string> }> => {
-      // Pod id convention: `${courseCode}:${slug}`, slug resolved per course
-      // (servedPod). Fetch every sentence in global order, group by
-      // scene_number client-side.
-      const { podId } = await resolveServedPod(supabase, course)
-      const { data, error: fetchErr } = await supabase
-        .from('listening_pod_sentences')
-        .select('id, scene_number, sentence_number, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, sentence_audio_ids, sentence_known_audio_ids, atom_map_fine, window_known_map, takeg_audio_ids, variant_key, attach_sentence_number')
-        .eq('pod_id', podId)
-        .order('global_order', { ascending: true })
-
-      if (fetchErr) throw new Error(`listening_pod_sentences: ${fetchErr.message}`)
-
+    const loadFromNetwork = async (): Promise<Loaded> => {
+      // Pod id convention: `${courseCode}:${slug}`, slugs resolved per course
+      // (servedPod rule 1 for the served pod, rule 6 for the extra slots).
+      // Fetch every sentence of every listed pod in global order, group by
+      // scene_number client-side, per pod.
+      const listed = await resolveListeningPods(supabase, course)
       // A-86: stamp per-clip versioned refs (`<uuid>.v<N>`) here, at the walk,
       // before any id becomes an `/api/audio/…` URL or an IndexedDB cache key.
       // Both caches key on the ref string, so a bare uuid for a repaired clip
       // is a permanent stale-audio bug on that device. Empty map on error by
       // design — a missed suffix costs one stale clip, a throw costs the scene.
       const revisedRefs = await getRevisedAudioRefs(supabase, course)
-      const rows = stampRowAudioRefs(revisedRefs, data || [])
+      const pods: LoadedPod[] = []
+      for (const pod of listed) {
+        const { data, error: fetchErr } = await supabase
+          .from('listening_pod_sentences')
+          .select('id, scene_number, sentence_number, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, sentence_audio_ids, sentence_known_audio_ids, atom_map_fine, window_known_map, takeg_audio_ids, variant_key, attach_sentence_number')
+          .eq('pod_id', pod.podId)
+          .order('global_order', { ascending: true })
+        if (fetchErr) throw new Error(`listening_pod_sentences: ${fetchErr.message}`)
+        pods.push({ podId: pod.podId, slug: pod.slug, title: pod.title, rows: stampRowAudioRefs(revisedRefs, data || []) })
+      }
+      const rows = pods.flatMap((p) => p.rows)
 
       // Per-sentence DISPLAY text must come from each split clip's OWN stored text
       // (authoritative + language-agnostic). The Latin boundary regex in
@@ -212,31 +262,45 @@ export function useListeningPods(
       // turn. Batch-load every split clip's text for this pod (chunked to keep the
       // PostgREST `in()` URL short).
       const clipIds = new Set<string>()
+      // Whole-turn target clips ride the same read for their WORD TIMINGS
+      // (the Immersion tracker, job #408). They never enter textById's
+      // existence oracle — splitRowUnits only consults it for split ids.
+      const turnClipIds = new Set<string>()
       for (const row of rows) {
         for (const id of (row.sentence_audio_ids || [])) if (id) clipIds.add(id)
         for (const id of (row.sentence_known_audio_ids || [])) if (id) clipIds.add(id)
+        if (row.target_audio_id) turnClipIds.add(row.target_audio_id)
       }
       // The ids now carry `.vN` but course_audio is keyed by the BARE uuid, so
       // query bare and key the result by the stamped ref — textById is looked
       // up with the same (stamped) id that rides on the row.
       const textById = new Map<string, string>()
+      const timingsById = new Map<string, unknown>()
       const stampedByBare = new Map(Array.from(clipIds).map((ref) => [bareAudioId(ref), ref]))
-      const idArr = Array.from(stampedByBare.keys())
+      const turnStampedByBare = new Map(Array.from(turnClipIds).map((ref) => [bareAudioId(ref), ref]))
+      const idArr = Array.from(new Set([...stampedByBare.keys(), ...turnStampedByBare.keys()]))
       for (let i = 0; i < idArr.length; i += 150) {
         const { data: clips, error: clipErr } = await supabase
           .from('course_audio')
-          .select('id, text')
+          .select(POD_CLIP_COLUMNS)
           .in('id', idArr.slice(i, i + 150))
         if (clipErr) throw new Error(`split-clip texts: ${clipErr.message}`)
-        // Record EVERY returned id (even empty text) — textById doubles as the
-        // existence oracle splitRowUnits uses to drop stale split slices.
-        for (const c of clips || []) textById.set(stampedByBare.get(c.id) ?? c.id, c.text || '')
+        for (const c of clips || []) {
+          // Record EVERY returned split id (even empty text) — textById doubles
+          // as the existence oracle splitRowUnits uses to drop stale split slices.
+          const splitRef = stampedByBare.get(c.id)
+          if (splitRef) textById.set(splitRef, c.text || '')
+          const timings = readClipTimings(c)
+          if (timings) {
+            for (const ref of [splitRef, turnStampedByBare.get(c.id)]) if (ref) timingsById.set(ref, timings)
+          }
+        }
       }
-      return { rows, textById }
+      return { pods, textById, timingsById }
     }
 
     try {
-      let loaded: { rows: any[]; textById: Map<string, string> } | null = null
+      let loaded: Loaded | null = null
       // `isOfflineish`, not `navigator.onLine === false`: the browser reports
       // online on a connection too weak to complete anything, and on that
       // signal we used to run a RETRYING live read before ever looking at the
@@ -267,14 +331,89 @@ export function useListeningPods(
           console.warn('[useListeningPods] live fetch failed — using offline metadata cache:', netErr)
         }
       }
-      const { rows: data, textById } = loaded
+      const { pods: loadedPods, textById, timingsById } = loaded
       if (myFetch !== activeFetch) return
 
       // The course has no pod live. Bin any offline snapshot so the withdrawn
       // pod can't keep playing from IndexedDB next time the learner is offline.
-      if (fromNetwork && data.length === 0) {
+      if (fromNetwork && loadedPods.every((p) => p.rows.length === 0)) {
         await clearCachedListeningPodRows(course)
       }
+
+      // Scenes are built PER POD (colouring, ordinals and scene numbers are
+      // all pod-local), then concatenated in list order: served pod first.
+      const sceneList: PodScene[] = []
+      const mergedContinuations = new Map<string, Array<PodContinuation<SlateRow>>>()
+      loadedPods.forEach((pod, podIndex) => {
+        const built = buildPodScenes(pod.rows, textById, timingsById, {
+          podId: pod.podId,
+          podSlug: pod.slug,
+          podIndex,
+          podTitle: pod.title,
+        })
+        sceneList.push(...built.scenes)
+        // Branch keys are pod-local (`scene:sentence`); the served pod keeps
+        // the bare key its main-flow reader uses, extras are prefixed.
+        for (const [key, list] of built.continuations) {
+          mergedContinuations.set(podIndex === 0 ? key : `${pod.slug}/${key}`, list)
+        }
+      })
+
+      if (myFetch !== activeFetch) return
+      continuationIndex.value = mergedContinuations
+      scenes.value = sceneList
+    } catch (err) {
+      if (myFetch !== activeFetch) return
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[useListeningPods] fetch failed:', msg)
+      // Offline with no downloaded metadata: a clear human state, never the
+      // raw TypeError (Tom's airplane-mode test, 2026-07-09).
+      // Honest failure: we are offline-ish AND the cache is empty, so there
+      // genuinely is nothing to play. That message, never a raw TypeError —
+      // and never for the case where content IS cached.
+      error.value = isOfflineish()
+        ? "Dialogues aren't downloaded yet — connect once and download for offline to bring them along."
+        : msg
+    } finally {
+      if (myFetch === activeFetch) {
+        isLoading.value = false
+      }
+    }
+  }
+
+  watch(
+    courseCode,
+    (course) => {
+      if (!course) {
+        scenes.value = []
+        continuationIndex.value = new Map()
+        error.value = null
+        isLoading.value = false
+        return
+      }
+      void fetchData(course)
+    },
+    { immediate: true },
+  )
+
+  return { scenes, isLoading, error, continuations: continuationIndex }
+}
+
+/**
+ * ONE pod's rows → its ordered scene list + its continuation index. Pure of
+ * Vue state so the served pod and each extra slot are built by the same code
+ * and can never drift. `podOrdinal` is the MAIN-FLOW scheduler's ordinal and
+ * only means anything for the served pod (podIndex 0): an extra slot's
+ * sentences carry 0, so the drill's derived maturity floor never credits the
+ * main-flow ratchet against a pod main flow has not played.
+ */
+function buildPodScenes(
+  data: any[],
+  textById: Map<string, string>,
+  timingsById: Map<string, unknown>,
+  pod: { podId: string; podSlug: string; podIndex: number; podTitle: string | null },
+): { scenes: PodScene[]; continuations: Map<string, Array<PodContinuation<SlateRow>>> } {
+  {
 
       // Bucket by scene_number. A multi-sentence TURN row that's been split
       // (sentence_audio_ids set, one clip per sentence) becomes one PodSentence
@@ -288,7 +427,7 @@ export function useListeningPods(
       // are not CORE's. Indexed separately below so it stays reachable AT its
       // branch point. Tom, 2026-09-04: "A RECOVERY ATTACHES, IT DOES NOT APPEND."
       const walkRows = baseSlate(data || [])
-      continuationIndex.value = continuationsByBranch(data || [])
+      const continuations = continuationsByBranch(data || [])
 
       const buckets = new Map<number, PodSentence[]>()
       // Running ordinal on the SCHEDULER's flatten (splitRowUnits WITHOUT the
@@ -339,7 +478,8 @@ export function useListeningPods(
             globalOrder: row.global_order + u.index * 0.001,
             fusionGroups: anchored && anchored.length ? anchored : null,
             fusionContinuation: continuation,
-            podOrdinal: podOrdinal + Math.min(u.index, bareCount - 1),
+            podOrdinal: pod.podIndex === 0 ? podOrdinal + Math.min(u.index, bareCount - 1) : 0,
+            wordTimings: (u.targetAudioId && timingsById.get(u.targetAudioId)) || null,
           })
         }
         podOrdinal += bareCount
@@ -422,6 +562,7 @@ export function useListeningPods(
                 fusionGroups: s.fusionGroups,
                 fusionContinuation: s.fusionContinuation,
                 podOrdinal: s.podOrdinal,
+                wordTimings: s.wordTimings ?? null,
               },
             ],
             globalOrder: s.globalOrder,
@@ -450,6 +591,10 @@ export function useListeningPods(
         }
         sceneList.push({
           sceneNumber,
+          sceneKey: `${pod.podSlug}:${sceneNumber}`,
+          podId: pod.podId,
+          podIndex: pod.podIndex,
+          podTitle: pod.podTitle,
           title,
           turns: mergeTurns(sentences),
           sentenceCount: sentences.length,
@@ -460,41 +605,6 @@ export function useListeningPods(
         })
       }
 
-      if (myFetch !== activeFetch) return
-      scenes.value = sceneList
-    } catch (err) {
-      if (myFetch !== activeFetch) return
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('[useListeningPods] fetch failed:', msg)
-      // Offline with no downloaded metadata: a clear human state, never the
-      // raw TypeError (Tom's airplane-mode test, 2026-07-09).
-      // Honest failure: we are offline-ish AND the cache is empty, so there
-      // genuinely is nothing to play. That message, never a raw TypeError —
-      // and never for the case where content IS cached.
-      error.value = isOfflineish()
-        ? "Dialogues aren't downloaded yet — connect once and download for offline to bring them along."
-        : msg
-    } finally {
-      if (myFetch === activeFetch) {
-        isLoading.value = false
-      }
-    }
+      return { scenes: sceneList, continuations }
   }
-
-  watch(
-    courseCode,
-    (course) => {
-      if (!course) {
-        scenes.value = []
-        continuationIndex.value = new Map()
-        error.value = null
-        isLoading.value = false
-        return
-      }
-      void fetchData(course)
-    },
-    { immediate: true },
-  )
-
-  return { scenes, isLoading, error, continuations: continuationIndex }
 }

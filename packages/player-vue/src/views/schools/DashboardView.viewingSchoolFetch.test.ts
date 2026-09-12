@@ -31,7 +31,7 @@ const school: School = {
   teacher_count: 3,
   class_count: 5,
   student_count: 16,
-  total_practice_hours: 63,
+  total_practice_minutes: 3780,
   created_at: '2025-09-02T08:00:00.000Z',
   health: 'good',
 }
