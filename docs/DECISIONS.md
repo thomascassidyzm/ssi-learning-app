@@ -1155,3 +1155,11 @@ after.
 31 August, and no real learner on any course sits on the round before a belt start with practice
 or a ceiling beyond it, so no cursor needs repairing under the old rule. The 8 September report's
 24 real learners idle 60+ days above White will be rewound to their own belt start on return.
+
+**Found verifying live, staging build 19c43ec.** A 70-day-idle test learner with the cursor at
+S0025L01 on cym_s_for_eng, fresh device, signed in, `?bundle=0`: the instant-playback boot resumed
+straight onto S0025 and stamped `last_practiced_at`; no rewind fired and no cursor move was
+written. The rewind lives only in the legacy eagerLoad resume, which neither the cache fast-path
+nor the bootstrap reaches, so on the live boot paths the 60-day rewind is effectively unreachable.
+The cap is proven by its test and is in place where the rewind lives; making the rewind reachable
+again is a design call for Tom, not part of this job.
