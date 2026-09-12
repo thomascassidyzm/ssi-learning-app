@@ -338,13 +338,13 @@ const loopScene = ref(false)
 // already lives in the MAIN FLOW (usePodLapScheduler, driven live from
 // algorithm_config.pods); we deliberately do NOT re-implement a summarised
 // copy of it here — that second engine was the source of the listening-vs-
-// main-flow mismatch. Two target-only practice modes:
+// main-flow mismatch. Two practice modes, one speed each:
 //   immersion — the whole scene, target only, at the learner's chosen speed
 //               (the speed row). Continuous, natural conversation.
 //   drill     — each line four times, one speed: target, known, target,
 //               target (t·k·t·t). Tight repetition to lock a line in.
-// Two target-only practice modes (admin Progression preview retired 2026-06-24
-// — it now lives in the dashboard Listening Config tool's full-arc preview).
+// (The admin Progression preview was retired 2026-06-24 — it now lives in the
+// dashboard Listening Config tool's full-arc preview.)
 const BASE_LISTEN_MODES = [
   { key: 'immersion', label: 'Immersion', desc: 'The whole scene in the target language, at your pace' },
   { key: 'drill',     label: 'Drill',     desc: 'Each line four times — target, its meaning, then target twice more' },
@@ -598,10 +598,9 @@ const isDialogueScene = computed(() => view.value === 'pods' && selectedScene.va
 // too). "All" (phrases) stays the legacy random-voice list.
 const modeSurface = computed(() => isDialogueScene.value || view.value === 'seeds')
 
-// Speed selector is now shown in EVERY playback surface, including Drill — the
-// chosen speed is the "normal" rate and Drill's fast reps are 2× of it (Aran
-// 2026-06-29). The old fixed-pace caption / spacer is retired.
-const showSpeedRow = computed(() => true)
+// The speed selector shows in EVERY playback surface, including Drill (Aran
+// 2026-06-29); the old fixed-pace caption / spacer is retired, so the speed
+// row in the template is unconditional.
 
 // Pods state: list of scenes from useListeningPods, plus the currently
 // selected scene (null = scene list visible, set = teleprompter mode).
@@ -1277,36 +1276,6 @@ const getAudioUrl = (audioId) => {
   return apiUrl(`/api/audio/${audioId}?courseId=${encodeURIComponent(props.courseCode)}`)
 }
 
-/**
- * Tab-open JIT prefetch — warm the first ~5 visible-ish rows of the
- * active tab so the first tap plays instantly on slow networks.
- *
- * The ListeningOverlay's playback path uses raw audio URLs through a
- * plain `new Audio()` element — it does NOT consult IndexedDB at play
- * time. That means the only cache layer the click-to-play tap hits is
- * the SW CacheFirst layer for `/api/audio/*`. So we warm THAT cache by
- * issuing the same URL (`getAudioUrl(id)`, including the `?courseId=…`
- * query string the player will use) at low priority — matching the
- * pattern in usePodLapScheduler.prefetchLap().
- *
- * priority: 'low' — these are pure bandwidth warm-ups with no urgency.
- * They must not compete with the LearningPlayer's high-priority known-
- * audio prefetches if a session is running (browsers without
- * RequestPriority support ignore the option gracefully).
- *
- * Conservative cap (TAB_PREFETCH_LIMIT = 5) — no point prefetching the
- * whole tab for a list of hundreds of phrases the user will scroll past.
- * The cap also bounds the worst-case bandwidth cost of a user rapidly
- * cycling through tabs. Repeated calls for the same URL collapse at the
- * SW layer (CacheFirst — first request fills the cache, subsequent
- * requests hit it).
- */
-/**
- * Warm the next scene's opening audio into IndexedDB while the current
- * scene's last turn plays — so the playlist segue resolves to a cached WAV
- * blob (lock-safe) instead of hitting the network inside the 800ms gap.
- * Mirrors the wrap-around in handleEndOfList (last scene warms the first).
- */
 /** Warm EVERY clip a scene's turns can need under the current mode —
  *  targets, and (in stage-pattern modes) translations + explainers. A whole
  *  canon-v2 scene is ≤ ~60 small clips; cached up-front while the screen is
@@ -1318,6 +1287,9 @@ const warmScene = (scene) => {
   }
 }
 
+/** Warm the NEXT scene while the current scene's last turn plays, so the
+ *  playlist segue resolves to a cached blob (lock-safe) rather than the
+ *  network. Wraps like handleEndOfList (last scene warms the first). */
 const prefetchNextSceneHead = () => {
   if (view.value !== 'pods' || !selectedScene.value || loopScene.value) return
   const sceneList = pods.scenes.value
@@ -1339,6 +1311,10 @@ const warmClip = (id) => {
   audioCache.persistent.ensure(id).catch(() => undefined)
 }
 
+/** Tab-open JIT prefetch: warm the first TAB_PREFETCH_LIMIT rows of the
+ *  active tab into IndexedDB so the first tap plays instantly on a slow
+ *  network. The cap is deliberate — a tab can list hundreds of rows the
+ *  learner scrolls past, and it bounds the cost of flicking between tabs. */
 const prefetchTopRows = () => {
   const rows = availablePhrases.value
   if (!rows.length) return
@@ -1524,20 +1500,16 @@ const playCurrentPhrase = async (myPlaybackId) => {
   if (myPlaybackId !== playbackId) return
 
   // Play each audio clip in sequence. Within a turn (same speaker
-  // continuing) the gap is as tight as possible — 50ms — so two
-  // sentences from one speaker run together as natural continuous
-  // speech rather than feeling like two separate utterances. The
-  // longer 800ms inter-phrase gap below (between turns) carries the
-  // speaker-change pause.
+  // continuing) the gap is the tightest, GAP_IMMERSION_JOIN_MS, so two
+  // sentences from one speaker run together as natural continuous speech;
+  // Drill's reps breathe GAP_DRILL_MS; the inter-phrase gap between turns,
+  // GAP_DEFAULT_MS, carries the speaker-change pause.
   //
-  // BOTH gaps play as silent one-shot clips (playSilence), NOT bare
+  // ALL gaps play as silent one-shot clips (playSilence), NOT bare
   // setTimeouts — iOS freezes timers on a backgrounded/locked tab, so a
   // timer-driven gap killed the advance the moment the screen locked.
   // 'ended'-driven silence matches the main flow / INF PLAY / pod-lap
   // protocol (see SimplePlayer's PAUSE phase).
-  // Drill's repeats breathe a little (300ms) so the 1×/2×/2× reps read as
-  // deliberate practice; Immersion keeps the tight 50ms that joins a
-  // speaker's consecutive chunks into natural continuous speech.
   const interClipGap = (modeSurface.value && listenMode.value === 'drill') ? GAP_DRILL_MS : GAP_IMMERSION_JOIN_MS
   activeStripIndex.value = -1
   for (let i = 0; i < playQueue.length; i++) {
@@ -1556,9 +1528,10 @@ const playCurrentPhrase = async (myPlaybackId) => {
     if (myPlaybackId !== playbackId) return
     const clipStartedAt = Date.now()
     let clipOk = true
-    // Dialogue queues always carry an explicit per-clip rate (Immersion =
-    // chosen speed, Drill = 1×/2×/2×), so a Core/All speed never leaks in.
-    // Core/All pass rate=null and lean on the controller's rate watch.
+    // Dialogue and Core queues always carry an explicit per-clip rate — the
+    // chosen speed, one rate for every clip of a line in both modes — so a
+    // stale rate never leaks in. All passes rate=null and leans on the
+    // controller's rate watch.
     // Declared OUTSIDE the try: the per-clip row below reads it, and a
     // try-scoped const threw ReferenceError after the first clip, which
     // killed Listening Mode playback on staging build 3004383 (job #339).
@@ -2208,13 +2181,10 @@ watch(
         <span class="progress-text">{{ progressPercent }}%</span>
       </div>
 
-      <!-- Speed slot — Core/All always shows the interactive selector. In
-           Dialogues the slot is ALWAYS present (its own row under the band)
-           so the toolbar height never changes between modes: Immersion gets
-           the interactive selector; Drill gets a quiet, non-interactive
-           fixed-pace caption (Drill's pace is fixed at 1×/2×/2×) — which also
-           explains WHY there is no speed choice in that mode. -->
-      <div v-if="showSpeedRow" class="speed-controls">
+      <!-- Speed slot — always present, in every view and both modes, so the
+           toolbar height never changes between Immersion and Drill. The
+           chosen speed is the one rate every clip of a line plays at. -->
+      <div class="speed-controls">
         <span class="speed-label">{{ t('listening.speed') }}</span>
         <div class="speed-selector">
           <button
