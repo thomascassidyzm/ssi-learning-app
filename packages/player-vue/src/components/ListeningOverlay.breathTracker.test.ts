@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * ListeningOverlay — the Immersion breath-group tracker is IMMERSION ONLY
  * (job #408, Tom 2026-09-12: "I think we use this feature for Immersion
@@ -12,10 +13,14 @@
  */
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+import { resolve } from 'node:path'
 import { breathGroupsForClip } from '../playback/breathGroups'
 
-const src = readFileSync(fileURLToPath(new URL('./ListeningOverlay.vue', import.meta.url)), 'utf8')
+// Node environment + __dirname, as ListeningOverlay.scope.test.ts does: under
+// the default jsdom environment import.meta.url is an http: URL, and this
+// file threw "The URL must be of scheme file" at load from the day #408
+// landed until job #425 — none of its pins had ever run.
+const src = readFileSync(resolve(__dirname, 'ListeningOverlay.vue'), 'utf8')
 
 // The Drill fusion-strip branch, verbatim as of dev before job #408.
 const DRILL_STRIP_BLOCK = `            <template v-if="isCurrent && fusionStripsFor(phrase)">
@@ -57,5 +62,28 @@ describe('ListeningOverlay — breath-group tracker scope', () => {
   it('immersion translations are off by default and the eye drives the immersion state, not the shared one', () => {
     expect(src).toContain("const immersionGloss = ref(localStorage.getItem('ssi-listening-gloss-immersion') === 'on')")
     expect(src).toContain('@click="toggleGloss"')
+  })
+})
+
+describe('ListeningOverlay — job #425 tidy', () => {
+  const clickFn = () => src.slice(src.indexOf('const handlePhraseClick = (displayIndex) => {'), src.indexOf('/** Bottom-nav ‹ › while listening mode is open'))
+
+  it('a tap reveals the line only while that card is SOUNDING; a tap on a silent card plays it, as before #408', () => {
+    const fn = clickFn()
+    expect(fn).toContain('if (inImmersionScene.value && isPlaying.value && displayIndex === currentIndex.value) {')
+    // The fall-through is the pre-#408 handler verbatim: stop, then play from the tapped row.
+    expect(fn).toContain('  stopPlayback()\n  playFromIndex(displayIndex)\n}')
+  })
+
+  it('paints the lit group\'s fill on an inline span so a wrapped line fills in reading order', () => {
+    expect(src).toContain('><span class="breath-fill">{{ g.text }}</span></div>')
+    expect(src).toContain('.phrase-row.current .phrase-target.breath-group.live .breath-fill {\n  color: transparent;\n  background-image: linear-gradient(')
+    // No block-level text clip left behind: the block only carries --fill.
+    expect(src).toContain('.phrase-row.current .phrase-target.breath-group.live {\n  --fill: 0%;\n}')
+    expect(src).not.toContain('box-decoration-break: clone')
+  })
+
+  it('carries no dead audioMap ref', () => {
+    expect(src).not.toContain('audioMap')
   })
 })

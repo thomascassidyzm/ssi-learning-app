@@ -199,3 +199,29 @@ describe('trackPosition — the lit group walks with the clock', () => {
     expect(trackPosition(groups, 99)).toEqual({ index: 3, fill: 1 })
   })
 })
+
+describe('job #425 — tidy findings', () => {
+  it('splits at a gap of EXACTLY the threshold even when the float subtraction lands a hair under it', () => {
+    // 0.35 - 0.1 = 0.24999999999999997 in binary; the gap is 250 ms.
+    const raw = { source: 'cartesia', words: ['a', 'b'], starts: [0, 0.35], ends: [0.1, 0.5] }
+    const groups = breathGroupsForClip(raw, 'a b')
+    expect(groups).not.toBeNull()
+    expect(groups!.map((g) => g.text)).toEqual(['a', 'b'])
+  })
+
+  it('a gap one millisecond under the threshold still does not split', () => {
+    const raw = { source: 'cartesia', words: ['a', 'b'], starts: [0, 0.349], ends: [0.1, 0.5] }
+    expect(breathGroupsForClip(raw, 'a b')).toBeNull()
+  })
+
+  // Live course_audio.word_boundaries row 5c10c626-42a4-45aa-b7a8-1a59e191d6ef
+  // (spa target1 "eres muy amable"), one of the ~375k rows whose payload is
+  // [[offset_ms, viseme_id], …] — Azure viseme frames, several per word and
+  // no text. Not word timings, so nothing to track: null, on purpose, and the
+  // card renders as it always has.
+  const VISEME_ROW = [[50, 0], [50, 4], [244, 19], [286, 4], [383, 15], [439, 21], [578, 7], [619, 6], [717, 2], [800, 21], [897, 2], [981, 21], [1022, 14], [1106, 4], [1174, 0]]
+  it('recognises the viseme-frame shape on course_audio.word_boundaries as not-word-timings and returns null', () => {
+    expect(normaliseWordTimings(VISEME_ROW)).toBeNull()
+    expect(breathGroupsForClip(VISEME_ROW, 'eres muy amable')).toBeNull()
+  })
+})

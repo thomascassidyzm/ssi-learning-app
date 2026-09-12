@@ -1478,3 +1478,39 @@ snapshot) now also fetches whole-turn target clips for their timings; timings ri
 IndexedDB snapshot as `clipTimings`, no cache of their own, and a snapshot written before this
 simply has none until its next refresh. When #407's `word_timings` column lands it joins that
 column list and `readClipTimings` already prefers it over `word_boundaries`.
+
+## 2026-09-12 — Breath-group tracker tidy: four findings from the #423 cold-verify (job #425)
+
+**Why.** Astra's cold-verify of job #408 raised four findings against the live DB and the code. Each
+was verified before it was touched, and one of them turned out to be wrong as stated.
+
+**Array-shaped `word_boundaries` — finding withdrawn, pinned instead.** The ~375k array-shaped rows
+are not a second word-timing payload: they are Azure viseme frames, `[[offset_ms, viseme_id], …]`,
+several per word and carrying no text, so no normaliser can turn them into words. And they are not
+the tracker's population: of the 29,496 pod sentence clips, 4,798 carry the object shape, 24,602
+carry nothing, and 5 carry the viseme shape, all reused course-phrase clips. The normaliser already
+returned null for them; it now says why, and a real row is a fixture that pins null.
+
+**Threshold in whole milliseconds.** `0.35 - 0.1` is `0.24999…` in binary, so a gap of exactly 250 ms
+failed to split. Gaps are now compared as `Math.round(sec * 1000)`.
+
+**The pause band was never empty — 250 ms is a chosen floor.** The #408 entry above said the
+250–399 ms band was empty. Re-measured on the 4,798 pod clips with word boundaries: 33,423 gaps, of
+which 29,538 at 0–99 ms, 815 at 100–249, 22 at 250–399 and 3,048 at 400+. Twenty-two real gaps sit
+in the band. The threshold stays at 250 ms, as a choice: it catches every real pause and the 22 are
+ear-audible hesitations that split correctly.
+
+**A tap on a silent card plays it.** The #408 reveal-on-tap read `displayIndex === currentIndex`,
+which after playback stopped made the tap reveal the gloss and play nothing. The reveal now applies
+only while that card is sounding; otherwise the tap is the pre-#408 handler, stop then play from
+that row.
+
+**Wrapped lines fill in reading order.** The fill gradient sat on the block, so every wrapped line
+advanced together. It now sits on an inline span: an inline box's background is laid out as if the
+run were unbroken and sliced per line (`box-decoration-break: slice`, the default), which is reading
+order for free. No layout engine, no per-word painting.
+
+**Also.** The #408 pin test never loaded: under vitest's jsdom default `import.meta.url` is an http
+URL, and `fileURLToPath` threw at import, so none of its pins had run since #408 landed. It runs in
+the node environment now, as its sibling scope test does. The dead `audioMap` ref predates #408 and
+went with the same broom.
