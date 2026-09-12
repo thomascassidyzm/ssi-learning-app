@@ -136,8 +136,8 @@ function openClass(id: string): void {
            2. Tap a caret to open or close what sits under a name.
            3. Tap any name to go to that level — the numbers and the tree redraw for it.
            4. A class row names its teachers, its student count, and how many phrases
-              it spoke together in the last seven days, or says plainly that it has not
-              practised together this week, without you opening it.
+              it practised together in the last seven days, or says plainly that it has
+              not practised together this week, without you opening it.
            5. Where there are more than eight classes or people, a **more** button
               reveals the rest.
            Worth knowing. The top two levels open themselves and deeper ones wait to be

@@ -1,6 +1,6 @@
 {
-  "version": "42fae3351cf9",
-  "generatedAt": "2026-09-11",
+  "version": "91f8a04e924b",
+  "generatedAt": "2026-09-12",
   "walks": [
     {
       "id": "choose-something-else-to-learn",
@@ -3594,11 +3594,11 @@
       "where": "Across the top of the page for a group, a school or a class, under the name.",
       "how": [
         "Open the level you want — a group, a school or a class.",
-        "**Phrases spoken this week** is how many phrases the classes beneath this level were prompted and said back in whole-class play over the last seven days. It is recorded for every clip the app plays, so it is the truest picture of a lesson.",
+        "**Phrases practised this week** is how many phrases the classes beneath this level were prompted with in whole-class play over the last seven days. It is recorded as each phrase's turn begins, so it counts every phrase the lesson reached.",
         "**Classes practising this week** is how many of them played together in the last seven days, out of all the classes below.",
         "**Minutes in the app this week** is the time the classes beneath this level, and their staff and students on their own accounts, spent in the app over the last seven days, pauses included — the time they were in the lesson. The sentence under the row says how much of it was whole-class play and how much was audio playing.",
         "**Teachers** counts the staff below this level, each once however many classes they take.",
-        "On a class the row switches to that class's own phrases spoken this week, its minutes in the app, its students and its teachers."
+        "On a class the row switches to that class's own phrases practised this week, its minutes in the app, its students and its teachers."
       ],
       "note": "An organisation that is not school-shaped sees the same row worded as practice hours, groups and learners instead."
     },
@@ -3670,7 +3670,7 @@
         "Open a group or a school.",
         "Tap a caret to open or close what sits under a name.",
         "Tap any name to go to that level — the numbers and the tree redraw for it.",
-        "A class row names its teachers, its student count, and how many phrases it spoke together in the last seven days, or says plainly that it has not practised together this week, without you opening it.",
+        "A class row names its teachers, its student count, and how many phrases it practised together in the last seven days, or says plainly that it has not practised together this week, without you opening it.",
         "Where there are more than eight classes or people, a **more** button reveals the rest."
       ],
       "note": "The top two levels open themselves and deeper ones wait to be tapped, so a large organisation shows you its shape instead of eighty-five rows."
@@ -3755,11 +3755,11 @@
       "keywords": [
         "phrases",
         "practised",
-        "spoken",
         "list",
-        "what they said",
+        "what they practised",
         "repetition",
-        "this week"
+        "this week",
+        "show all"
       ],
       "place": {
         "route": "node-home"
@@ -3768,7 +3768,7 @@
       "surface": "schools",
       "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
       "walk": null,
-      "what": "A list of the phrases the classes beneath this level said together in the last seven days, with how many times each one came round. A phrase that appears again and again is the course bringing it back on purpose, which is how it sticks.",
+      "what": "A list of the phrases the classes beneath this level practised together in the last seven days, with how many times each one came round. A phrase that appears again and again is the course bringing it back on purpose, which is how it sticks.",
       "where": "The **What they practised this week** card under the row of numbers on a group or school page, and on a class page under its own practice card.",
       "how": [
         "Open a group, a school or a class.",
@@ -3969,13 +3969,13 @@
       "surface": "schools",
       "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
       "walk": null,
-      "what": "The headline card on a class: how many phrases the class was prompted and said back together in the last seven days, when it last practised, and the list of those phrases with how often each came round. Classes practising together is what a language programme lives on, so this leads over anything individual students do alone.",
+      "what": "The headline card on a class: how many phrases the class was prompted with together in the last seven days, when it last practised, and the list of those phrases with how often each came round. Classes practising together is what a language programme lives on, so this leads over anything individual students do alone.",
       "where": "The **Class practice** card on a class page.",
       "how": [
         "Open a class from the tree or the map.",
-        "Read the big figure for phrases spoken this week.",
+        "Read the big figure for phrases practised this week.",
         "The line under it gives the time since the class last practised and its minutes in the app this week.",
-        "The list beneath is every phrase the class said this week and the number of times it came round."
+        "The list beneath is every phrase the class practised this week and the number of times it came round."
       ],
       "note": "The minutes are time in the app with the lesson running, pauses included, so they are the time the class was in the lesson. A class that has never played together says so plainly and names the teacher's **Play as class** button as the thing that starts the first lesson."
     },
@@ -4075,7 +4075,7 @@
         "Read the bars for how long since each class last practised.",
         "Open a class row to see where it stopped."
       ],
-      "note": "Practised this week counts any sign of practice, a phrase spoken or the course opened and progress saved. The Practising figure above counts phrases spoken only, so it can be lower."
+      "note": "Practised this week counts any sign of practice, a phrase reached in a lesson or the course opened and progress saved. The Practising figure above counts phrases practised only, so it can be lower."
     },
     {
       "id": "which-classes-practised-this-week",
@@ -4102,11 +4102,11 @@
       "surface": "schools",
       "source": "packages/player-vue/src/insight/OrgIntelPanel.vue",
       "walk": null,
-      "what": "Whether your classes are actually doing it: how many practised together in the last seven days against the seven before, how many phrases they spoke, and which people practised on their own account and for how long.",
+      "what": "Whether your classes are actually doing it: how many practised together in the last seven days against the seven before, how many phrases they practised, and which people practised on their own account and for how long.",
       "where": "The **Practising** question at the top of any level's insights page.",
       "how": [
         "Read the sentence for this week against last week.",
-        "Read the line for how many phrases were spoken each day over the last four weeks.",
+        "Read the line for how many phrases were practised each day over the last four weeks.",
         "Read the class rows for who practised, when they last practised together and where in the course they are.",
         "Read the people rows for own-account minutes."
       ],

@@ -67,9 +67,9 @@ const practisingAnswer = computed<string | null>(() => {
   if (!p) return null
   const classes = isClassNode.value
     ? (p.classesThisWeek > 0
-      ? fill(t('org.intel.practising.classYesMinutes', 'This class practised together this week, {phrases} phrases spoken, {change}, {minutes} in the app.'), { phrases: p.phrasesThisWeek, change: moreOrFewer(p.phrasesThisWeek, p.phrasesLastWeek), minutes: formatPracticeMinutes(p.classMinutesThisWeek) })
+      ? fill(t('org.intel.practising.classYesMinutes', 'This class practised together this week, {phrases} phrases practised, {change}, {minutes} in the app.'), { phrases: p.phrasesThisWeek, change: moreOrFewer(p.phrasesThisWeek, p.phrasesLastWeek), minutes: formatPracticeMinutes(p.classMinutesThisWeek) })
       : t('org.intel.practising.classNo', 'This class did not practise together this week.'))
-    : fill(t('org.intel.practising.classesMinutes', '{n} of your {total} classes practised together this week, {change}, {phrases} phrases spoken, {minutes} in the app.'), { n: p.classesThisWeek, total: p.classCount, change: moreOrFewer(p.classesThisWeek, p.classesLastWeek), phrases: p.phrasesThisWeek, minutes: formatPracticeMinutes(p.classMinutesThisWeek) })
+    : fill(t('org.intel.practising.classesMinutes', '{n} of your {total} classes practised together this week, {change}, {phrases} phrases practised, {minutes} in the app.'), { n: p.classesThisWeek, total: p.classCount, change: moreOrFewer(p.classesThisWeek, p.classesLastWeek), phrases: p.phrasesThisWeek, minutes: formatPracticeMinutes(p.classMinutesThisWeek) })
   const people = p.peopleCount === 0 ? '' : ' ' + fill(t('org.intel.practising.people', '{n} of {total} people practised on their own account, {minutes} minutes between them.'), { n: p.peopleThisWeek, total: p.peopleCount, minutes: p.ownMinutesThisWeek })
   return classes + people
 })
@@ -77,7 +77,7 @@ const practisingSpec = computed<AnyInsightSpec>(() => ({
   widget: 'time-series',
   query: { metric: 'orgPhrasesByDay', window: '28d' },
   frame: 'world',
-  title: t('org.intel.practising.widgetTitle', 'Phrases spoken together, by day'),
+  title: t('org.intel.practising.widgetTitle', 'Phrases practised together, by day'),
   tag: t('org.intel.byDay', 'by day'),
 }))
 const practisingResolved = computed<ResolvedInsight>(() => ({
@@ -86,8 +86,8 @@ const practisingResolved = computed<ResolvedInsight>(() => ({
   data: {
     kind: 'time-series',
     x: (props.payload?.byDay ?? []).map((d) => d.day.slice(5)),
-    series: [{ name: t('org.intel.practising.series', 'phrases spoken'), points: (props.payload?.byDay ?? []).map((d) => d.phrases), tone: 'good' }],
-    yLabel: t('org.intel.practising.series', 'phrases spoken'),
+    series: [{ name: t('org.intel.practising.series', 'phrases practised'), points: (props.payload?.byDay ?? []).map((d) => d.phrases), tone: 'good' }],
+    yLabel: t('org.intel.practising.series', 'phrases practised'),
   },
 }))
 const practisingRows = computed(() => (props.payload?.classes ?? []).filter((c) => c.phrasesThisWeek > 0 || c.phrasesLastWeek > 0))
@@ -205,13 +205,13 @@ const journeyRows = computed(() => [...(props.payload?.classes ?? [])]
          keywords: practised, this week, last week, phrases, classes, people, minutes, adherence
          What it's for. Whether your classes are actually doing it: how many
          practised together in the last seven days against the seven before,
-         how many phrases they spoke, and which people practised on their own
+         how many phrases they practised, and which people practised on their own
          account and for how long.
          Where it is. The **Practising** question at the top of any level's
          insights page.
          How you do it.
          1. Read the sentence for this week against last week.
-         2. Read the line for how many phrases were spoken each day over the
+         2. Read the line for how many phrases were practised each day over the
             last four weeks.
          3. Read the class rows for who practised, when they last practised
             together and where in the course they are.
@@ -230,7 +230,7 @@ const journeyRows = computed(() => [...(props.payload?.classes ?? [])]
       <InsightWidget :spec="practisingSpec" :resolved="practisingResolved" />
       <p class="oq-note">{{ t('org.intel.practising.classTime', 'A class\'s minutes are time in the app on its own class account, the gaps between phrases included. People\'s minutes are their own logins.') }}</p>
       <div v-if="payload && !isClassNode" class="oq-rows">
-        <p class="oq-rows-title">{{ t('org.intel.practising.rowsClassesMinutes', 'Classes, by phrases spoken this week, with minutes in the app') }}</p>
+        <p class="oq-rows-title">{{ t('org.intel.practising.rowsClassesMinutes', 'Classes, by phrases practised this week, with minutes in the app') }}</p>
         <p v-if="practisingRows.length === 0" class="oq-empty">{{ t('org.intel.practising.rowsEmpty', 'No class has practised together in the last fourteen days.') }}</p>
         <router-link v-for="c in practisingRows" :key="c.id" class="oq-row" :to="classLink(c.id)">
           <span class="oq-row-name">{{ c.name }}</span>
@@ -265,8 +265,8 @@ const journeyRows = computed(() => [...(props.payload?.classes ?? [])]
          2. Read the bars for how long since each class last practised.
          3. Open a class row to see where it stopped.
          Worth knowing. Practised this week counts any sign of practice, a
-         phrase spoken or the course opened and progress saved. The Practising
-         figure above counts phrases spoken only, so it can be lower.
+         phrase reached in a lesson or the course opened and progress saved. The
+         Practising figure above counts phrases practised only, so it can be lower.
          checked: cb9d6d4f.7087bea9
     -->
     <section class="oq" data-walk="insights-org-quiet">

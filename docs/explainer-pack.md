@@ -1,8 +1,8 @@
 # Explanation pack — compiled render
 
-**Version `f33f092123b9` · generated 2026-09-11 by `tools/explainer/compile.mjs`. DO NOT EDIT — edit the rulings/rules and recompile.**
+**Version `6e4883c90fe8` · generated 2026-09-12 by `tools/explainer/compile.mjs`. DO NOT EDIT — edit the rulings/rules and recompile.**
 
-Truth manifest: 12 verbs (Invite students · Invite a person · Get a shareable link · Add a group · Add a school · Add a class · Mint a demo org · Courses · Rename · Refresh demo activity · Delete · See insights) · stat words: Demo · Paid — all courses · No end date — inactive · Phrases spoken this week · Minutes in the app this week · LEGOs travelled together · Teachers · Minutes practised · Groups · Learners · Classes · Classes practising this week · 4 measures · windows: Today / Last 7 days / Last 30 days / All time.
+Truth manifest: 12 verbs (Invite students · Invite a person · Get a shareable link · Add a group · Add a school · Add a class · Mint a demo org · Courses · Rename · Refresh demo activity · Delete · See insights) · stat words: Demo · Paid — all courses · No end date — inactive · Phrases practised this week · Minutes in the app this week · LEGOs travelled together · Teachers · Minutes practised · Groups · Learners · Classes · Classes practising this week · 4 measures · windows: Today / Last 7 days / Last 30 days / All time.
 
 ## admin
 

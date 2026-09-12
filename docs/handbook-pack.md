@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `42fae3351cf9` · generated 2026-09-11 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `91f8a04e924b` · generated 2026-09-12 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -1198,11 +1198,11 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-
 **Where it is.** Across the top of the page for a group, a school or a class, under the name.
 
 1. Open the level you want — a group, a school or a class.
-2. **Phrases spoken this week** is how many phrases the classes beneath this level were prompted and said back in whole-class play over the last seven days. It is recorded for every clip the app plays, so it is the truest picture of a lesson.
+2. **Phrases practised this week** is how many phrases the classes beneath this level were prompted with in whole-class play over the last seven days. It is recorded as each phrase's turn begins, so it counts every phrase the lesson reached.
 3. **Classes practising this week** is how many of them played together in the last seven days, out of all the classes below.
 4. **Minutes in the app this week** is the time the classes beneath this level, and their staff and students on their own accounts, spent in the app over the last seven days, pauses included — the time they were in the lesson. The sentence under the row says how much of it was whole-class play and how much was audio playing.
 5. **Teachers** counts the staff below this level, each once however many classes they take.
-6. On a class the row switches to that class's own phrases spoken this week, its minutes in the app, its students and its teachers.
+6. On a class the row switches to that class's own phrases practised this week, its minutes in the app, its students and its teachers.
 
 **Worth knowing.** An organisation that is not school-shaped sees the same row worded as practice hours, groups and learners instead.
 
@@ -1232,7 +1232,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `below
 1. Open a group or a school.
 2. Tap a caret to open or close what sits under a name.
 3. Tap any name to go to that level — the numbers and the tree redraw for it.
-4. A class row names its teachers, its student count, and how many phrases it spoke together in the last seven days, or says plainly that it has not practised together this week, without you opening it.
+4. A class row names its teachers, its student count, and how many phrases it practised together in the last seven days, or says plainly that it has not practised together this week, without you opening it.
 5. Where there are more than eight classes or people, a **more** button reveals the rest.
 
 **Worth knowing.** The top two levels open themselves and deeper ones wait to be tapped, so a large organisation shows you its shape instead of eighty-five rows.
@@ -1271,7 +1271,7 @@ Section: seeing-progress · roles: admin · anchor: `findings` · in `packages/p
 
 Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-phrases` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
 
-**What it's for.** A list of the phrases the classes beneath this level said together in the last seven days, with how many times each one came round. A phrase that appears again and again is the course bringing it back on purpose, which is how it sticks.
+**What it's for.** A list of the phrases the classes beneath this level practised together in the last seven days, with how many times each one came round. A phrase that appears again and again is the course bringing it back on purpose, which is how it sticks.
 
 **Where it is.** The **What they practised this week** card under the row of numbers on a group or school page, and on a class page under its own practice card.
 
@@ -1355,14 +1355,14 @@ Section: seeing-progress · roles: leader, school_admin, teacher · anchor: `cla
 
 Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-practice` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
 
-**What it's for.** The headline card on a class: how many phrases the class was prompted and said back together in the last seven days, when it last practised, and the list of those phrases with how often each came round. Classes practising together is what a language programme lives on, so this leads over anything individual students do alone.
+**What it's for.** The headline card on a class: how many phrases the class was prompted with together in the last seven days, when it last practised, and the list of those phrases with how often each came round. Classes practising together is what a language programme lives on, so this leads over anything individual students do alone.
 
 **Where it is.** The **Class practice** card on a class page.
 
 1. Open a class from the tree or the map.
-2. Read the big figure for phrases spoken this week.
+2. Read the big figure for phrases practised this week.
 3. The line under it gives the time since the class last practised and its minutes in the app this week.
-4. The list beneath is every phrase the class said this week and the number of times it came round.
+4. The list beneath is every phrase the class practised this week and the number of times it came round.
 
 **Worth knowing.** The minutes are time in the app with the lesson running, pauses included, so they are the time the class was in the lesson. A class that has never played together says so plainly and names the teacher's **Play as class** button as the thing that starts the first lesson.
 
@@ -1408,18 +1408,18 @@ Section: seeing-progress · roles: leader, school_admin · anchor: `insights-org
 2. Read the bars for how long since each class last practised.
 3. Open a class row to see where it stopped.
 
-**Worth knowing.** Practised this week counts any sign of practice, a phrase spoken or the course opened and progress saved. The Practising figure above counts phrases spoken only, so it can be lower.
+**Worth knowing.** Practised this week counts any sign of practice, a phrase reached in a lesson or the course opened and progress saved. The Practising figure above counts phrases practised only, so it can be lower.
 
 ## Which classes practised this week
 
 Section: seeing-progress · roles: leader, school_admin · anchor: `insights-org-practising` · in `packages/player-vue/src/insight/OrgIntelPanel.vue`
 
-**What it's for.** Whether your classes are actually doing it: how many practised together in the last seven days against the seven before, how many phrases they spoke, and which people practised on their own account and for how long.
+**What it's for.** Whether your classes are actually doing it: how many practised together in the last seven days against the seven before, how many phrases they practised, and which people practised on their own account and for how long.
 
 **Where it is.** The **Practising** question at the top of any level's insights page.
 
 1. Read the sentence for this week against last week.
-2. Read the line for how many phrases were spoken each day over the last four weeks.
+2. Read the line for how many phrases were practised each day over the last four weeks.
 3. Read the class rows for who practised, when they last practised together and where in the course they are.
 4. Read the people rows for own-account minutes.
 

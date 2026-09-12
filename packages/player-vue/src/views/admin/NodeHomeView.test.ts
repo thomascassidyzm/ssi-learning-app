@@ -436,7 +436,7 @@ describe('NodeHomeView — one grammar at every level', () => {
     // then minutes in the app — before any people count, and never the
     // individual practice-hours figure or a session count.
     const statWords = wrapper.findAll('.stat-card .stat-word').map((w) => w.text())
-    expect(statWords.slice(0, 2)).toEqual(['Phrases spoken this week', 'Minutes in the app this week'])
+    expect(statWords.slice(0, 2)).toEqual(['Phrases practised this week', 'Minutes in the app this week'])
     const statValues = wrapper.findAll('.stat-card .stat-value').map((v) => v.text())
     expect(statValues.slice(0, 2)).toEqual(['42', '78'])
     expect(text).not.toContain('Minutes practised')
@@ -444,7 +444,7 @@ describe('NodeHomeView — one grammar at every level', () => {
     // The Class practice card renders FIRST among the class cards.
     const cards = wrapper.findAll('.class-card .schools-kicker').map((k) => k.text())
     expect(cards[0]).toBe('Class practice')
-    expect(text).toMatch(/42\s*phrases spoken this week/)
+    expect(text).toMatch(/42\s*phrases practised this week/)
     expect(text).toContain('Last practised together')
     expect(text).toContain('78 minutes in the app together this week')
     // The phrase-by-count list — what the class actually said — sits in the card.
