@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://example.supabase.co'
@@ -72,6 +72,55 @@ beforeEach(async () => {
 })
 
 describe('POST /api/player-events', () => {
+  // Job #307 (2026-09-12): env is derived from the DEPLOYMENT first, and only
+  // from the request host when the build carries no VERCEL_ENV. A Host header
+  // is rewritable and one commit is served from several hosts; the build
+  // knows which deployment it is. Vocabulary is the migration's three values.
+  describe('env tag comes from the deployment before the host', () => {
+    const saved: Record<string, string | undefined> = {}
+    beforeEach(() => {
+      for (const k of ['VERCEL_ENV', 'VERCEL_GIT_COMMIT_REF']) { saved[k] = process.env[k]; delete process.env[k] }
+    })
+    afterEach(() => {
+      for (const k of ['VERCEL_ENV', 'VERCEL_GIT_COMMIT_REF']) {
+        if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]
+      }
+    })
+
+    it('a production build tags production even when the host header says staging', async () => {
+      process.env.VERCEL_ENV = 'production'
+      process.env.VERCEL_GIT_COMMIT_REF = 'main'
+      const res = makeRes()
+      await handler(makeReq(undefined, { events: [{ event_type: 'tap_play' }] }), res)
+      expect(res.statusCode).toBe(200)
+      expect(insertedRows[0].env).toBe('production')
+    })
+
+    it('the staging branch build tags staging', async () => {
+      process.env.VERCEL_ENV = 'preview'
+      process.env.VERCEL_GIT_COMMIT_REF = 'staging'
+      const res = makeRes()
+      await handler(makeReq(undefined, { events: [{ event_type: 'tap_play' }] }), res)
+      expect(insertedRows[0].env).toBe('staging')
+    })
+
+    it('any other preview build tags dev, whatever the host', async () => {
+      process.env.VERCEL_ENV = 'preview'
+      process.env.VERCEL_GIT_COMMIT_REF = 'cs/307-something'
+      const res = makeRes()
+      const req = makeReq(undefined, { events: [{ event_type: 'tap_play' }] })
+      req.headers.host = 'saysomethingin.app'
+      await handler(req, res)
+      expect(insertedRows[0].env).toBe('dev')
+    })
+
+    it('with no VERCEL_ENV the host decides, exactly as before', async () => {
+      const res = makeRes()
+      await handler(makeReq(undefined, { events: [{ event_type: 'tap_play' }] }), res)
+      expect(insertedRows[0].env).toBe('staging')
+    })
+  })
+
   // SEC25 INPUT-04 (FIXED 2026-08-25): a uuid-shaped `ssi-user-id` cookie is
   // no longer an identity — it is unsigned, so trusting it let anyone write
   // telemetry against any learner. The event is still accepted (guest
