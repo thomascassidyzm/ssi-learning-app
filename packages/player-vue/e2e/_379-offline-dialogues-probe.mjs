@@ -82,8 +82,11 @@ out.afterDownload = await page.evaluate(() => document.body.innerText.slice(0, 4
 await page.screenshot({ path: `${OUT_DIR}/${TAG}-after-download.png` }).catch(() => {})
 }
 out.metaAfterDownload = await readMeta()
-// Airplane mode.
+// Airplane mode. First the app as it stands (the connection drops mid-use),
+// then a full reload through the service worker (the app reopened offline).
 await ctx.setOffline(true)
+out.swControlled = await page.evaluate(() => !!navigator.serviceWorker?.controller).catch(() => null)
+out.offlineListLive = await readList('offline-live')
 await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch((e) => (out.reloadError = String(e).slice(0, 160)))
 await page.waitForTimeout(12000)
 out.offlineBodyHead = await page.evaluate(() => document.body.innerText.slice(0, 220).replace(/\n+/g, ' | ')).catch((e) => String(e))
