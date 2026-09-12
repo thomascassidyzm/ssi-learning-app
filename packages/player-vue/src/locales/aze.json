@@ -695,7 +695,12 @@
     "playAllScenes": "Bütün səhnələri səsləndir",
     "speed": "Sürət",
     "noneSavedDeviceYet": "Bunlardan heç biri hələ cihazınızda saxlanılmayıb, ona görə oflayn dinləyəcək heç nə yoxdur. Bir dəfə qoşulub oflayn üçün yükləyin ki, özünüzlə apara biləsiniz.",
-    "tapPlay": "Səsləndirmək üçün toxunun"
+    "tapPlay": "Səsləndirmək üçün toxunun",
+    "podFallbackTitle": "Pod {n}",
+    "podScenesCount": "{n} scenes",
+    "podReadyOffline": "Ready offline",
+    "podDownloading": "Downloading",
+    "podNotYet": "Not yet"
   },
   "progress": {
     "infinitePlayRandomReview": "Sonsuz səsləndirmə — öyrəndiyiniz hər şeyin təsadüfi təkrarı",

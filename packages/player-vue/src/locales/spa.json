@@ -695,7 +695,12 @@
     "playAllScenes": "Reproducir todas las escenas",
     "speed": "Velocidad",
     "noneSavedDeviceYet": "Nada de esto está guardado todavía en tu dispositivo, así que no hay nada que escuchar sin conexión. Conéctate una vez y descárgalo para llevártelo sin conexión.",
-    "tapPlay": "Toca para reproducir"
+    "tapPlay": "Toca para reproducir",
+    "podFallbackTitle": "Pod {n}",
+    "podScenesCount": "{n} scenes",
+    "podReadyOffline": "Ready offline",
+    "podDownloading": "Downloading",
+    "podNotYet": "Not yet"
   },
   "progress": {
     "infinitePlayRandomReview": "Reproducción infinita: repaso aleatorio de todo lo que has aprendido",

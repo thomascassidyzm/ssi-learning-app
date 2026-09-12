@@ -480,6 +480,25 @@ describe('useListeningPods offline fallback', () => {
     expect(await ensureListeningMetaSnapshot(happyClient, 'ita_for_eng_424')).toBe(false)
   })
 
+  // Job #425: the heal is called on every round advance, and the degraded
+  // memo holds for the session, so a flagged snapshot was rebuilt on every
+  // advance — pod rows and clip texts re-read, the snapshot rewritten — for
+  // as long as the session lasted. Two calls in one session fetch once.
+  it('heals a flagged snapshot at most once per session (job #425)', async () => {
+    const podReads = vi.fn(() => ({ data: null, error: { message: 'TypeError: Load failed' } }))
+    const slotLookupDown = makeFakeClient({ ...happyRoutes, listening_pods: podReads })
+    resetServedPodCache()
+    expect(await ensureListeningMetaSnapshot(slotLookupDown, 'ita_for_eng_425')).toBe(true)
+    expect((await getCachedListeningMeta('ita_for_eng_425'))!.extrasDegraded).toBe(true)
+    const readsAfterFirst = podReads.mock.calls.length
+    expect(await ensureListeningMetaSnapshot(slotLookupDown, 'ita_for_eng_425')).toBe(false) // next round advance
+    expect(await ensureListeningMetaSnapshot(slotLookupDown, 'ita_for_eng_425')).toBe(false)
+    expect(podReads.mock.calls.length).toBe(readsAfterFirst)
+    // A new session (the same reset the boot path implies) heals again.
+    resetServedPodCache()
+    expect(await ensureListeningMetaSnapshot(happyClient, 'ita_for_eng_425')).toBe(true)
+  })
+
   it('serves scenes from the cached metadata when the live fetch fails', async () => {
     await fetchAndCacheListeningMeta(happyClient, 'ita_for_eng') // downloaded earlier, online
     const { pods, flush } = mountPods(failAll, 'ita_for_eng')

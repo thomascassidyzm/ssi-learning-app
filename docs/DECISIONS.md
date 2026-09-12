@@ -1,3 +1,11 @@
+## 2026-09-12 — Dialogues opens on pod cards, one per pod slot, each with an offline-readiness word (job #428, dev only)
+
+**Tom's ask.** "Can we look at making the Pods more navigable? So perhaps cards at the top linking to each pod rather than the complete lists of scenes?" and "Let's do these on dev so we can promote staging to main cleanly." The method pod vanishing offline had made the flat list feel like it hid pods rather than presented them.
+
+**Decision.** The Dialogues tab opens on one card per pod the course lists, in list order, titled from the pod's own row, and a single-pod course still gets its one card. Each card carries one of three words computed from the clips on the device against the estate's existing ready threshold: Ready offline, Downloading, Not yet. Tapping a card opens that pod's scene list alone; the top-left circle goes back to the cards; play all and scene-to-scene continuation are scoped to the open pod, since a learner who chose a pod wants that pod. Offline with none of a pod's clips on the device, the pod's list shows the existing offline message rather than silence. Cards are stacked full-width rather than a horizontal row, because the real titles are long. Better: what exists, what is playable and what is coming is visible instead of invisible plumbing. Simpler: the grouping is derived from the scene list every path already produces, one pure helper owns the readiness read, and no poller, table or endpoint was added. Cheaper: the readiness recomputes only when the shared download counters move or the learner returns to the cards. Landed on dev only; not promoted, so the staging soak is untouched.
+
+**Proof.** `podReadiness.test.ts` pins the grouping and the three states, red before the helper existed. The compiled-SFC scope test, the other ListeningOverlay tests and the locale-parity test are green.
+
 ## 2026-09-12 — Listening exercises are fetched FIRST, on both paths: every pod slot's list, metadata and audio before the course (job #379, Tom's ruling)
 
 **Tom's ruling.** "Listening exercises (pods/dialogues, list + sentences + audio) are downloaded FIRST, with priority over the main course clips, so a learner who is unexpectedly offline can always play every listening exercise." And on shape: "there is meant to be no offline MODE as such. The app is always cache-first; download-ahead is simply fetch more of the course ahead. Do not add mode-gated logic; make the fetch-ahead ordering itself put listening exercises first, so whatever amount was fetched, the pods are in it."
@@ -1557,3 +1565,36 @@ pins plus the two ramp suites 110; all four overlay test files load and run. Typ
 this job by line number only and were refreshed mechanically, and two whose deciding line had been
 reworded by #350 and #325 were re-pinned to the current line.
 
+## 2026-09-12 — Immersion stack for every long pod line: timings when present, punctuation when not (job #430)
+
+**Why.** Tom, on the #408 tracker: "it will help to not just have a massive block of text in the
+longer form pods … we could still split them up into single breaths though." The stacked layout is
+the win and is independent of the tracker, and most pod lines have no timings to drive one: on
+spa_for_eng 451 of 1,052 live pod sentences carry no word timings, and on the Pod-1 / xAI turns
+those are the longest lines in the course.
+
+**One component, two sources of line breaks.** `trackerGroupsFor` now returns a stack, `{ lines,
+timed }`. Timings that normalise → the lines are the clip's breath groups and the lit line walks,
+exactly as #408 ships; a timed clip with a single breath group is still the card. No usable
+timings (null, or the viseme-frame shape) → the same stack with lines cut from the sentence text by
+`textLinesForSentence`, and the stack carries `.untimed`: no said / lit / ahead state, no fill, no
+clock, every line in the card's own colour. One text line → null → the card, unchanged. Drill is
+untouched, pinned byte-for-byte as before.
+
+**The cut order and the cap.** Sentence enders first, never packed together — the sentence is the
+unit. Then clause punctuation inside an over-long sentence, clauses packed up to the cap so a list
+("en Nueva York, en Tokio, en Buenos Aires") is one breath rather than three stubs, and a cut only
+counting when the clause after it fits, so "Bueno," never stands alone above a wrapped remainder.
+Then the cap, words kept whole and the overflow balanced into equal lines rather than a long line
+plus an orphan. The cap is 60 characters, taken from the audio rather than guessed: across 1,455 timed pod
+sentence clips with two or more breath groups, 3,942 real breath groups measure 23 chars at the
+median, 52 at p90 and 66 at p95, so a text-cut line is the size of a long real breath. Scripts
+without spaces cut only at their own punctuation. Nothing heard changes; this is display only.
+
+**Addendum (job #425, from the #424 cold-verify).** The snapshot heal in `ensureListeningMetaSnapshot`
+is called on every round advance, and a snapshot flagged `extrasDegraded` stays flagged while the
+session's degraded-lookup memo stands, so one flaky first fetch had the heal re-reading pod rows and
+clip texts and rewriting the snapshot on every advance for the rest of the session. The heal now runs
+at most once per session per course, marked beside the degraded memo in `servedPod.ts` and cleared by
+the same reset. Snapshots written in the few-hours window before #424 that carry an unmarked empty
+`extraPods` are left alone; not worth code.

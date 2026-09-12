@@ -695,7 +695,12 @@
     "playAllScenes": "සියලුම දර්ශන වාදනය කරන්න",
     "speed": "වේගය",
     "noneSavedDeviceYet": "මෙයින් කිසිවක් තවම ඔබේ උපාංගයේ සුරැකී නොමැති බැවින්, නොබැඳිව අසන්නට කිසිවක් නැත. එක් වරක් සම්බන්ධ වී එය රැගෙන යාමට නොබැඳිව බාගන්න.",
-    "tapPlay": "වාදනය කිරීමට තට්ටු කරන්න"
+    "tapPlay": "වාදනය කිරීමට තට්ටු කරන්න",
+    "podFallbackTitle": "Pod {n}",
+    "podScenesCount": "{n} scenes",
+    "podReadyOffline": "Ready offline",
+    "podDownloading": "Downloading",
+    "podNotYet": "Not yet"
   },
   "progress": {
     "infinitePlayRandomReview": "අනන්ත වාදනය — ඔබ ඉගෙන ගත් සියල්ලේ අහඹු සමාලෝචනයක්",

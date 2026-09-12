@@ -38,7 +38,7 @@
 
 import { openDB, deleteDB, type IDBPDatabase } from 'idb'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { resolveListeningPods, isListeningPodLookupDegraded } from './servedPod'
+import { resolveListeningPods, isListeningPodLookupDegraded, wasListeningSnapshotHealed, markListeningSnapshotHealed } from './servedPod'
 import {
   type L1FallbackPhraseRow,
   computeSeedLastLegoIndex,
@@ -771,6 +771,11 @@ export const ensureListeningMetaSnapshot = async (
   try {
     const cached = await getCachedListeningMeta(courseCode)
     if (cached && snapshotListsEverySlot(cached)) return false
+    // At most once per session per course: this runs on every round advance,
+    // and a snapshot still flagged from a degraded lookup would otherwise be
+    // refetched and rewritten on each one (job #425).
+    if (wasListeningSnapshotHealed(courseCode)) return false
+    markListeningSnapshotHealed(courseCode)
     return !!(await fetchAndCacheListeningMeta(client, courseCode))
   } catch {
     return false
@@ -790,6 +795,10 @@ export const ensureListeningMetaSnapshot = async (
  *  - `extrasDegraded`: its slots came from a fallback lookup (timeout, error,
  *    offline), so `extraPods` may be `[]` only because the first fetch timed
  *    out (job #424). servedPod marks that at the lookup; the writer files it.
+ *
+ * A false answer triggers the refetch at most once per session per course
+ * (servedPod's healed mark, job #425), since the caller runs on every round
+ * advance and a degraded flag stands until the memo is reset.
  */
 export const snapshotListsEverySlot = (cached: CachedListeningMeta): boolean =>
   Array.isArray(cached.extraPods) && !cached.extrasDegraded

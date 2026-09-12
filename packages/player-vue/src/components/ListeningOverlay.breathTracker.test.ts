@@ -14,7 +14,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { breathGroupsForClip } from '../playback/breathGroups'
+import { breathGroupsForClip, textLinesForSentence } from '../playback/breathGroups'
 
 // Node environment + __dirname, as ListeningOverlay.scope.test.ts does: under
 // the default jsdom environment import.meta.url is an http: URL, and this
@@ -85,5 +85,33 @@ describe('ListeningOverlay — job #425 tidy', () => {
 
   it('carries no dead audioMap ref', () => {
     expect(src).not.toContain('audioMap')
+  })
+})
+
+describe('ListeningOverlay — job #430: untimed clips share the stack, cut from the text', () => {
+  const fn = src.slice(src.indexOf('const trackerGroupsFor = (phrase) => {'), src.indexOf('// The clip clock:'))
+
+  it('with timings the lines come from the audio; without, from the text — one function, two sources', () => {
+    expect(fn).toContain('const timed = !!(s?.targetAudioId && normaliseWordTimings(s.wordTimings))')
+    expect(fn).toContain('const groups = breathGroupsForClip(s.wordTimings, text)')
+    expect(fn).toContain('const lines = textLinesForSentence(text)')
+    expect(fn).toContain("stack = { lines: lines.map((t) => ({ text: t })), timed: false }")
+  })
+
+  it('an untimed stack has no position, so no line is said, lit or ahead', () => {
+    expect(src).toContain("if (!stack?.timed) return { index: -1, fill: 0 }")
+    expect(src).toContain('const breathClass = (gi) => (trackPos.value.index < 0 ? { untimed: true } : {')
+    expect(src).toContain(':class="{ untimed: !trackerGroupsFor(phrase).timed }"')
+  })
+
+  it('a timed clip with one breath group is still the card, not a text-cut stack', () => {
+    // The timed branch never falls back to the text: `timed` is decided by
+    // the timings alone, and its null result is stored as the card.
+    expect(fn).toContain('if (timed) {\n    const groups = breathGroupsForClip(s.wordTimings, text)\n    if (groups) stack = { lines: groups, timed: true }\n  } else {')
+  })
+
+  it('a single text line falls through to the existing card', () => {
+    expect(textLinesForSentence('Es un poco frustrante cuando no puedo pensar rápido.')).toBeNull()
+    expect(textLinesForSentence('Creo que lo estás haciendo muy bien. Estoy impresionado.')).toEqual(['Creo que lo estás haciendo muy bien.', 'Estoy impresionado.'])
   })
 })

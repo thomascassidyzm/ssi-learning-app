@@ -695,7 +695,12 @@
     "playAllScenes": "Ṣe eré gbogbo àwọn ìran náà",
     "speed": "Iyara",
     "noneSavedDeviceYet": "Kò sí ohun kankan nínú èyí tí a ti fi pamọ́ sórí ẹ̀rọ rẹ síbẹ̀, torí náà kò sí ohun tí wàá gbọ́ láìní ìsopọ̀. Sopọ̀ lẹ́ẹ̀kan kí o sì gbà á fún lílò láìní ìsopọ̀ láti mú un lọ pẹ̀lú rẹ.",
-    "tapPlay": "Tẹ̀ láti ṣeré"
+    "tapPlay": "Tẹ̀ láti ṣeré",
+    "podFallbackTitle": "Pod {n}",
+    "podScenesCount": "{n} scenes",
+    "podReadyOffline": "Ready offline",
+    "podDownloading": "Downloading",
+    "podNotYet": "Not yet"
   },
   "progress": {
     "infinitePlayRandomReview": "Ìṣeré láìlopin — àtúnyẹ̀wò lásán ti ohun gbogbo tí o ti kọ́",

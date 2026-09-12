@@ -13,6 +13,8 @@ import {
   alignBreathGroups,
   breathGroupsForClip,
   trackPosition,
+  textLinesForSentence,
+  TEXT_LINE_MAX_CHARS,
 } from './breathGroups'
 
 // spa_for_eng:pod-1 #229 — course_audio.word_boundaries, verbatim (ms).
@@ -223,5 +225,54 @@ describe('job #425 — tidy findings', () => {
   it('recognises the viseme-frame shape on course_audio.word_boundaries as not-word-timings and returns null', () => {
     expect(normaliseWordTimings(VISEME_ROW)).toBeNull()
     expect(breathGroupsForClip(VISEME_ROW, 'eres muy amable')).toBeNull()
+  })
+})
+
+describe('textLinesForSentence — untimed clips cut from the text (job #430)', () => {
+  it('cuts at sentence enders first, keeping the punctuation on its line', () => {
+    expect(textLinesForSentence('Creo que lo estás haciendo muy bien. Estoy impresionado. ¿Verdad?'))
+      .toEqual(['Creo que lo estás haciendo muy bien.', 'Estoy impresionado.', '¿Verdad?'])
+  })
+
+  it('a sentence over the cap falls to clause punctuation, clauses packed up to the cap; short sentences stay whole', () => {
+    const text = 'Bueno, la verdad es que hay un grupo de artistas enormes que ganan millones y otro grupo inmenso que gana casi nada.'
+    expect(textLinesForSentence(text)).toEqual([
+      'Bueno, la verdad es que hay un grupo de artistas enormes',
+      'que ganan millones y otro grupo inmenso que gana casi nada.',
+    ])
+    // spa_for_eng:music scene 3 #76 — a list of short clauses is packed, not
+    // left as "Entonces," and "en Tokio," stubs.
+    const list = 'Entonces, aunque a los puristas no les guste, el flamenco hoy se escucha en Nueva York, en Tokio, en Buenos Aires gracias en parte a Rosalía.'
+    expect(textLinesForSentence(list)).toEqual([
+      'Entonces, aunque a los puristas no les guste,',
+      'el flamenco hoy se escucha en Nueva York, en Tokio,',
+      'en Buenos Aires gracias en parte a Rosalía.',
+    ])
+  })
+
+  it('a clause over the cap wraps at spaces into balanced lines, never a long line plus an orphan', () => {
+    const clause = 'la verdad es que hay un grupo de artistas enormes que ganan millones y otro grupo inmenso'
+    const lines = textLinesForSentence(clause)!
+    expect(lines.length).toBe(2)
+    expect(lines.join(' ')).toBe(clause)
+    for (const l of lines) expect(l.length).toBeLessThanOrEqual(TEXT_LINE_MAX_CHARS)
+    expect(Math.abs(lines[0].length - lines[1].length)).toBeLessThan(12)
+  })
+
+  it('one line falls through to the existing card — null, as one breath group does', () => {
+    expect(textLinesForSentence('Ciao, come stai?')).toBeNull()
+    expect(textLinesForSentence('Es un poco frustrante cuando no puedo pensar rápido.')).toBeNull()
+    expect(textLinesForSentence('')).toBeNull()
+    expect(textLinesForSentence(null as unknown as string)).toBeNull()
+  })
+
+  it('loses no text: the lines rejoin to the sentence', () => {
+    const text = 'Ya deberías tener confianza. Creo que lo estás haciendo mucho mejor de lo que te das cuenta. Me siento cómodo hablando contigo, y no estoy haciendo esto por cortesía.'
+    expect(textLinesForSentence(text)!.join(' ')).toBe(text)
+  })
+
+  it('a script without spaces cuts only at its own punctuation', () => {
+    expect(textLinesForSentence('今日はとても良い天気ですね。散歩に行きましょう。')).toEqual(['今日はとても良い天気ですね。', '散歩に行きましょう。'])
+    expect(textLinesForSentence('あ'.repeat(80))).toBeNull()
   })
 })

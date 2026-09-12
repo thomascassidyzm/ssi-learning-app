@@ -693,7 +693,12 @@
     "noneSavedDeviceYet": "यातलं काहीच अजून तुमच्या उपकरणावर साठवलेलं नाही, त्यामुळे ऑफलाइन ऐकण्यासारखं काही नाही. एकदा कनेक्ट होऊन ऑफलाइनसाठी डाउनलोड करा म्हणजे ते सोबत घेऊन जाता येईल.",
     "playAllScenes": "सगळे प्रसंग प्ले करा",
     "speed": "वेग",
-    "tapPlay": "प्ले करण्यासाठी टॅप करा"
+    "tapPlay": "प्ले करण्यासाठी टॅप करा",
+    "podFallbackTitle": "Pod {n}",
+    "podScenesCount": "{n} scenes",
+    "podReadyOffline": "Ready offline",
+    "podDownloading": "Downloading",
+    "podNotYet": "Not yet"
   },
   "progress": {
     "infinitePlayRandomReview": "अखंड प्ले — तुम्ही शिकलेल्या सगळ्याचा यादृच्छिक आढावा",

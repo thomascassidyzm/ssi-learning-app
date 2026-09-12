@@ -695,7 +695,12 @@
     "playAllScenes": "播放全部场景",
     "speed": "速度",
     "noneSavedDeviceYet": "这些内容尚未保存到你的设备，因此无法离线收听。请先联网并下载，即可随身携带离线使用。",
-    "tapPlay": "点击播放"
+    "tapPlay": "点击播放",
+    "podFallbackTitle": "Pod {n}",
+    "podScenesCount": "{n} scenes",
+    "podReadyOffline": "Ready offline",
+    "podDownloading": "Downloading",
+    "podNotYet": "Not yet"
   },
   "progress": {
     "infinitePlayRandomReview": "无限播放 — 随机复习你学过的所有内容",
