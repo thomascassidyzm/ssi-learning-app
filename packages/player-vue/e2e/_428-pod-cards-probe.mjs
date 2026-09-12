@@ -31,8 +31,8 @@ const openListening = async (o) => {
   await page.waitForTimeout(1500)
   const listen = page.locator('.tray-item').filter({ hasText: /listen/i }).first()
   if (await listen.count()) await listen.click({ timeout: 5000 }).catch((e) => (o.listenError = String(e).slice(0, 120)))
-  await page.locator('.scene-card, .scene-empty, .scene-list-wrap .error, .view-tab').first().waitFor({ state: 'visible', timeout: 60000 }).catch((e) => (o.waitError = String(e).slice(0, 100)))
-  await page.waitForTimeout(4000)
+  await page.locator('.scene-card, .scene-empty, .scene-list-wrap .error').first().waitFor({ state: 'visible', timeout: 60000 }).catch((e) => (o.waitError = String(e).slice(0, 100)))
+  await page.waitForTimeout(6000)
 }
 const readList = async () => ({
   sceneCards: await page.locator('.scene-card:not(.pod-card)').count(),
@@ -58,10 +58,21 @@ if (out.online.list.podCards.length) {
   await page.waitForTimeout(800)
   out.online.afterBack = await readList()
 }
-// Airplane mode: reload through the service worker, reopen Listening.
+// Airplane mode: wait for the service worker to control the page, then
+// reload through it and reopen Listening.
+out.swReady = await page.evaluate(() => Promise.race([navigator.serviceWorker.ready.then(() => true), new Promise((r) => setTimeout(() => r(false), 30000))])).catch(() => false)
+await page.waitForTimeout(8000)
 await ctx.setOffline(true)
-await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch((e) => (out.reloadError = String(e).slice(0, 160)))
-await page.waitForTimeout(12000)
+if (out.swReady) {
+  await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch((e) => (out.reloadError = String(e).slice(0, 160)))
+  await page.waitForTimeout(12000)
+} else {
+  // No service worker yet: model the connection dropping mid-use instead —
+  // close the overlay and reopen Listening while offline.
+  out.offlinePath = 'mid-use'
+  await page.locator('.listening-overlay .close-btn').first().click({ timeout: 5000 }).catch((e) => (out.closeError = String(e).slice(0, 120)))
+  await page.waitForTimeout(2500)
+}
 out.offline = {}
 await openListening(out.offline)
 out.offline.list = await readList()
