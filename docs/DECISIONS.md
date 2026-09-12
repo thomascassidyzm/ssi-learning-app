@@ -1537,3 +1537,11 @@ orphan. The cap is 60 characters, taken from the audio rather than guessed: acro
 sentence clips with two or more breath groups, 3,942 real breath groups measure 23 chars at the
 median, 52 at p90 and 66 at p95, so a text-cut line is the size of a long real breath. Scripts
 without spaces cut only at their own punctuation. Nothing heard changes; this is display only.
+
+**Addendum (job #425, from the #424 cold-verify).** The snapshot heal in `ensureListeningMetaSnapshot`
+is called on every round advance, and a snapshot flagged `extrasDegraded` stays flagged while the
+session's degraded-lookup memo stands, so one flaky first fetch had the heal re-reading pod rows and
+clip texts and rewriting the snapshot on every advance for the rest of the session. The heal now runs
+at most once per session per course, marked beside the degraded memo in `servedPod.ts` and cleared by
+the same reset. Snapshots written in the few-hours window before #424 that carry an unmarked empty
+`extraPods` are left alone; not worth code.
