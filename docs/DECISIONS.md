@@ -1153,9 +1153,11 @@ https://watson-1.tail4968cb.ts.net/d/00ee37b1
 
 **What was watched.** Staging build 3004383 (promote of #325) served at 11:46Z. A headless
 play-through as a guest from watson-1 (session `3a1b62ee-22c7-4c19-9c37-1aa34e671762`, env
-`staging`, ip_country FI) wrote 17 rows to `player_events`. Every one carries `mode: 'easy'`,
-`belt: 'white'` and `roundIndex`; `round_complete`, `tap_*` and `adaptation_plan` carry `seedId`.
-The one Listening Mode row is a `listening_tick` with `mode: 'listening'`, `belt`, `view`.
+`staging`, ip_country FI) wrote 17 rows to `player_events`. All 16 main-flow rows carry `mode:
+'easy'`, `belt: 'white'` and `roundIndex`; `round_complete`, `tap_*` and `adaptation_plan` carry
+`seedId`. The one Listening Mode row is a `listening_tick` with `mode: 'listening'`, `belt`, `view`
+and no `roundIndex`, as pods have no round. (Corrected by job #361 on 2026-09-12: this entry first
+read "every one carries … roundIndex", which Astra refuted and the house re-query confirmed.)
 
 **Found 1 — Listening Mode per-clip rows never landed, and playback stopped after one clip.**
 `effectiveRate` was declared inside a `try` in `playCurrentPhrase` and read by the new
