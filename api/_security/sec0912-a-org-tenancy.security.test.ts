@@ -61,16 +61,27 @@ describe('SEC0912-A-01 — is_govt_admin_over_group matches on the name-derived 
     return schema.slice(start, end)
   }
 
-  it('CHARACTERIZATION: the predicate compares `path` strings and never mentions parent_id', () => {
+  it('FIXED (job #300, 20260912b): the live predicate walks parent_id and never compares `path`', () => {
     const body = govtAdminOverGroupBody()
-    // The two path comparisons that ARE the subtree test.
-    expect(body).toContain('target_g.path = admin_g.path')
-    expect(body).toContain("target_g.path LIKE admin_g.path || '/%'")
-    // The thing it does NOT do, which is the finding.
-    expect(body).not.toContain('parent_id')
+    // The subtree is the parent_id lineage of the target group…
+    expect(body).toContain('WITH RECURSIVE lineage')
+    expect(body).toContain('JOIN lineage l ON g.id = l.parent_id')
+    expect(body).toContain('JOIN public.govt_admins ga ON ga.group_id = l.id')
+    // …and the name-derived slug no longer decides anything. These two lines
+    // WERE the finding; either one coming back is the regression.
+    expect(body).not.toContain('target_g.path = admin_g.path')
+    expect(body).not.toContain("LIKE admin_g.path")
+    expect(body).not.toMatch(/\.path\b/)
+    // The migration that carried the fix says the same thing, so the snapshot
+    // and the migration cannot disagree about which rule is live.
+    const mig = read('supabase/migrations/20260912b_is_govt_admin_over_group_by_parent_id.sql')
+    expect(mig).toContain('CREATE OR REPLACE FUNCTION public.is_govt_admin_over_group(target_group_id uuid)')
+    expect(mig).toContain('JOIN lineage l ON g.id = l.parent_id')
+    expect(mig).not.toMatch(/target_g\.path/)
+    expect(mig).toMatch(/NOTIFY pgrst, 'reload schema'/)
   })
 
-  it('the server-side copy of the same rule walks parent_id — the two disagree by construction', () => {
+  it('the server-side copy of the same rule walks parent_id — SQL and TypeScript now agree', () => {
     // groupSubtree.descendantIds is the in-process subtree used by every node
     // surface (org/intel, groups/[id]/home, rate-compare...).
     const subtree = read('api/_utils/groupSubtree.ts')
@@ -79,8 +90,8 @@ describe('SEC0912-A-01 — is_govt_admin_over_group matches on the name-derived 
     // call site it repaired, why the path must never be used.
     const schoolRateCompare = read('api/school/rate-compare.ts')
     expect(schoolRateCompare).toContain('never the slug path')
-    // The fix stopped at the language boundary: the TypeScript call sites were
-    // repointed at parent_id, the SQL predicate was not.
+    // The fix once stopped at the language boundary (TypeScript repointed at
+    // parent_id, SQL not); 20260912b carried it across. The call-site note stays.
     expect(read('api/groups/[id]/rate-compare.ts')).toContain('TENANCY-02, fixed 2026-08-25')
   })
 

@@ -1,3 +1,41 @@
+## 2026-09-12 — support_messages is column-granted, and the govt_admin subtree is parent_id in SQL too (job #300)
+
+Two live security gaps, found by job #297's audit and confirmed against the real database by job
+#299, closed by canary-applied migrations. Neither leaked anything: the support table held zero
+messages, and no govt_admin sat on one of the three duplicate root paths (`my-school` x8,
+`rogiet-primary-school` x2, `ysgol-gyfun-tredegar` x2).
+
+- **support_messages (20260912a).** `authenticated` had a table-level SELECT, so PostgREST would have
+  served envelope, draft_reply, escalation_evidence, move_reason, model_ladder and the asker's auth
+  uid to any school admin whose row test passed — the handlers' `MESSAGE_VIEW_COLUMNS` projection
+  is TypeScript and narrows nothing in Postgres. Now a COLUMN grant of exactly that projection plus
+  `thread_id` (the filter key). Chosen over a view because no browser code reads this table at all
+  today — both handlers and the doorbell cron use the service key — so a view is a second object to
+  keep in step for a reader that does not exist, and a column grant leaves every future column
+  unreadable by default. Consequence: `select=*` as `authenticated` is now "permission denied"; a
+  caller names its columns. A test pins the grant list to the constant so the two cannot drift.
+- **is_govt_admin_over_group() (20260912b).** The predicate behind four live SELECT policies
+  (schools, classes, support_threads, support_messages) compared `groups.path` strings, and `path`
+  is the slugged NAME with nothing making it unique. TENANCY-02/04/05 fixed this in TypeScript on
+  2026-08-25 and stopped at the language boundary. The SQL now walks `parent_id` UP from the target
+  (a single chain, depth-capped at 32; the live forest is 3 deep) and asks whether any ancestor is
+  a group the caller governs. Same signature, definer, search_path and ACL.
+- **Canary proof, one transaction, live:** both defects reproduced on the old definitions (a school
+  admin read `draft_reply`; an admin of root org A was "over" same-slug root org B and saw its
+  school), both closed after, the six sensitive columns each answer permission denied, the app's
+  columns still read the row, a stranger still sees no rows, and every one of the 42 real
+  govt_admins plus the real school admin sees an identical set of groups / schools / classes /
+  threads / messages before and after. 32/32, then COMMIT and `NOTIFY pgrst`.
+- **Not done, deliberately:** duplicate root-org slugs are still permitted (`confirm_duplicate` in
+  `groupSlug.ts`). With no row policy reading `path` any more, a duplicate is cosmetic at the DB
+  boundary, so a unique constraint would only block legitimate same-name orgs for nothing. The
+  one remaining `path LIKE` reader is the CLIENT's govt-admin class lookup in
+  `useClassesData.ts` (line ~250), which lists subtree group ids by path prefix before querying
+  classes; the classes read itself is now gated by the fixed predicate, so it can over-ask but not
+  over-read. Repointing it at a server endpoint is a separate follow-up.
+- **schema.sql** re-snapshotted from live with pg_dump 18; the diff also catches up several earlier
+  applied changes (org_enrolments RPCs, narrowed classes grants) the previous snapshot had missed.
+
 ## 2026-09-11 — a class row is the class account's own progress; per-pupil framing leaves the class list and the class page (job #265, Tom's ruling)
 
 Tom, on the Chepstow classes list under View-as: every one of 34 cards read Students 0, Belt White,

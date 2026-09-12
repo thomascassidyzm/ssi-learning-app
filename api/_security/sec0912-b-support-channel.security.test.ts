@@ -50,6 +50,7 @@ const read = (rel: string) => readFileSync(join(repoRoot, rel), 'utf-8')
 
 const CHANNEL_MIGRATION = 'supabase/migrations/20260911_support_channel.sql'
 const LOOP_MIGRATION = 'supabase/migrations/20260911b_support_loop.sql'
+const FIX_MIGRATION = 'supabase/migrations/20260912a_support_messages_column_grant.sql'
 
 /** Columns the server DELIBERATELY withholds from the thread view. */
 const WITHHELD_COLUMNS = [
@@ -66,7 +67,7 @@ const WITHHELD_COLUMNS = [
 /** Internal operational columns 20260911b bolts on afterwards. */
 const LATER_INTERNAL_COLUMNS = ['move', 'move_reason', 'model_tier', 'model_ladder']
 
-describe('SEC0912-B-01 — support_messages publishes every column to `authenticated`', () => {
+describe('SEC0912-B-01 — support_messages publishes only MESSAGE_VIEW_COLUMNS to `authenticated` (fixed job #300)', () => {
   it('the server view deliberately withholds eight columns', () => {
     const projected = MESSAGE_VIEW_COLUMNS.split(',').map((c) => c.trim())
     for (const col of WITHHELD_COLUMNS) {
@@ -76,35 +77,43 @@ describe('SEC0912-B-01 — support_messages publishes every column to `authentic
     expect(read('api/support/_shared.ts')).toContain('the envelope stays server-side')
   })
 
-  it('CHARACTERIZATION: the grant is table-level, so the withheld columns are readable anyway', () => {
-    const mig = read(CHANNEL_MIGRATION)
-    // A whole-table SELECT grant to `authenticated`…
-    expect(mig).toMatch(/GRANT SELECT ON public\.support_messages\s+TO authenticated/)
-    // …with no column list anywhere on it. A column-scoped grant would read
-    // `GRANT SELECT (id, body, …) ON …`, and there is none.
-    expect(mig).not.toMatch(/GRANT SELECT\s*\([^)]*\)\s*ON public\.support_messages/)
-    // The RLS policy filters ROWS only — it cannot filter columns.
-    expect(mig).toContain('CREATE POLICY support_messages_own_read ON public.support_messages')
-    expect(mig).toContain('FOR SELECT TO authenticated')
-
-    // And the columns in question really are on the table.
-    for (const col of WITHHELD_COLUMNS) {
-      expect(mig, `${col} should be declared on support_messages`).toMatch(new RegExp(`\\n\\s+${col}\\s`))
+  it('FIXED (job #300, 20260912a): the browser grant is COLUMN-level and equals MESSAGE_VIEW_COLUMNS + thread_id', () => {
+    const fix = read(FIX_MIGRATION)
+    // The blanket grant 20260911 made is revoked in the same file that
+    // replaces it (RLS doctrine rule 2: a REVOKE carries its GRANTs).
+    expect(fix).toMatch(/REVOKE SELECT ON public\.support_messages\s+FROM authenticated/)
+    const m = fix.match(/GRANT SELECT\s*\(([^)]*)\)\s*ON public\.support_messages TO authenticated/)
+    expect(m, 'a column-scoped GRANT SELECT (…) must exist').not.toBeNull()
+    const granted = m![1].split(',').map((s) => s.trim()).filter(Boolean).sort()
+    // Pinned to the server's own projection: a column added to one list and
+    // not the other goes red here, before it goes live.
+    const projected = MESSAGE_VIEW_COLUMNS.split(',').map((s) => s.trim())
+    expect(granted).toEqual(['thread_id', ...projected].sort())
+    for (const col of [...WITHHELD_COLUMNS, ...LATER_INTERNAL_COLUMNS]) {
+      expect(granted, `${col} must not be granted`).not.toContain(col)
     }
+    expect(fix).toMatch(/NOTIFY pgrst, 'reload schema'/)
+    // The row policy is untouched — rows are still "my school's thread".
+    expect(read(CHANNEL_MIGRATION)).toContain('CREATE POLICY support_messages_own_read ON public.support_messages')
   })
 
-  it('CHARACTERIZATION: a later migration adds four more internal columns under the same blanket grant', () => {
+  it('FIXED: the committed schema snapshot carries only column grants on support_messages for authenticated', () => {
+    const schema = read('supabase/schema.sql')
+    expect(schema).not.toMatch(/GRANT SELECT ON TABLE public\.support_messages TO authenticated/)
+    const cols = [...schema.matchAll(/GRANT SELECT\((\w+)\) ON TABLE public\.support_messages TO authenticated;/g)].map((x) => x[1]).sort()
+    const projected = MESSAGE_VIEW_COLUMNS.split(',').map((s) => s.trim())
+    expect(cols).toEqual(['thread_id', ...projected].sort())
+  })
+
+  it('a later migration adds four more internal columns — and under a column grant they are UNREADABLE by default', () => {
     const loop = read(LOOP_MIGRATION)
     expect(loop).toContain('ALTER TABLE public.support_messages')
     for (const col of LATER_INTERNAL_COLUMNS) {
       expect(loop).toContain(`ADD COLUMN IF NOT EXISTS ${col}`)
     }
-    // It adds no new grant and no new policy — it does not need to, which is
-    // precisely the drift mechanism: a table-level grant publishes every
-    // future column by default.
+    // It adds no grant — which, after 20260912a, is the safe default rather
+    // than the drift mechanism: a column-level grant publishes nothing new.
     expect(loop).not.toMatch(/GRANT SELECT[^;]*support_messages/)
-    // `model_ladder` is cost/routing telemetry and `move_reason` is the
-    // sentinel's triage reasoning. Neither is the customer's business.
     expect(loop).toContain('Answers "why did this cost a Fable call?"')
   })
 

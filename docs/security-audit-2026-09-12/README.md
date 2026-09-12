@@ -40,6 +40,8 @@ and the account-claim rule (`_utils/unclaimedMint.ts`, `api/auth/claim-account.t
 
 ### SEC0912-A-01 — MEDIUM — `is_govt_admin_over_group()` still decides the subtree on a name-derived path string
 
+> **CLOSED 2026-09-12 (job #300).** `supabase/migrations/20260912b_is_govt_admin_over_group_by_parent_id.sql`, canary-applied live: the predicate walks `parent_id` up from the target and never reads `path`. Proof in `supabase/secfix-toolkit/canary_20260912_support_grant_and_govt_subtree.cjs` (32/32 green at commit; all 42 real govt_admins' visible sets identical before and after).
+
 **Where.** `supabase/schema.sql`, the live definition:
 
 ```sql
@@ -76,6 +78,8 @@ ancestry column names cannot change. Under RLS doctrine rule 3 that is a canary-
 ---
 
 ### SEC0912-B-01 — MEDIUM — `support_messages` publishes every column to `authenticated`; the server's narrow projection is cosmetic
+
+> **CLOSED 2026-09-12 (job #300).** Job #299 found the migration WAS applied live, not unapplied. `supabase/migrations/20260912a_support_messages_column_grant.sql`, canary-applied live: table-level SELECT revoked, column-level SELECT on exactly `MESSAGE_VIEW_COLUMNS` + `thread_id`. The table held 0 messages; nothing leaked. Same canary as A-01.
 
 **Where.** `supabase/migrations/20260911_support_channel.sql`:
 
