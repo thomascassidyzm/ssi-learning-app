@@ -36,4 +36,17 @@ describe('ListeningOverlay: every name in the compiled setup is in scope', () =>
   it('has no undefined references and no assignment to a const binding', () => {
     expect(scopeProblems('ListeningOverlay.vue')).toEqual([])
   })
+
+  // A TS generic in a plain-JS script is not a type: `ref<HTMLElement | null>(null)`
+  // parses as `(ref < HTMLElement) | (null > null)` and evaluates to 0. Staging
+  // build 9b3a78c then threw "Cannot create property 'value' on number '0'" on
+  // every belt-strip render, and the strip's auto-scroll had read `.value` of 0
+  // since 2026-05-15 (job #343).
+  it('declares no ref/computed/inject with a type argument, which plain JS evaluates as a comparison', () => {
+    const source = readFileSync(resolve(__dirname, 'ListeningOverlay.vue'), 'utf8')
+    const { descriptor } = parse(source, { filename: 'ListeningOverlay.vue' })
+    expect(descriptor.scriptSetup?.lang ?? 'js').toBe('js')
+    const generics = (descriptor.scriptSetup?.content ?? '').match(/\b(ref|shallowRef|computed|inject|reactive)<[^\n]*>\(/g) ?? []
+    expect(generics).toEqual([])
+  })
 })

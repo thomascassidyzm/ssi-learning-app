@@ -294,8 +294,8 @@ const supabase = inject('supabase', null)
 // strip's edges on narrow viewports; the user has no idea they can
 // scroll. With it, the active belt always lands in the middle and the
 // edge fade-mask (see CSS) hints that more belts exist either side.
-const beltStripEl = ref<HTMLElement | null>(null)
-const activeBeltPipEl = ref<HTMLElement | null>(null)
+const beltStripEl = ref(null)
+const activeBeltPipEl = ref(null)
 // Template ref callback for the active pip. Assigning the ref itself from the
 // template compiled to `const = el` and threw "Assignment to constant
 // variable" on every strip render since 2026-05-15; write .value here instead.

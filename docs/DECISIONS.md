@@ -1167,6 +1167,27 @@ Pod plays still pass an explicit null, meaning "no seed".
 518 attributed FI rows from six real learners kept; 104 attributed FI rows dropped because their
 learner key has no `learners` row (12 keys) or is internal (1 key). Exactly the rule as written.
 Not exercised through staging's `/api/intel/*` over HTTP, which needs an admin session.
+
+## 2026-09-12 — #339's Listening Mode fix landed on dev and staging, watched live before and after (job #343)
+
+**Scope check.** `cs/339-verify-325-telemetry-live-on-sta` at 774f51918 carried exactly the three
+fixes and the scope test described, a DECISIONS entry, and a `.at(-1)` → index swap in
+`usePlayerLog.test.ts`. Nothing else. Merged to dev as 476f0c7a3, promoted to staging as 9b3a78c44
+on top of #326's two promotes.
+
+**Gates on the merged dev.** Typecheck was red on dev before this job from job #302's
+`HandbookView.showMe.test.ts` (an untyped `vi.fn()` calls tuple); one-line fix, b4608a231. Lint
+0 errors. player-vue suite: 3803 passed, 2 failed, both in `localiseWalk.test.ts` — the ways-in
+walk's locale mirror has drifted from the walk copy. Pre-existing on dev, walkthrough prose,
+not touched here. The three walkthrough `compileGate` failures seen mid-job were the
+report-bug anchors, already fixed on dev by 91e99577f.
+
+**Before, on staging build 890c379 (pre-fix), headless guest play-through from watson-1, session
+`404156df-dc2e-49c1-94f3-10d43340afd0`.** Page error `ReferenceError: effectiveRate is not
+defined`; two console `TypeError: Assignment to constant variable` from `ListeningOverlay`'s
+`ref`; the belt strip drew 8 pips regardless. Listening Mode produced one `listening_tick` and
+ZERO `audio_play` rows. Every main-flow `audio_play` row had `seedId=null` while the
+`round_complete` / `tap_*` rows beside them carried `S0001`.
 ## 2026-09-12 — SSi admin top bar: Intelligence | Admin, two modes, one switch (job #340·F)
 
 **What was wrong.** The bar over `/intel/*` and `/admin/*` carried three small-caps question groups
