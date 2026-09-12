@@ -1,5 +1,5 @@
 {
-  "version": "a0f3fa6f4407",
+  "version": "8fab39ea15ff",
   "generatedAt": "2026-09-12",
   "walks": [
     {
@@ -2998,6 +2998,39 @@
       "note": "If the new name matches something else already sitting beside it you are warned and asked to confirm, because two identical names in one list is usually a mistake rather than a plan."
     },
     {
+      "id": "report-a-bug-from-settings",
+      "title": "Report a bug from Settings",
+      "section": "your-own-account",
+      "personas": [
+        "teacher",
+        "school_admin",
+        "leader"
+      ],
+      "keywords": [
+        "bug",
+        "report",
+        "problem",
+        "feedback",
+        "settings",
+        "tools"
+      ],
+      "place": {
+        "route": "settings"
+      },
+      "anchor": "report-bug",
+      "surface": "schools",
+      "source": "packages/player-vue/src/components/SettingsScreen.vue",
+      "walk": null,
+      "what": "Opening the report sheet when something in the app has gone wrong.",
+      "where": "**Settings**, under **Tools**, the **Report a bug** row.",
+      "how": [
+        "Open **Settings**.",
+        "Tap **Report a bug**.",
+        "Describe what happened on the sheet that opens and tap **Send**."
+      ],
+      "note": "The row is there whether or not you are signed in. What you send goes to one place and nobody replies through the app."
+    },
+    {
       "id": "run-your-first-class-session",
       "title": "Run your first class session",
       "section": "running-classes",
@@ -3029,6 +3062,37 @@
         "Tap play to start the session."
       ],
       "note": "The join code is the same code all lesson, so a student arriving late still gets in."
+    },
+    {
+      "id": "say-what-happened",
+      "title": "Say what happened",
+      "section": "your-own-account",
+      "personas": [
+        "teacher",
+        "school_admin",
+        "leader"
+      ],
+      "keywords": [
+        "bug",
+        "report",
+        "describe",
+        "what happened",
+        "text"
+      ],
+      "place": {
+        "route": "settings"
+      },
+      "anchor": "report-bug-text",
+      "surface": "schools",
+      "source": "packages/player-vue/src/components/ReportBugSheet.vue",
+      "walk": null,
+      "what": "The box where you describe the problem in your own words.",
+      "where": "The **What happened?** box on the report sheet.",
+      "how": [
+        "Tap into the box and write what you saw.",
+        "Keep it under 2,000 characters. Send stays off until you have written something."
+      ],
+      "note": "Your course and device details are added for you, so you only need to describe what went wrong."
     },
     {
       "id": "see-and-download-your-funder-numbers",
@@ -3105,6 +3169,37 @@
       "note": "The list holds still until you refresh it, so a number on screen will not change under you while you are reading. If a refresh fails you are told plainly rather than being shown stale figures as if they were current."
     },
     {
+      "id": "see-that-your-report-arrived",
+      "title": "See that your report arrived",
+      "section": "your-own-account",
+      "personas": [
+        "teacher",
+        "school_admin",
+        "leader"
+      ],
+      "keywords": [
+        "bug",
+        "report",
+        "sent",
+        "thank you",
+        "arrived"
+      ],
+      "place": {
+        "route": "settings"
+      },
+      "anchor": "report-bug-thanks",
+      "surface": "schools",
+      "source": "packages/player-vue/src/components/ReportBugSheet.vue",
+      "walk": null,
+      "what": "Confirming the note reached us.",
+      "where": "The **Got it, thank you** line that replaces the form once it has sent.",
+      "how": [
+        "Tap **Send** on the report sheet.",
+        "Read **Got it, thank you**. The sheet closes on its own a moment later, or tap the line to close it now."
+      ],
+      "note": "That line is the whole reply. There is no ticket number and no message back."
+    },
+    {
       "id": "see-what-a-funded-organisation-gives-its-learners",
       "title": "See what a funded organisation gives its learners",
       "section": "courses-and-content",
@@ -3172,6 +3267,37 @@
         "Tap **Billing & invoices** to reach invoices, change the card, or cancel."
       ],
       "note": "Every payment change happens on the one Upgrade page, so there is a single place to go and no second checkout to get confused with. The invoices button appears once a subscription is running."
+    },
+    {
+      "id": "send-the-report",
+      "title": "Send the report",
+      "section": "your-own-account",
+      "personas": [
+        "teacher",
+        "school_admin",
+        "leader"
+      ],
+      "keywords": [
+        "bug",
+        "report",
+        "send",
+        "submit",
+        "screenshot"
+      ],
+      "place": {
+        "route": "settings"
+      },
+      "anchor": "report-bug-send",
+      "surface": "schools",
+      "source": "packages/player-vue/src/components/ReportBugSheet.vue",
+      "walk": null,
+      "what": "Sending your note, and your screenshot if you added one, to us.",
+      "where": "The **Send** button at the foot of the report sheet.",
+      "how": [
+        "Write what happened.",
+        "Tap **Send**. It reads **Sending…** while it goes."
+      ],
+      "note": "If the screenshot cannot upload, the note still goes without it. If the note itself does not send, the sheet says so and you can tap Send again."
     },
     {
       "id": "set-or-change-your-password",
@@ -3541,6 +3667,38 @@
         "Open it in whatever spreadsheet you use."
       ],
       "note": "The export follows your filters, not the whole school — so a filtered list gives you a filtered file. Clear the filters first if you want everybody."
+    },
+    {
+      "id": "tell-us-about-something-that-went-wrong",
+      "title": "Tell us about something that went wrong",
+      "section": "your-own-account",
+      "personas": [
+        "teacher",
+        "school_admin",
+        "leader"
+      ],
+      "keywords": [
+        "bug",
+        "report",
+        "problem",
+        "went wrong",
+        "feedback",
+        "broken"
+      ],
+      "place": {
+        "route": "settings"
+      },
+      "anchor": "report-bug-sheet",
+      "surface": "schools",
+      "source": "packages/player-vue/src/components/ReportBugSheet.vue",
+      "walk": null,
+      "what": "Sending us a note when the app misbehaves, with the details of your course and device attached for you.",
+      "where": "The sheet that opens from **Report a bug** in **Settings**.",
+      "how": [
+        "Tap **Report a bug** in Settings.",
+        "Write what happened, add a screenshot if you have one, and tap **Send**."
+      ],
+      "note": "Tapping outside the sheet closes it without sending. Nobody replies through the app: the note goes to one place where we read it."
     },
     {
       "id": "the-class-roster",
