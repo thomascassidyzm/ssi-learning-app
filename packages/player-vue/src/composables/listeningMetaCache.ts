@@ -764,8 +764,13 @@ export const ensureListeningMetaSnapshot = async (
     // and a snapshot still flagged from a degraded lookup would otherwise be
     // refetched and rewritten on each one (job #425).
     if (wasListeningSnapshotHealed(courseCode)) return false
-    markListeningSnapshotHealed(courseCode)
-    return !!(await fetchAndCacheListeningMeta(client, courseCode))
+    // Marked healed only on a SUCCESSFUL write: a learner with no snapshot
+    // whose first fetch fails on a flaky link keeps retrying on later round
+    // advances, as before #425, and the once-per-session guard holds after
+    // the write that actually landed (job #430).
+    const written = !!(await fetchAndCacheListeningMeta(client, courseCode))
+    if (written) markListeningSnapshotHealed(courseCode)
+    return written
   } catch {
     return false
   }

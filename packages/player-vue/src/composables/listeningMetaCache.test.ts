@@ -499,6 +499,24 @@ describe('useListeningPods offline fallback', () => {
     expect(await ensureListeningMetaSnapshot(happyClient, 'ita_for_eng_425')).toBe(true)
   })
 
+  // Job #430: #425 marked the course healed BEFORE the fetch, so a learner
+  // with no snapshot whose first fetch failed on a flaky link got no retry
+  // for the rest of the session. Healed means a successful write.
+  it('a failed first heal stays unmarked, so the next round advance fetches again (job #430)', async () => {
+    const reads = vi.fn(() => ({ data: null, error: { message: 'TypeError: Load failed' } }))
+    const linkDown = makeFakeClient(new Proxy({}, { get: () => reads }) as any)
+    resetServedPodCache()
+    expect(await ensureListeningMetaSnapshot(linkDown, 'ita_for_eng_430')).toBe(false)
+    expect(await getCachedListeningMeta('ita_for_eng_430')).toBeFalsy()
+    const readsAfterFirst = reads.mock.calls.length
+    expect(readsAfterFirst).toBeGreaterThan(0)
+    expect(await ensureListeningMetaSnapshot(linkDown, 'ita_for_eng_430')).toBe(false) // next round advance
+    expect(reads.mock.calls.length).toBeGreaterThan(readsAfterFirst)                    // it tried again
+    // The link comes back: the write lands and the guard holds from then on.
+    expect(await ensureListeningMetaSnapshot(happyClient, 'ita_for_eng_430')).toBe(true)
+    expect(await ensureListeningMetaSnapshot(happyClient, 'ita_for_eng_430')).toBe(false)
+  })
+
   it('serves scenes from the cached metadata when the live fetch fails', async () => {
     await fetchAndCacheListeningMeta(happyClient, 'ita_for_eng') // downloaded earlier, online
     const { pods, flush } = mountPods(failAll, 'ita_for_eng')
