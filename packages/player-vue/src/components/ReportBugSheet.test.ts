@@ -70,3 +70,22 @@ describe('ReportBugSheet', () => {
     expect(w.find('[data-walk="report-bug-text"]').exists()).toBe(false)
   })
 })
+
+// Job #342: on a 390x844 viewport the sheet's Send button sat behind the
+// bottom nav (z-index 3000) and the tap was intercepted. Red at 1200, green
+// above the nav. Source-level on purpose: jsdom lays nothing out.
+describe('ReportBugSheet sits above the bottom nav', () => {
+  it('scrim z-index is higher than BottomNav z-index', async () => {
+    const fs = await import('node:fs')
+    const path = await import('node:path')
+    const here = path.dirname(new URL(import.meta.url).pathname)
+    const z = (file: string, selector: string): number => {
+      const src = fs.readFileSync(path.join(here, file), 'utf8')
+      const block = src.slice(src.indexOf(selector))
+      const m = /z-index:\s*(\d+)/.exec(block)
+      if (!m) throw new Error(`no z-index after ${selector} in ${file}`)
+      return Number(m[1])
+    }
+    expect(z('ReportBugSheet.vue', '.bug-scrim {')).toBeGreaterThan(z('BottomNav.vue', '.bottom-nav {'))
+  })
+})
