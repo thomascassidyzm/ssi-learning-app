@@ -1188,3 +1188,46 @@ defined`; two console `TypeError: Assignment to constant variable` from `Listeni
 `ref`; the belt strip drew 8 pips regardless. Listening Mode produced one `listening_tick` and
 ZERO `audio_play` rows. Every main-flow `audio_play` row had `seedId=null` while the
 `round_complete` / `tap_*` rows beside them carried `S0001`.
+## 2026-09-12 — SSi admin top bar: Intelligence | Admin, two modes, one switch (job #340·F)
+
+**What was wrong.** The bar over `/intel/*` and `/admin/*` carried three small-caps question groups
+(Learners, Content, Business), a divider and an unlabelled schools-admin group on one row. So
+"Organisations" appeared twice meaning two things, the row wrapped to two lines at 1280 and 1440
+wide, and the ScopeRail beside it already tracked scope in different words.
+
+**Decision.** Tom, 2026-09-12 11:57Z: "Yes to admin nav", answering Watson's card proposing the
+split. The route decides the mode, never local state, so a deep link lands right. `/intel/*` is
+Intelligence: the ten questions on one row, grouped by scope in the ScopeRail's own vocabulary,
+Everyone / One person / One organisation, parted by quiet rules rather than labels. `/admin/*` is
+Admin: Structure, People, Tools. The switch sits where the wordmark meets the tabs; Intelligence
+lands on `/intel/pulse`, Admin on `/admin/structure`. View-as and Refresh are controls, not
+destinations, and stay right-anchored in both modes. "Organisations" now means one thing: question
+10's sentence. Its tab reads "One organisation"; its path is unchanged. No route was renamed and no
+page content was touched.
+
+**Width.** The Intelligence row needs about 1365px, so 1280 cannot hold it. The breakpoint moved
+before the font: Intelligence collapses into the one menu below 1380px, Admin below 1180px as
+before. On phones the switch stays visible and the section trigger truncates its label rather than
+squeezing View-as.
+https://watson-1.tail4968cb.ts.net/d/d715f061
+
+## 2026-09-12 — the 60-day belt rewind never lands below the learner's own belt start (job #326·F)
+
+**Tom's ruling (11:27Z).** The rewind stays, but it must never send a learner back further than
+the start of the belt they are currently at: past Yellow rewinds to the start of Yellow, or
+whichever belt they hold, never to White.
+
+**What the code did.** The rewind stored the round BEFORE the belt's first round so that the legacy
+"+1" resume would land on the first round. Playback was right; the stored cursor, and the belt
+badge read from it, sat one belt down, and the instant-playback path, which resumes ON the cursor,
+resumed one belt down too.
+
+**Decision.** `beltRewindTarget` names the belt's first round and nothing earlier; the rewind
+writes that round as the cursor and the legacy path jumps onto it rather than after it. A learner
+already at or before their belt's first round is left alone. Test red on the old decision, green
+after.
+
+**Census.** No `resume_ttl_belt_regression` cursor move has fired since telemetry began on
+31 August, and no real learner on any course sits on the round before a belt start with practice
+or a ceiling beyond it, so no cursor needs repairing under the old rule. The 8 September report's
+24 real learners idle 60+ days above White will be rewound to their own belt start on return.
