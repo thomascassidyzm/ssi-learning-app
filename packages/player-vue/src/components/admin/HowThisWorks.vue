@@ -12,7 +12,7 @@
 // nothing ever auto-plays.
 import { ref, computed, watch } from 'vue'
 import pack from '@/explainer/pack.json'
-import { walksFor, startWalk, type WalkPersona } from '@/walkthrough/useWalkthrough'
+import { walksFor, startWalk, claimDeferredWalk, type WalkPersona } from '@/walkthrough/useWalkthrough'
 import type { Invitation } from '@/explainer/evaluateRules'
 import { shouldThrob, markSeen } from '@/explainer/howThisWorksThrob'
 import { useI18n } from '@/composables/useI18n'
@@ -39,6 +39,15 @@ const props = withDefaults(defineProps<{
 // Quiet per-persona×place "Show me" links into the walkthrough pack
 // (archive/docs-retired-2026-08-24/walkthrough-engine-scout.md §3.4) — launched by tap only, never auto.
 const walks = computed(() => walksFor(props.persona, props.place, props.kind))
+
+// A walk the reader asked for from the Handbook starts here, on the page it
+// lives on, once this mount knows its persona × place × kind (job #302).
+// The tap was theirs; this is the page catching up with it, not auto-play.
+watch(
+  [() => props.persona, () => props.place, () => props.kind],
+  ([persona, place, kind]) => { claimDeferredWalk(persona, place, kind) },
+  { immediate: true },
+)
 
 // HANDBOOK (founder ruling 2026-09-07) — the second door. This panel is the
 // just-in-time answer for the place you are standing on; the Handbook is the
