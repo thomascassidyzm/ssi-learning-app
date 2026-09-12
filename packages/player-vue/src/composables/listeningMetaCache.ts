@@ -19,7 +19,7 @@
 
 import { openDB, deleteDB, type IDBPDatabase } from 'idb'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { resolveListeningPods } from './servedPod'
+import { resolveListeningPods, isListeningPodLookupDegraded } from './servedPod'
 import {
   type L1FallbackPhraseRow,
   computeSeedLastLegoIndex,
@@ -183,6 +183,12 @@ export interface CachedListeningMeta {
    *  entries written before the third slot existed → no extras until the next
    *  refresh, which is exactly the pre-slot behaviour. */
   extraPods?: CachedExtraPod[]
+  /** True when `extraPods` was written off a FALLBACK slot lookup (timeout,
+   *  server error, offline) rather than a live read — so it may be missing
+   *  slots the course really has. ensureListeningMetaSnapshot treats such an
+   *  entry like a pre-slot one and refreshes it once on the next boot (job
+   *  #424). Absent on a live-read entry and on every older entry. */
+  extrasDegraded?: true
   /** course_audio id → text for the split-clip ids referenced by podRows and
    *  by every extra pod's rows — the overlay's per-sentence display-text
    *  oracle (splitRowUnits). */
@@ -461,6 +467,7 @@ const fetchAndCacheListeningMetaOnce = async (
     // Served pod first (rule 1), then the named extra Listening Mode slots
     // the course has (rule 6). One sentence read per pod.
     const listeningPods = await resolveListeningPods(client, courseCode)
+    const extrasDegraded = isListeningPodLookupDegraded(courseCode)
     const [servedEntry, ...extraEntries] = listeningPods
     const { podId, slug: podSlug, title: podTitle } = servedEntry
     const readRows = (id: string) =>
@@ -634,6 +641,7 @@ const fetchAndCacheListeningMetaOnce = async (
       podSlug,
       podTitle: podTitle ?? undefined,
       extraPods,
+      ...(extrasDegraded ? { extrasDegraded: true as const } : {}),
       clipTexts,
       clipTimings,
       bookends: stampRowAudioRefs(revisedRefs, (bookendsResult.data || []) as CachedBookend[]),
@@ -747,8 +755,11 @@ export const ensureListeningMetaSnapshot = async (
     // 2026-09-12) has no `extraPods` field and would list the served pod alone
     // offline for as long as the content stamp stands still — which is how the
     // Italian method pod vanished from Tom's airplane-mode list the same day.
-    // Refresh it once; from then on it carries every slot.
-    if (cached && Array.isArray(cached.extraPods)) return false
+    // Refresh it once; from then on it carries every slot. The same goes for
+    // an entry whose slots came from a fallback lookup (job #424): its
+    // `extraPods` may be `[]` only because the first fetch timed out, and
+    // this once-per-boot pass is the only thing that would ever retry it.
+    if (cached && Array.isArray(cached.extraPods) && !cached.extrasDegraded) return false
     return !!(await fetchAndCacheListeningMeta(client, courseCode))
   } catch {
     return false
