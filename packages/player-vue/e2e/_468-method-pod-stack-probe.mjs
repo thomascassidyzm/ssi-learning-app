@@ -68,6 +68,7 @@ const trackerState = () => page.evaluate(() => {
     gloss: !!cur.querySelector('.phrase-known'),
     target: cur.querySelector('.phrase-target')?.textContent.trim().slice(0, 60) ?? null,
     audioTime: a ? Math.round((a.currentTime || 0) * 100) / 100 : null,
+    audioDuration: a && Number.isFinite(a.duration) ? Math.round(a.duration * 100) / 100 : null,
     audioPaused: a ? a.paused : null,
   }
 })
