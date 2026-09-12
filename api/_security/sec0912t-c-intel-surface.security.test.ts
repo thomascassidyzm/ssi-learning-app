@@ -183,6 +183,37 @@ describe('Recurring already-known classes, pinned where they recur in this scope
   })
 })
 
+describe('SEC0912T-C-02 — org/intel is a fifth write-before-authz instance (A-02 class)', () => {
+  // Raised by the cross-family verification of this area (GPT-6 Astra, job
+  // #449) and confirmed here against the source. Area C pinned org/vad as the
+  // fourth instance of SEC0912-A-02 and simultaneously cleared org/intel as
+  // gating "before any read". Both cannot be true: org/intel mints another
+  // tenant's school node on the way to the gate, exactly as org/vad does.
+  // CHARACTERIZATION: goes red when the gate precedes the mint.
+  it('the caller-named id is resolved — and a school node MINTED — before callerCanSeeGroup runs', () => {
+    const intel = code(read('api/org/intel.ts'))
+    const mint = intel.indexOf('await ensureSchoolNode(svc, asSchool as never')
+    const gate = intel.indexOf('if (!(await callerCanSeeGroup(svc, caller, nodeId)))')
+    expect(mint).toBeGreaterThan(-1)
+    expect(gate).toBeGreaterThan(mint)
+  })
+
+  it('the whole group forest is read concurrently with resolving who is asking', () => {
+    const intel = code(read('api/org/intel.ts'))
+    const wave = intel.slice(intel.indexOf('const [caller,'), intel.indexOf('if (!caller) return'))
+    // resolveGroupTreeCaller races four service-role reads rather than gating them.
+    expect(wave).toContain('resolveGroupTreeCaller(req, res, svc)')
+    expect(wave).toContain("svc.from('groups').select('id, parent_id')")
+    expect(wave).toContain("svc.from('schools').select('id, school_name, group_id, node_group_id, is_demo, is_test').eq('id', rawId)")
+  })
+
+  it('the write is real, and is the same helper org/vad reaches', () => {
+    const node = code(read('api/_utils/schoolNode.ts'))
+    expect(node).toMatch(/from\('groups'\)\s*\.insert\(/)
+    expect(node).toMatch(/from\('schools'\)\s*\.update\(\{ node_group_id/)
+  })
+})
+
 describe('Checked and cleared — AUTHORISATION: which door each endpoint uses', () => {
   it('every api/intel/* handler and board-metrics gates on verifyAdmin before creating a service client', () => {
     for (const f of INTEL_ADMIN_HANDLERS) {
@@ -196,7 +227,11 @@ describe('Checked and cleared — AUTHORISATION: which door each endpoint uses',
     }
   })
 
-  it('org/intel and funder-export use resolveGroupTreeCaller + callerCanSeeGroup, and gate before any cohort read', () => {
+  it('org/intel and funder-export use resolveGroupTreeCaller + callerCanSeeGroup, and gate before any COHORT read', () => {
+    // "cohort read" is the exact claim and the exact limit. See the
+    // SEC0912T-C-02 block below: org/intel reads the whole group forest, and
+    // can WRITE a school node, before the gate. Verified and narrowed after
+    // job #449 refuted the broader "before any read" wording.
     for (const f of ORG_LEADER_HANDLERS) {
       const src = code(read(f))
       expect(src).toContain('resolveGroupTreeCaller(req, res,')
@@ -365,7 +400,13 @@ describe('Checked and cleared — FUNDER EXPORT file: filename and cells are not
 })
 
 describe('Checked and cleared — AGGREGATION: where the k-floor exists, and where the surface is per-person by ruling', () => {
-  it('weak-points and where-and-what carry K_FLOOR = 5 and empty their rows under it', () => {
+  it('weak-points empties its rows under K_FLOOR; where-and-what only flags the WHOLE response', () => {
+    // Corrected 2026-09-12 after a cross-family verification (GPT-6 Astra,
+    // job #449) refuted the original wording. The assertions below were always
+    // accurate; the sentence above them was not. where-and-what sets ONE
+    // global `tooFewToSay` when the entire population is under five and
+    // returns every country/device row regardless — it is not a per-row
+    // suppressor, and C-01's fix shape must not copy it as if it were.
     const wp = code(read('api/intel/weak-points.ts'))
     expect(wp).toContain('export const K_FLOOR = 5')
     expect(wp).toContain('if (learnersInCourse.size < K_FLOOR)')
