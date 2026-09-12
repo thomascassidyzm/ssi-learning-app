@@ -78,7 +78,7 @@ describe('HandbookView — Show me, where a clip exists', () => {
     await wrapper.find(`#hb-${entry.id} .entry-head`).trigger('click')
     await wrapper.find(`#hb-${entry.id} [data-walk-offer]`).trigger('click')
     expect(push).toHaveBeenCalledTimes(1)
-    expect(String(push.mock.calls[0][0]).length).toBeGreaterThan(1)
+    expect(String((push.mock.calls as unknown[][])[0][0]).length).toBeGreaterThan(1)
     // Not started here — the Handbook has none of the walk's anchors.
     expect(useWalkthrough().activeWalk.value).toBeNull()
     // The destination's own Show-me surface claims it, by persona × place.
