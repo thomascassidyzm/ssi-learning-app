@@ -1,3 +1,53 @@
+## 2026-09-12 — the classes list never shows dots for a failed practice fetch; it says so, with the status, and retries once (job #301)
+
+**Symptom (Tom, 03:14 BST, staging, View-as angharadjones · School leader · Chepstow).** Every one of 34 class rows read Belt White, Journey "…", Time "…", Activity "—", Health "Inactive", and the header "0 min in the app this week", while the school page for the same school read 437 phrases, 20/34 practising, 352 minutes.
+
+**Trace.** The #265 fix IS deployed and DOES fire: with the ssi_admin token, `GET /api/school/class-practice-7d?class_ids=<34>&school_id=<chepstow>` on staging answers 200 in ~0.9 s with all 34 `classAccountByClass` rows and `rollup.inAppMinutes7d = 352`; the served `schools-*.js` chunk carries the `school_id` passthrough; and two headless replays under View-as (a reload with the persona restored, and Tom's exact in-app sequence from the audit log: angharad → leejames → Exit → angharad → Classes) both paint Yellow, 14 / 679, real minutes, 8 Good / 14 Needs eyes. Chepstow's trial runs to 2027-07-16, so the coverage gate is not it. What the dots prove is only this: in Tom's Safari session that one response did not land, and `TeacherDashboard.loadPractice7d` turned it into "…" with no word of why — `fetchClassPractice7d` returned `null` on `!res.ok` / no token, the page `return`ed, and `practiceLoaded` stayed false. The transient cause in his tab (a refreshing token, a cold function, a dropped response) is not reproducible from here and is not knowable after the fact: the page kept no evidence.
+
+**Decision.** A failed practice fetch is loud. `fetchClassPractice7d` never resolves null: it throws `ClassPracticeFetchError` carrying the HTTP status and the server's own message, after ONE retry for the transient kinds (network error, 408, 429, 5xx). The classes page catches it into a banner — "Couldn't load this week's practice for these classes — belts, journeys and minutes are not shown. <message> (HTTP <status>)" — with a Retry button that runs the page's one refresh protocol. Rows stay honestly unloaded ("…") under the banner; "Not started" is still only ever said when the payload said so. The class page (`ClassDetail.vue`) already caught the null path and keeps its behaviour under the throw.
+
+**Not changed, and why.** The list still reads ONLY `classAccountByClass` (Tom's ruling, #265, not re-opened). The coverage gate is untouched: it already admits an active trial. The header total on the classes page sums the rows' own minutes (class account + its pupils), which is a different rule from the school page's `rollup.inAppMinutes7d` (adds staff and pupils' own accounts): 174 vs 352 for Chepstow this week. Both are true numbers with different scopes; whether the classes header should read the rollup is a taste call flagged in the job #301 report, not decided here.
+
+**Proof.** `TeacherDashboard.adminViewPractice.test.ts` gained a test that mounts the page with the practice endpoint answering 403 `coverage_expired` and asserts the banner, its status and message, and the Retry button — red on the pre-fix code (no banner), green after. `classPractice7d.test.ts` covers the throw, the single retry on 5xx, the persisting network error, and the no-session 401.
+
+## 2026-09-12 — support_messages is column-granted, and the govt_admin subtree is parent_id in SQL too (job #300)
+
+Two live security gaps, found by job #297's audit and confirmed against the real database by job
+#299, closed by canary-applied migrations. Neither leaked anything: the support table held zero
+messages, and no govt_admin sat on one of the three duplicate root paths (`my-school` x8,
+`rogiet-primary-school` x2, `ysgol-gyfun-tredegar` x2).
+
+- **support_messages (20260912a).** `authenticated` had a table-level SELECT, so PostgREST would have
+  served envelope, draft_reply, escalation_evidence, move_reason, model_ladder and the asker's auth
+  uid to any school admin whose row test passed — the handlers' `MESSAGE_VIEW_COLUMNS` projection
+  is TypeScript and narrows nothing in Postgres. Now a COLUMN grant of exactly that projection plus
+  `thread_id` (the filter key). Chosen over a view because no browser code reads this table at all
+  today — both handlers and the doorbell cron use the service key — so a view is a second object to
+  keep in step for a reader that does not exist, and a column grant leaves every future column
+  unreadable by default. Consequence: `select=*` as `authenticated` is now "permission denied"; a
+  caller names its columns. A test pins the grant list to the constant so the two cannot drift.
+- **is_govt_admin_over_group() (20260912b).** The predicate behind four live SELECT policies
+  (schools, classes, support_threads, support_messages) compared `groups.path` strings, and `path`
+  is the slugged NAME with nothing making it unique. TENANCY-02/04/05 fixed this in TypeScript on
+  2026-08-25 and stopped at the language boundary. The SQL now walks `parent_id` UP from the target
+  (a single chain, depth-capped at 32; the live forest is 3 deep) and asks whether any ancestor is
+  a group the caller governs. Same signature, definer, search_path and ACL.
+- **Canary proof, one transaction, live:** both defects reproduced on the old definitions (a school
+  admin read `draft_reply`; an admin of root org A was "over" same-slug root org B and saw its
+  school), both closed after, the six sensitive columns each answer permission denied, the app's
+  columns still read the row, a stranger still sees no rows, and every one of the 42 real
+  govt_admins plus the real school admin sees an identical set of groups / schools / classes /
+  threads / messages before and after. 32/32, then COMMIT and `NOTIFY pgrst`.
+- **Not done, deliberately:** duplicate root-org slugs are still permitted (`confirm_duplicate` in
+  `groupSlug.ts`). With no row policy reading `path` any more, a duplicate is cosmetic at the DB
+  boundary, so a unique constraint would only block legitimate same-name orgs for nothing. The
+  one remaining `path LIKE` reader is the CLIENT's govt-admin class lookup in
+  `useClassesData.ts` (line ~250), which lists subtree group ids by path prefix before querying
+  classes; the classes read itself is now gated by the fixed predicate, so it can over-ask but not
+  over-read. Repointing it at a server endpoint is a separate follow-up.
+- **schema.sql** re-snapshotted from live with pg_dump 18; the diff also catches up several earlier
+  applied changes (org_enrolments RPCs, narrowed classes grants) the previous snapshot had missed.
+
 ## 2026-09-11 — a class row is the class account's own progress; per-pupil framing leaves the class list and the class page (job #265, Tom's ruling)
 
 Tom, on the Chepstow classes list under View-as: every one of 34 cards read Students 0, Belt White,
@@ -733,3 +783,31 @@ Wiring school_admin and teacher fails on twelve org-lens verbs those rulings nev
 they were written for the legacy /schools surface. Re-authoring rulings is Tom's prose, not a
 worker's. The full persona × place × clip inventory, including the class-node clips gap on the org
 lens, is the published gaps list for this job.
+
+## 2026-09-12 — class 8H's "6 of 679 LEGOs" and "53 phrases" are right; no code change (job #298·F)
+
+**What Tom saw.** The org-lens class page for 8H at Chepstow said the class had travelled 6 of
+679 LEGOs and spoken 53 phrases this week, above a table of 22 different phrases. Six LEGOs
+looked too few to make that many phrases.
+
+**What the live DB says.** The class account's diary carries five `round_complete` rows, LEGOs
+S0001L01 to S0002L02, all on 8 Sept, and the sixth round, S0003L01, started on 8 Sept and again
+on 11 Sept without finishing. The enrollment cursor reads S0003L01, ordinal 6 of 679, which is
+the second link in the journey chain because the class-progress endpoint never writes
+`highest_completed_lego_id`. The 53 phrases are the 53 target2 clips in the window, 22 distinct
+audio ids, and every one of the 22 phrases is built from exactly the six chunks "dw i'n moyn",
+"siarad", "Cymraeg", "dysgu", "dw i'n trio" and "dw i'n mynd i". The teacher has no enrollment
+of their own, so no class play landed elsewhere; every Chepstow class that played on 8 Sept
+did so in the same 07:50 to 08:03 slot, so nothing is missing from the diary.
+
+**Decision: the figures stand.** Six is the number of rounds the class has entered, five
+completed and one in progress, which is Tom's definition of LEGOs travelled. Twenty-two
+different phrases from six LEGOs is the method working: the sixth round alone recombines the
+earlier five into eight new sentences. No computation changed, no label changed.
+
+**Not shipped, offered.** A leader reading 6 LEGOs above 22 phrases hits the same doubt. One
+sentence under the journey bar, "Every phrase the class spoke this week is built from those 6
+LEGOs", would resolve it from data the diary already carries. That is class-page copy, so it
+waits for Tom. A separate different-phrases tile is not recommended; the phrase table already
+lists every distinct phrase with its count. Findings, queries and the full phrase-to-LEGO
+table: https://watson-1.tail4968cb.ts.net/d/1dad23b0

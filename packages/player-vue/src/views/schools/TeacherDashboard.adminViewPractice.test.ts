@@ -107,3 +107,47 @@ describe('TeacherDashboard — class practice under the admin read-view (job #26
     expect(practice[0]).not.toContain('school_id=')
   })
 })
+
+async function mountViewWithPracticeStatus(status: number, body: any) {
+  calls.length = 0
+  globalThis.fetch = vi.fn(async (url: any) => {
+    const u = String(url)
+    calls.push(u)
+    if (u.includes('class-practice-7d')) return { ok: false, status, json: async () => body } as any
+    return { ok: true, json: async () => ({}) } as any
+  }) as any
+  const { useSchoolContext } = await import('@/composables/schools/useSchoolContext')
+  useSchoolContext().currentUser.value = {
+    user_id: 'u1', learner_id: 'l1', display_name: 'Angharad', educational_role: 'school_admin',
+    platform_role: null, school_id: 's1', school_name: 'Ysgol Cas-gwent', _scopeSource: 'admin-view',
+  } as any
+  const supabase = ref({ auth: { getSession: async () => ({ data: { session: { access_token: 'tok' } } }) } } as any)
+  const mod = await import('./TeacherDashboard.vue')
+  const wrapper = mount(mod.default, {
+    global: {
+      provide: { isAdminView: true, supabase },
+      stubs: {
+        BeltDot: true, HealthDot: true, Sparkline: true, UpdatedStamp: true,
+        CreateClassModal: true, SchoolsPasswordPrompt: true, ClassCreatedModal: true, MailboxCheckPrompt: true,
+        RouterLink: { props: ['to'], template: '<a><slot /></a>' },
+      },
+    },
+  })
+  await flushPromises()
+  await flushPromises()
+  return wrapper
+}
+
+describe('TeacherDashboard — a failed practice fetch is loud, never dots that read like data (job #301)', () => {
+  it('a 403 from the practice endpoint puts a banner on the page naming the status and the server message', async () => {
+    const wrapper = await mountViewWithPracticeStatus(403, { error: 'coverage_expired', message: 'This school’s platform coverage has expired.' })
+    const banner = wrapper.find('[data-testid=practice-error]')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain("Couldn't load this week's practice")
+    expect(banner.text()).toContain('HTTP 403')
+    expect(banner.text()).toContain('coverage has expired')
+    expect(banner.find('button').text()).toBe('Retry')
+    // The rows are honestly unloaded — no "Not started" claimed, no minutes claimed.
+    expect(wrapper.text()).not.toContain('Not started')
+  })
+})
