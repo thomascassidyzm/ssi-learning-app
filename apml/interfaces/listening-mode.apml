@@ -1,7 +1,15 @@
 # APML Interface: Listening MODE — Dialogue surface
 # SSI Learning App
 # Version: 1.4.0
-# Last updated: 2026-08-07 (main flow is now ONE listening mode — see the note
+# Last updated: 2026-09-12 (job #429 tidy, behaviour byte-identical: the speed
+#               row is unconditional in the template — the always-true
+#               showSpeedRow computed is gone; play-loop and prefetch comments
+#               now name GAP_DEFAULT_MS / GAP_DRILL_MS / GAP_IMMERSION_JOIN_MS
+#               and the one-speed t·k·t·t Drill rather than retired figures.
+#               servedPod.ts: the three degraded arms of resolveListeningPods
+#               read one snapshot helper, snapshotListening. The Dialogues
+#               scene-list region was left untouched for job #428's pod cards.)
+# Prev: 2026-08-07 (main flow is now ONE listening mode — see the note
 #               under PROGRESSION below; this practice surface is unchanged)
 # Source: packages/player-vue/src/components/ListeningOverlay.vue
 #         packages/player-vue/src/composables/useListeningPods.ts

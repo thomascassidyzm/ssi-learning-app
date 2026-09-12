@@ -1,6 +1,7 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-08-16 (THE BOOT LINE STILL TRUSTED navigator.onLine — a weak signal (onLine TRUE, requests hang) let the inline boot watchdog conclude "broken deploy", delete the SW + precache and reload into a network that could not answer: permanent white screen. Healing now demands a real network ANSWER, and a boot stalled past 3s swaps in the precached shell. See offline_infinite_play.the_boot_line_still_trusted_it / .lie_fi_had_no_test_that_could_catch_it and docs/pwa-lifecycle-design.md §2.1b)
+# Last Updated: 2026-09-12 (job #429 Listening Mode tidy: ONE fetch-order primitive, orderTiers, behind both named builders; the fillBuffer entry below now states the #379 order — head, every pod slot, Layer-1, span — instead of the pre-#379 one; listeningMetaCache.ts header tells the snapshot's life in order and the #379/#424 boot-heal gate is one predicate, snapshotListsEverySlot)
+# Prev: 2026-08-16 (THE BOOT LINE STILL TRUSTED navigator.onLine — a weak signal (onLine TRUE, requests hang) let the inline boot watchdog conclude "broken deploy", delete the SW + precache and reload into a network that could not answer: permanent white screen. Healing now demands a real network ANSWER, and a boot stalled past 3s swaps in the precached shell. See offline_infinite_play.the_boot_line_still_trusted_it / .lie_fi_had_no_test_that_could_catch_it and docs/pwa-lifecycle-design.md §2.1b)
 # Prev: 2026-08-15 (THREE OFFLINE STATES, and unexpected offline is NOT modelled on infinite play — Tom's refinement. Unexpected offline keeps going FORWARD through the normal script from cache (appendForwardFromCacheOffline, ahead of the recycle at all five sites) and recycles only once forward material runs out; neither offline state is a completion trigger and neither changes the belt reached, so enterInfPlayFromCache no longer writes current_mode or ratchets the cursor. See offline_infinite_play.the_offline_model / .forward_before_recycle / .offline_is_never_a_completion_trigger)
 # Prev: 2026-08-15 (THE OFFLINE CACHE GATE FAILS CLOSED — one isCyclePlayableOffline (playback/offlinePlayable.ts) replaces four inline copies whose `!id ||` answered "cached" for a BLANK url, so an audio-less intro was the one cycle guaranteed to survive the filter and play four phases of silence. Plus: AudioCache.ready() awaited at boot so a synchronous has() is never answered from an unhydrated Set, and offline session_complete no longer awaits a doomed expandScript walk. See offline_infinite_play.the_gate_fails_closed / .hydrate_before_you_trust_the_index / .never_await_a_doomed_walk)
 # Prev: 2026-08-15 (OFFLINE CHANGES WHAT PLAYS, NEVER WHERE YOU ARE — Tom's ruling. Offline recycling takes infinite play's SELECTION without its MODE CHANGE: the learner keeps their own belt colour and belt nav, no red accent, no ∞ pill. isInfPlayActive (the formal mode: look + navigation) is split from isRecycledRoundPlayback (the round shape: belt freeze, belt-write suppression, pod cadence), with offlineRecycleBeltHeld distinguishing them. See offline_infinite_play.offline_changes_what_plays_never_where_you_are)
@@ -331,11 +332,20 @@ spec audio_caching_architecture:
     mechanism:
       expandScript: "grows the loaded script ahead (ensureLiveSpanLoaded) so we warm a DEEP cache, not just the bootstrap window — also extends INF-PLAY / revival tails"
       fillBuffer: >
-        Builds ONE ordered missing-list [cycles…, pods…, L1…], dedupes, and a
+        Builds ONE ordered missing-list through playback/offlineDownloadOrder.ts and a
         missing-only worker drains it front-to-back via audioCache.persistent.ensure(id).
-        Structural priority (no rate measurement): every uncached cycle warmed before any
-        pod, every pod before any L1 listening clip. Silent on error — the play path
-        handles any miss by streaming that one clip.
+        The order is Tom's ruling of 2026-09-12 (job #379): head rounds, then EVERY pod
+        slot's clips from the listening snapshot (written first if the device has none),
+        then the Layer-1 cups due in the span, then the span's cycles. Structural priority
+        (no rate measurement): position in the array IS the priority. Silent on error —
+        the play path handles any miss by streaming that one clip.
+      one_order_primitive: >
+        Job #429 (2026-09-12 tidy): offlineDownloadOrder.ts has ONE primitive,
+        orderTiers(...tiers) — tiers in priority order, flattened, deduped to the
+        EARLIEST position. buildFetchAheadOrder (head, pods, layer1, span) and
+        buildOfflineDownloadQueue (head, priority, main, tail) are typed views onto it,
+        so the automatic fetch-ahead and the deliberate download cannot disagree on the
+        rule. Pinned by offlineDownloadOrder.test.ts and progressivePrefetch.boundary.test.ts.
       triggers:
         - "first rounds load → warmBurst (BURST span, concurrency 3)"
         - "each round advance → fillRollingBuffer (ROLLING span, concurrency 1)"
