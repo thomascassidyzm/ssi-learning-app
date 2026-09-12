@@ -37,6 +37,26 @@ const readMeta = () => page.evaluate(async (course) => {
     return { keys, entry: v ? { podSlug: v.podSlug, podRows: (v.podRows || []).length, coreSeeds: (v.coreSeeds || []).length, clipTexts: Object.keys(v.clipTexts || {}).length, contentStamp: v.contentStamp, stale: v.stale || null, keysOfEntry: Object.keys(v) } : null }
   } catch (e) { return { error: String(e) } }
 }, process.env.COURSE)
+// How many of the snapshot's pod clips (every slot) are in the persistent
+// audio cache right now — the "pods first" fetch-ahead, measured.
+const readPodAudioCoverage = () => page.evaluate(async (course) => {
+  const open = (name) => new Promise((res, rej) => { const r = indexedDB.open(name); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error) })
+  try {
+    const mdb = await open('ssi-listening-meta')
+    const meta = await new Promise((res) => { const r = mdb.transaction('meta').objectStore('meta').get(course); r.onsuccess = () => res(r.result) })
+    if (!meta) return { podClips: 0, cached: 0 }
+    const ids = new Set()
+    const rows = [...(meta.podRows || []), ...((meta.extraPods || []).flatMap((e) => e.podRows || []))]
+    for (const r of rows) for (const v of [r.target_audio_id, r.known_audio_id, r.explainer_audio_id, ...(r.sentence_audio_ids || []), ...(r.sentence_known_audio_ids || []), ...(r.takeg_audio_ids || [])]) if (v) ids.add(v)
+    for (const b of meta.bookends || []) if (b.id) ids.add(b.id)
+    for (const v of Object.values(meta.fineKnowns || {})) if (v) ids.add(v)
+    const adb = await open('ssi-audio-cache-v2')
+    const keys = await new Promise((res) => { const r = adb.transaction('audio').objectStore('audio').getAllKeys(); r.onsuccess = () => res(r.result) })
+    const have = new Set(keys.map(String))
+    let cached = 0; for (const id of ids) if (have.has(id)) cached++
+    return { podClips: ids.size, cached, totalCached: keys.length, extraPods: (meta.extraPods || []).map((e) => `${e.slug}:${(e.podRows || []).length}`) }
+  } catch (e) { return { error: String(e) } }
+}, process.env.COURSE)
 const readList = async (label) => {
   const o = { label }
   const trig = page.locator('.mode-trigger').first()
@@ -52,6 +72,7 @@ const readList = async (label) => {
   await page.waitForTimeout(4000)
   o.viewTabs = await page.locator('.view-tab').allInnerTexts().catch(() => [])
   o.sceneCards = await page.locator('.scene-card').count()
+  o.groupHeadings = await page.locator('.scene-group-heading').allInnerTexts().catch(() => [])
   o.sceneEmpty = await page.locator('.scene-empty').allInnerTexts().catch(() => [])
   o.bodyHead = await page.evaluate(() => document.body.innerText.slice(0, 220).replace(/\n+/g, ' | '))
   await page.screenshot({ path: `${OUT_DIR}/${TAG}-${label}.png` }).catch(() => {})
@@ -82,13 +103,18 @@ out.afterDownload = await page.evaluate(() => document.body.innerText.slice(0, 4
 await page.screenshot({ path: `${OUT_DIR}/${TAG}-after-download.png` }).catch(() => {})
 }
 out.metaAfterDownload = await readMeta()
-// Airplane mode.
+out.podAudioAfterOnline = await readPodAudioCoverage()
+// Airplane mode. First the app as it stands (the connection drops mid-use),
+// then a full reload through the service worker (the app reopened offline).
 await ctx.setOffline(true)
+out.swControlled = await page.evaluate(() => !!navigator.serviceWorker?.controller).catch(() => null)
+out.offlineListLive = await readList('offline-live')
 await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch((e) => (out.reloadError = String(e).slice(0, 160)))
 await page.waitForTimeout(12000)
 out.offlineBodyHead = await page.evaluate(() => document.body.innerText.slice(0, 220).replace(/\n+/g, ' | ')).catch((e) => String(e))
 out.offlineList = await readList('offline-list')
 out.metaOffline = await readMeta().catch((e) => String(e))
+out.podAudioOffline = await readPodAudioCoverage().catch((e) => String(e))
 out.logs = logs.slice(-40); out.jsErrors = jsErrors
 console.log(JSON.stringify(out, null, 1))
 await browser.close()
