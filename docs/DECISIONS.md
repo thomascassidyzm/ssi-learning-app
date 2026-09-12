@@ -1133,4 +1133,4 @@ to overturn.
 **Left for Tom.** Whether Welsh should be `pricing_tier = premium` at all; three unentitled
 learners sit past the wall (fransetter S0217, lea.weber94 and reillyfeatherstone in infinite play)
 and will meet the paywall on return rather than round 1. Census, queries and reproduction:
-https://watson-1.tail4968cb.ts.net/d/00ee37b1
+https://watson-1.tail4968cb.ts.net/d/d715f061

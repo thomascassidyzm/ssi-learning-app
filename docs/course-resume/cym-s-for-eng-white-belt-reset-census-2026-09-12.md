@@ -162,6 +162,15 @@ lets a fresher local snapshot outrank the server only when it is at or past the 
 fresher-but-behind is a stale cache. Test red on the pre-fix code, green after. Offline progress
 ahead of the cursor still wins as before.
 
+### 6b. Verified live on staging, build 890c379 (2026-09-12 12:17Z)
+
+- Guest plays on a fresh profile (script cache 33 rounds), signs in as the entitled test account
+  whose cursor is S0020L01, reloads: header "0 percent to green belt", screen Orange Belt,
+  `cold_start {seedId: S0020, roundIndex: 33}`, cache rewritten to 3,262 rounds. Before the fix
+  the same walk landed on White.
+- Same signed-in profile with the local snapshot forced to S0001L01 stamped now, behind the
+  server cursor: reload lands on Orange, `cold_start {seedId: S0020, roundIndex: 33}`.
+
 ## 7. Cursor repairs
 
 None needed. No real learner's cursor moved backwards; the four learners past Yellow keep the
