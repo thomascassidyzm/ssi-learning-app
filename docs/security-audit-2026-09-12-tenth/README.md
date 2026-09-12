@@ -88,13 +88,24 @@ enrolment; the learner is told `alreadyEnrolled` and the second org's free year 
 
 ### Index
 
-19 findings: 3 HIGH, 9 MEDIUM, 7 LOW. Each is carried in full by its area write-up.
+20 findings: 3 HIGH, 10 MEDIUM, 7 LOW. Each is carried in full by its area write-up.
+
+**One area was cross-family verified.** Area C's report was handed to GPT-6 Astra (job #449·G) with
+the claim and the published evidence only — never the brief, never the reasoning. It returned 12
+verified, 3 refuted, 1 unknown, and all three refutations hold on a house re-check: the area's
+*assertions* were accurate throughout, its *prose* was not. That produced **SEC0912T-C-02** (a
+write-before-authz instance the area had cleared), corrected the `where-and-what` k-floor clearance,
+and showed C-01's proposed fix to be insufficient on its own — a parent export of 12/6 and a child
+of 11/5 both clear a per-export floor of five, yet the difference names the excluded person. The
+lesson is recorded in the area file: a clearance is a claim like any other, and this one described
+the endpoint's intent rather than its statement order.
 
 | ID | Severity | One line | Area |
 |---|---|---|---|
 | SEC0912T-F-01 | **HIGH** | `GRANT ALL ON public.teachers TO authenticated` is column-blind — a tutor self-grants `platform_status`, `verified` and `payout_recipient_id` | F |
 | SEC0912T-F-02 | **HIGH** | Payout destination changes on a bare session: no step-up, no audit, no notice, no cooling-off | F |
 | SEC0912T-G-01 | **HIGH** | Orphaned-identity absorption: a departed colleague's memberships are claimable by anyone who knows their auth uid | G |
+| SEC0912T-C-02 | MEDIUM | `org/intel` mints another tenant's school node before the gate — a fifth write-before-authz instance, first *cleared* by the area that found it | C |
 | SEC0912T-C-01 | MEDIUM | The funder export has no small-cell floor — a 1-person `aged16to24` cell attaches an age band to a named person | C |
 | SEC0912T-D-01 | MEDIUM | `family/create-child` is an unbounded, plan-gate-free identity mint — create/remove/create loops forever | D |
 | SEC0912T-D-02 | MEDIUM | `family/invite` emails any address on any signed-in caller's say-so, with a caller-controlled subject line | D |
@@ -134,8 +145,10 @@ npx vitest run -c vitest.api.config.ts api/_security/sec0912t-*.security.test.ts
 
 ## 3. The honest gap
 
-- **Nothing was verified against live state.** Every finding says what the code permits, not what
-  has happened. Where a finding's precondition is a question about live data, the write-up says so
+- **Nothing in the audit itself was verified against live state.** Every finding says what the code
+  permits, not what has happened. (The independent verifier of Area C *did* read live rows and
+  reported a sub-five age cohort but no proven singleton — that is its evidence, not this audit's,
+  and it is why C-01 stays "proven in shape, not in instance".) Where a finding's precondition is a question about live data, the write-up says so
   and names the query that would settle it.
 - **No dependency audit.** `pnpm audit` reaches the network and was not run.
 - **Client-side sinks outside this repo are outside the audit.** One finding (G-03) has its sink in
