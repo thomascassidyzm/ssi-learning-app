@@ -227,12 +227,17 @@ describe('NodeHomeView — one grammar at every level', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    // Trunk + 8 classes + 8 people, and the rest one tap away.
-    expect(wrapper.findAll('.tree-name')).toHaveLength(17)
+    // Trunk + 3 classes + 3 people, and the rest one tap away — THE page's
+    // one idiom, three then Show all (Tom, 2026-09-12; job #306). This used to
+    // pin eight-then-"N more"; flipped deliberately.
+    expect(wrapper.findAll('.tree-name')).toHaveLength(7)
     const more = wrapper.findAll('.tree-more-btn').map((b) => b.text())
-    expect(more).toEqual(['41 more classes', '31 more people'])
+    expect(more).toEqual(['▸ Show all 49 classes', '▸ Show all 39 people'])
     await wrapper.findAll('.tree-more-btn')[0].trigger('click')
-    expect(wrapper.findAll('.tree-name')).toHaveLength(58)
+    expect(wrapper.findAll('.tree-name')).toHaveLength(53)
+    expect(wrapper.findAll('.tree-more-btn')[0].text()).toBe('▾ Show fewer')
+    await wrapper.findAll('.tree-more-btn')[0].trigger('click')
+    expect(wrapper.findAll('.tree-name')).toHaveLength(7)
   })
 
   it('an org with nothing below it says so once, and draws no phantom rows', async () => {
@@ -436,7 +441,7 @@ describe('NodeHomeView — one grammar at every level', () => {
     // then minutes in the app — before any people count, and never the
     // individual practice-hours figure or a session count.
     const statWords = wrapper.findAll('.stat-card .stat-word').map((w) => w.text())
-    expect(statWords.slice(0, 2)).toEqual(['Phrases spoken this week', 'Minutes in the app this week'])
+    expect(statWords.slice(0, 2)).toEqual(['Phrases practised this week', 'Minutes in the app this week'])
     const statValues = wrapper.findAll('.stat-card .stat-value').map((v) => v.text())
     expect(statValues.slice(0, 2)).toEqual(['42', '78'])
     expect(text).not.toContain('Minutes practised')
@@ -444,7 +449,7 @@ describe('NodeHomeView — one grammar at every level', () => {
     // The Class practice card renders FIRST among the class cards.
     const cards = wrapper.findAll('.class-card .schools-kicker').map((k) => k.text())
     expect(cards[0]).toBe('Class practice')
-    expect(text).toMatch(/42\s*phrases spoken this week/)
+    expect(text).toMatch(/42\s*phrases practised this week/)
     expect(text).toContain('Last practised together')
     expect(text).toContain('78 minutes in the app together this week')
     // The phrase-by-count list — what the class actually said — sits in the card.
@@ -730,5 +735,111 @@ describe('NodeHomeView — org platform trial/upgrade (member surface, govt_admi
 
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/api/org/subscription'), expect.anything())
     expect(wrapper.text()).not.toContain('free trial')
+  })
+})
+
+// TOP THREE THEN SHOW ALL (Tom, 2026-09-12, job #306): every list on the page
+// renders three rows and one control that shows the rest. Under three rows no
+// control renders. Red on the pre-change page (22 phrase rows, no control).
+describe('NodeHomeView — three rows then Show all, on every list', () => {
+  it('the phrase table shows three rows and a control naming the rest; tapping shows all, and again folds back', async () => {
+    routeMock.params = { id: 'school-1' }
+    const payload = nodePayload({
+      node: { id: 'school-node', name: 'St Albans', label: 'school', is_demo: false, hasSchool: true, rollup: { ...ROLLUP, classCount: 12 }, commercial: { schoolId: 'school-1', platformStatus: 'trial', trialCourseCode: 'cym_s_for_eng', platformExpiresAt: TRIAL_ENDS } },
+      children: [],
+    })
+    ;(payload as any).classPractice = {
+      windowDays: 7, phrases7d: 118, activeClasses7d: 9, classCount: 12, inAppMinutes7d: 124, lastPractisedAt: new Date().toISOString(),
+      topPhrases7d: Array.from({ length: 22 }, (_, i) => ({ known: `prompt ${i}`, target: `phrase ${i}`, count: 22 - i })),
+    }
+    setupFetch(payload)
+    const wrapper = mountView()
+    await flushPromises()
+
+    const card = wrapper.find('[data-walk="node-phrases"]')
+    expect(card.findAll('tbody tr')).toHaveLength(3)
+    const control = card.find('.show-all')
+    expect(control.exists()).toBe(true)
+    expect(control.text()).toContain('Show all 22 phrases')
+    await control.trigger('click')
+    expect(card.findAll('tbody tr')).toHaveLength(22)
+    expect(card.find('.show-all').text()).toContain('Show fewer')
+    await card.find('.show-all').trigger('click')
+    expect(card.findAll('tbody tr')).toHaveLength(3)
+  })
+
+  it('three phrases or fewer render whole, with no control', async () => {
+    routeMock.params = { id: 'school-1' }
+    const payload = nodePayload({ children: [] })
+    ;(payload as any).classPractice = {
+      windowDays: 7, phrases7d: 5, activeClasses7d: 1, classCount: 1, inAppMinutes7d: 4, lastPractisedAt: new Date().toISOString(),
+      topPhrases7d: [{ known: 'I want', target: 'dw i moyn', count: 3 }, { known: 'to learn', target: 'dysgu', count: 2 }],
+    }
+    setupFetch(payload)
+    const wrapper = mountView()
+    await flushPromises()
+    const card = wrapper.find('[data-walk="node-phrases"]')
+    expect(card.findAll('tbody tr')).toHaveLength(2)
+    expect(card.find('.show-all').exists()).toBe(false)
+  })
+
+  it('a class with seven students lists three and a Show all 7 students control', async () => {
+    routeMock.params = { id: 'class-1' }
+    const payload = classPayload()
+    payload.students = Array.from({ length: 7 }, (_, i) => ({ learner_id: `l${i}`, name: `Pupil ${i}`, seeds_completed: i, legos_mastered: i * 3, practice_hours: 1, last_active_at: null, last7_minutes: [0, 0, 0, 0, 0, 0, 0], week_minutes: 0 }))
+    setupFetch(payload)
+    const wrapper = mountView()
+    await flushPromises()
+    const list = wrapper.find('[data-walk="class-students"]')
+    expect(list.text()).toContain('Pupil 2')
+    expect(list.text()).not.toContain('Pupil 3')
+    const control = wrapper.find('.children-show-all .show-all')
+    expect(control.text()).toContain('Show all 7 students')
+    await control.trigger('click')
+    expect(wrapper.find('[data-walk="class-students"]').text()).toContain('Pupil 6')
+  })
+})
+
+// YEAR-GROUP SUB-TILES (Option A, job #306): derived on screen from the tree
+// payload's class names, fed with the phrases and last-practised the tree
+// rows already carry. Red on the pre-change page (no tiles at all).
+describe('NodeHomeView — year-group tiles under the headline numbers', () => {
+  it('a school with 7H, 7O, 8H and B8 shows Year 7, Year 8 and Other, with the headline rule for practising', async () => {
+    routeMock.params = { id: 'school-1' }
+    const now = new Date().toISOString()
+    const payload = nodePayload({
+      node: { id: 'school-node', name: 'Chepstow', label: 'school', is_demo: false, hasSchool: true, rollup: { ...ROLLUP, classCount: 4 }, commercial: null },
+      children: [],
+      tree: {
+        nodes: [],
+        classes: [
+          { id: 'c1', name: '7H', nodeId: 'school-node', teachers: [], studentCount: 0, phrases7d: 52, lastPractisedAt: now },
+          { id: 'c2', name: '7O', nodeId: 'school-node', teachers: [], studentCount: 0, phrases7d: 0, lastPractisedAt: '2026-08-01T08:00:00Z' },
+          { id: 'c3', name: '8H', nodeId: 'school-node', teachers: [], studentCount: 0, phrases7d: 53, lastPractisedAt: now },
+          { id: 'c4', name: 'B8', nodeId: 'school-node', teachers: [], studentCount: 0, phrases7d: 0, lastPractisedAt: null },
+        ],
+        staff: [],
+      },
+    })
+    ;(payload as any).classPractice = { windowDays: 7, phrases7d: 105, activeClasses7d: 2, classCount: 4, inAppMinutes7d: 40, lastPractisedAt: now, topPhrases7d: [] }
+    setupFetch(payload)
+    const wrapper = mountView()
+    await flushPromises()
+    const tiles = wrapper.find('[data-walk="node-year-groups"]')
+    expect(tiles.exists()).toBe(true)
+    const read = tiles.findAll('.year-tile').map((t) => [t.find('.year-tile-value').text(), t.find('.year-tile-word').text(), t.find('.year-tile-sub').text()])
+    expect(read).toEqual([
+      ['52', 'Year 7', '1 of 2 classes'],
+      ['53', 'Year 8', '1 of 1 class'],
+      ['—', 'Other', 'none of 1 yet'],
+    ])
+  })
+
+  it('no tiles on a class page, and none on a neutral org', async () => {
+    routeMock.params = { id: 'class-1' }
+    setupFetch(classPayload())
+    const onClass = mountView()
+    await flushPromises()
+    expect(onClass.find('[data-walk="node-year-groups"]').exists()).toBe(false)
   })
 })

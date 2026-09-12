@@ -1,6 +1,6 @@
 {
-  "version": "42fae3351cf9",
-  "generatedAt": "2026-09-11",
+  "version": "a0f3fa6f4407",
+  "generatedAt": "2026-09-12",
   "walks": [
     {
       "id": "choose-something-else-to-learn",
@@ -771,9 +771,16 @@
       "steps": [
         {
           "anchor": "ways-in-ledger",
-          "say": "Every way in, in one ledger: personal sign-in links and shareable join links, for everywhere below here. Filter by role or by place with the chips.",
+          "say": "Every way in, in one ledger: personal sign-in links and shareable join links, for everywhere below here. With more than three links it folds to one row per role — how many, and how often they have been used.",
           "advance": {
             "on": "next"
+          }
+        },
+        {
+          "anchor": "ways-in-show-all",
+          "say": "Tap **Show all** to open the full ledger, every link on its own row with its own verbs. You can filter by role or by place with the chips once it is open.",
+          "advance": {
+            "on": "click"
           }
         },
         {
@@ -1746,7 +1753,7 @@
       "source": "packages/player-vue/src/components/admin/WaysInLedger.vue",
       "walk": null,
       "what": "Sending the same invite email a second time to somebody who never found the first one. Nothing changes and no new link is made, so the one they may yet dig out of a spam folder still works.",
-      "where": "The node's home page, the **Ways in** section, **Email again** on their row.",
+      "where": "The node's home page, the **Ways in** section, **Email again** on their row. Tap **Show all** first if the ledger is folded.",
       "how": [
         "Scroll to **Ways in** on the node's home page.",
         "Find the person's row.",
@@ -1818,7 +1825,7 @@
         "Pick a state under **Health** to pull out the classes that need attention.",
         "Change **Sort by** to order by time in app this week or by how far through the course each class has got. On a phone it is the first control, and the number you sorted by shows beside each class name."
       ],
-      "note": "The totals above the table follow the filter, so the minutes are always the total of what you are actually looking at."
+      "note": "The totals above the table follow the filter, so the minutes are always the total of what you are actually looking at. The table shows the first three of whatever the pickers produce; **Show all** under it shows the rest."
     },
     {
       "id": "find-out-which-email-you-are-signed-in-with",
@@ -2048,7 +2055,7 @@
       "source": "packages/player-vue/src/components/admin/WaysInLedger.vue",
       "walk": null,
       "what": "Giving one group of learners a sign-up link that puts them straight into a named course, when your funded year covers more than one. A North Wales tutor hands out the North Welsh link and nobody in that room is asked which Welsh they meant.",
-      "where": "The node's home page, the **Ways in** section, the course-named buttons on your sign-up link's row.",
+      "where": "The node's home page, the **Ways in** section, the course-named buttons on your sign-up link's row. Tap **Show all** first if the ledger is folded.",
       "how": [
         "Scroll to **Ways in** on the node's home page.",
         "Find the row for your sign-up link.",
@@ -2661,6 +2668,40 @@
       "note": "The row is a button in its own right, so a keyboard works too. The buttons at the right of the row do their own jobs and do not open the class."
     },
     {
+      "id": "open-the-folded-ledger",
+      "title": "Open the folded ledger",
+      "section": "getting-people-in",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "keywords": [
+        "show all",
+        "fold",
+        "ledger",
+        "links",
+        "ways in",
+        "fewer"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "anchor": "ways-in-show-all",
+      "surface": "schools",
+      "source": "packages/player-vue/src/components/admin/WaysInLedger.vue",
+      "walk": null,
+      "what": "Turning the one-row-per-role summary of your links into the full ledger, where every link has its own row and its own verbs.",
+      "where": "The **Ways in** section, the **Show all** line under the role rows. It only appears when there are more than three links.",
+      "how": [
+        "Scroll to **Ways in** on the node's home page.",
+        "Tap **Show all**.",
+        "The ledger opens with its filter chips and every link's row.",
+        "Tap **Show fewer** at the bottom to fold it back."
+      ],
+      "note": "Nothing is ever hidden for good: every link is one tap away."
+    },
+    {
       "id": "prove-your-mailbox-reaches-you",
       "title": "Prove your mailbox reaches you",
       "section": "getting-people-in",
@@ -2750,6 +2791,7 @@
       "where": "**My Classes**, the table filling most of the page. On a phone each class is a card instead, with the number you sorted by beside its name and the rest underneath.",
       "how": [
         "Open **My Classes**.",
+        "The first three classes show; tap **Show all** under the table for the rest, and **Show fewer** to fold them back.",
         "Read down the health column first, because that is where the app is pointing you.",
         "Use the small chart in each row to see whether practice is steady or has stopped.",
         "Compare time in the app this week between classes taking the same course."
@@ -2785,7 +2827,7 @@
       "where": "The **Students** list at the bottom of a class page.",
       "how": [
         "Open a class.",
-        "Read down the rows — the bar on each is that student's own position in the course, in LEGOs.",
+        "Read down the rows — the bar on each is that student's own position in the course, in LEGOs. The first three show; tap **Show all** under them for the rest.",
         "The small chart beside it is their practice over the past week, with the minutes named.",
         "The dot and word at the start of a row say whether they are excellent, good, needing attention or inactive.",
         "Tap a row to open that person."
@@ -3534,6 +3576,40 @@
       "note": "A student who has never started shows as inactive rather than as behind, because nothing has happened yet to judge. A class nobody has joined yet shows its empty places instead of a table, with **Add students** in it."
     },
     {
+      "id": "the-classes-by-year-group",
+      "title": "The classes by year group",
+      "section": "running-classes",
+      "personas": [
+        "school_admin",
+        "teacher"
+      ],
+      "keywords": [
+        "year group",
+        "year 7",
+        "tiles",
+        "breakdown",
+        "classes practising",
+        "phrases",
+        "by class"
+      ],
+      "place": {
+        "route": "classes"
+      },
+      "anchor": "classes-year-groups",
+      "surface": "schools",
+      "source": "packages/player-vue/src/views/schools/TeacherDashboard.vue",
+      "walk": null,
+      "what": "A row of small tiles under the health strip, one per year group: the phrases that year's classes practised this week and how many of them practised out of how many there are. It says in one glance which years are the school's engine and which have barely started.",
+      "where": "**My Classes**, the **By year group** card under the health tiles, once this week's practice has loaded.",
+      "how": [
+        "Open **My Classes**.",
+        "Read the big figure on each tile for phrases practised this week.",
+        "Read the line under it for classes practising out of classes in that year.",
+        "A tile reading **Other** holds the classes whose names carry no year."
+      ],
+      "note": "The year is read off the class name — a leading number from 6 to 13, so **7B**, **Year 9 French** and **10 Set 1** all count — and is never stored. If fewer than half your class names carry a year the card reads **By class** instead, busiest first, three then **Show all**."
+    },
+    {
       "id": "the-invites-desk",
       "title": "The invites desk",
       "section": "getting-people-in",
@@ -3566,6 +3642,41 @@
       "note": "This is the operator's desk, not a school's. A school brings its own people in from its own home page."
     },
     {
+      "id": "the-numbers-by-year-group",
+      "title": "The numbers by year group",
+      "section": "seeing-progress",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "keywords": [
+        "year group",
+        "year 7",
+        "tiles",
+        "breakdown",
+        "classes practising",
+        "phrases",
+        "by class"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "anchor": "node-year-groups",
+      "surface": "schools",
+      "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
+      "walk": null,
+      "what": "The row of small tiles under the numbers, one per year group, so a head can see at a glance which years are doing it and which have barely started. Each tile gives the phrases the year's classes practised this week and how many of its classes practised out of how many there are.",
+      "where": "The **By year group** card directly under the row of numbers on a school or group page.",
+      "how": [
+        "Open a school or a group.",
+        "Read the big figure on each tile for phrases practised this week.",
+        "Read the line under it for classes practising out of classes in that year.",
+        "A tile reading **Other** holds the classes whose names carry no year."
+      ],
+      "note": "The year is read off the class name — a leading number from 6 to 13, so **7B**, **Year 9 French** and **10 Set 1** all count — and is never stored. If fewer than half your class names carry a year the card reads **By class** instead, busiest first, three then **Show all**. No minutes are shown per year group."
+    },
+    {
       "id": "the-numbers-on-any-level",
       "title": "The numbers on any level",
       "section": "seeing-progress",
@@ -3594,11 +3705,11 @@
       "where": "Across the top of the page for a group, a school or a class, under the name.",
       "how": [
         "Open the level you want — a group, a school or a class.",
-        "**Phrases spoken this week** is how many phrases the classes beneath this level were prompted and said back in whole-class play over the last seven days. It is recorded for every clip the app plays, so it is the truest picture of a lesson.",
+        "**Phrases practised this week** is how many phrases the classes beneath this level were prompted with in whole-class play over the last seven days. It is recorded as each phrase's turn begins, so it counts every phrase the lesson reached.",
         "**Classes practising this week** is how many of them played together in the last seven days, out of all the classes below.",
         "**Minutes in the app this week** is the time the classes beneath this level, and their staff and students on their own accounts, spent in the app over the last seven days, pauses included — the time they were in the lesson. The sentence under the row says how much of it was whole-class play and how much was audio playing.",
         "**Teachers** counts the staff below this level, each once however many classes they take.",
-        "On a class the row switches to that class's own phrases spoken this week, its minutes in the app, its students and its teachers."
+        "On a class the row switches to that class's own phrases practised this week, its minutes in the app, its students and its teachers."
       ],
       "note": "An organisation that is not school-shaped sees the same row worded as practice hours, groups and learners instead."
     },
@@ -3670,8 +3781,8 @@
         "Open a group or a school.",
         "Tap a caret to open or close what sits under a name.",
         "Tap any name to go to that level — the numbers and the tree redraw for it.",
-        "A class row names its teachers, its student count, and how many phrases it spoke together in the last seven days, or says plainly that it has not practised together this week, without you opening it.",
-        "Where there are more than eight classes or people, a **more** button reveals the rest."
+        "A class row names its teachers, its student count, and how many phrases it practised together in the last seven days, or says plainly that it has not practised together this week, without you opening it.",
+        "Where there are more than three groups, classes or people under a name, the first three show and **Show all** reveals the rest; **Show fewer** folds them away again."
       ],
       "note": "The top two levels open themselves and deeper ones wait to be tapped, so a large organisation shows you its shape instead of eighty-five rows."
     },
@@ -3704,7 +3815,8 @@
       "where": "The node's home page, the **Ways in** section below the lists.",
       "how": [
         "Open the node's home page and scroll to **Ways in**.",
-        "Read the rows: each one is a live way in, personal or shareable.",
+        "With more than three links, read one row per role — class links, teacher links, leader links — each saying how many there are and how often they have been used. A row with a single link carries **Copy**.",
+        "Tap **Show all** to open the full ledger: each row a live way in, personal or shareable, filterable by role and by place with the chips. **Show fewer** folds it back.",
         "**Copy** hands you the link again.",
         "**Re-mint** issues a fresh link and kills the old one on the spot.",
         "**Revoke** closes that way in entirely."
@@ -3755,11 +3867,11 @@
       "keywords": [
         "phrases",
         "practised",
-        "spoken",
         "list",
-        "what they said",
+        "what they practised",
         "repetition",
-        "this week"
+        "this week",
+        "show all"
       ],
       "place": {
         "route": "node-home"
@@ -3768,11 +3880,12 @@
       "surface": "schools",
       "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
       "walk": null,
-      "what": "A list of the phrases the classes beneath this level said together in the last seven days, with how many times each one came round. A phrase that appears again and again is the course bringing it back on purpose, which is how it sticks.",
+      "what": "A list of the phrases the classes beneath this level practised together in the last seven days, with how many times each one came round. A phrase that appears again and again is the course bringing it back on purpose, which is how it sticks.",
       "where": "The **What they practised this week** card under the row of numbers on a group or school page, and on a class page under its own practice card.",
       "how": [
         "Open a group, a school or a class.",
-        "Read the list: the prompt, the phrase the class said back, and the number of times it came round this week.",
+        "Read the three rows: the prompt, the phrase the class practised, and the number of times it came round this week. The three most practised come first.",
+        "Tap **Show all** under them to see every phrase; **Show fewer** folds the list back.",
         "Tap a column heading to sort by it."
       ],
       "note": "A level whose classes have not played together this week says so in words instead of showing an empty list. Only whole-class play appears here; what staff and students practise on their own accounts is counted in the minutes in the app figure above."
@@ -3969,13 +4082,13 @@
       "surface": "schools",
       "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
       "walk": null,
-      "what": "The headline card on a class: how many phrases the class was prompted and said back together in the last seven days, when it last practised, and the list of those phrases with how often each came round. Classes practising together is what a language programme lives on, so this leads over anything individual students do alone.",
+      "what": "The headline card on a class: how many phrases the class was prompted with together in the last seven days, when it last practised, and the list of those phrases with how often each came round. Classes practising together is what a language programme lives on, so this leads over anything individual students do alone.",
       "where": "The **Class practice** card on a class page.",
       "how": [
         "Open a class from the tree or the map.",
-        "Read the big figure for phrases spoken this week.",
+        "Read the big figure for phrases practised this week.",
         "The line under it gives the time since the class last practised and its minutes in the app this week.",
-        "The list beneath is every phrase the class said this week and the number of times it came round."
+        "The list beneath is the three phrases the class practised most this week and the number of times each came round; **Show all** under it opens the whole list."
       ],
       "note": "The minutes are time in the app with the lesson running, pauses included, so they are the time the class was in the lesson. A class that has never played together says so plainly and names the teacher's **Play as class** button as the thing that starts the first lesson."
     },
@@ -4075,7 +4188,7 @@
         "Read the bars for how long since each class last practised.",
         "Open a class row to see where it stopped."
       ],
-      "note": "Practised this week counts any sign of practice, a phrase spoken or the course opened and progress saved. The Practising figure above counts phrases spoken only, so it can be lower."
+      "note": "Practised this week counts any sign of practice, a phrase reached in a lesson or the course opened and progress saved. The Practising figure above counts phrases practised only, so it can be lower."
     },
     {
       "id": "which-classes-practised-this-week",
@@ -4102,11 +4215,11 @@
       "surface": "schools",
       "source": "packages/player-vue/src/insight/OrgIntelPanel.vue",
       "walk": null,
-      "what": "Whether your classes are actually doing it: how many practised together in the last seven days against the seven before, how many phrases they spoke, and which people practised on their own account and for how long.",
+      "what": "Whether your classes are actually doing it: how many practised together in the last seven days against the seven before, how many phrases they practised, and which people practised on their own account and for how long.",
       "where": "The **Practising** question at the top of any level's insights page.",
       "how": [
         "Read the sentence for this week against last week.",
-        "Read the line for how many phrases were spoken each day over the last four weeks.",
+        "Read the line for how many phrases were practised each day over the last four weeks.",
         "Read the class rows for who practised, when they last practised together and where in the course they are.",
         "Read the people rows for own-account minutes."
       ],

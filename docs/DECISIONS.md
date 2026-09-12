@@ -1,3 +1,59 @@
+## 2026-09-12 — Option A built: three rows then Show all, Ways In by role, year-group tiles, "phrases practised" (job #306)
+
+Tom's commission, 2026-09-12, answering the #303 review: "phrases practised is better / and build
+Option A". Built as reviewed, on the leader home (`/org/:id`, NodeHomeView) and the classes page
+(TeacherDashboard). Every section is a template change on data the pages already fetch; no
+endpoint, column, store or composable was added.
+
+- **"Phrases practised this week" replaces "phrases spoken this week"** on every leader and
+  teacher surface: the stats row, the class practice card, the tree rows, the Insights sentences
+  and chart, and the Handbook sentences behind them. Reason, from the #298 verification: the
+  `audio_play` event fires as a phrase's turn begins, not on finished audio and not on detected
+  speech, so "spoken" overclaimed. Locale keys kept and only the English changed; a key rename
+  would have rippled into the pending-translation ledger and 21 locales for no learner-facing
+  gain. **Kept:** the learner's own player tile "Phrases spoken", which counts cycles where the
+  VAD heard the learner speak and is genuinely speech.
+- **Three rows then Show all, one idiom everywhere** (`components/shared/topThree.ts` +
+  `ShowAll.vue`): the phrase table, a class's students, the taught-by and led-by names, the
+  Below this tree's groups, classes and people, the classes-page table, and the Ways In ledger.
+  Under three rows no control renders; nothing is hidden without a way to show it. Per section,
+  never sticky; a node switch folds everything again.
+- **Ways In folds to one row per role** — "12 class links, none used yet · 1 teacher link, used 2
+  times · 1 school leader link, none used yet" — with Copy on a single-link row and Show all
+  opening the ledger exactly as it was, chips, Re-mint and Revoke included. The ways-in walk
+  gained a click-advance step on Show all so its verb steps still find their anchors.
+- **Year-group tiles** under the headline numbers on both pages, from one pure module
+  (`views/schools/yearGroup.ts`) and one shared component. Year group is read off the class
+  name — a leading 6 to 13, optionally after Year/Yr/Y — and never stored. Unparsed names fall
+  into one Other tile; fewer than half parsing falls back to per-class tiles, busiest first,
+  three then Show all. Each tile carries phrases practised this week and classes practising out
+  of classes in the group, practising by the headline's own rule (last practised inside the
+  window). No minutes per year group, as the review left out.
+
+**Taste defaults taken, each overturnable in a word:**
+1. **Below this at three**, not the review's eight-then-"N more": the commission said every list,
+   and one idiom on the page beats two. Say "eight" and the cap goes back.
+2. **The phrase table stays a table** at three rows, not a sentence. Say "sentence".
+3. **Year group only**; by-teacher tiles held for a later ruling, as the review offered and Tom
+   did not take.
+4. **Ways In group labels** read "class links" when every learner link is class-scoped, else
+   "learner links"; teacher, school leader and group leader links use the ledger's own role words.
+5. **A class page's phrase list folds too**, since it is the same table; its Handbook sentence
+   says so.
+
+**Not done, logged:** the classes-page subtitle still sums the rows' own minutes rather than
+the endpoint's school rollup, because switching it means the fetch composable returning a
+field it drops today, and the commission fenced the fetch after job #301. The review's fourth
+health tile "Not this week" and default sort by time in app were not in the commission's steps
+and were left alone. Wiring the top-three probe into a nightly timer is recorded in the job
+report.
+
+**Proof:** each mechanism has a test seen red on the pre-change code and green after —
+`topThree.test.ts`, `yearGroup.test.ts` (the real St Alban's and Chepstow name shapes),
+`NodeHomeView.test.ts` (phrase fold, student fold, tree fold flipped from eight to three,
+year tiles), `WaysInLedger.grouped.test.ts`, `TeacherDashboard.topThreeYearGroups.test.ts`; the
+existing files beside them unchanged and green; walkthrough `--check`, i18n parity, typecheck
+and lint green.
 ## 2026-09-12 — player_events write side: the orphan rows were the first sync flush of a session, the env tag was right, and the schools helpers do NOT filter env (job #307)
 
 **The Astra finding (#305·G).** Nine class-8H rows carried the learner in `payload.learnerId` but a null top-level `learner_id`; all 199 attributed 8H events read `env='production'` while the dashboard helpers filter no environment.
@@ -21,6 +77,37 @@
 **Not changed, and why.** The list still reads ONLY `classAccountByClass` (Tom's ruling, #265, not re-opened). The coverage gate is untouched: it already admits an active trial. The header total on the classes page sums the rows' own minutes (class account + its pupils), which is a different rule from the school page's `rollup.inAppMinutes7d` (adds staff and pupils' own accounts): 174 vs 352 for Chepstow this week. Both are true numbers with different scopes; whether the classes header should read the rollup is a taste call flagged in the job #301 report, not decided here.
 
 **Proof.** `TeacherDashboard.adminViewPractice.test.ts` gained a test that mounts the page with the practice endpoint answering 403 `coverage_expired` and asserts the banner, its status and message, and the Retry button — red on the pre-fix code (no banner), green after. `classPractice7d.test.ts` covers the throw, the single retry on 5xx, the persisting network error, and the no-session 401.
+## 2026-09-12 — leader dashboard design review: top three then show all, sub-tiles by year group, the unfed classes page (job #303·F)
+
+A design review, not a build: no code changed. Tom's brief was that the lists on the school-leader
+home page are noise, that each section should show its top three rows with an expand, and that the
+headline number tiles want a breakdown into smaller tiles beneath them. The review, with mocks at
+phone width in the Mist palette and this week's real numbers for St Alban's and Chepstow, is
+published at https://watson-1.tail4968cb.ts.net/d/81ce6c56.
+
+- **Recommended:** Option A, Tom's top-three-then-show-all as drawn, with two grafts: Ways In
+  collapses to three GROUPED rows (12 class links none used, 1 teacher link used twice, 1 leader
+  link) rather than the first three of fourteen identical rows, and the same year-group sub-tiles
+  go on the classes page. Below this keeps its existing eight-class cap and "N more" as the one
+  expand idiom on the page. Roughly two builder days, every section a template change on data the
+  page already fetches; the one expensive item, minutes per year group, is left out.
+- **Sub-tiles:** year group first, derived on screen from the class name (a leading 6 to 13),
+  never stored; 12 of 12 St Alban's names and 30 of 34 Chepstow names parse, the rest fall into
+  one Other tile, and a school where fewer than half parse falls back to per-class tiles. Teacher
+  is the second variable (3 tiles at St Alban's, 39 at Chepstow); course is one tile at both.
+- **Finding for a separate job:** the classes page under View-as shows "…" and every health tile
+  at 0 while the home page says 20 of 34 practising and 352 minutes. The pages read the same
+  records by different doors: the home endpoint resolves the school from the URL, the per-class
+  endpoint resolves scope from the caller and needs the persona's school id passed along. The
+  admin read-view of the same page at 02:24 today returned 200 with 174 minutes and 8 Good / 14
+  Needs eyes, so the data and the rule are fine and the View-as route is what fails. A second
+  mismatch rides with it: the classes subtitle's minutes exclude staff and pupil accounts that the
+  home headline includes, and the endpoint already returns the home page's figure in a rollup
+  field the page ignores.
+- **Held, not rejected:** Option C, "what changed since last week" — both schools started on 8
+  September, so every row would read "new" this week; revisit from the third week of term.
+- **Two taste calls put to Tom:** does the phrase table stay on the home page at three rows or
+  become a sentence; year group only for now, or teacher too.
 
 ## 2026-09-12 — support_messages is column-granted, and the govt_admin subtree is parent_id in SQL too (job #300)
 
