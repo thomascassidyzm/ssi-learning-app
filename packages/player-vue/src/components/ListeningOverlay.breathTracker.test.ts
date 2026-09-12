@@ -95,13 +95,19 @@ describe('ListeningOverlay — job #430: untimed clips share the stack, cut from
     expect(fn).toContain('const timed = !!(s?.targetAudioId && normaliseWordTimings(s.wordTimings))')
     expect(fn).toContain('const groups = breathGroupsForClip(s.wordTimings, text)')
     expect(fn).toContain('const lines = textLinesForSentence(text)')
-    expect(fn).toContain("stack = { lines: lines.map((t) => ({ text: t })), timed: false }")
+    expect(fn).toContain("stack = { lines: estimateLineTimings(lines), timed: false }")
   })
 
-  it('an untimed stack has no position, so no line is said, lit or ahead', () => {
-    expect(src).toContain("if (!stack?.timed) return { index: -1, fill: 0 }")
-    expect(src).toContain('const breathClass = (gi) => (trackPos.value.index < 0 ? { untimed: true } : {')
+  it('an untimed stack walks at an estimate from the clip length and never paints a fill (job #468)', () => {
+    // Tom, staging 2026-09-12: "The method pod doesn't seem to be loading
+    // line by line" — the xAI method pod stacked but nothing lit or moved.
+    expect(src).toContain('const progress = live && d > 0 ? trackClock.value / d : 0')
+    expect(src).toContain('return trackPosition(stack.lines, progress)')
+    expect(src).toContain("const breathStyle = (gi, timed) => (timed && gi === trackPos.value.index ?")
+    expect(src).toContain(':style="breathStyle(gi, trackerGroupsFor(phrase).timed)"')
+    expect(src).toContain('trackDuration.value = a && Number.isFinite(a.duration) ? (a.duration || 0) : 0')
     expect(src).toContain(':class="{ untimed: !trackerGroupsFor(phrase).timed }"')
+    expect(src).not.toContain("if (!stack?.timed) return { index: -1, fill: 0 }")
   })
 
   it('a timed clip with one breath group is still the card, not a text-cut stack', () => {

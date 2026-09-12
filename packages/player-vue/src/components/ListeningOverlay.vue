@@ -11,7 +11,7 @@ import { useListeningPods, SPEAKER_PALETTE } from '../composables/useListeningPo
 import { getCachedListeningMeta } from '../composables/listeningMetaCache'
 import { buildSilentWavDataUri } from '../playback/silentWav'
 import { buildModalQueue as buildPodModalQueue } from '../playback/podModalQueue'
-import { breathGroupsForClip, normaliseWordTimings, textLinesForSentence, trackPosition } from '../playback/breathGroups'
+import { breathGroupsForClip, estimateLineTimings, normaliseWordTimings, textLinesForSentence, trackPosition } from '../playback/breathGroups'
 import ListeningModeToggle from './ListeningModeToggle.vue'
 import TeleprompterScroll from './TeleprompterScroll.vue'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
@@ -542,8 +542,11 @@ watch(currentIndex, () => { revealedRowId.value = null })
 // stack renders with its lines cut from the sentence text — sentence enders,
 // then clause punctuation, then a 60-char cap — layout only: no lit line,
 // no fill, no clock (#430, Tom: "we could still split them up into single
-// breaths"). Either source yielding one line → null → the existing card,
-// unchanged. Drill and every other surface → null by construction (see
+// breaths") — and, since #468, an ESTIMATED walk: the lines are apportioned
+// across the clip's own duration by their speech (breathGroups.ts,
+// estimateLineTimings), the lit line moves at that estimate, and no fill is
+// painted inside it. Either source yielding one line → null → the existing
+// card, unchanged. Drill and every other surface → null by construction (see
 // playback/breathGroups.ts and ListeningOverlay.breathTracker.test.ts).
 let breathGroupCache = new Map()
 const trackerGroupsFor = (phrase) => {
@@ -559,7 +562,7 @@ const trackerGroupsFor = (phrase) => {
     if (groups) stack = { lines: groups, timed: true }
   } else {
     const lines = textLinesForSentence(text)
-    if (lines) stack = { lines: lines.map((t) => ({ text: t })), timed: false }
+    if (lines) stack = { lines: estimateLineTimings(lines), timed: false }
   }
   breathGroupCache.set(key, stack)
   return stack
@@ -570,6 +573,9 @@ const trackerGroupsFor = (phrase) => {
 // screen freezes rAF, and nobody is looking at a locked screen.
 const trackClipId = ref(null)
 const trackClock = ref(0)
+/** The sounding clip's length in seconds, read off the same element — the
+ *  only clock an UNTIMED clip has (#468); 0 until its metadata is in. */
+const trackDuration = ref(0)
 let clockRaf = null
 const stopClipClock = (clear = true) => {
   if (clockRaf) cancelAnimationFrame(clockRaf)
@@ -580,9 +586,11 @@ const startClipClock = (id) => {
   stopClipClock(false)
   trackClipId.value = id
   trackClock.value = 0
+  trackDuration.value = 0
   const tick = () => {
     const a = audioController.value?.audio
     trackClock.value = a ? (a.currentTime || 0) : 0
+    trackDuration.value = a && Number.isFinite(a.duration) ? (a.duration || 0) : 0
     clockRaf = requestAnimationFrame(tick)
   }
   clockRaf = requestAnimationFrame(tick)
@@ -590,17 +598,24 @@ const startClipClock = (id) => {
 const trackPos = computed(() => {
   const phrase = availablePhrases.value[currentIndex.value]
   const stack = phrase ? trackerGroupsFor(phrase) : null
-  if (!stack?.timed) return { index: -1, fill: 0 }
+  if (!stack) return { index: -1, fill: 0 }
   const live = trackClipId.value && trackClipId.value === phrase.sentences[0].targetAudioId
-  return trackPosition(stack.lines, live ? trackClock.value : 0)
+  if (stack.timed) return trackPosition(stack.lines, live ? trackClock.value : 0)
+  // Untimed (#468): the lines carry FRACTIONS of the clip, so the clock is
+  // the element's progress through it. No duration yet → the first line
+  // lit, as a timed stack is before its first word.
+  const d = trackDuration.value
+  const progress = live && d > 0 ? trackClock.value / d : 0
+  return trackPosition(stack.lines, progress)
 })
-// An untimed stack has no position: every line in the card's own colour.
+// Said / lit / to come at line grain on every stack; the fill inside the lit
+// line is painted only where the clip's own timings earned it.
 const breathClass = (gi) => (trackPos.value.index < 0 ? { untimed: true } : {
   said: gi < trackPos.value.index,
   live: gi === trackPos.value.index,
   ahead: gi > trackPos.value.index,
 })
-const breathStyle = (gi) => (gi === trackPos.value.index ? { '--fill': `${Math.round(trackPos.value.fill * 1000) / 10}%` } : null)
+const breathStyle = (gi, timed) => (timed && gi === trackPos.value.index ? { '--fill': `${Math.round(trackPos.value.fill * 1000) / 10}%` } : null)
 
 // Dialogue rows are per-CHUNK, so the gloss is a single line under a single
 // phrase (never a paragraph wall) — it follows the gloss eye in every mode,
@@ -2434,9 +2449,10 @@ watch(
                  more BREATH GROUPS (pauses in the clip's own word timings)
                  is a stack — said / lit / to come — and a fill walks inside
                  the lit group with the clip's clock. A sentence with NO
-                 timings is the same stack cut from its text, layout only.
-                 One line from either source, or any other mode → this
-                 branch is null and the card below renders exactly as
+                 timings is the same stack cut from its text, its lit line
+                 walking at an estimate from the clip's length, no fill
+                 (#468). One line from either source, or any other mode →
+                 this branch is null and the card below renders exactly as
                  before. -->
             <template v-else-if="isCurrent && trackerGroupsFor(phrase)">
               <div class="breath-stack" :class="{ untimed: !trackerGroupsFor(phrase).timed }" :dir="dirFor(phrase.targetText)">
@@ -2446,7 +2462,7 @@ watch(
                   :lang="courseTargetLang"
                   class="phrase-target breath-group"
                   :class="breathClass(gi)"
-                  :style="breathStyle(gi)"
+                  :style="breathStyle(gi, trackerGroupsFor(phrase).timed)"
                 ><span class="breath-fill">{{ g.text }}</span></div>
               </div>
               <div :lang="courseKnownLang" v-if="(glossVisible || revealedRowId === phrase.id) && phrase.knownText" class="phrase-known" :dir="dirFor(phrase.knownText)">{{ phrase.knownText }}</div>
@@ -3477,23 +3493,37 @@ watch(
   margin-top: 0.1rem;
 }
 
-/* Immersion breath-group stack (jobs #408, #430) — Spotify-transcript
+/* Immersion breath-group stack (jobs #408, #430, #468) — Spotify-transcript
  * grammar on ONE card: the group being spoken lit, groups already said
  * quiet, groups to come dim. An UNTIMED stack (lines cut from the text,
- * `.breath-stack.untimed`) carries none of those states: every line sits in
- * the card's own colour, and only the layout is shared. The fill inside the lit group is the text itself painted up to
- * --fill (background-clip: text), walking with the clip's clock. Lines never
- * reflow between states: state is colour, never size or weight. Selectors
- * carry `.phrase-row.current` because the card's own target rule does, and
- * the state colour has to beat it (the first staging build painted every
- * group the same black for exactly that reason). */
+ * `.breath-stack.untimed`) shares the three line states, walked at an
+ * estimate from the clip's length, but never the fill: the lit line is
+ * simply the card's own colour (#468). The fill inside a TIMED lit group is
+ * the text itself painted up to --fill (background-clip: text), walking with
+ * the clip's clock. Lines never reflow between states: state is colour,
+ * never size or weight. Selectors carry `.phrase-row.current` because the
+ * card's own target rule does, and the state colour has to beat it (the
+ * first staging build painted every group the same black for exactly that
+ * reason).
+ *
+ * Type size (#468): a line is the size of a long real breath (60 chars),
+ * and at the card's own size — clamp(1.75rem, 5vmin, 2.25rem), ~19 chars a
+ * line on a 390px phone — every line wrapped three times and a six-line
+ * turn overflowed the viewport: the block of text again, in a stack. The
+ * stack sets its lines a step smaller so a breath is one or two screen
+ * lines and the walk is visible as a walk. The single-sentence card is
+ * untouched. */
 .breath-stack {
   --breath-said: #6f6761;
   --breath-dim: rgba(138, 128, 120, 0.62);
   display: flex;
   flex-direction: column;
-  gap: 0.35em;
+  gap: 0.45em;
   unicode-bidi: isolate;
+}
+.phrase-row.current .breath-stack .phrase-target.breath-group {
+  font-size: clamp(1.25rem, 3.8vmin, 1.75rem);
+  line-height: 1.25;
 }
 .phrase-row.current .phrase-target.breath-group {
   transition: color 0.25s ease;
