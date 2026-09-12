@@ -12,7 +12,7 @@ import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { formatPracticeMinutes, secondsToMinutes } from '@/composables/schools/practiceMinutes'
-import { fetchClassPractice7d, type ClassAccountProgress } from '@/composables/schools/classPractice7d'
+import { fetchClassPractice7d, ClassPracticeFetchError, type ClassAccountProgress } from '@/composables/schools/classPractice7d'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useClassesData, type ClassReport } from '@/composables/schools/useClassesData'
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
@@ -96,6 +96,11 @@ const practice7dDays = ref<Record<string, number>>({})
 // per-pupil count, which on a shared-screen class is always 0 and lies.
 const classAccounts = ref<Record<string, ClassAccountProgress>>({})
 const practiceLoaded = ref(false)
+// Set when the practice fetch FAILS: the banner says so, with the status and
+// the server's own words, and offers Retry. Never dots that read like data
+// (job #301, 2026-09-12 — Tom's staging shot under View-as: 34 rows of "…",
+// "0 min in the app this week", and no word of why).
+const practiceError = ref<string | null>(null)
 
 async function loadPractice7d() {
   if (!supabase.value) return
@@ -105,13 +110,16 @@ async function loadPractice7d() {
     // Shared with the class page (classPractice7d.ts) so both read the same
     // class-account figures; under View-as it names the school being read.
     const data = await fetchClassPractice7d(classIds, selectedUser.value, supabase.value)
-    if (!data) return
     practice7dSeconds.value = data.practiceByClass
     practice7dDays.value = data.activeDaysByClass
     classAccounts.value = data.classAccountByClass
     practiceLoaded.value = true
-  } catch {
-    /* non-fatal — the rows stay honestly unloaded */
+    practiceError.value = null
+  } catch (err) {
+    // Loud, not silent: the rows stay honestly unloaded AND the page says why.
+    const status = err instanceof ClassPracticeFetchError ? err.status : 0
+    const detail = err instanceof Error && err.message ? err.message : 'network error'
+    practiceError.value = status ? `${detail} (HTTP ${status})` : detail
   }
 }
 
@@ -451,6 +459,10 @@ function exportCsv() {
     </div>
     <div v-if="playError" class="fetch-error-banner">
       <span>{{ playError }}</span>
+    </div>
+    <div v-if="practiceError" class="fetch-error-banner" data-testid="practice-error">
+      <span>{{ t('schools.teacherDashboard.practiceFailed', "Couldn't load this week's practice for these classes — belts, journeys and minutes are not shown. {error}").replace('{error}', practiceError) }}</span>
+      <button type="button" class="btn-ghost" @click="refresh">{{ t('schools.teacherDashboard.retry', 'Retry') }}</button>
     </div>
 
     <!-- Summary strip -->

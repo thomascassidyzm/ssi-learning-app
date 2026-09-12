@@ -1584,6 +1584,7 @@
       "noSchoolFoundError": "No school found for your account. Please contact an administrator.",
       "openClassAriaLabel": "Open {name}",
       "playAsClass": "Play as class",
+      "practiceFailed": "Couldn't load this week's practice for these classes — belts, journeys and minutes are not shown. {error}",
       "refreshFailed": "Couldn't refresh this list — showing the last data loaded. {error}",
       "resetFilters": "Reset filters",
       "retry": "Retry",
