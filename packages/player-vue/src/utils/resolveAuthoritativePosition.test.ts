@@ -57,6 +57,27 @@ describe('resolveAuthoritativePosition', () => {
     ).toEqual({ legoId: 'S0012L01', source: 'local' })
   })
 
+  // job #326: a device that was reset to round 1 once, or that a guest played
+  // on before signing in, carries a FRESHER local stamp at a place the learner
+  // has already passed. Fresher-but-behind is a stale cache, not progress.
+  it('local fresher but BEHIND the server cursor — server wins (a round-1 landing is not a position)', () => {
+    expect(
+      resolveAuthoritativePosition(
+        { legoId: 'S0001L01', lastUpdated: 5_000 },
+        { cursorLegoId: 'S0020L01', lastPracticedAt: 2_000 },
+      ),
+    ).toEqual({ legoId: 'S0020L01', source: 'server' })
+  })
+
+  it('local fresher and AT the server cursor — local wins (same place, fresher cycle)', () => {
+    expect(
+      resolveAuthoritativePosition(
+        { legoId: 'S0020L01', lastUpdated: 5_000 },
+        { cursorLegoId: 'S0020L01', lastPracticedAt: 2_000 },
+      ),
+    ).toEqual({ legoId: 'S0020L01', source: 'local' })
+  })
+
   it('exact tie — server wins (not strictly fresher)', () => {
     expect(
       resolveAuthoritativePosition(
