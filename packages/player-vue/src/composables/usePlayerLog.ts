@@ -63,6 +63,10 @@ interface PlayerLogOptions {
 const DEFAULT_FLUSH_INTERVAL_MS = 5000
 const BATCH_TRIGGER = 10
 const MAX_BUFFER = 200 // hard cap; events past this are dropped
+// How long a sync (hide / unmount) flush waits for a pending bearer before
+// falling back to an unattributed beacon. Supabase's getSession() answers
+// from local storage in a few ms; this only bites if the auth client hangs.
+const SYNC_TOKEN_WAIT_MS = 800
 
 let nextSessionId: string | null = null
 function genSessionId(): string {
@@ -85,11 +89,20 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
   // Last known access token, refreshed on every async flush so the unload
   // path (which cannot await) still has one to send.
   let cachedToken: string | null = null
-  const refreshToken = async (): Promise<void> => {
-    if (!options.getToken) return
-    try {
-      cachedToken = await options.getToken()
-    } catch { /* silent — telemetry never blocks UX */ }
+  // The refresh currently in flight, if any. A sync flush that finds the
+  // cache empty while this is pending WAITS for it (bounded) rather than
+  // beaconing without a bearer — see flush().
+  let tokenInFlight: Promise<void> | null = null
+  const refreshToken = (): Promise<void> => {
+    if (!options.getToken) return Promise.resolve()
+    if (tokenInFlight) return tokenInFlight
+    const p = (async () => {
+      try {
+        cachedToken = await options.getToken!()
+      } catch { /* silent — telemetry never blocks UX */ }
+    })().finally(() => { if (tokenInFlight === p) tokenInFlight = null })
+    tokenInFlight = p
+    return p
   }
 
   const resolveCourseCode = (): string | null => {
@@ -195,16 +208,34 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
     // it without awaiting; a background refresh keeps it current.
     //
     // The cache is ALSO primed at mount (see onMounted). Before that, the only
-    // thing that filled it was a timed flush, so a tab hidden or a player
-    // unmounted inside the first five seconds of a session beaconed its boot
-    // events with no bearer at all, and they landed unattributed — nine such
-    // rows for class 8H, every one a cold_start / bundle_boot_path /
-    // bundle_tier_heal at the head of its session (job #307, 2026-09-12).
+    // things that filled it were an async flush — timed, ten-event batch or
+    // explicit — so any sync flush before the first of those had RESOLVED
+    // beaconed its boot events with no bearer at all, and they landed
+    // unattributed — nine such rows for class 8H, every one a cold_start /
+    // bundle_boot_path / bundle_tier_heal at the head of its session (job
+    // #307, 2026-09-12). Priming narrowed that window; the bounded wait
+    // below closes it (job #317).
     if (!sync) await refreshToken()
-    const token = cachedToken
-    // A sync flush that found the cache empty still kicks a refresh, so the
-    // NEXT unload path has a token even if no timed flush runs in between.
-    if (sync && !token) void refreshToken()
+    let token = cachedToken
+    if (sync && !token && options.getToken) {
+      // The gap #307 left open (Astra, #316·G): priming at mount starts the
+      // refresh, but a tab hidden or a player unmounted BEFORE getToken()
+      // resolves still found the cache empty and beaconed the boot events
+      // with no bearer. So a sync flush now waits for the in-flight refresh
+      // instead of racing it. A keepalive fetch issued after an awaited
+      // promise inside a visibilitychange handler is still inside the
+      // page's lifetime, on the same terms as sendBeacon. The wait is
+      // bounded by SYNC_TOKEN_WAIT_MS: if the getter never settles (a hung
+      // auth client) the batch goes out as a beacon, unattributed, because
+      // losing attribution on one batch beats losing the batch.
+      // If no refresh is in flight, this starts one — the same bounded wait
+      // applies, so the NEXT unload path also has a token.
+      await Promise.race([
+        refreshToken(),
+        new Promise<void>((r) => setTimeout(r, SYNC_TOKEN_WAIT_MS)),
+      ])
+      token = cachedToken
+    }
 
     // sendBeacon for unmount/visibilitychange — survives page unload. It can't
     // carry a header, so it's only used when there's no token to carry (guest
