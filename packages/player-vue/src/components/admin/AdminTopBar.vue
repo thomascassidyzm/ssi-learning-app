@@ -28,8 +28,9 @@
  * The switch sits where the wordmark meets the tabs; Intelligence lands on
  * /intel/pulse, Admin on /admin/structure. View-as and Refresh are controls,
  * not destinations, and stay right-anchored in both modes. Below the collapse
- * width the switch stays and the CURRENT mode's destinations collapse into
- * one menu whose trigger names the current section, so "where am I" survives.
+ * width (1380px for the ten-tab Intelligence row, 1180px for Admin) the
+ * switch stays and the CURRENT mode's destinations collapse into one menu
+ * whose trigger names the current section, so "where am I" survives.
  */
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
@@ -126,7 +127,7 @@ const currentSectionLabel = computed(() => {
 </script>
 
 <template>
-  <header class="admin-topbar">
+  <header :class="['admin-topbar', `mode-${mode}`]">
     <div class="left">
       <router-link to="/" class="back-link" aria-label="Back to app">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -218,6 +219,13 @@ const currentSectionLabel = computed(() => {
 
 .left { display: flex; align-items: center; gap: 14px; min-width: 0; flex: none; }
 .right { display: flex; align-items: center; gap: 6px; min-width: 0; }
+/* View-as and Refresh are controls: they keep their width in every mode and
+   at every size. When the bar is short of room it is the collapsed section
+   trigger that gives, by truncating its label. */
+.right :deep(.vap), .right :deep(.refresh-button) { flex: none; }
+.tabs-collapsed { min-width: 0; }
+.tabs-collapsed :deep(.nvm), .tabs-collapsed :deep(.nvm-trigger) { min-width: 0; max-width: 100%; }
+.tabs-collapsed :deep(.nvm-trigger-label) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .back-link {
   display: inline-flex;
@@ -310,6 +318,13 @@ const currentSectionLabel = computed(() => {
 }
 .tab.active:hover { background: var(--schools-red-deep); }
 
+/* The Intelligence row needs ~1365px for ten tabs, the switch, View-as and
+   Refresh on one line. Rather than shrink the type, it collapses earlier than
+   the three-tab Admin row does — the breakpoint moves before the font. */
+@media (max-width: 1380px) {
+  .mode-intel .tabs { display: none; }
+  .mode-intel .tabs-collapsed { display: flex; }
+}
 @media (max-width: 1180px) {
   .tabs { display: none; }
   .tabs-collapsed { display: flex; }
@@ -320,5 +335,6 @@ const currentSectionLabel = computed(() => {
   .back-link span { display: none; }
   .brand-text { display: none; }
   .left { gap: 8px; }
+  .seg { padding: 4px 8px; font-size: 11.5px; }
 }
 </style>

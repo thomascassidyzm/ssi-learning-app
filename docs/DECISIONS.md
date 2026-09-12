@@ -1125,3 +1125,24 @@ cursor repairs: no real learner's cursor moved backwards.
 learners sit past the wall (fransetter S0217, lea.weber94 and reillyfeatherstone in infinite play)
 and will meet the paywall on return rather than round 1. Census, queries and reproduction:
 https://watson-1.tail4968cb.ts.net/d/00ee37b1
+## 2026-09-12 — SSi admin top bar: Intelligence | Admin, two modes, one switch (job #340·F)
+
+**What was wrong.** The bar over `/intel/*` and `/admin/*` carried three small-caps question groups
+(Learners, Content, Business), a divider and an unlabelled schools-admin group on one row. So
+"Organisations" appeared twice meaning two things, the row wrapped to two lines at 1280 and 1440
+wide, and the ScopeRail beside it already tracked scope in different words.
+
+**Decision.** Tom, 2026-09-12 11:57Z: "Yes to admin nav", answering Watson's card proposing the
+split. The route decides the mode, never local state, so a deep link lands right. `/intel/*` is
+Intelligence: the ten questions on one row, grouped by scope in the ScopeRail's own vocabulary,
+Everyone / One person / One organisation, parted by quiet rules rather than labels. `/admin/*` is
+Admin: Structure, People, Tools. The switch sits where the wordmark meets the tabs; Intelligence
+lands on `/intel/pulse`, Admin on `/admin/structure`. View-as and Refresh are controls, not
+destinations, and stay right-anchored in both modes. "Organisations" now means one thing: question
+10's sentence. Its tab reads "One organisation"; its path is unchanged. No route was renamed and no
+page content was touched.
+
+**Width.** The Intelligence row needs about 1365px, so 1280 cannot hold it. The breakpoint moved
+before the font: Intelligence collapses into the one menu below 1380px, Admin below 1180px as
+before. On phones the switch stays visible and the section trigger truncates its label rather than
+squeezing View-as.
