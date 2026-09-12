@@ -26,11 +26,19 @@
   "steps": [
     {
       "anchor": "ways-in-ledger",
-      "say": "Every way in, in one ledger: personal sign-in links and shareable join links, for everywhere below here. Filter by role or by place with the chips.",
+      "say": "Every way in, in one ledger: personal sign-in links and shareable join links, for everywhere below here. With more than three links it folds to one row per role — how many, and how often they have been used.",
       "advance": {
         "on": "next"
       },
       "checked": "3bede94f.8c9dafac"
+    },
+    {
+      "anchor": "ways-in-show-all",
+      "say": "Tap **Show all** to open the full ledger, every link on its own row with its own verbs. You can filter by role or by place with the chips once it is open.",
+      "advance": {
+        "on": "click"
+      },
+      "checked": "1ca8440b.bbda90e7"
     },
     {
       "anchor": "ways-in-copy",

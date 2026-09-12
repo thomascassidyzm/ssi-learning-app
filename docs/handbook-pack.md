@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `07cc9810b814` · generated 2026-09-12 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `293516ec046a` · generated 2026-09-12 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -373,7 +373,7 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `way
 
 **What it's for.** Sending the same invite email a second time to somebody who never found the first one. Nothing changes and no new link is made, so the one they may yet dig out of a spam folder still works.
 
-**Where it is.** The node's home page, the **Ways in** section, **Email again** on their row.
+**Where it is.** The node's home page, the **Ways in** section, **Email again** on their row. Tap **Show all** first if the ledger is folded.
 
 1. Scroll to **Ways in** on the node's home page.
 2. Find the person's row.
@@ -509,7 +509,7 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `way
 
 **What it's for.** Giving one group of learners a sign-up link that puts them straight into a named course, when your funded year covers more than one. A North Wales tutor hands out the North Welsh link and nobody in that room is asked which Welsh they meant.
 
-**Where it is.** The node's home page, the **Ways in** section, the course-named buttons on your sign-up link's row.
+**Where it is.** The node's home page, the **Ways in** section, the course-named buttons on your sign-up link's row. Tap **Show all** first if the ledger is folded.
 
 1. Scroll to **Ways in** on the node's home page.
 2. Find the row for your sign-up link.
@@ -785,6 +785,21 @@ Section: running-classes · roles: school_admin, teacher · anchor: `classes-row
 3. The class page opens on its roster.
 
 **Worth knowing.** The row is a button in its own right, so a keyboard works too. The buttons at the right of the row do their own jobs and do not open the class.
+
+## Open the folded ledger
+
+Section: getting-people-in · roles: admin, leader, school_admin · anchor: `ways-in-show-all` · in `packages/player-vue/src/components/admin/WaysInLedger.vue`
+
+**What it's for.** Turning the one-row-per-role summary of your links into the full ledger, where every link has its own row and its own verbs.
+
+**Where it is.** The **Ways in** section, the **Show all** line under the role rows. It only appears when there are more than three links.
+
+1. Scroll to **Ways in** on the node's home page.
+2. Tap **Show all**.
+3. The ledger opens with its filter chips and every link's row.
+4. Tap **Show fewer** at the bottom to fold it back.
+
+**Worth knowing.** Nothing is ever hidden for good: every link is one tap away.
 
 ## Prove your mailbox reaches you
 
@@ -1246,10 +1261,11 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `way
 **Where it is.** The node's home page, the **Ways in** section below the lists.
 
 1. Open the node's home page and scroll to **Ways in**.
-2. Read the rows: each one is a live way in, personal or shareable.
-3. **Copy** hands you the link again.
-4. **Re-mint** issues a fresh link and kills the old one on the spot.
-5. **Revoke** closes that way in entirely.
+2. With more than three links, read one row per role — class links, teacher links, leader links — each saying how many there are and how often they have been used. A row with a single link carries **Copy**.
+3. Tap **Show all** to open the full ledger: each row a live way in, personal or shareable, filterable by role and by place with the chips. **Show fewer** folds it back.
+4. **Copy** hands you the link again.
+5. **Re-mint** issues a fresh link and kills the old one on the spot.
+6. **Revoke** closes that way in entirely.
 
 **Worth knowing.** A shareable link is open to anyone who holds it, so revoke is the tool when a link has travelled further than you meant.
 

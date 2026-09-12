@@ -11,6 +11,8 @@ import { ref, computed, watch } from 'vue'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { courseShortName } from '@ssi/core'
 import { useI18n } from '@/composables/useI18n'
+import ShowAll from '@/components/shared/ShowAll.vue'
+import { TOP_THREE } from '@/components/shared/topThree'
 
 const { t } = useI18n()
 
@@ -119,6 +121,53 @@ const visible = computed(() => scoped.value.filter((l) =>
   (roleFilter.value === 'all' || l.role === roleFilter.value) &&
   (whereFilter.value === 'all' || chipKey(l) === whereFilter.value)
 ))
+
+// ─── GROUPED ROWS, then Show all (Option A, job #306, 2026-09-12) ───
+// At St Alban's the ledger was fourteen rows, twelve of them reading "Anyone
+// — joins as learner · shareable · 0 uses · active" with only the class name
+// and code differing; on a phone that is twelve five-line cards saying one
+// thing. The collapsed form that carries the meaning is one row per ROLE —
+// "12 class links, none used yet · 1 teacher link, used twice · 1 school
+// leader link" — with Copy kept on a single-link row because copying is the
+// everyday verb, and Show all opening the ledger exactly as it was, chips,
+// Revoke and all. A ledger of three links or fewer has nothing to fold and
+// renders whole. Re-mint and Revoke live only in the open ledger: they are
+// rare and one of them is dangerous.
+const ROLE_ORDER: LedgerLink['role'][] = ['student', 'teacher', 'school_leader', 'leader']
+const ledgerOpen = ref(false)
+const folded = computed(() => scoped.value.length > TOP_THREE && !ledgerOpen.value)
+interface LinkGroup { role: LedgerLink['role']; links: LedgerLink[]; uses: number; classLinks: boolean }
+const groups = computed<LinkGroup[]>(() => {
+  const by = new Map<LedgerLink['role'], LedgerLink[]>()
+  for (const l of scoped.value) by.set(l.role, [...(by.get(l.role) || []), l])
+  return ROLE_ORDER.filter((r) => by.has(r)).map((role) => {
+    const links = by.get(role)!
+    return {
+      role,
+      links,
+      uses: links.reduce((n, l) => n + (l.uses?.count || 0), 0),
+      // Twelve learner links, one per class, are class links to a head.
+      classLinks: role === 'student' && links.every((l) => l.where.kind === 'class'),
+    }
+  })
+})
+function groupWord(g: LinkGroup): string {
+  const n = String(g.links.length)
+  const one = g.links.length === 1
+  if (g.classLinks) return (one ? t('org.ui.waysInLedger.groupClassOne', '{n} class link') : t('org.ui.waysInLedger.groupClassMany', '{n} class links')).replace('{n}', n)
+  if (g.role === 'student') return (one ? t('org.ui.waysInLedger.groupLearnerOne', '{n} learner link') : t('org.ui.waysInLedger.groupLearnerMany', '{n} learner links')).replace('{n}', n)
+  if (g.role === 'teacher') return (one ? t('org.ui.waysInLedger.groupTeacherOne', '{n} teacher link') : t('org.ui.waysInLedger.groupTeacherMany', '{n} teacher links')).replace('{n}', n)
+  if (g.role === 'school_leader') return (one ? t('org.ui.waysInLedger.groupSchoolLeaderOne', '{n} school leader link') : t('org.ui.waysInLedger.groupSchoolLeaderMany', '{n} school leader links')).replace('{n}', n)
+  return (one ? t('org.ui.waysInLedger.groupLeaderOne', '{n} group leader link') : t('org.ui.waysInLedger.groupLeaderMany', '{n} group leader links')).replace('{n}', n)
+}
+function groupUses(g: LinkGroup): string {
+  if (g.uses === 0) return t('org.ui.waysInLedger.groupNoneUsed', 'none used yet')
+  if (g.uses === 1) return t('org.ui.waysInLedger.groupUsedOnce', 'used once')
+  return t('org.ui.waysInLedger.groupUsedTimes', 'used {n} times').replace('{n}', String(g.uses))
+}
+const showAllLinksLabel = computed(() => t('org.ui.waysInLedger.showAllLinks', 'Show all {n} links').replace('{n}', String(scoped.value.length)))
+// A new node is a new page: the ledger starts folded again.
+watch(() => props.nodeId, () => { ledgerOpen.value = false })
 
 function when(iso: string): string {
   const d = new Date(iso)
@@ -240,10 +289,15 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
          Where it is. The node's home page, the **Ways in** section below the lists.
          How you do it.
          1. Open the node's home page and scroll to **Ways in**.
-         2. Read the rows: each one is a live way in, personal or shareable.
-         3. **Copy** hands you the link again.
-         4. **Re-mint** issues a fresh link and kills the old one on the spot.
-         5. **Revoke** closes that way in entirely.
+         2. With more than three links, read one row per role — class links, teacher
+            links, leader links — each saying how many there are and how often they
+            have been used. A row with a single link carries **Copy**.
+         3. Tap **Show all** to open the full ledger: each row a live way in, personal
+            or shareable, filterable by role and by place with the chips. **Show fewer**
+            folds it back.
+         4. **Copy** hands you the link again.
+         5. **Re-mint** issues a fresh link and kills the old one on the spot.
+         6. **Revoke** closes that way in entirely.
          Worth knowing. A shareable link is open to anyone who holds it, so revoke is the
          tool when a link has travelled further than you meant.
          checked: 9e409c9a.886545b6
@@ -253,7 +307,35 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
       <span v-if="!isLoading" class="ways-in-count">{{ visible.length === 1 ? t('org.ui.waysInLedger.oneLink', '1 link') : t('org.ui.waysInLedger.nLinks', '{n} links').replace('{n}', String(visible.length)) }}</span>
     </div>
 
-    <div v-if="scoped.length && !classId" class="ways-in-chips">
+    <!-- HANDBOOK Open the folded ledger
+         section: getting-people-in
+         roles: admin, leader, school_admin
+         place: node-home
+         keywords: show all, fold, ledger, links, ways in, fewer
+         What it's for. Turning the one-row-per-role summary of your links into the
+         full ledger, where every link has its own row and its own verbs.
+         Where it is. The **Ways in** section, the **Show all** line under the role
+         rows. It only appears when there are more than three links.
+         How you do it.
+         1. Scroll to **Ways in** on the node's home page.
+         2. Tap **Show all**.
+         3. The ledger opens with its filter chips and every link's row.
+         4. Tap **Show fewer** at the bottom to fold it back.
+         Worth knowing. Nothing is ever hidden for good: every link is one tap away.
+         checked: e23cb244.81cd02f3
+    -->
+    <template v-if="folded">
+      <ul class="ways-in-groups">
+        <li v-for="g in groups" :key="g.role" class="ways-in-group" :data-role="g.role">
+          <span class="group-word">{{ groupWord(g) }}</span>
+          <span class="group-uses">{{ groupUses(g) }}</span>
+          <button v-if="g.links.length === 1 && g.links[0].status === 'active'" type="button" class="row-verb" :class="{ 'is-copied': copiedCode === g.links[0].code }" @click="copyLink(g.links[0])">{{ copiedCode === g.links[0].code ? t('org.ui.waysInLedger.copied', 'Copied!') : t('org.ui.waysInLedger.copy', 'Copy') }}</button>
+        </li>
+      </ul>
+      <ShowAll data-walk="ways-in-show-all" :expanded="false" :label="showAllLinksLabel" @toggle="ledgerOpen = true" />
+    </template>
+
+    <div v-if="!folded && scoped.length && !classId" class="ways-in-chips">
       <button type="button" class="chip" :class="{ 'is-on': roleFilter === 'all' }" @click="roleFilter = 'all'">{{ t('org.ui.waysInLedger.allRoles', 'All roles') }}</button>
       <button
         v-for="c in roleChips" :key="c.value" type="button" class="chip"
@@ -275,6 +357,7 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
     <p v-else-if="notice" class="ways-in-note is-ok">{{ notice }}</p>
 
     <p v-if="isLoading && !scoped.length" class="ways-in-empty">{{ t('org.ui.waysInLedger.loading', 'Loading…') }}</p>
+    <template v-else-if="folded" />
     <p v-else-if="!scoped.length" class="ways-in-empty">{{ classId ? t('org.ui.waysInLedger.noLinksClass', 'No links for this class yet — use “Invite students” above.') : t('org.ui.waysInLedger.noLinksNode', 'No links yet — use “Invite a person” or “Get a shareable link” above.') }}</p>
 
     <table v-else class="ways-in-table">
@@ -313,7 +396,8 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
                  A North Wales tutor hands out the North Welsh link and nobody in that room
                  is asked which Welsh they meant.
                  Where it is. The node's home page, the **Ways in** section, the course-named
-                 buttons on your sign-up link's row.
+                 buttons on your sign-up link's row. Tap **Show all** first if the ledger is
+                 folded.
                  How you do it.
                  1. Scroll to **Ways in** on the node's home page.
                  2. Find the row for your sign-up link.
@@ -345,7 +429,8 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
                  link is made, so the one they may yet dig out of a spam folder
                  still works.
                  Where it is. The node's home page, the **Ways in** section,
-                 **Email again** on their row.
+                 **Email again** on their row. Tap **Show all** first if the ledger
+                 is folded.
                  How you do it.
                  1. Scroll to **Ways in** on the node's home page.
                  2. Find the person's row.
@@ -365,6 +450,7 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
         </tr>
       </tbody>
     </table>
+    <ShowAll v-if="!folded && scoped.length > TOP_THREE" :expanded="true" :label="showAllLinksLabel" @toggle="ledgerOpen = false" />
   </section>
 </template>
 
@@ -381,6 +467,19 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
 }
 .chip.is-on { background: var(--schools-red, #DB1E17); border-color: transparent; color: #fff; }
 .chip-gap { width: 10px; }
+
+/* The folded form: one row per role, the count and the uses, Copy on a
+   single-link row. */
+.ways-in-groups { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.ways-in-group {
+  display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;
+  padding: 10px 0; border-bottom: 1px solid rgba(44, 38, 34, 0.06); font-size: var(--text-sm);
+}
+.ways-in-group:last-child { border-bottom: none; }
+.group-word { font-weight: var(--font-semibold); color: var(--schools-fg, #0F1212); }
+.group-uses { color: var(--schools-fg-3, #8A8078); font-size: var(--text-xs); }
+.group-uses::before { content: '· '; }
+.ways-in-group .row-verb { margin-left: auto; }
 
 .ways-in-note { margin: 0; font-size: var(--text-sm); }
 .ways-in-note.is-error { color: rgb(var(--tone-red)); }

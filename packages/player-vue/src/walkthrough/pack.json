@@ -1,5 +1,5 @@
 {
-  "version": "07cc9810b814",
+  "version": "293516ec046a",
   "generatedAt": "2026-09-12",
   "walks": [
     {
@@ -771,9 +771,16 @@
       "steps": [
         {
           "anchor": "ways-in-ledger",
-          "say": "Every way in, in one ledger: personal sign-in links and shareable join links, for everywhere below here. Filter by role or by place with the chips.",
+          "say": "Every way in, in one ledger: personal sign-in links and shareable join links, for everywhere below here. With more than three links it folds to one row per role — how many, and how often they have been used.",
           "advance": {
             "on": "next"
+          }
+        },
+        {
+          "anchor": "ways-in-show-all",
+          "say": "Tap **Show all** to open the full ledger, every link on its own row with its own verbs. You can filter by role or by place with the chips once it is open.",
+          "advance": {
+            "on": "click"
           }
         },
         {
@@ -1746,7 +1753,7 @@
       "source": "packages/player-vue/src/components/admin/WaysInLedger.vue",
       "walk": null,
       "what": "Sending the same invite email a second time to somebody who never found the first one. Nothing changes and no new link is made, so the one they may yet dig out of a spam folder still works.",
-      "where": "The node's home page, the **Ways in** section, **Email again** on their row.",
+      "where": "The node's home page, the **Ways in** section, **Email again** on their row. Tap **Show all** first if the ledger is folded.",
       "how": [
         "Scroll to **Ways in** on the node's home page.",
         "Find the person's row.",
@@ -2048,7 +2055,7 @@
       "source": "packages/player-vue/src/components/admin/WaysInLedger.vue",
       "walk": null,
       "what": "Giving one group of learners a sign-up link that puts them straight into a named course, when your funded year covers more than one. A North Wales tutor hands out the North Welsh link and nobody in that room is asked which Welsh they meant.",
-      "where": "The node's home page, the **Ways in** section, the course-named buttons on your sign-up link's row.",
+      "where": "The node's home page, the **Ways in** section, the course-named buttons on your sign-up link's row. Tap **Show all** first if the ledger is folded.",
       "how": [
         "Scroll to **Ways in** on the node's home page.",
         "Find the row for your sign-up link.",
@@ -2659,6 +2666,40 @@
         "The class page opens on its roster."
       ],
       "note": "The row is a button in its own right, so a keyboard works too. The buttons at the right of the row do their own jobs and do not open the class."
+    },
+    {
+      "id": "open-the-folded-ledger",
+      "title": "Open the folded ledger",
+      "section": "getting-people-in",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "keywords": [
+        "show all",
+        "fold",
+        "ledger",
+        "links",
+        "ways in",
+        "fewer"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "anchor": "ways-in-show-all",
+      "surface": "schools",
+      "source": "packages/player-vue/src/components/admin/WaysInLedger.vue",
+      "walk": null,
+      "what": "Turning the one-row-per-role summary of your links into the full ledger, where every link has its own row and its own verbs.",
+      "where": "The **Ways in** section, the **Show all** line under the role rows. It only appears when there are more than three links.",
+      "how": [
+        "Scroll to **Ways in** on the node's home page.",
+        "Tap **Show all**.",
+        "The ledger opens with its filter chips and every link's row.",
+        "Tap **Show fewer** at the bottom to fold it back."
+      ],
+      "note": "Nothing is ever hidden for good: every link is one tap away."
     },
     {
       "id": "prove-your-mailbox-reaches-you",
@@ -3704,7 +3745,8 @@
       "where": "The node's home page, the **Ways in** section below the lists.",
       "how": [
         "Open the node's home page and scroll to **Ways in**.",
-        "Read the rows: each one is a live way in, personal or shareable.",
+        "With more than three links, read one row per role — class links, teacher links, leader links — each saying how many there are and how often they have been used. A row with a single link carries **Copy**.",
+        "Tap **Show all** to open the full ledger: each row a live way in, personal or shareable, filterable by role and by place with the chips. **Show fewer** folds it back.",
         "**Copy** hands you the link again.",
         "**Re-mint** issues a fresh link and kills the old one on the spot.",
         "**Revoke** closes that way in entirely."
