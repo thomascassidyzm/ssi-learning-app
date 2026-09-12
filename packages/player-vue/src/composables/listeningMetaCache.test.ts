@@ -29,6 +29,7 @@ import {
 } from './listeningMetaCache'
 import { openDB } from 'idb'
 import { useListeningPods, type UseListeningPodsReturn } from './useListeningPods'
+import { resetServedPodCache } from './servedPod'
 
 // ── Fake supabase: a thenable query builder routed per table ──────────────
 
@@ -52,6 +53,7 @@ class FakeQuery {
   select() { return this }
   eq(column: string, value: any) { this.filters[column] = value; return this }
   in(column: string, values: any[]) { this.inFilter = { column, values }; return this }
+  or() { return this }
   order() { return this }
   range() { return this }
   limit() { return this }
@@ -109,8 +111,11 @@ const SEED_ROWS = [
   },
 ]
 
-const happyClient = makeFakeClient({
+const happyRoutes: Record<string, (q: FakeQuery) => RouteResult> = {
   courses: () => ({ data: { content_stamp: 'stamp-1' } as any, error: null }),
+  // A LIVE slot lookup: the course serves pod-1 and has no extra slot, so a
+  // snapshot built from it legitimately carries `extraPods: []`.
+  listening_pods: () => ({ data: [{ slug: 'pod-1', title: 'Pod one', pod_type: 'core' }], error: null }),
   listening_pod_sentences: () => ({ data: POD_ROWS, error: null }),
   course_audio: (q) => {
     if (q.inFilter?.column === 'id') {
@@ -141,7 +146,8 @@ const happyClient = makeFakeClient({
     ],
     error: null,
   }),
-})
+}
+const happyClient = makeFakeClient(happyRoutes)
 
 // bookends use .in('role', ...) too — disambiguate from split texts by column.
 // (Handled above: id-in → texts; role filter eq → fine-knowns; else bookends.)
@@ -447,6 +453,31 @@ describe('useListeningPods offline fallback', () => {
     expect(await ensureListeningMetaSnapshot(happyClient, 'ita_for_eng')).toBe(true)
     expect(Array.isArray((await getCachedListeningMeta('ita_for_eng'))!.extraPods)).toBe(true)
     expect(await ensureListeningMetaSnapshot(happyClient, 'ita_for_eng')).toBe(false)
+  })
+
+  // Job #424: on a device that had never cached extras, a first fetch whose
+  // slot lookup timed out or errored wrote `extraPods: []` — the same shape as
+  // "this course has no extra slot" — and the once-per-boot heal above then
+  // read it as complete for as long as the content stamp stood still. An
+  // empty list from a FALLBACK lookup is not a known list.
+  it('refreshes a snapshot whose extra slots came from a failed lookup, not a live read (job #424)', async () => {
+    const slotLookupDown = makeFakeClient({
+      ...happyRoutes,
+      listening_pods: () => ({ data: null, error: { message: 'TypeError: Load failed' } }),
+    })
+    resetServedPodCache()
+    expect(await ensureListeningMetaSnapshot(slotLookupDown, 'ita_for_eng_424')).toBe(true) // bad first boot
+    const written = (await getCachedListeningMeta('ita_for_eng_424'))!
+    expect(written.extraPods).toEqual([])
+    expect(written.extrasDegraded).toBe(true)
+    // Next boot, network fine: the heal must run again rather than trust `[]`.
+    resetServedPodCache()
+    expect(await ensureListeningMetaSnapshot(happyClient, 'ita_for_eng_424')).toBe(true)
+    const healed = (await getCachedListeningMeta('ita_for_eng_424'))!
+    expect(healed.extraPods).toEqual([])
+    expect(healed.extrasDegraded).toBeUndefined()
+    // And a live-read empty list IS a known list: no refetch loop.
+    expect(await ensureListeningMetaSnapshot(happyClient, 'ita_for_eng_424')).toBe(false)
   })
 
   it('serves scenes from the cached metadata when the live fetch fails', async () => {
