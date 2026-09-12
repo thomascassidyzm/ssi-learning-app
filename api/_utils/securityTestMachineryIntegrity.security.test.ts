@@ -128,6 +128,7 @@ describe('security-test machinery integrity — pinned roster', () => {
     'api/_security/sec0905-x-coordinator.security.test.ts',
     'api/_security/sec0912-a-org-tenancy.security.test.ts',
     'api/_security/sec0912-b-support-channel.security.test.ts',
+    'api/_security/sec0912t-c-intel-surface.security.test.ts',
     'api/_security/sec0912t-d-family-and-links.security.test.ts',
     'api/_security/sec0912t-g-identity-transfer.security.test.ts',
     'api/_utils/actAsGuard.advisory.security.test.ts',
