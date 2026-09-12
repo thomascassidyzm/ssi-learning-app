@@ -219,3 +219,70 @@ export function trackPosition(groups: BreathGroup[], clockSec: number): { index:
   }
   return { index: groups.length - 1, fill: 1 }
 }
+
+// ── Untimed clips: the same stack, lines cut from the TEXT (job #430) ─────
+//
+// Tom (2026-09-12): "it will help to not just have a massive block of text
+// in the longer form pods … we could still split them up into single
+// breaths though." The stacked layout is the win and is independent of the
+// tracker, so a clip with NO word timings (Pod-1 / xAI renders, human
+// recordings, viseme-only rows) renders in the same stack with its lines cut
+// from the sentence itself — layout only: no lit line, no fill, no clock.
+//
+// Cut order: sentence enders → clause punctuation → a length cap, words kept
+// whole and the overflow balanced rather than a long line plus an orphan.
+// The cap comes from the audio, not a guess: across 1,455 timed pod sentence
+// clips with two or more breath groups (3,942 groups, measured live
+// 2026-09-12) a real breath group is 23 chars at the median, 52 at p90 and
+// 66 at p95, so 60 makes a text-cut line the size of a long real breath.
+// Scripts without spaces (CJK, Thai) only cut at their own punctuation.
+
+export const TEXT_LINE_MAX_CHARS = 60
+
+const SENTENCE_PIECES = /[^.!?…。！？]+[.!?…。！？]+["”』」)]*|[^.!?…。！？]+$/gu
+const CLAUSE_PIECES = /[^,;:—–،、，；：]+[,;:—–،、，；：]+["”』」)]*|[^,;:—–،、，；：]+$/gu
+
+const pieces = (text: string, re: RegExp): string[] =>
+  (text.match(re) || []).map((s) => s.trim()).filter(Boolean)
+
+/** Word-wrap one over-long piece into k = ceil(len / cap) lines of roughly
+ *  equal length. Returns the piece unchanged when it has no spaces to cut at. */
+function balancedWrap(piece: string, cap: number): string[] {
+  if (piece.length <= cap) return [piece]
+  const words = piece.split(/\s+/).filter(Boolean)
+  if (words.length < 2) return [piece]
+  const k = Math.ceil(piece.length / cap)
+  const pack = (target: number): string[] => {
+    const lines: string[] = []
+    let cur = ''
+    for (const w of words) {
+      const next = cur ? `${cur} ${w}` : w
+      if (cur && next.length > target) { lines.push(cur); cur = w } else cur = next
+    }
+    if (cur) lines.push(cur)
+    return lines
+  }
+  // Aim at equal lines; greedy packing at that width can spill one extra
+  // line, so widen the target until the piece fits its k lines (never past
+  // the cap, which is where the line count was set).
+  for (let target = Math.ceil(piece.length / k); target <= cap; target++) {
+    const lines = pack(target)
+    if (lines.length <= k) return lines
+  }
+  return pack(cap)
+}
+
+/** The stack's lines for an untimed sentence, or null when the text yields a
+ *  single line — the existing card, unchanged, exactly as one breath group
+ *  does for a timed clip. */
+export function textLinesForSentence(sentenceText: string, cap: number = TEXT_LINE_MAX_CHARS): string[] | null {
+  const text = String(sentenceText || '').trim()
+  if (!text) return null
+  const lines: string[] = []
+  for (const sentence of pieces(text, SENTENCE_PIECES)) {
+    if (sentence.length <= cap) { lines.push(sentence); continue }
+    for (const clause of pieces(sentence, CLAUSE_PIECES)) lines.push(...balancedWrap(clause, cap))
+  }
+  if (lines.length < 2) return null
+  return lines
+}
