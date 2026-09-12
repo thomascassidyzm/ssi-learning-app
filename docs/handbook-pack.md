@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `a0f3fa6f4407` · generated 2026-09-12 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `8fab39ea15ff` · generated 2026-09-12 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -936,6 +936,20 @@ Section: your-school · roles: admin · anchor: `verb-rename` · in `packages/pl
 
 **Worth knowing.** If the new name matches something else already sitting beside it you are warned and asked to confirm, because two identical names in one list is usually a mistake rather than a plan.
 
+## Report a bug from Settings
+
+Section: your-own-account · roles: teacher, school_admin, leader · anchor: `report-bug` · in `packages/player-vue/src/components/SettingsScreen.vue`
+
+**What it's for.** Opening the report sheet when something in the app has gone wrong.
+
+**Where it is.** **Settings**, under **Tools**, the **Report a bug** row.
+
+1. Open **Settings**.
+2. Tap **Report a bug**.
+3. Describe what happened on the sheet that opens and tap **Send**.
+
+**Worth knowing.** The row is there whether or not you are signed in. What you send goes to one place and nobody replies through the app.
+
 ## Run your first class session
 
 Section: running-classes · roles: school_admin, teacher · anchor: `class-play` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
@@ -950,6 +964,19 @@ Section: running-classes · roles: school_admin, teacher · anchor: `class-play`
 4. Tap play to start the session.
 
 **Worth knowing.** The join code is the same code all lesson, so a student arriving late still gets in.
+
+## Say what happened
+
+Section: your-own-account · roles: teacher, school_admin, leader · anchor: `report-bug-text` · in `packages/player-vue/src/components/ReportBugSheet.vue`
+
+**What it's for.** The box where you describe the problem in your own words.
+
+**Where it is.** The **What happened?** box on the report sheet.
+
+1. Tap into the box and write what you saw.
+2. Keep it under 2,000 characters. Send stays off until you have written something.
+
+**Worth knowing.** Your course and device details are added for you, so you only need to describe what went wrong.
 
 ## See and download your funder numbers
 
@@ -983,6 +1010,19 @@ Section: seeing-progress · roles: leader · anchor: `schools-list-table` · in 
 
 **Worth knowing.** The list holds still until you refresh it, so a number on screen will not change under you while you are reading. If a refresh fails you are told plainly rather than being shown stale figures as if they were current.
 
+## See that your report arrived
+
+Section: your-own-account · roles: teacher, school_admin, leader · anchor: `report-bug-thanks` · in `packages/player-vue/src/components/ReportBugSheet.vue`
+
+**What it's for.** Confirming the note reached us.
+
+**Where it is.** The **Got it, thank you** line that replaces the form once it has sent.
+
+1. Tap **Send** on the report sheet.
+2. Read **Got it, thank you**. The sheet closes on its own a moment later, or tap the line to close it now.
+
+**Worth knowing.** That line is the whole reply. There is no ticket number and no message back.
+
 ## See what a funded organisation gives its learners
 
 Section: courses-and-content · roles: admin · anchor: `org-enrolment-courses` · in `packages/player-vue/src/components/schools/NodeEntitlementControl.vue`
@@ -1011,6 +1051,19 @@ Section: your-school · roles: school_admin · anchor: `settings-billing-plan` �
 4. Tap **Billing & invoices** to reach invoices, change the card, or cancel.
 
 **Worth knowing.** Every payment change happens on the one Upgrade page, so there is a single place to go and no second checkout to get confused with. The invoices button appears once a subscription is running.
+
+## Send the report
+
+Section: your-own-account · roles: teacher, school_admin, leader · anchor: `report-bug-send` · in `packages/player-vue/src/components/ReportBugSheet.vue`
+
+**What it's for.** Sending your note, and your screenshot if you added one, to us.
+
+**Where it is.** The **Send** button at the foot of the report sheet.
+
+1. Write what happened.
+2. Tap **Send**. It reads **Sending…** while it goes.
+
+**Worth knowing.** If the screenshot cannot upload, the note still goes without it. If the note itself does not send, the sheet says so and you can tap Send again.
 
 ## Set or change your password
 
@@ -1174,6 +1227,19 @@ Section: seeing-progress · roles: admin, school_admin, teacher · anchor: `stud
 4. Open it in whatever spreadsheet you use.
 
 **Worth knowing.** The export follows your filters, not the whole school — so a filtered list gives you a filtered file. Clear the filters first if you want everybody.
+
+## Tell us about something that went wrong
+
+Section: your-own-account · roles: teacher, school_admin, leader · anchor: `report-bug-sheet` · in `packages/player-vue/src/components/ReportBugSheet.vue`
+
+**What it's for.** Sending us a note when the app misbehaves, with the details of your course and device attached for you.
+
+**Where it is.** The sheet that opens from **Report a bug** in **Settings**.
+
+1. Tap **Report a bug** in Settings.
+2. Write what happened, add a screenshot if you have one, and tap **Send**.
+
+**Worth knowing.** Tapping outside the sheet closes it without sending. Nobody replies through the app: the note goes to one place where we read it.
 
 ## The class roster
 

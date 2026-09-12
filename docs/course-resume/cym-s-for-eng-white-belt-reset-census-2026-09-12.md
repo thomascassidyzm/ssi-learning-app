@@ -151,6 +151,17 @@ round or belt skip.
   map's last round (the paywall wall for an unentitled learner) instead of resolving as "fresh
   learner, round 1". Test: red on the pre-fix code, green after.
 
+### 6a. The second trap, found verifying on staging
+
+With the cache fix live on staging (build 0992d2c), both test profiles still landed on White:
+the fast-path was skipped and the cache rewritten to 3,262 rounds, but the device's local
+position snapshot read S0001L01 with a stamp fresher than the server row, so position authority
+chose it. Two ways a device gets there: a resume that landed on round 1 by the bug above and was
+then played, or a guest session on the device before signing in. Fix: `resolveAuthoritativePosition`
+lets a fresher local snapshot outrank the server only when it is at or past the server cursor;
+fresher-but-behind is a stale cache. Test red on the pre-fix code, green after. Offline progress
+ahead of the cursor still wins as before.
+
 ## 7. Cursor repairs
 
 None needed. No real learner's cursor moved backwards; the four learners past Yellow keep the
