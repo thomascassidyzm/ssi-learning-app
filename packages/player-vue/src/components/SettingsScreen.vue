@@ -38,8 +38,13 @@ import { isAlreadyLinkedEmail } from '../utils/emailVerifyGuard'
 import { supportIdForLearnerId } from '@ssi/core'
 import { readLastKnownIdentity } from '@/composables/lastKnownIdentity'
 import { sendSignInCode } from '../auth/sendSignInCode'
+import ReportBugSheet from './ReportBugSheet.vue'
 
 const emit = defineEmits(['close', 'openExplorer', 'settingChanged'])
+
+// The learner postbox (job #327): one tap from Settings opens the same sheet
+// the learner's own page opens. Everyone sees it, guests included.
+const showBugReport = ref(false)
 
 const props = defineProps({
   course: {
@@ -1818,6 +1823,8 @@ const confirmReset = async () => {
 
 <template>
   <div class="settings-screen">
+    <ReportBugSheet v-if="showBugReport" :course-code="courseCode" @close="showBugReport = false" />
+
     <!-- Reset Confirmation Dialog -->
     <Transition name="fade">
       <div v-if="showResetConfirm" class="reset-overlay">
@@ -2525,6 +2532,22 @@ const confirmReset = async () => {
 
         <h3 class="section-title">{{ t('settings.tools') }}</h3>
         <div class="card">
+          <!-- Report a bug: the learner postbox. One way; the only reply is the
+               automatic thank-you. Tom's ruling, 2026-09-12. -->
+          <div class="setting-row clickable" data-walk="report-bug" @click="showBugReport = true">
+            <div class="setting-info">
+              <span class="setting-label">{{ t('bugReport.menuLabel') }}</span>
+              <span class="setting-desc">{{ t('bugReport.menuDesc') }}</span>
+            </div>
+            <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M8 2l1.88 1.88M14.12 3.88L16 2M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"/>
+              <path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6z"/>
+              <path d="M12 20v-9M6.53 9C4.6 8.8 3 7.1 3 5M6 13H2M3 21c0-2.1 1.7-3.9 3.8-4M20.97 5c0 2.1-1.6 3.8-3.5 4M22 13h-4M17.2 17c2.1.1 3.8 1.9 3.8 4"/>
+            </svg>
+          </div>
+
+          <div class="divider"></div>
+
           <!-- NO listening-mode row here. Tom's ruling (2026-08-06, 22:38Z):
                listening mode goes back where learners already knew to find it —
                the player's mode tray — and Settings is the WRONG home for it.

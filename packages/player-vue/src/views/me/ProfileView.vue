@@ -26,7 +26,7 @@ const { t } = useI18n()
  * behind it, could ever generate a Duolingo-style shame email. If the system
  * could know 'streak: 0', the data model would be wrong — so it cannot.
  */
-import { onMounted, computed, inject, type Ref } from 'vue'
+import { onMounted, computed, inject, ref, type Ref } from 'vue'
 import { useLearnerProfile, suggestedMode } from '@/composables/useLearnerProfile'
 import AdherencePanel from '@/components/me/AdherencePanel.vue'
 import MirrorPanel from '@/components/me/MirrorPanel.vue'
@@ -36,6 +36,7 @@ import HowThisWorksLearner from '@/components/me/HowThisWorksLearner.vue'
 import WhyThisWorks from '@/components/me/WhyThisWorks.vue'
 import CourseSwitchRow from '@/components/me/CourseSwitchRow.vue'
 import SettingsDirection from '@/components/me/SettingsDirection.vue'
+import ReportBugSheet from '@/components/ReportBugSheet.vue'
 
 const supabaseClient = inject<Ref<any> | null>('supabase', null)
 const activeCourse = inject<Ref<{ course_code?: string } | null> | null>('activeCourse', null)
@@ -54,6 +55,9 @@ async function getToken(): Promise<string | null> {
 const { profile, loading, hasMock, load } = useLearnerProfile(getToken)
 
 const viewerId = computed(() => profile.value?.courseCode ?? 'anon')
+
+// The learner postbox (job #327): the same sheet Settings opens.
+const showBugReport = ref(false)
 
 // Mode guidance — where the learner sits on the 0-30 / 30-100 hour arc decides
 // which routine gets the nudge. Guidance in the dog voice, bringing the right
@@ -96,6 +100,13 @@ onMounted(() => {
 
       <SettingsDirection />
     </template>
+
+    <!-- Report a bug: the learner postbox. One way, no reply path. -->
+    <button class="bug-row" type="button" data-walk="report-bug" @click="showBugReport = true">
+      <span class="bug-row-label">{{ t('bugReport.menuLabel') }}</span>
+      <span class="bug-row-desc">{{ t('bugReport.menuDesc') }}</span>
+    </button>
+    <ReportBugSheet v-if="showBugReport" :course-code="activeCourse?.course_code ?? null" @close="showBugReport = false" />
 
     <footer class="foot">
       <router-link to="/" class="foot-link">{{ t('profile.backLearning') }}</router-link>
@@ -145,6 +156,22 @@ onMounted(() => {
   line-height: 1.55;
   color: var(--ink-primary, #2C2622);
 }
+.bug-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  text-align: left;
+  padding: var(--space-3, 12px) var(--space-4, 16px);
+  border: 0;
+  border-radius: 12px;
+  background: var(--bg-elevated, #ffffff);
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.bug-row-label { font-size: var(--text-base, 15px); color: var(--ink-primary, #2C2622); }
+.bug-row-desc { font-size: var(--text-xs, 12px); color: var(--ink-tertiary, #8A8078); }
 .foot { padding-top: var(--space-2, 8px); }
 .foot-link {
   font-size: var(--text-sm, 13px);

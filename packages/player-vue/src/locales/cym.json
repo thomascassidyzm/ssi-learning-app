@@ -1636,5 +1636,18 @@
     "widget": {
       "loading": "Wrthi'n llwytho…"
     }
+  },
+  "bugReport": {
+    "title": "Rhoi gwybod am nam",
+    "menuLabel": "Rhoi gwybod am nam",
+    "menuDesc": "Dywedwch wrthym beth aeth o'i le. Byddwn ni'n atodi'r manylion i chi.",
+    "placeholder": "Beth ddigwyddodd?",
+    "addScreenshot": "Ychwanegu sgrinlun",
+    "removeScreenshot": "Tynnu'r sgrinlun",
+    "tooLarge": "Mae'n rhaid i'r llun fod o dan 5MB",
+    "send": "Anfon",
+    "sending": "Yn anfon…",
+    "thanks": "Wedi'i gael, diolch.",
+    "failed": "Ni chafodd hwn ei anfon. Rhowch gynnig arall arni."
   }
 }

@@ -333,3 +333,29 @@ describe('usePlayerLog — first sync flush carries the bearer', () => {
     wrapper.unmount()
   })
 })
+
+describe('usePlayerLog — the postbox can flush every live log and read what is still buffered', () => {
+  it('pendingPlayerEvents lists a mounted log\'s buffer and flushAllPlayerLogs drains it', async () => {
+    const fetchSpy = vi.fn(async () => ({ ok: true }))
+    vi.stubGlobal('fetch', fetchSpy)
+    const mod = await import('./usePlayerLog')
+    let log!: ReturnType<typeof usePlayerLog>
+    const Host = defineComponent({
+      setup() {
+        log = usePlayerLog({ getToken: async () => 'signed-token', flushIntervalMs: 60_000 })
+        return () => h('div')
+      },
+    })
+    const wrapper = mount(Host)
+    await nextTick()
+    log.event('tap_pause', { where: 'player' })
+    expect(mod.pendingPlayerEvents().map((e) => e.event_type)).toEqual(['tap_pause'])
+    await mod.flushAllPlayerLogs()
+    expect(mod.pendingPlayerEvents()).toEqual([])
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+    log.event('after_unmount')
+    expect(mod.pendingPlayerEvents()).toEqual([])
+    vi.unstubAllGlobals()
+  })
+})
