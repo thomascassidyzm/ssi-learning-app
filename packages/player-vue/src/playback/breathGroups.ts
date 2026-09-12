@@ -91,7 +91,10 @@ function fromAzure(raw: AzureToken[]): WordTimings | null {
       if (words.length > 0) ends[ends.length - 1] = Math.max(ends[ends.length - 1], e)
       continue
     }
-    words.push(text)
+    // Azure occasionally stamps one token with a run of text (a word plus
+    // the ellipsis-joined remainder of the sentence on some hrv pod clips);
+    // the stamp is the FIRST word's, so that is the word kept.
+    words.push(text.trim().split(/\s+/)[0])
     starts.push(s)
     ends.push(e)
   }

@@ -75,6 +75,16 @@ describe('normaliseWordTimings', () => {
     expect(t.ends[8]).toBeCloseTo(8.538, 3)
     expect(t.ends[9]).toBeCloseTo(8.988, 3)
   })
+  it('keeps only the first word of a token Azure stamped with a run of text (hrv pod-1 #44)', () => {
+    const t = normaliseWordTimings([
+      { text: 'Mogu', offset: 100, duration: 250 }, { text: 'li', offset: 363, duration: 100 },
+      { text: 'dobiti… dvije bijele kave… i dvije crne kave', offset: 475, duration: 400 },
+      { text: 'dvije', offset: 1725, duration: 300 },
+    ])!
+    expect(t.words).toEqual(['Mogu', 'li', 'dobiti…', 'dvije'])
+    const groups = alignBreathGroups(buildBreathGroups(t), t, 'Mogu li dobiti… dvije bijele kave')
+    expect(groups.map((g) => g.text)).toEqual(['Mogu li dobiti…', 'dvije bijele kave'])
+  })
   it('returns null for null, empty, the all-zero [[0,0],…] rows, and ragged arrays', () => {
     expect(normaliseWordTimings(null)).toBeNull()
     expect(normaliseWordTimings([])).toBeNull()
