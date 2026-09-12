@@ -80,6 +80,17 @@ export function resolveAuthoritativePosition(
   const localTs = local!.lastUpdated
   const serverTs = enrollment.lastPracticedAt
   if (localTs !== null && serverTs !== null && localTs > serverTs) {
+    // Fresher, but BEHIND the server cursor: that is not offline progress,
+    // it is a stamp left by play at a place the learner had already passed —
+    // a guest session on this device before signing in, or a resume that
+    // landed on round 1 by mistake (job #326, 2026-09-12: a device reset
+    // once kept choosing its own round-1 snapshot over a cursor at S0020L01
+    // until the server row was stamped again). The cursor is the highest
+    // LEGO played; a cache that sits below it is stale whatever its clock
+    // says. Lego ids are zero-padded, so string order is course order.
+    if (enrollment.cursorLegoId !== null && local!.legoId! < enrollment.cursorLegoId) {
+      return { legoId: enrollment.cursorLegoId, source: 'server' }
+    }
     return { legoId: local!.legoId, source: 'local' }
   }
   return { legoId: enrollment.cursorLegoId, source: 'server' }

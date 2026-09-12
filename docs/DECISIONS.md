@@ -1121,6 +1121,15 @@ it lands on the map's last round, which for an unentitled learner is the paywall
 test that fails on the pre-fix code and passes after. No new telemetry, no belt-threshold change, no
 cursor repairs: no real learner's cursor moved backwards.
 
+**Second trap, found on staging.** Once a device has been reset to round 1 and played there, or a
+guest played there before signing in, its local position snapshot reads S0001L01 with a fresher
+stamp than the server row, and position authority kept choosing it: both test profiles still
+landed on White with the cache fix live. A cache that sits BEHIND the server cursor is stale
+whatever its clock says, so `resolveAuthoritativePosition` now lets a fresher local snapshot win
+only when it is at or past the cursor. Offline progress ahead of the cursor is untouched. This
+narrows the 2026-07-09 position-authority rule by one clause and is flagged as a default for Tom
+to overturn.
+
 **Left for Tom.** Whether Welsh should be `pricing_tier = premium` at all; three unentitled
 learners sit past the wall (fransetter S0217, lea.weber94 and reillyfeatherstone in infinite play)
 and will meet the paywall on return rather than round 1. Census, queries and reproduction:
