@@ -163,6 +163,11 @@ invite-first-person. And two View-as facts worth one line each if Tom wants View
 leader sees: the #286 door on /schools/classes/:id is gated on isAdminView, which View-as sets, and
 the banner covers the avatar menu on a phone.
 
+**Landed (job #308·F, 2026-09-12):** merged to dev and promoted to staging on Tom's word, "yes to both";
+the Show me button verified live on staging.saysomethingin.app/schools/handbook. The support watcher
+was armed the same night, draft-only, ceiling sonnet, as a systemd user service on watson-1
+(command-surface docs/DECISIONS.md, same date).
+
 ## 2026-09-12 — support_messages is column-granted, and the govt_admin subtree is parent_id in SQL too (job #300)
 
 Two live security gaps, found by job #297's audit and confirmed against the real database by job
