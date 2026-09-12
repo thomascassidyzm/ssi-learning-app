@@ -168,6 +168,38 @@ export function startWalk(id: string): boolean {
   return true
 }
 
+/**
+ * A walk asked for from the Handbook, which is never the page the walk runs
+ * on (job #302, 2026-09-12). The Handbook records the tap here and takes the
+ * reader to the walk's place; the first "Show me" surface to mount there —
+ * HowThisWorks or WalkOffer — claims it through claimDeferredWalk and starts
+ * it on real anchors. This keeps the never-auto-play rule: the walk still
+ * runs only because of one deliberate tap, and a tap forgotten for ten
+ * minutes runs nothing. A mount that does not offer the walk leaves it
+ * waiting, so passing through the class list on the way to a class page
+ * does not lose it.
+ */
+export const DEFERRED_WALK_TTL_MS = 10 * 60 * 1000
+let deferred: { id: string; at: number } | null = null
+
+export function deferWalk(id: string): boolean {
+  if (!walkById(id)) return false
+  deferred = { id, at: Date.now() }
+  return true
+}
+
+export function claimDeferredWalk(persona: WalkPersona, place: string, kind?: string): boolean {
+  if (!deferred) return false
+  if (Date.now() - deferred.at > DEFERRED_WALK_TTL_MS) { deferred = null; return false }
+  if (!walksFor(persona, place, kind).some((w) => w.id === deferred!.id)) return false
+  const id = deferred.id
+  deferred = null
+  return startWalk(id)
+}
+
+/** Test seam: forget any deferred walk. */
+export function clearDeferredWalk(): void { deferred = null }
+
 export function stopWalk(): void {
   activeWalk.value = null
   stepIndex.value = 0

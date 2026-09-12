@@ -108,6 +108,65 @@ published at https://watson-1.tail4968cb.ts.net/d/81ce6c56.
   September, so every row would read "new" this week; revisit from the third week of term.
 - **Two taste calls put to Tom:** does the phrase table stay on the home page at three rows or
   become a sentence; year group only for now, or teacher too.
+## 2026-09-12 — the Handbook offers the clip where one exists, and support is reachable but unnamed (job #302·F)
+
+**What Tom saw.** "I can't see it anywhere", of in-app support, as a school leader on staging; and "the
+How This Works clips don't surface in the handbook". Both audited under View-as as the Chepstow
+school admin at phone width, every leader page shot: https://watson-1.tail4968cb.ts.net/d/00e06fd0.
+The Handbook coverage table, walk attachment and the gap list by section:
+https://watson-1.tail4968cb.ts.net/d/de026b1d.
+
+**Finding: support exists and is two taps from every page, avatar then Support, under Handbook in
+the user menu, as job #214 built it.** Tom could not see it because three things stack under
+View-as on a phone: the orange View-as banner sits on the top bar and covers the avatar, so the only
+door is untappable; the Support page 403s because every request carries the admin's own token and
+the support API authorises by the caller's own scope, which is the act-as guard doing its job; and
+the word Support appears on no page as landed. The org lens carries Does this look wrong beside the
+stats, which is the channel under another name. No door was built here: the verdict list in the
+document is for Tom and the dashboard design worker, who owns layout. Two things a cold reader would
+take for support are not: the blue bug button is Send Feedback for testers and ssi_admins, and the
+banner's Pages list names Support only because it lists every route the account can reach.
+
+**Corrected by Tom the same night: the support channel is the DB-backed message thread, not the
+explainer doors.** Signed in for real as Tom's test-scenario admin, Angharad ZZ Test, and posted two
+labelled test messages: entry point, compose, posted message and the stats-door sheet are shot at
+https://watson-1.tail4968cb.ts.net/d/ff20f840. Both rows sit unanswered because the watcher on
+command-surface main, `tools/support/watcher.cjs` from jobs #214 and #220, is not armed: no unit
+installed, no env file, no log. Against Tom's three-rule spec, once armed: rule 1, point to the clip,
+is unbuilt, nothing in tools/support reads a walk; rule 2, point and show the Handbook entry, is
+the design, quoting the entry's sentences with a link; rule 3, answer and build a clip, answers in
+draft-only and only counts gaps toward a clip threshold of three askers, building nothing by
+design. View-as can never verify support: the banner covers the avatar menu and the API refuses
+the admin's own token. Reported, not built.
+
+**Decision: an entry that names a walk offers it, with the How this works wording.** `HandbookView.vue`
+now renders a Show me button beside Take me there wherever the pack names a walk for the reader's own
+persona, the same persona rule the How this works panel applies, because a walk steps real anchors.
+Read from the code and confirmed on staging: before this, zero of the eleven walk-bearing entries
+surfaced their clip on the Handbook, though every one was offered on the page it lives on.
+
+**Decision: the Handbook defers the walk; the page it lives on starts it.** A walk cannot run on the
+Handbook page, its anchors are elsewhere, and the overlay ends a walk on any route change, so
+starting after navigation is a race. `useWalkthrough` gains `deferWalk` and `claimDeferredWalk`: the
+tap records the walk and goes to the walk's place, and the first `HowThisWorks` or `WalkOffer` mount
+whose persona × place × kind offers it claims and starts it on real anchors. A mount that does not
+offer it leaves it waiting, so the class list on the way to a class page does not lose it; a tap older
+than ten minutes starts nothing. Never-auto-play holds: only a tap ever puts a walk in that queue.
+Proven by `HandbookView.showMe.test.ts`, red on the pre-fix sources and green after, and
+`deferredWalk.test.ts`; `compile.mjs --check` green, 18 walks, 103 entries.
+
+**Not done, deliberately.** No walk JSON for the 92 entries without a clip: the gap list is the
+deliverable, ranked by section for Tom to pick from. No HANDBOOK comment rewritten, so no reconfirm
+was needed. One attachment gap is Tom's word, not a worker's: invite-first-teacher, the school-admin
+walk at a school node, is attached to no entry because Bring your first person in names
+invite-first-person. And two View-as facts worth one line each if Tom wants View-as to show what a
+leader sees: the #286 door on /schools/classes/:id is gated on isAdminView, which View-as sets, and
+the banner covers the avatar menu on a phone.
+
+**Landed (job #308·F, 2026-09-12):** merged to dev and promoted to staging on Tom's word, "yes to both";
+the Show me button verified live on staging.saysomethingin.app/schools/handbook. The support watcher
+was armed the same night, draft-only, ceiling sonnet, as a systemd user service on watson-1
+(command-surface docs/DECISIONS.md, same date).
 
 ## 2026-09-12 — support_messages is column-granted, and the govt_admin subtree is parent_id in SQL too (job #300)
 
