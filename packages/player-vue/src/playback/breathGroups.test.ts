@@ -7,6 +7,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import {
+  estimateLineTimings,
   BREATH_PAUSE_SEC,
   normaliseWordTimings,
   buildBreathGroups,
@@ -282,5 +283,51 @@ describe('textLinesForSentence — untimed clips cut from the text (job #430)', 
   it('a script without spaces cuts only at its own punctuation', () => {
     expect(textLinesForSentence('今日はとても良い天気ですね。散歩に行きましょう。')).toEqual(['今日はとても良い天気ですね。', '散歩に行きましょう。'])
     expect(textLinesForSentence('あ'.repeat(80))).toBeNull()
+  })
+})
+
+describe('estimateLineTimings — an untimed stack walks at an estimate from the clip length (job #468)', () => {
+  // The Italian method pod, scene 1, Aran's long turn — an xAI render with
+  // no word timings, live on staging 2026-09-12 (listening_pod_sentences
+  // ita_for_eng:method-pod:SC01-S006).
+  const TURN = 'Il quadro generale — e lo dico veloce perché è grande — è che niente di tutto questo succede da solo. La scuola è un pezzo di un sistema adattivo complesso, e la fine del gioco devono essere sette miliardi di menti connesse, felici, entusiaste, capaci di risolvere problemi complicati—'
+
+  it('gives every text-cut line a fractional span, in order, ending at 1', () => {
+    const lines = textLinesForSentence(TURN)!
+    expect(lines).toHaveLength(6)
+    const est = estimateLineTimings(lines)
+    expect(est.map((g) => g.text)).toEqual(lines)
+    expect(est[0].start).toBe(0)
+    expect(est[est.length - 1].end).toBe(1)
+    for (let i = 0; i < est.length; i++) {
+      expect(est[i].end).toBeGreaterThan(est[i].start)
+      if (i) expect(est[i].start).toBeGreaterThanOrEqual(est[i - 1].end)
+    }
+  })
+
+  it('walks the lit line through the turn as the clip plays — never stuck on one line', () => {
+    const est = estimateLineTimings(textLinesForSentence(TURN)!)
+    const at = (p: number) => trackPosition(est, p).index
+    expect(at(0)).toBe(0)
+    expect(at(0.5)).toBeGreaterThan(0)
+    expect(at(0.5)).toBeLessThan(5)
+    expect(at(0.999)).toBe(5)
+    expect(at(2)).toBe(5)
+    // Monotone: the lit line never steps back.
+    let last = -1
+    for (let p = 0; p <= 1; p += 0.01) { const i = at(p); expect(i).toBeGreaterThanOrEqual(last); last = i }
+  })
+
+  it('a sentence end buys a longer silence than a clause mark, and the last line owns the tail', () => {
+    const est = estimateLineTimings(['Bene.', 'Questo è Tom,', 'parte quattro'])
+    const gapAfter = (i: number) => est[i + 1].start - est[i].end
+    expect(gapAfter(0)).toBeGreaterThan(gapAfter(1))
+    expect(est[2].end).toBe(1)
+  })
+
+  it('a line with no letters still has a span, so nothing divides by zero', () => {
+    const est = estimateLineTimings(['—', '…'])
+    expect(est[0].end).toBeGreaterThan(0)
+    expect(est[1].end).toBe(1)
   })
 })
