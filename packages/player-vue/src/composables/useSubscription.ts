@@ -30,7 +30,18 @@ import type {
 export { CHECKOUT_COMPLETED_EVENT as CHECKOUT_COMPLETED_EVENT_NAME }
 
 const SUBSCRIPTION_KEY = 'ssi_subscription'
-const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
+// NO TTL ON THE MIRROR (Tom, 2026-09-12, job #378·G). The localStorage copy of
+// the last /api/subscription answer used to expire after five minutes, on the
+// theory that a fresh fetch always follows. Offline, no fetch follows: a
+// paying Family owner reopened the app in airplane mode two hours after his
+// last online boot, the mirror was thrown away for being old, the fetch failed
+// at once, and initialize() declared hydration done with nothing — every
+// premium course dropped to the free preview and Settings offered him a plan
+// he already pays for. The mirror is the ONLY answer the app has offline, so
+// its age is never a reason to discard it: an online answer overwrites it the
+// moment one lands, `clearCache` drops it on sign-out and on a 401, and
+// `isSubscribed` still checks the paid period's end date against the clock,
+// so a period that has genuinely ended fails closed however old the copy is.
 
 // Bounds the "hasHydrated stays false" grace period on the initial fetch.
 // isPending (derived from !hasHydrated in useEntitlement) optimistically
@@ -166,12 +177,10 @@ export function useSubscription(): UseSubscriptionReturn {
       if (!cached) return null
 
       const data: CachedSubscription = JSON.parse(cached)
-
-      // Check if cache is fresh
-      if (Date.now() - data.cachedAt > CACHE_TTL_MS) {
-        return null
-      }
-
+      if (!data || typeof data !== 'object' || !('subscription' in data)) return null
+      // Any age is accepted — see the note on SUBSCRIPTION_KEY. The fetch that
+      // initialize() starts is what refreshes it; this copy only has to hold
+      // the line until that answer arrives, or for the whole session if none does.
       return data
     } catch {
       return null
@@ -390,8 +399,10 @@ export function useSubscription(): UseSubscriptionReturn {
       fetchSubscription(),
       new Promise<void>((resolve) => setTimeout(resolve, HYDRATION_TIMEOUT_MS)),
     ])
-    // Timed out before fetchSubscription set it itself — fail closed rather
-    // than leave isPending optimistically true indefinitely.
+    // Timed out, or the fetch failed outright (offline) — declare hydration
+    // done rather than leave isPending optimistically true indefinitely. This
+    // fails CLOSED only for a device that has never held an answer: one that
+    // has keeps the mirror loaded above, so a payer offline stays a payer.
     if (!hasHydrated.value) hasHydrated.value = true
     // Just came back from Paddle checkout — keep polling until the activating
     // webhook lands so the learner doesn't bounce off the paywall mid-redirect.
