@@ -7,8 +7,9 @@
  * stays, the page goes. Each finding lands on the question its metric
  * answers, read from /api/intel/findings, which sorts them.
  *
- * THE SILENCE IS LOUD. The job that writes the findings runs from a launchd
- * agent on Tom's own Mac, outside this estate, and nothing here can restart
+ * THE SILENCE IS LOUD. The job that writes the findings runs from the
+ * watson-1 systemd timer ssi-insight-discovery.timer (since 2026-09-12; it
+ * was a launchd agent on Tom's Mac before that), and nothing here can restart
  * it. Its last row is dated 2026-08-31. Two missed nights mean it is dead
  * rather than late, and past that this component says so in the alarm
  * tone, with the real age, above findings drawn muted — never stale cards
@@ -44,7 +45,7 @@ const ageLine = computed<string | null>(() => {
   const days = Math.floor((d.ageHours ?? 0) / 24)
   const when = new Date(d.generatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
   if (!d.silent) return `Found overnight, ${when}.`
-  return `The nightly findings have been silent since ${when}, ${days} days ago. The job runs from Tom's Mac, outside this estate; what follows is the last thing it said.`
+  return `The nightly findings have been silent since ${when}, ${days} days ago. The nightly job on watson-1 has stopped writing; what follows is the last thing it said.`
 })
 </script>
 

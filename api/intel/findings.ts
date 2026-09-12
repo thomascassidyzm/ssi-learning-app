@@ -3,19 +3,20 @@
  * question each one concerns.
  *
  * The engine stays; the destination goes (design §2). scripts/insight-
- * discovery.cjs runs once a night from a launchd job on Tom's own Mac —
- * outside this estate — reads the week's telemetry, asks Claude for findings
- * and writes one insight_discoveries row. This endpoint reads the newest row
+ * discovery.cjs runs once a night at 03:15 UTC from the watson-1 systemd
+ * timer ssi-insight-discovery.timer (command-surface ops/insight-discovery-
+ * nightly.sh; moved off Tom's Mac 2026-09-12, job #295), reads the month's
+ * telemetry, asks Claude for findings and writes one insight_discoveries row. This endpoint reads the newest row
  * and hands each finding to the question its metric belongs to, so the
  * Discovery feed becomes cards at the top of the question rather than a
  * page of its own.
  *
- * THE SILENCE IS LOUD. The job's last row is dated 2026-08-31. It is nightly,
- * so two missed nights mean it is dead rather than late; past that the
- * response says `silent: true` and every page shows the findings in the
- * alarm tone with their real age, never as if fresh. Nothing here can
- * repair the job — it is not on this estate — but nothing here will let its
- * silence be quiet either.
+ * THE SILENCE IS LOUD. The job is nightly, so two missed nights mean it is
+ * dead rather than late; past that the response says `silent: true` and
+ * every page shows the findings in the alarm tone with their real age, never
+ * as if fresh. Nothing here can repair the job — the wrapper on watson-1
+ * posts its own red notice — but nothing here will let its silence be quiet
+ * either.
  *
  * Reads the table directly under the service role: the god-gated RPC the
  * old page used checks the caller's own row, which a service-role read has

@@ -1,4 +1,9 @@
 #!/bin/sh
+# RETIRED MAC PATH (2026-09-12, job #295). The nightly now runs on watson-1 as the systemd
+# timer ssi-insight-discovery.timer → command-surface ops/insight-discovery-nightly.sh. The
+# holmes launchd agent this wrapper served is left DISABLED, not deleted; this file stays as
+# the record of that path and is not scheduled anywhere.
+#
 # Nightly runner for scripts/insight-discovery.cjs — invoked by the
 # com.ssi.insight-discovery launchd agent (~/Library/LaunchAgents).
 #
