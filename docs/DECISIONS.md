@@ -17,6 +17,18 @@ document is for Tom and the dashboard design worker, who owns layout. Two things
 take for support are not: the blue bug button is Send Feedback for testers and ssi_admins, and the
 banner's Pages list names Support only because it lists every route the account can reach.
 
+**Corrected by Tom the same night: the support channel is the DB-backed message thread, not the
+explainer doors.** Signed in for real as Tom's test-scenario admin, Angharad ZZ Test, and posted two
+labelled test messages: entry point, compose, posted message and the stats-door sheet are shot at
+https://watson-1.tail4968cb.ts.net/d/3377ab80. Both rows sit unanswered because the watcher on
+command-surface main, `tools/support/watcher.cjs` from jobs #214 and #220, is not armed: no unit
+installed, no env file, no log. Against Tom's three-rule spec, once armed: rule 1, point to the clip,
+is unbuilt, nothing in tools/support reads a walk; rule 2, point and show the Handbook entry, is
+the design, quoting the entry's sentences with a link; rule 3, answer and build a clip, answers in
+draft-only and only counts gaps toward a clip threshold of three askers, building nothing by
+design. View-as can never verify support: the banner covers the avatar menu and the API refuses
+the admin's own token. Reported, not built.
+
 **Decision: an entry that names a walk offers it, with the How this works wording.** `HandbookView.vue`
 now renders a Show me button beside Take me there wherever the pack names a walk for the reader's own
 persona, the same persona rule the How this works panel applies, because a walk steps real anchors.
