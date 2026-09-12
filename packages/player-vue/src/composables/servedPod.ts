@@ -267,6 +267,18 @@ export const isListeningPodLookupDegraded = (courseCode: string): boolean =>
   degradedListening.has(courseCode)
 
 /**
+ * Courses whose offline snapshot the heal (ensureListeningMetaSnapshot) has
+ * already refreshed THIS session. The heal is called on every round advance,
+ * not once per boot, and a snapshot flagged extrasDegraded stays flagged
+ * while the degraded memo above stands — so without this mark one flaky
+ * first fetch re-read pod rows and clip texts and rewrote the snapshot on
+ * every advance for the rest of the session (job #425). Once per session.
+ */
+const healedListening = new Set<string>()
+export const wasListeningSnapshotHealed = (courseCode: string): boolean => healedListening.has(courseCode)
+export const markListeningSnapshotHealed = (courseCode: string): void => { healedListening.add(courseCode) }
+
+/**
  * The extra pods (and their titles) the offline snapshot was built from —
  * re-gated through the allow-list, like the served slug. Never throws.
  */
@@ -375,4 +387,5 @@ export const resetServedPodCache = (): void => {
   inFlight.clear()
   inFlightListening.clear()
   degradedListening.clear()
+  healedListening.clear()
 }
