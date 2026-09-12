@@ -334,6 +334,74 @@ describe('usePlayerLog — first sync flush carries the bearer', () => {
   })
 })
 
+describe('usePlayerLog — the log context stamps mode, belt, seed and round on every row (job #325)', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true })))
+    Object.defineProperty(navigator, 'sendBeacon', { value: vi.fn(() => true), configurable: true })
+  })
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  const mountWith = (context: () => Record<string, unknown>) => {
+    let log!: ReturnType<typeof usePlayerLog>
+    const Host = defineComponent({
+      setup() {
+        log = usePlayerLog({ learnerId: 'learner-1', flushIntervalMs: 60_000, context } as any)
+        return () => h('div')
+      },
+    })
+    const wrapper = mount(Host)
+    return { log, wrapper }
+  }
+
+  const lastBatch = () => {
+    const spy = fetch as unknown as ReturnType<typeof vi.fn>
+    const [, init] = spy.mock.calls.at(-1) as [string, RequestInit]
+    return JSON.parse(init.body as string).events as Array<{ event_type: string; payload: Record<string, unknown> }>
+  }
+
+  it('an audio_play logged with no mode or belt of its own goes out carrying the mode and belt IN FORCE at that instant', async () => {
+    let mode = 'fast'
+    const { log, wrapper } = mountWith(() => ({ mode, belt: 'blue', seedId: 'S0081', roundIndex: 240 }))
+    await nextTick(); await flushMicrotasks()
+
+    log.event('audio_play', { url: '/api/audio/a', role: 'known' })
+    mode = 'easy' // the learner toggles mid-session
+    log.event('audio_play', { url: '/api/audio/b', role: 'known' })
+    await log.flush()
+
+    const events = lastBatch()
+    expect(events).toHaveLength(2)
+    expect(events[0].payload).toMatchObject({ url: '/api/audio/a', mode: 'fast', belt: 'blue', seedId: 'S0081', roundIndex: 240, learnerId: 'learner-1' })
+    expect(events[1].payload).toMatchObject({ url: '/api/audio/b', mode: 'easy', belt: 'blue' })
+    wrapper.unmount()
+  })
+
+  it('a key the caller set itself, even to null, is never overwritten by the context', async () => {
+    const { log, wrapper } = mountWith(() => ({ mode: 'fast', belt: 'blue', seedId: 'S0081', roundIndex: 240 }))
+    await nextTick(); await flushMicrotasks()
+
+    // A pod play says seedId: null on purpose — it belongs to no seed.
+    log.event('audio_play', { role: 'pod_intro', seedId: null })
+    log.event('round_complete', { roundIndex: 239, seedId: 'S0080' })
+    await log.flush()
+
+    const [pod, round] = lastBatch()
+    expect(pod.payload.seedId).toBeNull()
+    expect(pod.payload).toMatchObject({ mode: 'fast', belt: 'blue', roundIndex: 240 })
+    expect(round.payload).toMatchObject({ roundIndex: 239, seedId: 'S0080', mode: 'fast', belt: 'blue' })
+    wrapper.unmount()
+  })
+
+  it('a context that throws or returns nothing leaves the row exactly as before', async () => {
+    const { log, wrapper } = mountWith(() => { throw new Error('not ready') })
+    await nextTick(); await flushMicrotasks()
+    log.event('cold_start', { guest: false })
+    await log.flush()
+    expect(lastBatch()[0].payload).toEqual({ guest: false, learnerId: 'learner-1' })
+    wrapper.unmount()
+  })
+})
+
 describe('usePlayerLog — the postbox can flush every live log and read what is still buffered', () => {
   it('pendingPlayerEvents lists a mounted log\'s buffer and flushAllPlayerLogs drains it', async () => {
     const fetchSpy = vi.fn(async () => ({ ok: true }))

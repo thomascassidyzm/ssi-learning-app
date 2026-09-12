@@ -22,11 +22,11 @@ const unrecordedWelsh: ModalUnit = { targetText: 'Bore da.', targetAudioId: null
 
 describe('immersion', () => {
   it('plays the target when there is one', () => {
-    expect(buildModalQueue([welsh], 'immersion', 1)).toEqual([{ id: 'cy1', rate: 1 }])
+    expect(buildModalQueue([welsh], 'immersion', 1)).toEqual([{ id: 'cy1', rate: 1, role: 'target' }])
   })
 
   it('plays the ENGLISH for a line that was never in the target language', () => {
-    expect(buildModalQueue([floorEnglish], 'immersion', 1)).toEqual([{ id: 'en2', rate: 1 }])
+    expect(buildModalQueue([floorEnglish], 'immersion', 1)).toEqual([{ id: 'en2', rate: 1, role: 'known' }])
   })
 
   it('stays SILENT for a target line whose recording is missing — a gap must sound like a gap', () => {
@@ -35,7 +35,7 @@ describe('immersion', () => {
 
   it('treats whitespace-only target text as no target text', () => {
     expect(buildModalQueue([{ targetText: '   ', targetAudioId: null, knownAudioId: 'en4' }], 'immersion', 1))
-      .toEqual([{ id: 'en4', rate: 1 }])
+      .toEqual([{ id: 'en4', rate: 1, role: 'known' }])
   })
 
   it('plays a floor turn with no known clip as nothing rather than throwing', () => {
@@ -44,7 +44,7 @@ describe('immersion', () => {
 
   it('keeps a mixed session in order — question in English, answer in Welsh', () => {
     expect(buildModalQueue([floorEnglish, welsh], 'immersion', 1))
-      .toEqual([{ id: 'en2', rate: 1 }, { id: 'cy1', rate: 1 }])
+      .toEqual([{ id: 'en2', rate: 1, role: 'known' }, { id: 'cy1', rate: 1, role: 'target' }])
   })
 
   it('carries the chosen speed onto every item', () => {
@@ -58,10 +58,10 @@ describe('drill is unchanged', () => {
   })
 
   it('plays a targetless unit’s known alone, as it always has', () => {
-    expect(buildModalQueue([floorEnglish], 'drill', 1)).toEqual([{ id: 'en2', rate: 1 }])
+    expect(buildModalQueue([floorEnglish], 'drill', 1)).toEqual([{ id: 'en2', rate: 1, role: 'known' }])
   })
 
   it('still plays the known alone for an unrecorded target — drill is deliberately broader than immersion', () => {
-    expect(buildModalQueue([unrecordedWelsh], 'drill', 1)).toEqual([{ id: 'en3', rate: 1 }])
+    expect(buildModalQueue([unrecordedWelsh], 'drill', 1)).toEqual([{ id: 'en3', rate: 1, role: 'known' }])
   })
 })

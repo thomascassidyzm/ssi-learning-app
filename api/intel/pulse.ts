@@ -22,7 +22,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAdmin } from '../_utils/auth'
 import { applyCors } from '../_utils/cors'
-import { resolveRealLearners, isMachineCountry } from '../_utils/realLearnerPopulation'
+import { resolveRealLearners, isMachineEvent } from '../_utils/realLearnerPopulation'
 import { resolveMoneyStandings, countStandings, type StandingCounts } from '../_utils/entitlementCohort'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -121,7 +121,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const byCountry = new Map<string, Set<string>>()
   for (const e of (events ?? []) as { learner_id: string; ip_country: string | null }[]) {
     if (!thisWeekPeople.has(e.learner_id)) continue
-    if (isMachineCountry(e.ip_country)) continue
+    if (isMachineEvent(e, realIds)) continue
     const country = e.ip_country || 'unknown'
     let set = byCountry.get(country)
     if (!set) { set = new Set(); byCountry.set(country, set) }

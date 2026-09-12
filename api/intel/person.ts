@@ -27,7 +27,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAdmin } from '../_utils/auth'
 import { applyCors } from '../_utils/cors'
-import { resolveRealLearners, isMachineCountry, STAFF_PLATFORM_ROLES } from '../_utils/realLearnerPopulation'
+import { resolveRealLearners, STAFF_PLATFORM_ROLES } from '../_utils/realLearnerPopulation'
 import { resolveMoneyStandings, type MoneyStanding } from '../_utils/entitlementCohort'
 import { resolveActiveEntitlements, isDerivedEntitlementId } from '../_utils/resolveEntitlements'
 import { supportIdForLearnerId } from '../../packages/core/src/identity/supportId'
@@ -167,7 +167,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     },
     recent,
     devices: [...new Set(recent.map((e) => e.device).filter((x): x is string => !!x))],
-    countries: [...new Set(recent.map((e) => e.country).filter((x): x is string => !!x && !isMachineCountry(x)))],
+    // A person's own countries are facts about them; a Finnish learner is in Finland (job #325).
+    countries: [...new Set(recent.map((e) => e.country).filter((x): x is string => !!x))],
     countedAt: new Date().toISOString(),
   }
   res.status(200).json(body)

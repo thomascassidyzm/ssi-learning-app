@@ -5,6 +5,7 @@ import { ref, computed, inject, onMounted, onUnmounted, watch, nextTick } from '
 import { getAudioCache } from '../cache/createAudioCache'
 import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
 import { usePlayerLog } from '../composables/usePlayerLog'
+import { buildListeningModePlayEvent } from '../playback/listeningModeTelemetry'
 import { BELTS } from '../composables/useBeltProgress'
 import { useListeningPods, SPEAKER_PALETTE } from '../composables/useListeningPods'
 import { getCachedListeningMeta } from '../composables/listeningMetaCache'
@@ -1329,6 +1330,7 @@ const buildPlayQueue = (phrase) => {
           .map((st) => ({
             id: st.clip.id,
             rate: base,
+            role: st.kind === 'known' ? 'known' : 'target',
             startMs: st.clip.startMs,
             endMs: st.clip.endMs,
             stripIndex: st.stripIndex,
@@ -1349,7 +1351,7 @@ const buildPlayQueue = (phrase) => {
     return buildModalQueue([{ targetText: phrase.targetText || phrase.target1Text || '', targetAudioId: phrase.target1AudioId || null, knownAudioId: phrase.knownAudioId || null }])
   }
   if (Array.isArray(phrase.audioIds) && phrase.audioIds.length > 0) {
-    return phrase.audioIds.filter(Boolean).map((id) => ({ id, rate: null }))
+    return phrase.audioIds.filter(Boolean).map((id) => ({ id, rate: null, role: 'target' }))
   }
   const useVoice1 = Math.random() < 0.5
   // Random voice per cycle, but never silence when only one voice is
@@ -1357,7 +1359,7 @@ const buildPlayQueue = (phrase) => {
   const audioId = (useVoice1 ? phrase.target1AudioId : phrase.target2AudioId)
     || phrase.target1AudioId
     || phrase.target2AudioId
-  return audioId ? [{ id: audioId, rate: null }] : []
+  return audioId ? [{ id: audioId, rate: null, role: 'target' }] : []
 }
 
 /** Every audio id a row can need under the CURRENT mode. Immersion warms
@@ -1466,8 +1468,11 @@ const playCurrentPhrase = async (myPlaybackId) => {
     // URL (instant first play on a cold cache). Same primitive the main 4-phase
     // cycle plays through (SimplePlayer.resolveAudioUrl) — this is what makes
     // listening survive background/lock, not just the silent gaps.
+    const clipCacheHit = audioCache.has(id)
     const audioUrl = await resolveCachedPlaybackUrl(audioCache, id, proxyUrl)
     if (myPlaybackId !== playbackId) return
+    const clipStartedAt = Date.now()
+    let clipOk = true
     try {
       // Dialogue queues always carry an explicit per-clip rate (Immersion =
       // chosen speed, Drill = 1×/2×/2×), so a Core/All speed never leaks in.
@@ -1481,8 +1486,28 @@ const playCurrentPhrase = async (myPlaybackId) => {
         startMs != null && endMs != null ? { startMs, endMs } : null,
       )
     } catch (err) {
+      clipOk = false
       console.error('[ListeningOverlay] Audio play failed:', err)
     }
+    // Per-clip row, same shape as a main-flow pod play (job #325). The
+    // 30 s listening_tick below stays; this is the signal beside it.
+    logEvent('audio_play', buildListeningModePlayEvent({
+      audioId: id,
+      url: proxyUrl,
+      role: item.role ?? 'target',
+      view: view.value,
+      listenMode: listenMode.value,
+      sceneNumber: selectedScene.value?.sceneNumber ?? null,
+      phraseIndex: currentIndex.value,
+      clipIndex: i,
+      clipCount: playQueue.length,
+      playbackSpeed: effectiveRate ?? (playbackSpeed.value || 1),
+      elapsedMs: Date.now() - clipStartedAt,
+      cacheHit: clipCacheHit,
+      ok: clipOk,
+      seedNumber: phrase.seedNumber ?? null,
+      legoId: phrase.legoId || null,
+    }))
     if (i < playQueue.length - 1) {
       await audioController.value.playSilence(interClipGap)
     }
@@ -1793,7 +1818,21 @@ const listeningLogGetToken = async () => {
     return null
   }
 }
-const { event: logEvent } = usePlayerLog({ courseCode: computed(() => props.courseCode), getToken: listeningLogGetToken })
+// Every row from this overlay says it came from Listening Mode (job #325):
+// there is no Easy/Fast here, so `mode: 'listening'` rather than a null that
+// would read as "unknown". The belt is the focal row's own belt, when a row
+// carries one (Core/All views); pod scenes carry none.
+const listeningLogContext = () => ({
+  mode: 'listening',
+  belt: currentBeltIndex.value >= 0 ? (BELTS[currentBeltIndex.value]?.name ?? null) : null,
+  view: view.value,
+})
+const { event: logEvent } = usePlayerLog({
+  courseCode: computed(() => props.courseCode),
+  learnerId: computed(() => props.learnerId),
+  getToken: listeningLogGetToken,
+  context: listeningLogContext,
+})
 
 // Engaged-time heartbeat. Listening-mode PLAYBACK emits no per-clip events, so
 // without this the session span (the source of the learner's "time engaged"

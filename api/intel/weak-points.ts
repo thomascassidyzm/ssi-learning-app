@@ -24,7 +24,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAdmin } from '../_utils/auth'
 import { applyCors } from '../_utils/cors'
-import { resolveRealLearners, isMachineCountry } from '../_utils/realLearnerPopulation'
+import { resolveRealLearners, isMachineEvent } from '../_utils/realLearnerPopulation'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -143,7 +143,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   for (const e of events) {
     if (!e.learner_id || !realIds.has(e.learner_id)) continue
-    if (isMachineCountry(e.ip_country)) continue
+    if (isMachineEvent(e, realIds)) continue
     learnersInCourse.add(e.learner_id)
 
     const legoId = legoIdOf(e.payload)
