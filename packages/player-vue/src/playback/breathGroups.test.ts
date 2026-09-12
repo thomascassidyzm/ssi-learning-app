@@ -250,6 +250,14 @@ describe('textLinesForSentence — untimed clips cut from the text (job #430)', 
     ])
   })
 
+  it('punctuation beats the cap: a comma ends the line when the next clause overflows, and the overflow wraps (spa pod-1 scene 10 #6)', () => {
+    expect(textLinesForSentence('El protector solar está por allí a su derecha, y la pasta de dientes la encuentra justo al doblar la esquina.')).toEqual([
+      'El protector solar está por allí a su derecha,',
+      'y la pasta de dientes la encuentra',
+      'justo al doblar la esquina.',
+    ])
+  })
+
   it('a clause over the cap wraps at spaces into balanced lines, never a long line plus an orphan', () => {
     const clause = 'la verdad es que hay un grupo de artistas enormes que ganan millones y otro grupo inmenso'
     const lines = textLinesForSentence(clause)!

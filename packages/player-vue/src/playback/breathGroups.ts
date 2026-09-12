@@ -239,6 +239,10 @@ export function trackPosition(groups: BreathGroup[], clockSec: number): { index:
 // Scripts without spaces (CJK, Thai) only cut at their own punctuation.
 
 export const TEXT_LINE_MAX_CHARS = 60
+/** A clause shorter than this is a stub ("Bueno,", "Entonces,") and joins
+ *  the clause after it rather than standing as a line: one real breath in
+ *  ten is under 10 chars and one in four under 14 (same census). */
+export const TEXT_LINE_MIN_CHARS = 12
 
 const SENTENCE_PIECES = /[^.!?…。！？]+[.!?…。！？]+["”』」)]*|[^.!?…。！？]+$/gu
 const CLAUSE_PIECES = /[^,;:—–،、，；：]+[,;:—–،、，；：]+["”』」)]*|[^,;:—–،、，；：]+$/gu
@@ -275,16 +279,16 @@ function balancedWrap(piece: string, cap: number): string[] {
 
 /** Clauses of one over-long sentence, packed in order up to the cap so a
  *  list ("en Nueva York, en Tokio, en Buenos Aires") reads as one breath
- *  rather than three stubs. A cut only counts when the clause after it fits
- *  the cap: one that overflows on its own joins what precedes it and the
- *  run is word-wrapped, so "Bueno," never stands alone above a wrapped
- *  remainder. */
-function clauseLines(sentence: string, cap: number): string[] {
+ *  rather than three stubs. Punctuation beats the length cap: when the next
+ *  clause would overflow, the line ends at the comma — unless what stands
+ *  before it is a stub, which joins the clause after it and the run is
+ *  word-wrapped, so "Bueno," never stands alone above a wrapped remainder. */
+function clauseLines(sentence: string, cap: number, min: number): string[] {
   const lines: string[] = []
   let cur = ''
   for (const clause of pieces(sentence, CLAUSE_PIECES)) {
     const next = cur ? `${cur} ${clause}` : clause
-    if (cur && next.length > cap && clause.length <= cap) { lines.push(...balancedWrap(cur, cap)); cur = clause } else cur = next
+    if (cur.length >= min && next.length > cap) { lines.push(...balancedWrap(cur, cap)); cur = clause } else cur = next
   }
   if (cur) lines.push(...balancedWrap(cur, cap))
   return lines
@@ -294,13 +298,13 @@ function clauseLines(sentence: string, cap: number): string[] {
  *  single line — the existing card, unchanged, exactly as one breath group
  *  does for a timed clip. Sentences are never packed together: the sentence
  *  is the unit; only clauses inside one are. */
-export function textLinesForSentence(sentenceText: string, cap: number = TEXT_LINE_MAX_CHARS): string[] | null {
+export function textLinesForSentence(sentenceText: string, cap: number = TEXT_LINE_MAX_CHARS, min: number = TEXT_LINE_MIN_CHARS): string[] | null {
   const text = String(sentenceText || '').trim()
   if (!text) return null
   const lines: string[] = []
   for (const sentence of pieces(text, SENTENCE_PIECES)) {
     if (sentence.length <= cap) lines.push(sentence)
-    else lines.push(...clauseLines(sentence, cap))
+    else lines.push(...clauseLines(sentence, cap, min))
   }
   if (lines.length < 2) return null
   return lines
