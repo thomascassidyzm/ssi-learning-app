@@ -267,21 +267,32 @@ export const isListeningPodLookupDegraded = (courseCode: string): boolean =>
   degradedListening.has(courseCode)
 
 /**
- * The extra pods (and their titles) the offline snapshot was built from —
- * re-gated through the allow-list, like the served slug. Never throws.
+ * What the offline snapshot says the Listening Mode list is: the extra pods
+ * it was built from, re-gated through the allow-list like the served slug,
+ * and the served pod's own title. `extras` is null when there is no snapshot
+ * at all (or the cache threw), so a caller can tell "nothing known" from
+ * "known to have no extras". Never throws.
+ *
+ * This is the ONE fallback every degraded arm of resolveListeningOnce reads
+ * — offline, timeout/error, and the last-ditch catch — and each of them
+ * marks the course degraded first, so listeningMetaCache never files a list
+ * that came from here as "every slot known" (job #424).
  */
-const cachedExtras = async (
+const snapshotListening = async (
   courseCode: string,
-): Promise<Array<{ slug: string; title: string | null }> | null> => {
+): Promise<{ extras: Array<{ slug: string; title: string | null }> | null; servedTitle: string | null }> => {
   try {
     const cached = await getCachedListeningMeta(courseCode)
-    if (!cached) return null
+    if (!cached) return { extras: null, servedTitle: null }
     const extras = Array.isArray(cached.extraPods) ? cached.extraPods : []
-    return extras
-      .filter((e) => isExtraSlug(e?.slug))
-      .map((e) => ({ slug: e.slug, title: typeof e.title === 'string' ? e.title : null }))
+    return {
+      extras: extras
+        .filter((e) => isExtraSlug(e?.slug))
+        .map((e) => ({ slug: e.slug, title: typeof e.title === 'string' ? e.title : null })),
+      servedTitle: cached.podTitle ?? null,
+    }
   } catch {
-    return null
+    return { extras: null, servedTitle: null }
   }
 }
 
@@ -305,11 +316,10 @@ const resolveListeningOnce = async (
   ]
 
   if (isOfflineish()) {
-    const offline = await cachedExtras(courseCode)
-    if (offline) {
+    const snapshot = await snapshotListening(courseCode)
+    if (snapshot.extras) {
       degradedListening.add(courseCode)
-      const cached = await getCachedListeningMeta(courseCode).catch(() => null)
-      return asListening(offline, cached?.podTitle ?? null)
+      return asListening(snapshot.extras, snapshot.servedTitle)
     }
   }
 
@@ -337,9 +347,8 @@ const resolveListeningOnce = async (
     // Degrade to what this device last knew, else to the served pod alone —
     // today's behaviour, never fewer pods than main flow serves.
     degradedListening.add(courseCode)
-    const fallback = (await cachedExtras(courseCode)) ?? []
-    const cached = await getCachedListeningMeta(courseCode).catch(() => null)
-    return asListening(fallback, cached?.podTitle ?? null)
+    const snapshot = await snapshotListening(courseCode)
+    return asListening(snapshot.extras ?? [], snapshot.servedTitle)
   }
 
   degradedListening.delete(courseCode)
