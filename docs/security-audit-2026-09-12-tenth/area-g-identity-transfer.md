@@ -7,7 +7,7 @@ Part of the **tenth** security audit (see `README.md` in this directory). Branch
 applied, no migration written, no live database read, no external service called, no email or OTP
 sent, nothing deleted, nothing promoted.
 
-**Tests:** `api/_security/sec0912t-g-identity-transfer.security.test.ts` (19 assertions). Pure — no
+**Tests:** `api/_security/sec0912t-g-identity-transfer.security.test.ts` (20 assertions). Pure — no
 DB, no network, no child process. Rides `pnpm test:api`; pinned in the machinery roster.
 
 ## Scope
