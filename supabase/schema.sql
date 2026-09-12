@@ -4644,16 +4644,32 @@ CREATE FUNCTION public.is_govt_admin_over_group(target_group_id uuid) RETURNS bo
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public', 'pg_temp'
     AS $$
+  WITH RECURSIVE lineage AS (
+    -- The target group itself…
+    SELECT g.id, g.parent_id, 0 AS depth
+    FROM public.groups g
+    WHERE g.id = target_group_id
+    UNION ALL
+    -- …and each ancestor in turn, by parent_id — never by the slug path.
+    SELECT g.id, g.parent_id, l.depth + 1
+    FROM public.groups g
+    JOIN lineage l ON g.id = l.parent_id
+    WHERE l.depth < 32
+  )
   SELECT EXISTS (
     SELECT 1
-    FROM public.govt_admins ga
-    JOIN public.groups admin_g ON admin_g.id = ga.group_id
-    JOIN public.groups target_g ON target_g.id = target_group_id
+    FROM lineage l
+    JOIN public.govt_admins ga ON ga.group_id = l.id
     WHERE ga.user_id = (auth.uid())::text
-      AND (target_g.path = admin_g.path
-           OR target_g.path LIKE admin_g.path || '/%')
   );
 $$;
+
+
+--
+-- Name: FUNCTION is_govt_admin_over_group(target_group_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.is_govt_admin_over_group(target_group_id uuid) IS 'Does the calling user govern this group or any ancestor of it? Membership walks groups.parent_id; groups.path is a name-derived slug and is never unique, so it must not decide a row policy.';
 
 
 --
@@ -5676,6 +5692,63 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+
+--
+-- Name: org_enrolment_roster(uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.org_enrolment_roster(p_group_ids uuid[]) RETURNS TABLE(learner_id uuid, enrolled_on date, reporting_from date, age_band_16_24 boolean)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  SELECT e.learner_id,
+         min(e.enrolled_at AT TIME ZONE 'UTC')::date AS enrolled_on,
+         min(e.reporting_from)                       AS reporting_from,
+         bool_or(e.age_band_16_24)                   AS age_band_16_24
+  FROM org_enrolments e
+  WHERE e.group_id = ANY(p_group_ids)
+  GROUP BY e.learner_id;
+$$;
+
+
+--
+-- Name: FUNCTION org_enrolment_roster(p_group_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.org_enrolment_roster(p_group_ids uuid[]) IS 'One row per person on an org''s roster, deduped across its cohorts at the earliest enrolment. Drives the funder export''s registered count, including learners who have never played.';
+
+
+--
+-- Name: org_enrolment_window_seconds(uuid[], date, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.org_enrolment_window_seconds(p_group_ids uuid[], p_from date, p_to date) RETURNS TABLE(learner_id uuid, course_code text, seconds bigint)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  WITH roster AS (
+    SELECT e.learner_id, min(e.reporting_from) AS reporting_from
+    FROM org_enrolments e
+    WHERE e.group_id = ANY(p_group_ids)
+    GROUP BY e.learner_id
+  )
+  SELECT lso.learner_id,
+         lso.course_code,
+         sum(lso.play_seconds)::bigint AS seconds
+  FROM learner_speaking_opportunities lso
+  JOIN roster r ON r.learner_id = lso.learner_id
+  WHERE lso.day >= GREATEST(p_from, r.reporting_from)
+    AND lso.day <= p_to
+  GROUP BY lso.learner_id, lso.course_code;
+$$;
+
+
+--
+-- Name: FUNCTION org_enrolment_window_seconds(p_group_ids uuid[], p_from date, p_to date); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.org_enrolment_window_seconds(p_group_ids uuid[], p_from date, p_to date) IS 'Playback seconds per learner per course inside a window, with each learner''s own minutes-from-zero baseline applied. Exists so a large cohort''s export is one aggregate rather than millions of rows dragged into application memory — the exact failure the old system hit once its groups grew.';
 
 
 --
@@ -7823,6 +7896,50 @@ CREATE VIEW public.class_activity_stats WITH (security_invoker='on') AS
 --
 
 COMMENT ON VIEW public.class_activity_stats IS 'Class-level speaking opportunity metrics. Core metric: total_cycles = completed 4-phase learning cycles.';
+
+
+--
+-- Name: class_progress_copy_audit; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.class_progress_copy_audit (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    actor_user_id text NOT NULL,
+    class_id uuid NOT NULL,
+    course_code text NOT NULL,
+    source_learner_id uuid NOT NULL,
+    target_learner_id uuid NOT NULL,
+    record jsonb NOT NULL
+);
+
+
+--
+-- Name: TABLE class_progress_copy_audit; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.class_progress_copy_audit IS 'Append-only audit of a school admin copying a teacher''s own-account play onto the class''s play-as-class learner. Service-role-only (RLS on, no policies) — written only by api/school/copy-teacher-play/apply.ts. record = { copied: {table: {sourceId: newId}}, skipped: [{table, reason}], cursorBefore, cursorAfter, minutesAdded }.';
+
+
+--
+-- Name: COLUMN class_progress_copy_audit.actor_user_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.class_progress_copy_audit.actor_user_id IS 'auth uid (learners.user_id) of the school admin who ran the copy.';
+
+
+--
+-- Name: COLUMN class_progress_copy_audit.source_learner_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.class_progress_copy_audit.source_learner_id IS 'learners.id of the teacher''s own account the rows were copied FROM. Rows stay in place there.';
+
+
+--
+-- Name: COLUMN class_progress_copy_audit.target_learner_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.class_progress_copy_audit.target_learner_id IS 'learners.id of the class''s own learner (classes.class_learner_id) the rows were copied ONTO.';
 
 
 --
@@ -11349,34 +11466,6 @@ CREATE TABLE public.orchestrator_messages (
 
 
 --
--- APPLIED LIVE 2026-09-08. The two org_enrolment_* relations below are defined
--- by supabase/migrations/20260908e_org_enrolments.sql, applied to the live
--- database on 2026-09-08 in one transaction alongside the merge of the Canolfan
--- enrolment build to dev. Both tables were verified present, RLS-enabled and
--- empty immediately afterwards, and both aggregate functions verified callable.
--- These declarations are hand-written rather than dumped, so this file is a
--- faithful-but-partial record of them until somebody regenerates it with
--- ./supabase/snapshot-schema.sh; the ACLs below were likewise transcribed from
--- the live grants rather than dumped.
---
--- One posture correction rode with the application, as
--- supabase/migrations/20260908f_org_enrolments_authenticated_select_only.sql:
--- 20260908e granted SELECT to authenticated but never revoked Supabase's
--- grant-open default underneath it, so authenticated also held INSERT, UPDATE,
--- DELETE and TRUNCATE. RLS already refused the first three; TRUNCATE is not
--- subject to RLS and was the one that mattered. Live grants now read SELECT
--- only, which is what 20260908e's own comment always said they were.
---
--- The same migration also adds two aggregate FUNCTIONS not shown here, because
--- this snapshot's drift guard tracks relations rather than routines:
--- org_enrolment_roster(uuid[]) and org_enrolment_window_seconds(uuid[], date,
--- date). They are what keeps a large cohort's export from dragging millions of
--- per-day rows into a serverless function, and api/org/funder-export.ts falls
--- back to a bounded raw read — and then refuses outright — while they are
--- absent. Applying the migration is what turns the fallback off.
---
-
---
 -- Name: org_enrolment_policies; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -11443,6 +11532,20 @@ CREATE TABLE public.org_enrolments (
 --
 
 COMMENT ON TABLE public.org_enrolments IS 'One row per learner per funded org cohort. UNIQUE (group_id, learner_id) is what makes the enrolment endpoint idempotent — a double submit, a back-button replay or a refresh mid-flow lands on the existing row rather than creating a second one.';
+
+
+--
+-- Name: COLUMN org_enrolments.reporting_from; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.org_enrolments.reporting_from IS 'The minutes-from-zero baseline: the funder export counts learner_speaking_opportunities.day >= this date and no earlier. Pre-cutover history is not deleted, merely out of window.';
+
+
+--
+-- Name: COLUMN org_enrolments.cancellation_state; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.org_enrolments.cancellation_state IS 'not_needed = held no paying subscription at enrolment. needed = they did, and were told to cancel it. learner_confirmed / verified_cancelled = a HUMAN recorded that it happened. No code path in this repo cancels a subscription; these values are a record, never a trigger.';
 
 
 --
@@ -11521,7 +11624,8 @@ CREATE TABLE public.player_events (
     device_type text,
     ip_country text,
     env text,
-    learner_id uuid
+    learner_id uuid,
+    app_shell text
 );
 
 
@@ -11537,6 +11641,13 @@ COMMENT ON TABLE public.player_events IS 'Diagnostic event log for the learning 
 --
 
 COMMENT ON COLUMN public.player_events.env IS 'Deployment environment the event came from, derived server-side from the request host: production | staging | dev. NULL = unknown (rows predating this column).';
+
+
+--
+-- Name: COLUMN player_events.app_shell; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.player_events.app_shell IS 'Container the session ran in: ''web'' (browser tab / installed PWA) or ''webview'' (native shell). NULL for rows written before 2026-09-04. Orthogonal to device_type, which is form factor.';
 
 
 --
@@ -12199,6 +12310,180 @@ CREATE TABLE public.staff_access_codes (
 
 
 --
+-- Name: support_handbook_precedents; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.support_handbook_precedents (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    anchor text,
+    topic text,
+    question text NOT NULL,
+    answer text NOT NULL,
+    answered_by text NOT NULL,
+    answered_by_name text,
+    school_id uuid,
+    asked_by_user_id text,
+    message_id uuid,
+    answer_message_id uuid,
+    model_tier text,
+    move text,
+    language text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT support_handbook_precedents_answered_by_check CHECK ((answered_by = ANY (ARRAY['human'::text, 'agent'::text])))
+);
+
+
+--
+-- Name: TABLE support_handbook_precedents; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.support_handbook_precedents IS 'Answered question-and-answer pairs, attributed and dated, BESIDE the compiled Handbook pack and never inside it. Context and precedent for the agent; never the authority on where a button is.';
+
+
+--
+-- Name: support_messages; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.support_messages (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    thread_id uuid NOT NULL,
+    body text NOT NULL,
+    direction text NOT NULL,
+    author_source text NOT NULL,
+    author_name text,
+    author_via text,
+    author_user_id text,
+    in_reply_to uuid,
+    envelope jsonb,
+    signal_key text,
+    escalated_at timestamp with time zone,
+    escalation_test text,
+    escalation_evidence text,
+    escalation_resolved_at timestamp with time zone,
+    draft_reply text,
+    answered_at timestamp with time zone,
+    handbook_anchors text[],
+    handbook_hit boolean,
+    doorbell_sent_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    move text,
+    move_reason text,
+    model_tier text,
+    model_ladder jsonb,
+    CONSTRAINT support_messages_author_source_check CHECK ((author_source = ANY (ARRAY['human'::text, 'agent'::text, 'worker'::text, 'surface'::text, 'unknown'::text]))),
+    CONSTRAINT support_messages_direction_check CHECK ((direction = ANY (ARRAY['in'::text, 'out'::text]))),
+    CONSTRAINT support_messages_model_tier_check CHECK (((model_tier IS NULL) OR (model_tier = ANY (ARRAY['sonnet'::text, 'opus'::text, 'fable'::text])))),
+    CONSTRAINT support_messages_move_check CHECK (((move IS NULL) OR (move = ANY (ARRAY['point'::text, 'answer'::text, 'escalate'::text]))))
+);
+
+
+--
+-- Name: TABLE support_messages; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.support_messages IS 'A turn in a school''s support thread. direction in/out; author_* is the author-stamp vocabulary; answered_at is what the watcher selects on.';
+
+
+--
+-- Name: COLUMN support_messages.move; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.support_messages.move IS 'Which of the three moves the sentinel made on an in row (point / answer / escalate), decided by explicit recorded rules, never by a model.';
+
+
+--
+-- Name: COLUMN support_messages.move_reason; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.support_messages.move_reason IS 'The condition that decided the move, in words — e.g. "single how-to; confident hit teacher-remove (score 100) with 3 steps".';
+
+
+--
+-- Name: COLUMN support_messages.model_tier; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.support_messages.model_tier IS 'The tier that composed the reply (null for a point, which costs no model call). On an out row: who wrote it.';
+
+
+--
+-- Name: COLUMN support_messages.model_ladder; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.support_messages.model_ladder IS '{start, ceiling, rungs:[{from,to,trigger,evidence}], blocked?, admin_said_no?} — every climb with its mechanical trigger. Answers "why did this cost a Fable call?".';
+
+
+--
+-- Name: support_settings; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.support_settings (
+    key text NOT NULL,
+    value jsonb NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by text
+);
+
+
+--
+-- Name: TABLE support_settings; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.support_settings IS 'The support loop''s tunables. clip_threshold: how many distinct people must hit a handbook gap before it is on the clip list.';
+
+
+--
+-- Name: support_signals; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.support_signals (
+    signal_key text NOT NULL,
+    school_id uuid NOT NULL,
+    first_seen_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_seen_at timestamp with time zone DEFAULT now() NOT NULL,
+    seen_count integer DEFAULT 1 NOT NULL,
+    askers text[] DEFAULT '{}'::text[] NOT NULL
+);
+
+
+--
+-- Name: TABLE support_signals; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.support_signals IS 'Per (signal, school): the population count behind "nine other schools show this". Read as integers only, never as identities.';
+
+
+--
+-- Name: COLUMN support_signals.askers; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.support_signals.askers IS 'Distinct auth uids who raised this signal at this school. The clip threshold counts people across schools; population() still counts other schools.';
+
+
+--
+-- Name: support_threads; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.support_threads (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    school_id uuid,
+    group_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_message_at timestamp with time zone,
+    last_read_at timestamp with time zone,
+    language text,
+    standing_notes jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT support_threads_one_owner CHECK ((((school_id IS NOT NULL) AND (group_id IS NULL)) OR ((school_id IS NULL) AND (group_id IS NOT NULL))))
+);
+
+
+--
+-- Name: TABLE support_threads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.support_threads IS 'One support thread per school or per org, never closed. No status, no priority: state lives on support_messages.';
+
+
+--
 -- Name: target_audio; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -12412,70 +12697,6 @@ COMMENT ON COLUMN public.teachers.platform_expires_at IS 'Tutor dashboard gate: 
 
 
 --
--- Name: support_messages; Type: TABLE; Schema: public; Owner: -
--- (declared by hand from supabase/migrations/20260911_support_channel.sql,
---  which is UNAPPLIED as of 2026-09-11; ./supabase/snapshot-schema.sh will
---  re-emit these three tables verbatim once it is applied)
---
-
-CREATE TABLE public.support_messages (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    thread_id uuid NOT NULL,
-    body text NOT NULL,
-    direction text NOT NULL,
-    author_source text NOT NULL,
-    author_name text,
-    author_via text,
-    author_user_id text,
-    in_reply_to uuid,
-    envelope jsonb,
-    signal_key text,
-    escalated_at timestamp with time zone,
-    escalation_test text,
-    escalation_evidence text,
-    escalation_resolved_at timestamp with time zone,
-    draft_reply text,
-    answered_at timestamp with time zone,
-    handbook_anchors text[],
-    handbook_hit boolean,
-    doorbell_sent_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT support_messages_author_source_check CHECK ((author_source = ANY (ARRAY['human'::text, 'agent'::text, 'worker'::text, 'surface'::text, 'unknown'::text]))),
-    CONSTRAINT support_messages_direction_check CHECK ((direction = ANY (ARRAY['in'::text, 'out'::text])))
-);
-
-
---
--- Name: support_signals; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.support_signals (
-    signal_key text NOT NULL,
-    school_id uuid NOT NULL,
-    first_seen_at timestamp with time zone DEFAULT now() NOT NULL,
-    last_seen_at timestamp with time zone DEFAULT now() NOT NULL,
-    seen_count integer DEFAULT 1 NOT NULL
-);
-
-
---
--- Name: support_threads; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.support_threads (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    school_id uuid,
-    group_id uuid,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    last_message_at timestamp with time zone,
-    last_read_at timestamp with time zone,
-    language text,
-    standing_notes jsonb DEFAULT '{}'::jsonb NOT NULL,
-    CONSTRAINT support_threads_one_owner CHECK ((((school_id IS NOT NULL) AND (group_id IS NULL)) OR ((school_id IS NULL) AND (group_id IS NOT NULL))))
-);
-
-
---
 -- Name: tester_feedback; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -12622,7 +12843,7 @@ CREATE TABLE public.voice_language_roles (
     slot text DEFAULT 'phrase'::text NOT NULL,
     CONSTRAINT voice_language_roles_gender_check CHECK ((gender = ANY (ARRAY['f'::text, 'm'::text]))),
     CONSTRAINT voice_language_roles_rank_check CHECK (((rank >= 0) AND (rank <= 5))),
-    CONSTRAINT voice_language_roles_slot_check CHECK ((slot = ANY (ARRAY['phrase'::text, 'guide'::text])))
+    CONSTRAINT voice_language_roles_slot_check CHECK ((slot = ANY (ARRAY['phrase'::text, 'guide'::text, 'presentation'::text])))
 );
 
 
@@ -12637,7 +12858,7 @@ COMMENT ON COLUMN public.voice_language_roles.language IS 'The CAST ENTITY a voi
 -- Name: COLUMN voice_language_roles.slot; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.voice_language_roles.slot IS 'phrase = the male/female course-material voices. guide = the instruction and encouragement voice, cast against the KNOWN language, one per language, gender informational only (Tom, 2026-08-29).';
+COMMENT ON COLUMN public.voice_language_roles.slot IS 'phrase = the male/female course-material voices. guide = the instruction and encouragement voice, cast against the KNOWN language, one per language, gender informational only (Tom, 2026-08-29). presentation = the course narrator (the LEGO intro), also cast against the KNOWN language, also one per language and gender-informational, and also outside the completeness count (Tom, 2026-09-10).';
 
 
 --
@@ -13255,6 +13476,14 @@ ALTER TABLE ONLY public.checkpoint_approvals
 
 ALTER TABLE ONLY public.checkpoint_approvals
     ADD CONSTRAINT checkpoint_approvals_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: class_progress_copy_audit class_progress_copy_audit_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.class_progress_copy_audit
+    ADD CONSTRAINT class_progress_copy_audit_pkey PRIMARY KEY (id);
 
 
 --
@@ -14106,6 +14335,30 @@ ALTER TABLE ONLY public.orchestrator_messages
 
 
 --
+-- Name: org_enrolment_policies org_enrolment_policies_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_enrolment_policies
+    ADD CONSTRAINT org_enrolment_policies_pkey PRIMARY KEY (group_id);
+
+
+--
+-- Name: org_enrolments org_enrolments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_enrolments
+    ADD CONSTRAINT org_enrolments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: org_enrolments org_enrolments_unique_member; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_enrolments
+    ADD CONSTRAINT org_enrolments_unique_member UNIQUE (group_id, learner_id);
+
+
+--
 -- Name: phase_prompts phase_prompts_phase_code_version_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14383,6 +14636,46 @@ ALTER TABLE ONLY public.subscriptions
 
 ALTER TABLE ONLY public.subscriptions
     ADD CONSTRAINT subscriptions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: support_handbook_precedents support_handbook_precedents_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.support_handbook_precedents
+    ADD CONSTRAINT support_handbook_precedents_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: support_messages support_messages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.support_messages
+    ADD CONSTRAINT support_messages_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: support_settings support_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.support_settings
+    ADD CONSTRAINT support_settings_pkey PRIMARY KEY (key);
+
+
+--
+-- Name: support_signals support_signals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.support_signals
+    ADD CONSTRAINT support_signals_pkey PRIMARY KEY (signal_key, school_id);
+
+
+--
+-- Name: support_threads support_threads_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.support_threads
+    ADD CONSTRAINT support_threads_pkey PRIMARY KEY (id);
 
 
 --
@@ -15054,6 +15347,20 @@ CREATE INDEX idx_checkpoint_config_course ON public.course_checkpoint_config USI
 --
 
 CREATE INDEX idx_checkpoint_results_course ON public.course_checkpoint_results USING btree (course_code);
+
+
+--
+-- Name: idx_class_progress_copy_audit_class; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_class_progress_copy_audit_class ON public.class_progress_copy_audit USING btree (class_id, created_at DESC);
+
+
+--
+-- Name: idx_class_progress_copy_audit_pair; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_class_progress_copy_audit_pair ON public.class_progress_copy_audit USING btree (source_learner_id, target_learner_id, course_code, created_at DESC);
 
 
 --
@@ -16065,6 +16372,13 @@ CREATE INDEX idx_listening_pods_required_role ON public.listening_pods USING btr
 
 
 --
+-- Name: idx_lso_day_learner; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_lso_day_learner ON public.learner_speaking_opportunities USING btree (day, learner_id);
+
+
+--
 -- Name: idx_metrics_learner; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -16118,6 +16432,27 @@ CREATE INDEX idx_onboarding_messages_sort_order ON public.onboarding_messages US
 --
 
 CREATE INDEX idx_orch_msg_course ON public.orchestrator_messages USING btree (course_code, created_at DESC);
+
+
+--
+-- Name: idx_org_enrolments_group; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_org_enrolments_group ON public.org_enrolments USING btree (group_id);
+
+
+--
+-- Name: idx_org_enrolments_learner; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_org_enrolments_learner ON public.org_enrolments USING btree (learner_id);
+
+
+--
+-- Name: idx_org_enrolments_warning_due; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_org_enrolments_warning_due ON public.org_enrolments USING btree (free_access_until) WHERE (expiry_warned_at IS NULL);
 
 
 --
@@ -16730,6 +17065,13 @@ CREATE UNIQUE INDEX one_active_per_phase ON public.phase_prompts USING btree (ph
 
 
 --
+-- Name: player_events_app_shell_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX player_events_app_shell_idx ON public.player_events USING btree (app_shell, occurred_at DESC) WHERE (app_shell IS NOT NULL);
+
+
+--
 -- Name: player_events_env_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -16807,6 +17149,48 @@ CREATE INDEX staff_access_codes_target_idx ON public.staff_access_codes USING bt
 
 
 --
+-- Name: support_handbook_precedents_anchor; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX support_handbook_precedents_anchor ON public.support_handbook_precedents USING btree (anchor, created_at DESC);
+
+
+--
+-- Name: support_handbook_precedents_topic; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX support_handbook_precedents_topic ON public.support_handbook_precedents USING btree (topic, created_at DESC);
+
+
+--
+-- Name: support_messages_thread_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX support_messages_thread_created ON public.support_messages USING btree (thread_id, created_at);
+
+
+--
+-- Name: support_messages_unanswered; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX support_messages_unanswered ON public.support_messages USING btree (created_at) WHERE ((direction = 'in'::text) AND (answered_at IS NULL));
+
+
+--
+-- Name: support_threads_group_uniq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX support_threads_group_uniq ON public.support_threads USING btree (group_id) WHERE (group_id IS NOT NULL);
+
+
+--
+-- Name: support_threads_school_uniq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX support_threads_school_uniq ON public.support_threads USING btree (school_id) WHERE (school_id IS NOT NULL);
+
+
+--
 -- Name: tutor_rebate_ledger_provider_ref_type; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -16839,6 +17223,13 @@ CREATE UNIQUE INDEX voice_language_roles_no_self_backup ON public.voice_language
 --
 
 CREATE UNIQUE INDEX voice_language_roles_one_guide_per_rank ON public.voice_language_roles USING btree (language, rank) WHERE (slot = 'guide'::text);
+
+
+--
+-- Name: voice_language_roles_one_presentation_per_rank; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX voice_language_roles_one_presentation_per_rank ON public.voice_language_roles USING btree (language, rank) WHERE (slot = 'presentation'::text);
 
 
 --
@@ -17992,6 +18383,46 @@ ALTER TABLE ONLY public.offline_leases
 
 
 --
+-- Name: org_enrolment_policies org_enrolment_policies_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_enrolment_policies
+    ADD CONSTRAINT org_enrolment_policies_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id) ON DELETE CASCADE;
+
+
+--
+-- Name: org_enrolments org_enrolments_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_enrolments
+    ADD CONSTRAINT org_enrolments_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id) ON DELETE CASCADE;
+
+
+--
+-- Name: org_enrolments org_enrolments_invite_code_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_enrolments
+    ADD CONSTRAINT org_enrolments_invite_code_id_fkey FOREIGN KEY (invite_code_id) REFERENCES public.invite_codes(id) ON DELETE SET NULL;
+
+
+--
+-- Name: org_enrolments org_enrolments_learner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_enrolments
+    ADD CONSTRAINT org_enrolments_learner_id_fkey FOREIGN KEY (learner_id) REFERENCES public.learners(id) ON DELETE CASCADE;
+
+
+--
+-- Name: org_enrolments org_enrolments_prior_subscription_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_enrolments
+    ADD CONSTRAINT org_enrolments_prior_subscription_id_fkey FOREIGN KEY (prior_subscription_id) REFERENCES public.subscriptions(id) ON DELETE SET NULL;
+
+
+--
 -- Name: possession_mint_attempts possession_mint_attempts_invite_code_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -18109,6 +18540,54 @@ ALTER TABLE ONLY public.spike_events
 
 ALTER TABLE ONLY public.subscriptions
     ADD CONSTRAINT subscriptions_learner_id_fkey FOREIGN KEY (learner_id) REFERENCES public.learners(id) ON DELETE CASCADE;
+
+
+--
+-- Name: support_handbook_precedents support_handbook_precedents_answer_message_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.support_handbook_precedents
+    ADD CONSTRAINT support_handbook_precedents_answer_message_id_fkey FOREIGN KEY (answer_message_id) REFERENCES public.support_messages(id) ON DELETE SET NULL;
+
+
+--
+-- Name: support_handbook_precedents support_handbook_precedents_message_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.support_handbook_precedents
+    ADD CONSTRAINT support_handbook_precedents_message_id_fkey FOREIGN KEY (message_id) REFERENCES public.support_messages(id) ON DELETE SET NULL;
+
+
+--
+-- Name: support_messages support_messages_in_reply_to_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.support_messages
+    ADD CONSTRAINT support_messages_in_reply_to_fkey FOREIGN KEY (in_reply_to) REFERENCES public.support_messages(id) ON DELETE SET NULL;
+
+
+--
+-- Name: support_messages support_messages_thread_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.support_messages
+    ADD CONSTRAINT support_messages_thread_id_fkey FOREIGN KEY (thread_id) REFERENCES public.support_threads(id) ON DELETE CASCADE;
+
+
+--
+-- Name: support_threads support_threads_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.support_threads
+    ADD CONSTRAINT support_threads_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id) ON DELETE CASCADE;
+
+
+--
+-- Name: support_threads support_threads_school_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.support_threads
+    ADD CONSTRAINT support_threads_school_id_fkey FOREIGN KEY (school_id) REFERENCES public.schools(id) ON DELETE CASCADE;
 
 
 --
@@ -18935,6 +19414,12 @@ CREATE POLICY canonical_seeds_public_read ON public.canonical_seeds FOR SELECT T
 ALTER TABLE public.checkpoint_approvals ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: class_progress_copy_audit; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.class_progress_copy_audit ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: class_sessions; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -19721,6 +20206,27 @@ CREATE POLICY orchestrator_messages_public_read ON public.orchestrator_messages 
 
 
 --
+-- Name: org_enrolment_policies; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.org_enrolment_policies ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: org_enrolments; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.org_enrolments ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: org_enrolments org_enrolments_select_own; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY org_enrolments_select_own ON public.org_enrolments FOR SELECT TO authenticated USING ((learner_id IN ( SELECT learners.id
+   FROM public.learners
+  WHERE (learners.user_id = (auth.uid())::text))));
+
+
+--
 -- Name: phase_prompts; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -20140,6 +20646,52 @@ CREATE POLICY subscriptions_update_admin ON public.subscriptions FOR UPDATE USIN
 
 
 --
+-- Name: support_handbook_precedents; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.support_handbook_precedents ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: support_messages; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.support_messages ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: support_messages support_messages_own_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY support_messages_own_read ON public.support_messages FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1
+   FROM public.support_threads t
+  WHERE ((t.id = support_messages.thread_id) AND (((t.school_id IS NOT NULL) AND public.is_school_admin_of(t.school_id)) OR ((t.group_id IS NOT NULL) AND public.is_govt_admin_over_group(t.group_id)))))));
+
+
+--
+-- Name: support_settings; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.support_settings ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: support_signals; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.support_signals ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: support_threads; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.support_threads ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: support_threads support_threads_own_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY support_threads_own_read ON public.support_threads FOR SELECT TO authenticated USING ((((school_id IS NOT NULL) AND public.is_school_admin_of(school_id)) OR ((group_id IS NOT NULL) AND public.is_govt_admin_over_group(group_id))));
+
+
+--
 -- Name: target_audio; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -20275,24 +20827,6 @@ CREATE POLICY teachers_update_own_or_admin ON public.teachers FOR UPDATE USING (
    FROM public.learners
   WHERE (learners.user_id = (( SELECT auth.uid() AS uid))::text))) OR public.is_ssi_admin()));
 
-
---
--- Name: support_messages; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.support_messages ENABLE ROW LEVEL SECURITY;
-
---
--- Name: support_signals; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.support_signals ENABLE ROW LEVEL SECURITY;
-
---
--- Name: support_threads; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.support_threads ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: tester_feedback; Type: ROW SECURITY; Schema: public; Owner: -
@@ -21482,6 +22016,22 @@ GRANT ALL ON FUNCTION public.null_seed_audio_on_text_change() TO service_role;
 
 
 --
+-- Name: FUNCTION org_enrolment_roster(p_group_ids uuid[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.org_enrolment_roster(p_group_ids uuid[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.org_enrolment_roster(p_group_ids uuid[]) TO service_role;
+
+
+--
+-- Name: FUNCTION org_enrolment_window_seconds(p_group_ids uuid[], p_from date, p_to date); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.org_enrolment_window_seconds(p_group_ids uuid[], p_from date, p_to date) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.org_enrolment_window_seconds(p_group_ids uuid[], p_from date, p_to date) TO service_role;
+
+
+--
 -- Name: FUNCTION position_derived_seconds_per_lego(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -22108,8 +22658,15 @@ GRANT ALL ON TABLE public.checkpoint_approvals TO service_role;
 -- Name: TABLE classes; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,REFERENCES,TRIGGER,MAINTAIN,UPDATE ON TABLE public.classes TO authenticated;
+GRANT SELECT,REFERENCES,TRIGGER,MAINTAIN ON TABLE public.classes TO authenticated;
 GRANT ALL ON TABLE public.classes TO service_role;
+
+
+--
+-- Name: COLUMN classes.last_lego_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(last_lego_id) ON TABLE public.classes TO authenticated;
 
 
 --
@@ -22213,6 +22770,13 @@ GRANT ALL ON TABLE public.user_tags TO service_role;
 
 GRANT ALL ON TABLE public.class_activity_stats TO authenticated;
 GRANT ALL ON TABLE public.class_activity_stats TO service_role;
+
+
+--
+-- Name: TABLE class_progress_copy_audit; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.class_progress_copy_audit TO service_role;
 
 
 --
@@ -22988,6 +23552,15 @@ GRANT ALL ON TABLE public.onboarding_messages TO service_role;
 
 
 --
+-- Name: TABLE orchestrator_messages; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.orchestrator_messages TO service_role;
+GRANT SELECT ON TABLE public.orchestrator_messages TO anon;
+GRANT SELECT ON TABLE public.orchestrator_messages TO authenticated;
+
+
+--
 -- Name: TABLE org_enrolment_policies; Type: ACL; Schema: public; Owner: -
 --
 
@@ -23000,15 +23573,6 @@ GRANT ALL ON TABLE public.org_enrolment_policies TO service_role;
 
 GRANT ALL ON TABLE public.org_enrolments TO service_role;
 GRANT SELECT ON TABLE public.org_enrolments TO authenticated;
-
-
---
--- Name: TABLE orchestrator_messages; Type: ACL; Schema: public; Owner: -
---
-
-GRANT ALL ON TABLE public.orchestrator_messages TO service_role;
-GRANT SELECT ON TABLE public.orchestrator_messages TO anon;
-GRANT SELECT ON TABLE public.orchestrator_messages TO authenticated;
 
 
 --
@@ -23254,6 +23818,119 @@ GRANT ALL ON TABLE public.spike_events TO service_role;
 --
 
 GRANT ALL ON TABLE public.staff_access_codes TO service_role;
+
+
+--
+-- Name: TABLE support_handbook_precedents; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.support_handbook_precedents TO service_role;
+
+
+--
+-- Name: TABLE support_messages; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.support_messages TO service_role;
+
+
+--
+-- Name: COLUMN support_messages.id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(id) ON TABLE public.support_messages TO authenticated;
+
+
+--
+-- Name: COLUMN support_messages.thread_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(thread_id) ON TABLE public.support_messages TO authenticated;
+
+
+--
+-- Name: COLUMN support_messages.body; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(body) ON TABLE public.support_messages TO authenticated;
+
+
+--
+-- Name: COLUMN support_messages.direction; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(direction) ON TABLE public.support_messages TO authenticated;
+
+
+--
+-- Name: COLUMN support_messages.author_source; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(author_source) ON TABLE public.support_messages TO authenticated;
+
+
+--
+-- Name: COLUMN support_messages.author_name; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(author_name) ON TABLE public.support_messages TO authenticated;
+
+
+--
+-- Name: COLUMN support_messages.in_reply_to; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(in_reply_to) ON TABLE public.support_messages TO authenticated;
+
+
+--
+-- Name: COLUMN support_messages.escalated_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(escalated_at) ON TABLE public.support_messages TO authenticated;
+
+
+--
+-- Name: COLUMN support_messages.escalation_resolved_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(escalation_resolved_at) ON TABLE public.support_messages TO authenticated;
+
+
+--
+-- Name: COLUMN support_messages.answered_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(answered_at) ON TABLE public.support_messages TO authenticated;
+
+
+--
+-- Name: COLUMN support_messages.created_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(created_at) ON TABLE public.support_messages TO authenticated;
+
+
+--
+-- Name: TABLE support_settings; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.support_settings TO service_role;
+
+
+--
+-- Name: TABLE support_signals; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.support_signals TO service_role;
+
+
+--
+-- Name: TABLE support_threads; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.support_threads TO service_role;
+GRANT SELECT ON TABLE public.support_threads TO authenticated;
 
 
 --
