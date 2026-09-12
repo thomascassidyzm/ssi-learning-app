@@ -1,3 +1,13 @@
+## 2026-09-12 — Chinese for English speakers listed no Dialogues in airplane mode: the online boot now writes the listening snapshot when none exists (job #379)
+
+**Tom's report.** Production `5ea385e`, iPhone, airplane mode, clips downloaded: Listening Mode listed no dialogues for Chinese. Online, Pod 1 listed as always. Offline-only.
+
+**What was true, read-only.** Content and code both serve the pod online: `zho_for_eng:pod-1` is live and served, 231 sentences, every clip present, and headless production as Tom's own account lists 22 scenes. Offline, the list reads one seat only, the `ssi-listening-meta` IndexedDB snapshot, and that snapshot had exactly one writer: the deliberate Offline Mode download. The automatic download-ahead warms the pod lap's audio and the course bundle carries pod sentences, but neither writes the snapshot, and the bundle's pod rows carry no scene numbers or speakers, so they cannot build the scene list. Reproduced headless on production: automatic path only, then offline → "Dialogues aren't downloaded yet", 0 scenes; the same device after an Offline Mode download at 2% → 22 scenes offline. Nothing in the 2026-09-11 promotion touched this path; it has read this way since the snapshot existed.
+
+**Decision.** The per-boot stamp lane in `useScriptCache` (the one that already refreshes a stale snapshot) also writes the snapshot when the device has none, through the existing full fetch, in the background. Better: any learner who has booted online carries the Dialogues list and the main-flow pod rows into airplane mode, which is what "play what you have" means. Simpler: one export, one call, no new shape, no reader changes; the Offline Mode download still fetches the audio and is unchanged. Cheaper: metadata only, once per device per course, the same reads the schedulers make on every online boot; the 2026-09-01 ruling against loading a corpus up front is about audio and is untouched. Core offline still says nothing is listenable until its audio is downloaded, which is the existing state for that tab.
+
+**Proof.** `useScriptCache.contentStamp.test.ts` asserts the boot lane calls the new export: red with the call removed, green with it. `listeningMetaCache.test.ts` writes the snapshot through the new export and mounts `useListeningPods` against a failing network: one scene listed, error null, and a second call leaves the entry untouched. Live proof against the deployed build is in the job report.
+
 ## 2026-09-12 — zho_for_eng lost every pod dialogue in main flow: the Drill lift was completing cohorts; completion now counts main-flow laps only (job #350)
 
 **Tom's report.** "Chinese in main has no PODS (the dialogues at all now)." Staging. Regression, not a held course.
