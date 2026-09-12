@@ -1583,8 +1583,10 @@ untouched, pinned byte-for-byte as before.
 
 **The cut order and the cap.** Sentence enders first, never packed together — the sentence is the
 unit. Then clause punctuation inside an over-long sentence, clauses packed up to the cap so a list
-("en Nueva York, en Tokio, en Buenos Aires") is one breath rather than three stubs, and a cut only
-counting when the clause after it fits, so "Bueno," never stands alone above a wrapped remainder.
+("en Nueva York, en Tokio, en Buenos Aires") is one breath rather than three stubs, and punctuation
+beating the cap: when the next clause would overflow the line ends at the comma, unless what stands
+before it is a stub under 12 characters (one real breath in ten is under 10, one in four under 14),
+which joins the clause after it, so "Bueno," never stands alone above a wrapped remainder.
 Then the cap, words kept whole and the overflow balanced into equal lines rather than a long line
 plus an orphan. The cap is 60 characters, taken from the audio rather than guessed: across 1,455 timed pod
 sentence clips with two or more breath groups, 3,942 real breath groups measure 23 chars at the
