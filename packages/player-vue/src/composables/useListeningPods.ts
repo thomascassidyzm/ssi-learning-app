@@ -98,6 +98,8 @@ export interface PodTurn {
     fusionGroups: FusionGroup[] | null
     fusionContinuation: boolean
     podOrdinal: number
+    /** Raw word timings of the target clip (see PodSentence.wordTimings). */
+    wordTimings: unknown | null
   }>
   /** First sentence's global_order — used for ordering. */
   globalOrder: number
@@ -560,6 +562,7 @@ function buildPodScenes(
                 fusionGroups: s.fusionGroups,
                 fusionContinuation: s.fusionContinuation,
                 podOrdinal: s.podOrdinal,
+                wordTimings: s.wordTimings ?? null,
               },
             ],
             globalOrder: s.globalOrder,

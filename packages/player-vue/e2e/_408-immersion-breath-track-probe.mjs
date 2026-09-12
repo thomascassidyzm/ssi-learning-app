@@ -40,6 +40,15 @@ const page = await ctx.newPage()
 const jsErrors = []
 page.on('pageerror', (e) => jsErrors.push(String(e).slice(0, 200)))
 const out = { url: URL, course: COURSE, scene: SCENE, rowText: ROW_TEXT, frames: [] }
+const clipReads = []
+page.on('response', async (r) => {
+  const u = r.url()
+  if (/rest\/v1\/course_audio/.test(u)) {
+    let body = ''
+    try { body = await r.text() } catch {}
+    clipReads.push({ select: (u.match(/select=([^&]+)/) || [])[1], status: r.status(), len: body.length, hasWb: body.includes('word_boundaries'), wbNonNull: (body.match(/"word_boundaries":\[/g) || []).length })
+  }
+})
 
 const trackerState = () => page.evaluate(() => {
   const cur = document.querySelector('.listening-overlay .phrase-row.current')
@@ -156,5 +165,6 @@ if (out.modeTriggerFound) {
   }
 }
 out.jsErrors = jsErrors
+out.clipReads = clipReads.slice(0, 12)
 console.log(JSON.stringify(out, null, 1))
 await browser.close()
