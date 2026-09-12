@@ -1029,6 +1029,15 @@ directed at the channel; nothing is spawned from repeats.
 last event_type before the report`. The post opens with "Nth report of this shape in 7 days" so
 repeats are visible to whoever reads the room. That is the whole grouping.
 
+**What a real tap did (job #361, 2026-09-12).** Astra refuted #347's "whole pipeline proven":
+that probe submitted with `el.click()`, which skips hit-testing. A headless phone at 390x844 with
+a touch context, opening the sheet from Settings and tapping Send at its own coordinates, closed
+the sheet and Settings and posted nothing: the point under the thumb was the bottom nav's Play
+button, because the scrim sat at z-index 1200 under the nav's 3000. So delivery worked and normal
+phone submission was broken, exactly as Astra said. Fix: the scrim now stacks at 3300, above the
+nav and the player's overlays; a test reads both z-indexes and is red on 1200, green on 3300.
+Probe kept as `packages/player-vue/e2e/_361-postbox-tap-probe.mjs`.
+
 **Decision: guests may report.** A guest has no bearer, so the route accepts an unauthenticated
 report with learner_id and auth_user_id null and only the client's unflushed buffer for events.
 Throttled per attested peer in memory and by a fleet-wide cap of guest rows per quarter hour

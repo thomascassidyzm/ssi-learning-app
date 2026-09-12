@@ -70,3 +70,27 @@ describe('ReportBugSheet', () => {
     expect(w.find('[data-walk="report-bug-text"]').exists()).toBe(false)
   })
 })
+
+/**
+ * Job #361 (2026-09-12). Astra refuted #347's "whole pipeline proven": that
+ * probe submitted with el.click(), which skips hit-testing. A real phone tap
+ * on Send at 390x844 landed on the bottom nav's Play button instead, because
+ * the sheet's scrim sat at z-index 1200 under the nav's 3000. A modal sheet
+ * must outrank every piece of shell chrome it can overlap. Red on 1200,
+ * green once the scrim is above the nav.
+ */
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
+describe('ReportBugSheet stacking', () => {
+  const zOf = (file: string, selector: string): number => {
+    const src = readFileSync(resolve(__dirname, file), 'utf8')
+    const block = src.split(`\n${selector} {`)[1]?.split('}')[0] ?? ''
+    const m = block.match(/z-index:\s*(\d+)/)
+    if (!m) throw new Error(`no z-index in ${selector} of ${file}`)
+    return Number(m[1])
+  }
+  it('the sheet stacks above the bottom nav so a real tap on Send reaches Send', () => {
+    expect(zOf('./ReportBugSheet.vue', '.bug-scrim')).toBeGreaterThan(zOf('./BottomNav.vue', '.bottom-nav'))
+  })
+})
