@@ -639,9 +639,6 @@ const totalCount = ref(0)
 const hasMore = ref(true)
 const isLoadingMore = ref(false)
 
-// Audio - use /api/audio proxy for CORS bypass
-const audioMap = ref(new Map())
-
 // Tab-open JIT prefetch — warm the first ~5 rows of the active tab so
 // click-to-play feels instant on slow networks. Cap is deliberate:
 // prefetching the whole tab would chew bandwidth for content the user
@@ -1760,10 +1757,11 @@ const scrollCurrentIntoView = () => {
 }
 
 const handlePhraseClick = (displayIndex) => {
-  // Immersion: a tap on the card that is sounding reveals its one line of
+  // Immersion: a tap on the card that is SOUNDING reveals its one line of
   // translation (tap again to hide); it does not restart the line. Every
-  // other row still jumps there, as before.
-  if (inImmersionScene.value && displayIndex === currentIndex.value) {
+  // other row, and the current card once playback has stopped, jumps there
+  // as before job #408 — a tap on a silent card plays it (job #425).
+  if (inImmersionScene.value && isPlaying.value && displayIndex === currentIndex.value) {
     const phrase = availablePhrases.value[displayIndex]
     if (phrase) revealedRowId.value = revealedRowId.value === phrase.id ? null : phrase.id
     return
@@ -2372,7 +2370,7 @@ watch(
                   class="phrase-target breath-group"
                   :class="breathClass(gi)"
                   :style="breathStyle(gi)"
-                >{{ g.text }}</div>
+                ><span class="breath-fill">{{ g.text }}</span></div>
               </div>
               <div :lang="courseKnownLang" v-if="(glossVisible || revealedRowId === phrase.id) && phrase.knownText" class="phrase-known" :dir="dirFor(phrase.knownText)">{{ phrase.knownText }}</div>
             </template>
@@ -3400,8 +3398,16 @@ watch(
 .phrase-row.current .phrase-target.breath-group.ahead {
   color: var(--breath-dim);
 }
+/* The fill is painted on an INLINE span, not the block: an inline box's
+ * background is laid out as if the run were unbroken and then sliced per
+ * line (box-decoration-break: slice, the default), so --fill walks the
+ * wrapped lines in reading order — first line full before the second
+ * starts — where a block gradient advanced across every line together
+ * (job #425). */
 .phrase-row.current .phrase-target.breath-group.live {
   --fill: 0%;
+}
+.phrase-row.current .phrase-target.breath-group.live .breath-fill {
   color: transparent;
   background-image: linear-gradient(
     90deg,
@@ -3413,8 +3419,8 @@ watch(
   -webkit-background-clip: text;
   background-clip: text;
 }
-.breath-stack[dir="rtl"] .phrase-row.current .phrase-target.breath-group.live,
-.phrase-row.current .breath-stack[dir="rtl"] .phrase-target.breath-group.live {
+.breath-stack[dir="rtl"] .phrase-row.current .phrase-target.breath-group.live .breath-fill,
+.phrase-row.current .breath-stack[dir="rtl"] .phrase-target.breath-group.live .breath-fill {
   background-image: linear-gradient(
     270deg,
     var(--text-primary) 0,
