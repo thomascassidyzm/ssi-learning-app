@@ -1636,8 +1636,12 @@ sentence, the turn and the offline snapshot.
 overlay's pre-existing gaps for every turn, unchanged and pinned by test — 90 ms on a speaker
 change, 50 ms between one speaker's sentences in Immersion, 90 ms in Drill — and 0 for a jump-in in
 Immersion. `jumpInLeadMs` is the overlap: the previous clip's trailing silence, from its own word
-timings, plus 120 ms into its last word; 200 ms when the clip is untimed; never more than 700 ms or
-the clip itself. Media time on both sides, so the playback speed cancels out.
+timings, plus 120 ms into its last word; 250 ms when the clip is untimed; never more than 700 ms or
+the clip itself. The untimed figure is measured, not guessed: the method pod's clips carry no word
+timings at all, and ffmpeg silencedetect at -45 dB on its 37 interrupted-line clips gives a trailing
+silence of 107 ms at the median, 203 at p90 and 300 at most, so 250 ms lands the interrupter about
+140 ms into the last audible word on a typical clip. Tom's "half a second before the interrupting
+voice is heard" was that trailing silence plus the 90 ms gap clip plus two src-swap latencies. Media time on both sides, so the playback speed cancels out.
 
 **Two elements, one hook.** The overlay's audio controller grows a second element used for a
 jump-in only. It is primed with a silent one-shot inside the learner's play tap, because iOS unlocks

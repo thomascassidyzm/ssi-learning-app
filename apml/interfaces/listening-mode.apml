@@ -249,7 +249,7 @@ PLAYBACK:
     .jump_in, job #471) and the mode is Immersion, changeoverGapMs is 0 and
     the row before it arms a near-end hook on its last clip: jumpInLeadMs
     media-ms before that clip ends (its trailing silence from its word
-    timings + 120 ms, 200 ms untimed, ≤700 ms) the jump-in clip starts on the
+    timings + 120 ms, 250 ms untimed (measured tail median 107 ms), ≤700 ms) the jump-in clip starts on the
     controller's SECOND element (primed with a silent one-shot inside the
     learner's play tap, since iOS unlocks per element per gesture); the next
     row adopts the sounding clip. Refused early start or frozen rAF under
