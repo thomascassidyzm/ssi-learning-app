@@ -1514,3 +1514,26 @@ order for free. No layout engine, no per-word painting.
 URL, and `fileURLToPath` threw at import, so none of its pins had run since #408 landed. It runs in
 the node environment now, as its sibling scope test does. The dead `audioMap` ref predates #408 and
 went with the same broom.
+
+## 2026-09-12 — Immersion stack for every long pod line: timings when present, punctuation when not (job #430)
+
+**Why.** Tom, on the #408 tracker: "it will help to not just have a massive block of text in the
+longer form pods … we could still split them up into single breaths though." The stacked layout is
+the win and is independent of the tracker, and most pod lines have no timings to drive one: on
+spa_for_eng 451 of 1,052 live pod sentences carry no word timings, and on the Pod-1 / xAI turns
+those are the longest lines in the course.
+
+**One component, two sources of line breaks.** `trackerGroupsFor` now returns a stack, `{ lines,
+timed }`. Timings that normalise → the lines are the clip's breath groups and the lit line walks,
+exactly as #408 ships; a timed clip with a single breath group is still the card. No usable
+timings (null, or the viseme-frame shape) → the same stack with lines cut from the sentence text by
+`textLinesForSentence`, and the stack carries `.untimed`: no said / lit / ahead state, no fill, no
+clock, every line in the card's own colour. One text line → null → the card, unchanged. Drill is
+untouched, pinned byte-for-byte as before.
+
+**The cut order and the cap.** Sentence enders first, then clause punctuation, then a length cap
+with words kept whole and the overflow balanced into equal lines rather than a long line plus an
+orphan. The cap is 60 characters, taken from the audio rather than guessed: across 1,455 timed pod
+sentence clips with two or more breath groups, 3,942 real breath groups measure 23 chars at the
+median, 52 at p90 and 66 at p95, so a text-cut line is the size of a long real breath. Scripts
+without spaces cut only at their own punctuation. Nothing heard changes; this is display only.

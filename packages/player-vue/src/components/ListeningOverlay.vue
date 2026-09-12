@@ -11,7 +11,7 @@ import { useListeningPods, SPEAKER_PALETTE } from '../composables/useListeningPo
 import { getCachedListeningMeta } from '../composables/listeningMetaCache'
 import { buildSilentWavDataUri } from '../playback/silentWav'
 import { buildModalQueue as buildPodModalQueue } from '../playback/podModalQueue'
-import { breathGroupsForClip, trackPosition } from '../playback/breathGroups'
+import { breathGroupsForClip, normaliseWordTimings, textLinesForSentence, trackPosition } from '../playback/breathGroups'
 import ListeningModeToggle from './ListeningModeToggle.vue'
 import TeleprompterScroll from './TeleprompterScroll.vue'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
@@ -531,23 +531,36 @@ const toggleGloss = () => {
 const revealedRowId = ref(null)
 watch(currentIndex, () => { revealedRowId.value = null })
 
-// ── Immersion breath-group tracker (job #408) ────────────────────────────
-// The grain comes from the clip's word timings, never from the text: a
-// sentence with two or more breath groups renders as a stack (said / lit /
-// to come) with a fill walking inside the lit group at the clip's own clock.
-// One breath group → null → the existing card, unchanged. Drill and every
-// other surface → null by construction (see playback/breathGroups.ts and
-// ListeningOverlay.breathTracker.test.ts).
+// ── Immersion breath-group stack (jobs #408, #430) ───────────────────────
+// ONE component, TWO sources of line breaks. With word timings the grain
+// comes from the clip's audio, never from the text: a sentence with two or
+// more breath groups renders as a stack (said / lit / to come) with a fill
+// walking inside the lit group at the clip's own clock (#408). WITHOUT word
+// timings (Pod-1 / xAI renders, human recordings, viseme-only rows) the same
+// stack renders with its lines cut from the sentence text — sentence enders,
+// then clause punctuation, then a 60-char cap — layout only: no lit line,
+// no fill, no clock (#430, Tom: "we could still split them up into single
+// breaths"). Either source yielding one line → null → the existing card,
+// unchanged. Drill and every other surface → null by construction (see
+// playback/breathGroups.ts and ListeningOverlay.breathTracker.test.ts).
 let breathGroupCache = new Map()
 const trackerGroupsFor = (phrase) => {
   if (!inImmersionScene.value) return null
   const s = phrase?.sentences?.[0]
-  if (!s?.wordTimings || !s.targetAudioId) return null
+  const text = s?.targetText || phrase?.targetText || ''
   const key = phrase.id
   if (breathGroupCache.has(key)) return breathGroupCache.get(key)
-  const groups = breathGroupsForClip(s.wordTimings, s.targetText || phrase.targetText || '')
-  breathGroupCache.set(key, groups)
-  return groups
+  let stack = null
+  const timed = !!(s?.targetAudioId && normaliseWordTimings(s.wordTimings))
+  if (timed) {
+    const groups = breathGroupsForClip(s.wordTimings, text)
+    if (groups) stack = { lines: groups, timed: true }
+  } else {
+    const lines = textLinesForSentence(text)
+    if (lines) stack = { lines: lines.map((t) => ({ text: t })), timed: false }
+  }
+  breathGroupCache.set(key, stack)
+  return stack
 }
 // The clip clock: seconds into the clip currently sounding, read off the
 // shared Audio element each animation frame while a tracked target clip
@@ -574,12 +587,13 @@ const startClipClock = (id) => {
 }
 const trackPos = computed(() => {
   const phrase = availablePhrases.value[currentIndex.value]
-  const groups = phrase ? trackerGroupsFor(phrase) : null
-  if (!groups) return { index: -1, fill: 0 }
+  const stack = phrase ? trackerGroupsFor(phrase) : null
+  if (!stack?.timed) return { index: -1, fill: 0 }
   const live = trackClipId.value && trackClipId.value === phrase.sentences[0].targetAudioId
-  return trackPosition(groups, live ? trackClock.value : 0)
+  return trackPosition(stack.lines, live ? trackClock.value : 0)
 })
-const breathClass = (gi) => ({
+// An untimed stack has no position: every line in the card's own colour.
+const breathClass = (gi) => (trackPos.value.index < 0 ? { untimed: true } : {
   said: gi < trackPos.value.index,
   live: gi === trackPos.value.index,
   ahead: gi > trackPos.value.index,
@@ -2355,16 +2369,18 @@ watch(
                 <div :lang="courseKnownLang" v-if="showGloss && strip.known" class="phrase-known interleaved" :dir="dirFor(strip.known)">{{ strip.known }}</div>
               </div>
             </template>
-            <!-- Immersion tracker (job #408): a sentence with two or more
-                 BREATH GROUPS (pauses in the clip's own word timings) is a
-                 stack — said / lit / to come — and a fill walks inside the
-                 lit group with the clip's clock. One breath group, no
-                 timings, or any other mode → this branch is null and the
-                 card below renders exactly as before. -->
+            <!-- Immersion stack (jobs #408, #430): a sentence with two or
+                 more BREATH GROUPS (pauses in the clip's own word timings)
+                 is a stack — said / lit / to come — and a fill walks inside
+                 the lit group with the clip's clock. A sentence with NO
+                 timings is the same stack cut from its text, layout only.
+                 One line from either source, or any other mode → this
+                 branch is null and the card below renders exactly as
+                 before. -->
             <template v-else-if="isCurrent && trackerGroupsFor(phrase)">
-              <div class="breath-stack" :dir="dirFor(phrase.targetText)">
+              <div class="breath-stack" :class="{ untimed: !trackerGroupsFor(phrase).timed }" :dir="dirFor(phrase.targetText)">
                 <div
-                  v-for="(g, gi) in trackerGroupsFor(phrase)"
+                  v-for="(g, gi) in trackerGroupsFor(phrase).lines"
                   :key="gi"
                   :lang="courseTargetLang"
                   class="phrase-target breath-group"
@@ -3373,9 +3389,11 @@ watch(
   margin-top: 0.1rem;
 }
 
-/* Immersion breath-group stack (job #408) — Spotify-transcript grammar on
- * ONE card: the group being spoken lit, groups already said quiet, groups to
- * come dim. The fill inside the lit group is the text itself painted up to
+/* Immersion breath-group stack (jobs #408, #430) — Spotify-transcript
+ * grammar on ONE card: the group being spoken lit, groups already said
+ * quiet, groups to come dim. An UNTIMED stack (lines cut from the text,
+ * `.breath-stack.untimed`) carries none of those states: every line sits in
+ * the card's own colour, and only the layout is shared. The fill inside the lit group is the text itself painted up to
  * --fill (background-clip: text), walking with the clip's clock. Lines never
  * reflow between states: state is colour, never size or weight. Selectors
  * carry `.phrase-row.current` because the card's own target rule does, and
