@@ -1728,7 +1728,18 @@ const playerLogActorUserId = computed(() => (props.classContext ? ((auth as any)
 // now, not from the ssi-user-id cookie — so hand the log the session token.
 const playerLogGetToken = (): Promise<string | null> =>
   ((auth as any)?.getToken?.() ?? Promise.resolve(null))
-const playerLog = usePlayerLog({ courseCode, learnerId, actorUserId: playerLogActorUserId, clientVersion: BUILD_VERSION, getToken: playerLogGetToken })
+// Every row this player logs carries the play state IN FORCE at that instant
+// (job #325, Tom 2026-09-12): the live Easy/Fast mode, the belt being PLAYED
+// (playingBelt, not the belt achieved), and the seed and round the cursor is
+// on. Read lazily at log time, so a toggle mid-session changes the very next
+// row, and a payload key the call site set itself is left alone.
+const playerLogContext = () => ({
+  mode: learningMode.value,
+  belt: playingBelt.value?.name ?? null,
+  seedId: simplePlayer.currentRound.value?.seedId ?? null,
+  roundIndex: simplePlayer.isInitialized.value ? simplePlayer.roundIndex.value : null,
+})
+const playerLog = usePlayerLog({ courseCode, learnerId, actorUserId: playerLogActorUserId, clientVersion: BUILD_VERSION, getToken: playerLogGetToken, context: playerLogContext })
 const logEvent = playerLog.event
 
 // ── INF PLAY OBSERVABILITY ──────────────────────────────────────────────────

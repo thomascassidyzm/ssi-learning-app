@@ -23,6 +23,9 @@ export interface ModalUnit {
 export interface ModalQueueItem {
   id: string
   rate: number
+  /** Which side of the pair this clip is, so a per-clip telemetry row can say
+   *  what was heard. Additive (job #325). */
+  role: 'target' | 'known'
 }
 
 /** Was anything said in the target language on this line? */
@@ -33,19 +36,19 @@ export function buildModalQueue(units: ModalUnit[], mode: string, base: number):
   if (mode === 'drill') {
     for (const u of units) {
       if (u.targetAudioId) {
-        queue.push({ id: u.targetAudioId, rate: base })                       // target first
-        if (u.knownAudioId) queue.push({ id: u.knownAudioId, rate: base })    // then meaning
-        queue.push({ id: u.targetAudioId, rate: base })                       // target
-        queue.push({ id: u.targetAudioId, rate: base })                       // target again
+        queue.push({ id: u.targetAudioId, rate: base, role: 'target' })                       // target first
+        if (u.knownAudioId) queue.push({ id: u.knownAudioId, rate: base, role: 'known' })    // then meaning
+        queue.push({ id: u.targetAudioId, rate: base, role: 'target' })                       // target
+        queue.push({ id: u.targetAudioId, rate: base, role: 'target' })                       // target again
       } else if (u.knownAudioId) {
-        queue.push({ id: u.knownAudioId, rate: base })
+        queue.push({ id: u.knownAudioId, rate: base, role: 'known' })
       }
     }
     return queue
   }
   // immersion (default): target only, at the chosen speed.
   for (const u of units) {
-    if (u.targetAudioId) { queue.push({ id: u.targetAudioId, rate: base }); continue }
+    if (u.targetAudioId) { queue.push({ id: u.targetAudioId, rate: base, role: 'target' }); continue }
     // A line that was never spoken in the target language AT ALL — an English
     // contribution on the floor of a bilingual Senedd transcript — has no target
     // text and no target clip, and its KNOWN side IS the recording of what was
@@ -58,7 +61,7 @@ export function buildModalQueue(units: ModalUnit[], mode: string, base: number):
     // must stay silent: speaking its translation instead would put the known
     // language in the learner's ear during an IMMERSION listen and hide a missing
     // recording behind something that sounds perfectly fine.
-    if (!hasTargetText(u) && u.knownAudioId) queue.push({ id: u.knownAudioId, rate: base })
+    if (!hasTargetText(u) && u.knownAudioId) queue.push({ id: u.knownAudioId, rate: base, role: 'known' })
   }
   return queue
 }
