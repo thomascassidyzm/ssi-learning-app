@@ -1213,6 +1213,29 @@ defined`; two console `TypeError: Assignment to constant variable` from `Listeni
 `ref`; the belt strip drew 8 pips regardless. Listening Mode produced one `listening_tick` and
 ZERO `audio_play` rows. Every main-flow `audio_play` row had `seedId=null` while the
 `round_complete` / `tap_*` rows beside them carried `S0001`.
+**After, on staging build 9b3a78c (the #339 fix), session `4eb21a1b-89d7-4985-abed-82bb76d3320a`.**
+No page error. Listening Mode wrote 15 `audio_play` rows with `mode: 'listening'`, one per clip,
+`seedId` S0001 → S0015, `belt` white then yellow as the queue crossed the belt boundary, and the
+`listening_tick` beside them. Every main-flow `audio_play` row now carries `seedId: 'S0001'`. So
+the regression from #325 is closed and the seedId fix is proven on the row.
+
+**Found on that same build, fixed in this job.** Three console errors per strip render: `TypeError:
+Cannot create property 'value' on number '0'` from #339's pip setter. Cause: the file has no
+`lang="ts"`, so `ref<HTMLElement | null>(null)` is JavaScript — `(ref < HTMLElement) | (null >
+null)` — and evaluates to 0. Both belt-strip "refs" had been 0 since 2026-05-15; the strip's
+auto-scroll read `.value` of 0 and did nothing, silently. Fix: `ref(null)` for both; the scope test
+now fails on any `ref/computed/inject/reactive<…>(` in the file. It was the only plain-JS SFC in
+`src/components` and `src/views` with a type argument. Promoted as 19c43ecf9.
+
+**After, on staging build 19c43ec, session `6aef0380-828f-4c10-9f62-125dfedd75ab`.** Zero page
+errors, zero console errors, belt-jump strip rendered 8 pips, 14 per-clip listening `audio_play`
+rows S0001 → S0014, main-flow rows stamped S0001. Probe kept as
+`packages/player-vue/e2e/_343-listening-probe.mjs`; rows read back by `session_id` with the
+service key.
+
+**Not done.** Production still serves the #325 regression until the next staging → main promotion,
+which is Tom's. The `localiseWalk` pair stays red on dev; walkthrough copy, someone else's.
+
 ## 2026-09-12 — the Italian method pod is a THIRD Listening Mode slot beside Pod 1 (job #354·F)
 
 **Tom's ruling (12:36Z).** "Yes." to Watson's proposal: serve the method pod as a third slot so it
@@ -1292,34 +1315,42 @@ after.
 **Census.** No `resume_ttl_belt_regression` cursor move has fired since telemetry began on
 31 August, and no real learner on any course sits on the round before a belt start with practice
 or a ceiling beyond it, so no cursor needs repairing under the old rule. The 8 September report's
-24 real learners idle 60+ days above White will be rewound to their own belt start on return.
+24 real learners idle 60+ days above White will NOT be rewound on return, because the live boot
+paths never reach the rewind, as the next paragraph records. (This sentence first said they "will
+be rewound to their own belt start on return"; corrected by job #361 on 2026-09-12 after Astra
+refuted it and the house confirmed the reading below.)
 
-**After, on staging build 9b3a78c (the #339 fix), session `4eb21a1b-89d7-4985-abed-82bb76d3320a`.**
-No page error. Listening Mode wrote 15 `audio_play` rows with `mode: 'listening'`, one per clip,
-`seedId` S0001 → S0015, `belt` white then yellow as the queue crossed the belt boundary, and the
-`listening_tick` beside them. Every main-flow `audio_play` row now carries `seedId: 'S0001'`. So
-the regression from #325 is closed and the seedId fix is proven on the row.
-
-**Found on that same build, fixed in this job.** Three console errors per strip render: `TypeError:
-Cannot create property 'value' on number '0'` from #339's pip setter. Cause: the file has no
-`lang="ts"`, so `ref<HTMLElement | null>(null)` is JavaScript — `(ref < HTMLElement) | (null >
-null)` — and evaluates to 0. Both belt-strip "refs" had been 0 since 2026-05-15; the strip's
-auto-scroll read `.value` of 0 and did nothing, silently. Fix: `ref(null)` for both; the scope test
-now fails on any `ref/computed/inject/reactive<…>(` in the file. It was the only plain-JS SFC in
-`src/components` and `src/views` with a type argument. Promoted as 19c43ecf9.
-
-**After, on staging build 19c43ec, session `6aef0380-828f-4c10-9f62-125dfedd75ab`.** Zero page
-errors, zero console errors, belt-jump strip rendered 8 pips, 14 per-clip listening `audio_play`
-rows S0001 → S0014, main-flow rows stamped S0001. Probe kept as
-`packages/player-vue/e2e/_343-listening-probe.mjs`; rows read back by `session_id` with the
-service key.
-
-**Not done.** Production still serves the #325 regression until the next staging → main promotion,
-which is Tom's. The `localiseWalk` pair stays red on dev; walkthrough copy, someone else's.
 **Found verifying live, staging build 19c43ec.** A 70-day-idle test learner with the cursor at
 S0025L01 on cym_s_for_eng, fresh device, signed in, `?bundle=0`: the instant-playback boot resumed
 straight onto S0025 and stamped `last_practiced_at`; no rewind fired and no cursor move was
 written. The rewind lives only in the legacy eagerLoad resume, which neither the cache fast-path
-nor the bootstrap reaches, so on the live boot paths the 60-day rewind is effectively unreachable.
-The cap is proven by its test and is in place where the rewind lives; making the rewind reachable
-again is a design call for Tom, not part of this job.
+nor the bootstrap reaches: in `LearningPlayer.vue` the cache fast-path returns at line 14916 and
+the instant-playback bootstrap returns at line 15470, both before the `beltRegressionDays` check
+at line 15783, which only the legacy fall-through reaches (job #361 read the same three lines on
+dev). So on the live boot paths the 60-day rewind is effectively unreachable. The cap is proven by
+its test and is in place where the rewind lives; making the rewind reachable again is a design
+call for Tom, not part of this job.
+
+## 2026-09-12 — house re-check of four Astra refutations: all four confirmed, one real bug fixed (job #361)
+
+**Why.** Four HOLD cards said Astra had refuted a claim in a house report and asked for a house
+model to re-check before Watson acted. Each was reproduced with evidence, not argument.
+
+**Item 1, #339's roundIndex sentence: CONFIRMED.** Re-ran the session query on the live DB: 16
+main-flow rows carry `roundIndex`, the one `listening_tick` does not, by design, since pods have
+no round. Sentence corrected in the #339 entry; no code change.
+
+**Item 2, #347's "whole pipeline proven": CONFIRMED, and a real bug.** A 390x844 touch-context
+tap on Send at its own coordinates hit the bottom nav's Play button beneath the sheet (scrim
+z-index 1200, nav 3000). Fix: scrim at 3300; test red on 1200, green on 3300; recorded in the
+#327·F entry; probe `packages/player-vue/e2e/_361-postbox-tap-probe.mjs`.
+
+**Item 3, #340's "Refresh in both modes": CONFIRMED.** `RefreshButton` renders only with a
+registered handler and no `views/intel/*` file calls `registerRefresh`. Sentence corrected in the
+#340·F entry and the AdminTopBar header comment. Handlers were not added to Intelligence views:
+that is page content, outside #340's nav-only scope.
+
+**Item 4, #326's "24 learners will rewind": CONFIRMED, already conceded by #326's own later
+paragraph.** The census sentence is corrected in place and the four #343 paragraphs that a merge
+had spliced into the #326·F entry are back under the #343 heading. The rewind stays unreachable;
+wiring it into the live boot paths is Tom's design call.
