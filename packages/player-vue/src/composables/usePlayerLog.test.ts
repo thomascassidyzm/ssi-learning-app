@@ -9,6 +9,11 @@
  * it fell through to sendBeacon, which cannot carry a header, and the server
  * (rightly, SEC25 INPUT-04) attributed nothing. The cache is now primed at
  * mount. This test fails on the pre-fix code and passes on the post-fix code.
+ *
+ * Job #317 made the sync flush wait, bounded, for an in-flight bearer. Job
+ * #320 (Astra's cold verification, #319) states the bound honestly as a
+ * trade-off, lifts it wherever the page is not at eviction risk, and stops a
+ * refused sendBeacon from dropping its batch. See the #320 block below.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { defineComponent, h, nextTick } from 'vue'
@@ -159,6 +164,153 @@ describe('usePlayerLog — first sync flush carries the bearer', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  // ── job #320: what #317 narrowed, stated honestly, and the beacon-refusal miss ──
+
+  const mountDeferredHost = (tokenAt: number, learnerId = '2efbfb3b-4cdb-4889-9785-36d62dcdd49a') => {
+    let log!: ReturnType<typeof usePlayerLog>
+    const Host = defineComponent({
+      setup() {
+        log = usePlayerLog({
+          learnerId,
+          getToken: () => new Promise<string | null>((r) => setTimeout(() => r('signed-token'), tokenAt)),
+          flushIntervalMs: 60_000,
+        })
+        return () => h('div')
+      },
+    })
+    const wrapper = mount(Host)
+    return { wrapper, log: () => log }
+  }
+  const hide = () => {
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+    document.dispatchEvent(new Event('visibilitychange'))
+  }
+  const show = () => {
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    document.dispatchEvent(new Event('visibilitychange'))
+  }
+
+  it('a tab that hides and STAYS hidden beacons unattributed at the bound; a bearer at 1200ms is NOT applied to that batch (the documented trade-off)', async () => {
+    vi.useFakeTimers()
+    try {
+      const { wrapper, log } = mountDeferredHost(1200)
+      await nextTick()
+      log().event('cold_start', { guest: false })
+      hide()
+      await vi.advanceTimersByTimeAsync(700)
+      expect(beaconSpy).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(200) // past the 800ms hidden bound
+      expect(beaconSpy).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(1000) // the bearer resolves at 1200ms
+      // The batch has already been secured: no second send, attributed or not.
+      expect(beaconSpy).toHaveBeenCalledTimes(1)
+      expect(fetchSpy).not.toHaveBeenCalled()
+      wrapper.unmount()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a player UNMOUNTED inside a live tab waits past 800ms and sends the batch with the 1200ms bearer', async () => {
+    vi.useFakeTimers()
+    try {
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+      const { wrapper, log } = mountDeferredHost(1200)
+      await nextTick()
+      log().event('cold_start', { guest: false })
+      wrapper.unmount()
+      await vi.advanceTimersByTimeAsync(1000) // pre-fix: the beacon has already gone here, unattributed
+      expect(beaconSpy).not.toHaveBeenCalled()
+      expect(fetchSpy).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(300)
+      expect(beaconSpy).not.toHaveBeenCalled()
+      expect(fetchSpy).toHaveBeenCalledTimes(1)
+      const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit]
+      expect((init.headers as Record<string, string>).Authorization).toBe('Bearer signed-token')
+      expect(init.keepalive).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a tab hidden then brought BACK before the bound keeps waiting and sends with the 1200ms bearer', async () => {
+    vi.useFakeTimers()
+    try {
+      const { wrapper, log } = mountDeferredHost(1200)
+      await nextTick()
+      log().event('cold_start', { guest: false })
+      hide()
+      await vi.advanceTimersByTimeAsync(400)
+      show()
+      await vi.advanceTimersByTimeAsync(600) // 1000ms in: hidden-only code would have beaconed at 800
+      expect(beaconSpy).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(300)
+      expect(beaconSpy).not.toHaveBeenCalled()
+      expect(fetchSpy).toHaveBeenCalledTimes(1)
+      const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit]
+      expect((init.headers as Record<string, string>).Authorization).toBe('Bearer signed-token')
+      wrapper.unmount()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('an unmount whose getter hangs past the safe budget still sends the batch, unattributed, rather than never', async () => {
+    vi.useFakeTimers()
+    try {
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+      let log!: ReturnType<typeof usePlayerLog>
+      const Host = defineComponent({
+        setup() {
+          log = usePlayerLog({
+            learnerId: '2efbfb3b-4cdb-4889-9785-36d62dcdd49a',
+            getToken: () => new Promise<string | null>(() => { /* never */ }),
+            flushIntervalMs: 60_000,
+          })
+          return () => h('div')
+        },
+      })
+      const wrapper = mount(Host)
+      await nextTick()
+      log.event('cold_start', { guest: false })
+      wrapper.unmount()
+      await vi.advanceTimersByTimeAsync(9_000)
+      expect(beaconSpy).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect(beaconSpy).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a beacon the browser REFUSES (sendBeacon returns false) falls through to keepalive fetch, so the batch is not lost', async () => {
+    beaconSpy.mockReturnValue(false)
+    let log!: ReturnType<typeof usePlayerLog>
+    const Host = defineComponent({
+      setup() {
+        log = usePlayerLog({ learnerId: 'guest-abc', getToken: async () => null, flushIntervalMs: 60_000 })
+        return () => h('div')
+      },
+    })
+    const wrapper = mount(Host)
+    await nextTick()
+    await flushMicrotasks()
+    log.event('cold_start', { guest: true })
+    hide()
+    await flushMicrotasks()
+    expect(beaconSpy).toHaveBeenCalledTimes(1)
+    // Pre-fix: nothing else happens and the batch is gone.
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/player-events')
+    expect(init.keepalive).toBe(true)
+    expect((init.headers as Record<string, string>).Authorization).toBeUndefined()
+    const sent = JSON.parse(init.body as string)
+    expect(sent.events).toHaveLength(1)
+    expect(sent.events[0].event_type).toBe('cold_start')
+    wrapper.unmount()
   })
 
   it('a guest (no token at all) still beacons, unattributed, exactly as before', async () => {

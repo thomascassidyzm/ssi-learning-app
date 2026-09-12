@@ -63,10 +63,18 @@ interface PlayerLogOptions {
 const DEFAULT_FLUSH_INTERVAL_MS = 5000
 const BATCH_TRIGGER = 10
 const MAX_BUFFER = 200 // hard cap; events past this are dropped
-// How long a sync (hide / unmount) flush waits for a pending bearer before
-// falling back to an unattributed beacon. Supabase's getSession() answers
-// from local storage in a few ms; this only bites if the auth client hangs.
-const SYNC_TOKEN_WAIT_MS = 800
+// How long a HIDDEN-tab flush waits for a pending bearer before securing the
+// batch as an unattributed beacon. Supabase's getSession() answers from local
+// storage in single-digit ms; it takes longer only when the access token has
+// expired and must be refreshed over the network, or the auth client's
+// navigator lock is held by another tab. This is a bounded TRADE-OFF, not a
+// close — see flush() for the floor it sits on.
+const HIDDEN_TOKEN_WAIT_MS = 800
+// A flush whose page is NOT at risk of eviction (a player unmount inside a
+// live tab, or a tab that has come back to the foreground) keeps waiting for
+// the bearer up to this much. It is a guard against a hung auth client only:
+// past it the batch goes out unattributed rather than never.
+const SAFE_TOKEN_WAIT_MS = 10_000
 
 let nextSessionId: string | null = null
 function genSessionId(): string {
@@ -160,7 +168,7 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
   }
 
   /** Drain the current buffer to the network. Silent on failure. */
-  const flush = async (sync: boolean = false): Promise<void> => {
+  const flush = async (sync: boolean = false, cause: 'hidden' | 'unmount' = 'hidden'): Promise<void> => {
     if (buffer.length === 0) return
     // Don't fire a doomed request when we already know the network is gone.
     // On iOS every failed foreground request is a fresh chance to trip the
@@ -213,27 +221,52 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
     // beaconed its boot events with no bearer at all, and they landed
     // unattributed — nine such rows for class 8H, every one a cold_start /
     // bundle_boot_path / bundle_tier_heal at the head of its session (job
-    // #307, 2026-09-12). Priming narrowed that window; the bounded wait
-    // below closes it (job #317).
+    // #307, 2026-09-12). Priming narrowed that window; the wait below
+    // narrows it further (job #317), and job #320 states honestly what is
+    // left of it.
     if (!sync) await refreshToken()
     let token = cachedToken
     if (sync && !token && options.getToken) {
       // The gap #307 left open (Astra, #316·G): priming at mount starts the
       // refresh, but a tab hidden or a player unmounted BEFORE getToken()
       // resolves still found the cache empty and beaconed the boot events
-      // with no bearer. So a sync flush now waits for the in-flight refresh
+      // with no bearer. So a sync flush waits for the in-flight refresh
       // instead of racing it. A keepalive fetch issued after an awaited
       // promise inside a visibilitychange handler is still inside the
-      // page's lifetime, on the same terms as sendBeacon. The wait is
-      // bounded by SYNC_TOKEN_WAIT_MS: if the getter never settles (a hung
-      // auth client) the batch goes out as a beacon, unattributed, because
-      // losing attribution on one batch beats losing the batch.
-      // If no refresh is in flight, this starts one — the same bounded wait
-      // applies, so the NEXT unload path also has a token.
-      await Promise.race([
-        refreshToken(),
-        new Promise<void>((r) => setTimeout(r, SYNC_TOKEN_WAIT_MS)),
-      ])
+      // page's lifetime, on the same terms as sendBeacon. If no refresh is in
+      // flight this starts one, so the NEXT sync path also has a token.
+      //
+      // HOW LONG TO WAIT is a trade-off the client cannot settle (Astra,
+      // #319, on #317): a hidden page can be evicted at any moment without
+      // firing anything, and a batch still held in JS at that moment is gone,
+      // while a beacon already handed to the browser survives. Waiting longer
+      // buys attribution and risks the batch; sending sooner secures the
+      // batch and loses attribution. No client-only design closes both — a
+      // full close needs an idempotent re-send the server can dedupe, which
+      // is not built. So:
+      //   • a page NOT at eviction risk — an unmount inside a live tab, or a
+      //     tab that has come back to the foreground while we waited — keeps
+      //     waiting, up to SAFE_TOKEN_WAIT_MS (a hung-client guard only);
+      //   • a page that is hidden and STAYS hidden waits HIDDEN_TOKEN_WAIT_MS
+      //     and then secures the batch as an unattributed beacon. A bearer
+      //     that resolves after that point is NOT applied to this batch:
+      //     that row lands unattributed, by this decision, and the next
+      //     flush carries the token.
+      const pending = refreshToken()
+      const startedAt = Date.now()
+      let settled = false
+      void pending.then(() => { settled = true })
+      while (!settled) {
+        const atRisk = cause === 'hidden'
+          && typeof document !== 'undefined' && document.visibilityState === 'hidden'
+        const budget = atRisk ? HIDDEN_TOKEN_WAIT_MS : SAFE_TOKEN_WAIT_MS
+        const remaining = budget - (Date.now() - startedAt)
+        if (remaining <= 0) break
+        await Promise.race([
+          pending,
+          new Promise<void>((r) => setTimeout(r, Math.min(remaining, HIDDEN_TOKEN_WAIT_MS))),
+        ])
+      }
       token = cachedToken
     }
 
@@ -241,11 +274,16 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
     // carry a header, so it's only used when there's no token to carry (guest
     // sessions); a signed-in learner uses keepalive fetch instead, which the
     // same unload path supports.
+    // sendBeacon returns false when the browser declines to queue the payload
+    // — its per-origin beacon quota is full, or the page is being torn down —
+    // and until job #320 that batch was simply dropped (Astra, #319). Now a
+    // refused beacon falls through to the keepalive fetch below, the same
+    // path a bearer-carrying sync flush already takes, so the batch is not
+    // lost. A beacon that THROWS falls through the same way.
     if (sync && !token && typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
       try {
         const blob = new Blob([body], { type: 'application/json' })
-        navigator.sendBeacon(apiUrl('/api/player-events'), blob)
-        return
+        if (navigator.sendBeacon(apiUrl('/api/player-events'), blob)) return
       } catch { /* fall through to fetch */ }
     }
 
@@ -267,7 +305,7 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
   const handleVisibilityChange = (): void => {
     if (typeof document === 'undefined') return
     if (document.visibilityState === 'hidden') {
-      void flush(true)
+      void flush(true, 'hidden')
     }
   }
 
@@ -286,7 +324,9 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
     if (typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-    void flush(true)
+    // The tab is alive here — an unmount is a route change, not an unload —
+    // so this flush may wait the full safe budget for its bearer.
+    void flush(true, 'unmount')
   })
 
   return {
