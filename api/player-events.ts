@@ -63,15 +63,45 @@ function getAppShell(declared: unknown, userAgent: string): 'web' | 'webview' {
   return /;\s*wv\)/i.test(userAgent) ? 'webview' : 'web'
 }
 
+type TelemetryEnv = 'production' | 'staging' | 'dev'
+
 /**
- * Deployment environment, derived SERVER-SIDE from the request host so it
- * can't be spoofed by the client and there's one source of truth.
+ * Deployment environment, derived SERVER-SIDE so it can't be spoofed by the
+ * client and there's one source of truth. Vocabulary is fixed by migration
+ * 20260618_telemetry_env_tag.sql: production | staging | dev.
+ *
+ * PRIMARY: the deployment itself. Vercel stamps every build with VERCEL_ENV
+ * and the git ref it was built from, and a build knows which deployment it
+ * is in a way a request header never can — a Host header is rewritten by
+ * proxies and aliases, and the same commit is served from several hosts.
+ *   VERCEL_ENV=production                      -> 'production'
+ *   VERCEL_GIT_COMMIT_REF=staging (preview)    -> 'staging'
+ *   any other preview / branch build           -> 'dev'
+ * FALLBACK, when the build carries no VERCEL_ENV (local dev, tests, a
+ * non-Vercel host): the request host, which is what this did on its own
+ * until job #307 (2026-09-12).
  *   saysomethingin.app          -> 'production'
  *   staging.saysomethingin.app  -> 'staging'
  *   anything else               -> 'dev'  (vercel preview alias, localhost)
  * Prefer the Host header; fall back to the Origin host.
  */
-function getEnv(host: string | undefined, origin: string | undefined): 'production' | 'staging' | 'dev' {
+function getEnv(host: string | undefined, origin: string | undefined): TelemetryEnv {
+  const fromDeployment = envFromDeployment(process.env)
+  if (fromDeployment) return fromDeployment
+  return envFromHost(host, origin)
+}
+
+/** Exported for the test: the deployment-side derivation on its own. */
+export function envFromDeployment(vars: NodeJS.ProcessEnv): TelemetryEnv | null {
+  const vercelEnv = (vars.VERCEL_ENV || '').trim().toLowerCase()
+  if (!vercelEnv) return null
+  if (vercelEnv === 'production') return 'production'
+  const ref = (vars.VERCEL_GIT_COMMIT_REF || '').trim().toLowerCase()
+  if (ref === 'staging') return 'staging'
+  return 'dev'
+}
+
+export function envFromHost(host: string | undefined, origin: string | undefined): TelemetryEnv {
   let h = (host || '').toLowerCase().trim()
   if (!h && origin) {
     try {

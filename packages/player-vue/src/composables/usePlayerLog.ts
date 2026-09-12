@@ -193,8 +193,18 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
     // Attribution rides a VERIFIED bearer, never the cookie (SEC25 INPUT-04).
     // The token is cached from the previous flush so the unload path can use
     // it without awaiting; a background refresh keeps it current.
+    //
+    // The cache is ALSO primed at mount (see onMounted). Before that, the only
+    // thing that filled it was a timed flush, so a tab hidden or a player
+    // unmounted inside the first five seconds of a session beaconed its boot
+    // events with no bearer at all, and they landed unattributed — nine such
+    // rows for class 8H, every one a cold_start / bundle_boot_path /
+    // bundle_tier_heal at the head of its session (job #307, 2026-09-12).
     if (!sync) await refreshToken()
     const token = cachedToken
+    // A sync flush that found the cache empty still kicks a refresh, so the
+    // NEXT unload path has a token even if no timed flush runs in between.
+    if (sync && !token) void refreshToken()
 
     // sendBeacon for unmount/visibilitychange — survives page unload. It can't
     // carry a header, so it's only used when there's no token to carry (guest
@@ -232,6 +242,10 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
 
   onMounted(() => {
     if (typeof window === 'undefined') return
+    // Prime the bearer cache NOW, not on the first timed flush: the sync path
+    // (tab hidden, unmount) cannot await and sends whatever is cached, so an
+    // empty cache in the first seconds of a session is an unattributed row.
+    void refreshToken()
     flushTimer = setInterval(() => { void flush() }, flushIntervalMs)
     document.addEventListener('visibilitychange', handleVisibilityChange)
   })
