@@ -273,6 +273,8 @@ export const isListeningPodLookupDegraded = (courseCode: string): boolean =>
  * while the degraded memo above stands — so without this mark one flaky
  * first fetch re-read pod rows and clip texts and rewrote the snapshot on
  * every advance for the rest of the session (job #425). Once per session.
+ * "Healed" means a SUCCESSFUL write: a failed fetch leaves the course
+ * unmarked so the next round advance retries it (job #430).
  */
 const healedListening = new Set<string>()
 export const wasListeningSnapshotHealed = (courseCode: string): boolean => healedListening.has(courseCode)
