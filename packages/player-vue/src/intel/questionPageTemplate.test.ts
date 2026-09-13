@@ -85,7 +85,10 @@ describe('the five-part question page', () => {
 describe('the ten questions', () => {
   it('is exactly ten, numbered one to ten, with one route each', () => {
     expect(QUESTIONS).toHaveLength(10)
-    expect(QUESTIONS.map((q) => q.n)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+    // Array order is the top bar's order and is grouped by scope (job #340);
+    // `n` is the design document's number. So the check is the SET of numbers,
+    // not their position.
+    expect([...QUESTIONS.map((q) => q.n)].sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
     const paths = QUESTIONS.map(questionPath)
     expect(new Set(paths).size).toBe(10)
   })
