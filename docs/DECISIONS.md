@@ -1716,3 +1716,8 @@ the test pinned the old two-slug list. It pins the three.
 
 **Rule this re-states.** A walk edit is not done until `eng.json`'s mirror matches the pack — the
 drift test is the only thing standing between a learner and a stale translated sentence.
+
+**Landed on all three (job #486).** The api red from the same night, the codeGen letter test timing
+out under load, was fixed by job #482 on dev, keeping every assertion. That fix and this entry's four
+were cherry-picked onto staging and main as they stand, so the ways-in mirror reaches learners on
+production without promoting the unruled Listening Mode soak that staging carries.
