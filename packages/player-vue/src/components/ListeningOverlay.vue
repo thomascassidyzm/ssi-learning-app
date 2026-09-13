@@ -713,7 +713,8 @@ watch(currentIndex, () => { revealedRowId.value = null })
 // breaths") — and, since #468, an ESTIMATED walk: the lines are apportioned
 // across the clip's own duration by their speech (breathGroups.ts,
 // estimateLineTimings), the lit line moves at that estimate, and no fill is
-// painted inside it. Either source yielding one line → null → the existing
+// painted inside it — the whole line is lit at once (#479: with no --fill
+// set it was taking the timed gradient at 0%, first letter only). Either source yielding one line → null → the existing
 // card, unchanged. Drill and every other surface → null by construction (see
 // playback/breathGroups.ts and ListeningOverlay.breathTracker.test.ts).
 let breathGroupCache = new Map()
@@ -3702,7 +3703,8 @@ watch(
  * quiet, groups to come dim. An UNTIMED stack (lines cut from the text,
  * `.breath-stack.untimed`) shares the three line states, walked at an
  * estimate from the clip's length, but never the fill: the lit line is
- * simply the card's own colour (#468). The fill inside a TIMED lit group is
+ * simply the card's own colour, in full (#468; painted so by its own rule
+ * below since #479). The fill inside a TIMED lit group is
  * the text itself painted up to --fill (background-clip: text), walking with
  * the clip's clock. Lines never reflow between states: state is colour,
  * never size or weight. Selectors carry `.phrase-row.current` because the
@@ -3768,6 +3770,19 @@ watch(
     var(--breath-dim) calc(var(--fill) + 2%),
     var(--breath-dim) 100%
   );
+}
+/* An UNTIMED lit line has no fill to walk (#468), so it is lit in FULL from
+ * the moment its clip starts: the card's own colour, no gradient, no clip.
+ * Job #479 — without this rule the timed gradient above painted the line at
+ * its default --fill of 0%: dark for the first letter, dim for the rest,
+ * and the walk read one line behind the voice (Tom, staging 2026-09-13:
+ * "It illuminates JUST the first letter of a line / Then speaks the line").
+ * Sits after both gradient rules and outweighs them by one class. */
+.phrase-row.current .breath-stack.untimed .phrase-target.breath-group.live .breath-fill {
+  color: var(--text-primary);
+  background-image: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
 }
 
 /* Fusion-drill strips — the sentence at its current rung, one strip per
