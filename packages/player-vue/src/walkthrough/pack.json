@@ -1,5 +1,5 @@
 {
-  "version": "99893dba2503",
+  "version": "bcc9aaafa9b7",
   "generatedAt": "2026-09-13",
   "walks": [
     {
@@ -2201,22 +2201,23 @@
       "note": "Nothing is shown until the first load has genuinely succeeded, so an empty stamp means the numbers have not arrived rather than that they are old."
     },
     {
-      "id": "how-many-real-people-practised-this-week",
-      "title": "How many real people practised this week",
+      "id": "how-many-in-app-minutes-are-being-done",
+      "title": "How many in-app minutes are being done",
       "section": "seeing-progress",
       "personas": [
         "admin"
       ],
       "keywords": [
-        "pulse",
-        "practised",
-        "this week",
-        "last week",
-        "real people",
-        "courses",
-        "countries",
-        "paying",
-        "gifted"
+        "minutes",
+        "in-app",
+        "per person",
+        "course",
+        "compare",
+        "average",
+        "listening mode",
+        "main flow",
+        "enrolments",
+        "no activity"
       ],
       "place": {
         "route": "intel"
@@ -2225,15 +2226,17 @@
       "surface": "intel",
       "source": "packages/player-vue/src/views/intel/PulseView.vue",
       "walk": null,
-      "what": "The first question on a Monday: how many real people practised in the last seven days, and whether that is more or fewer than the seven days before.",
-      "where": "**Pulse**, the first question in the bar under What's happening.",
+      "what": "The first question: how many in-app minutes are being done, per course and per person on the course, and how each course stands against the average of all courses. A minute is everything between pressing play and stopping, on every screen, and Listening Mode minutes are shown apart from main-flow minutes.",
+      "where": "**Minutes**, the first question in the bar, and where Intelligence opens.",
       "how": [
-        "Read the number and the sentence for this week against last week.",
-        "Read the line beneath the chart for how many of those people are paying, gifted or on free access. Gifted people are real people and are counted.",
-        "Read the chart for where in the world this week's people are.",
-        "Open any course row to see which bits of that course give people trouble."
+        "Pick the **window**: today, the last seven days or the last thirty days.",
+        "Pick the **course**. It opens on the busiest course in that window.",
+        "Pick the **measure**: minutes per person, new enrolments, or people with no activity. The line under the pickers says what it counts.",
+        "Read the two numbers: this course against the average of all courses, and the strip beneath for where the course sits among the rest.",
+        "Read the line under the strip for the split between the main flow and Listening Mode, and how many people the minutes are spread over.",
+        "The rows further down still count the real people who practised this week, by course; open one to see which bits of the course give trouble."
       ],
-      "note": "A person who practised nine times this week counts once."
+      "note": "Every minute here is the same minute every school page shows, and a person on the course who did not press play still counts in the denominator."
     },
     {
       "id": "how-students-join-a-class",

@@ -2426,9 +2426,16 @@ simplePlayer.onPhaseChanged((phase) => {
   // missing prompt/voice2).
   let audioUrl: string | undefined
   let role: 'known' | 'target1' | 'target2' | null = null
+  // The clip's own length at 1x. This row is logged at clip START, so the
+  // minute rule (api/_utils/inAppTime.ts, Tom 2026-09-13: a span closes at the
+  // last audio-ended point) needs the length to know when the last clip of a
+  // span ENDED. Stamped from build 2026-09-13 on for the two target clips
+  // (the script carries their lengths; it carries no known-side length);
+  // rows without it resolve through course_audio.duration_ms.
+  let durationMs: number | null = null
   if (phase === 'prompt') { audioUrl = cycle.known?.audioUrl; role = 'known' }
-  else if (phase === 'voice1') { audioUrl = cycle.target?.voice1Url; role = 'target1' }
-  else if (phase === 'voice2') { audioUrl = cycle.target?.voice2Url; role = 'target2' }
+  else if (phase === 'voice1') { audioUrl = cycle.target?.voice1Url; role = 'target1'; durationMs = cycle.target1DurationMs ?? null }
+  else if (phase === 'voice2') { audioUrl = cycle.target?.voice2Url; role = 'target2'; durationMs = cycle.target2DurationMs ?? null }
   if (audioUrl && role) {
     // cacheHit reflects whether AudioCache.persistent has the id at the
     // moment the cycle begins playing — signal for "did the per-cycle
@@ -2452,6 +2459,7 @@ simplePlayer.onPhaseChanged((phase) => {
       // Left absent, the context stamps the seed the cursor is on (job #339).
       ...(cycle.seedId ? { seedId: cycle.seedId } : {}),
       playbackSpeed: cycle.playbackSpeed ?? 1.0,
+      ...(durationMs != null && Number.isFinite(durationMs) ? { durationMs } : {}),
       cacheHit,
     })
   }
