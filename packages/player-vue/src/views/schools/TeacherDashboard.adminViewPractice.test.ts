@@ -73,7 +73,7 @@ async function mountView(scopeSource: 'self' | 'admin-view') {
     global: {
       provide: { isAdminView: scopeSource === 'admin-view', supabase },
       stubs: {
-        BeltDot: true, HealthDot: true, Sparkline: true, UpdatedStamp: true,
+        BeltDot: true, Sparkline: true, UpdatedStamp: true,
         CreateClassModal: true, SchoolsPasswordPrompt: true, ClassCreatedModal: true, MailboxCheckPrompt: true,
         RouterLink: { props: ['to'], template: '<a><slot /></a>' },
       },
@@ -127,7 +127,7 @@ async function mountViewWithPracticeStatus(status: number, body: any) {
     global: {
       provide: { isAdminView: true, supabase },
       stubs: {
-        BeltDot: true, HealthDot: true, Sparkline: true, UpdatedStamp: true,
+        BeltDot: true, Sparkline: true, UpdatedStamp: true,
         CreateClassModal: true, SchoolsPasswordPrompt: true, ClassCreatedModal: true, MailboxCheckPrompt: true,
         RouterLink: { props: ['to'], template: '<a><slot /></a>' },
       },

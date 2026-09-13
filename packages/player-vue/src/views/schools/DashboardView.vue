@@ -3,7 +3,6 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Greeting from '@/components/schools/shared/Greeting.vue'
 import BeltDot from '@/components/schools/shared/BeltDot.vue'
-import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import Bench from '@/components/schools/shared/Bench.vue'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
@@ -977,7 +976,6 @@ async function handlePlayClass(cls: ClassInfo) {
                 {{ t('schools.dashboard.teacherCountClassCount', '{teachers} teachers · {classes} classes').replace('{teachers}', String(school.teacher_count)).replace('{classes}', String(school.class_count)) }}
               </span>
             </div>
-            <HealthDot :health="school.health" />
           </div>
           <div class="govt-tile-stats">
             <div>

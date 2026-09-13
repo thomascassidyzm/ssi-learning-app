@@ -33,7 +33,6 @@ const school: School = {
   student_count: 16,
   total_practice_minutes: 3780,
   created_at: '2025-09-02T08:00:00.000Z',
-  health: 'good',
 }
 
 describe('DashboardView govt-admin drill-down: viewingSchool watch must be immediate', () => {

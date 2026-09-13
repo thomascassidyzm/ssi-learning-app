@@ -8,7 +8,6 @@ import MailboxCheckPrompt from '@/components/schools/MailboxCheckPrompt.vue'
 import { useMailboxPrompt } from '@/composables/useMailboxPrompt'
 import BeltDot from '@/components/schools/shared/BeltDot.vue'
 import Sparkline from '@/components/schools/shared/Sparkline.vue'
-import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { formatPracticeMinutes, secondsToMinutes } from '@/composables/schools/practiceMinutes'
@@ -20,7 +19,6 @@ import { getLanguageName, useI18n } from '@/composables/useI18n'
 import { deriveBelt } from '@/composables/schools/belts'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
 
-import { deriveClassHealth, type ClassHealth as Health } from './classHealth'
 import { yearGroupBreakdown, practisedWithin } from './yearGroup'
 import YearGroupTiles from '@/components/schools/shared/YearGroupTiles.vue'
 import ShowAll from '@/components/shared/ShowAll.vue'
@@ -82,7 +80,6 @@ const sortKey = ref<SortKey>('name')
 // admin sorted by sits beside the class name; the rest stack underneath. When
 // the sort is by name, the pinned number is time in app, the school metric.
 const pinnedKey = computed<Exclude<SortKey, 'name'>>(() => (sortKey.value === 'name' ? 'hours' : sortKey.value))
-const healthFilter = ref<'all' | Health>('all')
 
 const classReports = reactive(new Map<string, ClassReport>())
 
@@ -91,9 +88,6 @@ const classReports = reactive(new Map<string, ClassReport>())
 // once (founder ruling 2026-09-10, api/_utils/inAppTime.ts). Empty until
 // loaded → minutesWk = 0.
 const practice7dSeconds = ref<Record<string, number>>({})
-// Distinct days with any play in the last 7, per class — the health mark's
-// input, from the same payload. Empty until loaded → 0.
-const practice7dDays = ref<Record<string, number>>({})
 // THE CLASS ACCOUNT'S OWN PROGRESS per class, from the same payload (Tom's
 // ruling, 2026-09-11, job #265): a class is one learner account, so its row
 // shows that account's journey, belt, activity and minutes — never a
@@ -109,13 +103,12 @@ const practiceError = ref<string | null>(null)
 async function loadPractice7d() {
   if (!supabase.value) return
   const classIds = classesData.value.map(c => c.id)
-  if (classIds.length === 0) { practice7dSeconds.value = {}; practice7dDays.value = {}; return }
+  if (classIds.length === 0) { practice7dSeconds.value = {}; return }
   try {
     // Shared with the class page (classPractice7d.ts) so both read the same
     // class-account figures; under View-as it names the school being read.
     const data = await fetchClassPractice7d(classIds, selectedUser.value, supabase.value)
     practice7dSeconds.value = data.practiceByClass
-    practice7dDays.value = data.activeDaysByClass
     classAccounts.value = data.classAccountByClass
     practiceLoaded.value = true
     practiceError.value = null
@@ -138,13 +131,6 @@ async function fetchReportsForClasses() {
   }
 }
 
-
-function healthDisplayLabel(health: Health): string {
-  if (health === 'excellent') return t('schools.teacherDashboard.healthExcellent', 'Excellent')
-  if (health === 'good') return t('schools.teacherDashboard.healthGood', 'Good')
-  if (health === 'needs-attention') return t('schools.teacherDashboard.healthNeedsAttention', 'Needs attention')
-  return t('schools.teacherDashboard.healthInactive', 'Inactive')
-}
 
 function courseShortName(code: string): string {
   const match = code?.match(/^([a-z_]+?)_for_/)
@@ -183,13 +169,8 @@ const enrichedClasses = computed(() => {
       active_days: report?.class.active_days_last_7 ?? 0,
       // The class account's own minutes in the app per day, last seven days.
       activity: acct?.minutesByDay ?? [0, 0, 0, 0, 0, 0, 0],
-      // The rule lives in classHealth.ts; whole-class play from the front
-      // counts, so a class with no pupil accounts is not inactive by fiat.
-      health: deriveClassHealth({
-        studentCount: 0,
-        reportActiveDays: report ? report.class.active_days_last_7 : null,
-        inAppActiveDays: practice7dDays.value[c.id] ?? 0,
-      }),
+      // No grade on a class. The school admin wants time in the app, and
+      // that is basically it (Tom's ruling, 2026-09-13, job #494).
     }
   })
 })
@@ -203,9 +184,6 @@ const filtered = computed(() => {
   let rows = enrichedClasses.value.slice()
   if (courseFilter.value !== 'all') {
     rows = rows.filter(r => r.course_label === courseFilter.value)
-  }
-  if (healthFilter.value !== 'all') {
-    rows = rows.filter(r => r.health === healthFilter.value)
   }
   rows.sort((a, b) => {
     if (sortKey.value === 'name') return a.class_name.localeCompare(b.class_name)
@@ -226,7 +204,7 @@ const showAllClasses = ref(false)
 const rowsShown = computed(() => topThree(filtered.value, showAllClasses.value))
 const showAllClassesLabel = computed(() => t('schools.teacherDashboard.showAllClasses', 'Show all {n} classes').replace('{n}', String(filtered.value.length)))
 
-// YEAR-GROUP SUB-TILES under the health strip (Option A, job #306): the same
+// YEAR-GROUP SUB-TILES under the page head (Option A, job #306): the same
 // rule and the same tiles as the leader home (views/schools/yearGroup.ts,
 // YearGroupTiles.vue), fed from the class-account figures this page already
 // holds. Drawn only once the practice payload has landed — before that the
@@ -236,12 +214,6 @@ const yearGroups = computed(() => yearGroupBreakdown(enrichedClasses.value.map(c
   return { id: c.id, name: c.class_name, phrases7d: acct?.phrases7d ?? 0, practising: practisedWithin(acct?.lastPractisedAt) }
 })))
 const showYearGroups = computed(() => practiceLoaded.value && enrichedClasses.value.length > 0)
-
-const healthCounts = computed(() => {
-  const acc: Record<string, number> = {}
-  for (const c of filtered.value) acc[c.health] = (acc[c.health] || 0) + 1
-  return acc
-})
 
 const headlineTitle = computed(() => {
   if (isSchoolAdmin.value) return t('schools.teacherDashboard.classesTitle', 'Classes')
@@ -394,7 +366,7 @@ async function copyShareLink(cls: { id: string; join_code: string }) {
 }
 
 function exportCsv() {
-  const header = ['Class', 'Course', 'Belt', 'Journey LEGOs', 'Journey total', 'Time in app min/wk', 'Sessions', 'Health', 'Join code']
+  const header = ['Class', 'Course', 'Belt', 'Journey LEGOs', 'Journey total', 'Time in app min/wk', 'Sessions', 'Join code']
   const rows = filtered.value.map(c => [
     c.class_name,
     c.course_label,
@@ -403,7 +375,6 @@ function exportCsv() {
     c.journeyTotal,
     c.minutesWk,
     c.sessions,
-    c.health,
     c.join_code,
   ].join(','))
   const csv = [header.join(','), ...rows].join('\n')
@@ -434,7 +405,7 @@ function exportCsv() {
              place: classes
              keywords: export, csv, download, report, classes
              What it's for. Taking the class list away as a spreadsheet, with the name,
-             language, belt, journey in LEGOs, minutes in the app this week, sessions, health
+             language, belt, journey in LEGOs, minutes in the app this week, sessions
              and join code for every class.
              Where it is. **My Classes**, the **Export CSV** button along the top.
              How you do it.
@@ -488,49 +459,21 @@ function exportCsv() {
       <button type="button" class="btn-ghost" @click="refresh">{{ t('schools.teacherDashboard.retry', 'Retry') }}</button>
     </div>
 
-    <!-- Summary strip -->
-    <div v-if="enrichedClasses.length > 0" class="summary-strip">
-      <div class="summary-card schools-card">
-        <span class="summary-dot" style="background: var(--schools-success)" />
-        <div>
-          <div class="arsenal summary-number">{{ healthCounts['excellent'] || 0 }}</div>
-          <div class="summary-label">{{ t('schools.teacherDashboard.healthExcellent', 'Excellent') }}</div>
-        </div>
-      </div>
-      <div class="summary-card schools-card">
-        <span class="summary-dot" style="background: #8a8479" />
-        <div>
-          <div class="arsenal summary-number">{{ healthCounts['good'] || 0 }}</div>
-          <div class="summary-label">{{ t('schools.teacherDashboard.healthGood', 'Good') }}</div>
-        </div>
-      </div>
-      <div class="summary-card schools-card">
-        <span class="summary-dot" style="background: var(--schools-red)" />
-        <div>
-          <div class="arsenal summary-number">{{ healthCounts['needs-attention'] || 0 }}</div>
-          <div class="summary-label">{{ t('schools.teacherDashboard.summaryNeedsEyes', 'Needs eyes') }}</div>
-        </div>
-      </div>
-      <div class="summary-card schools-card">
-        <span class="summary-dot" style="background: var(--schools-fg)" />
-        <div>
-          <div class="arsenal summary-number">{{ courses.length }} {{ courses.length === 1 ? t('schools.teacherDashboard.courseSingular', 'course') : t('schools.teacherDashboard.coursePlural', 'courses') }}</div>
-          <div class="summary-label">{{ t('schools.teacherDashboard.across', 'Across') }}</div>
-        </div>
-      </div>
-    </div>
+    <!-- No summary tiles: the page head already carries the class count and
+         the minutes in the app this week, and the school admin wants time in
+         app and basically nothing else (Tom's ruling, 2026-09-13). -->
 
     <!-- HANDBOOK The classes by year group
          section: running-classes
          roles: school_admin, teacher
          place: classes
          keywords: year group, year 7, tiles, breakdown, classes practising, phrases, by class
-         What it's for. A row of small tiles under the health strip, one per year
+         What it's for. A row of small tiles under the page head, one per year
          group: the phrases that year's classes practised this week and how many of
          them practised out of how many there are. It says in one glance which
          years are the school's engine and which have barely started.
-         Where it is. **My Classes**, the **By year group** card under the health
-         tiles, once this week's practice has loaded.
+         Where it is. **My Classes**, the **By year group** card under the page
+         head, once this week's practice has loaded.
          How you do it.
          1. Open **My Classes**.
          2. Read the big figure on each tile for phrases practised this week.
@@ -550,20 +493,17 @@ function exportCsv() {
          section: running-classes
          roles: school_admin, teacher
          place: classes
-         keywords: filter, sort, search, course, health, classes
+         keywords: filter, sort, search, course, classes
          What it's for. Narrowing a long list down to the classes you care about right now,
-         by language or by how they are doing, and putting them in the order that answers
-         your question.
+         by language, and putting them in the order that answers your question.
          Where it is. **My Classes**, the strip of pickers above the table.
          How you do it.
          1. Open **My Classes**.
          2. Pick a language under **Course** to see only the classes learning it.
-         3. Pick a state under **Health** to pull out the classes that need attention.
-         4. Change **Sort by** to order by time in app this week or by how far
+         3. Change **Sort by** to order by time in app this week or by how far
             through the course each class has got. On a phone it is the first
             control, and the number you sorted by shows beside each class name.
-         Worth knowing. The totals above the table follow the filter, so the minutes
-         are always the total of what you are actually looking at. The table shows
+         Worth knowing. The table shows
          the first three of whatever the pickers produce; **Show all** under it
          shows the rest.
          checked: 35143594.4526edb3
@@ -574,17 +514,6 @@ function exportCsv() {
         <select v-model="courseFilter" class="filter-select">
           <option value="all">{{ t('schools.teacherDashboard.allCourses', 'All courses') }}</option>
           <option v-for="c in courses" :key="c" :value="c">{{ c }}</option>
-        </select>
-      </label>
-
-      <label class="filter">
-        <span class="filter-label">{{ t('schools.teacherDashboard.healthLabel', 'Health') }}</span>
-        <select v-model="healthFilter" class="filter-select">
-          <option value="all">{{ t('schools.teacherDashboard.allFilterOption', 'All') }}</option>
-          <option value="excellent">{{ t('schools.teacherDashboard.healthExcellent', 'Excellent') }}</option>
-          <option value="good">{{ t('schools.teacherDashboard.healthGood', 'Good') }}</option>
-          <option value="needs-attention">{{ t('schools.teacherDashboard.healthNeedsAttention', 'Needs attention') }}</option>
-          <option value="inactive">{{ t('schools.teacherDashboard.healthInactive', 'Inactive') }}</option>
         </select>
       </label>
 
@@ -604,13 +533,13 @@ function exportCsv() {
            section: running-classes
            roles: school_admin, teacher
            place: classes
-           keywords: classes, list, overview, belt, minutes, time in app, health
-           What it's for. One row per class, showing at a glance how each one is doing.
+           keywords: classes, list, overview, belt, minutes, time in app
+           What it's for. One row per class, showing at a glance what each one has done.
            A class is one learner account, played from the front of the room, so every
            figure on the row is that account's own: the belt the class has reached, how
            far through the course it has travelled in LEGOs, minutes in the app this
-           week, the shape of its last seven days, and a health mark for classes worth
-           a look. Time in app is time with the lesson running, pauses included — the
+           week and the shape of its last seven days. Nothing on the row grades the
+           class. Time in app is time with the lesson running, pauses included — the
            time the class was in the lesson. A class that has never played says
            **Not started** in words rather than showing a row of zeros.
            Where it is. **My Classes**, the table filling most of the page. On a
@@ -620,14 +549,13 @@ function exportCsv() {
            1. Open **My Classes**.
            2. The first three classes show; tap **Show all** under the table for
               the rest, and **Show fewer** to fold them back.
-           3. Read down the health column first, because that is where the app is
-              pointing you.
+           3. Read down the time in app column first, because minutes in the lesson
+              are the figure the school runs on.
            4. Use the small chart in each row to see whether practice is steady or has
               stopped.
            5. Compare time in the app this week between classes taking the same course.
-           Worth knowing. Health is worked out from how many of the last seven days the
-           class practised on. A quiet week reads as needing eyes, which is a prompt for
-           a word rather than a worry.
+           Worth knowing. A quiet week shows as low minutes and a flat chart, nothing
+           more. The app makes no judgement about how a class is doing.
            checked: f93e3ed0.340055e2
       -->
       <table class="ssi-table" data-walk="classes-table" :data-sorted="pinnedKey">
@@ -639,7 +567,6 @@ function exportCsv() {
             <th>{{ t('schools.teacherDashboard.tableHeaderJourney', 'Journey, LEGOs') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderTimeInAppMinutes', 'Time in app, min/wk') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderActivity', 'Activity') }}</th>
-            <th>{{ t('schools.teacherDashboard.tableHeaderHealth', 'Health') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderShare', 'Share') }}</th>
             <th></th>
           </tr>
@@ -699,12 +626,6 @@ function exportCsv() {
               <template v-else>{{ formatPracticeMinutes(cls.minutesWk) }}</template>
             </td>
             <td :data-label="t('schools.teacherDashboard.tableHeaderActivity', 'Activity')"><Sparkline v-if="cls.started" :data="cls.activity" :width="80" :height="20" /><span v-else class="schools-subtle">—</span></td>
-            <td :data-label="t('schools.teacherDashboard.tableHeaderHealth', 'Health')">
-              <span class="cell-health">
-                <HealthDot :health="cls.health" />
-                <span class="health-label">{{ cls.started === false ? t('schools.teacherDashboard.notStarted', 'Not started') : healthDisplayLabel(cls.health) }}</span>
-              </span>
-            </td>
             <td class="cell-share">
               <!-- HANDBOOK Copy a class link without opening the class
                    section: getting-people-in
@@ -765,11 +686,11 @@ function exportCsv() {
     <!-- Filtered-empty state (classes exist but filters hide them) -->
     <div v-else-if="enrichedClasses.length > 0" class="empty-state schools-card schools-card-pad">
       <h3 class="arsenal empty-title">{{ t('schools.teacherDashboard.noClassesMatchFilters', 'No classes match those filters') }}</h3>
-      <p class="empty-text schools-subtle">{{ t('schools.teacherDashboard.tryWideningFilter', 'Try widening the course or health filter.') }}</p>
+      <p class="empty-text schools-subtle">{{ t('schools.teacherDashboard.tryWideningCourseFilter', 'Try widening the course filter.') }}</p>
       <button
         type="button"
         class="btn-ghost"
-        @click="() => { courseFilter = 'all'; healthFilter = 'all' }"
+        @click="() => { courseFilter = 'all' }"
       >
         {{ t('schools.teacherDashboard.resetFilters', 'Reset filters') }}
       </button>
@@ -893,38 +814,6 @@ function exportCsv() {
   gap: 8px;
 }
 
-.summary-strip {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin-bottom: 14px;
-}
-
-.summary-card {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 12px 16px;
-}
-
-.summary-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex: none;
-}
-
-.summary-number {
-  font-size: 24px;
-  line-height: 1;
-}
-
-.summary-label {
-  font-size: 11.5px;
-  color: var(--schools-fg-2);
-  margin-top: 2px;
-}
-
 .filters-bar {
   display: flex;
   gap: 14px;
@@ -991,18 +880,6 @@ function exportCsv() {
 
 .belt-name {
   text-transform: capitalize;
-}
-
-.cell-health {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.health-label {
-  text-transform: capitalize;
-  font-size: 12px;
-  color: var(--schools-fg-2);
 }
 
 /* The whole class row opens the class page; the Share/Play buttons stop
@@ -1097,9 +974,6 @@ function exportCsv() {
 .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 
-@media (max-width: 1100px) {
-  .summary-strip { grid-template-columns: repeat(2, 1fr); }
-}
 
 @media (max-width: 960px) {
   .dashboard { padding: 18px 16px 28px; }
@@ -1108,8 +982,8 @@ function exportCsv() {
   .table-card .ssi-table { min-width: 760px; }
 }
 
-/* PHONE: one card per class. A 760px table at 390px hid Time in app, Activity,
-   Health and Share off the right edge with no cue (job #259, 2026-09-11). The
+/* PHONE: one card per class. A 760px table at 390px hid Time in app, Activity
+   and Share off the right edge with no cue (job #259, 2026-09-11). The
    sort picker comes first and the number sorted by sits beside the class name;
    every other cell stacks underneath with its column name in front of it. */
 @media (max-width: 640px) {

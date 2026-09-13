@@ -832,13 +832,9 @@
     },
     "teacherDashboard": {
       "allCourses": "ಎಲ್ಲಾ ಕೋರ್ಸ್‌ಗಳು",
-      "allFilterOption": "ಎಲ್ಲಾ",
-      "coursePlural": "ಕೋರ್ಸ್‌ಗಳು",
-      "healthLabel": "ಆರೋಗ್ಯ",
       "retry": "ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ",
       "tableHeaderActivity": "ಚಟುವಟಿಕೆ",
-      "tableHeaderBelt": "ಬೆಲ್ಟ್",
-      "tableHeaderHealth": "ಆರೋಗ್ಯ"
+      "tableHeaderBelt": "ಬೆಲ್ಟ್"
     },
     "teachers": {
       "accessCode": "ಪ್ರವೇಶ ಕೋಡ್",
@@ -884,7 +880,6 @@
       "beltOrange": "ಕಿತ್ತಳೆ",
       "beltWhite": "ಬಿಳಿ",
       "beltYellow": "ಹಳದಿ",
-      "healthFilterLabel": "ಆರೋಗ್ಯ",
       "lastActiveNow": "ಈಗ",
       "retryLabel": "ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ"
     },

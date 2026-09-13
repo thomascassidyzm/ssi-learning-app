@@ -21,7 +21,6 @@ const stubs = {
   BeltDot: true,
   BeltStrip: true,
   Bench: true,
-  HealthDot: true,
   InviteLinkField: true,
   JourneyBar: true,
 }

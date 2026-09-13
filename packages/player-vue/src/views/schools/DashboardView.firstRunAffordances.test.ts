@@ -98,7 +98,7 @@ async function mountDashboard(schoolRow: Record<string, unknown>) {
       provide: { isAdminView: false },
       stubs: {
         Greeting: { template: '<div><slot name="action" /></div>' },
-        BeltDot: true, HealthDot: true, Bench: true, InviteLinkField: true,
+        BeltDot: true, Bench: true, InviteLinkField: true,
         UpdatedStamp: true, CreateClassModal: true, ClassCreatedModal: true,
         RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
       },

@@ -2,7 +2,7 @@
  * TeacherDashboard — the classes table at phone width.
  *
  * On a 390px phone the table was a 760px-wide scroller with Time in app,
- * Activity, Health and Share off the right edge and no cue (job #259 on
+ * Activity and Share off the right edge and no cue (job #259 on
  * staging, 2026-09-11), so "sort the classes by minutes" — Tom's whole answer
  * to the league-table question — was unreachable on the device an admin
  * actually carries. The template now marks the sorted metric cell so the
@@ -82,7 +82,7 @@ async function mountView() {
     global: {
       provide: { isAdminView: false, supabase: ref({ auth: { getSession: async () => ({ data: { session: { access_token: 'tok' } } }) } } as any) },
       stubs: {
-        BeltDot: true, HealthDot: true, Sparkline: true, UpdatedStamp: true,
+        BeltDot: true, Sparkline: true, UpdatedStamp: true,
         CreateClassModal: true, SchoolsPasswordPrompt: true, ClassCreatedModal: true, MailboxCheckPrompt: true,
         RouterLink: { props: ['to'], template: '<a><slot /></a>' },
       },
@@ -114,7 +114,7 @@ describe('TeacherDashboard — the sorted metric is reachable on a phone', () =>
     expect(pinned[0].text()).toMatch(/ min$/)
 
     const labelled = wrapper.findAll('tbody tr:first-child td[data-label]').map(td => td.attributes('data-label'))
-    expect(labelled).toEqual(['Course', 'Belt', 'Journey, LEGOs', 'Time in app, min/wk', 'Activity', 'Health'])
+    expect(labelled).toEqual(['Course', 'Belt', 'Journey, LEGOs', 'Time in app, min/wk', 'Activity'])
   })
 
   it('sorting by name still pins time in app, the school metric', async () => {
