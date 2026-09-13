@@ -121,3 +121,47 @@ describe('ListeningOverlay — job #430: untimed clips share the stack, cut from
     expect(textLinesForSentence('Creo que lo estás haciendo muy bien. Estoy impresionado.')).toEqual(['Creo que lo estás haciendo muy bien.', 'Estoy impresionado.'])
   })
 })
+
+describe('ListeningOverlay — job #479: an untimed live line is lit in full, not just its first letter', () => {
+  // Tom, staging 2026-09-13, Italian method pod: "It illuminates JUST the
+  // first letter of a line / Then speaks the line / Then it emboldens the
+  // whole line that just spoke and the first letter of the next one / So
+  // it's offset by one". The tracker index was right; the paint was wrong:
+  // #468 set no --fill on an untimed live line, and the timed gradient rule
+  // painted it at the default 0% — dark for the first letter, dim after.
+  const UNTIMED_LIVE_RULE = `.phrase-row.current .breath-stack.untimed .phrase-target.breath-group.live .breath-fill {
+  color: var(--text-primary);
+  background-image: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+}`
+
+  it('paints the whole untimed live line in the card colour, dropping the gradient and the clip', () => {
+    expect(src).toContain(UNTIMED_LIVE_RULE)
+  })
+
+  it('places the untimed rule after both timed gradient rules, so it wins in the rtl case too', () => {
+    const rtlRuleAt = src.lastIndexOf('.phrase-target.breath-group.live .breath-fill {\n  background-image: linear-gradient(\n    270deg,')
+    expect(rtlRuleAt).toBeGreaterThan(0)
+    expect(src.indexOf(UNTIMED_LIVE_RULE)).toBeGreaterThan(rtlRuleAt)
+  })
+
+  it('leaves the timed fill byte-identical: gradient on the inline span, walking with --fill', () => {
+    expect(src).toContain(`.phrase-row.current .phrase-target.breath-group.live {
+  --fill: 0%;
+}
+.phrase-row.current .phrase-target.breath-group.live .breath-fill {
+  color: transparent;
+  background-image: linear-gradient(
+    90deg,
+    var(--text-primary) 0,
+    var(--text-primary) calc(var(--fill) - 2%),
+    var(--breath-dim) calc(var(--fill) + 2%),
+    var(--breath-dim) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+}`)
+    expect(src).toContain("const breathStyle = (gi, timed) => (timed && gi === trackPos.value.index ?")
+  })
+})
