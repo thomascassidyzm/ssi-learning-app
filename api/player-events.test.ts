@@ -125,6 +125,19 @@ describe('POST /api/player-events', () => {
   // no longer an identity — it is unsigned, so trusting it let anyone write
   // telemetry against any learner. The event is still accepted (guest
   // telemetry is a real product path), just unattributed.
+  // Job #602 (2026-09-13): a player mounted while an ssi_admin was viewing-as
+  // wrote infplay_enter / cold_start / infplay_exit rows under the admin's own
+  // learner. The tagged fetch must be refused, and nothing inserted.
+  it('refuses a batch tagged X-Ssi-View-As with 403 and inserts nothing', async () => {
+    authResult = { valid: true, userId: 'ef65ea1f-57d0-4cf4-b744-33870c9449e8' } as any
+    const req = makeReq(undefined, { events: [{ event_type: 'cold_start' }] }, 'Bearer admin-token')
+    req.headers['x-ssi-view-as'] = '1'
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(403)
+    expect(insertedRows).toHaveLength(0)
+  })
+
   it('accepts a uuid cookie with NO bearer but stores it unattributed', async () => {
     const res = makeRes()
     await handler(

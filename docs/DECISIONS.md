@@ -1,3 +1,32 @@
+## 2026-09-13 — Under View-as, a class row opens the class; the link tree follows the route, and a view-as player writes no telemetry (job #602)
+
+**Decision.** `useSchoolsNav.schoolsLink` decides which URL tree a link belongs to from the route
+the caller is standing on — a path under `/admin/` gets the ssi_admin read-view links, anything
+else gets the member `/schools` links. The `isAdminView` provide keeps exactly one meaning,
+read-only browse, and is never read as "I am on the admin tree". Alongside: `usePlayerLog` drops
+its buffer while an admin is viewing-as, and `/api/player-events` refuses the `X-Ssi-View-As`
+header through the existing `actAsGuard`.
+
+**Why.** SchoolsContainer provides `isAdminView=true` under view-as so every write control hides
+for free, but `schoolsLink` used the same flag to choose the `/admin/schools/:id` tree, and on
+`/schools/classes` there is no `:id`, so a class row built `/admin/schools/undefined/classes/<id>`.
+The admin route guard bounces that to `/` because admin access is deliberately off while
+viewing-as, which is the "class row opens the player" Tom saw on staging at 23:52. The
+"Your course was updated" toast was a stale flag from an earlier background revalidation of
+his own course, consumed because the player mounted; it is not a write. The player that
+mounted DID write: `course_enrollments` upsert and patch on the admin's own learner were
+refused in the browser by the fetch guard, but the telemetry flush inserted `player_events`
+rows (`infplay_enter`, `cold_start`, `infplay_exit`) under the admin's own learner
+`81987d60-0c00-4553-8a36-79f83cdf1774` — the endpoint ignored the header and `sendBeacon`
+never passes through the fetch guard. Better: the class opens in place and view-as writes
+nothing anywhere. Simpler: the route is the truth for which shell rendered the link, one flag
+keeps one meaning. Cheaper: three small edits, no new state.
+
+**Proof.** `useSchoolsNav.test.ts` (red on pre-fix code with exactly the production URL,
+green after), `usePlayerLog.test.ts` view-as case and `api/player-events.test.ts` view-as case
+(both red before, green after). Reproduced and re-verified on staging with
+`e2e/_602-viewas-class-row-probe.mjs`.
+
 ## 2026-09-13 — Listening Mode: a pod line never spoken in the target language shows its known text as the line (job #591)
 
 **What the pre-release check found.** Job #591 drove the Senedd pod (`cym_n_for_eng:senedd-s4c-steve`,
