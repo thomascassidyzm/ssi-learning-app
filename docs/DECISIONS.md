@@ -1,3 +1,13 @@
+## 2026-09-13 — The api nightly's one red: the codeGen letter test was too slow for a loaded box, not wrong (job #482, CI red)
+
+**What the red was.** `api/_utils/codeGen.test.ts` timed out at 5 s on dev. The code has not changed since the SEC25 keyspace fix; the test made forty-five thousand expect calls over five thousand draws and took 2.8 s the night before, 4 s on main the same night, and past 5 s on dev. The six player reds from the same run were the four Friday-ship commits that outran their tests; job #484, spawned for main's identical red, landed those fixes on dev first and its entry below records them. This job's copies of the same four edits were byte-identical and were dropped in favour of #484's.
+
+**Decision.** The letter test keeps its five thousand draws and checks the set of letters seen, so it proves exactly what it proved before in a few hundred milliseconds. No timeout was raised, nothing skipped. Better: the gate stops flaking under load. Simpler: one loop, three asserts. Cheaper: the slowest api test no longer costs seconds.
+
+**Gap left open.** eng.json's walk mirror is hand-kept and localiseWalk.ts calls it generated; no tool writes it, so it will drift again on the next walk edit. The drift test catches it, which is what happened here. A compile step that writes the mirror would make it impossible. Not done here.
+
+**Proof.** Red on the pre-fix tree under nightly load; green in this worktree with the CI-pinned node, 4 of 4 in the file.
+
 ## 2026-09-12 — Preview builds are governed by the Vercel dashboard rule alone; the in-repo `ignoreCommand` is gone (job #460, Watson's decision)
 
 **Why.** The Aug 12–Sep 11 Vercel bill was $467, $366 of it Build CPU Minutes from ~8,962 preview deployments, one per push of every worker branch. RBF set an opt-in Ignored Build Step in the Vercel dashboard on every project: main, dev, staging and `preview/*` always build, a commit whose message carries `[preview]` builds, everything else is skipped. But a 2026-09-09 job had written an `ignoreCommand` into `vercel.json` (main|dev|staging build, everything else skipped) and Vercel gives the in-repo key precedence over the dashboard, so the dashboard rule only governed branches that lacked the file, and there was no route to a preview on this repo at all.
@@ -1686,3 +1696,23 @@ background-clip. The timed stack is byte-identical and pinned by test. Proof:
 `ListeningOverlay.breathTracker.test.ts` #479 block, seen failing on the pre-fix source and passing
 after; `e2e/_479-untimed-live-line-probe.mjs` read the computed paint of every line per frame on
 staging before and dev after (`/d/c46c77c5`).
+
+## 2026-09-13 — Nightly red on dev, staging and main: four Friday-ship commits outran their tests (job #484)
+
+**What the nightly saw.** The 02:02 UTC run went red on all three learning-app branches with the
+same six failures in four files, one night after all three were green. Every cause is a commit in
+the 2026-09-12 ship that changed behaviour deliberately and left a test or a mirror behind.
+
+**The four causes, and what moved.** (1) Job #306 gave the ways-in walk a sixth step, "Tap Show
+all", and recompiled pack.json, but the hand-maintained English mirror in `locales/eng.json` still
+carried five — so the localised walk spoke the OLD ledger sentence. The mirror is regenerated from
+the pack; this is the one learner-facing fix. (2) Job #340 reordered the ten intel questions into
+the top bar's grouped order and the file's own header says the array order may move while `n` is
+fixed; the test asserted position. It now asserts the set of numbers. (3) Job #379 made the stamp
+lane also call `ensureListeningMetaSnapshot`; the audio-stamp test's mock of that module stubbed
+only the older function, so the call threw and the drop reported false. The mock stubs both.
+(4) Job #354 added `method-pod` to the bundle's slug allow-list as the third Listening Mode slot;
+the test pinned the old two-slug list. It pins the three.
+
+**Rule this re-states.** A walk edit is not done until `eng.json`'s mirror matches the pack — the
+drift test is the only thing standing between a learner and a stale translated sentence.
