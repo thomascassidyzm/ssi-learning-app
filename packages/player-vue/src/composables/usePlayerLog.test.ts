@@ -76,6 +76,38 @@ describe('usePlayerLog — first sync flush carries the bearer', () => {
     }
   })
 
+  // Astra cold-check #606 on #602: the flush guard reads the flag when the
+  // batch LEAVES, so an event queued under view-as and flushed after the
+  // admin exited view-as went out under the admin's own learner. Events are
+  // refused at creation.
+  it('an event queued while viewing-as does not flush after view-as ends', async () => {
+    const role = useUserRole()
+    let log!: ReturnType<typeof usePlayerLog>
+    const Host = defineComponent({
+      setup() {
+        log = usePlayerLog({
+          learnerId: '2efbfb3b-4cdb-4889-9785-36d62dcdd49a',
+          getToken: async () => 'signed-token',
+          flushIntervalMs: 60_000,
+        })
+        return () => h('div')
+      },
+    })
+    const wrapper = mount(Host)
+    await nextTick()
+    await flushMicrotasks()
+    role.startViewing({ key: 'user:p', userId: 'p', role: 'school_admin', name: 'persona' } as any)
+    log.event('cold_start', { guest: false })
+    log.event('infplay_enter')
+    role.stopViewing()
+    await log.flush()
+    await flushMicrotasks()
+    wrapper.unmount()
+    await flushMicrotasks()
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(beaconSpy).not.toHaveBeenCalled()
+  })
+
   it('a tab hidden before any timed flush still sends the boot events with Authorization', async () => {
     let log!: ReturnType<typeof usePlayerLog>
     const Host = defineComponent({
