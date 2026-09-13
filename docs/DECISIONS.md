@@ -1,3 +1,33 @@
+## 2026-09-13 — Listening Mode: the Senedd pod is a named extra slot for every Welsh (Northern) learner (job #605)
+
+**Ruling (Tom, 2026-09-13 20:31Z).** Open `cym_n_for_eng:senedd-s4c-steve` to all Welsh North
+learners. Popty does that by clearing `listening_pods.required_role` (job #605's gated script); this
+entry is the player side that the flip depends on.
+
+**What the flip alone would have done.** `resolveListeningPods` listed a topic pod only through the
+role arm (rule 5) or the closed allow-list of NAMED core slugs (rule 6). The Senedd pod is
+`pod_type='choice'` on its own slug, so with `required_role` NULL it matched neither arm and vanished
+from Listening Mode for everyone — Steve included. Found by reading the query before running the
+UPDATE; the job's after-check (a plain learner sees Senedd as a card after Pod 1) could not have passed.
+
+**Decision.** `LISTENING_EXTRA_POD_SLUGS` gains `senedd-s4c-steve`, and each named slug now carries
+the ONE `pod_type` it may hold (`LISTENING_EXTRA_POD_TYPE`: method-pod → core, senedd-s4c-steve →
+choice). The allow-list stays closed and per-slug, exactly like rule 1: `spa_for_eng:music` and
+`travel-situations` (live, choice, unrestricted) are still not listed, because nobody has ruled on
+them. A named-slot row the server sent on the strength of a role is still recorded `addressed`, so
+the offline snapshot rule for holders is unchanged. Main flow never reads any of this: pod-1 plays,
+the Senedd pod is a card after it, never in its place (job #544 behaviour, kept).
+
+**Not done, deliberately.** The offline bundle (`api/courses/[code]/bundle.ts`) keeps its own
+closed list of `pod-1` and `method-pod`; the Senedd pod is 567 lines of audio and putting it in every
+Welsh learner's download is a size call Tom has not made. It listens online, exactly as it did for its
+role-holders.
+
+**Proof.** `servedPod.test.ts`: "a PLAIN learner lists pod-1 FIRST, then the Senedd pod under its own
+title, once required_role is NULL" — recorded RED on the pre-fix resolver (list was `['pod-1']`),
+GREEN after; plus main-flow-untouched and listed-once-for-a-lingering-holder. 63/63 across
+servedPod and listeningMetaCache.
+
 ## 2026-09-13 — Listening Mode: a pod line never spoken in the target language shows its known text as the line (job #591)
 
 **What the pre-release check found.** Job #591 drove the Senedd pod (`cym_n_for_eng:senedd-s4c-steve`,
