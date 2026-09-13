@@ -523,7 +523,7 @@ export async function generateLearningScript(
     // Pre-fetch this course's pod sentences (Layer 2 listening — round-end lap
     // after activation). Pod ID convention: "${course_code}:${slug}", and
     // WHICH slug is resolved per course by servedPod — pods went 1-based on
-    // 2026-08-22, so hrv serves `pod-1` and the ~68 older courses `pod-0`.
+    // 2026-08-22, so every course serves `pod-1`.
     // Resolution is chained rather than awaited above so the other seven
     // queries here still fire immediately; it is memoised per course, so the
     // pod readers share one round-trip. Sentences ordered by global_order;

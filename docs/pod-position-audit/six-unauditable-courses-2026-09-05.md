@@ -9,8 +9,8 @@ in the shape job #651's R1/R2 took.*
 ## The two headlines
 
 **1. One of the six was never unauditable.** `hrv` has a committed 2026-08-22 carry record on
-disk. Job #651 missed it because it is named `hrv-pod0-switchover-applied-2026-08-22.json`, not
-`hrv-pod0-switchover-prospective-2026-08-22.json` — a filename glob, not an absence. Its numbers
+disk. Job #651 missed it because it is named `hrv-pod-switchover-applied-2026-08-22.json`, not
+`hrv-pod-switchover-prospective-2026-08-22.json` — a filename glob, not an absence. Its numbers
 are independently confirmed by the human-written cutover record beside it, which reports
 **"Records carried: forecast 241, actual 241."** So #651's own tool can be run against Croatian,
 and it was, read-only.
@@ -136,7 +136,7 @@ exposures 1, against 17 recorded carries.
 
 ### `gle_for_eng` — HARMED. One learner, roughly 17–24 rows.
 
-No 08-22 record exists (Irish staged on `pod-0-unrecorded`; its pod-0 → pod-1 move *was* the
+No 08-22 record exists (Irish staged on `unrecorded`; its move onto pod-1 *was* the
 08-24 event). The verdict rests on three independent things agreeing:
 
 1. **The flip's own writes carry the destruction signature.** It wrote exactly 4 rows at
@@ -193,7 +193,7 @@ course has `pod_activation_round` set, `completed_pod_rounds > 0`, or a
 
 > **Separate live finding, outside this brief but found on the way and worth a look:**
 > **`deu_at_for_eng` has no live pod at all.** Its `pod-1` is `visibility='held'` and its
-> `pod-0-retired-2026-08-24` is held too — zero live pods, where the other 20 flipped courses each
+> `retired-2026-08-24` is held too — zero live pods, where the other 20 flipped courses each
 > have exactly one. The 2026-08-24 flip record lists deu_at among the 21 flipped. Something
 > un-flipped it, or it never took. That is a content-availability question, not a progress
 > question, and it is not this job's to fix.
@@ -208,7 +208,7 @@ Exactly #651's R1/R2 shape, with the same tool that produced the diff above:
 
 ```
 node scripts/pod-position-audit/pod-carry-restore.cjs \
-  --prospective=/home/tomcassidy/ssi-dashboard-v7-clean/docs/pods/hrv-pod0-switchover-applied-2026-08-22.json \
+  --prospective=/home/tomcassidy/ssi-dashboard-v7-clean/docs/pods/hrv-pod-switchover-applied-2026-08-22.json \
   --apply
 ```
 
@@ -245,7 +245,7 @@ specify it — but it should be written with a marker that says it was derived, 
 Named specifically, because "better logging" is not a finding:
 
 1. **A committed per-course prospective carry log for every flip**, at
-   `ssi-dashboard-v7-clean/docs/pods/<code>-pod0-switchover-prospective-<date>.json`. Sixteen
+   `ssi-dashboard-v7-clean/docs/pods/<code>-pod-switchover-prospective-<date>.json`. Sixteen
    exist; `gle`, `hin`, `nld`, `deu_at`, `fra_ca` have none. This is the single artefact that
    made Croatian answerable and the other five not.
 2. **A committed per-row apply log for the 2026-08-24 flip.** It was written to

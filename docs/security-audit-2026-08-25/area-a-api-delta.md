@@ -142,7 +142,7 @@ auto-grant to `anon`, per the migration's own comment and consistent with the RL
 `CLAUDE.md`), and ends with `NOTIFY pgrst, 'reload schema'`.
 
 **`api/courses/[code]/bundle.ts` pod-visibility gate — not an authz control, but sound as a content
-filter.** Adds `visibility='live'` + `pod_type='core'` + `slug IN ('pod-1','pod-0')` to the pods this
+filter.** Adds `visibility='live'` + `pod_type='core'` + `slug IN ('pod-1')` to the pods this
 route (service-role, RLS-bypassing) hands to any authenticated learner. This closes a content-leak
 (mid-recording pod content reaching learners via the offline bundle specifically, since it's the one
 reader that bypasses the RLS policy landed 2026-08-23 in the dashboard repo) rather than a

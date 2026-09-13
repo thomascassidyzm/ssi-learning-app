@@ -1,7 +1,7 @@
 const path=require('path'),fs=require('fs');const DASH='/home/tomcassidy/ssi-dashboard-v7-clean';
 require(path.join(DASH,'node_modules','dotenv')).config({path:path.join(DASH,'.env.psql'),quiet:true});
 const {Client}=require(path.join(DASH,'node_modules','pg'));
-const plan=JSON.parse(fs.readFileSync(DASH+'/docs/pods/hrv-pod0-switchover-applied-2026-08-22.json','utf8'));
+const plan=JSON.parse(fs.readFileSync(DASH+'/docs/pods/hrv-pod-switchover-applied-2026-08-22.json','utf8'));
 (async()=>{const db=new Client({connectionString:process.env.DATABASE_URL});await db.connect();
 const {rows:ln}=await db.query(`select id,display_name from learners`);const nm=new Map(ln.map(r=>[r.id,r.display_name]));
 // rows actually held at 08-22, per learner (carry+drop = every row in the table then)

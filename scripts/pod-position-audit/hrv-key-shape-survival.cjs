@@ -1,13 +1,13 @@
 const path=require('path'),fs=require('fs');const DASH='/home/tomcassidy/ssi-dashboard-v7-clean';
 require(path.join(DASH,'node_modules','dotenv')).config({path:path.join(DASH,'.env.psql'),quiet:true});
 const {Client}=require(path.join(DASH,'node_modules','pg'));
-const plan=JSON.parse(fs.readFileSync(DASH+'/docs/pods/hrv-pod0-switchover-applied-2026-08-22.json','utf8'));
+const plan=JSON.parse(fs.readFileSync(DASH+'/docs/pods/hrv-pod-switchover-applied-2026-08-22.json','utf8'));
 (async()=>{const db=new Client({connectionString:process.env.DATABASE_URL});await db.connect();
 const {rows:st}=await db.query(`select learner_id,sentence_id from learner_pod_state where course_code='hrv_for_eng'`);
 const have=new Set(st.map(r=>r.learner_id+'|'+r.sentence_id));
 const c={};
 for(const a of plan.actions.filter(x=>x.action==='carry')){
- const tgt=a.to.replace(':pod-0-unrecorded:',':pod-1:');
+ const tgt=a.to.replace(/:[^:]*unrecorded:/,':pod-1:'); // the 08-22 plan's ids carry the staging slug of the day
  const shape=/:s\d+$/.test(tgt)?'split(:sN)':'whole-turn';
  const status=have.has(a.learner_id+'|'+tgt)?'present':'MISSING';
  c[shape+' '+status]=(c[shape+' '+status]||0)+1;}

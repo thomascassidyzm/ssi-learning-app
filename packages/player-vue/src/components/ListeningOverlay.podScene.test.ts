@@ -6,7 +6,7 @@
  * ListeningOverlay.vue (the function lives inside <script setup> so we
  * can't import it directly — same inline-equivalent approach as
  * ListeningOverlay.prefetch.test.ts). Pins the contract fixed 2026-07-14
- * (hrv pod-0 gloss-fidelity audit, ssi-dashboard-v7-clean): a fusion-glued
+ * (hrv core-pod gloss-fidelity audit, ssi-dashboard-v7-clean): a fusion-glued
  * continuation row's material already plays fused inside its anchor row's
  * card, so it must NOT also render as its own separate (dimmed) card.
  *

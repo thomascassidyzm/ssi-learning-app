@@ -14,7 +14,7 @@
  * per sentence), but the exchange rule — a speaker turn plus its reply — was
  * sized on authored TURN rows. A turn is a whole paragraph, so once the pods
  * carried per-sentence clips an "exchange" became 3-8 sentences. Measured live
- * 2026-08-09 on fra/spa/deu_for_eng:pod-0 (142 turn-rows → 294 sentences): 71
+ * 2026-08-09 on the fra/spa/deu_for_eng core pods (142 turn-rows → 294 sentences): 71
  * cohorts, mean 4.14 sentences, max 8, and 59 of 71 laps debuting more than
  * two. That is the regression Tom reported.
  *

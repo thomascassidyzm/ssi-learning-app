@@ -7,7 +7,7 @@
  * (job #648). The 2026-08-24 re-flip destroyed carried learner positions (proved row-by-row for
  * German: 14 of 17 carried rows deleted, all `:sN` split-unit keys). An orphan check CANNOT see
  * this harm — a deleted row leaves no key to fail resolution — so this tool diffs each course
- * against its own 08-22 prospective log (docs/pods/<code>-pod0-switchover-prospective-2026-08-22.json
+ * against its own 08-22 prospective log (docs/pods/<code>-pod-switchover-prospective-2026-08-22.json
  * in ssi-dashboard-v7-clean), which records every carried row: learner, key, exposures, heard text.
  *
  * Method, per carry action in the prospective log:
@@ -62,19 +62,19 @@ const ALT_PODS_DIR = '/home/tomcassidy/SSi/ssi-dashboard-v7-clean/docs/pods'
 
 /**
  * Find the switchover record for a course by looking at what is ON DISK, not by constructing one
- * filename. Job #651's audit built exactly `<code>-pod0-switchover-prospective-<date>.json` and so
- * declared Croatian recordless, while `hrv-pod0-switchover-applied-2026-08-22.json` sat beside the
+ * filename. Job #651's audit built exactly `<code>-pod-switchover-prospective-<date>.json` and so
+ * declared Croatian recordless, while `hrv-pod-switchover-applied-2026-08-22.json` sat beside the
  * sixteen it did find. A filename convention mistaken for an absence cost a day; reasoning from an
  * absence is the failure mode this function exists to remove.
  *
- * Matches any `<code>-pod0-switchover-*.json` — which covers all three orderings observed
+ * Matches any `<code>-pod-switchover-*.json` — which covers all three orderings observed
  * (`-prospective-<date>`, `-applied-<date>`, `-<date>-prospective`) and anything else that turns up.
  * Preference when several match: the APPLIED record, then the newest by name; the choice is printed.
  */
 function discoverRecords(code, dir) {
   let names = []
   try { names = fs.readdirSync(dir) } catch { return [] }
-  const re = new RegExp(`^${code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-pod0-switchover-.*\\.json$`)
+  const re = new RegExp(`^${code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-pod-switchover-.*\\.json$`)
   return names.filter(n => re.test(n)).sort().map(n => path.join(dir, n))
 }
 function resolveRecord(code) {
@@ -113,7 +113,7 @@ if (args.discover) {
 const PROSPECTIVE = args.prospective || (args.course && resolveRecord(args.course))
 if (!PROSPECTIVE) {
   console.error(args.course
-    ? `no pod0-switchover record on disk for --course=${args.course} in ${PODS_DIR}`
+    ? `no pod-switchover record on disk for --course=${args.course} in ${PODS_DIR}`
     : 'need --course=<code> or --prospective=<path>')
   process.exit(1)
 }
@@ -130,12 +130,11 @@ async function main() {
   const db = new Client({ connectionString: process.env.DATABASE_URL })
   await db.connect()
 
-  // The player's shared slug resolver prefers pod-1 and falls back to pod-0; older themed
+  // The player's shared slug resolver serves pod-1 only; older themed
   // pods (e.g. spa_for_eng:music) can also be visibility=live but are never the served canon.
   const { rows: livePods } = await db.query(
     `select id from listening_pods where course_code=$1 and visibility='live'`, [COURSE])
   const preferred = livePods.find(p => p.id === `${COURSE}:pod-1`) ||
-    livePods.find(p => p.id === `${COURSE}:pod-0`) ||
     (livePods.length === 1 ? livePods[0] : null)
   if (!preferred) {
     console.error(`${COURSE}: cannot resolve served pod among ${livePods.length} live pods — refusing`)

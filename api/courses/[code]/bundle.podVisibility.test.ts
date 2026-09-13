@@ -8,7 +8,7 @@
  * learner-facing — its output is the offline bundle a learner downloads. It was
  * therefore the one path that would still hand a learner the content of a pod a
  * human was mid-way through recording (verified live on 2026-08-23:
- * cym_n_for_eng:pod-0 was held with 231 sentences behind it).
+ * cym_n_for_eng's core pod was held with 231 sentences behind it).
  *
  * The contract held here:
  *  1. a held pod contributes NO pod entry to the bundle, and
@@ -53,9 +53,9 @@ vi.mock('../../_utils/audioAccess', () => ({
  * plays by slug and pod_type (`resolveServedPod`), never by visibility.
  */
 const POD_ROWS = [
-  { id: 'cym:pod-0', course_code: 'cym', pod_order: 1, title: 'Held', visibility: 'held', pod_type: 'core', slug: 'pod-0' },
+  { id: 'cym:pod-1-held', course_code: 'cym', pod_order: 1, title: 'Held', visibility: 'held', pod_type: 'core', slug: 'pod-1' },
   { id: 'cym:pod-1', course_code: 'cym', pod_order: 2, title: 'Live', visibility: 'live', pod_type: 'core', slug: 'pod-1' },
-  { id: 'cym:pod-0-retired-2026-08-22', course_code: 'cym', pod_order: 0, title: 'Retired', visibility: 'live', pod_type: 'core', slug: 'pod-0-retired-2026-08-22' },
+  { id: 'cym:retired-2026-08-22', course_code: 'cym', pod_order: 0, title: 'Retired', visibility: 'live', pod_type: 'core', slug: 'retired-2026-08-22' },
   { id: 'cym:music', course_code: 'cym', pod_order: 9, title: 'Music', visibility: 'live', pod_type: 'choice', slug: 'music' },
   // From 2026-09-03: a pod addressed to ONE named person (Popty
   // database/changes/20260903_restricted_content_by_role.sql). It is live, core
@@ -73,7 +73,7 @@ const POD_ROWS = [
 
 const SENTENCE_ROWS = [
   {
-    pod_id: 'cym:pod-0',
+    pod_id: 'cym:pod-1-held',
     global_order: 1,
     target_text: 'SECRET-HELD-SENTENCE',
     known_text: 'still being recorded',
@@ -93,7 +93,7 @@ const SENTENCE_ROWS = [
     glue_to_next: false,
   },
   {
-    pod_id: 'cym:pod-0-retired-2026-08-22',
+    pod_id: 'cym:retired-2026-08-22',
     global_order: 1,
     target_text: 'SECRET-RETIRED-SENTENCE',
     known_text: 'the set this one replaced',
@@ -238,7 +238,7 @@ describe('bundle route — listening pod visibility', () => {
     // that; dropping the visibility filter above reopens the held-pod leak.
     const podQuery = queries.find((q) => q.table === 'listening_pods')
     expect(podQuery!.filters.pod_type).toBe('core')
-    expect(podQuery!.filters.slug).toEqual(['pod-1', 'pod-0', 'method-pod'])
+    expect(podQuery!.filters.slug).toEqual(['pod-1', 'method-pod'])
   })
 
   it('omits a retired-slug pod and a choice pod even when both are live', async () => {
@@ -246,7 +246,7 @@ describe('bundle route — listening pod visibility', () => {
     await handler(makeReq(), res)
 
     const podIds = (res.body.pods as Array<{ podId: string }>).map((p) => p.podId)
-    expect(podIds).not.toContain('cym:pod-0-retired-2026-08-22')
+    expect(podIds).not.toContain('cym:retired-2026-08-22')
     expect(podIds).not.toContain('cym:music')
 
     const blob = JSON.stringify(res.body)
@@ -274,7 +274,7 @@ describe('bundle route — listening pod visibility', () => {
     expect(sentenceQuery, 'the route must read sentences for the live pod').toBeDefined()
     const requestedPodIds = sentenceQuery!.filters.pod_id as string[]
     expect(requestedPodIds).toEqual(['cym:pod-1'])
-    expect(requestedPodIds).not.toContain('cym:pod-0')
+    expect(requestedPodIds).not.toContain('cym:pod-1-held')
   })
 
   it('omits the held pod from the bundle and keeps the live one', async () => {
@@ -294,7 +294,7 @@ describe('bundle route — listening pod visibility', () => {
   })
 
   // The third slot (job #354). RECORDED RED against the pre-fix route for
-  // the second test: the slug filter was ['pod-1','pod-0'], so a LIVE
+  // the second test: the slug filter carried no extra slot, so a LIVE
   // method-pod was never asked for and `podIds` came back ['cym:pod-1'].
   it('a HELD method pod contributes nothing — widening the slug list is not a release', async () => {
     const res = makeRes()

@@ -7,7 +7,7 @@
 
 ## 1. Croatian — 180 rows given back
 
-Replayed `docs/pods/hrv-pod0-switchover-applied-2026-08-22.json` through
+Replayed `docs/pods/hrv-pod-switchover-applied-2026-08-22.json` through
 `scripts/pod-position-audit/pod-carry-restore.cjs`, #651's method unchanged: re-key onto the
 live slug, content-match where a slot's text moved, refuse changed split shapes, write through
 `on conflict do update set exposures = greatest(existing, recorded)`.
@@ -53,7 +53,7 @@ carries exactly 241 carry actions and 142 drops. That is the file the switchover
 
 ### The second copy
 
-`/home/tomcassidy/SSi/ssi-dashboard-v7-clean/docs/pods/hrv-pod0-switchover-2026-08-22-prospective.json`
+`/home/tomcassidy/SSi/ssi-dashboard-v7-clean/docs/pods/hrv-pod-switchover-2026-08-22-prospective.json`
 (173,459 bytes) exists only in the second dashboard checkout. Compared action-by-action against
 the applied record: **identical carry sets** — 241 carries and 142 drops each, zero carry keys
 in one and not the other. It differs only in wrapper metadata (`note`, `generated`, scene and
@@ -64,12 +64,12 @@ changes nothing and was not merged or used.
 ## 2. The glob — an absence that was a filename
 
 #651's carry audit constructed exactly one path,
-`<code>-pod0-switchover-prospective-2026-08-22.json`, and so reported Croatian as having no
-record while `hrv-pod0-switchover-applied-2026-08-22.json` sat in the same directory as the
+`<code>-pod-switchover-prospective-2026-08-22.json`, and so reported Croatian as having no
+record while `hrv-pod-switchover-applied-2026-08-22.json` sat in the same directory as the
 sixteen it did find.
 
 Discovery now reads the directory instead of building a name: any
-`<code>-pod0-switchover-*.json`, which covers all three orderings seen on disk. If more than one
+`<code>-pod-switchover-*.json`, which covers all three orderings seen on disk. If more than one
 candidate matches it prints them and prefers the **applied** record, saying which it used. It
 reads the canonical checkout only (`/home/tomcassidy/ssi-dashboard-v7-clean/docs/pods`) — the
 git-tracked one, and the one the script's `DASH` constant has always meant — and it *reports*
@@ -78,9 +78,9 @@ checkouts' records would recreate exactly the ambiguity the tool refuses everywh
 
 Proof, recorded in `docs/pod-position-audit/record-discovery-2026-09-05.txt`: `--discover` run
 against every course with a listening pod resolves **17 records** — the 16 that already worked,
-each to the same file as before, plus `hrv → hrv-pod0-switchover-applied-2026-08-22.json`.
+each to the same file as before, plus `hrv → hrv-pod-switchover-applied-2026-08-22.json`.
 `--course=hrv` with no `--prospective` flag now runs the diff end to end. `--course=gle` fails
-loudly with "no pod0-switchover record on disk" instead of pretending.
+loudly with "no pod-switchover record on disk" instead of pretending.
 
 **None of #655's other five courses gains a record.** `deu_at`, `fra_ca`, `gle`, `hin` and `nld`
 have zero files matching the switchover family under any shape, in either checkout. Their 08-24
@@ -139,7 +139,7 @@ load-bearing for any restore, and #651's substantive finding survives without it
 ## 4. `deu_at_for_eng` — no live pod (report only)
 
 Confirmed live: `deu_at_for_eng` has **two pods, both `held`** —
-`deu_at_for_eng:pod-0-retired-2026-08-24` (231 sentences) and `deu_at_for_eng:pod-1` (266
+`deu_at_for_eng:retired-2026-08-24` (231 sentences) and `deu_at_for_eng:pod-1` (266
 sentences). Zero live. Every other flipped course serves one. It is in the 08-24 flip record's
 list of 21 that went live, so it went live and was subsequently held.
 

@@ -1,37 +1,39 @@
 /**
  * servedPod — which listening pod does this course actually serve?
  *
- * Pods used to be a constant: every course served `<course>:pod-0`, and five
- * separate call sites hardcoded that string. Tom's ruling (2026-08-22) makes
- * pods 1-BASED from here on, with `hrv_for_eng` the first course authored as
- * `pod-1`. The ~68 courses already recorded against `pod-0` keep serving
- * `pod-0` and must not change behaviour by so much as a query. So "the course's
- * pod" stops being a constant and becomes a lookup — this module is that
- * lookup, and it is the only place the slug is decided.
+ * Every course's core listening pod is `<course>:pod-1`. Pods by TOPIC (the
+ * method pod, a Senedd pod, a health pod) live on their own named slugs and
+ * are listed by Listening Mode (rule 6) or addressed to a person (rule 5);
+ * main flow reads exactly one pod, and this module is the only place that
+ * slug is decided.
+ *
+ * MIGRATION NOTE (the one historical note on the app side): core pods were
+ * once slugged `pod-0`. Tom's ruling, 2026-09-13 14:44Z: "Pod-0 does not
+ * exist anymore. There should be zero references to it in code or docs or
+ * briefs. There is only pod-1 now. And then pods by topic like Method Pod,
+ * Senedd Pod, Health Pod." The production data was renamed to `pod-1` the
+ * same day (Popty tools/pods/retire-pod-slug.cjs, one transaction per course,
+ * learner progress and provenance moved with it). Old ids in OLD DATA — an
+ * offline snapshot written before the rename, an audit-log row — still carry
+ * the old segment; listeningMetaCache maps such a snapshot forward on read.
+ * Nothing else in this app may branch on the old name.
  *
  * Rules, in the order they matter:
  *
- * 1. ONLY `pod-1` and `pod-0` are ever served, `pod-1` first. This is a hard
- *    gate, not a default. Unreleased Layer 2 content is held back by PARKING a
- *    pod on a non-serving slug — `pod-0-unrecorded` (37 courses as of
- *    2026-08-22), `pod-0-gated-2026-08-06` (2 courses) — so that every learner
- *    path reads "no pods yet". A resolver that fell through to "whatever core
- *    pod exists" would publish all 39 of them at once. It must never widen.
+ * 1. ONLY `pod-1` is ever served to main flow. This is a hard gate, not a
+ *    default. Unreleased Layer 2 content is held back by PARKING a pod on a
+ *    non-serving slug (`unrecorded`, `gated-<date>`, `retired-<date>`) so that
+ *    every learner path reads "no pods yet". A resolver that fell through to
+ *    "whatever core pod exists" would publish every parked pod at once. It
+ *    must never widen.
  *
- * 2. Anything unknown resolves to `pod-0`: no rows, no `pod-1`, a query error,
- *    a missing course. Today's behaviour is the floor, so a transient failure
- *    degrades to exactly what shipped yesterday and never to "no pods".
+ * 2. Anything unknown resolves to `pod-1`: no rows, a query error, a missing
+ *    course. A transient failure degrades to the served pod's own name, whose
+ *    sentence query then answers for itself, and never to "no pods".
  *
  * 3. One resolution per course per session. Five call sites share one memoised
  *    in-flight promise (the same shape listeningMetaCache uses for its
  *    once-only fetches) so the flip costs one round-trip, not five.
- * * 5. A pod that NAMES A ROLE is addressed to one person, and outranks
- *    everything above it for the person who holds that role. This is the one
- *    way a non-serving slug is ever served, and it is safe because the CLIENT
- *    does not decide it: RLS returns a role-restricted row only to a holder of
- *    that role (database/changes/20260903_restricted_content_by_role.sql in
- *    Popty), so for everybody else the row does not exist and rule 1 is
- *    exactly as hard as it was. It rides on the same round-trip as rule 1.
  *
  * 4. Offline, the answer comes from the download snapshot. The offline
  *    metadata cache persists the slug it was built from, so a learner who
@@ -39,13 +41,21 @@
  *    resolves it with no network round-trip at all. The snapshot's slug is
  *    still run through rule 1, so a parked slug can never enter this way.
  *
- * 5. A HELD pod resolves to "no pods yet" for free, and that is deliberate.
+ * 5. A pod that NAMES A ROLE is addressed to one person, and outranks
+ *    everything above it for the person who holds that role. This is the one
+ *    way a non-serving slug is ever served, and it is safe because the CLIENT
+ *    does not decide it: RLS returns a role-restricted row only to a holder of
+ *    that role (database/changes/20260903_restricted_content_by_role.sql in
+ *    Popty), so for everybody else the row does not exist and rule 1 is
+ *    exactly as hard as it was. It rides on the same round-trip as rule 1.
+ *
+ *    A HELD pod resolves to "no pods yet" for free, and that is deliberate.
  *    `listening_pods.visibility` ('live' | 'held', added 2026-08-23 — see
  *    ssi-dashboard-v7-clean/database/changes/20260823_listening_pod_visibility.sql)
  *    lets a human hold a pod back while they are still recording it. The gate
  *    is enforced in RLS, so a held pod's row is simply not there for the
  *    anon-key query below: `found` comes back without it and rule 2 lands on
- *    `pod-0`, whose sentence read is likewise empty. Held and absent are
+ *    `pod-1`, whose sentence read is likewise empty. Held and absent are
  *    INDISTINGUISHABLE to this resolver on purpose — that is what makes a hold
  *    invisible (Tom's ruling: not a greyed tab, not an empty pod, not "coming
  *    soon") rather than conspicuous. Do NOT add a visibility filter here; the
@@ -75,7 +85,7 @@ import { isOfflineish, withNetworkTimeout, NETWORK_TIMEOUT } from '../config/net
 import { getCachedListeningMeta } from './listeningMetaCache'
 
 /** The only slugs a MAIN-FLOW learner path may ever read, in preference order. */
-export const SERVING_POD_SLUGS = ['pod-1', 'pod-0'] as const
+export const SERVING_POD_SLUGS = ['pod-1'] as const
 
 /**
  * Extra slots LISTENING MODE lists after the served pod (rule 6). A closed
@@ -84,8 +94,8 @@ export const SERVING_POD_SLUGS = ['pod-1', 'pod-0'] as const
  */
 export const LISTENING_EXTRA_POD_SLUGS = ['method-pod'] as const
 
-/** What every unknown resolves to — today's behaviour for all ~68 courses. */
-export const FALLBACK_POD_SLUG = 'pod-0'
+/** What every unknown resolves to — the served pod's own name (rule 2). */
+export const FALLBACK_POD_SLUG = 'pod-1'
 
 /**
  * The `listening_pods.visibility` value a learner is allowed to reach.
@@ -141,7 +151,7 @@ export const pickServedSlug = (rows: PodRow[] | null | undefined): string => {
     if (found.has(slug)) return slug
   }
   // Rule 2: no serving pod — the course has none yet, or its only pod is
-  // parked. Both read as `pod-0`, whose sentence query returns zero rows.
+  // parked. Both read as `pod-1`, whose sentence query returns zero rows.
   return FALLBACK_POD_SLUG
 }
 
@@ -207,7 +217,7 @@ const resolveOnce = async (
 
 /**
  * Which pod does this course serve? Memoised per course for the session; every
- * failure mode resolves (never rejects) to `pod-0`.
+ * failure mode resolves (never rejects) to `pod-1`.
  */
 export const resolveServedPod = (
   client: SupabaseClient,

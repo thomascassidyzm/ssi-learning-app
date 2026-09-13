@@ -6,9 +6,8 @@
  * beat), followed by any EXTRA Listening Mode slot the course has (servedPod
  * rule 6, job #354: the Italian method pod sits alongside Pod 1, never
  * replacing it). WHICH pods is resolved per course by servedPod's
- * `resolveListeningPods` — pods went 1-based on 2026-08-22, so hrv serves
- * `pod-1` while ~68 older courses serve `pod-0`; main flow reads only the
- * served pod and never this list.
+ * `resolveListeningPods` — every course's core pod is `pod-1`; main flow
+ * reads only the served pod and never this list.
  *
  * The Pods tab in ListeningOverlay shows the scenes, tap a scene to
  * teleprompter through its sentences. Scenes from different pods are told
@@ -24,7 +23,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { splitRowUnits } from './podSentenceSplit'
 import { baseSlate, continuationsByBranch, type SlateRow, type PodContinuation } from './podSlate'
 import { getCachedListeningMeta, retryListeningReadOrThrow, clearCachedListeningPodRows, POD_CLIP_COLUMNS, readClipTimings, type CachedPodRow } from './listeningMetaCache'
-import { resolveListeningPods } from './servedPod'
+import { resolveListeningPods, FALLBACK_POD_SLUG } from './servedPod'
 import { buildFusionGroups, type FusionGroup } from '@ssi/core/pods'
 import { getRevisedAudioRefs, stampRowAudioRefs, bareAudioId } from '../providers/revisedAudioRefs'
 import { isOfflineish } from '../config/networkGate'
@@ -216,8 +215,8 @@ export function useListeningPods(
       }
       const pods: LoadedPod[] = [
         {
-          podId: `${course}:${cached.podSlug ?? 'pod-0'}`,
-          slug: cached.podSlug ?? 'pod-0',
+          podId: `${course}:${cached.podSlug ?? FALLBACK_POD_SLUG}`,
+          slug: cached.podSlug ?? FALLBACK_POD_SLUG,
           title: cached.podTitle ?? null,
           rows: cached.podRows,
         },

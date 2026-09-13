@@ -189,7 +189,7 @@ async function main() {
 
   // 3. today's live cohorts → target stored value
   // WHICH POD. Mirror the learner path exactly (composables/servedPod.ts):
-  // only slugs 'pod-1' then 'pod-0', pod_type core, visibility 'live'. #656's
+  // only slug 'pod-1', pod_type core, visibility 'live'. #656's
   // `visibility = 'live' order by pod_order` happened to pick the right row for
   // deu_for_eng but is not the serving rule — a held pod is INDISTINGUISHABLE
   // from absent to a learner, and a parked slug must never resolve.
@@ -205,10 +205,10 @@ async function main() {
             where course_code = $1 and visibility = 'live'
               and slug = any($2::text[]) and (pod_type is null or pod_type = 'core')
             order by array_position($2::text[], slug) limit 1`,
-          [COURSE_ID, ['pod-1', 'pod-0']],
+          [COURSE_ID, ['pod-1']],
         )
       ).rows[0]
-  if (!pod) throw new Error('no served pod for ' + COURSE_ID + ' (no live pod-1/pod-0) — cannot map laps to sentences')
+  if (!pod) throw new Error('no served pod for ' + COURSE_ID + ' (no live pod-1) — cannot map laps to sentences')
   const podRows = (
     await c.query(
       `select id, global_order, scene_number, speaker, target_text, known_text, target_audio_id,

@@ -20,9 +20,9 @@ the `RETURNING` clause.
 |---|---|---|---|---|---|
 | Tom | `zho_for_eng` | 0 | **460** | 17 completed laps, highest pod round 459 | `zho_for_eng:pod-1` (live) |
 | Tom | `hrv_for_eng` | 0 | **224** | 4 completed laps, highest pod round 223 | `hrv_for_eng:pod-1` (live) |
-| fransetter | `cym_s_for_eng` | 0 | **327** | 1 completed lap, highest pod round 326 | `cym_s_for_eng:pod-0` (held — see below) |
+| fransetter | `cym_s_for_eng` | 0 | **327** | 1 completed lap, highest pod round 326 | `cym_s_for_eng:pod-1` (held — see below) |
 | jamesharvey1992 | `hin_for_eng` | 0 | **2** | 1 completed lap, highest pod round 1 | `hin_for_eng:pod-1` (live) |
-| nba4191 | `hye_for_eng` | 0 | **2** | 1 completed lap, highest pod round 1 | `hye_for_eng:pod-0` (live) |
+| nba4191 | `hye_for_eng` | 0 | **2** | 1 completed lap, highest pod round 1 | `hye_for_eng:pod-1` (live) |
 
 **`rounds_since_pod` is unchanged at 5 for all five** — #649's work-debt seeding
 stands untouched. **No course cursor moved**: `highest_completed_seed`,
@@ -157,10 +157,10 @@ Nothing is owed and nothing is broken. **Repaired nothing**, as instructed.
 - **One correction to #656's instrument.** It picked the pod with
   `visibility = 'live' ORDER BY pod_order`, which is not the serving rule and
   happened to be right for German by luck. The real rule lives in
-  `composables/servedPod.ts`: slug `pod-1` then `pod-0`, `pod_type` core,
+  `composables/servedPod.ts`: slug `pod-1`, `pod_type` core,
   visibility live — and a **held** pod is deliberately indistinguishable from an
   absent one to a learner. The script now mirrors that exactly.
-- The one place I overrode it is fransetter: `cym_s_for_eng:pod-0` is held, but
+- The one place I overrode it is fransetter: `cym_s_for_eng:pod-1` is held, but
   it is the *actual content she heard* (created 2026-08-11, she lapped it
   2026-08-22) and it is still on disk. Mapping her position through the real pod
   she met beats mapping it through nothing. She sees no pods today either way;
