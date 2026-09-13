@@ -1763,3 +1763,26 @@ the two grading bullets are terse — under-claiming, left alone by design.
 **Already on production before this ship:** the 20-minute support note (#477) via hotfix
 `f5321c274`. **Not in the range:** any "mode/belt stamping on play rows" commit — the phrase in
 the commission matches nothing in `main..staging`.
+
+## 2026-09-13 — Release notes hotfix in learner voice, and the generator closes three warts (job #506)
+
+**What shipped wrong.** The 2026-09-13 notes on production led with "Pod cards at the top of
+Dialogues, one per pod slot, each with an offline-readiness chip (job #428)." then two "Strip …
+grading" lines — a job tag and engineer words in learner-facing text, one headline duplicated, and
+the ship's most learner-facing change (Immersion lights the whole spoken line and walks with the
+voice, #479/#468/#470) absent altogether.
+
+**Ruling applied (Tom, 2026-09-12).** Three ONE-SENTENCE learner headlines, learner surfaces first,
+then EXACTLY one line below the fold. Hotfix to main (`1a647c8ec`, notes text only, no app code):
+Immersion line lighting / Dialogues pod cards with offline readiness / schools dashboard grades
+nothing. Back-merged to staging (fast-forward, staging = main) and dev (`0f4456e9e`, one add/add
+conflict on the notes file, resolved to main's text). Identical on all three.
+
+**Generator hardening, on dev, rides the next train.** (1) `vercel|deploy|infra` join `KIND_VETO`
+(#499's unmerged fix, landed). (2) `claimOf` strips job tags — "(job #428)", "(jobs #494, #495)",
+trailing ", job #428" — test fails on the old code. (3) `assertShape` requires the fold count to be
+EXACTLY `MAX_READMORE`, not merely `≤`: cold-verify #462 found a fold-less note passed. Test fails on
+the old code. Both on-disk notes since the ruling still fit.
+
+**Rule this re-states.** Hand-written headlines take the slots first; the generator's job is to
+make it impossible for bookkeeping to reach a learner, not to write the headlines.
