@@ -55,11 +55,16 @@ function resetTables(): void {
       clip('cl-1', 1, 'a-1', 0), clip('cl-1', 1, 'a-2', 1), clip('cl-1', 2, 'a-1', 2),
       clip('cl-1', 9, 'a-1', 0), clip('cl-1', 10, 'a-3', 1),
       clip('cl-2', 10, 'a-1', 0),
-      // class-1 also sat in the app for one 12-minute block this week (taps,
-      // no clips): in-app time counts the gaps, phrases do not.
-      ...[0, 240, 480, 720].map((s) => ({ learner_id: 'cl-1', event_type: 'tap_play', occurred_at: iso(2, s * 1000), payload: {} })),
+      // class-1 also sat in the app for one 12-minute block this week: play
+      // tap, two intro clips with four-minute gaps, stop tap. In-app time is
+      // play to stop and counts the gaps; phrases (target2 clips) do not.
+      { learner_id: 'cl-1', event_type: 'tap_play', occurred_at: iso(2, 0), payload: {} },
+      ...[240, 480].map((s) => ({ learner_id: 'cl-1', event_type: 'audio_play', occurred_at: iso(2, s * 1000), payload: { role: 'known', cycleType: 'intro', durationMs: 0 } })),
+      { learner_id: 'cl-1', event_type: 'tap_pause', occurred_at: iso(2, 720 * 1000), payload: {} },
       // and a 6-minute block last week
-      ...[0, 180, 360].map((s) => ({ learner_id: 'cl-1', event_type: 'tap_play', occurred_at: iso(9, s * 1000), payload: {} })),
+      { learner_id: 'cl-1', event_type: 'tap_play', occurred_at: iso(9, 0), payload: {} },
+      { learner_id: 'cl-1', event_type: 'audio_play', occurred_at: iso(9, 180 * 1000), payload: { role: 'known', cycleType: 'intro', durationMs: 0 } },
+      { learner_id: 'cl-1', event_type: 'tap_pause', occurred_at: iso(9, 360 * 1000), payload: {} },
       clip('cl-x', 1, 'a-1', 0), clip('cl-x', 1, 'a-1', 1), clip('cl-x', 1, 'a-1', 2), clip('cl-x', 1, 'a-1', 3), clip('cl-x', 1, 'a-1', 4),
     ],
     course_enrollments: [

@@ -81,13 +81,14 @@ beforeEach(async () => {
     // none and still counted as live — the "no end date means forever" hole.)
     schools: [{ id: 's1', platform_status: 'trial', platform_expires_at: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString() }],
     learner_speaking_opportunities: [{ learner_id: 'l1', play_seconds: 120 }],
-    // THE DIARY. Student l1: one 10-minute lesson today with a clip every few
+    // THE DIARY (rows typed as clips: the minute rule of 2026-09-13 reads only
+    // play rows). Student l1: one 10-minute lesson today with a clip every few
     // minutes — 120s of audio inside 600s in the app. The CLASS's own account:
     // a 20-minute whole-class lesson yesterday, then a 40-minute silence, then
     // 5 more minutes — two blocks, 25 min, the silence not counted.
     player_events: [
-      ...[0, 3, 7, 10].map((min) => ({ learner_id: 'l1', occurred_at: at(-min) })),
-      ...[0, 5, 10, 15, 20, 60, 65].map((min) => ({ learner_id: 'class-learner-1', occurred_at: at(-1440 - 65 + min) })),
+      ...[0, 3, 7, 10].map((min) => ({ learner_id: 'l1', event_type: 'audio_play', duration: 0, occurred_at: at(-min) })),
+      ...[0, 5, 10, 15, 20, 60, 65].map((min) => ({ learner_id: 'class-learner-1', event_type: 'audio_play', duration: 0, occurred_at: at(-1440 - 65 + min) })),
     ],
   }
   scope = {
@@ -110,7 +111,7 @@ describe('GET /api/school/class-practice-7d — the SCHOOL HEADLINE rollup (job 
       { id: 'teacher-learner', user_id: 'uid-teacher', display_name: 'Ms Jones' },
       { id: 'l1', user_id: 'uid-l1', display_name: 'Asha' },
     ]
-    DB.player_events.push(...[0, 5, 10, 15].map((min) => ({ learner_id: 'teacher-learner', occurred_at: at(-min) })))
+    DB.player_events.push(...[0, 5, 10, 15].map((min) => ({ learner_id: 'teacher-learner', event_type: 'audio_play', duration: 0, occurred_at: at(-min) })))
     // The class cursor bumped this week → c1 is a class practising this week.
     DB.course_enrollments = [{ learner_id: 'class-learner-1', last_practiced_at: at(-60) }]
     const res = makeRes()
@@ -197,7 +198,7 @@ describe('GET /api/school/class-practice-7d — IN-APP TIME (founder ruling 2026
     // A second class with NO students and only whole-class play earns its
     // day all the same — that is Ysgol Cas-gwent's shape (job #217).
     DB.classes.push({ id: 'c2', school_id: 's1', class_learner_id: 'class-learner-2' })
-    DB.player_events.push({ learner_id: 'class-learner-2', occurred_at: at(-30) })
+    DB.player_events.push({ learner_id: 'class-learner-2', event_type: 'audio_play', duration: 0, occurred_at: at(-30) })
     scope.classIds = ['c1', 'c2']
     const res = makeRes()
     await handler(makeReq({}), res)
@@ -243,7 +244,7 @@ describe('GET /api/school/class-practice-7d — coverage gate', () => {
     DB.classes.push({ id: 'c2', school_id: 's2' })
     DB.schools.push({ id: 's2', platform_status: 'expired', platform_expires_at: null })
     DB.learner_speaking_opportunities.push({ learner_id: 'l2', play_seconds: 60 })
-    DB.player_events.push({ learner_id: 'l2', occurred_at: at(-4) }, { learner_id: 'l2', occurred_at: at(-1) })
+    DB.player_events.push({ learner_id: 'l2', event_type: 'audio_play', duration: 0, occurred_at: at(-4) }, { learner_id: 'l2', event_type: 'audio_play', duration: 0, occurred_at: at(-1) })
     scope = {
       learnerId: 'l1', role: 'teacher', classIds: ['c1', 'c2'], learnerIds: ['l1', 'l2'],
       studentsByClass: { c1: ['l1'], c2: ['l2'] }, schoolIds: [], groupId: null,

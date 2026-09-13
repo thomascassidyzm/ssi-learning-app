@@ -1,6 +1,6 @@
 /**
  * diarySessionRows — whole-class play from the diary as rate-compare rows.
- * Pins the block rule (idle cutoff splits, cap bounds), the LEGO start/end by
+ * Pins the span rule (a silence beyond the guard splits, the cap bounds), the LEGO start/end by
  * course ordinal, the course fallback, and that a learner id that is not a
  * class account is ignored.
  */
@@ -9,8 +9,10 @@ import { sessionRowsFromDiary, type DiaryEvent, type LegoOrdinals } from './diar
 
 const T0 = Date.parse('2026-09-08T09:00:00Z')
 const at = (s: number) => new Date(T0 + s * 1000).toISOString()
-const ev = (learner: string, s: number, lego: string | null, course: string | null = 'cym_s_for_eng'): DiaryEvent =>
-  ({ learner_id: learner, occurred_at: at(s), course_code: course, lego })
+// A main-flow clip row, start-logged with a zero length, so a span is timed
+// first clip to last clip exactly as the old block rule read it.
+const ev = (learner: string, s: number, lego: string | null, course: string | null = 'cym_s_for_eng', event_type = 'audio_play'): DiaryEvent =>
+  ({ learner_id: learner, occurred_at: at(s), course_code: course, lego, event_type, ct: 'build', duration: 0 })
 
 const ORD: LegoOrdinals = new Map([
   ['cym_s_for_eng', new Map([['S0001L01', 1], ['S0001L02', 2], ['S0002L01', 3], ['S0002L02', 4], ['S0003L01', 5]])],
@@ -23,7 +25,7 @@ const CLASSES = [
 describe('sessionRowsFromDiary', () => {
   it('one lesson = one row: first LEGO to furthest LEGO, timed first clip to last clip', () => {
     const rows = sessionRowsFromDiary([
-      ev('L-7p', 0, null),           // cold_start carries no lego
+      ev('L-7p', 0, null, 'cym_s_for_eng', 'tap_play'), // the play tap carries no lego
       ev('L-7p', 10, 'S0001L01'),
       ev('L-7p', 40, 'S0001L02'),
       ev('L-7p', 90, 'S0002L01'),
@@ -50,7 +52,17 @@ describe('sessionRowsFromDiary', () => {
     expect(rows[0]).toMatchObject({ course_code: 'cym_s_for_eng', start_lego_id: 'S9999L01', start_ord: null, end_ord: null, duration_seconds: 5 })
   })
 
-  it('ignores events from learner ids that are not a class account', () => {
+  it('ignores events from learner ids that are not a class account, and rows the minute rule does not read', () => {
     expect(sessionRowsFromDiary([ev('L-someone', 0, 'S0001L01')], CLASSES, ORD)).toEqual([])
+    expect(sessionRowsFromDiary([ev('L-7p', 0, 'S0001L01', 'cym_s_for_eng', 'cold_start')], CLASSES, ORD)).toEqual([])
+  })
+
+  it('a whole-class Listening Mode session is a row of its own, timed by its clips', () => {
+    const rows = sessionRowsFromDiary([
+      ev('L-7p', 0, 'S0001L01'), ev('L-7p', 30, 'S0001L02'),
+      { learner_id: 'L-7p', occurred_at: at(60), course_code: 'cym_s_for_eng', lego: null, event_type: 'audio_play', ct: 'listening_mode', elapsed: 2000 },
+      { learner_id: 'L-7p', occurred_at: at(90), course_code: 'cym_s_for_eng', lego: null, event_type: 'listening_tick' },
+    ], CLASSES, ORD)
+    expect(rows.map((r) => [r.duration_seconds, r.start_ord, r.end_ord])).toEqual([[30, 1, 2], [32, null, null]])
   })
 })

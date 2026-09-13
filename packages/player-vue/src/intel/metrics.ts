@@ -29,6 +29,9 @@ export interface Metric {
 }
 
 export const METRICS = {
+  minutesPerPerson: { question: 'pulse', label: 'in-app minutes per person on the course, play to stop, main flow and Listening Mode', endpoint: '/api/intel/minutes', unit: 'minutes' },
+  newEnrolments: { question: 'pulse', label: 'real people who joined the course in the period', endpoint: '/api/intel/minutes', unit: 'people' },
+  noActivity: { question: 'pulse', label: 'share of people on the course who did not press play in the period', endpoint: '/api/intel/minutes', unit: 'share' },
   practisedThisWeek: { question: 'pulse', label: 'real people who practised in the last seven days', endpoint: '/api/intel/pulse', unit: 'people' },
   practisedLastWeek: { question: 'pulse', label: 'real people who practised in the seven days before', endpoint: '/api/intel/pulse', unit: 'people' },
   peopleByCourse: { question: 'pulse', label: 'this week\'s people, by course', endpoint: '/api/intel/pulse', unit: 'people' },
