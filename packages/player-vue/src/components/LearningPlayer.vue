@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, onBeforeUnmount, watch, watchEffect, shallowRef, inject, nextTick, defineAsyncComponent, type PropType, type Ref } from 'vue'
+import { useUserRole } from '@/composables/useUserRole'
+import { createCursorQueue } from '@/playback/cursorQueue'
 // Offline-download status (shared with the mode-button ring in ModeTray)
 import { offlineDlState, offlineDlDone, offlineDlTotal, offlineDlFailed, offlineDlStragglers, offlineTrial, resetOfflineDownloadStatus, resolveOfflineDlOutcome } from '../composables/useOfflineDownloadStatus'
 import {
@@ -1692,29 +1694,24 @@ const pairingsTelemetry = usePairingsTelemetry()
 // resumes use current_cycle_index (longer gaps reset to the round intro), so 60s
 // granularity is imperceptible. CANCELLED on round-advance: the round-advance
 // write supersedes, so a stale old-round cursor must never flush after it.
-let pendingCursor: { learnerId: string; courseId: string; idx: number } | null = null
-let cursorFlushTimer: ReturnType<typeof setTimeout> | null = null
-const flushCursor = () => {
-  if (cursorFlushTimer) { clearTimeout(cursorFlushTimer); cursorFlushTimer = null }
-  const p = pendingCursor
-  pendingCursor = null
-  // A write queued BEFORE the mode engaged must not land after it: the 60s
-  // throttle means one can be in flight at the moment the connection drops.
-  if (practisingBlocksProgressWrite('queued current cycle')) return
-  if (!p || !progressStore?.value) return
-  void activeProgressStore.value.updateCurrentCycle(p.learnerId, p.courseId, p.idx).catch(err => {
-    console.warn('[LearningPlayer] Failed to persist current cycle:', err)
-  })
-}
-const queueCursor = (learnerId: string, courseId: string, idx: number) => {
-  if (practisingBlocksProgressWrite('current cycle')) return
-  pendingCursor = { learnerId, courseId, idx }
-  if (!cursorFlushTimer) cursorFlushTimer = setTimeout(flushCursor, 60_000)
-}
-const cancelPendingCursor = () => {
-  if (cursorFlushTimer) { clearTimeout(cursorFlushTimer); cursorFlushTimer = null }
-  pendingCursor = null
-}
+// The queue itself lives in playback/cursorQueue.ts; it refuses at BOTH ends.
+// Under view-as it must refuse at creation: the fetch guard only blocks while
+// the overlay is on, and a cursor queued while viewing-as and flushed by the
+// unmount after Exit landed under the ADMIN's own learner (production probe,
+// job #615 finishing #607 — the #606 shape on the progress path).
+const { isViewingAs: cursorViewingAs } = useUserRole()
+const cursorQueue = createCursorQueue({
+  refuse: () => cursorViewingAs.value || practisingBlocksProgressWrite('current cycle'),
+  write: (p) => {
+    if (!progressStore?.value) return Promise.resolve()
+    return activeProgressStore.value.updateCurrentCycle(p.learnerId, p.courseId, p.idx)
+  },
+  onError: (err) => console.warn('[LearningPlayer] Failed to persist current cycle:', err),
+})
+const flushCursor = () => cursorQueue.flush()
+const queueCursor = (learnerId: string, courseId: string, idx: number) =>
+  cursorQueue.queue({ learnerId, courseId, idx })
+const cancelPendingCursor = () => cursorQueue.cancel()
 
 // Diagnostic event log — captures play/pause/skip/stop taps + lap and
 // commentary lifecycle. Persisted in player_events; surfaced in the

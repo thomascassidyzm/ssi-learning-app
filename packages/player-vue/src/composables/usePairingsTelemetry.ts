@@ -18,6 +18,7 @@
  */
 
 import { inject } from 'vue'
+import { useUserRole } from '@/composables/useUserRole'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export interface RecordCyclePlayOptions {
@@ -82,6 +83,9 @@ export function usePairingsTelemetry() {
   function recordCyclePlay(opts: RecordCyclePlayOptions): void {
     // Guard guest/anonymous flows - the schema requires a real learners.id FK.
     if (!opts.learnerId || opts.learnerId.startsWith('guest-')) return
+    // Refused at creation too: a pair fired while viewing-as must not sit in
+    // the tally waiting for a flush that happens after the admin has exited.
+    if (useUserRole().isViewingAs.value) return
     const pairs = buildPairs(opts.legoIds)
     if (pairs.length === 0) return
     pendingLearnerId = opts.learnerId
@@ -105,6 +109,11 @@ export function usePairingsTelemetry() {
   async function flush(): Promise<void> {
     const supabase = supabaseRef?.value
     if (!supabase || tally.size === 0 || !pendingLearnerId || !pendingCourseCode) return
+    // View-as: record_lego_pairings is a WRITE that travels as an RPC, and the
+    // view-as fetch guard lets every RPC through as "the read path". A tally
+    // built while an ssi_admin is viewing-as is not a learner's tally — drop
+    // it, never send it (job #615, alongside the cursor-queue fix).
+    if (useUserRole().isViewingAs.value) { tally.clear(); return }
     const entries = [...tally.values()]
     const learnerId = pendingLearnerId
     const courseCode = pendingCourseCode
