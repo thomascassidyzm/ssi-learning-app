@@ -387,35 +387,35 @@
 # target sentence and its translation, and hears the four-slot pattern; the
 # atom_map data that fed the tiles is loaded by the scheduler but rendered nowhere.
 #
-# UPDATE (2026-08-22, Tom's ruling): PODS ARE 1-BASED. Pod slugs were a
-# constant — every course served `<course>:pod-0`, hardcoded at five call
-# sites. From today, new courses are authored 1-based: `hrv_for_eng` is the
-# first, serving `<course>:pod-1`. The ~68 courses already recorded against
-# `pod-0` keep serving `pod-0` unchanged; no fleet-wide rename was done.
+# UPDATE (2026-08-22, Tom's ruling): PODS ARE 1-BASED. `hrv_for_eng` was the
+# first course authored as `<course>:pod-1`. UPDATE (2026-09-13, Tom's
+# ruling): every course's core pod is `pod-1` and nothing else exists; pods by
+# topic (method pod, Senedd pod, health pod) carry their own named slugs.
 #
-# So "which pod does this course serve?" becomes a lookup, and there is
-# exactly one of it: packages/player-vue/src/composables/servedPod.ts.
-# It queries listening_pods for the course restricted to pod_type=core and
-# slug in (pod-1, pod-0), prefers pod-1, falls back to pod-0, and is memoised
-# per course per session so the five readers share ONE round-trip. Readers:
+# "Which pod does this course serve?" is a lookup, and there is exactly one
+# of it: packages/player-vue/src/composables/servedPod.ts. It queries
+# listening_pods for the course restricted to pod_type=core and slug=pod-1,
+# and is memoised per course per session so the five readers share ONE
+# round-trip. Readers:
 # useListeningPods, listeningMetaCache, usePodLapScheduler,
 # generateLearningScript (Phase 6/7 pod pre-fetch), usePodStage0 — the last of
 # which needs the bare SLUG rather than the pod id, because sentence ids embed
 # it (`hrv_for_eng:pod-1:SC01-S001`).
 #
 # THE GATE THE RESOLVER MUST NEVER WIDEN: unreleased Layer-2 content is held
-# back by PARKING a pod on a non-serving slug — `pod-0-unrecorded` (37 courses
-# on 2026-08-22), `pod-0-gated-2026-08-06` (2). Learner paths then read "no
-# pods yet" because the served id matches no sentences. NOTE the parked slug is
-# usually a WORKING COPY alongside a live pod-0, not instead of one: both Welsh
-# courses carry a `pod-0-gated-2026-08-06` AND a real 231-sentence pod-0, and
-# they serve it. Parking withholds a copy; it does not withdraw the course. The resolver therefore considers ONLY
-# `pod-1` and `pod-0` and never falls through to "whatever core pod exists";
-# doing so would publish 39 unrecorded pods at once.
+# back by PARKING a pod on a non-serving slug — `unrecorded`, `gated-<date>`,
+# `retired-<date>`. Learner paths then read "no pods yet" because the served
+# id matches no sentences. NOTE the parked slug is usually a WORKING COPY
+# alongside a live pod-1, not instead of one: both Welsh courses carry a
+# `gated-2026-08-06` AND a real 231-sentence pod-1, and they serve it. Parking
+# withholds a copy; it does not withdraw the course. The resolver therefore
+# considers ONLY `pod-1` and never falls through to "whatever core pod
+# exists"; doing so would publish every unrecorded pod at once.
 #
-# FAILURE POSTURE: every unknown resolves to `pod-0` — no rows, no pod-1, a
-# query error, a timeout. Today's behaviour is the floor, so a transient
-# failure degrades to what shipped yesterday and never to "no pods".
+# FAILURE POSTURE: every unknown resolves to `pod-1` — no rows, a query
+# error, a timeout. The served pod's own name is the floor, so a transient
+# failure degrades to the sentence query answering for itself and never to
+# "no pods".
 #
 # UPDATE (2026-09-12, Tom's ruling, job #354): LISTENING MODE MAY LIST EXTRA
 # SLOTS; MAIN FLOW NEVER DOES. The Italian method pod sits ALONGSIDE Pod 1 in
@@ -454,7 +454,7 @@
 # straddle a lap (a pair IS two consecutive turns, and turns pair off in
 # order); a scene with an odd turn count leaves its closing turn — e.g. a
 # narrator coda — as its own cohort. Why the supersession: measured on
-# ita_for_eng:pod-0, scenes 6+ run 17-36 sentences (~110+ plays for a
+# ita_for_eng's core pod, scenes 6+ run 17-36 sentences (~110+ plays for a
 # whole-scene debut lap), and the owner's staging test found even scene 1's
 # 8-sentence debut too much for a first exposure. Cohorts remain pure
 # structure over the flattened sentence list (@ssi/core/pods/podCohorts.ts):
@@ -523,7 +523,7 @@
 # (flattenPodRows splits a silence-split turn into one unit per sentence), but
 # the exchange rule — a speaker turn plus its reply — was sized on authored
 # TURN rows, and a turn is a whole paragraph. Measured live on 2026-08-09,
-# fra/spa/deu_for_eng:pod-0 (142 turn-rows → 294 sentences): 71 cohorts, mean
+# the fra/spa/deu_for_eng core pods (142 turn-rows → 294 sentences): 71 cohorts, mean
 # 4.14 sentences per lap, max 8, and 59 of 71 laps debuting more than two.
 #
 # The fix is in the same PURE partition (@ssi/core/pods/podCohorts.ts):

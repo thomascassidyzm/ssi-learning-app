@@ -47,8 +47,8 @@ interface MockState {
   enrollmentUpdates: Array<Record<string, any>>
   /** learner_pod_state rows for the two-doors exposure counter (optional). */
   podState?: Array<{ sentence_id: string; exposures: number }>
-  /** listening_pods rows. Absent = the pre-2026-08-22 world: no pod-1, so the
-   *  resolver answers `pod-0` and behaviour is bit-identical to before. */
+  /** listening_pods rows. Absent = no rows, so the resolver answers `pod-1`
+   *  by fallback and behaviour is bit-identical to a course that serves it. */
   pods?: Array<{ slug: string; required_role?: string | null }>
   /** pod_id the scheduler actually queried — the flip's proof. */
   queriedPodId?: string
@@ -70,8 +70,8 @@ function makeMockSupabase(state: MockState) {
       // servedPod resolves the slug with a single `.or()` carrying two arms
       // (rule 1: pod_type=core AND slug IN …; rule 5: required_role NOT NULL).
       // Without this method the chain throws, resolveOnce swallows it, and
-      // every course silently answers `pod-0` — which is what made this file's
-      // pod-1 test go red and its pod-0 test pass for the wrong reason.
+      // every course silently answers the fallback slug — which is what made
+      // this file's pod-1 test pass for the wrong reason.
       or: (expr?: string) => { if (expr) filters.or = expr; return chain },
       order: () => chain,
       maybeSingle: () => {
@@ -671,7 +671,7 @@ describe('usePodLapScheduler — per-sentence split (flattenPodRows integration)
   // known_audio_id are the WHOLE-turn clips (must never be played once split);
   // sentence_audio_ids / sentence_known_audio_ids hold the per-sentence clips.
   const splitTurn = {
-    id: 'c:pod-0:SC01-S001',
+    id: 'c:pod-1:SC01-S001',
     global_order: 1,
     speaker: 'Sarah',
     target_text: 'Buongiorno. Come stai?',
@@ -833,7 +833,7 @@ describe('usePodLapScheduler — served pod resolution', () => {
       bookends: [bookendIntro, bookendOutro],
       enrollment: { pod_activation_round: 1, completed_pod_rounds: 0 },
       enrollmentUpdates: [],
-      pods: [{ slug: 'pod-1' }, { slug: 'pod-0' }],
+      pods: [{ slug: 'pod-1' }, { slug: 'unrecorded' }],
     }
     const s = usePodLapScheduler({
       supabase: makeMockSupabase(state), courseCode: 'hrv_for_eng', learnerId: 'u',
@@ -842,33 +842,33 @@ describe('usePodLapScheduler — served pod resolution', () => {
     expect(state.queriedPodId).toBe('hrv_for_eng:pod-1')
   })
 
-  it('queries the pod-0 id for the ~68 courses that only have pod-0 — no behaviour change', async () => {
+  it('queries the pod-1 id for a course whose only pod is parked — reads "no pods", never the parked copy', async () => {
     const state: MockState = {
       podSentences: [podSentence(1)],
       bookends: [bookendIntro, bookendOutro],
       enrollment: { pod_activation_round: 1, completed_pod_rounds: 0 },
       enrollmentUpdates: [],
-      pods: [{ slug: 'pod-0' }, { slug: 'pod-0-unrecorded' }],
+      pods: [{ slug: 'unrecorded' }],
     }
     const s = usePodLapScheduler({
       supabase: makeMockSupabase(state), courseCode: 'spa_for_eng_v2', learnerId: 'u',
     })
     await s.initialize()
-    expect(state.queriedPodId).toBe('spa_for_eng_v2:pod-0')
+    expect(state.queriedPodId).toBe('spa_for_eng_v2:pod-1')
   })
 
-  // The pod-0 case above cannot tell resolution from FAILURE: `pod-0` is also
+  // The pod-1 cases above cannot tell resolution from FAILURE: `pod-1` is also
   // what resolveOnce answers when the query throws, and that is exactly how a
-  // missing `.or()` in this file's double hid a red pod-1 test behind a green
-  // pod-0 one (CI 2026-09-04). A slug nothing else can produce is the proof
-  // that the round-trip really happened.
+  // missing `.or()` in this file's double hid a red test behind a green one
+  // (CI 2026-09-04). A slug nothing else can produce is the proof that the
+  // round-trip really happened.
   it('serves a role-addressed pod on its own slug — proof the query ran, not the fallback', async () => {
     const state: MockState = {
       podSentences: [podSentence(1)],
       bookends: [bookendIntro, bookendOutro],
       enrollment: { pod_activation_round: 1, completed_pod_rounds: 0 },
       enrollmentUpdates: [],
-      pods: [{ slug: 'pod-0' }, { slug: 'senedd-s4c-steve', required_role: 'previewer_001' }],
+      pods: [{ slug: 'pod-1' }, { slug: 'senedd-s4c-steve', required_role: 'previewer_001' }],
     }
     const s = usePodLapScheduler({
       supabase: makeMockSupabase(state), courseCode: 'cym_n_for_eng', learnerId: 'u',

@@ -162,7 +162,7 @@ describe('lane: usePodLapScheduler', () => {
     const { client } = makeSupabase({
       listening_pod_sentences: [
         {
-          id: `${COURSE}:pod-0:1`,
+          id: `${COURSE}:pod-1:1`,
           global_order: 1,
           scene_number: 1,
           speaker: 'A',
@@ -248,7 +248,7 @@ describe('lane: listeningMetaCache offline snapshot', () => {
     const { client } = makeSupabase({
       listening_pod_sentences: [
         {
-          id: `${COURSE}:pod-0:1`,
+          id: `${COURSE}:pod-1:1`,
           global_order: 1,
           speaker: 'A',
           target_text: 'bonjour',
@@ -308,7 +308,7 @@ describe('lane: usePodStage0', () => {
     const { client } = makeSupabase({
       listening_pod_sentences: [
         {
-          id: `${COURSE}:pod-0:1`,
+          id: `${COURSE}:pod-1:1`,
           global_order: 1,
           speaker: 'A',
           target_text: 'bonjour',
@@ -334,7 +334,7 @@ describe('lane: usePodStage0', () => {
     // `error`, and without this the next missing filter reads as a null deref.
     expect(stage.error.value).toBeNull()
 
-    const main = stage.mainAudioFor(`${COURSE}:pod-0:1`)!
+    const main = stage.mainAudioFor(`${COURSE}:pod-1:1`)!
     expect(main.targetAudioId).toBe('clip-t1.v3')
     expect(main.knownAudioId).toBe('clip-known.v2')
     expect(main.explainerAudioId).toBe('clip-explainer.v2')

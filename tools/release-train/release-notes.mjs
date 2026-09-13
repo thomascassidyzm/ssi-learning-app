@@ -75,7 +75,7 @@ const DRAFT_CLOSE = '<!-- /release-notes:draft-only -->'
 
 // ── gate 1: kinds that are internal by construction ─────────────────────────
 
-const KIND_VETO = /^(docs?|apml|test|e2e|chore|build|ci|refactor|style|audit|security)[:(]/i
+const KIND_VETO = /^(docs?|apml|test|e2e|chore|build|ci|vercel|deploy|infra|refactor|style|audit|security)[:(]/i
 
 // ── gate 2: shipped-but-not-switched-on ─────────────────────────────────────
 // Code can be on main and invisible: dark behind a flag, stage/phase 1 of a series, shadow-mode
@@ -171,8 +171,8 @@ const JARGON_VETO = /\b(refactor|mirror|mirrored|emit|event contract|derives? fr
 // ── translation ─────────────────────────────────────────────────────────────
 
 // Strip the machinery a founder should never read: conventional-commit prefixes, commit shas,
-// file paths, spec section refs, parenthetical work-item codes, trailing rationale after an
-// em dash (the claim is what precedes it).
+// file paths, spec section refs, parenthetical work-item codes, job tags, trailing rationale after
+// an em dash (the claim is what precedes it).
 function claimOf(subject) {
   let s = subject
     .replace(/^[a-z]+(\([^)]*\))?:\s*/i, '')
@@ -180,6 +180,10 @@ function claimOf(subject) {
     .replace(/\([^)]*\b[0-9a-f]{7,40}\b[^)]*\)/g, '')
     .replace(/\b[0-9a-f]{7,40}\b/g, '')
     .replace(/\([^)]*\bM\d+[^)]*\)/g, '')
+    // Job tags — "(job #428)", "(jobs #494, #495)", a trailing ", job #428" — are estate bookkeeping
+    // the surface re-issues every few days, never learner words. One reached production 2026-09-13.
+    .replace(/\(\s*jobs?\s*#\d+(?:\s*,\s*#?\d+)*\s*\)/gi, '')
+    .replace(/[\s,;:—–-]*\bjobs?\s*#\d+(?:\s*,\s*#?\d+)*/gi, '')
     .replace(/\b[A-Z][A-Z-]+\.md\b|\b[\w/.-]+\.(md|ts|mjs|vue|sql|json)\b/g, '')
     .replace(/§[\d.–-]+/g, '')
     .replace(/`/g, '')
@@ -566,7 +570,8 @@ export function assertShape(body, rel = 'the notes') {
   if (headlines.length > MAX_HEADLINES) {
     problems.push(`  - ${headlines.length} headlines under "What's new" — the shape is at most ${MAX_HEADLINES}`)
   }
-  if (readmore.length > MAX_READMORE) {
+  // Exactly one — zero is off-shape too (cold-verify #462 found `>` alone let a fold-less note through).
+  if (readmore.length !== MAX_READMORE) {
     problems.push(`  - ${readmore.length} lines under "Other stuff and bug fixes" — the shape is exactly ` +
       `${MAX_READMORE}, by default "${READMORE_LINE}"`)
   }

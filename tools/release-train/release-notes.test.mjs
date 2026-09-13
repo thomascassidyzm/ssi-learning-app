@@ -108,6 +108,22 @@ test('generic bullets carry no hashes, paths or section refs', () => {
   }
 })
 
+test('a job tag never reaches a headline — "(job #428)" and "job #428" are both stripped', () => {
+  // The 2026-09-13 ship carried "…each with an offline-readiness chip (job #428)." to production.
+  // Job numbers are estate bookkeeping, not learner words; the surface re-issues them every few days.
+  const cases = [
+    'feat(player): pod cards at the top of Dialogues for every course (job #428)',
+    'fix(player): the Dialogues screen keeps its course cards, job #428',
+    'feat(schools): the schools dashboard shows every class (jobs #494, #495)',
+  ]
+  for (const subject of cases) {
+    const h = headlines([subject])
+    assert.equal(h.length, 1, subject)
+    assert.doesNotMatch(h[0], /\bjobs?\b|#\d+/i, h[0])
+    assert.match(h[0], /\.$/, 'still ends as a sentence: ' + h[0])
+  }
+})
+
 test('an untranslatable subject is dropped, never guessed at', () => {
   const n = notesFor(['fix(walkthrough): viewport-safe overlay on oversized anchors'])
   assert.ok(empty(n))
@@ -496,6 +512,18 @@ test('the finalise gate REJECTS an off-shape note, naming the bullet', () => {
     'notes/x.md'))
 })
 
+test('the finalise gate REJECTS a note with NOTHING below the fold — the shape is exactly one line', () => {
+  // Cold-verify #462: the gate only checked `> MAX_READMORE`, so a note with no "Other stuff and
+  // bug fixes" line at all passed. Exactly one means exactly one: zero is off-shape too.
+  const noFold = `## What's new\n\n- SSi Family is here.\n`
+  assert.throws(() => assertShape(noFold, 'notes/x.md'), /0 lines under "Other stuff and bug fixes"[\s\S]*exactly 1/)
+  const emptyFold = `## What's new\n\n- SSi Family is here.\n\n## Other stuff and bug fixes\n`
+  assert.throws(() => assertShape(emptyFold, 'notes/x.md'), /0 lines under "Other stuff and bug fixes"/)
+  assert.doesNotThrow(() => assertShape(
+    `## What's new\n\n- SSi Family is here.\n\n## Other stuff and bug fixes\n\n- ${READMORE_LINE}\n`,
+    'notes/x.md'))
+})
+
 test('every notes file from the ruling onward fits the shape, as it stands on disk', () => {
   // Notes SHIPPED before SHAPE_RULING_DATE predate Tom's ruling and are deliberately grandfathered
   // — rewriting the whole history of notes was not asked for. The real enforcement is the
@@ -570,4 +598,15 @@ test('the draft carries the per-item record in its coverage block, and the same 
   const stamped = finalizeBody(body, { shipDate: '2026-09-18', sha: 'c'.repeat(40), count: 2 })
   assert.doesNotMatch(stamped, /play button no longer/)
   assert.doesNotThrow(() => assertShape(stamped, 'notes/x.md'))
+})
+
+// Job #499: a `vercel:` config commit reached the 2026-09-13 notes as a headline — "Drop the
+// in-repo ignoreCommand so the dashboard Ignored Build Step is the one rule for preview builds" —
+// because "dashboard" satisfied the user-facing test. Deploy-config kinds are internal, like ci:.
+test('a vercel:/deploy:/infra: commit is an internal kind and never earns a bullet', () => {
+  assert.deepEqual(headlines([
+    'vercel: drop the in-repo ignoreCommand so the dashboard Ignored Build Step is the one rule for preview builds (job #460)',
+    'deploy: point the schools dashboard preview at the new region',
+    'infra: the player settings screen build runs on the dub1 region',
+  ]), [])
 })

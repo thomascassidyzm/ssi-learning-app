@@ -14,7 +14,7 @@ const BASE = process.env.BASE_URL || 'http://localhost:5174'
 const COURSE = 'ita_for_eng'
 const WATCH_MS = Number(process.env.WATCH_MS || 60_000)
 
-// Ground truth from listening_pod_sentences ita_for_eng:pod-0:SC01-S002 (2026-07-24)
+// Ground truth from listening_pod_sentences ita_for_eng:pod-1:SC01-S002 (2026-07-24)
 const NEW_TAKE = 'eadddadf-d661-4a5e-9502-b2115395b658' // full "Buongiorno. Come stai?"
 const NEW_SLICE = '333929bc-7479-47c8-a7cd-bcb5c36ca0dc' // "Come stai?" slice
 const NEW_SLICE_1 = 'd6502b3d-7f69-44e5-b8df-1d21a9dc8c7d' // "Buongiorno." slice

@@ -39,7 +39,7 @@ async function derive(c) {
     `select id from listening_pods where course_code = $1 and visibility = 'live'
        and slug = any($2::text[]) and (pod_type is null or pod_type = 'core')
      order by array_position($2::text[], slug) limit 1`,
-    [COURSE, ['pod-1', 'pod-0']],
+    [COURSE, ['pod-1']],
   )).rows[0]
   if (!pod) throw new Error('no served pod for ' + COURSE)
   const rows = (await c.query(

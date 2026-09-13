@@ -38,7 +38,7 @@
 
 import { openDB, deleteDB, type IDBPDatabase } from 'idb'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { resolveListeningPods, isListeningPodLookupDegraded, wasListeningSnapshotHealed, markListeningSnapshotHealed } from './servedPod'
+import { resolveListeningPods, isListeningPodLookupDegraded, wasListeningSnapshotHealed, markListeningSnapshotHealed, FALLBACK_POD_SLUG as SERVED_POD_SLUG } from './servedPod'
 import {
   type L1FallbackPhraseRow,
   computeSeedLastLegoIndex,
@@ -187,12 +187,11 @@ export interface CachedListeningMeta {
    *  servedPod), in global_order. Empty array = the course genuinely has no
    *  pod (a valid, downloaded state) — entry ABSENT means "never downloaded". */
   podRows: CachedPodRow[]
-  /** The serving slug `podRows` was fetched from — `pod-1` or `pod-0`. Pods
-   *  went 1-based on 2026-08-22, so the slug is no longer a constant and the
-   *  snapshot has to remember its own. Read back by servedPod's offline lane,
-   *  which is how a learner who downloaded Croatian at `pod-1` resolves it
-   *  offline with no round-trip. Absent on entries written before the flip →
-   *  those are `pod-0` snapshots by definition. */
+  /** The serving slug `podRows` was fetched from — `pod-1`. Read back by
+   *  servedPod's offline lane, which is how a learner who downloaded Croatian
+   *  resolves it offline with no round-trip. A snapshot written before the
+   *  2026-09-13 rename carries the retired slug and is mapped forward on read
+   *  by `forwardLegacyPodSlug`; absent on entries older than the field. */
   podSlug?: string
   /** `listening_pods.title` of the served pod — Listening Mode's group heading
    *  when the course lists more than one pod. Absent on older entries. */
@@ -309,13 +308,44 @@ export const getCachedListeningMeta = async (
       // A bare-key entry wins outright, but any legacy key left beside it is
       // dead weight — clear it so the scan stays cheap.
       void migrateLegacyEntryCleanup(db, courseCode)
-      return data
+      return forwardLegacyPodSlug(data)
     }
-    return await migrateLegacyEntry(db, courseCode)
+    return forwardLegacyPodSlug(await migrateLegacyEntry(db, courseCode))
   } catch (err) {
     console.warn('[ListeningMeta] read failed:', (err as any)?.message, err)
     return null
   }
+}
+
+/**
+ * The slug core pods carried before Tom's 2026-09-13 ruling retired it
+ * ("there is only pod-1 now"). Production renamed every pod, sentence id and
+ * progress row that day; the ONE place the old name may still turn up is a
+ * download snapshot written to a learner's device before the rename. This is
+ * the only reference to it in the app outside servedPod's migration note.
+ */
+const RETIRED_POD_SLUG = 'pod-0'
+const RETIRED_ID_SEGMENT = `:${RETIRED_POD_SLUG}:`
+
+/**
+ * Map a pre-rename snapshot forward so servedPod's offline lane (rule 1) does
+ * not drop it as a parked slug: the served slug becomes the one the server now
+ * serves, and every pod row id moves to the renamed segment so progress the
+ * scheduler files from this snapshot lands on the same ids the server
+ * migrated to. Pure; a snapshot on any other slug is returned untouched. Can
+ * be deleted once no device could still hold a snapshot from before
+ * 2026-09-13 — the content-stamp lane rewrites the entry on the next online
+ * boot, so that is a matter of weeks, not of releases.
+ */
+export const forwardLegacyPodSlug = <T extends CachedListeningMeta | null>(entry: T): T => {
+  if (!entry || entry.podSlug !== RETIRED_POD_SLUG) return entry
+  const renamed = (id: unknown) =>
+    typeof id === 'string' ? id.replace(RETIRED_ID_SEGMENT, `:${SERVED_POD_SLUG}:`) : id
+  return {
+    ...entry,
+    podSlug: SERVED_POD_SLUG,
+    podRows: (entry.podRows || []).map((r) => ({ ...r, id: renamed(r.id) as string })),
+  } as T
 }
 
 /** Delete legacy keys once a bare-key entry already exists. Never throws. */
@@ -354,10 +384,10 @@ const setCachedListeningMeta = async (meta: CachedListeningMeta): Promise<void> 
  * Called when a LIVE read reports the course has no pod sentences at all.
  * That is how unreleased Layer 2 content is held back: every learner-facing
  * pod path queries the exact id of the pod the course SERVES, and servedPod
- * will only ever serve `pod-1` or `pod-0` — so a pod parked on any other slug
- * (`pod-0-unrecorded`, `pod-0-gated-2026-08-06`) reads as "no pods yet" (the
- * Welsh pods were gated this way on 2026-08-06 — Aran and Catrin have not
- * recorded them). Without this, a
+ * will only ever serve `pod-1` — so a pod parked on any other slug
+ * (`unrecorded`, `gated-2026-08-06`) reads as "no pods yet" (the Welsh pods
+ * were gated this way on 2026-08-06 — Aran and Catrin have not recorded
+ * them). Without this, a
  * learner who downloaded the pod for offline use would keep replaying the
  * withdrawn snapshot forever, because the offline lane never re-checks.
  *

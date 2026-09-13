@@ -875,7 +875,7 @@ const exitPod = () => {
   readinessTick.value += 1
 }
 
-// A course whose pod-0 holds no sentences has no Dialogues to offer, so the
+// A course whose served pod holds no sentences has no Dialogues to offer, so the
 // tab is HIDDEN rather than shown leading to an empty shelf (Tom 2026-08-08:
 // the pod is hidden while it's ungated, never offered-but-empty). General
 // rule, not a per-course carve-out — any course in this state is covered.
@@ -1032,7 +1032,7 @@ const openScene = (scene) => {
       // inside its anchor row's card (glueLeadingInterjection joined it
       // there) — render it nowhere else, or it shows twice: once fused in
       // the anchor's active card, once again as its own dimmed row below
-      // (hrv pod-0 gloss-fidelity audit, ssi-dashboard-v7-clean 2026-07-14).
+      // (hrv core-pod gloss-fidelity audit, ssi-dashboard-v7-clean 2026-07-14).
       // buildPlayQueue already skips its audio the same way.
       //
       // DRILL ONLY. That fused strip exists in Drill and nowhere else, so in

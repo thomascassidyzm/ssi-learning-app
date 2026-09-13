@@ -1,3 +1,9 @@
+## 2026-09-13 — Pod-0 does not exist: every course's core listening pod is pod-1, and pods by topic carry their own names (job #512, Tom's ruling 14:44Z)
+
+Tom, verbatim, relayed by RBF: "Pod-0 does not exist anymore. There should be zero references to it in code or docs or briefs. There is only pod-1 now. And then pods by topic like Method Pod, Senedd Pod, Health Pod."
+
+This entry and the header of `packages/player-vue/src/composables/servedPod.ts` are the single migration note. What it means for this app: the resolver serves `pod-1` only and every unknown resolves to `pod-1` (never "no pods"); parked slugs are `unrecorded`, `gated-<date>` and `retired-<date>`, and rule 1 stays exactly as hard. The production data was renamed the same day, one transaction per course, learner progress and provenance pointers moving with it. Old ids in old data still carry the old segment; an offline snapshot written before the rename is mapped forward on read in `listeningMetaCache.forwardLegacyPodSlug` — the one place in the app the retired name may appear as live behaviour, and it can be deleted once no device could still hold such a snapshot. Applied-log JSONs under `docs/pod-position-audit/` are the record of writes that happened and keep their ids as written.
+
 ## 2026-09-13 — The schools dashboard grades nothing: class, school and student health stripped (job #494, Tom's ruling)
 
 **The ruling.** Tom, on his phone, looking at the classes page, 01:09Z: "Also what are these classifications and how did they arise? We don't make any attributions to any class performance. So this thinking isn't mine. The school admin wants time in app. And that's basically it." Watson proposed stripping the whole health layer; Tom at 12:28Z: "yes strip class grading." A softer flag was offered and declined, so no quiet-this-week marker replaces it.
@@ -1741,3 +1747,48 @@ drift test is the only thing standing between a learner and a stale translated s
 out under load, was fixed by job #482 on dev, keeping every assertion. That fix and this entry's four
 were cherry-picked onto staging and main as they stand, so the ways-in mirror reaches learners on
 production without promoting the unruled Listening Mode soak that staging carries.
+
+## 2026-09-13 — Promote staging→main: the schools grading strip reaches production (job #499)
+
+**Ruling (Tom, 13:29Z):** "Yes. And that's a push without ceremony, it's really a fix for schools
+only." The promote carried the whole of staging, as Watson told him it would: 63 commits,
+`951439ef3..8d3583777`, main now `1a5dc96bd`, live at saysomethingin.app from 14:06Z.
+
+**Two decisions taken on the way.** (1) `promote.sh` refused: main carried seven hotfix-lane
+cherry-picks (#460, #477, #482, #483, #484, #486) never back-merged, so main was not an ancestor of
+staging. Resolved by the hotfix lane's own rule — `--no-ff` back-merge of main into staging
+(`8d3583777`) and dev (`a810b233c`). One conflict, the `_minted` prose string in
+`i18n/pending-translation.json`, where staging's text was a superset; the merged trees were
+byte-identical to the pre-merge tips, which is what twin commits predict. Never rebase, never
+force. (2) The regenerated release notes led with a `vercel:` config commit as a learner headline
+because "dashboard" in its subject satisfied the user-facing gate. `vercel|deploy|infra` join
+`KIND_VETO`, with a proving test that fails on the old regex and passes on the new; the notes
+that shipped on main carry no such line. The pod-cards headline still carries "(job #428)" and
+the two grading bullets are terse — under-claiming, left alone by design.
+
+**Already on production before this ship:** the 20-minute support note (#477) via hotfix
+`f5321c274`. **Not in the range:** any "mode/belt stamping on play rows" commit — the phrase in
+the commission matches nothing in `main..staging`.
+
+## 2026-09-13 — Release notes hotfix in learner voice, and the generator closes three warts (job #506)
+
+**What shipped wrong.** The 2026-09-13 notes on production led with "Pod cards at the top of
+Dialogues, one per pod slot, each with an offline-readiness chip (job #428)." then two "Strip …
+grading" lines — a job tag and engineer words in learner-facing text, one headline duplicated, and
+the ship's most learner-facing change (Immersion lights the whole spoken line and walks with the
+voice, #479/#468/#470) absent altogether.
+
+**Ruling applied (Tom, 2026-09-12).** Three ONE-SENTENCE learner headlines, learner surfaces first,
+then EXACTLY one line below the fold. Hotfix to main (`1a647c8ec`, notes text only, no app code):
+Immersion line lighting / Dialogues pod cards with offline readiness / schools dashboard grades
+nothing. Back-merged to staging (fast-forward, staging = main) and dev (`0f4456e9e`, one add/add
+conflict on the notes file, resolved to main's text). Identical on all three.
+
+**Generator hardening, on dev, rides the next train.** (1) `vercel|deploy|infra` join `KIND_VETO`
+(#499's unmerged fix, landed). (2) `claimOf` strips job tags — "(job #428)", "(jobs #494, #495)",
+trailing ", job #428" — test fails on the old code. (3) `assertShape` requires the fold count to be
+EXACTLY `MAX_READMORE`, not merely `≤`: cold-verify #462 found a fold-less note passed. Test fails on
+the old code. Both on-disk notes since the ruling still fit.
+
+**Rule this re-states.** Hand-written headlines take the slots first; the generator's job is to
+make it impossible for bookkeeping to reach a learner, not to write the headlines.

@@ -37,13 +37,13 @@ describe('seguePodWithLayer1 — POD FIRST (Tom, 2026-09-01)', () => {
   })
 
   it('is pod-led even when the seed drill dwarfs the pod (the 164-clip case)', () => {
-    const lap = lapOf(...Array.from({ length: 9 }, (_, i) => podPlay(`pod-${i}`)))
+    const lap = lapOf(...Array.from({ length: 9 }, (_, i) => podPlay(`pod-${i + 1}`)))
     const cup = Array.from({ length: 164 }, (_, i) => l1Play(`seed-${i}`))
     const out = seguePodWithLayer1(lap, cup)
 
     // First thing the learner hears is dialogue, not drill.
-    expect(out.plays[0].audioId).toBe('pod-0')
-    expect(out.plays[8].audioId).toBe('pod-8')
+    expect(out.plays[0].audioId).toBe('pod-1')
+    expect(out.plays[8].audioId).toBe('pod-9')
     expect(out.plays[9].audioId).toBe('seed-0')
     expect(out.plays).toHaveLength(173)
   })

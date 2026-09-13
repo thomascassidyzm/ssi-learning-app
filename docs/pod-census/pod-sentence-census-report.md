@@ -42,9 +42,9 @@ Read-only census of `listening_pod_sentences` across every live `pod-1` row, run
 | swe_for_eng | 231 | 98 | 0 | 0 | 0 | 2 | 92 | 0 | 373 |
 | zho_for_eng | 231 | 0 | 0 | 0 | 0 | 0 | 62 | 74 | 373 |
 
-Note on `hrv_for_eng`: it stands out with E=78 (by far the highest) and F=37 (lowest among splittable courses), and 553 retired rows (3 generations — `pod-0-retired-2026-08-22`, `pod-1-retired-2026-08-22`, `pod-1-retired-2026-08-24` — one more retirement cycle than any other course). Worth a closer look separately; not otherwise explained by this census.
+Note on `hrv_for_eng`: it stands out with E=78 (by far the highest) and F=37 (lowest among splittable courses), and 553 retired rows (3 generations — `retired-2026-08-22`, `pod-1-retired-2026-08-22`, `pod-1-retired-2026-08-24` — one more retirement cycle than any other course). Worth a closer look separately; not otherwise explained by this census.
 
-Note on `deu_at_for_eng`: only course whose retired copy is a `pod-0` generation, not `pod-1` — so its F=86 rows could not be cross-checked against a same-generation retired snapshot (all 86 fall into "no retired copy found" or "never split", not "likely cleared"; see JSON for the exact split).
+Note on `deu_at_for_eng`: only course whose retired copy is a first-generation (`retired-2026-08-24`) pod, not a `pod-1-retired-*` one — so its F=86 rows could not be cross-checked against a same-generation retired snapshot (all 86 fall into "no retired copy found" or "never split", not "likely cleared"; see JSON for the exact split).
 
 ## Bucket B — TEXT-LOSS (the reported bug): empty
 
@@ -68,6 +68,6 @@ Evidence-verdict breakdown:
 ## Explicit gaps
 
 - **CJK/Devanagari text-loss (B) not determinable** for hin/jpn/kor/zho — see exclusion note above. If a text-loss check is needed for these, it must compare each split clip's stored `course_audio.text` (the `textById` path) rather than a punctuation-regex sentence count.
-- **`ara_sy_for_eng`** has no `pod-1` yet (only `pod-0` and a `pod-1-staged-2026-08-23`) — excluded from this census as it isn't live.
+- **`ara_sy_for_eng`** had no recorded pod-1 slate yet (only its original core pod, since renamed `pod-1`, and a `pod-1-staged-2026-08-23`) — excluded from this census as it isn't live.
 - **`deu_at_for_eng`** retired-copy cross-check is weaker than other courses (generation mismatch, see note above) — the 86 F-bucket rows there are not confidently attributable to today's event or not.
 - Course-code inference used `pod_id.split(':')[0]` (no dedicated `course_code` column on this table) — verified correct against the `fra_for_eng` live/retired pair (231/231 rows, identical `scene_number`/`sentence_number`/`global_order`) but not spot-checked for every course.

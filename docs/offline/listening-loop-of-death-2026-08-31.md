@@ -245,7 +245,7 @@ exactly what they meant.
 |---|---|---|---|---|---|
 | `spa_for_eng:pod-1` | 231 | 22 | **571** | **45.2 min** | **~10.3 MB** |
 | `fra_for_eng:pod-1` | 231 | 22 | 573 | 44.7 min | ~10.2 MB |
-| `pol_for_eng:pod-0` | 142 | 15 | 283 | 19.9 min | ~4.6 MB |
+| `pol_for_eng:pod-1` | 142 | 15 | 283 | 19.9 min | ~4.6 MB |
 | scene 1 only (spa) | 4 | 1 | 12 | 1.0 min | ~0.2 MB |
 
 **Pod 1 is the whole served pod, not its first scene.** `podSentences` is

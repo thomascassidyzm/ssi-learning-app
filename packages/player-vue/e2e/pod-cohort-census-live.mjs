@@ -63,7 +63,7 @@ for (const course of COURSES) {
   const { data, error } = await svc
     .from('listening_pod_sentences')
     .select('scene_number, speaker, target_text, glue_to_next, sentence_audio_ids')
-    .eq('pod_id', `${course}:pod-0`)
+    .eq('pod_id', `${course}:pod-1`)
     .order('global_order')
   if (error) { console.log(`SKIP ${course} :: ${error.message}`); continue }
   if (!data?.length) { console.log(`SKIP ${course} :: no pod rows`); continue }
