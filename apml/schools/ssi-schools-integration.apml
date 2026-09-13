@@ -3,8 +3,8 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.15.0"
-  date: "2026-09-13"   # isAdminView is a read-only flag, never a URL-tree selector; view-as writes no telemetry
+  version: "1.16.0"
+  date: "2026-09-13"   # view-as refuses at CREATION: cursor queue and pairings tally join player_events (#615)
   author: "Tom Cassidy"
   status: "draft"
 
@@ -79,7 +79,14 @@ principle AdminOnlySchoolWrites:
     writes are refused in the browser, tagged /api writes are refused on the
     server (actAsGuard — now including /api/player-events), and the player's
     telemetry buffer is dropped at source while viewing-as (sendBeacon never
-    passes the fetch guard).
+    passes the fetch guard). "At source" means at CREATION, not at the exit:
+    the fetch guard only holds while the overlay is on, so anything QUEUED
+    under view-as and flushed after Exit lands under the admin's own learner.
+    Three writers now refuse at creation: player_events (#607, Astra #606),
+    the mid-round cursor queue playback/cursorQueue.ts — a production probe
+    on 2026-09-13 caught its unmount flush PATCHing course_enrollments after
+    Exit (#615) — and the pairings tally, whose record_lego_pairings RPC the
+    fetch guard waves through as a read.
 
 principle ClassPlayFirst:
   statement: "Primary school use is whole-class smartboard sessions"
