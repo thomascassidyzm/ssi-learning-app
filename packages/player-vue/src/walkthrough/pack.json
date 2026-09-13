@@ -1,6 +1,6 @@
 {
-  "version": "8fab39ea15ff",
-  "generatedAt": "2026-09-12",
+  "version": "99893dba2503",
+  "generatedAt": "2026-09-13",
   "walks": [
     {
       "id": "choose-something-else-to-learn",
@@ -1784,7 +1784,7 @@
       "surface": "schools",
       "source": "packages/player-vue/src/views/schools/TeacherDashboard.vue",
       "walk": null,
-      "what": "Taking the class list away as a spreadsheet, with the name, language, belt, journey in LEGOs, minutes in the app this week, sessions, health and join code for every class.",
+      "what": "Taking the class list away as a spreadsheet, with the name, language, belt, journey in LEGOs, minutes in the app this week, sessions and join code for every class.",
       "where": "**My Classes**, the **Export CSV** button along the top.",
       "how": [
         "Open **My Classes**.",
@@ -1807,7 +1807,6 @@
         "sort",
         "search",
         "course",
-        "health",
         "classes"
       ],
       "place": {
@@ -1817,15 +1816,14 @@
       "surface": "schools",
       "source": "packages/player-vue/src/views/schools/TeacherDashboard.vue",
       "walk": null,
-      "what": "Narrowing a long list down to the classes you care about right now, by language or by how they are doing, and putting them in the order that answers your question.",
+      "what": "Narrowing a long list down to the classes you care about right now, by language, and putting them in the order that answers your question.",
       "where": "**My Classes**, the strip of pickers above the table.",
       "how": [
         "Open **My Classes**.",
         "Pick a language under **Course** to see only the classes learning it.",
-        "Pick a state under **Health** to pull out the classes that need attention.",
         "Change **Sort by** to order by time in app this week or by how far through the course each class has got. On a phone it is the first control, and the number you sorted by shows beside each class name."
       ],
-      "note": "The totals above the table follow the filter, so the minutes are always the total of what you are actually looking at. The table shows the first three of whatever the pickers produce; **Show all** under it shows the rest."
+      "note": "The table shows the first three of whatever the pickers produce; **Show all** under it shows the rest."
     },
     {
       "id": "find-out-which-email-you-are-signed-in-with",
@@ -2433,11 +2431,11 @@
       "where": "The **Students** page, the search box and filters above the list, then **View** on their row.",
       "how": [
         "Open **Students**.",
-        "Type part of their name in the search box, or narrow the list by class, belt or health.",
+        "Type part of their name in the search box, or narrow the list by class or belt.",
         "Read their row for belt, hours and last active.",
         "Tap **View** to open their own progress."
       ],
-      "note": "Health is worked out from their last visit and how they sit against their own class, so a learner marked as needing attention is one who has gone quiet or fallen behind the people beside them."
+      "note": "The row records what the learner has done and when they were last here. It makes no judgement about how they are doing."
     },
     {
       "id": "make-a-class",
@@ -2777,8 +2775,7 @@
         "overview",
         "belt",
         "minutes",
-        "time in app",
-        "health"
+        "time in app"
       ],
       "place": {
         "route": "classes"
@@ -2787,16 +2784,16 @@
       "surface": "schools",
       "source": "packages/player-vue/src/views/schools/TeacherDashboard.vue",
       "walk": null,
-      "what": "One row per class, showing at a glance how each one is doing. A class is one learner account, played from the front of the room, so every figure on the row is that account's own: the belt the class has reached, how far through the course it has travelled in LEGOs, minutes in the app this week, the shape of its last seven days, and a health mark for classes worth a look. Time in app is time with the lesson running, pauses included — the time the class was in the lesson. A class that has never played says **Not started** in words rather than showing a row of zeros.",
+      "what": "One row per class, showing at a glance what each one has done. A class is one learner account, played from the front of the room, so every figure on the row is that account's own: the belt the class has reached, how far through the course it has travelled in LEGOs, minutes in the app this week and the shape of its last seven days. Nothing on the row grades the class. Time in app is time with the lesson running, pauses included — the time the class was in the lesson. A class that has never played says **Not started** in words rather than showing a row of zeros.",
       "where": "**My Classes**, the table filling most of the page. On a phone each class is a card instead, with the number you sorted by beside its name and the rest underneath.",
       "how": [
         "Open **My Classes**.",
         "The first three classes show; tap **Show all** under the table for the rest, and **Show fewer** to fold them back.",
-        "Read down the health column first, because that is where the app is pointing you.",
+        "Read down the time in app column first, because minutes in the lesson are the figure the school runs on.",
         "Use the small chart in each row to see whether practice is steady or has stopped.",
         "Compare time in the app this week between classes taking the same course."
       ],
-      "note": "Health is worked out from how many of the last seven days the class practised on. A quiet week reads as needing eyes, which is a prompt for a word rather than a worry."
+      "note": "A quiet week shows as low minutes and a flat chart, nothing more. The app makes no judgement about how a class is doing."
     },
     {
       "id": "reading-one-student-s-progress",
@@ -3146,8 +3143,7 @@
         "compare",
         "search",
         "sort",
-        "export",
-        "health"
+        "export"
       ],
       "place": {
         "route": "schools-list"
@@ -3757,8 +3753,8 @@
       "surface": "schools",
       "source": "packages/player-vue/src/views/schools/TeacherDashboard.vue",
       "walk": null,
-      "what": "A row of small tiles under the health strip, one per year group: the phrases that year's classes practised this week and how many of them practised out of how many there are. It says in one glance which years are the school's engine and which have barely started.",
-      "where": "**My Classes**, the **By year group** card under the health tiles, once this week's practice has loaded.",
+      "what": "A row of small tiles under the page head, one per year group: the phrases that year's classes practised this week and how many of them practised out of how many there are. It says in one glance which years are the school's engine and which have barely started.",
+      "where": "**My Classes**, the **By year group** card under the page head, once this week's practice has loaded.",
       "how": [
         "Open **My Classes**.",
         "Read the big figure on each tile for phrases practised this week.",

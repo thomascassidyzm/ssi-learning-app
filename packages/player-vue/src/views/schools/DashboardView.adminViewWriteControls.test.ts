@@ -68,7 +68,7 @@ async function mountDashboard(isAdminView: boolean, scopeSource: 'self' | 'admin
       provide: { isAdminView },
       stubs: {
         Greeting: { template: '<div><slot name="action" /></div>' },
-        BeltDot: true, HealthDot: true, Bench: true, InviteLinkField: true,
+        BeltDot: true, Bench: true, InviteLinkField: true,
         RouterLink: { props: ['to'], template: '<a><slot /></a>' },
       },
     },

@@ -24,7 +24,7 @@ import { isDemoMode } from '@/composables/demo/demoMode'
 
 const opening = (ruling: string): string => ruling.replace(/\*\*/g, '').split(/\s+/).slice(0, 8).join(' ')
 
-const stubs = { BeltDot: true, BeltStrip: true, Bench: true, HealthDot: true, InviteLinkField: true, JourneyBar: true }
+const stubs = { BeltDot: true, BeltStrip: true, Bench: true, InviteLinkField: true, JourneyBar: true }
 
 async function mountAs(educationalRole: 'school_admin' | 'teacher') {
   const router = createRouter({

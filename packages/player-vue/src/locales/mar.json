@@ -832,13 +832,9 @@
     },
     "teacherDashboard": {
       "allCourses": "सर्व कोर्स",
-      "allFilterOption": "सर्व",
-      "coursePlural": "कोर्स",
-      "healthLabel": "आरोग्य",
       "retry": "पुन्हा प्रयत्न करा",
       "tableHeaderActivity": "क्रियाकलाप",
-      "tableHeaderBelt": "बेल्ट",
-      "tableHeaderHealth": "आरोग्य"
+      "tableHeaderBelt": "बेल्ट"
     },
     "teachers": {
       "accessCode": "अ‍ॅक्सेस कोड",
@@ -884,7 +880,6 @@
       "beltOrange": "नारिंगी",
       "beltWhite": "पांढरा",
       "beltYellow": "पिवळा",
-      "healthFilterLabel": "आरोग्य",
       "lastActiveNow": "आत्ता",
       "retryLabel": "पुन्हा प्रयत्न करा"
     },

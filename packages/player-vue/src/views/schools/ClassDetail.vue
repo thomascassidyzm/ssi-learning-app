@@ -17,7 +17,6 @@ import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { getSchoolsClient } from '@/composables/schools/client'
 import BeltDot from '@/components/schools/shared/BeltDot.vue'
 import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
-import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 import MailboxCheckPrompt from '@/components/schools/MailboxCheckPrompt.vue'
 import { useMailboxPrompt } from '@/composables/useMailboxPrompt'
@@ -35,8 +34,6 @@ import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 import { redeemLink } from '@/composables/schools/inviteLink'
 import { teacherPanelState, joinPanelState } from './classDetailPanels'
-
-type Health = 'excellent' | 'good' | 'needs-attention' | 'inactive'
 
 const router = useRouter()
 const route = useRoute()
@@ -105,24 +102,6 @@ function formatLastActive(dateStr: string | null): string {
   if (diffDays < 30) return `${diffDays}d`
   if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo`
   return `${Math.floor(diffDays / 365)}y`
-}
-
-function healthLabel(health: Health): string {
-  switch (health) {
-    case 'excellent': return t('schools.classDetail.healthExcellent', 'excellent')
-    case 'good': return t('schools.classDetail.healthGood', 'good')
-    case 'needs-attention': return t('schools.classDetail.healthNeedsAttention', 'needs attention')
-    case 'inactive': return t('schools.classDetail.healthInactive', 'inactive')
-  }
-}
-
-function deriveStudentHealth(seeds: number, lastActiveAt: string | null, classAvg: number): Health {
-  if (!lastActiveAt) return 'inactive'
-  const diffDays = Math.floor((Date.now() - new Date(lastActiveAt).getTime()) / 86400000)
-  if (diffDays > 14) return 'needs-attention'
-  if (classAvg > 0 && seeds < classAvg * 0.5) return 'needs-attention'
-  if (classAvg > 0 && seeds >= classAvg * 1.25 && diffDays <= 2) return 'excellent'
-  return 'good'
 }
 
 const classData = computed(() => {
@@ -219,7 +198,6 @@ const students = computed(() => {
       // MINUTES, never hours (Tom, 2026-09-11, job #265).
       practiceMinutes: Math.round(s.total_practice_minutes || 0),
       last_active_display: formatLastActive(s.last_active_at),
-      health: deriveStudentHealth(s.seeds_completed, s.last_active_at, avg),
     }
   })
 })
@@ -1278,10 +1256,6 @@ const mailboxPrompt = useMailboxPrompt()
                     <div class="avatar">{{ s.initials }}</div>
                     <div class="student-info">
                       <div class="student-name">{{ s.name }}</div>
-                      <div class="student-sub">
-                        <HealthDot :health="s.health" />
-                        <span>{{ healthLabel(s.health) }}</span>
-                      </div>
                     </div>
                   </div>
                 </td>

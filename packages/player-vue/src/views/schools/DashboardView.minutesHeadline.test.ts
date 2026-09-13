@@ -90,7 +90,7 @@ async function mountDashboard(opts: { rollup?: any; practiceStatus?: number; sco
       provide: { isAdminView: opts.scopeSource === 'admin-view' },
       stubs: {
         Greeting: { props: ['lines'], template: '<div><p>{{ lines }}</p><slot name="action" /></div>' },
-        BeltDot: true, HealthDot: true, Bench: true, InviteLinkField: true,
+        BeltDot: true, Bench: true, InviteLinkField: true,
         UpdatedStamp: true, CreateClassModal: true, ClassCreatedModal: true,
         RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
       },
