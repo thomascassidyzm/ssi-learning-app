@@ -188,6 +188,13 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
   const event = (type: string, payload?: Record<string, unknown>): void => {
     if (typeof type !== 'string' || type.length === 0) return
     if (buffer.length >= MAX_BUFFER) return // drop, never grow unbounded
+    // View-as: refused at CREATION, not only at flush. The flush guard below
+    // reads the flag when the batch leaves, so an event queued while
+    // viewing-as and flushed after the admin exited view-as went out under
+    // the admin's own learner (Astra cold-check #606 on the #602 fix). An
+    // event born under view-as is never a learner's event, so it is never
+    // buffered; the flush guard and the server 403 stay as belt and braces.
+    if (useUserRole().isViewingAs.value) return
 
     const learnerId = resolveLearnerId()
     const actorUserId = resolveActorUserId()
