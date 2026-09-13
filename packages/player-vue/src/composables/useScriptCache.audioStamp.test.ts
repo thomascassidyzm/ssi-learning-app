@@ -30,6 +30,9 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 vi.mock('./listeningMetaCache', () => ({
   refreshListeningMetaIfStale: vi.fn(async () => false),
+  // The stamp lane also writes a listening snapshot when the device has none
+  // (job #379); stub it too, or the call throws and the drop never happens.
+  ensureListeningMetaSnapshot: vi.fn(async () => false),
 }))
 
 import {

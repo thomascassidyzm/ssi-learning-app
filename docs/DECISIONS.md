@@ -1578,3 +1578,89 @@ clip texts and rewriting the snapshot on every advance for the rest of the sessi
 at most once per session per course, marked beside the degraded memo in `servedPod.ts` and cleared by
 the same reset. Snapshots written in the few-hours window before #424 that carry an unmarked empty
 `extraPods` are left alone; not worth code.
+
+## 2026-09-12 — Pod dialogue changeovers: a jump-in has no gap and overlaps; a turn keeps its gap (job #470)
+
+**The ruling.** Tom, listening to the Italian method pod in Immersion on staging: "The changeovers
+between speakers need to be different depending on whether the speakers are jumping in — in which
+there should be no gap, in fact it should be overlap if possible, but if not, at least no gap at
+all. Whereas genuine turn taking — asking or answering questions etc. — should be as they are now,
+with whatever gap they currently have. So it's more like a proper conversation." Popty (job #471)
+marks the line: `listening_pod_sentences.jump_in`, nullable boolean, true only for a line that
+interrupts; the app reads it on the same select it already makes and carries it as `jumpIn` on the
+sentence, the turn and the offline snapshot.
+
+**One rule file.** `playback/podChangeover.ts` owns the changeover. `changeoverGapMs` returns the
+overlay's pre-existing gaps for every turn, unchanged and pinned by test — 90 ms on a speaker
+change, 50 ms between one speaker's sentences in Immersion, 90 ms in Drill — and 0 for a jump-in in
+Immersion. `jumpInLeadMs` is the overlap: the previous clip's trailing silence, from its own word
+timings, plus 120 ms into its last word; 250 ms when the clip is untimed; never more than 700 ms or
+the clip itself. The untimed figure is measured, not guessed: the method pod's clips carry no word
+timings at all, and ffmpeg silencedetect at -45 dB on its 37 interrupted-line clips gives a trailing
+silence of 107 ms at the median, 203 at p90 and 300 at most, so 250 ms lands the interrupter about
+140 ms into the last audible word on a typical clip. Tom's "half a second before the interrupting
+voice is heard" was that trailing silence plus the 90 ms gap clip plus two src-swap latencies. Media time on both sides, so the playback speed cancels out.
+
+**Two elements, one hook.** The overlay's audio controller grows a second element used for a
+jump-in only. It is primed with a silent one-shot inside the learner's play tap, because iOS unlocks
+autoplay per element and per gesture. The row before a jump-in resolves the next clip's URL while it
+is still playing and hands `play()` a near-end hook: an rAF watch that starts the jump-in on the
+second element when the sounding clip is within its lead of the end. The next row adopts the clip
+already sounding. Where the platform refuses the early start, or rAF is frozen under a locked
+screen, the changeover lands on the zero-gap floor — no silence clip, URL already resolved, one src
+swap on the main element. Measured in a phone-viewport headless run of the method pod's scene 1:
+today's build on dev plays every changeover at 196–318 ms whether or not the line is a jump-in;
+this build plays a jump-in 165–194 ms BEFORE the previous clip ends and a turn at the same 249–342
+ms as before.
+
+**Drill is untouched, on purpose.** Drill plays each line as target · known · target · target, so
+the sound before a line is the third repetition of the previous line with its translation in
+between, not the other speaker's turn. An interruption of a drill rep is not a conversation.
+
+**A defect the trace exposed, fixed in the same controller.** The safety timeout that stops a clip
+from hanging the list was a flat 15 s, and it cut every pod line longer than that — the method
+pod's 19–20 s lines were skipped at 15 s on dev and staging with a "Safety timeout" warning, which
+also meant a jump-in after one of them could never overlap. The ceiling now scales with the clip's
+own duration at its rate plus five seconds, never less than 15 s.
+
+## 2026-09-13 — Immersion: an untimed line is lit in full from the moment its clip starts (job #479)
+
+**What Tom saw.** Italian method pod, Immersion, staging: "It illuminates JUST the first letter of
+a line / Then speaks the line / Then it emboldens the whole line that just spoke and the first
+letter of the next one / So it's offset by one." The desired state is the Spotify grammar the stack
+was built for (#408): the whole line being spoken lit, lines already said quiet, lines to come dim.
+
+**The cause was paint, not timing.** The tracker index was on the right line throughout — the
+probe on the pre-fix staging build shows the `.live` class moving line by line with the voice. But
+#468 implemented "no fill is painted inside an untimed lit line" as "no `--fill` set", and the
+timed gradient rule then painted that line at its default 0%: `--text-primary` for the first ~2% of
+the run, the dim for the rest. When the walk moved on the line turned `.said` (#6f6761, darker than
+the dim), so the eye read "the line that just spoke lit up, the next one shows a letter" — one line
+behind by appearance only.
+
+**The fix.** One CSS rule in `ListeningOverlay.vue`, after both timed gradient rules and one class
+heavier: `.breath-stack.untimed … .live .breath-fill` is `--text-primary`, no gradient, no
+background-clip. The timed stack is byte-identical and pinned by test. Proof:
+`ListeningOverlay.breathTracker.test.ts` #479 block, seen failing on the pre-fix source and passing
+after; `e2e/_479-untimed-live-line-probe.mjs` read the computed paint of every line per frame on
+staging before and dev after (`/d/c46c77c5`).
+
+## 2026-09-13 — Nightly red on dev, staging and main: four Friday-ship commits outran their tests (job #484)
+
+**What the nightly saw.** The 02:02 UTC run went red on all three learning-app branches with the
+same six failures in four files, one night after all three were green. Every cause is a commit in
+the 2026-09-12 ship that changed behaviour deliberately and left a test or a mirror behind.
+
+**The four causes, and what moved.** (1) Job #306 gave the ways-in walk a sixth step, "Tap Show
+all", and recompiled pack.json, but the hand-maintained English mirror in `locales/eng.json` still
+carried five — so the localised walk spoke the OLD ledger sentence. The mirror is regenerated from
+the pack; this is the one learner-facing fix. (2) Job #340 reordered the ten intel questions into
+the top bar's grouped order and the file's own header says the array order may move while `n` is
+fixed; the test asserted position. It now asserts the set of numbers. (3) Job #379 made the stamp
+lane also call `ensureListeningMetaSnapshot`; the audio-stamp test's mock of that module stubbed
+only the older function, so the call threw and the drop reported false. The mock stubs both.
+(4) Job #354 added `method-pod` to the bundle's slug allow-list as the third Listening Mode slot;
+the test pinned the old two-slug list. It pins the three.
+
+**Rule this re-states.** A walk edit is not done until `eng.json`'s mirror matches the pack — the
+drift test is the only thing standing between a learner and a stale translated sentence.
