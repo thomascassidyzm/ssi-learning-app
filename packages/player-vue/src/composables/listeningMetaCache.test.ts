@@ -26,6 +26,9 @@ import {
   isCachedListeningMetaStale,
   POD_CLIP_COLUMNS,
   readClipTimings,
+  snapshotListsEverySlot,
+  forwardPreFixServedPod,
+  type CachedListeningMeta,
 } from './listeningMetaCache'
 import { openDB } from 'idb'
 import { useListeningPods, type UseListeningPodsReturn } from './useListeningPods'
@@ -548,6 +551,115 @@ describe('useListeningPods offline fallback', () => {
     expect((await getCachedListeningMeta('cym_n_for_eng'))!.podRows).toEqual([])
     // the rest of the entry survives — Welsh Core content is still live
     expect((await getCachedListeningMeta('cym_n_for_eng'))!.coreSeeds.length).toBeGreaterThan(0)
+  })
+
+  // Job #553 (finishes #544). Between 2026-09-03 and 2026-09-13 the resolver
+  // put a role-addressed topic pod in the SERVED slot for its holder, so a
+  // snapshot written then for previewer_001 (Tom's own account) on Welsh
+  // Northern carries the Senedd pod as podSlug/podRows and no pod-1 at all.
+  // Nothing rewrote it: `extraPods: []` came from a live read, so the heal
+  // gate was satisfied, and the content stamp had not moved. Offline it
+  // listed the Senedd pod in the first slot, labelled "Pod 1" when the entry
+  // predated the title field. RECORDED RED on the pre-fix module: every case
+  // below failed — forwardPreFixServedPod did not exist, the offline read
+  // gave the Senedd scenes podIndex 0 / podSlug in slot one, and the heal
+  // returned false on the old shape.
+  describe('a pre-#544 snapshot with a role-addressed pod in the served slot (job #553)', () => {
+    const SENEDD_TITLE = 'Senedd: allegations of bullying at S4C (11 January 2024)'
+    const seneddRows = POD_ROWS.map((r) => ({ ...r, id: `cym_n_for_eng:senedd-s4c-steve:${r.id}` }))
+    const oldShape = (courseCode: string, withTitle: boolean): CachedListeningMeta => ({
+      courseCode,
+      cachedAt: 1,
+      contentStamp: 'stamp-1',
+      podSlug: 'senedd-s4c-steve',
+      ...(withTitle ? { podTitle: SENEDD_TITLE } : {}),
+      podRows: seneddRows as any,
+      extraPods: [],
+      clipTexts: {},
+      bookends: [],
+      fineKnowns: {},
+      coreSeeds: [],
+      legoCatalogue: [],
+    })
+    const seedOldShape = async (courseCode: string, withTitle = true) => {
+      const db = await openDB('ssi-listening-meta', 1, {
+        upgrade(d) { if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta') },
+      })
+      await db.put('meta', oldShape(courseCode, withTitle), courseCode)
+      db.close()
+    }
+    // The fixed resolver's answer for a holder: pod-1 for everyone, the
+    // Senedd pod as its own addressed row.
+    const cymClient = makeFakeClient({
+      ...happyRoutes,
+      listening_pods: () => ({
+        data: [
+          { slug: 'pod-1', title: 'Northern Welsh Listening Pods — Pod 1', pod_type: 'core' },
+          { slug: 'senedd-s4c-steve', title: SENEDD_TITLE, pod_type: 'choice', required_role: 'previewer_001' },
+        ],
+        error: null,
+      }),
+    })
+
+    it('maps forward on read: the served slot empties, the Senedd pod is an addressed extra under its own title', () => {
+      const out = forwardPreFixServedPod(oldShape('x', true))
+      expect(out.podSlug).toBeUndefined()
+      expect(out.podRows).toEqual([])
+      expect(out.extraPods).toEqual([{ slug: 'senedd-s4c-steve', title: SENEDD_TITLE, podRows: seneddRows, addressed: true }])
+      expect(out.preFixServedSlug).toBe('senedd-s4c-steve')
+      // a title-less entry (written before 2026-09-12) is named from its slug — never by the slot
+      expect(forwardPreFixServedPod(oldShape('x', false)).extraPods![0].title).toBe('Senedd s4c steve')
+    })
+
+    it('a real pod-1 found among the extras moves up; the demoted pod lists after the named extras', () => {
+      const entry = oldShape('x', true)
+      entry.extraPods = [
+        { slug: 'method-pod', title: 'Method', podRows: [] },
+        { slug: 'pod-1', title: 'Pod one', podRows: POD_ROWS as any },
+      ]
+      const out = forwardPreFixServedPod(entry)
+      expect(out.podSlug).toBe('pod-1')
+      expect(out.podTitle).toBe('Pod one')
+      expect(out.podRows).toEqual(POD_ROWS)
+      expect(out.extraPods!.map((e) => [e.slug, e.addressed])).toEqual([['method-pod', undefined], ['senedd-s4c-steve', true]])
+    })
+
+    it('a pod-1 snapshot is returned untouched and lists every slot', () => {
+      const entry: CachedListeningMeta = { ...oldShape('x', true), podSlug: 'pod-1', podTitle: 'Pod one' }
+      expect(forwardPreFixServedPod(entry)).toBe(entry)
+      expect(snapshotListsEverySlot(entry)).toBe(true)
+      expect(snapshotListsEverySlot(forwardPreFixServedPod(oldShape('x', true)))).toBe(false)
+    })
+
+    it('OFFLINE: the Senedd pod plays under its own title, never in the Pod 1 slot', async () => {
+      await seedOldShape('cym_old_offline')
+      vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+      const { pods, flush } = mountPods(failAll, 'cym_old_offline')
+      await flush()
+      expect(pods.error.value).toBeNull()
+      expect(pods.scenes.value.length).toBeGreaterThan(0)          // nothing downloaded goes dark
+      for (const scene of pods.scenes.value) {
+        expect(scene.podId).toBe('cym_old_offline:senedd-s4c-steve')
+        expect(scene.podTitle).toBe(SENEDD_TITLE)
+        expect(scene.podIndex).not.toBe(0)                        // not the served slot
+      }
+      expect(pods.scenes.value.some((s) => s.podId.endsWith(':pod-1'))).toBe(false)
+    })
+
+    it('ONLINE: the heal refetches the old shape once, and the rewritten entry lists pod-1 first', async () => {
+      await seedOldShape('cym_old_online')
+      resetServedPodCache()
+      expect(await ensureListeningMetaSnapshot(cymClient, 'cym_old_online')).toBe(true)
+      const healed = (await getCachedListeningMeta('cym_old_online'))!
+      expect(healed.podSlug).toBe('pod-1')
+      expect(healed.podTitle).toBe('Northern Welsh Listening Pods — Pod 1')
+      expect(healed.extraPods!.map((e) => [e.slug, e.title, e.addressed])).toEqual([['senedd-s4c-steve', SENEDD_TITLE, true]])
+      expect(healed.preFixServedSlug).toBeUndefined()
+      // and never again: the healed entry is a pod-1 entry from a live read
+      expect(await ensureListeningMetaSnapshot(cymClient, 'cym_old_online')).toBe(false)
+      resetServedPodCache()
+      expect(await ensureListeningMetaSnapshot(cymClient, 'cym_old_online')).toBe(false)
+    })
   })
 
   it('shows the explicit not-downloaded message offline with no cache — never the raw TypeError', async () => {
