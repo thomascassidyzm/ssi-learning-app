@@ -390,6 +390,43 @@ describe('role-addressed topic pods (rule 5, job #544)', () => {
  * import, and the "main flow still answers pod-1" case was the one that
  * mattered — it passes before AND after, which is the point of it.
  */
+describe('the Senedd pod opened to every Welsh (Northern) learner (Tom, 2026-09-13 20:31Z; job #605)', () => {
+  const TITLE = 'Senedd: allegations of bullying at S4C (11 January 2024)'
+  const OPEN = [
+    { slug: 'pod-1', pod_type: 'core', title: 'Northern Welsh Listening Pods — Pod 1' },
+    { slug: 'senedd-s4c-steve', pod_type: 'choice', required_role: null, title: TITLE },
+    { slug: 'gated-2026-08-06', pod_type: 'core', title: 'parked' },
+  ]
+
+  it('a PLAIN learner lists pod-1 FIRST, then the Senedd pod under its own title, once required_role is NULL', async () => {
+    // RECORDED RED on the pre-fix module: with the role cleared the pod matched
+    // neither the served slot nor the role arm, and the list was ['pod-1'] —
+    // the pod had vanished for everyone, Steve included.
+    const { resolveListeningPods } = await import('./servedPod')
+    const { client } = makeClient(OPEN)
+    const pods = await resolveListeningPods(client, 'cym_n_for_eng')
+    expect(pods.map((p) => p.podId)).toEqual(['cym_n_for_eng:pod-1', 'cym_n_for_eng:senedd-s4c-steve'])
+    expect(pods[0].title).toBe('Northern Welsh Listening Pods — Pod 1')
+    expect(pods[1].title).toBe(TITLE)
+    expect(pods[1].addressed).toBeUndefined()
+  })
+
+  it('MAIN FLOW still plays pod-1 and never the topic pod', async () => {
+    const { client } = makeClient(OPEN)
+    expect((await resolveServedPod(client, 'cym_n_for_eng')).slug).toBe('pod-1')
+  })
+
+  it('a holder whose role row outlives the release still sees it ONCE, not twice', async () => {
+    const { resolveListeningPods } = await import('./servedPod')
+    const { client } = makeClient([
+      OPEN[0],
+      { slug: 'senedd-s4c-steve', pod_type: 'choice', required_role: 'previewer_001', title: TITLE },
+    ])
+    const pods = await resolveListeningPods(client, 'cym_n_for_eng')
+    expect(pods.map((p) => p.slug)).toEqual(['pod-1', 'senedd-s4c-steve'])
+  })
+})
+
 describe('resolveListeningPods — the third slot (rule 6)', () => {
   const ITA = [
     { slug: 'pod-1', title: 'Pod 1 — Italian dialogues' },
@@ -423,12 +460,13 @@ describe('resolveListeningPods — the third slot (rule 6)', () => {
 
   it('never lists a pod on an un-named slug, even if the server sent it (closed allow-list)', async () => {
     const { pickListeningExtras, LISTENING_EXTRA_POD_SLUGS } = await import('./servedPod')
-    expect(LISTENING_EXTRA_POD_SLUGS).toEqual(['method-pod'])
+    expect(LISTENING_EXTRA_POD_SLUGS).toEqual(['method-pod', 'senedd-s4c-steve'])
     expect(
       pickListeningExtras([
         { slug: 'unrecorded', title: 'parked' },
         { slug: 'travel-situations', title: 'choice' },
         { slug: 'method-pod', title: 'method', pod_type: 'choice' }, // wrong type
+        { slug: 'senedd-s4c-steve', title: 'senedd', pod_type: 'core' }, // wrong type
       ]),
     ).toEqual([])
     expect(pickListeningExtras([{ slug: 'method-pod', title: 'method' }])).toEqual([

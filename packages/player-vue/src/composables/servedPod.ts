@@ -104,9 +104,27 @@ export const SERVING_POD_SLUGS = ['pod-1'] as const
 /**
  * Extra slots LISTENING MODE lists after the served pod (rule 6). A closed
  * allow-list of NAMED slugs, exactly like rule 1 — never a fall-through. Main
- * flow never reads this list.
+ * flow never reads this list. Each slug carries the ONE pod_type it may hold
+ * (LISTENING_EXTRA_POD_TYPE): a row on a named slug of any other type is
+ * ignored even if the server sent it.
+ *
+ *  - `method-pod` (core): the Italian method pod (Tom, 2026-09-12, job #354).
+ *  - `senedd-s4c-steve` (choice): the Senedd/S4C pod, opened to EVERY Welsh
+ *    (Northern) learner by Tom's release ruling of 2026-09-13 20:31Z (job
+ *    #605). While it named a role it reached its holders through rule 5; with
+ *    `required_role` NULL a `choice` pod on its own slug matches neither the
+ *    served slot nor the role arm, so it is listed here or it is listed
+ *    nowhere — for Steve too. Not in the offline bundle (api/courses/[code]/
+ *    bundle.ts keeps its own closed list): 567 lines is a download-size call
+ *    nobody has made, so it listens online, exactly as it did for its holders.
  */
-export const LISTENING_EXTRA_POD_SLUGS = ['method-pod'] as const
+export const LISTENING_EXTRA_POD_SLUGS = ['method-pod', 'senedd-s4c-steve'] as const
+
+/** The pod_type each named extra slot must carry to be listed. */
+export const LISTENING_EXTRA_POD_TYPE: Record<(typeof LISTENING_EXTRA_POD_SLUGS)[number], 'core' | 'choice'> = {
+  'method-pod': 'core',
+  'senedd-s4c-steve': 'choice',
+}
 
 /** What every unknown resolves to — the served pod's own name (rule 2). */
 export const FALLBACK_POD_SLUG = 'pod-1'
@@ -259,9 +277,10 @@ export interface ListeningExtra {
 /**
  * Which extra pods do these rows carry? Pure. Two sources, in this order:
  *
- *  - the NAMED extra slugs, in allow-list order — only a core pod on a named
- *    slug counts, so a row on any other slug is ignored even if the server
- *    sent it (this is a gate in its own right, not a mirror of the query);
+ *  - the NAMED extra slugs, in allow-list order — only a pod of that slug's
+ *    own type (LISTENING_EXTRA_POD_TYPE) on a named slug counts, so a row on
+ *    any other slug, or of the wrong type, is ignored even if the server sent
+ *    it (this is a gate in its own right, not a mirror of the query);
  *  - then every ROLE-ADDRESSED pod (rule 5), on any slug and of any type,
  *    ordered by `pod_order` then slug so the list is stable. The server has
  *    already decided this reader holds the role; a null/empty role is not
@@ -274,9 +293,18 @@ export const pickListeningExtras = (
   const out: ListeningExtra[] = []
   for (const slug of LISTENING_EXTRA_POD_SLUGS) {
     const hit = list.find(
-      (r) => r.slug === slug && (r.pod_type == null || r.pod_type === 'core'),
+      (r) => r.slug === slug && (r.pod_type == null || r.pod_type === LISTENING_EXTRA_POD_TYPE[slug]),
     )
-    if (hit) out.push({ slug, title: typeof hit.title === 'string' ? hit.title : null })
+    // A named slot the server sent on the strength of a role (the Senedd pod
+    // between its 16:17Z release to holders and its 20:31Z opening to all) is
+    // still recorded as addressed: the snapshot keeps it for that holder.
+    if (hit) {
+      out.push({
+        slug,
+        title: typeof hit.title === 'string' ? hit.title : null,
+        ...(isAddressed(hit) ? { addressed: true as const } : {}),
+      })
+    }
   }
   const named = new Set(out.map((e) => e.slug))
   const addressed = list
@@ -396,7 +424,8 @@ const resolveListeningOnce = async (
   }
 
   // One round-trip: the named extra slots plus the served pod's own title
-  // (a closed `.in()` on named core slugs), OR any pod that names a role
+  // (a closed `.in()` on named slugs, core or choice — the per-slug type is
+  // re-checked by pickListeningExtras), OR any pod that names a role
   // (rule 5) — that arm carries no slug or pod_type filter on purpose: a
   // topic pod addressed to a person may live on any slug, and RLS, not this
   // query, is what makes it invisible to everyone else. Both arms are
@@ -412,7 +441,7 @@ const resolveListeningOnce = async (
         .select('slug, title, pod_type, pod_order, required_role')
         .eq('course_code', courseCode)
         .or(
-          `required_role.not.is.null,and(pod_type.eq.core,slug.in.(${[...LISTENING_EXTRA_POD_SLUGS, served.slug].join(',')}))`,
+          `required_role.not.is.null,and(pod_type.in.(core,choice),slug.in.(${[...LISTENING_EXTRA_POD_SLUGS, served.slug].join(',')}))`,
         ),
     )
   } catch {
