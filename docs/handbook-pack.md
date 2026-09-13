@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `8fab39ea15ff` · generated 2026-09-12 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `45e3c6697b09` · generated 2026-09-13 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -386,7 +386,7 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `way
 
 Section: running-classes · roles: school_admin, teacher · anchor: `classes-export` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
 
-**What it's for.** Taking the class list away as a spreadsheet, with the name, language, belt, journey in LEGOs, minutes in the app this week, sessions, health and join code for every class.
+**What it's for.** Taking the class list away as a spreadsheet, with the name, language, belt, journey in LEGOs, minutes in the app this week, sessions and join code for every class.
 
 **Where it is.** **My Classes**, the **Export CSV** button along the top.
 
@@ -401,16 +401,15 @@ Section: running-classes · roles: school_admin, teacher · anchor: `classes-exp
 
 Section: running-classes · roles: school_admin, teacher · anchor: `classes-filters` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
 
-**What it's for.** Narrowing a long list down to the classes you care about right now, by language or by how they are doing, and putting them in the order that answers your question.
+**What it's for.** Narrowing a long list down to the classes you care about right now, by language, and putting them in the order that answers your question.
 
 **Where it is.** **My Classes**, the strip of pickers above the table.
 
 1. Open **My Classes**.
 2. Pick a language under **Course** to see only the classes learning it.
-3. Pick a state under **Health** to pull out the classes that need attention.
-4. Change **Sort by** to order by time in app this week or by how far through the course each class has got. On a phone it is the first control, and the number you sorted by shows beside each class name.
+3. Change **Sort by** to order by time in app this week or by how far through the course each class has got. On a phone it is the first control, and the number you sorted by shows beside each class name.
 
-**Worth knowing.** The totals above the table follow the filter, so the minutes are always the total of what you are actually looking at. The table shows the first three of whatever the pickers produce; **Show all** under it shows the rest.
+**Worth knowing.** The table shows the first three of whatever the pickers produce; **Show all** under it shows the rest.
 
 ## Find out which email you are signed in with
 
@@ -832,17 +831,17 @@ Section: your-own-account · roles: leader, school_admin · anchor: `account-ins
 
 Section: running-classes · roles: school_admin, teacher · anchor: `classes-table` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
 
-**What it's for.** One row per class, showing at a glance how each one is doing. A class is one learner account, played from the front of the room, so every figure on the row is that account's own: the belt the class has reached, how far through the course it has travelled in LEGOs, minutes in the app this week, the shape of its last seven days, and a health mark for classes worth a look. Time in app is time with the lesson running, pauses included — the time the class was in the lesson. A class that has never played says **Not started** in words rather than showing a row of zeros.
+**What it's for.** One row per class, showing at a glance what each one has done. A class is one learner account, played from the front of the room, so every figure on the row is that account's own: the belt the class has reached, how far through the course it has travelled in LEGOs, minutes in the app this week and the shape of its last seven days. Nothing on the row grades the class. Time in app is time with the lesson running, pauses included — the time the class was in the lesson. A class that has never played says **Not started** in words rather than showing a row of zeros.
 
 **Where it is.** **My Classes**, the table filling most of the page. On a phone each class is a card instead, with the number you sorted by beside its name and the rest underneath.
 
 1. Open **My Classes**.
 2. The first three classes show; tap **Show all** under the table for the rest, and **Show fewer** to fold them back.
-3. Read down the health column first, because that is where the app is pointing you.
+3. Read down the time in app column first, because minutes in the lesson are the figure the school runs on.
 4. Use the small chart in each row to see whether practice is steady or has stopped.
 5. Compare time in the app this week between classes taking the same course.
 
-**Worth knowing.** Health is worked out from how many of the last seven days the class practised on. A quiet week reads as needing eyes, which is a prompt for a word rather than a worry.
+**Worth knowing.** A quiet week shows as low minutes and a flat chart, nothing more. The app makes no judgement about how a class is doing.
 
 ## Reading one student's progress
 
@@ -1260,9 +1259,9 @@ Section: seeing-progress · roles: leader, school_admin, teacher · anchor: `cla
 
 Section: running-classes · roles: school_admin, teacher · anchor: `classes-year-groups` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
 
-**What it's for.** A row of small tiles under the health strip, one per year group: the phrases that year's classes practised this week and how many of them practised out of how many there are. It says in one glance which years are the school's engine and which have barely started.
+**What it's for.** A row of small tiles under the page head, one per year group: the phrases that year's classes practised this week and how many of them practised out of how many there are. It says in one glance which years are the school's engine and which have barely started.
 
-**Where it is.** **My Classes**, the **By year group** card under the health tiles, once this week's practice has loaded.
+**Where it is.** **My Classes**, the **By year group** card under the page head, once this week's practice has loaded.
 
 1. Open **My Classes**.
 2. Read the big figure on each tile for phrases practised this week.
