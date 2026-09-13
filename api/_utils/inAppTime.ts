@@ -203,7 +203,10 @@ export function spansFromDiary(rows: DiaryPlayRow[], opts: SessioniseOptions = {
 
   for (const r of sorted) {
     if (r.kind === 'tap_play') {
-      if (open) finish(Math.min(open.lastEnd, r.t), 'tap_play')
+      // A play tap while a span is open: the stop was missed. Close at the
+      // last audio-ended point — named 'tap_play' when the tap came within the
+      // guard of it, 'silence' when the audio had long gone quiet.
+      if (open) finish(Math.min(open.lastEnd, r.t), r.t <= open.lastEnd + guard ? 'tap_play' : 'silence')
       open = { start: r.t, lastEnd: r.t, mode: 'main', openedBy: 'tap_play', lastEndFrom: 'tap', lastAudioId: null, clips: 0, votes: new Map() }
       continue
     }
