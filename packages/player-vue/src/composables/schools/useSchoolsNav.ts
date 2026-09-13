@@ -28,12 +28,24 @@ export function useSchoolsNav() {
   const isAdminView = inject<boolean>('isAdminView', false)
   const route = useRoute()
 
+  // WHICH TREE a link belongs to is decided by where the caller is standing,
+  // never by `isAdminView`. That flag means "read-only browse" and is provided
+  // as true by TWO shells: the ssi_admin drill-in read-views under
+  // /admin/schools/:id, AND the member /schools shell while an admin is
+  // viewing-as a persona. Under view-as the admin estate is deliberately
+  // unreachable (canAccessAdmin is false), so a link built for
+  // /admin/schools/undefined/classes/:id was bounced by the admin route guard
+  // to the learner home — the class row that "opened the player" (job #602,
+  // staging, 2026-09-13). The route path cannot lie about which shell rendered
+  // it, so it decides.
+  const onAdminTree = () => String(route.path ?? '').startsWith('/admin/')
+
   // `schoolId` overrides the route's own :id — used by the govt-admin
   // drill-into-a-school-within-my-group view (DashboardView's
   // selectSchoolToView/viewingSchool), which needs the SCHOOL's id, not the
   // group id in the group-scope route.
   function schoolsLink(kind: SchoolsNavKind, params?: { classId?: string; schoolId?: string }): string {
-    if (!isAdminView) {
+    if (!onAdminTree()) {
       switch (kind) {
         case 'classes': return '/schools/classes'
         case 'class-detail': return `/schools/classes/${params?.classId ?? ''}`

@@ -117,6 +117,50 @@ export interface UseSubscriptionReturn {
   isPlatformAdmin: Ref<boolean>
 }
 
+// A RENEWING PAYER OFFLINE STAYS A PAYER ACROSS THE ROLLOVER (job #549).
+// Tom's rulings: 2026-07-10 "definitely do NOT favour security over paying
+// user experience"; 2026-09-12, job #378, "a payer offline stays a payer".
+// `currentPeriodEnd` is only the end of the CURRENT period. For a subscription
+// set to renew, Paddle extends it by webhook at the rollover and the app learns
+// of the new end only from the next successful /api/subscription answer. A
+// device offline across that instant — a flight, a holiday, a train — still
+// holds the old end in its mirror, so without a grace the learner drops to the
+// free preview and is offered a plan they already pay for, until they next get
+// online. So a renewing subscription is treated as paid for this long past
+// its recorded period end. Seven days covers Paddle's dunning/retry window
+// and any realistic offline stretch; a real cancellation or a failed payment
+// reaches the device as a status change on the next online refresh, which
+// overwrites the mirror and ends the grace at once. A subscription with
+// `cancelAtPeriodEnd` set, or any status other than 'active', ends exactly at
+// `currentPeriodEnd`, as job #540 has it — there is no renewal to wait for.
+// UI-only: the server-side content gate is unchanged by this constant.
+export const RENEWAL_GRACE_MS = 7 * 24 * 60 * 60 * 1000
+
+// How often the entitlement clock re-checks the paid period's end while the
+// app is simply open. Coarse on purpose: the resume-shaped events below catch
+// a device waking from sleep at once, so this only bounds how long a period
+// end can go unnoticed on a screen that never sleeps or changes tab.
+const CLOCK_TICK_MS = 60 * 1000
+
+/**
+ * Wire the reactive clock to the moments a stale "still paid" answer would
+ * otherwise survive: a coarse interval for a screen left open, and the
+ * resume-shaped events (tab shown, window focused, bfcache restore, network
+ * back) for a device that slept through the period end. Lives for the life of
+ * the page — the composable is a module singleton, not a component — so there
+ * is nothing to tear down. No-op outside a browser (SSR, node tests).
+ */
+function installClockTicks(tick: () => void): void {
+  if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return
+  setInterval(tick, CLOCK_TICK_MS)
+  if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+    document.addEventListener('visibilitychange', tick)
+  }
+  window.addEventListener('focus', tick)
+  window.addEventListener('pageshow', tick)
+  window.addEventListener('online', tick)
+}
+
 // ============================================================================
 // COMPOSABLE
 // ============================================================================
@@ -142,25 +186,50 @@ export function useSubscription(): UseSubscriptionReturn {
   // unauthenticated fetch never quietly grants anybody the admin treatment.
   const isPlatformAdmin = ref(false)
 
+  // THE CLOCK IS A DEPENDENCY (Astra refutation of job #378, confirmed
+  // 2026-09-13). `isSubscribed` and `hasFreeAccess` compare an end date against
+  // "now", but a Vue computed re-runs only when a REACTIVE dependency changes
+  // and `new Date()` is not one. So a period that read "ends in 30 minutes" at
+  // boot stayed `true` for as long as `subscription.value` was left alone —
+  // and offline it is left alone forever, because the refresh fetch fails and
+  // never rewrites the ref. A lapsed payer kept paid content across
+  // navigation, resume and every timer tick until the next full reload.
+  // `clock` is bumped on a coarse interval and on every resume-shaped event,
+  // the two computeds read it, and the comparison itself uses Date.now() at
+  // evaluation so the answer is exact whenever it is recomputed.
+  const clock = ref(Date.now())
+  const tickClock = () => { clock.value = Date.now() }
+  installClockTicks(tickClock)
+
   // Computed
   const isSubscribed = computed(() => {
+    void clock.value
     if (!subscription.value) return false
     if (subscription.value.status !== 'active') return false
 
-    // Check if within active period
+    // Check if within the paid period. A subscription that is set to renew
+    // gets RENEWAL_GRACE_MS past its recorded end (see the constant); one that
+    // is ending, or a mirror written by the cancel path, ends exactly there.
     if (subscription.value.currentPeriodEnd) {
-      const periodEnd = new Date(subscription.value.currentPeriodEnd)
-      if (periodEnd < new Date()) return false
+      const periodEnd = new Date(subscription.value.currentPeriodEnd).getTime()
+      if (!Number.isNaN(periodEnd)) {
+        const grace = subscription.value.cancelAtPeriodEnd ? 0 : RENEWAL_GRACE_MS
+        if (periodEnd + grace < Date.now()) return false
+      }
     }
 
     return true
   })
 
+  // No renewal grace here: a funded-org grant is a FIXED-TERM gift
+  // (org_enrolments.free_access_until — "their year", api/_utils/orgFreeAccess.ts),
+  // nothing renews it, so its end is its end.
   const hasFreeAccess = computed(() => {
+    void clock.value
     const until = freeAccess.value?.until
     if (!until) return false
     const ends = new Date(until)
-    return !Number.isNaN(ends.getTime()) && ends > new Date()
+    return !Number.isNaN(ends.getTime()) && ends.getTime() > Date.now()
   })
 
   const status = computed((): SubscriptionStatus => {

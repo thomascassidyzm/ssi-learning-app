@@ -27,6 +27,34 @@ role-holders.
 title, once required_role is NULL" — recorded RED on the pre-fix resolver (list was `['pod-1']`),
 GREEN after; plus main-flow-untouched and listed-once-for-a-lingering-holder. 63/63 across
 servedPod and listeningMetaCache.
+## 2026-09-13 — Under View-as, a class row opens the class; the link tree follows the route, and a view-as player writes no telemetry (job #602)
+
+**Decision.** `useSchoolsNav.schoolsLink` decides which URL tree a link belongs to from the route
+the caller is standing on — a path under `/admin/` gets the ssi_admin read-view links, anything
+else gets the member `/schools` links. The `isAdminView` provide keeps exactly one meaning,
+read-only browse, and is never read as "I am on the admin tree". Alongside: `usePlayerLog` drops
+its buffer while an admin is viewing-as, and `/api/player-events` refuses the `X-Ssi-View-As`
+header through the existing `actAsGuard`.
+
+**Why.** SchoolsContainer provides `isAdminView=true` under view-as so every write control hides
+for free, but `schoolsLink` used the same flag to choose the `/admin/schools/:id` tree, and on
+`/schools/classes` there is no `:id`, so a class row built `/admin/schools/undefined/classes/<id>`.
+The admin route guard bounces that to `/` because admin access is deliberately off while
+viewing-as, which is the "class row opens the player" Tom saw on staging at 23:52. The
+"Your course was updated" toast was a stale flag from an earlier background revalidation of
+his own course, consumed because the player mounted; it is not a write. The player that
+mounted DID write: `course_enrollments` upsert and patch on the admin's own learner were
+refused in the browser by the fetch guard, but the telemetry flush inserted `player_events`
+rows (`infplay_enter`, `cold_start`, `infplay_exit`) under the admin's own learner
+`81987d60-0c00-4553-8a36-79f83cdf1774` — the endpoint ignored the header and `sendBeacon`
+never passes through the fetch guard. Better: the class opens in place and view-as writes
+nothing anywhere. Simpler: the route is the truth for which shell rendered the link, one flag
+keeps one meaning. Cheaper: three small edits, no new state.
+
+**Proof.** `useSchoolsNav.test.ts` (red on pre-fix code with exactly the production URL,
+green after), `usePlayerLog.test.ts` view-as case and `api/player-events.test.ts` view-as case
+(both red before, green after). Reproduced and re-verified on staging with
+`e2e/_602-viewas-class-row-probe.mjs`.
 
 ## 2026-09-13 — Listening Mode: a pod line never spoken in the target language shows its known text as the line (job #591)
 
@@ -49,6 +77,19 @@ words in the ear. Core / All rows are untouched — a seed row always has target
 
 **Proof.** `podLineText.test.ts` fails on the pre-fix template and passes after; probe
 `$CS_SCRATCH/senedd-probe.mjs` shot the blank card on production before the fix.
+
+**Premise correction (Tom, 21:06Z) and the accounting, verified against the live DB.** Tom's read was
+that these lines should already have Welsh text and an Aran take, and that the display fix was
+papering over a dropped pointer. Checked line by line: (1) row 70 has Welsh text ("embedio", Aran's
+proofread of 11 Sep) and an Aran take on file (clip `2edfb987`, 11 Sep 14:57) — but that take reads
+the PRE-proofread wording "gwreiddio", so it does not match the row's text and must not be linked;
+the booth already lists row 70 as Aran's one remaining unrecorded line under the new wording, so
+his next read closes it with no manual link. (2) Rows 79 and 82 have never had Welsh text: the
+11 Sep snapshot says "no Welsh text yet", the audit log shows no edit since the 3 Sep import,
+Kai's 10 Sep translation pass did not cover them, and no clip of any Welsh for them exists. That is
+a translation gap for Kai, then a read for Aran — not a link. The #569/#590 wrong-voice rows (1,
+42, 47, 60, 518, 531, 534, 565) are different rows. So the display rule stays as the fallback for a
+genuinely untranslated line, which is exactly what 79 and 82 are today.
 
 ## 2026-09-13 — A pre-#544 offline snapshot maps forward on read and heals once online: the Senedd pod is never "Pod 1" offline either (job #553, orchestrator's decision under BSC, finishes #544)
 
@@ -1807,3 +1848,97 @@ drift test is the only thing standing between a learner and a stale translated s
 out under load, was fixed by job #482 on dev, keeping every assertion. That fix and this entry's four
 were cherry-picked onto staging and main as they stand, so the ways-in mirror reaches learners on
 production without promoting the unruled Listening Mode soak that staging carries.
+
+## 2026-09-13 — Promote staging→main: the schools grading strip reaches production (job #499)
+
+**Ruling (Tom, 13:29Z):** "Yes. And that's a push without ceremony, it's really a fix for schools
+only." The promote carried the whole of staging, as Watson told him it would: 63 commits,
+`951439ef3..8d3583777`, main now `1a5dc96bd`, live at saysomethingin.app from 14:06Z.
+
+**Two decisions taken on the way.** (1) `promote.sh` refused: main carried seven hotfix-lane
+cherry-picks (#460, #477, #482, #483, #484, #486) never back-merged, so main was not an ancestor of
+staging. Resolved by the hotfix lane's own rule — `--no-ff` back-merge of main into staging
+(`8d3583777`) and dev (`a810b233c`). One conflict, the `_minted` prose string in
+`i18n/pending-translation.json`, where staging's text was a superset; the merged trees were
+byte-identical to the pre-merge tips, which is what twin commits predict. Never rebase, never
+force. (2) The regenerated release notes led with a `vercel:` config commit as a learner headline
+because "dashboard" in its subject satisfied the user-facing gate. `vercel|deploy|infra` join
+`KIND_VETO`, with a proving test that fails on the old regex and passes on the new; the notes
+that shipped on main carry no such line. The pod-cards headline still carries "(job #428)" and
+the two grading bullets are terse — under-claiming, left alone by design.
+
+**Already on production before this ship:** the 20-minute support note (#477) via hotfix
+`f5321c274`. **Not in the range:** any "mode/belt stamping on play rows" commit — the phrase in
+the commission matches nothing in `main..staging`.
+
+## 2026-09-13 — Release notes hotfix in learner voice, and the generator closes three warts (job #506)
+
+**What shipped wrong.** The 2026-09-13 notes on production led with "Pod cards at the top of
+Dialogues, one per pod slot, each with an offline-readiness chip (job #428)." then two "Strip …
+grading" lines — a job tag and engineer words in learner-facing text, one headline duplicated, and
+the ship's most learner-facing change (Immersion lights the whole spoken line and walks with the
+voice, #479/#468/#470) absent altogether.
+
+**Ruling applied (Tom, 2026-09-12).** Three ONE-SENTENCE learner headlines, learner surfaces first,
+then EXACTLY one line below the fold. Hotfix to main (`1a647c8ec`, notes text only, no app code):
+Immersion line lighting / Dialogues pod cards with offline readiness / schools dashboard grades
+nothing. Back-merged to staging (fast-forward, staging = main) and dev (`0f4456e9e`, one add/add
+conflict on the notes file, resolved to main's text). Identical on all three.
+
+**Generator hardening, on dev, rides the next train.** (1) `vercel|deploy|infra` join `KIND_VETO`
+(#499's unmerged fix, landed). (2) `claimOf` strips job tags — "(job #428)", "(jobs #494, #495)",
+trailing ", job #428" — test fails on the old code. (3) `assertShape` requires the fold count to be
+EXACTLY `MAX_READMORE`, not merely `≤`: cold-verify #462 found a fold-less note passed. Test fails on
+the old code. Both on-disk notes since the ruling still fit.
+
+**Rule this re-states.** Hand-written headlines take the slots first; the generator's job is to
+make it impossible for bookkeeping to reach a learner, not to write the headlines.
+
+## 2026-09-13 — Subscription expiry: the #540 clock fix stands, and a renewing payer gets a 7-day grace across the billing rollover (job #549)
+
+**What #540 got right and keeps.** `isSubscribed` and `hasFreeAccess` now depend on a reactive
+clock, so a paid period that ends while the app is open fails closed instead of surviving in a
+cached computed until the next reload. That stands untouched.
+
+**What it got wrong.** `currentPeriodEnd` is only the end of the CURRENT period. For a
+subscription set to renew, Paddle extends it by webhook at the rollover and the app learns the
+new end only from the next successful `/api/subscription` answer. A device offline across that
+instant still holds the old end in its mirror, so the computed dropped an auto-renewing payer to
+the free preview — premium past seed 19 locked, Settings offering a plan they already pay for —
+until they next got online. That is exactly the lock-out Tom ruled against, twice: 2026-07-10
+"definitely do NOT favour security over paying user experience"; 2026-09-12, job #378, "a payer
+offline stays a payer".
+
+**Ruling applied.** `RENEWAL_GRACE_MS` (7 days, exported from `useSubscription.ts`): a
+subscription with status `active` and `cancelAtPeriodEnd` false is treated as paid for seven days
+past its recorded period end. Seven days covers Paddle's dunning/retry window and any realistic
+offline stretch; a real cancellation or failed payment reaches the device as a status change on
+the next online refresh, which overwrites the mirror and ends the grace at once. A subscription
+with `cancelAtPeriodEnd` set, or any status other than `active`, ends exactly at
+`currentPeriodEnd` as #540 has it — there is no renewal to wait for. `hasFreeAccess` stays exact:
+a funded-org grant is a fixed-term gift (`org_enrolments.free_access_until`, "their year"), nothing
+renews it. UI-only flag; the 30-day offline lease, `useEntitlement` and the server-side content
+gate are unchanged.
+
+**Proof.** `useSubscription.renewalGrace.test.ts`: (a) renewing, one day past the end, offline →
+still paid — red on the pre-fix code, green after; (b) eight days past → not paid; (c) cancelling,
+one minute past → not paid; (d) an online answer with a new period end overwrites the mirror and
+wins. The #540 tests stay green.
+## 2026-09-13 — A role-addressed topic pod is its own Listening Mode card, never the served pod (job #544)
+
+**Decision.** Topic pods (the Senedd pod, `cym_n_for_eng:senedd-s4c-steve`, role-restricted to
+`previewer_001`) sit ALONGSIDE pod-1 in Listening Mode as their own cards, titled from their own
+`listening_pods.title`, pod-1 first, topic pods after. They never replace pod-1, and main flow
+never reads them: `resolveServedPod` is rule 1 only. A plain learner sees exactly what they saw
+before, because RLS returns them no role row and the extras query is re-gated client-side.
+
+**Why.** Rule 5 as first written promoted the addressed pod INTO the served slot, so for its
+holders the Senedd pod appeared as a nameless "Pod 1" and the real pod-1 vanished (job #539
+probes). Better: holders get both pods, each under its own name. Simpler: one list rule, no
+slot override, main flow untouched. Cheaper: same single round-trip, the role arm moved from
+the main-flow query to the Listening Mode query.
+
+**Landing.** `18ef7424e` on dev and staging; cherry-picked onto main as `f934a3942` together
+with the pod-0 retirement resolver commit (job #512) it depends on, rather than promoting the
+whole of staging — the subscription-entitlement work (#540, #549) stays on staging for Tom's
+own promotion. Verified live on staging and production as a role-holder and as a plain learner.

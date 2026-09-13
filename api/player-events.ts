@@ -18,6 +18,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from './_utils/auth'
 import { applyCors } from './_utils/cors'
 import { resolveVisibleScope } from './_utils/schoolScope'
+import { rejectIfViewAs } from './_utils/actAsGuard'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -237,6 +238,17 @@ export default async function handler(
   if (applyCors(req, res, { methods: 'POST' })) return
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  // View-as is read-only end to end (api/_utils/actAsGuard.ts). A player
+  // mounted while an ssi_admin is viewing-as flushes telemetry under the
+  // admin's own bearer; the client tags that fetch with X-Ssi-View-As, and
+  // this refuses it so no player_events row is written from an impersonation
+  // view (job #602). The client also drops the batch at source, which is what
+  // covers the header-less sendBeacon path.
+  const viewAsReject = rejectIfViewAs(req)
+  if (viewAsReject) {
+    return res.status(viewAsReject.status).json({ error: viewAsReject.error })
   }
 
   if (!supabaseServiceKey) {

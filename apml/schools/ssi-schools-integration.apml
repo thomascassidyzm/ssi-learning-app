@@ -3,8 +3,8 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.14.0"
-  date: "2026-09-09"   # belonging to a school is the admin's act, not a property of an address
+  version: "1.15.0"
+  date: "2026-09-13"   # isAdminView is a read-only flag, never a URL-tree selector; view-as writes no telemetry
   author: "Tom Cassidy"
   status: "draft"
 
@@ -65,6 +65,21 @@ principle AdminOnlySchoolWrites:
     school-profile fields + Billing tab, and TeachersView's invite/remove
     controls, are all gated on isSchoolAdmin (2026-07-16 fix). Matches the
     existing isAdminView (ssi_admin read-only browse) hiding pattern.
+
+  read_only_flag_is_not_a_tree: |
+    `isAdminView` means READ-ONLY BROWSE and nothing else. It is provided as
+    true by two shells — the ssi_admin drill-in read-views under
+    /admin/schools/:id AND the member /schools shell while an admin is
+    viewing-as a persona. Which URL tree a link belongs to is decided by the
+    route the caller stands on (useSchoolsNav: path under /admin/ → admin
+    read-view links, otherwise member /schools links), never by the flag.
+    Job #602 (2026-09-13): reading the flag as "I am on the admin tree" built
+    /admin/schools/undefined/classes/:id under view-as, which the admin route
+    guard bounced to the learner home. View-as writes nothing: Supabase REST
+    writes are refused in the browser, tagged /api writes are refused on the
+    server (actAsGuard — now including /api/player-events), and the player's
+    telemetry buffer is dropped at source while viewing-as (sendBeacon never
+    passes the fetch guard).
 
 principle ClassPlayFirst:
   statement: "Primary school use is whole-class smartboard sessions"

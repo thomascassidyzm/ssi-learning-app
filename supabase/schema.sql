@@ -3318,11 +3318,9 @@ dead_stubs AS (
 ),
 served AS (
   -- The pod each course actually SERVES, as the learner path resolves it:
-  -- pod-1 first, else pod-0 (public.serving_pod). It used to be the literal
-  -- `pod-0`, which reported the 22 courses moved across by Tom's 1-based ruling
-  -- of 2026-08-22 as having no pod at all. Sibling slugs (pod-0-unrecorded,
-  -- pod-0-gated-*, every retired pod) are invisible to learners and are still
-  -- counted separately, as staging pods.
+  -- `pod-1` (public.serving_pod). Parked slugs (`unrecorded`, `gated-<date>`,
+  -- every retired pod) are invisible to learners and are still counted
+  -- separately, as staging pods.
   SELECT
     p.course_code,
     p.id                                                            AS pod_id,
@@ -3432,25 +3430,9 @@ courses_json AS (
       'voices_of_record',  coalesce(a.voices_of_record, '[]'::jsonb),
       -- Per-course pod state: still the right unit for "can a learner play THIS
       -- course's pod", and the WRONG unit for costing a render. See pods_by_language.
-      -- `pod_0` is the ORIGINAL KEY AND STILL LIVE — every reader of it keeps
-      -- working and now gets the right answer for a pod-1 course instead of
-      -- {exists:false}. `serving_pod` is the same object under the name that is
-      -- true after Tom's 1-based ruling, and it alone carries the slug.
+      -- Per-course pod state: still the right unit for "can a learner play THIS
+      -- course's pod", and the WRONG unit for costing a render. See pods_by_language.
       'serving_pod', CASE WHEN p.pod_id IS NULL THEN jsonb_build_object('exists', false)
-        ELSE jsonb_build_object(
-          'exists',            true,
-          'pod_id',            p.pod_id,
-          'slug',              p.slug,
-          'slots',             p.slots,
-          'target_linked',     p.target_linked,
-          'target_empty',      p.slots - p.target_linked,
-          'target_dead_stubs', p.target_dead_stubs,
-          'known_linked',      p.known_linked,
-          'known_empty',       p.slots - p.known_linked,
-          'known_dead_stubs',  p.known_dead_stubs,
-          'draft_lines',       p.draft_lines
-        ) END,
-      'pod_0', CASE WHEN p.pod_id IS NULL THEN jsonb_build_object('exists', false)
         ELSE jsonb_build_object(
           'exists',            true,
           'pod_id',            p.pod_id,
@@ -3480,7 +3462,6 @@ pods_json AS (
   SELECT jsonb_agg(jsonb_build_object(
     'lang',                      lang,
     'courses_with_serving_pod',  courses,
-    'courses_with_pod_0',        courses,   -- original key, kept live
 
     'slots_per_course_counting', slots_per_course_counting,
     'distinct_lines',            distinct_lines_per_language,
@@ -7347,6 +7328,37 @@ COMMENT ON COLUMN public.board_snapshots.created_by IS 'auth uid (learners.user_
 
 
 --
+-- Name: bug_reports; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.bug_reports (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    learner_id uuid,
+    auth_user_id text,
+    body text NOT NULL,
+    screenshot_url text,
+    course_code text,
+    "position" jsonb,
+    device jsonb,
+    app_version text,
+    app_shell text,
+    deployment_env text,
+    recent_events jsonb,
+    route text,
+    shape_key text,
+    posted_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE bug_reports; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.bug_reports IS 'The learner postbox: one-way bug reports with diagnostics attached. No reply path by Tom''s ruling of 2026-09-12; posted_at is the poller''s idempotency key.';
+
+
+--
 -- Name: build_jobs; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -8411,6 +8423,7 @@ CREATE TABLE public.course_audio (
     audio_revision integer DEFAULT 1 NOT NULL,
     clip_id uuid,
     rerecord_wanted jsonb,
+    word_timings jsonb,
     CONSTRAINT course_audio_origin_check CHECK ((origin = ANY (ARRAY['tts'::text, 'human'::text]))),
     CONSTRAINT course_audio_role_check CHECK ((role = ANY (ARRAY['known'::text, 'target1'::text, 'target2'::text, 'presentation'::text, 'welcome'::text, 'encouragement'::text, 'instruction'::text, 'bookend_listen_intro'::text, 'bookend_listen_outro'::text, 'pod_explainer'::text, 'pod_fine_known'::text, 'pod_take_g'::text])))
 )
@@ -8506,6 +8519,13 @@ COMMENT ON COLUMN public.course_audio.clip_id IS 'The canonical clip this course
 --
 
 COMMENT ON COLUMN public.course_audio.rerecord_wanted IS 'Non-destructive "this take needs redoing" flag, any content type. Routed to a recordist queue by voice_gender. NULL = nothing wanted. Never mutates the existing clip (Tom 2026-08-14).';
+
+
+--
+-- Name: COLUMN course_audio.word_timings; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.course_audio.word_timings IS 'Per-word timings for the clip, seconds: {source, words[], starts[], ends[]} of equal length in playback order. Written at Cartesia pod mint (Tom, 2026-09-12); NULL for xAI/human/untimed clips. Served to the player as wordTimings.';
 
 
 --
@@ -11162,7 +11182,8 @@ CREATE TABLE public.listening_pod_sentences (
     target_text_approved_by text,
     target_text_review jsonb,
     variant_key text,
-    attach_sentence_number integer
+    attach_sentence_number integer,
+    jump_in boolean
 );
 
 
@@ -11290,6 +11311,13 @@ COMMENT ON COLUMN public.listening_pod_sentences.variant_key IS 'NULL = this row
 --
 
 COMMENT ON COLUMN public.listening_pod_sentences.attach_sentence_number IS 'For a continuation: the sentence_number of the BASE walk row, within this row''s own scene_number, that the flow branches from. NULL on every base row.';
+
+
+--
+-- Name: COLUMN listening_pod_sentences.jump_in; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.listening_pod_sentences.jump_in IS 'true = this line jumps in on the previous speaker (no gap / overlap); false = a genuine turn; NULL = not yet annotated, plays as a turn. Rule: services/shared/pod-jump-in-rule.cjs (Tom, 2026-09-12).';
 
 
 --
@@ -12232,15 +12260,15 @@ CREATE VIEW public.serving_pod AS
     slug,
     id AS pod_id
    FROM public.listening_pods p
-  WHERE ((slug = ANY (ARRAY['pod-1'::text, 'pod-0'::text])) AND ((pod_type IS NULL) OR (pod_type = 'core'::text)))
-  ORDER BY course_code, (array_position(ARRAY['pod-1'::text, 'pod-0'::text], slug));
+  WHERE ((slug = 'pod-1'::text) AND ((pod_type IS NULL) OR (pod_type = 'core'::text)))
+  ORDER BY course_code;
 
 
 --
 -- Name: VIEW serving_pod; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON VIEW public.serving_pod IS 'Which listening pod each course serves, resolved — pod-1 first, else pod-0, core pods only. The SQL half of the rule that lives in src/lib/servingPod.js and player-vue servedPod.ts. Never hardcode a slug against listening_pods; join this.';
+COMMENT ON VIEW public.serving_pod IS 'Which listening pod each course serves, resolved — pod-1, core pods only (Tom, 2026-09-13: there is only pod-1). The SQL half of the rule that lives in tools/pods/serving-slug.cjs and player-vue servedPod.ts. Never hardcode a slug against listening_pods; join this.';
 
 
 --
@@ -12429,37 +12457,6 @@ CREATE TABLE public.support_settings (
 --
 
 COMMENT ON TABLE public.support_settings IS 'The support loop''s tunables. clip_threshold: how many distinct people must hit a handbook gap before it is on the clip list.';
-
-
---
--- Name: bug_reports; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bug_reports (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    learner_id uuid,
-    auth_user_id text,
-    body text NOT NULL,
-    screenshot_url text,
-    course_code text,
-    "position" jsonb,
-    device jsonb,
-    app_version text,
-    app_shell text,
-    deployment_env text,
-    recent_events jsonb,
-    route text,
-    shape_key text,
-    posted_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
---
--- Name: TABLE bug_reports; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.bug_reports IS 'The learner postbox: one-way bug reports with diagnostics attached. No reply path by Tom''s ruling of 2026-09-12; posted_at is the poller''s idempotency key.';
 
 
 --
@@ -13387,6 +13384,14 @@ ALTER TABLE ONLY public.board_snapshots
 
 ALTER TABLE ONLY public.board_snapshots
     ADD CONSTRAINT board_snapshots_share_code_key UNIQUE (share_code);
+
+
+--
+-- Name: bug_reports bug_reports_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bug_reports
+    ADD CONSTRAINT bug_reports_pkey PRIMARY KEY (id);
 
 
 --
@@ -15035,6 +15040,20 @@ CREATE UNIQUE INDEX audio_pass_requests_one_pending_per_course ON public.audio_p
 --
 
 CREATE INDEX audio_pass_requests_status_idx ON public.audio_pass_requests USING btree (status, created_at);
+
+
+--
+-- Name: bug_reports_shape_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX bug_reports_shape_created ON public.bug_reports USING btree (shape_key, created_at);
+
+
+--
+-- Name: bug_reports_unposted; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX bug_reports_unposted ON public.bug_reports USING btree (created_at) WHERE (posted_at IS NULL);
 
 
 --
@@ -17814,6 +17833,14 @@ ALTER TABLE ONLY public.audio_repair_candidates
 
 
 --
+-- Name: bug_reports bug_reports_learner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bug_reports
+    ADD CONSTRAINT bug_reports_learner_id_fkey FOREIGN KEY (learner_id) REFERENCES public.learners(id) ON DELETE SET NULL;
+
+
+--
 -- Name: build_jobs build_jobs_course_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -19393,6 +19420,12 @@ CREATE POLICY authenticated_read_own_dashboard_user ON public.dashboard_users FO
 --
 
 ALTER TABLE public.board_snapshots ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: bug_reports; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.bug_reports ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: build_jobs; Type: ROW SECURITY; Schema: public; Owner: -
@@ -22608,6 +22641,13 @@ GRANT ALL ON TABLE public.audio_repair_candidates TO service_role;
 --
 
 GRANT ALL ON TABLE public.board_snapshots TO service_role;
+
+
+--
+-- Name: TABLE bug_reports; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.bug_reports TO service_role;
 
 
 --
