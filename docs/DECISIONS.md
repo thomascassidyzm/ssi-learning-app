@@ -1664,3 +1664,25 @@ from hanging the list was a flat 15 s, and it cut every pod line longer than tha
 pod's 19–20 s lines were skipped at 15 s on dev and staging with a "Safety timeout" warning, which
 also meant a jump-in after one of them could never overlap. The ceiling now scales with the clip's
 own duration at its rate plus five seconds, never less than 15 s.
+
+## 2026-09-13 — Immersion: an untimed line is lit in full from the moment its clip starts (job #479)
+
+**What Tom saw.** Italian method pod, Immersion, staging: "It illuminates JUST the first letter of
+a line / Then speaks the line / Then it emboldens the whole line that just spoke and the first
+letter of the next one / So it's offset by one." The desired state is the Spotify grammar the stack
+was built for (#408): the whole line being spoken lit, lines already said quiet, lines to come dim.
+
+**The cause was paint, not timing.** The tracker index was on the right line throughout — the
+probe on the pre-fix staging build shows the `.live` class moving line by line with the voice. But
+#468 implemented "no fill is painted inside an untimed lit line" as "no `--fill` set", and the
+timed gradient rule then painted that line at its default 0%: `--text-primary` for the first ~2% of
+the run, the dim for the rest. When the walk moved on the line turned `.said` (#6f6761, darker than
+the dim), so the eye read "the line that just spoke lit up, the next one shows a letter" — one line
+behind by appearance only.
+
+**The fix.** One CSS rule in `ListeningOverlay.vue`, after both timed gradient rules and one class
+heavier: `.breath-stack.untimed … .live .breath-fill` is `--text-primary`, no gradient, no
+background-clip. The timed stack is byte-identical and pinned by test. Proof:
+`ListeningOverlay.breathTracker.test.ts` #479 block, seen failing on the pre-fix source and passing
+after; `e2e/_479-untimed-live-line-probe.mjs` read the computed paint of every line per frame on
+staging before and dev after (`/d/c46c77c5`).
