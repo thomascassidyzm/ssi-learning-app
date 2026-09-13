@@ -1792,3 +1792,22 @@ the old code. Both on-disk notes since the ruling still fit.
 
 **Rule this re-states.** Hand-written headlines take the slots first; the generator's job is to
 make it impossible for bookkeeping to reach a learner, not to write the headlines.
+
+## 2026-09-13 — A role-addressed topic pod is its own Listening Mode card, never the served pod (job #544)
+
+**Decision.** Topic pods (the Senedd pod, `cym_n_for_eng:senedd-s4c-steve`, role-restricted to
+`previewer_001`) sit ALONGSIDE pod-1 in Listening Mode as their own cards, titled from their own
+`listening_pods.title`, pod-1 first, topic pods after. They never replace pod-1, and main flow
+never reads them: `resolveServedPod` is rule 1 only. A plain learner sees exactly what they saw
+before, because RLS returns them no role row and the extras query is re-gated client-side.
+
+**Why.** Rule 5 as first written promoted the addressed pod INTO the served slot, so for its
+holders the Senedd pod appeared as a nameless "Pod 1" and the real pod-1 vanished (job #539
+probes). Better: holders get both pods, each under its own name. Simpler: one list rule, no
+slot override, main flow untouched. Cheaper: same single round-trip, the role arm moved from
+the main-flow query to the Listening Mode query.
+
+**Landing.** `18ef7424e` on dev and staging; cherry-picked onto main as `f934a3942` together
+with the pod-0 retirement resolver commit (job #512) it depends on, rather than promoting the
+whole of staging — the subscription-entitlement work (#540, #549) stays on staging for Tom's
+own promotion. Verified live on staging and production as a role-holder and as a plain learner.
