@@ -309,3 +309,56 @@ export function textLinesForSentence(sentenceText: string, cap: number = TEXT_LI
   if (lines.length < 2) return null
   return lines
 }
+
+// ── Untimed stacks: an ESTIMATED walk from the clip's own length (job #468) ─
+//
+// Tom, on staging, 2026-09-12: "The method pod doesn't seem to be loading
+// line by line." It was stacking (six lines cut from the text) but not
+// WALKING: xAI renders carry no word timings, so #430's stack was layout
+// only, every line the same colour, and at phone type sizes a static stack
+// of wrapped lines is the block of text again. Line-by-line needs a clock,
+// and the only clock an untimed clip has is its own length.
+//
+// So the lines are apportioned across the clip's DURATION by how much
+// speech each carries, and the lit line walks at that estimate. Two
+// weights, measured rather than guessed on 145 timed ita/spa pod sentence
+// clips (Azure word boundaries, 2026-09-12): speech runs at 14 letters a
+// second at the median (p25 10.6, p75 15.2); the pause after a sentence
+// ender is 1.4 s at the median, ~20 letters' worth, and the pause at a
+// clause mark is 60-180 ms, one or two letters' worth. So a line's span is
+// its letters, a sentence end adds a 20-letter silence after it and a clause
+// mark two; the estimate drifts by at most a fraction of a line across a
+// long turn and re-anchors on every clip. It is an ESTIMATE: it lights the
+// LINE being spoken and never paints a fill inside it — that precision the
+// clip has not earned. Nothing here changes what is heard.
+//
+// Timings are FRACTIONS of the clip (0..1), so the caller scales the clock
+// by the element's own duration and trackPosition() walks them unchanged.
+
+const SPEECH_CHARS = /[\p{L}\p{N}]/gu
+const ENDS_SENTENCE = /[.!?…。！？]["”』」»)]*$/u
+const ENDS_CLAUSE = /[,;:—–،、，；：]["”』」»)]*$/u
+/** Letters' worth of silence after a sentence ender / a clause mark. */
+export const ESTIMATED_SENTENCE_PAUSE_LETTERS = 20
+export const ESTIMATED_CLAUSE_PAUSE_LETTERS = 2
+
+/** Fractional [start, end) of each line across the clip, in order; the pause
+ *  that follows a line belongs to no line, so the walk holds the said line
+ *  full across it, exactly as a measured breath group does. */
+export function estimateLineTimings(lines: string[]): BreathGroup[] {
+  const spans = lines.map((line) => {
+    const speech = Math.max(1, (line.match(SPEECH_CHARS) || []).length)
+    const pause = ENDS_SENTENCE.test(line) ? ESTIMATED_SENTENCE_PAUSE_LETTERS : ENDS_CLAUSE.test(line) ? ESTIMATED_CLAUSE_PAUSE_LETTERS : 0
+    return { speech, pause }
+  })
+  // The last line's trailing pause is the clip's own tail, not a wait.
+  if (spans.length) spans[spans.length - 1].pause = 0
+  const total = spans.reduce((n, sp) => n + sp.speech + sp.pause, 0) || 1
+  let at = 0
+  return lines.map((text, i) => {
+    const start = at / total
+    const end = (at + spans[i].speech) / total
+    at += spans[i].speech + spans[i].pause
+    return { text, start, end, wordFrom: i, wordTo: i + 1 }
+  })
+}

@@ -695,7 +695,12 @@
     "noneSavedDeviceYet": "ఇది ఇంకా మీ పరికరంలో భద్రపరచబడలేదు, కాబట్టి ఆఫ్‌లైన్‌లో వినడానికి ఏమీ లేదు. ఒకసారి కనెక్ట్ అయి, ఆఫ్‌లైన్ కోసం డౌన్‌లోడ్ చేసి దాన్ని మీతో తీసుకెళ్లండి.",
     "playAllScenes": "అన్ని సన్నివేశాలను ప్లే చేయండి",
     "speed": "వేగం",
-    "tapPlay": "ప్లే చేయడానికి ట్యాప్ చేయండి"
+    "tapPlay": "ప్లే చేయడానికి ట్యాప్ చేయండి",
+    "podFallbackTitle": "Pod {n}",
+    "podScenesCount": "{n} scenes",
+    "podReadyOffline": "Ready offline",
+    "podDownloading": "Downloading",
+    "podNotYet": "Not yet"
   },
   "me": {
     "allThreeGo": "మూడూ సిద్ధంగా ఉన్నాయి.",
@@ -827,13 +832,9 @@
     },
     "teacherDashboard": {
       "allCourses": "అన్ని కోర్సులు",
-      "allFilterOption": "అన్నీ",
-      "coursePlural": "కోర్సులు",
-      "healthLabel": "ఆరోగ్యం",
       "retry": "మళ్ళీ ప్రయత్నించండి",
       "tableHeaderActivity": "కార్యకలాపం",
-      "tableHeaderBelt": "బెల్ట్",
-      "tableHeaderHealth": "ఆరోగ్యం"
+      "tableHeaderBelt": "బెల్ట్"
     },
     "teachers": {
       "accessCode": "యాక్సెస్ కోడ్",
@@ -879,7 +880,6 @@
       "beltOrange": "నారింజ",
       "beltWhite": "తెలుపు",
       "beltYellow": "పసుపు",
-      "healthFilterLabel": "ఆరోగ్యం",
       "lastActiveNow": "ఇప్పుడు",
       "retryLabel": "మళ్ళీ ప్రయత్నించండి"
     },

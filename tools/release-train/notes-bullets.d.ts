@@ -9,6 +9,8 @@ export declare function extractBullets(body: string, heading: string): string[]
 export declare const MAX_HEADLINES: number
 export declare const HEADLINE_MAX_CHARS: number
 export declare const READMORE_MAX_CHARS: number
+export declare const MAX_READMORE: number
+export declare const READMORE_LINE: string
 export declare const SHAPE_RULING_DATE: string
 export declare function isOneSentence(bullet: string): boolean
 export declare function shapeProblems(bullet: string, kind: 'headline' | 'readmore'): string[]

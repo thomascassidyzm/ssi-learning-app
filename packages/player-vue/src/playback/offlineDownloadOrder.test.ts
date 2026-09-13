@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildOfflineDownloadQueue, buildFetchAheadOrder } from './offlineDownloadOrder'
+import { buildOfflineDownloadQueue, buildFetchAheadOrder, orderTiers } from './offlineDownloadOrder'
 
 const ids = (prefix: string, n: number) => Array.from({ length: n }, (_, i) => `${prefix}${i}`)
 const firstIndex = (q: string[], prefix: string) => q.findIndex((id) => id.startsWith(prefix))
@@ -63,5 +63,25 @@ describe('buildFetchAheadOrder — the automatic path uses the same rule', () =>
 
   it('dedupes a clip shared by a cycle and a pod at its pod position', () => {
     expect(buildFetchAheadOrder({ head: [], pods: ['x'], layer1: [], span: ['c0', 'x'] })).toEqual(['x', 'c0'])
+  })
+})
+
+describe('orderTiers — the one primitive both builders are views onto (job #429 tidy)', () => {
+  // The same fixtures the two builder suites above use, fed to the primitive
+  // directly: the tidy replaced two inline Set-spreads with this one function,
+  // so each named builder must equal it on identical tiers. Would have passed
+  // on the pre-tidy code, which is the point.
+  it('the deliberate queue is orderTiers(head, priority, main, tail)', () => {
+    const tiers = { head: ['h0', 'h1'], priority: ids('p', 5), main: ids('c', 20), tail: ['t0', 'p0'] }
+    expect(buildOfflineDownloadQueue(tiers))
+      .toEqual(orderTiers(tiers.head, tiers.priority, tiers.main, tiers.tail))
+    expect(orderTiers(['p0'], ['c0', 'c1'], ['p0', 'a0'])).toEqual(['p0', 'c0', 'c1', 'a0'])
+  })
+
+  it('the automatic order is orderTiers(head, pods, layer1, span)', () => {
+    const tiers = { head: ids('h', 3), pods: ids('p', 400), layer1: ids('l', 4), span: [...ids('c', 300), 'p7'] }
+    expect(buildFetchAheadOrder(tiers))
+      .toEqual(orderTiers(tiers.head, tiers.pods, tiers.layer1, tiers.span))
+    expect(orderTiers()).toEqual([])
   })
 })

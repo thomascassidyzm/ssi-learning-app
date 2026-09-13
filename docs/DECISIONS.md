@@ -1,3 +1,23 @@
+## 2026-09-13 — The schools dashboard grades nothing: class, school and student health stripped (job #494, Tom's ruling)
+
+**The ruling.** Tom, on his phone, looking at the classes page, 01:09Z: "Also what are these classifications and how did they arise? We don't make any attributions to any class performance. So this thinking isn't mine. The school admin wants time in app. And that's basically it." Watson proposed stripping the whole health layer; Tom at 12:28Z: "yes strip class grading." A softer flag was offered and declined, so no quiet-this-week marker replaces it.
+
+**What went.** The classification was a worker's invention from the May re-skin, hardened in later jobs. Removed from every learner-facing schools surface: the four summary tiles on the classes page, the Health picker, the Health column and CSV field, and `classHealth.ts`; the school-level bucket in `useSchoolData` and the dot on the leader's schools list and dashboard tiles; the per-pupil grade on the Students page and the class roster, including the "need attention" count in the Students headline. Twenty-seven health i18n keys dropped across all 24 locales; three replacement strings minted and enrolled in the pending-translation register. The Handbook sentences for the classes list, filters, export, year-group tiles and student lookup were rewritten in the same edit and the pack recompiled.
+
+**What stayed.** The page head still says N classes and minutes in the app this week, so the classes page carries its week figure with no second tile; the year-group blocks stay; each class row keeps course, belt, journey, time in app, the sparkline, copy link and play. "Not started" survives as a fact on the belt, journey and minutes cells. `HealthDot.vue` and the four `--schools-health-*` tokens stay in the tree because the admin org tree, `NodeChildrenList.vue` under `/admin`, still renders a per-learner health word; that is an ssi_admin surface outside this ruling and is named here as the one place the grade still exists.
+
+**Proof.** `TeacherDashboard.noGrading.test.ts` fails on the pre-change page, saying "Excellent", and passes after. Twelve covering test files and the locale parity gate green; typecheck clean apart from a pre-existing missing `@capacitor/cli` in the shared install; lint zero errors.
+
+## 2026-09-13 — The six-test fix left the parity gate red on all 24 locales; the ways-in walk's two step-5 keys enrolled, staging promoted (job #483, CI red on staging)
+
+**What the red was.** Staging's nightly at 9ece60b0 showed the same six player reds as dev and main: four 2026-09-12 commits (#306, #340, #354, #379) that outran their test twins. Jobs #482 and #484 landed the four fixes on dev first; this job's copies were byte-identical and were dropped. But a full ci-check of dev's tree with real deps found a second-order red those fixes had not seen: `useI18n.localeParity` failed for every one of the 24 locales, because regenerating the ways-in mirror moved the walk's terminal line from step 4 to step 5 and minted `steps.5.say`, and `i18n/pending-translation.json` still enrolled the old key and neither new one.
+
+**Decision.** Enrol `walkthrough.ways-in.steps.5.say` and `.terminal`, drop the stale `steps.4.terminal`, on dev at 976bd2be5. Then promote dev to staging as one merge, c0bde54a9, carrying exactly the seven files dev held beyond staging: the four test twins, the codeGen set check, the enrolment and the journal. Nothing skipped, no assertion weakened, no timeout raised. Better: staging's gate is green for the right reason. Simpler: the register is the mechanism the parity test itself names. Cheaper: one merge, verified once.
+
+**Ownership on the night.** Three workers were spawned for the same red. Agreed by message with job #486: staging is this job's, main is #486's, dev carried the shared fixes; nobody pushed over anybody.
+
+**Proof.** ci-check on c0bde54a9 with real deps under the CI node20/pnpm8 toolchain: seven of seven green, player-test 3909 passed. The earlier run in the same worktree with node_modules symlinked to the shared checkout was red on typecheck and on SettingsScreen tests for a reason that was the environment, not the code: `@ssi/core` resolved to another branch's dist. A worker verifying a promotion must install its own deps first.
+
 ## 2026-09-13 — The api nightly's one red: the codeGen letter test was too slow for a loaded box, not wrong (job #482, CI red)
 
 **What the red was.** `api/_utils/codeGen.test.ts` timed out at 5 s on dev. The code has not changed since the SEC25 keyspace fix; the test made forty-five thousand expect calls over five thousand draws and took 2.8 s the night before, 4 s on main the same night, and past 5 s on dev. The six player reds from the same run were the four Friday-ship commits that outran their tests; job #484, spawned for main's identical red, landed those fixes on dev first and its entry below records them. This job's copies of the same four edits were byte-identical and were dropped in favour of #484's.
@@ -1552,6 +1572,48 @@ order for free. No layout engine, no per-word painting.
 URL, and `fileURLToPath` threw at import, so none of its pins had run since #408 landed. It runs in
 the node environment now, as its sibling scope test does. The dead `audioMap` ref predates #408 and
 went with the same broom.
+
+## 2026-09-12 — Listening Mode tidy: one fetch-order primitive, one snapshot story, comments that match the code (job #429·F)
+
+**Commission.** Tom: "Listening Mode probably needs a Fable tidy up. Let's do these on dev so we can
+promote staging to main cleanly." Dev only, behaviour byte-identical, landed beside job #428's pod
+cards without touching the scene-list region they own. Inventory of the shape first, read-only:
+https://watson-1.tail4968cb.ts.net/d/736f4b9b — 18 items, no genuine bug found.
+
+**One fetch-order primitive.** #379's report said both fetch paths shared "one pure builder"; Astra's
+cold-verify read two. `playback/offlineDownloadOrder.ts` now has one, `orderTiers(...tiers)`, and
+`buildFetchAheadOrder` and `buildOfflineDownloadQueue` are typed views onto it. Order unchanged:
+head rounds, every pod slot, Layer-1, the course. Two comments in `LearningPlayer.vue` that still
+described the retired 2026-09-01 weave now cite #379; the code under them was already right. The
+APML fillBuffer entry said cycles-then-pods, the pre-#379 order; it now says what the code does.
+
+**One snapshot story.** `listeningMetaCache.ts` opens with the snapshot's life in order: write,
+first-write-on-boot with its heal, staleness, read, withdrawal. The #379 and #424 heal reasons are
+one named predicate, `snapshotListsEverySlot`, rather than two paragraphs of exception in the gate.
+`collectListeningMetaAudioIds` composes the pod collector instead of restating it, same ids in the
+same insertion order. In `servedPod.ts` the three degraded arms of `resolveListeningPods` read one
+snapshot helper instead of two cache reads each; the degraded mark is set exactly where it was.
+
+**Overlay, outside #428's region.** The always-true `showSpeedRow` computed and its `v-if` are gone.
+Two orphaned docblocks that described a pre-IndexedDB overlay and an 800 ms gap are replaced by one
+accurate line on each of the two functions they drifted away from. The play-loop comments name the
+`GAP_*` constants and the one-speed t·k·t·t Drill instead of 50/300/800 ms and 1×/2×/2×. The
+exposure-ramp header no longer calls the nine-stage pod playlist retired: it is DB-gated by
+`listeningUseStagePlaylist`, live true, as the vocabulary pointer already recorded.
+
+**Left alone, on purpose.** The three walkers of `podScheduler.podSentences` in `LearningPlayer.vue`
+carry three different field sets; unifying them changes a download's id set, so they stay and the
+inventory says so. `LISTEN_MODES` as a computed over a constant is cosmetic. The scene-list template
+and its script region are byte-identical for #428, and a dry merge of #428's branch onto this one
+auto-merged with no conflict.
+
+**Proof.** No test expectation edited. `offlineDownloadOrder.test.ts` gains one pin that each named
+builder equals `orderTiers` on the existing fixtures, which would have passed before the change.
+Scoped suites green: order and boundary 12, snapshot/servedPod/listening-pods 52, the four overlay
+pins plus the two ramp suites 110; all four overlay test files load and run. Typecheck clean, lint
+0 errors. `tools/vocabulary-pointers-check.mjs` exits zero: 30 pointers had drifted on dev before
+this job by line number only and were refreshed mechanically, and two whose deciding line had been
+reworded by #350 and #325 were re-pinned to the current line.
 
 ## 2026-09-12 — Immersion stack for every long pod line: timings when present, punctuation when not (job #430)
 

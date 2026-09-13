@@ -3,14 +3,11 @@ import { ref, computed, onMounted, watch, inject } from 'vue'
 import { formatPracticeMinutes } from '@/composables/schools/practiceMinutes'
 import { useRouter } from 'vue-router'
 import BeltDot from '@/components/schools/shared/BeltDot.vue'
-import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useStudentsData } from '@/composables/schools/useStudentsData'
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 import { deriveBelt, type Belt } from '@/composables/schools/belts'
 import { useI18n } from '@/composables/useI18n'
-
-type Health = 'excellent' | 'good' | 'needs-attention' | 'inactive'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -22,19 +19,9 @@ const { students: studentsData, isLoading: studentsLoading, error: studentsError
 const searchQuery = ref('')
 const classFilter = ref<string>('all')
 const beltFilter = ref<string>('all')
-const healthFilter = ref<string>('all')
 
 function getInitials(name: string): string {
   return name.split(/\s+/).map(p => p[0]).join('').toUpperCase().slice(0, 2)
-}
-
-function deriveHealth(seeds: number, lastActiveAt: string | null, classAvg: number): Health {
-  if (!lastActiveAt) return 'inactive'
-  const diffDays = Math.floor((Date.now() - new Date(lastActiveAt).getTime()) / 86400000)
-  if (diffDays > 14) return 'needs-attention'
-  if (classAvg > 0 && seeds < classAvg * 0.5) return 'needs-attention'
-  if (classAvg > 0 && seeds >= classAvg * 1.25 && diffDays <= 2) return 'excellent'
-  return 'good'
 }
 
 function formatLastActive(dateStr: string | null): string {
@@ -82,7 +69,6 @@ const enrichedStudents = computed(() => {
       // MINUTES, all time — never hours (Tom, 2026-09-11, job #265).
       practiceMinutes: Math.round(s.total_practice_minutes || 0),
       legoTotal: 60,
-      health: deriveHealth(s.seeds_completed, s.last_active_at, avg),
       last_active_display: formatLastActive(s.last_active_at),
       last_active_at: s.last_active_at,
     }
@@ -103,7 +89,6 @@ const filtered = computed(() => {
     }
     if (classFilter.value !== 'all' && s.class_id !== classFilter.value) return false
     if (beltFilter.value !== 'all' && s.belt !== beltFilter.value) return false
-    if (healthFilter.value !== 'all' && s.health !== healthFilter.value) return false
     return true
   })
 })
@@ -113,29 +98,17 @@ const activeThisWeek = computed(() => {
   const wk = Date.now() - 7 * 86400000
   return filtered.value.filter(s => s.last_active_at && new Date(s.last_active_at).getTime() >= wk).length
 })
-const needsAttention = computed(() =>
-  filtered.value.filter(s => s.health === 'needs-attention').length,
-)
-
 const headlineSubtitle = computed(() => {
   const studentWord = totalCount.value === 1
     ? t('schools.students.studentSingular', 'student')
     : t('schools.students.studentsPlural', 'students')
-  return t('schools.students.headlineSubtitle', '{count} {studentWord} · {active} active this week · {needs} need attention')
+  // No grade on a learner: the line counts, it never judges (Tom's ruling,
+  // 2026-09-13, job #494).
+  return t('schools.students.headlineSubtitleActive', '{count} {studentWord} · {active} active this week')
     .replace('{count}', String(totalCount.value))
     .replace('{studentWord}', studentWord)
     .replace('{active}', String(activeThisWeek.value))
-    .replace('{needs}', String(needsAttention.value))
 })
-
-function healthLabel(health: Health): string {
-  switch (health) {
-    case 'excellent': return t('schools.students.healthExcellent', 'excellent')
-    case 'good': return t('schools.students.healthGood', 'good')
-    case 'needs-attention': return t('schools.students.healthNeedsAttention', 'needs attention')
-    case 'inactive': return t('schools.students.healthInactive', 'inactive')
-  }
-}
 
 function viewStudent(s: { learner_id: string; name?: string }) {
   // Open the teacher Rate-compare insight pre-scoped to THIS learner, IN-SHELL
@@ -150,9 +123,9 @@ function viewStudent(s: { learner_id: string; name?: string }) {
 }
 
 function exportCsv() {
-  const header = ['Name', 'Class', 'Belt', 'Seeds', 'LEGOs', 'Minutes practised', 'Health', 'Last active']
+  const header = ['Name', 'Class', 'Belt', 'Seeds', 'LEGOs', 'Minutes practised', 'Last active']
   const rows = filtered.value.map(s => [
-    s.name, s.class_name, s.belt, s.seeds_completed, s.legos_mastered, s.practiceMinutes, s.health, s.last_active_display,
+    s.name, s.class_name, s.belt, s.seeds_completed, s.legos_mastered, s.practiceMinutes, s.last_active_display,
   ].join(','))
   const csv = [header.join(','), ...rows].join('\n')
   const blob = new Blob([csv], { type: 'text/csv' })
@@ -254,16 +227,6 @@ watch(selectedUser, (newUser) => {
           <option value="black">{{ t('schools.students.beltBlack', 'Black') }}</option>
         </select>
       </label>
-      <label class="filter">
-        <span class="filter-label">{{ t('schools.students.healthFilterLabel', 'Health') }}</span>
-        <select v-model="healthFilter" class="filter-select">
-          <option value="all">{{ t('schools.students.allOption', 'All') }}</option>
-          <option value="excellent">{{ t('schools.students.healthExcellentOption', 'Excellent') }}</option>
-          <option value="good">{{ t('schools.students.healthGoodOption', 'Good') }}</option>
-          <option value="needs-attention">{{ t('schools.students.healthNeedsAttentionOption', 'Needs attention') }}</option>
-          <option value="inactive">{{ t('schools.students.healthInactiveOption', 'Inactive') }}</option>
-        </select>
-      </label>
     </div>
 
     <div v-if="filtered.length > 0" class="schools-card table-card">
@@ -275,7 +238,6 @@ watch(selectedUser, (newUser) => {
             <th>{{ t('schools.students.beltFilterLabel', 'Belt') }}</th>
             <th>{{ t('schools.students.legosColumn', 'LEGOs') }}</th>
             <th>{{ t('schools.students.minutesPractisedColumn', 'Minutes practised') }}</th>
-            <th>{{ t('schools.students.healthFilterLabel', 'Health') }}</th>
             <th>{{ t('schools.students.lastActiveColumn', 'Last active') }}</th>
             <th></th>
           </tr>
@@ -310,12 +272,6 @@ watch(selectedUser, (newUser) => {
               </div>
             </td>
             <td>{{ formatPracticeMinutes(s.practiceMinutes) }}</td>
-            <td>
-              <span class="health-cell">
-                <HealthDot :health="s.health" />
-                <span class="health-label">{{ healthLabel(s.health) }}</span>
-              </span>
-            </td>
             <td><span class="schools-subtle">{{ s.last_active_display }}</span></td>
             <td class="cell-action">
               <!-- HANDBOOK Look up one student
@@ -332,13 +288,12 @@ watch(selectedUser, (newUser) => {
                    How you do it.
                    1. Open **Students**.
                    2. Type part of their name in the search box, or narrow the
-                      list by class, belt or health.
+                      list by class or belt.
                    3. Read their row for belt, hours and last active.
                    4. Tap **View** to open their own progress.
-                   Worth knowing. Health is worked out from their last visit and
-                   how they sit against their own class, so a learner marked as
-                   needing attention is one who has gone quiet or fallen behind
-                   the people beside them.
+                   Worth knowing. The row records what the learner has done and
+                   when they were last here. It makes no judgement about how
+                   they are doing.
                    checked: b95b92b8.47acab15
               -->
               <a href="#" class="cell-link" data-walk="student-view-link" @click.prevent="viewStudent(s)">{{ t('schools.students.viewLabel', 'View') }} &rarr;</a>
@@ -350,11 +305,11 @@ watch(selectedUser, (newUser) => {
 
     <div v-else-if="enrichedStudents.length > 0" class="empty-state schools-card schools-card-pad">
       <h3 class="arsenal empty-title">{{ t('schools.students.noFilterMatchTitle', 'No students match those filters') }}</h3>
-      <p class="empty-text schools-subtle">{{ t('schools.students.noFilterMatchHint', 'Try widening the class, belt or health filter.') }}</p>
+      <p class="empty-text schools-subtle">{{ t('schools.students.tryWideningFilter', 'Try widening the class or belt filter.') }}</p>
       <button
         type="button"
         class="btn-ghost"
-        @click="() => { searchQuery = ''; classFilter = 'all'; beltFilter = 'all'; healthFilter = 'all' }"
+        @click="() => { searchQuery = ''; classFilter = 'all'; beltFilter = 'all' }"
       >
         {{ t('schools.students.resetFiltersLabel', 'Reset filters') }}
       </button>
@@ -549,18 +504,6 @@ watch(selectedUser, (newUser) => {
   font-size: 12px;
   color: var(--schools-fg-2);
   min-width: 42px;
-}
-
-.health-cell {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12.5px;
-  color: var(--schools-fg-2);
-}
-
-.health-label {
-  text-transform: capitalize;
 }
 
 .cell-action {

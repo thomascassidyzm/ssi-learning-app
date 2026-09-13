@@ -11,7 +11,8 @@ import { useListeningPods, SPEAKER_PALETTE } from '../composables/useListeningPo
 import { getCachedListeningMeta } from '../composables/listeningMetaCache'
 import { buildSilentWavDataUri } from '../playback/silentWav'
 import { buildModalQueue as buildPodModalQueue } from '../playback/podModalQueue'
-import { breathGroupsForClip, normaliseWordTimings, textLinesForSentence, trackPosition } from '../playback/breathGroups'
+import { changeoverGapMs, isJumpInChangeover, jumpInLeadMs, GAP_DRILL_MS, GAP_IMMERSION_JOIN_MS } from '../playback/podChangeover'
+import { breathGroupsForClip, estimateLineTimings, normaliseWordTimings, textLinesForSentence, trackPosition } from '../playback/breathGroups'
 import ListeningModeToggle from './ListeningModeToggle.vue'
 import TeleprompterScroll from './TeleprompterScroll.vue'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
@@ -23,6 +24,8 @@ import { PodStateStore, dirFor } from '@ssi/core'
 import { getRevisedAudioRefs, stampRowAudioRefs, applyAudioRef } from '../providers/revisedAudioRefs'
 import { EASY_LISTENING_SPEED } from '../providers/toSimpleRounds'
 import { isOfflineish } from '../config/networkGate'
+import { offlineDlState, offlineDlDone, offlineDownloadActive } from '../composables/useOfflineDownloadStatus'
+import { groupScenesByPod, podAudioIds, cachedFraction, podReadiness } from '../composables/podReadiness'
 import { apiUrl } from '@/platform/apiBase'
 
 // ============================================================================
@@ -33,6 +36,18 @@ import { apiUrl } from '@/platform/apiBase'
 class ListeningAudioController {
   constructor() {
     this.audio = null
+    // Second element, for a JUMP-IN only: a line that interrupts the previous
+    // speaker starts on this element while the previous clip is still
+    // sounding on `audio` (podChangeover.ts). Created lazily and primed with
+    // a silent one-shot inside the learner's play tap, because iOS unlocks
+    // autoplay per element and per gesture — an element that never played
+    // inside a gesture rejects its first play() with NotAllowedError, and the
+    // jump-in then falls back to the zero-gap path on `audio`.
+    this.audioB = null
+    this.bPrimed = false
+    // Whichever element most recently started a real clip — the Immersion
+    // tracker reads its clock.
+    this.active = null
     this.playbackRate = 1
     // ms → data: URI cache for the silent gap clips (two sizes in practice).
     this.silenceCache = new Map()
@@ -53,6 +68,31 @@ class ListeningAudioController {
       this.audio.addEventListener('loadedmetadata', this._onTimeUpdate)
     }
     return this.audio
+  }
+
+  _ensureAudioB() {
+    if (!this.audioB) this.audioB = new Audio()
+    return this.audioB
+  }
+
+  /** The element sounding the current clip (the tracker's clock source). */
+  get activeElement() {
+    return this.active || this.audio
+  }
+
+  /** Call inside a user gesture: unlock the jump-in element for later
+   *  gesture-less starts. Idempotent; never throws; a rejection just leaves
+   *  the element unprimed, and every jump-in then takes the zero-gap path. */
+  primeOverlap() {
+    if (this.bPrimed) return
+    try {
+      const b = this._ensureAudioB()
+      b.src = buildSilentWavDataUri(0.03)
+      b.load()
+      const p = b.play()
+      if (p && typeof p.then === 'function') p.then(() => { this.bPrimed = true }, () => {})
+      else this.bPrimed = true
+    } catch { /* stays unprimed */ }
   }
 
   _updatePositionState() {
@@ -78,6 +118,7 @@ class ListeningAudioController {
     if (this.audio) {
       this.audio.playbackRate = rate
     }
+    if (this.audioB) this.audioB.playbackRate = rate
   }
 
   /**
@@ -110,19 +151,79 @@ class ListeningAudioController {
    *  both freeze — the slice then plays to the clip's natural end and the
    *  'ended' handler still advances; drill is a screen-on, eyes-on-strips
    *  activity, so the trade is acceptable.
+   *
+   *  `nearEnd` = { leadFor(durationSec) → ms, fire() }: once, when this clip
+   *  is within `leadFor` media-ms of its end, call fire() — the jump-in hook.
+   *  rAF-driven like the slice stop, so under a locked screen it never fires
+   *  and the changeover lands on the zero-gap floor instead.
    */
-  async play(url, rateOverride = null, slice = null) {
+  async play(url, rateOverride = null, slice = null, nearEnd = null) {
+    return this._playOn(this._ensureAudio(), url, rateOverride, slice, nearEnd)
+  }
+
+  /** Start a jump-in clip on the IDLE element while the other is still
+   *  sounding — normally the second element; the main one when the sounding
+   *  clip is itself a jump-in (two interruptions in a row). Resolves on its
+   *  natural end exactly like play(); rejects when the platform refuses the
+   *  gesture-less start (see primeOverlap). */
+  async playOverlap(url, rateOverride = null) {
+    const el = this.active === this.audio ? this._ensureAudioB() : this._ensureAudio()
+    return this._playOn(el, url, rateOverride, null, null)
+  }
+
+  /** rAF watch on `el`: once, when the clip is within `nearEnd.leadFor(dur)`
+   *  media-ms of its end, call nearEnd.fire(). `done()` says the clip is
+   *  over (settled, or the element stopped). Returns a cancel function. */
+  _watchNearEnd(el, nearEnd, done) {
+    let raf = null
+    let leadSec = null
+    const watch = () => {
+      raf = null
+      if (done()) return
+      const dur = el.duration
+      if (Number.isFinite(dur) && dur > 0) {
+        if (leadSec === null) leadSec = Math.max(0, Number(nearEnd.leadFor(dur)) || 0) / 1000
+        if (dur - (el.currentTime || 0) <= leadSec) {
+          try { nearEnd.fire() } catch (e) { console.warn('[ListeningAudio] jump-in fire failed', e) }
+          return
+        }
+      }
+      raf = requestAnimationFrame(watch)
+    }
+    raf = requestAnimationFrame(watch)
+    return () => { if (raf !== null) { cancelAnimationFrame(raf); raf = null } }
+  }
+
+  /** Arm the near-end hook on the clip sounding NOW — an adopted jump-in that
+   *  was started before its own row's loop ran, and is itself followed by a
+   *  jump-in. */
+  armNearEnd(nearEnd) {
+    this._cancelExternalNearEnd()
+    const el = this.active
+    if (!el || !nearEnd) return
+    this._extEl = el
+    this._extCancel = this._watchNearEnd(el, nearEnd, () => el !== this.active || el.ended || el.paused || !!el.error)
+  }
+
+  _cancelExternalNearEnd() {
+    if (this._extCancel) { this._extCancel(); this._extCancel = null }
+    this._extEl = null
+  }
+
+  async _playOn(el, url, rateOverride = null, slice = null, nearEnd = null) {
     if (!url) {
       console.warn('[ListeningAudio] No audio URL')
       return
     }
 
-    this._ensureAudio()
-    // A new play always cancels the previous slice watchers (reused element).
-    if (this._cancelSlice) { this._cancelSlice(); this._cancelSlice = null }
+    // A new play on the main element always cancels the previous slice
+    // watchers (reused element).
+    if (el === this.audio && this._cancelSlice) { this._cancelSlice(); this._cancelSlice = null }
+    if (this._extEl === el) this._cancelExternalNearEnd()
+    this.active = el
 
-    this.audio.src = url
-    this.audio.load()
+    el.src = url
+    el.load()
 
     return new Promise((resolve, reject) => {
       let settled = false
@@ -130,16 +231,19 @@ class ListeningAudioController {
       let stallCheck = null
       let sliceRaf = null
       let sliceTimer = null
+      let cancelNearEnd = null
 
       const cleanup = () => {
         if (safetyTimer) { clearTimeout(safetyTimer); safetyTimer = null }
         if (stallCheck) { clearInterval(stallCheck); stallCheck = null }
         if (sliceRaf) { cancelAnimationFrame(sliceRaf); sliceRaf = null }
         if (sliceTimer) { clearTimeout(sliceTimer); sliceTimer = null }
-        this._cancelSlice = null
-        this.audio.removeEventListener('ended', onEnded)
-        this.audio.removeEventListener('error', onError)
-        this.audio.removeEventListener('loadedmetadata', onMetadata)
+        if (cancelNearEnd) { cancelNearEnd(); cancelNearEnd = null }
+        if (el === this.audio) this._cancelSlice = null
+        el.removeEventListener('ended', onEnded)
+        el.removeEventListener('error', onError)
+        el.removeEventListener('loadedmetadata', onMetadata)
+        el.removeEventListener('durationchange', onDuration)
       }
 
       const onEnded = () => {
@@ -159,7 +263,7 @@ class ListeningAudioController {
       // Slice end: pause at endMs and resolve as if the clip ended.
       const endSlice = () => {
         if (settled) return
-        this.audio.pause()
+        el.pause()
         onEnded()
       }
 
@@ -167,61 +271,86 @@ class ListeningAudioController {
         const endSec = slice.endMs / 1000
         const watch = () => {
           if (settled) return
-          if ((this.audio.currentTime || 0) >= endSec) { endSlice(); return }
+          if ((el.currentTime || 0) >= endSec) { endSlice(); return }
           sliceRaf = requestAnimationFrame(watch)
         }
         sliceRaf = requestAnimationFrame(watch)
         // Backstop: expected span length at the effective rate + a beat.
-        const rate = this.audio.playbackRate || 1
+        const rate = el.playbackRate || 1
         const spanMs = Math.max(0, slice.endMs - slice.startMs)
         sliceTimer = setTimeout(endSlice, spanMs / rate + 400)
       }
 
       const onMetadata = () => {
         if (settled || !slice) return
-        try { this.audio.currentTime = slice.startMs / 1000 } catch { /* pre-seek race — play from 0 */ }
+        try { el.currentTime = slice.startMs / 1000 } catch { /* pre-seek race — play from 0 */ }
         armSliceStop()
       }
 
-      this.audio.addEventListener('ended', onEnded)
-      this.audio.addEventListener('error', onError)
+      el.addEventListener('ended', onEnded)
+      el.addEventListener('error', onError)
       if (slice) {
         // Cancelling (a new play / stop) resolves the pending promise — the
         // caller's playbackId guard discards the stale continuation.
         this._cancelSlice = () => { if (!settled) onEnded() }
         // Metadata may already be in (cached blob) — seek straight away.
-        if (this.audio.readyState >= 1) onMetadata()
-        else this.audio.addEventListener('loadedmetadata', onMetadata)
+        if (el.readyState >= 1) onMetadata()
+        else el.addEventListener('loadedmetadata', onMetadata)
+      }
+      // Jump-in hook: fire once when the clip is within its lead of the end.
+      // Media time on both sides, so the playback speed cancels out.
+      if (nearEnd && typeof nearEnd.fire === 'function' && typeof nearEnd.leadFor === 'function') {
+        cancelNearEnd = this._watchNearEnd(el, nearEnd, () => settled)
       }
 
       // Stall detection: resolve if currentTime stops advancing for 3s
       let lastTime = -1
       stallCheck = setInterval(() => {
         if (settled) { cleanup(); return }
-        const ct = this.audio?.currentTime || 0
-        if (ct > 0 && ct === lastTime && !this.audio?.paused) {
+        const ct = el.currentTime || 0
+        if (ct > 0 && ct === lastTime && !el.paused) {
           console.warn('[ListeningAudio] Audio stalled, skipping')
           onEnded()
         }
         lastTime = ct
       }, 1500)
 
-      // Safety timeout: no clip should take more than 15s
-      safetyTimer = setTimeout(() => {
-        if (!settled) {
-          console.warn('[ListeningAudio] Safety timeout, skipping')
-          onEnded()
-        }
-      }, 15000)
+      // Safety timeout: a clip that never ends must not hang the list. 15 s
+      // flat used to be the ceiling, and it CUT every pod line longer than
+      // that — the Italian method pod has 19-20 s lines, skipped at 15 s
+      // with a "Safety timeout" warning on dev and staging (job #470 trace).
+      // Once the duration is known the ceiling is the clip's own length at
+      // its rate plus a beat, never less than 15 s.
+      const armSafety = () => {
+        if (safetyTimer) clearTimeout(safetyTimer)
+        const dur = el.duration
+        const rate = el.playbackRate || 1
+        const ms = Number.isFinite(dur) && dur > 0 ? Math.max(15000, (dur / rate) * 1000 + 5000) : 15000
+        safetyTimer = setTimeout(() => {
+          if (!settled) {
+            console.warn('[ListeningAudio] Safety timeout, skipping')
+            onEnded()
+          }
+        }, ms)
+      }
+      armSafety()
+      const onDuration = () => { if (!settled) armSafety() }
+      el.addEventListener('durationchange', onDuration)
 
       // Set playbackRate right before play() - some browsers reset it after load()
-      this.audio.playbackRate = rateOverride ?? this.playbackRate
-      this.audio.play().catch(onError)
+      el.playbackRate = rateOverride ?? this.playbackRate
+      el.play().catch(onError)
     })
   }
 
   stop() {
     if (this._cancelSlice) { this._cancelSlice(); this._cancelSlice = null }
+    this._cancelExternalNearEnd()
+    this.active = null
+    if (this.audioB) {
+      this.audioB.pause()
+      try { this.audioB.currentTime = 0 } catch { /* no metadata yet */ }
+    }
     if (this.audio) {
       this.audio.pause()
       this.audio.currentTime = 0
@@ -280,11 +409,8 @@ const props = defineProps({
 const SPEED_OPTIONS = [0.8, 1, 1.2, 1.5, 2]
 const playbackSpeed = ref(props.learningMode === 'easy' ? EASY_LISTENING_SPEED : 1)
 
-// Inter-clip / inter-row gaps (Aran 2026-06-29: tighten everything to ≤0.1s).
-// The chosen speed in Drill is the "normal" rate — fast reps are 2× of it.
-const GAP_DEFAULT_MS = 90        // Core/All between phrases + dialogue speaker-change (was 800)
-const GAP_DRILL_MS = 90          // between Drill reps + Drill within-turn (was 300 / 350)
-const GAP_IMMERSION_JOIN_MS = 50 // same-speaker sentence join in Immersion (deliberately tightest)
+// Inter-clip / inter-row gaps (Aran 2026-06-29: tighten everything to ≤0.1s)
+// and the jump-in changeover rule live in playback/podChangeover.ts.
 
 // Inject providers
 const supabase = inject('supabase', null)
@@ -324,6 +450,50 @@ const visiblePhrases = ref([])
 const currentIndex = ref(-1)
 const isPlaying = ref(false)
 const audioController = ref(null)
+// A jump-in clip already sounding on the controller's second element, started
+// on the previous row's last clip: { id, startedAt, promise → {ok} }. The next
+// row's loop adopts it instead of starting the clip again. Null when no
+// jump-in was armed, or the platform refused the early start.
+let pendingJumpIn = null
+
+/**
+ * Arm the jump-in for the row after `phrase`: resolve its first clip's URL now
+ * (an IndexedDB read — the one async step that would otherwise sit in the
+ * changeover) and hand the controller a near-end hook that starts it on the
+ * second element `jumpInLeadMs` before the current clip ends. The lead comes
+ * from the current clip's own trailing silence when it carries word timings
+ * (Immersion tracker data, job #408), else a fixed lead. Null when the next
+ * row has nothing to play (offline, clip not on the device).
+ */
+const armJumpIn = async (phrase, nextPhrase, myPlaybackId) => {
+  const fullNext = buildPlayQueue(nextPhrase)
+  const nextQueue = isOfflineish() ? fullNext.filter((it) => it?.id && audioCache.has(it.id)) : fullNext
+  const first = nextQueue[0]
+  if (!first?.id) return null
+  const proxyUrl = getAudioUrl(first.id)
+  if (!proxyUrl) return null
+  const url = await resolveCachedPlaybackUrl(audioCache, first.id, proxyUrl)
+  if (myPlaybackId !== playbackId) return null
+  const prevTimings = normaliseWordTimings(phrase.sentences?.[0]?.wordTimings)
+  const rate = first.rate ?? 1
+  return {
+    leadFor: (durationSec) => jumpInLeadMs({ prevDurationSec: durationSec, prevTimings }),
+    fire: () => {
+      if (myPlaybackId !== playbackId || !isPlaying.value) return
+      const startedAt = Date.now()
+      const promise = audioController.value.playOverlap(url, rate).then(
+        () => ({ ok: true }),
+        (err) => {
+          // NotAllowedError on an unprimed element, or a load failure: the
+          // next row plays the clip itself on the main element, at zero gap.
+          console.warn('[ListeningOverlay] jump-in early start refused — zero-gap fallback:', err?.name || err)
+          return { ok: false }
+        },
+      )
+      pendingJumpIn = { id: first.id, startedAt, promise }
+    },
+  }
+}
 
 /** Dialogues (pods) loop toggle. OFF (default): on scene-end, auto-
  *  advance to the next scene — the whole pod plays as a continuous
@@ -338,13 +508,13 @@ const loopScene = ref(false)
 // already lives in the MAIN FLOW (usePodLapScheduler, driven live from
 // algorithm_config.pods); we deliberately do NOT re-implement a summarised
 // copy of it here — that second engine was the source of the listening-vs-
-// main-flow mismatch. Two target-only practice modes:
+// main-flow mismatch. Two practice modes, one speed each:
 //   immersion — the whole scene, target only, at the learner's chosen speed
 //               (the speed row). Continuous, natural conversation.
 //   drill     — each line four times, one speed: target, known, target,
 //               target (t·k·t·t). Tight repetition to lock a line in.
-// Two target-only practice modes (admin Progression preview retired 2026-06-24
-// — it now lives in the dashboard Listening Config tool's full-arc preview).
+// (The admin Progression preview was retired 2026-06-24 — it now lives in the
+// dashboard Listening Config tool's full-arc preview.)
 const BASE_LISTEN_MODES = [
   { key: 'immersion', label: 'Immersion', desc: 'The whole scene in the target language, at your pace' },
   { key: 'drill',     label: 'Drill',     desc: 'Each line four times — target, its meaning, then target twice more' },
@@ -540,8 +710,12 @@ watch(currentIndex, () => { revealedRowId.value = null })
 // stack renders with its lines cut from the sentence text — sentence enders,
 // then clause punctuation, then a 60-char cap — layout only: no lit line,
 // no fill, no clock (#430, Tom: "we could still split them up into single
-// breaths"). Either source yielding one line → null → the existing card,
-// unchanged. Drill and every other surface → null by construction (see
+// breaths") — and, since #468, an ESTIMATED walk: the lines are apportioned
+// across the clip's own duration by their speech (breathGroups.ts,
+// estimateLineTimings), the lit line moves at that estimate, and no fill is
+// painted inside it — the whole line is lit at once (#479: with no --fill
+// set it was taking the timed gradient at 0%, first letter only). Either source yielding one line → null → the existing
+// card, unchanged. Drill and every other surface → null by construction (see
 // playback/breathGroups.ts and ListeningOverlay.breathTracker.test.ts).
 let breathGroupCache = new Map()
 const trackerGroupsFor = (phrase) => {
@@ -557,7 +731,7 @@ const trackerGroupsFor = (phrase) => {
     if (groups) stack = { lines: groups, timed: true }
   } else {
     const lines = textLinesForSentence(text)
-    if (lines) stack = { lines: lines.map((t) => ({ text: t })), timed: false }
+    if (lines) stack = { lines: estimateLineTimings(lines), timed: false }
   }
   breathGroupCache.set(key, stack)
   return stack
@@ -568,6 +742,9 @@ const trackerGroupsFor = (phrase) => {
 // screen freezes rAF, and nobody is looking at a locked screen.
 const trackClipId = ref(null)
 const trackClock = ref(0)
+/** The sounding clip's length in seconds, read off the same element — the
+ *  only clock an UNTIMED clip has (#468); 0 until its metadata is in. */
+const trackDuration = ref(0)
 let clockRaf = null
 const stopClipClock = (clear = true) => {
   if (clockRaf) cancelAnimationFrame(clockRaf)
@@ -578,9 +755,11 @@ const startClipClock = (id) => {
   stopClipClock(false)
   trackClipId.value = id
   trackClock.value = 0
+  trackDuration.value = 0
   const tick = () => {
-    const a = audioController.value?.audio
+    const a = audioController.value?.activeElement
     trackClock.value = a ? (a.currentTime || 0) : 0
+    trackDuration.value = a && Number.isFinite(a.duration) ? (a.duration || 0) : 0
     clockRaf = requestAnimationFrame(tick)
   }
   clockRaf = requestAnimationFrame(tick)
@@ -588,17 +767,24 @@ const startClipClock = (id) => {
 const trackPos = computed(() => {
   const phrase = availablePhrases.value[currentIndex.value]
   const stack = phrase ? trackerGroupsFor(phrase) : null
-  if (!stack?.timed) return { index: -1, fill: 0 }
+  if (!stack) return { index: -1, fill: 0 }
   const live = trackClipId.value && trackClipId.value === phrase.sentences[0].targetAudioId
-  return trackPosition(stack.lines, live ? trackClock.value : 0)
+  if (stack.timed) return trackPosition(stack.lines, live ? trackClock.value : 0)
+  // Untimed (#468): the lines carry FRACTIONS of the clip, so the clock is
+  // the element's progress through it. No duration yet → the first line
+  // lit, as a timed stack is before its first word.
+  const d = trackDuration.value
+  const progress = live && d > 0 ? trackClock.value / d : 0
+  return trackPosition(stack.lines, progress)
 })
-// An untimed stack has no position: every line in the card's own colour.
+// Said / lit / to come at line grain on every stack; the fill inside the lit
+// line is painted only where the clip's own timings earned it.
 const breathClass = (gi) => (trackPos.value.index < 0 ? { untimed: true } : {
   said: gi < trackPos.value.index,
   live: gi === trackPos.value.index,
   ahead: gi > trackPos.value.index,
 })
-const breathStyle = (gi) => (gi === trackPos.value.index ? { '--fill': `${Math.round(trackPos.value.fill * 1000) / 10}%` } : null)
+const breathStyle = (gi, timed) => (timed && gi === trackPos.value.index ? { '--fill': `${Math.round(trackPos.value.fill * 1000) / 10}%` } : null)
 
 // Dialogue rows are per-CHUNK, so the gloss is a single line under a single
 // phrase (never a paragraph wall) — it follows the gloss eye in every mode,
@@ -612,10 +798,9 @@ const isDialogueScene = computed(() => view.value === 'pods' && selectedScene.va
 // too). "All" (phrases) stays the legacy random-voice list.
 const modeSurface = computed(() => isDialogueScene.value || view.value === 'seeds')
 
-// Speed selector is now shown in EVERY playback surface, including Drill — the
-// chosen speed is the "normal" rate and Drill's fast reps are 2× of it (Aran
-// 2026-06-29). The old fixed-pace caption / spacer is retired.
-const showSpeedRow = computed(() => true)
+// The speed selector shows in EVERY playback surface, including Drill (Aran
+// 2026-06-29); the old fixed-pace caption / spacer is retired, so the speed
+// row in the template is unconditional.
 
 // Pods state: list of scenes from useListeningPods, plus the currently
 // selected scene (null = scene list visible, set = teleprompter mode).
@@ -632,6 +817,63 @@ const courseKnownLang = computed(() => props.courseCode?.split('_for_')[1] || ''
 const courseCodeRef = computed(() => props.courseCode)
 const pods = useListeningPods(courseCodeRef)
 const selectedScene = ref(null)
+
+// Pod cards (job #428). The Dialogues tab opens on one card per pod slot the
+// course lists; tapping a card opens THAT pod's scene list. selectedPodId is
+// the open pod (null = cards visible). Derived from the scene list itself, so
+// offline it comes from the snapshot exactly as the flat list did, and a pod
+// the data does not list never gets a card.
+const selectedPodId = ref(null)
+const podCards = computed(() => groupScenesByPod(pods.scenes.value))
+const selectedPod = computed(() => podCards.value.find((c) => c.podId === selectedPodId.value) || null)
+/** The scenes the list, play-all and scene→scene continuation walk: the open
+ *  pod's, or every pod's when no pod is open (defensive; every path that opens
+ *  a scene goes through a card). */
+const podScenes = computed(() => (selectedPod.value ? selectedPod.value.scenes : pods.scenes.value))
+// `audioCache.has` is a synchronous, non-reactive Set read (see
+// availablePhrases). The card states re-read it whenever the shared download
+// counters move, the offline prop flips, or the learner comes back to the
+// cards (readinessTick) — no poller.
+const readinessTick = ref(0)
+const podStates = computed(() => {
+  void offlineDlDone.value
+  void offlineDlState.value
+  void readinessTick.value
+  void props.isOffline
+  const ctx = { downloadActive: offlineDownloadActive.value, offline: isOfflineish() }
+  const out = {}
+  for (const card of podCards.value) {
+    const fraction = cachedFraction(podAudioIds(card.scenes), (id) => audioCache.has(id))
+    out[card.podId] = { fraction, state: podReadiness(fraction, ctx) }
+  }
+  return out
+})
+const podState = (card) => podStates.value[card.podId]?.state || 'notYet'
+const podStateLabel = (card) => {
+  const st = podState(card)
+  return st === 'ready' ? t('listening.podReadyOffline') : st === 'downloading' ? t('listening.podDownloading') : t('listening.podNotYet')
+}
+// The pod's own title from the data; a row without one is named by its slot
+// in learner terms ("Pod 1"), never by an internal term.
+const podLabel = (card) => card.podTitle || t('listening.podFallbackTitle').replace('{n}', String(card.podIndex + 1))
+const podScenesLabel = (card) => t('listening.podScenesCount').replace('{n}', String(card.sceneCount))
+/** Offline, the open pod has not one clip on the device: show the existing
+ *  offline message in place of a list that could only play silence. */
+const podNothingListenable = computed(() =>
+  !!selectedPod.value && isOfflineish() && (podStates.value[selectedPod.value.podId]?.fraction || 0) === 0,
+)
+const openPod = (card) => {
+  stopPlayback()
+  selectedScene.value = null
+  selectedPodId.value = card.podId
+  readinessTick.value += 1
+}
+const exitPod = () => {
+  stopPlayback()
+  selectedScene.value = null
+  selectedPodId.value = null
+  readinessTick.value += 1
+}
 
 // A course whose pod-0 holds no sentences has no Dialogues to offer, so the
 // tab is HIDDEN rather than shown leading to an empty shelf (Tom 2026-08-08:
@@ -834,6 +1076,11 @@ const openScene = (scene) => {
         // True only on a speaker change — drives the speaker-aware gap (tight
         // within a paragraph, a full breath across speakers).
         isTurnStart: paragraphStart,
+        // This line interrupts the previous speaker: no gap before it, and an
+        // overlap where the platform allows (podChangeover.ts). Only a turn's
+        // first chunk can jump in; its later chunks are the same speaker
+        // carrying on.
+        jumpIn: idx === 0 && s.jumpIn === true,
       })
     })
   }
@@ -903,6 +1150,7 @@ const setView = (v) => {
   if (view.value === v) return
   stopPlayback()
   selectedScene.value = null
+  selectedPodId.value = null
   view.value = v
   allPhrases.value = []
   loadedCount.value = 0
@@ -1291,36 +1539,6 @@ const getAudioUrl = (audioId) => {
   return apiUrl(`/api/audio/${audioId}?courseId=${encodeURIComponent(props.courseCode)}`)
 }
 
-/**
- * Tab-open JIT prefetch — warm the first ~5 visible-ish rows of the
- * active tab so the first tap plays instantly on slow networks.
- *
- * The ListeningOverlay's playback path uses raw audio URLs through a
- * plain `new Audio()` element — it does NOT consult IndexedDB at play
- * time. That means the only cache layer the click-to-play tap hits is
- * the SW CacheFirst layer for `/api/audio/*`. So we warm THAT cache by
- * issuing the same URL (`getAudioUrl(id)`, including the `?courseId=…`
- * query string the player will use) at low priority — matching the
- * pattern in usePodLapScheduler.prefetchLap().
- *
- * priority: 'low' — these are pure bandwidth warm-ups with no urgency.
- * They must not compete with the LearningPlayer's high-priority known-
- * audio prefetches if a session is running (browsers without
- * RequestPriority support ignore the option gracefully).
- *
- * Conservative cap (TAB_PREFETCH_LIMIT = 5) — no point prefetching the
- * whole tab for a list of hundreds of phrases the user will scroll past.
- * The cap also bounds the worst-case bandwidth cost of a user rapidly
- * cycling through tabs. Repeated calls for the same URL collapse at the
- * SW layer (CacheFirst — first request fills the cache, subsequent
- * requests hit it).
- */
-/**
- * Warm the next scene's opening audio into IndexedDB while the current
- * scene's last turn plays — so the playlist segue resolves to a cached WAV
- * blob (lock-safe) instead of hitting the network inside the 800ms gap.
- * Mirrors the wrap-around in handleEndOfList (last scene warms the first).
- */
 /** Warm EVERY clip a scene's turns can need under the current mode —
  *  targets, and (in stage-pattern modes) translations + explainers. A whole
  *  canon-v2 scene is ≤ ~60 small clips; cached up-front while the screen is
@@ -1332,9 +1550,12 @@ const warmScene = (scene) => {
   }
 }
 
+/** Warm the NEXT scene while the current scene's last turn plays, so the
+ *  playlist segue resolves to a cached blob (lock-safe) rather than the
+ *  network. Wraps like handleEndOfList (last scene warms the first). */
 const prefetchNextSceneHead = () => {
   if (view.value !== 'pods' || !selectedScene.value || loopScene.value) return
-  const sceneList = pods.scenes.value
+  const sceneList = podScenes.value
   const idx = sceneList.findIndex(s => s.sceneKey === selectedScene.value.sceneKey)
   const next = idx >= 0 ? (sceneList[idx + 1] || sceneList[0]) : null
   if (!next || next.sceneKey === selectedScene.value.sceneKey) return
@@ -1353,6 +1574,10 @@ const warmClip = (id) => {
   audioCache.persistent.ensure(id).catch(() => undefined)
 }
 
+/** Tab-open JIT prefetch: warm the first TAB_PREFETCH_LIMIT rows of the
+ *  active tab into IndexedDB so the first tap plays instantly on a slow
+ *  network. The cap is deliberate — a tab can list hundreds of rows the
+ *  learner scrolls past, and it bounds the cost of flicking between tabs. */
 const prefetchTopRows = () => {
   const rows = availablePhrases.value
   if (!rows.length) return
@@ -1387,6 +1612,9 @@ const prefetchTopRows = () => {
 const playFromIndex = async (index) => {
   if (index < 0 || index >= availablePhrases.value.length) return
 
+  // Synchronous, before any await: this is the learner's tap, the one moment
+  // iOS lets the jump-in element earn its autoplay unlock.
+  audioController.value?.primeOverlap()
   const myPlaybackId = ++playbackId
   currentIndex.value = index
   isPlaying.value = true
@@ -1538,21 +1766,23 @@ const playCurrentPhrase = async (myPlaybackId) => {
   if (myPlaybackId !== playbackId) return
 
   // Play each audio clip in sequence. Within a turn (same speaker
-  // continuing) the gap is as tight as possible — 50ms — so two
-  // sentences from one speaker run together as natural continuous
-  // speech rather than feeling like two separate utterances. The
-  // longer 800ms inter-phrase gap below (between turns) carries the
-  // speaker-change pause.
+  // continuing) the gap is the tightest, GAP_IMMERSION_JOIN_MS, so two
+  // sentences from one speaker run together as natural continuous speech;
+  // Drill's reps breathe GAP_DRILL_MS; the inter-phrase gap between turns,
+  // GAP_DEFAULT_MS, carries the speaker-change pause.
   //
-  // BOTH gaps play as silent one-shot clips (playSilence), NOT bare
+  // ALL gaps play as silent one-shot clips (playSilence), NOT bare
   // setTimeouts — iOS freezes timers on a backgrounded/locked tab, so a
   // timer-driven gap killed the advance the moment the screen locked.
   // 'ended'-driven silence matches the main flow / INF PLAY / pod-lap
   // protocol (see SimplePlayer's PAUSE phase).
-  // Drill's repeats breathe a little (300ms) so the 1×/2×/2× reps read as
-  // deliberate practice; Immersion keeps the tight 50ms that joins a
-  // speaker's consecutive chunks into natural continuous speech.
   const interClipGap = (modeSurface.value && listenMode.value === 'drill') ? GAP_DRILL_MS : GAP_IMMERSION_JOIN_MS
+  // The row after this one, and whether it JUMPS IN on this one (Tom
+  // 2026-09-12: an interruption gets no gap and an overlap where possible; a
+  // genuine turn keeps today's gap). Immersion only — podChangeover.ts.
+  const nextPhrase = availablePhrases.value[currentIndex.value + 1]
+  const changeover = { inDialogue: isDialogueScene.value, listenMode: listenMode.value, nextRow: nextPhrase }
+  const jumpInNext = isJumpInChangeover(changeover)
   activeStripIndex.value = -1
   for (let i = 0; i < playQueue.length; i++) {
     if (myPlaybackId !== playbackId) return
@@ -1560,19 +1790,27 @@ const playCurrentPhrase = async (myPlaybackId) => {
     const { id, rate, startMs, endMs, stripIndex } = item
     const proxyUrl = getAudioUrl(id)
     if (!proxyUrl) continue
+    // A jump-in already sounding on the second element (armed by the previous
+    // row): adopt it rather than starting the clip again.
+    let adopted = null
+    if (i === 0 && pendingJumpIn && pendingJumpIn.id === id) { adopted = pendingJumpIn; pendingJumpIn = null }
     // Resolve through the SHARED substrate: a cached WAV blob from IndexedDB
     // (lock-screen-safe — real PCM, no network) when present, else the proxy
     // URL (instant first play on a cold cache). Same primitive the main 4-phase
     // cycle plays through (SimplePlayer.resolveAudioUrl) — this is what makes
     // listening survive background/lock, not just the silent gaps.
     const clipCacheHit = audioCache.has(id)
-    const audioUrl = await resolveCachedPlaybackUrl(audioCache, id, proxyUrl)
+    const audioUrl = adopted ? null : await resolveCachedPlaybackUrl(audioCache, id, proxyUrl)
     if (myPlaybackId !== playbackId) return
-    const clipStartedAt = Date.now()
+    // This row's LAST clip carries the hook that starts a jump-in early.
+    const nearEnd = (jumpInNext && i === playQueue.length - 1) ? await armJumpIn(phrase, nextPhrase, myPlaybackId) : null
+    if (myPlaybackId !== playbackId) return
+    let clipStartedAt = Date.now()
     let clipOk = true
-    // Dialogue queues always carry an explicit per-clip rate (Immersion =
-    // chosen speed, Drill = 1×/2×/2×), so a Core/All speed never leaks in.
-    // Core/All pass rate=null and lean on the controller's rate watch.
+    // Dialogue and Core queues always carry an explicit per-clip rate — the
+    // chosen speed, one rate for every clip of a line in both modes — so a
+    // stale rate never leaks in. All passes rate=null and leans on the
+    // controller's rate watch.
     // Declared OUTSIDE the try: the per-clip row below reads it, and a
     // try-scoped const threw ReferenceError after the first clip, which
     // killed Listening Mode playback on staging build 3004383 (job #339).
@@ -1583,11 +1821,28 @@ const playCurrentPhrase = async (myPlaybackId) => {
       // Fusion-drill strips: light the strip this step belongs to.
       activeStripIndex.value = stripIndex ?? -1
       if (tracked) startClipClock(id)
-      await audioController.value.play(
-        audioUrl,
-        effectiveRate,
-        startMs != null && endMs != null ? { startMs, endMs } : null,
-      )
+      let played = false
+      if (adopted) {
+        clipStartedAt = adopted.startedAt
+        // Two jump-ins in a row: this clip is already sounding, so the hook
+        // for the NEXT one goes on it here rather than through play().
+        if (nearEnd) audioController.value.armNearEnd(nearEnd)
+        played = (await adopted.promise).ok
+        if (myPlaybackId !== playbackId) return
+      }
+      if (!played) {
+        // Zero-gap floor: no silence was played before this row, and the URL
+        // is already resolved — the changeover is one src swap on the main
+        // element. Also the landing for an early start the platform refused.
+        const url = audioUrl ?? await resolveCachedPlaybackUrl(audioCache, id, proxyUrl)
+        if (myPlaybackId !== playbackId) return
+        await audioController.value.play(
+          url,
+          effectiveRate,
+          startMs != null && endMs != null ? { startMs, endMs } : null,
+          nearEnd,
+        )
+      }
     } catch (err) {
       clipOk = false
       console.error('[ListeningOverlay] Audio play failed:', err)
@@ -1632,13 +1887,10 @@ const playCurrentPhrase = async (myPlaybackId) => {
   // consecutive chunks close (natural continuous speech) and breathe only on
   // a speaker change (the next row starts a new turn). Elsewhere, the steady
   // between-phrases pause. Immersion runs the tightest within-turn gap; Drill
-  // gives each phrase a touch more room.
-  const nextPhrase = availablePhrases.value[currentIndex.value + 1]
-  let trailingGap = GAP_DEFAULT_MS
-  if (isDialogueScene.value && nextPhrase && !nextPhrase.isTurnStart) {
-    trailingGap = listenMode.value === 'immersion' ? GAP_IMMERSION_JOIN_MS : GAP_DRILL_MS
-  }
-  await audioController.value.playSilence(trailingGap)
+  // gives each phrase a touch more room. A jump-in gets NO gap at all — its
+  // clip may already be sounding on the second element (podChangeover.ts).
+  const trailingGap = changeoverGapMs(changeover)
+  if (trailingGap > 0) await audioController.value.playSilence(trailingGap)
 
   if (myPlaybackId !== playbackId) return
 
@@ -1690,7 +1942,10 @@ const handleEndOfList = async (myPlaybackId) => {
   // to the next scene, depending on the loop toggle. Default is auto-
   // advance — the whole pod plays through as a continuous session.
   if (view.value === 'pods' && selectedScene.value && !loopScene.value) {
-    const sceneList = pods.scenes.value
+    // Scoped to the OPEN POD (job #428): a learner who chose a pod plays that
+    // pod, so the playlist wraps within it rather than segueing into the
+    // next pod as the flat list did (job #354).
+    const sceneList = podScenes.value
     // Match by sceneKey (pod-qualified) — PodScene has no `id` field, and
     // the old `s.id === selectedScene.id` compared undefined===undefined,
     // which matched index 0 and made EVERY scene "advance" to scene 2.
@@ -1749,7 +2004,7 @@ const togglePlayback = () => {
  *  through — handleEndOfList already segues scene→scene (loop off), so the
  *  whole pod plays end-to-end as one continuous session. */
 const playAllScenes = async () => {
-  const sceneList = pods.scenes.value
+  const sceneList = podScenes.value
   if (!sceneList || sceneList.length === 0) return
   loopScene.value = false
   openScene(sceneList[0])
@@ -1761,6 +2016,7 @@ const stopPlayback = () => {
   playbackId++
   isPlaying.value = false
   activeStripIndex.value = -1
+  pendingJumpIn = null
   stopClipClock()
   audioController.value?.stop()
 }
@@ -2043,10 +2299,10 @@ watch(
     <!-- Back to scene list — mirrors the close circle at the opposite corner,
          so the top band reads: [back] [tabs] [close]. -->
     <button
-      v-if="view === 'pods' && selectedScene"
+      v-if="view === 'pods' && (selectedScene || selectedPod)"
       class="close-btn back-fab"
-      :title="`Back to scenes — ${selectedScene.title}`"
-      @click.stop="exitScene"
+      :title="selectedScene ? `Back to scenes — ${selectedScene.title}` : 'Back to pods'"
+      @click.stop="selectedScene ? exitScene() : exitPod()"
     >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="15 18 9 12 15 6"/>
@@ -2107,49 +2363,77 @@ watch(
         <p>{{ t('listening.noPodsCourseYet') }}</p>
       </div>
       <div v-else class="scene-list">
-        <!-- Play all scenes end-to-end (Aran 2026-06-29) — opens scene 1 and
-             segues through every scene as one continuous session. -->
-        <button class="scene-play-all" type="button" @click="playAllScenes">
-          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-            <polygon points="7 3 20 12 7 21 7 3"/>
-          </svg>
-          {{ t('listening.playAllScenes') }}
-        </button>
-        <template v-for="(scene, i) in pods.scenes.value" :key="scene.sceneKey">
-          <!-- Group heading when the course lists more than one pod (the
-               served pod, then the method pod — job #354). The heading is the
-               pod's own title from the data, so no internal term is minted
-               here; a single-pod course shows no heading at all. -->
-          <div
-            v-if="pods.scenes.value[pods.scenes.value.length - 1].podIndex > 0 && (i === 0 || pods.scenes.value[i - 1].podId !== scene.podId)"
-            class="scene-group-heading"
-          >{{ scene.podTitle || '' }}</div>
-        <button
-          class="scene-card"
-          type="button"
-          @click="openScene(scene)"
-        >
-          <div class="scene-card-num">{{ scene.sceneNumber }}</div>
-          <div class="scene-card-body">
-            <div class="scene-card-title">{{ scene.title }}</div>
-            <div class="scene-card-meta">
-              <!-- Cast dots — one per character, in their conversation colour -->
-              <span class="scene-card-cast">
-                <span
-                  v-for="sp in scene.speakers"
-                  :key="sp.name"
-                  class="scene-cast-dot"
-                  :style="{ background: SPEAKER_PALETTE[sp.colorIndex % SPEAKER_PALETTE.length] }"
-                  :title="sp.name"
-                ></span>
-              </span>
-              {{ scene.sentenceCount }} sentences
+        <!-- Pod cards (job #428): one per pod slot the course lists, in list
+             order, each carrying its offline-readiness state. A single-pod
+             course still shows its one card — the card is where the state
+             lives. Tapping a card opens that pod's scene list alone. -->
+        <template v-if="!selectedPod">
+          <button
+            v-for="card in podCards"
+            :key="card.podId"
+            class="scene-card pod-card"
+            type="button"
+            @click="openPod(card)"
+          >
+            <div class="scene-card-body">
+              <div class="scene-card-title pod-card-title">{{ podLabel(card) }}</div>
+              <div class="scene-card-meta">
+                {{ podScenesLabel(card) }}
+                <span class="pod-chip" :class="podState(card)">{{ podStateLabel(card) }}</span>
+              </div>
             </div>
+            <svg class="scene-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
+        </template>
+        <template v-else>
+          <!-- The open pod's own title, so the learner knows which pod this
+               list belongs to; the back control is the top-left circle. -->
+          <div class="scene-group-heading">{{ podLabel(selectedPod) }}</div>
+          <!-- Offline with nothing of this pod on the device: the existing
+               offline message, per pod, instead of a silent list. -->
+          <div v-if="podNothingListenable" class="error pod-offline-empty">
+            <p>{{ t('listening.noneSavedDeviceYet') }}</p>
           </div>
-          <svg class="scene-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="9 18 15 12 9 6"/>
-          </svg>
-        </button>
+          <template v-else>
+            <!-- Play all of THIS pod's scenes end-to-end (Aran 2026-06-29) —
+                 opens scene 1 and segues through the pod as one session. -->
+            <button class="scene-play-all" type="button" @click="playAllScenes">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <polygon points="7 3 20 12 7 21 7 3"/>
+              </svg>
+              {{ t('listening.playAllScenes') }}
+            </button>
+            <button
+              v-for="scene in podScenes"
+              :key="scene.sceneKey"
+              class="scene-card"
+              type="button"
+              @click="openScene(scene)"
+            >
+              <div class="scene-card-num">{{ scene.sceneNumber }}</div>
+              <div class="scene-card-body">
+                <div class="scene-card-title">{{ scene.title }}</div>
+                <div class="scene-card-meta">
+                  <!-- Cast dots — one per character, in their conversation colour -->
+                  <span class="scene-card-cast">
+                    <span
+                      v-for="sp in scene.speakers"
+                      :key="sp.name"
+                      class="scene-cast-dot"
+                      :style="{ background: SPEAKER_PALETTE[sp.colorIndex % SPEAKER_PALETTE.length] }"
+                      :title="sp.name"
+                    ></span>
+                  </span>
+                  {{ scene.sentenceCount }} sentences
+                </div>
+              </div>
+              <svg class="scene-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            </button>
+          </template>
         </template>
       </div>
     </div>
@@ -2222,13 +2506,10 @@ watch(
         <span class="progress-text">{{ progressPercent }}%</span>
       </div>
 
-      <!-- Speed slot — Core/All always shows the interactive selector. In
-           Dialogues the slot is ALWAYS present (its own row under the band)
-           so the toolbar height never changes between modes: Immersion gets
-           the interactive selector; Drill gets a quiet, non-interactive
-           fixed-pace caption (Drill's pace is fixed at 1×/2×/2×) — which also
-           explains WHY there is no speed choice in that mode. -->
-      <div v-if="showSpeedRow" class="speed-controls">
+      <!-- Speed slot — always present, in every view and both modes, so the
+           toolbar height never changes between Immersion and Drill. The
+           chosen speed is the one rate every clip of a line plays at. -->
+      <div class="speed-controls">
         <span class="speed-label">{{ t('listening.speed') }}</span>
         <div class="speed-selector">
           <button
@@ -2373,9 +2654,10 @@ watch(
                  more BREATH GROUPS (pauses in the clip's own word timings)
                  is a stack — said / lit / to come — and a fill walks inside
                  the lit group with the clip's clock. A sentence with NO
-                 timings is the same stack cut from its text, layout only.
-                 One line from either source, or any other mode → this
-                 branch is null and the card below renders exactly as
+                 timings is the same stack cut from its text, its lit line
+                 walking at an estimate from the clip's length, no fill
+                 (#468). One line from either source, or any other mode →
+                 this branch is null and the card below renders exactly as
                  before. -->
             <template v-else-if="isCurrent && trackerGroupsFor(phrase)">
               <div class="breath-stack" :class="{ untimed: !trackerGroupsFor(phrase).timed }" :dir="dirFor(phrase.targetText)">
@@ -2385,7 +2667,7 @@ watch(
                   :lang="courseTargetLang"
                   class="phrase-target breath-group"
                   :class="breathClass(gi)"
-                  :style="breathStyle(gi)"
+                  :style="breathStyle(gi, trackerGroupsFor(phrase).timed)"
                 ><span class="breath-fill">{{ g.text }}</span></div>
               </div>
               <div :lang="courseKnownLang" v-if="(glossVisible || revealedRowId === phrase.id) && phrase.knownText" class="phrase-known" :dir="dirFor(phrase.knownText)">{{ phrase.knownText }}</div>
@@ -3075,6 +3357,33 @@ watch(
 }
 .scene-group-heading:first-child { margin-top: 0; }
 
+/* Pod cards (job #428) — same family as the scene cards, stacked full-width
+ * so a long pod title ("Italian Listening Pods — Pod 1") has room to read. */
+.pod-card { padding: 1.1rem 1.1rem; }
+.scene-card.pod-card .scene-card-title { white-space: normal; overflow: visible; text-overflow: clip; }
+.pod-offline-empty { margin: 0; }
+/* Readiness chip — a word, not a bar and not a percentage. */
+.pod-chip {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-muted);
+}
+/* Ink fill, not belt colour — a belt-colour fill vanishes on white belt. */
+.pod-chip.ready {
+  background: var(--text-primary);
+  color: var(--bg-primary, #ffffff);
+}
+.pod-chip.downloading {
+  border: 1px solid var(--text-primary);
+  background: transparent;
+  color: var(--text-primary);
+}
+
 .scene-play-all {
   display: flex;
   align-items: center;
@@ -3389,23 +3698,38 @@ watch(
   margin-top: 0.1rem;
 }
 
-/* Immersion breath-group stack (jobs #408, #430) — Spotify-transcript
+/* Immersion breath-group stack (jobs #408, #430, #468) — Spotify-transcript
  * grammar on ONE card: the group being spoken lit, groups already said
  * quiet, groups to come dim. An UNTIMED stack (lines cut from the text,
- * `.breath-stack.untimed`) carries none of those states: every line sits in
- * the card's own colour, and only the layout is shared. The fill inside the lit group is the text itself painted up to
- * --fill (background-clip: text), walking with the clip's clock. Lines never
- * reflow between states: state is colour, never size or weight. Selectors
- * carry `.phrase-row.current` because the card's own target rule does, and
- * the state colour has to beat it (the first staging build painted every
- * group the same black for exactly that reason). */
+ * `.breath-stack.untimed`) shares the three line states, walked at an
+ * estimate from the clip's length, but never the fill: the lit line is
+ * simply the card's own colour, in full (#468; painted so by its own rule
+ * below since #479). The fill inside a TIMED lit group is
+ * the text itself painted up to --fill (background-clip: text), walking with
+ * the clip's clock. Lines never reflow between states: state is colour,
+ * never size or weight. Selectors carry `.phrase-row.current` because the
+ * card's own target rule does, and the state colour has to beat it (the
+ * first staging build painted every group the same black for exactly that
+ * reason).
+ *
+ * Type size (#468): a line is the size of a long real breath (60 chars),
+ * and at the card's own size — clamp(1.75rem, 5vmin, 2.25rem), ~19 chars a
+ * line on a 390px phone — every line wrapped three times and a six-line
+ * turn overflowed the viewport: the block of text again, in a stack. The
+ * stack sets its lines a step smaller so a breath is one or two screen
+ * lines and the walk is visible as a walk. The single-sentence card is
+ * untouched. */
 .breath-stack {
   --breath-said: #6f6761;
   --breath-dim: rgba(138, 128, 120, 0.62);
   display: flex;
   flex-direction: column;
-  gap: 0.35em;
+  gap: 0.45em;
   unicode-bidi: isolate;
+}
+.phrase-row.current .breath-stack .phrase-target.breath-group {
+  font-size: clamp(1.25rem, 3.8vmin, 1.75rem);
+  line-height: 1.25;
 }
 .phrase-row.current .phrase-target.breath-group {
   transition: color 0.25s ease;
@@ -3446,6 +3770,19 @@ watch(
     var(--breath-dim) calc(var(--fill) + 2%),
     var(--breath-dim) 100%
   );
+}
+/* An UNTIMED lit line has no fill to walk (#468), so it is lit in FULL from
+ * the moment its clip starts: the card's own colour, no gradient, no clip.
+ * Job #479 — without this rule the timed gradient above painted the line at
+ * its default --fill of 0%: dark for the first letter, dim for the rest,
+ * and the walk read one line behind the voice (Tom, staging 2026-09-13:
+ * "It illuminates JUST the first letter of a line / Then speaks the line").
+ * Sits after both gradient rules and outweighs them by one class. */
+.phrase-row.current .breath-stack.untimed .phrase-target.breath-group.live .breath-fill {
+  color: var(--text-primary);
+  background-image: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
 }
 
 /* Fusion-drill strips — the sentence at its current rung, one strip per

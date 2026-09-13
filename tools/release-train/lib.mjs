@@ -76,6 +76,12 @@ export function candidate({ base = 'origin/main', head = 'origin/staging', fetch
 export const PROCESS_RE = [
   /^Merge (remote-tracking )?branch/i,
   /^Merge pull request/i,
+  // The command surface's own merge subjects: "Merge cs/326: <subject> (job #326)" and
+  // "Merge cs/424-slug into dev (job #424)". Neither is a change; the commit it merged is also in
+  // the range under its own subject. Unfiltered, each one became a generic bullet on 2026-09-12
+  // and two took headline slots, "Merge cs/…:" prefix and all.
+  /^Merge (cs|claude|hotfix|origin)\//i,
+  /^Merge .* into (dev|staging|main)\b/i,
   /^worklist:/i,
   /^promote:/i,
   /^chore: retrigger/i,

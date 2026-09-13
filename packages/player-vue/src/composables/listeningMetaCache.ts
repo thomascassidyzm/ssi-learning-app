@@ -9,12 +9,31 @@
  * "listening_pod_sentences: TypeError: Load failed" and Core spun on a dead
  * fetch despite every clip being in IndexedDB.
  *
- * This module persists that metadata to IndexedDB during the deliberate
- * offline download (same one-entry-per-course pattern as the script cache in
- * useScriptCache) and serves it back when the app is offline or a live query
- * fails. It is also the single source for the listening bundle's audio-id
- * set — the ids are derived from the very rows we persist, so metadata and
- * audio can't drift apart.
+ * This module persists that metadata to IndexedDB — one entry per course,
+ * the same pattern as the script cache in useScriptCache — and serves it back
+ * when the app is offline or a live query fails. It is also the single source
+ * for the listening bundle's audio-id set — the ids are derived from the very
+ * rows we persist, so metadata and audio can't drift apart.
+ *
+ * THE SNAPSHOT'S LIFE, in order (all of it in this file):
+ *
+ *  1. WRITE — fetchAndCacheListeningMeta. Every slot Listening Mode lists
+ *     (servedPod.resolveListeningPods: the served pod, then the named extra
+ *     slots), its rows, clip texts and timings, bookends, fine-knowns, seeds,
+ *     catalogue, L1 fallback phrases, and the course's content/audio stamps.
+ *     All-or-nothing. Called by the deliberate offline download, and by:
+ *  2. FIRST WRITE ON BOOT — ensureListeningMetaSnapshot (job #379). The
+ *     online boot writes the snapshot when the device has none, so the
+ *     Dialogues list exists offline before any deliberate download. The same
+ *     call HEALS an entry that does not list every slot — see
+ *     snapshotListsEverySlot for the two reasons (jobs #379 and #424).
+ *  3. STALENESS — refreshListeningMetaIfStale. Content or audio stamp moved:
+ *     mark the entry stale (persisted), refetch in the background.
+ *  4. READ — getCachedListeningMeta, by every offline/fallback lane
+ *     (useListeningPods, usePodLapScheduler, useLayer1Scheduler, servedPod's
+ *     offline lane, and the fetch-ahead's pod corpus in LearningPlayer).
+ *  5. WITHDRAWAL — clearCachedListeningPodRows when a live read says the
+ *     course has no pods.
  */
 
 import { openDB, deleteDB, type IDBPDatabase } from 'idb'
@@ -110,6 +129,9 @@ export interface CachedPodRow {
   atom_map_fine?: unknown[] | null
   window_known_map?: unknown[] | null
   takeg_audio_ids?: Array<string | null> | null
+  /** Jump-in marker (job #471) — rides the snapshot so offline changeovers
+   *  match online ones. Absent on snapshots written before the column. */
+  jump_in?: boolean | null
 }
 
 /** course_seeds row — superset of the Core tab's and the L1 scheduler's
@@ -362,7 +384,7 @@ export const clearCachedListeningPodRows = async (courseCode: string): Promise<v
 }
 
 /** Column list for the pod-row union select — keep in sync with CachedPodRow. */
-const POD_ROW_COLUMNS =
+export const POD_ROW_COLUMNS =
   'id, scene_number, sentence_number, global_order, speaker, target_text, known_text, ' +
   'target_audio_id, known_audio_id, explainer_audio_id, glue_to_next, atom_map, ' +
   'sentence_audio_ids, sentence_known_audio_ids, atom_map_fine, window_known_map, takeg_audio_ids, ' +
@@ -370,7 +392,10 @@ const POD_ROW_COLUMNS =
   // online one does. A snapshot without these columns would hand every reader
   // rows it could not classify, and a continuation would read as a line of the
   // walk — a learner's walk lengthening on a plane, silently.
-  'variant_key, attach_sentence_number'
+  'variant_key, attach_sentence_number, ' +
+  // The jump-in changeover marker (job #471) — offline dialogues must
+  // breathe the same way online ones do.
+  'jump_in'
 
 /** Column list for the pod CLIP read (split-clip texts + word timings) —
  *  shared with useListeningPods so online and offline read the same shape.
@@ -751,15 +776,7 @@ export const ensureListeningMetaSnapshot = async (
 ): Promise<boolean> => {
   try {
     const cached = await getCachedListeningMeta(courseCode)
-    // An entry written before the extra Listening Mode slots existed (job #354,
-    // 2026-09-12) has no `extraPods` field and would list the served pod alone
-    // offline for as long as the content stamp stands still — which is how the
-    // Italian method pod vanished from Tom's airplane-mode list the same day.
-    // Refresh it once; from then on it carries every slot. The same goes for
-    // an entry whose slots came from a fallback lookup (job #424): its
-    // `extraPods` may be `[]` only because the first fetch timed out, and
-    // this once-per-boot pass is the only thing that would ever retry it.
-    if (cached && Array.isArray(cached.extraPods) && !cached.extrasDegraded) return false
+    if (cached && snapshotListsEverySlot(cached)) return false
     // At most once per session per course: this runs on every round advance,
     // and a snapshot still flagged from a degraded lookup would otherwise be
     // refetched and rewritten on each one (job #425).
@@ -777,6 +794,27 @@ export const ensureListeningMetaSnapshot = async (
 }
 
 /**
+ * Does this snapshot's Listening Mode list carry every slot the course has?
+ * The once-per-boot heal in ensureListeningMetaSnapshot refreshes an entry
+ * exactly when this is false; the content-stamp lane never would, because
+ * neither reason moves the stamp. Two reasons, one gate:
+ *
+ *  - no `extraPods` field at all: written before the extra slots existed
+ *    (job #354, 2026-09-12), so it lists the served pod alone offline for as
+ *    long as the content stamp stands still — how the Italian method pod
+ *    vanished from Tom's airplane-mode list the same day (job #379);
+ *  - `extrasDegraded`: its slots came from a fallback lookup (timeout, error,
+ *    offline), so `extraPods` may be `[]` only because the first fetch timed
+ *    out (job #424). servedPod marks that at the lookup; the writer files it.
+ *
+ * A false answer triggers the refetch at most once per session per course
+ * (servedPod's healed mark, job #425), since the caller runs on every round
+ * advance and a degraded flag stands until the memo is reset.
+ */
+export const snapshotListsEverySlot = (cached: CachedListeningMeta): boolean =>
+  Array.isArray(cached.extraPods) && !cached.extrasDegraded
+
+/**
  * Is the snapshot for this course known to be out of date? True only when a
  * live stamp comparison already said so and the refresh has not landed —
  * never a guess. Readers use it to log a stale fallback rather than to refuse
@@ -790,18 +828,6 @@ export const isCachedListeningMetaStale = async (courseCode: string): Promise<bo
   }
 }
 
-/**
- * The POD slice of the listening metadata — pod turns (incl. per-sentence
- * split clips, known glosses, explainers, Take-G fusion slices), the
- * fine-known gloss clips those scenes use, and the listen bookends that top
- * and tail a pod lap.
- *
- * Split out from `collectListeningMetaAudioIds` so the Offline Mode download
- * can fetch pods FIRST (Tom's ruling, 2026-09-01): a learner who disconnects
- * partway through a 1.86 GB course download should have COMPLETE dialogue
- * pods rather than a scattering of everything. Core seed audio is deliberately
- * NOT here — Core is the whole-course listening bundle, not a pod.
- */
 /** The served pod's rows followed by every extra slot's rows — the full set
  *  of pod sentences a snapshot can play offline. */
 export const allCachedPodRows = (meta: CachedListeningMeta): CachedPodRow[] => [
@@ -809,6 +835,18 @@ export const allCachedPodRows = (meta: CachedListeningMeta): CachedPodRow[] => [
   ...(meta.extraPods || []).flatMap((e) => e.podRows || []),
 ]
 
+/**
+ * The POD slice of the listening metadata — every slot's turns (incl.
+ * per-sentence split clips, known glosses, explainers, Take-G fusion
+ * slices), the fine-known gloss clips those scenes use, and the listen
+ * bookends that top and tail a pod lap.
+ *
+ * This is what both fetch paths put in front of the course (Tom's ruling,
+ * 2026-09-12, job #379 — playback/offlineDownloadOrder.ts): a learner who
+ * disconnects partway through should have COMPLETE dialogue pods rather than
+ * a scattering of everything. Core seed audio is deliberately NOT here —
+ * Core is the whole-course listening bundle, not a pod.
+ */
 export const collectListeningMetaPodAudioIds = (meta: CachedListeningMeta): string[] => {
   const ids = new Set<string>()
   const add = (id?: string | null) => { if (id) ids.add(id) }
@@ -841,13 +879,8 @@ export const collectListeningMetaAudioIds = (meta: CachedListeningMeta): string[
   for (const p of meta.l1FallbackPhrases || []) {
     add(p.known_audio_id); add(p.target1_audio_id); add(p.target2_audio_id)
   }
-  for (const row of allCachedPodRows(meta)) {
-    add(row.target_audio_id); add(row.known_audio_id); add(row.explainer_audio_id)
-    for (const id of row.sentence_audio_ids || []) add(id)
-    for (const id of row.sentence_known_audio_ids || []) add(id)
-    for (const id of row.takeg_audio_ids || []) add(id)
-  }
-  for (const b of meta.bookends) add(b.id)
-  for (const id of Object.values(meta.fineKnowns)) add(id)
+  // Then the pod slice, in its own order — the same ids the fetch-ahead
+  // paths put first, so the two collectors cannot drift apart.
+  for (const id of collectListeningMetaPodAudioIds(meta)) add(id)
   return [...ids]
 }

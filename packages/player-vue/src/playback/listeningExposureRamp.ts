@@ -33,10 +33,15 @@
  *      config values, because the configs are live DB rows that override the
  *      code defaults at runtime.
  *
- * WHAT THIS REPLACES: the nine-stage pod playlist (`DEFAULT_PODS.stagePlaylist`,
- * `['ps08x','explainer','ps08x'] … ['ps2x']`) which produced today's staged
- * progression and the 1.5×/2.0× speed-up reps. Retired — see
- * `resolveListeningPattern` and usePodLapScheduler's `resolveStageConfig`.
+ * WHAT THIS SITS BESIDE, NOT REPLACES: the nine-stage pod playlist
+ * (`DEFAULT_PODS.stagePlaylist`, `['ps08x','explainer','ps08x'] … ['ps2x']`),
+ * the staged progression with its 1.5×/2.0× speed-up reps. It is NOT retired:
+ * which of the two runs is a DB value, `algorithm_config['listening']
+ * .listeningUseStagePlaylist`, whose code default is false (this flat pattern)
+ * and whose LIVE row carries true ("stage playlist ON 2026-08-24"), so real
+ * learners get the staged ladder for pods — see `resolveListeningPattern` and
+ * usePodLapScheduler's `resolveStageConfig`. The ceiling in rule 4 is not
+ * applied on that arm; authored ps2x reps play at 2.0×.
  *
  * WHAT THIS DOES NOT REPLACE: `computeListeningSpeed` in
  * providers/toSimpleRounds.ts, still reachable by config alone

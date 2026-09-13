@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, inject } from 'vue'
 import { useRouter } from 'vue-router'
-import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
@@ -173,7 +172,7 @@ function csvCell(value: string | number): string {
 }
 
 function handleExport() {
-  const header = ['School', 'City', 'Students', 'Teachers', 'Classes', 'Minutes practised', 'Joined', 'Health']
+  const header = ['School', 'City', 'Students', 'Teachers', 'Classes', 'Minutes practised', 'Joined']
   const rows = filteredSchools.value.map((s) => [
     s.school_name,
     '—',
@@ -182,7 +181,6 @@ function handleExport() {
     s.class_count,
     Math.round(s.total_practice_minutes),
     formatJoined(s.created_at),
-    s.health?.replace('-', ' ') || '',
   ])
   const csv = [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\n')
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -306,7 +304,7 @@ watch(currentUser, (u) => {
            section: seeing-progress
            roles: leader
            place: schools-list
-           keywords: schools, all, list, programme, group, compare, search, sort, export, health
+           keywords: schools, all, list, programme, group, compare, search, sort, export
            What it's for. One table of every school you look after, with its students,
            teachers, classes and practice hours side by side, so a whole programme reads
            at a glance instead of school by school.
@@ -362,10 +360,7 @@ watch(currentUser, (u) => {
             <td class="schools-subtle">{{ formatJoined(school.created_at) }}</td>
             <td>
               <span v-if="!school.has_admin" class="awaiting-pill">{{ t('schools.schoolsList.awaitingAdmin', 'Awaiting admin') }}</span>
-              <span v-else class="health-cell">
-                <HealthDot :health="school.health" />
-                <span class="schools-subtle">{{ school.health.replace('-', ' ') }}</span>
-              </span>
+              <span v-else class="schools-subtle">—</span>
             </td>
             <!-- HANDBOOK Copy a school's joining links
                  section: getting-people-in
@@ -620,13 +615,6 @@ watch(currentUser, (u) => {
 
 .school-name {
   font-weight: 600;
-}
-
-.health-cell {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12.5px;
 }
 
 .awaiting-pill {
