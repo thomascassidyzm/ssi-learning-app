@@ -73,7 +73,7 @@ async function send(): Promise<void> {
           </div>
         </template>
         <template v-else>
-          <p class="sheet-sent">{{ t('schools.support.sentNote', 'Sent. A reply will appear in Support, usually within a minute.') }}</p>
+          <p class="sheet-sent">{{ t('schools.support.sentNote', 'Sent. A reply will appear in Support, usually within about 20 minutes.') }}</p>
           <div class="sheet-actions">
             <button type="button" class="btn-ghost btn-small" @click="emit('close')">{{ t('schools.support.close', 'Close') }}</button>
             <router-link class="btn-play btn-small" to="/schools/support" @click="emit('close')">{{ t('schools.support.openSupport', 'Open Support') }}</router-link>
