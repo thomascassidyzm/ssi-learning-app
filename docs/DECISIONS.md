@@ -1686,3 +1686,23 @@ background-clip. The timed stack is byte-identical and pinned by test. Proof:
 `ListeningOverlay.breathTracker.test.ts` #479 block, seen failing on the pre-fix source and passing
 after; `e2e/_479-untimed-live-line-probe.mjs` read the computed paint of every line per frame on
 staging before and dev after (`/d/c46c77c5`).
+
+## 2026-09-13 — Nightly red on dev, staging and main: four Friday-ship commits outran their tests (job #484)
+
+**What the nightly saw.** The 02:02 UTC run went red on all three learning-app branches with the
+same six failures in four files, one night after all three were green. Every cause is a commit in
+the 2026-09-12 ship that changed behaviour deliberately and left a test or a mirror behind.
+
+**The four causes, and what moved.** (1) Job #306 gave the ways-in walk a sixth step, "Tap Show
+all", and recompiled pack.json, but the hand-maintained English mirror in `locales/eng.json` still
+carried five — so the localised walk spoke the OLD ledger sentence. The mirror is regenerated from
+the pack; this is the one learner-facing fix. (2) Job #340 reordered the ten intel questions into
+the top bar's grouped order and the file's own header says the array order may move while `n` is
+fixed; the test asserted position. It now asserts the set of numbers. (3) Job #379 made the stamp
+lane also call `ensureListeningMetaSnapshot`; the audio-stamp test's mock of that module stubbed
+only the older function, so the call threw and the drop reported false. The mock stubs both.
+(4) Job #354 added `method-pod` to the bundle's slug allow-list as the third Listening Mode slot;
+the test pinned the old two-slug list. It pins the three.
+
+**Rule this re-states.** A walk edit is not done until `eng.json`'s mirror matches the pack — the
+drift test is the only thing standing between a learner and a stale translated sentence.

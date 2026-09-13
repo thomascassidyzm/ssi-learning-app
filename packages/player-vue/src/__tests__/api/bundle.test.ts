@@ -430,8 +430,10 @@ describe('GET /api/courses/:code/bundle', () => {
     expect(podFilters).toContainEqual({
       table: 'listening_pods', op: 'eq', col: 'pod_type', val: 'core',
     })
+    // SERVING_POD_SLUGS plus LISTENING_EXTRA_POD_SLUGS (servedPod.ts): the
+    // Italian method pod is the third Listening Mode slot (job #354).
     expect(podFilters).toContainEqual({
-      table: 'listening_pods', op: 'in', col: 'slug', val: ['pod-1', 'pod-0'],
+      table: 'listening_pods', op: 'in', col: 'slug', val: ['pod-1', 'pod-0', 'method-pod'],
     })
 
     // Script artifact identity block (bundle-cutover Phase 1, design §2) —

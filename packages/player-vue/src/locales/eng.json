@@ -1373,18 +1373,21 @@
       "title": "Ways in — who can get in, and how to change it",
       "steps": {
         "0": {
-          "say": "Every way in, in one ledger: personal sign-in links and shareable join links, for everywhere below here. Filter by role or by place with the chips."
+          "say": "Every way in, in one ledger: personal sign-in links and shareable join links, for everywhere below here. With more than three links it folds to one row per role — how many, and how often they have been used."
         },
         "1": {
-          "say": "**Copy** re-shares the same live link — always safe, nothing changes."
+          "say": "Tap **Show all** to open the full ledger, every link on its own row with its own verbs. You can filter by role or by place with the chips once it is open."
         },
         "2": {
-          "say": "**Re-mint** sits on a person's OWN sign-in link, and only there: it makes that person a new link and the old one stops working the moment you tap — if they bookmarked the old one they are locked out until you send them the new one. A shareable link has no Re-mint, because there is nobody to re-bind it to."
+          "say": "**Copy** re-shares the same live link — always safe, nothing changes."
         },
         "3": {
-          "say": "**Revoke** switches a link off. It's undoable — a revoked row grows a **Put back** button. For a shareable link this is how you retire it: revoke the old one, then make a fresh one."
+          "say": "**Re-mint** sits on a person's OWN sign-in link, and only there: it makes that person a new link and the old one stops working the moment you tap — if they bookmarked the old one they are locked out until you send them the new one. A shareable link has no Re-mint, because there is nobody to re-bind it to."
         },
         "4": {
+          "say": "**Revoke** switches a link off. It's undoable — a revoked row grows a **Put back** button. For a shareable link this is how you retire it: revoke the old one, then make a fresh one."
+        },
+        "5": {
           "say": "And this is where a brand-new shareable link comes from — **Get a shareable link** at the top of this page, one per role. **Invite a person** next to it makes a personal link for someone you can name.",
           "terminal": "The short version: copy is safe, revoke can always be undone, re-mint is for one person's own link — and a new shareable link is made at the top of the page, not in the ledger."
         }
