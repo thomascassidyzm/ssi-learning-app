@@ -61,7 +61,7 @@ async function check(label) {
     const text = document.body.innerText
     const found = words.filter((w) => text.includes(w))
     const dots = document.querySelectorAll('.health-dot').length
-    const healthSelects = [...document.querySelectorAll('label, .filter')].filter((l) => /\bHealth\b/.test(l.textContent || '') && l.querySelector('select')).length
+    const healthSelects = [...document.querySelectorAll('select')].filter((sel) => [...sel.options].some((o) => o.value === 'needs-attention')).length
     const healthHeaders = [...document.querySelectorAll('th')].filter((th) => /\bHealth\b/.test(th.textContent || '')).length
     return { found, dots, healthSelects, healthHeaders, text: text.replace(/\s+/g, ' ').slice(0, 400) }
   }, GRADE_WORDS)
@@ -78,7 +78,9 @@ for (const [label, p] of [['dashboard', '/schools'], ['classes', '/schools/class
 // One class detail: first row of the classes list.
 await page.goto(`${BASE}/schools/classes`, { waitUntil: 'domcontentloaded', timeout: 60000 })
 await settle(page)
-const row = page.locator('[data-walk="classes-row"]').first()
+// Tap the class NAME, not the row: at phone width a row tap can land on Play
+// as class and leave for the player.
+const row = page.locator('[data-walk="classes-row"] .cell-name').first()
 if (await row.count()) {
   await row.click()
   await settle(page)
