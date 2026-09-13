@@ -117,6 +117,25 @@ export interface UseSubscriptionReturn {
   isPlatformAdmin: Ref<boolean>
 }
 
+// A RENEWING PAYER OFFLINE STAYS A PAYER ACROSS THE ROLLOVER (job #549).
+// Tom's rulings: 2026-07-10 "definitely do NOT favour security over paying
+// user experience"; 2026-09-12, job #378, "a payer offline stays a payer".
+// `currentPeriodEnd` is only the end of the CURRENT period. For a subscription
+// set to renew, Paddle extends it by webhook at the rollover and the app learns
+// of the new end only from the next successful /api/subscription answer. A
+// device offline across that instant — a flight, a holiday, a train — still
+// holds the old end in its mirror, so without a grace the learner drops to the
+// free preview and is offered a plan they already pay for, until they next get
+// online. So a renewing subscription is treated as paid for this long past
+// its recorded period end. Seven days covers Paddle's dunning/retry window
+// and any realistic offline stretch; a real cancellation or a failed payment
+// reaches the device as a status change on the next online refresh, which
+// overwrites the mirror and ends the grace at once. A subscription with
+// `cancelAtPeriodEnd` set, or any status other than 'active', ends exactly at
+// `currentPeriodEnd`, as job #540 has it — there is no renewal to wait for.
+// UI-only: the server-side content gate is unchanged by this constant.
+export const RENEWAL_GRACE_MS = 7 * 24 * 60 * 60 * 1000
+
 // How often the entitlement clock re-checks the paid period's end while the
 // app is simply open. Coarse on purpose: the resume-shaped events below catch
 // a device waking from sleep at once, so this only bounds how long a period
@@ -188,15 +207,23 @@ export function useSubscription(): UseSubscriptionReturn {
     if (!subscription.value) return false
     if (subscription.value.status !== 'active') return false
 
-    // Check if within active period
+    // Check if within the paid period. A subscription that is set to renew
+    // gets RENEWAL_GRACE_MS past its recorded end (see the constant); one that
+    // is ending, or a mirror written by the cancel path, ends exactly there.
     if (subscription.value.currentPeriodEnd) {
-      const periodEnd = new Date(subscription.value.currentPeriodEnd)
-      if (periodEnd.getTime() < Date.now()) return false
+      const periodEnd = new Date(subscription.value.currentPeriodEnd).getTime()
+      if (!Number.isNaN(periodEnd)) {
+        const grace = subscription.value.cancelAtPeriodEnd ? 0 : RENEWAL_GRACE_MS
+        if (periodEnd + grace < Date.now()) return false
+      }
     }
 
     return true
   })
 
+  // No renewal grace here: a funded-org grant is a FIXED-TERM gift
+  // (org_enrolments.free_access_until — "their year", api/_utils/orgFreeAccess.ts),
+  // nothing renews it, so its end is its end.
   const hasFreeAccess = computed(() => {
     void clock.value
     const until = freeAccess.value?.until
