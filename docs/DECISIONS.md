@@ -1,3 +1,33 @@
+## 2026-09-13 — Listening Mode: a pod line never spoken in the target language shows its known text as the line (job #591)
+
+**What the pre-release check found.** Job #591 drove the Senedd pod (`cym_n_for_eng:senedd-s4c-steve`,
+567 lines, 160 scenes) on production as a previewer_001 holder, in Immersion, with a headless phone
+viewport: start, middle, end, the three clip-less lines, and a full-pod run. The line-by-line walk
+holds — the lit card follows the clip, the breath groups walk inside long lines, scenes segue, and
+scene 160 wraps to scene 1. Two of the three clip-less lines are the pod's English-only contributions
+(scene 15 line 79, scene 17 line 82): `podModalQueue` plays their known clip, as Tom ruled on
+2026-09-03, but the card was rendered from `pair.target`, which is empty, and Immersion keeps glosses
+off — so the learner heard ~4 s of English over a BLANK white card, lit. The third (scene 13 line 70,
+"Fyddwch chi'n embedio hynny hefyd?") has Welsh text and no recording: it is lit for about a second in
+silence and the walk moves on. That one is a content gap for Popty, not a player defect.
+
+**Decision.** `playback/podLineText.ts` carries one rule, `podLineShown(target, known)`: a line with
+target text shows it, with the known as a gloss; a line with NO target text shows its known text AS
+the line, in the known language, with no gloss underneath. Both Dialogues card branches (the
+current row's sentence pairs and every other row) render through it. The words on the card are the
+words in the ear. Core / All rows are untouched — a seed row always has target text.
+
+**Proof.** `podLineText.test.ts` fails on the pre-fix template and passes after; probe
+`$CS_SCRATCH/senedd-probe.mjs` shot the blank card on production before the fix.
+
+## 2026-09-13 — A pre-#544 offline snapshot maps forward on read and heals once online: the Senedd pod is never "Pod 1" offline either (job #553, orchestrator's decision under BSC, finishes #544)
+
+**The gap.** Job #544 fixed the resolver: a role-addressed topic pod is its own Listening Mode card after pod-1, never in place of it. Online and for every new snapshot that held. But a snapshot written to a role-holder's device between 2026-09-03 and 2026-09-13 records the Senedd pod as the served pod and carries no pod-1 at all, and nothing rewrote it: its empty extras list came from a live read, so the once-per-session heal was satisfied, and the content stamp had not moved. Cold-verify #552 reproduced it in memory with the real functions. Offline that device listed the Senedd pod in the first slot, labelled by the slot when the entry predated the title field, and main flow's pod lap played it. The population is role-holders who booted Welsh Northern in that window, which includes Tom's own device.
+
+**Decision.** Copy the pod-0 precedent from job #512: map the old shape forward on read, in the one place every offline reader already goes through. A snapshot whose served slug is anything but pod-1 is treated as pre-fix. On read, the served slot holds pod-1 when a real pod-1 is found among the extras and is empty otherwise, which is exactly what a learner with no pod-1 downloaded has, so main flow never plays the topic pod; the recorded pod becomes an addressed extra after the named ones, under its own row title, or a reading of its slug when the entry predates the title field, because the one label it must never wear is the slot's. Its rows and every clip they name stay, so nothing downloaded goes dark. The read stamps the entry with the slug it found, and the heal gate treats that as a third reason to refetch, so the next online boot rewrites the entry the way the fixed resolver lists it, once, and a healed entry carries the stamp no longer. Cached audio is never cleared. Better: the Senedd pod is never Pod 1 anywhere, and the wrong entry corrects itself. Simpler: one pure function beside the pod-0 one, one extra clause on the existing gate, no new lane. Cheaper: one refetch per affected device, the same refetch the pre-slot and degraded cases already pay.
+
+**Proof.** Five tests in the cache suite fail on the pre-fix module and pass after: the pure map in three shapes, an offline mount of an old-shape entry whose every scene sits under the Senedd title outside slot 0 with no pod-1 scene, and an online heal that refetches the old shape once and never again. The pod-1 snapshot, pre-slot, degraded, once-per-session and mark-after-success cases stay green; sixty tests across the cache and resolver suites; typecheck clean apart from the pre-existing missing `@capacitor/cli`; lint zero errors.
+
 ## 2026-09-13 — Pod-0 does not exist: every course's core listening pod is pod-1, and pods by topic carry their own names (job #512, Tom's ruling 14:44Z)
 
 Tom, verbatim, relayed by RBF: "Pod-0 does not exist anymore. There should be zero references to it in code or docs or briefs. There is only pod-1 now. And then pods by topic like Method Pod, Senedd Pod, Health Pod."
