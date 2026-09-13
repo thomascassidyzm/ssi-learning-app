@@ -11,9 +11,11 @@
  *     `pod-1` — the served pod's own name, whose sentence query then answers
  *     for itself — never to "no pods".
  *  4. One round-trip per course per session, shared by all five call sites.
- *  5. A pod that NAMES A ROLE outranks everything and may sit on any slug —
- *     the server has already decided the reader may have it (2026-09-03 role
- *     gate), so the client must serve it rather than second-guess it.
+ *  5. A pod that NAMES A ROLE is a TOPIC pod for its holder: Listening Mode
+ *     lists it as its own card, titled from its row, AFTER pod-1 — never in
+ *     place of it, and main flow never reads it (Tom, 2026-09-13, job #544).
+ *     The server has already decided the reader may have it (2026-09-03 role
+ *     gate), so the client lists what it was sent and never second-guesses.
  *  6. An offline snapshot written under the retired slug maps forward to
  *     `pod-1` on read rather than being dropped by rule 2 as parked.
  *     RECORDED RED against the pre-rename module (which still served the old
@@ -176,8 +178,8 @@ describe('resolveServedPod', () => {
     const { client, calls } = makeClient([{ slug: 'pod-1' }])
     await resolveServedPod(client, 'deu_for_eng')
     expect(calls.lastFilters.course_code).toBe('deu_for_eng')
-    expect(String(calls.lastFilters.or)).toContain('pod_type.eq.core')
-    expect(String(calls.lastFilters.or)).toContain('slug.in.(pod-1)')
+    expect(calls.lastFilters.pod_type).toBe('core')
+    expect(calls.lastFilters.slug).toEqual(['pod-1'])
   })
 })
 
@@ -252,7 +254,7 @@ describe('resolveServedPod — offline lane', () => {
 })
 
 /** A client that answers every table the meta download touches. */
-function makeFullClient(pods: Array<{ slug: string; title?: string }>) {
+function makeFullClient(pods: Array<{ slug: string; title?: string; pod_type?: string; required_role?: string | null }>) {
   return {
     from(table: string) {
       const filters: Record<string, unknown> = {}
@@ -273,7 +275,14 @@ function makeFullClient(pods: Array<{ slug: string; title?: string }>) {
               : undefined
             const allowed = (filters.slug as string[] | undefined) ?? allowedFromOr
             return resolve({
-              data: pods.filter((p) => !allowed || allowed.includes(p.slug)),
+              // Mirror the server: the role arm carries no slug filter, and a
+              // required_role row in `pods` is one RLS already allowed.
+              data: pods.filter((p) => {
+                const addressed = typeof p.required_role === 'string' && p.required_role !== ''
+                if (addressed) return or !== undefined
+                return (!allowed || allowed.includes(p.slug)) &&
+                  (filters.pod_type === undefined || (p.pod_type ?? 'core') === filters.pod_type)
+              }),
               error: null,
             })
           }
@@ -286,13 +295,16 @@ function makeFullClient(pods: Array<{ slug: string; title?: string }>) {
 }
 
 describe('pickServedSlug — the rule, without a client', () => {
-  it('serves a role-addressed pod on a non-serving slug, above pod-1', () => {
+  it('a role-addressed topic pod never displaces pod-1 from the served slot (job #544)', () => {
+    // RECORDED RED on the pre-fix module, which answered 'senedd-s4c-steve'
+    // here — that is how Steve saw the Senedd pod labelled "Pod 1" and no
+    // real pod-1 at all (job #539 probes).
     expect(
       pickServedSlug([
         { slug: 'pod-1' },
         { slug: 'senedd-s4c-steve', required_role: 'previewer_001' },
       ]),
-    ).toBe('senedd-s4c-steve')
+    ).toBe('pod-1')
   })
 
   it('is unchanged for everyone else: no role rows means rule 1 exactly', () => {
@@ -308,14 +320,65 @@ describe('pickServedSlug — the rule, without a client', () => {
   })
 })
 
-describe('resolveServedPod — role-addressed content', () => {
-  it('serves the pod the server addressed to this reader', async () => {
-    const { client, calls } = makeClient([
-      { slug: 'senedd-s4c-steve', pod_type: 'choice', required_role: 'previewer_001' },
-    ])
+describe('role-addressed topic pods (rule 5, job #544)', () => {
+  const CYM = [
+    { slug: 'pod-1', title: 'Northern Welsh Listening Pods — Pod 1' },
+    { slug: 'senedd-s4c-steve', pod_type: 'choice', required_role: 'previewer_001', title: 'Senedd: allegations of bullying at S4C (11 January 2024)' },
+    { slug: 'gated-2026-08-06', title: 'parked' },
+  ]
+
+  it('main flow still plays pod-1 for the role-holder, in one round-trip', async () => {
+    const { client, calls } = makeClient(CYM)
     const served = await resolveServedPod(client, 'cym_n_for_eng')
-    expect(served.podId).toBe('cym_n_for_eng:senedd-s4c-steve')
+    expect(served.podId).toBe('cym_n_for_eng:pod-1')
     expect(calls.count).toBe(1)
+  })
+
+  it('Listening Mode lists pod-1 FIRST, then the Senedd pod under its own title', async () => {
+    // RECORDED RED on the pre-fix module: it listed ['senedd-s4c-steve'] alone,
+    // with a null title (the extras query took core pods only).
+    const { resolveListeningPods } = await import('./servedPod')
+    const { client } = makeClient(CYM)
+    const pods = await resolveListeningPods(client, 'cym_n_for_eng')
+    expect(pods.map((p) => p.podId)).toEqual(['cym_n_for_eng:pod-1', 'cym_n_for_eng:senedd-s4c-steve'])
+    expect(pods[0].title).toBe('Northern Welsh Listening Pods — Pod 1')
+    expect(pods[1].title).toBe('Senedd: allegations of bullying at S4C (11 January 2024)')
+    expect(pods[1].addressed).toBe(true)
+  })
+
+  it('a plain learner (no role row from the server) sees exactly what they saw before', async () => {
+    const { resolveListeningPods } = await import('./servedPod')
+    const { client } = makeClient(CYM.filter((r) => !r.required_role))
+    const pods = await resolveListeningPods(client, 'cym_n_for_eng')
+    expect(pods.map((p) => p.slug)).toEqual(['pod-1'])
+  })
+
+  it('pickListeningExtras: named slots first, then addressed pods by pod_order, never a parked slug', async () => {
+    const { pickListeningExtras } = await import('./servedPod')
+    expect(
+      pickListeningExtras([
+        { slug: 'unrecorded', title: 'parked' },
+        { slug: 'health-pod', pod_type: 'choice', required_role: 'previewer_002', title: 'Health', pod_order: 2 },
+        { slug: 'senedd-s4c-steve', pod_type: 'choice', required_role: 'previewer_001', title: 'Senedd', pod_order: 1 },
+        { slug: 'method-pod', title: 'Method' },
+        { slug: 'other', required_role: '', title: 'not addressed' },
+      ]).map((e) => e.slug),
+    ).toEqual(['method-pod', 'senedd-s4c-steve', 'health-pod'])
+  })
+
+  it('offline: the snapshot keeps the addressed topic pod for its holder', async () => {
+    const { resolveListeningPods } = await import('./servedPod')
+    const { fetchAndCacheListeningMeta, getCachedListeningMeta } = await import('./listeningMetaCache')
+    await fetchAndCacheListeningMeta(makeFullClient(CYM), 'cym_n_for_eng')
+    const entry = (await getCachedListeningMeta('cym_n_for_eng'))!
+    expect(entry.extraPods?.map((e) => [e.slug, e.addressed])).toEqual([['senedd-s4c-steve', true]])
+
+    resetServedPodCache()
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+    const { client, calls } = makeClient([])
+    const pods = await resolveListeningPods(client, 'cym_n_for_eng')
+    expect(pods.map((p) => p.slug)).toEqual(['pod-1', 'senedd-s4c-steve'])
+    expect(calls.count).toBe(0)
   })
 })
 
@@ -348,7 +411,7 @@ describe('resolveListeningPods — the third slot (rule 6)', () => {
     const served = await resolveServedPod(client, 'ita_for_eng')
     expect(served.slug).toBe('pod-1')
     // and the main-flow query never asked for the extra slot
-    expect(String(calls.lastFilters.or)).not.toContain('method-pod')
+    expect(calls.lastFilters.slug).toEqual(['pod-1'])
   })
 
   it('a course with no extra slot lists exactly the served pod', async () => {
