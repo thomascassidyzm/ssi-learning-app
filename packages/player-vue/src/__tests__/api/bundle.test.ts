@@ -431,7 +431,7 @@ describe('GET /api/courses/:code/bundle', () => {
       table: 'listening_pods', op: 'eq', col: 'pod_type', val: 'core',
     })
     expect(podFilters).toContainEqual({
-      table: 'listening_pods', op: 'in', col: 'slug', val: ['pod-1', 'pod-0'],
+      table: 'listening_pods', op: 'in', col: 'slug', val: ['pod-1', 'pod-0', 'method-pod'],
     })
 
     // Script artifact identity block (bundle-cutover Phase 1, design §2) —
