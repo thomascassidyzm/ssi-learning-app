@@ -52,6 +52,9 @@ interface MockState {
   pods?: Array<{ slug: string; required_role?: string | null }>
   /** pod_id the scheduler actually queried — the flip's proof. */
   queriedPodId?: string
+  /** How many times listening_pods was read — proof the resolver's query ran
+   *  rather than falling back (pod-1 is also the fallback answer). */
+  podsQueries?: number
 }
 
 function makeMockSupabase(state: MockState) {
@@ -95,9 +98,10 @@ function makeMockSupabase(state: MockState) {
           return Promise.resolve({ data: state.podSentences, error: null }).then(cb)
         }
         if (table === 'listening_pods') {
-          // Mirror the server: the slug set is carried inside the `.or()` arm,
-          // and a role-addressed row comes back on the other arm regardless of
-          // slug (RLS, not this query, is what hides it from everyone else).
+          state.podsQueries = (state.podsQueries ?? 0) + 1
+          // Mirror the server: the slug set is carried by `.in()` or inside an
+          // `.or()` arm, and a role-addressed row comes back only on a role
+          // arm (RLS, not this query, is what hides it from everyone else).
           const or = filters.or as string | undefined
           const allowed =
             (filters.slug as string[] | undefined) ??
@@ -860,9 +864,11 @@ describe('usePodLapScheduler — served pod resolution', () => {
   // The pod-1 cases above cannot tell resolution from FAILURE: `pod-1` is also
   // what resolveOnce answers when the query throws, and that is exactly how a
   // missing `.or()` in this file's double hid a red test behind a green one
-  // (CI 2026-09-04). A slug nothing else can produce is the proof that the
+  // (CI 2026-09-04). The mock's query counter is the proof that the
   // round-trip really happened.
-  it('serves a role-addressed pod on its own slug — proof the query ran, not the fallback', async () => {
+  it('main flow plays pod-1 even for the holder of a role-addressed topic pod — and the query ran (job #544)', async () => {
+    // Before job #544 the Senedd pod REPLACED pod-1 for its holder; topic pods
+    // are Listening Mode cards now and main flow never reads them.
     const state: MockState = {
       podSentences: [podSentence(1)],
       bookends: [bookendIntro, bookendOutro],
@@ -874,7 +880,8 @@ describe('usePodLapScheduler — served pod resolution', () => {
       supabase: makeMockSupabase(state), courseCode: 'cym_n_for_eng', learnerId: 'u',
     })
     await s.initialize()
-    expect(state.queriedPodId).toBe('cym_n_for_eng:senedd-s4c-steve')
+    expect(state.podsQueries).toBe(1)
+    expect(state.queriedPodId).toBe('cym_n_for_eng:pod-1')
   })
 })
 
