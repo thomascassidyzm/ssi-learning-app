@@ -54,7 +54,10 @@
  *    rule 1 is exactly as hard for a role-holder as for anyone else. Before
  *    this the addressed pod REPLACED pod-1 in the served slot for its
  *    holder, so Steve saw the Senedd pod labelled "Pod 1" and no real pod-1
- *    at all (job #539 probes). The client still does not decide who may see
+ *    at all (job #539 probes); an offline snapshot written in that window
+ *    still records it as served, and listeningMetaCache maps such an entry
+ *    forward on read and heals it on the next online boot (job #553). The
+ *    client still does not decide who may see
  *    it: a row is listed because the server sent it, and this reader must not
  *    try to repeat the role check.
  *
