@@ -37,10 +37,13 @@ export interface Question {
 
 export const QUESTIONS: readonly Question[] = [
   {
+    // Reworded 2026-09-13 on Tom's ruling ("the number of people is really
+    // irrelevant, it is what is being DONE"): the first question counts
+    // minutes, not people. The slug stays so every link and fossil holds.
     n: 1,
     slug: 'pulse',
-    tab: 'Pulse',
-    question: 'How many real people practised this week, and is that more or less than last week?',
+    tab: 'Minutes',
+    question: 'How many in-app minutes are being done, per course and per person on the course, and how does each course compare with the rest?',
     group: 'Everyone',
     built: true,
   },

@@ -817,10 +817,10 @@ describe('GET /api/groups/:id/rate-compare — whole-class play lives in the dia
     for (let i = 1; i <= 10; i++) TABLES.course_legos.push({ course_code: 'hin_for_eng', lego_id: `S${i}L01`, seed_number: i, lego_index: 1 })
     const lesson = NOW - 3 * DAY
     TABLES.player_events = [
-      { id: 1, learner_id: 'CL6', course_code: 'hin_for_eng', occurred_at: new Date(lesson).toISOString(), lego: null },
-      { id: 2, learner_id: 'CL6', course_code: 'hin_for_eng', occurred_at: new Date(lesson + 10_000).toISOString(), lego: 'S1L01' },
-      { id: 3, learner_id: 'CL6', course_code: 'hin_for_eng', occurred_at: new Date(lesson + 20_000).toISOString(), lego: 'S3L01' },
-      { id: 4, learner_id: 'CL6', course_code: 'hin_for_eng', occurred_at: new Date(lesson + 40_000).toISOString(), lego: 'S5L01' },
+      { id: 1, learner_id: 'CL6', course_code: 'hin_for_eng', event_type: 'tap_play', occurred_at: new Date(lesson).toISOString(), lego: null },
+      { id: 2, learner_id: 'CL6', course_code: 'hin_for_eng', event_type: 'audio_play', duration: 0, occurred_at: new Date(lesson + 10_000).toISOString(), lego: 'S1L01' },
+      { id: 3, learner_id: 'CL6', course_code: 'hin_for_eng', event_type: 'audio_play', duration: 0, occurred_at: new Date(lesson + 20_000).toISOString(), lego: 'S3L01' },
+      { id: 4, learner_id: 'CL6', course_code: 'hin_for_eng', event_type: 'audio_play', duration: 0, occurred_at: new Date(lesson + 40_000).toISOString(), lego: 'S5L01' },
     ]
   }
 
