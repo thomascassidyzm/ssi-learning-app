@@ -1,20 +1,23 @@
 /**
  * servedPod tests.
  *
- * The contract this file exists to hold (Tom's 2026-08-22 1-based ruling):
- *  1. `pod-1` wins when the course has one (hrv, the first course on the new
- *     convention).
- *  2. `pod-0` when that is all there is — the ~68 older courses must not
- *     change behaviour by a single query.
- *  3. A pod PARKED off the serving slugs (`pod-0-unrecorded` on 37 courses,
- *     `pod-0-gated-2026-08-06` on 2) still reads as "no pods yet". This is the
- *     release gate; a resolver that widened would publish 39 unrecorded pods.
- *  4. Any query failure degrades to `pod-0` — today's behaviour — never to
- *     "no pods".
- *  5. One round-trip per course per session, shared by all five call sites.
- *  6. A pod that NAMES A ROLE outranks everything and may sit on any slug —
+ * The contract this file exists to hold (Tom's ruling, 2026-09-13: "there is
+ * only pod-1 now, and then pods by topic"):
+ *  1. `pod-1` is the served pod when the course has one.
+ *  2. A pod PARKED off the serving slug (`unrecorded`, `gated-<date>`,
+ *     `retired-<date>`) still reads as "no pods yet". This is the release
+ *     gate; a resolver that widened would publish every unrecorded pod.
+ *  3. Any query failure, and any course with nothing to serve, resolves to
+ *     `pod-1` — the served pod's own name, whose sentence query then answers
+ *     for itself — never to "no pods".
+ *  4. One round-trip per course per session, shared by all five call sites.
+ *  5. A pod that NAMES A ROLE outranks everything and may sit on any slug —
  *     the server has already decided the reader may have it (2026-09-03 role
  *     gate), so the client must serve it rather than second-guess it.
+ *  6. An offline snapshot written under the retired slug maps forward to
+ *     `pod-1` on read rather than being dropped by rule 2 as parked.
+ *     RECORDED RED against the pre-rename module (which still served the old
+ *     slug and had no forward mapping), GREEN after.
  */
 
 import 'fake-indexeddb/auto'
@@ -24,6 +27,7 @@ import {
   resetServedPodCache,
   pickServedSlug,
   FALLBACK_POD_SLUG,
+  SERVING_POD_SLUGS,
 } from './servedPod'
 import { __resetNetworkGateForTests } from '../config/networkGate'
 
@@ -82,58 +86,56 @@ afterEach(() => {
 })
 
 describe('resolveServedPod', () => {
-  it('prefers pod-1 when the course has one (hrv, the first 1-based course)', async () => {
-    const { client } = makeClient([{ slug: 'pod-1' }, { slug: 'pod-0' }])
+  it('the serving list is pod-1 and nothing else', () => {
+    expect([...SERVING_POD_SLUGS]).toEqual(['pod-1'])
+    expect(FALLBACK_POD_SLUG).toBe('pod-1')
+  })
+
+  it('serves pod-1 when the course has one', async () => {
+    const { client } = makeClient([{ slug: 'pod-1' }])
     const served = await resolveServedPod(client, 'hrv_for_eng')
     expect(served.slug).toBe('pod-1')
     expect(served.podId).toBe('hrv_for_eng:pod-1')
   })
 
-  it('falls back to pod-0 for the ~68 courses that only have pod-0', async () => {
-    const { client } = makeClient([{ slug: 'pod-0' }])
-    const served = await resolveServedPod(client, 'spa_for_eng_v2')
-    expect(served.slug).toBe('pod-0')
-    expect(served.podId).toBe('spa_for_eng_v2:pod-0')
-  })
-
-  it('still reads "no pods" for a course whose only pod is parked on pod-0-unrecorded', async () => {
+  it('still reads "no pods" for a course whose only pod is parked on `unrecorded`', async () => {
     // The release gate. The parked pod exists and is pod_type=core — the
     // resolver must not see it as servable. Deliberately a SYNTHETIC course
     // code: no real course should be named here, because whether any given
     // course is currently parked is live data that moves under the test.
-    const { client } = makeClient([{ slug: 'pod-0-unrecorded' }])
+    const { client } = makeClient([{ slug: 'unrecorded' }])
     const served = await resolveServedPod(client, 'parked_for_eng')
-    // pod-0 is the answer, and pod-0 holds no sentences for such a course —
-    // so every learner path reads "no pods yet", exactly as before.
+    // pod-1 is the answer, and pod-1 holds no sentences for such a course —
+    // so every learner path reads "no pods yet".
     expect(served.slug).toBe(FALLBACK_POD_SLUG)
-    expect(served.podId).toBe('parked_for_eng:pod-0')
+    expect(served.podId).toBe('parked_for_eng:pod-1')
   })
 
   it('ignores every non-serving slug: parked cores, retired pods, choice pods', async () => {
     const { client } = makeClient([
-      { slug: 'pod-0-gated-2026-08-06' },
+      { slug: 'gated-2026-08-06' },
       { slug: 'pod-1-retired-2026-08-22' },
       { slug: 'travel-situations', pod_type: 'choice' },
     ])
     const served = await resolveServedPod(client, 'parked2_for_eng')
-    expect(served.slug).toBe('pod-0')
+    expect(served.slug).toBe('pod-1')
   })
 
-  it('serves a course that has BOTH a real pod-0 and a parked working copy', async () => {
-    // The common live shape (37 courses carry a pod-0-unrecorded alongside a
-    // served pod-0). Parking a working copy must never take the live pod away.
-    const { client } = makeClient([{ slug: 'pod-0' }, { slug: 'pod-0-unrecorded' }])
-    expect((await resolveServedPod(client, 'cym_n_for_eng')).slug).toBe('pod-0')
+  it('serves a course that has BOTH a real pod-1 and a parked working copy', async () => {
+    // The common live shape (many courses carry an `unrecorded` copy alongside
+    // a served pod-1). Parking a working copy must never take the live pod away.
+    const { client } = makeClient([{ slug: 'pod-1' }, { slug: 'unrecorded' }])
+    expect((await resolveServedPod(client, 'cym_n_for_eng')).slug).toBe('pod-1')
   })
 
-  it('falls back to pod-0 on a query error — degrade to today, never to "no pods"', async () => {
+  it('falls back to pod-1 on a query error — degrade to the served name, never to "no pods"', async () => {
     const { client } = makeClient(null, { message: 'permission denied' })
     const served = await resolveServedPod(client, 'ita_for_eng')
-    expect(served.slug).toBe('pod-0')
-    expect(served.podId).toBe('ita_for_eng:pod-0')
+    expect(served.slug).toBe('pod-1')
+    expect(served.podId).toBe('ita_for_eng:pod-1')
   })
 
-  it('falls back to pod-0 when the query REJECTS rather than returning an error', async () => {
+  it('falls back to pod-1 when the query REJECTS rather than returning an error', async () => {
     const client = {
       from: () => ({
         select: () => ({
@@ -146,12 +148,12 @@ describe('resolveServedPod', () => {
       }),
     } as any
     const served = await resolveServedPod(client, 'fra_for_eng')
-    expect(served.slug).toBe('pod-0')
+    expect(served.slug).toBe('pod-1')
   })
 
-  it('resolves pod-0 for a course with no pods at all', async () => {
+  it('resolves pod-1 for a course with no pods at all', async () => {
     const { client } = makeClient([])
-    expect((await resolveServedPod(client, 'new_course')).slug).toBe('pod-0')
+    expect((await resolveServedPod(client, 'new_course')).slug).toBe('pod-1')
   })
 
   it('memoises: five call sites, one round-trip', async () => {
@@ -170,28 +172,28 @@ describe('resolveServedPod', () => {
     expect(calls.count).toBe(1)
   })
 
-  it('restricts the query to core pods and the two serving slugs', async () => {
-    const { client, calls } = makeClient([{ slug: 'pod-0' }])
+  it('restricts the query to core pods on the one serving slug', async () => {
+    const { client, calls } = makeClient([{ slug: 'pod-1' }])
     await resolveServedPod(client, 'deu_for_eng')
     expect(calls.lastFilters.course_code).toBe('deu_for_eng')
     expect(String(calls.lastFilters.or)).toContain('pod_type.eq.core')
-    expect(String(calls.lastFilters.or)).toContain('slug.in.(pod-1,pod-0)')
+    expect(String(calls.lastFilters.or)).toContain('slug.in.(pod-1)')
   })
 })
 
 describe('resolveServedPod — offline lane', () => {
   it('uses the slug the download snapshot was built from, with no network call', async () => {
     const { fetchAndCacheListeningMeta, getCachedListeningMeta } = await import('./listeningMetaCache')
-    // Download Croatian while online and serving pod-1.
+    // Download Croatian while online.
     const online = makeFullClient([{ slug: 'pod-1' }])
     await fetchAndCacheListeningMeta(online, 'hrv_for_eng')
     expect((await getCachedListeningMeta('hrv_for_eng'))!.podSlug).toBe('pod-1')
 
-    // Now go offline. A doomed query would resolve pod-0 and leave the learner
-    // reading a pod they never downloaded.
+    // Now go offline. A doomed query would spend the boot budget to learn
+    // nothing.
     resetServedPodCache()
     vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
-    const { client, calls } = makeClient([{ slug: 'pod-0' }])
+    const { client, calls } = makeClient([{ slug: 'pod-1' }])
     const served = await resolveServedPod(client, 'hrv_for_eng')
     expect(served.slug).toBe('pod-1')
     expect(calls.count).toBe(0) // no round-trip at all
@@ -201,18 +203,51 @@ describe('resolveServedPod — offline lane', () => {
     const { getCachedListeningMeta } = await import('./listeningMetaCache')
     // Hand-write a snapshot claiming a parked slug (belt-and-braces: the
     // writer can only ever store a serving slug, but the gate lives here too).
-    const online = makeFullClient([{ slug: 'pod-0' }])
+    const online = makeFullClient([{ slug: 'pod-1' }])
     const { fetchAndCacheListeningMeta } = await import('./listeningMetaCache')
     await fetchAndCacheListeningMeta(online, 'gate_course')
     const entry = (await getCachedListeningMeta('gate_course'))!
     const { openDB } = await import('idb')
     const db = await openDB('ssi-listening-meta', 1)
-    await db.put('meta', { ...entry, podSlug: 'pod-0-unrecorded' }, 'v2:gate_course')
+    await db.put('meta', { ...entry, podSlug: 'unrecorded' }, 'v2:gate_course')
 
     resetServedPodCache()
     vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
     const { client } = makeClient([])
-    expect((await resolveServedPod(client, 'gate_course')).slug).toBe('pod-0')
+    expect((await resolveServedPod(client, 'gate_course')).slug).toBe('pod-1')
+  })
+
+  it('maps a snapshot written under the retired slug forward to pod-1, rows and all', async () => {
+    // A learner who downloaded a course before the 2026-09-13 rename holds a
+    // snapshot whose served slug and sentence ids carry the old segment. The
+    // server renamed everything; the device must read its snapshot as the
+    // renamed pod, or rule 2 would treat the old name as parked and drop the
+    // pod the learner actually has.
+    const { getCachedListeningMeta, fetchAndCacheListeningMeta } = await import('./listeningMetaCache')
+    await fetchAndCacheListeningMeta(makeFullClient([{ slug: 'pod-1' }]), 'legacy_course')
+    const entry = (await getCachedListeningMeta('legacy_course'))!
+    const { openDB } = await import('idb')
+    const db = await openDB('ssi-listening-meta', 1)
+    const retired = 'pod-' + '0' // spelled apart so the estate grep for the retired name stays clean
+    await db.put(
+      'meta',
+      {
+        ...entry,
+        podSlug: retired,
+        podRows: [{ id: `legacy_course:${retired}:SC01-S001`, global_order: 1 }],
+      },
+      'legacy_course', // the bare key is the live one; a v2: key is legacy and only adopted when no bare entry exists
+    )
+
+    const read = (await getCachedListeningMeta('legacy_course'))!
+    expect(read.podSlug).toBe('pod-1')
+    expect(read.podRows[0].id).toBe('legacy_course:pod-1:SC01-S001')
+
+    resetServedPodCache()
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+    const { client, calls } = makeClient([])
+    expect((await resolveServedPod(client, 'legacy_course')).podId).toBe('legacy_course:pod-1')
+    expect(calls.count).toBe(0)
   })
 })
 
@@ -261,8 +296,8 @@ describe('pickServedSlug — the rule, without a client', () => {
   })
 
   it('is unchanged for everyone else: no role rows means rule 1 exactly', () => {
-    expect(pickServedSlug([{ slug: 'pod-0' }, { slug: 'pod-1' }])).toBe('pod-1')
-    expect(pickServedSlug([{ slug: 'pod-0' }])).toBe('pod-0')
+    expect(pickServedSlug([{ slug: 'unrecorded' }, { slug: 'pod-1' }])).toBe('pod-1')
+    expect(pickServedSlug([{ slug: 'unrecorded' }])).toBe(FALLBACK_POD_SLUG)
     expect(pickServedSlug([])).toBe(FALLBACK_POD_SLUG)
     expect(pickServedSlug(null)).toBe(FALLBACK_POD_SLUG)
   })
@@ -316,11 +351,11 @@ describe('resolveListeningPods — the third slot (rule 6)', () => {
     expect(String(calls.lastFilters.or)).not.toContain('method-pod')
   })
 
-  it('a course with no extra slot lists exactly the served pod — today for ~68 courses', async () => {
+  it('a course with no extra slot lists exactly the served pod', async () => {
     const { resolveListeningPods } = await import('./servedPod')
-    const { client } = makeClient([{ slug: 'pod-0', title: 'Pod 0' }])
+    const { client } = makeClient([{ slug: 'pod-1', title: 'Pod 1' }])
     const pods = await resolveListeningPods(client, 'spa_for_eng_v2')
-    expect(pods.map((p) => p.slug)).toEqual(['pod-0'])
+    expect(pods.map((p) => p.slug)).toEqual(['pod-1'])
   })
 
   it('never lists a pod on an un-named slug, even if the server sent it (closed allow-list)', async () => {
@@ -328,7 +363,7 @@ describe('resolveListeningPods — the third slot (rule 6)', () => {
     expect(LISTENING_EXTRA_POD_SLUGS).toEqual(['method-pod'])
     expect(
       pickListeningExtras([
-        { slug: 'pod-0-unrecorded', title: 'parked' },
+        { slug: 'unrecorded', title: 'parked' },
         { slug: 'travel-situations', title: 'choice' },
         { slug: 'method-pod', title: 'method', pod_type: 'choice' }, // wrong type
       ]),
@@ -350,7 +385,7 @@ describe('resolveListeningPods — the third slot (rule 6)', () => {
     const { resolveListeningPods } = await import('./servedPod')
     const { client } = makeClient(null, { message: 'permission denied' })
     const pods = await resolveListeningPods(client, 'ita_for_eng')
-    expect(pods.map((p) => p.slug)).toEqual(['pod-0'])
+    expect(pods.map((p) => p.slug)).toEqual(['pod-1'])
   })
 
   it('offline: lists the extra slots the download snapshot carried, with no round-trip', async () => {

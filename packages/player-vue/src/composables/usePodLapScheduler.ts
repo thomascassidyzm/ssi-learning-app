@@ -583,9 +583,8 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       // silent fallback to a stale, unbounded-age snapshot serves the wrong
       // vintage of pod audio/text (2026-07-21 forum report). See
       // retryListeningRead's doc comment.
-      // Which pod this course serves — `pod-1` for courses authored since the
-      // 2026-08-22 flip, `pod-0` for the ~68 older ones. Memoised per course,
-      // so this is one round-trip shared with every other pod reader.
+      // Which pod this course serves — resolved by servedPod, memoised per
+      // course, so this is one round-trip shared with every other pod reader.
       const { podId } = await resolveServedPod(supabase, courseCode)
       const [podsResult, bookendsResult, enrollmentResult] = await retryListeningRead(
         () => Promise.all([

@@ -20,10 +20,10 @@ pods=q("listening_pods?select=id,course_code,slug,visibility&order=course_code")
 served={}
 for c in courses:
     rows=[p for p in pods if p['course_code']==c]
-    live=[p for p in rows if p['visibility']=='live' and p['slug'] in ('pod-1','pod-0')]
-    # servedPod rule: pod-1 first, else pod-0 (anon sees only live)
+    live=[p for p in rows if p['visibility']=='live' and p['slug'] == 'pod-1']
+    # servedPod rule: pod-1 only (anon sees only live)
     slug=None
-    for want in ('pod-1','pod-0'):
+    for want in ('pod-1',):
         if any(p['slug']==want for p in live): slug=want; break
     served[c]=slug
 

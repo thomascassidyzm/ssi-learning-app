@@ -4,14 +4,14 @@
 >
 > **The bitrate work below is sound and independently confirmed (~96–108 kbps measured, so the previously-documented "56 kbps" was also wrong). The two headline totals below are NOT, and are superseded by this box.**
 >
-> **1. "Listening pods = 227 MB" answers the wrong question.** It sums *every* pod row for the course — the optional `music` choice pod, the `travel-situations` choice pod, two *retired/held* pods, and a shared explainer pool. That is the same category error as the original ~100 MB figure, made in the opposite direction. The listening exercise a Spanish learner is actually **served** is a single core pod, gated by `SERVING_POD_SLUGS = ['pod-1','pod-0']` in `packages/player-vue/src/composables/servedPod.ts`.
+> **1. "Listening pods = 227 MB" answers the wrong question.** It sums *every* pod row for the course — the optional `music` choice pod, the `travel-situations` choice pod, two *retired/held* pods, and a shared explainer pool. That is the same category error as the original ~100 MB figure, made in the opposite direction. The listening exercise a Spanish learner is actually **served** is a single core pod, gated by `SERVING_POD_SLUGS = ['pod-1']` in `packages/player-vue/src/composables/servedPod.ts`.
 >
 > | What | Clips | Audio | Size | Status |
 > |---|---:|---:|---:|---|
 > | **`spa_for_eng:pod-1` — the served core listening exercise** | 1,109 | 63.9 min | **≈ 45 MB** | MEASURED (sampled HEAD, n=40) |
 > | `music` — optional *choice* pod, only if the learner picks it | 1,074 | 80.9 min | ≈ 56 MB | MEASURED |
 > | `travel-situations` — live but effectively empty (1 clip) | 1 | ~0 | ≈ 0 MB | MEASURED |
-> | `pod-0-retired-2026-08-22` + `pod-1-retired-2026-08-24` — **held, not shipped** (commit `d768aed6`) | 2,249 | 137 min | ≈ 106 MB | MEASURED |
+> | `retired-2026-08-22` + `pod-1-retired-2026-08-24` — **held, not shipped** (commit `d768aed6`) | 2,249 | 137 min | ≈ 106 MB | MEASURED |
 >
 > **The answer to the question that was asked: the Spanish listening exercise is ≈ 45 MB.** Tom's ruling that "Listening Exercises are nowhere near 100 MB" is correct.
 >
@@ -67,7 +67,7 @@ Sample: 400 clips selected at random across all spa_for_eng roles, `HeadObject` 
 
 ## 2. Listening pods — measured exactly, every clip HEAD'd
 
-spa_for_eng has **5 pod rows in `listening_pods`**: 3 **live** (`music`, `travel-situations`, `pod-1`) and 2 **retired/held** (`pod-0-retired-2026-08-22`, `pod-1-retired-2026-08-24`). All 5 are reported below for completeness; the headline number uses the 3 live pods only.
+spa_for_eng has **5 pod rows in `listening_pods`**: 3 **live** (`music`, `travel-situations`, `pod-1`) and 2 **retired/held** (`retired-2026-08-22`, `pod-1-retired-2026-08-24`). All 5 are reported below for completeness; the headline number uses the 3 live pods only.
 
 A pod's true audio footprint is the union of two things, both fully resolved and HEAD'd — **zero HEAD failures across 6,633 clips**:
 1. Every UUID a pod sentence points to directly: `target_audio_id`, `known_audio_id`, `explainer_audio_id`, `note_audio_id`, and the array columns `sentence_audio_ids`, `sentence_known_audio_ids`, `takeg_audio_ids`.
@@ -80,7 +80,7 @@ A pod's true audio footprint is the union of two things, both fully resolved and
 | music | live | 1,074 | 55.42 | target 585, known 489 |
 | travel-situations | live | 1 | 0.02 | known 1 |
 | pod-1 | live | 1,109 | 45.85 | target 230, known 232, sentence_target 249, sentence_known 248, explainer 110, takeg 42 |
-| pod-0-retired-2026-08-22 | retired | 1,016 | 49.59 | target 143, known 142, sentence_target 235, sentence_known 206, explainer 124, takeg 168 |
+| retired-2026-08-22 | retired | 1,016 | 49.59 | target 143, known 142, sentence_target 235, sentence_known 206, explainer 124, takeg 168 |
 | pod-1-retired-2026-08-24 | retired | 1,183 | 55.18 | target 231, known 232, sentence_target 230, sentence_known 201, explainer 124, takeg 167 |
 
 ### Shared pool (not attributable to one pod — pooled)

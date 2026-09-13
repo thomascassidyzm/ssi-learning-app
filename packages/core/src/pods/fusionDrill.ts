@@ -127,7 +127,7 @@ export interface DrillQueueStep {
 export const normalizeForAudio = (t: string | null | undefined): string =>
   (t || '').toLowerCase().trim().replace(/\s+/g, ' ').replace(/[.!。！]+$/, '')
 
-export const SENTENCE_PUNCT = /[.!?…。！？؟]/ // ؟ = Arabic/Farsi question mark — ~9 turns per RTL pod-0 have one mid-turn
+export const SENTENCE_PUNCT = /[.!?…。！？؟]/ // ؟ = Arabic/Farsi question mark — ~9 turns per RTL core pod have one mid-turn
 
 /**
  * One fusion step over spans of unit indices.
@@ -191,7 +191,7 @@ const wordCount = (s: string | undefined): number =>
  * "Ciao!", "Naravno") when it's a single word. The 2026-07-14 independent-
  * meaning segmentation rule made one-unit COMPLETE sentences the norm
  * ("Zovem se Anna", "Janjetina je izvrsna") — those must NOT glue (hrv
- * pod-0 gloss-fidelity audit, ssi-dashboard-v7-clean 2026-07-14: 61/142
+ * core-pod gloss-fidelity audit, ssi-dashboard-v7-clean 2026-07-14: 61/142
  * rows over-fired on this before the word-count gate). Falls back to
  * "always glue" when no units are supplied, for callers that only have the
  * bare group shape (structural tests).

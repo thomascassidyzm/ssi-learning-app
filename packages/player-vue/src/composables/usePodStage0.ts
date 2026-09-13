@@ -2,7 +2,7 @@
  * usePodStage0.ts — load a pod's sentences and resolve each atom to its DB clips,
  * so the Stage-0 ladder (stage0Sequence.ts) can be played in the app.
  *
- * Data sources (all already persisted by tools/persist-stage0-pod0.cjs in Popty):
+ * Data sources (all already persisted by Popty's stage-0 pod persist tool):
  *   - listening_pod_sentences  : atom_map (ordered atoms), target_audio_id (whole
  *                                take), known_audio_id (translation), text fields.
  *   - pod_legos                : lego_key → explainer_audio_id (the merged

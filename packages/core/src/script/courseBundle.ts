@@ -290,9 +290,8 @@ export interface BundlePodSentence {
 
 /**
  * One listening pod — the Layer-2 unit. Every course has exactly one SERVED
- * pod, whose slug is `pod-1` for courses authored since Tom's 2026-08-22
- * 1-based ruling (hrv first) and `pod-0` for the ~68 older ones; the app
- * resolves which, per course, in player-vue `composables/servedPod.ts`. The
+ * pod, `pod-1`; the app resolves it per course in player-vue
+ * `composables/servedPod.ts` (rule 1 there is the gate). The
  * array shape future-proofs the downloader and runtime for multiple pods per
  * course without further wire-format changes.
  */

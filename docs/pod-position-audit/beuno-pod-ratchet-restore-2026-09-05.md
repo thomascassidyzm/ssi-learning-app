@@ -50,7 +50,7 @@ lap 1 → stored 2   lap 2 → stored 3   lap 3 → stored 4
 ```
 
 **This is deliberately conservative, and here is the honest gap.** The pod he actually heard in
-August was `deu_for_eng:pod-0`, retired 2026-08-22, under the *exchange* cohort model — his lap 3
+August was `deu_for_eng:retired-2026-08-22` (the original core pod), under the *exchange* cohort model — his lap 3
 played 44 clips, far more content than four of today's sentences. Today's live pod is different
 content he has never heard. Crediting him with the lap number under today's shape means he
 re-hears the opening of pod-1 rather than being credited with content he never met. That is the
@@ -97,7 +97,7 @@ ratchet. He is an active learner losing pod position right now.
   circumstantial — telemetry proves laps, the counter says none. It is the same fingerprint #648
   identified on Beuno, and Tom has ruled on Beuno regardless, but for the other seven the
   fingerprint is evidence, not proof.
-- **Beuno's August content is gone.** `deu_for_eng:pod-0` is retired, so his real position in the
+- **Beuno's August content is gone.** `deu_for_eng:retired-2026-08-22` is retired, so his real position in the
   content he heard cannot be mapped forward exactly. §3 says what was done instead.
 - **The 30 learner-courses with no enrollment row** were not investigated — different class,
   out of scope here.

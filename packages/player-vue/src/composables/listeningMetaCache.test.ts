@@ -528,7 +528,7 @@ describe('useListeningPods offline fallback', () => {
   })
 
   // Withdrawing an unrecorded pod (the Welsh pods, gated 2026-08-06 pending
-  // Aran and Catrin's recordings) parks it off the `<course>:pod-0` slug, so
+  // Aran and Catrin's recordings) parks it off the `<course>:pod-1` slug, so
   // the live read returns zero rows. A learner who had already downloaded it
   // must not keep replaying the withdrawn snapshot from IndexedDB.
   it('drops the cached pod rows when the live read says the course has no pods', async () => {

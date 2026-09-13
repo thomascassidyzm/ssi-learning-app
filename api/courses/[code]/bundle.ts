@@ -497,7 +497,7 @@ export default async function handler(
         //    they were downloaded into every Spanish offline bundle and never
         //    played.
         //  - Conversely a retired pod PARKED on a dated slug
-        //    (`pod-0-retired-2026-08-22`, `pod-1-retired-2026-08-24` — 39 rows
+        //    (`retired-2026-08-22`, `pod-1-retired-2026-08-24` — 39 rows
         //    across the estate) is unplayable even when nobody has got round to
         //    marking it held, because the player resolves by slug. Visibility
         //    only excluded those because the 2026-08-24 flip happened to set
@@ -505,7 +505,7 @@ export default async function handler(
         //
         // The source of truth for the slug rule is SERVING_POD_SLUGS in
         // `packages/player-vue/src/composables/servedPod.ts` (rule 1): only
-        // `pod-1` and `pod-0` are ever served to MAIN FLOW, and unreleased
+        // `pod-1` is ever served to MAIN FLOW, and unreleased
         // content is held back by parking a pod on a non-serving slug. Plus
         // LISTENING_EXTRA_POD_SLUGS (rule 6, job #354, Tom 2026-09-12): the
         // named extra slot Listening Mode lists AFTER the served pod —
@@ -526,7 +526,7 @@ export default async function handler(
         // alone kept 69 pods, the slug gate alone 68, both together 67 across
         // 67 courses — and no course that can play a pod today loses one.
         .eq('pod_type', 'core')
-        .in('slug', ['pod-1', 'pod-0', 'method-pod'])
+        .in('slug', ['pod-1', 'method-pod'])
         // RESTRICTED CONTENT IS ONLINE-ONLY. This route reads with
         // SUPABASE_SERVICE_ROLE_KEY and therefore bypasses RLS entirely, so
         // the role gate added on 2026-09-03

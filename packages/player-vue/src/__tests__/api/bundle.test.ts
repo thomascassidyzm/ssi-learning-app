@@ -286,7 +286,7 @@ function setupHappyFixture() {
     },
     listening_pods: {
       data: [
-        { id: 'spa_for_eng_v2:pod-0', pod_order: null, title: 'Spanish Pod 0' },
+        { id: 'spa_for_eng_v2:pod-1', pod_order: null, title: 'Spanish Pod 1' },
       ],
       error: null,
     },
@@ -300,7 +300,7 @@ function setupHappyFixture() {
     listening_pod_sentences: {
       data: [
         {
-          pod_id: 'spa_for_eng_v2:pod-0',
+          pod_id: 'spa_for_eng_v2:pod-1',
           global_order: 1,
           target_text: 'hola',
           known_text: 'hello',
@@ -309,7 +309,7 @@ function setupHappyFixture() {
           glue_to_next: false,
         },
         {
-          pod_id: 'spa_for_eng_v2:pod-0',
+          pod_id: 'spa_for_eng_v2:pod-1',
           global_order: 2,
           target_text: 'adios',
           known_text: 'goodbye',
@@ -433,7 +433,7 @@ describe('GET /api/courses/:code/bundle', () => {
     // SERVING_POD_SLUGS plus LISTENING_EXTRA_POD_SLUGS (servedPod.ts): the
     // Italian method pod is the third Listening Mode slot (job #354).
     expect(podFilters).toContainEqual({
-      table: 'listening_pods', op: 'in', col: 'slug', val: ['pod-1', 'pod-0', 'method-pod'],
+      table: 'listening_pods', op: 'in', col: 'slug', val: ['pod-1', 'method-pod'],
     })
 
     // Script artifact identity block (bundle-cutover Phase 1, design §2) —
@@ -448,9 +448,9 @@ describe('GET /api/courses/:code/bundle', () => {
     // course_audio.
     expect(bundle.pods).toHaveLength(1)
     const pod = bundle.pods[0]
-    expect(pod.podId).toBe('spa_for_eng_v2:pod-0')
+    expect(pod.podId).toBe('spa_for_eng_v2:pod-1')
     expect(pod.podOrder).toBe(0) // pod_order was null → coerced to 0
-    expect(pod.title).toBe('Spanish Pod 0')
+    expect(pod.title).toBe('Spanish Pod 1')
     expect(pod.introAudio).toEqual({
       id: 'intro-aud',
       lifecycle: 'persistent',
@@ -861,7 +861,7 @@ function setupPremiumFixture() {
       error: null,
     },
     listening_pods: {
-      data: [{ id: 'premium_course:pod-0', pod_order: null, title: 'Premium Pod' }],
+      data: [{ id: 'premium_course:pod-1', pod_order: null, title: 'Premium Pod' }],
       error: null,
     },
     course_audio: {
@@ -874,7 +874,7 @@ function setupPremiumFixture() {
     listening_pod_sentences: {
       data: [
         {
-          pod_id: 'premium_course:pod-0',
+          pod_id: 'premium_course:pod-1',
           global_order: 1,
           target_text: 'x',
           known_text: 'y',
