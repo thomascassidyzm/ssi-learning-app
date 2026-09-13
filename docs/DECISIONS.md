@@ -1,3 +1,13 @@
+## 2026-09-13 — The six-test fix left the parity gate red on all 24 locales; the ways-in walk's two step-5 keys enrolled, staging promoted (job #483, CI red on staging)
+
+**What the red was.** Staging's nightly at 9ece60b0 showed the same six player reds as dev and main: four 2026-09-12 commits (#306, #340, #354, #379) that outran their test twins. Jobs #482 and #484 landed the four fixes on dev first; this job's copies were byte-identical and were dropped. But a full ci-check of dev's tree with real deps found a second-order red those fixes had not seen: `useI18n.localeParity` failed for every one of the 24 locales, because regenerating the ways-in mirror moved the walk's terminal line from step 4 to step 5 and minted `steps.5.say`, and `i18n/pending-translation.json` still enrolled the old key and neither new one.
+
+**Decision.** Enrol `walkthrough.ways-in.steps.5.say` and `.terminal`, drop the stale `steps.4.terminal`, on dev at 976bd2be5. Then promote dev to staging as one merge, c0bde54a9, carrying exactly the seven files dev held beyond staging: the four test twins, the codeGen set check, the enrolment and the journal. Nothing skipped, no assertion weakened, no timeout raised. Better: staging's gate is green for the right reason. Simpler: the register is the mechanism the parity test itself names. Cheaper: one merge, verified once.
+
+**Ownership on the night.** Three workers were spawned for the same red. Agreed by message with job #486: staging is this job's, main is #486's, dev carried the shared fixes; nobody pushed over anybody.
+
+**Proof.** ci-check on c0bde54a9 with real deps under the CI node20/pnpm8 toolchain: seven of seven green, player-test 3909 passed. The earlier run in the same worktree with node_modules symlinked to the shared checkout was red on typecheck and on SettingsScreen tests for a reason that was the environment, not the code: `@ssi/core` resolved to another branch's dist. A worker verifying a promotion must install its own deps first.
+
 ## 2026-09-13 — The api nightly's one red: the codeGen letter test was too slow for a loaded box, not wrong (job #482, CI red)
 
 **What the red was.** `api/_utils/codeGen.test.ts` timed out at 5 s on dev. The code has not changed since the SEC25 keyspace fix; the test made forty-five thousand expect calls over five thousand draws and took 2.8 s the night before, 4 s on main the same night, and past 5 s on dev. The six player reds from the same run were the four Friday-ship commits that outran their tests; job #484, spawned for main's identical red, landed those fixes on dev first and its entry below records them. This job's copies of the same four edits were byte-identical and were dropped in favour of #484's.
