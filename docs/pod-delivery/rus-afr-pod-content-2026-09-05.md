@@ -87,12 +87,12 @@ mine to fix.
 
 | Course | Pods held | Sentences |
 |---|---|---|
-| `cym_n_for_eng` | pod-0, pod-0-gated-2026-08-06, senedd-s4c-steve | 231 / 0 / 567 |
-| `cym_s_for_eng` | pod-0, pod-0-gated-2026-08-06 | 231 / 0 |
-| `deu_at_for_eng` | pod-0-retired-2026-08-24, pod-1 | 231 / 266 |
+| `cym_n_for_eng` | pod-1, gated-2026-08-06, senedd-s4c-steve | 231 / 0 / 567 |
+| `cym_s_for_eng` | pod-1, gated-2026-08-06 | 231 / 0 |
+| `deu_at_for_eng` | retired-2026-08-24, pod-1 | 231 / 266 |
 
 **Context worth having:** 67 courses carry pod rows, 64 of them serve a live
-`pod-0`/`pod-1`. Estate-wide, **35 courses have no pod voice pool at all** and
+`pod-1`. Estate-wide, **35 courses have no pod voice pool at all** and
 therefore no pod — Russian and Afrikaans are simply the only two of those with a
 learner who got far enough to notice.
 

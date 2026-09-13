@@ -1,3 +1,9 @@
+## 2026-09-13 — Pod-0 does not exist: every course's core listening pod is pod-1, and pods by topic carry their own names (job #512, Tom's ruling 14:44Z)
+
+Tom, verbatim, relayed by RBF: "Pod-0 does not exist anymore. There should be zero references to it in code or docs or briefs. There is only pod-1 now. And then pods by topic like Method Pod, Senedd Pod, Health Pod."
+
+This entry and the header of `packages/player-vue/src/composables/servedPod.ts` are the single migration note. What it means for this app: the resolver serves `pod-1` only and every unknown resolves to `pod-1` (never "no pods"); parked slugs are `unrecorded`, `gated-<date>` and `retired-<date>`, and rule 1 stays exactly as hard. The production data was renamed the same day, one transaction per course, learner progress and provenance pointers moving with it. Old ids in old data still carry the old segment; an offline snapshot written before the rename is mapped forward on read in `listeningMetaCache.forwardLegacyPodSlug` — the one place in the app the retired name may appear as live behaviour, and it can be deleted once no device could still hold such a snapshot. Applied-log JSONs under `docs/pod-position-audit/` are the record of writes that happened and keep their ids as written.
+
 ## 2026-09-13 — The schools dashboard grades nothing: class, school and student health stripped (job #494, Tom's ruling)
 
 **The ruling.** Tom, on his phone, looking at the classes page, 01:09Z: "Also what are these classifications and how did they arise? We don't make any attributions to any class performance. So this thinking isn't mine. The school admin wants time in app. And that's basically it." Watson proposed stripping the whole health layer; Tom at 12:28Z: "yes strip class grading." A softer flag was offered and declined, so no quiet-this-week marker replaces it.

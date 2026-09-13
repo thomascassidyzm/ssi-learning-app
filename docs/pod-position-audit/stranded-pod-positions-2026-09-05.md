@@ -5,7 +5,7 @@ Nothing was repaired, migrated or written. Documents were used only as claims to
 
 ## The headline
 
-**Tom is right in substance and wrong only about which flip did it.** The 2026-08-22 pod-0 → pod-1
+**Tom is right in substance and wrong only about which flip did it.** The 2026-08-22 switchover onto pod-1
 cutover DID run its learner-position migration — the carried rows carry the switchover's own
 transaction timestamp (`2026-08-22T18:01:28.653891Z`, identical to the archived pod's `created_at`,
 which is the in-same-transaction fingerprint the protocol promises). What the records do NOT say is
@@ -23,7 +23,7 @@ deleted, which no orphan check can ever see.
 | Unit | Count | Population | Verdict |
 |---|---|---|---|
 | `learner_pod_state` rows whose key does not exist in the pod their course serves today | **0** outside Welsh | all 954 rows, 30 courses, fleet-wide | the "zero orphans" claim re-ran true — but see below for why it is the wrong instrument |
-| Rows stranded because their course serves **no pod at all** | **102 rows, 4 learner-courses** (cym_n ×3 learners, cym_s ×1) | Welsh only | positions parked behind a deliberately `held` pod-0 — recoverable the day Welsh goes live, not lost |
+| Rows stranded because their course serves **no pod at all** | **102 rows, 4 learner-courses** (cym_n ×3 learners, cym_s ×1) | Welsh only | positions parked behind a deliberately `held` core pod — recoverable the day Welsh goes live, not lost |
 | Carried positions **DELETED** at the 2026-08-24 re-flip (German, proved row-by-row) | **14 rows / 24 exposures / 2 learners** — Tom 7 of 8, Beuno 7 of 9 | deu_for_eng | **wrongful.** Every destroyed row is a `:sN` split-unit key; every one points at a sentence that exists in today's canon with identical text and identical split shape |
 | `completed_pod_rounds` ratchets rebased across a 142→231 canon change | 3 non-zero German ratchets; fleet number is #646's ground | — | cannot orphan, can only be silently wrong; forward-only design caps the harm at replayed content |
 
@@ -35,7 +35,7 @@ That is what happened.
 
 ## 2. The mechanism, proved from rows
 
-**08-22 (ran, correct).** Prospective log `deu-pod0-switchover-prospective-2026-08-22.json`: 17
+**08-22 (ran, correct).** Prospective log `deu-pod-switchover-prospective-2026-08-22.json`: 17
 carries across exactly 2 learners — Tom (`81987d60`, 8 rows) and Beuno (`884a23bf` = `beunollyn`,
 9 rows, 2 dropped on a genuine wording change). Every carried row's target and exposure matches
 what stood in the DB after the flip. Verdict: the protocol executed, in-transaction, as documented.
@@ -106,8 +106,8 @@ Delivery reach, not position mapping, is the bigger hole — and it is #646's ce
 ## 5. Repair — specified for a separate job, not run
 
 **R1 — restore the destroyed German positions.** Source of truth exists on disk:
-`deu-pod0-switchover-prospective-2026-08-22.json` lists every carried row (learner, key, exposures).
-Repair = for each of the 14 destroyed rows, re-key its recorded target (`pod-0-unrecorded:…` →
+`deu-pod-switchover-prospective-2026-08-22.json` lists every carried row (learner, key, exposures).
+Repair = for each of the 14 destroyed rows, re-key its recorded target (`unrecorded:…` →
 today's `pod-1:…`, suffix preserved), verify the sentence id exists in today's canon (all 14 do —
 verified above), then UPSERT into `learner_pod_state` with `exposures = greatest(existing, recorded)`
 so nothing goes backwards. ~14 writes, 2 learners. Verify: re-read, assert 17 rows, assert every key
@@ -129,7 +129,7 @@ unauditable by design), and the post-flip check asserts *carried-row count survi
 *zero orphans* — count-conservation is the check deletion cannot pass.
 
 **R5 — none needed for Welsh**: the 102 parked rows resolve the day a Welsh pod goes live; just make
-sure whichever slug goes live is content-matched from `pod-0` per the protocol.
+sure whichever slug goes live is content-matched from the original core pod per the protocol.
 
 ## Explicit gaps and taste-flags
 

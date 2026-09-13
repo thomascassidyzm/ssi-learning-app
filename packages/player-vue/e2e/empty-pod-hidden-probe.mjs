@@ -14,14 +14,14 @@
 //                           over-reached and taken a released course with it.
 //
 // FIXTURES GO STALE, AND THIS ONE DID. Until 2026-08-23 the EMPTY fixture was
-// cym_s_for_eng, described in this header as "empty pod-0". It has since been
+// cym_s_for_eng, described in this header as "empty core pod". It has since been
 // recorded and released — 231 sentences, tab present — so the probe was
 // asserting nothing about the case it was written for, and nobody noticed
 // because it only ever printed. Repointed to glg_for_eng (one of 26 courses
 // whose serving pod has zero sentences as of 2026-08-23, checked with the ANON
 // key). Re-check the fixtures before trusting a green run.
 //
-// Likewise the HELD fixture is only meaningful while cym_n_for_eng:pod-0 is
+// Likewise the HELD fixture is only meaningful while cym_n_for_eng:pod-1 is
 // actually held. Releasing it turns that row into a second LIVE case — the
 // probe says so rather than failing silently, because a probe that passes for
 // the wrong reason is worse than no probe.

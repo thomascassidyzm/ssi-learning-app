@@ -18,7 +18,7 @@ A cohort reaches the terminal stage `['ps2x']` — one bare target clip at 2×, 
 been *alive* for 33 laps (live `pods` row: stage 1 lasts 2 laps, stages 2–7 five each). "Alive" is
 derived from the course-wide counter, so cohort ordinal `k` is terminal when
 `completed_pod_rounds − k + 1 ≥ 33`. Sentence counts are the per-sentence split units of each
-course's served pod (slug `pod-1` then `pod-0`, `pod_type=core`, `visibility=live` — mirrors
+course's served pod (slug `pod-1`, `pod_type=core`, `visibility=live` — mirrors
 `servedPod.ts`). Real laps = completed `player_events.pod_lap_end` rows for that learner+course
 (3,659 such rows exist in total; all were read).
 
