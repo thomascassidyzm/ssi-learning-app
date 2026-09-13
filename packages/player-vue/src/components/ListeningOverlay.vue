@@ -11,6 +11,7 @@ import { useListeningPods, SPEAKER_PALETTE } from '../composables/useListeningPo
 import { getCachedListeningMeta } from '../composables/listeningMetaCache'
 import { buildSilentWavDataUri } from '../playback/silentWav'
 import { buildModalQueue as buildPodModalQueue } from '../playback/podModalQueue'
+import { podLineShown } from '../playback/podLineText'
 import { changeoverGapMs, isJumpInChangeover, jumpInLeadMs, GAP_DRILL_MS, GAP_IMMERSION_JOIN_MS } from '../playback/podChangeover'
 import { breathGroupsForClip, estimateLineTimings, normaliseWordTimings, textLinesForSentence, trackPosition } from '../playback/breathGroups'
 import ListeningModeToggle from './ListeningModeToggle.vue'
@@ -2679,13 +2680,15 @@ watch(
                  in Immersion, the one-line tap reveal). -->
             <template v-else-if="isCurrent && Array.isArray(phrase.sentences) && phrase.sentences.length">
               <div v-for="(pair, pi) in glossPairsFor(phrase)" :key="pi" class="phrase-pair">
-                <div :lang="courseTargetLang" class="phrase-target">{{ pair.target }}</div>
-                <div :lang="courseKnownLang" v-if="(glossVisible || revealedRowId === phrase.id) && pair.known" class="phrase-known interleaved" :dir="dirFor(pair.known)">{{ pair.known }}</div>
+                <!-- A line never spoken in the target language shows its known
+                     text AS the line — the words in the ear (podLineText, job #591). -->
+                <div :lang="podLineShown(pair.target, pair.known).side === 'target' ? courseTargetLang : courseKnownLang" class="phrase-target" :class="{ 'known-spoken': !podLineShown(pair.target, pair.known).hasTarget }" :dir="dirFor(podLineShown(pair.target, pair.known).text)">{{ podLineShown(pair.target, pair.known).text }}</div>
+                <div :lang="courseKnownLang" v-if="podLineShown(pair.target, pair.known).hasTarget && (glossVisible || revealedRowId === phrase.id) && pair.known" class="phrase-known interleaved" :dir="dirFor(pair.known)">{{ pair.known }}</div>
               </div>
             </template>
             <template v-else>
-              <div :lang="courseTargetLang" class="phrase-target">{{ phrase.targetText }}</div>
-              <div :lang="courseKnownLang" v-if="isCurrent && (glossVisible || revealedRowId === phrase.id) && phrase.knownText" class="phrase-known" :dir="dirFor(phrase.knownText)">{{ phrase.knownText }}</div>
+              <div :lang="podLineShown(phrase.targetText, phrase.knownText).side === 'target' ? courseTargetLang : courseKnownLang" class="phrase-target" :class="{ 'known-spoken': !podLineShown(phrase.targetText, phrase.knownText).hasTarget }" :dir="dirFor(podLineShown(phrase.targetText, phrase.knownText).text)">{{ podLineShown(phrase.targetText, phrase.knownText).text }}</div>
+              <div :lang="courseKnownLang" v-if="isCurrent && podLineShown(phrase.targetText, phrase.knownText).hasTarget && (glossVisible || revealedRowId === phrase.id) && phrase.knownText" class="phrase-known" :dir="dirFor(phrase.knownText)">{{ phrase.knownText }}</div>
             </template>
           </template>
         </TeleprompterScroll>
