@@ -210,6 +210,14 @@ export interface CachedListeningMeta {
    *  entry like a pre-slot one and refreshes it once on the next boot (job
    *  #424). Absent on a live-read entry and on every older entry. */
   extrasDegraded?: true
+  /** The served slug a PRE-#544 snapshot recorded — a role-addressed topic
+   *  pod (the Senedd pod for its holder) written into the served slot between
+   *  2026-09-03 and 2026-09-13, when such a pod REPLACED pod-1 for its holder.
+   *  Set on read by `forwardPreFixServedPod` once it has demoted that pod to
+   *  its own card; read by snapshotListsEverySlot so the once-per-session heal
+   *  rewrites the entry on the next online boot (job #553). Never set by a
+   *  fresh fetch, so a healed entry carries it no longer. */
+  preFixServedSlug?: string
   /** course_audio id → text for the split-clip ids referenced by podRows and
    *  by every extra pod's rows — the overlay's per-sentence display-text
    *  oracle (splitRowUnits). */
@@ -311,9 +319,9 @@ export const getCachedListeningMeta = async (
       // A bare-key entry wins outright, but any legacy key left beside it is
       // dead weight — clear it so the scan stays cheap.
       void migrateLegacyEntryCleanup(db, courseCode)
-      return forwardLegacyPodSlug(data)
+      return forwardPreFixServedPod(forwardLegacyPodSlug(data))
     }
-    return forwardLegacyPodSlug(await migrateLegacyEntry(db, courseCode))
+    return forwardPreFixServedPod(forwardLegacyPodSlug(await migrateLegacyEntry(db, courseCode)))
   } catch (err) {
     console.warn('[ListeningMeta] read failed:', (err as any)?.message, err)
     return null
@@ -349,6 +357,64 @@ export const forwardLegacyPodSlug = <T extends CachedListeningMeta | null>(entry
     podSlug: SERVED_POD_SLUG,
     podRows: (entry.podRows || []).map((r) => ({ ...r, id: renamed(r.id) as string })),
   } as T
+}
+
+/**
+ * Map a PRE-#544 snapshot forward so a role-addressed topic pod never plays
+ * as "Pod 1" offline (Tom's decision, 2026-09-13, job #544: a topic pod is
+ * its own card AFTER pod-1, never in place of it; job #553 for the snapshot).
+ *
+ * Between 2026-09-03 (fb3a4c727: serve a pod that names a role to the person
+ * it names) and 2026-09-13 (18ef7424e) the resolver put the addressed pod in
+ * the SERVED slot for its holder, so a snapshot written then for such a
+ * holder carries the Senedd pod as `podSlug`/`podRows` — and no pod-1 at
+ * all, because the slot lookup never asked for one. Nothing rewrote it: the
+ * heal gate saw `extraPods: []` from a live read and was satisfied, and the
+ * content stamp had not moved. Offline, useListeningPods listed those rows in
+ * the first slot, labelled by the slot ("Pod 1") whenever the entry predated
+ * the title field (2026-09-12), and main flow's pod lap played them.
+ *
+ * On read, the same rule as online:
+ *  - the served slot holds pod-1 or nothing: a real pod-1 found among the
+ *    extras (never written in practice, but the cheap case to honour) moves
+ *    up; otherwise the slot is empty, exactly what a learner with no pod-1
+ *    downloaded has, so main flow (rule 1) never plays the topic pod;
+ *  - the recorded pod becomes an addressed extra AFTER the named ones, under
+ *    its own row title — or, when the entry predates the title field, a
+ *    reading of its slug, because the one label it must never wear is the
+ *    slot's. Its rows and every clip they name stay: nothing downloaded goes
+ *    dark ("play what you have", Tom 2026-08-15);
+ *  - `preFixServedSlug` records what happened so the heal refetches once.
+ * Pure; an entry served from pod-1 (or with no served pod) is returned as is.
+ */
+export const forwardPreFixServedPod = <T extends CachedListeningMeta | null>(entry: T): T => {
+  if (!entry || typeof entry.podSlug !== 'string' || entry.podSlug === SERVED_POD_SLUG) return entry
+  const oldSlug = entry.podSlug
+  const extras = Array.isArray(entry.extraPods) ? entry.extraPods : []
+  const realPod1 = extras.find((e) => e?.slug === SERVED_POD_SLUG)
+  const demoted: CachedExtraPod = {
+    slug: oldSlug,
+    title: typeof entry.podTitle === 'string' && entry.podTitle !== '' ? entry.podTitle : titleFromSlug(oldSlug),
+    podRows: entry.podRows || [],
+    addressed: true,
+  }
+  const rest = extras.filter((e) => e?.slug !== SERVED_POD_SLUG && e?.slug !== oldSlug)
+  return {
+    ...entry,
+    podSlug: realPod1 ? SERVED_POD_SLUG : undefined,
+    podTitle: typeof realPod1?.title === 'string' ? realPod1.title : undefined,
+    podRows: realPod1 ? realPod1.podRows || [] : [],
+    extraPods: [...rest, demoted],
+    preFixServedSlug: oldSlug,
+  } as T
+}
+
+/** 'senedd-s4c-steve' → 'Senedd s4c steve': the last-resort card label for a
+ *  demoted topic pod whose snapshot predates the title field. Not a name we
+ *  would choose, but never the slot's. */
+const titleFromSlug = (slug: string): string => {
+  const words = slug.split(/[-_]+/).filter(Boolean).join(' ')
+  return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
 /** Delete legacy keys once a bare-key entry already exists. Never throws. */
@@ -831,7 +897,7 @@ export const ensureListeningMetaSnapshot = async (
  * Does this snapshot's Listening Mode list carry every slot the course has?
  * The once-per-boot heal in ensureListeningMetaSnapshot refreshes an entry
  * exactly when this is false; the content-stamp lane never would, because
- * neither reason moves the stamp. Two reasons, one gate:
+ * none of these reasons moves the stamp. Three reasons, one gate:
  *
  *  - no `extraPods` field at all: written before the extra slots existed
  *    (job #354, 2026-09-12), so it lists the served pod alone offline for as
@@ -839,14 +905,19 @@ export const ensureListeningMetaSnapshot = async (
  *    vanished from Tom's airplane-mode list the same day (job #379);
  *  - `extrasDegraded`: its slots came from a fallback lookup (timeout, error,
  *    offline), so `extraPods` may be `[]` only because the first fetch timed
- *    out (job #424). servedPod marks that at the lookup; the writer files it.
+ *    out (job #424). servedPod marks that at the lookup; the writer files it;
+ *  - `preFixServedSlug`: a role-addressed topic pod was written into the
+ *    served slot before job #544, so the entry has no pod-1 and the topic
+ *    pod was playing as "Pod 1" offline. forwardPreFixServedPod has already
+ *    demoted it on read; this refetch writes the entry the way the fixed
+ *    resolver lists it (job #553). Three reasons, one gate.
  *
  * A false answer triggers the refetch at most once per session per course
  * (servedPod's healed mark, job #425), since the caller runs on every round
  * advance and a degraded flag stands until the memo is reset.
  */
 export const snapshotListsEverySlot = (cached: CachedListeningMeta): boolean =>
-  Array.isArray(cached.extraPods) && !cached.extrasDegraded
+  Array.isArray(cached.extraPods) && !cached.extrasDegraded && !cached.preFixServedSlug
 
 /**
  * Is the snapshot for this course known to be out of date? True only when a

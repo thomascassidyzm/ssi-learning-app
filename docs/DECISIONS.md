@@ -1,3 +1,11 @@
+## 2026-09-13 — A pre-#544 offline snapshot maps forward on read and heals once online: the Senedd pod is never "Pod 1" offline either (job #553, orchestrator's decision under BSC, finishes #544)
+
+**The gap.** Job #544 fixed the resolver: a role-addressed topic pod is its own Listening Mode card after pod-1, never in place of it. Online and for every new snapshot that held. But a snapshot written to a role-holder's device between 2026-09-03 and 2026-09-13 records the Senedd pod as the served pod and carries no pod-1 at all, and nothing rewrote it: its empty extras list came from a live read, so the once-per-session heal was satisfied, and the content stamp had not moved. Cold-verify #552 reproduced it in memory with the real functions. Offline that device listed the Senedd pod in the first slot, labelled by the slot when the entry predated the title field, and main flow's pod lap played it. The population is role-holders who booted Welsh Northern in that window, which includes Tom's own device.
+
+**Decision.** Copy the pod-0 precedent from job #512: map the old shape forward on read, in the one place every offline reader already goes through. A snapshot whose served slug is anything but pod-1 is treated as pre-fix. On read, the served slot holds pod-1 when a real pod-1 is found among the extras and is empty otherwise, which is exactly what a learner with no pod-1 downloaded has, so main flow never plays the topic pod; the recorded pod becomes an addressed extra after the named ones, under its own row title, or a reading of its slug when the entry predates the title field, because the one label it must never wear is the slot's. Its rows and every clip they name stay, so nothing downloaded goes dark. The read stamps the entry with the slug it found, and the heal gate treats that as a third reason to refetch, so the next online boot rewrites the entry the way the fixed resolver lists it, once, and a healed entry carries the stamp no longer. Cached audio is never cleared. Better: the Senedd pod is never Pod 1 anywhere, and the wrong entry corrects itself. Simpler: one pure function beside the pod-0 one, one extra clause on the existing gate, no new lane. Cheaper: one refetch per affected device, the same refetch the pre-slot and degraded cases already pay.
+
+**Proof.** Five tests in the cache suite fail on the pre-fix module and pass after: the pure map in three shapes, an offline mount of an old-shape entry whose every scene sits under the Senedd title outside slot 0 with no pod-1 scene, and an online heal that refetches the old shape once and never again. The pod-1 snapshot, pre-slot, degraded, once-per-session and mark-after-success cases stay green; sixty tests across the cache and resolver suites; typecheck clean apart from the pre-existing missing `@capacitor/cli`; lint zero errors.
+
 ## 2026-09-13 — Pod-0 does not exist: every course's core listening pod is pod-1, and pods by topic carry their own names (job #512, Tom's ruling 14:44Z)
 
 Tom, verbatim, relayed by RBF: "Pod-0 does not exist anymore. There should be zero references to it in code or docs or briefs. There is only pod-1 now. And then pods by topic like Method Pod, Senedd Pod, Health Pod."
@@ -1823,3 +1831,21 @@ gate are unchanged.
 still paid — red on the pre-fix code, green after; (b) eight days past → not paid; (c) cancelling,
 one minute past → not paid; (d) an online answer with a new period end overwrites the mirror and
 wins. The #540 tests stay green.
+## 2026-09-13 — A role-addressed topic pod is its own Listening Mode card, never the served pod (job #544)
+
+**Decision.** Topic pods (the Senedd pod, `cym_n_for_eng:senedd-s4c-steve`, role-restricted to
+`previewer_001`) sit ALONGSIDE pod-1 in Listening Mode as their own cards, titled from their own
+`listening_pods.title`, pod-1 first, topic pods after. They never replace pod-1, and main flow
+never reads them: `resolveServedPod` is rule 1 only. A plain learner sees exactly what they saw
+before, because RLS returns them no role row and the extras query is re-gated client-side.
+
+**Why.** Rule 5 as first written promoted the addressed pod INTO the served slot, so for its
+holders the Senedd pod appeared as a nameless "Pod 1" and the real pod-1 vanished (job #539
+probes). Better: holders get both pods, each under its own name. Simpler: one list rule, no
+slot override, main flow untouched. Cheaper: same single round-trip, the role arm moved from
+the main-flow query to the Listening Mode query.
+
+**Landing.** `18ef7424e` on dev and staging; cherry-picked onto main as `f934a3942` together
+with the pod-0 retirement resolver commit (job #512) it depends on, rather than promoting the
+whole of staging — the subscription-entitlement work (#540, #549) stays on staging for Tom's
+own promotion. Verified live on staging and production as a role-holder and as a plain learner.
