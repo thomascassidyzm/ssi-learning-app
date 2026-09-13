@@ -117,6 +117,31 @@ export interface UseSubscriptionReturn {
   isPlatformAdmin: Ref<boolean>
 }
 
+// How often the entitlement clock re-checks the paid period's end while the
+// app is simply open. Coarse on purpose: the resume-shaped events below catch
+// a device waking from sleep at once, so this only bounds how long a period
+// end can go unnoticed on a screen that never sleeps or changes tab.
+const CLOCK_TICK_MS = 60 * 1000
+
+/**
+ * Wire the reactive clock to the moments a stale "still paid" answer would
+ * otherwise survive: a coarse interval for a screen left open, and the
+ * resume-shaped events (tab shown, window focused, bfcache restore, network
+ * back) for a device that slept through the period end. Lives for the life of
+ * the page — the composable is a module singleton, not a component — so there
+ * is nothing to tear down. No-op outside a browser (SSR, node tests).
+ */
+function installClockTicks(tick: () => void): void {
+  if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return
+  setInterval(tick, CLOCK_TICK_MS)
+  if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+    document.addEventListener('visibilitychange', tick)
+  }
+  window.addEventListener('focus', tick)
+  window.addEventListener('pageshow', tick)
+  window.addEventListener('online', tick)
+}
+
 // ============================================================================
 // COMPOSABLE
 // ============================================================================
@@ -142,25 +167,42 @@ export function useSubscription(): UseSubscriptionReturn {
   // unauthenticated fetch never quietly grants anybody the admin treatment.
   const isPlatformAdmin = ref(false)
 
+  // THE CLOCK IS A DEPENDENCY (Astra refutation of job #378, confirmed
+  // 2026-09-13). `isSubscribed` and `hasFreeAccess` compare an end date against
+  // "now", but a Vue computed re-runs only when a REACTIVE dependency changes
+  // and `new Date()` is not one. So a period that read "ends in 30 minutes" at
+  // boot stayed `true` for as long as `subscription.value` was left alone —
+  // and offline it is left alone forever, because the refresh fetch fails and
+  // never rewrites the ref. A lapsed payer kept paid content across
+  // navigation, resume and every timer tick until the next full reload.
+  // `clock` is bumped on a coarse interval and on every resume-shaped event,
+  // the two computeds read it, and the comparison itself uses Date.now() at
+  // evaluation so the answer is exact whenever it is recomputed.
+  const clock = ref(Date.now())
+  const tickClock = () => { clock.value = Date.now() }
+  installClockTicks(tickClock)
+
   // Computed
   const isSubscribed = computed(() => {
+    void clock.value
     if (!subscription.value) return false
     if (subscription.value.status !== 'active') return false
 
     // Check if within active period
     if (subscription.value.currentPeriodEnd) {
       const periodEnd = new Date(subscription.value.currentPeriodEnd)
-      if (periodEnd < new Date()) return false
+      if (periodEnd.getTime() < Date.now()) return false
     }
 
     return true
   })
 
   const hasFreeAccess = computed(() => {
+    void clock.value
     const until = freeAccess.value?.until
     if (!until) return false
     const ends = new Date(until)
-    return !Number.isNaN(ends.getTime()) && ends > new Date()
+    return !Number.isNaN(ends.getTime()) && ends.getTime() > Date.now()
   })
 
   const status = computed((): SubscriptionStatus => {
