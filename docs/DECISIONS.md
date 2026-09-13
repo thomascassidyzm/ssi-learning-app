@@ -1,3 +1,32 @@
+## 2026-09-13 — Under View-as, a class row opens the class; the link tree follows the route, and a view-as player writes no telemetry (job #602)
+
+**Decision.** `useSchoolsNav.schoolsLink` decides which URL tree a link belongs to from the route
+the caller is standing on — a path under `/admin/` gets the ssi_admin read-view links, anything
+else gets the member `/schools` links. The `isAdminView` provide keeps exactly one meaning,
+read-only browse, and is never read as "I am on the admin tree". Alongside: `usePlayerLog` drops
+its buffer while an admin is viewing-as, and `/api/player-events` refuses the `X-Ssi-View-As`
+header through the existing `actAsGuard`.
+
+**Why.** SchoolsContainer provides `isAdminView=true` under view-as so every write control hides
+for free, but `schoolsLink` used the same flag to choose the `/admin/schools/:id` tree, and on
+`/schools/classes` there is no `:id`, so a class row built `/admin/schools/undefined/classes/<id>`.
+The admin route guard bounces that to `/` because admin access is deliberately off while
+viewing-as, which is the "class row opens the player" Tom saw on staging at 23:52. The
+"Your course was updated" toast was a stale flag from an earlier background revalidation of
+his own course, consumed because the player mounted; it is not a write. The player that
+mounted DID write: `course_enrollments` upsert and patch on the admin's own learner were
+refused in the browser by the fetch guard, but the telemetry flush inserted `player_events`
+rows (`infplay_enter`, `cold_start`, `infplay_exit`) under the admin's own learner
+`81987d60-0c00-4553-8a36-79f83cdf1774` — the endpoint ignored the header and `sendBeacon`
+never passes through the fetch guard. Better: the class opens in place and view-as writes
+nothing anywhere. Simpler: the route is the truth for which shell rendered the link, one flag
+keeps one meaning. Cheaper: three small edits, no new state.
+
+**Proof.** `useSchoolsNav.test.ts` (red on pre-fix code with exactly the production URL,
+green after), `usePlayerLog.test.ts` view-as case and `api/player-events.test.ts` view-as case
+(both red before, green after). Reproduced and re-verified on staging with
+`e2e/_602-viewas-class-row-probe.mjs`.
+
 ## 2026-09-13 — Listening Mode: a pod line never spoken in the target language shows its known text as the line (job #591)
 
 **What the pre-release check found.** Job #591 drove the Senedd pod (`cym_n_for_eng:senedd-s4c-steve`,
@@ -19,6 +48,19 @@ words in the ear. Core / All rows are untouched — a seed row always has target
 
 **Proof.** `podLineText.test.ts` fails on the pre-fix template and passes after; probe
 `$CS_SCRATCH/senedd-probe.mjs` shot the blank card on production before the fix.
+
+**Premise correction (Tom, 21:06Z) and the accounting, verified against the live DB.** Tom's read was
+that these lines should already have Welsh text and an Aran take, and that the display fix was
+papering over a dropped pointer. Checked line by line: (1) row 70 has Welsh text ("embedio", Aran's
+proofread of 11 Sep) and an Aran take on file (clip `2edfb987`, 11 Sep 14:57) — but that take reads
+the PRE-proofread wording "gwreiddio", so it does not match the row's text and must not be linked;
+the booth already lists row 70 as Aran's one remaining unrecorded line under the new wording, so
+his next read closes it with no manual link. (2) Rows 79 and 82 have never had Welsh text: the
+11 Sep snapshot says "no Welsh text yet", the audit log shows no edit since the 3 Sep import,
+Kai's 10 Sep translation pass did not cover them, and no clip of any Welsh for them exists. That is
+a translation gap for Kai, then a read for Aran — not a link. The #569/#590 wrong-voice rows (1,
+42, 47, 60, 518, 531, 534, 565) are different rows. So the display rule stays as the fallback for a
+genuinely untranslated line, which is exactly what 79 and 82 are today.
 
 ## 2026-09-13 — A pre-#544 offline snapshot maps forward on read and heals once online: the Senedd pod is never "Pod 1" offline either (job #553, orchestrator's decision under BSC, finishes #544)
 
