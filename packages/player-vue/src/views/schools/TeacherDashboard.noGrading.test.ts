@@ -1,8 +1,9 @@
 /**
- * TeacherDashboard — Option A (job #306, 2026-09-12): the class table shows
- * three rows then Show all, and a row of year-group tiles sits under the
- * page head once this week's practice has loaded. Red on the pre-change
- * page (every row rendered, no tiles), green after.
+ * TeacherDashboard — no grading (Tom's ruling, 2026-09-13, job #494): "We
+ * don't make any attributions to any class performance. The school admin
+ * wants time in app. And that's basically it." Red on the pre-change page
+ * (Excellent / Good / Needs eyes tiles, a Health picker, a health column),
+ * green after: the page carries the minutes headline and nothing that grades.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
@@ -25,10 +26,10 @@ vi.mock('vue-router', () => ({
   RouterLink: { name: 'RouterLink', props: ['to'], template: '<a><slot /></a>' },
 }))
 
-function cls(id: string, name: string, course = 'cym_s_for_eng') {
-  return { id, class_name: name, course_code: course, school_id: 's1', teacher_user_id: 'u1', student_join_code: `J-${id}`, current_seed: 1, last_lego_id: null, class_learner_id: null, is_active: true, student_count: 0, avg_seeds_completed: 1, avg_practice_minutes: 0, created_at: '', belt_distribution: {}, activity_last_7: [0, 0, 0, 0, 0, 0, 0], journey_done: 1, journey_total: 679, teachers: [] }
+function cls(id: string, name: string) {
+  return { id, class_name: name, course_code: 'cym_s_for_eng', school_id: 's1', teacher_user_id: 'u1', student_join_code: `J-${id}`, current_seed: 1, last_lego_id: null, class_learner_id: null, is_active: true, student_count: 0, avg_seeds_completed: 1, avg_practice_minutes: 0, created_at: '', belt_distribution: {}, activity_last_7: [0, 0, 0, 0, 0, 0, 0], journey_done: 1, journey_total: 679, teachers: [] }
 }
-const classes = ref([cls('c1', '7H'), cls('c2', '7O'), cls('c3', '8H'), cls('c4', '8P', 'spa_for_eng'), cls('c5', 'B8', 'spa_for_eng')])
+const classes = ref([cls('c1', '7H'), cls('c2', '7O'), cls('c3', '8H')])
 vi.mock('@/composables/schools/useClassesData', () => ({
   useClassesData: () => ({
     classes, isLoading: ref(false), error: ref(null), classesLoaded: ref(true),
@@ -54,7 +55,6 @@ vi.mock('@/composables/useMailboxPrompt', () => ({
 }))
 
 const NOW = new Date().toISOString()
-const LONG_AGO = '2026-08-01T08:00:00Z'
 function acct(phrases7d: number, lastPractisedAt: string | null, minutes: number) {
   return { started: !!lastPractisedAt, journeyDone: 6, journeyTotal: 679, seedNumber: 3, lastPractisedAt, phrases7d, minutesByDay: [0, 0, 0, 0, 0, 0, minutes] }
 }
@@ -63,9 +63,11 @@ async function mountView() {
   globalThis.fetch = vi.fn(async (url: any) => {
     const u = String(url)
     if (u.includes('class-practice-7d')) return { ok: true, json: async () => ({
-      practiceByClass: { c1: 1020, c2: 660, c3: 1140, c4: 0, c5: 0 }, activeDaysByClass: { c1: 2, c2: 1, c3: 2, c4: 0, c5: 0 },
-      rollup: { windowDays: 7, classCount: 5, activeClasses7d: 3, inAppMinutes7d: 47 },
-      classAccountByClass: { c1: acct(52, NOW, 17), c2: acct(34, NOW, 11), c3: acct(53, NOW, 19), c4: acct(0, LONG_AGO, 0), c5: acct(0, null, 0) },
+      // One busy class, one quiet class, one that has never played: on the old
+      // page these read Excellent, Needs attention and Inactive.
+      practiceByClass: { c1: 3000, c2: 60, c3: 0 }, activeDaysByClass: { c1: 5, c2: 1, c3: 0 },
+      rollup: { windowDays: 7, classCount: 3, activeClasses7d: 2, inAppMinutes7d: 51 },
+      classAccountByClass: { c1: acct(52, NOW, 50), c2: acct(3, NOW, 1), c3: acct(0, null, 0) },
     }) } as any
     return { ok: true, json: async () => ({}) } as any
   }) as any
@@ -93,38 +95,23 @@ async function mountView() {
 
 beforeEach(() => { vi.resetModules(); Object.keys(store).forEach(k => delete store[k]) })
 
-describe('TeacherDashboard — three rows then Show all, and year-group tiles (job #306)', () => {
-  it('five classes render three rows and a Show all 5 classes control; tapping shows five, tapping again folds back', async () => {
+describe('TeacherDashboard grades nothing (job #494)', () => {
+  it('no grade word, no health dot, no health picker or column; the minutes headline survives', async () => {
     const w = await mountView()
-    expect(w.findAll('tbody tr')).toHaveLength(3)
-    const control = w.find('.table-show-all .show-all')
-    expect(control.text()).toContain('Show all 5 classes')
-    await control.trigger('click')
-    expect(w.findAll('tbody tr')).toHaveLength(5)
-    expect(w.find('.table-show-all .show-all').text()).toContain('Show fewer')
-    await w.find('.table-show-all .show-all').trigger('click')
-    expect(w.findAll('tbody tr')).toHaveLength(3)
-  })
-
-  it('the fold applies to the filtered, sorted result — a course filter that leaves two rows shows both, no control', async () => {
-    const w = await mountView()
-    const course = w.findAll('select')[0]
-    await course.setValue('Spanish')
-    await flushPromises()
-    expect(w.findAll('tbody tr')).toHaveLength(2)
-    expect(w.find('.table-show-all').exists()).toBe(false)
-  })
-
-  it('year-group tiles under the page head: phrases and classes practising per year, unparsed names in Other', async () => {
-    const w = await mountView()
-    const tiles = w.find('[data-walk="classes-year-groups"]')
-    expect(tiles.exists()).toBe(true)
-    expect(tiles.attributes('data-mode')).toBe('year')
-    const read = tiles.findAll('.year-tile').map((t) => [t.find('.year-tile-value').text(), t.find('.year-tile-word').text(), t.find('.year-tile-sub').text()])
-    expect(read).toEqual([
-      ['86', 'Year 7', '2 of 2 classes'],
-      ['53', 'Year 8', '1 of 2 classes'],
-      ['—', 'Other', 'none of 1 yet'],
-    ])
+    const text = w.text()
+    for (const word of ['Excellent', 'Needs attention', 'Needs eyes', 'Inactive', 'Health']) {
+      expect(text, `page still says "${word}"`).not.toContain(word)
+    }
+    expect(w.find('.health-dot').exists()).toBe(false)
+    expect(w.find('health-dot-stub').exists()).toBe(false)
+    expect(w.find('.summary-strip').exists()).toBe(false)
+    // Course and Sort by are the only pickers left.
+    expect(w.findAll('select')).toHaveLength(2)
+    expect(w.findAll('thead th').map(th => th.text())).not.toContain('Health')
+    // Time in app is the figure the page is for, and it is still there.
+    expect(w.find('.page-subtitle').text()).toContain('3 classes across Ysgol Cas-gwent')
+    expect(w.find('.page-subtitle').text()).toMatch(/in the app this week/)
+    // The never-played class still says so in words: a fact, not a grade.
+    expect(w.findAll('tbody tr')[2].text()).toContain('Not started')
   })
 })
