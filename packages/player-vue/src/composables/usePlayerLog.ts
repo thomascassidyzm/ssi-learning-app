@@ -17,6 +17,7 @@
 
 import { onMounted, onBeforeUnmount, type Ref } from 'vue'
 import { isOfflineish } from '../config/networkGate'
+import { useUserRole } from '@/composables/useUserRole'
 import { apiUrl } from '@/platform/apiBase'
 import { platform } from '@/platform/capabilities'
 
@@ -234,6 +235,18 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
     // never navigator.onLine on its own, so a weak-but-real connection still
     // flushes normally.
     if (isOfflineish()) {
+      buffer.length = 0
+      return
+    }
+    // View-as is READ-SHAPED (useViewAs.ts). Every request still carries the
+    // ADMIN's own token, so a telemetry flush from a player mounted while an
+    // ssi_admin is viewing-as writes player_events rows under the ADMIN's
+    // learner — job #602 (staging, 2026-09-13) found infplay_enter /
+    // cold_start / infplay_exit rows written this way. The fetch guard tags
+    // the fetch path and the server refuses it, but sendBeacon never passes
+    // through window.fetch, so the only structural stop is here, at the
+    // source: while viewing-as, nothing leaves the buffer.
+    if (useUserRole().isViewingAs.value) {
       buffer.length = 0
       return
     }

@@ -19,6 +19,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { defineComponent, h, nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
 import { usePlayerLog } from './usePlayerLog'
+import { useUserRole } from '@/composables/useUserRole'
 
 vi.mock('../config/networkGate', () => ({ isOfflineish: () => false }))
 vi.mock('@/platform/apiBase', () => ({ apiUrl: (p: string) => p }))
@@ -38,6 +39,41 @@ describe('usePlayerLog — first sync flush carries the bearer', () => {
   })
   afterEach(() => {
     vi.unstubAllGlobals()
+  })
+
+  // Job #602 (2026-09-13): while an ssi_admin is viewing-as, a mounted player
+  // must write NO telemetry — not by fetch (tagged, server-refused) and not by
+  // sendBeacon (which never passes through the fetch guard). The buffer is
+  // dropped at source.
+  it('while viewing-as, a flush sends nothing by either path', async () => {
+    const role = useUserRole()
+    role.startViewing({ key: 'user:p', userId: 'p', role: 'school_admin', name: 'persona' } as any)
+    try {
+      let log!: ReturnType<typeof usePlayerLog>
+      const Host = defineComponent({
+        setup() {
+          log = usePlayerLog({
+            learnerId: '2efbfb3b-4cdb-4889-9785-36d62dcdd49a',
+            getToken: async () => 'signed-token',
+            flushIntervalMs: 60_000,
+          })
+          return () => h('div')
+        },
+      })
+      const wrapper = mount(Host)
+      await nextTick()
+      await flushMicrotasks()
+      log.event('cold_start', { guest: false })
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+      document.dispatchEvent(new Event('visibilitychange'))
+      await flushMicrotasks()
+      wrapper.unmount()
+      await flushMicrotasks()
+      expect(beaconSpy).not.toHaveBeenCalled()
+      expect(fetchSpy).not.toHaveBeenCalled()
+    } finally {
+      role.stopViewing()
+    }
   })
 
   it('a tab hidden before any timed flush still sends the boot events with Authorization', async () => {
