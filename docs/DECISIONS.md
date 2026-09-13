@@ -20,6 +20,19 @@ words in the ear. Core / All rows are untouched — a seed row always has target
 **Proof.** `podLineText.test.ts` fails on the pre-fix template and passes after; probe
 `$CS_SCRATCH/senedd-probe.mjs` shot the blank card on production before the fix.
 
+**Premise correction (Tom, 21:06Z) and the accounting, verified against the live DB.** Tom's read was
+that these lines should already have Welsh text and an Aran take, and that the display fix was
+papering over a dropped pointer. Checked line by line: (1) row 70 has Welsh text ("embedio", Aran's
+proofread of 11 Sep) and an Aran take on file (clip `2edfb987`, 11 Sep 14:57) — but that take reads
+the PRE-proofread wording "gwreiddio", so it does not match the row's text and must not be linked;
+the booth already lists row 70 as Aran's one remaining unrecorded line under the new wording, so
+his next read closes it with no manual link. (2) Rows 79 and 82 have never had Welsh text: the
+11 Sep snapshot says "no Welsh text yet", the audit log shows no edit since the 3 Sep import,
+Kai's 10 Sep translation pass did not cover them, and no clip of any Welsh for them exists. That is
+a translation gap for Kai, then a read for Aran — not a link. The #569/#590 wrong-voice rows (1,
+42, 47, 60, 518, 531, 534, 565) are different rows. So the display rule stays as the fallback for a
+genuinely untranslated line, which is exactly what 79 and 82 are today.
+
 ## 2026-09-13 — A pre-#544 offline snapshot maps forward on read and heals once online: the Senedd pod is never "Pod 1" offline either (job #553, orchestrator's decision under BSC, finishes #544)
 
 **The gap.** Job #544 fixed the resolver: a role-addressed topic pod is its own Listening Mode card after pod-1, never in place of it. Online and for every new snapshot that held. But a snapshot written to a role-holder's device between 2026-09-03 and 2026-09-13 records the Senedd pod as the served pod and carries no pod-1 at all, and nothing rewrote it: its empty extras list came from a live read, so the once-per-session heal was satisfied, and the content stamp had not moved. Cold-verify #552 reproduced it in memory with the real functions. Offline that device listed the Senedd pod in the first slot, labelled by the slot when the entry predated the title field, and main flow's pod lap played it. The population is role-holders who booted Welsh Northern in that window, which includes Tom's own device.
