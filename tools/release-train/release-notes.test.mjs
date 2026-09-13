@@ -571,3 +571,14 @@ test('the draft carries the per-item record in its coverage block, and the same 
   assert.doesNotMatch(stamped, /play button no longer/)
   assert.doesNotThrow(() => assertShape(stamped, 'notes/x.md'))
 })
+
+// Job #499: a `vercel:` config commit reached the 2026-09-13 notes as a headline — "Drop the
+// in-repo ignoreCommand so the dashboard Ignored Build Step is the one rule for preview builds" —
+// because "dashboard" satisfied the user-facing test. Deploy-config kinds are internal, like ci:.
+test('a vercel:/deploy:/infra: commit is an internal kind and never earns a bullet', () => {
+  assert.deepEqual(headlines([
+    'vercel: drop the in-repo ignoreCommand so the dashboard Ignored Build Step is the one rule for preview builds (job #460)',
+    'deploy: point the schools dashboard preview at the new region',
+    'infra: the player settings screen build runs on the dub1 region',
+  ]), [])
+})
