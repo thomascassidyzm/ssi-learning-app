@@ -241,6 +241,9 @@ export interface CachedExtraPod {
   slug: string
   title: string | null
   podRows: CachedPodRow[]
+  /** True for a role-addressed topic pod (servedPod rule 5): recorded so the
+   *  offline read-back gate can tell it from a parked slug. */
+  addressed?: true
 }
 
 /** Mirrors useLayer1Scheduler's L1FallbackPhraseRow (kept structural, not
@@ -565,6 +568,7 @@ const fetchAndCacheListeningMetaOnce = async (
     const extraPods: CachedExtraPod[] = extraEntries.map((e, i) => ({
       slug: e.slug,
       title: e.title,
+      ...(e.addressed ? { addressed: true as const } : {}),
       podRows: stampRowAudioRefs(
         revisedRefs,
         (extraResults[i]?.data || []) as unknown as CachedPodRow[],
