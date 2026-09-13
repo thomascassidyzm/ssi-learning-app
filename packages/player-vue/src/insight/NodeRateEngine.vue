@@ -50,6 +50,12 @@ const props = defineProps<{
   window?: string | null
   measure?: string | null
   plainWords?: boolean
+  /**
+   * Where the rate-compare contract is served from. Default: the node route.
+   * Intelligence at Everyone scope passes `/api/intel/minutes` (job #609) —
+   * the same response shape, so this component needs no second adapter.
+   */
+  endpoint?: string | null
   getToken: () => Promise<string | null>
 }>()
 
@@ -59,6 +65,8 @@ const emit = defineEmits<{
   'update:window': [value: string]
   'update:measure': [value: string]
   state: [value: EngineState]
+  /** The full resolved body, for a wrapper that says the answer in a sentence. */
+  data: [value: Record<string, unknown> | null]
 }>()
 
 const isLoading = ref(true)
@@ -95,7 +103,8 @@ async function fetchComparison(): Promise<void> {
     if (props.window) params.set('window', props.window)
     if (props.measure) params.set('measure', props.measure)
     const qs = params.toString()
-    const resp = await fetch(`/api/groups/${props.nodeId}/rate-compare${qs ? `?${qs}` : ''}`, {
+    const base = props.endpoint || `/api/groups/${props.nodeId}/rate-compare`
+    const resp = await fetch(`${base}${qs ? `?${qs}` : ''}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
     if (seq !== fetchSeq) return
@@ -122,6 +131,7 @@ async function fetchComparison(): Promise<void> {
     } else {
       comparison.value = json as RateComparisonData
     }
+    emit('data', json as Record<string, unknown>)
   } catch (err) {
     if (seq !== fetchSeq) return
     console.error('[NodeRateEngine] fetch failed:', err)

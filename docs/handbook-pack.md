@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `99893dba2503` · generated 2026-09-13 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `bcc9aaafa9b7` · generated 2026-09-13 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -577,20 +577,22 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-
 
 **Worth knowing.** Nothing is shown until the first load has genuinely succeeded, so an empty stamp means the numbers have not arrived rather than that they are old.
 
-## How many real people practised this week
+## How many in-app minutes are being done
 
 Section: seeing-progress · roles: admin · anchor: `question-pulse` · in `packages/player-vue/src/views/intel/PulseView.vue`
 
-**What it's for.** The first question on a Monday: how many real people practised in the last seven days, and whether that is more or fewer than the seven days before.
+**What it's for.** The first question: how many in-app minutes are being done, per course and per person on the course, and how each course stands against the average of all courses. A minute is everything between pressing play and stopping, on every screen, and Listening Mode minutes are shown apart from main-flow minutes.
 
-**Where it is.** **Pulse**, the first question in the bar under What's happening.
+**Where it is.** **Minutes**, the first question in the bar, and where Intelligence opens.
 
-1. Read the number and the sentence for this week against last week.
-2. Read the line beneath the chart for how many of those people are paying, gifted or on free access. Gifted people are real people and are counted.
-3. Read the chart for where in the world this week's people are.
-4. Open any course row to see which bits of that course give people trouble.
+1. Pick the **window**: today, the last seven days or the last thirty days.
+2. Pick the **course**. It opens on the busiest course in that window.
+3. Pick the **measure**: minutes per person, new enrolments, or people with no activity. The line under the pickers says what it counts.
+4. Read the two numbers: this course against the average of all courses, and the strip beneath for where the course sits among the rest.
+5. Read the line under the strip for the split between the main flow and Listening Mode, and how many people the minutes are spread over.
+6. The rows further down still count the real people who practised this week, by course; open one to see which bits of the course give trouble.
 
-**Worth knowing.** A person who practised nine times this week counts once.
+**Worth knowing.** Every minute here is the same minute every school page shows, and a person on the course who did not press play still counts in the denominator.
 
 ## How students join a class
 
