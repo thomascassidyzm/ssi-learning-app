@@ -383,32 +383,82 @@ export default async function handler(
         (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim()
     )
 
+    // --- Entitlement gate, FIRST ----------------------------------------------
+    // The gate runs before any content read (Astra refutation sec-E, confirmed
+    // 2026-09-13). It used to run after a Promise.all that already held the
+    // window RPC and the course-wide round map, so a refused caller — no
+    // token, lapsed, or asking past the preview — still cost the database the
+    // paid work and got two content-shaped 404s ("Course not found", "LEGO not
+    // in round map") before the 403. The pricing row is a single indexed read
+    // and access itself was always sequential, so paying for it up front adds
+    // one small round-trip for an entitled caller and removes every content
+    // read for a refused one.
+    //
+    // Free/community courses skip auth entirely. Premium courses require a
+    // valid Supabase Auth token + active subscription/entitlement for full
+    // content; anonymous or unsubscribed callers get sliced down to the
+    // free-preview window (through Yellow Belt), mirroring bundle.ts. A
+    // request starting `from` a LEGO beyond the preview window is denied
+    // outright (403) rather than silently returning an empty cycle list —
+    // there's nothing to preview-slice mid-window the way bundle.ts slices
+    // a whole-course payload.
+    const pricingRes = await supabase
+      .from('courses')
+      .select('target_lang, pricing_tier, is_community')
+      .eq('course_code', code)
+      .maybeSingle()
+    if (pricingRes.error) {
+      console.error('[Cycles] pricing lookup failed:', pricingRes.error.message)
+      res.setHeader('Cache-Control', 'no-store')
+      res.status(500).json({ error: 'Failed to load course pricing' })
+      return
+    }
+    const pricingRow = (pricingRes.data || {}) as {
+      target_lang: string | null
+      pricing_tier: string | null
+      is_community: boolean | null
+    }
+    const access = await resolveServerCourseAccess(req, supabase, {
+      course_code: code,
+      pricing_tier: pricingRow.pricing_tier,
+      is_community: pricingRow.is_community,
+      target_lang: pricingRow.target_lang,
+    })
+    const previewOnly = !access.canAccess
+    if (previewOnly && !(access.canPreview && access.previewMaxSeed)) {
+      res.setHeader('Cache-Control', 'no-store')
+      res.status(403).json({ error: 'Subscription required', reason: access.reason })
+      return
+    }
+    const previewMaxSeed = access.previewMaxSeed ?? 0
+
+    const fromParsed = parseLegoId(from)
+    if (previewOnly && fromParsed && fromParsed.seedNumber > previewMaxSeed) {
+      res.setHeader('Cache-Control', 'no-store')
+      res.status(403).json({ error: 'Subscription required', reason: access.reason })
+      return
+    }
+
+    // --- Content, only now ----------------------------------------------------
     // Single Postgres call: everything we need (course version, round window,
     // legos for that window, phrases for that window's seeds) in one network
     // round-trip. See migration 20260518_course_cycles_window_fn.sql for the
-    // function definition. The RPC's `course` payload only carries
-    // course_code + version (no pricing metadata), so the entitlement gate
-    // needs its own tiny lookup — run in parallel, it's a single indexed row.
+    // function definition.
     //
     // Spaced review needs the round map BEFORE the window too — a review at
     // offset 89 reaches 89 rounds back, which the RPC's window never contains.
     // The whole map is small (one small row per LEGO; round-map.ts already
-    // ships all of it to every client) and, crucially, does NOT depend on the
-    // RPC's answer, so it rides the same Promise.all and costs zero extra
-    // latency. Only the review PHRASES have to wait for it — one sequential
-    // round-trip, added below.
+    // ships all of it to every client) and does NOT depend on the RPC's
+    // answer, so it rides the same Promise.all and costs zero extra latency.
+    // Only the review PHRASES have to wait for it — one sequential round-trip,
+    // added below.
     const ROUND_FETCH = Math.min(limit + 2, MAX_LIMIT + 2)
-    const [rpcResult, pricingRes, fullMapRes] = await Promise.all([
+    const [rpcResult, fullMapRes] = await Promise.all([
       supabase.rpc('get_course_cycles_window', {
         p_course_code: code,
         p_from_lego_id: from,
         p_round_limit: ROUND_FETCH,
       }),
-      supabase
-        .from('courses')
-        .select('target_lang, pricing_tier, is_community')
-        .eq('course_code', code)
-        .maybeSingle(),
       supabase
         .from('course_round_index')
         .select('round_index, lego_id, seed_number')
@@ -421,12 +471,6 @@ export default async function handler(
       console.error('[Cycles] rpc error:', error.message)
       res.setHeader('Cache-Control', 'no-store')
       res.status(500).json({ error: 'Failed to load cycles window' })
-      return
-    }
-    if (pricingRes.error) {
-      console.error('[Cycles] pricing lookup failed:', pricingRes.error.message)
-      res.setHeader('Cache-Control', 'no-store')
-      res.status(500).json({ error: 'Failed to load course pricing' })
       return
     }
     if (fullMapRes.error) {
@@ -456,41 +500,6 @@ export default async function handler(
     }
 
     const version = payload.course.version
-
-    // --- Entitlement gate -----------------------------------------------------
-    // Free/community courses skip auth entirely. Premium courses require a
-    // valid Supabase Auth token + active subscription/entitlement for full
-    // content; anonymous or unsubscribed callers get sliced down to the
-    // free-preview window (through Yellow Belt), mirroring bundle.ts. A
-    // request starting `from` a LEGO beyond the preview window is denied
-    // outright (400) rather than silently returning an empty cycle list —
-    // there's nothing to preview-slice mid-window the way bundle.ts slices
-    // a whole-course payload.
-    const pricingRow = (pricingRes.data || {}) as {
-      target_lang: string | null
-      pricing_tier: string | null
-      is_community: boolean | null
-    }
-    const access = await resolveServerCourseAccess(req, supabase, {
-      course_code: code,
-      pricing_tier: pricingRow.pricing_tier,
-      is_community: pricingRow.is_community,
-      target_lang: pricingRow.target_lang,
-    })
-    const previewOnly = !access.canAccess
-    if (previewOnly && !(access.canPreview && access.previewMaxSeed)) {
-      res.setHeader('Cache-Control', 'no-store')
-      res.status(403).json({ error: 'Subscription required', reason: access.reason })
-      return
-    }
-    const previewMaxSeed = access.previewMaxSeed ?? 0
-
-    const fromParsed = parseLegoId(from)
-    if (previewOnly && fromParsed && fromParsed.seedNumber > previewMaxSeed) {
-      res.setHeader('Cache-Control', 'no-store')
-      res.status(403).json({ error: 'Subscription required', reason: access.reason })
-      return
-    }
 
     // Two independent seed ceilings, both inclusive, applied together:
     //  - previewMaxSeed: the entitlement gate above (paywall).
