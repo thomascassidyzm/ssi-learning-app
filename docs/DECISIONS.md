@@ -1792,3 +1792,34 @@ the old code. Both on-disk notes since the ruling still fit.
 
 **Rule this re-states.** Hand-written headlines take the slots first; the generator's job is to
 make it impossible for bookkeeping to reach a learner, not to write the headlines.
+
+## 2026-09-13 — Subscription expiry: the #540 clock fix stands, and a renewing payer gets a 7-day grace across the billing rollover (job #549)
+
+**What #540 got right and keeps.** `isSubscribed` and `hasFreeAccess` now depend on a reactive
+clock, so a paid period that ends while the app is open fails closed instead of surviving in a
+cached computed until the next reload. That stands untouched.
+
+**What it got wrong.** `currentPeriodEnd` is only the end of the CURRENT period. For a
+subscription set to renew, Paddle extends it by webhook at the rollover and the app learns the
+new end only from the next successful `/api/subscription` answer. A device offline across that
+instant still holds the old end in its mirror, so the computed dropped an auto-renewing payer to
+the free preview — premium past seed 19 locked, Settings offering a plan they already pay for —
+until they next got online. That is exactly the lock-out Tom ruled against, twice: 2026-07-10
+"definitely do NOT favour security over paying user experience"; 2026-09-12, job #378, "a payer
+offline stays a payer".
+
+**Ruling applied.** `RENEWAL_GRACE_MS` (7 days, exported from `useSubscription.ts`): a
+subscription with status `active` and `cancelAtPeriodEnd` false is treated as paid for seven days
+past its recorded period end. Seven days covers Paddle's dunning/retry window and any realistic
+offline stretch; a real cancellation or failed payment reaches the device as a status change on
+the next online refresh, which overwrites the mirror and ends the grace at once. A subscription
+with `cancelAtPeriodEnd` set, or any status other than `active`, ends exactly at
+`currentPeriodEnd` as #540 has it — there is no renewal to wait for. `hasFreeAccess` stays exact:
+a funded-org grant is a fixed-term gift (`org_enrolments.free_access_until`, "their year"), nothing
+renews it. UI-only flag; the 30-day offline lease, `useEntitlement` and the server-side content
+gate are unchanged.
+
+**Proof.** `useSubscription.renewalGrace.test.ts`: (a) renewing, one day past the end, offline →
+still paid — red on the pre-fix code, green after; (b) eight days past → not paid; (c) cancelling,
+one minute past → not paid; (d) an online answer with a new period end overwrites the mirror and
+wins. The #540 tests stay green.
