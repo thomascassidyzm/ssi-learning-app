@@ -832,13 +832,9 @@
     },
     "teacherDashboard": {
       "allCourses": "అన్ని కోర్సులు",
-      "allFilterOption": "అన్నీ",
-      "coursePlural": "కోర్సులు",
-      "healthLabel": "ఆరోగ్యం",
       "retry": "మళ్ళీ ప్రయత్నించండి",
       "tableHeaderActivity": "కార్యకలాపం",
-      "tableHeaderBelt": "బెల్ట్",
-      "tableHeaderHealth": "ఆరోగ్యం"
+      "tableHeaderBelt": "బెల్ట్"
     },
     "teachers": {
       "accessCode": "యాక్సెస్ కోడ్",
@@ -884,7 +880,6 @@
       "beltOrange": "నారింజ",
       "beltWhite": "తెలుపు",
       "beltYellow": "పసుపు",
-      "healthFilterLabel": "ఆరోగ్యం",
       "lastActiveNow": "ఇప్పుడు",
       "retryLabel": "మళ్ళీ ప్రయత్నించండి"
     },

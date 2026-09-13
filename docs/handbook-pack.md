@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `45e3c6697b09` · generated 2026-09-13 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `99893dba2503` · generated 2026-09-13 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -677,11 +677,11 @@ Section: seeing-progress · roles: admin, school_admin, teacher · anchor: `stud
 **Where it is.** The **Students** page, the search box and filters above the list, then **View** on their row.
 
 1. Open **Students**.
-2. Type part of their name in the search box, or narrow the list by class, belt or health.
+2. Type part of their name in the search box, or narrow the list by class or belt.
 3. Read their row for belt, hours and last active.
 4. Tap **View** to open their own progress.
 
-**Worth knowing.** Health is worked out from their last visit and how they sit against their own class, so a learner marked as needing attention is one who has gone quiet or fallen behind the people beside them.
+**Worth knowing.** The row records what the learner has done and when they were last here. It makes no judgement about how they are doing.
 
 ## Make a class
 

@@ -33,8 +33,6 @@ interface GroupSummary {
   staff_practice_minutes?: number
 }
 
-type SchoolHealth = 'excellent' | 'good' | 'needs-attention' | 'inactive'
-
 export interface School {
   id: string
   school_name: string
@@ -58,7 +56,6 @@ export interface School {
   name_confirmed?: boolean
   // Dashboard extras — optional so existing constructors don't break.
   active_days_last_7?: number
-  health?: SchoolHealth
   // Claim state (school_summary.has_admin, 20260714 migration): true once
   // EITHER admin_user_id is set (legacy school_admin invite path) OR an
   // admin user_tags row exists (the school_admin_join redemption path new
@@ -66,20 +63,6 @@ export interface School {
   // existing constructors default to "claimed" (no false "awaiting" badge
   // on data that predates this column).
   has_admin?: boolean
-}
-
-// Bucket a school's recent engagement into one of four bands. A school
-// counts as inactive when it has no enrolled students or zero active
-// days across all its classes in the trailing 7 days. The class-level
-// metric is "best class in the school" — one engaged class lifts the
-// school's health, since school admins are most interested in the
-// floor of engagement, not the average.
-function bucketSchoolHealth(studentCount: number, activeDays: number): SchoolHealth {
-  if (studentCount === 0) return 'inactive'
-  if (activeDays >= 5) return 'excellent'
-  if (activeDays >= 2) return 'good'
-  if (activeDays >= 1) return 'needs-attention'
-  return 'inactive'
 }
 
 const schools = ref<School[]>([])
@@ -103,8 +86,9 @@ export function useSchoolData() {
   const { currentUser: selectedUser, isGovtAdmin, isSchoolAdmin, isTeacher } = useSchoolContext()
 
   // Best-class active_days_last_7 per school. One round-trip via
-  // class_activity_stats — we take the max across the school's classes
-  // (see bucketSchoolHealth for why "max" instead of "avg").
+  // class_activity_stats — the max across the school's classes. Carried as
+  // a number only; no surface grades a school on it (Tom's ruling,
+  // 2026-09-13, job #494).
   async function fetchSchoolActiveDays(schoolIds: string[]): Promise<Map<string, number>> {
     const out = new Map<string, number>()
     if (schoolIds.length === 0) return out
@@ -119,8 +103,7 @@ export function useSchoolData() {
         if (v > prev) out.set(row.school_id, v)
       })
     } catch {
-      // Health is informational — fall back to 0 (will resolve to
-      // inactive/needs-attention based on student_count).
+      // Informational only — fall back to 0.
     }
     return out
   }
@@ -202,7 +185,6 @@ export function useSchoolData() {
             staff_practice_minutes: hoursToMinutes(s.staff_practice_hours ?? 0),
             created_at: s.created_at,
             active_days_last_7: activeDays,
-            health: bucketSchoolHealth(s.student_count || 0, activeDays),
             has_admin: s.has_admin ?? !!s.admin_user_id,
           }
         })
@@ -256,7 +238,6 @@ export function useSchoolData() {
             staff_practice_minutes: hoursToMinutes(s.staff_practice_hours ?? 0),
             created_at: s.created_at,
             active_days_last_7: activeDays,
-            health: bucketSchoolHealth(s.student_count || 0, activeDays),
             has_admin: s.has_admin ?? !!s.admin_user_id,
           }
         })
@@ -335,7 +316,6 @@ export function useSchoolData() {
             created_at: data.created_at,
             name_confirmed: data.name_confirmed,
             active_days_last_7: activeDays,
-            health: bucketSchoolHealth(data.student_count || 0, activeDays),
           }
           schools.value = [currentSchool.value]
         }
