@@ -41,13 +41,22 @@
  *    resolves it with no network round-trip at all. The snapshot's slug is
  *    still run through rule 1, so a parked slug can never enter this way.
  *
- * 5. A pod that NAMES A ROLE is addressed to one person, and outranks
- *    everything above it for the person who holds that role. This is the one
- *    way a non-serving slug is ever served, and it is safe because the CLIENT
- *    does not decide it: RLS returns a role-restricted row only to a holder of
- *    that role (database/changes/20260903_restricted_content_by_role.sql in
- *    Popty), so for everybody else the row does not exist and rule 1 is
- *    exactly as hard as it was. It rides on the same round-trip as rule 1.
+ * 5. A pod that NAMES A ROLE is addressed to one person, and RLS returns the
+ *    row only to a holder of that role (database/changes/
+ *    20260903_restricted_content_by_role.sql in Popty); for everybody else the
+ *    row does not exist. Such a pod is a TOPIC pod (the Senedd pod is
+ *    `cym_n_for_eng:senedd-s4c-steve`, pod_type 'choice' on its own slug): it
+ *    is listed by Listening Mode as its own card, titled from its own row,
+ *    AFTER pod-1 — never in place of it (Tom's decision, 2026-09-13, job
+ *    #544: "topic pods sit ALONGSIDE pod-1 as their own cards, never replacing
+ *    pod-1; the serving list must include every pod RLS returns for the
+ *    learner, pod-1 first, topic pods after"). Main flow does not read it:
+ *    rule 1 is exactly as hard for a role-holder as for anyone else. Before
+ *    this the addressed pod REPLACED pod-1 in the served slot for its
+ *    holder, so Steve saw the Senedd pod labelled "Pod 1" and no real pod-1
+ *    at all (job #539 probes). The client still does not decide who may see
+ *    it: a row is listed because the server sent it, and this reader must not
+ *    try to repeat the role check.
  *
  *    A HELD pod resolves to "no pods yet" for free, and that is deliberate.
  *    `listening_pods.visibility` ('live' | 'held', added 2026-08-23 — see
@@ -70,14 +79,16 @@
  * 6. LISTENING MODE MAY SHOW EXTRA SLOTS; MAIN FLOW NEVER DOES. Tom's ruling
  *    (2026-09-12, job #354): the Italian method pod sits ALONGSIDE Pod 1 in
  *    Listening Mode as a third slot, never replacing it and never re-slugging
- *    it. `LISTENING_EXTRA_POD_SLUGS` is a second CLOSED allow-list of named
- *    slugs, read only by `resolveListeningPods` — the Dialogues list and the
- *    offline snapshot. `resolveServedPod`, and therefore every MAIN-FLOW reader
- *    (usePodLapScheduler, usePodStage0, generateLearningScript), still answers
- *    with exactly ONE pod from rule 1 and never sees the extra list. Rule 1 is
- *    unchanged as written: nothing here falls through to "whatever pod
- *    exists", and a held extra pod is absent to the anon client exactly as a
- *    held served pod is (rule 5), so flipping its visibility is the release.
+ *    it. The list `resolveListeningPods` answers is: pod-1, then the named
+ *    slugs in `LISTENING_EXTRA_POD_SLUGS` (a CLOSED allow-list, exactly like
+ *    rule 1 — never a fall-through), then every role-addressed pod the server
+ *    returned (rule 5). `resolveServedPod`, and therefore every MAIN-FLOW
+ *    reader (usePodLapScheduler, usePodStage0, generateLearningScript), still
+ *    answers with exactly ONE pod from rule 1 and never sees the list. A
+ *    parked pod is on neither list and has no role, so it is never listed
+ *    even though the server may send it; a held pod is absent to the anon
+ *    client exactly as under rule 5, so flipping its visibility is the
+ *    release.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -123,6 +134,10 @@ export interface ListeningPod extends ServedPod {
   /** `listening_pods.title` — the group heading Listening Mode shows when a
    *  course lists more than one pod. Null when the row carried none. */
   title: string | null
+  /** True for a role-addressed topic pod (rule 5): the server returned it
+   *  because THIS reader holds its role. Persisted into the offline snapshot
+   *  so the read-back gate can tell it from a parked slug. */
+  addressed?: true
 }
 
 export interface PodRow {
@@ -133,19 +148,14 @@ export interface PodRow {
 }
 
 /**
- * Which slug do these rows mean? Pure, so the rule can be tested without a
- * client. A row only reaches here if RLS let it through, so a role-restricted
- * row IS one this reader may play — the check has already happened server-side
- * and this function must not try to repeat it.
+ * Which slug does MAIN FLOW play? Pure, so the rule can be tested without a
+ * client. Rule 1 only: pod-1 when the server sent it, else the fallback.
  */
 export const pickServedSlug = (rows: PodRow[] | null | undefined): string => {
   const list = rows ?? []
-  // Rule 5: personally addressed content wins, on any slug.
-  const addressed = list.find((r) => typeof r.required_role === 'string' && r.required_role !== '')
-  if (addressed && typeof addressed.slug === 'string' && addressed.slug !== '') {
-    return addressed.slug
-  }
-  // Rule 1: the hard gate, in preference order.
+  // Rule 1: the hard gate, in preference order. A role-addressed row on any
+  // other slug is a TOPIC pod for Listening Mode (rule 5), not the served
+  // pod — it must never displace pod-1 here.
   const found = new Set(list.map((r) => r.slug))
   for (const slug of SERVING_POD_SLUGS) {
     if (found.has(slug)) return slug
@@ -192,15 +202,12 @@ const resolveOnce = async (
     result = await withNetworkTimeout(
       client
         .from('listening_pods')
-        .select('slug, required_role')
+        .select('slug')
         .eq('course_code', courseCode)
-        // Rule 1 unchanged, plus rule 5 on the same round-trip. The role arm
-        // carries no slug or pod_type filter on purpose: a pod addressed to a
-        // person may live on any slug, and RLS — not this query — is what
-        // makes it invisible to everyone else.
-        .or(
-          `required_role.not.is.null,and(pod_type.eq.core,slug.in.(${SERVING_POD_SLUGS.join(',')}))`,
-        ),
+        // Rule 1 and nothing else: the serving slugs, core type. A
+        // role-addressed topic pod (rule 5) is Listening Mode's business.
+        .eq('pod_type', 'core')
+        .in('slug', [...SERVING_POD_SLUGS]),
     )
   } catch {
     result = NETWORK_TIMEOUT
@@ -235,22 +242,51 @@ export const resolveServedPod = (
 const isExtraSlug = (slug: unknown): slug is string =>
   typeof slug === 'string' && (LISTENING_EXTRA_POD_SLUGS as readonly string[]).includes(slug)
 
+/** True when the server sent this row because the reader holds its role. */
+const isAddressed = (r: PodRow): boolean =>
+  typeof r.required_role === 'string' && r.required_role !== ''
+
+/** One Listening Mode extra slot, before it is stamped with the course code. */
+export interface ListeningExtra {
+  slug: string
+  title: string | null
+  addressed?: true
+}
+
 /**
- * Which extra pods do these rows carry, in allow-list order? Pure. Only a
- * core pod on a NAMED extra slug counts — a row on any other slug is ignored
- * even if the server sent it, so this is a gate in its own right and not just
- * a mirror of the query's `.in()`.
+ * Which extra pods do these rows carry? Pure. Two sources, in this order:
+ *
+ *  - the NAMED extra slugs, in allow-list order — only a core pod on a named
+ *    slug counts, so a row on any other slug is ignored even if the server
+ *    sent it (this is a gate in its own right, not a mirror of the query);
+ *  - then every ROLE-ADDRESSED pod (rule 5), on any slug and of any type,
+ *    ordered by `pod_order` then slug so the list is stable. The server has
+ *    already decided this reader holds the role; a null/empty role is not
+ *    addressed and never widens the gate.
  */
 export const pickListeningExtras = (
-  rows: Array<PodRow & { pod_type?: string | null }> | null | undefined,
-): Array<{ slug: string; title: string | null }> => {
+  rows: Array<PodRow & { pod_type?: string | null; pod_order?: number | null }> | null | undefined,
+): ListeningExtra[] => {
   const list = rows ?? []
-  const out: Array<{ slug: string; title: string | null }> = []
+  const out: ListeningExtra[] = []
   for (const slug of LISTENING_EXTRA_POD_SLUGS) {
     const hit = list.find(
       (r) => r.slug === slug && (r.pod_type == null || r.pod_type === 'core'),
     )
     if (hit) out.push({ slug, title: typeof hit.title === 'string' ? hit.title : null })
+  }
+  const named = new Set(out.map((e) => e.slug))
+  const addressed = list
+    .filter((r) => isAddressed(r) && typeof r.slug === 'string' && r.slug !== '' && !named.has(r.slug))
+    .sort(
+      (a, b) =>
+        (a.pod_order ?? Number.MAX_SAFE_INTEGER) - (b.pod_order ?? Number.MAX_SAFE_INTEGER) ||
+        a.slug.localeCompare(b.slug),
+    )
+  for (const r of addressed) {
+    if (named.has(r.slug)) continue
+    named.add(r.slug)
+    out.push({ slug: r.slug, title: typeof r.title === 'string' ? r.title : null, addressed: true })
   }
   return out
 }
@@ -292,7 +328,7 @@ export const markListeningSnapshotHealed = (courseCode: string): void => { heale
 
 /**
  * What the offline snapshot says the Listening Mode list is: the extra pods
- * it was built from, re-gated through the allow-list like the served slug,
+ * it was built from, re-gated (named slug or recorded as role-addressed),
  * and the served pod's own title. `extras` is null when there is no snapshot
  * at all (or the cache threw), so a caller can tell "nothing known" from
  * "known to have no extras". Never throws.
@@ -304,15 +340,21 @@ export const markListeningSnapshotHealed = (courseCode: string): void => { heale
  */
 const snapshotListening = async (
   courseCode: string,
-): Promise<{ extras: Array<{ slug: string; title: string | null }> | null; servedTitle: string | null }> => {
+): Promise<{ extras: ListeningExtra[] | null; servedTitle: string | null }> => {
   try {
     const cached = await getCachedListeningMeta(courseCode)
     if (!cached) return { extras: null, servedTitle: null }
     const extras = Array.isArray(cached.extraPods) ? cached.extraPods : []
     return {
       extras: extras
-        .filter((e) => isExtraSlug(e?.slug))
-        .map((e) => ({ slug: e.slug, title: typeof e.title === 'string' ? e.title : null })),
+        // A named slug, or a topic pod the snapshot recorded as addressed to
+        // this reader (rule 5). Anything else in an old snapshot is parked.
+        .filter((e) => isExtraSlug(e?.slug) || e?.addressed === true)
+        .map((e) => ({
+          slug: e.slug,
+          title: typeof e.title === 'string' ? e.title : null,
+          ...(e.addressed === true ? { addressed: true as const } : {}),
+        })),
       servedTitle: cached.podTitle ?? null,
     }
   } catch {
@@ -328,15 +370,18 @@ const resolveListeningOnce = async (
   // the first slot. Offline it comes from the snapshot's `podSlug`.
   const served = await resolveServedPod(client, courseCode)
   const asListening = (
-    extras: Array<{ slug: string; title: string | null }>,
+    extras: ListeningExtra[],
     servedTitle: string | null,
   ): ListeningPod[] => [
     { ...served, title: servedTitle },
     ...extras
-      // An extra slot never duplicates the served pod (rule 5 can serve a
-      // role-addressed pod on any slug, including in principle an extra one).
+      // An extra slot never duplicates the served pod.
       .filter((e) => e.slug !== served.slug)
-      .map((e) => ({ ...servedPod(courseCode, e.slug), title: e.title })),
+      .map((e) => ({
+        ...servedPod(courseCode, e.slug),
+        title: e.title,
+        ...(e.addressed ? { addressed: true as const } : {}),
+      })),
   ]
 
   if (isOfflineish()) {
@@ -347,21 +392,25 @@ const resolveListeningOnce = async (
     }
   }
 
-  // One round-trip: the extra slots plus the served pod's own title. The
-  // extra arm is a closed `.in()` on named slugs and is re-gated client-side
-  // by pickListeningExtras. No visibility filter, on purpose (rule 5): a held
-  // row is absent to the anon client, so a held method pod simply is not here.
+  // One round-trip: the named extra slots plus the served pod's own title
+  // (a closed `.in()` on named core slugs), OR any pod that names a role
+  // (rule 5) — that arm carries no slug or pod_type filter on purpose: a
+  // topic pod addressed to a person may live on any slug, and RLS, not this
+  // query, is what makes it invisible to everyone else. Both arms are
+  // re-gated client-side by pickListeningExtras. No visibility filter, on
+  // purpose: a held row is absent to the anon client, so it is not here.
   let result:
-    | { data: Array<PodRow & { pod_type?: string | null }> | null; error: unknown }
+    | { data: Array<PodRow & { pod_type?: string | null; pod_order?: number | null }> | null; error: unknown }
     | typeof NETWORK_TIMEOUT
   try {
     result = await withNetworkTimeout(
       client
         .from('listening_pods')
-        .select('slug, title, pod_type, required_role')
+        .select('slug, title, pod_type, pod_order, required_role')
         .eq('course_code', courseCode)
-        .eq('pod_type', 'core')
-        .in('slug', [...LISTENING_EXTRA_POD_SLUGS, served.slug]),
+        .or(
+          `required_role.not.is.null,and(pod_type.eq.core,slug.in.(${[...LISTENING_EXTRA_POD_SLUGS, served.slug].join(',')}))`,
+        ),
     )
   } catch {
     result = NETWORK_TIMEOUT
@@ -384,7 +433,8 @@ const resolveListeningOnce = async (
 
 /**
  * Every pod Listening Mode lists for this course, served pod FIRST, then the
- * named extra slots the course actually has (rule 6). Memoised per course for
+ * named extra slots the course actually has, then the topic pods addressed to
+ * this reader (rules 5 and 6). Memoised per course for
  * the session; every failure mode resolves (never rejects) to at least the
  * served pod. Main flow must never call this — it wants resolveServedPod.
  */
