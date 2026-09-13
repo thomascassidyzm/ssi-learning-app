@@ -1741,3 +1741,25 @@ drift test is the only thing standing between a learner and a stale translated s
 out under load, was fixed by job #482 on dev, keeping every assertion. That fix and this entry's four
 were cherry-picked onto staging and main as they stand, so the ways-in mirror reaches learners on
 production without promoting the unruled Listening Mode soak that staging carries.
+
+## 2026-09-13 — Promote staging→main: the schools grading strip reaches production (job #499)
+
+**Ruling (Tom, 13:29Z):** "Yes. And that's a push without ceremony, it's really a fix for schools
+only." The promote carried the whole of staging, as Watson told him it would: 63 commits,
+`951439ef3..8d3583777`, main now `1a5dc96bd`, live at saysomethingin.app from 14:06Z.
+
+**Two decisions taken on the way.** (1) `promote.sh` refused: main carried seven hotfix-lane
+cherry-picks (#460, #477, #482, #483, #484, #486) never back-merged, so main was not an ancestor of
+staging. Resolved by the hotfix lane's own rule — `--no-ff` back-merge of main into staging
+(`8d3583777`) and dev (`a810b233c`). One conflict, the `_minted` prose string in
+`i18n/pending-translation.json`, where staging's text was a superset; the merged trees were
+byte-identical to the pre-merge tips, which is what twin commits predict. Never rebase, never
+force. (2) The regenerated release notes led with a `vercel:` config commit as a learner headline
+because "dashboard" in its subject satisfied the user-facing gate. `vercel|deploy|infra` join
+`KIND_VETO`, with a proving test that fails on the old regex and passes on the new; the notes
+that shipped on main carry no such line. The pod-cards headline still carries "(job #428)" and
+the two grading bullets are terse — under-claiming, left alone by design.
+
+**Already on production before this ship:** the 20-minute support note (#477) via hotfix
+`f5321c274`. **Not in the range:** any "mode/belt stamping on play rows" commit — the phrase in
+the commission matches nothing in `main..staging`.
