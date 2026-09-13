@@ -28,14 +28,11 @@
 import 'fake-indexeddb/auto'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
-// Both background writers checkContentVersion fires after the freshness
-// verdict are stubbed: a mock module that lacks an export the code calls makes
-// that call throw inside the try, and the drop verdict comes back false even
-// though the entry was dropped (job #379 added ensureListeningMetaSnapshot;
-// nightly 2026-09-13 caught the gap).
 vi.mock('./listeningMetaCache', () => ({
   refreshListeningMetaIfStale: vi.fn(async () => false),
-  ensureListeningMetaSnapshot: vi.fn(async () => {}),
+  // The stamp lane also writes a listening snapshot when the device has none
+  // (job #379); stub it too, or the call throws and the drop never happens.
+  ensureListeningMetaSnapshot: vi.fn(async () => false),
 }))
 
 import {

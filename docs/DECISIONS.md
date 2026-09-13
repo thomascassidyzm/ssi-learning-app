@@ -1,12 +1,12 @@
-## 2026-09-13 — The nightly went red on dev, staging and main at once: five stale test expectations behind Friday's merges, and one test too slow for a loaded box (job #482, CI red)
+## 2026-09-13 — The api nightly's one red: the codeGen letter test was too slow for a loaded box, not wrong (job #482, CI red)
 
-**What the red was.** Six player assertions and one api timeout, identical on all three branches, because the Friday ship carried the same merges to each. None was a code regression. Job #306 added a Show all step to the Ways In walk and recompiled pack.json, but the hand-kept mirror in eng.json still had five steps, so a localised learner would have heard the old sentences one step out of place. Job #340 grouped the ten intelligence questions by scope, which the source now documents as the top bar's order, but the test still asserted the array came out one to ten. Job #354 added the method pod's slug to the bundle route's serving list and updated the api test beside it, not the player-side copy. Job #379 added a second background writer to the listening metadata module, and the audio-stamp test's module mock lacked that export, so the call threw inside the try and the drop verdict came back false although the entry was dropped. The codeGen letter test made forty-five thousand expect calls over five thousand draws and took 2.8 s yesterday, 4 s on main last night, and past 5 s on dev.
+**What the red was.** `api/_utils/codeGen.test.ts` timed out at 5 s on dev. The code has not changed since the SEC25 keyspace fix; the test made forty-five thousand expect calls over five thousand draws and took 2.8 s the night before, 4 s on main the same night, and past 5 s on dev. The six player reds from the same run were the four Friday-ship commits that outran their tests; job #484, spawned for main's identical red, landed those fixes on dev first and its entry below records them. This job's copies of the same four edits were byte-identical and were dropped in favour of #484's.
 
-**Decision.** Fix each where it is wrong: the mirror regenerated from pack.json; the questions test asserts the set of numbers, not the order; the bundle test names all three serving slugs; the mock stubs both writers; the letter test keeps its five thousand draws and checks the set of letters seen, so it proves the same thing in a fraction of the time. No timeout was raised, nothing skipped. Better: the gate is true again and the walk mirror is right. Simpler: five edits, no new mechanism. Cheaper: the slowest api test costs a few hundred milliseconds instead of seconds under load.
+**Decision.** The letter test keeps its five thousand draws and checks the set of letters seen, so it proves exactly what it proved before in a few hundred milliseconds. No timeout was raised, nothing skipped. Better: the gate stops flaking under load. Simpler: one loop, three asserts. Cheaper: the slowest api test no longer costs seconds.
 
-**Gap left open.** eng.json's walk mirror is hand-kept, and localiseWalk.ts calls it generated; there is no tool that writes it, so it will drift again the next time a walk is edited. The drift test catches it, which is what happened here, but a compile step that writes the mirror would make it impossible. Not done here.
+**Gap left open.** eng.json's walk mirror is hand-kept and localiseWalk.ts calls it generated; no tool writes it, so it will drift again on the next walk edit. The drift test catches it, which is what happened here. A compile step that writes the mirror would make it impossible. Not done here.
 
-**Proof.** The four player files and the api file ran red on the pre-fix tree in this worktree with the CI-pinned node, and green after: 138 of 138 across the four plus the Ways In honesty and compile-gate tests, 13 of 13 across codeGen and the bundle pod-visibility test.
+**Proof.** Red on the pre-fix tree under nightly load; green in this worktree with the CI-pinned node, 4 of 4 in the file.
 
 ## 2026-09-12 — Preview builds are governed by the Vercel dashboard rule alone; the in-repo `ignoreCommand` is gone (job #460, Watson's decision)
 
@@ -1696,3 +1696,23 @@ background-clip. The timed stack is byte-identical and pinned by test. Proof:
 `ListeningOverlay.breathTracker.test.ts` #479 block, seen failing on the pre-fix source and passing
 after; `e2e/_479-untimed-live-line-probe.mjs` read the computed paint of every line per frame on
 staging before and dev after (`/d/c46c77c5`).
+
+## 2026-09-13 — Nightly red on dev, staging and main: four Friday-ship commits outran their tests (job #484)
+
+**What the nightly saw.** The 02:02 UTC run went red on all three learning-app branches with the
+same six failures in four files, one night after all three were green. Every cause is a commit in
+the 2026-09-12 ship that changed behaviour deliberately and left a test or a mirror behind.
+
+**The four causes, and what moved.** (1) Job #306 gave the ways-in walk a sixth step, "Tap Show
+all", and recompiled pack.json, but the hand-maintained English mirror in `locales/eng.json` still
+carried five — so the localised walk spoke the OLD ledger sentence. The mirror is regenerated from
+the pack; this is the one learner-facing fix. (2) Job #340 reordered the ten intel questions into
+the top bar's grouped order and the file's own header says the array order may move while `n` is
+fixed; the test asserted position. It now asserts the set of numbers. (3) Job #379 made the stamp
+lane also call `ensureListeningMetaSnapshot`; the audio-stamp test's mock of that module stubbed
+only the older function, so the call threw and the drop reported false. The mock stubs both.
+(4) Job #354 added `method-pod` to the bundle's slug allow-list as the third Listening Mode slot;
+the test pinned the old two-slug list. It pins the three.
+
+**Rule this re-states.** A walk edit is not done until `eng.json`'s mirror matches the pack — the
+drift test is the only thing standing between a learner and a stale translated sentence.
