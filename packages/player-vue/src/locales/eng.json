@@ -122,9 +122,7 @@
     "subscriptionsNotAvailableHere": "Subscriptions aren't available in this version of the app yet.",
     "beltStillDownloading": "{belt} isn't on this device yet — it'll open as soon as it comes through.",
     "contentStillDownloading": "That isn't on this device yet — it'll open as soon as it comes through.",
-    "choosePlanCancel": "Two plans, from £15/month. Cancel anytime.",
-    "playingAsYourself": "You are now playing as yourself. If you want to play as class please go here.",
-    "playingAsYourselfLink": "Your classes"
+    "choosePlanCancel": "Two plans, from £15/month. Cancel anytime."
   },
   "home": {
     "goodMorning": "Good morning",
@@ -1543,6 +1541,8 @@
       "pending": "Pending",
       "phrasesPractised": "phrases practised",
       "playAsClass": "▶ Play as class",
+      "playingAsYourself": "You are now playing as yourself. If you want to play as class please go here.",
+      "playingAsYourselfLink": "Your classes",
       "practiceNotLoaded": "Couldn't load this week's practice — the rows below show no minutes until it loads. {error}",
       "practised": "practised",
       "pupilsOwnAccountsNone": "Nothing on pupils’ own accounts this week. That is usual for a class taught from the front.",

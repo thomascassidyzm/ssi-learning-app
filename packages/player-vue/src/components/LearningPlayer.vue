@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, onBeforeUnmount, watch, watchEffect, shallowRef, inject, nextTick, defineAsyncComponent, type PropType, type Ref } from 'vue'
 import { useUserRole } from '@/composables/useUserRole'
-import { showOwnPlayBanner, OWN_PLAY_BANNER_LINK } from '@/composables/ownPlayBanner'
 import { createCursorQueue } from '@/playback/cursorQueue'
 // Offline-download status (shared with the mode-button ring in ModeTray)
 import { offlineDlState, offlineDlDone, offlineDlTotal, offlineDlFailed, offlineDlStragglers, offlineTrial, resetOfflineDownloadStatus, resolveOfflineDlOutcome } from '../composables/useOfflineDownloadStatus'
@@ -803,19 +802,6 @@ const courseCode = computed(() => props.course?.course_code || '')
 
 // Alias for ReportIssueButton
 const activeCourseCode = courseCode
-
-// "YOU ARE NOW PLAYING AS YOURSELF" (Tom, 2026-09-14 13:07Z, job #662): a
-// TEACHER account on this standalone player is on her own learner account,
-// so the lesson will not count for a class. A persistent line across the
-// top, in his words, linking to her classes. Never under a class context
-// (that IS play as class), never in the schools shell's embedded player.
-// Rule in composables/ownPlayBanner.ts.
-const { effectiveEducationalRole: viewerEducationalRole } = useUserRole()
-const ownPlayBannerVisible = computed(() => showOwnPlayBanner({
-  role: viewerEducationalRole.value,
-  hasClassContext: !!props.classContext,
-  embedded: !!props.embedded,
-}))
 
 // Production deep link — Popty's Script Viewer launching "this round" here for
 // a real-fidelity listen (utils/deepLinkTarget.ts owns the URL contract). The
@@ -17654,17 +17640,9 @@ defineExpose({
       <span class="class-bar-label">{{ t('player.backClasses') }}</span>
     </button>
 
-    <!-- "You are now playing as yourself" (Tom, 2026-09-14 13:07Z, job #662):
-         a teacher on her own player, persistent while she is here, the link
-         takes her to her classes. Never a block. -->
-    <div v-if="ownPlayBannerVisible" class="own-play-bar" data-testid="own-play-banner" role="status">
-      <span class="own-play-text">{{ t('player.playingAsYourself', 'You are now playing as yourself. If you want to play as class please go here.') }}</span>
-      <a class="own-play-link" :href="OWN_PLAY_BANNER_LINK">{{ t('player.playingAsYourselfLink', 'Your classes') }}</a>
-    </div>
-
     <!-- Header - Logo with belt underneath, centered -->
     <!-- Header - brand row + belt row -->
-    <header class="header" :class="{ 'has-banner': (props.classContext && !props.embedded) || ownPlayBannerVisible }">
+    <header class="header" :class="{ 'has-banner': props.classContext && !props.embedded }">
       <div class="header-stack">
         <!-- Brand -->
         <!-- The SaySomethingin wordmark is hidden ONLY when embedded in a shell
@@ -18849,32 +18827,6 @@ defineExpose({
   margin-left: auto;
   font-size: 0.75rem;
   color: rgba(255, 255, 255, 0.5);
-}
-
-.own-play-bar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 50;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: calc(0.5rem + env(safe-area-inset-top, 0px)) max(1rem, env(safe-area-inset-right, 0px)) 0.5rem max(1rem, env(safe-area-inset-left, 0px));
-  background: rgba(20, 20, 32, 0.92);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(194, 58, 58, 0.2);
-  font-size: 0.8125rem;
-  line-height: 1.35;
-  color: #ffffff;
-}
-.own-play-text { flex: 1; min-width: 0; }
-.own-play-link {
-  flex-shrink: 0;
-  color: #ffffff;
-  font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 2px;
 }
 
 /* ============ HEADER ============ */

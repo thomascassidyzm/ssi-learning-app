@@ -2393,15 +2393,13 @@ yourself. If you want to play as class please go here." and "make it harder for 
 find their own learner account? Maybe that is in a drop down menu by the avatar? Rather than in
 the nav itself?").** (1) The Learn button leaves the schools top bar for a TEACHER; her own
 account stays one step away as My player in the avatar menu; leaders keep Learn. (2) The warning,
-in his words, with a link to her classes. WHERE IT SITS, and why: the dashboard navigation is not
-present on the player a teacher plays herself on — self-practice lands on the navless player at
-`/` by the 2026-08-06 ruling — so a banner on the dashboard navigation would never be seen at the
-moment of the mistake. It sits across the top of that player instead, persistent while a teacher
-is there, never under a class context, never in the embedded shell player
-(`composables/ownPlayBanner.ts`). This replaces the 12:58Z own-account steer, which was the same
-line in different words and only after the play tap. If Tom wants it strictly on the dashboard
-nav, that is a different surface from where the mistake happens and is his call; the report says
-so rather than deciding it.
+in his words, with a link to her classes, DASHBOARD-SIDE (Tom, 13:11Z: "The regular app does not
+have a whole screen top nav at all"; the play-as-class path already names itself in the school
+dashboard's top nav, so nothing changes in the player). It sits across the top of the teacher
+home, above the welcome, whenever her own account has practised this week — the sibling of the
+top nav's "playing as class" strip — and links to her classes. The 12:58Z player steer is gone.
+Firmed at 13:13Z: "removing the play button from the top right hand screen and putting it into the
+avatar drop down is a definite thing" — done as (1).
 
 **Not done, and why.** No bulk apply, per the brief and the audit model. The sweep is not run
 against any real teacher by this job: Angharad runs it. The first live sweep on Chepstow lists 27

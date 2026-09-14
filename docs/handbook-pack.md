@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `6735b308c324` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `9b77f9bc8cef` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -1399,6 +1399,19 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-
 7. On your own school every card is a link: phrases and minutes open the classes list with the classes in that order, classes practising opens it narrowed to the classes that played this week, and teachers opens the staff list.
 
 **Worth knowing.** An organisation that is not school-shaped sees the same row worded as practice hours, groups and learners instead.
+
+## Told when you have been playing as yourself
+
+Section: running-classes · roles: teacher · anchor: `dash-playing-as-yourself` · in `packages/player-vue/src/views/schools/DashboardView.vue`
+
+**What it's for.** A line across the top of your dashboard whenever your own account has practised this week, so a lesson that ran on your own sign-in instead of on the class is noticed straight away. It reads: You are now playing as yourself. If you want to play as class please go here.
+
+**Where it is.** Across the top of the schools dashboard, above the welcome, only in a week when your own account has practised.
+
+1. Read the line.
+2. Tap **Your classes** to go to your classes, and start the lesson with **Play as class** there.
+
+**Worth knowing.** The line goes away by itself once a week has passed with no practice on your own account. Your own practice is not deleted or moved by it; the copy tool on a class's tools page does that if you want it.
 
 ## Voice and pause
 
