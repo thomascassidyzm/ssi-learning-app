@@ -2200,3 +2200,32 @@ scan per open of the panel — the price of not forking the minute — and nothi
 percentile can fall while a learner is away. This tool shows one at 20+ active people because the
 brief allows it; if that reads as a streak in disguise, the floor can be set to infinity and the
 card still says everything else.
+
+## 2026-09-14 — Aran's Chromebook: the report that "never arrived" and the picker that "would not scroll" (job #652)
+
+**Tom (11:23Z).** "Aran is saying on his Chromebook he can't scroll down on the courses page. He just
+tried a bug submit actually, can we see if that's come through?"
+
+**Finding.** Both reports arrived, at 11:23Z and 11:24Z, in `tester_feedback`, the table the floating
+tester widget writes and nothing polls; `bug_reports`, the postbox the poller reads, was searched and
+found empty. The widget's own failure path was a `console.error` and an open form, never a word on
+screen. The scroll complaint is not a scroll defect: his screenshot shows the Choose Your Course sheet
+with 中文 selected in the I-speak row, which the picker remembers in localStorage from an earlier tap,
+and there are exactly five courses for Chinese speakers. The list was complete and the sheet had
+nothing below to scroll to, and said nothing about why. Headless production at 1366x768, 1280x720 and
+his own 1616x842, ChromeOS user agent, wheel and touch, with English selected: 42 rows, the panel
+scrolls to its end every time.
+
+**Decision.** (1) One postbox: the tester widget files through `useBugReport` with source
+`tester_widget`, the route accepts that source, and a failed send says so on the panel. The
+`tester_feedback` table stays as it is; nothing new writes to it. (2) The filtered picker ends with
+"That is every course for X speakers. Show all languages", one tap out of the remembered filter;
+absent in a scoped picker, under a search, or when the catalogue serves one known language anyway.
+The filter itself stays remembered: a Chinese speaker should not have to re-pick every open.
+
+**Better × Simpler × Cheaper.** Every report from every door reaches the one channel that is read;
+one route and one poller instead of a table nobody watches; the picker change is a computed and a
+footer, no new state. Cost: two English strings enrolled for the translation pass.
+
+**Landed.** Branch `cs/652-ssi-app`, rebased on `dev`, not merged, under Tom's 11:27Z hold
+("diagnose first, no fixes yet").
