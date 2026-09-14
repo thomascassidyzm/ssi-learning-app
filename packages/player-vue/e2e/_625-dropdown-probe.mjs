@@ -70,12 +70,6 @@ async function openPage(browser, session, path, viewport = { width: 1280, height
   await page.goto(`${BASE}${path}`, { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {})
   // Data-backed pages paint their controls once their fetch lands; give them up to 25s.
   await page.waitForSelector('.fs-trigger', { timeout: 25000 }).catch(() => {})
-  if (path.includes('/insights') && (await page.locator('.fs-trigger').count()) === 0) {
-    // A brand-new school's first rate-compare read has been seen to fail once
-    // ("Couldn't load these numbers just now"); the next read works. Reload once.
-    await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {})
-    await page.waitForSelector('.fs-trigger', { timeout: 25000 }).catch(() => {})
-  }
   await page.waitForTimeout(2500)
   if (path.startsWith('/schools/settings')) {
     // Localisation is one section of the settings page; the dropdowns live there.
