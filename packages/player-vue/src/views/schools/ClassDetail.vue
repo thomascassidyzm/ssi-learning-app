@@ -851,7 +851,7 @@ const mailboxPrompt = useMailboxPrompt()
           <span class="meta-dot">·</span>
           <span v-if="classStarted === null">{{ t('schools.classDetail.minutesThisWeekLoading', 'minutes this week loading…') }}</span>
           <span v-else-if="classStarted === false">{{ t('schools.classDetail.noMinutesYet', 'no time in the app yet') }}</span>
-          <span v-else>{{ t('schools.classDetail.minutesThisWeek', '{n} min in the app this week').replace('{n}', String(classMinutesWk ?? 0)) }}</span>
+          <span v-else>{{ t('schools.classDetail.minutesThisWeek', '{n} min played as class this week').replace('{n}', String(classMinutesWk ?? 0)) }}</span>
           <span class="meta-dot">·</span>
           <UpdatedStamp />
         </div>

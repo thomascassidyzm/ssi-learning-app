@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `da77e48b3e92` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `f836d9c2cf66` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -873,7 +873,7 @@ Section: your-own-account · roles: leader, school_admin · anchor: `account-ins
 
 Section: running-classes · roles: school_admin, teacher · anchor: `classes-table` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
 
-**What it's for.** One row per class, showing at a glance what each one has done. A class is one learner account, played from the front of the room, so every figure on the row is that account's own: the belt the class has reached, how far through the course it has travelled in phrases, minutes in the app this week and the shape of its last seven days. Nothing on the row grades the class. Time in app is time with the lesson running, pauses included — the time the class was in the lesson. A class that has never played says **Not started** in words rather than showing a row of zeros.
+**What it's for.** One row per class, showing at a glance what each one has done. A class is one learner account, played from the front of the room, so every figure on the row is that account's own: the belt the class has reached, how far through the course it has travelled in phrases, minutes played as class over the last seven days and the shape of those days. Nothing on the row grades the class. Played as class is time with the lesson running on the class account, from pressing play to stopping, pauses included — the same minute the class page, the school home and Insights count. Pupils' own practice is not in it. A class that has never played says **Not started** in words rather than showing a row of zeros.
 
 **Where it is.** **My Classes**, the table filling most of the page. On a phone each class is a card instead, with the number you sorted by beside its name and the rest underneath.
 
@@ -910,12 +910,12 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `insig
 **Where it is.** The node's home page, **See insights**.
 
 1. Open the node's home page and tap **See insights**.
-2. Pick the **measure** — progress, practice, or class sessions. The line underneath says exactly what it means.
-3. Pick the **window** — the period the rate is computed over. Shorter reacts faster, longer smooths the noise.
+2. Pick the **measure** — rate of progress, practice minutes, or active classes. The line underneath says exactly what it means.
+3. Pick the **window** — the period the figure covers. A wider window never reads less practice than a narrower one, because practice minutes are the total inside the window, from pressing play to stopping.
 4. Use **Compare to** to put an average alongside.
 5. **Overview** takes you back to the same place's home page.
 
-**Worth knowing.** Everything here is a rate, not a raw total, so groups of very different sizes still compare fairly. A class that practises from the front is counted through its own class account, so whole-class lessons show here the same as any other practice.
+**Worth knowing.** Rate of progress is a per-week rate; practice minutes is a plain total. The chart is one bar per day, hour or month, and a bar with no play is a zero. A class that practises from the front is counted through its own class account, so whole-class lessons show here the same as any other practice.
 
 ## Remove a student from a class
 
@@ -1398,7 +1398,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-
 6. On a class the row switches to that class's own phrases practised this week, its minutes in the app, its students and its teachers.
 7. On your own school every card is a link: phrases and minutes open the classes list with the classes in that order, classes practising opens it narrowed to the classes that played this week, and teachers opens the staff list.
 
-**Worth knowing.** An organisation that is not school-shaped sees the same row worded as practice hours, groups and learners instead.
+**Worth knowing.** An organisation that is not school-shaped sees minutes in the app this week, groups and learners instead. Every minute on this page is the same minute: from pressing play to stopping, over the last seven days, each account once. There is no all-time total here.
 
 ## Told when you have been playing as yourself
 

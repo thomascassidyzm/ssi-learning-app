@@ -11,14 +11,14 @@
 //   · ResizeObserver -> chart.resize()
 //   · NO hardcoded hex — every colour from theme.ts (palette()/tone())
 //
-// Spec: ECharts smooth line (optional area). X = time/category, Y = value.
+// Spec: ECharts bars per bucket, never smoothed (job #673). X = time/category, Y = value.
 // Multi-series allowed. Annotatable points: 'point' annotation at (series?, x) marks
 // a datum with a labelled point and a tone colour.
 // ============================================================================
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import type { TimeSeriesData, Annotation, Tone } from '../spec'
 import {
-  registerInsightTheme, INSIGHT_THEME_NAME, palette, tone, vGradient,
+  registerInsightTheme, INSIGHT_THEME_NAME, palette, tone,
   FONT_MONO,
   type EChartsLike,
 } from '../theme'
@@ -100,21 +100,18 @@ function buildMarkPoints(seriesName: string): Record<string, unknown>[] {
 function buildOption(): Record<string, unknown> {
   const p = palette()
   const data = props.data
-  const hasArea = data.series.length === 1  // area fill on single-series charts only (keeps multi clean)
 
   const series = (data.series ?? []).map((s, i) => {
     const colour = seriesColor(i, s.tone)
     const markPoints = buildMarkPoints(s.name)
+    // Real bars per bucket, never a smoothed line (Tom, 2026-09-14, job
+    // #673): a point with no activity is a zero bar, not a slope between
+    // its neighbours.
     const seriesObj: Record<string, unknown> = {
       name: s.name,
-      type: 'line',
-      smooth: true,
-      symbol: 'circle',
-      symbolSize: 4,
-      showSymbol: false,  // only show on hover unless annotated
-      sampling: 'lttb',
-      lineStyle: { color: colour, width: 2 },
-      itemStyle: { color: colour },
+      type: 'bar',
+      barMaxWidth: 28,
+      itemStyle: { color: colour, borderRadius: [3, 3, 0, 0] },
       data: s.points ?? [],
     }
     if (markPoints.length) {
@@ -122,12 +119,6 @@ function buildOption(): Record<string, unknown> {
       seriesObj.markPoint = {
         data: markPoints,
         label: { show: true },
-      }
-    }
-    if (hasArea && echarts) {
-      seriesObj.areaStyle = {
-        color: vGradient(echarts, `rgba(${colourToRgb(colour)},0.22)`, `rgba(${colourToRgb(colour)},0.0)`),
-        origin: 'start',
       }
     }
     return seriesObj
@@ -167,7 +158,7 @@ function buildOption(): Record<string, unknown> {
     xAxis: {
       type: 'category',
       data: data.x ?? [],
-      boundaryGap: false,
+      boundaryGap: true,
       axisLine: { lineStyle: { color: p.line } },
       axisTick: { show: false },
       axisLabel: { fontFamily: FONT_MONO, color: p.ink3, fontSize: 11 },
@@ -185,27 +176,6 @@ function buildOption(): Record<string, unknown> {
     },
     series,
   }
-}
-
-// Cheap helper: turn a resolved colour string (#rrggbb or rgb(...)) into an "r,g,b" triplet
-// so we can build rgba() for the area gradient. Falls back gracefully.
-function colourToRgb(colour: string): string {
-  if (colour.startsWith('#') && colour.length === 7) {
-    const r = parseInt(colour.slice(1, 3), 16)
-    const g = parseInt(colour.slice(3, 5), 16)
-    const b = parseInt(colour.slice(5, 7), 16)
-    return `${r},${g},${b}`
-  }
-  const m = colour.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/)
-  if (m) return `${m[1]},${m[2]},${m[3]}`
-  // Fall back to the live palette blue (resolves from CSS vars or the canonical FALLBACK hex)
-  const fb = palette().blue
-  const m2 = fb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/)
-  if (m2) return `${m2[1]},${m2[2]},${m2[3]}`
-  if (fb.startsWith('#') && fb.length === 7) {
-    return `${parseInt(fb.slice(1, 3), 16)},${parseInt(fb.slice(3, 5), 16)},${parseInt(fb.slice(5, 7), 16)}`
-  }
-  return colour  // unreachable: palette() always returns #rrggbb or rgb(…); area fill degrades gracefully
 }
 
 async function ensureChart() {

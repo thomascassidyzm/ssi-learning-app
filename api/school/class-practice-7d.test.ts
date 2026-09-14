@@ -56,8 +56,14 @@ vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({ from: (table: string) => makeChainable(table) }),
 }))
 
-/** ISO stamp `min` minutes from now (negative = ago). */
-const at = (min: number) => new Date(Date.now() + min * 60000).toISOString()
+/**
+ * ISO stamp `min` minutes from ONE captured "now" (negative = ago). Captured
+ * once per test rather than read per call: two clips five minutes apart sit
+ * exactly on the idle cut-off, and a millisecond of jitter between two
+ * Date.now() reads split them into two spans (a 1200-for-1500 flake).
+ */
+let nowBase = Date.now()
+const at = (min: number) => new Date(nowBase + min * 60000).toISOString()
 
 function makeReq(query: Record<string, string>): VercelRequest {
   return { method: 'GET', query, headers: { authorization: 'Bearer tok' } } as any
@@ -75,6 +81,7 @@ let handler: typeof import('./class-practice-7d').default
 
 beforeEach(async () => {
   vi.resetModules()
+  nowBase = Date.now()
   handler = (await import('./class-practice-7d')).default
   DB = {
     classes: [{ id: 'c1', school_id: 's1', class_learner_id: 'class-learner-1' }],
@@ -183,6 +190,36 @@ describe('GET /api/school/class-practice-7d — the SCHOOL HEADLINE rollup (job 
     expect(a.c1.lastPractisedAt).toBeTruthy()
     // Never played: no cursor, no diary, no position → not started, in words downstream.
     expect(a['c-never']).toEqual({ started: false, journeyDone: 0, journeyTotal: 0, seedNumber: null, lastPractisedAt: null, phrases7d: 0, minutesByDay: [0, 0, 0, 0, 0, 0, 0] })
+  })
+
+  it('ONE WINDOW RULE (Tom, 2026-09-14, job #673): a class row and the school rollup count the same seven days — the last 7 × 24 h, not the last 7 UTC dates', async () => {
+    // Noon UTC, so a lesson 6 days 23 hours ago falls on the 8th UTC date
+    // back: inside a rolling week, outside a calendar one.
+    const base = new Date(); base.setUTCHours(12, 0, 0, 0)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(base)
+    nowBase = Date.now()
+    try {
+      // The pupil is tagged on the class, so the rollup counts her own account.
+      DB.user_tags = [{ tag_type: 'class', tag_value: 'CLASS:c1', user_id: 'uid-l1', role_in_context: 'student', removed_at: null }]
+      DB.learners = [{ id: 'l1', user_id: 'uid-l1', display_name: 'Asha' }]
+      DB.player_events = [
+        ...[0, 3, 7, 10].map((min) => ({ learner_id: 'l1', event_type: 'audio_play', duration: 0, occurred_at: at(-min) })),
+        ...[0, 5, 10, 15, 20, 60, 65].map((min) => ({ learner_id: 'class-learner-1', event_type: 'audio_play', duration: 0, occurred_at: at(-1440 - 65 + min) })),
+        // The lesson 6 d 23 h ago: three clips, ten minutes.
+        ...[0, 5, 10].map((min) => ({ learner_id: 'class-learner-1', event_type: 'audio_play', duration: 0, occurred_at: at(-(7 * 1440 - 60) + min) })),
+      ]
+      const res = makeRes()
+      await handler(makeReq({}), res)
+      expect(res.statusCode).toBe(200)
+      expect(res.body.classPlayByClass).toEqual({ c1: 1500 + 600 })
+      // The rollup adds the class account and the pupil, each once, over the
+      // SAME window — so the classes list header and the school home agree.
+      expect(res.body.rollup.inAppMinutes7d * 60).toBe(1500 + 600 + 600)
+      expect(res.body.classAccountByClass.c1.minutesByDay).toHaveLength(7)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('rollup is present, and zero, when the caller has no classes — never absent', async () => {
