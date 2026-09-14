@@ -96,6 +96,66 @@ describe('POST /api/report/bug', () => {
   })
 })
 
+describe('POST /api/report/bug — the schools dashboard door (job #633)', () => {
+  it('stores source schools_dashboard with the dashboard context, keeping only the known keys', async () => {
+    const res = makeRes()
+    const req = makeReq({
+      method: 'POST',
+      body: {
+        text: 'The Students page shows 0 students but my class has 12.',
+        source: 'schools_dashboard',
+        route: '/schools/students',
+        context: { role: 'school_admin', school_id: 'sch-1', school_name: 'Seaside', class_id: 'c-9', page_title: 'Students', secret: 'dropped' },
+      },
+    })
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+    const row = DB.bug_reports[0]
+    expect(row.source).toBe('schools_dashboard')
+    expect(row.route).toBe('/schools/students')
+    expect(row.context).toEqual({ role: 'school_admin', school_id: 'sch-1', school_name: 'Seaside', class_id: 'c-9', page_title: 'Students' })
+  })
+
+  it('a player report is source learner with no context, whatever the client sends', async () => {
+    const res = makeRes()
+    await handler(makeReq({ method: 'POST', body: { text: 'audio stopped', source: 'made-up', context: { school_id: 'x' } } }), res)
+    expect(res.statusCode).toBe(200)
+    expect(DB.bug_reports[0].source).toBe('learner')
+    expect(DB.bug_reports[0].context).toBeNull()
+  })
+
+  it('refuses a view-as session and writes nothing', async () => {
+    const res = makeRes()
+    const req = makeReq({ method: 'POST', body: { text: 'raised while viewing as', source: 'schools_dashboard' } })
+    ;(req.headers as Record<string, string>)['x-ssi-view-as'] = '1'
+    await handler(req, res)
+    expect(res.statusCode).toBe(403)
+    expect(DB.bug_reports).toHaveLength(0)
+  })
+
+  it('throttles a signed-in caller past ten reports an hour', async () => {
+    for (let i = 0; i < 10; i++) {
+      DB.bug_reports.push({ id: `old-${i}`, auth_user_id: 'caller-1', created_at: recent(600 + i) })
+    }
+    // Someone else's rows and this caller's stale rows do not count.
+    DB.bug_reports.push({ id: 'other', auth_user_id: 'someone-else', created_at: recent(10) })
+    DB.bug_reports.push({ id: 'stale', auth_user_id: 'caller-1', created_at: recent(2 * 60 * 60) })
+    const res = makeRes()
+    await handler(makeReq({ method: 'POST', body: { text: 'eleventh' } }), res)
+    expect(res.statusCode).toBe(429)
+    expect(DB.bug_reports.map((r) => r.body)).not.toContain('eleventh')
+  })
+
+  it('lets a signed-in caller through under the throttle', async () => {
+    for (let i = 0; i < 9; i++) {
+      DB.bug_reports.push({ id: `old-${i}`, auth_user_id: 'caller-1', created_at: recent(600 + i) })
+    }
+    const res = makeRes()
+    await handler(makeReq({ method: 'POST', body: { text: 'tenth' } }), res)
+    expect(res.statusCode).toBe(200)
+  })
+})
+
 describe('mergeEvents', () => {
   it('dedupes on occurred_at + event_type and orders by time', () => {
     const a = { event_type: 'x', occurred_at: '2026-09-12T10:00:00Z', payload: null }

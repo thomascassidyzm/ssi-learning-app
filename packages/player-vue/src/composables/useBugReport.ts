@@ -11,6 +11,10 @@
  * the shared belt-progress instance's lastLegoId, rendered as that lego's own
  * known and target text plus the belt name. Looked up best-effort from
  * course_legos, the same table Settings' furthest-point readout reads.
+ *
+ * THE SCHOOLS DASHBOARD DOOR (Tom, 2026-09-14): the dashboard account menu
+ * files through the same submit with `extra` naming the source and what was
+ * in view (school, class, node, page title). One postbox, two doors.
  */
 import { inject, type Ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -24,6 +28,11 @@ export interface BugReportPosition {
   known_text?: string
   target_text?: string
   belt?: string
+}
+
+export interface BugReportExtra {
+  source: 'learner' | 'schools_dashboard'
+  context?: Record<string, string | null | undefined>
 }
 
 export interface BugReportEnvelope {
@@ -123,7 +132,7 @@ export function useBugReport() {
   }
 
   /** Send the report. Resolves true when the server accepted it. */
-  async function submit(text: string, screenshotUrl: string | null, explicitCourse?: string | null): Promise<boolean> {
+  async function submit(text: string, screenshotUrl: string | null, explicitCourse?: string | null, extra?: BugReportExtra): Promise<boolean> {
     const env = await envelope(explicitCourse)
     // Flush first so the server's own read of player_events sees what the
     // learner just did; whatever is still unflushed rides along as fallback.
@@ -138,7 +147,7 @@ export function useBugReport() {
       const resp = await fetch(apiUrl('/api/report/bug'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ text, screenshot_url: screenshotUrl, ...env, recent_events }),
+        body: JSON.stringify({ text, screenshot_url: screenshotUrl, ...env, recent_events, ...(extra ?? {}) }),
       })
       return resp.ok
     } catch {
