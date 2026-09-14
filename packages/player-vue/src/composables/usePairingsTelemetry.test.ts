@@ -28,11 +28,26 @@ describe('usePairingsTelemetry under view-as', () => {
     // waves through as "the read path" — so the only stop is at the source.
     const role = useUserRole()
     const { rpc, tel } = host()
+    // The first flush happens AFTER Exit on purpose: a flush while still
+    // viewing-as would be caught by the flush guard and conceal the removal
+    // of the creation-time guard (Astra cold-check #617 on #615).
+    role.startViewing({ key: 'user:p', userId: 'p', role: 'school_admin', name: 'persona' } as any)
+    try {
+      tel.recordCyclePlay({ learnerId: 'L', courseCode: 'spa_for_eng', legoIds: ['S0001L01', 'S0001L02'] })
+    } finally {
+      role.stopViewing()
+    }
+    await tel.flush()
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
+  it('a pair fired while viewing-as is dropped at flush too, if the flush comes before Exit', async () => {
+    const role = useUserRole()
+    const { rpc, tel } = host()
     role.startViewing({ key: 'user:p', userId: 'p', role: 'school_admin', name: 'persona' } as any)
     try {
       tel.recordCyclePlay({ learnerId: 'L', courseCode: 'spa_for_eng', legoIds: ['S0001L01', 'S0001L02'] })
       await tel.flush()
-      expect(rpc).not.toHaveBeenCalled()
     } finally {
       role.stopViewing()
     }
