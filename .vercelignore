@@ -1,0 +1,9 @@
+# Test files under api/ are never routes. Without this, Vercel compiled every
+# api/**/*.test.ts as a serverless function: the build step grew from ~282s
+# (25 Aug 2026) to 726-925s (14 Sep 2026), and testDoors.security.test.ts alone
+# cost 280-347s because it reads packages/player-vue sources by path and drags
+# the whole player into a function compile. pnpm test:api still runs them all
+# locally (vitest.api.config.ts). Job #694, docs/DECISIONS.md 2026-09-14.
+api/**/*.test.ts
+api/**/*.spec.ts
+api/**/__tests__/**
