@@ -413,9 +413,9 @@ describe('NodeHomeView — one grammar at every level', () => {
     expect(text).toContain('Course journey')
     expect(text).not.toContain('Belt distribution')
     expect(text).not.toContain('Practice min/student/week')
-    expect(text).not.toContain('LEGOs on their own')
-    expect(text).not.toContain('LEGOs mastered on average')
-    expect(text).toContain('LEGOs travelled together')
+    expect(text).not.toContain('phrases on their own')
+    expect(text).not.toContain('phrases mastered on average')
+    expect(text).toContain('Phrases travelled together')
     // Journey note speaks LEGOs (position-is-LEGO ruling: never "seed")
     expect(text).not.toMatch(/\bseed\b/i)
   })
@@ -457,7 +457,7 @@ describe('NodeHomeView — one grammar at every level', () => {
     // The phrase-by-count list — what the class actually said — sits in the card.
     expect(text).toContain('quiero')
     // Journey rides the CLASS's own play-as-class position (LEGO units).
-    expect(text).toContain('The class has travelled 238 of 320 LEGOs together')
+    expect(text).toContain('The class has travelled 238 of 320 phrases together')
     // Belt comes from the class's play position (seed 60 → green → Blue next).
     expect(text).toContain('Blue belt')
     // Students remain below, in the same flat row grammar (the bonus layer).
@@ -479,7 +479,7 @@ describe('NodeHomeView — one grammar at every level', () => {
     expect(text).toContain('No class practice yet')
     // Never a bar of zeros dressed as an estimate: the words say it.
     expect(text).toContain('Not started — the class has not played together yet.')
-    expect(text).not.toContain('LEGOs mastered on average')
+    expect(text).not.toContain('phrases mastered on average')
   })
 
   it('LEARNER-PAGE-DEAD PIN: student rows are FLAT — everything in-row, no click, no navigation, no streak', async () => {
@@ -493,7 +493,7 @@ describe('NodeHomeView — one grammar at every level', () => {
     const row = wrapper.find('.child-row.is-flat')
     expect(row.exists()).toBe(true)
     expect(row.find('.child-journey').exists()).toBe(true)
-    expect(row.text()).toContain('60 of 320 LEGOs')
+    expect(row.text()).toContain('60 of 320 phrases')
     expect(row.find('.child-spark').exists()).toBe(true)
     expect(row.text()).toContain('60m this wk')
     // Streaks are banned (founder ruling 2026-07-19,

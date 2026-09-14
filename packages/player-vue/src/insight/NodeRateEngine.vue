@@ -225,7 +225,7 @@ const measureModel = computed({
 // set; this page is the scoped door, not a fork).
 const LEGACY_METRIC_DESC = t(
   'insights.rateEngine.legacyMetricDesc',
-  'New LEGOs reached per week — the headline rate. Rate of progress matters more than position: a learner three seeds back but climbing fast is healthier than one parked far ahead.',
+  'New phrases reached per week — the headline rate. Rate of progress matters more than position: a learner three seeds back but climbing fast is healthier than one parked far ahead.',
 )
 const metricDesc = computed(() => {
   const selected = measureOptions.value.find((m) => m.value === measureModel.value)
@@ -282,7 +282,7 @@ const metricDesc = computed(() => {
       </label>
       <div v-else class="nre-field" data-walk="insights-measure">
         <span class="nre-field-label">{{ t('insights.rateEngine.measureLabel', 'Measure') }}</span>
-        <p class="nre-fixed">{{ t('insights.rateEngine.rateOfProgressFixed', 'Rate of progress (LEGOs / week)') }}</p>
+        <p class="nre-fixed">{{ t('insights.rateEngine.rateOfProgressFixed', 'Rate of progress (new phrases / week)') }}</p>
       </div>
 
       <label class="nre-field nre-field-wide" data-walk="insights-compare">

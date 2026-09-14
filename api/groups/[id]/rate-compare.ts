@@ -105,7 +105,7 @@ interface MeasureConfig {
   classLevelExcluded?: boolean
 }
 const MEASURES: MeasureConfig[] = [
-  { value: 'rate', label: 'Rate of progress', unit: 'LEGOs', per: 'week', desc: 'How fast new LEGOs are being learned, per week.' },
+  { value: 'rate', label: 'Rate of progress', unit: 'phrases', per: 'week', desc: 'How fast new phrases are being learned, per week.' },
   { value: 'minutes', label: 'Practice minutes', unit: 'min', per: '', desc: 'Minutes the class practised together in the selected period, from pressing play to stopping, pauses included.' },
   { value: 'active_classes', label: 'Active classes share', unit: '%', per: '', desc: 'The share of classes that practised at least once in the selected period.', classLevelExcluded: true },
 ]
@@ -738,7 +738,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         .maybeSingle()
       const target = (lego as any)?.target_text_roman || (lego as any)?.target_text
       const known = (lego as any)?.known_text
-      if (target && known) contextLine = `Furthest LEGO · "${target}" — "${known}"`
+      if (target && known) contextLine = `Furthest phrase · "${target}" — "${known}"`
     }
 
     res.setHeader('Cache-Control', 'no-store')

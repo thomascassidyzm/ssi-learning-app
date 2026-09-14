@@ -205,7 +205,7 @@ function buildOrgWorld() {
         { value: '30d', label: 'Last 30 days' }, { value: 'all', label: 'All time' },
       ],
       measures: [
-        { value: 'rate', label: 'Rate of progress', desc: 'How fast new LEGOs are being learned, per week.' },
+        { value: 'rate', label: 'Rate of progress', desc: 'How fast new phrases are being learned, per week.' },
         { value: 'minutes', label: 'Practice minutes', desc: 'Minutes the class practised together in the selected period, from pressing play to stopping, pauses included.' },
       ],
     },

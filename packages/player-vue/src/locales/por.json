@@ -602,7 +602,7 @@
   },
   "nav": {
     "library": "Biblioteca",
-    "previousLego": "LEGO anterior"
+    "previousLego": "Frase anterior"
   },
   "browse": {
     "closeLibrary": "Fechar biblioteca",
@@ -1156,7 +1156,7 @@
       "lastActiveNever": "Nunca",
       "leadLabel": "titular",
       "leaveLabel": "Sair",
-      "legosColumn": "LEGOs",
+      "legosColumn": "Frases",
       "loadingJoinLink": "A carregar a hiperligação de convite desta turma…",
       "loadingLabel": "A carregar…",
       "loadingRoster": "A carregar a lista…",
@@ -1188,10 +1188,10 @@
       "courseColumn": "Curso",
       "currentBeltKicker": "Faixa atual",
       "greeting": "Olá, {name}.",
-      "keepGoingLabel": "Continue assim — LEGO {n}",
+      "keepGoingLabel": "Continue assim — frase {n}",
       "last7DaysKicker": "Últimos 7 dias",
       "lastSessionColumn": "Última sessão",
-      "legosRetiredColumn": "LEGOs retirados",
+      "legosRetiredColumn": "Frases retiradas",
       "neverLabel": "Nunca",
       "noCoursesHint": "Ainda não se inscreveu em nenhum curso. Peça ao seu professor um código de adesão à turma.",
       "noCoursesTitle": "Ainda sem cursos",
@@ -1218,7 +1218,7 @@
       "lastActiveColumn": "Última atividade",
       "lastActiveNever": "Nunca",
       "lastActiveNow": "agora",
-      "legosColumn": "LEGOs",
+      "legosColumn": "Frases",
       "loadStudentsError": "Não foi possível carregar os alunos",
       "loadingStudents": "A carregar alunos…",
       "noFilterMatchTitle": "Nenhum aluno corresponde a esses filtros",
@@ -1390,7 +1390,7 @@
       "lastActive": "Última atividade",
       "lastActiveNever": "Nunca",
       "lastActiveToday": "Hoje",
-      "legosMastered": "LEGOs dominados",
+      "legosMastered": "Frases dominadas",
       "lifetimePaid": "Pago ao longo da vida",
       "newClass": "Nova turma",
       "newClassSub": "Cada turma tem a sua própria hiperligação de partilha e lista.",
@@ -1526,7 +1526,7 @@
         "school": "Escola",
         "wordBelt": "Faixa",
         "wordClass": "Turma",
-        "wordLegos": "LEGOs",
+        "wordLegos": "Frases",
         "wordPractised": "praticado",
         "wordTeachers": "Professores"
       },

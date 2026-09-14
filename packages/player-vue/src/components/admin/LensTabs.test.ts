@@ -3,8 +3,14 @@
  *  1. on Insights the graph tool (NodeRateEngine) comes BEFORE the org
  *     questions block;
  *  2. Overview | Insights are tabs on both pages, the open one selected;
- *  3. the Where-you-are rail names which of the two is open, tappable to switch.
+ *  3. the Where-you-are rail names which of the two is open.
  * Each pin failed on the pre-#628 code and passes after it.
+ *
+ * Job #674 (Tom, 14:42Z the same day): "It's not THAT clear that we're in
+ * Overview OR Insights / I think it should only show one of these" — the rail
+ * line now names ONLY the open view, capitalised, and is not a control; the
+ * LensTabs pair is the switch. The rail pins below failed on the #628 code
+ * (which rendered "insights · overview" as a button) and pass after #674.
  */
 import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
@@ -62,21 +68,31 @@ describe('NodeMapRail lens line', () => {
     node: { id: 'cls', name: '10E', label: 'class' },
     siblings: [], children: [], kind: 'class' as const,
   }
-  it('says which page is open beneath you-are-here and switches on tap', async () => {
+  it('names only the open view beneath you-are-here — the other view is absent', () => {
     const w = mount(NodeMapRail, {
       props: { ...base, lens: { current: 'insights', overviewPath: '/org/cls', insightsPath: '/org/cls/insights' } },
       global: { stubs: { RouterLink: RouterLinkStub } },
     })
     const line = w.find('.rail-lens')
     expect(line.exists()).toBe(true)
-    expect(line.find('.rail-lens-current').text()).toBe('insights')
-    expect(line.find('.rail-lens-other').text()).toContain('overview')
+    expect(line.text()).toBe('Insights')
+    expect(line.text().toLowerCase()).not.toContain('overview')
+    expect(line.find('.rail-lens-other').exists()).toBe(false)
+    // Plain text, not a control: nothing to tap, nothing navigates.
+    expect(line.element.tagName).not.toBe('BUTTON')
+    expect(w.find('.rail-lens button').exists()).toBe(false)
     // Straight after the you're-here row, not anywhere else in the list.
     const rows = w.findAll('.rail-row')
     const hereIdx = rows.findIndex((r) => r.classes().includes('is-here'))
     expect(rows[hereIdx + 1].classes()).toContain('is-lens')
-    await line.trigger('click')
-    expect(pushMock).toHaveBeenCalledWith('/org/cls')
+  })
+  it('says Overview, and only Overview, on the node home', () => {
+    const w = mount(NodeMapRail, {
+      props: { ...base, lens: { current: 'overview', overviewPath: '/org/cls', insightsPath: '/org/cls/insights' } },
+      global: { stubs: { RouterLink: RouterLinkStub } },
+    })
+    expect(w.find('.rail-lens').text()).toBe('Overview')
+    expect(w.find('.rail-lens').text().toLowerCase()).not.toContain('insights')
   })
   it('draws no lens line when the node has no insights page', () => {
     const w = mount(NodeMapRail, { props: { ...base }, global: { stubs: { RouterLink: RouterLinkStub } } })

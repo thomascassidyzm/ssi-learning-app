@@ -232,7 +232,7 @@ const sortOptions = computed<{ value: SortKey; label: string }[]>(() => [
   { value: 'name', label: t('schools.teacherDashboard.sortName', 'Name') },
   { value: 'hours', label: t('schools.teacherDashboard.sortTimeInApp', 'Time in app') },
   { value: 'journey', label: t('schools.teacherDashboard.sortJourney', 'Journey') },
-  { value: 'phrases', label: t('schools.teacherDashboard.sortPhrases', 'Phrases this week') },
+  { value: 'phrases', label: t('schools.teacherDashboard.sortPhrases', 'Phrases practised this week') },
 ])
 const courses = computed(() => {
   const set = new Set(enrichedClasses.value.map(c => c.course_label))
@@ -437,7 +437,7 @@ async function copyShareLink(cls: { id: string; join_code: string }) {
 }
 
 function exportCsv() {
-  const header = ['Class', 'Course', 'Belt', 'Journey LEGOs', 'Journey total', 'Time in app min/wk', 'Sessions', 'Join code']
+  const header = ['Class', 'Course', 'Belt', 'Journey phrases', 'Journey total', 'Time in app min/wk', 'Sessions', 'Join code']
   const rows = filtered.value.map(c => [
     c.class_name,
     c.course_label,
@@ -479,7 +479,7 @@ function exportCsv() {
              place: classes
              keywords: export, csv, download, report, classes
              What it's for. Taking the class list away as a spreadsheet, with the name,
-             language, belt, journey in LEGOs, minutes in the app this week, sessions
+             language, belt, journey in phrases, minutes in the app this week, sessions
              and join code for every class.
              Where it is. **My Classes**, the **Export CSV** button along the top.
              How you do it.
@@ -616,7 +616,7 @@ function exportCsv() {
            What it's for. One row per class, showing at a glance what each one has done.
            A class is one learner account, played from the front of the room, so every
            figure on the row is that account's own: the belt the class has reached, how
-           far through the course it has travelled in LEGOs, minutes played as class
+           far through the course it has travelled in phrases, minutes played as class
            over the last seven days and the shape of those days. Nothing on the row
            grades the class. Played as class is time with the lesson running on the
            class account, from pressing play to stopping, pauses included — the same
@@ -645,9 +645,9 @@ function exportCsv() {
             <th>{{ t('schools.teacherDashboard.tableHeaderClass', 'Class') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderCourse', 'Course') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderBelt', 'Belt') }}</th>
-            <th>{{ t('schools.teacherDashboard.tableHeaderJourney', 'Journey, LEGOs') }}</th>
+            <th>{{ t('schools.teacherDashboard.tableHeaderJourney', 'Journey, phrases') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderTimeInAppMinutes', 'Played as class, min this week') }}</th>
-            <th>{{ t('schools.teacherDashboard.tableHeaderPhrases', 'Phrases this week') }}</th>
+            <th>{{ t('schools.teacherDashboard.tableHeaderPhrases', 'Phrases practised this week') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderActivity', 'Activity') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderShare', 'Share') }}</th>
             <th></th>
@@ -700,7 +700,7 @@ function exportCsv() {
                 <span class="belt-name">{{ cls.class_belt }}</span>
               </div>
             </td>
-            <td :data-label="t('schools.teacherDashboard.tableHeaderJourney', 'Journey, LEGOs')" :class="{ 'is-sorted': pinnedKey === 'journey' }">
+            <td :data-label="t('schools.teacherDashboard.tableHeaderJourney', 'Journey, phrases')" :class="{ 'is-sorted': pinnedKey === 'journey' }">
               <template v-if="cls.started === false">{{ t('schools.teacherDashboard.notStarted', 'Not started') }}</template>
               <template v-else-if="cls.started === null">…</template>
               <template v-else>{{ cls.journeyDone }}<span class="schools-subtle"> / {{ cls.journeyTotal }}</span></template>
@@ -710,7 +710,7 @@ function exportCsv() {
               <template v-else-if="cls.started === null">…</template>
               <template v-else>{{ formatPracticeMinutes(cls.minutesWk) }}</template>
             </td>
-            <td :data-label="t('schools.teacherDashboard.tableHeaderPhrases', 'Phrases this week')" :class="{ 'is-sorted': pinnedKey === 'phrases' }">
+            <td :data-label="t('schools.teacherDashboard.tableHeaderPhrases', 'Phrases practised this week')" :class="{ 'is-sorted': pinnedKey === 'phrases' }">
               <template v-if="cls.started === false">{{ t('schools.teacherDashboard.notStarted', 'Not started') }}</template>
               <template v-else-if="cls.started === null">…</template>
               <template v-else>{{ cls.phrases7d }}</template>

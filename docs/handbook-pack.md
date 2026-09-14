@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `4d80eb672c22` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `f836d9c2cf66` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -400,7 +400,7 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `way
 
 Section: running-classes · roles: school_admin, teacher · anchor: `classes-export` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
 
-**What it's for.** Taking the class list away as a spreadsheet, with the name, language, belt, journey in LEGOs, minutes in the app this week, sessions and join code for every class.
+**What it's for.** Taking the class list away as a spreadsheet, with the name, language, belt, journey in phrases, minutes in the app this week, sessions and join code for every class.
 
 **Where it is.** **My Classes**, the **Export CSV** button along the top.
 
@@ -567,13 +567,13 @@ Section: seeing-progress · roles: admin · anchor: `question-page` · in `packa
 
 Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-journey` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
 
-**What it's for.** A bar showing where a class has got to in its course, measured in LEGOs — the individual pieces of language the course teaches. A class is one learner account played from the front, so the position is the class's own.
+**What it's for.** A bar showing where a class has got to in its course, measured in phrases — the individual pieces of language the course teaches. A class is one learner account played from the front, so the position is the class's own.
 
 **Where it is.** The **Course journey** card on a class page.
 
 1. Open a class.
 2. Read the bar for how much of the course the class has covered together.
-3. The line underneath gives the figure in LEGOs, then names the next belt and how many LEGOs are left to reach it.
+3. The line underneath gives the figure in phrases, then names the next belt and how many phrases are left to reach it.
 
 **Worth knowing.** A class that has never played together says **Not started** in words; it is never shown as a bar of zero.
 
@@ -873,7 +873,7 @@ Section: your-own-account · roles: leader, school_admin · anchor: `account-ins
 
 Section: running-classes · roles: school_admin, teacher · anchor: `classes-table` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
 
-**What it's for.** One row per class, showing at a glance what each one has done. A class is one learner account, played from the front of the room, so every figure on the row is that account's own: the belt the class has reached, how far through the course it has travelled in LEGOs, minutes played as class over the last seven days and the shape of those days. Nothing on the row grades the class. Played as class is time with the lesson running on the class account, from pressing play to stopping, pauses included — the same minute the class page, the school home and Insights count. Pupils' own practice is not in it. A class that has never played says **Not started** in words rather than showing a row of zeros.
+**What it's for.** One row per class, showing at a glance what each one has done. A class is one learner account, played from the front of the room, so every figure on the row is that account's own: the belt the class has reached, how far through the course it has travelled in phrases, minutes played as class over the last seven days and the shape of those days. Nothing on the row grades the class. Played as class is time with the lesson running on the class account, from pressing play to stopping, pauses included — the same minute the class page, the school home and Insights count. Pupils' own practice is not in it. A class that has never played says **Not started** in words rather than showing a row of zeros.
 
 **Where it is.** **My Classes**, the table filling most of the page. On a phone each class is a card instead, with the number you sorted by beside its name and the rest underneath.
 
@@ -894,7 +894,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class
 **Where it is.** The **Students on their own accounts** list at the bottom of a class page. It is only there when at least one pupil has an account of their own.
 
 1. Open a class.
-2. Read down the rows — the bar on each is that student's own position in the course, in LEGOs. The first three show; tap **Show all** under them for the rest.
+2. Read down the rows — the bar on each is that student's own position in the course, in phrases. The first three show; tap **Show all** under them for the rest.
 3. The small chart beside it is their practice over the past week, with the minutes named.
 4. The dot and word at the start of a row say whether they are excellent, good, needing attention or inactive.
 5. Tap a row to open that person.
@@ -1563,7 +1563,7 @@ Section: seeing-progress · roles: admin · anchor: `question-where-and-what` ·
 
 Section: seeing-progress · roles: teacher · anchor: `class-journey` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
 
-**What it's for.** How far the class has travelled through its course, as a bar in LEGOs with the next belt named. A class is one learner account played from the front, so this is the class's own place on the course, moved by the sessions you run together.
+**What it's for.** How far the class has travelled through its course, as a bar in phrases with the next belt named. A class is one learner account played from the front, so this is the class's own place on the course, moved by the sessions you run together.
 
 **Where it is.** The class page, the **Course Journey** card in the column beside the roster.
 

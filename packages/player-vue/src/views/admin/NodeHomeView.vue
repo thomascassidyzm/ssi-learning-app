@@ -443,7 +443,7 @@ const stats = computed<{ value: string | number; word: string; to?: string }[]>(
       { value: cp?.inAppMinutes7d ?? 0, word: t('org.nodeHome.statMinutesPlayedAsClassThisWeek', 'Minutes played as class this week') },
       // The class's own journey — never a per-pupil count on a class, which
       // is one learner account (Tom's ruling, 2026-09-11, job #265).
-      { value: journey.value ? `${journey.value.source === 'class-play' ? journey.value.done : 0}/${journey.value.total}` : '—', word: t('org.nodeHome.statJourneyLegos', 'LEGOs travelled together') },
+      { value: journey.value ? `${journey.value.source === 'class-play' ? journey.value.done : 0}/${journey.value.total}` : '—', word: t('org.nodeHome.statJourneyLegos', 'Phrases travelled together') },
       { value: r.teacherCount ?? 0, word: t('org.nodeHome.statTeachers', 'Teachers') },
     ]
   }
@@ -1259,7 +1259,7 @@ const listPayload = computed(() => {
                  place: node-home
                  keywords: journey, progress, legos, position, course, belt, how far
                  What it's for. A bar showing where a class has got to in its
-                 course, measured in LEGOs — the individual pieces of language the
+                 course, measured in phrases — the individual pieces of language the
                  course teaches. A class is one learner account played from the
                  front, so the position is the class's own.
                  Where it is. The **Course journey** card on a class page.
@@ -1267,8 +1267,8 @@ const listPayload = computed(() => {
                  1. Open a class.
                  2. Read the bar for how much of the course the class has covered
                     together.
-                 3. The line underneath gives the figure in LEGOs, then names the
-                    next belt and how many LEGOs are left to reach it.
+                 3. The line underneath gives the figure in phrases, then names the
+                    next belt and how many phrases are left to reach it.
                  Worth knowing. A class that has never played together says
                  **Not started** in words; it is never shown as a bar of zero.
                  checked: 37cd9c93.325026db
@@ -1289,7 +1289,7 @@ const listPayload = computed(() => {
               <JourneyBar v-else-if="journey" :done="0" :total="journey.total" />
               <p class="class-card-note">
                 <template v-if="journey && journey.source === 'class-play'">
-                  {{ t('org.nodeHome.classTravelled', 'The class has travelled {done} of {total} LEGOs together.').replace('{done}', String(journey.done)).replace('{total}', String(journey.total)) }}<br />
+                  {{ t('org.nodeHome.classTravelled', 'The class has travelled {done} of {total} phrases together.').replace('{done}', String(journey.done)).replace('{total}', String(journey.total)) }}<br />
                 </template>
                 <template v-else>{{ t('org.nodeHome.classNotStartedJourney', 'Not started — the class has not played together yet.') }}<br /></template>
                 <template v-if="nextBeltInfo">{{ t('org.nodeHome.moreToBelt', '{n} more to {belt} belt.').replace('{n}', String(nextBeltInfo.remaining)).replace('{belt}', nextBeltInfo.name) }}</template>
@@ -1365,7 +1365,7 @@ const listPayload = computed(() => {
                    How you do it.
                    1. Open a class.
                    2. Read down the rows — the bar on each is that student's own
-                      position in the course, in LEGOs. The first three show; tap
+                      position in the course, in phrases. The first three show; tap
                       **Show all** under them for the rest.
                    3. The small chart beside it is their practice over the past
                       week, with the minutes named.
