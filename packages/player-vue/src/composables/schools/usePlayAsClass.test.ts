@@ -80,7 +80,7 @@ describe('usePlayAsClass — canPlayAsClass permission matrix', () => {
     const { canPlayAsClass, playAsClassReadOnly, launchClassSession } = mountHarness({ isAdminView: true, handleCourseSelect, enrolledCourses: ref([{ course_code: 'cym_for_eng' }]), supabase: ref(null) })
     expect(canPlayAsClass.value).toBe(true)
     expect(playAsClassReadOnly.value).toBe(true)
-    expect(await launchClassSession({ id: 'c1', class_name: '7H', course_code: 'cym_for_eng' })).toBe(false)
+    expect(await launchClassSession({ id: 'c1', class_name: '7H', course_code: 'cym_for_eng', class_learner_id: null })).toBe(false)
     expect(handleCourseSelect).not.toHaveBeenCalled()
   })
 
@@ -174,7 +174,7 @@ describe('usePlayAsClass — launchClassSession (the ONE schools launch path)', 
     // navigating to /schools/play?class= (empty id) and leaving the player
     // on the previously-active course (2026-07-16 report).
     const { exposed, push } = mountWithRouter({ isAdminView: false })
-    const ok = await exposed.launchClassSession({ id: '', class_name: '', course_code: '' })
+    const ok = await exposed.launchClassSession({ id: '', class_name: '', course_code: '', class_learner_id: null })
     expect(ok).toBe(false)
     expect(localStorage.getItem('ssi-active-class')).toBeNull()
     expect(localStorage.getItem('ssi-last-course')).toBeNull()
@@ -184,7 +184,7 @@ describe('usePlayAsClass — launchClassSession (the ONE schools launch path)', 
   it('refuses when not permitted (govt_admin), even for a fully-loaded class', async () => {
     setRole('govt_admin')
     const { exposed, push } = mountWithRouter({ isAdminView: false })
-    const ok = await exposed.launchClassSession({ id: 'c1', class_name: 'Y7', course_code: 'cym_for_eng_north' })
+    const ok = await exposed.launchClassSession({ id: 'c1', class_name: 'Y7', course_code: 'cym_for_eng_north', class_learner_id: null })
     expect(ok).toBe(false)
     expect(push).not.toHaveBeenCalled()
   })
@@ -222,6 +222,61 @@ describe('usePlayAsClass — launchClassSession (the ONE schools launch path)', 
   })
 })
 
+describe('usePlayAsClass — launchClassSession resolves the class learner id', () => {
+  function mountWithRouter(provide: Record<string, unknown>) {
+    const push = vi.fn().mockResolvedValue(undefined)
+    const exposed = mountHarness({ ...provide, [routerKey as symbol]: { push } })
+    return { exposed, push }
+  }
+
+  beforeEach(() => {
+    localStorage.clear()
+    setRole('teacher')
+  })
+
+  // Staging, 2026-09-14 21:32Z (job #733): the Classes page row mapper carried
+  // no class_learner_id, so the stored payload held null, LearningPlayer's
+  // learnerId fell back to the TEACHER's own learner, and every player_events
+  // row of a three-minute class session was stamped with the teacher — while
+  // the sessions row, resolved server-side from the class id, said class.
+  // Red before the fix (stored null); green after (the classes row supplies it).
+  it('a launcher that omits class_learner_id: the stored payload carries the id from the classes row', async () => {
+    const handleCourseSelect = vi.fn().mockResolvedValue(undefined)
+    const maybeSingle = vi.fn().mockResolvedValue({ data: { class_learner_id: 'cl-from-db' }, error: null })
+    const eq = vi.fn().mockReturnValue({ maybeSingle })
+    const select = vi.fn().mockReturnValue({ eq })
+    const from = vi.fn().mockReturnValue({ select })
+    const { exposed, push } = mountWithRouter({
+      isAdminView: false,
+      handleCourseSelect,
+      enrolledCourses: ref([{ course_code: 'cym_n_for_eng' }]),
+      supabase: ref({ from }),
+    })
+    // The exact row shape the Classes page handed over: no class_learner_id key at all.
+    const ok = await exposed.launchClassSession({ id: 'd52efceb', class_name: 'Y7 Welsh', course_code: 'cym_n_for_eng', current_seed: 1 } as any)
+    expect(ok).toBe(true)
+    expect(from).toHaveBeenCalledWith('classes')
+    expect(eq).toHaveBeenCalledWith('id', 'd52efceb')
+    expect(JSON.parse(localStorage.getItem('ssi-active-class')!).class_learner_id).toBe('cl-from-db')
+    expect(push).toHaveBeenCalledWith({ path: '/schools/play', query: { class: 'd52efceb' } })
+  })
+
+  it('a class the DB has not minted a learner for yet still launches, with class_learner_id null', async () => {
+    const handleCourseSelect = vi.fn().mockResolvedValue(undefined)
+    const maybeSingle = vi.fn().mockResolvedValue({ data: { class_learner_id: null }, error: null })
+    const from = vi.fn().mockReturnValue({ select: () => ({ eq: () => ({ maybeSingle }) }) })
+    const { exposed } = mountWithRouter({
+      isAdminView: false,
+      handleCourseSelect,
+      enrolledCourses: ref([{ course_code: 'cym_n_for_eng' }]),
+      supabase: ref({ from }),
+    })
+    const ok = await exposed.launchClassSession({ id: 'c9', class_name: 'New', course_code: 'cym_n_for_eng', class_learner_id: null })
+    expect(ok).toBe(true)
+    expect(JSON.parse(localStorage.getItem('ssi-active-class')!).class_learner_id).toBeNull()
+  })
+})
+
 describe('usePlayAsClass — unresolvable course refusal', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -245,7 +300,7 @@ describe('usePlayAsClass — unresolvable course refusal', () => {
       supabase,
       [routerKey as symbol]: { push },
     })
-    const ok = await exposed.launchClassSession({ id: 'c1', class_name: 'Y7 Welsh', course_code: 'cym_for_eng_north' })
+    const ok = await exposed.launchClassSession({ id: 'c1', class_name: 'Y7 Welsh', course_code: 'cym_for_eng_north', class_learner_id: null })
     expect(ok).toBe(false)
     expect(handleCourseSelect).not.toHaveBeenCalled()
     expect(localStorage.getItem('ssi-active-class')).toBeNull()
