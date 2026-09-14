@@ -2037,3 +2037,33 @@ minutes on — the pre-change module returned 120 s, this one 53 s, seen red the
 fixtures were flipped to typed play rows because under this rule a tap with no audio is no play
 time. Listening Mode minutes are exact on production from 2026-09-13 04:21Z (per-clip rows,
 jobs #339/#343); before that only the 30 s tick exists and listening minutes are tick-bounded.
+
+## 2026-09-14 — Intelligence: the average of all courses includes the selected course, is learner-weighted, and total in-app minutes is a measure (job #621)
+
+**Tom's rulings (staging review, 01:29Z).** The 'Average of all courses' comparator moved with the
+course (Basque v 11.5, French v 12.7, Welsh North v 13): job #609 had built a leave-one-out mean
+(`api/intel/minutes.ts`, `members = ranked.filter(f => f.code !== courseCode)`), "confusing and not
+helpful for us as admin". And it was a per-course mean, so dead or near-empty courses dragged it
+toward zero and every real course sat at the 92nd–100th percentile. Tom's words: "the averages of
+all LEARNERS". Second ruling: a course with a handful of very active learners must not read as
+popular, so 'In-app minutes (total)' joins 'In-app minutes per person'.
+
+**Decision.** `averageOfAllCourses(measure, cohort)` is the comparator, pure and exported, over every
+course with anyone on it, the selected course INCLUDED — one fixed number for a window and a
+measure. Each measure carries a `kind`: `ratio` (minutes per person, no activity) is learner-weighted,
+the numerator summed over every course divided by course-people summed over every course, so a dead
+course with two enrolments weighs two people, not a whole course; `count` (minutes total, new
+enrolments) is the plain mean per course, a total having no denominator to weight by. The
+distribution strip stays the siblings, because `RateCompare` adds the entity itself when it ranks.
+Each measure's description line says what its average is, and the Handbook entry was re-pinned.
+Every school surface's minute is untouched: `inAppTime.ts` did not change.
+
+**On the way: the packed read now agrees with the paged read.** Astra's cold check (needs-you #714)
+refuted "one minute definition" by 100 s across ten diaries on 131,804 rows: `diary_play_rows`
+dropped a clip's audio id whenever any event followed within 30 s, but `spansFromDiary` closes at
+the last audio-ended point on a play tap, a mode switch or a tick, so the dropped clip's whole length
+was lost. Measured live: 104,037 unbounded clips, 261 ids carried, 19 dropped that could matter.
+Migration `20260914_diary_play_rows_carry_closing_ids.sql` (applied live) drops the id only when the
+successor within 30 s is a stop tap or a same-mode clip. Proof: packed v paged over the nine affected
+learners, same `sessioniseAll`: 93 s apart before, 0 s after. Carrying every id instead would have
+added ~4 MB to the packed payload for the same result.
