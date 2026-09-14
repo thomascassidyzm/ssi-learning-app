@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, inject } from 'vue'
+import FrostSelect from '@/components/FrostSelect.vue'
 import { formatPracticeMinutes } from '@/composables/schools/practiceMinutes'
 import { useRouter } from 'vue-router'
 import BeltDot from '@/components/schools/shared/BeltDot.vue'
@@ -80,6 +81,19 @@ const classOptions = computed(() => {
   for (const s of enrichedStudents.value) map.set(s.class_id, s.class_name)
   return Array.from(map, ([value, label]) => ({ value, label }))
 })
+const classFilterOptions = computed(() => [
+  { value: 'all', label: t('schools.students.allClassesOption', 'All classes') },
+  ...classOptions.value,
+])
+const beltFilterOptions = computed(() => [
+  { value: 'all', label: t('schools.students.allOption', 'All') },
+  { value: 'white', label: t('schools.students.beltWhite', 'White') },
+  { value: 'yellow', label: t('schools.students.beltYellow', 'Yellow') },
+  { value: 'orange', label: t('schools.students.beltOrange', 'Orange') },
+  { value: 'green', label: t('schools.students.beltGreen', 'Green') },
+  { value: 'blue', label: t('schools.students.beltBlue', 'Blue') },
+  { value: 'black', label: t('schools.students.beltBlack', 'Black') },
+])
 
 const filtered = computed(() => {
   return enrichedStudents.value.filter(s => {
@@ -210,22 +224,11 @@ watch(selectedUser, (newUser) => {
       />
       <label class="filter">
         <span class="filter-label">{{ t('schools.students.classFilterLabel', 'Class') }}</span>
-        <select v-model="classFilter" class="filter-select">
-          <option value="all">{{ t('schools.students.allClassesOption', 'All classes') }}</option>
-          <option v-for="opt in classOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-        </select>
+        <FrostSelect v-model="classFilter" class="filter-select" :options="classFilterOptions" :aria-label="t('schools.students.classFilterLabel', 'Class')" />
       </label>
       <label class="filter">
         <span class="filter-label">{{ t('schools.students.beltFilterLabel', 'Belt') }}</span>
-        <select v-model="beltFilter" class="filter-select">
-          <option value="all">{{ t('schools.students.allOption', 'All') }}</option>
-          <option value="white">{{ t('schools.students.beltWhite', 'White') }}</option>
-          <option value="yellow">{{ t('schools.students.beltYellow', 'Yellow') }}</option>
-          <option value="orange">{{ t('schools.students.beltOrange', 'Orange') }}</option>
-          <option value="green">{{ t('schools.students.beltGreen', 'Green') }}</option>
-          <option value="blue">{{ t('schools.students.beltBlue', 'Blue') }}</option>
-          <option value="black">{{ t('schools.students.beltBlack', 'Black') }}</option>
-        </select>
+        <FrostSelect v-model="beltFilter" class="filter-select" :options="beltFilterOptions" :aria-label="t('schools.students.beltFilterLabel', 'Belt')" />
       </label>
     </div>
 

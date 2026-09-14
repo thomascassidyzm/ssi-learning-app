@@ -11,6 +11,7 @@
 // shows. Under View-as the preview works and the apply is refused with the
 // server's own message, which is shown as-is: never a false "Copied".
 import { ref, computed, watch } from 'vue'
+import FrostSelect from '@/components/FrostSelect.vue'
 import { getSchoolsClient } from '@/composables/schools/client'
 import { useI18n } from '@/composables/useI18n'
 import type { PanelState } from '@/views/schools/classDetailPanels'
@@ -51,6 +52,7 @@ interface Applied {
 }
 
 const pickedTeacherId = ref<string>(props.teachers[0]?.user_id ?? '')
+const teacherOptions = computed(() => props.teachers.map((x) => ({ value: x.user_id, label: x.name })))
 watch(() => props.teachers, (list) => {
   if (!list.some((x) => x.user_id === pickedTeacherId.value)) pickedTeacherId.value = list[0]?.user_id ?? ''
 })
@@ -141,9 +143,15 @@ function words(p: PositionWords | null | undefined): string {
     </p>
 
     <label class="copy-play-label" for="copy-play-teacher">{{ t('schools.copyPlay.teacherLabel', 'Teacher') }}</label>
-    <select id="copy-play-teacher" v-model="pickedTeacherId" class="teacher-select copy-play-select" :disabled="busy || teachers.length === 0" data-walk="class-copy-play-picker">
-      <option v-for="x in teachers" :key="x.user_id" :value="x.user_id">{{ x.name }}</option>
-    </select>
+    <FrostSelect
+      id="copy-play-teacher"
+      v-model="pickedTeacherId"
+      class="teacher-select copy-play-select"
+      :disabled="busy || teachers.length === 0"
+      data-walk="class-copy-play-picker"
+      :options="teacherOptions"
+      :aria-label="t('schools.copyPlay.teacherLabel', 'Teacher')"
+    />
     <p v-if="listState === 'loading'" class="rail-note schools-subtle">{{ t('schools.copyPlay.teachersLoading', 'Loading the teacher list…') }}</p>
     <p v-else-if="listState === 'error'" class="rail-note schools-subtle">{{ t('schools.copyPlay.teachersError', "Couldn't load the teacher list, so there is nobody to pick yet. Try refreshing.") }}</p>
     <p v-else-if="listState === 'empty'" class="rail-note schools-subtle">{{ t('schools.copyPlay.noTeachers', 'No teachers are linked to this class yet.') }}</p>

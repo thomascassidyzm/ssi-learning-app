@@ -108,8 +108,8 @@ describe('TeacherDashboard — three rows then Show all, and year-group tiles (j
 
   it('the fold applies to the filtered, sorted result — a course filter that leaves two rows shows both, no control', async () => {
     const w = await mountView()
-    const course = w.findAll('select')[0]
-    await course.setValue('Spanish')
+    const course = w.findAllComponents({ name: 'FrostSelect' })[0]
+    course.vm.$emit('update:modelValue', 'Spanish')
     await flushPromises()
     expect(w.findAll('tbody tr')).toHaveLength(2)
     expect(w.find('.table-show-all').exists()).toBe(false)

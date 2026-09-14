@@ -197,7 +197,9 @@ const compareModel = computed({
   set: (v: string) => emit('update:compare', v),
 })
 
-const showCoursePicker = computed(() => (engineState.value?.options.courses.length ?? 0) > 1)
+// Even one course is a dropdown — the same control everywhere, never a
+// static box beside real dropdowns (Tom, 2026-09-14).
+const showCoursePicker = computed(() => (engineState.value?.options.courses.length ?? 0) >= 1)
 
 // ── Window chips: server-sent options; absent → no chip row at all (defensive
 // — renders exactly as today until the server ships options.windows). ──

@@ -8,6 +8,7 @@
 // "school admin — new school" option here. Minting a new node is a tree
 // action (create-school-in-group / the tree UI), not an invite shape.
 import { ref, computed, onMounted, watch } from 'vue'
+import FrostSelect from '@/components/FrostSelect.vue'
 import { useUserRole } from '@/composables/useUserRole'
 import { useAdminClient } from '@/composables/useAdminClient'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
@@ -54,6 +55,13 @@ const who = ref<Who>(normalizeWho(props.initialWho))
 watch(() => props.initialWho, (v) => { who.value = normalizeWho(v) })
 
 const whereId = ref('')
+const whoOptions = computed<{ value: Who; label: string }[]>(() => [
+  ...(isSsiAdmin.value || isGovtAdmin.value ? [{ value: 'leader' as const, label: 'Group leader' }] : []),
+  { value: 'school_admin_join' as const, label: 'School admin — join existing' },
+  { value: 'teacher' as const, label: 'Teacher' },
+  { value: 'learner_demo' as const, label: 'Learner — demo node' },
+])
+const whereSelectOptions = computed(() => whereOptions.value.map((o) => ({ value: o.id, label: o.label })))
 const expiresAt = ref('')
 const maxUses = ref<number | ''>('')
 
@@ -222,20 +230,12 @@ onMounted(async () => {
 
     <div class="field">
       <label class="schools-kicker">Who</label>
-      <select v-model="who" class="frost-select" data-walk="invites-org-who">
-        <option v-if="isSsiAdmin || isGovtAdmin" value="leader">Group leader</option>
-        <option value="school_admin_join">School admin — join existing</option>
-        <option value="teacher">Teacher</option>
-        <option value="learner_demo">Learner — demo node</option>
-      </select>
+      <FrostSelect v-model="who" class="frost-select" data-walk="invites-org-who" :options="whoOptions" aria-label="Who" />
     </div>
 
     <div class="field">
       <label class="schools-kicker">{{ whoLabel }} <span class="required">*</span></label>
-      <select v-model="whereId" class="frost-select">
-        <option value="">— Select —</option>
-        <option v-for="opt in whereOptions" :key="opt.id" :value="opt.id">{{ opt.label }}</option>
-      </select>
+      <FrostSelect v-model="whereId" class="frost-select" :options="whereSelectOptions" placeholder="— Select —" :aria-label="whoLabel" />
       <span v-if="who === 'learner_demo' && demoGroupOptions.length === 0" class="field-hint">
         No demo organisations yet — create one in "New demo org" first.
       </span>

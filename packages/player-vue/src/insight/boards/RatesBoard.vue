@@ -158,19 +158,13 @@ const comparison = computed<RateComparisonData>(() =>
       <!-- Entity picker -->
       <label class="rtb-field rtb-field-wide">
         <span class="rtb-field-label">Entity</span>
-        <select v-model="entityId" class="rtb-select">
-          <option v-for="e in entityOptions" :key="e.value" :value="e.value">
-            {{ e.label }}
-          </option>
-        </select>
+        <FrostSelect v-model="entityId" :options="entityOptions" aria-label="Entity" />
       </label>
 
       <!-- Average picker — the entity's ancestor chain, nearest first -->
       <label class="rtb-field">
         <span class="rtb-field-label">Compare to</span>
-        <select v-model="averageId" class="rtb-select">
-          <option v-for="a in averageOptions" :key="a.value" :value="a.value">{{ a.label }}</option>
-        </select>
+        <FrostSelect v-model="averageId" :options="averageOptions" aria-label="Compare to" />
       </label>
     </div>
 

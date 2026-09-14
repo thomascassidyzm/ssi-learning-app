@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, inject, defineAsyncComponent } from 'vue'
+import FrostSelect from '@/components/FrostSelect.vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
@@ -137,6 +138,23 @@ const profileSaveStatus = ref<'idle' | 'saving' | 'saved'>('idle')
 const language = ref('en')
 const timezone = ref('Europe/London')
 const weekStart = ref('Monday')
+const languageOptions = computed(() => [
+  { value: 'en', label: t('schools.schoolSettings.langEnglish', 'English') },
+  { value: 'cy', label: t('schools.schoolSettings.langWelsh', 'Cymraeg (Welsh)') },
+  { value: 'es', label: t('schools.schoolSettings.langSpanish', 'Español (Spanish)') },
+  { value: 'br', label: t('schools.schoolSettings.langBreton', 'Brezhoneg (Breton)') },
+])
+const timezoneOptions = [
+  { value: 'Europe/London', label: 'Europe/London' },
+  { value: 'Europe/Paris', label: 'Europe/Paris' },
+  { value: 'Europe/Dublin', label: 'Europe/Dublin' },
+  { value: 'America/New_York', label: 'America/New York' },
+  { value: 'America/Los_Angeles', label: 'America/Los Angeles' },
+]
+const weekStartOptions = computed(() => [
+  { value: 'Monday', label: t('schools.schoolSettings.monday', 'Monday') },
+  { value: 'Sunday', label: t('schools.schoolSettings.sunday', 'Sunday') },
+])
 const showFlags = ref(true)
 const localizationSaveStatus = ref<'idle' | 'saving' | 'saved'>('idle')
 
@@ -627,30 +645,16 @@ function toggleDataItem(id: string) {
           <h2 class="arsenal panel-title">{{ t('schools.schoolSettings.sectionLocalisation', 'Localisation') }}</h2>
           <label class="field">
             <span class="field-label">{{ t('schools.schoolSettings.defaultInterfaceLanguage', 'Default interface language') }}</span>
-            <select v-model="language" class="field-input">
-              <option value="en">{{ t('schools.schoolSettings.langEnglish', 'English') }}</option>
-              <option value="cy">{{ t('schools.schoolSettings.langWelsh', 'Cymraeg (Welsh)') }}</option>
-              <option value="es">{{ t('schools.schoolSettings.langSpanish', 'Español (Spanish)') }}</option>
-              <option value="br">{{ t('schools.schoolSettings.langBreton', 'Brezhoneg (Breton)') }}</option>
-            </select>
+            <FrostSelect v-model="language" class="field-input" :options="languageOptions" :aria-label="t('schools.schoolSettings.defaultInterfaceLanguage', 'Default interface language')" />
             <span class="field-hint">{{ t('schools.schoolSettings.languageOverrideHint', 'Teachers and students can override individually.') }}</span>
           </label>
           <label class="field">
             <span class="field-label">{{ t('schools.schoolSettings.timeZone', 'Time zone') }}</span>
-            <select v-model="timezone" class="field-input">
-              <option value="Europe/London">Europe/London</option>
-              <option value="Europe/Paris">Europe/Paris</option>
-              <option value="Europe/Dublin">Europe/Dublin</option>
-              <option value="America/New_York">America/New York</option>
-              <option value="America/Los_Angeles">America/Los Angeles</option>
-            </select>
+            <FrostSelect v-model="timezone" class="field-input" :options="timezoneOptions" :aria-label="t('schools.schoolSettings.timeZone', 'Time zone')" />
           </label>
           <label class="field">
             <span class="field-label">{{ t('schools.schoolSettings.weekStartsOn', 'Week starts on') }}</span>
-            <select v-model="weekStart" class="field-input">
-              <option value="Monday">{{ t('schools.schoolSettings.monday', 'Monday') }}</option>
-              <option value="Sunday">{{ t('schools.schoolSettings.sunday', 'Sunday') }}</option>
-            </select>
+            <FrostSelect v-model="weekStart" class="field-input" :options="weekStartOptions" :aria-label="t('schools.schoolSettings.weekStartsOn', 'Week starts on')" />
           </label>
           <div class="toggle-row">
             <div>
