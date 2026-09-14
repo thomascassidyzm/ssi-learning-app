@@ -41,9 +41,10 @@ the month-to-date figure that Astra #613 found summing overlapping windows.
 
 **Proof.** Two docs-only pushes to `dev`, each a fresh SHA. Push 1, merge `ff5f9fc6e` with a plain
 subject: deployment `dpl_E5kotR4qzuc34nWb1y1wxrhJLnm4` CANCELED, container 4 seconds, never READY. Push 2,
-the merge carrying this sentence with `[preview]` at the start of its subject: its deployment id and
-READY state are recorded in the commit that follows it on `dev`, since a commit cannot name its own
-deployment. A side-lesson from push 1: the branch commit's subject quoted the literal text
+merge `77dd34852` with `[preview]` at the start of its subject: deployment
+`dpl_BAk8r3K1QtiwH3BkvfGfZXsjTdnx` READY after 14 minutes, holding the alias
+`ssi-learning-app-git-dev-zenjin.vercel.app`. This sentence rode a third plain-subject merge, which
+was cancelled the same way as push 1. A side-lesson from push 1: the branch commit's subject quoted the literal text
 `[preview]`, so the gate built the worker branch; that build was cancelled through the API after four
 minutes. Never quote the marker on a subject line unless you mean it.
 
