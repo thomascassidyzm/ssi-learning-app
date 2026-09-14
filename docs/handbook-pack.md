@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `8720cf6e0f92` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `1815527b3ebf` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -288,6 +288,20 @@ Section: running-classes · roles: school_admin, teacher · anchor: `class-copy-
 3. Tap **Copy onto the class**. One line tells you what was copied.
 
 **Worth knowing.** The teacher keeps their own record. Only play on this class's course moves, the class ends up at the further of the two places, and running it again copies nothing twice. While viewing as someone else you can see what would move but not copy it.
+
+## Copy every teacher's own play onto their class
+
+Section: running-classes · roles: school_admin · anchor: `school-copy-play-sweep` · in `packages/player-vue/src/components/schools/CopyPlaySweepCard.vue`
+
+**What it's for.** Finding every teacher in your school who ran lessons signed in as themselves instead of using Play as class, and moving that play onto their class, one teacher at a time. Each row names the class, the teacher, what would move, and where the class will be afterwards.
+
+**Where it is.** The schools dashboard, under the figures at the top.
+
+1. Read down the rows. Each is one teacher on one class.
+2. Tap **Copy onto the class** on a row. One line tells you what was copied and where the class now is.
+3. Do the next row when you are ready. There is no button that copies everyone at once.
+
+**Worth knowing.** The teacher keeps their own record. Only play on that class's course moves, the class ends up at the further of the two places, and copying the same teacher again moves nothing twice. When there is nothing to copy the card says so in words. While viewing as someone else you can read the rows but not copy.
 
 ## Create your first classes
 

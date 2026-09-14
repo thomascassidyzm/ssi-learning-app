@@ -15,8 +15,8 @@
 // server's own message, which is shown as-is: never a false "Copied".
 import { ref, computed, watch } from 'vue'
 import FrostSelect from '@/components/FrostSelect.vue'
-import { getSchoolsClient } from '@/composables/schools/client'
 import { useI18n } from '@/composables/useI18n'
+import { callCopyTeacherPlay, copyLines, copyMinutes, positionLabel, copiedClause, type CopyPreview, type CopyApplied, type PositionWords } from '@/composables/schools/copyTeacherPlay'
 import type { PanelState } from '@/views/schools/classDetailPanels'
 
 const { t } = useI18n()
@@ -37,26 +37,8 @@ const selfMode = computed(() => !!props.selfUserId)
 const listState = computed<PanelState>(() => (selfMode.value ? 'ready' : (props.teachersState ?? (props.teachers.length > 0 ? 'ready' : 'empty'))))
 const emit = defineEmits<{ (e: 'copied'): void }>()
 
-interface PositionWords { known: string | null; target: string | null }
-interface Preview {
-  to_copy: Record<string, number>
-  total_rows: number
-  in_app_seconds: number
-  prior_runs: number
-  nothing_to_copy: boolean
-  position: {
-    teacher: PositionWords
-    class: PositionWords
-    resulting: PositionWords & { taken_from_teacher: boolean }
-  }
-}
-interface Applied {
-  copied: Record<string, number>
-  total_rows: number
-  in_app_seconds: number
-  cursor_taken_from_teacher: boolean
-  position: { class: PositionWords }
-}
+type Preview = CopyPreview
+type Applied = CopyApplied
 
 const pickedTeacherId = ref<string>(props.selfUserId ?? props.teachers[0]?.user_id ?? '')
 const teacherOptions = computed(() => props.teachers.map((x) => ({ value: x.user_id, label: x.name })))
@@ -77,18 +59,10 @@ watch(pickedTeacherId, () => { preview.value = null; applied.value = null; error
 const pickedName = computed(() => props.teachers.find((x) => x.user_id === pickedTeacherId.value)?.name
   ?? (selfMode.value ? t('schools.copyPlay.you', 'you') : ''))
 
-async function call(path: 'preview' | 'apply'): Promise<Record<string, any>> {
-  const { data: { session } } = await getSchoolsClient().auth.getSession()
-  const token = session?.access_token
-  if (!token) throw new Error(t('schools.copyPlay.notSignedIn', 'You are not signed in.'))
-  const resp = await fetch(`/api/school/copy-teacher-play/${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ class_id: props.classId, teacher_user_id: pickedTeacherId.value }),
-  })
-  const body = await resp.json().catch(() => ({}))
-  if (!resp.ok) throw new Error(body.error || `Request failed: ${resp.status}`)
-  return body
+// The fetch and the words live in composables/schools/copyTeacherPlay.ts,
+// shared with the school home's sweep card (job #662).
+function call(path: 'preview' | 'apply'): Promise<Record<string, any>> {
+  return callCopyTeacherPlay(path, { class_id: props.classId, teacher_user_id: pickedTeacherId.value }, t)
 }
 
 async function runPreview(): Promise<void> {
@@ -121,28 +95,9 @@ async function runApply(): Promise<void> {
   }
 }
 
-function minutes(seconds: number): string {
-  return String(Math.round(seconds / 60))
-}
-
-// Plain words for the rows that matter to a leader. Everything else the
-// server copies is folded into "and the rest of the record".
-function lines(counts: Record<string, number>): string[] {
-  const out: string[] = []
-  const n = (k: string) => counts[k] ?? 0
-  if (n('sessions')) out.push(t('schools.copyPlay.sessions', '{n} sessions').replace('{n}', String(n('sessions'))))
-  if (n('player_events')) out.push(t('schools.copyPlay.diary', '{n} moments in the app').replace('{n}', String(n('player_events'))))
-  const progress = n('lego_progress') + n('seed_progress') + n('learner_lego_metrics')
-  if (progress) out.push(t('schools.copyPlay.progress', '{n} pieces of course progress').replace('{n}', String(progress)))
-  const rest = Object.entries(counts).filter(([k]) => !['sessions', 'player_events', 'lego_progress', 'seed_progress', 'learner_lego_metrics'].includes(k)).reduce((a, [, v]) => a + v, 0)
-  if (rest) out.push(t('schools.copyPlay.rest', '{n} other records').replace('{n}', String(rest)))
-  return out
-}
-
-function words(p: PositionWords | null | undefined): string {
-  if (!p?.known && !p?.target) return t('schools.copyPlay.notStarted', 'not started yet')
-  return [p.known, p.target].filter(Boolean).join(' / ')
-}
+const minutes = copyMinutes
+const lines = (counts: Record<string, number>) => copyLines(counts, t)
+const words = (p: PositionWords | null | undefined) => positionLabel(p, t)
 </script>
 
 <template>
@@ -231,7 +186,7 @@ function words(p: PositionWords | null | undefined): string {
         {{ t('schools.copyPlay.doneNothing', 'Nothing new to copy. The class already had all of it.') }}
       </template>
       <template v-else>
-        {{ t('schools.copyPlay.done', 'Copied from {name}: {what}.').replace('{name}', pickedName).replace('{what}', [...lines(applied.copied), ...(applied.in_app_seconds > 0 ? [t('schools.copyPlay.minutes', '{n} minutes in the app').replace('{n}', minutes(applied.in_app_seconds))] : [])].join(', ')) }}
+        {{ t('schools.copyPlay.done', 'Copied from {name}: {what}.').replace('{name}', pickedName).replace('{what}', copiedClause(applied, t)) }}
         {{ t('schools.copyPlay.doneAt', 'The class is now at: {where}.').replace('{where}', words(applied.position.class)) }}
       </template>
     </p>

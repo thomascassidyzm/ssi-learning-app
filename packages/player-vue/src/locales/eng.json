@@ -2283,6 +2283,12 @@
     "copyPlay": {
       "introSelf": "If you ran a lesson signed in as yourself instead of using Play as class, copy that play onto this class so the class shows where it really is. Your own record stays as it is.",
       "kickerSelf": "Ran a lesson signed in as yourself?",
+      "sweepAllDone": "All copied. Every row above is now on its class account.",
+      "sweepError": "Couldn’t check the teachers: {error}",
+      "sweepIntro": "Each row is a teacher whose own account has practised the class’s course further than the class has. Copy moves that play onto the class, one teacher at a time. The teacher keeps their own record.",
+      "sweepKicker": "Lessons played on a teacher’s own account",
+      "sweepLoading": "Checking every class and teacher…",
+      "sweepNothing": "Nothing to copy. Every teacher’s lessons are already on their class accounts.",
       "you": "you"
     }
   },

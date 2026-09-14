@@ -1,5 +1,5 @@
 {
-  "version": "8720cf6e0f92",
+  "version": "1815527b3ebf",
   "generatedAt": "2026-09-14",
   "walks": [
     {
@@ -1560,6 +1560,38 @@
         "Tap **Copy onto the class**. One line tells you what was copied."
       ],
       "note": "The teacher keeps their own record. Only play on this class's course moves, the class ends up at the further of the two places, and running it again copies nothing twice. While viewing as someone else you can see what would move but not copy it."
+    },
+    {
+      "id": "copy-every-teacher-s-own-play-onto-their-class",
+      "title": "Copy every teacher's own play onto their class",
+      "section": "running-classes",
+      "personas": [
+        "school_admin"
+      ],
+      "keywords": [
+        "copy",
+        "sweep",
+        "teachers",
+        "play as class",
+        "own account",
+        "mistake",
+        "progress"
+      ],
+      "place": {
+        "route": "dashboard"
+      },
+      "anchor": "school-copy-play-sweep",
+      "surface": "schools",
+      "source": "packages/player-vue/src/components/schools/CopyPlaySweepCard.vue",
+      "walk": null,
+      "what": "Finding every teacher in your school who ran lessons signed in as themselves instead of using Play as class, and moving that play onto their class, one teacher at a time. Each row names the class, the teacher, what would move, and where the class will be afterwards.",
+      "where": "The schools dashboard, under the figures at the top.",
+      "how": [
+        "Read down the rows. Each is one teacher on one class.",
+        "Tap **Copy onto the class** on a row. One line tells you what was copied and where the class now is.",
+        "Do the next row when you are ready. There is no button that copies everyone at once."
+      ],
+      "note": "The teacher keeps their own record. Only play on that class's course moves, the class ends up at the further of the two places, and copying the same teacher again moves nothing twice. When there is nothing to copy the card says so in words. While viewing as someone else you can read the rows but not copy."
     },
     {
       "id": "create-your-first-classes",
