@@ -58,7 +58,10 @@ AS $$
   ) c
 $$;
 
-CREATE OR REPLACE VIEW public.support_inbox
+-- A view's column list cannot be reordered in place, so it is recreated. It
+-- has no dependents.
+DROP VIEW IF EXISTS public.support_inbox;
+CREATE VIEW public.support_inbox
 WITH (security_invoker = on) AS
   SELECT
     'bug_report'::text          AS door,
