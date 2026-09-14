@@ -148,6 +148,10 @@ export interface CopiedIds {
 
 export interface CopyRecord {
   copied: CopiedIds
+  /** Set only on an undo record: the id of the copy this row reversed. */
+  undo_of?: string
+  /** Set only on an undo record: what the undo actually removed and restored. */
+  undone?: UndoDetail
   /** Per table: source rows that already existed on the class side or were copied by an earlier run. */
   alreadyPresent: Record<string, number>
   skipped: Array<{ table: string; reason: string }>
@@ -219,7 +223,12 @@ async function readCursor(svc: SupabaseClient, learnerId: string, courseCode: st
   return (data as unknown as CursorSnapshot) ?? null
 }
 
-/** Union of source ids every earlier record for this pair already copied. */
+/**
+ * Union of source ids every earlier record for this pair already copied —
+ * MINUS anything since undone. An undo writes its own record naming the copy
+ * it reversed (`undo_of`), and those rows are no longer on the class side, so
+ * counting them here would make a re-copy silently do nothing.
+ */
 async function priorCopied(
   svc: SupabaseClient,
   sourceLearnerId: string,
@@ -228,20 +237,26 @@ async function priorCopied(
 ): Promise<{ runs: number; ids: Record<string, Set<string>> }> {
   const { data, error } = await svc
     .from(AUDIT_TABLE)
-    .select('record')
+    .select('id, record')
     .eq('source_learner_id', sourceLearnerId)
     .eq('target_learner_id', targetLearnerId)
     .eq('course_code', courseCode)
   if (error) throw new Error(`${AUDIT_TABLE} read failed: ${error.message}`)
+  const rows = (data ?? []) as Array<{ id: string; record: CopyRecord }>
+  const undone = new Set<string>()
+  for (const r of rows) if (r.record?.undo_of) undone.add(String(r.record.undo_of))
   const ids: Record<string, Set<string>> = {}
-  const rows = (data ?? []) as Array<{ record: CopyRecord }>
+  let runs = 0
   for (const r of rows) {
+    if (r.record?.undo_of) continue
+    if (undone.has(String(r.id))) continue
+    runs++
     for (const [table, map] of Object.entries(r.record?.copied ?? {})) {
       ids[table] ??= new Set()
       for (const src of Object.keys(map)) ids[table].add(src)
     }
   }
-  return { runs: rows.length, ids }
+  return { runs, ids }
 }
 
 /**
@@ -421,4 +436,190 @@ export async function applyCopy(
     failure = failure ?? `audit: ${auditErr.message}`
   }
   return { record, auditId, error: failure }
+}
+
+// ---------------------------------------------------------------------- undo
+
+export interface UndoDetail {
+  /** table → rows deleted from the class side. */
+  deleted: Record<string, number>
+  /** Rows the record named that were no longer there — already gone, not an error. */
+  missing: Record<string, number>
+  /** How the class's cursor was put back. */
+  cursor: 'restored' | 'enrollment_deleted' | 'unchanged'
+  minutesRemoved: number
+}
+
+export interface UndoResult {
+  undone: boolean
+  /** True when this record had already been undone: a no-op, not a failure. */
+  alreadyUndone: boolean
+  detail?: UndoDetail
+  undoAuditId?: string
+  error?: string
+}
+
+/**
+ * Puts one copy back. The teacher's own rows were never touched by the copy,
+ * so an undo is purely a deletion on the class side plus the class's own
+ * cursor as it stood before — both of which the audit record already holds:
+ * `copied` names every row the copy created, `cursorBefore.target` is the
+ * class's own position before it.
+ *
+ * WHY IT EXISTS. The sweep (tools/copy-teacher-play-sweep.mjs) writes a
+ * teacher's play onto her class account without asking first, which is only
+ * fair because she can put it back in one tap. This is that tap.
+ *
+ * ORDER. Reverse of COPY_TABLES, so response_metrics and spike_events go
+ * before the sessions rows they point at and no foreign key is ever left
+ * dangling mid-undo.
+ *
+ * NATURAL-KEY TABLES. Their recorded "id" is the key columns concatenated —
+ * not parseable back into columns — so those rows are found the way planCopy
+ * finds them: read the class's rows for that table and course, rebuild each
+ * key with the SAME function, and delete the ones the record names. A row the
+ * class had before the copy has a key the record does not name, so it stays.
+ *
+ * IDEMPOTENT. Undoing an already-undone record deletes nothing, touches no
+ * cursor, and says so. Every undo appends its own audit row carrying
+ * `undo_of`, which is also what makes a later planCopy see those source rows
+ * as copyable again.
+ */
+export async function undoCopy(
+  svc: SupabaseClient,
+  auditId: string,
+  ctx: { actorUserId: string },
+): Promise<UndoResult> {
+  const { data: rowData, error: readErr } = await svc
+    .from(AUDIT_TABLE)
+    .select('id, class_id, course_code, source_learner_id, target_learner_id, record')
+    .eq('id', auditId)
+    .maybeSingle()
+  if (readErr) return { undone: false, alreadyUndone: false, error: `${AUDIT_TABLE} read failed: ${readErr.message}` }
+  const row = rowData as {
+    id: string; class_id: string; course_code: string
+    source_learner_id: string; target_learner_id: string; record: CopyRecord
+  } | null
+  if (!row) return { undone: false, alreadyUndone: false, error: 'No such copy' }
+  if (row.record?.undo_of) return { undone: false, alreadyUndone: false, error: 'That record is itself an undo' }
+
+  const { data: laterData, error: laterErr } = await svc
+    .from(AUDIT_TABLE)
+    .select('id, record')
+    .eq('target_learner_id', row.target_learner_id)
+    .eq('course_code', row.course_code)
+  if (laterErr) return { undone: false, alreadyUndone: false, error: `${AUDIT_TABLE} read failed: ${laterErr.message}` }
+  for (const r of (laterData ?? []) as Array<{ record: CopyRecord }>) {
+    if (String(r.record?.undo_of ?? '') === String(auditId)) {
+      return { undone: false, alreadyUndone: true }
+    }
+  }
+
+  const targetLearnerId = String(row.target_learner_id)
+  const courseCode = String(row.course_code)
+  const deleted: Record<string, number> = {}
+  const missing: Record<string, number> = {}
+
+  for (const spec of [...COPY_TABLES].reverse()) {
+    const map = row.record?.copied?.[spec.table] ?? {}
+    const recorded = Object.values(map).map(String)
+    if (recorded.length === 0) { deleted[spec.table] = 0; missing[spec.table] = 0; continue }
+    if (spec.key.kind === 'generated') {
+      const idColumn = spec.key.idColumn
+      let removed = 0
+      for (let i = 0; i < recorded.length; i += INSERT_CHUNK) {
+        const slice = recorded.slice(i, i + INSERT_CHUNK)
+        const { data, error } = await svc
+          .from(spec.table)
+          .delete()
+          .eq('learner_id', targetLearnerId)
+          .in(idColumn, slice)
+          .select(idColumn)
+        if (error) return { undone: false, alreadyUndone: false, error: `${spec.table}: ${error.message}` }
+        removed += (data ?? []).length
+      }
+      deleted[spec.table] = removed
+      missing[spec.table] = recorded.length - removed
+    } else {
+      const keyColumns = spec.key.keyColumns
+      const wanted = new Set(recorded)
+      const present = await readAll(
+        svc, spec.table,
+        { learner_id: targetLearnerId, [spec.courseColumn]: courseCode },
+        keyColumns[0],
+      )
+      const hits = present.filter((r) => wanted.has(naturalKey(r, keyColumns)))
+      let removed = 0
+      for (const hit of hits) {
+        let q = svc.from(spec.table).delete().eq('learner_id', targetLearnerId).eq(spec.courseColumn, courseCode)
+        for (const c of keyColumns) q = q.eq(c, hit[c] as never)
+        const { data, error } = await q.select(keyColumns[0])
+        if (error) return { undone: false, alreadyUndone: false, error: `${spec.table}: ${error.message}` }
+        removed += (data ?? []).length
+      }
+      deleted[spec.table] = removed
+      missing[spec.table] = recorded.length - removed
+    }
+  }
+
+  // The class's own cursor, exactly as it stood before the copy. A class that
+  // had NO enrollment row before loses the one the copy's apply created, so
+  // the undo leaves no trace of the copy at all.
+  const before = row.record?.cursorBefore?.target ?? null
+  let cursor: UndoDetail['cursor'] = 'unchanged'
+  if (before) {
+    const patch: Record<string, unknown> = {}
+    for (const c of CURSOR_COLUMNS.split(',')) patch[c] = (before as unknown as Record<string, unknown>)[c] ?? null
+    const { error } = await svc
+      .from('course_enrollments')
+      .update(patch)
+      .eq('learner_id', targetLearnerId)
+      .eq('course_id', courseCode)
+    if (error) return { undone: false, alreadyUndone: false, error: `course_enrollments: ${error.message}` }
+    cursor = 'restored'
+  } else {
+    const { error } = await svc
+      .from('course_enrollments')
+      .delete()
+      .eq('learner_id', targetLearnerId)
+      .eq('course_id', courseCode)
+    if (error) return { undone: false, alreadyUndone: false, error: `course_enrollments: ${error.message}` }
+    cursor = 'enrollment_deleted'
+  }
+
+  const detail: UndoDetail = {
+    deleted, missing, cursor,
+    minutesRemoved: Number(row.record?.minutesAdded || 0),
+  }
+  const undoRecord: CopyRecord = {
+    copied: {},
+    alreadyPresent: {},
+    skipped: [],
+    cursorBefore: { source: null, target: row.record?.cursorAfter?.target ?? null },
+    cursorAfter: { target: before },
+    cursorTakenFromSource: false,
+    minutesAdded: 0,
+    inAppSecondsCopied: 0,
+    undo_of: String(auditId),
+    undone: detail,
+  }
+  const { data: audit, error: auditErr } = await svc
+    .from(AUDIT_TABLE)
+    .insert({
+      actor_user_id: ctx.actorUserId,
+      class_id: row.class_id,
+      course_code: courseCode,
+      source_learner_id: row.source_learner_id,
+      target_learner_id: targetLearnerId,
+      record: undoRecord,
+    })
+    .select('id')
+    .single()
+  if (auditErr) {
+    // The rows are gone. Without the record a later copy would refuse to
+    // re-copy them, so this is loud rather than silent.
+    console.error('[classProgressCopy] undo audit write failed:', auditErr.message, JSON.stringify(detail).slice(0, 4000))
+    return { undone: true, alreadyUndone: false, detail, error: `audit: ${auditErr.message}` }
+  }
+  return { undone: true, alreadyUndone: false, detail, undoAuditId: String((audit as { id: string }).id) }
 }
