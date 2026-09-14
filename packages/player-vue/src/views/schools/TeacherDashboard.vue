@@ -680,7 +680,7 @@ function exportCsv() {
                Worth knowing. The row is a button in its own right, so a keyboard
                works too. The buttons at the right of the row do their own jobs and
                do not open the class.
-               checked: 0a6c4f98.5d707d0d
+               checked: a021ba99.b9c5c0f1
           -->
           <tr
             v-for="cls in rowsShown.shown"
@@ -770,7 +770,7 @@ function exportCsv() {
                    viewing the dashboard as you it is greyed out and does
                    nothing, so they can see what you have without starting a
                    lesson in your name.
-                   checked: 23748655.1333b484
+                   checked: 56db392c.1333b484
               -->
               <button v-if="canPlayAsClass" type="button" class="row-play-btn" data-walk="classes-row-play" :disabled="playAsClassReadOnly" :title="playAsClassTitle" @click.stop="handlePlayClass(cls)">▶ {{ t('schools.teacherDashboard.playAsClass', 'Play as class') }}</button>
             </td>
