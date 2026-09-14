@@ -47,9 +47,21 @@ html, body, #app {
    body padding and names the variable itself; --viewing-as-h is absent when
    view-as is off, so every use falls back to 0px.
    Tom, 2026-09-14 (job #675): "it blocks all my nav functionality".
+
+   The playing-as-yourself strip on the player (job #699) publishes
+   --own-play-banner-h the same way with a has-own-play-banner class. The two
+   are summed once, here, as --top-bands-h, and that is the variable every
+   consumer names — the player root and the Listening overlay are fixed
+   inset:0 surfaces that body padding never reaches, so they name it too.
    ═══════════════════════════════════════════════════════════════ */
-html.is-viewing-as body {
-  padding-top: var(--viewing-as-h, 0px);
+html {
+  /* Every fixed band across the top, summed. Add a band here once and every
+     consumer of --top-bands-h moves for it. */
+  --top-bands-h: calc(var(--viewing-as-h, 0px) + var(--own-play-banner-h, 0px));
+}
+html.is-viewing-as body,
+html.has-own-play-banner body {
+  padding-top: var(--top-bands-h, 0px);
 }
 
 body {

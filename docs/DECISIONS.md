@@ -2835,3 +2835,29 @@ last activity, red on the old ranker.
 in-app time over seven days, 8,623 seconds rounded up. 272 was the school total including personal
 accounts, from a different surface. The picker line and the ranking use the same figure, so there
 is no third defect in code.
+
+## 2026-09-14 — The playing-as-yourself strip pushes the player down instead of covering it (job #699)
+
+**Seen on staging a5a37c6.** The strip from jobs #683/#693 was a fixed band across the top of the
+player and sat ON it: in the main player it half-covered the belt row's back and forward buttons and
+the progress readout; in Listening Mode it covered the tabs and the close circle. Wording and
+behaviour were right; only the layout was wrong.
+
+**Same mechanism as the Viewing-As band, and both bands now sum.** The strip measures its own
+height and publishes it as `--own-play-banner-h` on `<html>` with a `has-own-play-banner` class,
+exactly as `ViewingAsBanner` does with `--viewing-as-h`. Rather than name two variables in every
+consumer, `style.css` sums them once as `--top-bands-h`, and that is what the body padding rule and
+every piece of fixed top chrome now name: the player escape, the tutor tab rail, the schools top bar
+and drawer, the app root, the QA report button. Body padding cannot reach a `position: fixed;
+inset: 0` surface, and both the player root and the Listening overlay are one, so each names
+`top: var(--top-bands-h, 0px)` itself; a side effect is that the Viewing-As band now clears the
+player too, which #675 had claimed and the CSS did not deliver. The strip already pads itself out of
+the notch, so while it is up the shell's top inset token is zero under it; the Listening overlay's
+three direct `env(safe-area-inset-top)` reads now go through that token, as the tokens file says
+they should, or the header and the overlay would pad out of the notch twice on a phone. Better: no
+control covered in either mode. Simpler: one summed variable, one class per band, no per-surface
+strip. Cheaper: the next band is one term in one calc.
+
+**Proof.** `PlayingAsYourselfBanner.test.ts` gains a case that the variable and class are set while
+the strip shows, cleared when play stops, and cleared on unmount: red on the #693 banner, green
+here. Staging only; main untouched on Tom's 17:01Z ruling.

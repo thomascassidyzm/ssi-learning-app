@@ -73,6 +73,32 @@ describe('PlayingAsYourselfBanner — live own-account play, on the player', () 
     expect(w.find(SEL).exists()).toBe(false)
   })
 
+  it('job #699: while shown it publishes its height as --own-play-banner-h on <html>, and clears it when hidden', async () => {
+    // jsdom lays nothing out; the measured height is stubbed so the publish path runs.
+    const desc = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight')
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get: () => 42 })
+    try {
+      const html = document.documentElement
+      const w = mountBanner()
+      expect(html.style.getPropertyValue('--own-play-banner-h')).toBe('')
+      play(true); await w.vm.$nextTick(); await w.vm.$nextTick()
+      expect(w.find(SEL).exists()).toBe(true)
+      expect(html.style.getPropertyValue('--own-play-banner-h')).toBe('42px')
+      expect(html.classList.contains('has-own-play-banner')).toBe(true)
+      play(false); await w.vm.$nextTick(); await w.vm.$nextTick()
+      expect(html.style.getPropertyValue('--own-play-banner-h')).toBe('')
+      expect(html.classList.contains('has-own-play-banner')).toBe(false)
+      // and on unmount mid-play
+      play(true); await w.vm.$nextTick(); await w.vm.$nextTick()
+      expect(html.style.getPropertyValue('--own-play-banner-h')).toBe('42px')
+      w.unmount()
+      expect(html.style.getPropertyValue('--own-play-banner-h')).toBe('')
+      expect(html.classList.contains('has-own-play-banner')).toBe(false)
+    } finally {
+      if (desc) Object.defineProperty(HTMLElement.prototype, 'offsetHeight', desc)
+    }
+  })
+
   it('job #693 (b): Listening Mode playback on her own account is live play too', async () => {
     const w = mountBanner()
     setPlaybackLive('listening', true); await w.vm.$nextTick()
