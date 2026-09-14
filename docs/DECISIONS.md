@@ -3012,7 +3012,18 @@ on "I was trying" (S0019L01, the last round of the preview map), localStorage an
 unchanged through 25s, and unchanged through "Maybe later" plus 15s of play. Cold device (DB row
 only): same, localStorage stays empty.
 
+**Addition (same job, from a cold verify of #745): a grant resumes only after a verified restore.**
+The liveEntitlements watcher tried the restore and then, whether or not it landed — the remembered
+LEGO not yet in `getEngineRounds()` (lazy load, or the queue still the preview window), or the jump
+throwing — lowered the wall and called `resume()` at the RETREATED position; the next prompt spent
+the memory and the cursor writers persisted the retreat. Now `playback/paywallGrant.ts` carries
+`restoreHeldPosition` (true only when the engine is verifiably on the held LEGO afterwards; never
+spends the memory) and `grantAction` (held and not restored → lower the wall, stay paused; otherwise
+lower and resume), and a `roundCount` watcher retries the restore whenever the engine queue grows.
+Tested against a fake engine (`paywallGrant.test.ts`), not a source read.
+
 **Left open.** After a grant inside the wall the held LEGO is not in the preview queue, so the
-session plays on from the preview's end and the real place is restored on the next open, not
-mid-session. `useBeltProgress`'s boot upsert stamps `last_practiced_at` to now on every open (seen in
-every probe, before and after); not a position write, not touched here.
+learner is left paused on the preview's last round with the wall down; the restore fires as soon as
+rounds carrying that LEGO arrive, otherwise the real place is restored on the next open.
+`useBeltProgress`'s boot upsert stamps `last_practiced_at` to now on every open (seen in every probe,
+before and after); not a position write, not touched here.
