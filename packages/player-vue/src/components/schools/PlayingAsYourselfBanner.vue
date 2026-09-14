@@ -12,29 +12,35 @@
  * player itself, and the past-tense own-practice line on the teacher home
  * stays as a fact about the week.
  *
- * "Playing" is the player's own transport state: LearningPlayer echoes
- * isAudioPlaying on the window as `ssi-play-state` for chrome outside its
- * tree, and this reads that — never a minutes figure. Play as class runs on
- * /schools/play, not here, so a session on this route is always the person's
- * own. Never under View As: a platform admin plays nothing in anyone's name.
+ * "Playing" is any live transport — the main player's isAudioPlaying or
+ * Listening Mode's own — read through playbackLiveness, never a minutes
+ * figure. Play as class runs on /schools/play, not here, so a session on
+ * this route is always the person's own. Never under View As: a platform
+ * admin plays nothing in anyone's name.
+ *
+ * Job #693: who she is comes from the CACHED educational role, the same
+ * localStorage cache the first-open redirect reads, because a teacher who
+ * opens the app straight into the player has no school context loaded and
+ * the banner stayed hidden for the whole session. School context, when it
+ * is populated, still counts.
  */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useUserRole } from '@/composables/useUserRole'
 import { useI18n } from '@/composables/useI18n'
+import { isAnyPlaybackLive } from '@/playback/playbackLiveness'
 
 const { t } = useI18n()
 const { isSchoolStaff } = useSchoolContext()
-const { isViewingAs } = useUserRole()
-const playing = ref(false)
+const { educationalRole, isViewingAs, restoreFromCache } = useUserRole()
 
-function onPlayState(e: Event): void {
-  playing.value = !!(e as CustomEvent<{ playing: boolean }>).detail?.playing
-}
-onMounted(() => window.addEventListener('ssi-play-state', onPlayState))
-onBeforeUnmount(() => window.removeEventListener('ssi-play-state', onPlayState))
+onMounted(() => restoreFromCache())
 
-const show = computed(() => playing.value && isSchoolStaff.value && !isViewingAs.value)
+// Tutor is a groupless teacher (THE-MODEL §1.3); a group leader has no class to play as.
+const STAFF_ROLES = ['teacher', 'tutor', 'school_admin']
+const isStaff = computed(() => isSchoolStaff.value || STAFF_ROLES.includes(educationalRole.value || ''))
+
+const show = computed(() => isAnyPlaybackLive.value && isStaff.value && !isViewingAs.value)
 </script>
 
 <template>
@@ -56,7 +62,7 @@ const show = computed(() => playing.value && isSchoolStaff.value && !isViewingAs
        Worth knowing. The line goes as soon as you pause or stop. Minutes already
        played on your own account are not moved by it; the copy tool on a class's
        tools page does that if you want it.
-       checked: 7e487ab8.251a1df2
+       checked: e344380f.251a1df2
   -->
   <div v-if="show" class="playing-as-yourself" role="status" data-walk="player-playing-as-yourself">
     <span>{{ t('schools.dashboard.playingAsYourself', 'You are now playing as yourself. If you want to play as class please go here.') }}</span>
