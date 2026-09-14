@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `f836d9c2cf66` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `60e6409194ff` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -1043,7 +1043,7 @@ Section: your-own-account · roles: teacher, school_admin, leader · anchor: `sc
 1. Tap into the box and write what you saw.
 2. Keep it under 2,000 characters. Send stays off until you have written something.
 
-**Worth knowing.** The page you were on and your school are added for you, so you only need to describe what went wrong.
+**Worth knowing.** The page you were on, your school, your role and your account are added for you, so you only need to describe what went wrong.
 
 ## See and download your funder numbers
 
