@@ -95,7 +95,7 @@ import { hasReachedInfinitePlay as hasReachedInfinitePlayPure, roundShapeSuggest
 import { nextPractisingState, choosePractisedPosition, cycleIntroducesMaterial, type PractisedPosition, type NextLegoFetchOutcome } from '../playback/practisingMode'
 import { isContentBlackoutActive, reportBlackoutProbe } from '../playback/contentBlackout'
 import { practisingOverrideActive } from '../playback/practisingOverride'
-import { resolveResumeAnchor } from '../utils/resolveResumeAnchor'
+import { beyondSliceLanding, resolveResumeAnchor } from '../utils/resolveResumeAnchor'
 import { cachedScriptCoversLearner } from '../utils/cachedScriptCoversLearner'
 import { beltRewindTarget } from '../utils/beltRewindTarget'
 import { resolveResumeStart } from '../utils/resolveResumeStart'
@@ -831,6 +831,13 @@ const learnerDefaultsForced = computed(() =>
 // learner lands on resume. Kicked off in `loadAllData` only when the
 // course is in the flag set; the cold path skips the full course load
 // and renders the first cycle from the new endpoints.
+// The server cursor as READ at boot (the enrollment row), kept apart from
+// lastCompletedLegoIdRef, which every position write overwrites. The resume
+// gate compares it with the local snapshot to find the learner's REAL saved
+// place — which can lie past what the loaded queue is able to show, when an
+// unentitled learner is served the preview-only bundle (job #752).
+const serverCursorSnapshot = ref<{ cursorLegoId: string | null, lastPracticedAt: number | null } | null>(null)
+
 const instantPlayback = useInstantPlayback(courseCode, {
   resolveStartLegoId: async () => {
     // Position authority ruling (archive/docs-retired-2026-08-24/pwa-lifecycle-design.md §2.3,
@@ -876,14 +883,27 @@ const instantPlayback = useInstantPlayback(courseCode, {
       enrollment = null
     }
 
-    const winner = resolveAuthoritativePosition(localSnapshot, enrollment ? {
-      cursorLegoId: enrollment.last_completed_lego_id ?? null,
-      lastPracticedAt: enrollment.last_practiced_at ? enrollment.last_practiced_at.getTime() : null,
-    } : null)
-
-    if (winner.source !== 'server') {
-      return winner.legoId
+    if (enrollment) {
+      serverCursorSnapshot.value = {
+        cursorLegoId: enrollment.last_completed_lego_id ?? null,
+        lastPracticedAt: enrollment.last_practiced_at ? enrollment.last_practiced_at.getTime() : null,
+      }
     }
+    const winner = resolveAuthoritativePosition(localSnapshot, serverCursorSnapshot.value)
+
+    // Nothing saved anywhere: a fresh learner, round 1. Nothing to clamp.
+    if (!winner.legoId) return null
+
+    // A LOCAL winner (or a fail-to-local on a timed-out / errored enrollment
+    // read) used to be handed straight to bootstrap. On a SLICED round map —
+    // the preview-only bundle an unentitled learner gets — bootstrap then
+    // asked /cycles for a LEGO the map does not hold, was refused, and the
+    // slow legacy walk landed the learner on round 1 (job #752, staging
+    // 2026-09-14). Every winner is resolved against the map below, so a
+    // cursor beyond the slice lands on its LAST round, where the wall stands.
+    // The map read is cache-first; when it genuinely cannot be answered the
+    // local winner keeps the old answer (itself), so offline resume is unchanged.
+    const failToLocal = winner.source !== 'server'
 
     // Resolution lives in utils/resolveResumeStart.ts so the three
     // outcomes are testable outside this component: a legoId (we found
@@ -914,6 +934,7 @@ const instantPlayback = useInstantPlayback(courseCode, {
       })
     } catch (err) {
       if ((err as Error)?.message === 'CourseEndNoNextLego') throw err
+      if (failToLocal) return winner.legoId
       // A FAILURE to resolve is not a fresh learner. Returning null here
       // is what silently dropped returning learners to round 1 whenever
       // the round-map cache missed on a bad pipe. Rethrow so the cutover
@@ -2157,6 +2178,10 @@ watch(
         lastCompletedLegoIdRef.value = saved.lastCompletedLegoId ?? null
         savedCurrentCycleIndex.value = saved.currentCycleIndex ?? 0
         savedLastPracticedAt.value = saved.lastPracticedAt ?? null
+        serverCursorSnapshot.value = {
+          cursorLegoId: saved.lastCompletedLegoId ?? null,
+          lastPracticedAt: saved.lastPracticedAt ? saved.lastPracticedAt.getTime() : null,
+        }
         // Cursor-only model (2026-07-04): infinite-play is derived from the
         // cursor (no is_new LEGO remains beyond it), not read from the
         // enrollment.current_mode column.
@@ -2368,6 +2393,53 @@ function settleCursorAtPaywall(): void {
     legoId: simplePlayer.currentRound.value?.legoId ?? null,
   })
   try { simplePlayer.jumpToRound(landing) } catch { /* engine may not be ready */ }
+}
+
+/**
+ * The SAVED cursor — not the landed round — lies past the wall (job #752).
+ *
+ * A learner who is not entitled (a lapsed subscriber, a free-preview learner
+ * whose cursor was carried past the wall) is served the preview-only bundle.
+ * Their saved LEGO is not in it, so wherever the resume branches landed them
+ * is not where they really are — and the lifecycle save that follows would
+ * write that landing (seed 1, on staging 2026-09-14) over the saved place.
+ * Tom's rule: a paywall never moves a learner's position back to the start.
+ *
+ * So: find the real saved place (the same local-vs-server authority rule the
+ * resume uses), and if it is locked, HOLD it — every position write is blocked
+ * until they are playing that round again — land on the LAST round of the free
+ * preview in the live queue, and raise the wall. A learner who then subscribes
+ * or redeems opens the player next time on the place they really had.
+ * Returns true when it held.
+ */
+function holdSavedCursorAtPaywall(): boolean {
+  const course = props.course
+  if (!course) return false
+  const localPos = loadPositionFromLocalStorage()
+  const saved = resolveAuthoritativePosition(
+    localPos?.legoId ? { legoId: localPos.legoId, lastUpdated: localPos.lastUpdated ?? null } : null,
+    serverCursorSnapshot.value,
+  )
+  const savedSeed = getSeedFromLegoId(saved.legoId)
+  if (savedSeed === null || entitlementComposable.canAccessSeed(course, savedSeed)) return false
+  // Keep the REAL place before anything moves: the stored cursors stay on it.
+  paywallRetreat.remember({
+    roundIndex: simplePlayer.roundIndex.value,
+    cycleIndex: 0,
+    legoId: saved.legoId,
+  })
+  const rounds = simplePlayer.getEngineRounds()
+  const lastIdx = rounds.length - 1
+  const landing = lastIdx >= 0
+    ? (paywallLandingRound(lastIdx, rounds, (seed) => entitlementComposable.canAccessSeed(course, seed)) ?? lastIdx)
+    : -1
+  if (landing >= 0 && landing !== simplePlayer.roundIndex.value) {
+    try { simplePlayer.jumpToRound(landing) } catch { /* engine may not be ready */ }
+  }
+  try { simplePlayer.pause() } catch { /* engine may not be ready */ }
+  console.warn(`[LearningPlayer] saved cursor ${saved.legoId} (${saved.source}) lies past the free preview — held at the wall, landed on round ${landing}, position writes blocked`)
+  showPaywall.value = true
+  return true
 }
 
 function onPaywallKeydown(e: KeyboardEvent) {
@@ -4099,11 +4171,12 @@ const positionInitialized = ref(false)
 // cycle N. Phase=prompt closes that gap. Tom 2026-05-26.
 watch(() => simplePlayer.phase.value, (phase) => {
   if (phase === 'prompt' && positionInitialized.value && useRoundBasedPlayback.value) {
-    // A prompt playing with the wall down is the learner playing on from
-    // wherever the cursor now is — a restored real spot, or the retreat they
-    // accepted with "Maybe later". Either way the held position is spent and
-    // the writes below record where they actually are.
-    if (!showPaywall.value) paywallRetreat.clear()
+    // A prompt playing with the wall down on the REMEMBERED round is the
+    // learner playing on from their restored real spot: the held position is
+    // spent and the writes below record where they actually are. A prompt on
+    // any other round (playing on inside the preview after "Maybe later")
+    // leaves it held — the real place is still the held one (job #752).
+    if (!showPaywall.value) paywallRetreat.release(simplePlayer.currentRound.value?.legoId ?? null)
     savePositionToLocalStorage()
     // Persist the cursor to the DB every cycle, not just per round. The DB is
     // the durable cross-session source; when it lagged at round granularity, a
@@ -4134,6 +4207,11 @@ watch(positionInitialized, (init) => {
         try { simplePlayer.pause() } catch { /* engine may not be ready */ }
         settleCursorAtPaywall()
         showPaywall.value = true
+      } else {
+        // Landed somewhere playable — but is that where they really were? An
+        // unentitled learner's saved place past the wall is not in the
+        // preview queue at all (job #752): hold it and raise the wall.
+        holdSavedCursorAtPaywall()
       }
     }
     // Both lifecycle saves below are skipped while settleCursorAtPaywall holds
@@ -14739,6 +14817,12 @@ onMounted(async () => {
             const enr = result
             inferCursorLegoId = enr?.last_completed_lego_id ?? null
             inferCeilingLegoId = enr?.highest_completed_lego_id ?? null
+            if (enr) {
+              serverCursorSnapshot.value = {
+                cursorLegoId: enr.last_completed_lego_id ?? null,
+                lastPracticedAt: enr.last_practiced_at ? enr.last_practiced_at.getTime() : null,
+              }
+            }
             // Cursor-only model: infinite-play is DERIVED from the cursor —
             // no is_new LEGO beyond it — not read from the enrollment.current_mode
             // column (2026-07-04). Infplay entry always stamps the cursor to the
@@ -14935,8 +15019,24 @@ onMounted(async () => {
                     const ts = savedLastPracticedAt.value
                     if (!ts || (Date.now() - ts.getTime()) / 60000 >= resumeConfig.value.cycleResetMinutes) resumeCycle = 0
                   }
-                } else if (inferCursorLegoId || inferCeilingLegoId) {
-                  console.warn(`[InstantPlayback] cache fast-path: neither cursor (${inferCursorLegoId}) nor ceiling (${inferCeilingLegoId}) in cached rounds; starting at R1`)
+                } else {
+                  // BEYOND THE SLICE (job #752): the cached script can be the
+                  // free-preview slice of a premium course, and a saved cursor
+                  // past its last round is a real place the slice cannot show.
+                  // Land on that last round — the wall — never on round 1; the
+                  // post-init resume gate then holds the real place and raises
+                  // the wall. Server cursor first, then the local snapshot.
+                  const lastCached = fastRounds[fastRounds.length - 1]
+                  const lastEntry = lastCached?.legoId ? { legoId: lastCached.legoId as string } : null
+                  const beyond = beyondSliceLanding(inferCursorLegoId, lastEntry)
+                    ?? beyondSliceLanding(loadPositionFromLocalStorage()?.legoId ?? null, lastEntry)
+                  if (beyond) {
+                    resumeRoundIndex = findLego(beyond)
+                    resumeCycle = 0
+                    console.warn(`[InstantPlayback] cache fast-path: saved cursor lies beyond the cached slice (last ${beyond}); landing on its last round, not R1`)
+                  } else if (inferCursorLegoId || inferCeilingLegoId) {
+                    console.warn(`[InstantPlayback] cache fast-path: neither cursor (${inferCursorLegoId}) nor ceiling (${inferCeilingLegoId}) in cached rounds; starting at R1`)
+                  }
                 }
               }
               if (resumeRoundIndex > 0 || resumeCycle > 0) {

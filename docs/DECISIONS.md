@@ -2977,3 +2977,42 @@ preview-only bundle, whose round map lacks their LEGO, so the player starts them
 the lifecycle save writes seed 1 to localStorage with no wall shown; the DB cursor is safe behind
 the forward-only write. Same family, not this job. Waiting on an in-flight refresh in the resume
 gate would not help: nothing is in flight until the wall itself asks.
+
+## 2026-09-14 — An unentitled learner's saved cursor past the wall is held at the wall, never dropped to seed 1 (job #752, follow-up to #734 / #745)
+
+**Decision.** Tom's rule (2026-09-14): a paywall never moves a learner's belt or position back to
+the start of the course. #745 left one case open: a learner who is genuinely NOT entitled (lapsed
+subscriber, or a free-preview learner whose cursor was carried past the wall) with a saved place past
+Yellow is served the preview-only bundle, which has no round for that LEGO. Served staging build
+dc04740, +colombo-wall (empty entitlement list), S0031L01 saved on cym_s_for_eng: the local winner
+went straight to bootstrap, `/cycles?from=S0031L01` was refused, the legacy walk landed on S0001L01,
+and within two seconds the lifecycle save wrote seed 1 over the saved place in localStorage with no
+wall shown. The DB cursor survived only because its write is forward-only.
+
+Now the post-init resume gate asks a second question after "did we land somewhere locked": "is the
+SAVED place locked?" — the same local-vs-server authority rule the resume uses, against a
+`serverCursorSnapshot` read at boot. If it is, `holdSavedCursorAtPaywall` puts the saved LEGO into
+the #745 memory (every position write blocked), lands on the last free round of the LIVE engine queue
+through `paywallLandingRound`, and raises the wall. The memory is now spent only by a prompt on the
+REMEMBERED round (`paywallRetreat.release`), not by any prompt with the wall down, so "Maybe later"
+followed by replaying the preview never overwrites the saved place either. Upstream, a local winner
+in `resolveStartLegoId` is resolved against the round map like a server one (fail-to-local if the
+map cannot be read), and the cache fast-path uses the same `beyondSliceLanding` rule as
+`resolveResumeStart`, so a cursor beyond the preview slice bootstraps on the last preview round
+instead of asking the server for a LEGO it will refuse. Better: the learner sees the wall on the
+round they can play, and a later subscription or code opens the player on the place they really had.
+Simpler: one more question in the one gate, one pure rule shared by two resume paths, no new
+mechanism beside the #745 memory. Cheaper: one avoided 403 and legacy walk per such open.
+
+**Proof.** `unentitledPastWall.test.ts`: ten assertions red on the pre-fix code, green after
+(beyond-slice rule, release rule, gate / phase-watcher / resolver / fast-path wiring);
+`paywallRetreat.test.ts`'s "spent by any prompt" assertion flipped on purpose. Local dev build
+proxied to staging, +colombo-wall, S0031L01 planted in localStorage and the DB: wall up at 2.5s
+on "I was trying" (S0019L01, the last round of the preview map), localStorage and DB cursor
+unchanged through 25s, and unchanged through "Maybe later" plus 15s of play. Cold device (DB row
+only): same, localStorage stays empty.
+
+**Left open.** After a grant inside the wall the held LEGO is not in the preview queue, so the
+session plays on from the preview's end and the real place is restored on the next open, not
+mid-session. `useBeltProgress`'s boot upsert stamps `last_practiced_at` to now on every open (seen in
+every probe, before and after); not a position write, not touched here.
