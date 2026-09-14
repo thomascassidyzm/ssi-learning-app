@@ -23,9 +23,35 @@
  *                      the computed number disagree without any diagnosis.
  */
 
+import type { VercelRequest, VercelResponse } from '@vercel/node'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { rejectIfViewAs } from '../_utils/actAsGuard'
 import { resolveVisibleScope } from '../_utils/schoolScope'
 import { loadClassPractice, practisedSince, CLASS_PRACTICE_WINDOW_DAYS } from '../_utils/classPractice'
+
+/**
+ * THE ONE GUARD on the support action while an ssi_admin tours under View As
+ * (Tom, 2026-09-14: "viewing as a school admin/teacher must never create rows
+ * in that person's name", and the shape of the fix is "ONE guard covering the
+ * whole support action ... applied once at the entry of the action, not a
+ * second patch on the send step").
+ *
+ * Called at the ENTRY of each support route, before auth and before any
+ * scope resolution, so every write the action can make — creating the thread,
+ * marking it read, posting the message — stops at the same place. The OPEN is
+ * what wrote a thread, not the send, which is why guarding the send alone
+ * would have fixed nothing.
+ *
+ * The header is set by the browser on every /api/* call while viewing-as
+ * (viewAsFetchGuard.ts). A genuine school_admin or govt_admin session never
+ * sends it, so no real school's question is ever refused here.
+ */
+export function refuseSupportUnderViewAs(req: VercelRequest, res: VercelResponse): boolean {
+  const refusal = rejectIfViewAs(req)
+  if (!refusal) return false
+  res.status(refusal.status).json({ error: 'Support is read-only while viewing as another user' })
+  return true
+}
 
 export type SupportScope =
   | { kind: 'school'; schoolId: string; role: 'school_admin'; learnerId: string | null }

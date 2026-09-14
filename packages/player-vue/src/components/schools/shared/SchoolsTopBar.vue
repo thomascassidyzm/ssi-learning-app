@@ -46,7 +46,13 @@ const { currentUser, isGovtAdmin, isSchoolAdmin, clear: clearSchoolContext } = u
 // Replies unread on the school's support thread — peeked on mount and on
 // focus, never on a timer: a glance at the menu must not count as reading.
 const { unread: supportUnread, peekUnread } = useSupportChannel()
-const canSupport = computed(() => isSchoolAdmin.value || isGovtAdmin.value)
+// Declared here, not beside its other use below: `watch(canSupport)` reads
+// the computed during setup, so a later `const` would be in its TDZ.
+const { isViewingAs } = useUserRole()
+// Never while viewing-as (job #681): the whole support action is refused
+// server-side for a tagged request, so peeking would only 403, and a glance
+// at someone else's dashboard must reach nothing of theirs.
+const canSupport = computed(() => !isViewingAs.value && (isSchoolAdmin.value || isGovtAdmin.value))
 function peekSupport(): void {
   if (canSupport.value && document.visibilityState === 'visible') void peekUnread()
 }
@@ -74,7 +80,6 @@ const auth = inject<any>('auth', null)
 // simpler than attributing a report to the real admin through a persona
 // screen. The route refuses a view-as header too. The thank-you toast is
 // the whole reply — one way, no thread.
-const { isViewingAs } = useUserRole()
 const bugModalOpen = ref(false)
 const bugToast = ref(false)
 let bugToastTimer: ReturnType<typeof setTimeout> | null = null
