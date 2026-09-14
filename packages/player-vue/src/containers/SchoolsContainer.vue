@@ -464,6 +464,13 @@ const showRailFrame = computed(() => !!route.meta.railFrame && railEligible.valu
 watch(
   [() => ctx.currentUser.value, () => route.name],
   ([user, routeName]) => {
+    // ONE CLASS PAGE (Tom, 2026-09-14, job #624): a leader's class is its
+    // node home. The route's own guard does this from the role cache; this
+    // is the net for a cold load where the role lands after the page mounts.
+    if (routeName === 'class-detail' && (ctx.isGovtAdmin.value || ctx.isSchoolAdmin.value)) {
+      void router.replace({ path: `/org/${String(route.params.id || '')}`, query: route.query })
+      return
+    }
     const groupId = user?.group_id
     if (groupId && ctx.isGovtAdmin.value) {
       if (routeName === 'schools-list') {

@@ -1,12 +1,9 @@
 <script setup lang="ts">
-// CopyTeacherPlayCard — the repair for a teacher who ran lessons signed in
-// as themselves instead of using Play as class (Tom, 2026-09-11: "IF the
-// teachers have by mistake played as themselves, Angharad needs to be able
-// to copy all progress data and telemetry and everything to the play as
-// class account"). Job #651 (Chepstow, 2026-09-14): the teacher can do it
-// for their OWN account too — the server always admitted a teacher of the
-// class, and the commonest case is a teacher fixing their own lesson. In
-// that mode (`selfUserId` set) there is no picker: the card is about you.
+// CopyTeacherPlayCard — the school leader's repair for a teacher who ran
+// lessons signed in as themselves instead of using Play as class (Tom,
+// 2026-09-11: "IF the teachers have by mistake played as themselves,
+// Angharad needs to be able to copy all progress data and telemetry and
+// everything to the play as class account").
 //
 // Flow: pick the teacher → see what would move (nothing written) → one
 // confirm → a result line naming what was copied. The server owns the copy
@@ -27,14 +24,10 @@ interface TeacherChoice { user_id: string; name: string }
 // empty — a failed or pending read must never be voiced as an empty class
 // (nightly, 2026-09-11: this card said "No teachers" under a failed read while
 // the panel beside it said "Couldn't load"). Absent, the list speaks for itself.
-const props = withDefaults(defineProps<{ classId: string; teachers: TeacherChoice[]; teachersState?: PanelState; selfUserId?: string }>(), {
+const props = withDefaults(defineProps<{ classId: string; teachers: TeacherChoice[]; teachersState?: PanelState }>(), {
   teachersState: undefined,
-  selfUserId: undefined,
 })
-// Self mode: a teacher copying their own play. The picker goes; the teacher
-// IS the pick, and the list's load state no longer gates anything.
-const selfMode = computed(() => !!props.selfUserId)
-const listState = computed<PanelState>(() => (selfMode.value ? 'ready' : (props.teachersState ?? (props.teachers.length > 0 ? 'ready' : 'empty'))))
+const listState = computed<PanelState>(() => props.teachersState ?? (props.teachers.length > 0 ? 'ready' : 'empty'))
 const emit = defineEmits<{ (e: 'copied'): void }>()
 
 interface PositionWords { known: string | null; target: string | null }
@@ -58,13 +51,11 @@ interface Applied {
   position: { class: PositionWords }
 }
 
-const pickedTeacherId = ref<string>(props.selfUserId ?? props.teachers[0]?.user_id ?? '')
+const pickedTeacherId = ref<string>(props.teachers[0]?.user_id ?? '')
 const teacherOptions = computed(() => props.teachers.map((x) => ({ value: x.user_id, label: x.name })))
 watch(() => props.teachers, (list) => {
-  if (selfMode.value) return
   if (!list.some((x) => x.user_id === pickedTeacherId.value)) pickedTeacherId.value = list[0]?.user_id ?? ''
 })
-watch(() => props.selfUserId, (uid) => { if (uid) pickedTeacherId.value = uid })
 
 const preview = ref<Preview | null>(null)
 const applied = ref<Applied | null>(null)
@@ -74,8 +65,7 @@ const error = ref('')
 // A new pick invalidates what was previewed for the old one.
 watch(pickedTeacherId, () => { preview.value = null; applied.value = null; error.value = '' })
 
-const pickedName = computed(() => props.teachers.find((x) => x.user_id === pickedTeacherId.value)?.name
-  ?? (selfMode.value ? t('schools.copyPlay.you', 'you') : ''))
+const pickedName = computed(() => props.teachers.find((x) => x.user_id === pickedTeacherId.value)?.name ?? '')
 
 async function call(path: 'preview' | 'apply'): Promise<Record<string, any>> {
   const { data: { session } } = await getSchoolsClient().auth.getSession()
@@ -147,16 +137,13 @@ function words(p: PositionWords | null | undefined): string {
 
 <template>
   <div class="schools-card schools-card-pad rail-card copy-play-card">
-    <div class="schools-kicker rail-kicker">{{ selfMode ? t('schools.copyPlay.kickerSelf', 'Ran a lesson signed in as yourself?') : t('schools.copyPlay.kicker', 'Played as themselves by mistake?') }}</div>
+    <div class="schools-kicker rail-kicker">{{ t('schools.copyPlay.kicker', 'Played as themselves by mistake?') }}</div>
     <p class="rail-note copy-play-intro">
-      {{ selfMode
-        ? t('schools.copyPlay.introSelf', 'If you ran a lesson signed in as yourself instead of using Play as class, copy that play onto this class so the class shows where it really is. Your own record stays as it is.')
-        : t('schools.copyPlay.intro', 'If a teacher ran lessons signed in as themselves instead of using Play as class, copy that play onto this class so the class shows where it really is.') }}
+      {{ t('schools.copyPlay.intro', 'If a teacher ran lessons signed in as themselves instead of using Play as class, copy that play onto this class so the class shows where it really is.') }}
     </p>
 
-    <label v-if="!selfMode" class="copy-play-label" for="copy-play-teacher">{{ t('schools.copyPlay.teacherLabel', 'Teacher') }}</label>
+    <label class="copy-play-label" for="copy-play-teacher">{{ t('schools.copyPlay.teacherLabel', 'Teacher') }}</label>
     <FrostSelect
-      v-if="!selfMode"
       id="copy-play-teacher"
       v-model="pickedTeacherId"
       class="copy-play-select"
@@ -171,20 +158,17 @@ function words(p: PositionWords | null | undefined): string {
 
     <!-- HANDBOOK Copy a teacher's own play onto the class
          section: running-classes
-         roles: school_admin, teacher
+         roles: school_admin
          place: class-detail
          keywords: copy, teacher, play as class, progress, mistake, own account
          parts: class-copy-play-picker, class-copy-play-preview-result, class-copy-play-apply, class-copy-play-done
-         What it's for. Putting right a class whose teacher ran a lesson signed in as
+         What it's for. Putting right a class whose teacher ran lessons signed in as
          themselves instead of using Play as class, so the class carries the
-         progress it really made. A teacher fixes their own lesson; a school leader
-         can fix any teacher's.
-         Where it is. The class page and the class tools page, the **Ran a lesson
-         signed in as yourself?** card. A school leader's card is headed **Played as
-         themselves by mistake?** and has a list to pick the teacher from.
+         progress it really made.
+         Where it is. The class page, the **Played as themselves by mistake?** card
+         beside the roster.
          How you do it.
-         1. As a school leader, pick the teacher from the list. As a teacher there is
-            no list: the card is about you.
+         1. Pick the teacher from the list.
          2. Tap **See what would move** and read the sessions, the time in the app
             and where the class will be afterwards.
          3. Tap **Copy onto the class**. One line tells you what was copied.
@@ -192,7 +176,7 @@ function words(p: PositionWords | null | undefined): string {
          course moves, the class ends up at the further of the two places, and running
          it again copies nothing twice. While viewing as someone else you can see what
          would move but not copy it.
-         checked: 36b15ce9.a54d0cbd
+         checked: 31a59a41.64ae1935
     -->
     <div class="copy-play-actions">
       <button type="button" class="btn-ghost btn-small" data-walk="class-copy-play-preview" :disabled="busy || !pickedTeacherId" @click="runPreview">

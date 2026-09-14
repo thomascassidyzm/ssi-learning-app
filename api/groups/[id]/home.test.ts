@@ -649,44 +649,6 @@ describe('GET /api/groups/:id/home', () => {
     expect(off.body.funderReporting).toBeNull()
   })
 
-  // ONE CLASS PAGE FOR TEACHERS TOO (job #651, Tom 2026-09-14: "every class
-  // page should always default to… the one with play-as-class stats"). A
-  // teacher governs no group, so the leader resolver 403s them; the class home
-  // must still open for the class they teach — and for nothing else.
-  it('a TEACHER of the class opens its class home — no ancestors, callerTeachesClass true — and is refused any other id', async () => {
-    verifyAuthTokenResult = { valid: true, userId: 'teacher-uid-2' } // co-teacher via class_teachers, not the lead pointer
-    const res = makeRes()
-    await handler(makeReq('class-1'), res)
-    expect(res.statusCode).toBe(200)
-    expect(res.body.kind).toBe('class')
-    expect(res.body.callerTeachesClass).toBe(true)
-    expect(res.body.ancestors).toEqual([])
-    expect(res.body.classPractice.phrases7d).toBe(4)
-
-    const school = makeRes()
-    await handler(makeReq('school-1'), school)
-    expect(school.statusCode).toBe(403)
-    const group = makeRes()
-    await handler(makeReq('programme'), group)
-    expect(group.statusCode).toBe(403)
-  })
-
-  it('a teacher who does NOT teach the class is refused it', async () => {
-    verifyAuthTokenResult = { valid: true, userId: 'some-other-teacher' }
-    const res = makeRes()
-    await handler(makeReq('class-1'), res)
-    expect(res.statusCode).toBe(403)
-  })
-
-  it('a leader keeps the class\'s school in the rail and is not marked as its teacher', async () => {
-    verifyAuthTokenResult = { valid: true, userId: 'leader-1' }
-    const res = makeRes()
-    await handler(makeReq('class-1'), res)
-    expect(res.statusCode).toBe(200)
-    expect(res.body.ancestors.map((a: any) => a.id)).toContain('school-node')
-    expect(res.body.callerTeachesClass).toBe(false)
-  })
-
   it('403s a leader asking for a group outside their subtree', async () => {
     verifyAuthTokenResult = { valid: true, userId: 'leader-1' }
     const res = makeRes()
