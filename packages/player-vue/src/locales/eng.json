@@ -123,9 +123,8 @@
     "beltStillDownloading": "{belt} isn't on this device yet — it'll open as soon as it comes through.",
     "contentStillDownloading": "That isn't on this device yet — it'll open as soon as it comes through.",
     "choosePlanCancel": "Two plans, from £15/month. Cancel anytime.",
-    "ownAccountNudge": "This counts for you, not for {class}. To make it count for the class, use Play as class.",
-    "ownAccountNudgeCta": "Open the class",
-    "ownAccountNudgeDismiss": "Dismiss"
+    "playingAsYourself": "You are now playing as yourself. If you want to play as class please go here.",
+    "playingAsYourselfLink": "Your classes"
   },
   "home": {
     "goodMorning": "Good morning",

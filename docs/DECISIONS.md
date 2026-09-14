@@ -2384,10 +2384,24 @@ Every in-app Learn / My player tap still reaches the player, so her own play is 
 away, never the default; deep links with a query keep their intention; school admins, group leaders
 and tutors are not in the ruling and keep the 2026-07-24 default (`composables/teacherLanding.ts`).
 For teachers this supersedes 2026-07-24. Job #624's leaving teachers on the flat class page was
-already reversed by #651 (one class page for every role) and needs nothing more. The 12:58Z own-
-account steer stays: it is the second line, for the teacher who chooses Learn and then presses play
-on her class's course. Known edge: the guard reads the cached role, so a brand-new device's very
-first sign-in reaches the player once; from the next open, the dashboard.
+already reversed by #651 (one class page for every role) and needs nothing more. Known edge: the
+guard reads the cached role, so a brand-new device's very first sign-in reaches the player once;
+from the next open, the dashboard.
+
+**Third addition, 13:07Z (Tom: "a warning across the dashboard navigation? You are now playing as
+yourself. If you want to play as class please go here." and "make it harder for the teachers to
+find their own learner account? Maybe that is in a drop down menu by the avatar? Rather than in
+the nav itself?").** (1) The Learn button leaves the schools top bar for a TEACHER; her own
+account stays one step away as My player in the avatar menu; leaders keep Learn. (2) The warning,
+in his words, with a link to her classes. WHERE IT SITS, and why: the dashboard navigation is not
+present on the player a teacher plays herself on — self-practice lands on the navless player at
+`/` by the 2026-08-06 ruling — so a banner on the dashboard navigation would never be seen at the
+moment of the mistake. It sits across the top of that player instead, persistent while a teacher
+is there, never under a class context, never in the embedded shell player
+(`composables/ownPlayBanner.ts`). This replaces the 12:58Z own-account steer, which was the same
+line in different words and only after the play tap. If Tom wants it strictly on the dashboard
+nav, that is a different surface from where the mistake happens and is his call; the report says
+so rather than deciding it.
 
 **Not done, and why.** No bulk apply, per the brief and the audit model. The sweep is not run
 against any real teacher by this job: Angharad runs it. The first live sweep on Chepstow lists 27
