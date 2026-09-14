@@ -12,6 +12,13 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 export type Row = Record<string, any>
 export type DB = Record<string, Row[]>
 
+/**
+ * Make every read of `table` answer the way PostgREST does when the database
+ * refuses it: `{ data: null, error }`, no throw. The route under test must turn
+ * that into a loud failure rather than an empty result (RLS doctrine rule 8).
+ */
+export const FAILING_TABLES = new Map<string, { message: string; code?: string }>()
+
 let seq = 0
 export function makeChainable(db: DB, table: string) {
   let rows: Row[] = [...(db[table] ?? [])]
@@ -36,6 +43,8 @@ export function makeChainable(db: DB, table: string) {
     maybeSingle: () => { single = 'maybe'; return builder },
     single: () => { single = 'single'; return builder },
     then: (resolve: any, reject?: any) => {
+      const failure = FAILING_TABLES.get(table)
+      if (failure) return Promise.resolve({ data: null, error: failure, count: null }).then(resolve, reject)
       let out: Row[]
       if (pending?.kind === 'insert') {
         const row = { id: `row-${++seq}`, created_at: new Date(Date.now() + seq).toISOString(), ...pending.values }

@@ -61,7 +61,10 @@ export interface SupportThreadRow {
 export async function findThread(svc: SupabaseClient, scope: SupportScope): Promise<SupportThreadRow | null> {
   const col = scope.kind === 'school' ? 'school_id' : 'group_id'
   const key = scope.kind === 'school' ? scope.schoolId : scope.groupId
-  const { data } = await svc.from('support_threads').select('*').eq(col, key).maybeSingle()
+  const { data, error } = await svc.from('support_threads').select('*').eq(col, key).maybeSingle()
+  // Silent to loud (RLS doctrine rule 8): a refused lookup is not "no thread",
+  // it is a failure the caller must see as a 500, never as unread zero.
+  if (error) throw new Error(`support thread lookup failed: ${error.message}`)
   return (data as SupportThreadRow | null) ?? null
 }
 
