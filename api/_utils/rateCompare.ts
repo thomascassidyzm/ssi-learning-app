@@ -161,16 +161,17 @@ export function aggregateWeeklyTrend(rows: ScopedSessionRow[], classIds: string[
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// MEASURES (THE LENS: rate | minutes_per_class | hours_total | active_classes)
+// MEASURES (THE LENS: rate | minutes | active_classes)
 //
 // All computed from the SAME ScopedSessionRow[] the rate math already reads
 // — no new fetch, no new RPC. `rate` keeps its existing pace primitives
-// above; these three add the rest of the contract's measure set. Every
-// measure follows the SAME grammar as rate: an ENTITY-level value/trend, and
-// each COHORT MEMBER gets its own value/trend computed by the identical
-// function over that member's own classIds — so "average" is always "mean of
-// members' own entity-level metric," whether the metric itself is a mean
-// (minutes_per_class) or a sum (hours_total, active_classes).
+// above; `minutes` is the in-app minutes TOTAL in the window (job #673,
+// 2026-09-14 — it replaced a per-week rate, `minutes_per_class`, and a
+// duplicate in hours, `hours_total`). Every measure follows the SAME grammar
+// as rate: an ENTITY-level value/trend, and each COHORT MEMBER gets its own
+// value/trend computed by the identical function over that member's own
+// classIds — so "average" is always "mean of members' own entity-level
+// metric," whether the metric itself is a rate or a sum.
 // ─────────────────────────────────────────────────────────────────────────
 
 function periodBoundaries(periods: number, periodDays: number, now: Date): number[] {
@@ -182,61 +183,21 @@ function periodBoundaries(periods: number, periodDays: number, now: Date): numbe
 }
 
 export interface WindowMinutes {
-  minutesPerWeek: number
+  minutes: number
   hasData: boolean
 }
 
-/** Mean weekly practice minutes for ONE class, NOW-anchored (idle time decays it) — the minutes analog of windowPaceForClass. */
-export function windowMinutesForClass(rows: ScopedSessionRow[], classId: string, days: number, now: Date): WindowMinutes {
-  const since = now.getTime() - days * MS_PER_DAY
-  const own = rows.filter((r) => r.class_id === classId && new Date(r.started_at).getTime() >= since)
-  if (own.length === 0) return { minutesPerWeek: 0, hasData: false }
-  let totalSeconds = 0
-  let firstAt = Infinity
-  for (const r of own) {
-    totalSeconds += r.duration_seconds ?? 0
-    firstAt = Math.min(firstAt, new Date(r.started_at).getTime())
-  }
-  const weeks = Math.max((now.getTime() - firstAt) / MS_PER_WEEK, 1 / 7)
-  return { minutesPerWeek: round1(totalSeconds / 60 / weeks), hasData: true }
-}
-
-/** Mean weekly practice minutes per active member class — the minutes analog of aggregateWindowPace. */
-export function aggregateWindowMinutes(rows: ScopedSessionRow[], classIds: string[], days: number, now: Date): WindowMinutes {
-  const active = classIds.map((id) => windowMinutesForClass(rows, id, days, now)).filter((w) => w.hasData)
-  if (active.length === 0) return { minutesPerWeek: 0, hasData: false }
-  return { minutesPerWeek: round1(active.reduce((s, w) => s + w.minutesPerWeek, 0) / active.length), hasData: true }
-}
-
-/** Per-class minutes trend, bucketed (not cumulative — minutes aren't monotonic like LEGO position). */
-export function minutesTrendForClass(rows: ScopedSessionRow[], classId: string, periods: number, periodDays: number, now: Date): number[] {
-  if (!rows.some((r) => r.class_id === classId)) return []
-  const bounds = periodBoundaries(periods, periodDays, now)
-  const trend: number[] = []
-  for (let i = 1; i < bounds.length; i++) {
-    let secs = 0
-    for (const r of rows) {
-      if (r.class_id !== classId) continue
-      const t = new Date(r.started_at).getTime()
-      if (t > bounds[i - 1] && t <= bounds[i]) secs += r.duration_seconds ?? 0
-    }
-    trend.push(round1(secs / 60))
-  }
-  return trend
-}
-
-/** Mean-trend across member classes' own minutes trend — the minutes analog of aggregatePeriodTrend. */
-export function aggregateMinutesTrend(rows: ScopedSessionRow[], classIds: string[], periods: number, periodDays: number, now: Date): number[] {
-  return meanTrend(classIds.map((id) => minutesTrendForClass(rows, id, periods, periodDays, now)))
-}
-
-export interface WindowHours {
-  hours: number
-  hasData: boolean
-}
-
-/** Total practice hours for an ENTITY (a set of classIds) inside the window — a straight sum, no NOW-anchored decay (it's a total, not a rate). */
-export function windowHoursForEntity(rows: ScopedSessionRow[], classIds: string[], days: number, now: Date): WindowHours {
+/**
+ * IN-APP MINUTES for an ENTITY (a set of classIds) inside the window — a
+ * straight SUM of the rows' seconds, no rate, no NOW-anchored decay. Tom,
+ * 2026-09-14: "last 30 days can NEVER be less than last 7 days ... no, it
+ * just can't be." A total in a rolling window is monotone in the window by
+ * construction; the per-week rate this replaced (minutes ÷ weeks from first
+ * activity to now) read 18.7 for a week and 11.5 for a month on one burst
+ * of play. The rows are the class accounts' play-to-stop spans
+ * (_utils/diarySessionRows.ts), the one minute definition in inAppTime.ts.
+ */
+export function windowMinutesForEntity(rows: ScopedSessionRow[], classIds: string[], days: number, now: Date): WindowMinutes {
   const since = now.getTime() - days * MS_PER_DAY
   const idSet = new Set(classIds)
   let totalSeconds = 0
@@ -247,11 +208,11 @@ export function windowHoursForEntity(rows: ScopedSessionRow[], classIds: string[
     totalSeconds += r.duration_seconds ?? 0
     any = true
   }
-  return { hours: round1(totalSeconds / 3600), hasData: any }
+  return { minutes: round1(totalSeconds / 60), hasData: any }
 }
 
-/** Bucketed total-hours trend for an ENTITY (a set of classIds) — sum per period, not per-class-then-averaged. */
-export function hoursTrendForEntity(rows: ScopedSessionRow[], classIds: string[], periods: number, periodDays: number, now: Date): number[] {
+/** Bucketed minutes trend for an ENTITY — the sum per period, so the bars add up to the window total. A period with no play is a zero, never interpolated. */
+export function minutesTrendForEntity(rows: ScopedSessionRow[], classIds: string[], periods: number, periodDays: number, now: Date): number[] {
   const idSet = new Set(classIds)
   const bounds = periodBoundaries(periods, periodDays, now)
   const trend: number[] = []
@@ -262,7 +223,7 @@ export function hoursTrendForEntity(rows: ScopedSessionRow[], classIds: string[]
       const t = new Date(r.started_at).getTime()
       if (t > bounds[i - 1] && t <= bounds[i]) secs += r.duration_seconds ?? 0
     }
-    trend.push(round1(secs / 3600))
+    trend.push(round1(secs / 60))
   }
   return trend
 }
@@ -304,7 +265,7 @@ export function activeClassesTrendForEntity(rows: ScopedSessionRow[], classIds: 
   return trend
 }
 
-export type MeasureId = 'rate' | 'minutes_per_class' | 'hours_total' | 'active_classes'
+export type MeasureId = 'rate' | 'minutes' | 'active_classes'
 
 export interface MeasureResult {
   value: number
@@ -331,13 +292,9 @@ export function computeMeasureForClassIds(
       const w = aggregateWindowPace(rows, classIds, days, now)
       return { value: w.pace, trend: aggregatePeriodTrend(rows, classIds, periods, periodDays, now) }
     }
-    case 'minutes_per_class': {
-      const w = aggregateWindowMinutes(rows, classIds, days, now)
-      return { value: w.minutesPerWeek, trend: aggregateMinutesTrend(rows, classIds, periods, periodDays, now) }
-    }
-    case 'hours_total': {
-      const w = windowHoursForEntity(rows, classIds, days, now)
-      return { value: w.hours, trend: hoursTrendForEntity(rows, classIds, periods, periodDays, now) }
+    case 'minutes': {
+      const w = windowMinutesForEntity(rows, classIds, days, now)
+      return { value: w.minutes, trend: minutesTrendForEntity(rows, classIds, periods, periodDays, now) }
     }
     case 'active_classes': {
       const w = activeClassesShareForEntity(rows, classIds, days, now)

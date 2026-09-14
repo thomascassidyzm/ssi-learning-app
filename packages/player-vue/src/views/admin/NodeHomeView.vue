@@ -58,7 +58,6 @@ import { yearGroupBreakdown, practisedWithin, type YearGroupTile } from '@/views
 import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
 import { deriveBelt, BELTS, type Belt } from '@/composables/schools/belts'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
-import { formatPracticeMinutes, hoursToMinutes } from '@/composables/schools/practiceMinutes'
 import { isMemberNodeSurface, nodeInsightsPath } from '@/composables/nodeSurfacePaths'
 import { derivePreset } from '@/composables/nodeTerminology'
 import { timeAgo } from '@/composables/admin/adminUtils'
@@ -417,13 +416,12 @@ const classPractice = computed(() => home.value?.classPractice ?? null)
 // (api/_utils/inAppTime.ts). Audio-played minutes off the ledger are the
 // secondary figure, named in the sentence under the row. Every figure here is
 // backed by a live record.
-// All-time practice in MINUTES (Tom, 2026-09-11, job #265). practiceMinutes is
-// what the server sends now; a cached pre-#265 payload only has hours.
-const practiceMinutesAllTime = computed(() => {
-  const h = home.value as any
-  if (!h) return 0
-  return typeof h.practiceMinutes === 'number' ? h.practiceMinutes : hoursToMinutes(h.practiceHours)
-})
+// NO ALL-TIME "MINUTES PRACTISED" HERE ANY MORE (Tom, 2026-09-14, job #673:
+// one minute definition, one aggregation, everywhere). The server's
+// practiceMinutes / practiceHours sum school_summary and class_student_progress
+// off the sessions ledger, which the class account cannot write, so it was a
+// second truth beside the in-app minutes below. Every minutes figure on this
+// page is now the in-app rule (api/_utils/inAppTime.ts) over the last seven days.
 
 // EVERYTHING IS TAPPABLE (Tom on staging, 2026-09-14, job #624): on a school
 // leader's own school overview each card is a link to that figure broken
@@ -442,7 +440,7 @@ const stats = computed<{ value: string | number; word: string; to?: string }[]>(
   if (isClass.value) {
     return [
       { value: cp?.phrases7d ?? 0, word: t('org.nodeHome.statPhrasesSpokenThisWeek', 'Phrases practised this week') },
-      { value: cp?.inAppMinutes7d ?? 0, word: t('org.nodeHome.statMinutesInAppThisWeek', 'Minutes in the app this week') },
+      { value: cp?.inAppMinutes7d ?? 0, word: t('org.nodeHome.statMinutesPlayedAsClassThisWeek', 'Minutes played as class this week') },
       // The class's own journey — never a per-pupil count on a class, which
       // is one learner account (Tom's ruling, 2026-09-11, job #265).
       { value: journey.value ? `${journey.value.source === 'class-play' ? journey.value.done : 0}/${journey.value.total}` : '—', word: t('org.nodeHome.statJourneyLegos', 'Phrases travelled together') },
@@ -452,14 +450,13 @@ const stats = computed<{ value: string | number; word: string; to?: string }[]>(
   // Neutral dressing: no class/teacher words — practice, groups, learners.
   if (neutral.value) {
     return [
-      { value: formatPracticeMinutes(practiceMinutesAllTime.value), word: t('org.nodeHome.statMinutesPractised', 'Minutes practised') },
+      ...(cp ? [{ value: cp.inAppMinutes7d ?? 0, word: t('org.nodeHome.statMinutesInAppThisWeek', 'Minutes in the app this week') }] : []),
       { value: r.childGroupCount ?? 0, word: t('org.nodeHome.statGroups', 'Groups') },
       { value: r.learnerCount ?? 0, word: t('org.nodeHome.statLearners', 'Learners') },
     ]
   }
   if (!cp) {
     return [
-      { value: formatPracticeMinutes(practiceMinutesAllTime.value), word: t('org.nodeHome.statMinutesPractised', 'Minutes practised'), to: link('/schools/classes?sort=hours') },
       { value: r.classCount ?? 0, word: t('org.nodeHome.statClasses', 'Classes'), to: link('/schools/classes') },
       { value: r.teacherCount ?? 0, word: t('org.nodeHome.statTeachers', 'Teachers'), to: link('/schools/teachers') },
       { value: r.learnerCount ?? 0, word: t('org.nodeHome.statLearners', 'Learners'), to: link('/schools/students') },
@@ -1092,8 +1089,10 @@ const listPayload = computed(() => {
                   open the classes list with the classes in that order, classes
                   practising opens it narrowed to the classes that played this
                   week, and teachers opens the staff list.
-               Worth knowing. An organisation that is not school-shaped sees the same
-               row worded as practice hours, groups and learners instead.
+               Worth knowing. An organisation that is not school-shaped sees minutes
+               in the app this week, groups and learners instead. Every minute on this
+               page is the same minute: from pressing play to stopping, over the last
+               seven days, each account once. There is no all-time total here.
                checked: b278e3a1.b7def846
           -->
           <div class="stats-row" data-walk="node-stats">

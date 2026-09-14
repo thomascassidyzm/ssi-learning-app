@@ -6,12 +6,8 @@ import {
   aggregateWeeklyTrend,
   periodTrendForClass,
   aggregatePeriodTrend,
-  windowMinutesForClass,
-  aggregateWindowMinutes,
-  minutesTrendForClass,
-  aggregateMinutesTrend,
-  windowHoursForEntity,
-  hoursTrendForEntity,
+  windowMinutesForEntity,
+  minutesTrendForEntity,
   activeClassesShareForEntity,
   activeClassesTrendForEntity,
   computeMeasureForClassIds,
@@ -225,7 +221,7 @@ describe('coverageLabel', () => {
 
 // ─────────────────────────────────────────────────────────────────────────
 // THE LENS windows+measures contract — periodDays generalization + the three
-// new measures (minutes_per_class, hours_total, active_classes).
+// new measures (minutes, active_classes).
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('periodTrendForClass', () => {
@@ -267,108 +263,37 @@ describe('aggregatePeriodTrend', () => {
   })
 })
 
-describe('windowMinutesForClass', () => {
-  it('returns hasData=false for a class with no rows', () => {
-    expect(windowMinutesForClass([], 'c1', 90, NOW).hasData).toBe(false)
+describe('windowMinutesForEntity — the in-app minutes TOTAL in the window', () => {
+  it('returns hasData=false and 0 for an entity with no rows', () => {
+    expect(windowMinutesForEntity([], ['c1'], 90, NOW)).toEqual({ minutes: 0, hasData: false })
   })
 
-  it('computes mean weekly minutes, NOW-anchored (single-session floor mirrors pace math)', () => {
-    const rows: ScopedSessionRow[] = [row({ duration_seconds: 1800, started_at: NOW.toISOString() })]
-    // 30 min in a span floored to 1/7 week -> 30 * 7 = 210 min/wk
-    expect(windowMinutesForClass(rows, 'c1', 90, NOW).minutesPerWeek).toBe(210)
-  })
-
-  it('decays for a class that has gone quiet — NOW-anchored, like windowPaceForClass', () => {
+  it('sums seconds across the entity\'s classes inside the window and ignores other classes and older rows', () => {
     const rows: ScopedSessionRow[] = [
-      row({ duration_seconds: 3600, started_at: new Date(NOW.getTime() - 56 * 86_400_000).toISOString() }), // 60 min, 8 weeks ago
+      row({ class_id: 'c1', duration_seconds: 1800, started_at: NOW.toISOString() }),
+      row({ class_id: 'c2', duration_seconds: 900, started_at: new Date(NOW.getTime() - 3 * 86_400_000).toISOString() }),
+      row({ class_id: 'c3', duration_seconds: 3600, started_at: NOW.toISOString() }),               // not in the entity
+      row({ class_id: 'c1', duration_seconds: 3600, started_at: new Date(NOW.getTime() - 100 * 86_400_000).toISOString() }), // outside 90d
     ]
-    expect(windowMinutesForClass(rows, 'c1', 90, NOW).minutesPerWeek).toBe(7.5) // 60 min / 8 weeks
+    expect(windowMinutesForEntity(rows, ['c1', 'c2'], 90, NOW)).toEqual({ minutes: 45, hasData: true })
   })
 
-  it('ignores rows outside the requested window', () => {
+  it('does not decay: one session 500 days ago still reads its full minutes at the all-time window', () => {
     const rows: ScopedSessionRow[] = [
-      row({ duration_seconds: 3600, started_at: new Date(NOW.getTime() - 200 * 86_400_000).toISOString() }),
+      row({ duration_seconds: 36000, started_at: new Date(NOW.getTime() - 500 * 86_400_000).toISOString() }),
     ]
-    expect(windowMinutesForClass(rows, 'c1', 90, NOW).hasData).toBe(false)
+    expect(windowMinutesForEntity(rows, ['c1'], 3650, NOW).minutes).toBe(600)
   })
 })
 
-describe('aggregateWindowMinutes', () => {
-  it('averages minutes-per-week across active member classes, ignoring members with none', () => {
+describe('minutesTrendForEntity', () => {
+  it('buckets TOTAL minutes per period across the whole entity, oldest first, zero for an empty period', () => {
     const rows: ScopedSessionRow[] = [
-      row({ class_id: 'c1', duration_seconds: 1800, started_at: NOW.toISOString() }), // 210/wk
-      row({ class_id: 'c2', duration_seconds: 3600, started_at: NOW.toISOString() }), // 420/wk
-      // c3 has no rows — excluded from the mean, not treated as 0.
+      row({ class_id: 'c1', duration_seconds: 600, started_at: new Date(NOW.getTime() - 1 * 86_400_000).toISOString() }),
+      row({ class_id: 'c2', duration_seconds: 600, started_at: new Date(NOW.getTime() - 1 * 86_400_000).toISOString() }),
+      row({ class_id: 'c1', duration_seconds: 300, started_at: new Date(NOW.getTime() - 15 * 86_400_000).toISOString() }),
     ]
-    const agg = aggregateWindowMinutes(rows, ['c1', 'c2', 'c3'], 90, NOW)
-    expect(agg.hasData).toBe(true)
-    expect(agg.minutesPerWeek).toBe(315) // mean(210, 420)
-  })
-
-  it('degrades to hasData=false when no member has any data', () => {
-    expect(aggregateWindowMinutes([], ['c1', 'c2'], 90, NOW)).toEqual({ minutesPerWeek: 0, hasData: false })
-  })
-})
-
-describe('minutesTrendForClass', () => {
-  it('returns an empty array for a class with no rows at all', () => {
-    expect(minutesTrendForClass([], 'c1', 8, 7, NOW)).toEqual([])
-  })
-
-  it('buckets minutes per period — NOT cumulative (minutes are not monotonic like LEGO position)', () => {
-    const rows: ScopedSessionRow[] = [
-      row({ duration_seconds: 1800, started_at: new Date(NOW.getTime() - 6 * MSDAY(7)).toISOString() }), // 30 min, 6 weeks ago
-      row({ duration_seconds: 1200, started_at: NOW.toISOString() }), // 20 min, now
-    ]
-    const trend = minutesTrendForClass(rows, 'c1', 8, 7, NOW)
-    expect(trend).toHaveLength(8)
-    expect(trend.reduce((a, b) => a + b, 0)).toBe(50) // 30 + 20 minutes total, summed not cumulative
-  })
-})
-
-describe('aggregateMinutesTrend', () => {
-  it('mean-trends minutes across member classes', () => {
-    const rows: ScopedSessionRow[] = [
-      row({ class_id: 'c1', duration_seconds: 1200, started_at: NOW.toISOString() }), // 20 min
-      row({ class_id: 'c2', duration_seconds: 2400, started_at: NOW.toISOString() }), // 40 min
-    ]
-    const trend = aggregateMinutesTrend(rows, ['c1', 'c2'], 4, 7, NOW)
-    expect(trend).toHaveLength(4)
-    expect(trend[trend.length - 1]).toBe(30) // mean(20, 40) landing in the final bucket
-  })
-})
-
-describe('windowHoursForEntity', () => {
-  it("sums total practice hours across an entity's classes inside the window — a straight sum, no NOW-anchored decay", () => {
-    const rows: ScopedSessionRow[] = [
-      row({ class_id: 'c1', duration_seconds: 3600, started_at: new Date(NOW.getTime() - 60 * 86_400_000).toISOString() }), // 1h, 60 days ago
-      row({ class_id: 'c2', duration_seconds: 7200, started_at: NOW.toISOString() }), // 2h now
-    ]
-    const result = windowHoursForEntity(rows, ['c1', 'c2'], 90, NOW)
-    expect(result.hasData).toBe(true)
-    expect(result.hours).toBe(3) // 1h + 2h — a total, not a decaying rate
-  })
-
-  it('ignores rows outside the window and rows for classes not in the entity', () => {
-    const rows: ScopedSessionRow[] = [
-      row({ class_id: 'c1', duration_seconds: 3600, started_at: new Date(NOW.getTime() - 200 * 86_400_000).toISOString() }),
-      row({ class_id: 'other', duration_seconds: 3600, started_at: NOW.toISOString() }),
-    ]
-    const result = windowHoursForEntity(rows, ['c1'], 90, NOW)
-    expect(result.hasData).toBe(false)
-    expect(result.hours).toBe(0)
-  })
-})
-
-describe('hoursTrendForEntity', () => {
-  it('buckets TOTAL hours per period across the whole entity (sum, not per-class-then-averaged)', () => {
-    const rows: ScopedSessionRow[] = [
-      row({ class_id: 'c1', duration_seconds: 3600, started_at: NOW.toISOString() }),
-      row({ class_id: 'c2', duration_seconds: 3600, started_at: NOW.toISOString() }),
-    ]
-    const trend = hoursTrendForEntity(rows, ['c1', 'c2'], 4, 7, NOW)
-    expect(trend).toHaveLength(4)
-    expect(trend[trend.length - 1]).toBe(2) // 1h + 1h summed, not averaged
+    expect(minutesTrendForEntity(rows, ['c1', 'c2'], 4, 7, NOW)).toEqual([0, 5, 0, 20])
   })
 })
 
@@ -416,16 +341,24 @@ describe('computeMeasureForClassIds — one dispatch, every measure follows the 
     expect(result.trend).toEqual(aggregatePeriodTrend(rows, ['c1'], 8, 7, NOW))
   })
 
-  it('minutes_per_class dispatches to aggregateWindowMinutes + aggregateMinutesTrend', () => {
-    const result = computeMeasureForClassIds('minutes_per_class', rows, ['c1'], 90, 8, 7, NOW)
-    expect(result.value).toBe(aggregateWindowMinutes(rows, ['c1'], 90, NOW).minutesPerWeek)
-    expect(result.trend).toEqual(aggregateMinutesTrend(rows, ['c1'], 8, 7, NOW))
+  it('minutes dispatches to windowMinutesForEntity + minutesTrendForEntity — a total, and the bars add up to it', () => {
+    const result = computeMeasureForClassIds('minutes', rows, ['c1'], 90, 8, 7, NOW)
+    expect(result.value).toBe(windowMinutesForEntity(rows, ['c1'], 90, NOW).minutes)
+    expect(result.value).toBe(30)
+    expect(result.trend).toEqual(minutesTrendForEntity(rows, ['c1'], 8, 7, NOW))
+    expect(result.trend.reduce((a, b) => a + b, 0)).toBe(30)
   })
 
-  it('hours_total dispatches to windowHoursForEntity + hoursTrendForEntity', () => {
-    const result = computeMeasureForClassIds('hours_total', rows, ['c1'], 90, 8, 7, NOW)
-    expect(result.value).toBe(windowHoursForEntity(rows, ['c1'], 90, NOW).hours)
-    expect(result.trend).toEqual(hoursTrendForEntity(rows, ['c1'], 8, 7, NOW))
+  it('minutes: a wider window never reads less than a narrower one (Tom, 2026-09-14)', () => {
+    const burst: ScopedSessionRow[] = [
+      row({ class_id: 'c1', duration_seconds: 3600, started_at: new Date(NOW.getTime() - 2 * 86_400_000).toISOString() }),
+      row({ class_id: 'c1', duration_seconds: 300, started_at: new Date(NOW.getTime() - 20 * 86_400_000).toISOString() }),
+    ]
+    const day = windowMinutesForEntity(burst, ['c1'], 1, NOW).minutes
+    const week = windowMinutesForEntity(burst, ['c1'], 7, NOW).minutes
+    const month = windowMinutesForEntity(burst, ['c1'], 30, NOW).minutes
+    const all = windowMinutesForEntity(burst, ['c1'], 3650, NOW).minutes
+    expect([day, week, month, all]).toEqual([0, 60, 65, 65])
   })
 
   it('active_classes dispatches to activeClassesShareForEntity + activeClassesTrendForEntity', () => {
@@ -445,17 +378,4 @@ describe('honest-pace decay at the "all time" window (3650-day practical-unbound
     expect(result.pace).toBe(1.4) // 100 legos / (500/7 weeks)
   })
 
-  it('the minutes measure decays the same way at the all-time window', () => {
-    const rows: ScopedSessionRow[] = [
-      row({ duration_seconds: 36000, started_at: new Date(NOW.getTime() - 700 * 86_400_000).toISOString() }), // 10h, 100 weeks ago
-    ]
-    expect(windowMinutesForClass(rows, 'c1', 3650, NOW).minutesPerWeek).toBe(6) // 600 min / 100 weeks
-  })
-
-  it("hours_total stays a straight sum even at the all-time window — no decay, unlike rate/minutes", () => {
-    const rows: ScopedSessionRow[] = [
-      row({ duration_seconds: 3600, started_at: new Date(NOW.getTime() - 900 * 86_400_000).toISOString() }),
-    ]
-    expect(windowHoursForEntity(rows, ['c1'], 3650, NOW).hours).toBe(1)
-  })
 })

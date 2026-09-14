@@ -124,9 +124,11 @@ describe('NodeHomeView — one grammar at every level', () => {
     // Identity header
     expect(wrapper.find('.identity-name').text()).toBe('IME Demo Programme')
     expect(text).toContain('Demo')
-    // Stats row — subtree totals + practice in MINUTES (job #265): 266.4h → 15984 min
+    // Stats row — subtree totals. NO all-time "15984 min" any more (job #673,
+    // Tom 2026-09-14): that figure summed the sessions ledger, a second minute
+    // beside the in-app minutes; the page shows in-app minutes only.
     expect(text).toContain('80')
-    expect(text).toContain('15984 min')
+    expect(text).not.toContain('15984 min')
     expect(text).not.toMatch(/\d+(\.\d+)?h\b/)
     // BELOW THIS — the containment structure, drawn: this node as the trunk,
     // its school nested under it, that school's class nested under THAT, and
@@ -441,7 +443,7 @@ describe('NodeHomeView — one grammar at every level', () => {
     // then minutes in the app — before any people count, and never the
     // individual practice-hours figure or a session count.
     const statWords = wrapper.findAll('.stat-card .stat-word').map((w) => w.text())
-    expect(statWords.slice(0, 2)).toEqual(['Phrases practised this week', 'Minutes in the app this week'])
+    expect(statWords.slice(0, 2)).toEqual(['Phrases practised this week', 'Minutes played as class this week'])
     const statValues = wrapper.findAll('.stat-card .stat-value').map((v) => v.text())
     expect(statValues.slice(0, 2)).toEqual(['42', '78'])
     expect(text).not.toContain('Minutes practised')
@@ -518,8 +520,10 @@ describe('NodeHomeView — one grammar at every level', () => {
     await flushPromises()
 
     const text = wrapper.text()
-    // Stats: practice / groups / learners — never TEACHERS or CLASSES tiles.
-    expect(text).toContain('Minutes practised')
+    // Stats: groups / learners (and in-app minutes when the practice payload
+    // carries them) — never TEACHERS or CLASSES tiles, and never the all-time
+    // sessions-ledger "Minutes practised" (job #673).
+    expect(text).not.toContain('Minutes practised')
     expect(text).toContain('Groups')
     expect(text).toContain('Learners')
     expect(text).not.toContain('Teachers')
@@ -618,7 +622,7 @@ describe('NodeHomeView — one grammar at every level', () => {
     expect(wrapper.text()).toContain("you're here")
     expect(wrapper.find('.identity-name').text()).toBe('IME Demo Programme')
     // Stats render the still-correct cached values (same node, seconds old).
-    expect(wrapper.text()).toContain('15984 min')
+    expect(wrapper.text()).toContain('80')
   })
 
   it('MEMBER-MOUNT PIN (/org/:id): same page for a leader — links stay in member scope, no admin escape, invite verbs only', async () => {
