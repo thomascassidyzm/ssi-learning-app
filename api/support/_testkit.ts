@@ -23,7 +23,7 @@ let seq = 0
 export function makeChainable(db: DB, table: string) {
   let rows: Row[] = [...(db[table] ?? [])]
   let single: 'maybe' | 'single' | null = null
-  let pending: { kind: 'insert' | 'update'; values: Row } | null = null
+  let pending: { kind: 'insert' | 'update' | 'delete' | 'noop'; values: Row } | null = null
   const filters: Array<(r: Row) => boolean> = []
   const builder: any = {
     select: () => builder,
@@ -32,6 +32,22 @@ export function makeChainable(db: DB, table: string) {
     eq: (col: string, val: unknown) => { filters.push((r) => r[col] === val); return builder },
     in: (col: string, vals: unknown[]) => { filters.push((r) => vals.includes(r[col])); return builder },
     is: (col: string, val: unknown) => { filters.push((r) => r[col] == val); return builder },
+    /** jsonb @> : the row's column carries every key the pattern names, recursively. */
+    contains: (col: string, pattern: Record<string, unknown>) => {
+      const subset = (have: any, want: any): boolean => {
+        if (want === null || typeof want !== 'object') return have === want
+        if (have === null || typeof have !== 'object') return false
+        return Object.entries(want).every(([k, v]) => subset(have[k], v))
+      }
+      filters.push((r) => subset(r[col], pattern))
+      return builder
+    },
+    upsert: (values: Row, opts: { onConflict: string; ignoreDuplicates?: boolean }) => {
+      const dup = (db[table] ?? []).some((r) => r[opts.onConflict] != null && r[opts.onConflict] === values[opts.onConflict])
+      pending = dup ? { kind: 'noop', values } : { kind: 'insert', values }
+      return builder
+    },
+    delete: () => { pending = { kind: 'delete', values: {} }; return builder },
     gte: (col: string, val: string) => { filters.push((r) => String(r[col]) >= val); return builder },
     order: (col: string, opts?: { ascending?: boolean }) => {
       const asc = opts?.ascending !== false
@@ -53,6 +69,11 @@ export function makeChainable(db: DB, table: string) {
       } else if (pending?.kind === 'update') {
         out = []
         for (const r of db[table] ?? []) if (filters.every((f) => f(r))) { Object.assign(r, pending.values); out.push(r) }
+      } else if (pending?.kind === 'delete') {
+        out = (db[table] ?? []).filter((r) => filters.every((f) => f(r)))
+        db[table] = (db[table] ?? []).filter((r) => !out.includes(r))
+      } else if (pending?.kind === 'noop') {
+        out = []
       } else {
         out = rows.filter((r) => filters.every((f) => f(r)))
       }

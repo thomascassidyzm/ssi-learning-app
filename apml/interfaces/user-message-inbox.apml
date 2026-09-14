@@ -1,0 +1,87 @@
+# User Message Inbox — the in-app message primitive
+# AI Projects Markup Language (APML) — intent capture, largely superseded by direct code generation
+
+metadata:
+  title: "User Message Inbox"
+  version: "1.0.0"
+  date: "2026-09-14"   # Job #684: one message primitive per user; first specimen the teacher-play copy notice with one-tap undo
+  author: "Tom Cassidy"
+  status: "live on dev/staging"
+
+# =============================================================================
+# PRINCIPLES
+# =============================================================================
+
+principle OnePrimitive:
+  statement: "ONE message primitive per user: a source, a real read state, an optional one-tap action. Not a per-surface strip."
+  ruling: "Tom, 2026-09-14 (RBF): we DO want to be able to send them in-app messages about stuff like this."
+  policy: "the bar for sending a learner anything is whether it changes what they would do, or the inbox becomes the tab nobody opens."
+
+principle DeliveredIsNotSeen:
+  statement: "A message is unread until the person taps it. Listing never marks read."
+  implications:
+    - "GET /api/messages returns rows and the unread count and writes nothing"
+    - "POST /api/messages/read stamps read_at on the tapped message"
+    - "Opening the Support thread (GET /api/support/thread, not the peek) marks that thread's support_reply rows read: the reply is on the screen the person tapped for"
+    - "dismissed_at is the learner Library card only; a dismissed message stays in the inbox, still unread"
+
+principle SupportIsOneSource:
+  statement: "Support replies land in the inbox; the schools account menu has one unread count, not two."
+  implementation: "AFTER INSERT trigger on support_messages (direction = 'out') fans one user_messages row out per admin of the thread's school or group, dedupe key support_reply:<message_id>:<recipient>. The Support entry keeps opening the thread; the ?peek=1 dot on it is gone."
+
+# =============================================================================
+# DATA
+# =============================================================================
+
+table user_messages:
+  posture: "RLS on; own-row SELECT and own-row UPDATE (read_at, dismissed_at only) for authenticated; inserts service-role only"
+  identity: "recipient_user_id = auth uid (learners.user_id), compared as auth.uid()::text"
+  columns:
+    - id, recipient_user_id, source, title, body
+    - action jsonb: { kind, label, payload } — kinds: undo_class_play_copy { audit_id, class_id }; open_support { thread_id, message_id }
+    - action_taken_at, read_at, dismissed_at, created_at
+    - dedupe_key unique: a sender is idempotent
+  migration: "supabase/migrations/20260914e_user_messages.sql (applied live 2026-09-14)"
+
+# =============================================================================
+# SERVER
+# =============================================================================
+
+module api/_utils/userMessages.ts:
+  sendUserMessage: "(svc, { recipientUserId, source, title, body, action?, dedupeKey? }) → { sent, id, error? }"
+  markSupportRepliesRead: "called by the thread open"
+
+module api/messages:
+  GET  /api/messages: "own rows newest first + unread; never marks read"
+  POST /api/messages/read: "{ id } — the tap"
+  POST /api/messages/dismiss: "{ id } — Library card only"
+  POST /api/messages/act: "{ id } — runs the action once, stamps action_taken_at, 409 on a second run; undo refused with reason played_since / already_undone"
+  POST /api/messages/backfill-copy-notices: "ssi_admin; sends the class_play_copied notice for every audit row without one"
+  view_as: "every route refuses a tagged request; a tour renders the inbox empty and read-only"
+
+module api/_utils/classProgressCopy.ts:
+  undoCopy: "deletes exactly the newId rows the audit record names per table (children before sessions), restores cursorBefore.target, appends an undo audit row { undo_of, deleted, cursorRestored }, refuses when the class account has played since the copy"
+  priorCopied: "ignores undone runs, so a copy can run again after an undo"
+
+module api/_utils/copyPlayNotice.ts:
+  sendClassPlayCopiedNotice: "one builder, called from applyCopy and by the backfill; dedupe key class_play_copied:<audit_id>"
+
+# =============================================================================
+# CLIENT
+# =============================================================================
+
+composable useUserMessages:
+  state: "module-level messages; unread; unreadBadge (9+ cap); cardMessage (newest unread undismissed)"
+  actions: "refresh, markRead, dismiss, act"
+
+component components/messages/UserMessageList.vue:
+  behaviour: "tap opens and marks read; action button; a taken action shows as done (Undone) rather than vanishing"
+
+surface schools:
+  menu: "SchoolsTopBar account menu — Inbox entry with count, dot on the avatar; Support entry below it without its old dot"
+  route: "/schools/inbox → views/schools/InboxView.vue (HANDBOOK: Open your inbox; Read your messages)"
+
+surface learner:
+  card: "BrowseScreen (Library) top — one card for the newest unread message; Dismiss hides it for good; tap opens the inbox"
+  more: "views/me/ProfileView.vue — Inbox row with the count, above Report a bug; never in Settings"
+  route: "/me/inbox → views/me/InboxView.vue"

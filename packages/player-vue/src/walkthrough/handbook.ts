@@ -75,6 +75,7 @@ export const PLACE_LINKS: Record<string, PlaceLink> = {
   'schools-list': () => '/schools/all',
   analytics: () => '/schools/analytics',
   upgrade: () => '/schools/upgrade',
+  inbox: () => '/schools/inbox',
   'admin-invites': () => '/admin/invites',
   intel: () => '/intel',
   library: () => '/',
