@@ -11,7 +11,12 @@ process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://example.supabase
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'service-role-key'
 delete process.env.VERCEL_ENV
 
-vi.mock('../_utils/auth', () => ({ verifyAuthToken: vi.fn(async () => ({ valid: true, userId: 'caller-1' })) }))
+vi.mock('../_utils/auth', () => ({ verifyAuthToken: vi.fn(async () => ({ valid: true, userId: 'caller-1', email: 'gwen@example.com' })) }))
+// Scope is that function's own responsibility; here it stands in for a school admin of sch-1.
+vi.mock('../_utils/schoolScope', () => ({
+  resolveVisibleScope: vi.fn(async () => ({ learnerId: '0f8a3c2e-6b1d-4c5a-9e7f-1a2b3c4d5e6f', role: 'school_admin', classIds: [], learnerIds: [], studentsByClass: {}, schoolIds: ['sch-1'], groupId: null })),
+  schoolIdForStaffMember: vi.fn(async () => null),
+}))
 
 let DB: DB
 vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ from: (t: string) => makeChainable(DB, t) }) }))
@@ -27,11 +32,11 @@ beforeEach(async () => {
   handler = mod.default
   mergeEvents = mod.mergeEvents
   DB = {
-    learners: [{ id: 'learner-uuid-1', user_id: 'caller-1' }],
+    learners: [{ id: '0f8a3c2e-6b1d-4c5a-9e7f-1a2b3c4d5e6f', user_id: 'caller-1', platform_role: null, educational_role: 'school_admin' }],
     player_events: [
-      { user_id: 'learner-uuid-1', course_code: 'cym_for_eng', event_type: 'round_complete', occurred_at: recent(90), payload: { legoId: 'S0012L02' } },
-      { user_id: 'learner-uuid-1', course_code: 'cym_for_eng', event_type: 'session_end', occurred_at: recent(30), payload: null },
-      { user_id: 'learner-uuid-1', course_code: 'cym_for_eng', event_type: 'cold_start', occurred_at: recent(60 * 60), payload: null },
+      { user_id: '0f8a3c2e-6b1d-4c5a-9e7f-1a2b3c4d5e6f', course_code: 'cym_for_eng', event_type: 'round_complete', occurred_at: recent(90), payload: { legoId: 'S0012L02' } },
+      { user_id: '0f8a3c2e-6b1d-4c5a-9e7f-1a2b3c4d5e6f', course_code: 'cym_for_eng', event_type: 'session_end', occurred_at: recent(30), payload: null },
+      { user_id: '0f8a3c2e-6b1d-4c5a-9e7f-1a2b3c4d5e6f', course_code: 'cym_for_eng', event_type: 'cold_start', occurred_at: recent(60 * 60), payload: null },
       { user_id: 'someone-else', course_code: 'cym_for_eng', event_type: 'round_complete', occurred_at: recent(10), payload: null },
     ],
     bug_reports: [],
@@ -71,7 +76,7 @@ describe('POST /api/report/bug', () => {
     expect(res.body).toEqual({ ok: true })
     expect(DB.bug_reports).toHaveLength(1)
     const row = DB.bug_reports[0]
-    expect(row.learner_id).toBe('learner-uuid-1')
+    expect(row.learner_id).toBe('0f8a3c2e-6b1d-4c5a-9e7f-1a2b3c4d5e6f')
     expect(row.auth_user_id).toBe('caller-1')
     expect(row.deployment_env).toBe('staging')
     expect(row.position).toEqual({ lego_id: 'S0012L02', known_text: 'I want to learn', target_text: 'dw i eisiau dysgu', belt: 'Yellow' })
@@ -122,6 +127,37 @@ describe('POST /api/report/bug — the schools dashboard door (job #633)', () =>
     expect(res.statusCode).toBe(200)
     expect(DB.bug_reports[0].source).toBe('tester_widget')
     expect(DB.bug_reports[0].context).toBeNull()
+  })
+
+  it('stores source content_flag with the clip named, so the content team can find it (job #677)', async () => {
+    const res = makeRes()
+    const req = makeReq({
+      method: 'POST',
+      body: {
+        text: 'Flagged: "I want to learn" / "dw i eisiau dysgu"',
+        source: 'content_flag',
+        course_code: 'cym_for_eng',
+        context: { audio_id: 'aud-1', lego_id: 'S0012L02', seed_id: 'S0012', known_text: 'I want to learn', target_text: 'dw i eisiau dysgu', role: 'dropped' },
+      },
+    })
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+    const row = DB.bug_reports[0]
+    expect(row.source).toBe('content_flag')
+    expect(row.context).toEqual({ audio_id: 'aud-1', lego_id: 'S0012L02', seed_id: 'S0012', known_text: 'I want to learn', target_text: 'dw i eisiau dysgu' })
+  })
+
+  it('stamps who sent it, from the bearer and the learner row, never the client (job #677)', async () => {
+    const res = makeRes()
+    await handler(makeReq({ method: 'POST', body: { text: 'the class list is empty', reporter_email: 'spoof@example.com', account_code: 'ZZZZ-ZZZZ' } }), res)
+    expect(res.statusCode).toBe(200)
+    const row = DB.bug_reports[0]
+    expect(row.reporter_email).toBe('gwen@example.com')
+    expect(row.account_code).toMatch(/^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/)
+    expect(row.educational_role).toBe('school_admin')
+    expect(row.school_role).toBe('school_admin')
+    expect(row.school_id).toBe('sch-1')
+    expect(row.platform_role).toBeNull()
   })
 
   it('a player report is source learner with no context, whatever the client sends', async () => {

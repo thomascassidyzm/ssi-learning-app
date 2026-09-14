@@ -41,6 +41,29 @@
  * tester_feedback, which nothing polled. Aran's "choose your course not
  * scrolling" sat there unread while the postbox was searched for it. The
  * widget now posts here with source 'tester_widget'; one postbox, one poller.
+ *
+ * ONE DOOR FOR EVERYONE (Tom, 2026-09-14 15:01Z, job #677). The fourth and last
+ * one-way door, the content flag in the player (ReportIssueButton.vue), posts
+ * here too with source 'content_flag' and a `context` naming the clip: audio
+ * id, lego, seed, and the phrase's known and target text. It keeps its
+ * sample_flags upsert because Popty's QA tooling reads that table. A flag is
+ * about the course, so the watcher posts it into the Popty room, not the app
+ * room.
+ *
+ * IDENTITY ATTACHED, SERVER-SIDE, AT REPORT TIME (same job). Every row now
+ * carries what Tom otherwise has to ask for by screenshot: the account code
+ * (supportIdForLearnerId, the same value Settings shows), the signed-in email
+ * from the verified bearer, platform_role and educational_role as they stood
+ * when the report was sent, and for school staff the resolved school role,
+ * school and group from resolveVisibleScope. None of it comes from the client.
+ * Roles and emails change, so they are stored on the row rather than joined
+ * later. Guests carry nulls. An identity lookup that fails never loses the
+ * report: the row is written with what resolved.
+ *
+ * The watcher that reads this table is command-surface/tools/support/inbox.cjs,
+ * one unit on watson-1 (ssi-support-inbox.service) with two lanes: post-only
+ * for every source here, and the admins' draft-only support lane for
+ * support_messages. The view `support_inbox` unions both for one read.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -50,6 +73,8 @@ import { applyCors } from '../_utils/cors'
 import { getClientIp } from '../_utils/codeAttemptThrottle'
 import { rejectIfViewAs } from '../_utils/actAsGuard'
 import { envFromDeployment, envFromHost } from '../player-events'
+import { resolveVisibleScope, schoolIdForStaffMember } from '../_utils/schoolScope'
+import { supportIdForLearnerId } from '../../packages/core/src/identity/supportId'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -71,9 +96,11 @@ const guestHits = new Map<string, number[]>()
 export const SIGNED_IN_WINDOW_MS = 60 * 60 * 1000
 export const SIGNED_IN_PER_HOUR = 10
 
-export const SOURCES = ['learner', 'schools_dashboard', 'tester_widget'] as const
+export const SOURCES = ['learner', 'schools_dashboard', 'tester_widget', 'content_flag'] as const
 export type ReportSource = (typeof SOURCES)[number]
 const CONTEXT_KEYS = ['role', 'school_id', 'school_name', 'group_id', 'class_id', 'node_id', 'page_title'] as const
+/** A content flag names the clip so the content team can find it. */
+const FLAG_CONTEXT_KEYS = ['audio_id', 'lego_id', 'seed_id', 'known_text', 'target_text'] as const
 
 export interface RecentEvent {
   event_type: string
@@ -100,12 +127,16 @@ export function pickSource(v: unknown): ReportSource {
   return (SOURCES as readonly string[]).includes(v as string) ? (v as ReportSource) : 'learner'
 }
 
-/** What the dashboard had in view. Only the known keys, only strings, only for a dashboard report. */
+/**
+ * What the dashboard had in view, or which clip was flagged. Only the known
+ * keys for that source, only strings; null for the player and tester doors.
+ */
 export function pickContext(v: unknown, source: ReportSource): Record<string, string> | null {
-  if (source !== 'schools_dashboard' || !v || typeof v !== 'object') return null
+  const keys: readonly string[] = source === 'schools_dashboard' ? CONTEXT_KEYS : source === 'content_flag' ? FLAG_CONTEXT_KEYS : []
+  if (!keys.length || !v || typeof v !== 'object') return null
   const c = v as Record<string, unknown>
   const out: Record<string, string> = {}
-  for (const k of CONTEXT_KEYS) {
+  for (const k of keys) {
     const s = str(c[k], 200)
     if (s) out[k] = s
   }
@@ -177,6 +208,51 @@ function guestOverLimit(ip: string): boolean {
   return false
 }
 
+export interface ReporterIdentity {
+  account_code: string | null
+  reporter_email: string | null
+  platform_role: string | null
+  educational_role: string | null
+  school_role: string | null
+  school_id: string | null
+  group_id: string | null
+}
+
+const NO_IDENTITY: ReporterIdentity = {
+  account_code: null, reporter_email: null, platform_role: null, educational_role: null, school_role: null, school_id: null, group_id: null,
+}
+
+/**
+ * Who sent it, as they stood at that moment, from the verified bearer and the
+ * learner row alone. School staff get their resolved scope; a teacher's scope
+ * carries no school by design, so their home school is read the way the
+ * dashboard reads it. Best effort throughout: a lookup that fails leaves nulls
+ * and the report is still written.
+ */
+export async function resolveReporter(svc: SupabaseClient, authUserId: string | null, email: string | null): Promise<ReporterIdentity & { learnerId: string | null }> {
+  if (!authUserId) return { ...NO_IDENTITY, learnerId: null }
+  const out: ReporterIdentity & { learnerId: string | null } = { ...NO_IDENTITY, reporter_email: email, learnerId: null }
+  try {
+    const { data } = await svc.from('learners').select('id, platform_role, educational_role').eq('user_id', authUserId).maybeSingle()
+    const l = data as { id?: string; platform_role?: string | null; educational_role?: string | null } | null
+    if (!l?.id) return out
+    out.learnerId = l.id
+    out.account_code = supportIdForLearnerId(l.id)
+    out.platform_role = l.platform_role ?? null
+    out.educational_role = l.educational_role ?? null
+  } catch { return out }
+  const staff = out.educational_role === 'teacher' || out.educational_role === 'school_admin' || out.educational_role === 'govt_admin'
+  if (!staff) return out
+  try {
+    const scope = await resolveVisibleScope(svc, authUserId)
+    out.school_role = scope.role
+    out.school_id = scope.schoolIds[0] ?? null
+    out.group_id = scope.groupId
+    if (!out.school_id && scope.role === 'teacher') out.school_id = await schoolIdForStaffMember(svc, authUserId)
+  } catch { /* the report still goes */ }
+  return out
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (applyCors(req, res, { methods: 'POST' })) return
   if (req.method !== 'POST') {
@@ -206,6 +282,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   // Identity: a verified bearer if there is one; otherwise a guest.
   let authUserId: string | null = null
+  let authEmail: string | null = null
   const hasBearer = typeof req.headers.authorization === 'string' && req.headers.authorization.startsWith('Bearer ')
   if (hasBearer) {
     const auth = await verifyAuthToken(req)
@@ -214,6 +291,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return
     }
     authUserId = auth.userId
+    authEmail = auth.email ?? null
   }
 
   const svc = createClient(supabaseUrl, supabaseServiceKey)
@@ -235,7 +313,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       }
     }
 
-    let learnerId: string | null = null
+    const who = await resolveReporter(svc, authUserId, authEmail)
+    const learnerId = who.learnerId
     if (authUserId) {
       const since = new Date(Date.now() - SIGNED_IN_WINDOW_MS).toISOString()
       const { count } = await svc
@@ -247,8 +326,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         res.status(429).json({ error: 'Too many reports, try again later' })
         return
       }
-      const { data } = await svc.from('learners').select('id').eq('user_id', authUserId).maybeSingle()
-      learnerId = (data as { id?: string } | null)?.id ?? null
     }
 
     const courseCode = str(body.course_code, 40)
@@ -276,6 +353,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       route: str(body.route, 300),
       source,
       context: pickContext(body.context, source),
+      account_code: who.account_code,
+      reporter_email: who.reporter_email,
+      platform_role: who.platform_role,
+      educational_role: who.educational_role,
+      school_role: who.school_role,
+      school_id: who.school_id,
+      group_id: who.group_id,
     })
     if (error) {
       res.status(500).json({ error: error.message })
