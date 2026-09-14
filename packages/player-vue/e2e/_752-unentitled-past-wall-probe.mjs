@@ -76,6 +76,20 @@ for (let t = 0; t < 50; t++) {
   if (wall && firstWallAt === null) { firstWallAt = (t + 1) * 0.5; await page.screenshot({ path: `${OUT}/wall.png` }) }
   if (t % 4 === 3 || (wall && firstWallAt === (t + 1) * 0.5)) log(`  t+${(t + 1) * 0.5}s wall=${wall} local=${JSON.stringify(await readLocal())} screen=${await readScreen()}`)
 }
+// MAYBE_LATER=1: dismiss the wall and play on inside the preview. The saved
+// place must survive — the memory is spent only by a prompt on the remembered
+// round, and S0031L01 is not in the preview queue.
+if (process.env.MAYBE_LATER === '1' && await wallVisible()) {
+  await page.locator('.paywall-btn-ghost').first().click()
+  await page.waitForTimeout(600)
+  log('MAYBE LATER tapped. wall=', await wallVisible(), 'local=', JSON.stringify(await readLocal()))
+  await page.locator('.center-btn').first().click().catch(e => log('play tap failed', String(e).slice(0, 80)))
+  for (let t = 0; t < 30; t++) {
+    await page.waitForTimeout(500)
+    if (t % 4 === 3) log(`  play+${(t + 1) * 0.5}s wall=${await wallVisible()} local=${JSON.stringify(await readLocal())} screen=${await readScreen()}`)
+  }
+  await page.screenshot({ path: `${OUT}/played-on.png` })
+}
 await page.screenshot({ path: `${OUT}/end.png` })
 log('RESULT wallFirstSeenAt:', firstWallAt, '| wallNow:', await wallVisible(), '| local:', JSON.stringify(await readLocal()), '| DB:', JSON.stringify(await readDb()), '| screen:', await readScreen())
 await browser.close()
