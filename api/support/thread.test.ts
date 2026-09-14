@@ -3,7 +3,7 @@
  * and a peek never counts as reading.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { makeChainable, makeReq, makeRes, TEACHER_SCOPE, ADMIN_SCOPE, type DB } from './_testkit'
+import { makeChainable, makeReq, makeRes, TEACHER_SCOPE, ADMIN_SCOPE, FAILING_TABLES, type DB } from './_testkit'
 
 process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://example.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'service-role-key'
@@ -22,6 +22,7 @@ beforeEach(async () => {
   vi.resetModules()
   handler = (await import('./thread')).default
   DB = { support_threads: [], support_messages: [] }
+  FAILING_TABLES.clear()
   scope = ADMIN_SCOPE
 })
 
@@ -69,6 +70,20 @@ describe('GET /api/support/thread', () => {
     expect(res.statusCode).toBe(200)
     expect(res.body).toEqual({ unread: 0 })
     expect(DB.support_threads).toHaveLength(0)
+  })
+
+  it('?peek=1 answers 500, not unread zero, when the thread lookup itself fails (job #680: silent to loud)', async () => {
+    DB.support_threads = [{ id: 't1', school_id: 's1', last_read_at: null, language: null, standing_notes: {} }]
+    DB.support_messages = [{ id: 'm1', thread_id: 't1', body: 'q', direction: 'in', author_source: 'human', created_at: '2026-09-10T19:39:00.000Z' }]
+    FAILING_TABLES.set('support_threads', { message: 'permission denied for table support_threads', code: '42501' })
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const res = makeRes()
+    await handler(makeReq({ query: { peek: '1' } }), res)
+    expect(res.statusCode).toBe(500)
+    expect(res.body.unread).toBeUndefined()
+    expect(res.body.error).toContain('permission denied for table support_threads')
+    expect(errorSpy).toHaveBeenCalled()
+    errorSpy.mockRestore()
   })
 
   it('?peek=1 reports the unread count without marking the thread read', async () => {
