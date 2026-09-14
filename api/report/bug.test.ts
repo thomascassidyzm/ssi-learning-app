@@ -116,6 +116,14 @@ describe('POST /api/report/bug — the schools dashboard door (job #633)', () =>
     expect(row.context).toEqual({ role: 'school_admin', school_id: 'sch-1', school_name: 'Seaside', class_id: 'c-9', page_title: 'Students' })
   })
 
+  it('stores source tester_widget for the floating tester widget, with no context (job #652)', async () => {
+    const res = makeRes()
+    await handler(makeReq({ method: 'POST', body: { text: '[Bug] choose your course not scrolling', source: 'tester_widget', route: '/' } }), res)
+    expect(res.statusCode).toBe(200)
+    expect(DB.bug_reports[0].source).toBe('tester_widget')
+    expect(DB.bug_reports[0].context).toBeNull()
+  })
+
   it('a player report is source learner with no context, whatever the client sends', async () => {
     const res = makeRes()
     await handler(makeReq({ method: 'POST', body: { text: 'audio stopped', source: 'made-up', context: { school_id: 'x' } } }), res)

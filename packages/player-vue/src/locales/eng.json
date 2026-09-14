@@ -54,6 +54,8 @@
   },
   "courseSelector": {
     "title": "Choose Your Course",
+    "allForSpeakers": "That is every course for {lang} speakers.",
+    "showAllLanguages": "Show all languages",
     "iSpeak": "I speak",
     "iWantToLearn": "I want to learn",
     "ready": "Ready",
