@@ -2369,6 +2369,16 @@ Simpler: the subtraction on the client is gone; the copy tool's fetch and words 
 server routes. Cheaper: no new table, no new writer; the sweep costs one planner pass per enrolled
 teacher, pre-filtered by enrollment so a school of 34 classes plans a dozen pairs, not 34.
 
-**Not done, and why.** No bulk apply, per the brief and the audit model. No nudge on the learner
-player towards Play as class: Tom's call, not this job. The sweep is not run against any real
-teacher by this job: Angharad runs it.
+**Addition, 12:58Z (Tom: "teachers must play as class, not as themselves, and Angharad is telling
+them so").** The steer BEFORE the minutes are lost: when a signed-in teacher presses play in the
+learner player on a course one of their classes is on, a one-line bar says "This counts for you,
+not for 10C. To make it count for the class, use Play as class", with a link to the class page and
+a dismiss. Who: read from GET /api/me/teaching-context, the one capability read, matched on course
+code; nobody else sees it, and a failed read means no bar. A steer, never a block. Never under a
+class context or in the schools shell (`composables/useOwnAccountPlayNudge.ts`).
+
+**Not done, and why.** No bulk apply, per the brief and the audit model. The sweep is not run
+against any real teacher by this job: Angharad runs it. The first live sweep on Chepstow lists 27
+pairs, not the 13 of #651's diagnosis: the planner's rule is "anything left to copy", which also
+catches teachers whose class has since caught up in position but whose own-account sessions were
+never moved, and Angharad's own account on her admin class.

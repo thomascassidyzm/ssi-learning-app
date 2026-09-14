@@ -122,7 +122,10 @@
     "subscriptionsNotAvailableHere": "Subscriptions aren't available in this version of the app yet.",
     "beltStillDownloading": "{belt} isn't on this device yet — it'll open as soon as it comes through.",
     "contentStillDownloading": "That isn't on this device yet — it'll open as soon as it comes through.",
-    "choosePlanCancel": "Two plans, from £15/month. Cancel anytime."
+    "choosePlanCancel": "Two plans, from £15/month. Cancel anytime.",
+    "ownAccountNudge": "This counts for you, not for {class}. To make it count for the class, use Play as class.",
+    "ownAccountNudgeCta": "Open the class",
+    "ownAccountNudgeDismiss": "Dismiss"
   },
   "home": {
     "goodMorning": "Good morning",

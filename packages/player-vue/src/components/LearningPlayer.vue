@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, onBeforeUnmount, watch, watchEffect, shallowRef, inject, nextTick, defineAsyncComponent, type PropType, type Ref } from 'vue'
 import { useUserRole } from '@/composables/useUserRole'
+import { useOwnAccountPlayNudge } from '@/composables/useOwnAccountPlayNudge'
 import { createCursorQueue } from '@/playback/cursorQueue'
 // Offline-download status (shared with the mode-button ring in ModeTray)
 import { offlineDlState, offlineDlDone, offlineDlTotal, offlineDlFailed, offlineDlStragglers, offlineTrial, resetOfflineDownloadStatus, resolveOfflineDlOutcome } from '../composables/useOfflineDownloadStatus'
@@ -802,6 +803,19 @@ const courseCode = computed(() => props.course?.course_code || '')
 
 // Alias for ReportIssueButton
 const activeCourseCode = courseCode
+
+// THE OWN-ACCOUNT STEER (Tom, 2026-09-14 12:58Z, job #662): a signed-in
+// teacher who presses play here, on the course one of their classes is on,
+// is playing on their OWN account — the lesson will not count for the class.
+// One line, once play has started, pointing at Play as class on the class
+// page. Never under a class context, never in the schools shell, never for
+// anyone who does not teach a class on this course.
+const ownPlayNudge = useOwnAccountPlayNudge(
+  computed(() => ((auth as any)?.userId?.value as string | null | undefined) ?? null),
+  courseCode,
+)
+const hasPressedPlay = ref(false)
+const ownAccountNudgeClass = computed(() => (!props.classContext && !props.embedded && hasPressedPlay.value ? ownPlayNudge.nudgeClass.value : null))
 
 // Production deep link — Popty's Script Viewer launching "this round" here for
 // a real-fidelity listen (utils/deepLinkTarget.ts owns the URL contract). The
@@ -9080,6 +9094,8 @@ const handlePause = () => {
 }
 
 const handleResume = async () => {
+  // The own-account steer (job #662) shows from the first play tap onwards.
+  hasPressedPlay.value = true
   logEvent('tap_play', {
     firstPlay: !hasEverStarted.value,
     roundIndex: simplePlayer.roundIndex.value,
@@ -17640,9 +17656,18 @@ defineExpose({
       <span class="class-bar-label">{{ t('player.backClasses') }}</span>
     </button>
 
+    <!-- Own-account steer for a teacher (job #662): shown once play has
+         started on a course one of their classes is on. A link to the class
+         page, where Play as class lives, and a dismiss. Never a block. -->
+    <div v-if="ownAccountNudgeClass" class="own-play-bar" data-testid="own-account-play-nudge" role="status">
+      <span class="own-play-text">{{ t('player.ownAccountNudge', 'This counts for you, not for {class}. To make it count for the class, use Play as class.').replace('{class}', ownAccountNudgeClass.name) }}</span>
+      <a class="own-play-link" :href="`/org/${ownAccountNudgeClass.id}`">{{ t('player.ownAccountNudgeCta', 'Open the class') }}</a>
+      <button type="button" class="own-play-dismiss" :aria-label="t('player.ownAccountNudgeDismiss', 'Dismiss')" @click="ownPlayNudge.dismiss()">&#x2715;</button>
+    </div>
+
     <!-- Header - Logo with belt underneath, centered -->
     <!-- Header - brand row + belt row -->
-    <header class="header" :class="{ 'has-banner': props.classContext && !props.embedded }">
+    <header class="header" :class="{ 'has-banner': (props.classContext && !props.embedded) || ownAccountNudgeClass }">
       <div class="header-stack">
         <!-- Brand -->
         <!-- The SaySomethingin wordmark is hidden ONLY when embedded in a shell
@@ -18827,6 +18852,41 @@ defineExpose({
   margin-left: auto;
   font-size: 0.75rem;
   color: rgba(255, 255, 255, 0.5);
+}
+
+.own-play-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: calc(0.5rem + env(safe-area-inset-top, 0px)) max(1rem, env(safe-area-inset-right, 0px)) 0.5rem max(1rem, env(safe-area-inset-left, 0px));
+  background: rgba(20, 20, 32, 0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(194, 58, 58, 0.2);
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: #ffffff;
+}
+.own-play-text { flex: 1; min-width: 0; }
+.own-play-link {
+  flex-shrink: 0;
+  color: #ffffff;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.own-play-dismiss {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.875rem;
+  padding: 0.25rem;
+  cursor: pointer;
 }
 
 /* ============ HEADER ============ */
