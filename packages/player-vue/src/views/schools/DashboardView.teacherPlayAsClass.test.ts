@@ -171,6 +171,22 @@ describe('DashboardView — the teacher home is play-as-class first (job #651)',
   it('a quiet own account draws no line — its absence means nothing went astray', async () => {
     const wrapper = await mountTeacherHome({ practice: { ...PRACTICE, callerOwn: { ...PRACTICE.callerOwn, inAppMinutes7d: 0, lastPlayedDay: null } } })
     expect(wrapper.find('[data-walk="dash-own-practice"]').exists()).toBe(false)
+    expect(wrapper.find('[data-walk="dash-playing-as-yourself"]').exists()).toBe(false)
+  })
+
+  // Tom, 2026-09-14 13:07Z (job #662): "a warning across the dashboard
+  // navigation? You are now playing as yourself. If you want to play as class
+  // please go here." — in his words, across the top of the teacher home, the
+  // link taking her to her classes. Red before the banner existed.
+  it('when her own account has practised this week, the warning sits across the top in Tom\'s words and links to her classes', async () => {
+    const wrapper = await mountTeacherHome()
+    const banner = wrapper.find('[data-walk="dash-playing-as-yourself"]')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain('You are now playing as yourself. If you want to play as class please go here.')
+    expect(banner.find('a').attributes('href')).toBe('/schools/classes')
+    // It comes before the welcome, not after the classes.
+    const html = wrapper.html()
+    expect(html.indexOf('dash-playing-as-yourself')).toBeLessThan(html.indexOf('Welcome back'))
   })
 
   // TWO FIGURES, KEPT APART, NEVER SUMMED (Tom, 2026-09-14, job #662). Red on

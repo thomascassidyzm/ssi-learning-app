@@ -1,5 +1,5 @@
 {
-  "version": "6735b308c324",
+  "version": "9b77f9bc8cef",
   "generatedAt": "2026-09-14",
   "walks": [
     {
@@ -4048,6 +4048,36 @@
         "On your own school every card is a link: phrases and minutes open the classes list with the classes in that order, classes practising opens it narrowed to the classes that played this week, and teachers opens the staff list."
       ],
       "note": "An organisation that is not school-shaped sees the same row worded as practice hours, groups and learners instead."
+    },
+    {
+      "id": "told-when-you-have-been-playing-as-yourself",
+      "title": "Told when you have been playing as yourself",
+      "section": "running-classes",
+      "personas": [
+        "teacher"
+      ],
+      "keywords": [
+        "playing as yourself",
+        "own account",
+        "play as class",
+        "warning",
+        "banner",
+        "your classes"
+      ],
+      "place": {
+        "route": "dashboard"
+      },
+      "anchor": "dash-playing-as-yourself",
+      "surface": "schools",
+      "source": "packages/player-vue/src/views/schools/DashboardView.vue",
+      "walk": null,
+      "what": "A line across the top of your dashboard whenever your own account has practised this week, so a lesson that ran on your own sign-in instead of on the class is noticed straight away. It reads: You are now playing as yourself. If you want to play as class please go here.",
+      "where": "Across the top of the schools dashboard, above the welcome, only in a week when your own account has practised.",
+      "how": [
+        "Read the line.",
+        "Tap **Your classes** to go to your classes, and start the lesson with **Play as class** there."
+      ],
+      "note": "The line goes away by itself once a week has passed with no practice on your own account. Your own practice is not deleted or moved by it; the copy tool on a class's tools page does that if you want it."
     },
     {
       "id": "voice-and-pause",

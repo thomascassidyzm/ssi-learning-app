@@ -252,6 +252,9 @@ const teacherClassRows = computed(() => teacherClasses.value.map((c) => {
 
 // The caller's own account this week — the number the Library shows them.
 const ownPractice = computed(() => teacherPractice.value?.callerOwn ?? null)
+// The warning across the top (Tom, 2026-09-14 13:07Z, job #662): any practice
+// on her own account this week means she has been playing as herself.
+const showPlayingAsYourself = computed(() => (ownPractice.value?.inAppMinutes7d ?? 0) > 0)
 const ownPracticeLine = computed(() => {
   const own = ownPractice.value
   if (!own || own.inAppMinutes7d <= 0) return ''
@@ -535,6 +538,30 @@ async function handlePlayClass(cls: ClassInfo) {
          TEACHER
          ============================================================ -->
     <template v-if="isTeacher">
+      <!-- HANDBOOK Told when you have been playing as yourself
+           section: running-classes
+           roles: teacher
+           place: dashboard
+           keywords: playing as yourself, own account, play as class, warning, banner, your classes
+           What it's for. A line across the top of your dashboard whenever your own
+           account has practised this week, so a lesson that ran on your own sign-in
+           instead of on the class is noticed straight away. It reads: You are now
+           playing as yourself. If you want to play as class please go here.
+           Where it is. Across the top of the schools dashboard, above the welcome,
+           only in a week when your own account has practised.
+           How you do it.
+           1. Read the line.
+           2. Tap **Your classes** to go to your classes, and start the lesson with
+              **Play as class** there.
+           Worth knowing. The line goes away by itself once a week has passed with no
+           practice on your own account. Your own practice is not deleted or moved by
+           it; the copy tool on a class's tools page does that if you want it.
+           checked: 7292043b.2515ac82
+      -->
+      <div v-if="showPlayingAsYourself" class="playing-as-yourself" role="status" data-walk="dash-playing-as-yourself">
+        <span>{{ t('schools.dashboard.playingAsYourself', 'You are now playing as yourself. If you want to play as class please go here.') }}</span>
+        <router-link :to="schoolsLink('classes')" class="playing-as-yourself-link">{{ t('schools.dashboard.playingAsYourselfLink', 'Your classes') }}</router-link>
+      </div>
       <Greeting
         :name="greetingName"
         :lines="greetingLines"
@@ -1204,6 +1231,13 @@ async function handlePlayClass(cls: ClassInfo) {
 .panel-week { display: flex; flex-direction: column; gap: 4px; }
 .panel-week-line { margin: 0; font-size: var(--text-sm); color: var(--schools-fg-2, #555); }
 .own-practice-line { margin: 12px 0 0; font-size: var(--text-sm); color: var(--schools-fg-2, #555); }
+.playing-as-yourself {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin: 0 0 14px; padding: 10px 14px;
+  background: var(--schools-red-soft, #fbeaea); border: 1px solid var(--schools-red, #c23a3a);
+  border-radius: 8px; font-size: var(--text-sm); color: var(--schools-fg);
+}
+.playing-as-yourself-link { font-weight: 600; color: var(--schools-red, #c23a3a); text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
 .teacher-stat-line-own { margin-top: 4px; }
 
 .dashboard-view {
