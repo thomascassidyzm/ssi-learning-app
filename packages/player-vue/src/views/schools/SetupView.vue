@@ -704,7 +704,6 @@ onMounted(() => {
                   v-model="draft.course_code"
                   :options="courseSelectOptions"
                   :disabled="draft.saved"
-                  filterable
                   :filter-placeholder="t('schools.setup.courseSearchPlaceholder', 'Search courses…')"
                   :placeholder="t('schools.setup.chooseCoursePlaceholder', 'Choose course')"
                   :aria-label="t('schools.setup.courseForClassAria', 'Course for this class')"

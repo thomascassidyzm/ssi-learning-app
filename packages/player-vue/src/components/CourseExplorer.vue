@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, inject, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import FrostSelect from '@/components/FrostSelect.vue'
 import { useVirtualList } from '@vueuse/core'
 import { CyclePhase, dirFor } from '@ssi/core'
 import { loadIntroAudio } from '../composables/useScriptCache'
@@ -352,6 +353,8 @@ const courseKnownLang = computed(() => props.course?.known_lang || courseCode.va
 const currentCourseId = ref('')
 
 // Get unique seeds for dropdown
+const roundOptions = computed(() => Array.from({ length: rounds.value.length }, (_, i) => ({ value: i + 1, label: String(i + 1) })))
+const seedOptions = computed(() => uniqueSeeds.value.map((seed) => ({ value: seed, label: String(seed) })))
 const uniqueSeeds = computed(() => {
   const seeds = new Set()
   for (const round of rounds.value) {
@@ -1132,15 +1135,11 @@ onUnmounted(() => {
         <div class="jump-nav">
           <div class="jump-group">
             <label>Round:</label>
-            <select v-model="selectedRound" @change="jumpToRound(selectedRound)">
-              <option v-for="r in rounds.length" :key="r" :value="r">{{ r }}</option>
-            </select>
+            <FrostSelect :model-value="selectedRound" :options="roundOptions" class="jump-select" :aria-label="t('courseExplorer.roundLabel', 'Round')" @update:model-value="jumpToRound" />
           </div>
           <div class="jump-group">
             <label>Seed:</label>
-            <select v-model="selectedSeed" @change="jumpToSeed(selectedSeed)">
-              <option v-for="seed in uniqueSeeds" :key="seed" :value="seed">{{ seed }}</option>
-            </select>
+            <FrostSelect :model-value="selectedSeed" :options="seedOptions" class="jump-select" :aria-label="t('courseExplorer.seedLabel', 'Seed')" @update:model-value="jumpToSeed" />
           </div>
           <div class="jump-progress" @click="jumpToProgress">
             <div class="progress-bar">

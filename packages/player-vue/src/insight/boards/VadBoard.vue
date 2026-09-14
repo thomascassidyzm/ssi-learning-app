@@ -32,6 +32,7 @@
 // this board reads every school there is, which is an admin's question.
 // ============================================================================
 import { ref, computed, onMounted } from 'vue'
+import FrostSelect from '@/components/FrostSelect.vue'
 import { useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import VadPanel from '../VadPanel.vue'
@@ -92,6 +93,7 @@ const scopeLabel = computed(() => {
   return cls ? `${cls.className} · ${school.value.schoolName}` : school.value.schoolName
 })
 
+const schoolOptions = computed(() => schools.value.map((s) => ({ value: s.schoolId, label: s.schoolName })))
 function selectSchool(id: string) {
   selectedSchoolId.value = id
   selectedClassId.value = null
@@ -131,14 +133,14 @@ function openLearner(learnerId: string) {
 
       <div v-if="schools.length" class="vad-picker">
         <label class="vad-picker-label" for="vad-school">School</label>
-        <select
+        <FrostSelect
           id="vad-school"
           class="vad-select"
-          :value="selectedSchoolId ?? ''"
-          @change="selectSchool(($event.target as HTMLSelectElement).value)"
-        >
-          <option v-for="s in schools" :key="s.schoolId" :value="s.schoolId">{{ s.schoolName }}</option>
-        </select>
+          :model-value="selectedSchoolId ?? ''"
+          :options="schoolOptions"
+          aria-label="School"
+          @update:model-value="selectSchool"
+        />
       </div>
     </header>
 

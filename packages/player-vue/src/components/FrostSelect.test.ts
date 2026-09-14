@@ -1,10 +1,10 @@
 /**
- * FrostSelect — the filter affordance.
+ * FrostSelect — THE dropdown, and its filter.
  *
- * Standing estate rule: dropdowns are always filterable. The school first-time
- * setup shipped a ~74-course list with no search box, which is what this
- * covers. `filterable` is opt-in, so the short-list call sites (insight boards)
- * must keep behaving exactly as they did.
+ * Tom's ruling (2026-09-14): one dropdown component everywhere, and every
+ * dropdown has a type-to-filter box at the top of its open panel, even a
+ * short list. Focus lands in that box on open; typing narrows by substring,
+ * case-insensitively; Enter picks the highlighted row; Escape closes.
  */
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
@@ -22,9 +22,9 @@ function labels(wrapper: ReturnType<typeof mount>) {
 }
 
 describe('FrostSelect filtering', () => {
-  it('puts a search box at the top of the open menu and narrows the list as you type', async () => {
+  it('always puts a search box at the top of the open menu, focused, and narrows the list as you type', async () => {
     const wrapper = mount(FrostSelect, {
-      props: { modelValue: '', options: OPTIONS, filterable: true },
+      props: { modelValue: '', options: OPTIONS },
       attachTo: document.body,
     })
 
@@ -32,7 +32,8 @@ describe('FrostSelect filtering', () => {
     expect(labels(wrapper)).toHaveLength(4)
 
     const search = wrapper.get('input.fs-search')
-    await search.setValue('welsh')
+    expect(document.activeElement).toBe(search.element)
+    await search.setValue('WELSH')
 
     expect(labels(wrapper)).toEqual([
       'North Welsh for English Speakers',
@@ -41,9 +42,20 @@ describe('FrostSelect filtering', () => {
     wrapper.unmount()
   })
 
+  it('shows the search box even on a three-row list', async () => {
+    const wrapper = mount(FrostSelect, {
+      props: { modelValue: 'b', options: [{ value: 'a', label: 'A' }, { value: 'b', label: 'B' }, { value: 'c', label: 'C' }] },
+      attachTo: document.body,
+    })
+    await wrapper.get('.fs-trigger').trigger('click')
+    expect(wrapper.find('input.fs-search').exists()).toBe(true)
+    expect(wrapper.get('.fs-opt.selected .fs-check').text()).toBe('✓')
+    wrapper.unmount()
+  })
+
   it('selects the row the filter left, not the row that used to sit at that index', async () => {
     const wrapper = mount(FrostSelect, {
-      props: { modelValue: '', options: OPTIONS, filterable: true },
+      props: { modelValue: '', options: OPTIONS },
       attachTo: document.body,
     })
     await wrapper.get('.fs-trigger').trigger('click')
@@ -54,9 +66,41 @@ describe('FrostSelect filtering', () => {
     wrapper.unmount()
   })
 
+  it('Enter picks the highlighted row after typing, Escape closes without picking', async () => {
+    const wrapper = mount(FrostSelect, {
+      props: { modelValue: '', options: OPTIONS },
+      attachTo: document.body,
+    })
+    await wrapper.get('.fs-trigger').trigger('click')
+    const search = wrapper.get('input.fs-search')
+    await search.setValue('south')
+    await search.trigger('keydown', { key: 'Enter' })
+    expect(wrapper.emitted('update:modelValue')?.[0]).toEqual(['cym_south_for_eng'])
+    expect(wrapper.find('.fs-panel').exists()).toBe(false)
+
+    await wrapper.get('.fs-trigger').trigger('click')
+    await wrapper.get('input.fs-search').trigger('keydown', { key: 'Escape' })
+    expect(wrapper.find('.fs-panel').exists()).toBe(false)
+    expect(wrapper.emitted('update:modelValue')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('skips disabled rows for both arrow keys and clicks', async () => {
+    const wrapper = mount(FrostSelect, {
+      props: { modelValue: '', options: [{ value: 'x', label: 'Pick one…', disabled: true }, { value: 'a', label: 'A' }] },
+      attachTo: document.body,
+    })
+    await wrapper.get('.fs-trigger').trigger('click')
+    await wrapper.findAll('.fs-opt')[0].trigger('click')
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    await wrapper.get('input.fs-search').trigger('keydown', { key: 'Enter' })
+    expect(wrapper.emitted('update:modelValue')?.[0]).toEqual(['a'])
+    wrapper.unmount()
+  })
+
   it('says so when nothing matches', async () => {
     const wrapper = mount(FrostSelect, {
-      props: { modelValue: '', options: OPTIONS, filterable: true },
+      props: { modelValue: '', options: OPTIONS },
       attachTo: document.body,
     })
     await wrapper.get('.fs-trigger').trigger('click')
@@ -64,18 +108,6 @@ describe('FrostSelect filtering', () => {
 
     expect(wrapper.findAll('.fs-opt')).toHaveLength(0)
     expect(wrapper.get('.fs-empty').text()).toContain('klingon')
-    wrapper.unmount()
-  })
-
-  it('shows no search box unless asked — short lists stay as they were', async () => {
-    const wrapper = mount(FrostSelect, {
-      props: { modelValue: 'spa_for_eng', options: OPTIONS },
-      attachTo: document.body,
-    })
-    await wrapper.get('.fs-trigger').trigger('click')
-
-    expect(wrapper.find('input.fs-search').exists()).toBe(false)
-    expect(labels(wrapper)).toHaveLength(4)
     wrapper.unmount()
   })
 })

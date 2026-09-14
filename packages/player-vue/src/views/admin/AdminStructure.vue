@@ -12,6 +12,7 @@
 // propagation so it never triggers the row navigation. The old name-click
 // side-panel (NodePanel.vue) is retired.
 import { ref, computed, onMounted, provide, watch } from 'vue'
+import FrostSelect from '@/components/FrostSelect.vue'
 import { useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
@@ -162,6 +163,7 @@ async function refetchCurrentLens(): Promise<void> {
 const showAddOrg = ref(false)
 const newOrgName = ref('')
 const newOrgLabel = ref('organisation')
+const NEW_ORG_LABEL_OPTIONS = ['organisation', 'nation', 'region', 'school'].map((l) => ({ value: l, label: l }))
 const newOrgIsDemo = ref(false)
 const isCreatingOrg = ref(false)
 // Duplicate-name warning: set when the API answers 409 `duplicate_name`.
@@ -492,12 +494,7 @@ onMounted(() => { void refresh() })
             v-model="newOrgName" type="text" class="frost-input" placeholder="Organisation name" autofocus
             @keyup.enter="createOrganisation()" @keyup.escape="showAddOrg = false"
           />
-          <select v-model="newOrgLabel" class="frost-select">
-            <option value="organisation">organisation</option>
-            <option value="nation">nation</option>
-            <option value="region">region</option>
-            <option value="school">school</option>
-          </select>
+          <FrostSelect v-model="newOrgLabel" class="frost-select" :options="NEW_ORG_LABEL_OPTIONS" aria-label="Organisation label" />
           <label class="checkbox-field"><input v-model="newOrgIsDemo" type="checkbox" /><span>Demo</span></label>
           <button class="btn-ghost-sm" :disabled="isCreatingOrg || !newOrgName.trim()" @click="createOrganisation()">
             {{ isCreatingOrg ? 'Adding…' : 'Add' }}

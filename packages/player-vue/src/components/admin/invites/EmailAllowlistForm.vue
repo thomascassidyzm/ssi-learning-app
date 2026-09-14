@@ -5,6 +5,7 @@
 // (many emails, granted automatically at sign-in) — same underlying
 // entitlement mechanisms, both kept exactly as they behaved there.
 import { ref, computed, watch, onMounted } from 'vue'
+import FrostSelect from '@/components/FrostSelect.vue'
 import { useUserRole } from '@/composables/useUserRole'
 import { useAdminClient } from '@/composables/useAdminClient'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
@@ -43,6 +44,18 @@ const grantName = ref('')
 const grantNote = ref('')
 const grantAccessType = ref<'full' | 'courses'>('full')
 const grantDurationType = ref<'lifetime' | 'time_limited'>('lifetime')
+const GRANT_ACCESS_OPTIONS: { value: 'full' | 'courses'; label: string }[] = [
+  { value: 'full', label: 'Full access (all courses)' },
+  { value: 'courses', label: 'Specific courses' },
+]
+const GRANT_DURATION_OPTIONS: { value: 'lifetime' | 'time_limited'; label: string }[] = [
+  { value: 'lifetime', label: 'Lifetime' },
+  { value: 'time_limited', label: 'Time-limited' },
+]
+const ALLOWLIST_ACCESS_OPTIONS: { value: 'full' | 'courses'; label: string; disabled?: boolean }[] = [
+  { value: 'full', label: 'Full / Lifetime (default)' },
+  { value: 'courses', label: 'Specific courses — use a code for now', disabled: true },
+]
 const grantDurationDays = ref<number | ''>('')
 const grantSelectedCourses = ref<Set<string>>(new Set())
 const grantMintedLink = ref<{ code: string; email: string } | null>(null)
@@ -281,18 +294,12 @@ onMounted(() => {
 
       <div class="field">
         <label class="schools-kicker">Access</label>
-        <select v-model="grantAccessType" class="frost-select">
-          <option value="full">Full access (all courses)</option>
-          <option value="courses">Specific courses</option>
-        </select>
+        <FrostSelect v-model="grantAccessType" class="frost-select" :options="GRANT_ACCESS_OPTIONS" aria-label="Access" />
       </div>
 
       <div class="field">
         <label class="schools-kicker">Duration</label>
-        <select v-model="grantDurationType" class="frost-select">
-          <option value="lifetime">Lifetime</option>
-          <option value="time_limited">Time-limited</option>
-        </select>
+        <FrostSelect v-model="grantDurationType" class="frost-select" :options="GRANT_DURATION_OPTIONS" aria-label="Duration" />
       </div>
 
       <div v-if="grantDurationType === 'time_limited'" class="field">
@@ -359,10 +366,7 @@ onMounted(() => {
         <div class="allowlist-row">
           <div class="field">
             <label class="schools-kicker">Access</label>
-            <select v-model="allowlistAccessType" class="frost-select">
-              <option value="full">Full / Lifetime (default)</option>
-              <option value="courses" disabled>Specific courses — use a code for now</option>
-            </select>
+            <FrostSelect v-model="allowlistAccessType" class="frost-select" :options="ALLOWLIST_ACCESS_OPTIONS" aria-label="Access" />
           </div>
 
           <div class="field">

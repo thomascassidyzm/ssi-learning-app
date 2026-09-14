@@ -20,6 +20,7 @@
 // problem). The action terminates in Popty: re-split the LEGO or open the cohort.
 // ============================================================================
 import { ref, computed, watch, onMounted } from 'vue'
+import FrostSelect from '@/components/FrostSelect.vue'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useAdminCourses } from '@/composables/admin/useAdminCourses'
 import { resolveMetric } from '../registry'
@@ -317,9 +318,6 @@ watch(selectedCourse, async (code) => {
   if (code) await fetchFriction(code)
 })
 
-function onCourseChange(e: Event) {
-  selectedCourse.value = (e.target as HTMLSelectElement).value
-}
 </script>
 
 <template>
@@ -337,20 +335,15 @@ function onCourseChange(e: Event) {
       <!-- Course picker -->
       <div class="cfb-picker">
         <label class="cfb-picker-label" for="cfb-course-select">Course</label>
-        <select
+        <FrostSelect
           id="cfb-course-select"
+          v-model="selectedCourse"
           class="cfb-select"
-          :value="selectedCourse"
+          :options="courseOptions"
           :disabled="coursesComposable.isLoading.value || isLoading"
-          @change="onCourseChange"
-        >
-          <option value="" disabled>Select a course…</option>
-          <option
-            v-for="opt in courseOptions"
-            :key="opt.value"
-            :value="opt.value"
-          >{{ opt.label }}</option>
-        </select>
+          placeholder="Select a course…"
+          aria-label="Course"
+        />
         <span v-if="coursesComposable.isLoading.value" class="cfb-picker-hint">Loading courses…</span>
         <span v-else-if="isLoading" class="cfb-picker-hint">Loading friction…</span>
         <span v-else-if="selectedCourse" class="cfb-picker-hint">{{ selectedCourseLabel }}</span>

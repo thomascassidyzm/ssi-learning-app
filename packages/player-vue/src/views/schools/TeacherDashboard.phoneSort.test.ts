@@ -101,9 +101,10 @@ describe('TeacherDashboard — the sorted metric is reachable on a phone', () =>
     const rows = wrapper.findAll('table[data-walk="classes-table"] tbody tr')
     expect(rows.length).toBe(2)
 
-    const sortSelect = wrapper.find('.filter-sort select')
+    // Sort by is the shared FrostSelect dropdown; drive its model the way a tap does.
+    const sortSelect = wrapper.find('.filter-sort').findComponent({ name: 'FrostSelect' })
     expect(wrapper.find('.filter-sort .filter-label').text()).toBe('Sort by')
-    await sortSelect.setValue('hours')
+    sortSelect.vm.$emit('update:modelValue', 'hours')
     await flushPromises()
 
     const table = wrapper.find('table[data-walk="classes-table"]')
@@ -120,7 +121,8 @@ describe('TeacherDashboard — the sorted metric is reachable on a phone', () =>
   it('sorting by name still pins time in app, the school metric', async () => {
     const wrapper = await mountView()
     expect(wrapper.find('table[data-walk="classes-table"]').attributes('data-sorted')).toBe('hours')
-    await wrapper.find('.filter-sort select').setValue('journey')
+    wrapper.find('.filter-sort').findComponent({ name: 'FrostSelect' }).vm.$emit('update:modelValue', 'journey')
+    await flushPromises()
     expect(wrapper.find('table[data-walk="classes-table"]').attributes('data-sorted')).toBe('journey')
     expect(wrapper.find('tbody td.is-sorted').attributes('data-label')).toBe('Journey, LEGOs')
   })

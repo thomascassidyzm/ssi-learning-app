@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, inject } from 'vue'
+import FrostSelect from '@/components/FrostSelect.vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useClassesData, type ClassReport, type ClassDeleteImpact, type StudentCandidate } from '@/composables/schools/useClassesData'
@@ -531,6 +532,8 @@ async function handleAssignConfirm(tickedClassIds: string[]): Promise<void> {
 }
 
 // Candidates minus the people already on the class.
+const addableTeacherOptions = computed(() =>
+  addableTeachers.value.map((at) => ({ value: at.user_id, label: at.display_name })))
 const addableTeachers = computed(() => {
   const already = new Set((classDetail.value?.teachers ?? []).map(t => t.user_id))
   return teacherCandidates.value.filter(t => !already.has(t.user_id))
@@ -1020,12 +1023,15 @@ const mailboxPrompt = useMailboxPrompt()
           ></p>
         </template>
         <template v-else>
-          <select v-model="pickedTeacherId" class="teacher-select" data-walk="class-teacher-picker" :disabled="teacherBusy">
-            <option value="">{{ t('schools.classDetail.chooseTeacherOption', 'Choose a teacher…') }}</option>
-            <option v-for="at in addableTeachers" :key="at.user_id" :value="at.user_id">
-              {{ at.display_name }}
-            </option>
-          </select>
+          <FrostSelect
+            v-model="pickedTeacherId"
+            class="teacher-select"
+            data-walk="class-teacher-picker"
+            :disabled="teacherBusy"
+            :options="addableTeacherOptions"
+            :placeholder="t('schools.classDetail.chooseTeacherOption', 'Choose a teacher…')"
+            :aria-label="t('schools.classDetail.chooseTeacherOption', 'Choose a teacher…')"
+          />
           <p v-if="!addableTeachers.length" class="rail-note schools-subtle">
             {{ t('schools.classDetail.noAddableTeachers', 'Nobody else on the staff list yet — a colleague has to join the school before you can share the class with them.') }}
           </p>
