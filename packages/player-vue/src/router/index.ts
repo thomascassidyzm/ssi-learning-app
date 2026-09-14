@@ -321,30 +321,23 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
-        // ONE CLASS PAGE (Tom's ruling on staging, 2026-09-14, job #624): a
-        // school or group leader's class page is the class NODE HOME,
-        // /org/:id — class performance. This flat page looked for individual
-        // learners and showed a leader an empty roster, so for a leader it
-        // redirects to the node home (same entity id) and no stale link can
-        // land here. Teachers keep it: their class tooling (roster,
-        // co-teachers, join code, rename) lives here and the node home
-        // endpoint does not admit a teacher. The role cache is restored by
-        // the parent guard; a cold load with no cache falls through and
-        // SchoolsContainer's role watcher makes the same redirect once the
-        // context lands.
+        // THE CLASS TOOLS PAGE (Tom, 2026-09-14, jobs #624 then #651). The
+        // CLASS PAGE for every role is the class node home, /org/:id, which
+        // leads with the class's own play-as-class figures; every class row
+        // and card links there (useSchoolsNav 'class-detail'). This flat page
+        // is where the class's tooling lives — roster, co-teachers, join link,
+        // rename, delete, the copy-play repair — and is reached from the
+        // class page's own "Manage class". Job #624 redirected leaders away
+        // from it, which also took Angharad's copy-play card out of reach;
+        // it is open to every member role again, and it no longer leads with
+        // the pupils' aggregate, so landing here by an old link misleads
+        // nobody.
         path: 'classes/:id',
         name: 'class-detail',
         component: ClassDetail,
-        beforeEnter: (to) => {
-          const { isSchoolAdmin, isGovtAdmin } = useUserRole()
-          if (isSchoolAdmin.value || isGovtAdmin.value) {
-            return { path: `/org/${to.params.id}`, query: to.query, hash: to.hash, replace: true }
-          }
-          return true
-        },
         meta: {
-          title: 'Class Detail',
-          description: 'View class roster and settings',
+          title: 'Class tools',
+          description: 'Roster, teachers, join link and settings for one class',
           railFrame: true,
         },
       },

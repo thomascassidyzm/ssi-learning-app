@@ -2200,3 +2200,104 @@ scan per open of the panel — the price of not forking the minute — and nothi
 percentile can fall while a learner is away. This tool shows one at 20+ active people because the
 brief allows it; if that reads as a streak in disguise, the floor can be set to infinity and the
 card still says everything else.
+
+
+## 2026-09-14 — Player advancing on its own: an outside pause is a pause, a silent run stops, and a round knows which loop it is in (job #644)
+
+**Tom (10:40Z).** "Get onto these things that have come up from the forum this morning." Two learners:
+one on Welsh whose player "keeps skipping ahead" and whose back button "won't go any further back",
+one on Basque with one-second mic gaps before listening laps, exercises moving on a second into the
+mic stage, a lone Basque phrase with no framing, the red infinite-play bar appearing mid-course, and
+an app that "determinedly keeps on playing" after the car's bluetooth drops. Trace from the
+experience backwards for the shared false assumption; do not patch symptoms one by one.
+
+**What the trace found.** The shared false assumption was that the engine can tell what the learner
+is hearing from what its timers are doing. (1) An outside pause — bluetooth route lost, headset
+button, another app — was only *recorded*; every timer stayed armed, so the stall watchdog skipped
+the paused clip after ten seconds and played the next one, and the recovery timer un-paused the
+rest. That is the "keeps on playing" and the phantom progress. (2) The skip-on-failure path had no
+floor, so a dead block walked the cursor at machine speed with nothing audible. (3) "No intro, debut
+or build cycle" was read as "this is an infinite-play round"; a main-loop round whose LEGO has no
+audio yet has exactly that shape. Basque seeds 85 to 99 carry 16 such LEGOs, in the reporter's
+range, which is the red bar, the frozen belt, the INF PLAY back button and the stuck fast-forward.
+(4) Seed-sentence reviews are built from `course_seeds`, which carries audio ids but no durations,
+so their mic gap collapsed to the one-second floor. Measured in the reporter's own telemetry:
+sixteen seed reviews at 1.6 to 1.8 s, most within thirty seconds of a listening lap. The lone
+Basque phrase is the drained seed sandwich, which is by design.
+
+**Decision.** (1) `SimplePlayer.noteInterruption` now halts in place: generation bump, every timer
+disarmed, element stopped, `isPlaying=false`, position kept. The conductor mirrors the new
+`self_paused` event into `userPaused`. No auto-resume anywhere: `resumeFromInterruption`,
+`hasPendingInterruption`, `resumeAfterInterruption` and the visibility wiring are deleted. (2) Every
+advance-without-hearing path goes through one door; the fourth consecutive unheard clip stops the
+player with `audio_failed` reason `silent-run` and a tap-to-retry banner; three, one hollow cycle,
+is still walked through under the plays-what-it-has ruling; a real `ended` on a clip under 50 ms
+counts as unheard; `resume()` refunds the budget so each tap in a dead block steps one cycle.
+(3) Core `Round.revival` is stamped by all three producers; `isMainLoopRound` reads the stamp first
+and falls back to shape only for rounds from a cache that predates it. (4) The bundle route looks up
+seed clip durations from `course_audio`, and `computePauseDuration` assumes an ordinary 2.5 s
+sentence when both durations are missing rather than collapsing to the floor.
+
+**Better × Simpler × Cheaper.** Better: the player can no longer manufacture progress, and a
+learner two seeds past a missing clip stays in the main loop. Simpler: one halt path, one stop
+door, one fact on the round instead of a shape inference; the whole auto-resume machinery is
+deleted. Cheaper: one extra `course_audio` lookup per bundle build; nothing new at runtime.
+
+**Flag for Tom.** The 2026-08-09 auto-resume was built for his own WhatsApp case; after this change
+that case costs one tap. And the content: Welsh North has LEGOs authored to seed 305 of 668, Welsh
+South to 334, Basque to 300, so Black belt at seed 400 is unreachable on all three and a learner at
+the authored end is dropped into infinite play from every cold start.
+
+## 2026-09-14 — One class page for teachers too; the teacher home reads play-as-class (job #651)
+
+**Trigger.** Ysgol Cas-gwent Chepstow, 2026-09-14: "some teachers say 0 minutes, yet they screenshot
+and it says they have done some." Teacher florencecotten, class 10C, code EKA-766: her Library said
+12 min total, 9 min on Welsh; her teacher dashboard said "One class on the go, 0 students across
+it", benchmarks 0c, "0 students · 0 min practised · 0 sessions". Tom: the WRONG class view, the one
+that aggregates the student learners, was still surfacing for teachers.
+
+**What the live data says.** Two causes stacked. (1) Her Wednesday lesson, 07:41 to 08:01Z on
+2026-09-09, 125 clips and 737 seconds of audio, sits on HER OWN learner account. The 10C class
+account has nothing that day: its rows carry the play-as-class `actor_user_id` stamp and hers do
+not. She pressed play from her own account, not Play as class. Thirteen of Chepstow's 34 class
+accounts have never played at all while their teachers carry 150 to 722 seconds on their own
+accounts on lesson days, so this is the school's pattern, not one teacher's slip. (2) The teacher
+home read the pupils' aggregate spine, class_activity_stats and class_student_progress, which is
+zero for every class taught from the front, so even the teachers who did use Play as class saw
+zeros on that page. Job #624 moved leaders to the class node home and left teachers on the flat
+page, whose node-home endpoint refused a teacher.
+
+**Decision.**
+- The node home endpoint admits a teacher of the class, to that one class, with no rail above it;
+  the payload says `callerTeachesClass`. Every class link for every member role goes to
+  /org/:classId. The flat /schools/classes/:id page is the class TOOLS page, reached from the
+  class page's own Manage class, open to every member role again. Job #624's leader redirect is
+  gone: it had also put Angharad's copy-play card out of a leader's reach.
+- The teacher home reads /api/school/class-practice-7d, the same payload the classes list and the
+  leader pages read: per class, minutes in the app this week, phrases practised, LEGOs travelled,
+  last played, on the ONE minute definition. The benchmarks-in-cycles column is dropped rather than
+  recomputed: its inputs are the dead pupil-aggregate spine, and a school-wide play-as-class
+  average is a rollup a teacher is not scoped to read.
+- The payload carries `callerOwn`, the caller's own account this week, and the teacher home names
+  it: "You practised 12 min on your own account this week, last on Wed 9 Sept. That counts for you,
+  not for a class. Use Play as class so a lesson counts for the class." Under view-as the persona's
+  own account is asked for by `own_user_id`, admin-gated like `school_id`.
+- Wherever the pupils' aggregate remains it is a second section headed "Students on their own
+  accounts" with a one-line caption, and it is absent when no pupil has an account.
+- The copy-play repair card sits on the class page for leaders, and in a self mode for the class's
+  teacher. The server always admitted a teacher of the class; only the card was leader-only.
+
+**Better × Simpler × Cheaper.** Better: a teacher sees the same class page and the same numbers a
+leader sees, and a lesson that went to the wrong account is named rather than lost. Simpler: one
+class page, one link rule, one payload; the cycles benchmark and the dead-spine reads on the teacher
+home are deleted. Cheaper: one extra learner id on a diary read the endpoint already makes; no new
+table, no new endpoint.
+
+**Not done, and why.** All-time minutes on the one minute definition: the minute engine reads a
+window of the diary, and no materialised all-time figure exists for it; the leader pages do not
+show one either. Named as a gap, not faked from the pupil spine.
+
+**Flag for Tom.** The prevention is upstream of any dashboard: a teacher who opens the app lands
+on their own Library and presses play. A one-line nudge on the learner player for a teacher whose
+class is on that course would stop the next fifteen mistakes; that is a learner-surface change and
+is his call.

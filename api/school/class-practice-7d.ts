@@ -47,6 +47,16 @@
  *                        in-app minutes per UTC day, oldest first, today last; started
  *                        is false only when the account has never played at all — the
  *                        list then says "not started" in words, never a row of zeros.
+ *   callerOwn: { learnerId, inAppMinutes7d, minutesByDay[7], lastPlayedDay } | null —
+ *                        THE CALLER'S OWN ACCOUNT this week (job #651, Chepstow
+ *                        2026-09-14). Half that school's teachers ran their lesson
+ *                        signed in as themselves, so the Library said 12 minutes and
+ *                        every class said 0. The teacher home names the gap: these
+ *                        minutes are yours, not the class's, and Play as class is
+ *                        what moves them. Null when the caller has no learner row.
+ *                        Under the admin passthrough, `?own_user_id=` names the
+ *                        persona whose own account is meant (View-as runs as the
+ *                        admin) — verifyAdmin-gated like `?school_id=`.
  *   metric: 'in_app_session_time', idleCutoffSeconds, days: 7
  * }
  *
@@ -96,6 +106,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   try {
     let scope = await resolveVisibleScope(svc, auth.userId)
+    // The caller's OWN learner account — a teacher's own play lives here, and
+    // the teacher home says so in words (callerOwn below).
+    let ownLearnerId: string | null = scope.learnerId || null
     const requestedSchoolId = typeof req.query.school_id === 'string' ? req.query.school_id.trim() : ''
     if (requestedSchoolId && scope.classIds.length === 0 && scope.schoolIds.length === 0) {
       const adminResult = await verifyAdmin(req)
@@ -104,6 +117,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         return
       }
       scope = await scopeForSchoolRead(svc, requestedSchoolId)
+      // View-as: the persona's own account, never the admin's.
+      const ownUserId = typeof req.query.own_user_id === 'string' ? req.query.own_user_id.trim() : ''
+      ownLearnerId = null
+      if (ownUserId) {
+        const { data: personaLearner } = await svc.from('learners').select('id').eq('user_id', ownUserId).maybeSingle()
+        ownLearnerId = (personaLearner as any)?.id ?? null
+      }
     }
 
     // Intersect any requested class_ids with the caller's actual scope; default
@@ -128,7 +148,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     if (classIds.length === 0) {
       res.setHeader('Cache-Control', 'no-store')
-      res.status(200).json({ practiceByClass: {}, classPlayByClass: {}, audioPlayedByClass: {}, activeDaysByClass: {}, rollup: { windowDays: CLASS_PRACTICE_WINDOW_DAYS, classCount: 0, activeClasses7d: 0, inAppMinutes7d: 0 }, classAccountByClass: {}, metric: 'in_app_session_time', idleCutoffSeconds: IDLE_CUTOFF_SECONDS, days: DAYS })
+      res.status(200).json({ practiceByClass: {}, classPlayByClass: {}, audioPlayedByClass: {}, activeDaysByClass: {}, rollup: { windowDays: CLASS_PRACTICE_WINDOW_DAYS, classCount: 0, activeClasses7d: 0, inAppMinutes7d: 0 }, classAccountByClass: {}, callerOwn: null, metric: 'in_app_session_time', idleCutoffSeconds: IDLE_CUTOFF_SECONDS, days: DAYS })
       return
     }
 
@@ -224,7 +244,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     })()
 
     const [inAppByLearner, secondsByLearner, { facts, rollup }, classAccountBase] = await Promise.all([
-      inAppTimeByLearner(svc, [...studentIds, ...classLearnerByClass.values()], since.toISOString()),
+      // One diary read for the students, the class accounts AND the caller's
+      // own account: a learner id is sessionised once whichever list it is on.
+      inAppTimeByLearner(svc, [...new Set([...studentIds, ...classLearnerByClass.values(), ...(ownLearnerId ? [ownLearnerId] : [])])], since.toISOString()),
       audioPlayedByLearner(svc, studentIds, sinceDay),
       rollupPromise,
       classAccountPromise,
@@ -277,7 +299,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       }
     }
 
-    res.status(200).json({ practiceByClass, classPlayByClass, audioPlayedByClass, activeDaysByClass, rollup, classAccountByClass, metric: 'in_app_session_time', idleCutoffSeconds: IDLE_CUTOFF_SECONDS, days: DAYS })
+    // THE CALLER'S OWN ACCOUNT this week — the number the Library shows them.
+    let callerOwn: { learnerId: string; inAppMinutes7d: number; minutesByDay: number[]; lastPlayedDay: string | null } | null = null
+    if (ownLearnerId) {
+      const own = inAppByLearner.get(ownLearnerId)
+      const days = (own?.days ?? []).slice().sort()
+      callerOwn = {
+        learnerId: ownLearnerId,
+        inAppMinutes7d: Math.round((own?.seconds ?? 0) / 60),
+        minutesByDay: windowDays.map((day) => Math.round((own?.secondsByDay?.[day] || 0) / 60)),
+        lastPlayedDay: days.length ? days[days.length - 1] : null,
+      }
+    }
+
+    res.status(200).json({ practiceByClass, classPlayByClass, audioPlayedByClass, activeDaysByClass, rollup, classAccountByClass, callerOwn, metric: 'in_app_session_time', idleCutoffSeconds: IDLE_CUTOFF_SECONDS, days: DAYS })
   } catch (err) {
     console.error('[class-practice-7d] error:', err)
     res.status(500).json({ error: 'Internal server error' })
