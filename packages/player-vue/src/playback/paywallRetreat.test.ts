@@ -114,9 +114,12 @@ describe('LearningPlayer wiring (source read)', () => {
     expect(resume).toBeGreaterThan(restore)
   })
 
-  it('the memory is spent only when a prompt plays with the wall down', () => {
+  it('the memory is spent only when a prompt plays with the wall down, on the remembered round', () => {
+    // Job #752 narrowed this: a prompt on some OTHER round (playing on inside
+    // the preview after "Maybe later") leaves the real place held, so the
+    // stored cursors stay where the learner really was.
     const w = block("watch(() => simplePlayer.phase.value, (phase) => {", '\n})\n')
-    expect(w).toContain('if (!showPaywall.value) paywallRetreat.clear()')
-    expect(src.match(/paywallRetreat\.clear\(\)/g)?.length).toBe(1)
+    expect(w).toContain('if (!showPaywall.value) paywallRetreat.release(')
+    expect(src.match(/paywallRetreat\.clear\(\)/g)).toBeNull()
   })
 })
