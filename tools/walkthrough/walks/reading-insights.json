@@ -44,12 +44,12 @@
     },
     {
       "anchor": "insights-overview",
-      "say": "**Overview** takes you back to the same place's home — insights is a lens on where you already are, not a different page to get lost in.",
+      "say": "**Overview** and **Insights** are two tabs on the same place. Overview takes you back to its home — insights is a lens on where you already are, not a different page to get lost in.",
       "advance": {
         "on": "next"
       },
       "terminal": "Rates lead, position is context — and the picker text always says what a measure means.",
-      "checked": "752118a0.bf185ab9"
+      "checked": "7f2e884d.cf8e6712"
     }
   ]
 }
