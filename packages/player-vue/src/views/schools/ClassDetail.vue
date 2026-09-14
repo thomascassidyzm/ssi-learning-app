@@ -765,7 +765,7 @@ const mailboxPrompt = useMailboxPrompt()
           {{ classData.class_name }}
           <!-- HANDBOOK Rename a class
                section: running-classes
-               roles: leader, school_admin, teacher
+               roles: teacher
                place: class-detail
                keywords: class, rename, name, edit, title
                What it's for. Changing what a class is called, for a name typed in a
@@ -794,7 +794,7 @@ const mailboxPrompt = useMailboxPrompt()
           </button>
           <!-- HANDBOOK Delete a class
                section: running-classes
-               roles: leader, school_admin, teacher
+               roles: teacher
                place: class-detail
                keywords: class, delete, remove, close, archive
                What it's for. Removing a class you no longer want, usually one set up
@@ -861,7 +861,7 @@ const mailboxPrompt = useMailboxPrompt()
         />
         <!-- HANDBOOK Run your first class session
              section: running-classes
-             roles: school_admin, teacher
+             roles: teacher
              place: class-detail
              keywords: session, play, class, run, join, code
              walk: run-class-session
@@ -908,7 +908,7 @@ const mailboxPrompt = useMailboxPrompt()
                    another is one untick and one tick in here. -->
               <!-- HANDBOOK Move a teacher to another class
                    section: running-classes
-                   roles: leader, school_admin, teacher
+                   roles: teacher
                    place: class-detail
                    keywords: move, teacher, classes, assign, timetable
                    walk: move-a-teacher-between-classes
@@ -938,7 +938,7 @@ const mailboxPrompt = useMailboxPrompt()
               </button>
               <!-- HANDBOOK Hand a class over to another teacher
                    section: running-classes
-                   roles: leader, school_admin, teacher
+                   roles: teacher
                    place: class-detail
                    keywords: lead, hand over, class, teacher, transfer
                    walk: hand-over-the-lead
@@ -995,7 +995,7 @@ const mailboxPrompt = useMailboxPrompt()
                English rather than leaving a head to infer it. -->
           <!-- HANDBOOK Share a class with a colleague
                section: running-classes
-               roles: leader, school_admin, teacher
+               roles: teacher
                place: class-detail
                keywords: class, share, co-teacher, colleague, teachers
                walk: share-a-class
@@ -1041,7 +1041,7 @@ const mailboxPrompt = useMailboxPrompt()
 
         <!-- HANDBOOK Invite a teacher who isn't here yet
              section: running-classes
-             roles: leader, school_admin, teacher
+             roles: teacher
              place: class-detail
              keywords: supply, cover, teacher, invite, class, link
              walk: invite-a-supply-teacher
@@ -1083,7 +1083,7 @@ const mailboxPrompt = useMailboxPrompt()
     <div class="body-grid">
       <!-- HANDBOOK The class roster
            section: seeing-progress
-           roles: leader, school_admin, teacher
+           roles: teacher
            place: class-detail
            keywords: roster, students, progress, belt, last active
            parts: class-roster-empty
@@ -1119,7 +1119,7 @@ const mailboxPrompt = useMailboxPrompt()
             />
             <!-- HANDBOOK Add students to a class
                  section: getting-people-in
-                 roles: leader, school_admin, teacher
+                 roles: teacher
                  place: class-detail
                  keywords: add, student, class, roster, move, join
                  parts: class-student-picker
@@ -1271,7 +1271,7 @@ const mailboxPrompt = useMailboxPrompt()
                 <td class="row-action">
                   <!-- HANDBOOK Remove a student from a class
                        section: running-classes
-                       roles: leader, school_admin, teacher
+                       roles: teacher
                        place: class-detail
                        keywords: remove, student, roster, leave, class
                        What it's for. Taking a student off a class roster,
@@ -1323,7 +1323,7 @@ const mailboxPrompt = useMailboxPrompt()
       <aside class="rail">
         <!-- HANDBOOK Where the class has got to
              section: seeing-progress
-             roles: leader, school_admin, teacher
+             roles: teacher
              place: class-detail
              keywords: progress, journey, belt, position, course
              What it's for. How far the class has travelled through its course, as a
@@ -1378,7 +1378,7 @@ const mailboxPrompt = useMailboxPrompt()
             </p>
             <!-- HANDBOOK How students join a class
                  section: getting-people-in
-                 roles: leader, school_admin, teacher
+                 roles: teacher
                  place: class-detail
                  keywords: join, link, code, students, invite, class
                  What it's for. The one door into a class. A student who follows

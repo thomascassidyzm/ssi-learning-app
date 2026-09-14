@@ -2,8 +2,7 @@
   "id": "share-a-class",
   "title": "Share a class with a colleague",
   "personas": [
-    "teacher",
-    "school_admin"
+    "teacher"
   ],
   "place": {
     "route": "class-detail"

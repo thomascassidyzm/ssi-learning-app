@@ -321,9 +321,27 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        // ONE CLASS PAGE (Tom's ruling on staging, 2026-09-14, job #624): a
+        // school or group leader's class page is the class NODE HOME,
+        // /org/:id — class performance. This flat page looked for individual
+        // learners and showed a leader an empty roster, so for a leader it
+        // redirects to the node home (same entity id) and no stale link can
+        // land here. Teachers keep it: their class tooling (roster,
+        // co-teachers, join code, rename) lives here and the node home
+        // endpoint does not admit a teacher. The role cache is restored by
+        // the parent guard; a cold load with no cache falls through and
+        // SchoolsContainer's role watcher makes the same redirect once the
+        // context lands.
         path: 'classes/:id',
         name: 'class-detail',
         component: ClassDetail,
+        beforeEnter: (to) => {
+          const { isSchoolAdmin, isGovtAdmin } = useUserRole()
+          if (isSchoolAdmin.value || isGovtAdmin.value) {
+            return { path: `/org/${to.params.id}`, query: to.query, hash: to.hash, replace: true }
+          }
+          return true
+        },
         meta: {
           title: 'Class Detail',
           description: 'View class roster and settings',

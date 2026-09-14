@@ -1,5 +1,5 @@
 {
-  "version": "278f9863e39d",
+  "version": "425b408fd1e7",
   "generatedAt": "2026-09-14",
   "walks": [
     {
@@ -107,8 +107,7 @@
       "id": "hand-over-the-lead",
       "title": "Hand a class over to another teacher",
       "personas": [
-        "teacher",
-        "school_admin"
+        "teacher"
       ],
       "place": {
         "route": "class-detail"
@@ -196,8 +195,7 @@
       "id": "invite-a-supply-teacher",
       "title": "Invite a teacher who isn't here yet",
       "personas": [
-        "teacher",
-        "school_admin"
+        "teacher"
       ],
       "place": {
         "route": "class-detail"
@@ -394,8 +392,7 @@
       "id": "move-a-teacher-between-classes",
       "title": "Move a teacher to another class",
       "personas": [
-        "teacher",
-        "school_admin"
+        "teacher"
       ],
       "place": {
         "route": "class-detail"
@@ -562,8 +559,7 @@
       "id": "run-class-session",
       "title": "Run your first class session",
       "personas": [
-        "teacher",
-        "school_admin"
+        "teacher"
       ],
       "place": {
         "route": "class-detail"
@@ -698,8 +694,7 @@
       "id": "share-a-class",
       "title": "Share a class with a colleague",
       "personas": [
-        "teacher",
-        "school_admin"
+        "teacher"
       ],
       "place": {
         "route": "class-detail"
@@ -1124,8 +1119,6 @@
       "title": "Add students to a class",
       "section": "getting-people-in",
       "personas": [
-        "leader",
-        "school_admin",
         "teacher"
       ],
       "keywords": [
@@ -1599,8 +1592,6 @@
       "title": "Delete a class",
       "section": "running-classes",
       "personas": [
-        "leader",
-        "school_admin",
         "teacher"
       ],
       "keywords": [
@@ -1965,8 +1956,6 @@
       "title": "Hand a class over to another teacher",
       "section": "running-classes",
       "personas": [
-        "leader",
-        "school_admin",
         "teacher"
       ],
       "keywords": [
@@ -2244,8 +2233,6 @@
       "title": "How students join a class",
       "section": "getting-people-in",
       "personas": [
-        "leader",
-        "school_admin",
         "teacher"
       ],
       "keywords": [
@@ -2345,8 +2332,6 @@
       "title": "Invite a teacher who isn't here yet",
       "section": "running-classes",
       "personas": [
-        "leader",
-        "school_admin",
         "teacher"
       ],
       "keywords": [
@@ -2542,8 +2527,6 @@
       "title": "Move a teacher to another class",
       "section": "running-classes",
       "personas": [
-        "leader",
-        "school_admin",
         "teacher"
       ],
       "keywords": [
@@ -2660,12 +2643,12 @@
       "surface": "schools",
       "source": "packages/player-vue/src/views/schools/TeacherDashboard.vue",
       "walk": null,
-      "what": "Going from the summary row into the class itself, where the roster, the teachers, the join link and the class's progress all live.",
+      "what": "Going from the summary row into the class itself. A school leader lands on the class's own page: what it practised this week, its minutes in the app, how far it has travelled and who teaches it, with **Invite students** and **See insights** at the top. A teacher lands on the class tools: the roster, the teachers, the join link and the class's progress.",
       "where": "**My Classes**, anywhere on the class's row.",
       "how": [
         "Open **My Classes**.",
         "Tap the row for the class you want.",
-        "The class page opens on its roster."
+        "The class page opens."
       ],
       "note": "The row is a button in its own right, so a keyboard works too. The buttons at the right of the row do their own jobs and do not open the class."
     },
@@ -2875,8 +2858,6 @@
       "title": "Remove a student from a class",
       "section": "running-classes",
       "personas": [
-        "leader",
-        "school_admin",
         "teacher"
       ],
       "keywords": [
@@ -2939,8 +2920,6 @@
       "title": "Rename a class",
       "section": "running-classes",
       "personas": [
-        "leader",
-        "school_admin",
         "teacher"
       ],
       "keywords": [
@@ -3036,7 +3015,6 @@
       "title": "Run your first class session",
       "section": "running-classes",
       "personas": [
-        "school_admin",
         "teacher"
       ],
       "keywords": [
@@ -3403,8 +3381,6 @@
       "title": "Share a class with a colleague",
       "section": "running-classes",
       "personas": [
-        "leader",
-        "school_admin",
         "teacher"
       ],
       "keywords": [
@@ -3705,8 +3681,6 @@
       "title": "The class roster",
       "section": "seeing-progress",
       "personas": [
-        "leader",
-        "school_admin",
         "teacher"
       ],
       "keywords": [
@@ -3763,9 +3737,10 @@
         "Open **My Classes**.",
         "Read the big figure on each tile for phrases practised this week.",
         "Read the line under it for classes practising out of classes in that year.",
+        "Tap a tile and the table below narrows to that year's classes; a **Year 7 ×** chip in the pickers takes the filter off again.",
         "A tile reading **Other** holds the classes whose names carry no year."
       ],
-      "note": "The year is read off the class name — a leading number from 6 to 13, so **7B**, **Year 9 French** and **10 Set 1** all count — and is never stored. If fewer than half your class names carry a year the card reads **By class** instead, busiest first, three then **Show all**."
+      "note": "The year is read off the class name — a leading number from 6 to 13, so **7B**, **Year 9 French** and **10 Set 1** all count — and is never stored. If fewer than half your class names carry a year the card reads **By class** instead, busiest first, three then **Show all**, and each of those tiles opens its class."
     },
     {
       "id": "the-invites-desk",
@@ -3830,9 +3805,10 @@
         "Open a school or a group.",
         "Read the big figure on each tile for phrases practised this week.",
         "Read the line under it for classes practising out of classes in that year.",
-        "A tile reading **Other** holds the classes whose names carry no year."
+        "A tile reading **Other** holds the classes whose names carry no year.",
+        "On your own school, tap a tile to open the classes list narrowed to that year's classes."
       ],
-      "note": "The year is read off the class name — a leading number from 6 to 13, so **7B**, **Year 9 French** and **10 Set 1** all count — and is never stored. If fewer than half your class names carry a year the card reads **By class** instead, busiest first, three then **Show all**. No minutes are shown per year group."
+      "note": "The year is read off the class name — a leading number from 6 to 13, so **7B**, **Year 9 French** and **10 Set 1** all count — and is never stored. If fewer than half your class names carry a year the card reads **By class** instead, busiest first, three then **Show all**, and each of those tiles opens its class. No minutes are shown per year group."
     },
     {
       "id": "the-numbers-on-any-level",
@@ -3867,7 +3843,8 @@
         "**Classes practising this week** is how many of them played together in the last seven days, out of all the classes below.",
         "**Minutes in the app this week** is the time the classes beneath this level, and their staff and students on their own accounts, spent in the app over the last seven days, pauses included — the time they were in the lesson. The sentence under the row says how much of it was whole-class play and how much was audio playing.",
         "**Teachers** counts the staff below this level, each once however many classes they take.",
-        "On a class the row switches to that class's own phrases practised this week, its minutes in the app, its students and its teachers."
+        "On a class the row switches to that class's own phrases practised this week, its minutes in the app, its students and its teachers.",
+        "On your own school every card is a link: phrases and minutes open the classes list with the classes in that order, classes practising opens it narrowed to the classes that played this week, and teachers opens the staff list."
       ],
       "note": "An organisation that is not school-shaped sees the same row worded as practice hours, groups and learners instead."
     },
@@ -4189,8 +4166,6 @@
       "title": "Where the class has got to",
       "section": "seeing-progress",
       "personas": [
-        "leader",
-        "school_admin",
         "teacher"
       ],
       "keywords": [

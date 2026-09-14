@@ -14,6 +14,8 @@ const routeRef = { path: '/schools/classes', name: 'classes', params: {} as Reco
 let injected = false
 vi.mock('vue', () => ({ inject: () => injected }))
 vi.mock('vue-router', () => ({ useRoute: () => routeRef }))
+const role = { isSchoolAdmin: { value: false }, isGovtAdmin: { value: false } }
+vi.mock('@/composables/useUserRole', () => ({ useUserRole: () => role }))
 
 import { useSchoolsNav } from './useSchoolsNav'
 
@@ -45,6 +47,29 @@ describe('useSchoolsNav.schoolsLink', () => {
   })
 
   it('a real member with no flag gets member links', () => {
+    injected = false
+    routeRef.path = '/schools/classes'; routeRef.name = 'classes'; routeRef.params = {}
+    expect(useSchoolsNav().schoolsLink('class-detail', { classId: 'c1' })).toBe('/schools/classes/c1')
+  })
+
+  // ONE CLASS PAGE (job #624): a leader's class link is the class node home.
+  it('a school leader on the member tree opens a class on /org/:classId', () => {
+    injected = false
+    role.isSchoolAdmin.value = true
+    routeRef.path = '/schools/classes'; routeRef.name = 'classes'; routeRef.params = {}
+    expect(useSchoolsNav().schoolsLink('class-detail', { classId: 'c1' })).toBe('/org/c1')
+    role.isSchoolAdmin.value = false
+  })
+
+  it('a school leader viewed-as by an ssi_admin still opens /org/:classId', () => {
+    injected = true
+    role.isSchoolAdmin.value = true
+    routeRef.path = '/schools/classes'; routeRef.name = 'classes'; routeRef.params = {}
+    expect(useSchoolsNav().schoolsLink('class-detail', { classId: 'c1' })).toBe('/org/c1')
+    role.isSchoolAdmin.value = false
+  })
+
+  it('a teacher keeps the flat class page, where the class tooling lives', () => {
     injected = false
     routeRef.path = '/schools/classes'; routeRef.name = 'classes'; routeRef.params = {}
     expect(useSchoolsNav().schoolsLink('class-detail', { classId: 'c1' })).toBe('/schools/classes/c1')

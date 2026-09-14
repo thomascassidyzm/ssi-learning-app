@@ -464,6 +464,13 @@ const showRailFrame = computed(() => !!route.meta.railFrame && railEligible.valu
 watch(
   [() => ctx.currentUser.value, () => route.name],
   ([user, routeName]) => {
+    // ONE CLASS PAGE (Tom, 2026-09-14, job #624): a leader's class is its
+    // node home. The route's own guard does this from the role cache; this
+    // is the net for a cold load where the role lands after the page mounts.
+    if (routeName === 'class-detail' && (ctx.isGovtAdmin.value || ctx.isSchoolAdmin.value)) {
+      void router.replace({ path: `/org/${String(route.params.id || '')}`, query: route.query })
+      return
+    }
     const groupId = user?.group_id
     if (groupId && ctx.isGovtAdmin.value) {
       if (routeName === 'schools-list') {
@@ -482,10 +489,13 @@ watch(
     // flat views.
     const schoolId = user?.school_id
     if (schoolId && ctx.isSchoolAdmin.value) {
+      // /schools/teachers is NOT redirected any more (job #624): the node
+      // home's teachers lens went with the filter chips (2026-09-07), so the
+      // staff list is the one place a leader can read their teachers and
+      // remove a leaver — and the Teachers card on the school overview
+      // points at it.
       if (routeName === 'schools-dashboard') {
         void router.replace(`/org/${schoolId}`)
-      } else if (routeName === 'teachers') {
-        void router.replace({ path: `/org/${schoolId}`, query: { lens: 'teachers' } })
       } else if (routeName === 'analytics') {
         void router.replace(`/org/${schoolId}/insights`)
       }
