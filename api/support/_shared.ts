@@ -57,6 +57,14 @@ export interface SupportThreadRow {
   standing_notes: Record<string, unknown>
 }
 
+/** The thread for this scope if one exists; null otherwise. Creates nothing. */
+export async function findThread(svc: SupabaseClient, scope: SupportScope): Promise<SupportThreadRow | null> {
+  const col = scope.kind === 'school' ? 'school_id' : 'group_id'
+  const key = scope.kind === 'school' ? scope.schoolId : scope.groupId
+  const { data } = await svc.from('support_threads').select('*').eq(col, key).maybeSingle()
+  return (data as SupportThreadRow | null) ?? null
+}
+
 /** The thread for this scope, created on first use (spec §14 item 7). */
 export async function getOrCreateThread(svc: SupabaseClient, scope: SupportScope): Promise<SupportThreadRow> {
   const col = scope.kind === 'school' ? 'school_id' : 'group_id'
