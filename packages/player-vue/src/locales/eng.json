@@ -1316,7 +1316,7 @@
           "say": "**Compare to** puts an average alongside. Everything here is a rate, not a raw total — so groups of different sizes compare fairly."
         },
         "3": {
-          "say": "**Overview** takes you back to the same place's home — insights is a lens on where you already are, not a different page to get lost in.",
+          "say": "**Overview** and **Insights** are two tabs on the same place. Overview takes you back to its home — insights is a lens on where you already are, not a different page to get lost in.",
           "terminal": "Rates lead, position is context — and the picker text always says what a measure means."
         }
       }
