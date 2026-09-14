@@ -2966,6 +2966,16 @@
       "tooFewToCompare": "Too few to compare privately — a band of fewer than {floor} stays unshown.",
       "whyLink": "why?",
       "widgetNotFound": "Widget \"{widget}\" not found."
+    },
+    "you": {
+      "cardLine": "Your minutes against the course average — never against another person.",
+      "cardTitle": "How your practice is going",
+      "close": "Close",
+      "guestLine": "Your minutes against the course average, once you have an account.",
+      "guestTitle": "Sign in to see your insights",
+      "intro": "This is your own journey against the typical person on your course. Nobody else’s numbers are shown here, and nobody sees yours.",
+      "open": "Take a look",
+      "sectionLabel": "Your insights"
     }
   },
   "noticing": {

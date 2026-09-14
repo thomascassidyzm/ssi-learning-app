@@ -30,7 +30,10 @@ const props = defineProps<{
   data: RateComparisonData
 }>()
 
-const isEmpty = computed(() => props.data.distribution.values.length === 0)
+// A server that suppressed the percentile sends an EMPTY shape on purpose —
+// that is a rendered state (the note), never the empty state.
+const percentileNote = computed(() => props.data.percentileNote || null)
+const isEmpty = computed(() => props.data.distribution.values.length === 0 && !percentileNote.value)
 
 const perLabel = computed(() => {
   const { unit, per } = props.data
@@ -113,7 +116,7 @@ const rankFoot = computed(() => {
   return {
     pre: isViewer.value ? "You're at the" : `This ${noun} is at the`,
     strong: `${ordinal(props.data.percentile)} percentile`,
-    post: 'of this cohort',
+    post: isViewer.value && props.data.cohortLabel ? `of ${props.data.cohortLabel}` : 'of this cohort',
   }
 })
 
@@ -125,6 +128,10 @@ function fmt(v: number): string {
 }
 
 const deltaUp = computed(() => props.data.deltaPct >= 0)
+// The viewer's own card never colours a shortfall as a warning: the delta is
+// information about their own journey, not a grade (Tom, 2026-09-14: warm,
+// never comparative shaming). Entities that are not the viewer keep the tone.
+const deltaTone = computed(() => (isViewer.value && !deltaUp.value ? 'quiet' : deltaUp.value ? 'good' : 'warn'))
 const deltaLabel = computed(() => {
   const d = props.data.deltaPct
   const sign = d > 0 ? '+' : d < 0 ? '−' : '' // proper minus sign
@@ -216,11 +223,11 @@ const cohortTicks = computed<number[]>(() => {
         </div>
 
         <div class="rc-head-delta">
-          <span :class="['rc-delta', deltaUp ? 'good' : 'warn']">
+          <span :class="['rc-delta', deltaTone]">
             <span class="rc-delta-arrow">{{ deltaUp ? '▲' : '▼' }}</span>
             {{ deltaLabel }}
           </span>
-          <span :class="['rc-pct-chip', pctTone]">{{ rankChipLabel }}</span>
+          <span v-if="!percentileNote" :class="['rc-pct-chip', pctTone]">{{ rankChipLabel }}</span>
         </div>
       </header>
 
@@ -243,10 +250,16 @@ const cohortTicks = computed<number[]>(() => {
         />
       </div>
 
+      <!-- ── Percentile suppressed: the server sent no shape, on purpose ── -->
+      <div v-if="percentileNote" class="rc-dist rc-dist-suppressed" data-testid="rc-percentile-note">
+        <span class="rc-section-label">{{ sitsLine }}</span>
+        <p class="rc-dist-foot">{{ percentileNote }}</p>
+      </div>
+
       <!-- ── Anonymised distribution — the centrepiece (privacy-safe) ── -->
       <!-- The whole cohort as a SHAPE: quartile band + unlabelled points, with
            only "You" and the average marked. No other entity is named. -->
-      <div class="rc-dist">
+      <div v-else class="rc-dist">
         <div class="rc-dist-head">
           <span class="rc-section-label">
             {{ sitsLine }}
@@ -417,6 +430,7 @@ const cohortTicks = computed<number[]>(() => {
 }
 .rc-delta.good { color: rgba(var(--rc-positive), 1); }
 .rc-delta.warn { color: rgba(var(--tone-gold), 1); }
+.rc-delta.quiet { color: rgba(var(--rc-secondary), 1); }
 .rc-delta-arrow { font-size: 16px; }
 .rc-pct-chip {
   font-size: 10.5px;
@@ -584,6 +598,8 @@ const cohortTicks = computed<number[]>(() => {
   color: var(--ink-secondary);
 }
 .rc-dist-foot strong { color: var(--ink-primary); }
+.rc-dist-suppressed { gap: 8px; }
+.rc-dist-suppressed .rc-dist-foot { margin: 0; }
 
 /* ── Secondary position context (rate stays hero) ── */
 .rc-context {
