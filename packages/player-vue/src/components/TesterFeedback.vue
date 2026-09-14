@@ -5,11 +5,19 @@ const { t } = useI18n()
  * TesterFeedback - Floating bug report widget for testers and admins
  *
  * Visible only to users with platform_role 'tester' or 'ssi_admin'.
- * Submits feedback directly to the tester_feedback Supabase table.
+ *
+ * ONE POSTBOX (job #652, 2026-09-14). This used to insert straight into the
+ * tester_feedback table, which nothing polls: Aran's "choose your course not
+ * scrolling" landed there on 2026-09-14 and was searched for in bug_reports.
+ * It now files through useBugReport, the same route the learner sheet and
+ * the schools dashboard use, with source 'tester_widget', so the report
+ * reaches the one channel that is read. A failed send says so on the panel
+ * rather than in the console.
  */
 import { ref, computed, inject } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserRole } from '@/composables/useUserRole'
+import { useBugReport } from '@/composables/useBugReport'
 import { envLabel, triggerPreviewCheat, type PreviewTriggerParam } from '@/composables/usePreviewTriggers'
 
 const { isTester, isSsiAdmin } = useUserRole()
@@ -27,6 +35,7 @@ const previewTriggers: { param: PreviewTriggerParam; label: string }[] = [
 const router = useRouter()
 const route = useRoute()
 const supabase = inject<{ value: any }>('supabase')
+const { submit: postReport } = useBugReport()
 
 // Hide on admin-context routes — feedback is for learner-facing testing.
 const isAdminRoute = computed(() =>
@@ -98,8 +107,6 @@ function onFabPointerUp() {
   document.removeEventListener('pointerup', onFabPointerUp)
   requestAnimationFrame(() => { isDragging.value = false })
 }
-const auth = inject<any>('auth')
-
 // @ts-ignore - __BUILD_NUMBER__ is defined by Vite
 const BUILD_VERSION = typeof __BUILD_NUMBER__ !== 'undefined' ? __BUILD_NUMBER__ : 'dev'
 
@@ -109,6 +116,7 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 const isPanelOpen = ref(false)
 const isSubmitting = ref(false)
 const showConfirmation = ref(false)
+const submitFailed = ref(false)
 
 // Form state
 const feedbackTypes = ['Bug', 'Suggestion', 'Security', 'UX'] as const
@@ -212,27 +220,20 @@ async function uploadScreenshot(): Promise<string | null> {
 }
 
 async function submitFeedback() {
-  if (!title.value.trim() || !supabase?.value) return
+  if (!title.value.trim()) return
 
   isSubmitting.value = true
+  submitFailed.value = false
   try {
     // Upload screenshot first (if any) — failure is non-blocking
     const screenshotUrl = await uploadScreenshot()
 
-    const { error } = await supabase.value.from('tester_feedback').insert({
-      user_id: auth?.userId?.value ?? null,
-      display_name: auth?.learner?.value?.display_name ?? null,
-      feedback_type: selectedType.value.toLowerCase(),
-      title: title.value.trim(),
-      description: description.value.trim() || null,
-      screenshot_url: screenshotUrl,
-      route: currentRoute.value,
-      device_info: deviceInfo.value,
-      build_version: BUILD_VERSION,
-    })
-
-    if (error) {
-      console.error('[TesterFeedback] Submit error:', error.message)
+    // Type and title lead the body; the route attaches course, position,
+    // device, build and the last five minutes of player_events itself.
+    const body = [`[${selectedType.value}] ${title.value.trim()}`, description.value.trim()].filter(Boolean).join('\n\n')
+    const ok = await postReport(body, screenshotUrl, null, { source: 'tester_widget' })
+    if (!ok) {
+      submitFailed.value = true
       return
     }
 
@@ -397,6 +398,7 @@ async function submitFeedback() {
           </div>
 
           <div class="feedback-footer">
+            <p v-if="submitFailed" class="feedback-submit-error" role="alert">{{ t('bugReport.failed') }}</p>
             <button
               class="feedback-submit"
               :disabled="!title.trim() || isSubmitting"
@@ -733,6 +735,12 @@ async function submitFeedback() {
 .feedback-footer {
   padding: 12px 20px 16px;
   border-top: 1px solid var(--color-border, #2a2a4a);
+}
+
+.feedback-submit-error {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: #e04040;
 }
 
 .feedback-submit {
