@@ -357,6 +357,7 @@ function generateMain(
       legoTargetText: lego.targetText,
       ...(lego.targetTextNative ? { legoTargetTextNative: lego.targetTextNative } : {}),
       legoKnownText: lego.knownText,
+      revival: false,
       cycles,
     })
     lastEmittedIdx = mapIdx
@@ -601,6 +602,7 @@ function generateInfPlay(
         : '',
       legoTargetText: '',
       legoKnownText: '',
+      revival: true,
       cycles,
     })
   }

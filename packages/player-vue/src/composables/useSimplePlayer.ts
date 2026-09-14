@@ -10,6 +10,7 @@ import {
   type Cycle,
   type Phase,
   type AudioFailedEvent,
+  type AudioInterruptedEvent,
   type SimplePlayerRuntimeOverrides,
 } from '../playback/SimplePlayer'
 import { PlayerConductor, type RunOptions } from '../playback/PlayerConductor'
@@ -99,22 +100,12 @@ export interface UseSimplePlayerReturn {
   onSessionComplete: (callback: () => void) => void
   onAudioFailed: (callback: (event: AudioFailedEvent) => void) => void
   onNoPlayableContent: (callback: () => void) => void
-  /** Recover from an outside audio-session interruption (another app took
-   * audio focus). Wired to visibilitychange internally; exposed so a
-   * foreground surface can also nudge it. No-ops unless the engine actually
-   * recorded an interruption AND the conductor is still in `playing` — a
-   * learner-initiated pause is never un-paused. */
-  resumeAfterInterruption: () => void
+  /** Something outside the app paused the audio (a lost bluetooth route, a
+   * headset button, another app taking the session). The engine has already
+   * paused itself in place; this is for telemetry and copy only — nothing
+   * resumes without the learner's tap (Tom, 2026-09-14). */
+  onInterrupted: (callback: (event: AudioInterruptedEvent) => void) => void
 }
-
-/**
- * How long after an interruption detected while the page is VISIBLE we try to
- * recover. A foreground interruption (a notification sound over the top of an
- * open app) never produces a visibilitychange, so nothing else would ever
- * retry; the delay lets the interrupting audio finish and iOS hand the session
- * back, because a play() issued during the interruption is simply rejected.
- */
-const FOREGROUND_RECOVERY_DELAY_MS = 1500
 
 export function useSimplePlayer(): UseSimplePlayerReturn {
   // Internal state
@@ -148,9 +139,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   // resume/play/jump so UI banners bound to this ref disappear automatically.
   const audioFailed = ref<AudioFailedEvent | null>(null)
 
-  // Pending single recovery attempt for an interruption that landed while the
-  // page was in the foreground. See FOREGROUND_RECOVERY_DELAY_MS.
-  let foregroundRecoveryTimer: ReturnType<typeof setTimeout> | null = null
+  const interruptedCallbacks: Array<(event: AudioInterruptedEvent) => void> = []
 
   // Initialize with rounds - creates new player instance
   function initialize(rounds: Round[]): void {
@@ -209,17 +198,13 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     player.on('no_playable_content', () => {
       noPlayableCallbacks.forEach(cb => cb())
     })
-    // Something outside the app paused our audio. If we're backgrounded, the
-    // visibilitychange listener below recovers on return; if we're already in
-    // the foreground nothing else ever fires, so give the interrupting audio a
-    // moment to finish and then try once.
-    player.on('interrupted', () => {
-      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
-      if (foregroundRecoveryTimer) clearTimeout(foregroundRecoveryTimer)
-      foregroundRecoveryTimer = setTimeout(() => {
-        foregroundRecoveryTimer = null
-        resumeAfterInterruption()
-      }, FOREGROUND_RECOVERY_DELAY_MS)
+    // Something outside the app paused our audio. The engine has ALREADY
+    // paused itself in place (SimplePlayer.noteInterruption) — there is no
+    // recovery timer and no resume-on-visible any more. An outside pause is a
+    // pause; the learner's tap is the way back. Reported so the app can log it.
+    player.on('interrupted', (data) => {
+      const event = data as AudioInterruptedEvent
+      interruptedCallbacks.forEach(cb => cb(event))
     })
   }
 
@@ -485,28 +470,6 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     return conductor.runSeek(fn, opts)
   }
 
-  /**
-   * The web equivalent of "the iOS audio-session interruption ended": another
-   * app took audio focus, iOS paused our element, and playback must pick up
-   * again now that we have focus back. The conductor owns the decision — it
-   * refuses unless it is still in `playing` and the engine recorded a real
-   * outside interruption, so a learner-initiated pause survives untouched.
-   */
-  const resumeAfterInterruption = () => conductor?.resumeAfterInterruption()
-
-  // Returning to the foreground is the moment we can actually play again: a
-  // play() issued while the interrupting app still holds the session is
-  // rejected outright. Attached once, for the composable's lifetime — the
-  // conductor/engine pair is looked up lazily, so it keeps working across
-  // initialize() calls.
-  const handleVisibilityChange = () => {
-    if (typeof document === 'undefined' || document.visibilityState !== 'visible') return
-    resumeAfterInterruption()
-  }
-  if (typeof document !== 'undefined') {
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-  }
-
   // Event hooks
   const onPhaseChanged = (callback: (phase: Phase) => void) => { phaseCallbacks.push(callback) }
   const onCycleCompleted = (callback: (cycle: Cycle) => void) => { cycleCallbacks.push(callback) }
@@ -514,16 +477,10 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   const onSessionComplete = (callback: () => void) => { sessionCallbacks.push(callback) }
   const onAudioFailed = (callback: (event: AudioFailedEvent) => void) => { audioFailedCallbacks.push(callback) }
   const onNoPlayableContent = (callback: () => void) => { noPlayableCallbacks.push(callback) }
+  const onInterrupted = (callback: (event: AudioInterruptedEvent) => void) => { interruptedCallbacks.push(callback) }
 
   // Cleanup on unmount
   onUnmounted(() => {
-    if (typeof document !== 'undefined') {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
-    if (foregroundRecoveryTimer) {
-      clearTimeout(foregroundRecoveryTimer)
-      foregroundRecoveryTimer = null
-    }
     player?.dispose()
     phaseCallbacks.length = 0
     cycleCallbacks.length = 0
@@ -531,6 +488,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     sessionCallbacks.length = 0
     audioFailedCallbacks.length = 0
     noPlayableCallbacks.length = 0
+    interruptedCallbacks.length = 0
   })
 
   return {
@@ -578,7 +536,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     onSessionComplete,
     onAudioFailed,
     onNoPlayableContent,
-    resumeAfterInterruption,
+    onInterrupted,
   }
 }
 
