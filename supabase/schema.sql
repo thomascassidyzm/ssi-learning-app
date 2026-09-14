@@ -3200,6 +3200,60 @@ $$;
 
 
 --
+-- Name: diary_play_rows(timestamp with time zone, timestamp with time zone, text, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.diary_play_rows(p_since timestamp with time zone, p_until timestamp with time zone, p_env text DEFAULT 'production'::text, p_learner_ids uuid[] DEFAULT NULL::uuid[]) RETURNS jsonb
+    LANGUAGE sql STABLE
+    SET search_path TO 'public', 'pg_temp'
+    AS $_$
+  WITH ev AS (
+    SELECT e.learner_id, e.occurred_at, e.event_type, e.course_code, e.payload,
+           (e.payload->>'cycleType' = 'listening_mode') AS listening,
+           lead(e.occurred_at) OVER w AS next_at,
+           lead(e.event_type) OVER w AS next_type,
+           lead(e.payload->>'cycleType' = 'listening_mode') OVER w AS next_listening
+    FROM player_events e
+    WHERE e.occurred_at >= p_since AND e.occurred_at < p_until
+      AND e.learner_id IS NOT NULL
+      AND e.event_type IN ('tap_play', 'tap_pause', 'audio_play', 'listening_tick')
+      AND (p_env IS NULL OR e.env = p_env)
+      AND (p_learner_ids IS NULL OR e.learner_id = ANY (p_learner_ids))
+    WINDOW w AS (PARTITION BY e.learner_id ORDER BY e.occurred_at, e.id)
+  ), packed AS (
+    SELECT learner_id,
+           jsonb_agg(jsonb_build_array(
+             (extract(epoch FROM occurred_at) * 1000)::bigint,
+             CASE event_type WHEN 'tap_play' THEN 'p' WHEN 'tap_pause' THEN 's' WHEN 'listening_tick' THEN 't' ELSE 'a' END,
+             CASE WHEN listening THEN 1 ELSE 0 END,
+             CASE WHEN payload->>'elapsedMs' ~ '^[0-9]+(\.[0-9]+)?$' THEN (payload->>'elapsedMs')::numeric END,
+             CASE WHEN payload->>'durationMs' ~ '^[0-9]+(\.[0-9]+)?$' THEN (payload->>'durationMs')::numeric END,
+             CASE WHEN payload->>'playbackSpeed' ~ '^[0-9]+(\.[0-9]+)?$' THEN (payload->>'playbackSpeed')::numeric END,
+             CASE WHEN event_type = 'audio_play'
+                   AND payload->>'elapsedMs' IS NULL AND payload->>'durationMs' IS NULL
+                   AND NOT (
+                     next_at IS NOT NULL AND next_at - occurred_at <= interval '30 seconds'
+                     AND (next_type = 'tap_pause'
+                          OR (next_type = 'audio_play' AND coalesce(next_listening, false) = coalesce(listening, false)))
+                   )
+                  THEN substring(payload->>'url' FROM '/api/audio/([0-9a-fA-F-]{36})') END,
+             course_code
+           ) ORDER BY occurred_at) AS rows
+    FROM ev
+    GROUP BY learner_id
+  )
+  SELECT coalesce(jsonb_object_agg(learner_id, rows), '{}'::jsonb) FROM packed
+$_$;
+
+
+--
+-- Name: FUNCTION diary_play_rows(p_since timestamp with time zone, p_until timestamp with time zone, p_env text, p_learner_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.diary_play_rows(p_since timestamp with time zone, p_until timestamp with time zone, p_env text, p_learner_ids uuid[]) IS 'Packed play-relevant diary rows for a window, per learner. Selection and packing only; the minute rule is api/_utils/inAppTime.ts. Carries the audio id on every clip that can close a span (job #621). service_role only.';
+
+
+--
 -- Name: enforce_verified_emails_provenance(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -5908,6 +5962,36 @@ $$;
 
 
 --
+-- Name: refuse_live_pod_hold(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.refuse_live_pod_hold() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF OLD.visibility = 'live' AND NEW.visibility = 'held' THEN
+    RAISE EXCEPTION 'listening_pods %: a live pod is never pulled back from learners; it is fixed line by line (Tom, 2026-09-13)', OLD.id
+      USING ERRCODE = 'check_violation';
+  END IF;
+  IF NEW.visibility = 'live'
+     AND NEW.required_role IS NOT NULL
+     AND NEW.required_role IS DISTINCT FROM OLD.required_role THEN
+    RAISE EXCEPTION 'listening_pods %: a live pod is never narrowed or re-scoped; required_role may only be cleared on it, never set or changed (Tom, 2026-09-13)', OLD.id
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: FUNCTION refuse_live_pod_hold(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.refuse_live_pod_hold() IS 'BEFORE UPDATE guard on listening_pods: live -> held raises; a pod that will be live may only have required_role cleared to NULL, never set or changed. Tom, 2026-09-13: a live pod is never held back, narrowed or re-scoped; it is fixed line by line.';
+
+
+--
 -- Name: relink_user_tags(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -6122,6 +6206,27 @@ BEGIN
 
   RETURN NEW;
 END;
+$$;
+
+
+--
+-- Name: support_id_for_learner(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.support_id_for_learner(l uuid) RETURNS text
+    LANGUAGE sql IMMUTABLE
+    AS $$
+  SELECT CASE WHEN l IS NULL THEN NULL ELSE
+    substr(code, 1, 4) || '-' || substr(code, 5)
+  END
+  FROM (
+    SELECT string_agg(
+      substr('0123456789ABCDEFGHJKMNPQRSTVWXYZ', ((v >> (5 * (7 - i))) & 31)::int + 1, 1),
+      '' ORDER BY i
+    ) AS code
+    FROM (SELECT ('x' || substr(replace(l::text, '-', ''), 1, 10))::bit(40)::bigint AS v) t,
+         generate_series(0, 7) AS i
+  ) c
 $$;
 
 
@@ -6603,6 +6708,87 @@ CREATE FUNCTION public.update_updated_at_column() RETURNS trigger
     AS $$
 BEGIN
   NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: user_messages_from_support_reply(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.user_messages_from_support_reply() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  t          public.support_threads%ROWTYPE;
+  rcpt       text;
+  v_title    text;
+  v_body     text;
+  v_label    text;
+BEGIN
+  IF NEW.direction <> 'out' THEN
+    RETURN NEW;
+  END IF;
+  BEGIN
+    SELECT * INTO t FROM public.support_threads WHERE id = NEW.thread_id;
+    IF NOT FOUND THEN
+      RETURN NEW;
+    END IF;
+    IF t.language = 'cym' THEN
+      v_title := 'Ateb ar sgwrs Gymorth eich ysgol';
+      v_label := 'Agor Cymorth';
+    ELSE
+      v_title := 'A reply on your school''s Support thread';
+      v_label := 'Open Support';
+    END IF;
+    v_body := left(NEW.body, 280);
+    IF length(NEW.body) > 280 THEN
+      v_body := v_body || '…';
+    END IF;
+
+    FOR rcpt IN
+      SELECT DISTINCT u FROM (
+        SELECT ut.user_id AS u
+          FROM public.user_tags ut
+         WHERE t.school_id IS NOT NULL
+           AND ut.tag_type = 'school'
+           AND ut.tag_value = 'SCHOOL:' || t.school_id::text
+           AND ut.role_in_context = 'admin'
+           AND ut.removed_at IS NULL
+        UNION
+        SELECT s.admin_user_id
+          FROM public.schools s
+         WHERE t.school_id IS NOT NULL
+           AND s.id = t.school_id
+           AND s.admin_user_id IS NOT NULL
+        UNION
+        SELECT g.user_id
+          FROM public.govt_admins g
+         WHERE t.group_id IS NOT NULL
+           AND g.group_id = t.group_id
+      ) r
+      WHERE u IS NOT NULL AND u <> ''
+    LOOP
+      INSERT INTO public.user_messages (recipient_user_id, source, title, body, action, dedupe_key)
+      VALUES (
+        rcpt,
+        'support_reply',
+        v_title,
+        v_body,
+        jsonb_build_object(
+          'kind', 'open_support',
+          'label', v_label,
+          'payload', jsonb_build_object('thread_id', NEW.thread_id, 'message_id', NEW.id)
+        ),
+        'support_reply:' || NEW.id::text || ':' || rcpt
+      )
+      ON CONFLICT (dedupe_key) DO NOTHING;
+    END LOOP;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'user_messages_from_support_reply: % (reply % not fanned out)', SQLERRM, NEW.id;
+  END;
   RETURN NEW;
 END;
 $$;
@@ -7347,7 +7533,16 @@ CREATE TABLE public.bug_reports (
     route text,
     shape_key text,
     posted_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    source text DEFAULT 'learner'::text NOT NULL,
+    context jsonb,
+    account_code text,
+    reporter_email text,
+    platform_role text,
+    educational_role text,
+    school_role text,
+    school_id uuid,
+    group_id uuid
 );
 
 
@@ -7356,6 +7551,34 @@ CREATE TABLE public.bug_reports (
 --
 
 COMMENT ON TABLE public.bug_reports IS 'The learner postbox: one-way bug reports with diagnostics attached. No reply path by Tom''s ruling of 2026-09-12; posted_at is the poller''s idempotency key.';
+
+
+--
+-- Name: COLUMN bug_reports.source; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.bug_reports.source IS 'Which door the report came through: learner (player), schools_dashboard, tester_widget, or content_flag (the player''s flag button; context names the clip). Jobs #633, #652, #677, 2026-09-14.';
+
+
+--
+-- Name: COLUMN bug_reports.context; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.bug_reports.context IS 'Dashboard reports: { role, school_id, school_name, group_id, class_id, node_id, page_title } in view when raised. Content flags: { audio_id, lego_id, seed_id, known_text, target_text }. Null otherwise.';
+
+
+--
+-- Name: COLUMN bug_reports.account_code; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.bug_reports.account_code IS 'The account code Settings shows, derived from learners.id server-side at report time. Null for a guest. Job #677.';
+
+
+--
+-- Name: COLUMN bug_reports.reporter_email; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.bug_reports.reporter_email IS 'The signed-in email on the verified bearer at report time. Never from the client. Job #677.';
 
 
 --
@@ -12441,6 +12664,211 @@ COMMENT ON COLUMN public.support_messages.model_ladder IS '{start, ceiling, rung
 
 
 --
+-- Name: support_threads; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.support_threads (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    school_id uuid,
+    group_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_message_at timestamp with time zone,
+    last_read_at timestamp with time zone,
+    language text,
+    standing_notes jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT support_threads_one_owner CHECK ((((school_id IS NOT NULL) AND (group_id IS NULL)) OR ((school_id IS NULL) AND (group_id IS NOT NULL))))
+);
+
+
+--
+-- Name: TABLE support_threads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.support_threads IS 'One support thread per school or per org, never closed. No status, no priority: state lives on support_messages.';
+
+
+--
+-- Name: tester_feedback; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tester_feedback (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id text NOT NULL,
+    display_name text,
+    feedback_type text DEFAULT 'bug'::text NOT NULL,
+    title text NOT NULL,
+    description text,
+    route text,
+    device_info jsonb,
+    build_version text,
+    screenshot_url text,
+    status text DEFAULT 'new'::text NOT NULL,
+    priority text DEFAULT 'medium'::text,
+    admin_notes text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: support_inbox; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.support_inbox WITH (security_invoker='on') AS
+ SELECT 'bug_report'::text AS door,
+    b.source,
+    b.id,
+    b.created_at,
+    b.learner_id,
+    COALESCE(b.account_code, public.support_id_for_learner(b.learner_id)) AS account_code,
+    COALESCE(b.reporter_email, l.verified_emails[1]) AS reporter_email,
+    COALESCE(b.platform_role, l.platform_role) AS platform_role,
+    COALESCE(b.educational_role, l.educational_role) AS educational_role,
+    b.school_role,
+    b.school_id,
+    s.school_name,
+    s.is_test AS school_is_test,
+    b.group_id,
+    b.course_code,
+    b.app_version AS build,
+    b.deployment_env,
+    b.device,
+    b.route,
+    b.body,
+    b.context,
+    b.screenshot_url,
+    b.posted_at AS delivered_at
+   FROM ((public.bug_reports b
+     LEFT JOIN public.schools s ON ((s.id = b.school_id)))
+     LEFT JOIN public.learners l ON ((l.id = b.learner_id)))
+UNION ALL
+ SELECT 'support_message'::text AS door,
+    'support_thread'::text AS source,
+    m.id,
+    m.created_at,
+    l.id AS learner_id,
+    public.support_id_for_learner(l.id) AS account_code,
+    COALESCE(m.author_name, l.verified_emails[1]) AS reporter_email,
+    l.platform_role,
+    l.educational_role,
+        CASE
+            WHEN (t.school_id IS NOT NULL) THEN 'school_admin'::text
+            WHEN (t.group_id IS NOT NULL) THEN 'govt_admin'::text
+            ELSE NULL::text
+        END AS school_role,
+    t.school_id,
+    s.school_name,
+    s.is_test AS school_is_test,
+    t.group_id,
+    NULL::text AS course_code,
+    (m.envelope #>> '{client,build_version}'::text[]) AS build,
+    NULL::text AS deployment_env,
+    (m.envelope #> '{client,device_info}'::text[]) AS device,
+    (m.envelope #>> '{client,route}'::text[]) AS route,
+    m.body,
+    m.envelope AS context,
+    NULL::text AS screenshot_url,
+    m.answered_at AS delivered_at
+   FROM (((public.support_messages m
+     JOIN public.support_threads t ON ((t.id = m.thread_id)))
+     LEFT JOIN public.schools s ON ((s.id = t.school_id)))
+     LEFT JOIN public.learners l ON ((l.user_id = m.author_user_id)))
+  WHERE (m.direction = 'in'::text)
+UNION ALL
+ SELECT 'tester_feedback'::text AS door,
+    COALESCE(f.feedback_type, 'tester'::text) AS source,
+    f.id,
+    f.created_at,
+    l.id AS learner_id,
+    public.support_id_for_learner(l.id) AS account_code,
+    l.verified_emails[1] AS reporter_email,
+    l.platform_role,
+    l.educational_role,
+    NULL::text AS school_role,
+    NULL::uuid AS school_id,
+    NULL::text AS school_name,
+    NULL::boolean AS school_is_test,
+    NULL::uuid AS group_id,
+    NULL::text AS course_code,
+    f.build_version AS build,
+    NULL::text AS deployment_env,
+    f.device_info AS device,
+    f.route,
+    (COALESCE(f.title, ''::text) ||
+        CASE
+            WHEN ((f.description IS NOT NULL) AND (f.description <> ''::text)) THEN ('
+
+'::text || f.description)
+            ELSE ''::text
+        END) AS body,
+    NULL::jsonb AS context,
+    f.screenshot_url,
+    NULL::timestamp with time zone AS delivered_at
+   FROM (public.tester_feedback f
+     LEFT JOIN public.learners l ON ((l.user_id = f.user_id)))
+UNION ALL
+ SELECT 'content_feedback'::text AS door,
+    COALESCE(c.feedback_type, 'flag'::text) AS source,
+    c.id,
+    c.created_at,
+    l.id AS learner_id,
+    public.support_id_for_learner(l.id) AS account_code,
+    l.verified_emails[1] AS reporter_email,
+    l.platform_role,
+    l.educational_role,
+    NULL::text AS school_role,
+    NULL::uuid AS school_id,
+    NULL::text AS school_name,
+    NULL::boolean AS school_is_test,
+    NULL::uuid AS group_id,
+    c.course_code,
+    NULL::text AS build,
+    NULL::text AS deployment_env,
+    NULL::jsonb AS device,
+    NULL::text AS route,
+    COALESCE(c.comment, (((('Flagged phrase: "'::text || COALESCE((c.session_context ->> 'known_text'::text), '?'::text)) || '" / "'::text) || COALESCE((c.session_context ->> 'target_text'::text), '?'::text)) || '"'::text)) AS body,
+    c.session_context AS context,
+    NULL::text AS screenshot_url,
+    c.resolved_at AS delivered_at
+   FROM (public.content_feedback c
+     LEFT JOIN public.learners l ON (((l.id)::text = c.user_id)))
+  WHERE (c.user_id IS DISTINCT FROM 'phase8-presentation-author'::text)
+UNION ALL
+ SELECT 'handbook_question'::text AS door,
+    COALESCE(q.persona, 'handbook'::text) AS source,
+    q.id,
+    q.created_at,
+    l.id AS learner_id,
+    public.support_id_for_learner(l.id) AS account_code,
+    l.verified_emails[1] AS reporter_email,
+    l.platform_role,
+    l.educational_role,
+    NULL::text AS school_role,
+    NULL::uuid AS school_id,
+    NULL::text AS school_name,
+    NULL::boolean AS school_is_test,
+    NULL::uuid AS group_id,
+    NULL::text AS course_code,
+    NULL::text AS build,
+    q.env AS deployment_env,
+    NULL::jsonb AS device,
+    q.route,
+    q.question AS body,
+    jsonb_build_object('node_id', q.node_id, 'status', q.status) AS context,
+    NULL::text AS screenshot_url,
+    q.answered_at AS delivered_at
+   FROM (public.handbook_questions q
+     LEFT JOIN public.learners l ON ((l.user_id = q.auth_user_id)));
+
+
+--
+-- Name: VIEW support_inbox; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.support_inbox IS 'One table to read: every in-app door (bug_reports all sources, inbound support_messages, and for history tester_feedback, content_feedback, handbook_questions) with who, school, course, build, device, body and the delivery stamp. No auth.users: legacy email comes from support_messages.author_name or learners.verified_emails. Service-role only. Jobs #677/#680, 2026-09-14.';
+
+
+--
 -- Name: support_settings; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -12485,30 +12913,6 @@ COMMENT ON TABLE public.support_signals IS 'Per (signal, school): the population
 --
 
 COMMENT ON COLUMN public.support_signals.askers IS 'Distinct auth uids who raised this signal at this school. The clip threshold counts people across schools; population() still counts other schools.';
-
-
---
--- Name: support_threads; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.support_threads (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    school_id uuid,
-    group_id uuid,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    last_message_at timestamp with time zone,
-    last_read_at timestamp with time zone,
-    language text,
-    standing_notes jsonb DEFAULT '{}'::jsonb NOT NULL,
-    CONSTRAINT support_threads_one_owner CHECK ((((school_id IS NOT NULL) AND (group_id IS NULL)) OR ((school_id IS NULL) AND (group_id IS NOT NULL))))
-);
-
-
---
--- Name: TABLE support_threads; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.support_threads IS 'One support thread per school or per org, never closed. No status, no priority: state lives on support_messages.';
 
 
 --
@@ -12725,29 +13129,6 @@ COMMENT ON COLUMN public.teachers.platform_expires_at IS 'Tutor dashboard gate: 
 
 
 --
--- Name: tester_feedback; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.tester_feedback (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    user_id text NOT NULL,
-    display_name text,
-    feedback_type text DEFAULT 'bug'::text NOT NULL,
-    title text NOT NULL,
-    description text,
-    route text,
-    device_info jsonb,
-    build_version text,
-    screenshot_url text,
-    status text DEFAULT 'new'::text NOT NULL,
-    priority text DEFAULT 'medium'::text,
-    admin_notes text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
---
 -- Name: trial_burns; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -12830,6 +13211,47 @@ CREATE TABLE public.user_entitlements (
     redeemed_at timestamp with time zone DEFAULT now() NOT NULL,
     email_access_grant_id uuid
 );
+
+
+--
+-- Name: user_messages; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.user_messages (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    recipient_user_id text NOT NULL,
+    source text NOT NULL,
+    title text NOT NULL,
+    body text NOT NULL,
+    action jsonb,
+    action_taken_at timestamp with time zone,
+    read_at timestamp with time zone,
+    dismissed_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    dedupe_key text,
+    CONSTRAINT user_messages_source_check CHECK ((source = ANY (ARRAY['support_reply'::text, 'class_play_copied'::text])))
+);
+
+
+--
+-- Name: TABLE user_messages; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.user_messages IS 'The in-app message inbox: one row per message per recipient (auth uid). source names who sent it; read_at is stamped only when the person taps the message or opens what it points at, never on delivery; dismissed_at is the learner Library card only; action_taken_at is stamped once by POST /api/messages/act. Inserts are service-role only through api/_utils/userMessages.ts sendUserMessage, or the support_reply trigger below. Job #684, 2026-09-14.';
+
+
+--
+-- Name: COLUMN user_messages.recipient_user_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.user_messages.recipient_user_id IS 'auth uid (learners.user_id). Own-row RLS via auth.uid()::text.';
+
+
+--
+-- Name: COLUMN user_messages.dedupe_key; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.user_messages.dedupe_key IS 'Sender-supplied idempotency key, e.g. class_play_copied:<audit_id> or support_reply:<message_id>:<recipient>. A repeat send with the same key is a no-op.';
 
 
 --
@@ -14904,6 +15326,22 @@ ALTER TABLE ONLY public.user_entitlements
 
 ALTER TABLE ONLY public.user_entitlements
     ADD CONSTRAINT user_entitlements_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: user_messages user_messages_dedupe_key_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_messages
+    ADD CONSTRAINT user_messages_dedupe_key_key UNIQUE (dedupe_key);
+
+
+--
+-- Name: user_messages user_messages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_messages
+    ADD CONSTRAINT user_messages_pkey PRIMARY KEY (id);
 
 
 --
@@ -17031,6 +17469,13 @@ CREATE INDEX idx_usage_by_course ON public.course_audio_usage USING btree (cours
 
 
 --
+-- Name: idx_user_messages_recipient_unread; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_user_messages_recipient_unread ON public.user_messages USING btree (recipient_user_id, read_at, created_at DESC);
+
+
+--
 -- Name: idx_user_tags_active; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -17549,6 +17994,13 @@ CREATE TRIGGER listening_pods_audit AFTER DELETE OR UPDATE ON public.listening_p
 
 
 --
+-- Name: listening_pods listening_pods_live_never_held; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER listening_pods_live_never_held BEFORE UPDATE OF visibility, required_role ON public.listening_pods FOR EACH ROW EXECUTE FUNCTION public.refuse_live_pod_hold();
+
+
+--
 -- Name: listening_pods listening_pods_touch_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -17714,6 +18166,13 @@ CREATE TRIGGER trg_touch_canonical_pod_scenarios BEFORE UPDATE ON public.canonic
 --
 
 CREATE TRIGGER trg_update_daily_contributions AFTER INSERT OR UPDATE ON public.sessions FOR EACH ROW EXECUTE FUNCTION public.update_daily_contributions();
+
+
+--
+-- Name: support_messages trg_user_messages_from_support_reply; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_user_messages_from_support_reply AFTER INSERT ON public.support_messages FOR EACH ROW EXECUTE FUNCTION public.user_messages_from_support_reply();
 
 
 --
@@ -20964,6 +21423,26 @@ CREATE POLICY user_entitlements_update_admin ON public.user_entitlements FOR UPD
 
 
 --
+-- Name: user_messages; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.user_messages ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: user_messages user_messages_own_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY user_messages_own_select ON public.user_messages FOR SELECT TO authenticated USING ((recipient_user_id = (auth.uid())::text));
+
+
+--
+-- Name: user_messages user_messages_own_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY user_messages_own_update ON public.user_messages FOR UPDATE TO authenticated USING ((recipient_user_id = (auth.uid())::text)) WITH CHECK ((recipient_user_id = (auth.uid())::text));
+
+
+--
 -- Name: user_tags; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -21592,6 +22071,14 @@ GRANT ALL ON FUNCTION public.decrement_voice_sample_count() TO service_role;
 
 
 --
+-- Name: FUNCTION diary_play_rows(p_since timestamp with time zone, p_until timestamp with time zone, p_env text, p_learner_ids uuid[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.diary_play_rows(p_since timestamp with time zone, p_until timestamp with time zone, p_env text, p_learner_ids uuid[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.diary_play_rows(p_since timestamp with time zone, p_until timestamp with time zone, p_env text, p_learner_ids uuid[]) TO service_role;
+
+
+--
 -- Name: FUNCTION enforce_verified_emails_provenance(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -22141,6 +22628,15 @@ GRANT ALL ON FUNCTION public.refuse_component_introduction() TO service_role;
 
 
 --
+-- Name: FUNCTION refuse_live_pod_hold(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.refuse_live_pod_hold() TO anon;
+GRANT ALL ON FUNCTION public.refuse_live_pod_hold() TO authenticated;
+GRANT ALL ON FUNCTION public.refuse_live_pod_hold() TO service_role;
+
+
+--
 -- Name: FUNCTION relink_user_tags(old_user_id text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -22189,6 +22685,15 @@ GRANT ALL ON FUNCTION public.set_class_join_code() TO service_role;
 
 REVOKE ALL ON FUNCTION public.set_school_join_code() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.set_school_join_code() TO service_role;
+
+
+--
+-- Name: FUNCTION support_id_for_learner(l uuid); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.support_id_for_learner(l uuid) TO anon;
+GRANT ALL ON FUNCTION public.support_id_for_learner(l uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.support_id_for_learner(l uuid) TO service_role;
 
 
 --
@@ -22371,6 +22876,16 @@ GRANT ALL ON FUNCTION public.update_updated_at() TO service_role;
 GRANT ALL ON FUNCTION public.update_updated_at_column() TO anon;
 GRANT ALL ON FUNCTION public.update_updated_at_column() TO authenticated;
 GRANT ALL ON FUNCTION public.update_updated_at_column() TO service_role;
+
+
+--
+-- Name: FUNCTION user_messages_from_support_reply(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.user_messages_from_support_reply() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.user_messages_from_support_reply() TO anon;
+GRANT ALL ON FUNCTION public.user_messages_from_support_reply() TO authenticated;
+GRANT ALL ON FUNCTION public.user_messages_from_support_reply() TO service_role;
 
 
 --
@@ -23983,6 +24498,30 @@ GRANT SELECT(created_at) ON TABLE public.support_messages TO authenticated;
 
 
 --
+-- Name: TABLE support_threads; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.support_threads TO service_role;
+GRANT SELECT ON TABLE public.support_threads TO authenticated;
+
+
+--
+-- Name: TABLE tester_feedback; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.tester_feedback TO service_role;
+GRANT INSERT ON TABLE public.tester_feedback TO anon;
+GRANT INSERT ON TABLE public.tester_feedback TO authenticated;
+
+
+--
+-- Name: TABLE support_inbox; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.support_inbox TO service_role;
+
+
+--
 -- Name: TABLE support_settings; Type: ACL; Schema: public; Owner: -
 --
 
@@ -23994,14 +24533,6 @@ GRANT ALL ON TABLE public.support_settings TO service_role;
 --
 
 GRANT ALL ON TABLE public.support_signals TO service_role;
-
-
---
--- Name: TABLE support_threads; Type: ACL; Schema: public; Owner: -
---
-
-GRANT ALL ON TABLE public.support_threads TO service_role;
-GRANT SELECT ON TABLE public.support_threads TO authenticated;
 
 
 --
@@ -24053,15 +24584,6 @@ GRANT ALL ON TABLE public.teachers TO service_role;
 
 
 --
--- Name: TABLE tester_feedback; Type: ACL; Schema: public; Owner: -
---
-
-GRANT ALL ON TABLE public.tester_feedback TO service_role;
-GRANT INSERT ON TABLE public.tester_feedback TO anon;
-GRANT INSERT ON TABLE public.tester_feedback TO authenticated;
-
-
---
 -- Name: TABLE trial_burns; Type: ACL; Schema: public; Owner: -
 --
 
@@ -24098,6 +24620,28 @@ GRANT ALL ON TABLE public.tutor_rebate_ledger TO service_role;
 GRANT ALL ON TABLE public.user_entitlements TO anon;
 GRANT ALL ON TABLE public.user_entitlements TO authenticated;
 GRANT ALL ON TABLE public.user_entitlements TO service_role;
+
+
+--
+-- Name: TABLE user_messages; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.user_messages TO service_role;
+GRANT SELECT ON TABLE public.user_messages TO authenticated;
+
+
+--
+-- Name: COLUMN user_messages.read_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(read_at) ON TABLE public.user_messages TO authenticated;
+
+
+--
+-- Name: COLUMN user_messages.dismissed_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(dismissed_at) ON TABLE public.user_messages TO authenticated;
 
 
 --
