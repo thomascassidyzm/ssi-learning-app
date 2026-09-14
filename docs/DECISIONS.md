@@ -2377,6 +2377,18 @@ a dismiss. Who: read from GET /api/me/teaching-context, the one capability read,
 code; nobody else sees it, and a failed read means no bar. A steer, never a block. Never under a
 class context or in the schools shell (`composables/useOwnAccountPlayNudge.ts`).
 
+**Second addition, 13:03Z (Tom: "We need teacher accounts to open with the dashboard and not the
+player").** The player route's guard sends a cached `teacher` role, on the app's FIRST navigation
+to the bare `/`, to `/schools` — the teacher home, her classes and Play as class in front of her.
+Every in-app Learn / My player tap still reaches the player, so her own play is one deliberate step
+away, never the default; deep links with a query keep their intention; school admins, group leaders
+and tutors are not in the ruling and keep the 2026-07-24 default (`composables/teacherLanding.ts`).
+For teachers this supersedes 2026-07-24. Job #624's leaving teachers on the flat class page was
+already reversed by #651 (one class page for every role) and needs nothing more. The 12:58Z own-
+account steer stays: it is the second line, for the teacher who chooses Learn and then presses play
+on her class's course. Known edge: the guard reads the cached role, so a brand-new device's very
+first sign-in reaches the player once; from the next open, the dashboard.
+
 **Not done, and why.** No bulk apply, per the brief and the audit model. The sweep is not run
 against any real teacher by this job: Angharad runs it. The first live sweep on Chepstow lists 27
 pairs, not the 13 of #651's diagnosis: the planner's rule is "anything left to copy", which also
