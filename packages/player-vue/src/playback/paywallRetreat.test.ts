@@ -111,6 +111,18 @@ describe('LearningPlayer wiring (source read)', () => {
     // The restore itself (by LEGO against the live engine queue, verified
     // landing) lives in paywallGrant.ts and is tested with a fake engine.
     expect(resume).toBeGreaterThan(restore)
+    // Job #757: a restore that cannot find the held LEGO in the live queue
+    // RECOVERS (refetch under the grant, swap, restore) instead of leaving
+    // the learner paused with the wall down; resume rides the recovery.
+    expect(w).toContain("if (action === 'lower-and-recover')")
+    expect(w).toContain('void recoverHeldPositionAfterGrant(wallWasUp)')
+    expect(w).not.toContain('paused at the retreat')
+    const recover = block('async function recoverHeldPositionAfterGrant(', '\n}\n')
+    expect(recover).toContain('refetchScriptUnderGrant')
+    expect(recover).toContain('if (resumeWhenLanded) simplePlayer.resume()')
+    const refetch = block('const refetchScriptUnderGrant = async', '\n}\n')
+    expect(refetch).toContain('getCourseBundle(code, { forceRefresh: true })')
+    expect(refetch).toContain('mergeGeneratedRoundsIntoQueue(result)')
   })
 
   it('the memory is spent only when a prompt plays with the wall down, on the remembered round', () => {

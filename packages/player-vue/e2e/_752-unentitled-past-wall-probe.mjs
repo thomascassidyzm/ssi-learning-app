@@ -33,7 +33,7 @@ const ins = await fetch(`${U}/rest/v1/course_enrollments`, { method: 'POST', hea
 if (!ins.ok) { log('insert failed', ins.status, await ins.text()); process.exit(2) }
 log('DB before:', JSON.stringify(await readDb()))
 
-const cleanup = async () => { if (process.env.KEEP_ROW !== '1') { const del = await fetch(enrollUrl, { method: 'DELETE', headers: H }); log('test enrollment removed:', del.status) } }
+const cleanup = async () => { if (process.env.KEEP_ROW !== '1') { const del = await fetch(enrollUrl, { method: 'DELETE', headers: H }); log('test enrollment removed:', del.status) }; await removeRealGrant?.() }
 process.on('SIGINT', async () => { await cleanup(); process.exit(130) })
 
 const link = await fetch(`${U}/auth/v1/admin/generate_link`, { method: 'POST', headers: H, body: JSON.stringify({ type: 'magiclink', email: EMAIL }) }).then(r => r.json())
@@ -67,12 +67,44 @@ await page.addInitScript(([authKey, sess, course, posKey, lego, plantLocal]) => 
 // resumed at the retreat (resting screen stays), localStorage still S0031L01.
 // The boot fetch answers for real (empty); every later one — the wall's own
 // refresh included — answers the grant.
+// GRANT=db (job #757): the REAL grant. The wall's own refresh is held until a
+// real user_entitlements row (access_type full) exists for this learner, then
+// continued — so the real server answers the refresh with the grant, and the
+// real content gate hands the full bundle to the player's refetch. Expected
+// since #757: wall down, the script refetched, playback RESUMED on S0031L01
+// within a few seconds, localStorage and DB cursor on S0031L01 throughout.
+// The row is removed with the enrollment at the end.
 let entCalls = 0
+let grantedAt = null
+let entitlementRowId = null
+const entUrl = `${U}/rest/v1/user_entitlements`
+const plantRealGrant = async () => {
+  const r = await fetch(entUrl, { method: 'POST', headers: { ...H, Prefer: 'return=representation' }, body: JSON.stringify({ learner_id: LEARNER, access_type: 'full', granted_courses: null, expires_at: null, redeemed_at: new Date().toISOString() }) })
+  const rows = await r.json().catch(() => null)
+  if (!r.ok || !rows?.[0]?.id) { log('real grant insert failed', r.status, JSON.stringify(rows)); return false }
+  entitlementRowId = rows[0].id
+  grantedAt = Date.now()
+  log('REAL GRANT planted: user_entitlements', entitlementRowId)
+  return true
+}
+const removeRealGrant = async () => {
+  if (!entitlementRowId) return
+  const del = await fetch(`${entUrl}?id=eq.${entitlementRowId}`, { method: 'DELETE', headers: H })
+  log('real grant removed:', del.status); entitlementRowId = null
+}
 if (process.env.GRANT === '1') {
   await page.route('**/api/entitlement/user', async route => {
     if (++entCalls === 1) return route.continue()
     log('entitlement fetch → forced FULL grant')
+    grantedAt = grantedAt ?? Date.now()
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ entitlements: [{ id: 'fake', access_type: 'full', granted_courses: null, expires_at: null, redeemed_at: new Date().toISOString(), entitlement_code_id: null }] }) })
+  })
+} else if (process.env.GRANT === 'db') {
+  await page.route('**/api/entitlement/user', async route => {
+    if (++entCalls === 1) return route.continue()
+    if (!entitlementRowId) await plantRealGrant()
+    log('entitlement fetch → continued to the real server with the real grant in place')
+    return route.continue()
   })
 }
 page.on('request', r => { const u = r.url(); if (u.includes('/api/courses/') || u.includes('/api/progress') || u.includes('course_enrollments') || u.includes('/api/entitlement')) log('  [req]', r.method(), u.replace(BASE, '').slice(0, 140)) })
@@ -80,6 +112,9 @@ page.on('response', r => { const u = r.url(); if ((u.includes('/api/courses/') |
 const readLocal = () => page.evaluate(k => { try { const p = JSON.parse(localStorage.getItem(k) || 'null'); return p && { legoId: p.legoId, seed: p.seedNumber, item: p.itemInRound } } catch { return null } }, posKey)
 const readScreen = () => page.locator('.known-text, .prompt-text, [class*="known"]').first().textContent().then(t => (t || '').trim().slice(0, 40)).catch(() => null)
 const wallVisible = () => page.locator('.paywall-overlay').first().isVisible().catch(() => false)
+// Playing = the centre button is in its Stop shape (BottomNav isStopMode).
+const isPlaying = () => page.locator('.center-btn.is-stop').first().isVisible().catch(() => false)
+const loadingLine = () => page.locator('.preparing-text').first().textContent().then(t => (t || '').trim().slice(0, 40)).catch(() => null)
 
 await page.goto(`${BASE}/?course=${COURSE}`, { waitUntil: 'domcontentloaded' })
 log('page open (local planted:', PLANT_LOCAL, ')')
@@ -91,6 +126,25 @@ for (let t = 0; t < 50; t++) {
     firstWallAt = (t + 1) * 0.5; await page.screenshot({ path: `${OUT}/wall.png` })
   }
   if (t % 4 === 3 || (wall && firstWallAt === (t + 1) * 0.5)) log(`  t+${(t + 1) * 0.5}s wall=${wall} local=${JSON.stringify(await readLocal())} screen=${await readScreen()}`)
+}
+// GRANT modes: after the grant, watch for the wall going down, the loading
+// line, play resuming and the held LEGO's phrase on screen — with timings from
+// the grant. Reads every 250ms for up to 40s.
+if (process.env.GRANT) {
+  const heldKnown = process.env.HELD_KNOWN || 'that you speak'
+  let wallDownAt = null, playingAt = null, phraseAt = null, sawLoading = null
+  for (let t = 0; t < 160; t++) {
+    await page.waitForTimeout(250)
+    const now = Date.now()
+    const wall = await wallVisible(), playing = await isPlaying(), screen = await readScreen(), line = await loadingLine()
+    if (line && !sawLoading) { sawLoading = line; log(`  loading line shown: "${line}"`) }
+    if (!wall && wallDownAt === null && grantedAt) { wallDownAt = now; log(`  wall DOWN at +${((now - grantedAt) / 1000).toFixed(1)}s after grant`) }
+    if (playing && playingAt === null && grantedAt) { playingAt = now; log(`  PLAYING at +${((now - grantedAt) / 1000).toFixed(1)}s after grant, screen="${screen}"`); await page.screenshot({ path: `${OUT}/resumed.png` }) }
+    if (screen && screen.toLowerCase().includes(heldKnown) && phraseAt === null && grantedAt) { phraseAt = now; log(`  held LEGO's phrase on screen at +${((now - grantedAt) / 1000).toFixed(1)}s after grant`) }
+    if (t % 8 === 7) log(`  g+${((t + 1) * 0.25).toFixed(2)}s wall=${wall} playing=${playing} local=${JSON.stringify(await readLocal())} screen=${screen}`)
+    if (playingAt && phraseAt && t > 40) break
+  }
+  log('GRANT RESULT', JSON.stringify({ grantedAt: !!grantedAt, wallDownAfterMs: wallDownAt && grantedAt ? wallDownAt - grantedAt : null, playingAfterMs: playingAt && grantedAt ? playingAt - grantedAt : null, phraseAfterMs: phraseAt && grantedAt ? phraseAt - grantedAt : null, loadingLine: sawLoading, local: await readLocal(), db: await readDb() }))
 }
 // MAYBE_LATER=1: dismiss the wall and play on inside the preview. The saved
 // place must survive — the memory is spent only by a prompt on the remembered
