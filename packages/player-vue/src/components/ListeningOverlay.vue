@@ -2626,6 +2626,16 @@ watch(
           @select="handlePhraseClick"
         >
           <template #line="{ line: phrase, isCurrent }">
+            <!-- Paused disc, anchored to the CURRENT card: it floats a fixed
+                 distance above the card, so it can never sit over the speaker
+                 name or the line (job #650 regression — the viewport-centred
+                 disc landed on the card once the captions went). Playing shows
+                 nothing. Pointer-events none; the tap lands beneath. -->
+            <div v-if="isCurrent && !isPlaying" class="paused-glyph" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="8 5 19 12 8 19 8 5"/>
+              </svg>
+            </div>
             <!-- Dialogue speaker chip — the conversation colouring made
                  visible. Same character = same colour across the whole pod;
                  two characters in the same scene never share a colour. -->
@@ -2735,15 +2745,6 @@ watch(
         </div>
       </div>
 
-      <!-- Paused state, dialogue scenes: a soft glyph floats over the
-           teleprompter — the video-player idiom. While playing there is
-           NOTHING: the dialogue owns the screen. Pointer-events none; the
-           tap lands on the surface beneath, which toggles playback. -->
-      <div v-if="view === 'pods' && selectedScene && !isPlaying" class="paused-glyph" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="currentColor">
-          <polygon points="8 5 19 12 8 19 8 5"/>
-        </svg>
-      </div>
     </div>
   </div>
 </template>
@@ -3620,13 +3621,15 @@ watch(
 }
 
 /* Paused glyph — the surface IS the transport. Soft elevated disc, ink
- * triangle, floats over the teleprompter only while paused; playing shows
- * nothing. Taps pass through to the tap-anywhere toggle beneath. */
+ * triangle, floats a fixed distance ABOVE the current card only while paused;
+ * playing shows nothing. Anchored to the card (the card is position:relative)
+ * so it never overlaps the card's contents whatever the toolbar height. Taps
+ * pass through to the tap-anywhere toggle beneath. */
 .paused-glyph {
-  position: fixed;
-  top: 50%;
+  position: absolute;
+  bottom: calc(100% + 18px);
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
   width: 76px;
   height: 76px;
   border-radius: 50%;
@@ -3651,8 +3654,8 @@ watch(
 }
 
 @keyframes paused-glyph-in {
-  from { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
-  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  from { opacity: 0; transform: translateX(-50%) scale(0.85); }
+  to   { opacity: 1; transform: translateX(-50%) scale(1); }
 }
 
 /* Interleaved gloss pairs — one sentence + its translation, matchable at

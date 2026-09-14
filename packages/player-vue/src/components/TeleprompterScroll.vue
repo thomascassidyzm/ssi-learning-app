@@ -237,6 +237,9 @@ const handleRowClick = (displayIndex: number) => {
 }
 
 .phrase-row.current {
+  /* Positioned so a slot child can anchor to the card — the listening
+   * overlay hangs its paused disc a fixed distance above it (job #650). */
+  position: relative;
   opacity: 1;
   transform: scale(1.05);
   padding: 1rem 1.5rem;
