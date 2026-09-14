@@ -2489,3 +2489,34 @@ Moving those to the diary is a per-person read across a whole school and was out
 price; they are listed as the honest gap. The classes-header-versus-school-home difference from
 job #301 (174 v 352) is closed by scope labels, not by making the numbers equal: the header is
 class accounts, the home is classes, staff and pupils.
+
+## 2026-09-14 — One in-app support door for everyone, one table via a view, one watcher (job #677)
+
+**Ruling.** Tom, 15:01Z, to Watson's proposal: "one door for everyone, learner, tester, teacher,
+school admin, writing to one table with the account code and build attached, and one poller that
+turns each new row into a job in the right project channel": "yes, let's do that". Trigger: Neil
+Dickson's report could not be matched to an account by email, and Aran's Chromebook reports sat all
+day in tester_feedback, which nothing read.
+
+**What changed.** The player's content flag (`ReportIssueButton.vue`) posts through
+`POST /api/report/bug` as source `content_flag`, naming the clip; its `sample_flags` upsert stays
+for Popty's QA. Every `bug_reports` row is stamped server-side at report time with account_code
+(the code Settings shows), reporter_email from the verified bearer, platform_role,
+educational_role, and for staff school_role, school_id and group_id; nothing about identity is
+taken from the client and guests carry nulls (`20260914b_bug_reports_identity_and_content_flag.sql`,
+applied live). The view `support_inbox` (`20260914c_support_inbox_view.sql`, service-role only)
+unions bug_reports, inbound support_messages and, for history, tester_feedback, content_feedback
+and handbook_questions, so "are there any messages?" is one query. On watson-1 one user unit,
+`ssi-support-inbox.service` running `command-surface/tools/support/inbox.cjs`, replaced the
+bug-report poster and the support watcher: a post lane that renders each row once into the
+`ssi-learning-app` room, or the `ssi-dashboard-v7-clean` room for a content flag, and stamps
+posted_at; and the school admins' draft-only support lane, moved not rewritten.
+
+**Not changed, and why.** Learners are never replied to by an agent (Tom, 2026-09-12); the only
+reply is the client's thank-you. The school-admin two-way thread and its draft-for-Tom loop
+(2026-09-10) are as they were; teachers still do not get it. No row was moved, deleted or updated
+in any old table. Posting is into the channel room, not an automatic dispatch per row: the room
+reads and decides what to commission. Known test senders (Tom's own addresses and +tags, Kai,
+ssi_admin accounts, test schools, probe bodies) are stamped and not posted, so they never
+resurface and never wake a channel chief; a tester-role report such as Aran's is real and is
+posted.
