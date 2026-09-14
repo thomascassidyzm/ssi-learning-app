@@ -2067,3 +2067,44 @@ Migration `20260914_diary_play_rows_carry_closing_ids.sql` (applied live) drops 
 successor within 30 s is a stop tap or a same-mode clip. Proof: packed v paged over the nine affected
 learners, same `sessioniseAll`: 93 s apart before, 0 s after. Carrying every id instead would have
 added ~4 MB to the packed payload for the same result.
+
+## 2026-09-14 — Schools: one class page for a leader, and everything on the school overview is tappable (job #624)
+
+**Tom's rulings (staging review, 01:44Z, as ssi_admin viewing-as the Chepstow school leader).** Two
+class pages existed. `/org/<classId>` shows CLASS performance — phrases practised, minutes in the
+app, LEGOs travelled together, teachers, Invite students, See insights. `/schools/classes/<id>`
+showed "Nobody is in this class yet": "the wrong view, it's looking for student learners'
+performance as individuals, rather than class performance". Keep the good one, every link lands on
+it, the old URL redirects. And "everything should be tappable": every card and year tile on the
+school overview is a link to that figure broken down by entity.
+
+**Decision: the class page is role-shaped, not deleted.** A school leader or group leader opens a
+class on its node home from every link (`useSchoolsNav.schoolsLink('class-detail')`, the classes
+list rows, the dashboard cards, the created-class modal), and the flat route's `beforeEnter`
+redirects a leader to `/org/:id` from the role cache, with SchoolsContainer's role watcher as the
+net for a cold load where the role lands after mount. A TEACHER keeps `/schools/classes/:id`
+because the node home endpoint (`api/groups/[id]/home.ts` via `resolveGroupTreeCaller`) admits
+only ssi_admins, group leaders and school admins — a teacher gets 403 "You do not govern any
+group" — and because the class tooling (roster add/remove, co-teacher add, hand over the lead,
+join code, rename, delete) lives only on the flat page. Retiring the file outright would have
+deleted those verbs with no home. Consequence stated plainly: a school leader no longer reaches
+class rename, delete, hand-over-the-lead, move-a-teacher or roster edits from the class page;
+Play as class and Copy link survive on the classes list rows, Invite students on the node home,
+and Assign to a class on the school node's staff rows. The Handbook descriptions for the flat
+page and its five walks are teacher-only now, so the Handbook does not offer a leader a page they
+cannot reach.
+
+**Tappable: reuse the pages that exist, the URL is the filter.** Phrases → `/schools/classes?sort=phrases`
+(the list gains a phrases-this-week column so the sort has a visible number; the figure was already
+in the class-practice payload the page fetches). Classes practising → `?practising=1&sort=hours`.
+Minutes → `?sort=hours`. Teachers → `/schools/teachers`, and SchoolsContainer no longer redirects a
+school leader away from it: the node home's teachers lens went with the filter chips on 2026-09-07,
+so the staff list had been unreachable for a leader since, along with "Remove a teacher from your
+school". Year tiles on both pages → `?year=7|other`; per-class tiles open the class. A chip in the
+pickers clears each URL filter. Links are gated to a school leader on the member surface: the admin
+mount, a class node, a group leader's node and a neutral org keep plain figures, because
+`/schools/classes` reads the school leader's own school and nothing else.
+
+**Not done, by scope.** The insights page has no phrases or per-learner measure to preselect, so
+"per learner where the metric has one" has no destination and none was built. The class-level
+node home's four cards are not links: the brief named the school overview and the classes list.
