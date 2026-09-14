@@ -115,7 +115,7 @@ describe('TeacherDashboard — the sorted metric is reachable on a phone', () =>
     expect(pinned[0].text()).toMatch(/ min$/)
 
     const labelled = wrapper.findAll('tbody tr:first-child td[data-label]').map(td => td.attributes('data-label'))
-    expect(labelled).toEqual(['Course', 'Belt', 'Journey, LEGOs', 'Time in app, min/wk', 'Phrases this week', 'Activity'])
+    expect(labelled).toEqual(['Course', 'Belt', 'Journey, phrases', 'Time in app, min/wk', 'Phrases practised this week', 'Activity'])
   })
 
   it('sorting by name still pins time in app, the school metric', async () => {
@@ -124,6 +124,6 @@ describe('TeacherDashboard — the sorted metric is reachable on a phone', () =>
     wrapper.find('.filter-sort').findComponent({ name: 'FrostSelect' }).vm.$emit('update:modelValue', 'journey')
     await flushPromises()
     expect(wrapper.find('table[data-walk="classes-table"]').attributes('data-sorted')).toBe('journey')
-    expect(wrapper.find('tbody td.is-sorted').attributes('data-label')).toBe('Journey, LEGOs')
+    expect(wrapper.find('tbody td.is-sorted').attributes('data-label')).toBe('Journey, phrases')
   })
 })

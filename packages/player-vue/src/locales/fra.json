@@ -602,7 +602,7 @@
   },
   "nav": {
     "library": "Bibliothèque",
-    "previousLego": "LEGO précédent"
+    "previousLego": "Phrase précédente"
   },
   "browse": {
     "closeLibrary": "Fermer la bibliothèque",
@@ -1156,7 +1156,7 @@
       "lastActiveNever": "Jamais",
       "leadLabel": "principal",
       "leaveLabel": "Quitter",
-      "legosColumn": "LEGOs",
+      "legosColumn": "Phrases",
       "loadingJoinLink": "Chargement du lien d'invitation de cette classe…",
       "loadingLabel": "Chargement…",
       "loadingRoster": "Chargement de la liste des élèves…",
@@ -1188,10 +1188,10 @@
       "courseColumn": "Cours",
       "currentBeltKicker": "Ceinture actuelle",
       "greeting": "Bonjour, {name}.",
-      "keepGoingLabel": "Continuez — LEGO {n}",
+      "keepGoingLabel": "Continuez — phrase {n}",
       "last7DaysKicker": "7 derniers jours",
       "lastSessionColumn": "Dernière session",
-      "legosRetiredColumn": "LEGOs retirés",
+      "legosRetiredColumn": "Phrases retirées",
       "neverLabel": "Jamais",
       "noCoursesHint": "Vous n'êtes inscrit à aucun cours pour l'instant. Demandez à votre enseignant un code d'accès à la classe.",
       "noCoursesTitle": "Pas encore de cours",
@@ -1218,7 +1218,7 @@
       "lastActiveColumn": "Dernière activité",
       "lastActiveNever": "Jamais",
       "lastActiveNow": "maintenant",
-      "legosColumn": "LEGOs",
+      "legosColumn": "Phrases",
       "loadStudentsError": "Impossible de charger les élèves",
       "loadingStudents": "Chargement des élèves…",
       "noFilterMatchTitle": "Aucun élève ne correspond à ces filtres",
@@ -1390,7 +1390,7 @@
       "lastActive": "Dernière activité",
       "lastActiveNever": "Jamais",
       "lastActiveToday": "Aujourd'hui",
-      "legosMastered": "LEGOs maîtrisés",
+      "legosMastered": "Phrases maîtrisées",
       "lifetimePaid": "Total payé",
       "newClass": "Nouvelle classe",
       "newClassSub": "Chaque classe a son propre lien de partage et sa propre liste d'élèves.",
@@ -1526,7 +1526,7 @@
         "school": "Établissement",
         "wordBelt": "Ceinture",
         "wordClass": "Classe",
-        "wordLegos": "LEGOs",
+        "wordLegos": "Phrases",
         "wordPractised": "pratiqué",
         "wordTeachers": "Enseignants"
       },

@@ -605,7 +605,7 @@
   },
   "nav": {
     "library": "Llyfrgell",
-    "previousLego": "LEGO blaenorol"
+    "previousLego": "Ymadrodd blaenorol"
   },
   "browse": {
     "closeLibrary": "Cau'r llyfrgell",
@@ -1159,7 +1159,7 @@
       "lastActiveNever": "Byth",
       "leadLabel": "prif",
       "leaveLabel": "Gadael",
-      "legosColumn": "LEGOs",
+      "legosColumn": "Ymadroddion",
       "loadingJoinLink": "Wrthi'n llwytho dolen wahodd y dosbarth hwn…",
       "loadingLabel": "Wrthi'n llwytho…",
       "loadingRoster": "Wrthi'n llwytho'r rhestr…",
@@ -1191,10 +1191,10 @@
       "courseColumn": "Cwrs",
       "currentBeltKicker": "Gwregys presennol",
       "greeting": "Helô, {name}.",
-      "keepGoingLabel": "Daliwch ati — LEGO {n}",
+      "keepGoingLabel": "Daliwch ati — ymadrodd {n}",
       "last7DaysKicker": "7 diwrnod diwethaf",
       "lastSessionColumn": "Sesiwn ddiwethaf",
-      "legosRetiredColumn": "LEGOs wedi ymddeol",
+      "legosRetiredColumn": "Ymadroddion wedi ymddeol",
       "neverLabel": "Byth",
       "noCoursesHint": "Nid ydych wedi cofrestru ar unrhyw gwrs eto. Gofynnwch i'ch athro am god ymuno dosbarth.",
       "noCoursesTitle": "Dim cyrsiau eto",
@@ -1221,7 +1221,7 @@
       "lastActiveColumn": "Gweithredol ddiwethaf",
       "lastActiveNever": "Byth",
       "lastActiveNow": "nawr",
-      "legosColumn": "LEGOs",
+      "legosColumn": "Ymadroddion",
       "loadStudentsError": "Methwyd llwytho'r dysgwyr",
       "loadingStudents": "Wrthi'n llwytho dysgwyr…",
       "noFilterMatchTitle": "Nid oes unrhyw ddysgwr yn cyd-fynd â'r hidlyddion hynny",
@@ -1418,7 +1418,7 @@
       "lastActive": "Gweithredol ddiwethaf",
       "lastActiveNever": "Byth",
       "lastActiveToday": "Heddiw",
-      "legosMastered": "LEGOs wedi'u meistroli",
+      "legosMastered": "Ymadroddion wedi'u meistroli",
       "lifetimePaid": "Wedi'i dalu erioed",
       "newClass": "Dosbarth newydd",
       "newClassSub": "Mae gan bob dosbarth ei ddolen rannu a'i restr ei hun.",
@@ -1555,7 +1555,7 @@
         "school": "Ysgol",
         "wordBelt": "Gwregys",
         "wordClass": "Dosbarth",
-        "wordLegos": "LEGOs",
+        "wordLegos": "Ymadroddion",
         "wordPractised": "wedi ymarfer",
         "wordTeachers": "Athrawon"
       },

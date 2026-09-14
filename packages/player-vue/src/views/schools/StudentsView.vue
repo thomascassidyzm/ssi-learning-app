@@ -137,7 +137,7 @@ function viewStudent(s: { learner_id: string; name?: string }) {
 }
 
 function exportCsv() {
-  const header = ['Name', 'Class', 'Belt', 'Seeds', 'LEGOs', 'Minutes practised', 'Last active']
+  const header = ['Name', 'Class', 'Belt', 'Seeds', 'Phrases', 'Minutes practised', 'Last active']
   const rows = filtered.value.map(s => [
     s.name, s.class_name, s.belt, s.seeds_completed, s.legos_mastered, s.practiceMinutes, s.last_active_display,
   ].join(','))
@@ -239,7 +239,7 @@ watch(selectedUser, (newUser) => {
             <th>{{ t('schools.students.studentColumn', 'Student') }}</th>
             <th>{{ t('schools.students.classFilterLabel', 'Class') }}</th>
             <th>{{ t('schools.students.beltFilterLabel', 'Belt') }}</th>
-            <th>{{ t('schools.students.legosColumn', 'LEGOs') }}</th>
+            <th>{{ t('schools.students.legosColumn', 'Phrases') }}</th>
             <th>{{ t('schools.students.minutesPractisedColumn', 'Minutes practised') }}</th>
             <th>{{ t('schools.students.lastActiveColumn', 'Last active') }}</th>
             <th></th>
@@ -252,7 +252,7 @@ watch(selectedUser, (newUser) => {
                 <div class="avatar">{{ s.initials }}</div>
                 <div class="student-info">
                   <div class="student-name">{{ s.name }}</div>
-                  <div class="student-sub schools-subtle">{{ t('schools.students.legosMasteredLabel', '{n} LEGOs mastered').replace('{n}', String(s.legos_mastered)) }}</div>
+                  <div class="student-sub schools-subtle">{{ t('schools.students.legosMasteredLabel', '{n} phrases mastered').replace('{n}', String(s.legos_mastered)) }}</div>
                 </div>
               </div>
             </td>

@@ -1287,7 +1287,7 @@ const mailboxPrompt = useMailboxPrompt()
               <tr>
                 <th>{{ t('schools.classDetail.studentColumn', 'Student') }}</th>
                 <th>{{ t('schools.classDetail.beltColumn', 'Belt') }}</th>
-                <th>{{ t('schools.classDetail.legosColumn', 'LEGOs') }}</th>
+                <th>{{ t('schools.classDetail.legosColumn', 'Phrases') }}</th>
                 <th>{{ t('schools.classDetail.practiceColumn', 'Practice') }}</th>
                 <th>{{ t('schools.classDetail.lastActiveColumn', 'Last active') }}</th>
                 <th></th>
@@ -1371,7 +1371,7 @@ const mailboxPrompt = useMailboxPrompt()
              place: class-detail
              keywords: progress, journey, belt, position, course
              What it's for. How far the class has travelled through its course, as a
-             bar in LEGOs with the next belt named. A class is one learner account
+             bar in phrases with the next belt named. A class is one learner account
              played from the front, so this is the class's own place on the course,
              moved by the sessions you run together.
              Where it is. The class page, the **Course Journey** card in the column
@@ -1392,7 +1392,7 @@ const mailboxPrompt = useMailboxPrompt()
           <template v-else>
             <JourneyBar :done="journeyDone" :total="Math.max(journeyTotal, journeyDone)" />
             <p class="rail-note">
-              {{ t('schools.classDetail.classTravelled', 'The class has travelled {done} of {total} LEGOs together.').replace('{done}', String(journeyDone)).replace('{total}', String(journeyTotal)) }}<br />
+              {{ t('schools.classDetail.classTravelled', 'The class has travelled {done} of {total} phrases together.').replace('{done}', String(journeyDone)).replace('{total}', String(journeyTotal)) }}<br />
               <template v-if="nextBeltInfo">{{ t('schools.classDetail.moreToNextBelt', '{n} more to {belt} belt.').replace('{n}', String(nextBeltInfo.remaining)).replace('{belt}', nextBeltInfo.name) }}</template>
               <template v-else>{{ t('schools.classDetail.reachedBlackBelt', 'Reached Black belt — top of the ladder.') }}</template>
             </p>

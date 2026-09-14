@@ -821,7 +821,7 @@ async function submitRecipient() {
               <tr>
                 <th>{{ t('teach.dashboard.student', 'Student') }}</th>
                 <th>{{ t('teach.dashboard.seeds', 'Seeds') }}</th>
-                <th>{{ t('teach.dashboard.legosMastered', 'LEGOs mastered') }}</th>
+                <th>{{ t('teach.dashboard.legosMastered', 'Phrases mastered') }}</th>
                 <th>{{ t('teach.dashboard.lastActive', 'Last active') }}</th>
               </tr>
             </thead>

@@ -417,7 +417,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     res.status(200).json({
       insufficientData: false,
       metricLabel: 'Rate of progress',
-      unit: 'LEGOs',
+      unit: 'phrases',
       per: 'week',
       entity: {
         label: entity.label,
@@ -431,7 +431,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       },
       deltaPct: deltaPct(entityWindow.pace, averageValue),
       percentile: dist.percentileOf(entityWindow.pace),
-      contextLine: entityWindow.furthestLegoId ? `Furthest LEGO · ${coverageLabel(entityWindow.furthestLegoId)}` : undefined,
+      contextLine: entityWindow.furthestLegoId ? `Furthest phrase · ${coverageLabel(entityWindow.furthestLegoId)}` : undefined,
       distribution: {
         values: dist.values,
         min: dist.min,
