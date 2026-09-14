@@ -1380,7 +1380,8 @@
       "waitingOnTom": "Yn aros am Tom ers {time}",
       "you": "Chi",
       "handbookMarkAria": "Beth yw hwn",
-      "readInHandbook": "Darllen yn y Llawlyfr"
+      "readInHandbook": "Darllen yn y Llawlyfr",
+      "viewAsReadOnly": "Dim ond darllen sydd ar gael ar Gymorth tra byddwch yn gweld fel rhywun arall. Camwch yn ôl allan i ddarllen neu ysgrifennu edefyn yr ysgol hon."
     }
   },
   "teach": {

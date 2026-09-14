@@ -58,6 +58,7 @@ import {
 } from '../../_utils/personalLinkUses'
 import { sendInviteEmail, isMailable } from '../../_utils/sendInviteEmail'
 import { applyCors } from '../../_utils/cors'
+import { refuseViewAsWrite } from '../../_utils/actAsGuard'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -97,6 +98,7 @@ export default async function handler(
   // Without this the native WebView's preflight for the `Authorization`
   // header goes unanswered and the call fails there while working on the web.
   if (applyCors(req, res, { methods: 'GET, POST, PATCH' })) return
+  if (refuseViewAsWrite(req, res)) return
 
   if (req.method !== 'GET' && req.method !== 'POST' && req.method !== 'PATCH') {
     res.status(405).json({ error: 'Method not allowed' })

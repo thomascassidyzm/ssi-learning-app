@@ -64,14 +64,17 @@ export function makeChainable(db: DB, table: string) {
   return builder
 }
 
-export function makeReq(init: { method?: string; query?: Record<string, string>; body?: unknown } = {}): VercelRequest {
+export function makeReq(init: { method?: string; query?: Record<string, string>; body?: unknown; headers?: Record<string, string> } = {}): VercelRequest {
   return {
     method: init.method ?? 'GET',
     query: init.query ?? {},
     body: init.body,
-    headers: { authorization: 'Bearer tok' },
+    headers: { authorization: 'Bearer tok', ...(init.headers ?? {}) },
   } as any
 }
+
+/** A request made by an ssi_admin who is touring under View As. */
+export const VIEW_AS_HEADERS = { 'x-ssi-view-as': '1' }
 
 export function makeRes(): VercelResponse & { statusCode?: number; body?: any } {
   const res: any = {}

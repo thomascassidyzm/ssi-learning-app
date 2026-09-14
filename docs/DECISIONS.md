@@ -1,3 +1,44 @@
+## 2026-09-14 — View As never writes in the viewed person's name; today's five empty support threads are gone (job #681)
+
+**Ruling (Tom, 15:51Z, on Watson's finding that four real schools "opened a support thread today and
+typed nothing").** "That MIGHT have been me, using View As" — and then, at 15:54Z, his testimony:
+under View As he TRIED to send a support message and it would not let him. So the decision: "viewing
+as a school admin/teacher must never create rows in that person's name", and the empty threads from
+today are removed "if they carry no text". On the shape of the fix, his words: ONE guard covering the
+whole support action — creating the thread, sending, marking read — applied once at the entry of the
+action, not a second patch on the send step.
+
+**The no-op reading, not the stamped-viewer one.** Tom offered two: no-op under View As, or stamp
+`viewer=<actual user>` and exclude from the support inbox. No-op wins on all three legs — it adds no
+column, no inbox filter and no new state, and the thing a tour needs from Support is to SEE the
+screen, not to write on it. Every write the action can make now stops at
+`refuseSupportUnderViewAs` at the entry of `api/support/thread.ts` and `api/support/messages.ts`.
+The screen says so in one sentence instead of showing a failure, and the top bar does not peek the
+unread dot at all while viewing-as.
+
+**The second gap, which the enumeration found and the commission did not name.** View As LANDS on
+the org lens at `/org/<id>`, whose action bar and ways-in ledger write to the group routes: create a
+sub-group, rename it, DELETE it, mint demo activity, mint an invite, create or update a school.
+Every one of those carries a deliberate ssi_admin bypass, so the protection the rest of the estate
+leans on — an ssi_admin has no school or group scope of their own, so the route 403s naturally — does
+NOT hold on them. `refuseViewAsWrite` now sits at the entry of all seven, refusing by METHOD so a
+tagged GET still renders the lens.
+
+**Who actually created the five threads.** Not View As. Tom's ssi account (`ef65ea1f…`) has no active
+school tag, no `schools.admin_user_id` row and no `govt_admins` row, so `resolveSupportScope` returns
+null for it and both support routes answer 403 — which is exactly the refusal he felt. The Monmouth
+thread at 14:35:19Z, twelve seconds after a View As session started, is a coincidence: that session's
+target was Chepstow, which already had a thread from 07:13, and four Monmouth staff self-tagged into
+that school at 14:44-14:45, so its own admin was live in the dashboard at the time. All five are job
+#677's peek defect, still running on production because the fix is on dev and staging and not yet
+promoted to main.
+
+**Production cleanup, applied 2026-09-14 16:06Z.** Each of the five re-read at the moment of
+deletion and refused if it had gained a message; none had. Before: `support_threads` 6,
+`support_messages` 4. After: `support_threads` 1, `support_messages` 4. The survivor is the ZZ Test
+school's thread with job #302's four probe messages. The IME Demo Programme group thread was not one
+of Tom's named four but is the same defect with the same emptiness, so it went under the same rule.
+
 ## 2026-09-14 — LEGO becomes Phrases in learner and school copy; the Where-you-are rail names only the open view (job #674)
 
 **Ruling (Tom, 14:42Z).** On the word: "can we retire LEGOS for learner-facing language? that's really
