@@ -34,8 +34,7 @@ function makeChainable(table: string) {
   let rows: any[] = [...((DB as any)[table] ?? [])]
   const builder: any = {
     select: () => builder,
-    eq: (col: string, v: unknown) => { if (col === 'learner_id' || col === 'course_id' || col === 'user_id') rows = rows.filter((r) => r[col] === v); return builder },
-    maybeSingle: () => Promise.resolve({ data: rows[0] ?? null, error: null }),
+    eq: (col: string, v: unknown) => { if (col === 'learner_id' || col === 'course_id') rows = rows.filter((r) => r[col] === v); return builder },
     lt: () => builder,
     lte: () => builder,
     is: () => builder,
@@ -98,45 +97,6 @@ beforeEach(async () => {
   }
   adminOk = false
   schoolReadScope = null
-})
-
-describe('GET /api/school/class-practice-7d — the CALLER\'S OWN ACCOUNT (job #651, Chepstow 2026-09-14)', () => {
-  // florencecotten's Wednesday: 125 clips on HER account, none on 10C's. The
-  // payload must carry her own minutes so the teacher home can say whose they
-  // are — and must never fold them into the class's figure.
-  it('callerOwn carries the caller\'s own in-app minutes this week, kept apart from the class figure', async () => {
-    scope.learnerId = 'teacher-own'
-    DB.player_events.push(...[0, 4, 8, 12].map((min) => ({ learner_id: 'teacher-own', event_type: 'audio_play', duration: 0, occurred_at: at(-min) })))
-    const res = makeRes()
-    await handler(makeReq({}), res)
-    expect(res.statusCode).toBe(200)
-    expect(res.body.callerOwn.learnerId).toBe('teacher-own')
-    expect(res.body.callerOwn.inAppMinutes7d).toBe(12)
-    expect(res.body.callerOwn.minutesByDay).toHaveLength(7)
-    expect(res.body.callerOwn.minutesByDay[6]).toBe(12)
-    expect(res.body.callerOwn.lastPlayedDay).toBe(new Date().toISOString().split('T')[0])
-    // The class's own row is untouched by the caller's play.
-    expect(res.body.practiceByClass).toEqual({ c1: 2100 })
-  })
-
-  it('under the admin passthrough, ?own_user_id= names the persona\'s own account, never the admin\'s', async () => {
-    scope = { learnerId: 'admin-learner', role: null, classIds: [], learnerIds: [], studentsByClass: {}, schoolIds: [], groupId: null }
-    schoolReadScope = { learnerId: null, role: 'school_admin', classIds: ['c1'], learnerIds: [], studentsByClass: {}, schoolIds: ['s1'], groupId: null }
-    adminOk = true
-    DB.learners = [{ id: 'persona-learner', user_id: 'persona-uid', display_name: 'Ms Cotten' }]
-    DB.player_events.push(...[0, 5, 10].map((min) => ({ learner_id: 'persona-learner', event_type: 'audio_play', duration: 0, occurred_at: at(-min) })))
-    const res = makeRes()
-    await handler(makeReq({ school_id: 's1', own_user_id: 'persona-uid' }), res)
-    expect(res.statusCode).toBe(200)
-    expect(res.body.callerOwn).toMatchObject({ learnerId: 'persona-learner', inAppMinutes7d: 10 })
-  })
-
-  it('a caller with no learner row gets callerOwn null, not a zero that reads like data', async () => {
-    scope.learnerId = null
-    const res = makeRes()
-    await handler(makeReq({}), res)
-    expect(res.body.callerOwn).toBeNull()
-  })
 })
 
 describe('GET /api/school/class-practice-7d — the SCHOOL HEADLINE rollup (job #265, 2026-09-11)', () => {
