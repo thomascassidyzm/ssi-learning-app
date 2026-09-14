@@ -18200,6 +18200,10 @@ defineExpose({
   /* Fill viewport so fixed children display correctly when visible */
   position: fixed;
   inset: 0;
+  /* Under the bands across the very top (playing-as-yourself strip, job
+     #699; Viewing-As band, job #675): body padding never reaches a fixed
+     surface, so the root itself starts below them. 0px when none is up. */
+  top: var(--top-bands-h, 0px);
   overflow: hidden;
   /* NO unconditional z-index here. This full-viewport div is a sibling of
      PlayerRestingState.vue's `.resting-state` (z-index: 50) in
@@ -20678,7 +20682,7 @@ button.phase-segment:active:not(.is-active) {
 /* QA Report button - positioned in header area */
 .qa-report-btn {
   position: fixed;
-  top: calc(1rem + env(safe-area-inset-top, 0px));
+  top: calc(var(--top-bands-h, 0px) + 1rem + var(--shell-inset-top));
   right: 1rem;
   z-index: 100;
 }

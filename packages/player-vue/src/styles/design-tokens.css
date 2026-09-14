@@ -10,6 +10,14 @@
  * [data-theme="…"] block here if multiple themes are ever wanted again.
  */
 
+/* While the playing-as-yourself strip is across the top of the player (job
+   #699) it has already padded itself out of the notch and the player sits
+   under it by --top-bands-h, so the shell's top inset is spent: anything that
+   read it would pad out of the notch a second time. Outranks :root by class. */
+html.has-own-play-banner {
+  --shell-inset-top: 0px;
+}
+
 :root {
   /* ================================================================
    * BRAND COLORS

@@ -1,5 +1,5 @@
 {
-  "version": "0b168f2918fc",
+  "version": "a1dcf2ed4735",
   "generatedAt": "2026-09-14",
   "walks": [
     {
@@ -4173,7 +4173,7 @@
       "source": "packages/player-vue/src/components/schools/PlayingAsYourselfBanner.vue",
       "walk": null,
       "what": "A line across the top of the player while a lesson is running on your own sign-in rather than on the class, so it is noticed before the minutes land on you. It reads: You are now playing as yourself. If you want to play as class please go here.",
-      "where": "Across the top of the player, only while it is playing on your own account. Your dashboard never shows it: nothing is playing there.",
+      "where": "Across the top of the player, only while it is playing on your own account. The player moves down to make room for it, so it covers none of the controls. Your dashboard never shows it: nothing is playing there.",
       "how": [
         "Read the line.",
         "Tap **Your classes** to go to your classes, and start the lesson with **Play as class** there."

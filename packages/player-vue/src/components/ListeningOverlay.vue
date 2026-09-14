@@ -2760,6 +2760,10 @@ watch(
 .listening-overlay {
   position: fixed;
   inset: 0;
+  /* Starts below the playing-as-yourself strip when one is across the top
+     (job #699), which is the whole top inset in that case — the strip has
+     already cleared the notch, so the shell token below reads 0 under it. */
+  top: var(--top-bands-h, 0px);
   /* Intentionally BELOW the bottom NavPill (z-index 2900) and BottomNav
    * (z-index 3000) — the nav stays visible during Listening Mode as an
    * escape route so the learner can leave via the normal nav pill as
@@ -2778,14 +2782,14 @@ watch(
   backdrop-filter: blur(20px) saturate(120%);
   -webkit-backdrop-filter: blur(20px) saturate(120%);
   font-family: var(--font-body);
-  padding: env(safe-area-inset-top, 20px) 0 calc(env(safe-area-inset-bottom, 20px) + 100px) 0;
+  padding: var(--shell-inset-top) 0 calc(env(safe-area-inset-bottom, 20px) + 100px) 0;
   cursor: pointer;
 }
 
 /* Close button */
 .close-btn {
   position: absolute;
-  top: calc(env(safe-area-inset-top, 20px) + 12px);
+  top: calc(var(--shell-inset-top) + 12px);
   right: 16px;
   width: 44px;
   height: 44px;
@@ -3256,7 +3260,7 @@ watch(
   /* Same safe-area pattern as .close-btn / .download-btn — absolutely
    * positioned children ignore the parent's safe-area padding, so the
    * notch/Dynamic Island ate the tabs on iOS PWA. */
-  top: calc(env(safe-area-inset-top, 0px) + 0.6rem);
+  top: calc(var(--shell-inset-top) + 0.6rem);
   left: 50%;
   transform: translateX(-50%);
   z-index: 5;
