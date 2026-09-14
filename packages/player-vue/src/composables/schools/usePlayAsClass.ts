@@ -30,7 +30,19 @@ export interface PlayableClass {
   course_code: string
   current_seed?: number | null
   last_lego_id?: string | null
-  class_learner_id?: string | null
+  /**
+   * REQUIRED, nullable — never optional. This is the identity every
+   * player_events row of the session is attributed to: LearningPlayer's
+   * learnerId is `classContext.class_learner_id || the STAFF member's own`, so
+   * a launcher that simply forgets the key hands the whole class session's
+   * telemetry to the teacher. The sessions row never suffers this (the
+   * class-aware session store resolves the class learner server-side from the
+   * class id), which is exactly how staging split on 2026-09-14 21:32Z:
+   * sessions said class, player_events said teacher, for one and the same
+   * play (job #733). A row shape without the key is now a type error, and
+   * launchClassSession resolves a null from the classes row anyway.
+   */
+  class_learner_id: string | null
 }
 
 export function usePlayAsClass() {
@@ -106,13 +118,32 @@ export function usePlayAsClass() {
       return false
     }
     rememberCourse(cls.course_code, 'chosen')
+    // The class's own learner id, from the classes row when the caller has
+    // none (a freshly created class, or a row shape that dropped the key —
+    // see PlayableClass). Missing here means the teacher's own account owns
+    // the session's telemetry, so it is worth one read. Still null after the
+    // read = the DB has not minted the class learner yet, and the player's
+    // existing fallback applies exactly as before.
+    let classLearnerId: string | null = cls.class_learner_id ?? null
+    if (!classLearnerId && supabase?.value) {
+      try {
+        const { data } = await supabase.value
+          .from('classes')
+          .select('class_learner_id')
+          .eq('id', cls.id)
+          .maybeSingle()
+        classLearnerId = (data?.class_learner_id as string | null | undefined) ?? null
+      } catch {
+        classLearnerId = null
+      }
+    }
     localStorage.setItem('ssi-active-class', JSON.stringify({
       id: cls.id,
       name: cls.class_name,
       course_code: cls.course_code,
       current_seed: cls.current_seed ?? null,
       last_lego_id: cls.last_lego_id ?? null,
-      class_learner_id: cls.class_learner_id ?? null,
+      class_learner_id: classLearnerId,
       teacherUserId: currentUser.value?.user_id ?? null,
       timestamp: new Date().toISOString(),
     }))
