@@ -1,3 +1,46 @@
+## 2026-09-14 — Vercel builds `dev` only when the commit subject carries `[preview]`; staging and main build on every push (job #619)
+
+**Ruling (Tom, 2026-09-14 00:32Z).** Asked "make learning-app dev builds opt-in on Vercel, staging
+and main always building. Recommendation stands at yes." Tom: "Yes".
+
+**Why.** The Aug 12–Sep 11 Vercel month was $467, $366 of it Build CPU Minutes. The preview gate of
+2026-09-12 removed worker-branch builds; the first build-hours reading, job #610, showed the
+remainder: of 12.4 build hours in 24 hours, 10.5 were this app's builds on `dev`, one ~13-minute
+build per merge, and nobody looks at most of them.
+
+**The setting, and where it lives.** The Vercel project's Ignored Build Step, PATCHed through the
+API, never an `ignoreCommand` in `vercel.json`, which overrides the dashboard rule and is the
+mistake the hexagon workers made on 2026-09-13. `vercel.json` here carries no such key; keep it so.
+
+Before, verbatim:
+
+```
+case "$VERCEL_GIT_COMMIT_REF" in main|dev|staging|preview/*) exit 1;; esac; printf '%s' "$VERCEL_GIT_COMMIT_MESSAGE" | head -1 | grep -q "\[preview\]" && exit 1; echo "skipped: previews are opt-in (preview/* branch or [preview] in commit subject)"; exit 0
+```
+
+After, verbatim, read back from the API:
+
+```
+case "$VERCEL_GIT_COMMIT_REF" in main|staging|preview/*) exit 1;; esac; printf '%s' "$VERCEL_GIT_COMMIT_MESSAGE" | head -1 | grep -q "\[preview\]" && exit 1; echo "skipped: dev and other branches are opt-in ([preview] in subject or preview/*)"; exit 0
+```
+
+Vercel caps the command at 256 characters, hence the short skip message. Exit 1 means build.
+
+**What it means for everyone.** A plain push or merge to `dev` no longer builds, so the dev alias
+`ssi-learning-app-git-dev-zenjin.vercel.app` no longer updates on it. An agent that needs the dev
+alias to show its change puts `[preview]` at the start of the merge commit's subject, first line
+only. `staging` and `main` build on every push exactly as before, so the release train, the
+Colombo test team and real learners are untouched; the release-train scripts push only reports and
+notes to `dev` and never needed a build. The same `[preview]` convention as the preview gate.
+
+**The nightly scan.** `command-surface/ops/vercel-gate-scan.js` now treats a learning-app `dev`
+deployment whose subject lacks `[preview]` as off-allowlist, so a READY one turns the night RED
+like a worker-branch build. Its first run after this change will list the day's pre-change dev
+builds as RED once; the window is 24 hours and they roll out the next night. The same commit fixed
+the month-to-date figure that Astra #613 found summing overlapping windows.
+
+**Proof.** Two docs-only pushes to `dev`, each a fresh SHA. PROOF_PLACEHOLDER
+
 ## 2026-09-13 — Listening Mode: the Senedd pod is a named extra slot for every Welsh (Northern) learner (job #605)
 
 **Ruling (Tom, 2026-09-13 20:31Z).** Open `cym_n_for_eng:senedd-s4c-steve` to all Welsh North
