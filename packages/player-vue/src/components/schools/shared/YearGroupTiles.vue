@@ -13,7 +13,13 @@ import { topThree } from '@/components/shared/topThree'
 import type { YearGroupBreakdown, YearGroupTile } from '@/views/schools/yearGroup'
 
 const { t } = useI18n()
-const props = defineProps<{ breakdown: YearGroupBreakdown }>()
+// EVERYTHING IS TAPPABLE (Tom, 2026-09-14, job #624): a tile is a link to the
+// breakdown behind it when the page gives one — the classes list filtered to
+// that year, or the class itself for a per-class tile. No builder, no link.
+const props = defineProps<{ breakdown: YearGroupBreakdown; tileLink?: (tile: YearGroupTile) => string | null }>()
+function linkFor(tile: YearGroupTile): string | null {
+  return props.tileLink ? props.tileLink(tile) : null
+}
 
 const showAllClasses = ref(false)
 const shown = computed(() => (props.breakdown.mode === 'class' ? topThree(props.breakdown.tiles, showAllClasses.value) : { shown: props.breakdown.tiles, hidden: 0, collapsible: false }))
@@ -37,11 +43,19 @@ function classesLine(tile: YearGroupTile): string {
   <div v-if="breakdown.tiles.length" class="year-tiles schools-card" :data-mode="breakdown.mode">
     <span class="schools-kicker">{{ breakdown.mode === 'class' ? t('schools.yearGroupTiles.byClass', 'By class') : t('schools.yearGroupTiles.byYearGroup', 'By year group') }}</span>
     <div class="year-tiles-row">
-      <div v-for="tile in shown.shown" :key="tile.key" class="year-tile" :class="{ 'is-quiet': tile.phrases7d === 0 }">
+      <component
+        :is="linkFor(tile) ? 'router-link' : 'div'"
+        v-for="tile in shown.shown"
+        :key="tile.key"
+        :to="linkFor(tile) || undefined"
+        class="year-tile"
+        :class="{ 'is-quiet': tile.phrases7d === 0, 'is-link': !!linkFor(tile) }"
+        :data-year-tile="tile.key"
+      >
         <span class="year-tile-value frost-mono-nums">{{ tile.phrases7d > 0 ? tile.phrases7d : '—' }}</span>
         <span class="year-tile-word">{{ title(tile) }}</span>
         <span class="year-tile-sub">{{ classesLine(tile) }}</span>
-      </div>
+      </component>
     </div>
     <ShowAll v-if="shown.collapsible" :expanded="showAllClasses" :label="t('schools.yearGroupTiles.showAllClasses', 'Show all {n} classes').replace('{n}', String(breakdown.tiles.length))" @toggle="showAllClasses = !showAllClasses" />
   </div>
@@ -62,6 +76,9 @@ function classesLine(tile: YearGroupTile): string {
   border-top: 3px solid var(--belt-yellow, #F2C94C); min-width: 0;
 }
 .year-tile.is-quiet { border-top-color: rgba(44, 38, 34, 0.14); }
+.year-tile.is-link { color: inherit; text-decoration: none; cursor: pointer; }
+.year-tile.is-link:hover { background: #fff; }
+.year-tile.is-link:focus-visible { outline: 2px solid var(--schools-red, #DB1E17); outline-offset: 2px; }
 .year-tile-value { font-size: 22px; font-weight: var(--font-semibold); color: var(--ink-primary, #2C2622); line-height: 1.15; }
 .year-tile-word { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--schools-fg-3, #8A8078); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .year-tile-sub { font-size: var(--text-xs); color: var(--schools-fg-2, #555); margin-top: 3px; }

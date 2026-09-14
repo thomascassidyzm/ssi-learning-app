@@ -114,7 +114,7 @@ describe('TeacherDashboard — the sorted metric is reachable on a phone', () =>
     expect(pinned[0].text()).toMatch(/ min$/)
 
     const labelled = wrapper.findAll('tbody tr:first-child td[data-label]').map(td => td.attributes('data-label'))
-    expect(labelled).toEqual(['Course', 'Belt', 'Journey, LEGOs', 'Time in app, min/wk', 'Activity'])
+    expect(labelled).toEqual(['Course', 'Belt', 'Journey, LEGOs', 'Time in app, min/wk', 'Phrases this week', 'Activity'])
   })
 
   it('sorting by name still pins time in app, the school metric', async () => {

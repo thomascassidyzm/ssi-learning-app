@@ -2,8 +2,7 @@
   "id": "hand-over-the-lead",
   "title": "Hand a class over to another teacher",
   "personas": [
-    "teacher",
-    "school_admin"
+    "teacher"
   ],
   "place": {
     "route": "class-detail"
