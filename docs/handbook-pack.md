@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `60e6409194ff` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `3f5b2800415c` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -826,7 +826,21 @@ Section: running-classes · roles: teacher, school_admin · anchor: `class-page-
 2. Tap **Play as class**.
 3. The player opens on the class's course at the class's own place.
 
-**Worth knowing.** Pressing play on a course from your own Library counts for you, not for the class. Only Play as class moves the class.
+**Worth knowing.** Pressing play on a course from your own Library counts for you, not for the class. Only Play as class moves the class. While a platform admin is viewing the page as you the button is greyed out and does nothing.
+
+## Play as class from your dashboard
+
+Section: running-classes · roles: teacher · anchor: `dash-class-card-play` · in `packages/player-vue/src/views/schools/DashboardView.vue`
+
+**What it's for.** Starting a whole-class lesson straight from your dashboard, on the class's own account, so the minutes and the phrases land on the class rather than on you.
+
+**Where it is.** Your dashboard, the **Play as class** button on each class's card or row.
+
+1. Find the class on your dashboard.
+2. Tap **Play as class**.
+3. The player opens on the class's course at the class's own place.
+
+**Worth knowing.** The button is always there beside the class. While a platform admin is viewing the dashboard as you it is greyed out and does nothing, so they can see what you have without starting a lesson in your name.
 
 ## Practice on your own account
 
@@ -1017,7 +1031,7 @@ Section: running-classes · roles: teacher · anchor: `class-play` · in `packag
 3. Wait for the students to arrive on their own devices.
 4. Tap play to start the session.
 
-**Worth knowing.** The join code is the same code all lesson, so a student arriving late still gets in.
+**Worth knowing.** The join code is the same code all lesson, so a student arriving late still gets in. While a platform admin is viewing the page as you the play button is greyed out and does nothing.
 
 ## Say what happened
 
@@ -1217,7 +1231,7 @@ Section: running-classes · roles: school_admin, teacher · anchor: `classes-row
 3. Tap **Play as class** at the end of its row.
 4. The player opens on that class's course, at the class's own place in it.
 
-**Worth knowing.** It is the same session the class page starts, so it moves the class on for everyone on the roster. Only school staff see this button, and only on a live account rather than a read-only view.
+**Worth knowing.** It is the same session the class page starts, so it moves the class on for everyone on the roster. Only school staff see this button. While a platform admin is viewing the dashboard as you it is greyed out and does nothing, so they can see what you have without starting a lesson in your name.
 
 ## Students on their own accounts
 
@@ -1400,18 +1414,18 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-
 
 **Worth knowing.** An organisation that is not school-shaped sees minutes in the app this week, groups and learners instead. Every minute on this page is the same minute: from pressing play to stopping, over the last seven days, each account once. There is no all-time total here.
 
-## Told when you have been playing as yourself
+## Told when you are playing as yourself
 
-Section: running-classes · roles: teacher · anchor: `dash-playing-as-yourself` · in `packages/player-vue/src/views/schools/DashboardView.vue`
+Section: running-classes · roles: teacher, school_admin · anchor: `player-playing-as-yourself` · in `packages/player-vue/src/components/schools/PlayingAsYourselfBanner.vue`
 
-**What it's for.** A line across the top of your dashboard whenever your own account has practised this week, so a lesson that ran on your own sign-in instead of on the class is noticed straight away. It reads: You are now playing as yourself. If you want to play as class please go here.
+**What it's for.** A line across the top of the player while a lesson is running on your own sign-in rather than on the class, so it is noticed before the minutes land on you. It reads: You are now playing as yourself. If you want to play as class please go here.
 
-**Where it is.** Across the top of the schools dashboard, above the welcome, only in a week when your own account has practised.
+**Where it is.** Across the top of the player, only while it is playing on your own account. Your dashboard never shows it: nothing is playing there.
 
 1. Read the line.
 2. Tap **Your classes** to go to your classes, and start the lesson with **Play as class** there.
 
-**Worth knowing.** The line goes away by itself once a week has passed with no practice on your own account. Your own practice is not deleted or moved by it; the copy tool on a class's tools page does that if you want it.
+**Worth knowing.** The line goes as soon as you pause or stop. Minutes already played on your own account are not moved by it; the copy tool on a class's tools page does that if you want it.
 
 ## Voice and pause
 

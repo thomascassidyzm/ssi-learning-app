@@ -65,7 +65,9 @@ const {
 } = useClassesData()
 const { fetchClassTeacherCandidates } = useTeachersData()
 const { viewingSchool } = useSchoolData()
-const { canPlayAsClass, launchClassSession, playError } = usePlayAsClass()
+const { canPlayAsClass, playAsClassReadOnly, launchClassSession, playError } = usePlayAsClass()
+// Under View As the button is shown disabled, never hidden (job #683).
+const playAsClassTitle = computed(() => (playAsClassReadOnly.value ? t('schools.playAsClass.viewAsReadOnly', 'Read only while you are viewing as someone else. A teacher can press this.') : ''))
 
 // When a govt admin drilled group → school → class, "back" should return to
 // the school dashboard, not the (empty for them) classes list.
@@ -909,10 +911,11 @@ const mailboxPrompt = useMailboxPrompt()
              3. Wait for the students to arrive on their own devices.
              4. Tap play to start the session.
              Worth knowing. The join code is the same code all lesson, so a student
-             arriving late still gets in.
-             checked: a56c85be.e182c56c
+             arriving late still gets in. While a platform admin is viewing the page
+             as you the play button is greyed out and does nothing.
+             checked: 03574751.2708ad9f
         -->
-        <button v-if="canPlayAsClass" type="button" class="btn-play btn-play-lg" data-walk="class-play" :disabled="!canLaunch" @click="handlePlay">
+        <button v-if="canPlayAsClass" type="button" class="btn-play btn-play-lg" data-walk="class-play" :disabled="!canLaunch || playAsClassReadOnly" :title="playAsClassTitle" @click="handlePlay">
           <span class="play-glyph">&#9654;</span>
           {{ t('schools.classDetail.playAsClass', 'Play as class') }}
         </button>

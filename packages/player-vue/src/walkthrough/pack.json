@@ -1,5 +1,5 @@
 {
-  "version": "60e6409194ff",
+  "version": "3f5b2800415c",
   "generatedAt": "2026-09-14",
   "walks": [
     {
@@ -2755,7 +2755,38 @@
         "Tap **Play as class**.",
         "The player opens on the class's course at the class's own place."
       ],
-      "note": "Pressing play on a course from your own Library counts for you, not for the class. Only Play as class moves the class."
+      "note": "Pressing play on a course from your own Library counts for you, not for the class. Only Play as class moves the class. While a platform admin is viewing the page as you the button is greyed out and does nothing."
+    },
+    {
+      "id": "play-as-class-from-your-dashboard",
+      "title": "Play as class from your dashboard",
+      "section": "running-classes",
+      "personas": [
+        "teacher"
+      ],
+      "keywords": [
+        "play as class",
+        "lesson",
+        "start",
+        "dashboard",
+        "class card",
+        "front of the room"
+      ],
+      "place": {
+        "route": "dashboard"
+      },
+      "anchor": "dash-class-card-play",
+      "surface": "schools",
+      "source": "packages/player-vue/src/views/schools/DashboardView.vue",
+      "walk": null,
+      "what": "Starting a whole-class lesson straight from your dashboard, on the class's own account, so the minutes and the phrases land on the class rather than on you.",
+      "where": "Your dashboard, the **Play as class** button on each class's card or row.",
+      "how": [
+        "Find the class on your dashboard.",
+        "Tap **Play as class**.",
+        "The player opens on the class's course at the class's own place."
+      ],
+      "note": "The button is always there beside the class. While a platform admin is viewing the dashboard as you it is greyed out and does nothing, so they can see what you have without starting a lesson in your name."
     },
     {
       "id": "practice-on-your-own-account",
@@ -3176,7 +3207,7 @@
         "Wait for the students to arrive on their own devices.",
         "Tap play to start the session."
       ],
-      "note": "The join code is the same code all lesson, so a student arriving late still gets in."
+      "note": "The join code is the same code all lesson, so a student arriving late still gets in. While a platform admin is viewing the page as you the play button is greyed out and does nothing."
     },
     {
       "id": "say-what-happened",
@@ -3637,7 +3668,7 @@
         "Tap **Play as class** at the end of its row.",
         "The player opens on that class's course, at the class's own place in it."
       ],
-      "note": "It is the same session the class page starts, so it moves the class on for everyone on the roster. Only school staff see this button, and only on a live account rather than a read-only view."
+      "note": "It is the same session the class page starts, so it moves the class on for everyone on the roster. Only school staff see this button. While a platform admin is viewing the dashboard as you it is greyed out and does nothing, so they can see what you have without starting a lesson in your name."
     },
     {
       "id": "students-on-their-own-accounts",
@@ -4050,11 +4081,12 @@
       "note": "An organisation that is not school-shaped sees minutes in the app this week, groups and learners instead. Every minute on this page is the same minute: from pressing play to stopping, over the last seven days, each account once. There is no all-time total here."
     },
     {
-      "id": "told-when-you-have-been-playing-as-yourself",
-      "title": "Told when you have been playing as yourself",
+      "id": "told-when-you-are-playing-as-yourself",
+      "title": "Told when you are playing as yourself",
       "section": "running-classes",
       "personas": [
-        "teacher"
+        "teacher",
+        "school_admin"
       ],
       "keywords": [
         "playing as yourself",
@@ -4062,22 +4094,22 @@
         "play as class",
         "warning",
         "banner",
-        "your classes"
+        "player"
       ],
       "place": {
-        "route": "dashboard"
+        "route": "library"
       },
-      "anchor": "dash-playing-as-yourself",
+      "anchor": "player-playing-as-yourself",
       "surface": "schools",
-      "source": "packages/player-vue/src/views/schools/DashboardView.vue",
+      "source": "packages/player-vue/src/components/schools/PlayingAsYourselfBanner.vue",
       "walk": null,
-      "what": "A line across the top of your dashboard whenever your own account has practised this week, so a lesson that ran on your own sign-in instead of on the class is noticed straight away. It reads: You are now playing as yourself. If you want to play as class please go here.",
-      "where": "Across the top of the schools dashboard, above the welcome, only in a week when your own account has practised.",
+      "what": "A line across the top of the player while a lesson is running on your own sign-in rather than on the class, so it is noticed before the minutes land on you. It reads: You are now playing as yourself. If you want to play as class please go here.",
+      "where": "Across the top of the player, only while it is playing on your own account. Your dashboard never shows it: nothing is playing there.",
       "how": [
         "Read the line.",
         "Tap **Your classes** to go to your classes, and start the lesson with **Play as class** there."
       ],
-      "note": "The line goes away by itself once a week has passed with no practice on your own account. Your own practice is not deleted or moved by it; the copy tool on a class's tools page does that if you want it."
+      "note": "The line goes as soon as you pause or stop. Minutes already played on your own account are not moved by it; the copy tool on a class's tools page does that if you want it."
     },
     {
       "id": "voice-and-pause",

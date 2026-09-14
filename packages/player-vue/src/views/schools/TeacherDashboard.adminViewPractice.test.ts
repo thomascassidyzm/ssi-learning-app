@@ -36,7 +36,7 @@ vi.mock('@/composables/schools/useClassesData', () => ({
   }),
 }))
 vi.mock('@/composables/schools/usePlayAsClass', () => ({
-  usePlayAsClass: () => ({ canPlayAsClass: computed(() => true), launchClassSession: vi.fn(), playError: ref(null), switchActiveCourseTo: vi.fn() }),
+  usePlayAsClass: () => ({ canPlayAsClass: computed(() => true), playAsClassReadOnly: computed(() => false), launchClassSession: vi.fn(), playError: ref(null), switchActiveCourseTo: vi.fn() }),
 }))
 vi.mock('@/composables/useDashboardRefresh', () => {
   let handler: (() => Promise<void>) | null = null

@@ -91,7 +91,7 @@ const PRACTICE = {
 
 let practiceCalls: string[] = []
 
-async function mountTeacherHome(opts: { practice?: any; practiceStatus?: number } = {}) {
+async function mountTeacherHome(opts: { practice?: any; practiceStatus?: number; isAdminView?: boolean } = {}) {
   practiceCalls = []
   globalThis.fetch = vi.fn(async (url: any) => {
     const u = String(url)
@@ -111,7 +111,7 @@ async function mountTeacherHome(opts: { practice?: any; practiceStatus?: number 
   const mod = await import('./DashboardView.vue')
   const wrapper = mount(mod.default, {
     global: {
-      provide: { isAdminView: false, supabase: { value: fakeClient() } },
+      provide: { isAdminView: !!opts.isAdminView, supabase: { value: fakeClient() } },
       stubs: {
         Greeting: { props: ['name', 'lines'], template: '<div><h1>{{ name }}</h1><p>{{ lines }}</p><slot name="action" /></div>' },
         BeltDot: true, InviteLinkField: true,
@@ -174,19 +174,35 @@ describe('DashboardView — the teacher home is play-as-class first (job #651)',
     expect(wrapper.find('[data-walk="dash-playing-as-yourself"]').exists()).toBe(false)
   })
 
-  // Tom, 2026-09-14 13:07Z (job #662): "a warning across the dashboard
-  // navigation? You are now playing as yourself. If you want to play as class
-  // please go here." — in his words, across the top of the teacher home, the
-  // link taking her to her classes. Red before the banner existed.
-  it('when her own account has practised this week, the warning sits across the top in Tom\'s words and links to her classes', async () => {
+  // Tom, 2026-09-14 16:17Z (job #683): "the 'You are now playing as yourself'
+  // makes no sense when in dashboard view - they're not playing anything."
+  // The #662 banner is gone from the teacher home even in a week with
+  // own-account minutes; it lives on the player now
+  // (PlayingAsYourselfBanner.vue). Green before #662, red under it, green
+  // again after #683. The past-tense own-practice line above stays.
+  it('the teacher home never says "playing as yourself" — nothing is playing there', async () => {
     const wrapper = await mountTeacherHome()
-    const banner = wrapper.find('[data-walk="dash-playing-as-yourself"]')
-    expect(banner.exists()).toBe(true)
-    expect(banner.text()).toContain('You are now playing as yourself. If you want to play as class please go here.')
-    expect(banner.find('a').attributes('href')).toBe('/schools/classes')
-    // It comes before the welcome, not after the classes.
-    const html = wrapper.html()
-    expect(html.indexOf('dash-playing-as-yourself')).toBeLessThan(html.indexOf('Welcome back'))
+    expect(wrapper.find('[data-walk="dash-playing-as-yourself"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('You are now playing as yourself')
+    expect(wrapper.find('[data-walk="dash-own-practice"]').exists()).toBe(true)
+  })
+
+  // Tom, same message: "every single Play as Class button has GONE!!!! That
+  // should be prominent next to the class, not invisible". Present and
+  // enabled for a teacher; present and DISABLED under View As, never hidden.
+  it('Play as class is present and enabled beside the class for a signed-in teacher', async () => {
+    const wrapper = await mountTeacherHome()
+    const btn = wrapper.find('[data-walk="dash-class-card-play"], [data-walk="dash-class-row-play"]')
+    expect(btn.exists()).toBe(true)
+    expect(btn.attributes('disabled')).toBeUndefined()
+  })
+
+  it('under View As the button is still there beside the class, disabled and saying why', async () => {
+    const wrapper = await mountTeacherHome({ isAdminView: true })
+    const btn = wrapper.find('[data-walk="dash-class-card-play"], [data-walk="dash-class-row-play"]')
+    expect(btn.exists()).toBe(true)
+    expect(btn.attributes('disabled')).toBeDefined()
+    expect(btn.attributes('title')).toContain('Read only while you are viewing as someone else')
   })
 
   // TWO FIGURES, KEPT APART, NEVER SUMMED (Tom, 2026-09-14, job #662). Red on
