@@ -106,11 +106,15 @@ interface MeasureConfig {
 }
 const MEASURES: MeasureConfig[] = [
   { value: 'rate', label: 'Rate of progress', unit: 'LEGOs', per: 'week', desc: 'How fast new LEGOs are being learned, per week.' },
-  { value: 'minutes_per_class', label: 'Practice minutes per class', unit: 'min', per: 'week', desc: 'How many minutes each class practises, per week on average.' },
-  { value: 'hours_total', label: 'Practice hours', unit: 'hours', per: '', desc: 'Total hours of practice in the selected period.' },
+  { value: 'minutes', label: 'Practice minutes', unit: 'min', per: '', desc: 'Minutes the class practised together in the selected period, from pressing play to stopping, pauses included.' },
   { value: 'active_classes', label: 'Active classes share', unit: '%', per: '', desc: 'The share of classes that practised at least once in the selected period.', classLevelExcluded: true },
 ]
 const DEFAULT_MEASURE: MeasureId = 'rate'
+// Old measure ids live in bookmarks/deep links. `minutes_per_class` was a
+// per-week rate and `hours_total` the same total in hours; both are now the
+// one total, `minutes` (Tom, 2026-09-14: a window total can never shrink as
+// the window grows, and one aggregation everywhere).
+const MEASURE_ALIASES: Record<string, MeasureId> = { minutes_per_class: 'minutes', hours_total: 'minutes' }
 
 interface GroupRow {
   id: string
@@ -454,7 +458,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // 0/100 — a class either ran or didn't). An unavailable/unknown request
     // falls back to the default rather than erroring. ───
     const availableMeasures = MEASURES.filter((m) => !(nodeMeta.kind === 'class' && m.classLevelExcluded))
-    const requestedMeasure = String(req.query.measure || '').trim()
+    const requestedMeasureRaw = String(req.query.measure || '').trim()
+    const requestedMeasure = MEASURE_ALIASES[requestedMeasureRaw] ?? requestedMeasureRaw
     const measureConfig = availableMeasures.find((m) => m.value === requestedMeasure)
       ?? availableMeasures.find((m) => m.value === DEFAULT_MEASURE)!
 
