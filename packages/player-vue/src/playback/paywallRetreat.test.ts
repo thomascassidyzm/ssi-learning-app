@@ -105,12 +105,11 @@ describe('LearningPlayer wiring (source read)', () => {
 
   it('a grant jumps back to the real position before resuming', () => {
     const w = block('watch(liveEntitlements, () => {', '\n})\n')
-    const restore = w.indexOf('paywallRetreat.takeRestore(')
+    const restore = w.indexOf('tryRestoreHeldPosition()')
     const resume = w.indexOf('simplePlayer.resume()')
     expect(restore).toBeGreaterThan(-1)
-    expect(w).toContain('simplePlayer.jumpToRound(restore.roundIndex, restore.cycleIndex)')
-    // The target is resolved against the live engine queue by LEGO.
-    expect(w).toContain('simplePlayer.getEngineRounds().findIndex((r) => r?.legoId === legoId)')
+    // The restore itself (by LEGO against the live engine queue, verified
+    // landing) lives in paywallGrant.ts and is tested with a fake engine.
     expect(resume).toBeGreaterThan(restore)
   })
 
