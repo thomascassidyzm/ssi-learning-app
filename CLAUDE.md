@@ -104,11 +104,11 @@ dev  ──promote──▶  staging  ──promote──▶  main
 
 | Branch | Purpose | Deploys to | Who |
 |--------|---------|------------|-----|
-| `dev` | Rapid integration — Tom's rapid work + ALL `claude/**` web sessions merge here (by hand or through the command surface; nothing auto-merges) | `ssi-learning-app-git-dev-zenjin.vercel.app` (stable Vercel git-branch alias — **there is NO `dev.saysomethingin.app`, it 404s**) | Tom + Claude |
+| `dev` | Rapid integration — Tom's rapid work + ALL `claude/**` web sessions merge here (by hand or through the command surface; nothing auto-merges) | `ssi-learning-app-git-dev-zenjin.vercel.app` (stable Vercel git-branch alias — **there is NO `dev.saysomethingin.app`, it 404s**). **Since 2026-09-14 a push to `dev` builds only when the commit subject carries `[preview]`; a plain push is cancelled in seconds and the alias does not move.** An agent that needs the dev alias to show its change puts `[preview]` on the merge commit's subject, first line only. `staging` and `main` build on every push as before | Tom + Claude |
 | `staging` | Stable soak — frozen-ish candidate the external/Colombo test team vets | `staging.saysomethingin.app` | promoted from `dev` |
 | `main` | Production — real users | `saysomethingin.app` | promoted from `staging` |
 
-> **Dev URL note.** The only stable non-prod custom domain is `staging.saysomethingin.app`. The `dev` branch has **no** custom domain — use its Vercel git-branch alias `https://ssi-learning-app-git-dev-zenjin.vercel.app` (always tracks dev's latest build; dev auto-updates the SW so a reload gets fresh code). Per-commit hash URLs also work but rotate every push. Dev test cheats: append `?fc=1` (force interjections every boundary), `?stream` (bypass cache play), `?reset=1` (full state wipe).
+> **Dev URL note.** The only stable non-prod custom domain is `staging.saysomethingin.app`. The `dev` branch has **no** custom domain — use its Vercel git-branch alias `https://ssi-learning-app-git-dev-zenjin.vercel.app` (tracks the latest build of dev, which since 2026-09-14 happens only when the commit subject carries `[preview]`; the alias auto-updates the service worker, so a reload gets fresh code once a build has run). Per-commit hash URLs also work but rotate every push. Dev test cheats: append `?fc=1` (force interjections every boundary), `?stream` (bypass cache play), `?reset=1` (full state wipe).
 
 At the start of every session, run:
 ```bash
