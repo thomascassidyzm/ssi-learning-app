@@ -364,7 +364,7 @@ const closeMobileMenu = () => {
 .top-nav {
   position: fixed;
   /* Clears the view-as band when one is up (job #675); 0px otherwise. */
-  top: var(--viewing-as-h, 0px);
+  top: var(--top-bands-h, 0px);
   left: 0;
   right: 0;
   height: calc(var(--nav-height) + env(safe-area-inset-top, 0px));
@@ -858,7 +858,7 @@ const closeMobileMenu = () => {
 
 .mobile-menu-panel {
   position: fixed;
-  top: calc(var(--viewing-as-h, 0px) + var(--nav-height) + env(safe-area-inset-top, 0px));
+  top: calc(var(--top-bands-h, 0px) + var(--nav-height) + env(safe-area-inset-top, 0px));
   left: 0;
   right: 0;
   background: rgba(255, 255, 255, 0.92);

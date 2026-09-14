@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `0b168f2918fc` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `a1dcf2ed4735` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -1447,7 +1447,7 @@ Section: running-classes · roles: teacher, school_admin · anchor: `player-play
 
 **What it's for.** A line across the top of the player while a lesson is running on your own sign-in rather than on the class, so it is noticed before the minutes land on you. It reads: You are now playing as yourself. If you want to play as class please go here.
 
-**Where it is.** Across the top of the player, only while it is playing on your own account. Your dashboard never shows it: nothing is playing there.
+**Where it is.** Across the top of the player, only while it is playing on your own account. The player moves down to make room for it, so it covers none of the controls. Your dashboard never shows it: nothing is playing there.
 
 1. Read the line.
 2. Tap **Your classes** to go to your classes, and start the lesson with **Play as class** there.
