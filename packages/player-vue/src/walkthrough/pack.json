@@ -1,5 +1,5 @@
 {
-  "version": "f836d9c2cf66",
+  "version": "60e6409194ff",
   "generatedAt": "2026-09-14",
   "walks": [
     {
@@ -3239,7 +3239,7 @@
         "Tap into the box and write what you saw.",
         "Keep it under 2,000 characters. Send stays off until you have written something."
       ],
-      "note": "The page you were on and your school are added for you, so you only need to describe what went wrong."
+      "note": "The page you were on, your school, your role and your account are added for you, so you only need to describe what went wrong."
     },
     {
       "id": "see-and-download-your-funder-numbers",
