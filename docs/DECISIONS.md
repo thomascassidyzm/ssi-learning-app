@@ -1,3 +1,44 @@
+## 2026-09-14 — The one-off teacher-play sweep: five unambiguous copies, and what the strict rule costs (job #685)
+
+**Ruling (Tom, 16:30Z, via the RBF room).** "wherever there is no ambiguity - i.e. one teacher, one
+class, and no play as class data, we should copy it all over ... they can always skip back to the
+beginning easily on the play as class account." And, on telling them: "we DO want to be able to
+send them in-app messages about stuff like this." This SUPERSEDES #662's "there is deliberately NO
+bulk apply" — but only for the unambiguous cases. The per-pair admin card stays exactly as it is,
+and everything ambiguous stays on it.
+
+**The four conditions, plus two of our own.** A pair is unambiguous when: one teacher on the class,
+by the same union of `classes.teacher_user_id` and active class teacher `user_tags` that
+`candidates.ts` builds; that teacher on exactly one class ACROSS THE PLATFORM, not just within her
+school; the class account with zero play on the course, read as direct row counts in every
+COPY_TABLES table and not merely the enrolment row; and real own-account play to copy. Two further
+exclusions were ours, both conservative, both listed rather than copied: a class whose only teacher
+IS the school admin reads as an admin or test class — Angharad's own account on her own admin class
+was one of #662's 27 — and a class belonging to no school is outside a schools sweep.
+
+**The distribution is the finding.** 43 schools, 183 classes, 190 pairs → FIVE unambiguous copies
+totalling 336 rows, and 182 ambiguous. Chepstow alone listed 27 candidates under #662's looser
+rule; the strict rule takes the whole platform to five. The dominant filter is not play at all: 91
+pairs fail because the teacher teaches more than one class, and 38 because the class account
+already has play. None of the five carries any practice minutes, so no headline hours move
+anywhere; what moves is a class's position and its diary, from S0001 to S0003.
+
+**Reversible by the teacher, not only by an admin.** Every copy sends the teacher one in-app
+message whose single tap runs `undoCopy` — job #684's inbox primitive, `POST /api/messages/act`.
+The undo deletes exactly the rows that copy created, from its own audit record, and restores the
+class's own cursor. `priorCopied` now subtracts anything since undone, so an undo genuinely
+restores the pre-copy state and a later copy can run again rather than silently doing nothing.
+
+**Two implementations, one kept.** #684 and #685 both built the undo and the notice. We took #684's
+whole — it owns the inbox, the one-tap route, the dedupe key and the backfill — and dropped ours
+rather than leave a merge conflict in one file for a human to settle. The one behaviour lost with
+it: ours deleted the class's `course_enrollments` row when the class had none before the copy,
+where #684's restores a cursor only when there is one. No pair in this sweep is in that case.
+
+**Not done, and why.** The apply is armed and HELD. Tom's own sequence was dry-run plan first,
+published, then apply; the plan is published and no reply had arrived by the end of this job, so
+nothing was written. One sentence runs it.
+
 ## 2026-09-14 — View As never writes in the viewed person's name; today's five empty support threads are gone (job #681)
 
 **Ruling (Tom, 15:51Z, on Watson's finding that four real schools "opened a support thread today and
