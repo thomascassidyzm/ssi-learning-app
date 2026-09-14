@@ -31,7 +31,7 @@ export interface BugReportPosition {
 }
 
 export interface BugReportExtra {
-  source: 'learner' | 'schools_dashboard'
+  source: 'learner' | 'schools_dashboard' | 'tester_widget'
   context?: Record<string, string | null | undefined>
 }
 

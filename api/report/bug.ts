@@ -35,6 +35,12 @@
  * an hour, counted from the table by auth_user_id. A view-as session (an
  * ssi_admin looking as a persona) carries X-Ssi-View-As and is refused: the
  * menu item is hidden under view-as, and this is the belt to that brace.
+ *
+ * THREE DOORS (job #652, 2026-09-14): the floating tester widget that testers
+ * and ssi_admins see over the learner app used to write its own table,
+ * tester_feedback, which nothing polled. Aran's "choose your course not
+ * scrolling" sat there unread while the postbox was searched for it. The
+ * widget now posts here with source 'tester_widget'; one postbox, one poller.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -65,7 +71,7 @@ const guestHits = new Map<string, number[]>()
 export const SIGNED_IN_WINDOW_MS = 60 * 60 * 1000
 export const SIGNED_IN_PER_HOUR = 10
 
-export const SOURCES = ['learner', 'schools_dashboard'] as const
+export const SOURCES = ['learner', 'schools_dashboard', 'tester_widget'] as const
 export type ReportSource = (typeof SOURCES)[number]
 const CONTEXT_KEYS = ['role', 'school_id', 'school_name', 'group_id', 'class_id', 'node_id', 'page_title'] as const
 

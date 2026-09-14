@@ -276,6 +276,15 @@ const availableKnownLangs = computed(() => {
   return sorted
 })
 
+// The list is being cut to one speaker language, and there are other
+// languages it could show: the foot of the list names the filter and offers
+// the way out. Not in a scoped picker (the org chose the courses), not under
+// a search (the search box is the filter then), and not when the catalogue
+// only serves one known language anyway.
+const filteredBySpeaker = computed(() =>
+  !!iSpeak.value && !isRestricted.value && !searchQuery.value.trim() && courseGroups.value.length > 0 && availableKnownLangs.value.length > 1
+)
+
 // Typeable iSpeak filter — lets users find their language when it's not
 // among the most-served (i.e. not visible at the front of the row).
 // Matches against both the endonym and the localised name.
@@ -714,6 +723,20 @@ onMounted(() => {
               </template>
             </ul>
           </template>
+          <!--
+            The list ends here on purpose, and says so. The I-speak filter is
+            remembered in localStorage, so a learner who once tapped 中文 opens
+            the picker days later to five rows and a sheet that will not
+            scroll, because there is nothing below (Aran, Chromebook,
+            2026-09-14: "choose your course not scrolling"). Name the filter
+            at the foot of the list and give one tap out of it.
+          -->
+          <div v-if="filteredBySpeaker" class="list-foot" data-testid="course-picker-list-foot">
+            <span class="list-foot__text">{{ t('courseSelector.allForSpeakers').replace('{lang}', getLanguageEndonym(iSpeak)) }}</span>
+            <button type="button" class="list-foot__all" data-testid="course-picker-show-all" @click="iSpeak = ''; iSpeakQuery = ''">
+              {{ t('courseSelector.showAllLanguages') }}
+            </button>
+          </div>
           </div>
         </div>
       </div>
@@ -913,6 +936,31 @@ onMounted(() => {
   padding: 2rem 1rem;
   color: var(--text-muted, rgba(255, 255, 255, 0.45));
   font-size: 0.875rem;
+}
+
+.list-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.25rem 0 0.5rem;
+  text-align: center;
+}
+.list-foot__text {
+  font-size: var(--text-sm, 13px);
+  color: var(--ink-secondary, #6B635C);
+}
+.list-foot__all {
+  border: 0;
+  background: none;
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  font-size: var(--text-sm, 13px);
+  font-weight: var(--font-semibold, 600);
+  color: var(--accent-belt, #7C6A58);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
 }
 
 /* Target Grid */
