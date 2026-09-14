@@ -44,10 +44,12 @@ const props = defineProps<{
    * true forces member; absent/false falls back to path detection — Vue
    * defaults absent boolean props to false, so ?? can't express this. */
   member?: boolean
-  /** Which of the node's two pages is open — Overview or Insights — drawn as
-   * one quiet line beneath you-are-here, tappable to switch (Tom, 2026-09-14:
-   * "orientation, not navigation chrome"). Absent on rails whose node has no
-   * insights page. */
+  /** Which of the node's two pages is open — Overview or Insights — named as
+   * one quiet line beneath you-are-here. Only the OPEN page is named (Tom,
+   * 2026-09-14: "it should only show one of these"); the Overview | Insights
+   * switch is the LensTabs pair top-right, so the line is orientation, not a
+   * control. The prop keeps both paths so neither caller changed. Absent on
+   * rails whose node has no insights page. */
   lens?: { current: 'overview' | 'insights'; overviewPath: string; insightsPath: string } | null
 }>()
 
@@ -66,17 +68,10 @@ function open(ref_: RailRef): void {
   router.push(ref_.path || groupHomePath(ref_.id, member.value))
 }
 
-// The lens line: the open page named, the other one a tap away.
+// The lens line: the open page named, nothing else.
 const lensWord = computed(() => props.lens?.current === 'insights'
-  ? t('org.lensTabs.insights', 'Insights').toLowerCase()
-  : t('org.insights.overview', 'Overview').toLowerCase())
-const otherLensWord = computed(() => props.lens?.current === 'insights'
-  ? t('org.insights.overview', 'Overview').toLowerCase()
-  : t('org.lensTabs.insights', 'Insights').toLowerCase())
-function switchLens(): void {
-  if (!props.lens) return
-  router.push(props.lens.current === 'insights' ? props.lens.overviewPath : props.lens.insightsPath)
-}
+  ? t('org.lensTabs.insights', 'Insights')
+  : t('org.insights.overview', 'Overview'))
 
 function labelWord(r: RailRef): string {
   if (r.hasSchool || r.label === 'school') return t('org.ui.nodeMapRail.school', 'school')
@@ -116,16 +111,9 @@ function labelWord(r: RailRef): string {
         </span>
       </li>
       <li v-if="props.lens" class="rail-row is-lens" :style="{ '--depth': props.ancestors.length }">
-        <button
-          type="button"
-          class="rail-lens"
-         
-          :aria-label="t('org.ui.nodeMapRail.switchTo', 'Switch to {lens}').replace('{lens}', otherLensWord)"
-          @click="switchLens"
-        >
+        <span class="rail-lens">
           <span class="rail-lens-current">{{ lensWord }}</span>
-          <span class="rail-lens-other">· {{ otherLensWord }}</span>
-        </button>
+        </span>
       </li>
       <li v-if="props.siblings.length" class="rail-row is-siblings" :style="{ '--depth': props.ancestors.length }">
         <button type="button" class="rail-toggle" @click="showSiblings = !showSiblings">
@@ -209,14 +197,12 @@ function labelWord(r: RailRef): string {
 .is-here .rail-name { font-weight: var(--font-bold, 700); color: var(--schools-fg, #0F1212); }
 .is-here .rail-label { color: var(--schools-red, #DB1E17); font-weight: var(--font-medium); }
 
-/* The lens line: same indent as you-are-here, quieter than a row. */
+/* The lens line: same indent as you-are-here, quieter than a row, plain text. */
 .rail-lens {
-  display: flex; align-items: baseline; gap: 6px; width: 100%; min-width: 0;
-  padding: 2px 10px 4px 13px; border: none; background: none; font: inherit; text-align: left;
-  cursor: pointer; color: var(--schools-fg-3, #8A8078); font-size: var(--text-xs);
+  display: flex; align-items: baseline; width: 100%; min-width: 0;
+  padding: 2px 10px 4px 13px; font-size: var(--text-xs);
 }
 .rail-lens-current { color: var(--schools-fg-2, #555); font-weight: var(--font-medium); }
-.rail-lens:hover .rail-lens-other { color: var(--schools-fg, #0F1212); text-decoration: underline; }
 
 .rail-toggle { cursor: pointer; color: var(--schools-fg-3, #8A8078); font-size: var(--text-xs); padding: 4px 10px; }
 .rail-toggle:hover { color: var(--schools-fg, #0F1212); }

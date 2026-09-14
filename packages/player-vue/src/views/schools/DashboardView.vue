@@ -652,7 +652,7 @@ async function handlePlayClass(cls: ClassInfo) {
               <span class="dot-sep">·</span>
               {{ t('schools.dashboard.nPhrases', '{n} phrases').replace('{n}', String(cls.phrases7d)) }}
               <span class="dot-sep">·</span>
-              {{ t('schools.dashboard.legosTravelled', '{done}/{total} LEGOs').replace('{done}', String(cls.journeyDone)).replace('{total}', String(cls.journeyTotal)) }}
+              {{ t('schools.dashboard.legosTravelled', '{done}/{total} phrases').replace('{done}', String(cls.journeyDone)).replace('{total}', String(cls.journeyTotal)) }}
             </template>
             <span v-if="cls.started !== null" class="class-week-pupils schools-subtle" data-walk="dash-class-week-pupils">{{ pupilsOwnRowLabel(cls.pupilsOwnMinutes) }}</span>
           </div>
@@ -705,7 +705,7 @@ async function handlePlayClass(cls: ClassInfo) {
           <div v-if="cls.started" class="panel-week" data-walk="dash-class-week">
             <div class="schools-kicker">{{ t('schools.dashboard.togetherKicker', 'Together, this week') }}</div>
             <p class="panel-week-line">
-              {{ t('schools.dashboard.legosTravelledTogether', 'The class has travelled {done} of {total} LEGOs.').replace('{done}', String(cls.journeyDone)).replace('{total}', String(cls.journeyTotal)) }}
+              {{ t('schools.dashboard.legosTravelledTogether', 'The class has travelled {done} of {total} phrases.').replace('{done}', String(cls.journeyDone)).replace('{total}', String(cls.journeyTotal)) }}
               <template v-if="cls.lastPlayed"> {{ t('schools.dashboard.lastPlayed', 'Last played {day}').replace('{day}', cls.lastPlayed) }}.</template>
             </p>
           </div>

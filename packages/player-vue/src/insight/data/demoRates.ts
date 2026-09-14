@@ -78,10 +78,10 @@ export const HERO_RATES: HeroRate[] = [
   {
     id: 'progressPace',
     label: 'Rate of progress',
-    unit: 'LEGOs',
+    unit: 'phrases',
     per: 'week',
     description:
-      'New LEGOs reached per week — the headline rate. Rate of progress matters more than position: a learner three seeds back but climbing fast is healthier than one parked far ahead.',
+      'New phrases reached per week — the headline rate. Rate of progress matters more than position: a learner three seeds back but climbing fast is healthier than one parked far ahead.',
     entityLevels: ['learner', 'class', 'school', 'course'],
     dp: 1,
     range: [1.5, 16],
@@ -101,11 +101,11 @@ export const HERO_RATES: HeroRate[] = [
   },
   {
     id: 'newLegosHr',
-    label: 'New LEGOs introduced',
-    unit: 'LEGOs',
+    label: 'New phrases introduced',
+    unit: 'phrases',
     per: 'hour',
     description:
-      'New LEGOs introduced per active hour — the introduction rate (efficiency of new exposure). High means the session keeps reaching for new material; low means it dwells.',
+      'New phrases introduced per active hour — the introduction rate (efficiency of new exposure). High means the session keeps reaching for new material; low means it dwells.',
     entityLevels: ['learner', 'class', 'course'],
     dp: 1,
     range: [3, 22],
@@ -332,7 +332,7 @@ const LEGO_CONTENT: Record<string, [string, string][]> = {
 function positionContext(rand: () => number, course: string): string {
   const pool = LEGO_CONTENT[course] ?? LEGO_CONTENT['Irish for English speakers']
   const [target, known] = pool[Math.floor(rand() * pool.length)]
-  return `Furthest LEGO · "${target}" — "${known}"`
+  return `Furthest phrase · "${target}" — "${known}"`
 }
 
 // ── Ancestor chain: the compare-to options for one entity ───────────────────
