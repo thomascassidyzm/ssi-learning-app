@@ -16,10 +16,10 @@
  * each class's own account (`classes.class_learner_id`), so the shared rate
  * math and the widgets that draw it need no change:
  *
- *   - one row per in-app BLOCK, sessionised by the one rule in
- *     _utils/inAppTime.ts (five-minute idle cutoff, three-hour cap) so the
- *     minutes measure equals the in-app minutes every other school surface
- *     shows;
+ *   - one row per play-to-stop SPAN, by the one rule in _utils/inAppTime.ts
+ *     (Tom's ruling 2026-09-13: play to stop, closed at the last audio-ended
+ *     point, tagged by mode) so the minutes measure equals the in-app
+ *     minutes every other school surface and Intelligence show;
  *   - the block's start LEGO is the first LEGO the class heard in it and its
  *     end LEGO is the furthest, by the same course ordinal (seed_number,
  *     lego_index) the RPC assigns, so "LEGOs travelled" means the same thing
@@ -34,7 +34,16 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { chunk } from './schoolScope'
-import { IDLE_CUTOFF_SECONDS, BLOCK_CAP_SECONDS } from './inAppTime'
+import {
+  DIARY_PLAY_SELECT,
+  PLAY_EVENT_TYPES,
+  sessioniseAll,
+  spansFromDiary,
+  toDiaryPlayRow,
+  type DiaryPlayRow,
+  type PlaySpan,
+  type SessioniseOptions,
+} from './inAppTime'
 import type { ScopedSessionRow } from './rateCompare'
 
 /** PostgREST caps a single response at 1,000 rows; page every read. */
@@ -42,12 +51,25 @@ const PAGE = 1000
 const DIARY_MAX_PAGES = 50
 const LEGO_MAX_PAGES = 10
 
+/**
+ * A diary row as this module reads it: the minute rule's fields (see
+ * DIARY_PLAY_SELECT — event_type, cycleType, elapsedMs, durationMs, url) plus
+ * the LEGO the clip was on. A row without an event_type the rule reads is
+ * ignored, exactly as inAppTime.ts ignores it.
+ */
 export interface DiaryEvent {
   learner_id: string
   occurred_at: string
   course_code: string | null
   /** `payload->>legoId`, present on clip and round events, null on the rest. */
   lego: string | null
+  event_type?: string
+  ct?: string | null
+  elapsed?: string | number | null
+  duration?: string | number | null
+  speed?: string | number | null
+  url?: string | null
+  payload?: Record<string, unknown> | null
 }
 
 export interface DiaryClass {
@@ -59,72 +81,86 @@ export interface DiaryClass {
 /** course_code → lego_id → 1-based ordinal (seed_number, lego_index order). */
 export type LegoOrdinals = Map<string, Map<string, number>>
 
-/**
- * Pure: session rows from one window's diary events. Exported so the rule is
- * testable without a database.
- */
-export function sessionRowsFromDiary(
-  events: DiaryEvent[],
-  classes: DiaryClass[],
-  ordinals: LegoOrdinals,
-  opts: { idleCutoffSeconds?: number; blockCapSeconds?: number } = {},
-): ScopedSessionRow[] {
-  const idle = (opts.idleCutoffSeconds ?? IDLE_CUTOFF_SECONDS) * 1000
-  const cap = (opts.blockCapSeconds ?? BLOCK_CAP_SECONDS) * 1000
+type TimedEvent = DiaryEvent & { t: number }
+
+/** Group a class account's events by learner id, keeping only class accounts. */
+function eventsByClassAccount(events: DiaryEvent[], classes: DiaryClass[]): { classByLearner: Map<string, DiaryClass>; byLearner: Map<string, TimedEvent[]> } {
   const classByLearner = new Map<string, DiaryClass>()
   for (const c of classes) if (c.class_learner_id) classByLearner.set(c.class_learner_id, c)
-
-  const byLearner = new Map<string, (DiaryEvent & { t: number })[]>()
+  const byLearner = new Map<string, TimedEvent[]>()
   for (const e of events) {
     const t = new Date(e.occurred_at).getTime()
     if (!Number.isFinite(t) || !classByLearner.has(e.learner_id)) continue
     if (!byLearner.has(e.learner_id)) byLearner.set(e.learner_id, [])
     byLearner.get(e.learner_id)!.push({ ...e, t })
   }
+  for (const evs of byLearner.values()) evs.sort((a, b) => a.t - b.t)
+  return { classByLearner, byLearner }
+}
 
+/**
+ * Pure: one rate-compare row per play-to-stop SPAN (the one rule,
+ * inAppTime.ts), for one class account. The span's LEGOs are the clips that
+ * fell inside it: start = the first LEGO heard, end = the furthest by course
+ * ordinal. Its course is the span's own (majority of its clips), else the
+ * class's. Main-flow and Listening Mode spans are both rows: a whole-class
+ * listening session is class practice.
+ */
+export function sessionRowsFromSpans(
+  spans: PlaySpan[],
+  events: TimedEvent[],
+  cls: DiaryClass,
+  ordinals: LegoOrdinals,
+): ScopedSessionRow[] {
+  const out: ScopedSessionRow[] = []
+  const SLACK = 1000
+  for (const s of spans) {
+    const course = s.course ?? cls.course_code
+    const ords = course ? ordinals.get(course) : undefined
+    let startLego: string | null = null
+    let startOrd: number | null = null
+    let endLego: string | null = null
+    let endOrd: number | null = null
+    for (const e of events) {
+      if (e.t < s.startMs - SLACK) continue
+      if (e.t > s.endMs + SLACK) break
+      if (!e.lego) continue
+      const ord = ords?.get(e.lego) ?? null
+      if (startLego === null) { startLego = e.lego; startOrd = ord }
+      if (ord !== null && (endOrd === null || ord > endOrd)) { endLego = e.lego; endOrd = ord }
+    }
+    if (endLego === null) { endLego = startLego; endOrd = startOrd }
+    out.push({
+      class_id: cls.id,
+      course_code: course,
+      start_lego_id: startLego,
+      end_lego_id: endLego,
+      start_ord: startOrd,
+      end_ord: endOrd,
+      duration_seconds: s.seconds,
+      started_at: new Date(s.startMs).toISOString(),
+    })
+  }
+  return out
+}
+
+/**
+ * Pure: session rows from one window's diary events, no database — the
+ * closing clip of a span is not resolved through course_audio here (see
+ * loadDiarySessionRows for the read that does). Exported so the rule is
+ * testable.
+ */
+export function sessionRowsFromDiary(
+  events: DiaryEvent[],
+  classes: DiaryClass[],
+  ordinals: LegoOrdinals,
+  opts: SessioniseOptions = {},
+): ScopedSessionRow[] {
+  const { classByLearner, byLearner } = eventsByClassAccount(events, classes)
   const out: ScopedSessionRow[] = []
   for (const [learnerId, evs] of byLearner) {
-    const cls = classByLearner.get(learnerId)!
-    evs.sort((a, b) => a.t - b.t)
-    let block: (DiaryEvent & { t: number })[] = []
-    const flush = () => {
-      if (block.length === 0) return
-      const first = block[0].t
-      const last = block[block.length - 1].t
-      const courseVotes = new Map<string, number>()
-      for (const e of block) if (e.course_code) courseVotes.set(e.course_code, (courseVotes.get(e.course_code) || 0) + 1)
-      let course: string | null = cls.course_code
-      let best = 0
-      for (const [code, n] of courseVotes) if (n > best) { best = n; course = code }
-      const ords = course ? ordinals.get(course) : undefined
-      let startLego: string | null = null
-      let startOrd: number | null = null
-      let endLego: string | null = null
-      let endOrd: number | null = null
-      for (const e of block) {
-        if (!e.lego) continue
-        const ord = ords?.get(e.lego) ?? null
-        if (startLego === null) { startLego = e.lego; startOrd = ord }
-        if (ord !== null && (endOrd === null || ord > endOrd)) { endLego = e.lego; endOrd = ord }
-      }
-      if (endLego === null) { endLego = startLego; endOrd = startOrd }
-      out.push({
-        class_id: cls.id,
-        course_code: course,
-        start_lego_id: startLego,
-        end_lego_id: endLego,
-        start_ord: startOrd,
-        end_ord: endOrd,
-        duration_seconds: Math.round(Math.min(last - first, cap) / 1000),
-        started_at: new Date(first).toISOString(),
-      })
-      block = []
-    }
-    for (const e of evs) {
-      if (block.length > 0 && e.t - block[block.length - 1].t > idle) flush()
-      block.push(e)
-    }
-    flush()
+    const rows = evs.map((e) => toDiaryPlayRow(e as unknown as Record<string, unknown>)).filter((r): r is DiaryPlayRow => !!r)
+    out.push(...sessionRowsFromSpans(spansFromDiary(rows, opts), evs, classByLearner.get(learnerId)!, ordinals))
   }
   return out
 }
@@ -196,8 +232,9 @@ export async function loadDiarySessionRows(
       for (let page = 0; page < DIARY_MAX_PAGES; page++) {
         const { data } = await svc
           .from('player_events')
-          .select('learner_id, occurred_at, course_code, lego:payload->>legoId')
+          .select(`${DIARY_PLAY_SELECT}, lego:payload->>legoId`)
           .in('learner_id', batch)
+          .in('event_type', [...PLAY_EVENT_TYPES])
           .gte('occurred_at', sinceIso)
           .order('occurred_at', { ascending: true })
           .order('id', { ascending: true })
@@ -205,11 +242,12 @@ export async function loadDiarySessionRows(
         const rows = data ?? []
         for (const r of rows) {
           events.push({
+            ...(r as Record<string, unknown>),
             learner_id: String((r as any).learner_id),
             occurred_at: String((r as any).occurred_at),
             course_code: ((r as any).course_code as string | null) ?? null,
             lego: ((r as any).lego as string | null) ?? null,
-          })
+          } as DiaryEvent)
         }
         if (rows.length < PAGE) break
       }
@@ -220,7 +258,17 @@ export async function loadDiarySessionRows(
   for (const e of events) if (e.course_code) courses.add(e.course_code)
   for (const c of kept) if (c.course_code) courses.add(c.course_code)
   const ordinals = await loadLegoOrdinals(svc, [...courses])
-  return sessionRowsFromDiary(events, kept, ordinals)
+  // The one rule, with each span's closing clip resolved through course_audio
+  // in a single lookup (sessioniseAll) — the same read inAppTimeByLearner does.
+  const { classByLearner, byLearner } = eventsByClassAccount(events, kept)
+  const playRows = new Map<string, DiaryPlayRow[]>()
+  for (const [lid, evs] of byLearner) {
+    playRows.set(lid, evs.map((e) => toDiaryPlayRow(e as unknown as Record<string, unknown>)).filter((r): r is DiaryPlayRow => !!r))
+  }
+  const sessions = await sessioniseAll(svc, playRows)
+  const out: ScopedSessionRow[] = []
+  for (const [lid, evs] of byLearner) out.push(...sessionRowsFromSpans(sessions.get(lid)?.spans ?? [], evs, classByLearner.get(lid)!, ordinals))
+  return out
 }
 
 /**

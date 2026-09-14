@@ -1942,3 +1942,48 @@ the main-flow query to the Listening Mode query.
 with the pod-0 retirement resolver commit (job #512) it depends on, rather than promoting the
 whole of staging — the subscription-entitlement work (#540, #549) stays on staging for Tom's
 own promotion. Verified live on staging and production as a role-holder and as a plain learner.
+
+## 2026-09-13 — A minute is play to stop, tagged by mode, and Intelligence counts minutes, not people (job #609)
+
+**Decision.** ONE minute definition serves every school surface and Intelligence, and it is
+Tom's (22:27Z, via RBF, verbatim): "a minute is everything between user pressing play and user
+stopping play through whatever screen hit combination. listening exercises play time ALSO count
+... we SHOULD be able to disambiguate listening minutes IN listening MODE, from main-flow
+listening minutes." It lives in `api/_utils/inAppTime.ts` as `spansFromDiary`: a span opens at a
+`tap_play` (or at a clip when nothing is open, since a lock-screen resume emits no tap), is
+extended by every clip's END, and closes at the `tap_pause` when one arrives within the guard of
+the last audio-ended point, else at that point. Listening Mode has no taps, so its spans open on
+the first `listening_mode` clip or `listening_tick` and close at the last. Each span carries
+`mode: main | listening`. **Superseded:** the 2026-09-10 rule in the same file, which sessionised
+ANY diary event with a five-minute idle cut-off. The cut-off survives only as a guard against a
+missing stop; `cold_start`, `cursor_move`, `round_complete` and the rest now move no span.
+Main-flow cycle clips are logged at clip START, so from this build the two target clips carry
+`durationMs` on the `audio_play` row; rows before it resolve the span-closing clip through
+`course_audio.duration_ms`, and the known-side prompt carries no length in the script so a span
+that ends on a prompt closes at that prompt's start.
+
+**Intelligence at Everyone scope IS the insight engine.** `/intel` opens on question 1, reworded
+from a count of people to "How many in-app minutes are being done, per course and per person on
+the course…", rendered by `NodeRateEngine` + the `RateCompare` widget against a new route,
+`/api/intel/minutes`, that speaks the rate-compare contract verbatim (entity / average /
+distribution / trend) so the component needed one `endpoint` prop and no second adapter. Measures:
+in-app minutes per person on the course (headline, main flow and Listening Mode split beneath),
+new enrolments, people with no activity. Windows: today / 7 days / 30 days. Compare: the average
+of all courses only — at Everyone scope "everyone on this course" is the entity, so `global` means
+nothing. Population = `resolveRealLearners`, production diary rows only. A course-person is a real
+learner enrolled on the course at the window's end, or who played it in the window without an
+enrolment row (a taste default, flagged). The old count of people stays on the page as the rows
+beneath the engine. `?learner_id=` on the route returns that learner's spans so any headline can be
+reproduced against a real diary.
+
+**The packed read.** A 30-day production window is ~131k play-relevant rows; PostgREST caps a
+response at 1,000, so `diary_play_rows` (`supabase/migrations/20260913_diary_play_rows.sql`,
+applied live, service_role only) returns a window as one packed jsonb in ~1.5 s. It selects and
+packs; no rule lives in SQL. Better: the 30-day page answers inside the function budget. Simpler:
+one round trip, one rule in one file. Cheaper: no new table, no cron, no second implementation.
+
+**Proof.** `inAppTime.test.ts` "THE CHANGE": a play tap, five clips, no stop, a `cold_start` two
+minutes on — the pre-change module returned 120 s, this one 53 s, seen red then green. The school
+fixtures were flipped to typed play rows because under this rule a tap with no audio is no play
+time. Listening Mode minutes are exact on production from 2026-09-13 04:21Z (per-clip rows,
+jobs #339/#343); before that only the 30 s tick exists and listening minutes are tick-bounded.

@@ -1,26 +1,33 @@
 <script setup lang="ts">
 /**
- * Question 1 — the pulse.
+ * Question 1 — MINUTES. The Intelligence landing.
  *
- * "How many real people practised this week, and is that more or less than last
- * week?" It is first because every other number is meaningless until the
- * population is right, which is why the chip under the sentence is not
- * decoration: it is the claim the sentence rests on.
+ * Tom, 2026-09-13: "why is intelligence still counting by people? the number
+ * of people is really irrelevant, it is what is being DONE. how many in-app
+ * minutes, per course, per course-person ... using the insights tool we have
+ * built for learners? ... this course v average of all courses."
  *
- * The rows are courses. The evidence is one ranked bar of where in the world
- * those people are, which is the whole of what we honestly know about where
- * people come from today.
+ * So the evidence here IS the insight engine (NodeRateEngine + the RateCompare
+ * widget) at Everyone scope: window × course × measure, this course against
+ * the average of all courses, with the anonymised distribution strip. The
+ * headline measure is in-app minutes per person on the course, main flow and
+ * Listening Mode split beneath it; new enrolments and people with no activity
+ * sit in the same measure picker. One minute definition serves this page and
+ * every school surface (api/_utils/inAppTime.ts).
+ *
+ * The count of people that used to lead this page is kept BELOW the engine,
+ * as the rows — still true, still reachable, no longer the front door.
  */
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import QuestionPage from '@/intel/QuestionPage.vue'
-import InsightWidget from '@/insight/InsightWidget.vue'
+import NodeRateEngine from '@/insight/NodeRateEngine.vue'
 import { useIntelApi } from '@/intel/useIntelApi'
+import { useAdminClient } from '@/composables/useAdminClient'
 import { questionBySlug } from '@/intel/questions'
 import { metric } from '@/intel/metrics'
-import type { AnyInsightSpec, ResolvedInsight } from '@/insight/spec'
 
 interface PulseCourseRow { course: string; thisWeek: number; lastWeek: number }
-interface PulseCountryRow { country: string; people: number }
 interface StandingCounts { paying: number; gifted: number; free: number }
 interface PulseResponse {
   thisWeek: number
@@ -28,70 +35,97 @@ interface PulseResponse {
   population: number
   standing: StandingCounts
   courses: PulseCourseRow[]
-  countries: PulseCountryRow[]
   countedAt: string
+}
+interface MinutesSplit { minutes: number; mainMinutes: number; listeningMinutes: number; people: number; activePeople: number; newEnrolments: number }
+interface MinutesBody {
+  insufficientData: boolean
+  reason?: string
+  windowLabel?: string
+  population?: number
+  entity?: { label: string; value: number }
+  average?: { label: string; value: number }
+  applied?: { measure?: string; course_code?: string | null }
+  split?: MinutesSplit
+  listeningExactFrom?: string
+  countedAt?: string
 }
 
 const question = questionBySlug('pulse')!
-const { data, error, fetchedAt, load } = useIntelApi<PulseResponse>('/api/intel/pulse')
+const route = useRoute()
+const router = useRouter()
+const { getAuthToken } = useAdminClient()
 
-onMounted(() => { void load() })
+// ?course= / ?window= / ?measure= are the deep link; the engine resolves
+// defaults and reflects them back so a copied URL reproduces the view.
+const course = ref<string | null>(typeof route.query.course === 'string' ? route.query.course : null)
+const window_ = ref<string | null>(typeof route.query.window === 'string' ? route.query.window : null)
+const measure = ref<string | null>(typeof route.query.measure === 'string' ? route.query.measure : null)
+watch([course, window_, measure], ([c, w, m]) => {
+  void router.replace({ query: { ...route.query, course: c || undefined, window: w || undefined, measure: m || undefined } })
+})
+watch(
+  () => [route.query.course, route.query.window, route.query.measure],
+  ([qc, qw, qm]) => {
+    course.value = typeof qc === 'string' ? qc : null
+    window_.value = typeof qw === 'string' ? qw : null
+    measure.value = typeof qm === 'string' ? qm : null
+  },
+)
+
+const body = ref<MinutesBody | null>(null)
+const fetchedAt = ref<Date | null>(null)
+function onData(json: Record<string, unknown> | null): void {
+  body.value = json as unknown as MinutesBody | null
+  fetchedAt.value = json ? new Date() : null
+}
+
+const minutesMetric = metric('minutesPerPerson', question.slug)
+
+// The people rows: the old pulse, kept beneath the engine.
+const pulse = useIntelApi<PulseResponse>('/api/intel/pulse')
+onMounted(() => { void pulse.load() })
 
 const answer = computed<string | null>(() => {
-  if (error.value) return error.value
-  const d = data.value
-  if (!d) return null
-  if (d.thisWeek === 0) return 'Nobody has practised in the last seven days.'
-  const diff = d.thisWeek - d.lastWeek
-  const people = d.thisWeek === 1 ? 'real person' : 'real people'
-  if (diff === 0) return `${d.thisWeek} ${people} practised this week, the same as last week.`
-  const word = diff > 0 ? 'more' : 'fewer'
-  return `${d.thisWeek} ${people} practised this week, ${Math.abs(diff)} ${word} than last week.`
+  const b = body.value
+  if (!b) return null
+  if (b.insufficientData) return b.reason ?? 'Not enough to compare yet.'
+  const s = b.split
+  const win = (b.windowLabel ?? 'the period').toLowerCase()
+  const name = b.entity?.label ?? 'this course'
+  if (b.applied?.measure === 'new_enrolments') {
+    return `${b.entity?.value ?? 0} real people joined ${name} ${win === 'today' ? 'today' : `in the ${win}`}, against ${b.average?.value ?? 0} for the average course.`
+  }
+  if (b.applied?.measure === 'no_activity') {
+    return `${b.entity?.value ?? 0}% of the people on ${name} did not press play ${win === 'today' ? 'today' : `in the ${win}`}, against ${b.average?.value ?? 0}% for the average course.`
+  }
+  if (!s) return null
+  const per = b.entity?.value ?? 0
+  return `${s.minutes.toLocaleString('en-GB')} in-app minutes were done on ${name} ${win === 'today' ? 'today' : `in the ${win}`}, ${per} per person on the course. ${s.mainMinutes.toLocaleString('en-GB')} of those were in the main flow and ${s.listeningMinutes.toLocaleString('en-GB')} in Listening Mode.`
 })
 
-const headline = computed(() => (data.value ? String(data.value.thisWeek) : null))
+const headline = computed(() => {
+  const b = body.value
+  if (!b || b.insufficientData || !b.entity) return null
+  return b.applied?.measure === 'no_activity' ? `${b.entity.value}%` : String(b.entity.value)
+})
 
-const spec = computed<AnyInsightSpec>(() => ({
-  widget: 'ranked-bar',
-  query: { metric: 'pulseByCountry', window: '7d' },
-  frame: 'world',
-  title: metric('peopleByCountry', question.slug).label,
-  tag: 'countries',
-}))
+const listeningNote = computed(() => {
+  const from = body.value?.listeningExactFrom
+  if (!from) return null
+  const d = new Date(from)
+  return `Listening Mode minutes are exact from ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}. Before that the player sent only a heartbeat every thirty seconds, so earlier listening minutes are bounded by those, never invented.`
+})
 
-const resolved = computed<ResolvedInsight>(() => ({
-  isLoading: !data.value && !error.value,
-  error: error.value,
-  data: {
-    kind: 'ranked-bar',
-    bars: (data.value?.countries ?? []).slice(0, 12).map((c: PulseCountryRow) => ({
-      id: c.country,
-      label: c.country,
-      value: c.people,
-    })),
-    unit: 'people',
-    horizontal: true,
-  },
-}))
-
-const courseRows = computed(() => data.value?.courses ?? [])
-
-/**
- * The money-side split of this week's people, in a sentence.
- *
- * Gifted learners — comped teachers, gifted friends, pilot schools — are REAL
- * people and are counted in the number above. This line says how many of them
- * there were, because how comped and pilot learners behave is a question worth
- * asking and it can only be asked of people who are in the data. It splits the
- * headline; it never filters it.
- */
 const standingLine = computed<string | null>(() => {
-  const s = data.value?.standing
+  const s = pulse.data.value?.standing
   if (!s) return null
   const total = s.paying + s.gifted + s.free
   if (total === 0) return null
   return `${s.paying} paying, ${s.gifted} gifted, ${s.free} on free access.`
 })
+
+const courseRows = computed(() => pulse.data.value?.courses ?? [])
 
 function change(row: PulseCourseRow): string {
   const diff = row.thisWeek - row.lastWeek
@@ -101,26 +135,33 @@ function change(row: PulseCourseRow): string {
 </script>
 
 <template>
-  <!-- HANDBOOK How many real people practised this week
+  <!-- HANDBOOK How many in-app minutes are being done
        section: seeing-progress
        roles: admin
        place: intel
-       keywords: pulse, practised, this week, last week, real people, courses, countries, paying, gifted
-       What it's for. The first question on a Monday: how many real people
-       practised in the last seven days, and whether that is more or fewer than
-       the seven days before.
-       Where it is. **Pulse**, the first question in the bar under What's
-       happening.
+       keywords: minutes, in-app, per person, course, compare, average, listening mode, main flow, enrolments, no activity
+       What it's for. The first question: how many in-app minutes are being done,
+       per course and per person on the course, and how each course stands against
+       the average of all courses. A minute is everything between pressing play and
+       stopping, on every screen, and Listening Mode minutes are shown apart from
+       main-flow minutes.
+       Where it is. **Minutes**, the first question in the bar, and where
+       Intelligence opens.
        How you do it.
-       1. Read the number and the sentence for this week against last week.
-       2. Read the line beneath the chart for how many of those people are
-          paying, gifted or on free access. Gifted people are real people and
-          are counted.
-       3. Read the chart for where in the world this week's people are.
-       4. Open any course row to see which bits of that course give people
-          trouble.
-       Worth knowing. A person who practised nine times this week counts once.
-       checked: 2c86596a.7d5c7c03
+       1. Pick the **window**: today, the last seven days or the last thirty days.
+       2. Pick the **course**. It opens on the busiest course in that window.
+       3. Pick the **measure**: minutes per person, new enrolments, or people with
+          no activity. The line under the pickers says what it counts.
+       4. Read the two numbers: this course against the average of all courses, and
+          the strip beneath for where the course sits among the rest.
+       5. Read the line under the strip for the split between the main flow and
+          Listening Mode, and how many people the minutes are spread over.
+       6. The rows further down still count the real people who practised this
+          week, by course; open one to see which bits of the course give trouble.
+       Worth knowing. Every minute here is the same minute every school page shows,
+       and a person on the course who did not press play still counts in the
+       denominator.
+       checked: 0f173498.a34ae635
   -->
   <QuestionPage
     data-intel="question-pulse"
@@ -128,19 +169,27 @@ function change(row: PulseCourseRow): string {
     :answer="answer"
     :headline="headline"
     :fetched-at="fetchedAt"
-    :people="data?.population ?? null"
+    :people="body?.population ?? pulse.data.value?.population ?? null"
   >
-    <!-- No verbs at Everyone scope; the bar renders empty rather than being
-         omitted, which is the layout rule. -->
     <template #evidence>
-      <p v-if="standingLine" class="standing">{{ standingLine }}</p>
-      <InsightWidget :spec="spec" :resolved="resolved" />
+      <p class="metric-kicker">{{ minutesMetric.label }}</p>
+      <NodeRateEngine
+        node-id="everyone"
+        endpoint="/api/intel/minutes"
+        v-model:course="course"
+        v-model:window="window_"
+        v-model:measure="measure"
+        :get-token="getAuthToken"
+        @data="onData"
+      />
+      <p v-if="listeningNote" class="note">{{ listeningNote }}</p>
     </template>
 
     <template #rows>
       <div class="rows-card">
         <p class="rows-title">{{ metric('peopleByCourse', question.slug).label }}</p>
-        <p v-if="data && courseRows.length === 0" class="rows-empty">
+        <p v-if="standingLine" class="standing">{{ standingLine }}</p>
+        <p v-if="pulse.data.value && courseRows.length === 0" class="rows-empty">
           Nobody practised anything in the last fourteen days.
         </p>
         <router-link
@@ -161,6 +210,19 @@ function change(row: PulseCourseRow): string {
 </template>
 
 <style scoped>
+.metric-kicker {
+  margin: 0 0 10px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--schools-fg-3);
+}
+.note {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--schools-fg-3);
+}
 .rows-card {
   background: var(--schools-card);
   border: 1px solid var(--schools-border);
@@ -176,7 +238,8 @@ function change(row: PulseCourseRow): string {
   color: var(--schools-red);
 }
 .standing {
-  margin: 0 0 14px;
+  margin: 0;
+  padding: 0 18px 12px;
   font-size: 13px;
   color: var(--schools-fg-3);
 }

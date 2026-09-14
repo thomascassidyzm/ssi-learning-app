@@ -67,18 +67,18 @@ function resetTables(): void {
       })),
       { learner_id: 'class-learner-1', event_type: 'audio_play', 'payload->>role': 'target2', occurred_at: new Date(Date.now() - 8 * 86400000).toISOString(), payload: { role: 'target2', url: '/api/audio/a-1' } },
       { learner_id: 'learner-1', event_type: 'audio_play', 'payload->>role': 'target2', occurred_at: new Date().toISOString(), payload: { role: 'target2', url: '/api/audio/a-1' } },
-      // IN-APP TIME (founder ruling 2026-09-10): the diary carries every kind
-      // of event, and TIME is sessionised off their timestamps. The class
+      // IN-APP TIME (Tom's ruling 2026-09-13: play to stop, closed at the
+      // last audio-ended point; only play rows move a span). The class
       // account: a 20-minute whole-class lesson yesterday (a `known` clip every
       // five minutes), a 40-minute silence, then five more minutes — 25 min in
-      // two blocks. The student learner-1: ten minutes in the app today, of
+      // two spans. The student learner-1: ten minutes of clips today, of
       // which the ledger above times 10 min of audio yesterday + today.
       ...[0, 5, 10, 15, 20, 60, 65].map((min) => ({
         learner_id: 'class-learner-1', event_type: 'audio_play', 'payload->>role': 'known',
         occurred_at: new Date(Date.now() - 86400000 - (65 - min) * 60000).toISOString(), payload: { role: 'known', url: '/api/audio/k-1' },
       })),
       ...[0, 4, 7, 10].map((min) => ({
-        learner_id: 'learner-1', event_type: 'phase_skip', occurred_at: new Date(Date.now() - (10 - min) * 60000).toISOString(), payload: {},
+        learner_id: 'learner-1', event_type: 'audio_play', occurred_at: new Date(Date.now() - (10 - min) * 60000).toISOString(), payload: { role: 'known', cycleType: 'build', durationMs: 0 },
       })),
     ],
     course_practice_phrases: [

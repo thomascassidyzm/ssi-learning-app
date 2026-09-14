@@ -52,7 +52,7 @@ describe('AdminTopBar — Intelligence | Admin, one switch, derived from the rou
     const groups = wrapper.findAll('.tabs .tab-group')
     expect(groups.map((g) => g.attributes('aria-label'))).toEqual(['Everyone', 'One person', 'One organisation'])
     expect(groups[0].findAll('a.tab').map((a) => a.text())).toEqual([
-      'Pulse', 'Leaving', 'Courses', 'Weak points', 'Paying', 'Losing people', 'Working now', 'Where and what',
+      'Minutes', 'Leaving', 'Courses', 'Weak points', 'Paying', 'Losing people', 'Working now', 'Where and what',
     ])
     expect(groups[1].findAll('a.tab').map((a) => a.text())).toEqual(['One person'])
     expect(groups[2].findAll('a.tab').map((a) => a.text())).toEqual(['One organisation'])

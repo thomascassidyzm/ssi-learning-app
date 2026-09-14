@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, onBeforeUnmount, watch, watchEffect, shallowRef, inject, nextTick, defineAsyncComponent, type PropType, type Ref } from 'vue'
+import { useUserRole } from '@/composables/useUserRole'
+import { createCursorQueue } from '@/playback/cursorQueue'
 // Offline-download status (shared with the mode-button ring in ModeTray)
 import { offlineDlState, offlineDlDone, offlineDlTotal, offlineDlFailed, offlineDlStragglers, offlineTrial, resetOfflineDownloadStatus, resolveOfflineDlOutcome } from '../composables/useOfflineDownloadStatus'
 import {
@@ -1692,29 +1694,24 @@ const pairingsTelemetry = usePairingsTelemetry()
 // resumes use current_cycle_index (longer gaps reset to the round intro), so 60s
 // granularity is imperceptible. CANCELLED on round-advance: the round-advance
 // write supersedes, so a stale old-round cursor must never flush after it.
-let pendingCursor: { learnerId: string; courseId: string; idx: number } | null = null
-let cursorFlushTimer: ReturnType<typeof setTimeout> | null = null
-const flushCursor = () => {
-  if (cursorFlushTimer) { clearTimeout(cursorFlushTimer); cursorFlushTimer = null }
-  const p = pendingCursor
-  pendingCursor = null
-  // A write queued BEFORE the mode engaged must not land after it: the 60s
-  // throttle means one can be in flight at the moment the connection drops.
-  if (practisingBlocksProgressWrite('queued current cycle')) return
-  if (!p || !progressStore?.value) return
-  void activeProgressStore.value.updateCurrentCycle(p.learnerId, p.courseId, p.idx).catch(err => {
-    console.warn('[LearningPlayer] Failed to persist current cycle:', err)
-  })
-}
-const queueCursor = (learnerId: string, courseId: string, idx: number) => {
-  if (practisingBlocksProgressWrite('current cycle')) return
-  pendingCursor = { learnerId, courseId, idx }
-  if (!cursorFlushTimer) cursorFlushTimer = setTimeout(flushCursor, 60_000)
-}
-const cancelPendingCursor = () => {
-  if (cursorFlushTimer) { clearTimeout(cursorFlushTimer); cursorFlushTimer = null }
-  pendingCursor = null
-}
+// The queue itself lives in playback/cursorQueue.ts; it refuses at BOTH ends.
+// Under view-as it must refuse at creation: the fetch guard only blocks while
+// the overlay is on, and a cursor queued while viewing-as and flushed by the
+// unmount after Exit landed under the ADMIN's own learner (production probe,
+// job #615 finishing #607 — the #606 shape on the progress path).
+const { isViewingAs: cursorViewingAs } = useUserRole()
+const cursorQueue = createCursorQueue({
+  refuse: () => cursorViewingAs.value || practisingBlocksProgressWrite('current cycle'),
+  write: (p) => {
+    if (!progressStore?.value) return Promise.resolve()
+    return activeProgressStore.value.updateCurrentCycle(p.learnerId, p.courseId, p.idx)
+  },
+  onError: (err) => console.warn('[LearningPlayer] Failed to persist current cycle:', err),
+})
+const flushCursor = () => cursorQueue.flush()
+const queueCursor = (learnerId: string, courseId: string, idx: number) =>
+  cursorQueue.queue({ learnerId, courseId, idx })
+const cancelPendingCursor = () => cursorQueue.cancel()
 
 // Diagnostic event log — captures play/pause/skip/stop taps + lap and
 // commentary lifecycle. Persisted in player_events; surfaced in the
@@ -2429,9 +2426,16 @@ simplePlayer.onPhaseChanged((phase) => {
   // missing prompt/voice2).
   let audioUrl: string | undefined
   let role: 'known' | 'target1' | 'target2' | null = null
+  // The clip's own length at 1x. This row is logged at clip START, so the
+  // minute rule (api/_utils/inAppTime.ts, Tom 2026-09-13: a span closes at the
+  // last audio-ended point) needs the length to know when the last clip of a
+  // span ENDED. Stamped from build 2026-09-13 on for the two target clips
+  // (the script carries their lengths; it carries no known-side length);
+  // rows without it resolve through course_audio.duration_ms.
+  let durationMs: number | null = null
   if (phase === 'prompt') { audioUrl = cycle.known?.audioUrl; role = 'known' }
-  else if (phase === 'voice1') { audioUrl = cycle.target?.voice1Url; role = 'target1' }
-  else if (phase === 'voice2') { audioUrl = cycle.target?.voice2Url; role = 'target2' }
+  else if (phase === 'voice1') { audioUrl = cycle.target?.voice1Url; role = 'target1'; durationMs = cycle.target1DurationMs ?? null }
+  else if (phase === 'voice2') { audioUrl = cycle.target?.voice2Url; role = 'target2'; durationMs = cycle.target2DurationMs ?? null }
   if (audioUrl && role) {
     // cacheHit reflects whether AudioCache.persistent has the id at the
     // moment the cycle begins playing — signal for "did the per-cycle
@@ -2455,6 +2459,7 @@ simplePlayer.onPhaseChanged((phase) => {
       // Left absent, the context stamps the seed the cursor is on (job #339).
       ...(cycle.seedId ? { seedId: cycle.seedId } : {}),
       playbackSpeed: cycle.playbackSpeed ?? 1.0,
+      ...(durationMs != null && Number.isFinite(durationMs) ? { durationMs } : {}),
       cacheHit,
     })
   }
