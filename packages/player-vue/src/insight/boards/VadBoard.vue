@@ -225,15 +225,9 @@ function openLearner(learnerId: string) {
   color: var(--ink-muted);
 }
 .vad-select {
-  appearance: none;
-  background: var(--card-bg, #fff);
-  border: 1px solid rgba(44, 38, 34, 0.15);
-  border-radius: 10px;
-  padding: 8px 12px;
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  color: var(--ink-primary);
-  cursor: pointer;
+  /* FrostSelect reads these; the shared dropdown wears this page's look. */
+  min-width: 220px;
+  --fs-font: var(--font-mono); --fs-font-size: 12.5px; --fs-radius: 10px; --fs-bg: var(--card-bg, #fff); --fs-border: rgba(44, 38, 34, 0.15); --rc-entity: var(--tone-red); --rc-entity-ink: rgb(var(--tone-red));
 }
 
 /* ---- Scope chips -------------------------------------------------------- */

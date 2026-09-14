@@ -821,7 +821,7 @@ function closeDelete(): void {
              people on the node whose shape you actually mean.
              checked: 27dfbb12.215b02bb
         -->
-        <FrostSelect v-if="!classMode" v-model="personRole" class="frost-select" data-walk="invite-form-role" :options="roleOptions" :aria-label="t('org.ui.nodeActionBar.roleAriaLabel', 'Role')" />
+        <FrostSelect v-if="!classMode" v-model="personRole" class="frost-pick" data-walk="invite-form-role" :options="roleOptions" :aria-label="t('org.ui.nodeActionBar.roleAriaLabel', 'Role')" />
         <input v-model="personName" type="text" class="frost-input" :placeholder="classMode ? t('org.ui.nodeActionBar.studentsName', 'Student\'s name') : t('org.ui.nodeActionBar.theirName', 'Their name')" @keyup.enter="submitPerson" />
         <input v-model="personEmail" type="email" class="frost-input" :placeholder="t('org.ui.nodeActionBar.theirEmailWeSend', 'Their email — we\'ll send the invite')" />
         <button class="btn-primary-sm" data-walk="invite-form-submit" :disabled="isInvitingPerson || !personName.trim()" @click="submitPerson">
@@ -833,7 +833,7 @@ function closeDelete(): void {
     </div>
     <div v-else-if="openForm === 'invite'" class="verb-form-block">
       <div class="verb-form">
-        <FrostSelect v-model="inviteRole" class="frost-select" :options="roleOptions" :aria-label="t('org.ui.nodeActionBar.roleAriaLabel', 'Role')" />
+        <FrostSelect v-model="inviteRole" class="frost-pick" :options="roleOptions" :aria-label="t('org.ui.nodeActionBar.roleAriaLabel', 'Role')" />
         <button class="btn-primary-sm" :disabled="isInviting" @click="submitInvite">
           {{ isInviting ? t('org.ui.nodeActionBar.creating', 'Creating…') : t('org.ui.nodeActionBar.createInviteLink', 'Create invite link') }}
         </button>
@@ -984,11 +984,11 @@ function closeDelete(): void {
 .btn-ghost-sm:hover:not(:disabled) { background: rgba(255, 255, 255, 0.9); }
 .btn-ghost-sm:disabled { opacity: 0.5; cursor: not-allowed; }
 .kind-hint { margin: 6px 0 0; font-size: var(--text-xs); color: var(--schools-fg-3, #8A8078); }
-.frost-input, .frost-select {
+.frost-input {
   font: inherit; font-size: var(--text-sm); padding: 8px 12px; color: var(--schools-fg, #0F1212);
   background: rgba(255, 255, 255, 0.7); border: 1px solid rgba(44, 38, 34, 0.12); border-radius: var(--radius-lg);
 }
-.frost-input:focus, .frost-select:focus { outline: none; border-color: rgba(var(--tone-red), 0.55); box-shadow: 0 0 0 3px rgba(var(--tone-red), 0.14); }
+.frost-input:focus { outline: none; border-color: rgba(var(--tone-red), 0.55); box-shadow: 0 0 0 3px rgba(var(--tone-red), 0.14); }
 .btn-primary-sm {
   padding: 8px 16px; font: inherit; font-size: var(--text-sm); font-weight: var(--font-semibold);
   border-radius: var(--radius-full, 999px); border: none; background: var(--schools-red, #DB1E17); color: #fff; cursor: pointer;
@@ -1008,4 +1008,9 @@ function closeDelete(): void {
 }
 .share-chip.is-copied { background: rgba(var(--tone-green), 0.16); border-color: rgba(var(--tone-green), 0.45); color: rgb(var(--tone-green-ink)); }
 .share-hint { font-size: var(--text-xs); color: var(--schools-fg-3, #8A8078); }
+.frost-pick {
+  /* FrostSelect reads these; the shared dropdown wears this page's look. */
+  min-width: 200px;
+  --fs-font: inherit; --fs-font-size: var(--text-sm); --fs-radius: var(--radius-lg); --fs-bg: rgba(255, 255, 255, 0.7); --fs-border: rgba(44, 38, 34, 0.12); --rc-entity: var(--tone-red); --rc-entity-ink: rgb(var(--tone-red));
+}
 </style>

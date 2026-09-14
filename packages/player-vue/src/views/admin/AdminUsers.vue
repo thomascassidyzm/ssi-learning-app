@@ -826,4 +826,9 @@ onMounted(() => { void refresh() })
     min-width: 560px;
   }
 }
+.course-filter {
+  /* FrostSelect reads these; the shared dropdown wears this page's look. */
+  min-width: 220px;
+  --fs-font: inherit; --fs-font-size: var(--text-sm); --fs-radius: var(--radius-lg); --fs-bg: rgba(255, 255, 255, 0.7); --fs-border: rgba(44, 38, 34, 0.12); --rc-entity: var(--tone-red); --rc-entity-ink: rgb(var(--tone-red));
+}
 </style>

@@ -189,12 +189,12 @@ onMounted(fetchCourses)
 
     <div class="field">
       <label class="schools-kicker">They sign in as</label>
-      <FrostSelect v-model="role" class="frost-select" :options="ROLE_OPTIONS" aria-label="They sign in as" />
+      <FrostSelect v-model="role" class="frost-pick" :options="ROLE_OPTIONS" aria-label="They sign in as" />
     </div>
 
     <div class="field">
       <label class="schools-kicker">Access</label>
-      <FrostSelect v-model="accessType" class="frost-select" :options="ACCESS_OPTIONS" aria-label="Access" />
+      <FrostSelect v-model="accessType" class="frost-pick" :options="ACCESS_OPTIONS" aria-label="Access" />
     </div>
 
     <div v-if="accessType === 'courses'" class="field field-wide">
@@ -204,7 +204,7 @@ onMounted(fetchCourses)
 
     <div class="field">
       <label class="schools-kicker">For how long</label>
-      <FrostSelect v-model="durationType" class="frost-select" :options="DURATION_OPTIONS" aria-label="For how long" />
+      <FrostSelect v-model="durationType" class="frost-pick" :options="DURATION_OPTIONS" aria-label="For how long" />
     </div>
 
     <div v-if="durationType === 'time_limited'" class="field">
@@ -313,8 +313,7 @@ onMounted(fetchCourses)
   letter-spacing: 0;
 }
 
-.frost-input,
-.frost-select {
+.frost-input {
   font: inherit;
   font-size: var(--text-base);
   padding: 10px 14px;
@@ -327,21 +326,12 @@ onMounted(fetchCourses)
 
 .frost-input::placeholder { color: var(--schools-fg-3); }
 
-.frost-input:focus,
-.frost-select:focus {
+.frost-input:focus {
   outline: none;
   border-color: rgba(var(--tone-red), 0.55);
   box-shadow: 0 0 0 3px rgba(var(--tone-red), 0.14);
 }
 
-.frost-select {
-  appearance: none;
-  background-image:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238A8078' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  padding-right: 32px;
-}
 
 .btn-primary {
   display: inline-flex;
@@ -383,5 +373,10 @@ onMounted(fetchCourses)
 
 @media (max-width: 768px) {
   .create-form { grid-template-columns: 1fr; }
+}
+.frost-pick {
+  /* FrostSelect reads these; the shared dropdown wears this page's look. */
+  min-width: 200px;
+  --fs-font: inherit; --fs-font-size: var(--text-sm); --fs-radius: var(--radius-lg); --fs-bg: rgba(255, 255, 255, 0.7); --fs-border: rgba(44, 38, 34, 0.12); --rc-entity: var(--tone-red); --rc-entity-ink: rgb(var(--tone-red));
 }
 </style>

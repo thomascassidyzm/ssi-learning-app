@@ -116,7 +116,7 @@ onMounted(fetchCourses)
 
       <div class="field">
         <label class="schools-kicker">Language pair <span class="required">*</span></label>
-        <FrostSelect v-model="courseCode" class="frost-select" :options="courseSelectOptions" placeholder="Select a course…" aria-label="Language pair" />
+        <FrostSelect v-model="courseCode" class="frost-pick" :options="courseSelectOptions" placeholder="Select a course…" aria-label="Language pair" />
       </div>
 
       <div class="field-actions">
@@ -184,8 +184,7 @@ onMounted(fetchCourses)
   font-family: var(--font-mono);
 }
 
-.frost-input,
-.frost-select {
+.frost-input {
   font: inherit;
   font-size: var(--text-base);
   padding: 10px 14px;
@@ -195,14 +194,6 @@ onMounted(fetchCourses)
   border-radius: var(--radius-lg);
 }
 
-.frost-select {
-  appearance: none;
-  background-image:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238A8078' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  padding-right: 32px;
-}
 
 .btn-primary {
   padding: 10px 18px;
@@ -232,5 +223,10 @@ onMounted(fetchCourses)
 
 @media (max-width: 768px) {
   .create-form { grid-template-columns: 1fr; }
+}
+.frost-pick {
+  /* FrostSelect reads these; the shared dropdown wears this page's look. */
+  min-width: 200px;
+  --fs-font: inherit; --fs-font-size: var(--text-sm); --fs-radius: var(--radius-lg); --fs-bg: rgba(255, 255, 255, 0.7); --fs-border: rgba(44, 38, 34, 0.12); --rc-entity: var(--tone-red); --rc-entity-ink: rgb(var(--tone-red));
 }
 </style>

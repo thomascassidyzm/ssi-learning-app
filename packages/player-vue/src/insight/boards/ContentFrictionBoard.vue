@@ -462,37 +462,13 @@ watch(selectedCourse, async (code) => {
 }
 
 .cfb-select {
-  appearance: none;
-  -webkit-appearance: none;
-  background: var(--card-bg, #fff);
-  border: 1px solid rgba(44, 38, 34, 0.15);
-  border-radius: 10px;
-  padding: 8px 32px 8px 12px;
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  color: var(--ink-primary);
-  cursor: pointer;
-  min-width: 200px;
-  /* chevron via inline background */
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238A8078' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
+  /* FrostSelect reads these; the shared dropdown wears this page's look. */
+  min-width: 220px;
+  --fs-font: var(--font-mono); --fs-font-size: 12.5px; --fs-radius: 10px; --fs-bg: var(--card-bg, #fff); --fs-border: rgba(44, 38, 34, 0.15); --rc-entity: var(--tone-red); --rc-entity-ink: rgb(var(--tone-red));
 }
 
-.cfb-select:hover {
-  border-color: rgba(44, 38, 34, 0.28);
-}
 
-.cfb-select:focus {
-  outline: none;
-  border-color: rgba(var(--tone-red), 0.5);
-  box-shadow: 0 0 0 3px rgba(var(--tone-red), 0.08);
-}
 
-.cfb-select:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
 
 .cfb-picker-hint {
   font-family: var(--font-mono);

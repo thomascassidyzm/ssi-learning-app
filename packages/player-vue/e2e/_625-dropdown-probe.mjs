@@ -68,7 +68,14 @@ async function openPage(browser, session, path, viewport = { width: 1280, height
   await ctx.addInitScript(([k, sess]) => { window.localStorage.setItem(k, JSON.stringify(sess)) }, [authKey, session])
   const page = await ctx.newPage()
   await page.goto(`${BASE}${path}`, { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {})
-  await page.waitForTimeout(7000)
+  // Data-backed pages paint their controls once their fetch lands; give them up to 25s.
+  await page.waitForSelector('.fs-trigger', { timeout: 25000 }).catch(() => {})
+  await page.waitForTimeout(2500)
+  if (path.startsWith('/schools/settings')) {
+    // Localisation is one section of the settings page; the dropdowns live there.
+    await page.locator('button', { hasText: /Localisation/ }).first().click().catch(() => {})
+    await page.waitForTimeout(800)
+  }
   return { ctx, page }
 }
 
@@ -151,8 +158,10 @@ try {
   // A real school node for the ssi_admin scope — the busiest class's school, read-only.
   let realSchoolId = null
   if (ADMIN_EMAIL) {
-    const { data: busy } = await admin.from('classes').select('school_id, student_count').not('school_id', 'is', null).order('student_count', { ascending: false }).limit(1)
+    const { data: busy, error: bErr } = await admin.from('classes').select('school_id').not('school_id', 'is', null).order('created_at', { ascending: true }).limit(1)
+    if (bErr) console.log('real-school lookup failed:', bErr.message)
     realSchoolId = busy?.[0]?.school_id ?? null
+    console.log('real school for ssi_admin scope:', realSchoolId)
   }
 
   browser = await chromium.launch({ executablePath: process.env.PW_CHROME || undefined, args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu'] })
@@ -168,7 +177,9 @@ try {
     ['settings-leader', leaderSession, '/schools/settings'],
   ]
   if (adminSession && realSchoolId) runs.push(['intelligence-ssi-admin', adminSession, `/org/${realSchoolId}/insights`])
+  const only = (process.env.ONLY || '').split(',').filter(Boolean)
   for (const [name, sess, path] of runs) {
+    if (only.length && !only.some((o) => name.includes(o))) continue
     const { ctx, page } = await openPage(browser, sess, path)
     await driveDropdowns(page, name)
     await ctx.close()
