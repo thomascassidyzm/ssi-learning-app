@@ -262,16 +262,18 @@ const metricDesc = computed(() => {
            Where it is. The node's home page, **See insights**.
            How you do it.
            1. Open the node's home page and tap **See insights**.
-           2. Pick the **measure** — progress, practice, or class sessions. The line
-              underneath says exactly what it means.
-           3. Pick the **window** — the period the rate is computed over. Shorter reacts
-              faster, longer smooths the noise.
+           2. Pick the **measure** — rate of progress, practice minutes, or active
+              classes. The line underneath says exactly what it means.
+           3. Pick the **window** — the period the figure covers. A wider window never
+              reads less practice than a narrower one, because practice minutes are the
+              total inside the window, from pressing play to stopping.
            4. Use **Compare to** to put an average alongside.
            5. **Overview** takes you back to the same place's home page.
-           Worth knowing. Everything here is a rate, not a raw total, so groups of very
-           different sizes still compare fairly. A class that practises from the front
-           is counted through its own class account, so whole-class lessons show here
-           the same as any other practice.
+           Worth knowing. Rate of progress is a per-week rate; practice minutes is a
+           plain total. The chart is one bar per day, hour or month, and a bar with no
+           play is a zero. A class that practises from the front is counted through its
+           own class account, so whole-class lessons show here the same as any other
+           practice.
            checked: d02609b0.1e86d15d
       -->
       <label v-if="showMeasurePicker" class="nre-field nre-field-wide" data-walk="insights-measure">

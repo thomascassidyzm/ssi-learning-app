@@ -206,8 +206,7 @@ function buildOrgWorld() {
       ],
       measures: [
         { value: 'rate', label: 'Rate of progress', desc: 'How fast new LEGOs are being learned, per week.' },
-        { value: 'minutes_per_class', label: 'Practice minutes per class', desc: 'How many minutes each class practises, per week on average.' },
-        { value: 'hours_total', label: 'Practice hours', desc: 'Total hours of practice in the selected period.' },
+        { value: 'minutes', label: 'Practice minutes', desc: 'Minutes the class practised together in the selected period, from pressing play to stopping, pauses included.' },
       ],
     },
     applied: { course_code: courseCode, compare_to: SCHOOL_ID, days: 30, window: '30d', measure: 'rate' },

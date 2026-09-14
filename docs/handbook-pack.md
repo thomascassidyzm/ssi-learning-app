@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `9b77f9bc8cef` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `35d6c15b14b7` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -910,12 +910,12 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `insig
 **Where it is.** The node's home page, **See insights**.
 
 1. Open the node's home page and tap **See insights**.
-2. Pick the **measure** — progress, practice, or class sessions. The line underneath says exactly what it means.
-3. Pick the **window** — the period the rate is computed over. Shorter reacts faster, longer smooths the noise.
+2. Pick the **measure** — rate of progress, practice minutes, or active classes. The line underneath says exactly what it means.
+3. Pick the **window** — the period the figure covers. A wider window never reads less practice than a narrower one, because practice minutes are the total inside the window, from pressing play to stopping.
 4. Use **Compare to** to put an average alongside.
 5. **Overview** takes you back to the same place's home page.
 
-**Worth knowing.** Everything here is a rate, not a raw total, so groups of very different sizes still compare fairly. A class that practises from the front is counted through its own class account, so whole-class lessons show here the same as any other practice.
+**Worth knowing.** Rate of progress is a per-week rate; practice minutes is a plain total. The chart is one bar per day, hour or month, and a bar with no play is a zero. A class that practises from the front is counted through its own class account, so whole-class lessons show here the same as any other practice.
 
 ## Remove a student from a class
 

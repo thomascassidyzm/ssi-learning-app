@@ -182,7 +182,8 @@ function buildTheme(p: FrostwellPalette): Record<string, unknown> {
     valueAxis: axisCommon,
     logAxis: axisCommon,
     timeAxis: axisCommon,
-    line: { smooth: true, symbol: 'none', lineStyle: { width: 2 } },
+    // Never smoothed: a line between real points is straight (Tom, 2026-09-14, job #673).
+    line: { smooth: false, symbol: 'none', lineStyle: { width: 2 } },
     bar: { itemStyle: { borderRadius: 3 } },
     animationDuration: 700,
     animationEasing: 'cubicOut',

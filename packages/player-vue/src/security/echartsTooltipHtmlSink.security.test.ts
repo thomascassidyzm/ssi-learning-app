@@ -110,7 +110,9 @@ describe('SEC0905-X-05 — tooltip formatters that return unescaped HTML', () =>
     // RateTrend takes NodeRateEngine's `node.name` (a school/class name an
     // admin controls) but uses trigger:'axis' with only a valueFormatter, so
     // ECharts' own built-in formatter builds and escapes the markup.
-    const rateTrend = read('src/insight/components/RateTrend.vue')
+    // The option is built in rateTrendOption.ts (job #673); that is the file
+    // that owns the tooltip.
+    const rateTrend = read('src/insight/components/rateTrendOption.ts')
     expect(rateTrend).toContain("trigger: 'axis'")
     expect(rateTrend).toContain('valueFormatter:')
     // If someone adds a custom `formatter:` here, that safety is gone.
