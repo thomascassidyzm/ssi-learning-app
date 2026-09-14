@@ -11,8 +11,11 @@
  * widget) at Everyone scope: window × course × measure, this course against
  * the average of all courses, with the anonymised distribution strip. The
  * headline measure is in-app minutes per person on the course, main flow and
- * Listening Mode split beneath it; new enrolments and people with no activity
- * sit in the same measure picker. One minute definition serves this page and
+ * Listening Mode split beneath it; total in-app minutes, new enrolments and
+ * people with no activity sit in the same measure picker. The average of all
+ * courses INCLUDES the selected course and is learner-weighted for the ratio
+ * measures (Tom, 2026-09-14), so it is one number for a window and a measure
+ * whichever course is picked. One minute definition serves this page and
  * every school surface (api/_utils/inAppTime.ts).
  *
  * The count of people that used to lead this page is kept BELOW the engine,
@@ -80,7 +83,19 @@ function onData(json: Record<string, unknown> | null): void {
   fetchedAt.value = json ? new Date() : null
 }
 
-const minutesMetric = metric('minutesPerPerson', question.slug)
+const minutesPerPersonMetric = metric('minutesPerPerson', question.slug)
+const minutesTotalMetric = metric('minutesTotal', question.slug)
+const newEnrolmentsMetric = metric('newEnrolments', question.slug)
+const noActivityMetric = metric('noActivity', question.slug)
+// The kicker names the measure on show, from the registry that owns it.
+const minutesMetric = computed(() => {
+  switch (body.value?.applied?.measure ?? measure.value) {
+    case 'minutes_total': return minutesTotalMetric
+    case 'new_enrolments': return newEnrolmentsMetric
+    case 'no_activity': return noActivityMetric
+    default: return minutesPerPersonMetric
+  }
+})
 
 // The people rows: the old pulse, kept beneath the engine.
 const pulse = useIntelApi<PulseResponse>('/api/intel/pulse')
@@ -100,8 +115,13 @@ const answer = computed<string | null>(() => {
     return `${b.entity?.value ?? 0}% of the people on ${name} did not press play ${win === 'today' ? 'today' : `in the ${win}`}, against ${b.average?.value ?? 0}% for the average course.`
   }
   if (!s) return null
+  const when = win === 'today' ? 'today' : `in the ${win}`
+  const modes = `${s.mainMinutes.toLocaleString('en-GB')} of those were in the main flow and ${s.listeningMinutes.toLocaleString('en-GB')} in Listening Mode.`
+  if (b.applied?.measure === 'minutes_total') {
+    return `${s.minutes.toLocaleString('en-GB')} in-app minutes were done on ${name} ${when}, by ${s.activePeople.toLocaleString('en-GB')} of the ${s.people.toLocaleString('en-GB')} people on it, against ${(b.average?.value ?? 0).toLocaleString('en-GB')} for the average course. ${modes}`
+  }
   const per = b.entity?.value ?? 0
-  return `${s.minutes.toLocaleString('en-GB')} in-app minutes were done on ${name} ${win === 'today' ? 'today' : `in the ${win}`}, ${per} per person on the course. ${s.mainMinutes.toLocaleString('en-GB')} of those were in the main flow and ${s.listeningMinutes.toLocaleString('en-GB')} in Listening Mode.`
+  return `${s.minutes.toLocaleString('en-GB')} in-app minutes were done on ${name} ${when}, ${per} per person on the course, against ${b.average?.value ?? 0} per person across all courses. ${modes}`
 })
 
 const headline = computed(() => {
@@ -139,19 +159,24 @@ function change(row: PulseCourseRow): string {
        section: seeing-progress
        roles: admin
        place: intel
-       keywords: minutes, in-app, per person, course, compare, average, listening mode, main flow, enrolments, no activity
+       keywords: minutes, in-app, per person, total, course, compare, average, listening mode, main flow, enrolments, no activity
        What it's for. The first question: how many in-app minutes are being done,
-       per course and per person on the course, and how each course stands against
-       the average of all courses. A minute is everything between pressing play and
-       stopping, on every screen, and Listening Mode minutes are shown apart from
-       main-flow minutes.
+       per course, in total and per person on the course, and how each course
+       stands against the average of all courses. A minute is everything between
+       pressing play and stopping, on every screen, and Listening Mode minutes are
+       shown apart from main-flow minutes. The average of all courses is the same
+       number whichever course you pick: it counts this course too, and for the
+       per-person and no-activity measures it is worked out over every person on
+       every course, so a course with two enrolments weighs two people, not a
+       whole course.
        Where it is. **Minutes**, the first question in the bar, and where
        Intelligence opens.
        How you do it.
        1. Pick the **window**: today, the last seven days or the last thirty days.
        2. Pick the **course**. It opens on the busiest course in that window.
-       3. Pick the **measure**: minutes per person, new enrolments, or people with
-          no activity. The line under the pickers says what it counts.
+       3. Pick the **measure**: minutes per person, minutes in total, new
+          enrolments, or people with no activity. The line under the pickers says
+          what it counts and what the average of all courses is for it.
        4. Read the two numbers: this course against the average of all courses, and
           the strip beneath for where the course sits among the rest.
        5. Read the line under the strip for the split between the main flow and
@@ -161,7 +186,7 @@ function change(row: PulseCourseRow): string {
        Worth knowing. Every minute here is the same minute every school page shows,
        and a person on the course who did not press play still counts in the
        denominator.
-       checked: 0f173498.a34ae635
+       checked: 9b54ef0d.0b34bb8a
   -->
   <QuestionPage
     data-intel="question-pulse"

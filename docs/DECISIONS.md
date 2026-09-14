@@ -1,3 +1,53 @@
+## 2026-09-14 — Vercel builds `dev` only when the commit subject carries `[preview]`; staging and main build on every push (job #619)
+
+**Ruling (Tom, 2026-09-14 00:32Z).** Asked "make learning-app dev builds opt-in on Vercel, staging
+and main always building. Recommendation stands at yes." Tom: "Yes".
+
+**Why.** The Aug 12–Sep 11 Vercel month was $467, $366 of it Build CPU Minutes. The preview gate of
+2026-09-12 removed worker-branch builds; the first build-hours reading, job #610, showed the
+remainder: of 12.4 build hours in 24 hours, 10.5 were this app's builds on `dev`, one ~13-minute
+build per merge, and nobody looks at most of them.
+
+**The setting, and where it lives.** The Vercel project's Ignored Build Step, PATCHed through the
+API, never an `ignoreCommand` in `vercel.json`, which overrides the dashboard rule and is the
+mistake the hexagon workers made on 2026-09-13. `vercel.json` here carries no such key; keep it so.
+
+Before, verbatim:
+
+```
+case "$VERCEL_GIT_COMMIT_REF" in main|dev|staging|preview/*) exit 1;; esac; printf '%s' "$VERCEL_GIT_COMMIT_MESSAGE" | head -1 | grep -q "\[preview\]" && exit 1; echo "skipped: previews are opt-in (preview/* branch or [preview] in commit subject)"; exit 0
+```
+
+After, verbatim, read back from the API:
+
+```
+case "$VERCEL_GIT_COMMIT_REF" in main|staging|preview/*) exit 1;; esac; printf '%s' "$VERCEL_GIT_COMMIT_MESSAGE" | head -1 | grep -q "\[preview\]" && exit 1; echo "skipped: dev and other branches are opt-in ([preview] in subject or preview/*)"; exit 0
+```
+
+Vercel caps the command at 256 characters, hence the short skip message. Exit 1 means build.
+
+**What it means for everyone.** A plain push or merge to `dev` no longer builds, so the dev alias
+`ssi-learning-app-git-dev-zenjin.vercel.app` no longer updates on it. An agent that needs the dev
+alias to show its change puts `[preview]` at the start of the merge commit's subject, first line
+only. `staging` and `main` build on every push exactly as before, so the release train, the
+Colombo test team and real learners are untouched; the release-train scripts push only reports and
+notes to `dev` and never needed a build. The same `[preview]` convention as the preview gate.
+
+**The nightly scan.** `command-surface/ops/vercel-gate-scan.js` now treats a learning-app `dev`
+deployment whose subject lacks `[preview]` as off-allowlist, so a READY one turns the night RED
+like a worker-branch build. Its first run after this change will list the day's pre-change dev
+builds as RED once; the window is 24 hours and they roll out the next night. The same commit fixed
+the month-to-date figure that Astra #613 found summing overlapping windows.
+
+**Proof.** Two docs-only pushes to `dev`, each a fresh SHA. Push 1, merge `ff5f9fc6e` with a plain
+subject: deployment `dpl_E5kotR4qzuc34nWb1y1wxrhJLnm4` CANCELED, container 4 seconds, never READY. Push 2,
+merge `77dd34852` with `[preview]` at the start of its subject: deployment
+`dpl_BAk8r3K1QtiwH3BkvfGfZXsjTdnx` READY after 14 minutes, holding the alias
+`ssi-learning-app-git-dev-zenjin.vercel.app`. This sentence rode a third plain-subject merge, which
+was cancelled the same way as push 1. A side-lesson from push 1: the branch commit's subject quoted the literal text
+`[preview]`, so the gate built the worker branch; that build was cancelled through the API after four
+minutes. Never quote the marker on a subject line unless you mean it.
+
 ## 2026-09-13 — Listening Mode: the Senedd pod is a named extra slot for every Welsh (Northern) learner (job #605)
 
 **Ruling (Tom, 2026-09-13 20:31Z).** Open `cym_n_for_eng:senedd-s4c-steve` to all Welsh North
@@ -1987,3 +2037,33 @@ minutes on — the pre-change module returned 120 s, this one 53 s, seen red the
 fixtures were flipped to typed play rows because under this rule a tap with no audio is no play
 time. Listening Mode minutes are exact on production from 2026-09-13 04:21Z (per-clip rows,
 jobs #339/#343); before that only the 30 s tick exists and listening minutes are tick-bounded.
+
+## 2026-09-14 — Intelligence: the average of all courses includes the selected course, is learner-weighted, and total in-app minutes is a measure (job #621)
+
+**Tom's rulings (staging review, 01:29Z).** The 'Average of all courses' comparator moved with the
+course (Basque v 11.5, French v 12.7, Welsh North v 13): job #609 had built a leave-one-out mean
+(`api/intel/minutes.ts`, `members = ranked.filter(f => f.code !== courseCode)`), "confusing and not
+helpful for us as admin". And it was a per-course mean, so dead or near-empty courses dragged it
+toward zero and every real course sat at the 92nd–100th percentile. Tom's words: "the averages of
+all LEARNERS". Second ruling: a course with a handful of very active learners must not read as
+popular, so 'In-app minutes (total)' joins 'In-app minutes per person'.
+
+**Decision.** `averageOfAllCourses(measure, cohort)` is the comparator, pure and exported, over every
+course with anyone on it, the selected course INCLUDED — one fixed number for a window and a
+measure. Each measure carries a `kind`: `ratio` (minutes per person, no activity) is learner-weighted,
+the numerator summed over every course divided by course-people summed over every course, so a dead
+course with two enrolments weighs two people, not a whole course; `count` (minutes total, new
+enrolments) is the plain mean per course, a total having no denominator to weight by. The
+distribution strip stays the siblings, because `RateCompare` adds the entity itself when it ranks.
+Each measure's description line says what its average is, and the Handbook entry was re-pinned.
+Every school surface's minute is untouched: `inAppTime.ts` did not change.
+
+**On the way: the packed read now agrees with the paged read.** Astra's cold check (needs-you #714)
+refuted "one minute definition" by 100 s across ten diaries on 131,804 rows: `diary_play_rows`
+dropped a clip's audio id whenever any event followed within 30 s, but `spansFromDiary` closes at
+the last audio-ended point on a play tap, a mode switch or a tick, so the dropped clip's whole length
+was lost. Measured live: 104,037 unbounded clips, 261 ids carried, 19 dropped that could matter.
+Migration `20260914_diary_play_rows_carry_closing_ids.sql` (applied live) drops the id only when the
+successor within 30 s is a stop tap or a same-mode clip. Proof: packed v paged over the nine affected
+learners, same `sessioniseAll`: 93 s apart before, 0 s after. Carrying every id instead would have
+added ~4 MB to the packed payload for the same result.

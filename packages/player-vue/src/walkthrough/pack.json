@@ -1,6 +1,6 @@
 {
-  "version": "bcc9aaafa9b7",
-  "generatedAt": "2026-09-13",
+  "version": "278f9863e39d",
+  "generatedAt": "2026-09-14",
   "walks": [
     {
       "id": "choose-something-else-to-learn",
@@ -2211,6 +2211,7 @@
         "minutes",
         "in-app",
         "per person",
+        "total",
         "course",
         "compare",
         "average",
@@ -2226,12 +2227,12 @@
       "surface": "intel",
       "source": "packages/player-vue/src/views/intel/PulseView.vue",
       "walk": null,
-      "what": "The first question: how many in-app minutes are being done, per course and per person on the course, and how each course stands against the average of all courses. A minute is everything between pressing play and stopping, on every screen, and Listening Mode minutes are shown apart from main-flow minutes.",
+      "what": "The first question: how many in-app minutes are being done, per course, in total and per person on the course, and how each course stands against the average of all courses. A minute is everything between pressing play and stopping, on every screen, and Listening Mode minutes are shown apart from main-flow minutes. The average of all courses is the same number whichever course you pick: it counts this course too, and for the per-person and no-activity measures it is worked out over every person on every course, so a course with two enrolments weighs two people, not a whole course.",
       "where": "**Minutes**, the first question in the bar, and where Intelligence opens.",
       "how": [
         "Pick the **window**: today, the last seven days or the last thirty days.",
         "Pick the **course**. It opens on the busiest course in that window.",
-        "Pick the **measure**: minutes per person, new enrolments, or people with no activity. The line under the pickers says what it counts.",
+        "Pick the **measure**: minutes per person, minutes in total, new enrolments, or people with no activity. The line under the pickers says what it counts and what the average of all courses is for it.",
         "Read the two numbers: this course against the average of all courses, and the strip beneath for where the course sits among the rest.",
         "Read the line under the strip for the split between the main flow and Listening Mode, and how many people the minutes are spread over.",
         "The rows further down still count the real people who practised this week, by course; open one to see which bits of the course give trouble."
