@@ -2424,7 +2424,14 @@ watch(liveEntitlements, () => {
   // not: the learner goes back to the round they were really on. With the wall
   // down ("Maybe later" then a grant) they are left paused there; the memory
   // clears when they play on.
-  const restore = paywallRetreat.takeRestore((seed) => entitlementComposable.canAccessSeed(props.course!, seed))
+  // The jump target is resolved by LEGO against the LIVE engine queue: the
+  // bootstrap queue is a window (round 0 = the resume LEGO) and the
+  // full-script handoff swaps it for the whole course, so an index kept from
+  // retreat time would land on the first LEGO of the course.
+  const restore = paywallRetreat.takeRestore(
+    (seed) => entitlementComposable.canAccessSeed(props.course!, seed),
+    (legoId) => simplePlayer.getEngineRounds().findIndex((r) => r?.legoId === legoId),
+  )
   if (restore) {
     try { simplePlayer.jumpToRound(restore.roundIndex, restore.cycleIndex) } catch { /* engine may not be ready */ }
   }
