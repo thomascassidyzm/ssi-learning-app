@@ -1,5 +1,5 @@
 {
-  "version": "425b408fd1e7",
+  "version": "c47b76241891",
   "generatedAt": "2026-09-14",
   "walks": [
     {
@@ -486,7 +486,7 @@
         },
         {
           "anchor": "insights-overview",
-          "say": "**Overview** takes you back to the same place's home — insights is a lens on where you already are, not a different page to get lost in.",
+          "say": "**Overview** and **Insights** are two tabs on the same place. Overview takes you back to its home — insights is a lens on where you already are, not a different page to get lost in.",
           "advance": {
             "on": "next"
           },

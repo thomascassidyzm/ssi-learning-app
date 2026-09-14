@@ -2650,7 +2650,8 @@
         "whereYouAre": "Where you are",
         "youreHere": "you're here",
         "otherAtThisLevelOne": "{n} other at this level",
-        "othersAtThisLevelMany": "{n} others at this level"
+        "othersAtThisLevelMany": "{n} others at this level",
+        "switchTo": "Switch to {lens}"
       },
       "noticingInvitations": {
         "dismiss": "Dismiss"
@@ -2815,6 +2816,10 @@
       "kicker": "Attention · practice",
       "title": "Are they doing it, who is not, and where do they stop",
       "sub": "Three questions about this level only, answered from what the app actually recorded in the last four weeks. Nothing here compares you with anyone else."
+    },
+    "lensTabs": {
+      "ariaLabel": "Overview or insights",
+      "insights": "Insights"
     }
   },
   "insights": {

@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `425b408fd1e7` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `c47b76241891` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
