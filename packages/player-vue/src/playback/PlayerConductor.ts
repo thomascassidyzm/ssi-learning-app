@@ -53,16 +53,15 @@ export interface ConductorEngine {
   stepCycle(direction: 1 | -1): void
   skipToPhase(phase: 'prompt' | 'pause' | 'voice1' | 'voice2'): void
   jumpToRound(index: number, cycleIndex?: number): void
+  /** Replay the current cycle after an OUTSIDE interruption paused the audio
+   * element. No-ops unless the engine actually recorded one — see
+   * SimplePlayer.resumeFromInterruption. */
+  resumeFromInterruption(): void
+  readonly hasPendingInterruption: boolean
   addRounds(rounds: unknown[]): void
   appendRounds(rounds: unknown[]): void
   replaceQueueFromCurrent(rounds: unknown[]): void
-  /**
-   * 'session_complete' — the queue ran out. 'self_paused' — the engine took
-   * ITSELF to isPlaying=false (an outside audio interruption, or the
-   * silent-run stop); the conductor mirrors it into `userPaused` so the UI
-   * shows the play button and the learner's tap is the only way on.
-   */
-  on(event: 'session_complete' | 'self_paused', callback: () => void): void
+  on(event: 'session_complete', callback: () => void): void
 }
 
 export interface RunOptions {
@@ -104,7 +103,7 @@ function isDev(): boolean {
 }
 
 const GUARDED_METHODS = [
-  'play', 'pause', 'resume', 'stop', 'skipRound', 'stepCycle',
+  'play', 'pause', 'resume', 'resumeFromInterruption', 'stop', 'skipRound', 'stepCycle',
   'skipToPhase', 'jumpToRound', 'addRounds', 'appendRounds', 'replaceQueueFromCurrent',
 ] as const
 
@@ -150,11 +149,6 @@ export class PlayerConductor {
   constructor(engine: ConductorEngine, opts: { devGuard?: boolean } = {}) {
     this.engine = engine
     this.engine.on('session_complete', () => this.setState({ kind: 'ended' }))
-    // The engine pausing itself is a real transition, and it is the ONE that
-    // does not arrive through request(): mirror it so the stable state never
-    // says `playing` over a frozen engine. No-op inside interlude/seeking,
-    // whose own landing reads the engine's truth anyway.
-    this.engine.on('self_paused', () => this.syncStableState())
     if (opts.devGuard !== false) installDevGuard(engine, this)
   }
 
@@ -212,6 +206,29 @@ export class PlayerConductor {
   request(action: (engine: ConductorEngine) => void): void {
     this.callEngine(action)
     this.syncStableState()
+  }
+
+  /**
+   * Recover from an OUTSIDE audio interruption (iOS handed the audio session
+   * to another app: a notification sound, a maps prompt, a call). The engine
+   * records the interruption but never acts on it; this is the only sanctioned
+   * way back, and it is deliberately narrow:
+   *
+   *   - only from `playing` — a learner who pressed pause is `userPaused` and
+   *     is NEVER un-paused (a player that un-pauses itself against the learner
+   *     is a worse bug than the one this fixes);
+   *   - never from `interlude`/`seeking` — those transient states carry their
+   *     own return path and own the landing;
+   *   - never from `ended`/`loading` — there is nothing to resume.
+   *
+   * Safe to call speculatively (on every return to the foreground): the engine
+   * no-ops unless an interruption is actually pending, so there is no
+   * double-play.
+   */
+  resumeAfterInterruption(): void {
+    if (this.state.kind !== 'playing') return
+    if (!this.engine.hasPendingInterruption) return
+    this.request((e) => e.resumeFromInterruption())
   }
 
   private enqueue<T>(task: () => Promise<T>): Promise<T> {

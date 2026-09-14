@@ -26,23 +26,9 @@ describe('computePauseDuration — one formula', () => {
     expect(b - a).toBe(c - b)
   })
 
-  it('clamps to the safety ceiling', () => {
+  it('clamps to the safety floor and ceiling', () => {
+    expect(computePauseDuration(0, 0, FAST)).toBe(1000)      // floor, not 800
     expect(computePauseDuration(60000, 60000, FAST)).toBe(15000)
-  })
-
-  it('missing durations produce an ORDINARY gap, never the safety floor (job #644)', () => {
-    // Deliberate flip: this used to assert (0, 0) => 1000, the floor. That was
-    // the one-second mic gap a Basque learner reported on every seed-sentence
-    // review before a listening lap — those cycles carried no durations, so
-    // the formula collapsed to reaction_ms and clamped up to min_pause_ms.
-    // Unknown is not zero: an unknown sentence is assumed to be an ordinary
-    // one (FALLBACK_TARGET_MS) and gets the gap an ordinary one gets.
-    expect(computePauseDuration(0, 0, FAST)).toBe(2.8 * 2500 + 800)
-    expect(computePauseDuration(NaN as unknown as number, undefined as unknown as number, FAST)).toBe(2.8 * 2500 + 800)
-    // One known voice is enough — the fallback only fills a total blank.
-    expect(computePauseDuration(2000, 0, FAST)).toBe(2.8 * 1000 + 800)
-    // The floor still exists for a genuinely tiny sentence.
-    expect(computePauseDuration(10, 10, FAST)).toBe(1000)
   })
 
   it('takes no speed argument — the signature cannot express one', () => {

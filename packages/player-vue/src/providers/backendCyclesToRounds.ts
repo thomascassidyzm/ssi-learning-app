@@ -103,7 +103,6 @@ export function infPlayCyclesToRounds(
       seedId: `S${String(first.seed_number).padStart(4, '0')}`,
       legoTargetText: '',  // INF PLAY rounds aren't "about" one LEGO
       legoKnownText: '',
-      revival: true,
       cycles: playerCycles,
     })
   }
@@ -197,7 +196,6 @@ export function backendCyclesToRounds(
       roundNumber: entry.r,
       legoId: entry.legoId,
       seedId: `S${String(entry.seed).padStart(4, '0')}`,
-      revival: false,
       legoTargetText: introCycle.target_text,
       ...(introCycle.target_text_native
         ? { legoTargetTextNative: introCycle.target_text_native }

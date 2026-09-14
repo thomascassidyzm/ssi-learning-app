@@ -90,20 +90,5 @@ export interface Round {
    * Set by LearningPlayer's appendCachedLoopForOffline; never persisted.
    */
   recycled?: boolean
-  /**
-   * WHICH LOOP this round belongs to, stamped by the producer that built it:
-   * `false` for a main-loop round (one per new LEGO, in course order), `true`
-   * for an INF PLAY revival round (random USE + spaced review, appended after
-   * the main loop). Absent only on rounds rebuilt from a cache written before
-   * the stamp existed, where consumers fall back to the round's SHAPE.
-   *
-   * WHY IT EXISTS (Tom, 2026-09-14): the app used to read "no intro / debut /
-   * build cycle" as "this is a revival round". A main-loop round whose LEGO
-   * has no audio yet (Basque seeds 85-99 on 2026-09-13) has exactly that
-   * shape, so mid-course learners saw the red infinite-play bar, a frozen
-   * belt and INF PLAY navigation two seeds after their real position. Shape
-   * is a symptom; this is the fact.
-   */
-  revival?: boolean
   cycles: Cycle[]
 }

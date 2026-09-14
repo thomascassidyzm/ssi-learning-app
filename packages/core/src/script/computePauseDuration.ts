@@ -77,27 +77,12 @@ export const DEFAULT_PAUSE_CONFIG: PauseModeConfig = {
  * @param target1Ms native (1.0×) duration of the target sentence, voice 1
  * @param target2Ms native (1.0×) duration of the same sentence, voice 2
  */
-/**
- * What we assume a target sentence takes to say when NEITHER voice carries a
- * duration. Without this the formula collapsed to `reaction_ms`, clamped up
- * to `min_pause_ms` — a one-second mic gap on any cycle whose durations were
- * missing (the seed-sentence reviews before a listening lap, forum 2026-09-13:
- * "only giving me about 1 second in which to respond"). Missing data must
- * produce an ORDINARY gap, not the safety floor. 2.5s is the same estimate
- * `CourseDataProvider` has always used for an unknown clip.
- */
-export const FALLBACK_TARGET_MS = 2500
-
 export function computePauseDuration(
   target1Ms: number,
   target2Ms: number,
   cfg: PauseModeConfig,
 ): number {
-  const known1 = target1Ms > 0 ? target1Ms : 0
-  const known2 = target2Ms > 0 ? target2Ms : 0
-  const answer = known1 > 0 || known2 > 0
-    ? Math.max(0, (known1 + known2) / 2)
-    : FALLBACK_TARGET_MS
+  const answer = Math.max(0, ((target1Ms || 0) + (target2Ms || 0)) / 2)
   const k = cfg.pause_k ?? DEFAULT_PAUSE_K
   const reaction = cfg.pause_reaction_ms ?? DEFAULT_PAUSE_REACTION_MS
   const calc = k * answer + reaction

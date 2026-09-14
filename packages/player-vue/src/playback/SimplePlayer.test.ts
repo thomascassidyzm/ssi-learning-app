@@ -44,8 +44,8 @@ function makeMockAudio(): MockAudio {
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
     setAttribute: vi.fn(),
-    play: vi.fn(() => { a.paused = false; return Promise.resolve(undefined) }),
-    pause: vi.fn(() => { a.paused = true }),
+    play: vi.fn().mockResolvedValue(undefined),
+    pause: vi.fn(),
   }
   a.addEventListener.mockImplementation((event: string, handler: () => void) => {
     if (event === 'ended') a._endedHandler = handler
@@ -1648,34 +1648,22 @@ describe('SimplePlayer — A-22: a dead audio id (404 from the proxy) never stop
       .toEqual(new Set(['known', 'target1', 'target2']))
   })
 
-  it('a whole ROUND of dead audio walks one hollow cycle, then STOPS and waits for a tap (job #644)', async () => {
-    // DELIBERATE FLIP. This used to assert "the learner is still driving
-    // forward" through a contiguous dead block. Two forum reports on
-    // 2026-09-13 showed what driving forward through silence is: a cursor
-    // three per cent of a belt further on in ten minutes, with nothing heard.
-    // A hollow CYCLE is still walked through (three dead clips — the ruling's
-    // own case); the fourth unheard clip in a row is a dead BLOCK and the
-    // player stops there, loudly, until the learner taps.
+  it('a whole ROUND of dead audio still leaves the learner driving forward', async () => {
+    // A course whose audio import dropped a contiguous block: every clip in
+    // round 1 is dead, round 2 is healthy. "A puncture on every wheel must
+    // still leave the learner driving forward."
     const player = new SimplePlayer(['S0001L01', 'S0002L01', 'S0003L01'].map(makeRound))
-    const failed: AudioFailedEvent[] = []
-    player.on('audio_failed', (e) => failed.push(e as AudioFailedEvent))
     player.play()
     await flush()
 
-    for (let i = 0; i < 12 && player.currentState.isPlaying; i++) {
+    for (let i = 0; i < 12 && player.currentState.roundIndex === 0; i++) {
       await fail404Once()
       await vi.advanceTimersByTimeAsync(100)
       await flush()
     }
 
-    // The first cycle was walked through (three dead clips), the second cycle's
-    // prompt was the fourth — and that is where it stopped.
-    expect(player.currentState.isPlaying).toBe(false)
-    const halt = failed.find((e) => e.reason === 'silent-run')
-    expect(halt).toBeDefined()
-    expect(halt!.consecutiveSkips).toBe(4)
-    // One-cycle rounds here, so the hollow cycle WAS round 0; it stopped on round 1's prompt.
-    expect(player.currentState.roundIndex).toBe(1)
+    expect(player.currentState.roundIndex).toBeGreaterThan(0)
+    expect(player.currentState.isPlaying).toBe(true)
   })
 
   it('a 404 is NEVER mistaken for needs-gesture — a missing file is not a tap problem', async () => {
@@ -1704,13 +1692,14 @@ describe('SimplePlayer — A-22: a dead audio id (404 from the proxy) never stop
       .toBeGreaterThan(0)
   })
 
-  it('an entirely dead session no longer races to the end — it stops after one hollow cycle (job #644)', async () => {
-    // DELIBERATE FLIP of "an entirely dead session races to the end in
-    // silence — the cost of never aborting". That test pinned the cost so it
-    // would stay visible; on 2026-09-13 the field paid it (a learner's cursor
-    // walked through silence). The cost is now refused: the session walks the
-    // first hollow cycle, stops on the fourth unheard clip, reports the run,
-    // and never reaches session_complete on its own. Each tap steps one cycle.
+  it('an entirely dead session races to the end in silence — the cost of never aborting', async () => {
+    // ADVERSARIAL: skipping is instantaneous, so a course whose audio is
+    // wholly missing does not stall — it burns the learner's whole queue in
+    // milliseconds with nothing audible. That is the correct trade under the
+    // ruling (a stall is worse), but it is NOT free, and this test pins the
+    // behaviour so the cost stays visible rather than being discovered in the
+    // field a second time. Every skipped clip is reported, which is what the
+    // release gate and the admin diagnostics have to key on.
     const notSupported = Object.assign(
       new Error('Failed to load because no supported source was found.'),
       { name: 'NotSupportedError' },
@@ -1728,21 +1717,14 @@ describe('SimplePlayer — A-22: a dead audio id (404 from the proxy) never stop
     await vi.advanceTimersByTimeAsync(1_000)
     await flush()
 
+    // Three rounds x three clips, each reported dead — nothing was played and
+    // nothing was hidden.
     const dead = failed.filter((e) => e.reason === 'play-error' && e.attempt === 2)
-    expect(dead.length).toBe(4)
-    expect(completed).toBe(false)
-    expect(player.currentState.isPlaying).toBe(false)
-    expect(failed.find((e) => e.reason === 'silent-run')?.consecutiveSkips).toBe(4)
-
-    // A tap: the budget is refunded and exactly one more cycle is stepped.
-    player.resume()
-    await flush()
-    await vi.advanceTimersByTimeAsync(1_000)
-    await flush()
-    expect(player.currentState.isPlaying).toBe(false)
-    expect(failed.filter((e) => e.reason === 'silent-run')).toHaveLength(2)
-    expect(player.currentState.roundIndex).toBe(2)
-    expect(completed).toBe(false)
+    expect(dead.length).toBe(9)
+    expect(completed).toBe(true)
+    // The silence is COUNTED, so a hollow session is legible downstream
+    // instead of looking like nine unrelated one-off punctures.
+    expect(dead[dead.length - 1].consecutiveSkips).toBe(9)
   })
 
   it('one bad clip among healthy ones is a puncture, not a silent session', async () => {
@@ -1846,115 +1828,5 @@ describe('SimplePlayer — what a round_completed listener may do', () => {
 
     // NOT 0. The listener asked for 0 and the engine advanced off it anyway.
     expect(player.currentState.roundIndex).not.toBe(0)
-  })
-})
-
-describe('SimplePlayer — the silent-run stop (job #644)', () => {
-  let mockAudio: MockAudio
-
-  beforeEach(() => {
-    mockAudio = makeMockAudio()
-    vi.stubGlobal('Audio', vi.fn(() => mockAudio))
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))
-    vi.useFakeTimers()
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
-    vi.unstubAllGlobals()
-  })
-
-  it('a run of unheard clips STOPS the player instead of racing on (fails on the pre-fix engine)', async () => {
-    // Every clip stalls (no timeupdate ever arrives). Before: each clip was
-    // skipped after 10s and the next round started — the machine walked the
-    // whole course in silence. Now the first hollow cycle is walked (three
-    // stalls, the ruling's puncture) and the FOURTH unheard clip stops it.
-    const player = new SimplePlayer([makeRound('S0001L01'), makeRound('S0001L02'), makeRound('S0002L01')])
-    const failed: AudioFailedEvent[] = []
-    player.on('audio_failed', (e) => failed.push(e as AudioFailedEvent))
-
-    player.play()
-    for (let i = 0; i < 12; i++) await vi.advanceTimersByTimeAsync(10_000)
-
-    expect(player.currentState.isPlaying).toBe(false)
-    expect(player.currentState.roundIndex).toBe(1)
-    const stalls = failed.filter((e) => e.lastError === 'stall-watchdog-no-progress')
-    expect(stalls).toHaveLength(4)
-    const halt = failed.find((e) => e.reason === 'silent-run')
-    expect(halt).toBeDefined()
-    expect(halt!.consecutiveSkips).toBe(4)
-    expect(halt!.cycleId).toBe('S0001L02-c1')
-  })
-
-  it("the learner's tap refunds the budget and replays the cycle", async () => {
-    const player = new SimplePlayer([makeRound('S0001L01'), makeRound('S0001L02'), makeRound('S0002L01'), makeRound('S0002L02')])
-    const failed: AudioFailedEvent[] = []
-    player.on('audio_failed', (e) => failed.push(e as AudioFailedEvent))
-
-    player.play()
-    for (let i = 0; i < 5; i++) await vi.advanceTimersByTimeAsync(10_000)
-    expect(player.currentState.isPlaying).toBe(false)
-    expect(player.currentState.roundIndex).toBe(1)
-
-    player.resume()
-    await vi.advanceTimersByTimeAsync(0)
-    expect(player.currentState.isPlaying).toBe(true)
-    expect(player.currentState.phase).toBe('prompt')
-
-    // Still nothing sounds: it takes a full fresh run of four before it halts again.
-    for (let i = 0; i < 3; i++) {
-      await vi.advanceTimersByTimeAsync(10_000)
-      expect(player.currentState.isPlaying).toBe(true)
-    }
-    await vi.advanceTimersByTimeAsync(10_000)
-    expect(player.currentState.isPlaying).toBe(false)
-    expect(failed.filter((e) => e.reason === 'silent-run')).toHaveLength(2)
-  })
-
-  it('real audible progress ends the run — a puncture never accumulates into a stop', async () => {
-    const player = new SimplePlayer([makeRound('S0001L01'), makeRound('S0001L02'), makeRound('S0002L01')])
-    const failed: AudioFailedEvent[] = []
-    player.on('audio_failed', (e) => failed.push(e as AudioFailedEvent))
-
-    player.play()
-    await vi.advanceTimersByTimeAsync(10_000) // prompt stalls → skipped (1)
-    await vi.advanceTimersByTimeAsync(10_000) // voice1 stalls → skipped (2)
-    // voice2 actually plays: progress arrives, then a real ended.
-    mockAudio.currentTime = 1.2
-    mockAudio._timeUpdateHandler?.()
-    mockAudio._endedHandler?.()
-    await vi.advanceTimersByTimeAsync(0)
-    expect(player.currentState.roundIndex).toBe(1)
-    expect(player.currentState.isPlaying).toBe(true)
-    // The next round's clips stall again: one, two — no stop yet.
-    await vi.advanceTimersByTimeAsync(10_000)
-    await vi.advanceTimersByTimeAsync(10_000)
-    expect(player.currentState.isPlaying).toBe(true)
-    expect(failed.filter((e) => e.reason === 'silent-run')).toHaveLength(0)
-  })
-
-  it("a clip too short to hear counts as unheard even though its 'ended' is real", async () => {
-    const player = new SimplePlayer([makeRound('S0001L01'), makeRound('S0001L02')])
-    const failed: AudioFailedEvent[] = []
-    player.on('audio_failed', (e) => failed.push(e as AudioFailedEvent))
-    ;(mockAudio as unknown as { duration: number }).duration = 0.004 // a 4ms blip
-
-    player.play()
-    await vi.advanceTimersByTimeAsync(0)
-    mockAudio._endedHandler?.() // prompt: a blip (1)
-    await vi.advanceTimersByTimeAsync(0)
-    mockAudio._endedHandler?.() // voice1: a blip (2)
-    await vi.advanceTimersByTimeAsync(0)
-    mockAudio._endedHandler?.() // voice2: a blip (3) — one hollow cycle, walked
-    await vi.advanceTimersByTimeAsync(0)
-    expect(player.currentState.isPlaying).toBe(true)
-    expect(player.currentState.roundIndex).toBe(1)
-    mockAudio._endedHandler?.() // next prompt: a blip (4) → stop
-    await vi.advanceTimersByTimeAsync(0)
-
-    expect(player.currentState.isPlaying).toBe(false)
-    expect(player.currentState.roundIndex).toBe(1)
-    expect(failed.filter((e) => e.lastError === 'sub-audible-clip')).toHaveLength(4)
-    expect(failed.find((e) => e.reason === 'silent-run')).toBeDefined()
   })
 })

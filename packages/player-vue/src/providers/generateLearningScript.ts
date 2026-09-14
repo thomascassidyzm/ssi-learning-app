@@ -61,8 +61,6 @@ export interface ScriptItem {
    * ≥ SEED_PHASE_START_OFFSET): the payload is the full parent seed sentence,
    * not a use-phrase. Absent for ordinary use-phrase reviews. */
   reviewItemKind?: 'seed'
-  /** Which loop this item's round belongs to — see core Round.revival. */
-  revival?: boolean
   componentLegoIds?: string[]
   componentLegoTexts?: string[]
   /** Native script variants — only set when romanized text exists */
@@ -1240,11 +1238,7 @@ export async function generateLearningScript(
   // the script. Helper retained as a no-op for now so the in-loop call
   // sites below don't need editing in this pass.
   const shouldEmit = () => true
-  // Flipped to true the moment the main loop ends (see mainLoopLastRound):
-  // every item emitted after that is a revival-tail item.
-  let inRevivalTail = false
   const emitItem = (item: ScriptItem) => {
-    item.revival = inRevivalTail
     if (item.type === 'intro' || item.type === 'component_intro') {
       // Intros ALWAYS pass — they define the round structure.
       // Missing presentation audio is handled by SimplePlayer (skips empty prompt phase).
@@ -1732,7 +1726,6 @@ export async function generateLearningScript(
   const TARGET_ROUND_CYCLES = 22
   const MIN_RANDOM_USE = 10
   const mainLoopLastRound = roundNumber
-  inRevivalTail = true
   const revivalCap = mainLoopLastRound + infinitePlayLookahead
 
   while (roundNumber < revivalCap) {
