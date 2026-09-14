@@ -268,8 +268,8 @@ const handleSettings = () => {
         class="pill-btn"
         :class="{ tapped: tappedItem === 'skip', 'cue-listening': isInListeningCycle }"
         @click="handleSkip"
-        :title="isInListeningCycle ? 'Skip listening' : 'Next LEGO'"
-        :aria-label="isInListeningCycle ? 'Skip listening section' : 'Next LEGO'"
+        :title="isInListeningCycle ? 'Skip listening' : 'Next phrase'"
+        :aria-label="isInListeningCycle ? 'Skip listening section' : 'Next phrase'"
       >
         <span class="pill-btn-bg"></span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">

@@ -1,5 +1,5 @@
 {
-  "version": "9b77f9bc8cef",
+  "version": "da77e48b3e92",
   "generatedAt": "2026-09-14",
   "walks": [
     {
@@ -1816,7 +1816,7 @@
       "surface": "schools",
       "source": "packages/player-vue/src/views/schools/TeacherDashboard.vue",
       "walk": null,
-      "what": "Taking the class list away as a spreadsheet, with the name, language, belt, journey in LEGOs, minutes in the app this week, sessions and join code for every class.",
+      "what": "Taking the class list away as a spreadsheet, with the name, language, belt, journey in phrases, minutes in the app this week, sessions and join code for every class.",
       "where": "**My Classes**, the **Export CSV** button along the top.",
       "how": [
         "Open **My Classes**.",
@@ -2188,12 +2188,12 @@
       "surface": "schools",
       "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
       "walk": null,
-      "what": "A bar showing where a class has got to in its course, measured in LEGOs — the individual pieces of language the course teaches. A class is one learner account played from the front, so the position is the class's own.",
+      "what": "A bar showing where a class has got to in its course, measured in phrases — the individual pieces of language the course teaches. A class is one learner account played from the front, so the position is the class's own.",
       "where": "The **Course journey** card on a class page.",
       "how": [
         "Open a class.",
         "Read the bar for how much of the course the class has covered together.",
-        "The line underneath gives the figure in LEGOs, then names the next belt and how many LEGOs are left to reach it."
+        "The line underneath gives the figure in phrases, then names the next belt and how many phrases are left to reach it."
       ],
       "note": "A class that has never played together says **Not started** in words; it is never shown as a bar of zero."
     },
@@ -2873,7 +2873,7 @@
       "surface": "schools",
       "source": "packages/player-vue/src/views/schools/TeacherDashboard.vue",
       "walk": null,
-      "what": "One row per class, showing at a glance what each one has done. A class is one learner account, played from the front of the room, so every figure on the row is that account's own: the belt the class has reached, how far through the course it has travelled in LEGOs, minutes in the app this week and the shape of its last seven days. Nothing on the row grades the class. Time in app is time with the lesson running, pauses included — the time the class was in the lesson. A class that has never played says **Not started** in words rather than showing a row of zeros.",
+      "what": "One row per class, showing at a glance what each one has done. A class is one learner account, played from the front of the room, so every figure on the row is that account's own: the belt the class has reached, how far through the course it has travelled in phrases, minutes in the app this week and the shape of its last seven days. Nothing on the row grades the class. Time in app is time with the lesson running, pauses included — the time the class was in the lesson. A class that has never played says **Not started** in words rather than showing a row of zeros.",
       "where": "**My Classes**, the table filling most of the page. On a phone each class is a card instead, with the number you sorted by beside its name and the rest underneath.",
       "how": [
         "Open **My Classes**.",
@@ -2913,7 +2913,7 @@
       "where": "The **Students on their own accounts** list at the bottom of a class page. It is only there when at least one pupil has an account of their own.",
       "how": [
         "Open a class.",
-        "Read down the rows — the bar on each is that student's own position in the course, in LEGOs. The first three show; tap **Show all** under them for the rest.",
+        "Read down the rows — the bar on each is that student's own position in the course, in phrases. The first three show; tap **Show all** under them for the rest.",
         "The small chart beside it is their practice over the past week, with the minutes named.",
         "The dot and word at the start of a row say whether they are excellent, good, needing attention or inactive.",
         "Tap a row to open that person."
@@ -4444,7 +4444,7 @@
       "surface": "schools",
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
       "walk": null,
-      "what": "How far the class has travelled through its course, as a bar in LEGOs with the next belt named. A class is one learner account played from the front, so this is the class's own place on the course, moved by the sessions you run together.",
+      "what": "How far the class has travelled through its course, as a bar in phrases with the next belt named. A class is one learner account played from the front, so this is the class's own place on the course, moved by the sessions you run together.",
       "where": "The class page, the **Course Journey** card in the column beside the roster.",
       "how": [
         "Open the class from **My Classes**.",

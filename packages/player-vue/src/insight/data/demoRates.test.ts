@@ -96,7 +96,7 @@ describe('demoRates — the "entity vs average" rate fixtures', () => {
     const opts = listEntities('progressPace', 'class')
     const out = getRateComparison('progressPace', 'class', opts[0].value, 'course')
     expect(out.metricLabel).toBe('Rate of progress')
-    expect(out.unit).toBe('LEGOs')
+    expect(out.unit).toBe('phrases')
     expect(out.per).toBe('week')
     // default window (30d) = 30 daily points
     expect(out.entity.trend).toHaveLength(30)
@@ -135,7 +135,7 @@ describe('demoRates — the "entity vs average" rate fixtures', () => {
     const withPos = getRateComparison(
       'progressPace', 'class', listEntities('progressPace', 'class')[0].value, 'school',
     )
-    expect(withPos.contextLine).toMatch(/^Furthest LEGO · ".+" — ".+"$/)
+    expect(withPos.contextLine).toMatch(/^Furthest phrase · ".+" — ".+"$/)
     expect(withPos.contextLine).not.toMatch(/S\d+ · L\d+/)
 
     const withoutPos = getRateComparison(

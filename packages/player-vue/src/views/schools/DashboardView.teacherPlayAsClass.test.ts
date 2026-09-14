@@ -133,7 +133,7 @@ describe('DashboardView — the teacher home is play-as-class first (job #651)',
   })
   afterEach(() => { vi.restoreAllMocks() })
 
-  it('a class row carries the CLASS ACCOUNT\'s minutes, phrases, LEGOs and last-played day — never a pupil count or a cycles benchmark', async () => {
+  it('a class row carries the CLASS ACCOUNT\'s minutes, phrases, journey and last-played day — never a pupil count or a cycles benchmark', async () => {
     const wrapper = await mountTeacherHome()
     const text = wrapper.text()
     expect(text).toContain('Welcome back, florencecotten.')
@@ -141,7 +141,7 @@ describe('DashboardView — the teacher home is play-as-class first (job #651)',
     expect(text).toContain('10C')
     expect(text).toContain('9 min')
     expect(text).toContain('7 phrases')
-    expect(text).toContain('8/1200 LEGOs')
+    expect(text).toContain('8/1200 phrases')
     expect(text).toContain('Last played Wed 9 Sept')
     // The pupils' aggregate is gone from the class row and the footer.
     expect(text).not.toContain('students across it')

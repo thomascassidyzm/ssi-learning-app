@@ -10575,7 +10575,7 @@ const handleRoundForward = async () => {
     const targetForwardSeed = getSeedFromLegoId(cachedRounds.value[targetIdx]?.legoId ?? null)
     if (!gateSeed(targetForwardSeed)) return
 
-    await prepareAndJump(targetIdx, 'Next LEGO…', () => {
+    await prepareAndJump(targetIdx, 'Next phrase…', () => {
       // POSITION nav: prefer the LEGO id, fall back to index — same landing.
       const targetLegoId = cachedRounds.value[targetIdx]?.legoId
       if (targetLegoId) simplePlayer.jumpToLegoId(targetLegoId)
@@ -10759,7 +10759,7 @@ const handleRoundBack = async () => {
       return
     }
     const restartingCurrent = targetIdx === fromIdx
-    await prepareAndJump(targetIdx, restartingCurrent ? 'Start of this LEGO…' : 'Previous LEGO…', () => {
+    await prepareAndJump(targetIdx, restartingCurrent ? 'Start of this phrase…' : 'Previous phrase…', () => {
       // POSITION nav: prefer the LEGO id, fall back to index. Always slot 0 so
       // the intro/debut/build cycles replay. Belt DERIVES from the landed round.
       const targetLegoId = cachedRounds.value[targetIdx]?.legoId

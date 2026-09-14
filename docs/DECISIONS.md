@@ -1,3 +1,40 @@
+## 2026-09-14 — LEGO becomes Phrases in learner and school copy; the Where-you-are rail names only the open view (job #674)
+
+**Ruling (Tom, 14:42Z).** On the word: "can we retire LEGOS for learner-facing language? that's really
+internal language for us / we can call it / Phrases? / I think that will cover it." On the rail line
+that #628 added beneath you-are-here: "It's not THAT clear that we're in Overview OR Insights / I
+think it should only show one of these, right? / I'm not sure it should show both, but if it DOES,
+then it should be clearer which one of the 2 views we're looking at right now."
+
+**Decision, the word.** Every learner- and school-facing string that said LEGO or LEGOs now says
+phrase or phrases: the teacher table's journey column, the class and school journey bars, the
+students and class-detail columns, the student-progress belt line and retired count, the org
+children list, the insights rate measure and its caption, the voice-pause panel, the player's
+next and previous tooltips and jump messages. The unit and the "Furthest phrase" line on the
+insights page come from the two rate-compare API routes, so those changed with the client. The
+three teacher-table figures now read as three things: "Journey, phrases" for position in the
+course, "Phrases practised this week" for the practice count, and "Rate of progress (new phrases /
+week)" for the rate, with the tight figure caption reading "phrases / week" as Tom quoted it.
+Handbook sentences on the four capabilities that named the unit were rewritten and re-pinned.
+
+**What stays.** Internal vocabulary is untouched: i18n keys, props, columns, data-walk anchors,
+CSS classes, code comments, console lines, the LegoAssembly component, and every admin-gated or
+developer surface: the settings view-script and debug-overlay rows, the practising-mode test
+switch, the Course Explorer, the methodology page, the /intel boards, the release-notes
+placeholder. Handbook keywords keep "lego" so a search for the old word still finds the entry.
+
+**Locales.** Welsh, Spanish, French, Italian and Portuguese had the bare token replaced with the
+language's word for phrase in the six non-settings keys. The other twenty locales keep their old
+wording for those keys because the pending-translation register only accepts keys missing from a
+locale, and these exist everywhere. They are listed as awaiting translation in the job's grep
+document.
+
+**Decision, the rail.** `NodeMapRail.vue`'s lens line names the open view only, capitalised as
+Tom wrote it, "Insights" or "Overview", as plain text under you-are-here at the same indent. The
+"· other" span, the switch handler and its aria-label are gone. The `lens` prop keeps both paths
+so neither caller changed; the LensTabs pair top-right is the switch. The #628 entry below
+records the state this supersedes; it is left as written.
+
 ## 2026-09-14 — Listening Mode: cut the mode captions and the scene progress bar (job #650)
 
 **Ruling (Aran reviewing production, Tom agreeing, 2026-09-14).** "Probably don't need the Each

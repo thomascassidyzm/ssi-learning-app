@@ -1,6 +1,6 @@
 {
-  "version": "6e4883c90fe8",
-  "generatedAt": "2026-09-12",
+  "version": "a76fc70f195e",
+  "generatedAt": "2026-09-14",
   "truth": {
     "verbs": [
       {
@@ -58,7 +58,7 @@
       "No end date — inactive",
       "Phrases practised this week",
       "Minutes in the app this week",
-      "LEGOs travelled together",
+      "Phrases travelled together",
       "Teachers",
       "Minutes practised",
       "Groups",
@@ -70,9 +70,9 @@
       {
         "value": "rate",
         "label": "Rate of progress",
-        "unit": "LEGOs",
+        "unit": "phrases",
         "per": "week",
-        "desc": "How fast new LEGOs are being learned, per week."
+        "desc": "How fast new phrases are being learned, per week."
       },
       {
         "value": "minutes_per_class",

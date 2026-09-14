@@ -252,13 +252,13 @@ const subtitle = computed(() => {
   const beltLabel = belt.value.next?.name ?? belt.value.current.name
   const parts: string[] = []
   if (isAdminView) {
-    parts.push(t('schools.studentProgress.adminRetiredLegos', 'Retired {n} LEGOs in {course}.').replace('{n}', String(legosRetired.value)).replace('{course}', primaryCourseName.value))
+    parts.push(t('schools.studentProgress.adminRetiredLegos', 'Retired {n} phrases in {course}.').replace('{n}', String(legosRetired.value)).replace('{course}', primaryCourseName.value))
     parts.push(belt.value.next
       ? t('schools.studentProgress.adminMoreToBelt', '{n} more to {belt} belt.').replace('{n}', String(remaining)).replace('{belt}', beltLabel)
       : t('schools.studentProgress.adminReachedBelt', 'Reached {belt} belt.').replace('{belt}', beltLabel))
     if (lastSessionAt.value) parts.push(t('schools.studentProgress.adminLastSession', 'Last session {when}.').replace('{when}', lastSessionLabel.value))
   } else {
-    parts.push(t('schools.studentProgress.retiredLegos', "You've retired {n} LEGOs in {course}.").replace('{n}', String(legosRetired.value)).replace('{course}', primaryCourseName.value))
+    parts.push(t('schools.studentProgress.retiredLegos', "You've retired {n} phrases in {course}.").replace('{n}', String(legosRetired.value)).replace('{course}', primaryCourseName.value))
     parts.push(belt.value.next
       ? t('schools.studentProgress.moreToBelt', '{n} more to your {belt} belt.').replace('{n}', String(remaining)).replace('{belt}', beltLabel)
       : t('schools.studentProgress.reachedBelt', "You've reached {belt} belt — keep going.").replace('{belt}', beltLabel))
@@ -296,7 +296,7 @@ const journeyTotal = computed(() => {
 
           <div v-if="!isAdminView" class="cta-row">
             <button type="button" class="btn-play" @click="handleKeepGoing">
-              ▶ {{ t('schools.studentProgress.keepGoingLabel', 'Keep going — LEGO {n}').replace('{n}', String(nextLegoNumber)) }}
+              ▶ {{ t('schools.studentProgress.keepGoingLabel', 'Keep going — phrase {n}').replace('{n}', String(nextLegoNumber)) }}
             </button>
           </div>
 
@@ -325,7 +325,7 @@ const journeyTotal = computed(() => {
               <div class="arsenal belt-name">{{ belt.current.name }}</div>
               <div class="schools-subtle belt-note">
                 <template v-if="belt.next">
-                  {{ t('schools.studentProgress.legosToNextBelt', '{n} LEGOs to {belt}').replace('{n}', String(Math.max(0, belt.total - belt.done))).replace('{belt}', belt.next.name) }}
+                  {{ t('schools.studentProgress.legosToNextBelt', '{n} phrases to {belt}').replace('{n}', String(Math.max(0, belt.total - belt.done))).replace('{belt}', belt.next.name) }}
                 </template>
                 <template v-else>{{ t('schools.studentProgress.reachedTopBelt', "You've reached the top belt") }}</template>
               </div>
@@ -337,7 +337,7 @@ const journeyTotal = computed(() => {
             <JourneyBar
               :done="journeyDone"
               :total="journeyTotal"
-              label="LEGOs retired"
+              label="Phrases retired"
             />
             <div class="stat-row">
               <!-- No streak stat — streaks are banned (founder ruling
@@ -370,7 +370,7 @@ const journeyTotal = computed(() => {
           <thead>
             <tr>
               <th>{{ t('schools.studentProgress.courseColumn', 'Course') }}</th>
-              <th>{{ t('schools.studentProgress.legosRetiredColumn', 'LEGOs retired') }}</th>
+              <th>{{ t('schools.studentProgress.legosRetiredColumn', 'Phrases retired') }}</th>
               <th>{{ t('schools.studentProgress.seedsCoveredColumn', 'Seeds covered') }}</th>
               <th>{{ t('schools.studentProgress.practiceTimeColumn', 'Practice time') }}</th>
               <th>{{ t('schools.studentProgress.lastSessionColumn', 'Last session') }}</th>

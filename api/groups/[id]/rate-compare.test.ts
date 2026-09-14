@@ -234,7 +234,7 @@ describe('GET /api/groups/:id/rate-compare', () => {
     expect(res.body.levelNoun).toBe('class')
     expect(res.body.cohortLabel).toBe('classes in IME Demo Programme')
     // Position line = the LEGO's content (roman preferred), not "S10 · L1"
-    expect(res.body.contextLine).toBe('Furthest LEGO · "main seekhna chaahta hoon" — "I want to learn"')
+    expect(res.body.contextLine).toBe('Furthest phrase · "main seekhna chaahta hoon" — "I want to learn"')
 
     // A node whose furthest LEGO has no content row gets NO line (never a raw id)
     const res2 = makeRes()
