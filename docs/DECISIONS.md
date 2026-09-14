@@ -1,3 +1,23 @@
+## 2026-09-14 — Listening Mode: cut the mode captions and the scene progress bar (job #650)
+
+**Ruling (Aran reviewing production, Tom agreeing, 2026-09-14).** "Probably don't need the Each
+line four times bit, and I'm not sure we need the progress bar in there"; "The whole scene in
+the target language, at your pace, probably don't need that either"; "AI overexplanations etc".
+
+**Decision.** In `ListeningOverlay.vue` the two one-liners under the Immersion / Drill toggle are
+gone, and so is the hover `title` that carried the same words. In a dialogue scene the transport
+progress bar and its percentage are gone, and so is the 2px ambient hairline at the top edge,
+which was the same signal drawn twice. All and Core keep their bar: those lists run to hundreds of
+rows and the bar is the only position there. The "Scene N · time" strip stays as the orientation.
+Swept the rest of the surface: "N sentences" on a scene card, "N scenes" plus the offline chip on a
+pod card, the Speed label and the empty or offline states are information, not explanation, and
+stay. "Tap to play / tap to pause" under the All and Core list is a prompt, not an explanation,
+and stays. The "Audio only, no speaking" line on the mode tray is outside Listening Mode and was
+not touched.
+
+**Better × Simpler × Cheaper.** Better: the scene view reads as the dialogue, not as a manual for
+it. Simpler: two fewer strings, one fewer element, one CSS block deleted. Cheaper: nothing new.
+
 ## 2026-09-14 — Vercel builds `dev` only when the commit subject carries `[preview]`; staging and main build on every push (job #619)
 
 **Ruling (Tom, 2026-09-14 00:32Z).** Asked "make learning-app dev builds opt-in on Vercel, staging

@@ -1,7 +1,8 @@
 # APML Interface: Listening MODE — Dialogue surface
 # SSI Learning App
 # Version: 1.5.0
-# Last updated: 2026-09-12 (job #470: a pod line marked jumpIn — Popty's
+# Last updated: 2026-09-14 (job #650: mode captions + scene progress bar cut)
+# Previously: 2026-09-12 (job #470: a pod line marked jumpIn — Popty's
 #               listening_pod_sentences.jump_in, read by useListeningPods and
 #               the offline snapshot — plays with NO gap after the previous
 #               line in Immersion and starts on a SECOND audio element while
@@ -141,6 +142,10 @@ TABS:
 
 DIALOGUE_MODES:
   description: |
+    A dialogue scene shows NO progress bar and no percentage (job #650,
+    2026-09-14): the highlighted line is the position. All / Core keep the
+    transport progress bar. The scene title strip ("Scene N · …") stays.
+
     Immersion/Drill selector shown on every PLAYBACK surface: Dialogues with a
     scene open AND Core (seeds) (Aran 2026-06-29 — Core gets the modes too; the
     gating computed is `modeSurface = isDialogueScene || view==='seeds'`). "All"
@@ -160,7 +165,8 @@ DIALOGUE_MODES:
     key: "immersion"
     label: "Immersion"
     default: true
-    desc: "The whole scene in the target language, at your pace."
+    desc: none   # the caption under the toggle was cut 2026-09-14 (job #650,
+                 # Aran + Tom: over-explaining); the label carries the choice.
     audio: |
       Each unit's TARGET played once at the learner's chosen speed. Within a
       speaker's turn chunks run tight (50ms) for natural continuous speech; a
@@ -170,7 +176,7 @@ DIALOGUE_MODES:
   drill:
     key: "drill"
     label: "Drill"
-    desc: "Hear the meaning, then drill the line — normal, then twice fast."
+    desc: none   # caption cut 2026-09-14 (job #650), as for immersion.
     audio: |
       Per unit: the KNOWN (English) clip ONCE (hear the meaning), then the
       TARGET ×3 at base · 2×base · 2×base, where base = the chosen speed (Aran
