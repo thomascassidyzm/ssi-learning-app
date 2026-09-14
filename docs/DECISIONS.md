@@ -2357,8 +2357,9 @@ the one figure the ruling forbids.
   school or platform admin, allowed under View-as, lists every (class, teacher) pair where the
   teacher's own account is enrolled on the class course and the planner finds something to copy,
   each with the preview payload built by the same `previewBody` the single-pair preview now uses.
-  A card on the school-admin dashboard renders the rows with one Copy each, calling the existing
-  apply for that pair. No bulk apply exists, by design: apply stays one teacher at a time, refuses
+  A card on the leader's OWN school node home, /org/:schoolId, the page a school admin actually
+  lands on (the /schools dashboard's admin block is unreachable for her since the 2026-07-30 nav
+  unification), renders the rows with one Copy each, calling the existing apply for that pair. No bulk apply exists, by design: apply stays one teacher at a time, refuses
   View-as, and writes `class_progress_copy_audit`.
 
 **Better × Simpler × Cheaper.** Better: a teacher reads the class's own minutes beside the pupils'

@@ -19,6 +19,9 @@ import { callCopyTeacherPlay, copyLines, copyMinutes, positionLabel, copiedClaus
 
 const { t } = useI18n()
 const { currentUser } = useSchoolContext()
+// The school the sweep is for. The leader's node home passes its own school;
+// the server checks the caller is an admin of it or a platform admin.
+const props = defineProps<{ schoolId?: string }>()
 const emit = defineEmits<{ (e: 'copied'): void }>()
 
 const state = ref<'loading' | 'ready' | 'error'>('loading')
@@ -36,11 +39,12 @@ async function load(): Promise<void> {
   state.value = 'loading'
   error.value = ''
   try {
-    // Under View-as the fetch runs as the admin, whose own school is none,
-    // so the persona's school goes on the body. A school admin's own call
-    // sends nothing and the server resolves their school.
+    // The school goes on the body when known. Under View-as the fetch runs
+    // as the admin, whose own school is none, so the persona's school is
+    // named; a school admin with neither gets their own school resolved.
     const user = currentUser.value
-    const body = user?._scopeSource === 'admin-view' && user.school_id ? { school_id: user.school_id } : {}
+    const schoolId = props.schoolId || (user?._scopeSource === 'admin-view' ? user.school_id : '') || ''
+    const body = schoolId ? { school_id: schoolId } : {}
     const payload = (await callCopyTeacherPlay('candidates', body, t)) as CopyCandidates
     candidates.value = payload.candidates ?? []
     pairsChecked.value = payload.pairs_checked ?? 0
@@ -80,14 +84,15 @@ function doneLine(c: CopyCandidate): string {
   <!-- HANDBOOK Copy every teacher's own play onto their class
        section: running-classes
        roles: school_admin
-       place: dashboard
+       place: node-home
        keywords: copy, sweep, teachers, play as class, own account, mistake, progress
        parts: school-copy-play-sweep-copy, school-copy-play-sweep-empty, school-copy-play-sweep-done
        What it's for. Finding every teacher in your school who ran lessons signed
        in as themselves instead of using Play as class, and moving that play onto
        their class, one teacher at a time. Each row names the class, the teacher,
        what would move, and where the class will be afterwards.
-       Where it is. The schools dashboard, under the figures at the top.
+       Where it is. Your school's own page, the one you land on, under the row of
+       numbers and above what your classes practised.
        How you do it.
        1. Read down the rows. Each is one teacher on one class.
        2. Tap **Copy onto the class** on a row. One line tells you what was

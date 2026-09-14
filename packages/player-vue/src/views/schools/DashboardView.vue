@@ -17,7 +17,6 @@ import CreateClassModal from '@/components/schools/CreateClassModal.vue'
 import SchoolsPasswordPrompt from '@/components/schools/SchoolsPasswordPrompt.vue'
 import ClassCreatedModal from '@/components/schools/ClassCreatedModal.vue'
 import MailboxCheckPrompt from '@/components/schools/MailboxCheckPrompt.vue'
-import CopyPlaySweepCard from '@/components/schools/CopyPlaySweepCard.vue'
 import { useMailboxPrompt } from '@/composables/useMailboxPrompt'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
@@ -872,11 +871,6 @@ async function handlePlayClass(cls: ClassInfo) {
           <span class="stat-label">{{ t('schools.dashboard.yourClasses', 'Your classes') }}</span>
         </div>
       </div>
-
-      <!-- The school-admin sweep for lessons played on teachers' own accounts
-           (job #662). Under View-as it lists; the copy is refused server-side
-           and the row shows why. -->
-      <CopyPlaySweepCard v-if="currentSchool" @copied="refresh" />
 
       <div class="admin-grid">
         <div class="schools-card">

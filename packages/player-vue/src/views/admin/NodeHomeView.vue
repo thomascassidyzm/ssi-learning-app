@@ -64,6 +64,7 @@ import { derivePreset } from '@/composables/nodeTerminology'
 import { timeAgo } from '@/composables/admin/adminUtils'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
 import CopyTeacherPlayCard from '@/components/schools/CopyTeacherPlayCard.vue'
+import CopyPlaySweepCard from '@/components/schools/CopyPlaySweepCard.vue'
 import InsightTable from '@/insight/widgets/Table.vue'
 import type { TableData } from '@/insight/spec'
 
@@ -1146,6 +1147,13 @@ const listPayload = computed(() => {
           <p v-if="showPhrasesCard && !switching" class="stats-note">
             {{ t('org.nodeHome.statsNoteInAppTime', 'Minutes in the app is the time your classes, staff and students spent in the app over the last seven days, pauses included — the time they were in the lesson. Whole-class play accounts for {classMinutes} of those minutes. Audio actually playing came to {audioMinutes} minutes.').replace('{classMinutes}', String(classPractice?.classInAppMinutes7d ?? 0)).replace('{audioMinutes}', String(classPractice?.audioPlayedMinutes7d ?? 0)) }}
           </p>
+
+          <!-- THE SCHOOL LEADER'S SWEEP for lessons played on teachers' own
+               accounts (job #662): every mis-played (class, teacher) pair, one
+               Copy each. On the leader's OWN school node only — the surface a
+               school admin actually lands on. Under View-as it lists and the
+               copy is refused server-side, shown on the row. -->
+          <CopyPlaySweepCard v-if="isOwnSchoolNode && !switching" :school-id="currentSchool!.id" @copied="fetchHome" />
 
           <!-- WHAT THEY PRACTISED — the phrase-by-count list across every
                class below. This is the teaching story, not the register: it

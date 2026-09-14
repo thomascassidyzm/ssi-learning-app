@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `1815527b3ebf` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `6735b308c324` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -295,7 +295,7 @@ Section: running-classes · roles: school_admin · anchor: `school-copy-play-swe
 
 **What it's for.** Finding every teacher in your school who ran lessons signed in as themselves instead of using Play as class, and moving that play onto their class, one teacher at a time. Each row names the class, the teacher, what would move, and where the class will be afterwards.
 
-**Where it is.** The schools dashboard, under the figures at the top.
+**Where it is.** Your school's own page, the one you land on, under the row of numbers and above what your classes practised.
 
 1. Read down the rows. Each is one teacher on one class.
 2. Tap **Copy onto the class** on a row. One line tells you what was copied and where the class now is.
