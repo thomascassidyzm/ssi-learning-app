@@ -47,6 +47,7 @@ import { ensureDemoLeafClass, resolveDemoOrgCourseCode } from '../../_utils/demo
 import { generateCodeForType } from '../../_utils/codeGen'
 import { getAppOrigin } from '../../_utils/appOrigin'
 import { applyCors } from '../../_utils/cors'
+import { refuseViewAsWrite } from '../../_utils/actAsGuard'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -96,6 +97,7 @@ export default async function handler(
   // Without this the native WebView's preflight for the `Authorization`
   // header goes unanswered and the call fails there while working on the web.
   if (applyCors(req, res, { methods: 'POST' })) return
+  if (refuseViewAsWrite(req, res)) return
 
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' })

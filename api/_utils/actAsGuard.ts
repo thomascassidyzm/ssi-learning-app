@@ -31,3 +31,30 @@ export function rejectIfViewAs(req: VercelRequest): { error: string; status: num
   if (!isViewAsRequest(req)) return null
   return { error: 'Read-only while viewing as another user', status: 403 }
 }
+
+const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+
+/**
+ * Refuse a WRITE made while touring under View As, and let reads through
+ * (job #681, 2026-09-14). Tom: "viewing as a school admin/teacher must never
+ * create rows in that person's name."
+ *
+ * The routes this sits on carry a deliberate ssi_admin bypass, so the usual
+ * protection — an ssi_admin has no scope of their own and 403s naturally —
+ * does NOT hold for them: the org lens at /org/<id> is where View As lands,
+ * and its action bar can rename, delete, mint into and invite to the viewed
+ * organisation. Reads must keep working or the lens renders nothing, which is
+ * the whole point of the tour, so this refuses by METHOD rather than refusing
+ * the route.
+ *
+ * Returns true when it has already answered; the handler returns immediately.
+ */
+export function refuseViewAsWrite(
+  req: VercelRequest,
+  res: { status: (code: number) => { json: (body: unknown) => unknown } },
+): boolean {
+  if (!isViewAsRequest(req)) return false
+  if (!WRITE_METHODS.has(String(req.method ?? 'GET').toUpperCase())) return false
+  res.status(403).json({ error: 'Read-only while viewing as another user' })
+  return true
+}
