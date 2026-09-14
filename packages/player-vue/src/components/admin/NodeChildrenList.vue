@@ -6,7 +6,6 @@
 // the same row shape: avatar initial, name (click → that thing's home),
 // caption, count columns.
 import { computed } from 'vue'
-import { formatPracticeMinutes, hoursToMinutes } from '@/composables/schools/practiceMinutes'
 import { useRoute, useRouter } from 'vue-router'
 import { classHomePath, groupHomePath, isMemberNodeSurface, schoolHomePath } from '@/composables/nodeSurfacePaths'
 import BeltDot from '@/components/schools/shared/BeltDot.vue'
@@ -121,7 +120,9 @@ const rows = computed<Row[]>(() => {
       counts: [
         { value: s.studentCount, word: t('org.ui.nodeChildrenList.wordStudents', 'students') },
         { value: s.classCount, word: t('org.ui.nodeChildrenList.wordClasses', 'classes') },
-        { value: formatPracticeMinutes(typeof s.practiceMinutes === 'number' ? s.practiceMinutes : hoursToMinutes(s.practiceHours)), word: t('org.ui.nodeChildrenList.wordPractised', 'practised') },
+        // No all-time "practised" figure: it summed the sessions ledger, a
+        // second minute beside the in-app minutes the school's own page shows
+        // (Tom, 2026-09-14, job #673).
       ],
       // Stay inside the one map surface: a school IS a node (THE MODEL I2),
       // so open its node home rather than repainting a separate school page.
@@ -175,7 +176,8 @@ const rows = computed<Row[]>(() => {
       health: s.health || null,
       counts: [
         { value: s.legos_mastered ?? 0, word: t('org.ui.nodeChildrenList.wordLegos', 'LEGOs') },
-        { value: formatPracticeMinutes(typeof s.practice_minutes === 'number' ? s.practice_minutes : hoursToMinutes(s.practice_hours)), word: t('org.ui.nodeChildrenList.wordPractised', 'practised') },
+        // The all-time "practised" minutes (class_student_progress, off the
+        // sessions ledger) are gone for the same reason as the school row's.
       ],
       // Payload-supplied only (guided missions): the real server never sends
       // a student link — there is no individual learner page (founder ruling

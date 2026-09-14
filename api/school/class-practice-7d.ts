@@ -21,6 +21,9 @@
  * only — the class account cannot write that ledger) stay in the payload as the
  * secondary figure, demoted not deleted.
  *
+ * WINDOW: the last 7 × 24 hours from now, by timestamp — the one rolling rule
+ * every other minutes reader uses (job #673, 2026-09-14). minutesByDay is the
+ * last seven UTC days, today last, and is a shape, not the total.
  * Auth required. The caller's visible scope is resolved server-side
  * (resolveVisibleScope) — requested class_ids are intersected with what the
  * caller may actually see, so a teacher/school/gov admin only ever gets practice
@@ -174,10 +177,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     const studentIds = [...new Set(classIds.flatMap(c => scope.studentsByClass[c] || []))]
 
-    // Last 7 UTC days — the same window for the diary and the ledger.
-    const since = new Date()
-    since.setUTCDate(since.getUTCDate() - (DAYS - 1))
-    since.setUTCHours(0, 0, 0, 0)
+    // ONE WINDOW RULE (Tom, 2026-09-14, job #673: "calculated the same way
+    // across all metrics, always"): the last DAYS × 24 hours from now, by
+    // timestamp — the rule the school rollup, the org lens and Insights
+    // already use. This endpoint alone counted the last seven UTC calendar
+    // days, so the classes list and the class page disagreed with every
+    // sibling by up to a day of play. The per-day bars stay the last seven
+    // UTC days (today last); the ledger's secondary figure is day-grained.
+    const now = new Date()
+    const since = new Date(now.getTime() - DAYS * 86_400_000)
+    const firstBarDay = new Date(now)
+    firstBarDay.setUTCDate(firstBarDay.getUTCDate() - (DAYS - 1))
+    firstBarDay.setUTCHours(0, 0, 0, 0)
     const sinceDay = since.toISOString().split('T')[0]
 
     // The school headline — identical helpers and rule to the admin's node
@@ -196,7 +207,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       const weekAgo = Date.now() - CLASS_PRACTICE_WINDOW_DAYS * 86400000
       let activeClasses7d = 0
       for (const f of facts.values()) if (practisedSince(f, weekAgo)) activeClasses7d += 1
-      const inApp = await inAppTimeSeconds(svc, [...classLearnerByClass.values()], ownIds)
+      const inApp = await inAppTimeSeconds(svc, [...classLearnerByClass.values()], ownIds, now.getTime())
       return { facts, rollup: { windowDays: CLASS_PRACTICE_WINDOW_DAYS, classCount: classIds.length, activeClasses7d, inAppMinutes7d: Math.round(inApp.seconds / 60) } }
     })()
 
@@ -288,7 +299,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     res.setHeader('Cache-Control', 'no-store')
     // The seven UTC days of the window, oldest first, today last.
     const windowDays: string[] = []
-    for (let i = 0; i < DAYS; i++) { const d = new Date(since); d.setUTCDate(d.getUTCDate() + i); windowDays.push(d.toISOString().split('T')[0]) }
+    for (let i = 0; i < DAYS; i++) { const d = new Date(firstBarDay); d.setUTCDate(d.getUTCDate() + i); windowDays.push(d.toISOString().split('T')[0]) }
     const classAccountByClass: Record<string, any> = {}
     for (const c of classIds) {
       const base = classAccountBase[c]

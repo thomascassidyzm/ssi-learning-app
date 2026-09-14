@@ -487,7 +487,7 @@ const adminGreetingLines = computed(() => {
     .replace('{students}', String(totalStudents.value))
     .replace('{classes}', String(totalClasses.value))
   if (!practice7d.loaded.value) return base
-  return t('schools.dashboard.adminGreetingMinutesWeek', '{base} — {minutes} in the app this week.')
+  return t('schools.dashboard.adminGreetingMinutesWeek', '{base} — {minutes} in the app this week, classes, staff and pupils together.')
     .replace('{base}', base)
     .replace('{minutes}', formatPracticeMinutes(practice7d.minutesThisWeek.value))
 })
@@ -892,6 +892,7 @@ async function handlePlayClass(cls: ClassInfo) {
           <span class="stat-label">{{ t('schools.dashboard.minutesInAppThisWeek', 'Minutes in the app this week') }}</span>
           <span v-if="classesPractisingLine" class="stat-subnote">{{ classesPractisingLine }}</span>
           <span v-else class="stat-subnote">{{ t('schools.dashboard.thisWeekNotLoaded', 'This week’s figures have not loaded — pull to refresh.') }}</span>
+          <span class="stat-subnote">{{ t('schools.dashboard.minutesScopeNote', 'Classes, staff and pupils, each counted once.') }}</span>
         </div>
         <div class="stat-card">
           <span class="arsenal stat-value">{{ teacherClasses.length }}</span>

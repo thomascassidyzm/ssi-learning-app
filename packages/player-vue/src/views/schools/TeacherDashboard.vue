@@ -297,9 +297,9 @@ const headlineSubtitle = computed(() => {
     ? t('schools.teacherDashboard.classSingular', 'class')
     : t('schools.teacherDashboard.classPlural', 'classes')
   const base = selectedUser.value?.school_name
-    ? t('schools.teacherDashboard.summaryWithSchoolMinutes', '{n} {classWord} across {school} · {minutes} in the app this week')
+    ? t('schools.teacherDashboard.summaryWithSchoolMinutes', '{n} {classWord} across {school} · {minutes} played as class this week')
         .replace('{school}', selectedUser.value.school_name)
-    : t('schools.teacherDashboard.summaryNoSchoolMinutes', '{n} {classWord} · {minutes} in the app this week')
+    : t('schools.teacherDashboard.summaryNoSchoolMinutes', '{n} {classWord} · {minutes} played as class this week')
   return base
     .replace('{n}', String(enrichedClasses.value.length))
     .replace('{classWord}', classWord)
@@ -616,11 +616,13 @@ function exportCsv() {
            What it's for. One row per class, showing at a glance what each one has done.
            A class is one learner account, played from the front of the room, so every
            figure on the row is that account's own: the belt the class has reached, how
-           far through the course it has travelled in LEGOs, minutes in the app this
-           week and the shape of its last seven days. Nothing on the row grades the
-           class. Time in app is time with the lesson running, pauses included — the
-           time the class was in the lesson. A class that has never played says
-           **Not started** in words rather than showing a row of zeros.
+           far through the course it has travelled in LEGOs, minutes played as class
+           over the last seven days and the shape of those days. Nothing on the row
+           grades the class. Played as class is time with the lesson running on the
+           class account, from pressing play to stopping, pauses included — the same
+           minute the class page, the school home and Insights count. Pupils' own
+           practice is not in it. A class that has never played says **Not started**
+           in words rather than showing a row of zeros.
            Where it is. **My Classes**, the table filling most of the page. On a
            phone each class is a card instead, with the number you sorted by beside
            its name and the rest underneath.
@@ -644,7 +646,7 @@ function exportCsv() {
             <th>{{ t('schools.teacherDashboard.tableHeaderCourse', 'Course') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderBelt', 'Belt') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderJourney', 'Journey, LEGOs') }}</th>
-            <th>{{ t('schools.teacherDashboard.tableHeaderTimeInAppMinutes', 'Time in app, min/wk') }}</th>
+            <th>{{ t('schools.teacherDashboard.tableHeaderTimeInAppMinutes', 'Played as class, min this week') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderPhrases', 'Phrases this week') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderActivity', 'Activity') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderShare', 'Share') }}</th>
