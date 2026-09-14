@@ -134,6 +134,7 @@ import { isNetworkPresumedDown } from '../config/networkGate'
 import { createOfflineUrn, type UrnCandidate } from '../playback/offlineUrn'
 import { isCyclePlayableOffline, requiredClipUrls, filterLapToDeviceAudio, roundTeachesOffline } from '../playback/offlinePlayable'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
+import { paywallLandingRound } from '../playback/paywallLanding'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 import { setCursorTelemetrySink } from '@ssi/core'
 import { useInstantPlayback, isBundleBootstrapEnabled, type RoundMap } from '../composables/useInstantPlayback'
@@ -2285,6 +2286,9 @@ const scriptBaseOffset = ref(0)  // Base offset for script loading
 // ============================================
 const entitlementComposable = useEntitlement()
 const showPaywall = ref(false)
+// The shared entitlement snapshot: read by the auto-dismiss watcher below,
+// re-fetched the moment a wall rises (see the showPaywall watcher).
+const { entitlements: liveEntitlements, refresh: refreshLiveEntitlements } = useSharedUserEntitlements()
 
 // The upgrade trigger. Naming no plan means the plan picker opens first
 // (Premium or Family, monthly or annual) and it opens the matching Paddle
@@ -2310,12 +2314,34 @@ function handleSubscribe() {
 }
 
 // "Maybe later" / backdrop click / Escape all do the same thing: dismiss the
-// wall and rewind to the start of the free preview. One function so the three
-// entry points can't drift.
+// wall and leave the learner WHERE THEY WERE. One function so the three entry
+// points can't drift. This used to rewind to round 0 — the wall was the thing
+// that "reset my position to the beginning of the course" (Tom, staging
+// 2026-09-14, job #734). The gates that raise the wall hold the cursor, so
+// normally nothing moves; only a cursor that has already crossed into locked
+// territory (the round-boundary advance, a resumed position) retreats, and
+// then only to the last round of the free preview.
 function dismissPaywall() {
   showPaywall.value = false
-  simplePlayer.jumpToRound(0)
+  settleCursorAtPaywall()
   simplePlayer.pause()
+}
+
+/**
+ * Pull the cursor back to the LAST playable round if — and only if — it is
+ * sitting past the wall. A cursor still inside the preview is left untouched.
+ * The rule itself is `paywallLandingRound`, pure and tested.
+ */
+function settleCursorAtPaywall(): void {
+  const course = props.course
+  if (!course) return
+  const landing = paywallLandingRound(
+    simplePlayer.roundIndex.value,
+    loadedRounds.value,
+    (seed) => entitlementComposable.canAccessSeed(course, seed),
+  )
+  if (landing === null) return
+  try { simplePlayer.jumpToRound(landing) } catch { /* engine may not be ready */ }
 }
 
 function onPaywallKeydown(e: KeyboardEvent) {
@@ -2323,6 +2349,16 @@ function onPaywallKeydown(e: KeyboardEvent) {
 }
 
 watch(showPaywall, (open) => {
+  if (open) {
+    // A wall raised off a STALE snapshot must not be the final word. The
+    // entitlement list is fetched at boot and on sign-in and then held in
+    // memory; a class created after that (Tom's Y7 Welsh, 2026-09-14) grants
+    // its course through class coverage, and the player had never asked
+    // again. Re-fetch now; the liveEntitlements watcher below closes the wall
+    // and resumes the moment the fresh answer grants access. Guests have no
+    // token and the call is a no-op for them.
+    void refreshLiveEntitlements().catch(() => {})
+  }
   if (typeof document === 'undefined') return
   if (open) {
     document.addEventListener('keydown', onPaywallKeydown)
@@ -2356,7 +2392,6 @@ function gateSeed(targetSeedNumber: number | null | undefined): boolean {
 }
 
 // Watch entitlements — auto-dismiss paywall if user redeems a code or subscribes
-const { entitlements: liveEntitlements } = useSharedUserEntitlements()
 watch(liveEntitlements, () => {
   if (showPaywall.value && props.course) {
     const canAccess = entitlementComposable.canAccessSeed(props.course, PREMIUM_PREVIEW_MAX_SEED + 1)
@@ -4042,15 +4077,14 @@ watch(positionInitialized, (init) => {
     // territory. The resume/init branches above can land the cursor anywhere
     // (DB cursor, ceiling, INF PLAY); this single post-init check catches them
     // all — if the landed seed is beyond the preview limit, pull the cursor back
-    // to the start of the course and raise the paywall. (Free/community courses
-    // and subscribers pass; the limit comes from canAccessSeed.)
+    // to the LAST round of the free preview (never to the start of the course:
+    // job #734) and raise the paywall. (Free/community courses and subscribers
+    // pass; the limit comes from canAccessSeed.)
     if (props.course) {
       const landedSeed = getSeedFromLegoId(simplePlayer.currentRound.value?.legoId ?? null)
       if (landedSeed !== null && !entitlementComposable.canAccessSeed(props.course, landedSeed)) {
-        try {
-          simplePlayer.pause()
-          simplePlayer.jumpToRound(0)
-        } catch { /* engine may not be ready */ }
+        try { simplePlayer.pause() } catch { /* engine may not be ready */ }
+        settleCursorAtPaywall()
         showPaywall.value = true
       }
     }

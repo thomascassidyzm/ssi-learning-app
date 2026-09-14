@@ -2861,3 +2861,41 @@ strip. Cheaper: the next band is one term in one calc.
 **Proof.** `PlayingAsYourselfBanner.test.ts` gains a case that the variable and class are set while
 the strip shows, cleared when play stops, and cleared on unmount: red on the #693 banner, green
 here. Staging only; main untouched on Tom's 17:01Z ruling.
+
+## 2026-09-14 — The paywall never sends a learner back to the start of the course (job #734)
+
+**Seen on staging c7f9ec8, 21:33Z.** Tom, a brand-new teacher on the ZZ Test Chepstow school
+(platform_status trial, trial_course_code cym_s_for_eng, expires 2027-08-07), pressed Play as
+class on Y7 Welsh (cym_n_for_eng), belt-skipped to Yellow, lego-skipped to its last round, and the
+wall came up at seed 20; dismissing it put the class at round 0. Two defects, one in each half.
+
+**A — entitlement: bug, not policy.** The server resolver, replayed live for the teacher's auth uid
+today, grants cym_n_for_eng through class coverage: the teacher is tagged on the class, the class's
+school has a live trial, so the class's own course is covered until the school's date. The
+school-staff layer adds cym_s_for_eng from trial_course_code. So the policy answer is "entitled",
+and by that policy the wall was wrong. The player did not see it because the entitlement snapshot
+it gates on is fetched at boot and on sign-in and then held in memory; the class, and the tag that
+grants its course, were created at 21:23:57, after the teacher's sign-in, and nothing asked again
+before the wall. Code read, not observed: the phone's snapshot is not in any table. Two refreshes
+close it: the play-as-class launch asks again before the player mounts, and the wall itself asks
+again the moment it rises, so the existing entitlement watcher closes it and resumes if the fresh
+answer grants. The policy question that remains is Tom's, not the code's: the school's trial names
+cym_s_for_eng and the class teaches cym_n_for_eng; class coverage covers it today because the
+rule is "any class course while the school's platform is live", and that is what shipped 2026-09-09.
+
+**B — the reset.** Both rewind sites called `jumpToRound(0)`: `dismissPaywall` by design
+("rewind to the start of the free preview") and the post-init resume gate. The wall was the
+mechanism that threw the position away. The rule now lives in `playback/paywallLanding.ts`: a
+cursor still inside the preview does not move at all; a cursor already past the wall (the
+round-boundary advance bumps roundIndex before the listener pauses; a saved position can resolve
+past the wall on a cold load) retreats to the last playable round, never to round 0. Better: the
+learner keeps their place. Simpler: one pure rule, two call sites. Cheaper: nothing new to fetch.
+
+**Proof.** `paywallLanding.test.ts` proves the rule and reads LearningPlayer.vue for the wiring:
+red on the old `jumpToRound(0)` sites, green here. `usePlayAsClass.test.ts` gains the launch
+refresh, red on the old launch. Staging only; main untouched on Tom's word.
+
+**Left for #733 (event identity).** Every player_event in the class session is stamped
+user_id = the teacher's own learner with actor_user_id set, while the sessions row and the
+enrollment cursor are the class learner's; the teacher's own enrollment also carries the class's
+S0008L01/13 cursor from that window. Not touched here.

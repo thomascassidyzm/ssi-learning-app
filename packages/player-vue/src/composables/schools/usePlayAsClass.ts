@@ -2,6 +2,7 @@ import { computed, inject, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSchoolContext } from './useSchoolContext'
 import { rememberCourse } from '../../platform/courseChoice'
+import { useSharedUserEntitlements } from '../useUserEntitlements'
 
 /**
  * Shared "force the app onto this course right now" step for every Play-as-class
@@ -116,6 +117,13 @@ export function usePlayAsClass() {
       teacherUserId: currentUser.value?.user_id ?? null,
       timestamp: new Date().toISOString(),
     }))
+    // The player gates the end of Yellow on the entitlement snapshot held in
+    // memory, fetched at boot and on sign-in and not since. A class made a
+    // minute ago grants its course through class coverage, and the snapshot
+    // does not know it: Tom's Y7 Welsh hit the wall at seed 20 on a school
+    // with a live trial (2026-09-14, job #734). Ask again before the player
+    // mounts. Fail-soft — a failed fetch keeps whatever the snapshot held.
+    await useSharedUserEntitlements().refresh().catch(() => {})
     // /schools/play renders PlayerContainer as a child of SchoolsContainer,
     // so the schools top bar stays above the player.
     await router.push({ path: '/schools/play', query: { class: cls.id } })
