@@ -533,11 +533,15 @@ describe('NodeHomeView — one grammar at every level', () => {
     expect(verbs).not.toContain('Add a school')
     // Invite roles: Group leader default, no Teacher option anywhere.
     await wrapper.findAll('.verb').find((v) => v.text() === 'Invite a person')!.trigger('click')
-    const roleSelect = wrapper.find('select')
-    expect((roleSelect.element as HTMLSelectElement).value).toBe('leader')
-    expect(roleSelect.text()).not.toContain('Teacher')
-    expect(roleSelect.text()).toContain('Group leader')
-    expect(roleSelect.text()).toContain('Learner')
+    // The role picker is the shared FrostSelect dropdown: read its model and rows.
+    const roleSelect = wrapper.find('[data-walk="invite-form-role"]')
+    expect(roleSelect.exists()).toBe(true)
+    expect(roleSelect.find('.fs-trigger').text()).toBe('Group leader')
+    await roleSelect.find('.fs-trigger').trigger('click')
+    const rows = roleSelect.findAll('.fs-opt-label').map((r) => r.text())
+    expect(rows).not.toContain('Teacher')
+    expect(rows).toContain('Group leader')
+    expect(rows).toContain('Learner')
   })
 
   it('ORG SELF-TEACHING PARITY (founder gap 2026-08-03): the neutral dressing gets the same How-this-works kit as schools — throbbing link, org explanation, neutral walks, neutral invitations', async () => {

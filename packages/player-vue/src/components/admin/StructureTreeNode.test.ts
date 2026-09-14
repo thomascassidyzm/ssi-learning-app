@@ -5,7 +5,7 @@
  * maintenance verbs, and one muted learner figure carries the size.
  */
 import { describe, it, expect, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import StructureTreeNode from './StructureTreeNode.vue'
 import type { StructureApi, StructureNode } from './structureApi'
@@ -51,7 +51,7 @@ describe('StructureTreeNode — the label word shows only where it disambiguates
   it('hides the label word by default — indentation + typography carry the type', () => {
     const wrapper = mountNode(makeNode({ label: 'school' }), makeApi())
     expect(wrapper.find('.label-word').exists()).toBe(false)
-    expect(wrapper.find('select.label-select').exists()).toBe(false)
+    expect(wrapper.find('div.label-select').exists()).toBe(false)
   })
 
   it('shows it when the parent says the sibling set mixes labels', () => {
@@ -80,11 +80,12 @@ describe('StructureTreeNode — the label word shows only where it disambiguates
     const wrapper = mountNode(makeNode({ label: 'organisation' }), api, { showLabel: true })
     await wrapper.find('.overflow-toggle').trigger('click')
     await wrapper.findAll('.overflow-item').find((b) => b.text() === 'Change label')!.trigger('click')
-    expect(wrapper.find('select.label-select').exists()).toBe(true)
+    expect(wrapper.find('div.label-select').exists()).toBe(true)
     expect(wrapper.find('.label-word').exists()).toBe(false)
-    await wrapper.find('select.label-select').setValue('school')
+    await flushPromises()
+    await wrapper.findAll('.label-select .fs-opt').find((b) => b.text() === 'school')!.trigger('click')
     expect(api.updateLabel).toHaveBeenCalledWith(expect.objectContaining({ id: 'group-a' }), 'school')
-    expect(wrapper.find('select.label-select').exists()).toBe(false)
+    expect(wrapper.find('div.label-select').exists()).toBe(false)
     expect(wrapper.find('.label-word').exists()).toBe(true)
   })
 
