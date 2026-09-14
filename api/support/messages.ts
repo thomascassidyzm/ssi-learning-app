@@ -17,6 +17,7 @@ import { verifyAuthToken } from '../_utils/auth'
 import { applyCors } from '../_utils/cors'
 import {
   resolveSupportScope,
+  refuseSupportUnderViewAs,
   getOrCreateThread,
   assembleServerEnvelope,
   pickClientEnvelope,
@@ -35,6 +36,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     res.status(405).json({ error: 'Method not allowed' })
     return
   }
+  if (refuseSupportUnderViewAs(req, res)) return
 
   const auth = await verifyAuthToken(req)
   if (!auth.valid || !auth.userId) {

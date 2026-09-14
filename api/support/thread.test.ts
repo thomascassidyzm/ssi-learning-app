@@ -3,7 +3,7 @@
  * and a peek never counts as reading.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { makeChainable, makeReq, makeRes, TEACHER_SCOPE, ADMIN_SCOPE, FAILING_TABLES, type DB } from './_testkit'
+import { makeChainable, makeReq, makeRes, TEACHER_SCOPE, ADMIN_SCOPE, FAILING_TABLES, VIEW_AS_HEADERS, type DB } from './_testkit'
 
 process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://example.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'service-role-key'
@@ -95,5 +95,42 @@ describe('GET /api/support/thread', () => {
     await handler(makeReq({ query: { peek: '1' } }), res)
     expect(res.body).toEqual({ unread: 1 })
     expect(DB.support_threads[0].last_read_at).toBe('2026-09-10T18:00:00.000Z')
+  })
+})
+
+/**
+ * Job #681, 2026-09-14. Tom: "viewing as a school admin/teacher must never
+ * create rows in that person's name". ONE guard at the entry of the support
+ * action, so the open, the mark-read and the peek are all refused together —
+ * the open is what wrote a thread, so the open is what has to stop.
+ */
+describe('GET /api/support/thread under View As', () => {
+  it('refuses the open, creates no thread and marks nothing read', async () => {
+    const res = makeRes()
+    await handler(makeReq({ headers: VIEW_AS_HEADERS }), res)
+    expect(res.statusCode).toBe(403)
+    expect(DB.support_threads).toHaveLength(0)
+  })
+
+  it('refuses the open of an EXISTING thread without touching last_read_at', async () => {
+    DB.support_threads = [{ id: 't1', school_id: 's1', last_read_at: '2026-09-10T18:00:00.000Z', language: null, standing_notes: {} }]
+    const res = makeRes()
+    await handler(makeReq({ headers: VIEW_AS_HEADERS }), res)
+    expect(res.statusCode).toBe(403)
+    expect(DB.support_threads[0].last_read_at).toBe('2026-09-10T18:00:00.000Z')
+  })
+
+  it('refuses the peek too — one guard at the entry, not a patch per step', async () => {
+    const res = makeRes()
+    await handler(makeReq({ query: { peek: '1' }, headers: VIEW_AS_HEADERS }), res)
+    expect(res.statusCode).toBe(403)
+    expect(DB.support_threads).toHaveLength(0)
+  })
+
+  it('a real school admin session, which never sends the header, is untouched', async () => {
+    const res = makeRes()
+    await handler(makeReq(), res)
+    expect(res.statusCode).toBe(200)
+    expect(DB.support_threads).toHaveLength(1)
   })
 })

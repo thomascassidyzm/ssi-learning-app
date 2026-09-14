@@ -17,7 +17,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { applyCors } from '../_utils/cors'
-import { resolveSupportScope, getOrCreateThread, findThread, MESSAGE_VIEW_COLUMNS, type SupportMessageView } from './_shared'
+import { resolveSupportScope, refuseSupportUnderViewAs, getOrCreateThread, findThread, MESSAGE_VIEW_COLUMNS, type SupportMessageView } from './_shared'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -34,6 +34,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     res.status(405).json({ error: 'Method not allowed' })
     return
   }
+  if (refuseSupportUnderViewAs(req, res)) return
 
   const auth = await verifyAuthToken(req)
   if (!auth.valid || !auth.userId) {

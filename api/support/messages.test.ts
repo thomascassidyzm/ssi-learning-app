@@ -3,7 +3,7 @@
  * envelope is built from the caller's RESOLVED scope, never from the body.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { makeChainable, makeReq, makeRes, TEACHER_SCOPE, ADMIN_SCOPE, LEADER_SCOPE, type DB } from './_testkit'
+import { makeChainable, makeReq, makeRes, TEACHER_SCOPE, ADMIN_SCOPE, LEADER_SCOPE, VIEW_AS_HEADERS, type DB } from './_testkit'
 
 process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://example.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'service-role-key'
@@ -120,5 +120,27 @@ describe('POST /api/support/messages', () => {
     await handler(makeReq({ method: 'POST', body: { text: '   ' } }), res)
     expect(res.statusCode).toBe(400)
     expect(DB.support_messages).toHaveLength(0)
+  })
+})
+
+/**
+ * Job #681, 2026-09-14. The same one guard as on the thread route: a tagged
+ * request writes neither a thread nor a message, and a genuine admin session
+ * — which never sends the header — is untouched.
+ */
+describe('POST /api/support/messages under View As', () => {
+  it('writes no message and creates no thread', async () => {
+    const res = makeRes()
+    await handler(makeReq({ method: 'POST', body: { text: 'is anyone else seeing this?' }, headers: VIEW_AS_HEADERS }), res)
+    expect(res.statusCode).toBe(403)
+    expect(DB.support_messages).toHaveLength(0)
+    expect(DB.support_threads).toHaveLength(0)
+  })
+
+  it('a real school admin session still sends normally', async () => {
+    const res = makeRes()
+    await handler(makeReq({ method: 'POST', body: { text: 'is anyone else seeing this?' } }), res)
+    expect(res.statusCode).toBe(200)
+    expect(DB.support_messages).toHaveLength(1)
   })
 })

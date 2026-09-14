@@ -2261,7 +2261,8 @@
       "waitingOnTom": "Waiting on Tom since {time}",
       "you": "You",
       "handbookMarkAria": "What this is",
-      "readInHandbook": "Read in the Handbook"
+      "readInHandbook": "Read in the Handbook",
+      "viewAsReadOnly": "Support is read-only while you are viewing as someone else. Step back out to read or write this school's thread."
     },
     "bugReport": {
       "menuItem": "Report a bug",

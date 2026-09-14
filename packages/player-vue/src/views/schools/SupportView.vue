@@ -8,10 +8,19 @@
  */
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from '@/composables/useI18n'
+import { useUserRole } from '@/composables/useUserRole'
 import { useSupportChannel, type SupportMessage } from '@/composables/schools/useSupportChannel'
 
 const { t } = useI18n()
+const { isViewingAs } = useUserRole()
 const { loadThread, sendMessage } = useSupportChannel()
+
+// Job #681, 2026-09-14. Tom, on the four empty threads: "viewing as a school
+// admin/teacher must never create rows in that person's name". The server is
+// the gate — refuseSupportUnderViewAs in api/support/_shared.ts refuses the
+// whole action — and this is the screen saying so instead of showing a
+// failure. Opening the thread is itself a write here, so an admin touring
+// under View As does not open it at all.
 
 const messages = ref<SupportMessage[]>([])
 const loading = ref(true)
@@ -42,6 +51,7 @@ function onFocus(): void {
 // question appears without her doing anything. Cleared on leave.
 let timer: ReturnType<typeof setInterval> | null = null
 onMounted(() => {
+  if (isViewingAs.value) { loading.value = false; return }
   void refresh()
   window.addEventListener('focus', onFocus)
   document.addEventListener('visibilitychange', onFocus)
@@ -104,11 +114,14 @@ const waitingOnTom = computed(() => {
     </header>
 
     <section class="schools-card schools-card-pad support-card">
-      <p v-if="waitingOnTom" class="support-state">
+      <p v-if="isViewingAs" class="support-state">
+        {{ t('schools.support.viewAsReadOnly', 'Support is read-only while you are viewing as someone else. Step back out to read or write this school\'s thread.') }}
+      </p>
+      <p v-if="waitingOnTom && !isViewingAs" class="support-state">
         {{ t('schools.support.waitingOnTom', 'Waiting on Tom since {time}').replace('{time}', stamp(waitingOnTom)) }}
       </p>
       <p v-if="loadError" class="support-error" role="alert">{{ loadError }}</p>
-      <div ref="listEl" class="support-list" aria-live="polite">
+      <div v-if="!isViewingAs" ref="listEl" class="support-list" aria-live="polite">
         <p v-if="!loading && !messages.length" class="support-empty">
           {{ t('schools.support.empty', 'Nothing here yet. Ask anything about the dashboard, or tell us when a number looks wrong.') }}
         </p>
@@ -125,7 +138,7 @@ const waitingOnTom = computed(() => {
           <p class="msg-body">{{ m.body }}</p>
         </article>
       </div>
-      <form class="support-compose" @submit.prevent="send">
+      <form v-if="!isViewingAs" class="support-compose" @submit.prevent="send">
         <textarea
           v-model="text"
           class="support-input"
