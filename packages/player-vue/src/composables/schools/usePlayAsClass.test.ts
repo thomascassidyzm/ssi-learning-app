@@ -15,6 +15,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { defineComponent, h, ref } from 'vue'
 import { mount } from '@vue/test-utils'
 import { routerKey } from 'vue-router'
+// The entitlement snapshot the player gates on. launchClassSession must ask
+// for a fresh one before the player mounts (job #734), so the fetch is a spy.
+const refreshEntitlements = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+vi.mock('../useUserEntitlements', () => ({
+  useSharedUserEntitlements: () => ({ refresh: refreshEntitlements }),
+}))
 import { usePlayAsClass } from './usePlayAsClass'
 import { useSchoolContext } from './useSchoolContext'
 
@@ -305,5 +311,60 @@ describe('usePlayAsClass — unresolvable course refusal', () => {
     expect(handleCourseSelect).not.toHaveBeenCalled()
     expect(localStorage.getItem('ssi-active-class')).toBeNull()
     expect(push).not.toHaveBeenCalled()
+  })
+})
+
+describe('usePlayAsClass — launch refreshes the entitlement snapshot (job #734)', () => {
+  // Tom, staging 2026-09-14: teacher signs in (snapshot fetched), creates the
+  // Y7 Welsh class, presses Play as class, and the end of Yellow raises the
+  // paywall on a school with a live trial — the in-memory snapshot predated
+  // the class and nothing had asked again. Launch must ask again, BEFORE the
+  // navigation that mounts the player.
+  beforeEach(() => {
+    localStorage.clear()
+    refreshEntitlements.mockClear()
+    setRole('teacher')
+  })
+
+  it('a ready class: refresh() runs once, before router.push', async () => {
+    const order: string[] = []
+    refreshEntitlements.mockImplementation(async () => { order.push('refresh') })
+    const push = vi.fn().mockImplementation(async () => { order.push('push') })
+    const handleCourseSelect = vi.fn().mockResolvedValue(undefined)
+    const exposed = mountHarness({
+      isAdminView: false,
+      handleCourseSelect,
+      enrolledCourses: ref([{ course_code: 'cym_n_for_eng', display_name: 'Welsh (North)' }]),
+      supabase: ref(null),
+      [routerKey as symbol]: { push },
+    })
+    const ok = await exposed.launchClassSession({ id: 'd52efceb', class_name: 'Y7 Welsh', course_code: 'cym_n_for_eng' })
+    expect(ok).toBe(true)
+    expect(refreshEntitlements).toHaveBeenCalledTimes(1)
+    expect(order).toEqual(['refresh', 'push'])
+  })
+
+  it('a refused launch never asks — nothing is mounting', async () => {
+    const push = vi.fn().mockResolvedValue(undefined)
+    const exposed = mountHarness({ isAdminView: false, [routerKey as symbol]: { push } })
+    const ok = await exposed.launchClassSession({ id: '', class_name: '', course_code: '' })
+    expect(ok).toBe(false)
+    expect(refreshEntitlements).not.toHaveBeenCalled()
+  })
+
+  it('a failed refresh does not stop the launch', async () => {
+    refreshEntitlements.mockRejectedValueOnce(new Error('offline'))
+    const push = vi.fn().mockResolvedValue(undefined)
+    const handleCourseSelect = vi.fn().mockResolvedValue(undefined)
+    const exposed = mountHarness({
+      isAdminView: false,
+      handleCourseSelect,
+      enrolledCourses: ref([{ course_code: 'cym_n_for_eng', display_name: 'Welsh (North)' }]),
+      supabase: ref(null),
+      [routerKey as symbol]: { push },
+    })
+    const ok = await exposed.launchClassSession({ id: 'd52efceb', class_name: 'Y7 Welsh', course_code: 'cym_n_for_eng' })
+    expect(ok).toBe(true)
+    expect(push).toHaveBeenCalledTimes(1)
   })
 })
