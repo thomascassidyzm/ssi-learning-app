@@ -86,6 +86,13 @@ export interface BeltProgressSyncConfig {
   supabase?: Ref<SupabaseClient | null> | SupabaseClient | null
   /** Learner ID for remote sync */
   learnerId?: Ref<string | null> | string | null
+  /**
+   * Suffix on every localStorage key this instance reads or writes. Empty for
+   * a learner's own practice; `classStorageScope(classContext)` for a
+   * play-as-class session, so a class on the SAME course as the teacher never
+   * shares the teacher's cached belt cursor (job #742, 2026-09-14).
+   */
+  storageScope?: string
 }
 
 // ============================================================================
@@ -119,6 +126,9 @@ export function getBeltIndexForSeed(seedNumber: number): number {
 // ============================================================================
 
 export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyncConfig) {
+  // Every device key below is `<prefix><course><scope>` — the scope is '' for
+  // self-practice, so no existing learner's cache moves.
+  const storageScope = syncConfig?.storageScope ?? ''
   // Core state
   const highestBeltIndex = ref(0)  // 0-7, belt for the current cursor position
   const lastLegoId = ref<string | null>(null)  // Resume position
@@ -313,7 +323,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
 
   const loadProgressLocal = () => {
     try {
-      const key = `${PROGRESS_KEY_PREFIX}${courseCode}`
+      const key = `${PROGRESS_KEY_PREFIX}${courseCode}${storageScope}`
       const stored = localStorage.getItem(key)
       if (stored) {
         const data = JSON.parse(stored)
@@ -350,7 +360,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
 
   const saveProgressLocal = () => {
     try {
-      const key = `${PROGRESS_KEY_PREFIX}${courseCode}`
+      const key = `${PROGRESS_KEY_PREFIX}${courseCode}${storageScope}`
       const data: StoredProgress = {
         highestBeltIndex: highestBeltIndex.value,
         lastLegoId: lastLegoId.value,
@@ -372,7 +382,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
 
   const loadSessionHistory = () => {
     try {
-      const key = `${SESSION_HISTORY_KEY_PREFIX}${courseCode}`
+      const key = `${SESSION_HISTORY_KEY_PREFIX}${courseCode}${storageScope}`
       const stored = localStorage.getItem(key)
       if (stored) {
         const data: StoredSessionHistory = JSON.parse(stored)
@@ -387,7 +397,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
 
   const saveSessionHistory = () => {
     try {
-      const key = `${SESSION_HISTORY_KEY_PREFIX}${courseCode}`
+      const key = `${SESSION_HISTORY_KEY_PREFIX}${courseCode}${storageScope}`
       const data: StoredSessionHistory = {
         sessions: sessionHistory.value,
       }
@@ -851,7 +861,7 @@ function syncConfigsMatch(
   const bSb = unwrapMaybeRef(b?.supabase)
   const aLi = unwrapMaybeRef(a?.learnerId)
   const bLi = unwrapMaybeRef(b?.learnerId)
-  return aSb === bSb && aLi === bLi
+  return aSb === bSb && aLi === bLi && (a?.storageScope ?? '') === (b?.storageScope ?? '')
 }
 
 export function useSharedBeltProgress(
