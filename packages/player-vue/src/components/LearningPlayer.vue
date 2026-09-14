@@ -136,6 +136,7 @@ import { createOfflineUrn, type UrnCandidate } from '../playback/offlineUrn'
 import { isCyclePlayableOffline, requiredClipUrls, filterLapToDeviceAudio, roundTeachesOffline } from '../playback/offlinePlayable'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { paywallLandingRound } from '../playback/paywallLanding'
+import { createPaywallRetreat } from '../playback/paywallRetreat'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 import { setCursorTelemetrySink } from '@ssi/core'
 import { useInstantPlayback, isBundleBootstrapEnabled, type RoundMap } from '../composables/useInstantPlayback'
@@ -1355,8 +1356,16 @@ const persistCursorAtCurrentRound = async () => {
 // setLivePosition is forward-only-by-round (lte guard) and, unlike
 // setEnrollmentCursor, sets the cycle explicitly so a mid-round resume is
 // never wiped. INF PLAY is skipped: the cursor is frozen at the ceiling.
+// The learner's REAL position while a paywall has retreated the cursor (job
+// #734 follow-up). While it is held, NO position write runs — localStorage and
+// the DB keep the real spot — and a fresh entitlement that grants access jumps
+// back to it before resuming. Cleared by the one signal that means "playing on
+// from here": a cycle prompt starting with the wall down. See paywallRetreat.ts.
+const paywallRetreat = createPaywallRetreat()
+
 const persistLivePositionToDb = (cycleOverride?: number, touchPracticedAt = true) => {
   if (practisingBlocksProgressWrite('live position')) return
+  if (paywallRetreat.blocksPersist()) return
   if (isGuestLearner.value || !progressStore?.value || !learnerId.value || !courseCode.value) return
   if (currentMode.value === 'infplay') return
   const round = simplePlayer.currentRound.value
@@ -2351,6 +2360,13 @@ function settleCursorAtPaywall(): void {
     (seed) => entitlementComposable.canAccessSeed(course, seed),
   )
   if (landing === null) return
+  // Keep the REAL spot before moving off it: the stored cursors stay here and
+  // a refreshed entitlement that grants access brings the learner back.
+  paywallRetreat.remember({
+    roundIndex: simplePlayer.roundIndex.value,
+    cycleIndex: simplePlayer.cycleIndex.value,
+    legoId: simplePlayer.currentRound.value?.legoId ?? null,
+  })
   try { simplePlayer.jumpToRound(landing) } catch { /* engine may not be ready */ }
 }
 
@@ -2403,7 +2419,16 @@ function gateSeed(targetSeedNumber: number | null | undefined): boolean {
 
 // Watch entitlements — auto-dismiss paywall if user redeems a code or subscribes
 watch(liveEntitlements, () => {
-  if (showPaywall.value && props.course) {
+  if (!props.course) return
+  // A retreat that a fresh snapshot now overrules is undone FIRST, wall up or
+  // not: the learner goes back to the round they were really on. With the wall
+  // down ("Maybe later" then a grant) they are left paused there; the memory
+  // clears when they play on.
+  const restore = paywallRetreat.takeRestore((seed) => entitlementComposable.canAccessSeed(props.course!, seed))
+  if (restore) {
+    try { simplePlayer.jumpToRound(restore.roundIndex, restore.cycleIndex) } catch { /* engine may not be ready */ }
+  }
+  if (showPaywall.value) {
     const canAccess = entitlementComposable.canAccessSeed(props.course, PREMIUM_PREVIEW_MAX_SEED + 1)
     if (canAccess) {
       showPaywall.value = false
@@ -3860,6 +3885,7 @@ const savePositionToLocalStorage = (cycleOverride?: number, touchTimestamp = tru
   // The local snapshot is a position record like any other — and it is the one
   // resume reads first, so leaving it writable would reopen the route locally.
   if (practisingBlocksProgressWrite('local position')) return
+  if (paywallRetreat.blocksPersist()) return
   if (!courseCode.value) return
 
   const round = currentRound.value
@@ -4066,6 +4092,11 @@ const positionInitialized = ref(false)
 // cycle N. Phase=prompt closes that gap. Tom 2026-05-26.
 watch(() => simplePlayer.phase.value, (phase) => {
   if (phase === 'prompt' && positionInitialized.value && useRoundBasedPlayback.value) {
+    // A prompt playing with the wall down is the learner playing on from
+    // wherever the cursor now is — a restored real spot, or the retreat they
+    // accepted with "Maybe later". Either way the held position is spent and
+    // the writes below record where they actually are.
+    if (!showPaywall.value) paywallRetreat.clear()
     savePositionToLocalStorage()
     // Persist the cursor to the DB every cycle, not just per round. The DB is
     // the durable cross-session source; when it lagged at round granularity, a
@@ -4098,6 +4129,9 @@ watch(positionInitialized, (init) => {
         showPaywall.value = true
       }
     }
+    // Both lifecycle saves below are skipped while settleCursorAtPaywall holds
+    // the real position (paywallRetreat.blocksPersist), so a retreat never
+    // overwrites the learner's real cursor in localStorage or the DB.
     savePositionToLocalStorage(undefined, false)
     // Capture the live cursor in the DB the instant init completes. For a
     // resuming learner this just re-affirms where they already were; for a
