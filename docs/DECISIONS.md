@@ -3027,3 +3027,56 @@ learner is left paused on the preview's last round with the wall down; the resto
 rounds carrying that LEGO arrive, otherwise the real place is restored on the next open.
 `useBeltProgress`'s boot upsert stamps `last_practiced_at` to now on every open (seen in every probe,
 before and after); not a position write, not touched here.
+
+## 2026-09-14 — A grant at the wall recovers the real place and resumes play; never silent-paused at the moment of purchase (job #757, follow-up to #752)
+
+**Decision.** #752 left one honest gap: after a grant INSIDE the wall (a code redeemed, a
+subscription completing in-app, a class created after sign-in) the held LEGO was not in the
+preview-only queue the player had bootstrapped from, so the wall came down and the learner sat
+paused on the preview's last round, indefinitely, until rounds carrying it happened to arrive or
+the next cold open. Served staging 657218b showed it: wall down, no resume for 24s. That is the
+moment of purchase or redemption and it must not feel broken. The reason waiting could never help:
+the preview bundle the server issued before the grant sits in `useCourseBundle`'s in-session map
+for the life of the tab, and a locked LEGO never enters a preview queue.
+
+Now `grantAction` answers `lower-and-recover` for a held-and-not-restored grant, and
+`recoverHeldPosition` (pure, `playback/paywallGrant.ts`) does the rest: restore if the live queue
+already carries the LEGO; otherwise re-fetch under the grant and restore again — true ONLY when the
+engine is verifiably on the held LEGO afterwards. The player's `refetchScriptUnderGrant` is the
+existing belt-jump pipeline with one difference: `getCourseBundle(code, { forceRefresh: true })`
+first, past the in-session map and IndexedDB, so the server gate (which honours entitlements per
+request since #745) hands the full bundle; then `generateScript` → `mergeGeneratedRoundsIntoQueue`
+(the same `addRounds` path a belt jump uses). While it runs the player shows its own loading line
+(`loading.findingProgress`, already translated everywhere); play resumes only once the restore
+lands, and only if the wall was up — after "Maybe later" the place is recovered the same way and the
+play state is left to the learner. The write-hold stays until the play-on prompt, as in #752; a
+recovery that fails (offline, or a server that still says preview) keeps the memory, stays paused,
+and the `roundCount` retry remains as the net. Better: the learner hears the phrase they were on
+within two seconds of paying. Simpler: one new branch in the one grant rule, one pure async
+function, no second loader. Cheaper: one bundle fetch per in-wall grant, the same fetch a cold open
+would have paid.
+
+**Proof.** `paywallGrant.test.ts`: the flipped `grantAction` assertion and four `recoverHeldPosition`
+cases (refetch brings the LEGO → restored; already present → no refetch; refetch throws or still
+lacks it → false, memory kept, nothing moved; nothing held or still locked → no refetch) red on the
+pre-fix rule (5 failures), green after; `paywallRetreat.test.ts` asserts the watcher wiring.
+Typecheck, the three paywall suites and lint green. Served staging build c150c21 (chunk
+PlayerContainer-BvUOQc4l.js carrying the #757 string), +colombo-wall (empty entitlement list),
+S0031L01 / round 56 planted in localStorage and the DB, and — new in the probe, `GRANT=db` — a REAL
+`user_entitlements` row (access_type full) inserted while the wall's own entitlement refresh was
+held, then the refresh continued to the real server:
+
+| Moment | localStorage | DB cursor | Screen | Playing |
+|---|---|---|---|---|
+| wall up, 1s after open | S0031L01 | S0031L01 / 56 | last preview round | no |
+| grant +0.6s | S0031L01 | S0031L01 / 56 | wall DOWN | — |
+| grant +1.7s | S0031L01 | S0031L01 / 56 | "that you speak" (S0031L01) | yes |
+| grant +10s | S0031L01 | S0031L01 / 56 | "that you speak" | yes |
+
+Planted enrollment and grant rows removed after (204 / 204). The loading line was not seen by the
+probe: the whole recovery took about a second on staging.
+
+**Left open.** A client-side fake grant with a server that still serves the preview (the probe's
+older `GRANT=1` mode) recovers nothing, by design: the refetch returns the preview, the memory and
+the write-hold stay, the player stays paused with the warning logged. `useBeltProgress`'s boot
+upsert stamps `last_practiced_at` on every open, as before; not a position write.

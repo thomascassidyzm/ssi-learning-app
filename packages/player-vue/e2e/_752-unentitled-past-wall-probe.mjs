@@ -35,6 +35,7 @@ log('DB before:', JSON.stringify(await readDb()))
 
 const cleanup = async () => { if (process.env.KEEP_ROW !== '1') { const del = await fetch(enrollUrl, { method: 'DELETE', headers: H }); log('test enrollment removed:', del.status) }; await removeRealGrant?.() }
 process.on('SIGINT', async () => { await cleanup(); process.exit(130) })
+process.on('SIGTERM', async () => { await cleanup(); process.exit(143) })
 
 const link = await fetch(`${U}/auth/v1/admin/generate_link`, { method: 'POST', headers: H, body: JSON.stringify({ type: 'magiclink', email: EMAIL }) }).then(r => r.json())
 const verified = await fetch(`${U}/auth/v1/verify`, { method: 'POST', headers: { apikey: ANON, 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'magiclink', token_hash: link.hashed_token }) }).then(r => r.json())
@@ -114,7 +115,8 @@ const readScreen = () => page.locator('.known-text, .prompt-text, [class*="known
 const wallVisible = () => page.locator('.paywall-overlay').first().isVisible().catch(() => false)
 // Playing = the centre button is in its Stop shape (BottomNav isStopMode).
 const isPlaying = () => page.locator('.center-btn.is-stop').first().isVisible().catch(() => false)
-const loadingLine = () => page.locator('.preparing-text').first().textContent().then(t => (t || '').trim().slice(0, 40)).catch(() => null)
+// No auto-wait: the line is usually absent, and a waiting locator costs 30s per read.
+const loadingLine = () => page.locator('.preparing-text').first().textContent({ timeout: 100 }).then(t => (t || '').trim().slice(0, 40)).catch(() => null)
 
 await page.goto(`${BASE}/?course=${COURSE}`, { waitUntil: 'domcontentloaded' })
 log('page open (local planted:', PLANT_LOCAL, ')')
@@ -126,6 +128,8 @@ for (let t = 0; t < 50; t++) {
     firstWallAt = (t + 1) * 0.5; await page.screenshot({ path: `${OUT}/wall.png` })
   }
   if (t % 4 === 3 || (wall && firstWallAt === (t + 1) * 0.5)) log(`  t+${(t + 1) * 0.5}s wall=${wall} local=${JSON.stringify(await readLocal())} screen=${await readScreen()}`)
+  // GRANT modes: the moment the grant is in, hand over to the fine-grained loop below.
+  if (process.env.GRANT && grantedAt) break
 }
 // GRANT modes: after the grant, watch for the wall going down, the loading
 // line, play resuming and the held LEGO's phrase on screen — with timings from
