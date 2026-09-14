@@ -48,6 +48,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAdmin, verifyAuthToken } from '../../_utils/auth'
 import { resolveVisibleScope, ownSchoolIdForNode, chunk } from '../../_utils/schoolScope'
 import { ensureSchoolNode } from '../../_utils/schoolNode'
+import { applyCors } from '../../_utils/cors'
 import { isEntityCoverageExpired } from '../../_utils/schoolCoverageGate'
 import { descendantIds } from '../../_utils/groupSubtree'
 import { loadScopedSessionRows } from '../../_utils/diarySessionRows'
@@ -199,6 +200,7 @@ async function schoolIdsInWorld(svc: SupabaseClient, schoolIds: string[], wantDe
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  if (applyCors(req, res, { methods: 'GET' })) return
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' })
     return
