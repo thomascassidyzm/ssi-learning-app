@@ -1382,6 +1382,12 @@
       "handbookMarkAria": "Beth yw hwn",
       "readInHandbook": "Darllen yn y Llawlyfr",
       "viewAsReadOnly": "Dim ond darllen sydd ar gael ar Gymorth tra byddwch yn gweld fel rhywun arall. Camwch yn ôl allan i ddarllen neu ysgrifennu edefyn yr ysgol hon."
+    },
+    "inbox": {
+      "menuInbox": "Mewnflwch",
+      "unreadAria": "Negeseuon heb eu darllen",
+      "title": "Mewnflwch",
+      "lede": "Negeseuon i chi: atebion ar sgwrs Gymorth eich ysgol, ac unrhyw beth rydym wedi'i wneud ar eich cyfrif y gallech fod am ei ddadwneud."
     }
   },
   "teach": {
@@ -1629,5 +1635,24 @@
     "sending": "Yn anfon…",
     "thanks": "Wedi'i gael, diolch.",
     "failed": "Ni chafodd hwn ei anfon. Rhowch gynnig arall arni."
+  },
+  "inbox": {
+    "title": "Mewnflwch",
+    "menuLabel": "Mewnflwch",
+    "menuDesc": "Negeseuon a anfonwyd atoch chi.",
+    "menuDescUnread": "Mae gennych negeseuon heb eu hagor.",
+    "unreadAria": "Negeseuon heb eu darllen",
+    "empty": "Dim byd i chi eto. Bydd unrhyw beth a anfonir atoch yn ymddangos yma.",
+    "loadFailed": "Methu llwytho eich negeseuon.",
+    "viewAsReadOnly": "Mae'r mewnflwch yn ddarllen yn unig tra byddwch yn gweld fel rhywun arall.",
+    "undo": "Dadwneud",
+    "undone": "Wedi'i ddadwneud",
+    "openSupport": "Agor Cymorth",
+    "working": "Un eiliad…",
+    "actionFailed": "Wnaeth hynny ddim gweithio. Rhowch gynnig arall arni.",
+    "backToYou": "Yn ôl",
+    "cardAria": "Neges i chi",
+    "cardHint": "Tapiwch i ddarllen",
+    "dismiss": "Diystyru"
   }
 }

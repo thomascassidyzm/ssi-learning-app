@@ -2,7 +2,7 @@
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
-import { useSupportChannel } from '@/composables/schools/useSupportChannel'
+import { useUserMessages } from '@/composables/useUserMessages'
 import { usePlayAsClassContext } from '@/composables/schools/usePlayAsClassContext'
 import { leaderRoleLabel } from '@/composables/nodeTerminology'
 import PlayAsClassIdentity from './PlayAsClassIdentity.vue'
@@ -43,22 +43,20 @@ const { currentUser, isGovtAdmin, isSchoolAdmin, clear: clearSchoolContext } = u
 // already, so we can deprecate the Learn next to the User Avatar? THat would
 // make it a lot simpler"). This extends job #662, which had done it for a
 // teacher only and left leaders with the button.
-// Replies unread on the school's support thread — peeked on mount and on
-// focus, never on a timer: a glance at the menu must not count as reading.
-const { unread: supportUnread, peekUnread } = useSupportChannel()
-// Declared here, not beside its other use below: `watch(canSupport)` reads
-// the computed during setup, so a later `const` would be in its TDZ.
+// The inbox badge (job #684): ONE unread count for the whole account menu,
+// read from the inbox — a Support reply is a message in it, so the old
+// ?peek=1 dot on the Support entry is gone rather than doubled. Refreshed on
+// mount and on focus, never on a timer: listing never marks anything read.
+// Never while viewing-as (job #681): the routes refuse a tagged request, and
+// a glance at someone else's dashboard must reach nothing of theirs.
+const { unread: inboxUnread, unreadBadge: inboxBadge, refresh: refreshInbox } = useUserMessages()
 const { isViewingAs } = useUserRole()
-// Never while viewing-as (job #681): the whole support action is refused
-// server-side for a tagged request, so peeking would only 403, and a glance
-// at someone else's dashboard must reach nothing of theirs.
-const canSupport = computed(() => !isViewingAs.value && (isSchoolAdmin.value || isGovtAdmin.value))
-function peekSupport(): void {
-  if (canSupport.value && document.visibilityState === 'visible') void peekUnread()
+function peekInbox(): void {
+  if (!isViewingAs.value && document.visibilityState === 'visible') void refreshInbox()
 }
-onMounted(() => { peekSupport(); window.addEventListener('focus', peekSupport) })
-onBeforeUnmount(() => { window.removeEventListener('focus', peekSupport) })
-watch(canSupport, (ok) => { if (ok) peekSupport() })
+onMounted(() => { peekInbox(); window.addEventListener('focus', peekInbox) })
+onBeforeUnmount(() => { window.removeEventListener('focus', peekInbox) })
+watch(isViewingAs, (on) => { if (!on) peekInbox() })
 
 // Play-as-class: while a class session is live, a SLIM in-nav chip names the
 // class (school demoted inside it) so a teacher always knows WHICH class is
@@ -360,7 +358,7 @@ if (typeof document !== 'undefined') {
 
       <div class="user-menu">
         <button type="button" class="user-trigger" @click="toggleMenu">
-          <span class="avatar" :style="{ background: roleAvatarColor }">{{ initials }}</span>
+          <span class="avatar" :style="{ background: roleAvatarColor }">{{ initials }}<span v-if="inboxUnread > 0" class="avatar-dot" :aria-label="t('schools.inbox.unreadAria', 'Unread messages')"></span></span>
           <span class="identity">
             <span class="identity-name">{{ displayName }}</span>
             <span class="identity-role">{{ roleLabel }}</span>
@@ -369,13 +367,30 @@ if (typeof document !== 'undefined') {
         </button>
         <div v-if="menuOpen" class="user-menu-pop">
           <router-link :to="handbookTo" class="menu-item" @click="closeMenu">{{ t('schools.ui.topBar.menuHandbook', 'Handbook') }}</router-link>
-          <!-- The support channel, directly under Handbook: a once-a-term thing
-               too, and the same corpus answers most of it. Admins only (Tom,
-               2026-09-10): a class teacher never sees this entry, and the
-               route refuses them anyway. The dot is replies unread. -->
+          <!-- HANDBOOK Open your inbox
+               section: your-own-account
+               roles: teacher, school_admin, leader
+               place: dashboard
+               keywords: inbox, messages, unread, badge, reply, notice, undo
+               What it's for. Getting to the messages sent to you: a reply on your school's Support thread, or a notice that your own practice was copied onto a class account. The dot on your avatar and the number beside **Inbox** are how many you have not opened.
+               Where it is. **Inbox** in the account menu at the top right, under your name, just above Support.
+               How you do it.
+               1. Tap your name at the top right.
+               2. Tap **Inbox**.
+               Worth knowing. The number only goes down when you open a message, not when it arrives. The item is not shown while a platform admin is viewing the dashboard as someone else.
+               checked: 4b41ab85.55e6235f
+          -->
+          <router-link v-if="!isViewingAs" to="/schools/inbox" class="menu-item menu-item-inbox" data-walk="schools-inbox-menu" @click="closeMenu">
+            {{ t('schools.inbox.menuInbox', 'Inbox') }}
+            <span v-if="inboxUnread > 0" class="menu-count" :aria-label="t('schools.inbox.unreadAria', 'Unread messages')">{{ inboxBadge }}</span>
+          </router-link>
+          <!-- The support channel, directly under the inbox: a once-a-term
+               thing too, and the same corpus answers most of it. Admins only
+               (Tom, 2026-09-10): a class teacher never sees this entry, and the
+               route refuses them anyway. Replies land in the inbox above, which
+               carries the unread count; this entry opens the thread. -->
           <router-link v-if="isSchoolAdmin || isGovtAdmin" to="/schools/support" class="menu-item menu-item-support" @click="closeMenu">
             {{ t('schools.support.menuSupport', 'Support') }}
-            <span v-if="supportUnread > 0" class="menu-dot" :aria-label="t('schools.support.unreadAria', 'Unread replies')"></span>
           </router-link>
           <router-link v-if="isSchoolAdmin" to="/schools/settings" class="menu-item" @click="closeMenu">{{ t('schools.ui.topBar.menuSchoolSettings', 'School settings') }}</router-link>
           <!-- HANDBOOK Report a bug from the dashboard
@@ -585,6 +600,18 @@ if (typeof document !== 'undefined') {
 }
 .menu-item:hover { background: #fafaf6; }
 .menu-item-support { display: flex; align-items: center; gap: 8px; }
+.menu-item-inbox { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.menu-count {
+  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; box-sizing: border-box;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 600; line-height: 1; color: #fff;
+  background: var(--schools-accent, #c23a3a);
+}
+.avatar { position: relative; }
+.avatar-dot {
+  position: absolute; top: -2px; right: -2px; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--schools-accent, #c23a3a); border: 2px solid #fff; box-sizing: content-box;
+}
 .menu-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--schools-red, #b3312f); flex-shrink: 0; }
 
 /* The one-way thank-you after a bug report: a pill under the bar, gone on

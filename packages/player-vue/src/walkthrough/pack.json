@@ -1,5 +1,5 @@
 {
-  "version": "60e6409194ff",
+  "version": "094af3903ca0",
   "generatedAt": "2026-09-14",
   "walks": [
     {
@@ -2727,6 +2727,39 @@
       "note": "Nothing is ever hidden for good: every link is one tap away."
     },
     {
+      "id": "open-your-inbox",
+      "title": "Open your inbox",
+      "section": "your-own-account",
+      "personas": [
+        "teacher",
+        "school_admin",
+        "leader"
+      ],
+      "keywords": [
+        "inbox",
+        "messages",
+        "unread",
+        "badge",
+        "reply",
+        "notice",
+        "undo"
+      ],
+      "place": {
+        "route": "dashboard"
+      },
+      "anchor": "schools-inbox-menu",
+      "surface": "schools",
+      "source": "packages/player-vue/src/components/schools/shared/SchoolsTopBar.vue",
+      "walk": null,
+      "what": "Getting to the messages sent to you: a reply on your school's Support thread, or a notice that your own practice was copied onto a class account. The dot on your avatar and the number beside **Inbox** are how many you have not opened.",
+      "where": "**Inbox** in the account menu at the top right, under your name, just above Support.",
+      "how": [
+        "Tap your name at the top right.",
+        "Tap **Inbox**."
+      ],
+      "note": "The number only goes down when you open a message, not when it arrives. The item is not shown while a platform admin is viewing the dashboard as someone else."
+    },
+    {
       "id": "play-as-class-from-the-class-page",
       "title": "Play as class from the class page",
       "section": "running-classes",
@@ -2883,6 +2916,42 @@
         "Compare time in the app this week between classes taking the same course."
       ],
       "note": "A quiet week shows as low minutes and a flat chart, nothing more. The app makes no judgement about how a class is doing."
+    },
+    {
+      "id": "read-your-messages",
+      "title": "Read your messages",
+      "section": "your-own-account",
+      "personas": [
+        "teacher",
+        "school_admin",
+        "leader"
+      ],
+      "keywords": [
+        "inbox",
+        "messages",
+        "message",
+        "reply",
+        "replies",
+        "unread",
+        "undo",
+        "copied",
+        "notice"
+      ],
+      "place": {
+        "route": "inbox"
+      },
+      "anchor": "schools-inbox",
+      "surface": "schools",
+      "source": "packages/player-vue/src/views/schools/InboxView.vue",
+      "walk": null,
+      "what": "Reading what has been sent to you: a reply on your school's Support thread, or a notice that your own practice was copied onto a class account, with one tap to undo it.",
+      "where": "**Inbox** in the account menu at the top right, under your name. The number beside it is how many you have not opened.",
+      "how": [
+        "Tap your name at the top right, then **Inbox**.",
+        "Tap a message to open it. Opening it is what marks it read.",
+        "If the message offers **Undo** or **Open Support**, tap that."
+      ],
+      "note": "A message stays unread until you open it, even after it has been on the list a while. Undo is offered only while it can be done cleanly; once the class account has been played since, it is not."
     },
     {
       "id": "reading-one-student-s-progress",

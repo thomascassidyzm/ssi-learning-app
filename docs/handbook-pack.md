@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `60e6409194ff` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `094af3903ca0` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -814,6 +814,19 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `way
 
 **Worth knowing.** Nothing is ever hidden for good: every link is one tap away.
 
+## Open your inbox
+
+Section: your-own-account · roles: teacher, school_admin, leader · anchor: `schools-inbox-menu` · in `packages/player-vue/src/components/schools/shared/SchoolsTopBar.vue`
+
+**What it's for.** Getting to the messages sent to you: a reply on your school's Support thread, or a notice that your own practice was copied onto a class account. The dot on your avatar and the number beside **Inbox** are how many you have not opened.
+
+**Where it is.** **Inbox** in the account menu at the top right, under your name, just above Support.
+
+1. Tap your name at the top right.
+2. Tap **Inbox**.
+
+**Worth knowing.** The number only goes down when you open a message, not when it arrives. The item is not shown while a platform admin is viewing the dashboard as someone else.
+
 ## Play as class from the class page
 
 Section: running-classes · roles: teacher, school_admin · anchor: `class-page-play` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
@@ -884,6 +897,20 @@ Section: running-classes · roles: school_admin, teacher · anchor: `classes-tab
 5. Compare time in the app this week between classes taking the same course.
 
 **Worth knowing.** A quiet week shows as low minutes and a flat chart, nothing more. The app makes no judgement about how a class is doing.
+
+## Read your messages
+
+Section: your-own-account · roles: teacher, school_admin, leader · anchor: `schools-inbox` · in `packages/player-vue/src/views/schools/InboxView.vue`
+
+**What it's for.** Reading what has been sent to you: a reply on your school's Support thread, or a notice that your own practice was copied onto a class account, with one tap to undo it.
+
+**Where it is.** **Inbox** in the account menu at the top right, under your name. The number beside it is how many you have not opened.
+
+1. Tap your name at the top right, then **Inbox**.
+2. Tap a message to open it. Opening it is what marks it read.
+3. If the message offers **Undo** or **Open Support**, tap that.
+
+**Worth knowing.** A message stays unread until you open it, even after it has been on the list a while. Undo is offered only while it can be done cleanly; once the class account has been played since, it is not.
 
 ## Reading one student's progress
 

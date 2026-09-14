@@ -89,6 +89,7 @@ const SetupView = () => import('@/views/schools/SetupView.vue')
 // /schools and /org mounts: one component, one address per lane.
 const HandbookView = () => import('@/views/schools/HandbookView.vue')
 const SupportView = () => import('@/views/schools/SupportView.vue')
+const SchoolsInboxView = () => import('@/views/schools/InboxView.vue')
 // THE INTELLIGENCE SURFACE — the question pages. They ride AdminContainer,
 // the ONE shell over SSi's internal surfaces (Tom's ruling 2026-09-10:
 // "share"), whose bar carries the ten questions.
@@ -413,6 +414,18 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        // The inbox (job #684): messages to this person — Support replies and
+        // the copy-play notice with its undo. Every schools role has one.
+        path: 'inbox',
+        name: 'schools-inbox',
+        component: SchoolsInboxView,
+        meta: {
+          title: 'Inbox',
+          description: 'Messages sent to you, and the one-tap actions they carry',
+          railFrame: true,
+        },
+      },
+      {
         path: 'all',
         name: 'schools-list',
         // RETIRED for group-scoped leaders (nav unification, 2026-07-29): the
@@ -603,6 +616,18 @@ const routes: RouteRecordRaw[] = [
       title: 'You',
       description: 'Learner profile, mirror and plan — preview surface',
       hideAppEscape: true, // carries its own Back-to-learning link
+    },
+  },
+  {
+    // The learner inbox (job #684): reached from the More page and the
+    // Library card. Never from Settings.
+    path: '/me/inbox',
+    name: 'learner-inbox',
+    component: () => import('@/views/me/InboxView.vue'),
+    meta: {
+      title: 'Inbox',
+      description: 'Messages sent to you',
+      hideAppEscape: true,
     },
   },
   // Admin panel
