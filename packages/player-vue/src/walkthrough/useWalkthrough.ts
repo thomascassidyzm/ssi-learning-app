@@ -31,6 +31,7 @@ export const KNOWN_PLACES = [
   'node-home', 'class-detail', 'node-insights', 'admin-invites', 'library',
   'dashboard', 'teachers', 'students', 'classes', 'settings', 'setup',
   'schools-list', 'analytics', 'upgrade',
+  'inbox',
   'intel',
 ]
 

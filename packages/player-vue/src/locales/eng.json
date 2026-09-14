@@ -2267,6 +2267,12 @@
       "readInHandbook": "Read in the Handbook",
       "viewAsReadOnly": "Support is read-only while you are viewing as someone else. Step back out to read or write this school's thread."
     },
+    "inbox": {
+      "menuInbox": "Inbox",
+      "unreadAria": "Unread messages",
+      "title": "Inbox",
+      "lede": "Messages to you: replies on your school's Support thread, and anything we have done on your account that you might want to undo."
+    },
     "bugReport": {
       "menuItem": "Report a bug",
       "title": "Report a bug",
@@ -3135,5 +3141,24 @@
     "sending": "Sending…",
     "thanks": "Got it, thank you.",
     "failed": "That did not send. Please try again."
+  },
+  "inbox": {
+    "title": "Inbox",
+    "menuLabel": "Inbox",
+    "menuDesc": "Messages sent to you.",
+    "menuDescUnread": "You have messages you have not opened.",
+    "unreadAria": "Unread messages",
+    "empty": "Nothing for you yet. Anything sent to you will appear here.",
+    "loadFailed": "Could not load your messages.",
+    "viewAsReadOnly": "The inbox is read-only while you are viewing as someone else.",
+    "undo": "Undo",
+    "undone": "Undone",
+    "openSupport": "Open Support",
+    "working": "One moment…",
+    "actionFailed": "That did not work. Try again.",
+    "backToYou": "Back",
+    "cardAria": "A message for you",
+    "cardHint": "Tap to read",
+    "dismiss": "Dismiss"
   }
 }

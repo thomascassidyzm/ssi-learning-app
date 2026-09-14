@@ -71,6 +71,62 @@ Class button."
 all-time minutes on the roster, students and teachers lists, which still read the sessions ledger
 and were out of this job's price in #673 too. Welsh and the other locales: the two new English keys
 are enrolled in `pending-translation.json`.
+## 2026-09-14 — The in-app message inbox primitive, and the teacher-play copy notice with one-tap undo as its first specimen (job #684)
+
+**Ruling (Tom, via the RBF room, 16:30Z).** "we DO want to be able to send them in-app messages
+about stuff like this." The shape he agreed: ONE message primitive per user — a source, a real read
+state, an optional one-tap action — not a per-surface strip. Schools Support replies become one
+source into it, "the same place Support replies land, Support becoming one source into it rather than
+a second inbox". In the learner app, "a card at the top of the Library, once, dismissable, dismissing
+into the same inbox reachable from the More menu; not Settings."
+
+**The policy line, Tom's own, which governs every future source:** "the bar for sending a learner
+anything is whether it changes what they would do, or the inbox becomes the tab nobody opens." It is
+in the doc comment of `sendUserMessage` in `api/_utils/userMessages.ts`, where anyone adding a source
+will read it.
+
+**Read state is real.** "Delivered is not seen." A message is unread until the person taps it, or
+opens the thing it points at — opening the Support thread marks that thread's reply notices read,
+because the reply is on the screen the person tapped for. Listing never marks anything. Dismiss is the
+Library card only and is not reading.
+
+**Support lands by trigger, not by cron or poll.** The brief offered the doorbell cron or the thread
+poll and said "choose the cron" if ambiguous. Neither is the single point where a reply is known to
+have landed: the reply row is written by the watcher on watson-1 with the service key, outside this
+app's API, and the cron runs hourly with a three-hour delay, so the avatar badge — an instant
+`?peek=1` until today — would have regressed to hourly. An AFTER INSERT trigger on `support_messages`
+fires wherever the row comes from, is instant, and fans out to the thread's admins with the same two
+admin spellings `schoolScope.ts` uses. It never fails the reply insert. Better (instant, every
+writer), simpler (no cron change, no poll change), cheaper (no hourly scan). Deviation from the
+brief's default, named.
+
+**Removed from the UI, named:** the unread dot on the Support entry of the schools account menu.
+The count now lives on the new Inbox entry above it and as a dot on the avatar. The `?peek=1`
+endpoint still exists and still answers; nothing calls it. `useSupportChannel.peekUnread` is
+therefore unused code, left in place for one release rather than deleted in the same change.
+
+**Undo is exact and refuses when it cannot be clean.** `undoCopy` deletes precisely the `newId`
+rows the audit record lists per table, children before sessions, restores the class cursor to
+`cursorBefore.target`, and appends an undo audit row so the trail stays append-only. It refuses when
+the class account holds a session or a diary row newer than the copy that the copy did not put there
+— then the message says so and offers nothing. After an undo the copy can run again: `priorCopied`
+ignores undone runs.
+
+**The seam for the sibling teacher-play sweep.** Nothing to call. `applyCopy` sends the notice
+itself, so any caller of the copy engine sends it; for audit rows that predate this, the backfill is
+`POST /api/messages/backfill-copy-notices` with an ssi_admin bearer, or `backfillCopyNotices(svc)` in
+`api/_utils/copyPlayNotice.ts`. Helper signature:
+`sendUserMessage(svc, { recipientUserId, source, title, body, action?, dedupeKey? })`. The dedupe key
+`class_play_copied:<audit_id>` makes double-sending impossible whichever lands first.
+
+**Dedupe key for support replies is per recipient** — `support_reply:<message_id>:<recipient>` —
+because a school can have more than one admin and one key cannot serve two rows. The brief's
+`support_reply:<message_id>` is the prefix.
+
+**Migration.** `20260914e_user_messages.sql`, applied live through the postgres role, additive only:
+RLS on, own-row SELECT, own-row UPDATE with a column grant on `read_at` and `dismissed_at` only,
+inserts service-role only. `schema.sql` refreshed; the snapshot also picked up job #680's
+`support_inbox` view, which had not been snapshotted.
 
 ## 2026-09-14 — View As never writes in the viewed person's name; today's five empty support threads are gone (job #681)
 

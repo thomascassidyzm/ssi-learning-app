@@ -63,6 +63,26 @@ describe('GET /api/support/thread', () => {
     expect(JSON.stringify(res.body)).not.toContain('another school')
   })
 
+  it('opening the thread marks the inbox rows for its replies read, and only those (job #684)', async () => {
+    DB.support_threads = [{ id: 't1', school_id: 's1', last_read_at: null, language: 'eng', standing_notes: {} }]
+    DB.support_messages = [
+      { id: 'm2', thread_id: 't1', body: 'reply', direction: 'out', author_source: 'agent', author_name: 'SSi', in_reply_to: 'm1', created_at: '2026-09-10T19:41:00.000Z' },
+    ]
+    DB.user_messages = [
+      { id: 'um1', recipient_user_id: 'caller-1', source: 'support_reply', read_at: null, action: { kind: 'open_support', label: 'Open Support', payload: { thread_id: 't1', message_id: 'm2' } } },
+      { id: 'um2', recipient_user_id: 'caller-1', source: 'support_reply', read_at: null, action: { kind: 'open_support', label: 'Open Support', payload: { thread_id: 'OTHER', message_id: 'm9' } } },
+      { id: 'um3', recipient_user_id: 'someone-else', source: 'support_reply', read_at: null, action: { kind: 'open_support', label: 'Open Support', payload: { thread_id: 't1', message_id: 'm2' } } },
+      { id: 'um4', recipient_user_id: 'caller-1', source: 'class_play_copied', read_at: null, action: { kind: 'undo_class_play_copy', label: 'Undo', payload: { audit_id: 'a1' } } },
+    ]
+    const res = makeRes()
+    await handler(makeReq(), res)
+    expect(res.statusCode).toBe(200)
+    expect(DB.user_messages.find((m) => m.id === 'um1').read_at).toBeTruthy()
+    expect(DB.user_messages.find((m) => m.id === 'um2').read_at).toBeNull()
+    expect(DB.user_messages.find((m) => m.id === 'um3').read_at).toBeNull()
+    expect(DB.user_messages.find((m) => m.id === 'um4').read_at).toBeNull()
+  })
+
   it('?peek=1 creates no thread when the school has none yet (job #677: four schools "opened" one by loading the dashboard)', async () => {
     DB.support_threads = []
     const res = makeRes()
