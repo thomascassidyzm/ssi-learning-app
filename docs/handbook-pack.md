@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `278f9863e39d` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `425b408fd1e7` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -96,7 +96,7 @@ Section: getting-people-in · roles: school_admin · anchor: `teacher-named-seat
 
 ## Add students to a class
 
-Section: getting-people-in · roles: leader, school_admin, teacher · anchor: `class-student-add` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
+Section: getting-people-in · roles: teacher · anchor: `class-student-add` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
 
 **What it's for.** Putting a pupil who is already in your school into this class, for a pupil who has changed set or landed in the wrong class.
 
@@ -307,7 +307,7 @@ Section: running-classes · roles: school_admin · anchor: `setup-add-class-row`
 
 ## Delete a class
 
-Section: running-classes · roles: leader, school_admin, teacher · anchor: `class-delete` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
+Section: running-classes · roles: teacher · anchor: `class-delete` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
 
 **What it's for.** Removing a class you no longer want, usually one set up by mistake or a group that has finished. Before anything is deleted the app tells you what goes with it.
 
@@ -473,7 +473,7 @@ Section: getting-people-in · roles: school_admin, leader · anchor: `teacher-as
 
 ## Hand a class over to another teacher
 
-Section: running-classes · roles: leader, school_admin, teacher · anchor: `class-teacher-make-lead` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
+Section: running-classes · roles: teacher · anchor: `class-teacher-make-lead` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
 
 **What it's for.** Passing the lead of a class to another teacher who already teaches it — for a maternity cover, a term swap, or a permanent handover.
 
@@ -596,7 +596,7 @@ Section: seeing-progress · roles: admin · anchor: `question-pulse` · in `pack
 
 ## How students join a class
 
-Section: getting-people-in · roles: leader, school_admin, teacher · anchor: `class-join-link` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
+Section: getting-people-in · roles: teacher · anchor: `class-join-link` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
 
 **What it's for.** The one door into a class. A student who follows the class link signs up and lands straight in the class, on the right course, with no code to type. The same class also has a short code for a room where a link is awkward.
 
@@ -643,7 +643,7 @@ Section: getting-people-in · roles: school_admin · anchor: `teachers-invite-li
 
 ## Invite a teacher who isn't here yet
 
-Section: running-classes · roles: leader, school_admin, teacher · anchor: `class-coteacher-link` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
+Section: running-classes · roles: teacher · anchor: `class-coteacher-link` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
 
 **What it's for.** Getting a teacher who has no account yet into one class of yours, without going through the school admin.
 
@@ -731,7 +731,7 @@ Section: seeing-progress · roles: school_admin · anchor: `dash-minutes-this-we
 
 ## Move a teacher to another class
 
-Section: running-classes · roles: leader, school_admin, teacher · anchor: `class-teacher-other-classes` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
+Section: running-classes · roles: teacher · anchor: `class-teacher-other-classes` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
 
 **What it's for.** Changing which classes a teacher is on, in one pass, without visiting each class in turn.
 
@@ -777,13 +777,13 @@ Section: seeing-progress · roles: admin · anchor: `question-person` · in `pac
 
 Section: running-classes · roles: school_admin, teacher · anchor: `classes-row` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
 
-**What it's for.** Going from the summary row into the class itself, where the roster, the teachers, the join link and the class's progress all live.
+**What it's for.** Going from the summary row into the class itself. A school leader lands on the class's own page: what it practised this week, its minutes in the app, how far it has travelled and who teaches it, with **Invite students** and **See insights** at the top. A teacher lands on the class tools: the roster, the teachers, the join link and the class's progress.
 
 **Where it is.** **My Classes**, anywhere on the class's row.
 
 1. Open **My Classes**.
 2. Tap the row for the class you want.
-3. The class page opens on its roster.
+3. The class page opens.
 
 **Worth knowing.** The row is a button in its own right, so a keyboard works too. The buttons at the right of the row do their own jobs and do not open the class.
 
@@ -879,7 +879,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `insig
 
 ## Remove a student from a class
 
-Section: running-classes · roles: leader, school_admin, teacher · anchor: `class-student-remove` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
+Section: running-classes · roles: teacher · anchor: `class-student-remove` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
 
 **What it's for.** Taking a student off a class roster, for a pupil who has changed set or joined the wrong class from a shared link.
 
@@ -909,7 +909,7 @@ Section: getting-people-in · roles: school_admin · anchor: `teacher-remove` ·
 
 ## Rename a class
 
-Section: running-classes · roles: leader, school_admin, teacher · anchor: `class-rename` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
+Section: running-classes · roles: teacher · anchor: `class-rename` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
 
 **What it's for.** Changing what a class is called, for a name typed in a hurry or a group that has moved up a year.
 
@@ -953,7 +953,7 @@ Section: your-own-account · roles: teacher, school_admin, leader · anchor: `re
 
 ## Run your first class session
 
-Section: running-classes · roles: school_admin, teacher · anchor: `class-play` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
+Section: running-classes · roles: teacher · anchor: `class-play` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
 
 **What it's for.** Running a live practice session with a class in the room, everyone hearing the same thing at the same time.
 
@@ -1112,7 +1112,7 @@ Section: your-school · roles: school_admin, teacher · anchor: `settings-locali
 
 ## Share a class with a colleague
 
-Section: running-classes · roles: leader, school_admin, teacher · anchor: `class-teacher-add` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
+Section: running-classes · roles: teacher · anchor: `class-teacher-add` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
 
 **What it's for.** Adding another teacher to a class you already run, so you both see the same roster and the same progress.
 
@@ -1244,7 +1244,7 @@ Section: your-own-account · roles: teacher, school_admin, leader · anchor: `re
 
 ## The class roster
 
-Section: seeing-progress · roles: leader, school_admin, teacher · anchor: `class-roster` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
+Section: seeing-progress · roles: teacher · anchor: `class-roster` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
 
 **What it's for.** Everyone in the class, one row each, with their belt, how much they have learned, how much they have practised and when they were last at it. This is the answer to who is quietly drifting.
 
@@ -1268,9 +1268,10 @@ Section: running-classes · roles: school_admin, teacher · anchor: `classes-yea
 1. Open **My Classes**.
 2. Read the big figure on each tile for phrases practised this week.
 3. Read the line under it for classes practising out of classes in that year.
-4. A tile reading **Other** holds the classes whose names carry no year.
+4. Tap a tile and the table below narrows to that year's classes; a **Year 7 ×** chip in the pickers takes the filter off again.
+5. A tile reading **Other** holds the classes whose names carry no year.
 
-**Worth knowing.** The year is read off the class name — a leading number from 6 to 13, so **7B**, **Year 9 French** and **10 Set 1** all count — and is never stored. If fewer than half your class names carry a year the card reads **By class** instead, busiest first, three then **Show all**.
+**Worth knowing.** The year is read off the class name — a leading number from 6 to 13, so **7B**, **Year 9 French** and **10 Set 1** all count — and is never stored. If fewer than half your class names carry a year the card reads **By class** instead, busiest first, three then **Show all**, and each of those tiles opens its class.
 
 ## The invites desk
 
@@ -1299,8 +1300,9 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-
 2. Read the big figure on each tile for phrases practised this week.
 3. Read the line under it for classes practising out of classes in that year.
 4. A tile reading **Other** holds the classes whose names carry no year.
+5. On your own school, tap a tile to open the classes list narrowed to that year's classes.
 
-**Worth knowing.** The year is read off the class name — a leading number from 6 to 13, so **7B**, **Year 9 French** and **10 Set 1** all count — and is never stored. If fewer than half your class names carry a year the card reads **By class** instead, busiest first, three then **Show all**. No minutes are shown per year group.
+**Worth knowing.** The year is read off the class name — a leading number from 6 to 13, so **7B**, **Year 9 French** and **10 Set 1** all count — and is never stored. If fewer than half your class names carry a year the card reads **By class** instead, busiest first, three then **Show all**, and each of those tiles opens its class. No minutes are shown per year group.
 
 ## The numbers on any level
 
@@ -1316,6 +1318,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-
 4. **Minutes in the app this week** is the time the classes beneath this level, and their staff and students on their own accounts, spent in the app over the last seven days, pauses included — the time they were in the lesson. The sentence under the row says how much of it was whole-class play and how much was audio playing.
 5. **Teachers** counts the staff below this level, each once however many classes they take.
 6. On a class the row switches to that class's own phrases practised this week, its minutes in the app, its students and its teachers.
+7. On your own school every card is a link: phrases and minutes open the classes list with the classes in that order, classes practising opens it narrowed to the classes that played this week, and teachers opens the staff list.
 
 **Worth knowing.** An organisation that is not school-shaped sees the same row worded as practice hours, groups and learners instead.
 
@@ -1454,7 +1457,7 @@ Section: seeing-progress · roles: admin · anchor: `question-where-and-what` ·
 
 ## Where the class has got to
 
-Section: seeing-progress · roles: leader, school_admin, teacher · anchor: `class-journey` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
+Section: seeing-progress · roles: teacher · anchor: `class-journey` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
 
 **What it's for.** How far the class has travelled through its course, as a bar in LEGOs with the next belt named. A class is one learner account played from the front, so this is the class's own place on the course, moved by the sessions you run together.
 

@@ -53,7 +53,7 @@ import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import ShowAll from '@/components/shared/ShowAll.vue'
 import { topThree } from '@/components/shared/topThree'
 import YearGroupTiles from '@/components/schools/shared/YearGroupTiles.vue'
-import { yearGroupBreakdown, practisedWithin } from '@/views/schools/yearGroup'
+import { yearGroupBreakdown, practisedWithin, type YearGroupTile } from '@/views/schools/yearGroup'
 import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
 import { deriveBelt, BELTS, type Belt } from '@/composables/schools/belts'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
@@ -398,11 +398,20 @@ const practiceMinutesAllTime = computed(() => {
   return typeof h.practiceMinutes === 'number' ? h.practiceMinutes : hoursToMinutes(h.practiceHours)
 })
 
-const stats = computed(() => {
+// EVERYTHING IS TAPPABLE (Tom on staging, 2026-09-14, job #624): on a school
+// leader's own school overview each card is a link to that figure broken
+// down by class — the classes list, sorted or filtered to answer the card —
+// and Teachers to the staff list. The classes list is the school leader's
+// (/schools/classes reads their school), so the links exist only on the
+// member surface for a school leader, never on the admin mount, a class, a
+// group leader's node or a neutral org.
+const statLinksLive = computed(() => member.value && isSchoolAdmin.value && !isClass.value && !neutral.value)
+const stats = computed<{ value: string | number; word: string; to?: string }[]>(() => {
   const n = home.value?.node
   if (!n) return []
   const r = n.rollup || {}
   const cp = classPractice.value
+  const link = (to: string) => (statLinksLive.value ? to : undefined)
   if (isClass.value) {
     return [
       { value: cp?.phrases7d ?? 0, word: t('org.nodeHome.statPhrasesSpokenThisWeek', 'Phrases practised this week') },
@@ -423,19 +432,26 @@ const stats = computed(() => {
   }
   if (!cp) {
     return [
-      { value: formatPracticeMinutes(practiceMinutesAllTime.value), word: t('org.nodeHome.statMinutesPractised', 'Minutes practised') },
-      { value: r.classCount ?? 0, word: t('org.nodeHome.statClasses', 'Classes') },
-      { value: r.teacherCount ?? 0, word: t('org.nodeHome.statTeachers', 'Teachers') },
-      { value: r.learnerCount ?? 0, word: t('org.nodeHome.statLearners', 'Learners') },
+      { value: formatPracticeMinutes(practiceMinutesAllTime.value), word: t('org.nodeHome.statMinutesPractised', 'Minutes practised'), to: link('/schools/classes?sort=hours') },
+      { value: r.classCount ?? 0, word: t('org.nodeHome.statClasses', 'Classes'), to: link('/schools/classes') },
+      { value: r.teacherCount ?? 0, word: t('org.nodeHome.statTeachers', 'Teachers'), to: link('/schools/teachers') },
+      { value: r.learnerCount ?? 0, word: t('org.nodeHome.statLearners', 'Learners'), to: link('/schools/students') },
     ]
   }
   return [
-    { value: cp.phrases7d ?? 0, word: t('org.nodeHome.statPhrasesSpokenThisWeek', 'Phrases practised this week') },
-    { value: `${cp.activeClasses7d ?? 0}/${cp.classCount || r.classCount || 0}`, word: t('org.nodeHome.statClassesPractisingThisWeek', 'Classes practising this week') },
-    { value: cp.inAppMinutes7d ?? 0, word: t('org.nodeHome.statMinutesInAppThisWeek', 'Minutes in the app this week') },
-    { value: r.teacherCount ?? 0, word: t('org.nodeHome.statTeachers', 'Teachers') },
+    { value: cp.phrases7d ?? 0, word: t('org.nodeHome.statPhrasesSpokenThisWeek', 'Phrases practised this week'), to: link('/schools/classes?sort=phrases') },
+    { value: `${cp.activeClasses7d ?? 0}/${cp.classCount || r.classCount || 0}`, word: t('org.nodeHome.statClassesPractisingThisWeek', 'Classes practising this week'), to: link('/schools/classes?practising=1&sort=hours') },
+    { value: cp.inAppMinutes7d ?? 0, word: t('org.nodeHome.statMinutesInAppThisWeek', 'Minutes in the app this week'), to: link('/schools/classes?sort=hours') },
+    { value: r.teacherCount ?? 0, word: t('org.nodeHome.statTeachers', 'Teachers'), to: link('/schools/teachers') },
   ]
 })
+// A year-group tile on the school overview opens the classes list filtered to
+// that year; a per-class tile opens the class. Same gate as the cards.
+function yearTileLink(tile: YearGroupTile): string | null {
+  if (!statLinksLive.value) return null
+  if (tile.name) return `/org/${tile.key.replace(/^class:/, '')}`
+  return `/schools/classes?year=${tile.year === null ? 'other' : tile.year}`
+}
 // The phrase-by-count list — what the classes actually said, and how often
 // each phrase came round: the spaced-repetition mechanism visible on the
 // page. School and group nodes carry the top phrases across every class
@@ -988,15 +1004,27 @@ const listPayload = computed(() => {
                   many classes they take.
                6. On a class the row switches to that class's own phrases practised
                   this week, its minutes in the app, its students and its teachers.
+               7. On your own school every card is a link: phrases and minutes
+                  open the classes list with the classes in that order, classes
+                  practising opens it narrowed to the classes that played this
+                  week, and teachers opens the staff list.
                Worth knowing. An organisation that is not school-shaped sees the same
                row worded as practice hours, groups and learners instead.
                checked: b278e3a1.b7def846
           -->
           <div class="stats-row" data-walk="node-stats">
-            <div v-for="s in stats" :key="s.word" class="stat-card schools-card">
+            <component
+              :is="s.to ? 'router-link' : 'div'"
+              v-for="s in stats"
+              :key="s.word"
+              :to="s.to || undefined"
+              class="stat-card schools-card"
+              :class="{ 'is-link': !!s.to }"
+              :data-stat-link="s.to || undefined"
+            >
               <span class="stat-value frost-mono-nums">{{ switching ? NBSP : s.value }}</span>
               <span class="stat-word">{{ s.word }}</span>
-            </div>
+            </component>
           </div>
           <!-- HANDBOOK The numbers by year group
                section: seeing-progress
@@ -1017,14 +1045,17 @@ const listPayload = computed(() => {
                   that year.
                4. A tile reading **Other** holds the classes whose names carry no
                   year.
+               5. On your own school, tap a tile to open the classes list narrowed
+                  to that year's classes.
                Worth knowing. The year is read off the class name — a leading number
                from 6 to 13, so **7B**, **Year 9 French** and **10 Set 1** all count
                — and is never stored. If fewer than half your class names carry a
                year the card reads **By class** instead, busiest first, three then
-               **Show all**. No minutes are shown per year group.
-               checked: 38696cd6.94b8442d
+               **Show all**, and each of those tiles opens its class. No minutes
+               are shown per year group.
+               checked: 96418a48.5625135b
           -->
-          <YearGroupTiles v-if="showYearGroups" data-walk="node-year-groups" :breakdown="yearGroups" :class="{ 'is-switching': switching }" />
+          <YearGroupTiles v-if="showYearGroups" data-walk="node-year-groups" :breakdown="yearGroups" :class="{ 'is-switching': switching }" :tile-link="yearTileLink" />
           <p v-if="canAskSupport && !switching" class="stats-ask">
             <button type="button" class="ask-support" @click="askAboutStats">{{ t('schools.support.doorAffordance', 'Does this look wrong?') }}</button>
             <HandbookMark anchor="node-stats" />
@@ -1478,6 +1509,9 @@ const listPayload = computed(() => {
 .stats-updated { display: flex; justify-content: flex-end; min-height: 14px; margin-bottom: 4px; }
 .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--space-3); }
 .stat-card { display: flex; flex-direction: column; gap: 2px; padding: var(--space-4); }
+.stat-card.is-link { color: inherit; text-decoration: none; cursor: pointer; }
+.stat-card.is-link:hover { box-shadow: 0 0 0 2px rgba(44, 38, 34, 0.12); }
+.stat-card.is-link:focus-visible { outline: 2px solid var(--schools-red, #DB1E17); outline-offset: 2px; }
 .stat-value { font-size: clamp(22px, 2.6vw, 30px); font-weight: var(--font-semibold); color: var(--ink-primary, #2C2622); line-height: 1.1; }
 .stat-word { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--schools-fg-3, #8A8078); }
 

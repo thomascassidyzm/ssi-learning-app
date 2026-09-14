@@ -14,6 +14,7 @@
  */
 import { inject } from 'vue'
 import { useRoute } from 'vue-router'
+import { useUserRole } from '@/composables/useUserRole'
 
 export type SchoolsNavKind =
   | 'classes'
@@ -27,6 +28,15 @@ export type SchoolsNavKind =
 export function useSchoolsNav() {
   const isAdminView = inject<boolean>('isAdminView', false)
   const route = useRoute()
+  // ONE CLASS PAGE for a leader (Tom's ruling on staging, 2026-09-14, job
+  // #624): a school leader or group leader opens a class on its node home,
+  // /org/:classId — the page that shows CLASS performance. The flat
+  // /schools/classes/:id page looked for individual learners' performance and
+  // showed a school leader nothing; it stays only for teachers, whose class
+  // tooling (roster, co-teachers, join code) lives there and whom the node
+  // home endpoint does not admit. Under view-as these flags are the PERSONA's.
+  const { isSchoolAdmin, isGovtAdmin } = useUserRole()
+  const leaderOpensNodeHome = () => isSchoolAdmin.value || isGovtAdmin.value
 
   // WHICH TREE a link belongs to is decided by where the caller is standing,
   // never by `isAdminView`. That flag means "read-only browse" and is provided
@@ -48,7 +58,10 @@ export function useSchoolsNav() {
     if (!onAdminTree()) {
       switch (kind) {
         case 'classes': return '/schools/classes'
-        case 'class-detail': return `/schools/classes/${params?.classId ?? ''}`
+        case 'class-detail':
+          return leaderOpensNodeHome() && params?.classId
+            ? `/org/${params.classId}`
+            : `/schools/classes/${params?.classId ?? ''}`
         case 'teachers': return '/schools/teachers'
         case 'students': return '/schools/students'
         case 'analytics': return '/schools/analytics'

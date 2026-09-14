@@ -151,7 +151,9 @@ describe('NodeHomeView — school-admin first run on their own school node', () 
   it('points a school WITH classes and zero pupils at its classes, not the wizard', async () => {
     const wrapper = await mountNode({ learnerCount: 0, classCount: 3 })
     expect(setupLinks(wrapper).length).toBe(0)
-    expect(wrapper.findAll('a').filter((a: any) => a.attributes('href') === '/schools/classes').length).toBe(1)
+    // The banner's own link to the classes list; the Classes stat card links
+    // there too since every card became a link (job #624), so count the banner.
+    expect(wrapper.findAll('a.setup-banner').filter((a: any) => a.attributes('href') === '/schools/classes').length).toBe(1)
     expect(wrapper.text()).toContain('The last step is your pupils')
   })
 
