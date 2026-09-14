@@ -1231,22 +1231,12 @@ async function submitRecipient() {
 }
 
 .field input[type='text'],
-.field select {
-  padding: var(--space-3) var(--space-4);
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(44, 38, 34, 0.10);
-  border-radius: var(--radius-lg);
-  font-size: var(--text-sm);
-  font-family: var(--font-body);
-  color: var(--ink-primary);
+.field .new-class-course {
+  /* FrostSelect reads these; the shared dropdown wears this page's look. */
+  --fs-font: var(--font-body); --fs-bg: #fff; --rc-entity: 219 30 23; --rc-entity-ink: var(--schools-red); --fs-font-size: 14px; --fs-radius: 8px; --fs-border: var(--schools-border-strong);
 }
 
 .field input:focus,
-.field select:focus {
-  outline: none;
-  border-color: var(--ssi-red);
-  box-shadow: 0 0 0 3px rgba(var(--tone-red), 0.12);
-}
 
 .locked-course {
   margin: 0;

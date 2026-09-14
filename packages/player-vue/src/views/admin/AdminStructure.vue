@@ -494,7 +494,7 @@ onMounted(() => { void refresh() })
             v-model="newOrgName" type="text" class="frost-input" placeholder="Organisation name" autofocus
             @keyup.enter="createOrganisation()" @keyup.escape="showAddOrg = false"
           />
-          <FrostSelect v-model="newOrgLabel" class="frost-select" :options="NEW_ORG_LABEL_OPTIONS" aria-label="Organisation label" />
+          <FrostSelect v-model="newOrgLabel" class="frost-pick" :options="NEW_ORG_LABEL_OPTIONS" aria-label="Organisation label" />
           <label class="checkbox-field"><input v-model="newOrgIsDemo" type="checkbox" /><span>Demo</span></label>
           <button class="btn-ghost-sm" :disabled="isCreatingOrg || !newOrgName.trim()" @click="createOrganisation()">
             {{ isCreatingOrg ? 'Adding…' : 'Add' }}
@@ -695,11 +695,11 @@ onMounted(() => { void refresh() })
 .checkbox-field { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); color: var(--schools-fg-2); cursor: pointer; white-space: nowrap; }
 .checkbox-field input[type="checkbox"] { width: 16px; height: 16px; accent-color: rgb(var(--tone-red)); cursor: pointer; }
 
-.frost-input, .frost-select {
+.frost-input {
   font: inherit; font-size: var(--text-sm); padding: 8px 12px; color: var(--schools-fg);
   background: rgba(255, 255, 255, 0.6); border: 1px solid rgba(44, 38, 34, 0.12); border-radius: var(--radius-lg);
 }
-.frost-input:focus, .frost-select:focus { outline: none; border-color: rgba(var(--tone-red), 0.55); box-shadow: 0 0 0 3px rgba(var(--tone-red), 0.14); }
+.frost-input:focus { outline: none; border-color: rgba(var(--tone-red), 0.55); box-shadow: 0 0 0 3px rgba(var(--tone-red), 0.14); }
 
 .btn-ghost-sm {
   padding: 6px 12px; font-size: var(--text-xs); font-weight: var(--font-medium); border-radius: var(--radius-md);
@@ -734,4 +734,9 @@ onMounted(() => { void refresh() })
 
 .fade-enter-active, .fade-leave-active { transition: opacity var(--transition-base), transform var(--transition-base); }
 .fade-enter-from, .fade-leave-to { opacity: 0; transform: translateY(-4px); }
+.frost-pick {
+  /* FrostSelect reads these; the shared dropdown wears this page's look. */
+  min-width: 200px;
+  --fs-font: inherit; --fs-font-size: var(--text-sm); --fs-radius: var(--radius-lg); --fs-bg: rgba(255, 255, 255, 0.7); --fs-border: rgba(44, 38, 34, 0.12); --rc-entity: var(--tone-red); --rc-entity-ink: rgb(var(--tone-red));
+}
 </style>

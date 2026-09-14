@@ -146,7 +146,7 @@ function words(p: PositionWords | null | undefined): string {
     <FrostSelect
       id="copy-play-teacher"
       v-model="pickedTeacherId"
-      class="teacher-select copy-play-select"
+      class="copy-play-select"
       :disabled="busy || teachers.length === 0"
       data-walk="class-copy-play-picker"
       :options="teacherOptions"
@@ -233,7 +233,11 @@ function words(p: PositionWords | null | undefined): string {
   font-size: 12px;
   color: var(--schools-fg-2);
 }
-.copy-play-select { margin-top: 6px; width: 100%; max-width: 100%; }
+.copy-play-select {
+  /* FrostSelect reads these; the shared dropdown wears this page's look. */
+  margin-top: 6px; width: 100%; max-width: 100%;
+  --fs-font: var(--font-body); --fs-bg: #fff; --rc-entity: 219 30 23; --rc-entity-ink: var(--schools-red); --fs-font-size: 12.5px; --fs-radius: 6px; --fs-bg: #fafaf6; --fs-border: var(--schools-border); --fs-min-height: 34px; --fs-pad: 6px 10px;
+}
 .copy-play-actions { margin-top: 10px; }
 .copy-play-preview {
   margin-top: 12px;

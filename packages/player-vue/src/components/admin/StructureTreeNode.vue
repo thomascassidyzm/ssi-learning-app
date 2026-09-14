@@ -267,13 +267,9 @@ const attentionStatus = computed(() => {
 .structure-rename-input:focus { outline: none; box-shadow: 0 0 0 3px rgba(var(--tone-red), 0.14); }
 
 .label-select {
-  font-size: var(--text-xs);
-  font-family: var(--font-mono);
-  color: var(--schools-fg-3);
-  background: transparent;
-  border: 1px solid rgba(var(--tone-red), 0.55);
-  border-radius: var(--radius-sm);
-  padding: 1px 4px;
+  /* FrostSelect reads these; the shared dropdown wears this page's look. */
+  display: inline-block; min-width: 150px; vertical-align: middle;
+  --fs-font: var(--font-mono); --fs-font-size: var(--text-xs); --fs-radius: var(--radius-sm); --fs-bg: transparent; --fs-border: rgba(var(--tone-red), 0.55); --fs-ink: var(--schools-fg-3); --fs-min-height: 24px; --fs-pad: 1px 6px; --rc-entity: var(--tone-red); --rc-entity-ink: rgb(var(--tone-red));
 }
 
 .label-word {

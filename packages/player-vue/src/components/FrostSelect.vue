@@ -47,6 +47,7 @@ const searchEl = ref<HTMLInputElement | null>(null)
 /** Where the panel goes and how tall it may be — decided from the visual
  *  viewport each time it opens or the viewport changes (keyboard up/down). */
 const dropUp = ref(false)
+const anchorRight = ref(false)
 const panelMaxHeight = ref(300)
 
 const searchPlaceholder = computed(
@@ -77,6 +78,7 @@ function firstEnabledFrom(start: number, step: 1 | -1): number {
 
 const PANEL_MAX = 300
 const PANEL_MIN = 160
+const PANEL_MIN_WIDTH = 220
 const GAP = 8
 
 function placePanel() {
@@ -91,6 +93,11 @@ function placePanel() {
   const up = below < PANEL_MIN && above > below
   dropUp.value = up
   panelMaxHeight.value = Math.max(PANEL_MIN / 2, Math.min(PANEL_MAX, up ? above : below))
+  // A narrow trigger near the right edge would push its wider panel off
+  // screen; hang the panel from the trigger's right edge instead.
+  const viewWidth = vv ? vv.width : window.innerWidth
+  const panelWidth = Math.max(rect.width, PANEL_MIN_WIDTH)
+  anchorRight.value = rect.left + panelWidth > viewWidth - GAP && rect.right - panelWidth >= GAP
 }
 
 function openMenu() {
@@ -206,7 +213,7 @@ defineExpose({ open: openMenu, close: closeMenu })
         v-if="open"
         ref="listEl"
         class="fs-panel"
-        :class="{ 'fs-panel-up': dropUp }"
+        :class="{ 'fs-panel-up': dropUp, 'fs-panel-right': anchorRight }"
         :style="{ maxHeight: panelMaxHeight + 'px' }"
         @keydown="onListKey"
       >
@@ -266,11 +273,11 @@ defineExpose({ open: openMenu, close: closeMenu })
   justify-content: space-between;
   gap: 10px;
   width: 100%;
-  min-height: 40px;
-  padding: 9px 12px;
+  min-height: var(--fs-min-height, 40px);
+  padding: var(--fs-pad, 9px 12px);
   font-family: var(--fs-font, var(--font-mono));
   font-size: var(--fs-font-size, 13px);
-  color: var(--ink-primary, #2c2622);
+  color: var(--fs-ink, var(--ink-primary, #2c2622));
   text-align: left;
   background: var(--fs-bg, rgba(255, 255, 255, 0.5));
   backdrop-filter: blur(12px) saturate(1.6);
@@ -314,6 +321,7 @@ defineExpose({ open: openMenu, close: closeMenu })
     0 24px 60px rgba(44, 38, 34, 0.16);
 }
 .fs-panel-up { top: auto; bottom: calc(100% + 6px); }
+.fs-panel-right { left: auto; right: 0; width: max(100%, min(220px, 100vw - 24px)); }
 .fs-list {
   margin: 0;
   padding: 0;

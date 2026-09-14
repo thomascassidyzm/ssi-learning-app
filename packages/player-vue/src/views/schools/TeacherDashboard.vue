@@ -934,20 +934,11 @@ function exportCsv() {
 }
 
 .filter-select {
-  padding: 7px 10px;
-  font-size: 12.5px;
-  border: 1px solid var(--schools-border-strong);
-  border-radius: 6px;
-  background: #fff;
-  font-family: var(--font-body);
-  color: var(--schools-fg);
-  cursor: pointer;
+  /* FrostSelect reads these; the shared dropdown wears this page's look. */
+  min-width: 190px;
+  --fs-font: var(--font-body); --fs-bg: #fff; --rc-entity: 219 30 23; --rc-entity-ink: var(--schools-red); --fs-font-size: 12.5px; --fs-radius: 6px; --fs-border: var(--schools-border-strong);
 }
 
-.filter-select:focus {
-  outline: none;
-  border-color: var(--schools-red);
-}
 
 .table-card {
   overflow: hidden;

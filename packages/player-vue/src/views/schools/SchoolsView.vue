@@ -585,14 +585,9 @@ watch(currentUser, (u) => {
 }
 
 .list-sort {
-  padding: 5px 8px;
-  font-size: 12px;
-  border: 1px solid var(--schools-border);
-  border-radius: 6px;
-  background: #fff;
-  font-family: var(--font-body);
-  color: var(--schools-fg);
-  cursor: pointer;
+  /* FrostSelect reads these; the shared dropdown wears this page's look. */
+  min-width: 170px;
+  --fs-font: var(--font-body); --fs-bg: #fff; --rc-entity: 219 30 23; --rc-entity-ink: var(--schools-red); --fs-font-size: 12px; --fs-radius: 6px; --fs-border: var(--schools-border); --fs-min-height: 34px; --fs-pad: 5px 10px;
 }
 
 .school-cell {
