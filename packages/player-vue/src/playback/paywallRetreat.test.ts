@@ -14,12 +14,15 @@ import { join } from 'node:path'
 import { createPaywallRetreat } from './paywallRetreat'
 
 const canAccessUpTo = (max: number) => (seed: number) => seed <= max
+/** A live queue: the round index that carries each LEGO. */
+const queue = (legos: string[]) => (legoId: string) => legos.indexOf(legoId)
+const FULL = ['S0001L01', 'S0001L02', ...Array.from({ length: 54 }, (_, i) => `S00${String(2 + Math.floor(i / 2)).padStart(2, '0')}L0${1 + (i % 2)}`), 'S0031L01']
 
 describe('createPaywallRetreat', () => {
   it('holds nothing until a retreat happens, so ordinary writes are never blocked', () => {
     const m = createPaywallRetreat()
     expect(m.blocksPersist()).toBe(false)
-    expect(m.takeRestore(canAccessUpTo(999))).toBeNull()
+    expect(m.takeRestore(canAccessUpTo(999), queue(FULL))).toBeNull()
   })
 
   it('remembers the REAL spot and blocks position writes while held', () => {
@@ -42,15 +45,29 @@ describe('createPaywallRetreat', () => {
     const m = createPaywallRetreat()
     m.remember({ roundIndex: 52, cycleIndex: 3, legoId: 'S0031L02' })
     // Still the stale preview: seed 31 locked — nothing to restore.
-    expect(m.takeRestore(canAccessUpTo(19))).toBeNull()
+    expect(m.takeRestore(canAccessUpTo(19), queue(FULL))).toBeNull()
     // The refreshed snapshot grants the course.
-    expect(m.takeRestore(canAccessUpTo(999))).toEqual({ roundIndex: 52, cycleIndex: 3, legoId: 'S0031L02' })
+    expect(m.takeRestore(canAccessUpTo(999), queue([...FULL, 'S0031L02']))).toEqual({ roundIndex: 57, cycleIndex: 3, legoId: 'S0031L02' })
     // Restoring does not spend the memory: the restoring jump's own round
     // write must still be blocked until play actually resumes.
     expect(m.blocksPersist()).toBe(true)
     m.clear()
     expect(m.blocksPersist()).toBe(false)
-    expect(m.takeRestore(canAccessUpTo(999))).toBeNull()
+    expect(m.takeRestore(canAccessUpTo(999), queue(FULL))).toBeNull()
+  })
+
+  it('restores by LEGO in the LIVE queue, never by the index the queue had at retreat time', () => {
+    // Staging, 2026-09-14: the bootstrap queue was a 2-round window with the
+    // resume LEGO at round 0; the full-script handoff then swapped in all
+    // 3,262 rounds, where round 0 is S0001L01. Jumping to the remembered
+    // index 0 sent the learner to the start of the course.
+    const m = createPaywallRetreat()
+    m.remember({ roundIndex: 0, cycleIndex: 0, legoId: 'S0031L01' })
+    const restored = m.takeRestore(canAccessUpTo(999), queue(FULL))
+    expect(restored?.roundIndex).toBe(FULL.indexOf('S0031L01'))
+    expect(restored?.roundIndex).toBe(56)
+    // A live queue that does not carry the LEGO yet: stay put rather than guess.
+    expect(m.takeRestore(canAccessUpTo(999), queue(['S0001L01', 'S0001L02']))).toBeNull()
   })
 
   it('ignores a spot it cannot jump back to', () => {
@@ -92,6 +109,8 @@ describe('LearningPlayer wiring (source read)', () => {
     const resume = w.indexOf('simplePlayer.resume()')
     expect(restore).toBeGreaterThan(-1)
     expect(w).toContain('simplePlayer.jumpToRound(restore.roundIndex, restore.cycleIndex)')
+    // The target is resolved against the live engine queue by LEGO.
+    expect(w).toContain('simplePlayer.getEngineRounds().findIndex((r) => r?.legoId === legoId)')
     expect(resume).toBeGreaterThan(restore)
   })
 
