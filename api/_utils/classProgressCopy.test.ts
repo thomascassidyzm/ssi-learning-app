@@ -24,6 +24,7 @@ type Row = Record<string, any>
 let DB: Record<string, Row[]>
 let nextId = 1
 let failOnInsert: string | null = null
+let failOnDelete: string | null = null
 
 const clone = <T>(v: T): T => (v == null ? v : JSON.parse(JSON.stringify(v)))
 
@@ -41,6 +42,7 @@ function makeQuery(table: string) {
         eq(col: string, val: any) { filters.push((r) => r[col] === val); return del },
         in(col: string, vals: any[]) { const set = new Set(vals.map(String)); filters.push((r) => set.has(String(r[col]))); return del },
         then(res: any, rej: any) {
+          if (failOnDelete === table) return Promise.resolve({ data: null, error: { message: 'boom' } }).then(res, rej)
           const gone = new Set(rows())
           DB[table] = (DB[table] ?? []).filter((r) => !gone.has(r))
           return Promise.resolve({ data: null, error: null }).then(res, rej)
@@ -106,6 +108,7 @@ const TEACHER = 'teacher-learner', CLASS = 'class-learner', COURSE = 'cym_s_for_
 beforeEach(() => {
   nextId = 1
   failOnInsert = null
+  failOnDelete = null
   DB = Object.fromEntries([...COPY_TABLES.map((s) => s.table), 'course_enrollments', AUDIT_TABLE, 'learners', 'classes', 'courses', 'user_messages'].map((t) => [t, []]))
   DB.learners.push({ id: TEACHER, user_id: 'teacher-uid' })
   DB.classes.push({ id: 'class-1', class_name: 'Year 7 Spanish' })
@@ -298,6 +301,43 @@ describe('undoCopy (job #684)', () => {
     expect((await undoCopy(svc, auditId!, { actorUserId: 'teacher-uid' })).ok).toBe(true)
     expect(await undoCopy(svc, auditId!, { actorUserId: 'teacher-uid' })).toEqual({ ok: false, reason: 'already_undone' })
     expect(DB[AUDIT_TABLE]).toHaveLength(2)
+  })
+
+  it('a failed undo is not recorded as an undo: the retry completes the deletion and only then is the copy marked undone (job #689)', async () => {
+    const { auditId } = await applyCopy(svc, await planCopy(svc, params), { actorUserId: 'angharad', classId: 'class-1' })
+    // Deletion runs children-first (COPY_TABLES reversed), so by the time
+    // player_events fails, response_metrics and lego_progress are already
+    // gone and the copy is half-deleted.
+    failOnDelete = 'player_events'
+    const first = await undoCopy(svc, auditId!, { actorUserId: 'teacher-uid' })
+    expect(first).toMatchObject({ ok: false, reason: 'error', detail: expect.stringMatching(/^player_events: boom/) })
+    expect(DB.response_metrics.filter((r) => r.learner_id === CLASS)).toHaveLength(0)
+    expect(DB.lego_progress.filter((r) => r.learner_id === CLASS)).toHaveLength(1)
+    expect(DB.player_events.filter((r) => r.learner_id === CLASS)).toHaveLength(2)
+    expect(DB.sessions.filter((r) => r.learner_id === CLASS)).toHaveLength(3)
+    // Cursor untouched: the copy is still in force.
+    expect(DB.course_enrollments.find((r) => r.learner_id === CLASS).last_completed_lego_id).toBe('S0008L01')
+    // The failure is on the trail, but NOT as an undo of the copy.
+    expect(DB[AUDIT_TABLE].some((r) => r.record.undo_of === auditId)).toBe(false)
+    expect(DB[AUDIT_TABLE].some((r) => r.record.undo_failed_of === auditId)).toBe(true)
+    // The copy is still counted as in force by the next preview.
+    expect((await planCopy(svc, params)).priorRuns).toBe(1)
+
+    // Retry with the table healthy: already-missing children are fine, the
+    // rest goes, the cursor is restored, and NOW the copy is marked undone.
+    failOnDelete = null
+    const second = await undoCopy(svc, auditId!, { actorUserId: 'teacher-uid' })
+    expect(second.ok).toBe(true)
+    if (!second.ok) return
+    // Generated-key tables record the ids the delete covered (idempotent: a
+    // row already gone is fine); natural-key tables record what they found.
+    expect(second.deleted).toMatchObject({ sessions: 2, player_events: 2, response_metrics: 1, lego_progress: 0 })
+    expect(DB.player_events.filter((r) => r.learner_id === CLASS)).toHaveLength(0)
+    expect(DB.sessions.filter((r) => r.learner_id === CLASS).map((r) => r.id)).toEqual(['s-class-old'])
+    expect(DB.course_enrollments.find((r) => r.learner_id === CLASS).last_completed_lego_id).toBe('S0002L01')
+    expect(DB[AUDIT_TABLE].filter((r) => r.record.undo_of === auditId)).toHaveLength(1)
+    expect(await undoCopy(svc, auditId!, { actorUserId: 'teacher-uid' })).toEqual({ ok: false, reason: 'already_undone' })
+    expect((await planCopy(svc, params)).priorRuns).toBe(0)
   })
 
   it('an unknown audit id is not_found', async () => {

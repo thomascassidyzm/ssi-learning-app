@@ -127,6 +127,46 @@ because a school can have more than one admin and one key cannot serve two rows.
 RLS on, own-row SELECT, own-row UPDATE with a column grant on `read_at` and `dismissed_at` only,
 inserts service-role only. `schema.sql` refreshed; the snapshot also picked up job #680's
 `support_inbox` view, which had not been snapshotted.
+## 2026-09-14 — The one-off teacher-play sweep: five unambiguous copies, and what the strict rule costs (job #685)
+
+**Ruling (Tom, 16:30Z, via the RBF room).** "wherever there is no ambiguity - i.e. one teacher, one
+class, and no play as class data, we should copy it all over ... they can always skip back to the
+beginning easily on the play as class account." And, on telling them: "we DO want to be able to
+send them in-app messages about stuff like this." This SUPERSEDES #662's "there is deliberately NO
+bulk apply" — but only for the unambiguous cases. The per-pair admin card stays exactly as it is,
+and everything ambiguous stays on it.
+
+**The four conditions, plus two of our own.** A pair is unambiguous when: one teacher on the class,
+by the same union of `classes.teacher_user_id` and active class teacher `user_tags` that
+`candidates.ts` builds; that teacher on exactly one class ACROSS THE PLATFORM, not just within her
+school; the class account with zero play on the course, read as direct row counts in every
+COPY_TABLES table and not merely the enrolment row; and real own-account play to copy. Two further
+exclusions were ours, both conservative, both listed rather than copied: a class whose only teacher
+IS the school admin reads as an admin or test class — Angharad's own account on her own admin class
+was one of #662's 27 — and a class belonging to no school is outside a schools sweep.
+
+**The distribution is the finding.** 43 schools, 183 classes, 190 pairs → FIVE unambiguous copies
+totalling 336 rows, and 182 ambiguous. Chepstow alone listed 27 candidates under #662's looser
+rule; the strict rule takes the whole platform to five. The dominant filter is not play at all: 91
+pairs fail because the teacher teaches more than one class, and 38 because the class account
+already has play. None of the five carries any practice minutes, so no headline hours move
+anywhere; what moves is a class's position and its diary, from S0001 to S0003.
+
+**Reversible by the teacher, not only by an admin.** Every copy sends the teacher one in-app
+message whose single tap runs `undoCopy` — job #684's inbox primitive, `POST /api/messages/act`.
+The undo deletes exactly the rows that copy created, from its own audit record, and restores the
+class's own cursor. `priorCopied` now subtracts anything since undone, so an undo genuinely
+restores the pre-copy state and a later copy can run again rather than silently doing nothing.
+
+**Two implementations, one kept.** #684 and #685 both built the undo and the notice. We took #684's
+whole — it owns the inbox, the one-tap route, the dedupe key and the backfill — and dropped ours
+rather than leave a merge conflict in one file for a human to settle. The one behaviour lost with
+it: ours deleted the class's `course_enrollments` row when the class had none before the copy,
+where #684's restores a cursor only when there is one. No pair in this sweep is in that case.
+
+**Not done, and why.** The apply is armed and HELD. Tom's own sequence was dry-run plan first,
+published, then apply; the plan is published and no reply had arrived by the end of this job, so
+nothing was written. One sentence runs it.
 
 ## 2026-09-14 — View As never writes in the viewed person's name; today's five empty support threads are gone (job #681)
 
@@ -2735,3 +2775,19 @@ reads and decides what to commission. Known test senders (Tom's own addresses an
 ssi_admin accounts, test schools, probe bodies) are stamped and not posted, so they never
 resurface and never wake a channel chief; a tester-role report such as Aran's is real and is
 posted.
+
+## 2026-09-14 — A failed undo is not an undo; the sweep plans from the fresh row (job #689)
+
+**Undo retryable.** `undoCopy` used to write its audit row with `undo_of` even when a per-table
+deletion had failed. The next attempt found that row and answered `already_undone`, so a
+half-deleted copy could never be finished and was reported as reversed. Now a failed attempt is
+written as `undo_failed_of`: it stays on the append-only trail with what it did delete, but the
+already-undone check, the prior-copy scan and the copy-notice helper all ignore it, so the copy
+stays in force and the undo runs again. Deletions were already idempotent, so the retry completes.
+Test: `classProgressCopy.test.ts` "a failed undo is not recorded as an undo" — red on the old code,
+green on the new.
+
+**Sweep drift check uses `still`.** `tools/copy-teacher-play-sweep.mjs` rescanned before each
+write but then planned from the original scan's learner id and course code. It now plans from the
+fresh row, and skips-and-names the pair if the class's course or the teacher's learner id changed
+between scan and write. Dry run after the change still reproduces five copies / 336 rows.
