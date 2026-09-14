@@ -6,6 +6,16 @@ item; if it needs detail, **link a doc** (the plans under `docs/methodology/`), 
 This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev-branch rail in
 `CLAUDE.md` — it doesn't restate it. Per-doc status lives in `docs/methodology/README.md`.
 
+### Schools dashboard: the verification rule (Tom, 2026-09-14, job #683)
+
+Every schools-dashboard job **verifies in a real browser as a REAL signed-in teacher and a REAL
+signed-in school leader, not View As, before any done card**; and **no control may be removed
+unless the job's landing line names it with before-and-after screenshots.** Test accounts:
+`thomas.cassidy+chepstowtest-cover@gmail.com` (teacher) and `thomas.cassidy+chepstowtest-leader@gmail.com`
+(school leader) of the ZZ Test Chepstow scenario school; recipe in memory
+`ssi-view-as-headless-probe-recipe`. Why: on 2026-09-14 View As hid every Play as class button and
+a tour taken only under View As reported the button gone for teachers too.
+
 ### How to use (the whole protocol)
 
 **Status marks** — one box + a suffix, nothing else:

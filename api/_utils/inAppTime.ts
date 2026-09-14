@@ -77,6 +77,18 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { chunk } from './schoolScope'
 
+/**
+ * Seconds → whole minutes, rounding UP (Tom, 2026-09-14 16:17Z, job #683:
+ * "round up to the nearest minute, not down. because learners who start
+ * playing and do 20-30s are showing as 0 mins"). Zero stays zero. Every
+ * minutes figure a school surface receives already whole goes through this,
+ * so a 25-second lesson reaches the page as 1, never 0.
+ */
+export function secondsToMinutesUp(seconds: number | null | undefined): number {
+  const s = Number(seconds) || 0
+  return s <= 0 ? 0 : Math.ceil(s / 60)
+}
+
 export const IDLE_CUTOFF_SECONDS = 300
 export const BLOCK_CAP_SECONDS = 3 * 3600
 /** Per-clip Listening Mode rows began on production at this instant (job #339/#343). Before it, listening minutes are tick-bounded. */

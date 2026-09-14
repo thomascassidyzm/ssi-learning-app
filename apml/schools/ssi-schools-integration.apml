@@ -3,8 +3,8 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.17.0"
-  date: "2026-09-14"   # Report a bug in the schools account menu: same postbox as the player, hidden under view-as (#633)
+  version: "1.18.0"
+  date: "2026-09-14"   # Play as class shown DISABLED under view-as, never hidden; playing-as-yourself warning on the player; minutes round up, "1 h 14 min" from an hour; View As picker ranks by class minutes (#683). Earlier: Report a bug in the schools account menu (#633)
   author: "Tom Cassidy"
   status: "draft"
 
@@ -65,6 +65,23 @@ principle AdminOnlySchoolWrites:
     school-profile fields + Billing tab, and TeachersView's invite/remove
     controls, are all gated on isSchoolAdmin (2026-07-16 fix). Matches the
     existing isAdminView (ssi_admin read-only browse) hiding pattern.
+    EXCEPTION, job #683 (Tom 2026-09-14 16:17Z, "every single Play as Class
+    button has GONE!!!! That should be prominent next to the class, not
+    invisible"): Play as class is SHOWN DISABLED under isAdminView, never
+    hidden — usePlayAsClass.canPlayAsClass is staff-only and
+    playAsClassReadOnly drives :disabled + a title on every surface (class
+    page, classes row, teacher home card/row, admin-lane table, class tools);
+    launchClassSession still refuses, so the write ban holds. A viewer sees
+    the control a teacher has. Every schools job verifies as a REAL teacher
+    and a REAL leader in a browser, not View As, before a done card, and no
+    control is removed without before/after screenshots in the landing line.
+    Job #683 also refined the unit: seconds round UP to minutes (25 s = 1 min,
+    secondsToMinutesUp at the API source and practiceMinutes.ts on the client),
+    "N min" under an hour, "1 h 14 min" from an hour, "0 h" never; and the
+    View As role buttons now pick the teacher or school leader whose classes
+    played MOST as class in the last seven days
+    (/api/admin/users?role=&sort=class_minutes_7d, api/_utils/viewAsCandidates.ts),
+    with that figure beside every name; group leader stays most-recently-active.
 
   read_only_flag_is_not_a_tree: |
     `isAdminView` means READ-ONLY BROWSE and nothing else. It is provided as

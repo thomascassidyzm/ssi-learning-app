@@ -11,6 +11,7 @@
  * every caller shows as-is: never a false "Copied".
  */
 import { getSchoolsClient } from './client'
+import { secondsToMinutes } from './practiceMinutes'
 
 export interface PositionWords { known: string | null; target: string | null }
 
@@ -65,8 +66,10 @@ export async function callCopyTeacherPlay(path: 'preview' | 'apply' | 'candidate
   return payload
 }
 
+// Minutes round UP (Tom, 2026-09-14, job #683): 25 seconds of a lesson is 1
+// minute on the card, never "0 minutes in the app" beside real sessions.
 export function copyMinutes(seconds: number): string {
-  return String(Math.round(seconds / 60))
+  return String(secondsToMinutes(seconds))
 }
 
 // Plain words for the rows that matter to a leader. Everything else the

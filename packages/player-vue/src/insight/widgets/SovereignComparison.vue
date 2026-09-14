@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatPracticeMinutes, hoursToMinutes } from '@/composables/schools/practiceMinutes'
 // ============================================================================
 // widgets/SovereignComparison.vue — LENS A standing chart
 //
@@ -58,20 +59,16 @@ let chart: EChartInstance | null = null
 let resizeObserver: ResizeObserver | null = null
 
 // ---- helpers ----------------------------------------------------------------
+// Practice time goes through the ONE school formatter (Tom, 2026-09-14, job
+// #683: "0 hours? ... it should just give the mins"). A raw number is hours
+// from the DB views; it becomes minutes at the boundary and reads "14 min" or
+// "1 h 14 min", never "0h 14m".
 function fmtValue(v: number, unit?: string): string {
-  if (!unit) {
-    // treat raw number as hours — format as "Xh YYm"
-    const h = Math.floor(v)
-    const m = Math.round((v - h) * 60)
-    return `${h}h ${m < 10 ? '0' : ''}${m}m`
-  }
-  if (unit === 'h' || unit === 'hrs' || unit === 'hours') {
-    const h = Math.floor(v)
-    const m = Math.round((v - h) * 60)
-    return `${h}h ${m < 10 ? '0' : ''}${m}m`
+  if (!unit || unit === 'h' || unit === 'hrs' || unit === 'hours') {
+    return formatPracticeMinutes(hoursToMinutes(v))
   }
   if (unit === 'min' || unit === 'mins' || unit === 'minutes') {
-    return `${v}m`
+    return formatPracticeMinutes(v)
   }
   if (unit === '%') return `${v}%`
   return `${v}${unit}`

@@ -39,7 +39,9 @@ const isAdminView = inject<boolean>('isAdminView', false)
 const { schoolsLink } = useSchoolsNav()
 const { currentUser: selectedUser, isTeacher, isSchoolAdmin } = useSchoolContext()
 const { classes: classesData, isLoading: classesLoading, error: classesError, classesLoaded, fetchClasses, createClass, getClassReport } = useClassesData()
-const { canPlayAsClass, launchClassSession, playError } = usePlayAsClass()
+const { canPlayAsClass, playAsClassReadOnly, launchClassSession, playError } = usePlayAsClass()
+// Under View As the button is shown disabled, never hidden (job #683).
+const playAsClassTitle = computed(() => (playAsClassReadOnly.value ? t('schools.playAsClass.viewAsReadOnly', 'Read only while you are viewing as someone else. A teacher can press this.') : ''))
 
 const isCreateModalOpen = ref(false)
 const createdClass = ref<any>(null)
@@ -437,7 +439,7 @@ async function copyShareLink(cls: { id: string; join_code: string }) {
 }
 
 function exportCsv() {
-  const header = ['Class', 'Course', 'Belt', 'Journey phrases', 'Journey total', 'Time in app min/wk', 'Sessions', 'Join code']
+  const header = ['Class', 'Course', 'Belt', 'Journey phrases', 'Journey total', 'Played as class this week', 'Sessions', 'Join code']
   const rows = filtered.value.map(c => [
     c.class_name,
     c.course_label,
@@ -646,7 +648,7 @@ function exportCsv() {
             <th>{{ t('schools.teacherDashboard.tableHeaderCourse', 'Course') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderBelt', 'Belt') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderJourney', 'Journey, phrases') }}</th>
-            <th>{{ t('schools.teacherDashboard.tableHeaderTimeInAppMinutes', 'Played as class, min this week') }}</th>
+            <th>{{ t('schools.teacherDashboard.tableHeaderTimeInApp', 'Played as class, this week') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderPhrases', 'Phrases practised this week') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderActivity', 'Activity') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderShare', 'Share') }}</th>
@@ -705,7 +707,7 @@ function exportCsv() {
               <template v-else-if="cls.started === null">…</template>
               <template v-else>{{ cls.journeyDone }}<span class="schools-subtle"> / {{ cls.journeyTotal }}</span></template>
             </td>
-            <td :data-label="t('schools.teacherDashboard.tableHeaderTimeInAppMinutes', 'Time in app, min/wk')" :class="{ 'is-sorted': pinnedKey === 'hours' }">
+            <td :data-label="t('schools.teacherDashboard.tableHeaderTimeInApp', 'Played as class, this week')" :class="{ 'is-sorted': pinnedKey === 'hours' }">
               <template v-if="cls.started === false">{{ t('schools.teacherDashboard.notStarted', 'Not started') }}</template>
               <template v-else-if="cls.started === null">…</template>
               <template v-else>{{ formatPracticeMinutes(cls.minutesWk) }}</template>
@@ -759,11 +761,13 @@ function exportCsv() {
                       place in it.
                    Worth knowing. It is the same session the class page starts,
                    so it moves the class on for everyone on the roster. Only
-                   school staff see this button, and only on a live account
-                   rather than a read-only view.
-                   checked: 20cba773.bd7d13d8
+                   school staff see this button. While a platform admin is
+                   viewing the dashboard as you it is greyed out and does
+                   nothing, so they can see what you have without starting a
+                   lesson in your name.
+                   checked: 23748655.1333b484
               -->
-              <button v-if="canPlayAsClass" type="button" class="row-play-btn" data-walk="classes-row-play" @click.stop="handlePlayClass(cls)">▶ {{ t('schools.teacherDashboard.playAsClass', 'Play as class') }}</button>
+              <button v-if="canPlayAsClass" type="button" class="row-play-btn" data-walk="classes-row-play" :disabled="playAsClassReadOnly" :title="playAsClassTitle" @click.stop="handlePlayClass(cls)">▶ {{ t('schools.teacherDashboard.playAsClass', 'Play as class') }}</button>
             </td>
           </tr>
         </tbody>

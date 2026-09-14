@@ -1397,6 +1397,9 @@
     }
   },
   "schools": {
+    "playAsClass": {
+      "viewAsReadOnly": "Read only while you are viewing as someone else. A teacher can press this."
+    },
     "yearGroupTiles": {
       "byYearGroup": "By year group",
       "byClass": "By class",
@@ -1640,7 +1643,7 @@
       "tableHeaderClass": "Class",
       "tableHeaderCourse": "Course",
       "tableHeaderShare": "Share",
-      "tableHeaderTimeInAppMinutes": "Time in app, min/wk",
+      "tableHeaderTimeInApp": "Played as class, this week",
       "sortJourney": "Journey",
       "sortPhrases": "Phrases practised this week",
       "tableHeaderPhrases": "Phrases practised this week",

@@ -84,7 +84,7 @@ import { resolveVisibleScope, scopeForSchoolRead, chunk } from '../_utils/school
 import { loadClassPractice, practisedSince, ownAccountLearnerIds, inAppTimeSeconds, legoOrdinal, CLASS_PRACTICE_WINDOW_DAYS } from '../_utils/classPractice'
 import { filterActiveScope } from '../_utils/schoolCoverageGate'
 import { applyCors } from '../_utils/cors'
-import { inAppTimeByLearner, IDLE_CUTOFF_SECONDS } from '../_utils/inAppTime'
+import { inAppTimeByLearner, IDLE_CUTOFF_SECONDS, secondsToMinutesUp } from '../_utils/inAppTime'
 
 const DAYS = 7
 
@@ -208,7 +208,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       let activeClasses7d = 0
       for (const f of facts.values()) if (practisedSince(f, weekAgo)) activeClasses7d += 1
       const inApp = await inAppTimeSeconds(svc, [...classLearnerByClass.values()], ownIds, now.getTime())
-      return { facts, rollup: { windowDays: CLASS_PRACTICE_WINDOW_DAYS, classCount: classIds.length, activeClasses7d, inAppMinutes7d: Math.round(inApp.seconds / 60) } }
+      return { facts, rollup: { windowDays: CLASS_PRACTICE_WINDOW_DAYS, classCount: classIds.length, activeClasses7d, inAppMinutes7d: secondsToMinutesUp(inApp.seconds) } }
     })()
 
     // THE CLASS ACCOUNT'S OWN PROGRESS per class (Tom's ruling, 2026-09-11):
@@ -306,7 +306,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       const lid = classLearnerByClass.get(c)
       const own = lid ? inAppByLearner.get(lid) : undefined
       const f = facts.get(c)
-      const minutesByDay = windowDays.map((day) => Math.round((own?.secondsByDay?.[day] || 0) / 60))
+      const minutesByDay = windowDays.map((day) => secondsToMinutesUp(own?.secondsByDay?.[day] || 0))
       const lastPractisedAt = [base?.lastPractisedAt, f?.lastPractisedAt].filter(Boolean).sort().pop() ?? null
       classAccountByClass[c] = {
         started: !!(base?.started || f?.lastPractisedAt || (own?.seconds ?? 0) > 0),
@@ -326,8 +326,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       const days = (own?.days ?? []).slice().sort()
       callerOwn = {
         learnerId: ownLearnerId,
-        inAppMinutes7d: Math.round((own?.seconds ?? 0) / 60),
-        minutesByDay: windowDays.map((day) => Math.round((own?.secondsByDay?.[day] || 0) / 60)),
+        inAppMinutes7d: secondsToMinutesUp(own?.seconds ?? 0),
+        minutesByDay: windowDays.map((day) => secondsToMinutesUp(own?.secondsByDay?.[day] || 0)),
         lastPlayedDay: days.length ? days[days.length - 1] : null,
       }
     }

@@ -68,10 +68,26 @@ describe('usePlayAsClass — canPlayAsClass permission matrix', () => {
     expect(canPlayAsClass.value).toBe(false)
   })
 
-  it('ssi_admin read-only god-view: excluded even for a teacher-shaped context', () => {
+  // Tom, 2026-09-14 16:17Z (job #683): "every single Play as Class button
+  // has GONE!!!! That should be prominent next to the class, not invisible".
+  // Under View As the button is SHOWN DISABLED, never hidden: canPlayAsClass
+  // stays true for a teacher-shaped context, playAsClassReadOnly says why it
+  // is inert, and the launch still refuses (the #681 write ban). Red on the
+  // 2026-07-16 gate, which hid it; green after.
+  it('ssi_admin read-only view: a teacher-shaped context still SEES the button, read-only, and the launch refuses', async () => {
     setRole('teacher')
-    const { canPlayAsClass } = mountHarness({ isAdminView: true })
-    expect(canPlayAsClass.value).toBe(false)
+    const handleCourseSelect = vi.fn().mockResolvedValue(undefined)
+    const { canPlayAsClass, playAsClassReadOnly, launchClassSession } = mountHarness({ isAdminView: true, handleCourseSelect, enrolledCourses: ref([{ course_code: 'cym_for_eng' }]), supabase: ref(null) })
+    expect(canPlayAsClass.value).toBe(true)
+    expect(playAsClassReadOnly.value).toBe(true)
+    expect(await launchClassSession({ id: 'c1', class_name: '7H', course_code: 'cym_for_eng' })).toBe(false)
+    expect(handleCourseSelect).not.toHaveBeenCalled()
+  })
+
+  it('a live teacher account is not read-only', () => {
+    setRole('teacher')
+    const { playAsClassReadOnly } = mountHarness({ isAdminView: false })
+    expect(playAsClassReadOnly.value).toBe(false)
   })
 })
 

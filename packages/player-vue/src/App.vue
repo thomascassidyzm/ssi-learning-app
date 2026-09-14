@@ -62,6 +62,7 @@ import { setSchoolsClient } from './composables/schools/client'
 import { useViewAs } from './composables/useViewAs'
 import { installViewAsFetchGuard } from './composables/viewAsFetchGuard'
 import AppEscape from './components/AppEscape.vue'
+import PlayingAsYourselfBanner from './components/schools/PlayingAsYourselfBanner.vue'
 import CheckoutOverlay from './components/CheckoutOverlay.vue'
 import PurchasePendingOverlay from './components/PurchasePendingOverlay.vue'
 import PlanPicker from './components/PlanPicker.vue'
@@ -1092,6 +1093,9 @@ onMounted(async () => {
     <template v-if="!IS_EMBED">
     <AppEscape v-if="showAppEscape" />
     <AppEscape v-else-if="dashboardEscape" :to="dashboardEscape" />
+    <!-- School staff playing on their OWN account: the live warning sits on
+         the player, the only place anything is playing (job #683). -->
+    <PlayingAsYourselfBanner v-if="route.name === 'player'" />
     <PwaUpdatePrompt />
     <AccountContestPrompt :client="supabaseClient" />
     <InstallBanner />

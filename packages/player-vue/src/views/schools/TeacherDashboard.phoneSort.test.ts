@@ -48,7 +48,7 @@ vi.mock('@/composables/schools/useClassesData', () => ({
   }),
 }))
 vi.mock('@/composables/schools/usePlayAsClass', () => ({
-  usePlayAsClass: () => ({ canPlayAsClass: computed(() => true), launchClassSession: vi.fn(), playError: ref(null), switchActiveCourseTo: vi.fn() }),
+  usePlayAsClass: () => ({ canPlayAsClass: computed(() => true), playAsClassReadOnly: computed(() => false), launchClassSession: vi.fn(), playError: ref(null), switchActiveCourseTo: vi.fn() }),
 }))
 vi.mock('@/composables/useDashboardRefresh', () => {
   let handler: (() => Promise<void>) | null = null
@@ -111,11 +111,11 @@ describe('TeacherDashboard — the sorted metric is reachable on a phone', () =>
     expect(table.attributes('data-sorted')).toBe('hours')
     const pinned = wrapper.findAll('tbody td.is-sorted')
     expect(pinned.length).toBe(2)
-    expect(pinned[0].attributes('data-label')).toBe('Time in app, min/wk')
+    expect(pinned[0].attributes('data-label')).toBe('Played as class, this week')
     expect(pinned[0].text()).toMatch(/ min$/)
 
     const labelled = wrapper.findAll('tbody tr:first-child td[data-label]').map(td => td.attributes('data-label'))
-    expect(labelled).toEqual(['Course', 'Belt', 'Journey, phrases', 'Time in app, min/wk', 'Phrases practised this week', 'Activity'])
+    expect(labelled).toEqual(['Course', 'Belt', 'Journey, phrases', 'Played as class, this week', 'Phrases practised this week', 'Activity'])
   })
 
   it('sorting by name still pins time in app, the school metric', async () => {
