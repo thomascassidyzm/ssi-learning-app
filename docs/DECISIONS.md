@@ -2406,3 +2406,49 @@ against any real teacher by this job: Angharad runs it. The first live sweep on 
 pairs, not the 13 of #651's diagnosis: the planner's rule is "anything left to copy", which also
 catches teachers whose class has since caught up in position but whose own-account sessions were
 never moved, and Angharad's own account on her admin class.
+
+## 2026-09-14 — Insights minutes: one definition, one aggregation, totals per window, real daily bars (job #673)
+
+**Symptom (Tom, 14:39Z, staging, View-as angharadjones · Chepstow · class 7H Insights).** "Practice
+minutes per class" read 18.7 for the last 7 days, 11.5 for the last 30 days and 11.5 for all time,
+all labelled MIN / WEEK. "last 30 days can NEVER be less than last 7 days ... wrong data is a
+disaster - way worse than no data ... how is in-app minutes calculated, and it needs to be
+calculated the same way across all metrics, always."
+
+**Cause.** The measure was a per-week RATE: minutes in the window divided by the weeks from first
+activity in the window to now, then divided by seven again under Today. One burst of play in the
+week of 7 September therefore fell as the window widened. Beside it, the same class's seven-day
+minutes were counted three different ways: Insights and the org lens by rolling timestamp, the
+classes list and class page by the last seven UTC calendar dates, and the node home carried an
+all-time "Minutes practised" off the sessions ledger, which the class account cannot write.
+
+**Ruling applied.** Every window shows the TOTAL in-app minutes inside it, so a wider window is
+never smaller by construction. Every minutes figure on a school surface is the one definition in
+`api/_utils/inAppTime.ts` (play to stop, pauses included, listening counted, no stop means the last
+audio ended, each account once) over the last N × 24 hours by timestamp. Class-level figures are
+the class account alone and say "played as class"; school-level figures are classes, staff and
+pupils each once and say so. Charts are one bar per bucket, never a spline; a bucket with no play
+is a zero bar.
+
+**What changed.** `minutes_per_class` and `hours_total` are one measure, `minutes`, in
+`api/groups/[id]/rate-compare.ts` and `api/_utils/rateCompare.ts` (old ids aliased so deep links
+still open). `api/school/class-practice-7d.ts` counts the rolling week. `RateTrend.vue` builds
+its option in `rateTrendOption.ts` as bars; `TimeSeries.vue` and the theme's line default follow.
+The node home and children list no longer show the sessions-ledger all-time figure. Labels on the
+classes header, the class page, the school home and the class node say whose minutes they are.
+
+**Enumerating command** (re-run rather than trust; full table with verdicts in
+`docs/insights-minutes-readers-2026-09-14.md`):
+
+```
+grep -rln "inAppTime\|diarySessionRows\|inAppSecondsByLearner\|inAppTimeByLearner\|sessioniseSeconds\|duration_seconds\|total_practice_minutes\|admin_practice_minutes\|total_practice_hours\|total_practice_seconds\|practice_minutes\|practiceMinutes\|minutesThisWeek\|inAppMinutes7d\|play_seconds\|engagedMinutes" api packages/player-vue/src --include=*.ts --include=*.vue | grep -v '\.test\.' | sort
+```
+
+**Not changed, and why.** The per-person all-time minutes on the students list, the class page's
+pupil rows, the teachers list, the schools list and the govt tiles still read the sessions ledger
+via `api/school/roster.ts` and `school_summary`; the student progress page reads the
+`admin_practice_minutes_by_course` RPC; the node home's per-pupil spark reads audio-played seconds.
+Moving those to the diary is a per-person read across a whole school and was out of this job's
+price; they are listed as the honest gap. The classes-header-versus-school-home difference from
+job #301 (174 v 352) is closed by scope labels, not by making the numbers equal: the header is
+class accounts, the home is classes, staff and pupils.
