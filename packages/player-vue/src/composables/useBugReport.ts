@@ -15,6 +15,11 @@
  * THE SCHOOLS DASHBOARD DOOR (Tom, 2026-09-14): the dashboard account menu
  * files through the same submit with `extra` naming the source and what was
  * in view (school, class, node, page title). One postbox, two doors.
+ *
+ * ONE DOOR FOR EVERYONE (Tom, 2026-09-14, job #677): the tester widget and the
+ * player's content flag file through the same submit too. Identity (account
+ * code, email, roles) is attached by the server from the bearer; nothing here
+ * claims who the sender is.
  */
 import { inject, type Ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -31,7 +36,7 @@ export interface BugReportPosition {
 }
 
 export interface BugReportExtra {
-  source: 'learner' | 'schools_dashboard' | 'tester_widget'
+  source: 'learner' | 'schools_dashboard' | 'tester_widget' | 'content_flag'
   context?: Record<string, string | null | undefined>
 }
 

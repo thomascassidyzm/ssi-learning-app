@@ -16,7 +16,13 @@
 </template>
 
 <script setup>
+// ONE DOOR FOR EVERYONE (Tom, 2026-09-14, job #677): a flag posts through the
+// postbox (/api/report/bug, source 'content_flag') with the clip named, so the
+// watcher can post it into the Popty room with the sender's account attached.
+// The sample_flags upsert stays because Popty's QA tooling reads that table,
+// and the content_feedback row stays for Popty's production feedback list.
 import { useI18n } from '../composables/useI18n'
+import { useBugReport } from '../composables/useBugReport'
 const { t } = useI18n()
 import { ref, inject, watch } from 'vue'
 
@@ -48,6 +54,7 @@ const auth = inject('auth', null)
 
 const isFlagged = ref(false)
 const isSubmitting = ref(false)
+const postbox = useBugReport()
 
 // Reset flag state when current item changes
 watch(() => props.currentItem, () => {
@@ -75,6 +82,24 @@ async function flagPhrase() {
                     null
 
     const userId = auth?.learnerId?.value || getUserId()
+
+    // The postbox row is the one the watcher reads. Identity is attached server-side.
+    const posted = await postbox.submit(
+      `Flagged phrase: "${props.currentKnown || '?'}" / "${props.currentTarget || '?'}"`,
+      null,
+      props.courseCode,
+      {
+        source: 'content_flag',
+        context: {
+          audio_id: audioId,
+          lego_id: sessionContext.lego_id,
+          seed_id: sessionContext.seed_id,
+          known_text: props.currentKnown,
+          target_text: props.currentTarget,
+        },
+      },
+    )
+    if (posted) isFlagged.value = true
 
     if (supabase?.value) {
       const { error } = await supabase.value
