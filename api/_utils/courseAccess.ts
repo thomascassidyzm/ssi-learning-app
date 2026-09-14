@@ -21,6 +21,7 @@ import type { VercelRequest } from '@vercel/node'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from './auth'
 import { resolveEffectiveSubscription } from './familyAccess'
+import { resolveActiveEntitlements, type ResolvedEntitlement } from './resolveEntitlements'
 import {
   checkCourseAccess,
   inferPricingTier,
@@ -84,12 +85,23 @@ export async function resolveServerCourseAccess(
   let entitlements: UserEntitlement[] = []
 
   if (learner?.id) {
-    const [subResult, entRes] = await Promise.all([
+    // ONE resolver for "what can this account play" (api/_utils/resolveEntitlements.ts):
+    // stored rows, the cascade RPC, class coverage, org coverage and
+    // school-staff coverage. This gate used to read only the first two, so a
+    // teacher whom /api/entitlement/user told "you hold cym_s_for_eng through
+    // your class" was then served the preview-only bundle and a 403 on every
+    // cycle past Yellow — and, with her saved LEGO missing from the preview
+    // round map, the player fell back to the start of the course with no wall
+    // at all (job #745 probe, 2026-09-14; Tom's Y7 Welsh case). The player's
+    // gate and the account's own entitlement list now cannot disagree.
+    // Fail-soft: a resolver error is preview-only for this request, never a
+    // full unlock — and never a 500 for a free-preview caller.
+    const [subResult, resolved] = await Promise.all([
       resolveEffectiveSubscription(supabase, learner.id, 'status, current_period_end'),
-      supabase
-        .from('user_entitlements')
-        .select('access_type, granted_courses, expires_at')
-        .eq('learner_id', learner.id),
+      resolveActiveEntitlements(supabase, authResult.userId, learner.id).catch((err) => {
+        console.error('[courseAccess] entitlement resolution failed (preview-only for this request):', err)
+        return [] as ResolvedEntitlement[]
+      }),
     ])
 
     if (subResult.sub) {
@@ -99,25 +111,11 @@ export async function resolveServerCourseAccess(
       subscription = { isActive, tier: isActive ? 'paid' : 'free' }
     }
 
-    entitlements = (entRes.data || []).map((e: any) => ({
-      accessType: e.access_type,
+    entitlements = resolved.map((e) => ({
+      accessType: e.access_type as UserEntitlement['accessType'],
       grantedCourses: e.granted_courses,
       expiresAt: e.expires_at,
     }))
-
-    // Cascade entitlements from groups → school → class hierarchy. Mirrors
-    // api/entitlement/user.ts. Non-fatal: cascade is additive, a failure here
-    // must not block a learner's own direct subscription/entitlements.
-    try {
-      const { data: cascadeCourses } = await supabase.rpc('get_cascade_courses', {
-        p_user_id: authResult.userId,
-      })
-      if (cascadeCourses && cascadeCourses.length > 0) {
-        entitlements.push({ accessType: 'courses', grantedCourses: cascadeCourses, expiresAt: null })
-      }
-    } catch (cascadeErr) {
-      console.error('[courseAccess] Cascade entitlement lookup failed (non-fatal):', cascadeErr)
-    }
   }
 
   return checkCourseAccess(courseWithPricing, subscription, entitlements, platformRole)
