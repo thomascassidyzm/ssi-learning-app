@@ -59,7 +59,9 @@ watch(
 )
 
 const { density } = useSchoolsDensity()
-const { canPlayAsClass, launchClassSession, playError } = usePlayAsClass()
+const { canPlayAsClass, playAsClassReadOnly, launchClassSession, playError } = usePlayAsClass()
+// Under View As the button is shown disabled, never hidden (job #683).
+const playAsClassTitle = computed(() => (playAsClassReadOnly.value ? t('schools.playAsClass.viewAsReadOnly', 'Read only while you are viewing as someone else. A teacher can press this.') : ''))
 
 const {
   schools,
@@ -254,7 +256,6 @@ const teacherClassRows = computed(() => teacherClasses.value.map((c) => {
 const ownPractice = computed(() => teacherPractice.value?.callerOwn ?? null)
 // The warning across the top (Tom, 2026-09-14 13:07Z, job #662): any practice
 // on her own account this week means she has been playing as herself.
-const showPlayingAsYourself = computed(() => (ownPractice.value?.inAppMinutes7d ?? 0) > 0)
 const ownPracticeLine = computed(() => {
   const own = ownPractice.value
   if (!own || own.inAppMinutes7d <= 0) return ''
@@ -538,30 +539,13 @@ async function handlePlayClass(cls: ClassInfo) {
          TEACHER
          ============================================================ -->
     <template v-if="isTeacher">
-      <!-- HANDBOOK Told when you have been playing as yourself
-           section: running-classes
-           roles: teacher
-           place: dashboard
-           keywords: playing as yourself, own account, play as class, warning, banner, your classes
-           What it's for. A line across the top of your dashboard whenever your own
-           account has practised this week, so a lesson that ran on your own sign-in
-           instead of on the class is noticed straight away. It reads: You are now
-           playing as yourself. If you want to play as class please go here.
-           Where it is. Across the top of the schools dashboard, above the welcome,
-           only in a week when your own account has practised.
-           How you do it.
-           1. Read the line.
-           2. Tap **Your classes** to go to your classes, and start the lesson with
-              **Play as class** there.
-           Worth knowing. The line goes away by itself once a week has passed with no
-           practice on your own account. Your own practice is not deleted or moved by
-           it; the copy tool on a class's tools page does that if you want it.
-           checked: 7292043b.2515ac82
-      -->
-      <div v-if="showPlayingAsYourself" class="playing-as-yourself" role="status" data-walk="dash-playing-as-yourself">
-        <span>{{ t('schools.dashboard.playingAsYourself', 'You are now playing as yourself. If you want to play as class please go here.') }}</span>
-        <router-link :to="schoolsLink('classes')" class="playing-as-yourself-link">{{ t('schools.dashboard.playingAsYourselfLink', 'Your classes') }}</router-link>
-      </div>
+      <!-- The "You are now playing as yourself" line used to sit here (job
+           #662). Tom, 2026-09-14 16:17Z (job #683): "makes no sense when in
+           dashboard view - they're not playing anything. that warning should
+           be on the dashboard top nav when the player is playing". It now
+           lives in PlayingAsYourselfBanner.vue, across the top of the player,
+           only while own-account play is live. The past-tense own-practice
+           line further down stays. -->
       <Greeting
         :name="greetingName"
         :lines="greetingLines"
@@ -658,7 +642,7 @@ async function handlePlayClass(cls: ClassInfo) {
           </div>
           <div class="join-code">{{ cls.student_join_code }}</div>
           <div class="row-cta">
-            <button v-if="canPlayAsClass" class="btn-play" @click="handlePlayClass(cls)">{{ t('schools.dashboard.playAsClass', '▶ Play as class') }}</button>
+            <button v-if="canPlayAsClass" class="btn-play" :disabled="playAsClassReadOnly" :title="playAsClassTitle" data-walk="dash-class-row-play" @click="handlePlayClass(cls)">{{ t('schools.dashboard.playAsClass', '▶ Play as class') }}</button>
           </div>
         </div>
 
@@ -696,9 +680,33 @@ async function handlePlayClass(cls: ClassInfo) {
             </div>
           </div>
 
+          <!-- HANDBOOK Play as class from your dashboard
+               section: running-classes
+               roles: teacher
+               place: dashboard
+               parts: dash-class-row-play
+               keywords: play as class, lesson, start, dashboard, class card, front of the room
+               What it's for. Starting a whole-class lesson straight from your
+               dashboard, on the class's own account, so the minutes and the
+               phrases land on the class rather than on you.
+               Where it is. Your dashboard, the **Play as class** button on each
+               class's card or row.
+               How you do it.
+               1. Find the class on your dashboard.
+               2. Tap **Play as class**.
+               3. The player opens on the class's course at the class's own place.
+               Worth knowing. The button is always there beside the class. While
+               a platform admin is viewing the dashboard as you it is greyed out
+               and does nothing, so they can see what you have without starting
+               a lesson in your name.
+               checked: 36d97e0a.2cfe4355
+          -->
           <button
             v-if="canPlayAsClass"
             class="btn-play pac-hero"
+            :disabled="playAsClassReadOnly"
+            :title="playAsClassTitle"
+            data-walk="dash-class-card-play"
             @click="handlePlayClass(cls)"
           >{{ t('schools.dashboard.playAsClass', '▶ Play as class') }}</button>
 
@@ -941,7 +949,7 @@ async function handlePlayClass(cls: ClassInfo) {
                 <td>{{ cls.student_count }}</td>
                 <td>{{ Math.round(cls.avg_practice_minutes || 0) }}m</td>
                 <td v-if="canPlayAsClass" class="row-cta">
-                  <button class="btn-play" @click="handlePlayClass(cls)">{{ t('schools.dashboard.playAsClass', '▶ Play as class') }}</button>
+                  <button class="btn-play" :disabled="playAsClassReadOnly" :title="playAsClassTitle" @click="handlePlayClass(cls)">{{ t('schools.dashboard.playAsClass', '▶ Play as class') }}</button>
                 </td>
               </tr>
               <tr v-if="classesLoading && !teacherClasses.length">

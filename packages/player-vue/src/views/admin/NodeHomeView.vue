@@ -94,7 +94,9 @@ const { isGovtAdmin, isSchoolAdmin, isTeacher, currentUser: schoolUser } = useSc
 // launch path every schools surface uses (usePlayAsClass); Manage class is
 // the flat tools page (roster, teachers, join link, rename). Member surface
 // only: the admin mount is a read-view. ───
-const { canPlayAsClass, launchClassSession, playError } = usePlayAsClass()
+const { canPlayAsClass, playAsClassReadOnly, launchClassSession, playError } = usePlayAsClass()
+// Under View As the button is shown disabled, never hidden (job #683).
+const playAsClassTitle = computed(() => (playAsClassReadOnly.value ? t('schools.playAsClass.viewAsReadOnly', 'Read only while you are viewing as someone else. A teacher can press this.') : ''))
 const viewerTeachesClass = computed(() => !!home.value?.callerTeachesClass)
 const viewerIsLeader = computed(() => isSchoolAdmin.value || isGovtAdmin.value)
 const showClassVerbs = computed(() => member.value && isClass.value && !!home.value?.node)
@@ -937,14 +939,17 @@ const listPayload = computed(() => {
                    3. The player opens on the class's course at the class's own place.
                    Worth knowing. Pressing play on a course from your own Library
                    counts for you, not for the class. Only Play as class moves the
-                   class.
-                   checked: 727a8b14.9c9a2453
+                   class. While a platform admin is viewing the page as you the
+                   button is greyed out and does nothing.
+                   checked: 3088b4ac.9ae057f0
               -->
               <button
                 v-if="showClassVerbs && canPlayAsClass && !switching"
                 type="button"
                 class="btn-play"
                 data-walk="class-page-play"
+                :disabled="playAsClassReadOnly"
+                :title="playAsClassTitle"
                 @click="playThisClass"
               >&#9654; {{ t('org.nodeHome.playAsClass', 'Play as class') }}</button>
               <!-- HANDBOOK Manage a class

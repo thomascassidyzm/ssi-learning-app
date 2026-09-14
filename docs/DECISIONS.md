@@ -1,3 +1,77 @@
+## 2026-09-14 — Play as class restored beside every class; the playing-as-yourself warning moves to the player; minutes round up; hours only from an hour; View As lands on real numbers; a verification rule for schools jobs (job #683)
+
+**Symptom (Tom, 16:17Z, staging, ten screenshots).** "every single Play as Class button has GONE!!!!
+That should be prominent next to the class, not invisible" · "the 'You are now playing as yourself'
+makes no sense when in dashboard view - they're not playing anything. that warning should be on the
+dashboard top nav when the player is playing" · "round up to the nearest minute, not down. because
+learners who start playing and do 20-30s are showing as 0 mins" · "0 hours? it shouldn't round down
+to the nearest full hour. it should just give the mins. 0 h 14 mins" · "overall we MAY be rushing on
+this, because we're doing logically stupid things like removing massive functionality". At 16:20Z:
+the View As picker "should show him examples with ACTUAL data, not default to a teacher with zero
+play-as-class minutes".
+
+**Cause of the missing button, established in a real browser before any edit.** Signed in on
+staging as a real teacher and a real school leader of the ZZ Test Chepstow scenario school, Play as
+class was present on the class page, the classes list row and the teacher home. Under View As of
+the same two people it was absent on every surface. The one cause is the 2026-07-16 gate in
+`usePlayAsClass.ts` (commit 8ca0f01b2): `canPlayAsClass = isSchoolStaff && !isAdminView`, and
+`SchoolsContainer.vue` provides `isAdminView` as `isViewingAs`. Not #651's `showClassVerbs`, not
+#662, #675 or #681. Every one of Tom's nine View As screenshots was that gate; the tenth, the 9AWI
+class tools page with no band in frame, shows "Mr Williams · Teacher" in the avatar, so it was View
+As too. Real teachers never lost the button.
+
+**Ruling applied.**
+1. **Play as class is prominent beside every class, and under View As it is SHOWN DISABLED, never
+   hidden.** `canPlayAsClass` is staff-only again with no View As term; a new `playAsClassReadOnly`
+   drives `:disabled` and a title, "Read only while you are viewing as someone else. A teacher can
+   press this.", on the class page, the classes list row, the teacher home card and row, the admin
+   lane table and the class tools page. `launchClassSession` still refuses under View As, so the
+   #681 write ban stands: the disabled button is its honest rendering. Group leaders stay excluded.
+2. **The "You are now playing as yourself" line is off the teacher home.** Nothing plays there. It
+   lives in `PlayingAsYourselfBanner.vue`, mounted by `App.vue` on the player route only, shown
+   while the player's own transport state says playing, for a school staff account, never under
+   View As. Own-account play happens at `/`, the immersive player, which carries no schools nav at
+   all, so "the dashboard top nav" is the top of the player itself; the sentence and the Your
+   classes link are unchanged. The past-tense own-practice line on the teacher home stays.
+3. **Minutes round UP.** `secondsToMinutes` and `hoursToMinutes` take the ceiling of a positive
+   value; zero stays zero. The API rounds at the seconds source too (`secondsToMinutesUp` in
+   `inAppTime.ts`, used by `class-practice-7d.ts` for the rollup, the daily bars and the caller's
+   own minutes), so 25 seconds reaches every page as 1. The copy-onto-the-class card's "N minutes in
+   the app" goes through the same rule.
+4. **Duration format.** Under an hour "N min"; from an hour "1 h 14 min"; "0 h" never. This
+   refines the 2026-09-11 ruling of job #265 ("Why the fuck is hours a thing anyway?"): both say a
+   number never rounds to a lying zero, and today's words win where they differ. The header of
+   `practiceMinutes.ts` carries both. The only hour formatter reachable from an Insights page,
+   `SovereignComparison.vue`, printed "0h 14m" for a raw hours value and now goes through the one
+   formatter; none of Tom's ten screenshots shows the "0 h", so that is the best candidate, not a
+   confirmed sighting.
+5. **The classes list column is no longer a rate.** "Time in app, min/wk" read as minutes per week
+   over a value that is the class account's seven-day total; job #673 ruled rates out. It now reads
+   "Played as class, this week" in the header, the phone data-label and the CSV. Taste-safe default,
+   chosen over the brief's "Time in app, this week" because #673 also ruled every label says whose
+   minutes they are. No school surface divides minutes by weeks; the "Active min/wk" column in the
+   admin Coverage board is admin-only draft data and untouched.
+6. **View As picker lands on real numbers.** `api/admin/users.ts` takes `sort=class_minutes_7d`
+   with `role=teacher|school_admin`, ranks the whole role by seven-day play-as-class minutes across
+   their classes (`api/_utils/viewAsCandidates.ts`: teachers via `class_teachers`, leaders via every
+   class in the school they administer, one diary read of the class accounts) and returns the top
+   50; `class_minutes_7d=1` adds the figure and the school name to search results. The picker
+   sorts most-active first and writes "School leader · Chepstow · 4 h 32 min this week" under each
+   name; no play reads "0 min this week" and sorts last. Group leader stays most-recently-active: a
+   seven-day rollup across a whole group is out of price for a picker.
+
+**The process rule (written into WORKLIST.md as well).** Every schools-dashboard job verifies in a
+real browser as a REAL signed-in teacher and a REAL signed-in school leader, not View As, before
+any done card; and no control may be removed unless the job's landing line names it with
+before-and-after screenshots. Tom's diagnosis of the week, in his words: "we MAY be rushing on this,
+because we're doing logically stupid things like removing massive functionality, e.g. the Play as
+Class button."
+
+**Not changed, and why.** The minutes definition in `inAppTime.ts` (job #673). The per-person
+all-time minutes on the roster, students and teachers lists, which still read the sessions ledger
+and were out of this job's price in #673 too. Welsh and the other locales: the two new English keys
+are enrolled in `pending-translation.json`.
+
 ## 2026-09-14 — View As never writes in the viewed person's name; today's five empty support threads are gone (job #681)
 
 **Ruling (Tom, 15:51Z, on Watson's finding that four real schools "opened a support thread today and

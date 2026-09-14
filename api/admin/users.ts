@@ -5,6 +5,12 @@
  *   ?page=1&limit=50&search=foo  → paginated learner list with hero stats
  *   ?ids=uuid1,uuid2             → bulk fetch by user_id (no pagination, no stats)
  *
+ * View As (job #683): `class_minutes_7d=1` adds each teacher's / school
+ * leader's seven-day play-as-class minutes (`class_minutes_7d`, `school_name`)
+ * to the rows; `sort=class_minutes_7d` with `role=teacher|school_admin` ranks
+ * EVERY person of that role by that figure and returns the top `limit`, so the
+ * role shortcut lands on real numbers rather than the newest account.
+ *
  * Each user can have multiple emails (multi-provider OAuth, etc.). The
  * response returns primary_email and an emails[] array per user. Search
  * matches display_name OR ANY email belonging to the user.
@@ -18,6 +24,7 @@ import { verifyAdmin } from '../_utils/auth'
 import { quoteFilterValue } from '../_utils/postgrestFilter'
 import { applyCors } from '../_utils/cors'
 import { learnerIdRangeFromSupportId } from '../../packages/core/src/identity/supportId'
+import { loadClassMinutes7d, rankByClassMinutes } from '../_utils/viewAsCandidates'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -304,6 +311,8 @@ export default async function handler(
     const ROLE_FILTERS = new Set(['teacher', 'school_admin', 'govt_admin', 'student'])
     const role = typeof req.query.role === 'string' && ROLE_FILTERS.has(req.query.role) ? req.query.role : ''
     const offset = (page - 1) * limit
+    const wantClassMinutes = req.query.class_minutes_7d === '1'
+    const rankByClassPlay = req.query.sort === 'class_minutes_7d' && (role === 'teacher' || role === 'school_admin')
 
     let learnerIdsMatchingEmail: string[] = []
     if (search) {
@@ -348,7 +357,10 @@ export default async function handler(
       query = query.or(orParts.join(','))
     }
 
-    query = query.range(offset, offset + limit - 1)
+    // Ranking by class play reads every person of the role (a few hundred at
+    // most) and slices AFTER the sort; paging by created_at would rank only
+    // the newest page.
+    if (!rankByClassPlay) query = query.range(offset, offset + limit - 1)
 
     const weekAgo = new Date()
     weekAgo.setDate(weekAgo.getDate() - 7)
@@ -363,7 +375,15 @@ export default async function handler(
     ])
     if (lErr) throw lErr
 
-    const learnerIds = (learners || []).map(l => l.id)
+    // View As ranking: seven-day play-as-class minutes per candidate, once
+    // per request, then the top `limit` of the whole role.
+    let classMinutes = new Map<string, { class_minutes_7d: number; school_name: string | null }>()
+    let pageLearners: LearnerRow[] = learners || []
+    if (rankByClassPlay || wantClassMinutes) {
+      classMinutes = await loadClassMinutes7d(supabase, pageLearners)
+      if (rankByClassPlay) pageLearners = rankByClassMinutes(pageLearners, classMinutes).slice(0, limit)
+    }
+    const learnerIds = pageLearners.map(l => l.id)
 
     // Fetch everything the list needs in ONE server round-trip (service role,
     // indexed on learner_id) so the client renders immediately instead of
@@ -377,11 +397,13 @@ export default async function handler(
       loadDerivedPracticeMinutes(supabase, learnerIds),
     ])
 
-    const users = (learners || []).map(l => {
+    const users = pageLearners.map(l => {
       const emails = emailMap.get(l.id)
       const agg = enrollAgg.get(l.id)
+      const cm = classMinutes.get(l.user_id)
       return {
         ...l,
+        ...(rankByClassPlay || wantClassMinutes ? { class_minutes_7d: cm?.class_minutes_7d ?? 0, school_name: cm?.school_name ?? null } : {}),
         primary_email: emails?.primary || emails?.all[0] || null,
         emails: emails?.all || [],
         tier: tierFor(l, activeSubs, activeEnts),

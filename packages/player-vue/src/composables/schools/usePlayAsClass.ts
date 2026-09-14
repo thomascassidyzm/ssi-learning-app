@@ -41,7 +41,16 @@ export function usePlayAsClass() {
   const { isSchoolStaff, currentUser } = useSchoolContext()
   const router = useRouter()
 
-  const canPlayAsClass = computed(() => isSchoolStaff.value && !isAdminView)
+  // Who SEES the button: any school staff member. Who may PRESS it: the same
+  // people on a live account. Under View As the button is SHOWN DISABLED,
+  // never hidden (Tom, 2026-09-14 16:17Z, job #683: "every single Play as
+  // Class button has GONE!!!! That should be prominent next to the class, not
+  // invisible") — a viewer sees the control a teacher has, and the launch
+  // below still refuses, which is the honest rendering of the #681 write ban.
+  // Before this, canPlayAsClass carried `&& !isAdminView` (2026-07-16,
+  // 8ca0f01b2) and View As hid every button on every surface.
+  const canPlayAsClass = computed(() => isSchoolStaff.value)
+  const playAsClassReadOnly = computed(() => canPlayAsClass.value && isAdminView)
   // Was silent (console.warn/error only) — a teacher clicking Play on a
   // half-loaded or misconfigured class saw nothing happen at all (trinity
   // ledger LA #5). Callers render this next to the Play button.
@@ -75,7 +84,7 @@ export function usePlayAsClass() {
    */
   async function launchClassSession(cls: PlayableClass | null | undefined): Promise<boolean> {
     playError.value = null
-    if (!canPlayAsClass.value) return false
+    if (!canPlayAsClass.value || isAdminView) return false
     if (!cls?.id || !cls?.course_code) {
       console.warn('[usePlayAsClass] class not ready (missing id or course_code) — not launching')
       playError.value = 'This class is still loading — try again in a moment.'
@@ -113,5 +122,5 @@ export function usePlayAsClass() {
     return true
   }
 
-  return { canPlayAsClass, switchActiveCourseTo, launchClassSession, playError }
+  return { canPlayAsClass, playAsClassReadOnly, switchActiveCourseTo, launchClassSession, playError }
 }
