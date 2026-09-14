@@ -136,6 +136,7 @@ import { createOfflineUrn, type UrnCandidate } from '../playback/offlineUrn'
 import { isCyclePlayableOffline, requiredClipUrls, filterLapToDeviceAudio, roundTeachesOffline } from '../playback/offlinePlayable'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { paywallLandingRound } from '../playback/paywallLanding'
+import { grantAction, restoreHeldPosition } from '../playback/paywallGrant'
 import { createPaywallRetreat } from '../playback/paywallRetreat'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 import { setCursorTelemetrySink } from '@ssi/core'
@@ -2489,31 +2490,54 @@ function gateSeed(targetSeedNumber: number | null | undefined): boolean {
   return false
 }
 
+// The engine as the restore rule sees it: rounds, the jump, and the LEGO the
+// engine is on right now — read from the engine's own queue and index, not a
+// lagging mirror, so "did the jump land" is answered truthfully.
+const restoreEngine = {
+  getEngineRounds: () => simplePlayer.getEngineRounds(),
+  jumpToRound: (i: number, c?: number) => simplePlayer.jumpToRound(i, c),
+  currentLegoId: () => simplePlayer.getEngineRounds()[simplePlayer.roundIndex.value]?.legoId ?? null,
+}
+/** Try to put the learner back on the held real place; true only when the
+ *  engine is verifiably on it. The memory is spent by the play-on prompt. */
+function tryRestoreHeldPosition(): boolean {
+  if (!props.course) return false
+  return restoreHeldPosition(paywallRetreat, restoreEngine, (seed) => entitlementComposable.canAccessSeed(props.course!, seed))
+}
+
 // Watch entitlements — auto-dismiss paywall if user redeems a code or subscribes
 watch(liveEntitlements, () => {
   if (!props.course) return
   // A retreat that a fresh snapshot now overrules is undone FIRST, wall up or
-  // not: the learner goes back to the round they were really on. With the wall
-  // down ("Maybe later" then a grant) they are left paused there; the memory
-  // clears when they play on.
-  // The jump target is resolved by LEGO against the LIVE engine queue: the
-  // bootstrap queue is a window (round 0 = the resume LEGO) and the
-  // full-script handoff swaps it for the whole course, so an index kept from
-  // retreat time would land on the first LEGO of the course.
-  const restore = paywallRetreat.takeRestore(
-    (seed) => entitlementComposable.canAccessSeed(props.course!, seed),
-    (legoId) => simplePlayer.getEngineRounds().findIndex((r) => r?.legoId === legoId),
-  )
-  if (restore) {
-    try { simplePlayer.jumpToRound(restore.roundIndex, restore.cycleIndex) } catch { /* engine may not be ready */ }
-  }
-  if (showPaywall.value) {
-    const canAccess = entitlementComposable.canAccessSeed(props.course, PREMIUM_PREVIEW_MAX_SEED + 1)
-    if (canAccess) {
-      showPaywall.value = false
-      simplePlayer.resume()
-    }
-  }
+  // not: the learner goes back to the round they were really on, resolved by
+  // LEGO against the LIVE engine queue (the bootstrap queue is a window and
+  // the full-script handoff swaps it, so a retreat-time index is worthless).
+  // A restore that does not land — the LEGO not in the queue yet, or the
+  // engine refusing the jump — keeps the memory and the write-hold; the wall
+  // still comes down (access is real) but playback is NOT resumed at the
+  // retreat, and the roundCount watcher below retries as rounds arrive
+  // (job #752 addition: the failure path used to resume and then persist the
+  // retreat on the next prompt).
+  const held = paywallRetreat.current() !== null
+  const restored = held ? tryRestoreHeldPosition() : false
+  if (!showPaywall.value) return
+  const action = grantAction({
+    held,
+    restored,
+    accessNow: entitlementComposable.canAccessSeed(props.course, PREMIUM_PREVIEW_MAX_SEED + 1),
+  })
+  if (action === 'stay') return
+  showPaywall.value = false
+  if (action === 'lower-and-resume') simplePlayer.resume()
+  else console.warn('[LearningPlayer] grant received but the real position is not in the engine queue yet — wall down, paused at the retreat, restore retried as rounds arrive')
+})
+
+// Retry the held restore whenever the engine queue grows (addRounds /
+// appendRounds / the full-script handoff): the LEGO that was missing at grant
+// time may be there now. No-op unless something is held and now playable.
+watch(() => simplePlayer.roundCount.value, () => {
+  if (!paywallRetreat.current() || showPaywall.value) return
+  if (tryRestoreHeldPosition()) console.log('[LearningPlayer] held real position restored after rounds arrived')
 })
 
 // Mirror the offline-entitlement shape into shared state so ModeTray can nudge
