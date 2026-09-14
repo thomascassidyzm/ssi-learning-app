@@ -2089,3 +2089,25 @@ when there is only one course, rather than a static paragraph next to real dropd
 **Not dropdowns, left alone.** Segmented rows such as Window and Entity level, the navigation menus
 in the top bars, and the card pickers for plan, sector and course. Option lists and what a pick does
 are unchanged everywhere: this is the control only.
+
+## 2026-09-14 — Insights page: graph tool first, Overview | Insights as tabs, Where you are names the page (job #628)
+
+**Ruling (Tom, 2026-09-14 02:22Z),** reviewing staging as ssi_admin viewing as a school leader on
+class 10E: "the graph tool should be the leading thing"; Overview and Insights should read as a pair of
+tabs, side by side on both pages, in the same family as the Window control; and the Where you are card
+should say which of the two is open.
+
+**What changed.** On every node's Insights page the window / course / measure / compare block with its
+headline figure, over-time chart and "where this sits" now renders first, the "Are they doing it" block
+below it, voice last. Order only; neither block was redesigned. The "See insights" button on the node
+home and the plain "Overview" button on the lens are replaced by one `LensTabs` component, Overview |
+Insights, drawn in the WindowChips pill grammar with the open tab lit, at group, school and class level
+on both mounts. The map rail takes a `lens` prop and draws one quiet line under you're-here naming the
+open page with the other a tap away. The "Reading your insights" walk step that pointed at the Overview
+button now points at the tab pair and was re-pinned. Three English keys minted and enrolled in
+`pending-translation.json`; the old `org.nodeHome.seeInsights` key is now unused and left for the
+translation pass to sweep.
+
+**Left alone.** Learner level has no member-scope Overview/Insights pair, so nothing changed there. The
+"Show me — Reading your insights" link stays where it was. Reads only: a tab and the rail line are
+router navigations, so a view-as session still writes nothing.

@@ -19,6 +19,7 @@ import { useAdminClient } from '@/composables/useAdminClient'
 import { useI18n } from '@/composables/useI18n'
 import NodeRateEngine, { type EngineState } from '@/insight/NodeRateEngine.vue'
 import NodeMapRail from '@/components/admin/NodeMapRail.vue'
+import LensTabs from '@/components/admin/LensTabs.vue'
 import NodeMapRailSkeleton from '@/components/admin/NodeMapRailSkeleton.vue'
 import WalkOffer from '@/components/admin/WalkOffer.vue'
 import { cacheNodeHome, cachedNodeHome, cachedRail, dropCachedNode } from '@/composables/admin/nodeHomeCache'
@@ -233,6 +234,7 @@ const homeLink = computed(() => {
           :siblings="(rail.siblings as any) || []"
           :children="rail.kind === 'class' || isClass ? [] : ((rail.children as any) || [])"
           :kind="rail.kind"
+          :lens="{ current: 'insights', overviewPath: homeLink, insightsPath: route.path }"
         />
         <NodeMapRailSkeleton v-else />
       </aside>
@@ -249,15 +251,32 @@ const homeLink = computed(() => {
             <UpdatedStamp />
             <WalkOffer :persona="member ? 'leader' : 'admin'" place="node-insights" />
             <div class="verbs">
-              <router-link :to="homeLink" class="verb-btn verb-btn-secondary" data-walk="insights-overview">{{ t('org.insights.overview', 'Overview') }}</router-link>
+              <!-- Overview | Insights as tabs (Tom, 2026-09-14) — the same pair
+                   node home shows, with Insights lit here. -->
+              <div data-walk="insights-overview">
+                <LensTabs :overview-path="homeLink" :insights-path="route.path" current="insights" />
+              </div>
               <router-link v-if="!member" to="/admin/stats" class="verb-btn verb-btn-secondary">{{ t('org.insights.allBoards', 'All boards') }}</router-link>
             </div>
           </div>
         </header>
 
-        <!-- THE ORG QUESTIONS — practising, quiet, journey — first, because
-             they are what a leader opened the lens for. The rate comparison
-             and the voice section follow, unchanged. -->
+        <!-- THE GRAPH TOOL LEADS (Tom, 2026-09-14: "the graph tool should be
+             the leading thing") — window / course / measure / compare, the
+             headline figure, the over-time chart and where this sits. The
+             org questions follow it, then voice. Order only; neither block
+             was redesigned. -->
+        <NodeRateEngine
+          v-model:course="course"
+          v-model:compare="compare"
+          v-model:window="window_"
+          v-model:measure="measure"
+          :node-id="nodeId"
+          :get-token="getAuthToken"
+          @state="state = $event"
+        />
+
+        <!-- THE ORG QUESTIONS — practising, quiet, journey. -->
         <section class="org-intel-section">
           <header class="vad-section-head">
             <span class="schools-kicker">{{ t('org.intel.kicker', 'Attention · practice') }}</span>
@@ -271,16 +290,6 @@ const homeLink = computed(() => {
             :member="member"
           />
         </section>
-
-        <NodeRateEngine
-          v-model:course="course"
-          v-model:compare="compare"
-          v-model:window="window_"
-          v-model:measure="measure"
-          :node-id="nodeId"
-          :get-token="getAuthToken"
-          @state="state = $event"
-        />
 
         <!-- VOICE & PAUSE — the same renderer the admin board uses, scoped to
              this node by the server. Uptake first, denominators everywhere:

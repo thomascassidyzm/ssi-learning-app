@@ -44,6 +44,11 @@ const props = defineProps<{
    * true forces member; absent/false falls back to path detection — Vue
    * defaults absent boolean props to false, so ?? can't express this. */
   member?: boolean
+  /** Which of the node's two pages is open — Overview or Insights — drawn as
+   * one quiet line beneath you-are-here, tappable to switch (Tom, 2026-09-14:
+   * "orientation, not navigation chrome"). Absent on rails whose node has no
+   * insights page. */
+  lens?: { current: 'overview' | 'insights'; overviewPath: string; insightsPath: string } | null
 }>()
 
 const router = useRouter()
@@ -59,6 +64,18 @@ const showSiblings = computed({
 function open(ref_: RailRef): void {
   if (ref_.inert) return
   router.push(ref_.path || groupHomePath(ref_.id, member.value))
+}
+
+// The lens line: the open page named, the other one a tap away.
+const lensWord = computed(() => props.lens?.current === 'insights'
+  ? t('org.lensTabs.insights', 'Insights').toLowerCase()
+  : t('org.insights.overview', 'Overview').toLowerCase())
+const otherLensWord = computed(() => props.lens?.current === 'insights'
+  ? t('org.insights.overview', 'Overview').toLowerCase()
+  : t('org.lensTabs.insights', 'Insights').toLowerCase())
+function switchLens(): void {
+  if (!props.lens) return
+  router.push(props.lens.current === 'insights' ? props.lens.overviewPath : props.lens.insightsPath)
 }
 
 function labelWord(r: RailRef): string {
@@ -97,6 +114,18 @@ function labelWord(r: RailRef): string {
           <span class="rail-name">{{ props.node.name }}</span>
           <span class="rail-label">{{ t('org.ui.nodeMapRail.youreHere', 'you\'re here') }}</span>
         </span>
+      </li>
+      <li v-if="props.lens" class="rail-row is-lens" :style="{ '--depth': props.ancestors.length }">
+        <button
+          type="button"
+          class="rail-lens"
+         
+          :aria-label="t('org.ui.nodeMapRail.switchTo', 'Switch to {lens}').replace('{lens}', otherLensWord)"
+          @click="switchLens"
+        >
+          <span class="rail-lens-current">{{ lensWord }}</span>
+          <span class="rail-lens-other">· {{ otherLensWord }}</span>
+        </button>
       </li>
       <li v-if="props.siblings.length" class="rail-row is-siblings" :style="{ '--depth': props.ancestors.length }">
         <button type="button" class="rail-toggle" @click="showSiblings = !showSiblings">
@@ -179,6 +208,15 @@ function labelWord(r: RailRef): string {
 }
 .is-here .rail-name { font-weight: var(--font-bold, 700); color: var(--schools-fg, #0F1212); }
 .is-here .rail-label { color: var(--schools-red, #DB1E17); font-weight: var(--font-medium); }
+
+/* The lens line: same indent as you-are-here, quieter than a row. */
+.rail-lens {
+  display: flex; align-items: baseline; gap: 6px; width: 100%; min-width: 0;
+  padding: 2px 10px 4px 13px; border: none; background: none; font: inherit; text-align: left;
+  cursor: pointer; color: var(--schools-fg-3, #8A8078); font-size: var(--text-xs);
+}
+.rail-lens-current { color: var(--schools-fg-2, #555); font-weight: var(--font-medium); }
+.rail-lens:hover .rail-lens-other { color: var(--schools-fg, #0F1212); text-decoration: underline; }
 
 .rail-toggle { cursor: pointer; color: var(--schools-fg-3, #8A8078); font-size: var(--text-xs); padding: 4px 10px; }
 .rail-toggle:hover { color: var(--schools-fg, #0F1212); }

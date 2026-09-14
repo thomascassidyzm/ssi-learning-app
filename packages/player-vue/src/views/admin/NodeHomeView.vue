@@ -35,6 +35,7 @@ const UpgradeView = INSTITUTIONAL_PURCHASE_IN_BUILD
 // native WebView has the constant true and the capability false.
 const seatPurchaseAvailable = computed(() => institutionalPurchaseAvailable())
 import NodeMapRail from '@/components/admin/NodeMapRail.vue'
+import LensTabs from '@/components/admin/LensTabs.vue'
 import NodeMapRailSkeleton from '@/components/admin/NodeMapRailSkeleton.vue'
 import NodeChildrenList from '@/components/admin/NodeChildrenList.vue'
 import NodeBelowTree from '@/components/admin/NodeBelowTree.vue'
@@ -836,6 +837,7 @@ const listPayload = computed(() => {
             :siblings="(rail.siblings as any) || []"
             :children="rail.kind === 'class' ? [] : ((rail.children as any) || [])"
             :kind="rail.kind"
+            :lens="insightsLink ? { current: 'overview', overviewPath: route.path, insightsPath: insightsLink } : null"
           />
           <NodeMapRailSkeleton v-else />
         </aside>
@@ -890,9 +892,10 @@ const listPayload = computed(() => {
               </p>
             </div>
 
-            <!-- Lens/insight nav — same corner, every level -->
+            <!-- Overview | Insights as tabs, same corner, every level (Tom,
+                 2026-09-14) — Overview lit here, Insights lit on the lens. -->
             <div class="verbs">
-              <router-link v-if="insightsLink" :to="insightsLink" class="verb-btn verb-btn-secondary">{{ t('org.nodeHome.seeInsights', 'See insights') }}</router-link>
+              <LensTabs v-if="insightsLink" :overview-path="route.path" :insights-path="insightsLink" current="overview" />
             </div>
           </header>
 
