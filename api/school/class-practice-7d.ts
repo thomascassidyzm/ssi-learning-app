@@ -8,10 +8,15 @@
  *
  * THE HEADLINE IS IN-APP SESSION TIME (founder ruling, Tom 2026-09-10: "in-app
  * time is in-class time, they want to know that precisely"; rule and defaults
- * in api/_utils/inAppTime.ts). Per class it is the sum, each learner id once, of
- *   - the CLASS's own account (`classes.class_learner_id`) — whole-class play
- *     from the front, which is most of what a school does; and
- *   - each STUDENT's own account on that class.
+ * in api/_utils/inAppTime.ts). Per class it comes as TWO FIGURES, KEPT APART,
+ * NEVER SUMMED (Tom's ruling, 2026-09-14, job #662: "Teacher SHOULD be able to
+ * see both: Play-as-class minutes AND an aggregate of the class students own
+ * playing times"):
+ *   - classPlayByClass — the CLASS's own account (`classes.class_learner_id`),
+ *     whole-class play from the front, which is most of what a school does; and
+ *   - practiceByClass — the aggregate of each STUDENT's own account on that
+ *     class. Until job #662 this field was class play PLUS pupils, which is the
+ *     one number a teacher home must never show.
  * Audio-played seconds (learner_speaking_opportunities.play_seconds, students
  * only — the class account cannot write that ledger) stay in the payload as the
  * secondary figure, demoted not deleted.
@@ -23,8 +28,10 @@
  * given, every class in the caller's scope is returned.
  *
  * Returns: {
- *   practiceByClass:   { [classId]: in-app seconds, last 7 days } — the headline
- *   classPlayByClass:  { [classId]: of which, the class account's own play }
+ *   practiceByClass:   { [classId]: the PUPILS' own-account in-app seconds, last
+ *                        7 days } — never includes the class account
+ *   classPlayByClass:  { [classId]: the class account's own play, last 7 days }
+ *                        — the play-as-class figure, the class row's headline
  *   audioPlayedByClass:{ [classId]: students' audio-played seconds off the ledger }
  *   activeDaysByClass: { [classId]: distinct UTC days in the window with any play,
  *                        the class account and its students together } — what
@@ -269,7 +276,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       const classLearner = classLearnerByClass.get(c)
       const classPlay = classLearner ? (inAppByLearner.get(classLearner)?.seconds || 0) : 0
       classPlayByClass[c] = classPlay
-      practiceByClass[c] = classPlay + students.reduce((sum, lid) => sum + (inAppByLearner.get(lid)?.seconds || 0), 0)
+      // Pupils' own accounts ONLY. The class account is classPlayByClass; the
+      // two are never added (Tom, 2026-09-14, job #662).
+      practiceByClass[c] = students.reduce((sum, lid) => sum + (inAppByLearner.get(lid)?.seconds || 0), 0)
       audioPlayedByClass[c] = students.reduce((sum, lid) => sum + (secondsByLearner.get(lid) || 0), 0)
       const days = new Set<string>()
       for (const lid of [classLearner, ...students]) if (lid) for (const d of inAppByLearner.get(lid)?.days ?? []) days.add(d)

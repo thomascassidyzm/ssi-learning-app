@@ -159,7 +159,8 @@ async function loadClassAccount(classId: string) {
   try {
     const data = await fetchClassPractice7d([classId], selectedUser.value)
     classAccount.value = data?.classAccountByClass[classId] ?? null
-    classMinutesWk.value = data ? secondsToMinutes(data.practiceByClass[classId] ?? 0) : null
+    // The class account's own play, never summed with the pupils' own accounts (job #662).
+    classMinutesWk.value = data ? secondsToMinutes(data.classPlayByClass[classId] ?? 0) : null
     classPracticeLoaded.value = !!data
   } catch {
     classAccount.value = null

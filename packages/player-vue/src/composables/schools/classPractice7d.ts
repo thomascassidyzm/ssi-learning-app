@@ -42,8 +42,9 @@ export interface CallerOwnPractice {
 }
 
 export interface ClassPractice7d {
+  /** The PUPILS' own-account seconds per class. Never includes the class account (job #662). */
   practiceByClass: Record<string, number>
-  /** Of practiceByClass, the class account's own play — the rest is pupils' own accounts. */
+  /** The class account's own play per class — the play-as-class figure. Never summed with practiceByClass. */
   classPlayByClass: Record<string, number>
   activeDaysByClass: Record<string, number>
   classAccountByClass: Record<string, ClassAccountProgress>

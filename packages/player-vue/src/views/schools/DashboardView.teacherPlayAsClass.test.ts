@@ -74,10 +74,11 @@ const TEACHER = {
 }
 
 // What /api/school/class-practice-7d says for 10C in the week of 2026-09-14:
-// the class account played 9 minutes (Mon 14th), 7 phrases, 8 LEGOs; the
-// teacher's OWN account carries 12 minutes, last on Wednesday the 9th.
+// the class account played 9 minutes (Mon 14th), 7 phrases, 8 LEGOs; no pupil
+// played on an own account (practiceByClass is the pupils' aggregate, job
+// #662); the teacher's OWN account carries 12 minutes, last on Wednesday the 9th.
 const PRACTICE = {
-  practiceByClass: { [CLASS_10C.id]: 540 },
+  practiceByClass: { [CLASS_10C.id]: 0 },
   classPlayByClass: { [CLASS_10C.id]: 540 },
   audioPlayedByClass: { [CLASS_10C.id]: 0 },
   activeDaysByClass: { [CLASS_10C.id]: 1 },
@@ -147,8 +148,10 @@ describe('DashboardView — the teacher home is play-as-class first (job #651)',
     expect(text).not.toContain('0 students')
     expect(text).not.toContain('Benchmarks')
     expect(text).not.toContain('sessions')
-    // No pupil has an own account, so the own-accounts line is absent.
-    expect(text).not.toContain('pupils on their own accounts')
+    // No pupil played on an own account: the second figure says so in words
+    // rather than hiding (Tom, 2026-09-14, job #662).
+    expect(text).toContain('Nothing on pupils’ own accounts this week')
+    expect(text).toContain('nothing on pupils’ own accounts')
     // The footer totals are this week's class play.
     expect(text).toContain('in the app this week')
     expect(text).toContain('phrases practised')
@@ -170,14 +173,20 @@ describe('DashboardView — the teacher home is play-as-class first (job #651)',
     expect(wrapper.find('[data-walk="dash-own-practice"]').exists()).toBe(false)
   })
 
-  it('pupils on their own accounts appear as a SECOND line, only when there are any', async () => {
+  // TWO FIGURES, KEPT APART, NEVER SUMMED (Tom, 2026-09-14, job #662). Red on
+  // the #651 code, which read the summed practiceByClass into the class row
+  // and showed 14 min; green after.
+  it('the class row carries the class account\'s minutes and, apart from them, the pupils\' own-account minutes — never their sum', async () => {
     const { useClassesData } = await import('@/composables/schools/useClassesData')
-    const wrapper = await mountTeacherHome({ practice: { ...PRACTICE, practiceByClass: { [CLASS_10C.id]: 840 } } })
-    // Two pupils signed in themselves: 300 s of the class figure is theirs.
+    const wrapper = await mountTeacherHome({ practice: { ...PRACTICE, practiceByClass: { [CLASS_10C.id]: 300 } } })
+    // Two pupils signed in themselves for 5 minutes between them.
     useClassesData().classes.value = [{ ...(useClassesData().classes.value[0] as any), student_count: 2 }]
     await flushPromises()
     const text = wrapper.text()
+    expect(text).toContain('One class on the go. 9 min in the app this week.')
+    expect(wrapper.find('[data-walk="dash-class-week-pupils"]').text()).toBe('pupils’ own accounts 5 min')
     expect(text).toContain('2 pupils on their own accounts · 5 min on those accounts this week')
+    expect(text).not.toContain('14 min')
   })
 
   it('a practice fetch that failed says so and shows no minutes — never a 0 that is not real', async () => {

@@ -225,18 +225,22 @@ function lastPlayedLabel(iso: string | null | undefined): string {
   return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
-// One row per class, every figure the class account's own. `started` is null
+// One row per class, carrying TWO figures kept apart and never summed (Tom's
+// ruling, 2026-09-14, job #662): minutesWk is the class account's own play,
+// pupilsOwnMinutes the aggregate of the pupils' own accounts. `started` is null
 // until the payload lands (the row says "loading"), false when the account
 // has never played (the row says "Not started" in words, never zeros).
 const teacherClassRows = computed(() => teacherClasses.value.map((c) => {
   const p = teacherPractice.value
   const acct = p?.classAccountByClass[c.id]
   const started: boolean | null = p ? (acct?.started ?? false) : null
-  const minutesWk = p ? secondsToMinutes(p.practiceByClass[c.id] ?? 0) : 0
+  const minutesWk = p ? secondsToMinutes(p.classPlayByClass[c.id] ?? 0) : 0
+  const pupilsOwnMinutes = p ? secondsToMinutes(p.practiceByClass[c.id] ?? 0) : 0
   return {
     ...c,
     started,
     minutesWk,
+    pupilsOwnMinutes,
     phrases7d: acct?.phrases7d ?? 0,
     journeyDone: acct?.journeyDone ?? 0,
     journeyTotal: acct?.journeyTotal ?? 0,
@@ -409,23 +413,37 @@ function courseDisplayName(code: string): string {
   return m ? getLanguageName(m[1]) : code
 }
 
-// Totals across the teacher's classes, this week, off the class accounts —
-// and, kept apart, what the pupils did on their OWN accounts (the old
-// "students" total), shown only when any pupil has one.
+// Totals across the teacher's classes, this week: the class accounts' own
+// play, and, kept apart and never added to it, what the pupils did on their
+// OWN accounts. Both are always shown; a zero is said in words (Tom's ruling,
+// 2026-09-14, job #662: "there wont be a lot of this at the moment").
 const teacherStats = computed(() => {
   const rows = teacherClassRows.value
-  const p = teacherPractice.value
-  const studentsOwnSeconds = p
-    ? rows.reduce((sum, c) => sum + Math.max(0, (p.practiceByClass[c.id] ?? 0) - (p.classPlayByClass?.[c.id] ?? 0)), 0)
-    : 0
   return {
     classes: rows.length,
     minutes: rows.reduce((sum, c) => sum + c.minutesWk, 0),
     phrases: rows.reduce((sum, c) => sum + c.phrases7d, 0),
     students: teacherClasses.value.reduce((sum, c) => sum + (c.student_count || 0), 0),
-    studentsOwnMinutes: secondsToMinutes(studentsOwnSeconds),
+    studentsOwnMinutes: rows.reduce((sum, c) => sum + c.pupilsOwnMinutes, 0),
   }
 })
+
+// The pupils' own-accounts line, always present once the payload has landed.
+const pupilsOwnLine = computed(() => {
+  if (!teacherPracticeLoaded.value) return ''
+  const s = teacherStats.value
+  if (s.studentsOwnMinutes <= 0) {
+    return t('schools.dashboard.pupilsOwnAccountsNone', 'Nothing on pupils’ own accounts this week. That is usual for a class taught from the front.')
+  }
+  return t('schools.dashboard.studentsOwnAccountsLine', '{n} pupils on their own accounts · {minutes} on those accounts this week')
+    .replace('{n}', String(s.students)).replace('{minutes}', formatPracticeMinutes(s.studentsOwnMinutes))
+})
+
+function pupilsOwnRowLabel(minutes: number): string {
+  return minutes > 0
+    ? t('schools.dashboard.pupilsOwnAccountsRow', 'pupils’ own accounts {minutes}').replace('{minutes}', formatPracticeMinutes(minutes))
+    : t('schools.dashboard.pupilsOwnAccountsRowNone', 'nothing on pupils’ own accounts')
+}
 
 const greetingLines = computed(() => {
   const n = teacherClasses.value.length
@@ -564,13 +582,15 @@ async function handlePlayClass(cls: ClassInfo) {
                roles: teacher
                place: dashboard
                keywords: classes, dashboard, overview, minutes, phrases, journey, join code, course
-               parts: dash-class-week
+               parts: dash-class-week, dash-class-week-pupils
                What it's for. Your teaching dashboard, with your classes first. Every
                class you teach is a row or a card carrying its course, the minutes
                it spent in the app this week, the phrases it practised, how far it
                has travelled through the course, when it last played, and the join
-               code you read out to get a new pupil in. Every figure is the class's
-               own, from the lessons you ran with Play as class.
+               code you read out to get a new pupil in. The minutes are the class's
+               own, from the lessons you ran with Play as class. Beside them, kept
+               apart and never added in, is what the pupils did on their own
+               accounts this week, said in words when there is nothing.
                Where it is. The schools dashboard you land on, above everything else
                on the page.
                How you do it.
@@ -607,6 +627,7 @@ async function handlePlayClass(cls: ClassInfo) {
               <span class="dot-sep">·</span>
               {{ t('schools.dashboard.legosTravelled', '{done}/{total} LEGOs').replace('{done}', String(cls.journeyDone)).replace('{total}', String(cls.journeyTotal)) }}
             </template>
+            <span v-if="cls.started !== null" class="class-week-pupils schools-subtle" data-walk="dash-class-week-pupils">{{ pupilsOwnRowLabel(cls.pupilsOwnMinutes) }}</span>
           </div>
           <div class="join-code">{{ cls.student_join_code }}</div>
           <div class="row-cta">
@@ -644,6 +665,7 @@ async function handlePlayClass(cls: ClassInfo) {
                 <span class="dot-sep">·</span>
                 <span>{{ t('schools.dashboard.nPhrases', '{n} phrases').replace('{n}', String(cls.phrases7d)) }}</span>
               </template>
+              <span v-if="cls.started !== null" class="class-week-pupils schools-subtle" data-walk="dash-class-week-pupils">{{ pupilsOwnRowLabel(cls.pupilsOwnMinutes) }}</span>
             </div>
           </div>
 
@@ -711,9 +733,10 @@ async function handlePlayClass(cls: ClassInfo) {
            What it's for. One quiet line totalling your classes this week: how many
            classes, the minutes they spent in the app with a lesson running, and the
            phrases they practised. All of it is the classes' own play from the front.
-           A second line, only when any pupil has signed in on their own account,
-           counts those pupils and the minutes on their own accounts, kept apart so
-           the two are never confused.
+           A second line, always there, is the minutes your pupils spent on their
+           own accounts this week, kept apart from the first and never added to it.
+           When no pupil has practised on their own account it says so in words,
+           because that is usual for a class taught from the front and not a fault.
            Where it is. Underneath your classes on the schools dashboard.
            How you do it.
            1. Open the schools dashboard and scroll past your classes.
@@ -731,8 +754,8 @@ async function handlePlayClass(cls: ClassInfo) {
         <span class="dot-sep">·</span>
         <span><strong class="arsenal stat-line-value">{{ teacherPracticeLoaded ? teacherStats.phrases : '—' }}</strong> {{ t('schools.dashboard.phrasesPractised', 'phrases practised') }}</span>
       </div>
-      <div v-if="teacherClasses.length && teacherStats.students > 0" class="teacher-stat-line teacher-stat-line-own schools-subtle" data-walk="dash-teacher-own-accounts">
-        <span>{{ t('schools.dashboard.studentsOwnAccountsLine', '{n} pupils on their own accounts · {minutes} on those accounts this week').replace('{n}', String(teacherStats.students)).replace('{minutes}', formatPracticeMinutes(teacherStats.studentsOwnMinutes)) }}</span>
+      <div v-if="teacherClasses.length && pupilsOwnLine" class="teacher-stat-line teacher-stat-line-own schools-subtle" data-walk="dash-teacher-own-accounts">
+        <span>{{ pupilsOwnLine }}</span>
       </div>
     </template>
 
@@ -1176,6 +1199,7 @@ async function handlePlayClass(cls: ClassInfo) {
 
 <style scoped>
 .class-week { font-size: var(--text-sm); color: var(--schools-fg-2, #555); }
+.class-week-pupils { display: block; font-size: var(--text-xs, 12px); margin-top: 2px; }
 .class-week strong { color: var(--schools-fg, #222); }
 .panel-week { display: flex; flex-direction: column; gap: 4px; }
 .panel-week-line { margin: 0; font-size: var(--text-sm); color: var(--schools-fg-2, #555); }

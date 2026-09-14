@@ -115,8 +115,9 @@ describe('GET /api/school/class-practice-7d — the CALLER\'S OWN ACCOUNT (job #
     expect(res.body.callerOwn.minutesByDay).toHaveLength(7)
     expect(res.body.callerOwn.minutesByDay[6]).toBe(12)
     expect(res.body.callerOwn.lastPlayedDay).toBe(new Date().toISOString().split('T')[0])
-    // The class's own row is untouched by the caller's play.
-    expect(res.body.practiceByClass).toEqual({ c1: 2100 })
+    // Neither per-class figure is touched by the caller's play.
+    expect(res.body.classPlayByClass).toEqual({ c1: 1500 })
+    expect(res.body.practiceByClass).toEqual({ c1: 600 })
   })
 
   it('under the admin passthrough, ?own_user_id= names the persona\'s own account, never the admin\'s', async () => {
@@ -158,9 +159,11 @@ describe('GET /api/school/class-practice-7d — the SCHOOL HEADLINE rollup (job 
     await handler(makeReq({}), res)
     expect(res.statusCode).toBe(200)
     // class account 1500s + student 600s + teacher 900s = 3000s = 50 min.
-    // (The per-class figure stays students + class account: 2100s.)
+    // The school headline is the one place the accounts are added, each once;
+    // the per-class figures stay apart (job #662).
     expect(res.body.rollup).toEqual({ windowDays: 7, classCount: 1, activeClasses7d: 1, inAppMinutes7d: 50 })
-    expect(res.body.practiceByClass).toEqual({ c1: 2100 })
+    expect(res.body.classPlayByClass).toEqual({ c1: 1500 })
+    expect(res.body.practiceByClass).toEqual({ c1: 600 })
   })
 
   it('CLASS ACCOUNT ROW (Tom, 2026-09-11): each class carries its own account\'s progress — started, minutes per day, journey — and a class that never played says so', async () => {
@@ -197,7 +200,7 @@ describe('GET /api/school/class-practice-7d — the SCHOOL HEADLINE rollup (job 
     const res = makeRes()
     await handler(makeReq({ school_id: 's1' }), res)
     expect(res.statusCode).toBe(200)
-    expect(res.body.practiceByClass).toEqual({ c1: 2100 })
+    expect(res.body.classPlayByClass).toEqual({ c1: 1500 })
     expect(res.body.rollup.classCount).toBe(1)
   })
 
@@ -223,14 +226,27 @@ describe('GET /api/school/class-practice-7d — IN-APP TIME (founder ruling 2026
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(200)
-    // Student: 600s in the app. Class account: 1200s + 300s, the 40-minute
-    // silence between them not counted. Never 120 (audio played), never the
-    // class account's sessions.duration_seconds.
-    expect(res.body.practiceByClass).toEqual({ c1: 2100 })
+    // Class account: 1200s + 300s, the 40-minute silence between them not
+    // counted. Never 120 (audio played), never the class account's
+    // sessions.duration_seconds.
     expect(res.body.classPlayByClass).toEqual({ c1: 1500 })
     expect(res.body.audioPlayedByClass).toEqual({ c1: 120 })
     expect(res.body.metric).toBe('in_app_session_time')
     expect(res.body.idleCutoffSeconds).toBe(300)
+  })
+
+  // TWO FIGURES, KEPT APART, NEVER SUMMED (Tom, 2026-09-14, job #662: "Teacher
+  // SHOULD be able to see both: Play-as-class minutes AND an aggregate of the
+  // class students own playing times"). Red on the pre-#662 code, where
+  // practiceByClass was class play PLUS pupils (2100); green after.
+  it('practiceByClass is the PUPILS\' own accounts only and classPlayByClass the class account — the two are never added', async () => {
+    const res = makeRes()
+    await handler(makeReq({}), res)
+    expect(res.statusCode).toBe(200)
+    // Student l1: 600s on their own account. Class account: 1500s. No 2100 anywhere.
+    expect(res.body.practiceByClass).toEqual({ c1: 600 })
+    expect(res.body.classPlayByClass).toEqual({ c1: 1500 })
+    expect(JSON.stringify(res.body)).not.toContain('2100')
   })
 
   it('ACTIVE DAYS: the days a class practised on count the class account and its students together — a class with no pupil accounts still earns its days from the front', async () => {
@@ -258,7 +274,7 @@ describe('GET /api/school/class-practice-7d — coverage gate', () => {
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(200)
-    expect(res.body.practiceByClass).toEqual({ c1: 2100 })
+    expect(res.body.practiceByClass).toEqual({ c1: 600 })
   })
 
   it('403s coverage_expired once the school\'s coverage has lapsed', async () => {
@@ -277,7 +293,7 @@ describe('GET /api/school/class-practice-7d — coverage gate', () => {
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(200)
-    expect(res.body.practiceByClass).toEqual({ c1: 2100 })
+    expect(res.body.practiceByClass).toEqual({ c1: 600 })
   })
 
   it('a teacher spanning two schools only loses the expired school\'s classes', async () => {
@@ -293,6 +309,6 @@ describe('GET /api/school/class-practice-7d — coverage gate', () => {
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(200)
-    expect(res.body.practiceByClass).toEqual({ c1: 2100 })
+    expect(res.body.practiceByClass).toEqual({ c1: 600 })
   })
 })

@@ -63,7 +63,7 @@ async function mountView() {
   globalThis.fetch = vi.fn(async (url: any) => {
     const u = String(url)
     if (u.includes('class-practice-7d')) return { ok: true, json: async () => ({
-      practiceByClass: { c1: 1020, c2: 660, c3: 1140, c4: 0, c5: 0 }, activeDaysByClass: { c1: 2, c2: 1, c3: 2, c4: 0, c5: 0 },
+      classPlayByClass: { c1: 1020, c2: 660, c3: 1140, c4: 0, c5: 0 }, activeDaysByClass: { c1: 2, c2: 1, c3: 2, c4: 0, c5: 0 },
       rollup: { windowDays: 7, classCount: 5, activeClasses7d: 3, inAppMinutes7d: 47 },
       classAccountByClass: { c1: acct(52, NOW, 17), c2: acct(34, NOW, 11), c3: acct(53, NOW, 19), c4: acct(0, LONG_AGO, 0), c5: acct(0, null, 0) },
     }) } as any
