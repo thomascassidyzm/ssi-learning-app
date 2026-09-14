@@ -364,3 +364,38 @@ describe('useBeltProgress - Supabase sync', () => {
     expect(mockSupabase.from).not.toHaveBeenCalled()
   })
 })
+
+// ============================================================================
+// Class-scoped device storage (job #742): a play-as-class session on the SAME
+// course must never write over the teacher's own belt cache.
+// ============================================================================
+
+describe('useBeltProgress - class-scoped storage', () => {
+  beforeEach(() => {
+    localStorageMock.clear()
+    vi.clearAllMocks()
+  })
+
+  it('a class-scoped instance never touches the unscoped (teacher) key for the same course', () => {
+    // The teacher's own cache: white belt, at the start.
+    const own = useBeltProgress('cym_n_for_eng')
+    own.initializeSync()
+    own.setLastLegoId('S0001L01')
+
+    // Play as class on the same course, skip to yellow.
+    const asClass = useBeltProgress('cym_n_for_eng', { storageScope: ':class:d52efceb' })
+    asClass.initializeSync()
+    asClass.setLastLegoId('S0008L01')
+    expect(asClass.highestBeltIndex.value).toBe(1)
+
+    // Back to self: a fresh read of the unscoped key is still the teacher's own.
+    const ownAgain = useBeltProgress('cym_n_for_eng')
+    ownAgain.initializeSync()
+    expect(ownAgain.lastLegoId.value).toBe('S0001L01')
+    expect(ownAgain.highestBeltIndex.value).toBe(0)
+
+    // And the two live under two different keys.
+    expect(localStorageMock.getItem('ssi_belt_progress_cym_n_for_eng')).toContain('S0001L01')
+    expect(localStorageMock.getItem('ssi_belt_progress_cym_n_for_eng:class:d52efceb')).toContain('S0008L01')
+  })
+})

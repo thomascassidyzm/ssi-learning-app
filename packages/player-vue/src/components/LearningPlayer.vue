@@ -79,6 +79,7 @@ import {
   type LearningMode,
 } from '../composables/useAlgorithmConfig'
 import { resolveNewLearnerMode } from '../composables/newLearnerMode'
+import { classStorageScope } from '../composables/classStorageScope'
 import { computePauseDuration } from '../playback/computePauseDuration'
 import { bulkDownloadAudio, fetchBatchAudioUrls } from '../playback/bulkAudioDownload'
 import { buildOfflineDownloadQueue, buildFetchAheadOrder } from '../playback/offlineDownloadOrder'
@@ -1054,6 +1055,15 @@ const isQaMode = computed(() => {
 // its learner entity minted (see ensureClassLearnerEntity).
 const staffLearnerId = computed(() => auth?.learnerId?.value || 'demo-learner')
 const learnerId = computed(() => props.classContext?.class_learner_id || staffLearnerId.value)
+
+// The device caches — resume position, belt cursor, Easy/Fast mode — are
+// keyed by course, and a class on the SAME course as the teacher shared them:
+// the class's belt skip, mode toggle and position came back as the teacher's
+// own the moment they played as themselves, then flowed from that cache into
+// the teacher's enrollment row and learner preferences (staging 2026-09-14
+// 21:35Z, job #742). Every class-mode device key carries this suffix; a
+// self-practice key carries none.
+const classScope = computed(() => classStorageScope(props.classContext))
 
 // Every course_enrollments/lego_progress write for the class's learner id
 // MUST go through the server-mediated /api/school/class-progress endpoint —
@@ -3810,7 +3820,7 @@ const isInitialized = ref(false)    // Legacy: whether component is fully initia
 // ============================================
 const POSITION_STORAGE_KEY_PREFIX = 'ssi_learning_position_'
 
-const getPositionStorageKey = () => `${POSITION_STORAGE_KEY_PREFIX}${courseCode.value}`
+const getPositionStorageKey = () => `${POSITION_STORAGE_KEY_PREFIX}${courseCode.value}${classScope.value}`
 
 // Set by SettingsScreen.vue (confirmReset / confirmRecover) immediately
 // before it clears the local cursor and reloads. Closes a race the reset
@@ -5310,6 +5320,7 @@ const initializeBeltProgress = async () => {
     const syncConfig: BeltProgressSyncConfig = {
       supabase: supabase,
       learnerId: computed(() => learnerId.value),
+      storageScope: classScope.value,
     }
     beltProgress.value = useSharedBeltProgress(courseCode.value, syncConfig)
 
@@ -11204,6 +11215,17 @@ const modeSelectsCycleOut = (cycle: { id?: string } | null | undefined): boolean
 }
 
 const LEARNING_MODE_KEY = 'ssi-learning-mode'
+// Class mode keeps its own device key and NEVER reads or writes the driving
+// teacher's learner row: `auth.learner` is the teacher, not the class, so the
+// class's mode toggle used to land in the teacher's preferences.learning_mode
+// and come back as the teacher's own mode (job #742).
+const learningModeKey = () => `${LEARNING_MODE_KEY}${classScope.value}`
+const learnerRowModePreference = (): unknown =>
+  props.classContext ? undefined : auth?.learner?.value?.preferences?.learning_mode
+const persistLearningMode = (mode: LearningMode) => {
+  try { localStorage.setItem(learningModeKey(), mode) } catch { /* storage blocked — session mode still applies */ }
+  if (!props.classContext) auth?.updatePreferences?.({ learning_mode: mode })
+}
 
 /**
  * Restore the learner's mode. Order: their stored learner preference (the
@@ -11213,20 +11235,20 @@ const LEARNING_MODE_KEY = 'ssi-learning-mode'
  * moved off the behaviour they have today.
  */
 const restoreLearningMode = () => {
-  const stored = auth?.learner?.value?.preferences?.learning_mode
+  const stored = learnerRowModePreference()
   if (stored === 'easy' || stored === 'fast') {
     learningMode.value = stored
     return
   }
   try {
-    const local = localStorage.getItem(LEARNING_MODE_KEY)
+    const local = localStorage.getItem(learningModeKey())
     if (local === 'easy' || local === 'fast') learningMode.value = local
   } catch { /* storage blocked — fast default stands */ }
 }
 restoreLearningMode()
 // The learner row lands asynchronously after auth resolves; re-read it then
 // so a signed-in learner's cross-device choice wins over this device's.
-watch(() => auth?.learner?.value?.preferences?.learning_mode, (mode) => {
+watch(() => learnerRowModePreference(), (mode) => {
   if (mode === 'easy' || mode === 'fast') learningMode.value = mode
 })
 
@@ -11257,10 +11279,10 @@ watch(courseCode, () => {
  *  (cross-device) or on this device? An explicit choice outranks any default,
  *  forever, so this gates the new-learner default below. */
 const hasChosenLearningMode = (): boolean => {
-  const stored = auth?.learner?.value?.preferences?.learning_mode
+  const stored = learnerRowModePreference()
   if (stored === 'easy' || stored === 'fast') return true
   try {
-    const local = localStorage.getItem(LEARNING_MODE_KEY)
+    const local = localStorage.getItem(learningModeKey())
     return local === 'easy' || local === 'fast'
   } catch { return false }
 }
@@ -11306,8 +11328,7 @@ const applyNewLearnerModeDefault = () => {
   // the learner never made. It also keeps this clear of the temporal dead zone,
   // since setLearningMode is declared further down and this watcher can fire
   // synchronously during setup for a guest.
-  try { localStorage.setItem(LEARNING_MODE_KEY, mode) } catch { /* storage blocked — session default still applies */ }
-  auth?.updatePreferences?.({ learning_mode: mode })
+  persistLearningMode(mode)
 }
 
 watch(progressHistoryResolved, () => applyNewLearnerModeDefault(), { immediate: true })
@@ -12093,8 +12114,7 @@ const setLearningMode = (mode: LearningMode) => {
   modeSelectionMemo.clear()
   // Signed-out learners only have localStorage; signed-in learners get both
   // so a fresh device still reads the right mode before auth resolves.
-  try { localStorage.setItem(LEARNING_MODE_KEY, mode) } catch { /* storage blocked */ }
-  auth?.updatePreferences?.({ learning_mode: mode })
+  persistLearningMode(mode)
   // Manual pace control — a no-mic behavioural signal, exactly as the Turbo
   // toggle was: easy = "this is too fast", fast = "I'm comfortable".
   logEvent('learning_mode_toggle', { mode })
