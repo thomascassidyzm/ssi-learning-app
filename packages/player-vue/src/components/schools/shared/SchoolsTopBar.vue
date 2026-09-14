@@ -36,13 +36,13 @@ const upgradeTab = computed<NavTab[]>(() =>
 )
 const route = useRoute()
 const router = useRouter()
-const { currentUser, isGovtAdmin, isSchoolAdmin, isTeacher, clear: clearSchoolContext } = useSchoolContext()
-// A TEACHER's own learner account is not offered in the nav itself (Tom,
-// 2026-09-14 13:07Z, job #662: "make it harder for the teachers to find their
-// own learner account? Maybe that is in a drop down menu by the avatar?
-// Rather than in the nav itself?"). It stays one step away as My player in the
-// avatar menu. School and group leaders keep the Learn button.
-const ownPlayInNav = computed(() => !(isTeacher.value && !isSchoolAdmin.value && !isGovtAdmin.value))
+const { currentUser, isGovtAdmin, isSchoolAdmin, clear: clearSchoolContext } = useSchoolContext()
+// There is no Learn button in the nav for ANY school role. Own-account play
+// lives one step away, as My player in the avatar menu (Tom, 2026-09-14
+// 14:50Z, job #675: "We have the My Player as a dropdown menu, correctly
+// already, so we can deprecate the Learn next to the User Avatar? THat would
+// make it a lot simpler"). This extends job #662, which had done it for a
+// teacher only and left leaders with the button.
 // Replies unread on the school's support thread — peeked on mount and on
 // focus, never on a timer: a glance at the menu must not count as reading.
 const { unread: supportUnread, peekUnread } = useSupportChannel()
@@ -353,25 +353,6 @@ if (typeof document !== 'undefined') {
            every dashboard (consistency law §1.12). -->
       <RefreshButton />
 
-      <!-- Self-practice launcher. Hidden on every player route — you don't offer
-           "Learn" to someone who is already in the player (owner ruling
-           2026-08-06) — which covers the live class session too, where the bar's
-           job is to name the class and offer the exit. Hidden for a TEACHER
-           altogether (Tom, 2026-09-14 13:07Z): her own account lives in the
-           avatar menu as My player, not in the nav. -->
-      <router-link
-        v-if="!isOnPlayerRoute && ownPlayInNav"
-        to="/"
-        class="learn-btn"
-        :title="t('schools.ui.topBar.learnBtnTitle', 'Learn — your own practice')"
-        :aria-label="t('schools.ui.topBar.learnBtnTitle', 'Learn — your own practice')"
-      >
-        <svg class="learn-btn__icon" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-          <path d="M2.5 1.2 10 6 2.5 10.8Z" fill="currentColor" />
-        </svg>
-        <span class="learn-btn__label">{{ t('schools.ui.topBar.learnBtnLabel', 'Learn') }}</span>
-      </router-link>
-
       <div class="user-menu">
         <button type="button" class="user-trigger" @click="toggleMenu">
           <span class="avatar" :style="{ background: roleAvatarColor }">{{ initials }}</span>
@@ -516,33 +497,6 @@ if (typeof document !== 'undefined') {
   background: var(--schools-border);
 }
 
-.learn-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 7px 14px;
-  font-size: 13px;
-  font-weight: 600;
-  text-decoration: none;
-  color: #fff;
-  background: var(--schools-red);
-  border-radius: 999px;
-  white-space: nowrap;
-  flex: none;
-  transition: background 120ms ease-out;
-}
-.learn-btn:hover { background: var(--schools-red-deep); }
-.learn-btn__icon { flex: none; }
-
-/* Icon-only below 480px — still a real >=44px tap target, not just padding
-   trimmed down to the icon's own 12px (the old rule shrank this to ~28px,
-   under the accessibility floor). */
-@media (max-width: 480px) {
-  .learn-btn__label { display: none; }
-  .learn-btn { width: 44px; height: 44px; padding: 0; }
-}
-
 .user-menu { position: relative; flex: none; }
 .user-trigger {
   display: inline-flex;
@@ -632,7 +586,7 @@ if (typeof document !== 'undefined') {
    its own a moment later. Fixed, so it clears the bar on every width. */
 .bug-toast {
   position: fixed;
-  top: calc(64px + env(safe-area-inset-top, 0px));
+  top: calc(var(--viewing-as-h, 0px) + 64px + env(safe-area-inset-top, 0px));
   left: 50%;
   transform: translateX(-50%);
   z-index: 70;
