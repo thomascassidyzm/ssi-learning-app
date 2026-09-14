@@ -33,8 +33,10 @@
  *
  * COPY, NOT MOVE, AND REVERSIBLE. The teacher's rows stay where they are; the
  * audit row makes a second run a no-op and makes undoCopy possible
- * (api/_utils/classProgressCopy.ts, POST /api/school/copy-teacher-play/undo),
- * which is what the teacher's in-app notice offers as one tap.
+ * (api/_utils/classProgressCopy.ts). Every copy sends the teacher one in-app
+ * message through the inbox primitive of job #684, whose one tap runs that
+ * undo through POST /api/messages/act — so nobody's class account changes
+ * without her being told and being able to put it back.
  *
  * ENV — service role required; the anon key silently undercounts:
  *   set -a; . ~/.ssi-sentinel.env; set +a
@@ -55,7 +57,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { planCopy, applyCopy, cursorPosition, COPY_TABLES } from '../api/_utils/classProgressCopy.ts'
 import { ensureClassLearnerEntity } from '../api/_utils/classLearnerEntity.ts'
-import { sendClassPlayCopiedNotice } from '../api/_utils/classPlayCopiedNotice.ts'
+import { sendClassPlayCopiedNotice } from '../api/_utils/copyPlayNotice.ts'
 
 const APPLY = process.argv.includes('--apply')
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -306,13 +308,13 @@ async function applySweep(scanResult) {
         console.log(`  PARTIAL  ${label}: ${error}`)
         continue
       }
-      const notice = await sendClassPlayCopiedNotice(svc, {
-        teacherUserId: row.teacher.user_id,
-        classId: row.class.id,
-        className: row.class.name,
-        courseCode: row.class.course_code,
-        auditId,
-      })
+      // applyCopy already sends the teacher her notice through the inbox
+      // primitive (job #684). This re-asserts it rather than sending a second:
+      // the notice is deduped on the audit id, so a call that finds one
+      // already there says so and writes nothing.
+      const notice = auditId
+        ? await sendClassPlayCopiedNotice(svc, auditId)
+        : { sent: false, id: null, skipped: 'no audit id' }
       applied.push({
         ...row,
         outcome: 'copied',
@@ -323,7 +325,7 @@ async function applySweep(scanResult) {
         cursor_taken_from_teacher: record.cursorTakenFromSource,
         notice,
       })
-      console.log(`  copied  ${label}  ${totalRows} rows${notice.sent ? '' : `  [notice not sent: ${notice.reason}]`}`)
+      console.log(`  copied  ${label}  ${totalRows} rows${notice.sent ? '' : `  [notice: ${notice.skipped || notice.error || 'already sent'}]`}`)
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err)
       applied.push({ ...row, outcome: 'failed', detail })
