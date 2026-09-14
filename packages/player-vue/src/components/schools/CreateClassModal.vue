@@ -243,12 +243,12 @@ const handleSubmit = () => {
                   class="course-picker-select"
                   :options="courseSelectOptions"
                   :disabled="isLoadingCatalogue"
-                  :placeholder="isLoadingCatalogue ? t('schools.ui.createClass.loadingCoursesPlaceholder', 'Loading courses…') : t('schools.ui.createClass.searchCoursesPlaceholder', 'Search courses…')"
                   :filter-placeholder="t('schools.ui.createClass.searchCoursesPlaceholder', 'Search courses…')"
                   :aria-label="t('schools.ui.createClass.courseLabel', 'Course / Language')"
                 >
                   <template #value="{ option }">
                     <template v-if="option"><LanguageFlag :code="option.value" :size="18" /> {{ option.label }}</template>
+                    <template v-else>{{ isLoadingCatalogue ? t('schools.ui.createClass.loadingCoursesPlaceholder', 'Loading courses…') : t('schools.ui.createClass.searchCoursesPlaceholder', 'Search courses…') }}</template>
                   </template>
                   <template #option="{ option }">
                     <LanguageFlag :code="option.value" :size="18" /> {{ option.label }}
