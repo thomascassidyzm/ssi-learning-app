@@ -89,7 +89,7 @@ import LegoAssembly from './LegoAssembly.vue'
 import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage } from '../utils/ensureTileCoverage'
 import { tilesFromGlossSegments, type GlossSegment } from '../utils/authoredGlossSegments'
-import { hasReachedInfinitePlay as hasReachedInfinitePlayPure, shouldAutoEnterInfinitePlay } from '../utils/infinitePlay'
+import { hasReachedInfinitePlay as hasReachedInfinitePlayPure, roundShapeSuggestsInfinitePlay, shouldAutoEnterInfinitePlay } from '../utils/infinitePlay'
 import { nextPractisingState, choosePractisedPosition, cycleIntroducesMaterial, type PractisedPosition, type NextLegoFetchOutcome } from '../playback/practisingMode'
 import { isContentBlackoutActive, reportBlackoutProbe } from '../playback/contentBlackout'
 import { practisingOverrideActive } from '../playback/practisingOverride'
@@ -1379,9 +1379,7 @@ const saveRoundProgress = async (legoId, roundIndex, round?: any) => {
   // cachedRounds for the legacy path. cachedRounds is empty on the
   // instant-playback path.
   const r = round ?? cachedRounds.value[roundIndex]
-  // By the producer's stamp when it carries one, by shape only when it does
-  // not — a hollow main-loop round (LEGO without audio) is still main-loop.
-  const isInfPlayRound = !!r && !isMainLoopRound(r)
+  const isInfPlayRound = roundShapeSuggestsInfinitePlay(r)
 
   // MAIN loop: the cursor is the LIVE position (the round + cycle the
   // learner is ON) and is written continuously by persistLivePositionToDb
@@ -2016,20 +2014,10 @@ watch([courseCode, loadedRounds], ([code, rounds]) => {
 // see comment there for why. Maintained by the onRoundCompleted handler.
 // Compares lexicographically (matches SNNNNLNN ordering).
 const lastMainLoopLegoId = ref<string | null>(null)
-// WHICH LOOP a round belongs to. The producer's stamp (core Round.revival) is
-// the fact; the round's SHAPE is only the fallback for rounds rebuilt from a
-// cache that predates the stamp. Tom, 2026-09-14: reading "no intro / debut /
-// build" as "revival round" put a Basque learner two seeds past the last
-// audio'd LEGO onto the red infinite-play bar with a frozen belt and INF PLAY
-// navigation, while the cursor said seed 87 — the round was a main-loop round
-// whose LEGO had no audio yet, and it looked review-only for that reason alone.
-const isMainLoopRound = (round: any): boolean => {
-  if (!round?.cycles?.length) return false
-  if (typeof round.revival === 'boolean') return !round.revival
-  return round.cycles.some((c: any) =>
+const isMainLoopRound = (round: any): boolean =>
+  !!round?.cycles?.length && round.cycles.some((c: any) =>
     c.type === 'intro' || c.type === 'debut' || c.type === 'build'
   )
-}
 
 // For visual position (belt colour, playingSeedNumber) — during an
 // infinite-play round, round.legoId is the random USE LEGO drawn for
@@ -2821,23 +2809,6 @@ simplePlayer.onAudioFailed((event) => {
     errorCode: event.errorCode,
     attempt: event.attempt,
     lastError: event.lastError,
-    consecutiveSkips: event.consecutiveSkips,
-  })
-})
-
-// Something outside the app paused the audio — a lost bluetooth route, a
-// headset button, another app taking the session. The engine has paused
-// itself in place and the learner's tap is the way on; this is the record of
-// it, so the next "it kept playing after the car switched off" report can be
-// read against what actually happened.
-simplePlayer.onInterrupted((event) => {
-  logEvent('audio_interrupted', {
-    phase: event.phase,
-    duringSilentClip: event.duringSilentClip,
-    hidden: event.hidden,
-    legoId: simplePlayer.currentRound.value?.legoId ?? null,
-    roundIndex: simplePlayer.roundIndex.value,
-    cycleIndex: simplePlayer.cycleIndex.value,
   })
 })
 
@@ -17922,16 +17893,14 @@ defineExpose({
         v-if="audioFailedBanner"
         type="button"
         class="audio-failed-banner"
-        :class="{ 'audio-failed-banner--play-error': audioFailedBanner.reason === 'play-error' || audioFailedBanner.reason === 'silent-run' }"
+        :class="{ 'audio-failed-banner--play-error': audioFailedBanner.reason === 'play-error' }"
         role="status"
         aria-live="polite"
         @click.stop="togglePlayback"
       >
-        {{ audioFailedBanner.reason === 'silent-run'
-          ? t('player.audioSilentRun')
-          : audioFailedBanner.reason === 'play-error'
-            ? "Audio didn't load — tap to retry"
-            : "Paused — tap play to continue" }}
+        {{ audioFailedBanner.reason === 'play-error'
+          ? "Audio didn't load — tap to retry"
+          : "Paused — tap play to continue" }}
       </button>
 
       <!-- Play button when paused. The surrounding element handles the tap;

@@ -1,6 +1,6 @@
 {
   "$comment": "Tom's vocabulary -> the code that decides it. Four fields per pointer and nothing else: his word, the code's word, where it is decided, and the deciding line verbatim. NO prose about behaviour lives here by design - prose goes stale silently, a pointer either resolves or it does not. Check with: node tools/vocabulary-pointers-check.mjs",
-  "generated": "2026-09-14",
+  "generated": "2026-09-10",
   "checker": "tools/vocabulary-pointers-check.mjs",
   "entries": [
     {
@@ -11,22 +11,22 @@
       "pointers": [
         {
           "file": "packages/player-vue/src/components/LearningPlayer.vue",
-          "line": 6339,
+          "line": 6305,
           "quote": "if (podCadenceFiresAtRound(completedRoundIndex)) {"
         },
         {
           "file": "packages/player-vue/src/components/LearningPlayer.vue",
-          "line": 6066,
+          "line": 6032,
           "quote": "return podScheduler.isLapDue()"
         },
         {
           "file": "packages/player-vue/src/components/LearningPlayer.vue",
-          "line": 2712,
+          "line": 2695,
           "quote": "const willFirePod = !beltJustEarned.value"
         },
         {
           "file": "packages/player-vue/src/components/LearningPlayer.vue",
-          "line": 6339,
+          "line": 6305,
           "quote": "if (podCadenceFiresAtRound(completedRoundIndex)) {"
         }
       ]
@@ -39,12 +39,12 @@
       "pointers": [
         {
           "file": "packages/player-vue/src/composables/usePodLapScheduler.ts",
-          "line": 733,
+          "line": 734,
           "quote": "const isLapDue = (): boolean => {"
         },
         {
           "file": "packages/player-vue/src/composables/usePodLapScheduler.ts",
-          "line": 741,
+          "line": 742,
           "quote": "return roundsSincePod.value >= podInterval()"
         },
         {
@@ -54,7 +54,7 @@
         },
         {
           "file": "packages/player-vue/src/composables/usePodLapScheduler.ts",
-          "line": 753,
+          "line": 754,
           "quote": "const shouldFireLapAt = (mainRound: number): boolean => {"
         }
       ]
@@ -93,7 +93,7 @@
       "pointers": [
         {
           "file": "packages/player-vue/src/composables/usePodLapScheduler.ts",
-          "line": 592,
+          "line": 593,
           "quote": ".from('listening_pod_sentences')"
         },
         {
@@ -103,7 +103,7 @@
         },
         {
           "file": "packages/player-vue/src/composables/servedPod.ts",
-          "line": 181,
+          "line": 140,
           "quote": "for (const slug of SERVING_POD_SLUGS) {"
         }
       ]
@@ -141,7 +141,7 @@
         },
         {
           "file": "packages/player-vue/src/components/LearningPlayer.vue",
-          "line": 4396,
+          "line": 4441,
           "quote": "listeningPolicy: listeningPlayPolicy,"
         },
         {
@@ -151,7 +151,7 @@
         },
         {
           "file": "packages/player-vue/src/components/LearningPlayer.vue",
-          "line": 4446,
+          "line": 4412,
           "quote": "if (Array.isArray(c.seedPlaylist) && c.seedPlaylist.length) out.seedPlaylist = c.seedPlaylist"
         }
       ]
@@ -164,17 +164,17 @@
       "pointers": [
         {
           "file": "packages/player-vue/src/composables/usePodLapScheduler.ts",
-          "line": 985,
+          "line": 986,
           "quote": "const playlist = policy.useStagePlaylist"
         },
         {
           "file": "packages/player-vue/src/composables/usePodLapScheduler.ts",
-          "line": 986,
+          "line": 987,
           "quote": "? (stagePlaylistMap[stageInfo.stage] || stagePlaylistMap[String(stageInfo.stage)])"
         },
         {
           "file": "packages/player-vue/src/composables/usePodLapScheduler.ts",
-          "line": 987,
+          "line": 988,
           "quote": ": singlePlaylist"
         },
         {
@@ -189,7 +189,7 @@
         },
         {
           "file": "packages/player-vue/src/composables/usePodLapScheduler.ts",
-          "line": 934,
+          "line": 935,
           "quote": "const singlePlaylist = podPlaylistFromPattern(policy.pattern)"
         }
       ]
@@ -222,7 +222,7 @@
         },
         {
           "file": "packages/player-vue/src/composables/usePodLapScheduler.ts",
-          "line": 977,
+          "line": 978,
           "quote": "if (podCohortHasCompleted(derivedAlive, stageDuration, totalStages, stageDurationsMap)) continue"
         }
       ]
@@ -234,17 +234,17 @@
       "pointers": [
         {
           "file": "packages/player-vue/src/components/LearningPlayer.vue",
-          "line": 11972,
+          "line": 11938,
           "quote": "const handleListeningMode = () => {"
         },
         {
           "file": "packages/player-vue/src/components/LearningPlayer.vue",
-          "line": 11986,
+          "line": 11952,
           "quote": "showListeningOverlay.value = true"
         },
         {
           "file": "packages/player-vue/src/components/LearningPlayer.vue",
-          "line": 113,
+          "line": 111,
           "quote": "const ListeningOverlay = defineAsyncComponent(() => import('./ListeningOverlay.vue'))"
         },
         {
@@ -254,7 +254,7 @@
         },
         {
           "file": "packages/player-vue/src/components/LearningPlayer.vue",
-          "line": 17775,
+          "line": 17741,
           "quote": "<ListeningOverlay"
         }
       ]
@@ -272,12 +272,12 @@
         },
         {
           "file": "packages/player-vue/src/components/ListeningOverlay.vue",
-          "line": 1649,
+          "line": 1456,
           "quote": "if (listenMode.value === 'drill') {"
         },
         {
           "file": "packages/player-vue/src/components/ListeningOverlay.vue",
-          "line": 521,
+          "line": 352,
           "quote": "{ key: 'drill',     label: 'Drill',     desc: 'Each line four times — target, its meaning, then target twice more' },"
         },
         {
@@ -305,7 +305,7 @@
         },
         {
           "file": "packages/player-vue/src/components/ListeningOverlay.vue",
-          "line": 525,
+          "line": 356,
           "quote": "const listenMode = ref(localStorage.getItem('ssi-listening-mode') || 'immersion')"
         }
       ]
@@ -328,7 +328,7 @@
         },
         {
           "file": "packages/player-vue/src/composables/usePodLapScheduler.ts",
-          "line": 872,
+          "line": 873,
           "quote": "const podRound = podCohortRoundFor(cohorts, completedPodRounds.value)"
         }
       ]
@@ -340,17 +340,17 @@
       "pointers": [
         {
           "file": "packages/player-vue/src/playback/SimplePlayer.ts",
-          "line": 2328,
+          "line": 2213,
           "quote": "const nextIdx = this.findNextSoundableCycleIndex(round, this.state.cycleIndex + 1)"
         },
         {
           "file": "packages/player-vue/src/playback/SimplePlayer.ts",
-          "line": 2338,
+          "line": 2223,
           "quote": "private advanceRound(): void {"
         },
         {
           "file": "packages/player-vue/src/playback/SimplePlayer.ts",
-          "line": 2339,
+          "line": 2224,
           "quote": "this.emit('round_completed', { round: this.currentRound })"
         }
       ]
@@ -367,7 +367,7 @@
         },
         {
           "file": "packages/player-vue/src/playback/SimplePlayer.ts",
-          "line": 757,
+          "line": 714,
           "quote": "case 'prompt': return 'known'"
         }
       ]
@@ -384,12 +384,12 @@
         },
         {
           "file": "packages/player-vue/src/playback/SimplePlayer.ts",
-          "line": 758,
+          "line": 715,
           "quote": "case 'voice1': return 'target1'"
         },
         {
           "file": "packages/player-vue/src/playback/SimplePlayer.ts",
-          "line": 759,
+          "line": 716,
           "quote": "case 'voice2': return 'target2'"
         }
       ]
@@ -402,7 +402,7 @@
       "pointers": [
         {
           "file": "packages/player-vue/src/components/LearningPlayer.vue",
-          "line": 7935,
+          "line": 7901,
           "quote": ": (currentPhase.value === Phase.VOICE_2 && !isTransitioningItem.value)"
         },
         {
@@ -420,12 +420,12 @@
       "pointers": [
         {
           "file": "packages/player-vue/src/components/LearningPlayer.vue",
-          "line": 7923,
+          "line": 7889,
           "quote": "return cycle?.id?.startsWith('listening_') || false"
         },
         {
           "file": "packages/player-vue/src/playback/SimplePlayer.ts",
-          "line": 1602,
+          "line": 1518,
           "quote": "|| currentCycle?.type === 'listening'"
         }
       ]
@@ -443,7 +443,7 @@
         },
         {
           "file": "packages/player-vue/src/composables/usePodLapScheduler.ts",
-          "line": 1008,
+          "line": 1009,
           "quote": "const uniformSpeed = policy.useStagePlaylist || policy.speedSource !== 'exposure'"
         }
       ]
