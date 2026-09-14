@@ -36,6 +36,22 @@ html, body, #app {
   min-height: 100%;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   VIEW-AS BAND — the page gets out of its way
+
+   ViewingAsBanner is a fixed full-width band across the very top while an
+   ssi_admin is viewing as somebody else, and it publishes its own measured
+   height as --viewing-as-h on <html>. This one rule pushes every in-flow
+   shell (schools dashboard, org lens, player) down by exactly that, so the
+   band covers no control anywhere. Fixed top chrome cannot be reached by
+   body padding and names the variable itself; --viewing-as-h is absent when
+   view-as is off, so every use falls back to 0px.
+   Tom, 2026-09-14 (job #675): "it blocks all my nav functionality".
+   ═══════════════════════════════════════════════════════════════ */
+html.is-viewing-as body {
+  padding-top: var(--viewing-as-h, 0px);
+}
+
 body {
   font-family: var(--font-body);
   background: var(--bg-primary);

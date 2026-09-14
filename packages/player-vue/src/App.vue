@@ -1138,8 +1138,10 @@ onMounted(async () => {
 
 <style scoped>
 .app-root {
-  min-height: 100vh;
-  min-height: 100dvh;
+  /* Same as the schools shell: the view-as band pads the body down, so the
+     root's full-height floor comes down by the band's height (job #675). */
+  min-height: calc(100vh - var(--viewing-as-h, 0px));
+  min-height: calc(100dvh - var(--viewing-as-h, 0px));
   background: var(--bg-primary);
 }
 

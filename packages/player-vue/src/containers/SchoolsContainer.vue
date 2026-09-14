@@ -894,7 +894,10 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
 }
 
 .schools-container {
-  height: 100vh;
+  /* The view-as band pads the body down (job #675); take its height off the
+     shell so the dashboard still ends at the bottom of the screen. 0px when
+     no band is up. */
+  height: calc(100vh - var(--viewing-as-h, 0px));
   position: relative;
   background: var(--schools-page-backdrop, #e8e5dd);
   overflow-y: auto;

@@ -7,8 +7,21 @@
  *
  * A silent impersonation mode is worse than none: this is deliberately loud
  * (amber, fixed, above everything) and names the persona and their scope.
+ *
+ * It is a FULL-WIDTH BAND ACROSS THE TOP, not a floating pill, and it PUSHES
+ * the page down rather than sitting on it (Tom, 2026-09-14 14:50Z, job #675:
+ * "this Viewing As feature is great BUT it blocks all my nav functionality").
+ * The pill was centred over the schools top bar, and on a phone it did not
+ * merely look wrong: the hamburger and the avatar were untappable, because the
+ * pill swallowed the taps. Of the ways to get it off the nav, this is the
+ * cheapest that works on EVERY surface at once — the band publishes its own
+ * measured height as `--viewing-as-h` and one global rule in style.css pads
+ * the body by it, so in-flow shells (schools, org lens) move down for free and
+ * only the handful of fixed top chrome (the tutor nav, the player escape) name
+ * the variable. The alternative, a strip rendered per-shell under each header,
+ * is the same offset written four times and forgotten on the fifth.
  */
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserRole, roleLabel } from '@/composables/useUserRole'
 import { useViewAs } from '@/composables/useViewAs'
@@ -44,10 +57,43 @@ const label = computed(() => {
   const parts = [p.userId ? roleLabel(p.role) : null, school].filter(Boolean)
   return parts.length ? `${who} · ${parts.join(' · ')}` : who
 })
+
+// The band's own height, published to the document so everything else can get
+// out of its way. Measured rather than hard-coded: the text wraps to a second
+// line on a narrow phone, and a guessed constant would be wrong exactly there.
+const band = ref<HTMLElement | null>(null)
+let ro: ResizeObserver | null = null
+function publish(h: number): void {
+  const el = document.documentElement
+  if (h > 0) {
+    el.style.setProperty('--viewing-as-h', `${Math.round(h)}px`)
+    el.classList.add('is-viewing-as')
+  } else {
+    el.style.removeProperty('--viewing-as-h')
+    el.classList.remove('is-viewing-as')
+  }
+}
+watch(
+  [isViewingAs, band],
+  async () => {
+    ro?.disconnect(); ro = null
+    if (!isViewingAs.value) { publish(0); return }
+    await nextTick()
+    const el = band.value
+    if (!el) return
+    publish(el.offsetHeight)
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(() => publish(el.offsetHeight))
+      ro.observe(el)
+    }
+  },
+  { immediate: true },
+)
+onBeforeUnmount(() => { ro?.disconnect(); publish(0) })
 </script>
 
 <template>
-  <div v-if="isViewingAs" class="viewing-as-banner" role="status" aria-live="polite">
+  <div v-if="isViewingAs" ref="band" class="viewing-as-banner" role="status" aria-live="polite">
     <span class="aab-eye" aria-hidden="true">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
@@ -87,30 +133,40 @@ const label = computed(() => {
 <style scoped>
 .viewing-as-banner {
   position: fixed;
-  /* Top, so it is the first thing seen on every page. Safe-area inset keeps
-     it clear of the iOS status bar / notch (standing rule). */
-  top: calc(env(safe-area-inset-top, 0px) + 8px);
-  left: 50%;
-  transform: translateX(-50%);
+  /* A band across the very top, above every shell. The page is padded down by
+     this band's height (style.css, html.is-viewing-as), so it covers nothing.
+     Safe-area inset keeps the content clear of the iOS status bar / notch and
+     the left/right insets cover landscape notches — standing rule. */
+  top: 0;
+  left: 0;
+  right: 0;
   z-index: 2147483000;
   display: flex;
+  /* One line, always: wrapping would break BEFORE the text shrank, and a
+     two-row band on a phone eats the dashboard it exists to let you use.
+     The text ellipsises instead; Pages and Exit never move. */
+  flex-wrap: nowrap;
   align-items: center;
+  justify-content: center;
   gap: 10px;
-  padding: 7px 8px 7px 13px;
-  border-radius: 999px;
+  padding: calc(env(safe-area-inset-top, 0px) + 7px) max(10px, env(safe-area-inset-right, 0px)) 7px
+    max(10px, env(safe-area-inset-left, 0px));
   background: #b45309;
   color: #fff;
   font-family: 'Open Sans', 'Trebuchet MS', system-ui, Arial, sans-serif;
   font-size: 13px;
   line-height: 1;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
-  max-width: min(calc(100vw - 24px), 560px);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
 }
 .aab-eye {
   display: inline-flex;
   opacity: 0.9;
 }
 .aab-text {
+  /* Shrinks to an ellipsis rather than wrapping the buttons onto a second row:
+     a phone-height band eats the dashboard it is meant to let you use. */
+  flex: 0 1 auto;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -156,7 +212,7 @@ const label = computed(() => {
 }
 .aab-menu {
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
   width: min(340px, calc(100vw - 24px));
