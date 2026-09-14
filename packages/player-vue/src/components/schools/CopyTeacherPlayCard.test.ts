@@ -88,7 +88,8 @@ describe('CopyTeacherPlayCard', () => {
     await w.find('[data-walk="class-copy-play-preview"]').trigger('click')
     await flushPromises()
     expect(w.find('[data-walk="class-copy-play-apply"]').exists()).toBe(true)
-    await w.find('select').setValue('u-hyw')
+    // The teacher picker is the shared FrostSelect dropdown; drive its model the way a tap does.
+    w.findComponent({ name: 'FrostSelect' }).vm.$emit('update:modelValue', 'u-hyw')
     await flushPromises()
     expect(w.find('[data-walk="class-copy-play-apply"]').exists()).toBe(false)
   })

@@ -1863,14 +1863,9 @@ const mailboxPrompt = useMailboxPrompt()
 }
 
 .teacher-select {
+  /* FrostSelect reads these; the shared dropdown wears this page's look. */
   margin-top: 12px;
-  padding: 6px 8px;
-  font-size: 12.5px;
-  font-family: var(--font-body);
-  border: 1px solid var(--schools-border);
-  border-radius: 6px;
-  background: #fafaf6;
-  color: var(--schools-fg);
+  --fs-font: var(--font-body); --fs-bg: #fff; --rc-entity: 219 30 23; --rc-entity-ink: var(--schools-red); --fs-font-size: 12.5px; --fs-radius: 6px; --fs-bg: #fafaf6; --fs-border: var(--schools-border); --fs-min-height: 34px; --fs-pad: 6px 10px;
 }
 
 .teacher-add-actions {

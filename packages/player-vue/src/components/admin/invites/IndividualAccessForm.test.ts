@@ -87,9 +87,11 @@ describe('IndividualAccessForm', () => {
   it('scopes to chosen courses and a day count when asked', async () => {
     const wrapper = await mountForm()
     await wrapper.findAll('input[type="text"]')[0].setValue('Sioned')
-    const selects = wrapper.findAll('select')
-    await selects[1].setValue('courses')       // Access
-    await selects[2].setValue('time_limited')  // For how long
+    // The pickers are the shared FrostSelect dropdown; drive each model the way a tap does.
+    const selects = wrapper.findAllComponents({ name: 'FrostSelect' })
+    selects[1].vm.$emit('update:modelValue', 'courses')       // Access
+    selects[2].vm.$emit('update:modelValue', 'time_limited')  // For how long
+    await flushPromises()
     await flushPromises()
 
     // Duration days is the first number input once it appears, ahead of sign-ups.
@@ -117,7 +119,8 @@ describe('IndividualAccessForm', () => {
   it('will not mint a course-scoped grant with no courses picked', async () => {
     const wrapper = await mountForm()
     await wrapper.findAll('input[type="text"]')[0].setValue('Nobody')
-    await wrapper.findAll('select')[1].setValue('courses')
+    wrapper.findAllComponents({ name: 'FrostSelect' })[1].vm.$emit('update:modelValue', 'courses')
+    await flushPromises()
     await wrapper.find('form').trigger('submit')
     await flushPromises()
     expect(fetchMock).not.toHaveBeenCalled()
@@ -131,7 +134,8 @@ describe('IndividualAccessForm', () => {
     expect(bodyOfLastPost()).not.toHaveProperty('grants_platform_role')
 
     await wrapper.findAll('input[type="text"]')[0].setValue('Tom')
-    await wrapper.findAll('select')[0].setValue('ssi_admin')
+    wrapper.findAllComponents({ name: 'FrostSelect' })[0].vm.$emit('update:modelValue', 'ssi_admin')
+    await flushPromises()
     await wrapper.find('form').trigger('submit')
     await flushPromises()
     expect(bodyOfLastPost().grants_platform_role).toBe('ssi_admin')

@@ -230,12 +230,12 @@ onMounted(async () => {
 
     <div class="field">
       <label class="schools-kicker">Who</label>
-      <FrostSelect v-model="who" class="frost-select" data-walk="invites-org-who" :options="whoOptions" aria-label="Who" />
+      <FrostSelect v-model="who" class="frost-pick" data-walk="invites-org-who" :options="whoOptions" aria-label="Who" />
     </div>
 
     <div class="field">
       <label class="schools-kicker">{{ whoLabel }} <span class="required">*</span></label>
-      <FrostSelect v-model="whereId" class="frost-select" :options="whereSelectOptions" placeholder="— Select —" :aria-label="whoLabel" />
+      <FrostSelect v-model="whereId" class="frost-pick" :options="whereSelectOptions" placeholder="— Select —" :aria-label="whoLabel" />
       <span v-if="who === 'learner_demo' && demoGroupOptions.length === 0" class="field-hint">
         No demo organisations yet — create one in "New demo org" first.
       </span>
@@ -333,8 +333,7 @@ onMounted(async () => {
   letter-spacing: 0;
 }
 
-.frost-input,
-.frost-select {
+.frost-input {
   font: inherit;
   font-size: var(--text-base);
   padding: 10px 14px;
@@ -347,21 +346,12 @@ onMounted(async () => {
 
 .frost-input::placeholder { color: var(--schools-fg-3); }
 
-.frost-input:focus,
-.frost-select:focus {
+.frost-input:focus {
   outline: none;
   border-color: rgba(var(--tone-red), 0.55);
   box-shadow: 0 0 0 3px rgba(var(--tone-red), 0.14);
 }
 
-.frost-select {
-  appearance: none;
-  background-image:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238A8078' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  padding-right: 32px;
-}
 
 .btn-primary {
   display: inline-flex;
@@ -403,5 +393,10 @@ onMounted(async () => {
 
 @media (max-width: 768px) {
   .create-form { grid-template-columns: 1fr; }
+}
+.frost-pick {
+  /* FrostSelect reads these; the shared dropdown wears this page's look. */
+  min-width: 200px;
+  --fs-font: inherit; --fs-font-size: var(--text-sm); --fs-radius: var(--radius-lg); --fs-bg: rgba(255, 255, 255, 0.7); --fs-border: rgba(44, 38, 34, 0.12); --rc-entity: var(--tone-red); --rc-entity-ink: rgb(var(--tone-red));
 }
 </style>

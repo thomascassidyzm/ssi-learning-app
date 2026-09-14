@@ -1582,21 +1582,11 @@ onUnmounted(() => {
   text-transform: uppercase;
 }
 
-.jump-group select {
-  padding: 0.375rem 0.75rem;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
-  color: var(--text-primary);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.8125rem;
-  cursor: pointer;
+.jump-group .jump-select {
+  min-width: 110px;
+  --fs-font: 'JetBrains Mono', monospace; --fs-font-size: 0.8125rem; --fs-radius: 6px; --fs-bg: var(--bg-elevated); --fs-border: var(--border-subtle); --fs-ink: var(--text-primary); --fs-min-height: 32px; --fs-pad: 0.375rem 0.75rem; --rc-entity-ink: var(--gold);
 }
 
-.jump-group select:focus {
-  outline: none;
-  border-color: var(--gold);
-}
 
 .jump-progress {
   flex: 1;
@@ -1881,7 +1871,7 @@ onUnmounted(() => {
   .tabs { padding: 0.5rem 1rem; }
   .tab { padding: 0.625rem 0.5rem; font-size: 0.75rem; }
   .jump-nav { flex-wrap: wrap; gap: 0.5rem; }
-  .jump-group select { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
+  .jump-group .jump-select { --fs-pad: 0.25rem 0.5rem; --fs-font-size: 0.75rem; }
   .item-known { max-width: 25%; }
   .item-type { min-width: 40px; font-size: 0.4375rem; }
 }

@@ -645,16 +645,16 @@ function toggleDataItem(id: string) {
           <h2 class="arsenal panel-title">{{ t('schools.schoolSettings.sectionLocalisation', 'Localisation') }}</h2>
           <label class="field">
             <span class="field-label">{{ t('schools.schoolSettings.defaultInterfaceLanguage', 'Default interface language') }}</span>
-            <FrostSelect v-model="language" class="field-input" :options="languageOptions" :aria-label="t('schools.schoolSettings.defaultInterfaceLanguage', 'Default interface language')" />
+            <FrostSelect v-model="language" class="field-select" :options="languageOptions" :aria-label="t('schools.schoolSettings.defaultInterfaceLanguage', 'Default interface language')" />
             <span class="field-hint">{{ t('schools.schoolSettings.languageOverrideHint', 'Teachers and students can override individually.') }}</span>
           </label>
           <label class="field">
             <span class="field-label">{{ t('schools.schoolSettings.timeZone', 'Time zone') }}</span>
-            <FrostSelect v-model="timezone" class="field-input" :options="timezoneOptions" :aria-label="t('schools.schoolSettings.timeZone', 'Time zone')" />
+            <FrostSelect v-model="timezone" class="field-select" :options="timezoneOptions" :aria-label="t('schools.schoolSettings.timeZone', 'Time zone')" />
           </label>
           <label class="field">
             <span class="field-label">{{ t('schools.schoolSettings.weekStartsOn', 'Week starts on') }}</span>
-            <FrostSelect v-model="weekStart" class="field-input" :options="weekStartOptions" :aria-label="t('schools.schoolSettings.weekStartsOn', 'Week starts on')" />
+            <FrostSelect v-model="weekStart" class="field-select" :options="weekStartOptions" :aria-label="t('schools.schoolSettings.weekStartsOn', 'Week starts on')" />
           </label>
           <div class="toggle-row">
             <div>
@@ -922,6 +922,11 @@ function toggleDataItem(id: string) {
   outline: none;
   border-color: var(--schools-red);
   box-shadow: 0 0 0 3px rgba(219, 30, 23, 0.12);
+}
+
+.field-select {
+  /* FrostSelect reads these; the shared dropdown wears this page's look. */
+  --fs-font: var(--font-body); --fs-bg: #fff; --rc-entity: 219 30 23; --rc-entity-ink: var(--schools-red); --fs-font-size: 14px; --fs-radius: 8px; --fs-border: var(--schools-border-strong);
 }
 
 .field-input[readonly] {

@@ -7,6 +7,14 @@ import { isDemoMode } from '@/composables/demo/demoMode'
 // stays inside the wrapper's own DOM tree and is queryable by find().
 const mountOpts = { global: { stubs: { teleport: true } } }
 
+// The course picker is the shared FrostSelect dropdown: a trigger button,
+// a search box at the top of the open panel, rows underneath.
+async function openCoursePicker(wrapper: ReturnType<typeof mount>) {
+  await wrapper.find('.course-picker .fs-trigger').trigger('click')
+  return wrapper.find('.course-picker input.fs-search')
+}
+const courseRows = (wrapper: ReturnType<typeof mount>) => wrapper.findAll('.course-picker .fs-opt')
+
 describe('CreateClassModal — course picker uses the full catalogue, not a hardcoded shortlist', () => {
   beforeEach(() => {
     isDemoMode.value = true
@@ -19,8 +27,8 @@ describe('CreateClassModal — course picker uses the full catalogue, not a hard
   it('does not hardcode a bare 7-course shortlist as the picker options', async () => {
     const wrapper = mount(CreateClassModal, { props: { isOpen: true }, ...mountOpts })
     await flushPromises()
-    await wrapper.find('input#courseCode').trigger('focus')
-    const options = wrapper.findAll('.course-picker-option')
+    await openCoursePicker(wrapper)
+    const options = courseRows(wrapper)
     // The old hardcoded shortlist was exactly 7 (Welsh N/S, Spanish EU/LatAm,
     // Dutch, Cornish, Manx) — options must come from a fetched/injected list,
     // not a literal in-component array.
@@ -30,10 +38,9 @@ describe('CreateClassModal — course picker uses the full catalogue, not a hard
   it('filters the course list by search query', async () => {
     const wrapper = mount(CreateClassModal, { props: { isOpen: true }, ...mountOpts })
     await flushPromises()
-    const input = wrapper.find('input#courseCode')
-    await input.trigger('focus')
+    const input = await openCoursePicker(wrapper)
     await input.setValue('Spanish')
-    const options = wrapper.findAll('.course-picker-option')
+    const options = courseRows(wrapper)
     expect(options.length).toBeGreaterThan(0)
     for (const opt of options) {
       expect(opt.text().toLowerCase()).toContain('spanish')
@@ -43,24 +50,21 @@ describe('CreateClassModal — course picker uses the full catalogue, not a hard
   it('selecting a course closes the list and shows the selection', async () => {
     const wrapper = mount(CreateClassModal, { props: { isOpen: true }, ...mountOpts })
     await flushPromises()
-    const input = wrapper.find('input#courseCode')
-    await input.trigger('focus')
+    const input = await openCoursePicker(wrapper)
     await input.setValue('Dutch')
-    const option = wrapper.find('.course-picker-option')
-    await option.trigger('mousedown')
+    await courseRows(wrapper)[0].trigger('click')
     await flushPromises()
-    expect(wrapper.find('.course-picker-list').exists()).toBe(false)
-    expect(wrapper.find('.course-picker-selected').text()).toContain('Dutch')
+    expect(wrapper.find('.course-picker .fs-panel').exists()).toBe(false)
+    expect(wrapper.find('.course-picker .fs-trigger').text()).toContain('Dutch')
   })
 
   it('emits create with the selected course_code on submit', async () => {
     const wrapper = mount(CreateClassModal, { props: { isOpen: true }, ...mountOpts })
     await flushPromises()
     await wrapper.find('input#className').setValue('Year 7 Dutch')
-    const courseInput = wrapper.find('input#courseCode')
-    await courseInput.trigger('focus')
+    const courseInput = await openCoursePicker(wrapper)
     await courseInput.setValue('Dutch')
-    await wrapper.find('.course-picker-option').trigger('mousedown')
+    await courseRows(wrapper)[0].trigger('click')
     await wrapper.find('form').trigger('submit')
     const emitted = wrapper.emitted('create')
     expect(emitted).toBeTruthy()
