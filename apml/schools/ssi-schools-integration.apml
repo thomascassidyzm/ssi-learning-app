@@ -3,8 +3,8 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.16.0"
-  date: "2026-09-13"   # view-as refuses at CREATION: cursor queue and pairings tally join player_events (#615)
+  version: "1.17.0"
+  date: "2026-09-14"   # Report a bug in the schools account menu: same postbox as the player, hidden under view-as (#633)
   author: "Tom Cassidy"
   status: "draft"
 
@@ -1715,6 +1715,7 @@ interface TeacherDashboard:
     invariants:
       - "NO <transition> around the routed component — instant swap. Two real-browser bug classes came from animating it: out-in's afterLeave hang (blank page until hard reload) and the plain crossfade's double-DOM (incoming page stacked below the leaving one, then snapped up; white viewport when the leave hung at opacity 0). Guarded by SchoolsContainer.pageTransition.test.ts."
       - "Scroll container is .schools-container (overflow-y auto), NOT the window — the container resets scrollTop to 0 on route change (router scrollBehavior can't reach it), so every page renders in place, scrolled to top."
+      - "Report a bug in the SchoolsTopBar user menu (Tom's ruling 2026-09-14, job #633): school admins and teachers file a bug or a suggestion from the dashboard itself — 'the bug might be with the dashboard side of things'. components/schools/ReportBugModal.vue reuses useBugReport.submit and POST /api/report/bug, so the row lands in the SAME bug_reports table and the same channel as the player's Settings sheet, with source='schools_dashboard' and context={role, school_id, school_name, group_id, class_id, node_id, page_title}; the page URL is route. What-happened plus an optional what-you-expected fold into body. Bug reports are NOT support_messages. HIDDEN under view-as (isViewingAs) and the route refuses X-Ssi-View-As with 403 — simpler than attributing through a persona. Signed-in callers are throttled to 10 reports an hour by auth_user_id, counted from the table. One-way: a 'Got it, thank you' toast is the whole reply. Guarded by SchoolsTopBar.reportBug.test.ts, ReportBugModal.test.ts and api/report/bug.test.ts."
       - "SchoolsTopBar renders NO tabs until the school context resolves — never the teacher fallback set (a school_admin briefly saw the wrong tab set on cold boot)."
       - "SchoolsTopBar mobile layout (320-430px, 2026-07-16 audit fix): hamburger, Learn button, and user-menu trigger all carry flex:none plus explicit >=44px tap-target sizing so they can't be crushed below usable size or overlap — verified with real-browser bounding-box assertions (e2e/mobile-topbar/topbar-layout.spec.ts) across chromium/webkit/iphone/android."
       - "Identity-first hierarchy (2026-07-17 navbar redesign): the SCHOOL NAME is a permanent bar element (.context-name, bold, ellipsis-truncated, full name in the title tooltip) between the brand and the tabs — visible at EVERY width. Below 430px the brand wordmark is dropped entirely so the school name takes its space; the hamburger's Dashboard link covers 'home'. The e2e spec asserts the name has real width (>=60px) and the brand is hidden at phone widths."

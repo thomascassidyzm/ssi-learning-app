@@ -6,6 +6,8 @@ import { useSupportChannel } from '@/composables/schools/useSupportChannel'
 import { usePlayAsClassContext } from '@/composables/schools/usePlayAsClassContext'
 import { leaderRoleLabel } from '@/composables/nodeTerminology'
 import PlayAsClassIdentity from './PlayAsClassIdentity.vue'
+import ReportBugModal from '@/components/schools/ReportBugModal.vue'
+import { useUserRole } from '@/composables/useUserRole'
 import RefreshButton from '@/components/shared/RefreshButton.vue'
 import { useI18n } from '@/composables/useI18n'
 
@@ -57,6 +59,29 @@ watch(canSupport, (ok) => { if (ok) peekSupport() })
 const { isPlayingAsClass, isOnPlayerRoute, className, exitClassSession } = usePlayAsClassContext()
 
 const auth = inject<any>('auth', null)
+
+// REPORT A BUG (Tom's ruling, 2026-09-14): a bug or a suggestion, filed from
+// the dashboard itself "because the bug might be with the dashboard side of
+// things" — the same postbox as the player's Settings, with source and the
+// page in view attached. HIDDEN UNDER VIEW-AS: an ssi_admin looking as a
+// persona writes nothing (jobs #606/#615/#618), and hiding the door is
+// simpler than attributing a report to the real admin through a persona
+// screen. The route refuses a view-as header too. The thank-you toast is
+// the whole reply — one way, no thread.
+const { isViewingAs } = useUserRole()
+const bugModalOpen = ref(false)
+const bugToast = ref(false)
+let bugToastTimer: ReturnType<typeof setTimeout> | null = null
+function openBugReport(): void {
+  closeMenu()
+  bugModalOpen.value = true
+}
+function onBugSent(): void {
+  bugToast.value = true
+  if (bugToastTimer) clearTimeout(bugToastTimer)
+  bugToastTimer = setTimeout(() => { bugToast.value = false }, 3500)
+}
+onBeforeUnmount(() => { if (bugToastTimer) clearTimeout(bugToastTimer) })
 
 // HANDBOOK (founder ruling 2026-09-07) — the map of everything the dashboard
 // can do. It lives in the user menu, not the tabs, by the bar's own rule:
@@ -359,6 +384,21 @@ if (typeof document !== 'undefined') {
             <span v-if="supportUnread > 0" class="menu-dot" :aria-label="t('schools.support.unreadAria', 'Unread replies')"></span>
           </router-link>
           <router-link v-if="isSchoolAdmin" to="/schools/settings" class="menu-item" @click="closeMenu">{{ t('schools.ui.topBar.menuSchoolSettings', 'School settings') }}</router-link>
+          <!-- HANDBOOK Report a bug from the dashboard
+               section: your-own-account
+               roles: teacher, school_admin, leader
+               place: dashboard
+               parts: schools-report-bug-toast
+               keywords: bug, report, problem, went wrong, suggestion, feedback, broken, dashboard
+               What it's for. Telling us when the dashboard misbehaves, or suggesting something, without leaving the dashboard. The page you are on and your school are attached for you.
+               Where it is. **Report a bug** in the account menu at the top right, under your name.
+               How you do it.
+               1. Tap your name at the top right, then **Report a bug**.
+               2. Write what happened, add a screenshot if you have one, and tap **Send**.
+               Worth knowing. Nobody replies through the app: the note goes to one place where we read it. Questions about the dashboard go to **Support** instead. The item is not shown while a platform admin is viewing the dashboard as someone else.
+               checked: 37290b79.8d741e37
+          -->
+          <button v-if="!isViewingAs" type="button" class="menu-item" data-walk="schools-report-bug" @click="openBugReport">{{ t('schools.bugReport.menuItem', 'Report a bug') }}</button>
           <!-- Roles are additive facets of ONE account — leaving the schools
                surface is a NAVIGATION, not an identity sign-out. Before this
                existed, the only exit in the menu was "Sign out", which reads
@@ -371,6 +411,12 @@ if (typeof document !== 'undefined') {
         </div>
       </div>
     </div>
+    <ReportBugModal v-if="bugModalOpen" @close="bugModalOpen = false" @sent="onBugSent" />
+    <Transition name="bug-toast">
+      <div v-if="bugToast" class="bug-toast" role="status" data-walk="schools-report-bug-toast" @click="bugToast = false">
+        {{ t('schools.bugReport.toast', 'Got it, thank you.') }}
+      </div>
+    </Transition>
   </header>
 </template>
 
@@ -573,6 +619,27 @@ if (typeof document !== 'undefined') {
 .menu-item:hover { background: #fafaf6; }
 .menu-item-support { display: flex; align-items: center; gap: 8px; }
 .menu-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--schools-red, #b3312f); flex-shrink: 0; }
+
+/* The one-way thank-you after a bug report: a pill under the bar, gone on
+   its own a moment later. Fixed, so it clears the bar on every width. */
+.bug-toast {
+  position: fixed;
+  top: calc(64px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 70;
+  padding: 10px 18px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--schools-fg, #2c2622);
+  border-radius: 999px;
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.bug-toast-enter-active, .bug-toast-leave-active { transition: opacity 180ms ease-out; }
+.bug-toast-enter-from, .bug-toast-leave-to { opacity: 0; }
 
 /* Hamburger toggle — hidden on desktop, shown below the breakpoint. 44px is
    the accessibility tap-target floor; the previous 38px also had no

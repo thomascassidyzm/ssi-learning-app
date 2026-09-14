@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `ec756623e8a6` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `08c280c7e4c6` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -951,6 +951,19 @@ Section: your-own-account · roles: teacher, school_admin, leader · anchor: `re
 
 **Worth knowing.** The row is there whether or not you are signed in. What you send goes to one place and nobody replies through the app.
 
+## Report a bug from the dashboard
+
+Section: your-own-account · roles: teacher, school_admin, leader · anchor: `schools-report-bug` · in `packages/player-vue/src/components/schools/shared/SchoolsTopBar.vue`
+
+**What it's for.** Telling us when the dashboard misbehaves, or suggesting something, without leaving the dashboard. The page you are on and your school are attached for you.
+
+**Where it is.** **Report a bug** in the account menu at the top right, under your name.
+
+1. Tap your name at the top right, then **Report a bug**.
+2. Write what happened, add a screenshot if you have one, and tap **Send**.
+
+**Worth knowing.** Nobody replies through the app: the note goes to one place where we read it. Questions about the dashboard go to **Support** instead. The item is not shown while a platform admin is viewing the dashboard as someone else.
+
 ## Run your first class session
 
 Section: running-classes · roles: teacher · anchor: `class-play` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
@@ -978,6 +991,19 @@ Section: your-own-account · roles: teacher, school_admin, leader · anchor: `re
 2. Keep it under 2,000 characters. Send stays off until you have written something.
 
 **Worth knowing.** Your course and device details are added for you, so you only need to describe what went wrong.
+
+## Say what happened on the dashboard
+
+Section: your-own-account · roles: teacher, school_admin, leader · anchor: `schools-report-bug-happened` · in `packages/player-vue/src/components/schools/ReportBugModal.vue`
+
+**What it's for.** The box where you describe the bug, or the thing you would like, in your own words.
+
+**Where it is.** The **What happened?** box on the Report a bug window that opens from the account menu.
+
+1. Tap into the box and write what you saw.
+2. Keep it under 2,000 characters. Send stays off until you have written something.
+
+**Worth knowing.** The page you were on and your school are added for you, so you only need to describe what went wrong.
 
 ## See and download your funder numbers
 
@@ -1052,6 +1078,19 @@ Section: your-school · roles: school_admin · anchor: `settings-billing-plan` �
 4. Tap **Billing & invoices** to reach invoices, change the card, or cancel.
 
 **Worth knowing.** Every payment change happens on the one Upgrade page, so there is a single place to go and no second checkout to get confused with. The invoices button appears once a subscription is running.
+
+## Send a dashboard bug report
+
+Section: your-own-account · roles: teacher, school_admin, leader · anchor: `schools-report-bug-send` · in `packages/player-vue/src/components/schools/ReportBugModal.vue`
+
+**What it's for.** Sending your note, and your screenshot if you added one, to us.
+
+**Where it is.** The **Send** button at the foot of the Report a bug window.
+
+1. Write what happened, and what you expected if that helps.
+2. Tap **Send**. It reads **Sending…** while it goes.
+
+**Worth knowing.** A **Got it, thank you** line appears at the top of the page and that is the whole reply. Nobody answers through the app. If the screenshot cannot upload, the note still goes without it.
 
 ## Send the report
 

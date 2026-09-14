@@ -2227,6 +2227,25 @@
       "you": "You",
       "handbookMarkAria": "What this is",
       "readInHandbook": "Read in the Handbook"
+    },
+    "bugReport": {
+      "menuItem": "Report a bug",
+      "title": "Report a bug",
+      "lede": "A bug or a suggestion. The page you are on is attached for you.",
+      "happenedLabel": "What happened?",
+      "happenedPlaceholder": "What you saw, or what you would like to see",
+      "expectedLabel": "What did you expect?",
+      "expectedPlaceholder": "Optional",
+      "pageLine": "Page: {page}",
+      "addScreenshot": "Add a screenshot",
+      "removeScreenshot": "Remove screenshot",
+      "tooLarge": "The image must be under 5MB",
+      "send": "Send",
+      "sending": "Sending…",
+      "cancel": "Cancel",
+      "failed": "That did not send. Please try again.",
+      "toast": "Got it, thank you.",
+      "closeAria": "Close"
     }
   },
   "teach": {

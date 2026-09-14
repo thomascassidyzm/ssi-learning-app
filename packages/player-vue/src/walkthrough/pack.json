@@ -1,5 +1,5 @@
 {
-  "version": "ec756623e8a6",
+  "version": "08c280c7e4c6",
   "generatedAt": "2026-09-14",
   "walks": [
     {
@@ -3019,6 +3019,40 @@
       "note": "The row is there whether or not you are signed in. What you send goes to one place and nobody replies through the app."
     },
     {
+      "id": "report-a-bug-from-the-dashboard",
+      "title": "Report a bug from the dashboard",
+      "section": "your-own-account",
+      "personas": [
+        "teacher",
+        "school_admin",
+        "leader"
+      ],
+      "keywords": [
+        "bug",
+        "report",
+        "problem",
+        "went wrong",
+        "suggestion",
+        "feedback",
+        "broken",
+        "dashboard"
+      ],
+      "place": {
+        "route": "dashboard"
+      },
+      "anchor": "schools-report-bug",
+      "surface": "schools",
+      "source": "packages/player-vue/src/components/schools/shared/SchoolsTopBar.vue",
+      "walk": null,
+      "what": "Telling us when the dashboard misbehaves, or suggesting something, without leaving the dashboard. The page you are on and your school are attached for you.",
+      "where": "**Report a bug** in the account menu at the top right, under your name.",
+      "how": [
+        "Tap your name at the top right, then **Report a bug**.",
+        "Write what happened, add a screenshot if you have one, and tap **Send**."
+      ],
+      "note": "Nobody replies through the app: the note goes to one place where we read it. Questions about the dashboard go to **Support** instead. The item is not shown while a platform admin is viewing the dashboard as someone else."
+    },
+    {
       "id": "run-your-first-class-session",
       "title": "Run your first class session",
       "section": "running-classes",
@@ -3080,6 +3114,38 @@
         "Keep it under 2,000 characters. Send stays off until you have written something."
       ],
       "note": "Your course and device details are added for you, so you only need to describe what went wrong."
+    },
+    {
+      "id": "say-what-happened-on-the-dashboard",
+      "title": "Say what happened on the dashboard",
+      "section": "your-own-account",
+      "personas": [
+        "teacher",
+        "school_admin",
+        "leader"
+      ],
+      "keywords": [
+        "bug",
+        "report",
+        "describe",
+        "what happened",
+        "dashboard",
+        "suggestion"
+      ],
+      "place": {
+        "route": "dashboard"
+      },
+      "anchor": "schools-report-bug-happened",
+      "surface": "schools",
+      "source": "packages/player-vue/src/components/schools/ReportBugModal.vue",
+      "walk": null,
+      "what": "The box where you describe the bug, or the thing you would like, in your own words.",
+      "where": "The **What happened?** box on the Report a bug window that opens from the account menu.",
+      "how": [
+        "Tap into the box and write what you saw.",
+        "Keep it under 2,000 characters. Send stays off until you have written something."
+      ],
+      "note": "The page you were on and your school are added for you, so you only need to describe what went wrong."
     },
     {
       "id": "see-and-download-your-funder-numbers",
@@ -3253,6 +3319,38 @@
         "Tap **Billing & invoices** to reach invoices, change the card, or cancel."
       ],
       "note": "Every payment change happens on the one Upgrade page, so there is a single place to go and no second checkout to get confused with. The invoices button appears once a subscription is running."
+    },
+    {
+      "id": "send-a-dashboard-bug-report",
+      "title": "Send a dashboard bug report",
+      "section": "your-own-account",
+      "personas": [
+        "teacher",
+        "school_admin",
+        "leader"
+      ],
+      "keywords": [
+        "bug",
+        "report",
+        "send",
+        "submit",
+        "screenshot",
+        "dashboard"
+      ],
+      "place": {
+        "route": "dashboard"
+      },
+      "anchor": "schools-report-bug-send",
+      "surface": "schools",
+      "source": "packages/player-vue/src/components/schools/ReportBugModal.vue",
+      "walk": null,
+      "what": "Sending your note, and your screenshot if you added one, to us.",
+      "where": "The **Send** button at the foot of the Report a bug window.",
+      "how": [
+        "Write what happened, and what you expected if that helps.",
+        "Tap **Send**. It reads **Sending…** while it goes."
+      ],
+      "note": "A **Got it, thank you** line appears at the top of the page and that is the whole reply. Nobody answers through the app. If the screenshot cannot upload, the note still goes without it."
     },
     {
       "id": "send-the-report",

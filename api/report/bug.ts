@@ -25,6 +25,16 @@
  * guest rows in the last fifteen minutes, counted from the table itself. Not
  * a hardened limiter; a postbox that receives twenty guest reports in a
  * quarter of an hour is already a channel problem, not a storage one.
+ *
+ * TWO DOORS, ONE POSTBOX (Tom, 2026-09-14): the schools dashboard account menu
+ * carries "Report a bug" too, "because the bug might be with the dashboard
+ * side of things". Such a report posts here with source 'schools_dashboard'
+ * and a `context` of what the dashboard had in view (role, school, group,
+ * class, node, page title); the page URL rides in `route` as before. A
+ * signed-in caller, learner or staff, is throttled to SIGNED_IN_PER_HOUR rows
+ * an hour, counted from the table by auth_user_id. A view-as session (an
+ * ssi_admin looking as a persona) carries X-Ssi-View-As and is refused: the
+ * menu item is hidden under view-as, and this is the belt to that brace.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -32,6 +42,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { applyCors } from '../_utils/cors'
 import { getClientIp } from '../_utils/codeAttemptThrottle'
+import { rejectIfViewAs } from '../_utils/actAsGuard'
 import { envFromDeployment, envFromHost } from '../player-events'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -50,6 +61,14 @@ const GUEST_PER_IP = 5
 const GUEST_FLEET_CAP = 20
 const guestHits = new Map<string, number[]>()
 
+// Signed-in throttle: counted durably from the table, per auth uid.
+export const SIGNED_IN_WINDOW_MS = 60 * 60 * 1000
+export const SIGNED_IN_PER_HOUR = 10
+
+export const SOURCES = ['learner', 'schools_dashboard'] as const
+export type ReportSource = (typeof SOURCES)[number]
+const CONTEXT_KEYS = ['role', 'school_id', 'school_name', 'group_id', 'class_id', 'node_id', 'page_title'] as const
+
 export interface RecentEvent {
   event_type: string
   occurred_at: string
@@ -66,6 +85,22 @@ function pickPosition(v: unknown): Record<string, string> | null {
   const out: Record<string, string> = {}
   for (const k of ['lego_id', 'known_text', 'target_text', 'belt'] as const) {
     const s = str(p[k])
+    if (s) out[k] = s
+  }
+  return Object.keys(out).length ? out : null
+}
+
+export function pickSource(v: unknown): ReportSource {
+  return (SOURCES as readonly string[]).includes(v as string) ? (v as ReportSource) : 'learner'
+}
+
+/** What the dashboard had in view. Only the known keys, only strings, only for a dashboard report. */
+export function pickContext(v: unknown, source: ReportSource): Record<string, string> | null {
+  if (source !== 'schools_dashboard' || !v || typeof v !== 'object') return null
+  const c = v as Record<string, unknown>
+  const out: Record<string, string> = {}
+  for (const k of CONTEXT_KEYS) {
+    const s = str(c[k], 200)
     if (s) out[k] = s
   }
   return Object.keys(out).length ? out : null
@@ -146,6 +181,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     res.status(500).json({ error: 'Server configuration error' })
     return
   }
+  const viewAsRejection = rejectIfViewAs(req)
+  if (viewAsRejection) {
+    res.status(viewAsRejection.status).json({ error: viewAsRejection.error })
+    return
+  }
 
   const body = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, unknown>
   const text = typeof body.text === 'string' ? body.text.trim() : ''
@@ -191,11 +231,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     let learnerId: string | null = null
     if (authUserId) {
+      const since = new Date(Date.now() - SIGNED_IN_WINDOW_MS).toISOString()
+      const { count } = await svc
+        .from('bug_reports')
+        .select('id', { count: 'exact', head: true })
+        .eq('auth_user_id', authUserId)
+        .gte('created_at', since)
+      if ((count ?? 0) >= SIGNED_IN_PER_HOUR) {
+        res.status(429).json({ error: 'Too many reports, try again later' })
+        return
+      }
       const { data } = await svc.from('learners').select('id').eq('user_id', authUserId).maybeSingle()
       learnerId = (data as { id?: string } | null)?.id ?? null
     }
 
     const courseCode = str(body.course_code, 40)
+    const source = pickSource(body.source)
     const clientEvents = pickClientEvents(body.recent_events)
     const serverEvents = learnerId ? await recentServerEvents(svc, learnerId, courseCode) : []
     const recent = mergeEvents(serverEvents, clientEvents)
@@ -217,6 +268,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       deployment_env,
       recent_events: recent,
       route: str(body.route, 300),
+      source,
+      context: pickContext(body.context, source),
     })
     if (error) {
       res.status(500).json({ error: error.message })
