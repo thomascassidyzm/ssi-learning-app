@@ -4,7 +4,7 @@
 metadata:
   title: "SSi Schools Integration"
   version: "1.18.0"
-  date: "2026-09-14"   # Play as class shown DISABLED under view-as, never hidden; playing-as-yourself warning on the player; minutes round up, "1 h 14 min" from an hour; View As picker ranks by class minutes (#683). Earlier: Report a bug in the schools account menu (#633)
+  date: "2026-09-14"   # #693: playing-as-yourself banner reads the cached role and any live transport via playback/playbackLiveness.ts (Listening Mode counts); View As picker tie-break ranks after the last_active rollup. Play as class shown DISABLED under view-as, never hidden; playing-as-yourself warning on the player; minutes round up, "1 h 14 min" from an hour; View As picker ranks by class minutes (#683). Earlier: Report a bug in the schools account menu (#633)
   author: "Tom Cassidy"
   status: "draft"
 

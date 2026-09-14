@@ -2791,3 +2791,33 @@ green on the new.
 write but then planned from the original scan's learner id and course code. It now plans from the
 fresh row, and skips-and-names the pair if the class's course or the teacher's learner id changed
 between scan and write. Dry run after the change still reproduces five copies / 336 rows.
+
+## 2026-09-14 — Two gaps in job #683: the banner on cold loads and in Listening Mode; the picker tie-break (job #693)
+
+**Who is playing.** The playing-as-yourself banner took teacher-ness from `useSchoolContext`,
+which a teacher who opens the app straight into the player never populates, so the banner stayed
+hidden for her whole session. It now reads the cached educational role from `useUserRole`
+(`restoreFromCache`, the same cache the first-open redirect reads) and still honours school
+context when it is there. Teacher, tutor and school leader count; a group leader has no class to
+play as. Never under View As, never for a learner, as before.
+
+**What counts as playing.** The main player alone echoed its transport state on the window, so
+Listening Mode, which has its own transport inside `ListeningOverlay`, was invisible to the banner
+and to the never-interrupt gates. `playback/playbackLiveness.ts` is the one answer now: each
+transport reports itself by name and `isAnyPlaybackLive` is the OR; the `ssi-play-state` window
+event is dispatched from there when the combined answer changes, so the install banner and the
+update prompt keep working unchanged and gain Listening Mode for free. Tests:
+`PlayingAsYourselfBanner.test.ts` (cold load with no school context: red on the #683 banner) and
+`playbackLiveness.test.ts` (the overlay reports its transport: red on the #683 overlay).
+
+**The picker tie-break.** `rankByClassMinutes` broke ties on `last_active`, but `api/admin/users.ts`
+ranked before the enrollment rollup that carries it was loaded, so every tie compared empty
+strings. For a ranked read the rollup is now loaded for the whole candidate set first, handed to
+the ranker keyed on `learners.id`, and reused for the page. Test: equal minutes rank by the rollup's
+last activity, red on the old ranker.
+
+**The record corrected.** The #683 report said the School leader shortcut showed angharadjones with
+"272 min". The picker's own function, read live today, gives 144 min for her: class-account
+in-app time over seven days, 8,623 seconds rounded up. 272 was the school total including personal
+accounts, from a different surface. The picker line and the ranking use the same figure, so there
+is no third defect in code.

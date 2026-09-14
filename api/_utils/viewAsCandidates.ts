@@ -20,6 +20,8 @@ import { chunk } from './schoolScope'
 const CHUNK = 200
 
 export interface CandidateRow {
+  /** learners.id — the key of the activity rollup. */
+  id?: string
   user_id: string
   educational_role: string | null
   last_active?: string | null
@@ -32,10 +34,27 @@ export interface ClassMinutes {
   school_name: string | null
 }
 
-/** Pure: the ranking the picker relies on. Most class minutes first; ties by most recent own activity. */
-export function rankByClassMinutes<T extends CandidateRow>(rows: T[], minutes: Map<string, ClassMinutes>): (T & ClassMinutes)[] {
+/**
+ * Pure: the ranking the picker relies on. Most class minutes first; ties by
+ * most recent own activity.
+ *
+ * Job #693: the caller ranks BEFORE the page's activity rollup exists, so the
+ * tie-break used to compare empty strings. `lastActiveByLearnerId` is that
+ * rollup (learners.id → last practised), read for the whole candidate set and
+ * consulted here; a row's own `last_active` still counts when it carries one.
+ */
+export function rankByClassMinutes<T extends CandidateRow>(
+  rows: T[],
+  minutes: Map<string, ClassMinutes>,
+  lastActiveByLearnerId?: Map<string, { last_active: string | null }>,
+): (T & ClassMinutes)[] {
   return rows
-    .map((r) => ({ ...r, class_minutes_7d: minutes.get(r.user_id)?.class_minutes_7d ?? 0, school_name: minutes.get(r.user_id)?.school_name ?? null }))
+    .map((r) => ({
+      ...r,
+      last_active: r.last_active ?? (r.id ? lastActiveByLearnerId?.get(r.id)?.last_active ?? null : null),
+      class_minutes_7d: minutes.get(r.user_id)?.class_minutes_7d ?? 0,
+      school_name: minutes.get(r.user_id)?.school_name ?? null,
+    }))
     .sort((a, b) => (b.class_minutes_7d - a.class_minutes_7d) || String(b.last_active || '').localeCompare(String(a.last_active || '')))
 }
 

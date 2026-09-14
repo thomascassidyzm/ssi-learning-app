@@ -377,11 +377,19 @@ export default async function handler(
 
     // View As ranking: seven-day play-as-class minutes per candidate, once
     // per request, then the top `limit` of the whole role.
+    // Job #693: the tie on equal minutes breaks on last activity, which lives
+    // in the enrollment rollup — so for a ranked read that rollup is loaded
+    // for the WHOLE candidate set first and reused for the page below, rather
+    // than after the slice, where the ranker only ever saw empty strings.
     let classMinutes = new Map<string, { class_minutes_7d: number; school_name: string | null }>()
     let pageLearners: LearnerRow[] = learners || []
+    let rankedEnrollAgg: Map<string, EnrollmentAgg> | null = null
     if (rankByClassPlay || wantClassMinutes) {
       classMinutes = await loadClassMinutes7d(supabase, pageLearners)
-      if (rankByClassPlay) pageLearners = rankByClassMinutes(pageLearners, classMinutes).slice(0, limit)
+      if (rankByClassPlay) {
+        rankedEnrollAgg = await loadEnrollmentAgg(supabase, pageLearners.map(l => l.id))
+        pageLearners = rankByClassMinutes(pageLearners, classMinutes, rankedEnrollAgg).slice(0, limit)
+      }
     }
     const learnerIds = pageLearners.map(l => l.id)
 
@@ -393,7 +401,7 @@ export default async function handler(
       loadEmails(supabase, learnerIds),
       loadActiveSubscriptions(supabase, learnerIds),
       loadActiveEntitlements(supabase, learnerIds),
-      loadEnrollmentAgg(supabase, learnerIds),
+      rankedEnrollAgg ?? loadEnrollmentAgg(supabase, learnerIds),
       loadDerivedPracticeMinutes(supabase, learnerIds),
     ])
 

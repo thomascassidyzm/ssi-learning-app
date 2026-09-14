@@ -31,4 +31,23 @@ describe('rankByClassMinutes', () => {
     expect(ranked.map((r) => r.user_id)).toEqual(['angharad', 'williams', 'quiet'])
     expect(ranked[2].class_minutes_7d).toBe(0)
   })
+  it('job #693: equal minutes rank by last activity from the rollup, not by the empty field the page carried', () => {
+    // users.ts ranks before the page's last_active is populated, so the rows
+    // arrive without it; the rollup keyed on learners.id is what knows.
+    const tied = [
+      { id: 'L-older', user_id: 'older', educational_role: 'teacher' },
+      { id: 'L-newer', user_id: 'newer', educational_role: 'teacher' },
+    ]
+    const same = new Map([
+      ['older', { class_minutes_7d: 40, school_name: 'Chepstow' }],
+      ['newer', { class_minutes_7d: 40, school_name: 'Chepstow' }],
+    ])
+    const rollup = new Map([
+      ['L-older', { last_active: '2026-09-01T09:00:00Z' }],
+      ['L-newer', { last_active: '2026-09-14T09:00:00Z' }],
+    ])
+    const ranked = rankByClassMinutes(tied, same, rollup)
+    expect(ranked.map((r) => r.user_id)).toEqual(['newer', 'older'])
+    expect(ranked[0].last_active).toBe('2026-09-14T09:00:00Z')
+  })
 })
