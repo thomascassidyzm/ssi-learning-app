@@ -65,3 +65,26 @@ export function resolveResumeAnchor(
   }
   return { legoId: null, viaCeiling: false }
 }
+
+/**
+ * BEYOND-SLICE LANDING (job #326, generalised by job #752). A round set can be
+ * a SLICE of the course: on a premium course the free-preview bundle stops at
+ * the end of Yellow. A cursor whose seed lies past the last round such a set
+ * holds is not "no place" — the learner's place is beyond what the set can
+ * show — and the round to land on is that LAST round, where the wall stands.
+ * Never round 1: that fall-through was the White-belt reset of #326 and the
+ * seed-1 overwrite of #752.
+ *
+ * @returns the last round's legoId when the cursor lies past it; null when the
+ *   rule does not apply (cursor inside or at the slice, nothing to compare).
+ */
+export function beyondSliceLanding(
+  cursorLegoId: string | null,
+  last: { legoId: string, seed?: number } | null | undefined,
+): string | null {
+  if (!cursorLegoId || !last?.legoId) return null
+  const cursorSeed = seedOfLegoId(cursorLegoId)
+  const lastSeed = last.seed ?? seedOfLegoId(last.legoId)
+  if (cursorSeed === null || lastSeed === null) return null
+  return cursorSeed > lastSeed ? last.legoId : null
+}

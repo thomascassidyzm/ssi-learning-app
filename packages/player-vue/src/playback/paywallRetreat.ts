@@ -54,6 +54,14 @@ export interface PaywallRetreat {
     canAccessSeed: (seed: number) => boolean,
     findRoundIndex: (legoId: string) => number,
   ): RememberedPosition | null
+  /** Spend the memory when the learner is actually PLAYING the remembered
+   *  round with the wall down (`currentLegoId` is the held LEGO), or when the
+   *  memory carries no LEGO to compare. A prompt on some OTHER round — playing
+   *  on inside the preview after "Maybe later" — leaves it held: the real
+   *  place is still the held one and the stored cursors must stay on it
+   *  (job #752: an unentitled learner's saved S0031L01 must survive a session
+   *  of replaying the preview, so a later subscription resumes there). */
+  release(currentLegoId: string | null | undefined): void
   clear(): void
 }
 
@@ -75,6 +83,10 @@ export function createPaywallRetreat(): PaywallRetreat {
       const live = findRoundIndex(held.legoId)
       if (!Number.isInteger(live) || live < 0) return null
       return { ...held, roundIndex: live }
+    },
+    release(currentLegoId) {
+      if (!held) return
+      if (!held.legoId || held.legoId === (currentLegoId ?? null)) held = null
     },
     clear() { held = null },
   }

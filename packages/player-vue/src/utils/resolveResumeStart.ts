@@ -1,4 +1,4 @@
-import { resolveResumeAnchor, seedOfLegoId } from './resolveResumeAnchor'
+import { beyondSliceLanding, resolveResumeAnchor } from './resolveResumeAnchor'
 
 /**
  * Thrown when we could not FIND OUT where the learner is — a round-map
@@ -92,12 +92,10 @@ export async function resolveResumeStart(deps: ResumeStartDeps): Promise<string 
       // last round the map has (the wall, where the paywall stands), never
       // on round 1: the White-belt reset of job #326 (2026-09-12) was exactly
       // this fall-through, silent but for a console line.
-      const last = map.rounds[map.rounds.length - 1]
-      const cursorSeed = seedOfLegoId(lastCompletedLegoId)
-      const lastSeed = last ? (last.seed ?? seedOfLegoId(last.legoId)) : null
-      if (lastCompletedLegoId && last && cursorSeed !== null && lastSeed !== null && cursorSeed > lastSeed) {
-        deps.onBeyondMap?.(lastCompletedLegoId, last.legoId)
-        return last.legoId
+      const beyond = beyondSliceLanding(lastCompletedLegoId, map.rounds[map.rounds.length - 1])
+      if (lastCompletedLegoId && beyond) {
+        deps.onBeyondMap?.(lastCompletedLegoId, beyond)
+        return beyond
       }
       if (lastCompletedLegoId) {
         deps.onAnchorMissing?.(lastCompletedLegoId)
