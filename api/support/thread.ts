@@ -18,6 +18,7 @@ import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { applyCors } from '../_utils/cors'
 import { resolveSupportScope, refuseSupportUnderViewAs, getOrCreateThread, findThread, MESSAGE_VIEW_COLUMNS, type SupportMessageView } from './_shared'
+import { markSupportRepliesRead } from '../_utils/userMessages'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -75,6 +76,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     await svc.from('support_threads').update({ last_read_at: new Date().toISOString() }).eq('id', thread.id)
+    // Opening the thread IS reading its replies: the inbox rows the support
+    // trigger fanned out for this admin (job #684) are marked read here so the
+    // avatar badge never nags about a reply already read on this screen.
+    try {
+      await markSupportRepliesRead(svc, auth.userId, thread.id)
+    } catch (err) {
+      console.error('[support/thread] inbox read-mark failed:', err instanceof Error ? err.message : err)
+    }
 
     res.status(200).json({
       thread: {
