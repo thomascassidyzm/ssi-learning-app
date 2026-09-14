@@ -48,6 +48,12 @@ reviews, all of which sit at 1.57–1.76 s, and most of which are followed by a 
 30 s. Two bursts of `tap_skip` at ~180 ms spacing (09-08 13:38:54–13:39:00, 14 cycles; 15:04:42–49,
 10 cycles). No `audio_failed` in seven days.
 
+**CORRECTION (13:10Z).** Learner `81987d60` is Tom's own account (display name "Tom"), not a
+forum learner. The thread below is therefore Tom testing at the authored end of Welsh North, and
+Neil remains unidentified: no Welsh learner other than a Colombo-hours tester was at seed 400+ in
+the last four days, and the brown-belt reading below fits Neil's description only if "black belt"
+is shorthand for the course end.
+
 **Welsh North, brown belt (learner `81987d60`, `cym_n_for_eng`, cursor at `S0305L05`, the course's
 final authored LEGO).** Thirteen `infplay_enter` events with trigger `round_cross` in 24 hours, each
 landing on a random revival seed (S0297, S0290, S0126, S0186, S0051, S0167, S0073, S0237, S0018,
@@ -93,3 +99,64 @@ black belt, not with the reports.
   headless. The engine-level behaviour on the element's `pause` event is what the tests pin.
 - Not reproduced headless as a spontaneous mid-mic-stage advance: every instance in telemetry has
   a tap 150–200 ms before it.
+
+## Third report — Lithuanian, tester nba4191, `tester_feedback` row 90683123
+
+**The row.** Filed 2026-05-21 13:55Z from `staging.saysomethingin.app`, build `92a64c9`, desktop
+Chrome on a Mac, route `/`: "Lithuanian course jumped from Orange belt to Brown belt … every belt
+from White to Purple is fully complete and Brown is started … yesterday was working through the
+Orange belt." It is four months old, not from this morning; it is the same false assumption in an
+earlier body.
+
+**The learner.** `de757444` (user `5884f9b6…`), enrolled in 33 courses. The `lit_for_eng` enrollment
+today still reads `last_completed_lego_id = S0029L01`, `highest_completed_lego_id = S0300L02` (the
+course's final LEGO), `infplay_round_index = 114`, mode `main`. The belt screen derives "White to
+Purple complete, Brown started" from that ceiling. It was never repaired. Clip durations at the
+Orange belt end are sound: seeds 20–39 have 535 known, 566 target1 and 537 target2 clips, none null,
+minimum 0.9 s, medians 2.2–2.8 s; no LEGO in the course lacks audio ids and only 27 phrases do.
+
+**When it jumped, to the second.** On 2026-05-20 the learner was in round 65 of the main loop
+(`S0022L02`, Orange). At 12:52:13 the intro of `S0022L02` was sounding. At 12:52:16 the next known
+clip played belonged to `S0040L01_intro` — the first LEGO of the Green belt — and from 12:52:17 to
+12:52:22 the player walked through `S0020L01_inf_R526`, `S0134L01_inf_R525`, … `S0244L02_inf_R513`,
+fourteen infinite-play rounds at ~200 ms each, then `S0300L01_intro`, `S0280L01_intro`,
+`S0150L01_intro`, `S0080L01_intro`, `S0040L01_intro` — the first LEGO of every belt, descending —
+and round again. Not one `tap_skip`, `tap_play` or `belt_skip` in that minute; the taps resume at
+12:54:14 when the learner paused on `S0064L03` at round index 456 and navigated back by hand to seed
+18. The next session (15:16) booted straight into an infinite-play round (`S0289L03` at index 0), so
+the enrollment had already been written as "at the end" by then. No row-level provenance exists for
+`course_enrollments` (`content_audit_log` covers content tables only), so the write itself is
+bracketed, not timestamped: between 12:52:13 and 15:16:30 on 2026-05-20.
+
+**What did it.** The build of that week loaded rounds through `PriorityRoundLoader` ("Priority 3:
+First of NEXT belt"), which put the first round of every belt into the engine's queue ahead of the
+rest of the current belt. `SimplePlayer.advanceRound` steps to `roundIndex + 1` in the array with
+no check that the next round is the next round number — it still does not check today — so a
+sparse queue is played as if it were contiguous: `S0022L02` → `S0040L01` → `S0080L01` … → the
+revival tail. The 200 ms per round says every clip in that walk failed instantly on that desktop;
+each round contributed only its intro's prompt before the engine stepped on. Reaching the revival
+tail is infinite play by shape, and in that build `saveRoundProgress` ratcheted
+`highest_completed_lego_id` to the course's final LEGO on nothing but the round's shape (no content
+gate until commit `dd40e950c`, 2026-08-31: "a review-only round is not proof of infinite play").
+`PriorityRoundLoader` was deleted on 2026-06-08 (`26a28944d`) with zero live callers.
+
+**A twin four days later.** Learner `aa85be4f` (knightghost1), `hrv_for_eng`, desktop, 2026-05-24
+15:06–15:08: after four completed rounds at seed 7 the queue ran `S0008L01` (Yellow start) →
+`S0020L01` (Orange) → `S0040L01` (Green) → `S0080L01` (Blue) → `S0150L01` (Purple) → `S0280L02`,
+`S0280L03` (Brown) → `S0090L01_inf` → `S0043L01_inf_R678`, each intro playing in full this time,
+with `round_complete` at indexes 612, 660 and 661. Same loader, same walk, same ratchet; that
+enrollment reads cursor `S0006L02`, ceiling at the course end, today.
+
+**How many carry the mark.** 14 enrollments across 7 learners have `highest_completed_lego_id` at
+the course's final LEGO with a cursor 50+ seeds behind. Eleven are explained by belt skips (Tom's own
+test accounts on fra/ita/zho/gle/jpn/ell/nld, Meredith Cane on kor/zho, paddyhardy on isl,
+soini.vilhunen on dan). Three have zero belt skips and are this defect: nba4191 `lit_for_eng`
+(cursor S0029L01), knightghost1 `hrv_for_eng` (S0006L02), silverjfangio `hye_for_eng` (S0026L01,
+predates the cycle-id telemetry so its date cannot be read). Repair would be one update per row,
+setting the ceiling back to the cursor.
+
+**What it adds to the diagnosis.** Same family as Basque: infinite play inferred from shape, and a
+ceiling that only ratchets up. The May trigger (a sparse queue) is gone; the September trigger (a
+main-loop round with no audio) is live; the residual in both is that the engine never checks that
+the next round in its array is the next round in the course, and that `isMainLoopRound` reads
+shape. Neither Lithuanian nor Croatian clip durations had anything to do with it.
