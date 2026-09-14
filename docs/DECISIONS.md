@@ -2406,3 +2406,48 @@ against any real teacher by this job: Angharad runs it. The first live sweep on 
 pairs, not the 13 of #651's diagnosis: the planner's rule is "anything left to copy", which also
 catches teachers whose class has since caught up in position but whose own-account sessions were
 never moved, and Angharad's own account on her admin class.
+
+## 2026-09-14 — The Viewing-As strip comes off the nav, and the Learn button retires for every school role (job #675)
+
+Tom, 14:50Z, with a staging screenshot of the school-admin dashboard under View-as:
+
+> "this Viewing As feature is great
+>
+> BUT
+>
+> it blocks all my nav functionality
+>
+> and this is staging and the Learn button top right still shows, which I supect takes the school
+> admin/teacher to their own player
+>
+> We have the My Player as a dropdown menu, correctly already, so we can deprecate the Learn next
+> to the User Avatar?
+>
+> THat would make it a lot simpler"
+
+**Measured first, and it was worse than it looked.** A staging probe as ssi_admin viewing as
+angharadjones and as florencecotten, at 390x844 and 1280x800, found the pill's box intersecting the
+schools top bar at every width — and on the phone the hamburger and the avatar were not merely
+covered but UNTAPPABLE: Playwright's click on each timed out, the pill swallowing the taps. That is
+the whole complaint, reproduced.
+
+**(1) The strip is now a full-width band across the very top, and the page moves down for it.** It
+keeps everything it had — the eye, the name and scope, "read only", Pages with its list, Exit — and
+overlaps nothing. The band measures its own height and publishes it as `--viewing-as-h` on `<html>`
+with an `is-viewing-as` class; ONE global rule in `style.css` pads the body by it, so every in-flow
+shell (schools dashboard, org lens) moves down for free, and only the handful of fixed top chrome
+that body padding cannot reach — the tutor tab rail, the player escape, the bug toast — names the
+variable itself. It falls back to `0px` when view-as is off, so the rules are inert the rest of the
+time. The alternative considered and rejected: a strip rendered per-shell under each header, which
+is the same offset written four times and forgotten on the fifth. Better (nothing is covered on any
+surface), simpler (one variable, one global rule), cheaper (no per-shell strip to keep in step). The
+band is forced to one line — wrapping breaks before the text shrinks, and a two-row band on a phone
+eats the dashboard it exists to let you use.
+
+**(2) There is no Learn button in the schools nav for ANY role.** Job #662 had removed it for a
+teacher and left school and group leaders with it; `ownPlayInNav` is gone. My player in the avatar
+menu is the one and only door to your own player, hidden on player routes exactly as before.
+
+**Scope.** Staging only; Tom promotes to main on the weekly train after he has looked. The TUTOR
+surface's own Learn button in `TopNav.vue` is untouched — a tutor is not a school role, and his
+ruling named school admin, leader and teacher. Worth asking him about separately.

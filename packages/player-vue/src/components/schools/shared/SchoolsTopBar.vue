@@ -586,7 +586,7 @@ if (typeof document !== 'undefined') {
    its own a moment later. Fixed, so it clears the bar on every width. */
 .bug-toast {
   position: fixed;
-  top: calc(64px + env(safe-area-inset-top, 0px));
+  top: calc(var(--viewing-as-h, 0px) + 64px + env(safe-area-inset-top, 0px));
   left: 50%;
   transform: translateX(-50%);
   z-index: 70;
