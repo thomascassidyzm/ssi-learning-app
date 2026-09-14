@@ -2550,7 +2550,7 @@ educational_role, and for staff school_role, school_id and group_id; nothing abo
 taken from the client and guests carry nulls (`20260914b_bug_reports_identity_and_content_flag.sql`,
 applied live). The view `support_inbox` (`20260914c_support_inbox_view.sql`, service-role only)
 unions bug_reports, inbound support_messages and, for history, tester_feedback, content_feedback
-and handbook_questions, so "are there any messages?" is one query. On watson-1 one user unit,
+and handbook_questions, so "are there any messages?" is one query. **Corrected by job #680 the same afternoon:** that view joined `auth.users` five times for legacy email, and under `security_invoker` no API role holds SELECT there, so every PostgREST read returned 403 `permission denied for table users`, even with the service key. `20260914d_support_inbox_no_auth_users.sql`, applied live, recreates the view with no `auth.users` at all: legacy email now comes from `support_messages.author_name` or the learner's first `verified_emails` entry, else null, and the view reads 200 through the API with rows from every door. On watson-1 one user unit,
 `ssi-support-inbox.service` running `command-surface/tools/support/inbox.cjs`, replaced the
 bug-report poster and the support watcher: a post lane that renders each row once into the
 `ssi-learning-app` room, or the `ssi-dashboard-v7-clean` room for a content flag, and stamps
