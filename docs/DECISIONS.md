@@ -2941,3 +2941,39 @@ refresh, red on the old launch. Staging only; main untouched on Tom's word.
 user_id = the teacher's own learner with actor_user_id set, while the sessions row and the
 enrollment cursor are the class learner's; the teacher's own enrollment also carries the class's
 S0008L01/13 cursor from that window. Not touched here.
+
+## 2026-09-14 — A paywall retreat never loses the learner's real position; the content gate learns class and school cover (job #745, follow-up to #734)
+
+**Decision.** Tom's rule (2026-09-14): a paywall never moves a learner's belt or position back.
+#734 stopped the rewind to round 0; the retreat to the last free round still overwrote the real
+cursor in localStorage on the same tick, so a grant from the wall's own refresh resumed from the
+retreat. Now `playback/paywallRetreat.ts` holds the real position when `settleCursorAtPaywall`
+retreats; while held, `savePositionToLocalStorage` and `persistLivePositionToDb` skip; the
+liveEntitlements watcher jumps back to the round carrying the held LEGO in the live engine queue
+before resuming; the memory is spent by the one signal that means "playing on", a cycle prompt
+with the wall down. Better: the learner keeps their place across a stale-snapshot wall and across
+"Maybe later" followed by a grant. Simpler: one pure memory, three moments, no new fetch. Cheaper:
+nothing runs that did not run before.
+
+**Two more losses of place, found by the served-build probe.** (1) `api/_utils/courseAccess.ts`,
+the gate on bundle/cycles/infplay-cycles/batch-urls, read only stored rows plus the cascade RPC,
+while `/api/entitlement/user` resolves five layers. A class-covered teacher was told she held the
+course and then served the preview-only bundle and a 403 past Yellow; her saved LEGO was not in
+the preview round map and the player started her at S0001L01 with no wall. The gate now delegates
+to `resolveActiveEntitlements`, fail-soft to preview-only. (2) The restore first jumped by the
+round index kept at retreat time; the bootstrap queue is a window with the resume LEGO at round 0,
+and the full-script handoff swaps in the whole course, so index 0 became "I want". Restore
+resolves by LEGO against `getEngineRounds()` and stays put if the LEGO is not there.
+
+**Proof.** `paywallRetreat.test.ts` (memory + wiring + by-LEGO restore) and
+`api/_utils/courseAccess.test.ts`, each red on the pre-fix code and green after. Served staging
+build dc04740, ZZ Test cover teacher, saved S0031L01/round 56, first entitlement fetch forced
+empty: wall up with localStorage still S0031L01; grant; playback resumed on "that you speak"
+(S0031L01) with localStorage and the DB cursor unchanged. The first build of this job (627722e)
+ended on S0001L01, which is how (1) and (2) surfaced.
+
+**Left open.** A genuinely unentitled learner with a saved position past the wall still gets the
+preview-only bundle, whose round map lacks their LEGO, so the player starts them at S0001L01 and
+the lifecycle save writes seed 1 to localStorage with no wall shown; the DB cursor is safe behind
+the forward-only write. Same family, not this job. Waiting on an in-flight refresh in the resume
+gate would not help: nothing is in flight until the wall itself asks.
