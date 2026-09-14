@@ -2791,3 +2791,18 @@ green on the new.
 write but then planned from the original scan's learner id and course code. It now plans from the
 fresh row, and skips-and-names the pair if the class's course or the teacher's learner id changed
 between scan and write. Dry run after the change still reproduces five copies / 336 rows.
+
+## 2026-09-14 — Test files under api/ are no longer compiled as serverless functions (job #694)
+
+**What changed.** A root `.vercelignore` excludes `api/**/*.test.ts`, `api/**/*.spec.ts` and
+`api/**/__tests__/**` from the Vercel upload. Vercel treats every `.ts` under `api/` as a function
+to compile, so ~250 test files were being built on every deploy; job #690's diagnosis put the
+build step at 282s on 25 Aug and 726-925s by 14 Sep, all of it in the function-compile phase, with
+`api/admin/testDoors.security.test.ts` alone costing 280-347s because it reads player-vue sources
+by path. Install and Vite were unchanged at 40-50s.
+
+**Not changed.** `pnpm test:api` reads `vitest.api.config.ts`, which includes `api/**/*.test.ts`
+from the git checkout, not the Vercel upload, so it collects the same 250 files (243 listed with
+tests; the seven `.live.test.ts` files skip themselves without a service key, as before). No live
+route imports a test file, and `tsconfig.api.json` already excluded tests from typecheck.
+`vercel.json` had no `ignore` key and its `functions` block names only real routes.
