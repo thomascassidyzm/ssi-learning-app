@@ -33,15 +33,22 @@ describe('SchoolsContainer legacy flat-view redirect (govt_admin with group)', (
 
   // Third persona (2026-07-30): a school-scoped school_admin's retired flat
   // URLs land on THE VIEW too — Dashboard on their school's node home,
-  // Teachers on the node home with the teachers lens, Analytics on the node
-  // insights. Teachers-the-role and legacy no-school rows are untouched.
-  it('redirects a school_admin\'s retired dashboard/teachers/analytics routes to the node surface', () => {
+  // Analytics on the node insights. Teachers-the-role and legacy no-school
+  // rows are untouched. /schools/teachers is NOT redirected any more (job
+  // #624, 2026-09-14): the node home's teachers lens went with the filter
+  // chips, so the staff list is the one place a leader can read their
+  // teachers and remove a leaver — the school overview's Teachers card
+  // points at it.
+  it('redirects a school_admin\'s retired dashboard/analytics routes to the node surface', () => {
     expect(source).toMatch(/if \(schoolId && ctx\.isSchoolAdmin\.value\)/)
     expect(source).toMatch(/routeName === 'schools-dashboard'/)
     expect(source).toMatch(/`\/org\/\$\{schoolId\}`/)
-    expect(source).toMatch(/routeName === 'teachers'/)
-    expect(source).toMatch(/path: `\/org\/\$\{schoolId\}`, query: \{ lens: 'teachers' \}/)
     expect(source).toMatch(/`\/org\/\$\{schoolId\}\/insights`/)
+  })
+
+  it('keeps /schools/teachers as a flat page for a school_admin — the staff list has no node-surface equivalent (job #624)', () => {
+    expect(source).not.toMatch(/routeName === 'teachers'/)
+    expect(source).not.toMatch(/lens: 'teachers'/)
   })
 
   it('is a watch on the resolving context, not a one-shot (group_id lands async after deep links)', () => {

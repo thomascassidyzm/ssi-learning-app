@@ -46,6 +46,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAdmin, verifyAuthToken } from '../../_utils/auth'
+import { applyCors } from '../../_utils/cors'
 import { resolveVisibleScope, ownSchoolIdForNode, chunk } from '../../_utils/schoolScope'
 import { ensureSchoolNode } from '../../_utils/schoolNode'
 import { isEntityCoverageExpired } from '../../_utils/schoolCoverageGate'
@@ -199,6 +200,12 @@ async function schoolIdsInWorld(svc: SupabaseClient, schoolIds: string[], wantDe
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  // Cross-origin policy and preflight both live in `api/_utils/cors.ts`.
+  // Without this the native WebView's preflight for the `Authorization`
+  // header goes unanswered and NodeRateEngine's call fails there while
+  // working on the web (caught by apiPreflightCoverage.test.ts).
+  if (applyCors(req, res, { methods: 'GET' })) return
+
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' })
     return
