@@ -2861,3 +2861,46 @@ strip. Cheaper: the next band is one term in one calc.
 **Proof.** `PlayingAsYourselfBanner.test.ts` gains a case that the variable and class are set while
 the strip shows, cleared when play stops, and cleared on unmount: red on the #693 banner, green
 here. Staging only; main untouched on Tom's 17:01Z ruling.
+
+## 2026-09-14 — Play as class from the Classes page stamped the teacher on the class's telemetry (job #733)
+
+**Seen on staging c7f9ec8, 21:32Z.** A brand-new teacher launched Play as class for Y7 Welsh from the
+Classes page. The `sessions` row for that play belongs to the class, as it should; every
+`player_events` row of the same play, and the speaking-opportunities counter, belong to the
+teacher's own learner. One play, two owners.
+
+**Cause.** The Classes page builds its own row object for each class and that object carried no
+`class_learner_id`, so the shared launcher stored the class payload with `class_learner_id: null`
+and the player's learner id fell back to the staff member's own. That fallback is the identity the
+telemetry client claims on every batch and the identity the opportunities RPC is keyed on. The
+sessions, enrollment and lego-progress writes never saw it, because in class mode they go through
+the class-aware stores, which hand the server the class id and let it resolve the class learner
+from the classes row. Same bug on `main`: the Classes page row has been shaped this way since it
+gained its own Play button, so this is not a regression of tonight's promotion train.
+
+**Fix.** Three parts, all in the launch path. The Classes page row now carries the class learner
+id. The launcher's class shape makes `class_learner_id` required and nullable rather than optional,
+so a row shape that drops the key is a type error, not a silent null. And when a caller does hand
+over a null, the launcher reads the classes row once before storing the payload, so a freshly
+created class or any future partial row still launches with the right identity. Better: one
+identity for one play. Simpler: no new plumbing, the read reuses the launcher's existing Supabase
+fallback shape. Cheaper: one row read, only when the key is missing.
+
+**Blast radius of the mis-stamped rows.** Everything that reads `player_events` or
+`learner_speaking_opportunities` by learner: the Time in app column and the class "Not started"
+state on the Classes page and the dashboard cards, the dashboard's "you have been playing as
+yourself this week" line, daily activity, the intel and diary endpoints, and the copy-teacher-play
+candidate sweep, which would offer to copy this play from the teacher onto the class. Practice
+minutes on the enrollment and the class's position were right all along.
+
+**By design, not bugs.** No `class_sessions` row: the player still attempts the insert on the
+eager-load path, but the class's practice record is the `sessions` row under the class learner
+since the class became a first-class learner; the insert is best-effort and logs on failure. No
+`lego_progress` row for either learner after a completed round: on the live SimplePlayer path the
+per-cycle call that would write lego_progress runs with no current playable item and only advances
+the opportunities counter, and the round path writes the position to the enrollment or, in class
+mode, to `classes.last_lego_id`. Neither learner was ever going to get a lego_progress row here.
+
+**Proof.** `usePlayAsClass.test.ts` gains a case that launches with the exact row shape the Classes
+page handed over and asserts the stored payload carries the id from the classes row: red before
+the fix, green after. Staging only; main untouched on Tom's ruling.

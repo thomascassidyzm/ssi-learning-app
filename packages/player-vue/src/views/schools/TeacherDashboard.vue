@@ -210,6 +210,11 @@ const enrichedClasses = computed(() => {
       course_label: courseShortName(c.course_code),
       teacher_user_id: c.teacher_user_id,
       join_code: c.student_join_code,
+      // The class's OWN learner id rides the row because Play as class stores
+      // it as the identity the session's telemetry belongs to. This row had
+      // no such key on staging 2026-09-14 21:32Z, and a class session's
+      // player_events went to the teacher (job #733).
+      class_learner_id: c.class_learner_id ?? null,
       started,
       // The class's OWN belt, from its play-as-class position — the seed the
       // class has reached — exactly as the class page derives it.
@@ -402,7 +407,7 @@ function closeCreatedModal() {
   mailboxPrompt.noteKeepWorthyMoment()
 }
 
-function openClass(cls: { id: string; class_name: string; course_code: string; current_seed: number; join_code: string; class_learner_id?: string | null }) {
+function openClass(cls: { id: string; class_name: string; course_code: string; current_seed: number; join_code: string; class_learner_id: string | null }) {
   const stored = {
     id: cls.id,
     class_name: cls.class_name,
@@ -417,7 +422,7 @@ function openClass(cls: { id: string; class_name: string; course_code: string; c
 
 // Play-as-class straight from the row's right-hand action (mirrors ClassDetail /
 // DashboardView): one shared launch path in usePlayAsClass.launchClassSession.
-async function handlePlayClass(cls: { id: string; class_name: string; course_code: string; current_seed: number; join_code: string; class_learner_id?: string | null }) {
+async function handlePlayClass(cls: { id: string; class_name: string; course_code: string; current_seed: number; join_code: string; class_learner_id: string | null }) {
   await launchClassSession(cls)
 }
 
