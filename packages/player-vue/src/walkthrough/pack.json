@@ -1,5 +1,5 @@
 {
-  "version": "08c280c7e4c6",
+  "version": "8233e4548e30",
   "generatedAt": "2026-09-14",
   "walks": [
     {
@@ -1534,7 +1534,8 @@
       "title": "Copy a teacher's own play onto the class",
       "section": "running-classes",
       "personas": [
-        "school_admin"
+        "school_admin",
+        "teacher"
       ],
       "keywords": [
         "copy",
@@ -1551,10 +1552,10 @@
       "surface": "schools",
       "source": "packages/player-vue/src/components/schools/CopyTeacherPlayCard.vue",
       "walk": null,
-      "what": "Putting right a class whose teacher ran lessons signed in as themselves instead of using Play as class, so the class carries the progress it really made.",
-      "where": "The class page, the **Played as themselves by mistake?** card beside the roster.",
+      "what": "Putting right a class whose teacher ran a lesson signed in as themselves instead of using Play as class, so the class carries the progress it really made. A teacher fixes their own lesson; a school leader can fix any teacher's.",
+      "where": "The class page and the class tools page, the **Ran a lesson signed in as yourself?** card. A school leader's card is headed **Played as themselves by mistake?** and has a list to pick the teacher from.",
       "how": [
-        "Pick the teacher from the list.",
+        "As a school leader, pick the teacher from the list. As a teacher there is no list: the card is about you.",
         "Tap **See what would move** and read the sessions, the time in the app and where the class will be afterwards.",
         "Tap **Copy onto the class**. One line tells you what was copied."
       ],
@@ -2269,40 +2270,6 @@
       "note": "The link and the code both stay valid, so the same one works for a student who joins in week one and a student who arrives in week six. If the card says it could not load, do not hand anything out until it comes back."
     },
     {
-      "id": "how-your-class-measures-up",
-      "title": "How your class measures up",
-      "section": "seeing-progress",
-      "personas": [
-        "teacher"
-      ],
-      "keywords": [
-        "benchmark",
-        "compare",
-        "cycles",
-        "school",
-        "global",
-        "average",
-        "bench"
-      ],
-      "place": {
-        "route": "dashboard"
-      },
-      "anchor": "dash-class-bench",
-      "surface": "schools",
-      "source": "packages/player-vue/src/views/schools/DashboardView.vue",
-      "walk": null,
-      "what": "A three-bar benchmark on each class, showing the cycles that class has done against the average for your school and the average across everyone learning that course anywhere. It answers the question a total cannot: is this normal.",
-      "where": "On each class on the schools dashboard, under the heading naming class, school and global.",
-      "how": [
-        "Open the schools dashboard and find the class you want to read.",
-        "The top bar is **Class** — your own class's figure.",
-        "**School** underneath it is the average across the other classes in your school.",
-        "**Global** is the average across every class doing that course.",
-        "Longer bars mean more; the number at the end of each bar is the figure itself."
-      ],
-      "note": "A class with too little recorded activity shows a dash rather than an invented bar."
-    },
-    {
       "id": "invite-a-teacher-to-your-school",
       "title": "Invite a teacher to your school",
       "section": "getting-people-in",
@@ -2502,6 +2469,39 @@
       "note": "It is open to anyone holding it, so when a link has travelled further than you meant, revoke it in **Ways in** and make a fresh one. Use **Invite a person** instead when you can name who is coming."
     },
     {
+      "id": "manage-a-class",
+      "title": "Manage a class",
+      "section": "running-classes",
+      "personas": [
+        "teacher",
+        "school_admin"
+      ],
+      "keywords": [
+        "manage",
+        "tools",
+        "roster",
+        "teachers",
+        "join link",
+        "rename",
+        "delete"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "anchor": "class-page-manage",
+      "surface": "schools",
+      "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
+      "walk": null,
+      "what": "Getting from the class page to the class's tools: the roster of pupils on their own accounts, the teachers, the join link and code, renaming and deleting.",
+      "where": "The class page, the **Manage class** link beside the class name.",
+      "how": [
+        "Open the class.",
+        "Tap **Manage class**.",
+        "The tools page opens; its own **Open the class page** line brings you back."
+      ],
+      "note": "The class's practice, minutes and journey stay on the class page. The tools page never totals whole-class play."
+    },
+    {
       "id": "minutes-in-the-app-this-week",
       "title": "Minutes in the app this week",
       "section": "seeing-progress",
@@ -2695,6 +2695,68 @@
       "note": "Nothing is ever hidden for good: every link is one tap away."
     },
     {
+      "id": "play-as-class-from-the-class-page",
+      "title": "Play as class from the class page",
+      "section": "running-classes",
+      "personas": [
+        "teacher",
+        "school_admin"
+      ],
+      "keywords": [
+        "play as class",
+        "lesson",
+        "start",
+        "class page",
+        "front of the room"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "anchor": "class-page-play",
+      "surface": "schools",
+      "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
+      "walk": null,
+      "what": "Starting a whole-class lesson from the class's own page, on the class's own account, so the minutes and the phrases land on the class rather than on you.",
+      "where": "The class page, the **Play as class** button beside the class name.",
+      "how": [
+        "Open the class from your dashboard or from My Classes.",
+        "Tap **Play as class**.",
+        "The player opens on the class's course at the class's own place."
+      ],
+      "note": "Pressing play on a course from your own Library counts for you, not for the class. Only Play as class moves the class."
+    },
+    {
+      "id": "practice-on-your-own-account",
+      "title": "Practice on your own account",
+      "section": "seeing-progress",
+      "personas": [
+        "teacher"
+      ],
+      "keywords": [
+        "own account",
+        "library",
+        "play as class",
+        "minutes",
+        "mistake",
+        "my practice"
+      ],
+      "place": {
+        "route": "dashboard"
+      },
+      "anchor": "dash-own-practice",
+      "surface": "schools",
+      "source": "packages/player-vue/src/views/schools/DashboardView.vue",
+      "walk": null,
+      "what": "Telling you when practice this week landed on your own sign-in rather than on a class. Pressing play on a course from your Library counts for you; only Play as class counts for the class. The line names your own minutes and when you last played, so a lesson that went to the wrong place is found rather than lost.",
+      "where": "Under your classes on the schools dashboard, only in a week when your own account has practised.",
+      "how": [
+        "Read the line.",
+        "Next lesson, tap **Play as class** on the class instead of playing from the Library.",
+        "To move this week's lesson onto the class, open the class and use **Ran a lesson signed in as yourself?** on its tools page."
+      ],
+      "note": "The line never appears when your own account is quiet, so its absence means nothing went astray."
+    },
+    {
       "id": "prove-your-mailbox-reaches-you",
       "title": "Prove your mailbox reaches you",
       "section": "getting-people-in",
@@ -2816,7 +2878,7 @@
       "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
       "walk": null,
       "what": "Every student in a class, one to a row, each carrying their own position in the course, their belt, their practice over the last week and how recently they were active. A quiet coloured dot flags anyone who has gone quiet or fallen well behind the class.",
-      "where": "The **Students** list at the bottom of a class page.",
+      "where": "The **Students on their own accounts** list at the bottom of a class page. It is only there when at least one pupil has an account of their own.",
       "how": [
         "Open a class.",
         "Read down the rows — the bar on each is that student's own position in the course, in LEGOs. The first three show; tap **Show all** under them for the rest.",
@@ -3546,6 +3608,38 @@
       "note": "It is the same session the class page starts, so it moves the class on for everyone on the roster. Only school staff see this button, and only on a live account rather than a read-only view."
     },
     {
+      "id": "students-on-their-own-accounts",
+      "title": "Students on their own accounts",
+      "section": "seeing-progress",
+      "personas": [
+        "teacher",
+        "school_admin"
+      ],
+      "keywords": [
+        "roster",
+        "students",
+        "own accounts",
+        "progress",
+        "belt",
+        "last active"
+      ],
+      "place": {
+        "route": "class-detail"
+      },
+      "anchor": "class-roster",
+      "surface": "schools",
+      "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
+      "walk": null,
+      "what": "The pupils who have signed in on their own account and joined this class, one row each, with their belt, how much they have learned, how much they have practised on that account and when they were last at it. It counts only what each pupil did signed in as themselves. Whole-class play from the front is not in this table; that is on the class page.",
+      "where": "The class tools page, the **Students on their own accounts** table.",
+      "how": [
+        "Open **Manage class** from the class page.",
+        "Read down the rows for who is practising on their own and who has gone quiet.",
+        "Type a name into the search box to jump to one student."
+      ],
+      "note": "A class taught from the front with no pupil accounts has nobody in this table, and that is not a class that has done nothing. A student who has never started shows as inactive rather than as behind. A class nobody has joined yet shows **Add students** and points at the invite link instead of an empty table."
+    },
+    {
       "id": "subscribe-as-a-tutor",
       "title": "Subscribe as a tutor",
       "section": "your-school",
@@ -3781,37 +3875,6 @@
         "Write what happened, add a screenshot if you have one, and tap **Send**."
       ],
       "note": "Tapping outside the sheet closes it without sending. Nobody replies through the app: the note goes to one place where we read it."
-    },
-    {
-      "id": "the-class-roster",
-      "title": "The class roster",
-      "section": "seeing-progress",
-      "personas": [
-        "teacher"
-      ],
-      "keywords": [
-        "roster",
-        "students",
-        "progress",
-        "belt",
-        "last active"
-      ],
-      "place": {
-        "route": "class-detail"
-      },
-      "anchor": "class-roster",
-      "surface": "schools",
-      "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
-      "walk": null,
-      "what": "Everyone in the class, one row each, with their belt, how much they have learned, how much they have practised and when they were last at it. This is the answer to who is quietly drifting.",
-      "where": "The class page, the **Roster** table.",
-      "how": [
-        "Open the class from **My Classes**.",
-        "Read down the mark under each name, which flags anyone behind the class or long gone quiet.",
-        "Type a name into the search box to jump to one student.",
-        "Compare a student's practice against the class average shown in the rail beside the table."
-      ],
-      "note": "A student who has never started shows as inactive rather than as behind, because nothing has happened yet to judge. A class nobody has joined yet shows its empty places instead of a table, with **Add students** in it."
     },
     {
       "id": "the-classes-by-year-group",
@@ -4197,6 +4260,37 @@
         "Step the seat count up to match and tap the update button."
       ],
       "note": "This is deliberately an honest count rather than a gate. We would rather show you the gap than shut a class out mid-lesson."
+    },
+    {
+      "id": "where-a-class-s-practice-is-read",
+      "title": "Where a class's practice is read",
+      "section": "seeing-progress",
+      "personas": [
+        "teacher",
+        "school_admin"
+      ],
+      "keywords": [
+        "class page",
+        "tools",
+        "practice",
+        "minutes",
+        "journey",
+        "manage"
+      ],
+      "place": {
+        "route": "class-detail"
+      },
+      "anchor": "class-tools-note",
+      "surface": "schools",
+      "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
+      "walk": null,
+      "what": "Telling the two pages of a class apart. The class page carries what the class has practised together, its minutes in the app and how far it has travelled. This page is the class's tools: the roster, the teachers, the join link, renaming and deleting.",
+      "where": "The line under the class name at the top of the tools page.",
+      "how": [
+        "Read the line.",
+        "Tap **Open the class page** to go to the class's practice."
+      ],
+      "note": "Nothing on this page totals whole-class play. A class played from the front shows its minutes on the class page, never here."
     },
     {
       "id": "where-classes-are-in-the-course-and-where-they-stop",
@@ -4681,7 +4775,9 @@
         "classes",
         "dashboard",
         "overview",
-        "students",
+        "minutes",
+        "phrases",
+        "journey",
         "join code",
         "course"
       ],
@@ -4692,15 +4788,15 @@
       "surface": "schools",
       "source": "packages/player-vue/src/views/schools/DashboardView.vue",
       "walk": null,
-      "what": "Your teaching dashboard, with your classes first. Every class you teach is a row or a card carrying its course, how many students are in it, their average practice, and the join code you read out to get a new pupil in.",
+      "what": "Your teaching dashboard, with your classes first. Every class you teach is a row or a card carrying its course, the minutes it spent in the app this week, the phrases it practised, how far it has travelled through the course, when it last played, and the join code you read out to get a new pupil in. Every figure is the class's own, from the lessons you ran with Play as class.",
       "where": "The schools dashboard you land on, above everything else on the page.",
       "how": [
         "Open the schools dashboard.",
         "Read down the list — one entry per class you teach.",
-        "Tap a class name to open its own page, with the roster and its settings.",
-        "**Play as class** on any entry starts a session the whole class does together."
+        "Tap a class name to open its class page, with what it practised this week and how far it has got.",
+        "**Play as class** on any entry starts a session the whole class does together, on the class's own account."
       ],
-      "note": "A brand new account shows a single button to create your first class instead of the list."
+      "note": "A class that has never played says **Not started** in words. A brand new account shows a single button to create your first class instead of the list."
     },
     {
       "id": "your-own-teaching-numbers",
@@ -4712,10 +4808,11 @@
       "keywords": [
         "numbers",
         "totals",
-        "students",
+        "classes",
         "minutes",
-        "sessions",
-        "practice"
+        "phrases",
+        "students",
+        "own accounts"
       ],
       "place": {
         "route": "dashboard"
@@ -4724,15 +4821,15 @@
       "surface": "schools",
       "source": "packages/player-vue/src/views/schools/DashboardView.vue",
       "walk": null,
-      "what": "One quiet line totalling your whole teaching load — how many students you have across every class, how many minutes they have practised between them, and how many sessions have been run. It is a record of what has happened, never a target.",
+      "what": "One quiet line totalling your classes this week: how many classes, the minutes they spent in the app with a lesson running, and the phrases they practised. All of it is the classes' own play from the front. A second line, only when any pupil has signed in on their own account, counts those pupils and the minutes on their own accounts, kept apart so the two are never confused.",
       "where": "Underneath your classes on the schools dashboard.",
       "how": [
         "Open the schools dashboard and scroll past your classes.",
-        "**Students** counts every pupil in every class you teach, each person once.",
-        "**Minutes practised** is real practice time those pupils have logged, in minutes.",
-        "**Sessions** is how many class sessions have been run."
+        "**Classes** is how many you teach.",
+        "**In the app this week** is time with a lesson running, pauses included.",
+        "**Phrases practised** is how many phrases your classes were prompted with this week."
       ],
-      "note": "The line only appears once you have at least one class — there is nothing to total before that."
+      "note": "The line only appears once you have at least one class."
     }
   ]
 }

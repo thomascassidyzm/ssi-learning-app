@@ -207,7 +207,7 @@ describe('ClassDetail — putting students into the class', () => {
     // Drawn, not annotated: the places themselves, and no table of headings.
     expect(empty.findAll('.empty-seat').length).toBe(6)
     expect(wrapper.find('.roster .ssi-table').exists()).toBe(false)
-    expect(empty.text()).toContain('Nobody is in this class yet')
+    expect(empty.text()).toContain('No pupil has their own account in this class yet')
     // Both doors, in the empty class itself.
     expect(empty.text()).toContain('Add students')
     expect(empty.text()).toContain('Invite students')
