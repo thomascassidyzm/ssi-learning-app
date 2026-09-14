@@ -41,11 +41,19 @@ export interface PaywallRetreat {
   blocksPersist(): boolean
   /** The held position, or null. */
   current(): RememberedPosition | null
-  /** If the held position is now playable, return it (still held — the
+  /** If the held position is now playable, return where to jump: the round
+   *  that carries the held LEGO in the LIVE queue (`findRoundIndex`), never
+   *  the index the queue had when it retreated — the bootstrap queue is a
+   *  window whose round 0 is the resume LEGO, and the full-script handoff
+   *  swaps it for the whole course, where index 0 is the first LEGO of the
+   *  course (staging probe, job #745). Still held after this call: the
    *  restoring jump's own round-advance write must not run; `clear` happens
-   *  when play actually resumes). Null when nothing is held or it is still
-   *  locked. */
-  takeRestore(canAccessSeed: (seed: number) => boolean): RememberedPosition | null
+   *  when play actually resumes. Null when nothing is held, when it is still
+   *  locked, or when the live queue does not carry the LEGO (stay put). */
+  takeRestore(
+    canAccessSeed: (seed: number) => boolean,
+    findRoundIndex: (legoId: string) => number,
+  ): RememberedPosition | null
   clear(): void
 }
 
@@ -59,11 +67,14 @@ export function createPaywallRetreat(): PaywallRetreat {
     },
     blocksPersist() { return held !== null },
     current() { return held },
-    takeRestore(canAccessSeed) {
+    takeRestore(canAccessSeed, findRoundIndex) {
       if (!held) return null
       const seed = seedNumberOfRound({ legoId: held.legoId })
       if (seed !== null && !canAccessSeed(seed)) return null
-      return held
+      if (!held.legoId) return held
+      const live = findRoundIndex(held.legoId)
+      if (!Number.isInteger(live) || live < 0) return null
+      return { ...held, roundIndex: live }
     },
     clear() { held = null },
   }

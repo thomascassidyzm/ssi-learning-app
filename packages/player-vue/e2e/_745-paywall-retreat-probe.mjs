@@ -41,7 +41,11 @@ const session = { access_token: verified.access_token, refresh_token: verified.r
 
 const browser = await chromium.launch({ executablePath: process.env.CHROME_BIN, args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--autoplay-policy=no-user-gesture-required', '--mute-audio'] })
 const page = await browser.newPage({ viewport: { width: 430, height: 900 } })
-page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') log('  [console]', m.text().slice(0, 200)) })
+page.on('console', m => {
+  const t = m.text()
+  if (m.type() === 'error' || m.type() === 'warning' || (process.env.VERBOSE && /jumpToRound|Position saved|Loaded position|resume|Resume|paywall|Paywall|initialize|landed|RESUME|retreat|entitle|Entitle|starting at|cursor/i.test(t)))
+    log(`  [${m.type()}]`, t.replace(/\s+/g, ' ').slice(0, 220))
+})
 page.on('pageerror', e => log('  [pageerror]', String(e).slice(0, 200)))
 const posKey = `ssi_learning_position_${COURSE}`
 await page.addInitScript(([authKey, sess, course, posKey, lego]) => {
@@ -65,6 +69,7 @@ await page.route('**/api/entitlement/user', async route => {
   return route.continue()
 })
 
+page.on('request', r => { const u = r.url(); if (u.includes('/api/courses/') || u.includes('/api/progress') || u.includes('course_enrollments')) log('  [req]', r.method(), u.replace(BASE, '').slice(0, 140)) })
 const readLocal = () => page.evaluate(k => { try { const p = JSON.parse(localStorage.getItem(k) || 'null'); return p && { legoId: p.legoId, seed: p.seedNumber, item: p.itemInRound } } catch { return null } }, posKey)
 
 await page.goto(`${BASE}/?course=${COURSE}`, { waitUntil: 'domcontentloaded' })
@@ -83,7 +88,12 @@ try {
   await page.locator('.paywall-overlay').first().waitFor({ state: 'hidden', timeout: 30_000 })
   log('WALL DOWN after the refreshed grant')
 } catch { log('wall did not close within 30s'); await page.screenshot({ path: `${OUT}/wall-stuck.png` }) }
-await page.waitForTimeout(12_000) // let playback resume and the first prompt fire
+for (let t = 0; t < 24; t++) {
+  await page.waitForTimeout(500)
+  const txt = await page.locator('.known-text, .prompt-text, [class*="known"]').first().textContent().catch(() => null)
+  const wall = await page.locator('.paywall-overlay').first().isVisible().catch(() => false)
+  log(`  t+${(t + 1) * 0.5}s wall=${wall} local=${JSON.stringify(await readLocal())} screen=${(txt || '').trim().slice(0, 40)}`)
+}
 await page.screenshot({ path: `${OUT}/2-after.png` })
 const known = await page.locator('.known-text, .prompt-text, [class*="known"]').first().textContent().catch(() => null)
 log('AFTER RESUME. local cursor:', JSON.stringify(await readLocal()), '| DB:', JSON.stringify(await readDb()), '| on screen:', (known || '').trim().slice(0, 80))
