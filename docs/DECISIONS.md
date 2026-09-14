@@ -2775,3 +2775,19 @@ reads and decides what to commission. Known test senders (Tom's own addresses an
 ssi_admin accounts, test schools, probe bodies) are stamped and not posted, so they never
 resurface and never wake a channel chief; a tester-role report such as Aran's is real and is
 posted.
+
+## 2026-09-14 — A failed undo is not an undo; the sweep plans from the fresh row (job #689)
+
+**Undo retryable.** `undoCopy` used to write its audit row with `undo_of` even when a per-table
+deletion had failed. The next attempt found that row and answered `already_undone`, so a
+half-deleted copy could never be finished and was reported as reversed. Now a failed attempt is
+written as `undo_failed_of`: it stays on the append-only trail with what it did delete, but the
+already-undone check, the prior-copy scan and the copy-notice helper all ignore it, so the copy
+stays in force and the undo runs again. Deletions were already idempotent, so the retry completes.
+Test: `classProgressCopy.test.ts` "a failed undo is not recorded as an undo" — red on the old code,
+green on the new.
+
+**Sweep drift check uses `still`.** `tools/copy-teacher-play-sweep.mjs` rescanned before each
+write but then planned from the original scan's learner id and course code. It now plans from the
+fresh row, and skips-and-names the pair if the class's course or the teacher's learner id changed
+between scan and write. Dry run after the change still reproduces five copies / 336 rows.

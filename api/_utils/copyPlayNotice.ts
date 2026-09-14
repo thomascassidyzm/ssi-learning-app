@@ -12,7 +12,7 @@
  * key class_play_copied:<audit_id> makes the two callers unable to double-send.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { AUDIT_TABLE, type AuditRow, type CopyRecord, type UndoRecord } from './classProgressCopy'
+import { AUDIT_TABLE, isUndoRow, type AuditRow, type CopyRecord, type UndoRecord } from './classProgressCopy'
 import { sendUserMessage, USER_MESSAGES_TABLE, type SendUserMessageResult } from './userMessages'
 
 export function copyNoticeDedupeKey(auditId: string): string {
@@ -52,7 +52,7 @@ export async function sendClassPlayCopiedNotice(svc: SupabaseClient, auditId: st
   if (error) return { sent: false, id: null, error: error.message }
   const audit = (data as AuditRow | null) ?? null
   if (!audit) return { sent: false, id: null, skipped: 'audit row not found' }
-  if ((audit.record as UndoRecord).undo_of) return { sent: false, id: null, skipped: 'an undo record, not a copy' }
+  if (isUndoRow(audit.record)) return { sent: false, id: null, skipped: 'an undo record, not a copy' }
   if (!copyDidSomething(audit.record as CopyRecord)) return { sent: false, id: null, skipped: 'the copy moved nothing' }
 
   const [{ data: teacher }, { data: cls }] = await Promise.all([
@@ -99,7 +99,7 @@ export async function backfillCopyNotices(svc: SupabaseClient): Promise<Backfill
   const { data: audits, error } = await svc.from(AUDIT_TABLE).select('id, record').order('created_at', { ascending: true }).limit(1000)
   if (error) throw new Error(`${AUDIT_TABLE} read failed: ${error.message}`)
   const rows = (audits ?? []) as Array<{ id: string; record: CopyRecord | UndoRecord }>
-  const copies = rows.filter((r) => !(r.record as UndoRecord)?.undo_of)
+  const copies = rows.filter((r) => !isUndoRow(r.record))
   const keys = copies.map((r) => copyNoticeDedupeKey(String(r.id)))
   const existing = new Set<string>()
   for (let i = 0; i < keys.length; i += 200) {

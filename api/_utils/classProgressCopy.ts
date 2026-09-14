@@ -165,12 +165,24 @@ export interface CopyRecord {
  * reversed, exactly what it deleted per table, and the cursor it restored.
  */
 export interface UndoRecord {
-  undo_of: string
+  /** Set only when the undo COMPLETED: every deletion done and the cursor restored. */
+  undo_of?: string
+  /**
+   * Set instead of undo_of when the undo failed part-way (job #689). The row
+   * keeps the trail honest — what was deleted before the failure — but it is
+   * NOT an undo: the already-undone check and the prior-copy scan both ignore
+   * it, so the copy stays in force and the undo can be retried. Deletions are
+   * idempotent (rows already gone are fine), so the retry finishes the job.
+   */
+  undo_failed_of?: string
   deleted: Record<string, string[]>
   cursorRestored: CursorSnapshot | null
   skipped: Array<{ table: string; reason: string }>
   error?: string
 }
+
+export const isUndoRow = (r: CopyRecord | UndoRecord | null | undefined): boolean =>
+  Boolean((r as UndoRecord)?.undo_of || (r as UndoRecord)?.undo_failed_of)
 
 export interface CopyPlan {
   courseCode: string
@@ -252,7 +264,7 @@ async function priorCopied(
   // not be skipped by the next copy — otherwise undo would make re-copy
   // impossible. The undo record names the run it reversed.
   const undone = new Set(all.map((r) => (r.record as UndoRecord)?.undo_of).filter(Boolean) as string[])
-  const rows = all.filter((r) => !(r.record as UndoRecord)?.undo_of && !undone.has(String(r.id)))
+  const rows = all.filter((r) => !isUndoRow(r.record) && !undone.has(String(r.id)))
   for (const r of rows) {
     for (const [table, map] of Object.entries((r.record as CopyRecord)?.copied ?? {})) {
       ids[table] ??= new Set()
@@ -517,6 +529,11 @@ export async function playedSinceCopy(svc: SupabaseClient, audit: AuditRow): Pro
  * and append a second audit row naming what was deleted, so the trail stays
  * append-only. Rows the class learner held BEFORE the copy are never touched:
  * they are not in the record. Refused when the class account has played since.
+ *
+ * RETRYABLE. Every deletion is idempotent — a row the record names that is
+ * already gone counts as done — so an undo that failed part-way is simply run
+ * again. The failed attempt is on the trail as undo_failed_of, which nothing
+ * treats as an undo (job #689).
  */
 export async function undoCopy(
   svc: SupabaseClient,
@@ -525,7 +542,7 @@ export async function undoCopy(
 ): Promise<UndoOutcome> {
   const audit = await readAudit(svc, auditId)
   if (!audit) return { ok: false, reason: 'not_found' }
-  if ((audit.record as UndoRecord).undo_of) return { ok: false, reason: 'not_a_copy' }
+  if (isUndoRow(audit.record)) return { ok: false, reason: 'not_a_copy' }
   const record = audit.record as CopyRecord
 
   const prior = await svc
@@ -611,8 +628,11 @@ export async function undoCopy(
     }
   }
 
-  const undoRecord: UndoRecord = { undo_of: auditId, deleted, cursorRestored, skipped: SKIPPED_TABLES }
-  if (failure) undoRecord.error = failure
+  // A failed undo is written as undo_failed_of, never undo_of: the copy stays
+  // in force and the next attempt runs the deletions again (job #689).
+  const undoRecord: UndoRecord = failure
+    ? { undo_failed_of: auditId, deleted, cursorRestored, skipped: SKIPPED_TABLES, error: failure }
+    : { undo_of: auditId, deleted, cursorRestored, skipped: SKIPPED_TABLES }
   const { data: undoAudit, error: auditErr } = await svc
     .from(AUDIT_TABLE)
     .insert({

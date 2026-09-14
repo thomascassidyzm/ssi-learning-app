@@ -289,18 +289,27 @@ async function applySweep(scanResult) {
         console.log(`  SKIP (drifted)  ${label}`)
         continue
       }
-      const ensured = await ensureClassLearnerEntity(svc, row.class.id)
+      // The pair still qualifies, but the copy is planned from the FRESH row,
+      // never the original scan: a class whose course changed, or a teacher
+      // whose learner row was re-pointed, is skipped and named (job #689).
+      if (still.class.course_code !== row.class.course_code || still.teacher.learner_id !== row.teacher.learner_id) {
+        const detail = `scan said ${row.class.course_code} / ${row.teacher.learner_id}, now ${still.class.course_code} / ${still.teacher.learner_id}`
+        applied.push({ ...row, outcome: 'skipped_drift', detail })
+        console.log(`  SKIP (drifted)  ${label}: ${detail}`)
+        continue
+      }
+      const ensured = await ensureClassLearnerEntity(svc, still.class.id)
       if ('error' in ensured) {
         applied.push({ ...row, outcome: 'failed', detail: `class learner: ${ensured.error}` })
         console.log(`  FAIL  ${label}: ${ensured.error}`)
         continue
       }
       const plan = await planCopy(svc, {
-        sourceLearnerId: row.teacher.learner_id,
+        sourceLearnerId: still.teacher.learner_id,
         targetLearnerId: ensured.learnerId,
-        courseCode: row.class.course_code,
+        courseCode: still.class.course_code,
       })
-      const { record, auditId, error } = await applyCopy(svc, plan, { actorUserId: SWEEP_ACTOR, classId: row.class.id })
+      const { record, auditId, error } = await applyCopy(svc, plan, { actorUserId: SWEEP_ACTOR, classId: still.class.id })
       const copiedCounts = Object.fromEntries(Object.entries(record.copied).map(([t, m]) => [t, Object.keys(m).length]))
       const totalRows = Object.values(copiedCounts).reduce((a, b) => a + b, 0)
       if (error) {
