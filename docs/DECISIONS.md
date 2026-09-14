@@ -2329,3 +2329,45 @@ show one either. Named as a gap, not faked from the pupil spine.
 on their own Library and presses play. A one-line nudge on the learner player for a teacher whose
 class is on that course would stop the next fifteen mistakes; that is a learner-surface change and
 is his call.
+
+## 2026-09-14 — Teacher home: two figures kept apart; a school-admin sweep for the copy tool (job #662)
+
+**Trigger.** Tom's ruling on #651's diagnosis, relayed at 12:23Z: "Teacher SHOULD be able to see
+both: Play-as-class minutes AND an aggregate of the class students own playing times - there wont
+be a lot of this at the moment." And: "Angharad Jones as school admin SHOULD have a tool to copy
+any individual teacher account stats over to the play as class stats, including progress ... I
+THINK we built that tool for her." The tool exists one class at a time; thirteen Chepstow teachers
+it had never been run for. Staging only; nothing to main.
+
+**What the code said.** `api/school/class-practice-7d.ts` returned `practiceByClass` as the class
+account's play PLUS the pupils' own accounts, one number, and #651's teacher home read that summed
+field into every class row and the footer, deriving the pupils' share by subtraction. That sum is
+the one figure the ruling forbids.
+
+**Decision.**
+- `practiceByClass` is now the PUPILS' own-account seconds only; `classPlayByClass` stays the class
+  account's figure. No consumer summed them on purpose: the classes list column, the class page
+  header and the teacher home all meant the class account and now read `classPlayByClass`. The
+  school headline `rollup.inAppMinutes7d` still adds class accounts and staff/pupil own accounts
+  once each — that is a different surface, shared with the leader node home, and untouched.
+- The teacher home shows both figures on every class row and in the footer, never a total. The
+  pupils' figure is always present; at zero it says "Nothing on pupils' own accounts this week.
+  That is usual for a class taught from the front", so absence is never read as breakage.
+- The sweep: a read-only `copy-teacher-play/candidates` route, one school per call, admin of that
+  school or platform admin, allowed under View-as, lists every (class, teacher) pair where the
+  teacher's own account is enrolled on the class course and the planner finds something to copy,
+  each with the preview payload built by the same `previewBody` the single-pair preview now uses.
+  A card on the school-admin dashboard renders the rows with one Copy each, calling the existing
+  apply for that pair. No bulk apply exists, by design: apply stays one teacher at a time, refuses
+  View-as, and writes `class_progress_copy_audit`.
+
+**Better × Simpler × Cheaper.** Better: a teacher reads the class's own minutes beside the pupils'
+own, and a leader clears thirteen mis-played teachers from one page with one look per teacher.
+Simpler: the subtraction on the client is gone; the copy tool's fetch and words live once
+(`composables/schools/copyTeacherPlay.ts`) and serve both cards; one body builder serves both
+server routes. Cheaper: no new table, no new writer; the sweep costs one planner pass per enrolled
+teacher, pre-filtered by enrollment so a school of 34 classes plans a dozen pairs, not 34.
+
+**Not done, and why.** No bulk apply, per the brief and the audit model. No nudge on the learner
+player towards Play as class: Tom's call, not this job. The sweep is not run against any real
+teacher by this job: Angharad runs it.
