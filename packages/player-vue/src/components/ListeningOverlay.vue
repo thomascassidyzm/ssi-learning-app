@@ -10,6 +10,7 @@ import { BELTS } from '../composables/useBeltProgress'
 import { useListeningPods, SPEAKER_PALETTE } from '../composables/useListeningPods'
 import { getCachedListeningMeta } from '../composables/listeningMetaCache'
 import { buildSilentWavDataUri } from '../playback/silentWav'
+import { setPlaybackLive } from '../playback/playbackLiveness'
 import { buildModalQueue as buildPodModalQueue } from '../playback/podModalQueue'
 import { podLineShown } from '../playback/podLineText'
 import { changeoverGapMs, isJumpInChangeover, jumpInLeadMs, GAP_DRILL_MS, GAP_IMMERSION_JOIN_MS } from '../playback/podChangeover'
@@ -2170,6 +2171,9 @@ const clearMediaSession = () => {
 }
 
 watch(isPlaying, async (playing) => {
+  // Listening Mode is live play too: the playing-as-yourself banner and the
+  // never-interrupt gates read it through playbackLiveness (job #693).
+  setPlaybackLive('listening', playing)
   if ('mediaSession' in navigator) {
     navigator.mediaSession.playbackState = playing ? 'playing' : 'paused'
   }
@@ -2258,6 +2262,7 @@ onMounted(async () => {
 onUnmounted(() => {
   stopClipClock()
   stopPlayback()
+  setPlaybackLive('listening', false)
   releaseWakeLock()
   clearMediaSession()
   if (listeningTickTimer) { clearInterval(listeningTickTimer); listeningTickTimer = null }

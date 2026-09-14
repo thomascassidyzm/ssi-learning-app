@@ -46,6 +46,7 @@ import { recordEnvelopeEvidence } from '../composables/useEnvelopeEvidence'
 import { createEnvelopeMetadataCache, type EnvelopeMetadataCache } from '../composables/useEnvelopeMetadataCache'
 import { createEvidenceAggregator, type RoundPlan } from '@ssi/core'
 import { computeAdaptOmitCycleIds, assembleBreatherRound } from '../playback/adaptationOverrides'
+import { setPlaybackLive } from '../playback/playbackLiveness'
  
 import { usePairingsTelemetry } from '../composables/usePairingsTelemetry'
 import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
@@ -7158,12 +7159,14 @@ const isAudioPlaying = computed(() =>
   || isPreparingToPlay.value
 )
 // Window-level echo so components outside this tree (InstallBanner, the
-// update-available banner) can gate "never interrupt an active cycle"
-// (B6/Gap 4) without prop-drilling isPlaying down from PlayerContainer.
+// update-available banner, the playing-as-yourself banner) can gate "never
+// interrupt an active cycle" (B6/Gap 4) without prop-drilling isPlaying down
+// from PlayerContainer. Reported through playbackLiveness so Listening Mode's
+// own transport counts too (job #693); it dispatches `ssi-play-state`.
 // (The @playStateChanged emit that used to live here died with 878246ff —
 // the container pulls isAudioPlaying via the template ref instead.)
 watch(isAudioPlaying, (playing) => {
-  window.dispatchEvent(new CustomEvent('ssi-play-state', { detail: { playing } }))
+  setPlaybackLive('player', playing)
 })
 
 // Wake lock: keep screen on during active learning
