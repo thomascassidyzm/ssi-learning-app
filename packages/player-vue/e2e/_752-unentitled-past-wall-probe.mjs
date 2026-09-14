@@ -61,6 +61,18 @@ await page.addInitScript(([authKey, sess, course, posKey, lego, plantLocal]) => 
   ls.setItem('__752_seeded', '1')
 }, ['sb-swfvymspfxmnfhevgdkg-auth-token', session, COURSE, posKey, REAL_LEGO, PLANT_LOCAL])
 
+// GRANT=1: once the wall is up, every entitlement fetch answers a FULL grant
+// (the server still serves the preview bundle, so the remembered LEGO is not in
+// the engine queue). Expected since the #752 addition: wall down, playback NOT
+// resumed at the retreat (resting screen stays), localStorage still S0031L01.
+let grantArmed = false
+if (process.env.GRANT === '1') {
+  await page.route('**/api/entitlement/user', async route => {
+    if (!grantArmed) return route.continue()
+    log('entitlement fetch → forced FULL grant')
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ entitlements: [{ id: 'fake', access_type: 'full', granted_courses: null, expires_at: null, redeemed_at: new Date().toISOString(), entitlement_code_id: null }] }) })
+  })
+}
 page.on('request', r => { const u = r.url(); if (u.includes('/api/courses/') || u.includes('/api/progress') || u.includes('course_enrollments') || u.includes('/api/entitlement')) log('  [req]', r.method(), u.replace(BASE, '').slice(0, 140)) })
 page.on('response', r => { const u = r.url(); if ((u.includes('/api/courses/') || u.includes('/api/entitlement')) && r.status() >= 400) log('  [resp]', r.status(), u.replace(BASE, '').slice(0, 120)) })
 const readLocal = () => page.evaluate(k => { try { const p = JSON.parse(localStorage.getItem(k) || 'null'); return p && { legoId: p.legoId, seed: p.seedNumber, item: p.itemInRound } } catch { return null } }, posKey)
@@ -73,7 +85,10 @@ let firstWallAt = null
 for (let t = 0; t < 50; t++) {
   await page.waitForTimeout(500)
   const wall = await wallVisible()
-  if (wall && firstWallAt === null) { firstWallAt = (t + 1) * 0.5; await page.screenshot({ path: `${OUT}/wall.png` }) }
+  if (wall && firstWallAt === null) {
+    firstWallAt = (t + 1) * 0.5; await page.screenshot({ path: `${OUT}/wall.png` })
+    if (process.env.GRANT === '1') { grantArmed = true; await page.waitForTimeout(300); await page.evaluate(() => fetch('/api/entitlement/user').catch(() => {})) }
+  }
   if (t % 4 === 3 || (wall && firstWallAt === (t + 1) * 0.5)) log(`  t+${(t + 1) * 0.5}s wall=${wall} local=${JSON.stringify(await readLocal())} screen=${await readScreen()}`)
 }
 // MAYBE_LATER=1: dismiss the wall and play on inside the preview. The saved
