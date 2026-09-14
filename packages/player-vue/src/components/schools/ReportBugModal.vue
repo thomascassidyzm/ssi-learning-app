@@ -148,7 +148,7 @@ function onKeydown(e: KeyboardEvent) {
              How you do it.
              1. Tap into the box and write what you saw.
              2. Keep it under 2,000 characters. Send stays off until you have written something.
-             Worth knowing. The page you were on and your school are added for you, so you only need to describe what went wrong.
+             Worth knowing. The page you were on, your school, your role and your account are added for you, so you only need to describe what went wrong.
              checked: 72f46933.428798bd
         -->
         <label class="rb-label" for="rb-happened">{{ t('schools.bugReport.happenedLabel', 'What happened?') }}</label>

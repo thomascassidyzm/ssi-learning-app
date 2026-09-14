@@ -62,6 +62,15 @@ describe('GET /api/support/thread', () => {
     expect(JSON.stringify(res.body)).not.toContain('another school')
   })
 
+  it('?peek=1 creates no thread when the school has none yet (job #677: four schools "opened" one by loading the dashboard)', async () => {
+    DB.support_threads = []
+    const res = makeRes()
+    await handler(makeReq({ query: { peek: '1' } }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toEqual({ unread: 0 })
+    expect(DB.support_threads).toHaveLength(0)
+  })
+
   it('?peek=1 reports the unread count without marking the thread read', async () => {
     DB.support_threads = [{ id: 't1', school_id: 's1', last_read_at: '2026-09-10T18:00:00.000Z', language: null, standing_notes: {} }]
     DB.support_messages = [
