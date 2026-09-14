@@ -62,6 +62,8 @@ import { formatPracticeMinutes, hoursToMinutes } from '@/composables/schools/pra
 import { isMemberNodeSurface, nodeInsightsPath } from '@/composables/nodeSurfacePaths'
 import { derivePreset } from '@/composables/nodeTerminology'
 import { timeAgo } from '@/composables/admin/adminUtils'
+import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
+import CopyTeacherPlayCard from '@/components/schools/CopyTeacherPlayCard.vue'
 import InsightTable from '@/insight/widgets/Table.vue'
 import type { TableData } from '@/insight/spec'
 
@@ -83,7 +85,30 @@ const member = computed(() => isMemberNodeSurface(route.path))
 // caller's own govt_admins row, never a route param). FAILS OPEN: an
 // unresolved/errored read leaves orgGate null, so nothing renders and nothing
 // blocks. ───
-const { isGovtAdmin, isSchoolAdmin } = useSchoolContext()
+const { isGovtAdmin, isSchoolAdmin, isTeacher, currentUser: schoolUser } = useSchoolContext()
+
+// ─── THE TEACHER'S VERBS on the class page (job #651, Tom 2026-09-14: one
+// class page for every role, leading with play-as-class). The server says
+// whether the viewer teaches this class (callerTeachesClass) — the verbs
+// hang off that fact, never off a role guess. Play as class is the same one
+// launch path every schools surface uses (usePlayAsClass); Manage class is
+// the flat tools page (roster, teachers, join link, rename). Member surface
+// only: the admin mount is a read-view. ───
+const { canPlayAsClass, launchClassSession, playError } = usePlayAsClass()
+const viewerTeachesClass = computed(() => !!home.value?.callerTeachesClass)
+const viewerIsLeader = computed(() => isSchoolAdmin.value || isGovtAdmin.value)
+const showClassVerbs = computed(() => member.value && isClass.value && !!home.value?.node)
+const classToolsPath = computed(() => (home.value?.node ? `/schools/classes/${home.value.node.id}` : ''))
+async function playThisClass(): Promise<void> {
+  const n = home.value?.node
+  if (!n) return
+  await launchClassSession({ id: n.id, class_name: n.name, course_code: n.course_code, class_learner_id: home.value?.classLearnerId ?? null, last_lego_id: home.value?.journey?.legoId ?? null })
+}
+// The copy-play repair on the class page itself: a leader picks the teacher;
+// a teacher of this class fixes their own lesson (self mode, no picker).
+const showCopyPlay = computed(() => showClassVerbs.value && (viewerIsLeader.value || viewerTeachesClass.value))
+const copyPlaySelfUserId = computed(() => (viewerIsLeader.value ? undefined : (schoolUser.value?.user_id || undefined)))
+const copyPlayTeachers = computed(() => (home.value?.teachers ?? []).map((x: any) => ({ user_id: x.user_id, name: x.name })))
 const isOrgLeaderView = computed(() => member.value && isGovtAdmin.value)
 const orgGate = ref<{ active: boolean; trial_days_remaining: number } | null>(null)
 const orgGateLoaded = ref(false)
@@ -544,6 +569,9 @@ function askAboutClassPractice(): void {
 const insightsLink = computed(() => {
   const n = home.value?.node
   if (!n) return null
+  // A teacher on their class page: the node insights endpoint is a leader's,
+  // so the tab opens the teacher-scoped tool on this class instead.
+  if (member.value && isClass.value && isTeacher.value && !viewerIsLeader.value) return `/schools/analytics?class=${encodeURIComponent(n.id)}`
   return nodeInsightsPath(n, isClass.value, member.value)
 })
 
@@ -895,9 +923,61 @@ const listPayload = computed(() => {
             <!-- Overview | Insights as tabs, same corner, every level (Tom,
                  2026-09-14) — Overview lit here, Insights lit on the lens. -->
             <div class="verbs">
+              <!-- HANDBOOK Play as class from the class page
+                   section: running-classes
+                   roles: teacher, school_admin
+                   place: node-home
+                   keywords: play as class, lesson, start, class page, front of the room
+                   What it's for. Starting a whole-class lesson from the class's own
+                   page, on the class's own account, so the minutes and the phrases
+                   land on the class rather than on you.
+                   Where it is. The class page, the **Play as class** button beside
+                   the class name.
+                   How you do it.
+                   1. Open the class from your dashboard or from My Classes.
+                   2. Tap **Play as class**.
+                   3. The player opens on the class's course at the class's own place.
+                   Worth knowing. Pressing play on a course from your own Library
+                   counts for you, not for the class. Only Play as class moves the
+                   class.
+                   checked: 727a8b14.9c9a2453
+              -->
+              <button
+                v-if="showClassVerbs && canPlayAsClass && !switching"
+                type="button"
+                class="btn-play"
+                data-walk="class-page-play"
+                @click="playThisClass"
+              >&#9654; {{ t('org.nodeHome.playAsClass', 'Play as class') }}</button>
+              <!-- HANDBOOK Manage a class
+                   section: running-classes
+                   roles: teacher, school_admin
+                   place: node-home
+                   keywords: manage, tools, roster, teachers, join link, rename, delete
+                   What it's for. Getting from the class page to the class's tools:
+                   the roster of pupils on their own accounts, the teachers, the
+                   join link and code, renaming and deleting.
+                   Where it is. The class page, the **Manage class** link beside the
+                   class name.
+                   How you do it.
+                   1. Open the class.
+                   2. Tap **Manage class**.
+                   3. The tools page opens; its own **Open the class page** line
+                      brings you back.
+                   Worth knowing. The class's practice, minutes and journey stay on
+                   the class page. The tools page never totals whole-class play.
+                   checked: f1b631d2.b60644b6
+              -->
+              <router-link
+                v-if="showClassVerbs && !switching"
+                :to="classToolsPath"
+                class="btn-ghost"
+                data-walk="class-page-manage"
+              >{{ t('org.nodeHome.manageClass', 'Manage class') }}</router-link>
               <LensTabs v-if="insightsLink" :overview-path="route.path" :insights-path="insightsLink" current="overview" />
             </div>
           </header>
+          <div v-if="playError" class="fetch-error-banner"><span>{{ playError }}</span></div>
 
           <!-- ACTION BAR — the verbs, across the top of the node page
                (founder-ruled 2026-07-19: rows are links, verbs live here). -->
@@ -1211,10 +1291,26 @@ const listPayload = computed(() => {
             </div>
           </div>
 
-          <!-- CHILDREN LIST + lenses -->
-          <section class="children-section schools-card">
+          <!-- THE COPY-PLAY REPAIR on the class page (job #651): Angharad's
+               card moved here with the leaders in job #624, and a teacher
+               fixes their own lesson from the same place. -->
+          <CopyTeacherPlayCard
+            v-if="showCopyPlay && !switching && home.node"
+            :class-id="home.node.id"
+            :teachers="copyPlayTeachers"
+            :self-user-id="copyPlaySelfUserId"
+            @copied="fetchHome"
+          />
+
+          <!-- CHILDREN LIST + lenses. On a class this is the pupils' OWN
+               accounts — a second, clearly headed section beneath the class's
+               own practice, and absent altogether when no pupil has one (Tom,
+               2026-09-14, job #651: the aggregate of individual accounts read
+               as "nothing happened" for a class played from the front). -->
+          <section v-if="!isClass || isLoading || (home.students?.length ?? 0) > 0" class="children-section schools-card">
             <div class="children-head">
-              <span class="schools-kicker">{{ isClass ? t('org.nodeHome.statStudents', 'Students') : t('org.nodeHome.belowThis', 'Below this') }}</span>
+              <span class="schools-kicker">{{ isClass ? t('org.nodeHome.studentsOwnAccounts', 'Students on their own accounts') : t('org.nodeHome.belowThis', 'Below this') }}</span>
+              <p v-if="isClass" class="children-caption">{{ t('org.nodeHome.studentsOwnAccountsCaption', 'Only pupils who have signed in themselves are counted here. Whole-class play is in the Class practice card above.') }}</p>
             </div>
             <!-- The body holds its pre-load height while rows re-fetch (node
                  switch, lens change or refresh) — no collapse-to-spinner,
@@ -1256,8 +1352,9 @@ const listPayload = computed(() => {
                    practice over the last week and how recently they were active.
                    A quiet coloured dot flags anyone who has gone quiet or fallen
                    well behind the class.
-                   Where it is. The **Students** list at the bottom of a class
-                   page.
+                   Where it is. The **Students on their own accounts** list at
+                   the bottom of a class page. It is only there when at least
+                   one pupil has an account of their own.
                    How you do it.
                    1. Open a class.
                    2. Read down the rows — the bar on each is that student's own
@@ -1369,6 +1466,9 @@ const listPayload = computed(() => {
 </template>
 
 <style scoped>
+.children-caption { margin: 4px 0 0; font-size: var(--text-xs, 12px); color: var(--schools-fg-3, #777); }
+.verbs .btn-play, .verbs .btn-ghost { text-decoration: none; }
+
 .signin-link-error,
 .signin-link-panel {
   margin: 0.75rem 0;

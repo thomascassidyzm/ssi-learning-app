@@ -411,7 +411,7 @@ describe('NodeHomeView — one grammar at every level', () => {
     expect(text).toContain('Course journey')
     expect(text).not.toContain('Belt distribution')
     expect(text).not.toContain('Practice min/student/week')
-    expect(text).not.toContain('on their own')
+    expect(text).not.toContain('LEGOs on their own')
     expect(text).not.toContain('LEGOs mastered on average')
     expect(text).toContain('LEGOs travelled together')
     // Journey note speaks LEGOs (position-is-LEGO ruling: never "seed")

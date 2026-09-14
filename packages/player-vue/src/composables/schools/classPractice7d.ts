@@ -29,10 +29,25 @@ export interface ClassAccountProgress {
   minutesByDay: number[]
 }
 
+/**
+ * The caller's OWN account this week (job #651): where a lesson lands when a
+ * teacher presses play from their Library instead of Play as class. The
+ * teacher home names it so the minutes are found, not lost.
+ */
+export interface CallerOwnPractice {
+  learnerId: string
+  inAppMinutes7d: number
+  minutesByDay: number[]
+  lastPlayedDay: string | null
+}
+
 export interface ClassPractice7d {
   practiceByClass: Record<string, number>
+  /** Of practiceByClass, the class account's own play — the rest is pupils' own accounts. */
+  classPlayByClass: Record<string, number>
   activeDaysByClass: Record<string, number>
   classAccountByClass: Record<string, ClassAccountProgress>
+  callerOwn: CallerOwnPractice | null
 }
 
 /**
@@ -60,13 +75,18 @@ const RETRY_DELAY_MS = 600
  * Network errors and 5xx/408/429 are retried once before they surface.
  */
 export async function fetchClassPractice7d(classIds: string[], user: SchoolUser | null | undefined, client?: SupabaseClient | null): Promise<ClassPractice7d> {
-  if (classIds.length === 0) return { practiceByClass: {}, activeDaysByClass: {}, classAccountByClass: {} }
+  if (classIds.length === 0) return { practiceByClass: {}, classPlayByClass: {}, activeDaysByClass: {}, classAccountByClass: {}, callerOwn: null }
   const c = client ?? getSchoolsClient()
   const { data: { session } } = await c.auth.getSession()
   const token = session?.access_token
   if (!token) throw new ClassPracticeFetchError(401, 'Your session has ended — sign in again')
-  const schoolParam = user?._scopeSource === 'admin-view' && user.school_id ? `&school_id=${encodeURIComponent(user.school_id)}` : ''
-  const url = `/api/school/class-practice-7d?class_ids=${classIds.join(',')}${schoolParam}`
+  // Under View-as the fetch runs as the admin, so the school being read AND
+  // the persona whose own account is meant both go on the URL (verifyAdmin
+  // gated server-side); a staff caller's own scope is never widened by either.
+  const viewingAs = user?._scopeSource === 'admin-view'
+  const schoolParam = viewingAs && user.school_id ? `&school_id=${encodeURIComponent(user.school_id)}` : ''
+  const ownParam = viewingAs && user.user_id ? `&own_user_id=${encodeURIComponent(user.user_id)}` : ''
+  const url = `/api/school/class-practice-7d?class_ids=${classIds.join(',')}${schoolParam}${ownParam}`
 
   const attempt = async (): Promise<{ res: Response | null; status: number; message: string }> => {
     let res: Response
@@ -91,9 +111,14 @@ export async function fetchClassPractice7d(classIds: string[], user: SchoolUser 
   }
   if (!outcome.res) throw new ClassPracticeFetchError(outcome.status, outcome.message)
   const data = await outcome.res.json()
+  const own = data?.callerOwn
   return {
     practiceByClass: (data?.practiceByClass as Record<string, number>) || {},
+    classPlayByClass: (data?.classPlayByClass as Record<string, number>) || {},
     activeDaysByClass: (data?.activeDaysByClass as Record<string, number>) || {},
     classAccountByClass: (data?.classAccountByClass as Record<string, ClassAccountProgress>) || {},
+    callerOwn: own && typeof own.inAppMinutes7d === 'number'
+      ? { learnerId: String(own.learnerId || ''), inAppMinutes7d: own.inAppMinutes7d, minutesByDay: Array.isArray(own.minutesByDay) ? own.minutesByDay : [], lastPlayedDay: own.lastPlayedDay ?? null }
+      : null,
   }
 }
