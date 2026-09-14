@@ -36,7 +36,13 @@ const upgradeTab = computed<NavTab[]>(() =>
 )
 const route = useRoute()
 const router = useRouter()
-const { currentUser, isGovtAdmin, isSchoolAdmin, clear: clearSchoolContext } = useSchoolContext()
+const { currentUser, isGovtAdmin, isSchoolAdmin, isTeacher, clear: clearSchoolContext } = useSchoolContext()
+// A TEACHER's own learner account is not offered in the nav itself (Tom,
+// 2026-09-14 13:07Z, job #662: "make it harder for the teachers to find their
+// own learner account? Maybe that is in a drop down menu by the avatar?
+// Rather than in the nav itself?"). It stays one step away as My player in the
+// avatar menu. School and group leaders keep the Learn button.
+const ownPlayInNav = computed(() => !(isTeacher.value && !isSchoolAdmin.value && !isGovtAdmin.value))
 // Replies unread on the school's support thread — peeked on mount and on
 // focus, never on a timer: a glance at the menu must not count as reading.
 const { unread: supportUnread, peekUnread } = useSupportChannel()
@@ -350,9 +356,11 @@ if (typeof document !== 'undefined') {
       <!-- Self-practice launcher. Hidden on every player route — you don't offer
            "Learn" to someone who is already in the player (owner ruling
            2026-08-06) — which covers the live class session too, where the bar's
-           job is to name the class and offer the exit. -->
+           job is to name the class and offer the exit. Hidden for a TEACHER
+           altogether (Tom, 2026-09-14 13:07Z): her own account lives in the
+           avatar menu as My player, not in the nav. -->
       <router-link
-        v-if="!isOnPlayerRoute"
+        v-if="!isOnPlayerRoute && ownPlayInNav"
         to="/"
         class="learn-btn"
         :title="t('schools.ui.topBar.learnBtnTitle', 'Learn — your own practice')"

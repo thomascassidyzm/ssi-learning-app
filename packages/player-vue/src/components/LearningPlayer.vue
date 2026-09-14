@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, onBeforeUnmount, watch, watchEffect, shallowRef, inject, nextTick, defineAsyncComponent, type PropType, type Ref } from 'vue'
 import { useUserRole } from '@/composables/useUserRole'
-import { useOwnAccountPlayNudge } from '@/composables/useOwnAccountPlayNudge'
+import { showOwnPlayBanner, OWN_PLAY_BANNER_LINK } from '@/composables/ownPlayBanner'
 import { createCursorQueue } from '@/playback/cursorQueue'
 // Offline-download status (shared with the mode-button ring in ModeTray)
 import { offlineDlState, offlineDlDone, offlineDlTotal, offlineDlFailed, offlineDlStragglers, offlineTrial, resetOfflineDownloadStatus, resolveOfflineDlOutcome } from '../composables/useOfflineDownloadStatus'
@@ -804,18 +804,18 @@ const courseCode = computed(() => props.course?.course_code || '')
 // Alias for ReportIssueButton
 const activeCourseCode = courseCode
 
-// THE OWN-ACCOUNT STEER (Tom, 2026-09-14 12:58Z, job #662): a signed-in
-// teacher who presses play here, on the course one of their classes is on,
-// is playing on their OWN account — the lesson will not count for the class.
-// One line, once play has started, pointing at Play as class on the class
-// page. Never under a class context, never in the schools shell, never for
-// anyone who does not teach a class on this course.
-const ownPlayNudge = useOwnAccountPlayNudge(
-  computed(() => ((auth as any)?.userId?.value as string | null | undefined) ?? null),
-  courseCode,
-)
-const hasPressedPlay = ref(false)
-const ownAccountNudgeClass = computed(() => (!props.classContext && !props.embedded && hasPressedPlay.value ? ownPlayNudge.nudgeClass.value : null))
+// "YOU ARE NOW PLAYING AS YOURSELF" (Tom, 2026-09-14 13:07Z, job #662): a
+// TEACHER account on this standalone player is on her own learner account,
+// so the lesson will not count for a class. A persistent line across the
+// top, in his words, linking to her classes. Never under a class context
+// (that IS play as class), never in the schools shell's embedded player.
+// Rule in composables/ownPlayBanner.ts.
+const { effectiveEducationalRole: viewerEducationalRole } = useUserRole()
+const ownPlayBannerVisible = computed(() => showOwnPlayBanner({
+  role: viewerEducationalRole.value,
+  hasClassContext: !!props.classContext,
+  embedded: !!props.embedded,
+}))
 
 // Production deep link — Popty's Script Viewer launching "this round" here for
 // a real-fidelity listen (utils/deepLinkTarget.ts owns the URL contract). The
@@ -9094,8 +9094,6 @@ const handlePause = () => {
 }
 
 const handleResume = async () => {
-  // The own-account steer (job #662) shows from the first play tap onwards.
-  hasPressedPlay.value = true
   logEvent('tap_play', {
     firstPlay: !hasEverStarted.value,
     roundIndex: simplePlayer.roundIndex.value,
@@ -17656,18 +17654,17 @@ defineExpose({
       <span class="class-bar-label">{{ t('player.backClasses') }}</span>
     </button>
 
-    <!-- Own-account steer for a teacher (job #662): shown once play has
-         started on a course one of their classes is on. A link to the class
-         page, where Play as class lives, and a dismiss. Never a block. -->
-    <div v-if="ownAccountNudgeClass" class="own-play-bar" data-testid="own-account-play-nudge" role="status">
-      <span class="own-play-text">{{ t('player.ownAccountNudge', 'This counts for you, not for {class}. To make it count for the class, use Play as class.').replace('{class}', ownAccountNudgeClass.name) }}</span>
-      <a class="own-play-link" :href="`/org/${ownAccountNudgeClass.id}`">{{ t('player.ownAccountNudgeCta', 'Open the class') }}</a>
-      <button type="button" class="own-play-dismiss" :aria-label="t('player.ownAccountNudgeDismiss', 'Dismiss')" @click="ownPlayNudge.dismiss()">&#x2715;</button>
+    <!-- "You are now playing as yourself" (Tom, 2026-09-14 13:07Z, job #662):
+         a teacher on her own player, persistent while she is here, the link
+         takes her to her classes. Never a block. -->
+    <div v-if="ownPlayBannerVisible" class="own-play-bar" data-testid="own-play-banner" role="status">
+      <span class="own-play-text">{{ t('player.playingAsYourself', 'You are now playing as yourself. If you want to play as class please go here.') }}</span>
+      <a class="own-play-link" :href="OWN_PLAY_BANNER_LINK">{{ t('player.playingAsYourselfLink', 'Your classes') }}</a>
     </div>
 
     <!-- Header - Logo with belt underneath, centered -->
     <!-- Header - brand row + belt row -->
-    <header class="header" :class="{ 'has-banner': (props.classContext && !props.embedded) || ownAccountNudgeClass }">
+    <header class="header" :class="{ 'has-banner': (props.classContext && !props.embedded) || ownPlayBannerVisible }">
       <div class="header-stack">
         <!-- Brand -->
         <!-- The SaySomethingin wordmark is hidden ONLY when embedded in a shell
@@ -18878,15 +18875,6 @@ defineExpose({
   font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 2px;
-}
-.own-play-dismiss {
-  flex-shrink: 0;
-  background: none;
-  border: none;
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 0.875rem;
-  padding: 0.25rem;
-  cursor: pointer;
 }
 
 /* ============ HEADER ============ */
