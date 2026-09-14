@@ -19,6 +19,8 @@ export interface VerifyTokenResult {
   valid: boolean
   /** Supabase user ID if valid */
   userId?: string
+  /** The signed-in email on the verified user, when GoTrue reports one. */
+  email?: string
   /** Error message if invalid */
   error?: string
 }
@@ -65,7 +67,7 @@ export async function verifyAuthToken(req: VercelRequest): Promise<VerifyTokenRe
       return { valid: false, error: message }
     }
 
-    return { valid: true, userId: user.id }
+    return { valid: true, userId: user.id, ...(user.email ? { email: user.email } : {}) }
   } catch (err) {
     console.error('[auth] Token verification error:', err)
     return { valid: false, error: 'Token verification failed' }
