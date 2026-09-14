@@ -3,7 +3,9 @@ import {
   createWebHistory,
   type NavigationGuardWithThis,
   type RouteRecordRaw,
+  START_LOCATION,
 } from 'vue-router'
+import { teacherLandingTarget } from '@/composables/teacherLanding'
 import { useUserRole } from '@/composables/useUserRole'
 import { isChunkLoadError } from './staleChunkError'
 import { prepareMissionFromRoute } from '@/missions/useMission'
@@ -190,6 +192,25 @@ const routes: RouteRecordRaw[] = [
     meta: {
       title: 'Learn',
       hideAppEscape: true, // immersive player — its own flow, no shell escape
+    },
+    // TEACHERS OPEN WITH THE DASHBOARD (Tom, 2026-09-14 13:03Z, job #662:
+    // "We need teacher accounts to open with the dashboard and not the
+    // player"). On the app's FIRST navigation only, a cached `teacher` role
+    // arriving at the bare player goes to /schools; every in-app Learn /
+    // My player tap still reaches the player, so her own play is one
+    // deliberate step away, never the default. Rule and scope in
+    // composables/teacherLanding.ts. For teachers this supersedes the
+    // 2026-07-24 ruling below; everyone else keeps it.
+    beforeEnter: (to, from) => {
+      const { effectiveEducationalRole, restoreFromCache } = useUserRole()
+      restoreFromCache()
+      const target = teacherLandingTarget({
+        role: effectiveEducationalRole.value,
+        isFirstNavigation: from === START_LOCATION,
+        path: to.path,
+        queryKeys: Object.keys(to.query).length,
+      })
+      return target ? { path: target } : true
     },
     // Owner ruling 2026-07-24: everyone lands in the player by default,
     // regardless of role. /schools is somewhere you deliberately navigate to
