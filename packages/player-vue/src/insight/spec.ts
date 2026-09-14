@@ -254,4 +254,10 @@ export interface RateComparisonData {
   windowLabel?: string      // the applied chip's label, e.g. "Last 30 days"
   trendLabel?: string       // honest chart caption, e.g. "Daily · last 30 days"
   trendPeriodDays?: number  // x-axis label spacing for RateTrend (<1 = hourly, 1 daily, 7 weekly, 30 monthly)
+  // ── Percentile suppression (the learner's own insights, Tom 2026-09-14: a
+  // percentile against the anonymous course population only when it cannot be
+  // read back to a person). When set, the server has sent NO distribution
+  // shape and the widget renders this sentence where the strip, the rank chip
+  // and the rank line would be — the headline and the trend still show.
+  percentileNote?: string | null
 }

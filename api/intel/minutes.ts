@@ -166,6 +166,23 @@ export interface CourseFacts {
   bucketActive: Set<string>[]
   newEnrolments: number
   bucketEnrolments: number[]
+  /**
+   * Play-to-stop spans (the engine's session unit) and Listening Mode seconds
+   * per bucket — read by the learner's own insights (api/me/insights.ts) for
+   * "minutes per session" and "Listening Mode minutes" on the same facts.
+   */
+  spans: number
+  bucketSpans: number[]
+  bucketListeningSeconds: number[]
+}
+
+function emptyFacts(code: string, periods: number): CourseFacts {
+  return {
+    code, people: new Set(), activePeople: new Set(), seconds: 0, mainSeconds: 0, listeningSeconds: 0,
+    bucketSeconds: new Array(periods).fill(0), bucketActive: Array.from({ length: periods }, () => new Set<string>()),
+    newEnrolments: 0, bucketEnrolments: new Array(periods).fill(0),
+    spans: 0, bucketSpans: new Array(periods).fill(0), bucketListeningSeconds: new Array(periods).fill(0),
+  }
 }
 
 /**
@@ -186,7 +203,7 @@ export function courseFactsFromSpans(
   const factsFor = (code: string): CourseFacts => {
     let f = facts.get(code)
     if (!f) {
-      f = { code, people: new Set(), activePeople: new Set(), seconds: 0, mainSeconds: 0, listeningSeconds: 0, bucketSeconds: new Array(periods).fill(0), bucketActive: Array.from({ length: periods }, () => new Set<string>()), newEnrolments: 0, bucketEnrolments: new Array(periods).fill(0) }
+      f = emptyFacts(code, periods)
       facts.set(code, f)
     }
     return f
@@ -212,11 +229,17 @@ export function courseFactsFromSpans(
       f.people.add(lid)
       f.activePeople.add(lid)
       f.seconds += secs
+      f.spans += 1
       if (span.mode === 'listening') f.listeningSeconds += secs
       else f.mainSeconds += secs
       for (let i = 1; i < bounds.length; i++) {
         const o = overlapSeconds(span, bounds[i - 1], bounds[i])
-        if (o > 0) { f.bucketSeconds[i - 1] += o; f.bucketActive[i - 1].add(lid) }
+        if (o > 0) {
+          f.bucketSeconds[i - 1] += o
+          f.bucketActive[i - 1].add(lid)
+          f.bucketSpans[i - 1] += 1
+          if (span.mode === 'listening') f.bucketListeningSeconds[i - 1] += o
+        }
       }
     }
   }
@@ -245,7 +268,7 @@ export function measureFor(measure: MinutesMeasureId, f: CourseFacts): { value: 
  */
 export function pooledFacts(courses: readonly CourseFacts[]): CourseFacts {
   const periods = courses[0]?.bucketSeconds.length ?? 0
-  const pooled: CourseFacts = { code: '*', people: new Set(), activePeople: new Set(), seconds: 0, mainSeconds: 0, listeningSeconds: 0, bucketSeconds: new Array(periods).fill(0), bucketActive: Array.from({ length: periods }, () => new Set<string>()), newEnrolments: 0, bucketEnrolments: new Array(periods).fill(0) }
+  const pooled = emptyFacts('*', periods)
   for (const f of courses) {
     for (const lid of f.people) pooled.people.add(`${f.code}\u0000${lid}`)
     for (const lid of f.activePeople) pooled.activePeople.add(`${f.code}\u0000${lid}`)
@@ -253,9 +276,12 @@ export function pooledFacts(courses: readonly CourseFacts[]): CourseFacts {
     pooled.mainSeconds += f.mainSeconds
     pooled.listeningSeconds += f.listeningSeconds
     pooled.newEnrolments += f.newEnrolments
+    pooled.spans += f.spans
     for (let i = 0; i < periods; i++) {
       pooled.bucketSeconds[i] += f.bucketSeconds[i] ?? 0
       pooled.bucketEnrolments[i] += f.bucketEnrolments[i] ?? 0
+      pooled.bucketSpans[i] += f.bucketSpans[i] ?? 0
+      pooled.bucketListeningSeconds[i] += f.bucketListeningSeconds[i] ?? 0
       for (const lid of f.bucketActive[i] ?? []) pooled.bucketActive[i].add(`${f.code}\u0000${lid}`)
     }
   }

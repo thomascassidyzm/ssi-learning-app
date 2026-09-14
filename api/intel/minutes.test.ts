@@ -84,7 +84,7 @@ describe('measureFor', () => {
     expect(measureFor('no_activity', facts).value).toBe(50)
   })
   it('a course with nobody on it reads 0, never NaN', () => {
-    const empty = { code: 'x', people: new Set<string>(), activePeople: new Set<string>(), seconds: 0, mainSeconds: 0, listeningSeconds: 0, bucketSeconds: [0], bucketActive: [new Set<string>()], newEnrolments: 0, bucketEnrolments: [0] }
+    const empty = { code: 'x', people: new Set<string>(), activePeople: new Set<string>(), seconds: 0, mainSeconds: 0, listeningSeconds: 0, bucketSeconds: [0], bucketActive: [new Set<string>()], newEnrolments: 0, bucketEnrolments: [0], spans: 0, bucketSpans: [0], bucketListeningSeconds: [0] }
     expect(measureFor('minutes_per_person', empty).value).toBe(0)
     expect(measureFor('no_activity', empty).value).toBe(0)
   })
@@ -94,6 +94,7 @@ describe('averageOfAllCourses — the comparator (Tom, 2026-09-14)', () => {
   const course = (code: string, people: string[], active: string[], seconds: number, newEnrolments = 0): CourseFacts => ({
     code, people: new Set(people), activePeople: new Set(active), seconds, mainSeconds: seconds, listeningSeconds: 0,
     bucketSeconds: [seconds, 0], bucketActive: [new Set(active), new Set()], newEnrolments, bucketEnrolments: [newEnrolments, 0],
+    spans: active.length, bucketSpans: [active.length, 0], bucketListeningSeconds: [0, 0],
   })
   // A busy course, a middling one, and a dead course with two enrolments.
   const busy = course('cym', ['a', 'b'], ['a', 'b'], 2 * 60 * 60, 2)   // 120 min over 2 people = 60/person
