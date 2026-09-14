@@ -158,7 +158,9 @@ async function loadPractice7d() {
     // Shared with the class page (classPractice7d.ts) so both read the same
     // class-account figures; under View-as it names the school being read.
     const data = await fetchClassPractice7d(classIds, selectedUser.value, supabase.value)
-    practice7dSeconds.value = data.practiceByClass
+    // The CLASS ACCOUNT's own play. practiceByClass is the pupils' own accounts
+    // and is never added to this (Tom, 2026-09-14, job #662).
+    practice7dSeconds.value = data.classPlayByClass
     classAccounts.value = data.classAccountByClass
     practiceLoaded.value = true
     practiceError.value = null

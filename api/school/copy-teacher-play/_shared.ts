@@ -26,7 +26,7 @@ import { rejectIfViewAs } from '../../_utils/actAsGuard'
 import { canTeachClass, fetchClassAuthRow } from '../../_utils/classTeacherAuth'
 import { ensureClassLearnerEntity } from '../../_utils/classLearnerEntity'
 import { applyCors } from '../../_utils/cors'
-import type { Position } from '../../_utils/classProgressCopy'
+import { cursorPosition, type CopyPlan, type Position } from '../../_utils/classProgressCopy'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -154,4 +154,45 @@ export async function positionWords(svc: SupabaseClient, courseCode: string, pos
     .maybeSingle()
   const row = data as { known_text?: string | null; target_text?: string | null } | null
   return { legoId: pos.legoId, known: row?.known_text ?? null, target: row?.target_text ?? null }
+}
+
+export interface PreviewPair {
+  classId: string
+  courseCode: string
+  teacher: { user_id: string; name: string; learner_id: string }
+  classLearnerId: string | null
+}
+
+/**
+ * The preview payload for one (class, teacher) pair, from a plan. ONE builder,
+ * shared by the single-pair preview and the school-wide candidates list (job
+ * #662), so a figure Angharad reads on the sweep is the figure the class page's
+ * card would show for the same pair.
+ */
+export async function previewBody(svc: SupabaseClient, pair: PreviewPair, plan: CopyPlan): Promise<Record<string, unknown>> {
+  const [teacherAt, classAt, resultingAt] = await Promise.all([
+    positionWords(svc, pair.courseCode, cursorPosition(plan.cursor.source)),
+    positionWords(svc, pair.courseCode, cursorPosition(plan.cursor.target)),
+    positionWords(svc, pair.courseCode, plan.resulting),
+  ])
+  const totalRows = Object.values(plan.toCopy).reduce((a, b) => a + b, 0)
+  return {
+    class_id: pair.classId,
+    course_code: pair.courseCode,
+    teacher: pair.teacher,
+    class_learner_id: pair.classLearnerId,
+    to_copy: plan.toCopy,
+    already_present: plan.alreadyPresent,
+    total_rows: totalRows,
+    skipped: plan.skipped,
+    in_app_seconds: plan.inAppSecondsToCopy,
+    minutes_to_add: plan.minutesToAdd,
+    prior_runs: plan.priorRuns,
+    position: {
+      teacher: teacherAt,
+      class: classAt,
+      resulting: { ...resultingAt, taken_from_teacher: plan.resulting.takenFromSource },
+    },
+    nothing_to_copy: totalRows === 0 && !plan.resulting.takenFromSource,
+  }
 }

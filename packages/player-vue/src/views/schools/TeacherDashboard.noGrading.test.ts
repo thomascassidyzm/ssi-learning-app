@@ -65,7 +65,7 @@ async function mountView() {
     if (u.includes('class-practice-7d')) return { ok: true, json: async () => ({
       // One busy class, one quiet class, one that has never played: on the old
       // page these read Excellent, Needs attention and Inactive.
-      practiceByClass: { c1: 3000, c2: 60, c3: 0 }, activeDaysByClass: { c1: 5, c2: 1, c3: 0 },
+      classPlayByClass: { c1: 3000, c2: 60, c3: 0 }, activeDaysByClass: { c1: 5, c2: 1, c3: 0 },
       rollup: { windowDays: 7, classCount: 3, activeClasses7d: 2, inAppMinutes7d: 51 },
       classAccountByClass: { c1: acct(52, NOW, 50), c2: acct(3, NOW, 1), c3: acct(0, null, 0) },
     }) } as any

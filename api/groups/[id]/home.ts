@@ -28,7 +28,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { resolveGroupTreeCaller, callerCanSeeGroup } from '../../_utils/groupTreeAuth'
+import { resolveGroupTreeCallerOrClassTeacher, callerCanSeeGroup } from '../../_utils/groupTreeAuth'
 import { computeNodeExtras, type NodeExtras } from '../../_utils/groupRollups'
 import { ensureSchoolNode } from '../../_utils/schoolNode'
 import { chunk } from '../../_utils/schoolScope'
@@ -111,14 +111,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // ─── One opening wave: auth + all three :id interpretations + the forest
     // map every later step needs (the serial version paid one DB round trip
     // per await — with the DB an ocean away that was most of the latency). ───
+    // A TEACHER may open the home of a class they teach (job #651): the
+    // resolver is handed the in-flight class lookup and admits a non-leader
+    // iff :id is that class. Leaders and admins resolve exactly as before.
+    const asClassPromise = svc.from('classes').select('id, class_name, course_code, school_id, group_id, teacher_user_id, current_seed, last_lego_id, class_learner_id').eq('id', rawId).maybeSingle()
     const [caller, { data: asGroup }, { data: asSchool }, { data: asClass }, { data: allGroupsData }] = await Promise.all([
-      resolveGroupTreeCaller(req, res, svc),
+      resolveGroupTreeCallerOrClassTeacher(req, res, svc, asClassPromise.then(({ data }) => (data as any) ?? null)),
       svc.from('groups').select('id').eq('id', rawId).maybeSingle(),
       svc.from('schools').select('id, school_name, group_id, node_group_id, is_demo, is_test').eq('id', rawId).maybeSingle(),
-      svc.from('classes').select('id, class_name, course_code, school_id, group_id, teacher_user_id, current_seed, last_lego_id, class_learner_id').eq('id', rawId).maybeSingle(),
+      asClassPromise,
       svc.from('groups').select('id, name, type, parent_id, path, is_demo, is_test'),
     ])
     if (!caller) return
+    // A class teacher sees exactly the class they were admitted for. The
+    // resolver only sets teachesClassId for the row :id resolved to, so this
+    // is a belt-and-braces check, not a second rule.
+    const teacherOfThisClass = !!caller.teachesClassId
 
     // ─── Resolve :id → a group node (or a class), same precedence as before ───
     let nodeId: string | null = null
@@ -148,7 +156,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       res.status(404).json({ error: 'Not found' })
       return
     }
-    if (!(await callerCanSeeGroup(svc, caller, nodeId))) {
+    const canSee = teacherOfThisClass
+      ? !!classRow && classRow.id === caller.teachesClassId
+      : await callerCanSeeGroup(svc, caller, nodeId)
+    if (!canSee) {
       res.status(403).json({ error: 'You do not have access to this group' })
       return
     }
@@ -333,7 +344,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // visible scope (a leader never sees above their own governed group). ───
     const scopeRootId = caller.isAdmin ? null : caller.ownGroupId
     const ancestors: NodeRef[] = []
-    if (!scopeRootId || nodeId !== scopeRootId) {
+    // A class teacher's map is the class alone: the school above it is a node
+    // they cannot open, so the rail must not offer it.
+    if (!teacherOfThisClass && (!scopeRootId || nodeId !== scopeRootId)) {
       let cursor = nodeRow.parent_id ? byId.get(nodeRow.parent_id) : undefined
       while (cursor) {
         ancestors.unshift(toRef(cursor, schoolNodeIds))
@@ -520,10 +533,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           commercial: null,
         },
         // The class's school node is the last ancestor — the rail runs root →
-        // … → school → class.
-        ancestors: [...ancestors, toRef(nodeRow, schoolNodeIds)],
+        // … → school → class. A teacher's rail is the class alone.
+        ancestors: teacherOfThisClass ? [] : [...ancestors, toRef(nodeRow, schoolNodeIds)],
         siblings: [],
         children: [],
+        // Whether the caller teaches this class — the client shows the
+        // teacher's own verbs (Play as class, Manage class) off this fact,
+        // never off a role guess.
+        callerTeachesClass: teacherOfThisClass || (!caller.isAdmin && (teacherIds.has(caller.userId))),
+        // The class's own learner account — what Play as class launches on.
+        classLearnerId: classRow.class_learner_id,
         teachers,
         students,
         journey: {
