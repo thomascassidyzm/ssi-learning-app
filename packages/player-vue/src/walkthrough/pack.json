@@ -1,5 +1,5 @@
 {
-  "version": "c47b76241891",
+  "version": "ec756623e8a6",
   "generatedAt": "2026-09-14",
   "walks": [
     {
@@ -107,7 +107,8 @@
       "id": "hand-over-the-lead",
       "title": "Hand a class over to another teacher",
       "personas": [
-        "teacher"
+        "teacher",
+        "school_admin"
       ],
       "place": {
         "route": "class-detail"
@@ -148,7 +149,8 @@
       "id": "install-the-app",
       "title": "Put the app on your device",
       "personas": [
-        "leader"
+        "leader",
+        "school_admin"
       ],
       "place": {
         "route": "node-home",
@@ -195,7 +197,8 @@
       "id": "invite-a-supply-teacher",
       "title": "Invite a teacher who isn't here yet",
       "personas": [
-        "teacher"
+        "teacher",
+        "school_admin"
       ],
       "place": {
         "route": "class-detail"
@@ -243,7 +246,8 @@
       "place": {
         "route": "node-home",
         "kinds": [
-          "org"
+          "org",
+          "group"
         ]
       },
       "keywords": [
@@ -392,7 +396,8 @@
       "id": "move-a-teacher-between-classes",
       "title": "Move a teacher to another class",
       "personas": [
-        "teacher"
+        "teacher",
+        "school_admin"
       ],
       "place": {
         "route": "class-detail"
@@ -559,7 +564,8 @@
       "id": "run-class-session",
       "title": "Run your first class session",
       "personas": [
-        "teacher"
+        "teacher",
+        "school_admin"
       ],
       "place": {
         "route": "class-detail"
@@ -648,7 +654,8 @@
       "id": "set-your-password",
       "title": "Set or change your password",
       "personas": [
-        "leader"
+        "leader",
+        "school_admin"
       ],
       "place": {
         "route": "node-home",
@@ -694,7 +701,8 @@
       "id": "share-a-class",
       "title": "Share a class with a colleague",
       "personas": [
-        "teacher"
+        "teacher",
+        "school_admin"
       ],
       "place": {
         "route": "class-detail"
