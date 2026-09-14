@@ -338,7 +338,7 @@ describe('usePlayAsClass — launch refreshes the entitlement snapshot (job #734
       supabase: ref(null),
       [routerKey as symbol]: { push },
     })
-    const ok = await exposed.launchClassSession({ id: 'd52efceb', class_name: 'Y7 Welsh', course_code: 'cym_n_for_eng' })
+    const ok = await exposed.launchClassSession({ id: 'd52efceb', class_name: 'Y7 Welsh', course_code: 'cym_n_for_eng', class_learner_id: null })
     expect(ok).toBe(true)
     expect(refreshEntitlements).toHaveBeenCalledTimes(1)
     expect(order).toEqual(['refresh', 'push'])
@@ -347,7 +347,7 @@ describe('usePlayAsClass — launch refreshes the entitlement snapshot (job #734
   it('a refused launch never asks — nothing is mounting', async () => {
     const push = vi.fn().mockResolvedValue(undefined)
     const exposed = mountHarness({ isAdminView: false, [routerKey as symbol]: { push } })
-    const ok = await exposed.launchClassSession({ id: '', class_name: '', course_code: '' })
+    const ok = await exposed.launchClassSession({ id: '', class_name: '', course_code: '', class_learner_id: null })
     expect(ok).toBe(false)
     expect(refreshEntitlements).not.toHaveBeenCalled()
   })
@@ -363,7 +363,7 @@ describe('usePlayAsClass — launch refreshes the entitlement snapshot (job #734
       supabase: ref(null),
       [routerKey as symbol]: { push },
     })
-    const ok = await exposed.launchClassSession({ id: 'd52efceb', class_name: 'Y7 Welsh', course_code: 'cym_n_for_eng' })
+    const ok = await exposed.launchClassSession({ id: 'd52efceb', class_name: 'Y7 Welsh', course_code: 'cym_n_for_eng', class_learner_id: null })
     expect(ok).toBe(true)
     expect(push).toHaveBeenCalledTimes(1)
   })
