@@ -65,10 +65,12 @@ await page.addInitScript(([authKey, sess, course, posKey, lego, plantLocal]) => 
 // (the server still serves the preview bundle, so the remembered LEGO is not in
 // the engine queue). Expected since the #752 addition: wall down, playback NOT
 // resumed at the retreat (resting screen stays), localStorage still S0031L01.
-let grantArmed = false
+// The boot fetch answers for real (empty); every later one — the wall's own
+// refresh included — answers the grant.
+let entCalls = 0
 if (process.env.GRANT === '1') {
   await page.route('**/api/entitlement/user', async route => {
-    if (!grantArmed) return route.continue()
+    if (++entCalls === 1) return route.continue()
     log('entitlement fetch → forced FULL grant')
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ entitlements: [{ id: 'fake', access_type: 'full', granted_courses: null, expires_at: null, redeemed_at: new Date().toISOString(), entitlement_code_id: null }] }) })
   })
@@ -87,7 +89,6 @@ for (let t = 0; t < 50; t++) {
   const wall = await wallVisible()
   if (wall && firstWallAt === null) {
     firstWallAt = (t + 1) * 0.5; await page.screenshot({ path: `${OUT}/wall.png` })
-    if (process.env.GRANT === '1') { grantArmed = true; await page.waitForTimeout(300); await page.evaluate(() => fetch('/api/entitlement/user').catch(() => {})) }
   }
   if (t % 4 === 3 || (wall && firstWallAt === (t + 1) * 0.5)) log(`  t+${(t + 1) * 0.5}s wall=${wall} local=${JSON.stringify(await readLocal())} screen=${await readScreen()}`)
 }
