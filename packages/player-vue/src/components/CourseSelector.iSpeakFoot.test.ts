@@ -41,22 +41,22 @@ describe('CourseSelector foot of an I-speak-filtered list', () => {
   it('FAILURE MODE: a remembered 中文 filter shows only its courses and says the list is complete', () => {
     const w = mountPicker()
     expect(rowNames(w)).not.toContain('Italian')
-    const foot = w.find('[data-walk="course-picker-list-foot"]')
+    const foot = w.find('[data-testid="course-picker-list-foot"]')
     expect(foot.exists()).toBe(true)
     expect(foot.text()).toContain('中文')
   })
 
   it('Show all languages clears the filter, the whole catalogue comes back, and the foot goes', async () => {
     const w = mountPicker()
-    await w.find('[data-walk="course-picker-show-all"]').trigger('click')
+    await w.find('[data-testid="course-picker-show-all"]').trigger('click')
     expect(rowNames(w)).toContain('Italian')
     expect(rowNames(w)).toContain('Spanish')
-    expect(w.find('[data-walk="course-picker-list-foot"]').exists()).toBe(false)
+    expect(w.find('[data-testid="course-picker-list-foot"]').exists()).toBe(false)
     expect(localStorage.getItem('ssi-i-speak')).toBe('')
   })
 
   it('no foot in a scoped picker: the org chose those courses, not a filter', () => {
     const w = mountPicker(['cym_n_for_eng'])
-    expect(w.find('[data-walk="course-picker-list-foot"]').exists()).toBe(false)
+    expect(w.find('[data-testid="course-picker-list-foot"]').exists()).toBe(false)
   })
 })

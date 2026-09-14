@@ -731,9 +731,9 @@ onMounted(() => {
             2026-09-14: "choose your course not scrolling"). Name the filter
             at the foot of the list and give one tap out of it.
           -->
-          <div v-if="filteredBySpeaker" class="list-foot" data-walk="course-picker-list-foot">
+          <div v-if="filteredBySpeaker" class="list-foot" data-testid="course-picker-list-foot">
             <span class="list-foot__text">{{ t('courseSelector.allForSpeakers').replace('{lang}', getLanguageEndonym(iSpeak)) }}</span>
-            <button type="button" class="list-foot__all" data-walk="course-picker-show-all" @click="iSpeak = ''; iSpeakQuery = ''">
+            <button type="button" class="list-foot__all" data-testid="course-picker-show-all" @click="iSpeak = ''; iSpeakQuery = ''">
               {{ t('courseSelector.showAllLanguages') }}
             </button>
           </div>
