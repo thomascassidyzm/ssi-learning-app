@@ -302,6 +302,47 @@ function buildAudioRef(
   return ref
 }
 
+/**
+ * duration_ms for the seeds' target clips, keyed by audio id. Non-fatal like
+ * the seed query itself: on failure every seed review simply keeps the
+ * fallback gap `computePauseDuration` gives an unknown sentence.
+ */
+async function fetchSeedAudioDurations(
+  supabase: SupabaseClient,
+  seedRows: SeedRow[],
+): Promise<Map<string, number>> {
+  const durations = new Map<string, number>()
+  const ids = new Set<string>()
+  for (const row of seedRows) {
+    if (row.target1_audio_id) ids.add(row.target1_audio_id)
+    if (row.target2_audio_id) ids.add(row.target2_audio_id)
+  }
+  if (ids.size === 0) return durations
+  try {
+    // Stamped ids may carry a `.v2` revision suffix (stampRowAudioRefs); the
+    // course_audio primary key is the bare uuid.
+    const bare = new Map<string, string>()
+    for (const id of ids) bare.set(id.split('.')[0], id)
+    const { data, error } = await supabase
+      .from('course_audio')
+      .select('id, duration_ms')
+      .in('id', [...bare.keys()])
+    if (error) {
+      console.warn('[Bundle] seed audio duration lookup failed (non-fatal):', error.message)
+      return durations
+    }
+    for (const row of (data || []) as Array<{ id: string; duration_ms: number | null }>) {
+      if (typeof row.duration_ms !== 'number' || row.duration_ms <= 0) continue
+      const stamped = bare.get(row.id)
+      if (stamped) durations.set(stamped, row.duration_ms)
+      durations.set(row.id, row.duration_ms)
+    }
+  } catch (err) {
+    console.warn('[Bundle] seed audio duration lookup threw (non-fatal):', err)
+  }
+  return durations
+}
+
 /** Normalise legacy `practice` / `eternal_eligible` roles to the wire roles. */
 function normaliseRole(raw: string | null | undefined): PhraseRole | null {
   if (raw === 'build' || raw === 'practice') return 'build'
@@ -653,6 +694,14 @@ export default async function handler(
     const seedRowByNumber = new Map<number, SeedRow>()
     for (const row of seedRows) seedRowByNumber.set(row.seed_number, row)
 
+    // course_seeds carries audio IDS but no durations, and the SEED-PHASE
+    // review is a full production cycle whose mic gap is computed FROM the
+    // target durations. With none, the gap collapsed to the safety floor —
+    // the "about 1 second to respond" a Basque learner reported on every
+    // seed-sentence review (forum, 2026-09-13). One lookup on course_audio
+    // gives the seeds the same durations every LEGO and phrase already has.
+    const seedAudioDurationMs = await fetchSeedAudioDurations(supabase, seedRows)
+
     // Course exists but the materialised round-index is empty — operator
     // action needed (refresh the view). Surfacing as 503 lets clients
     // distinguish from a missing course (404).
@@ -817,8 +866,12 @@ export default async function handler(
       if (seedRow) {
         const targets = pickTargets(seedRow)
         const known = buildAudioRef(seedRow.known_audio_id, 'persistent', null)
-        const target1 = buildAudioRef(seedRow.target1_audio_id, 'persistent', null)
-        const target2 = buildAudioRef(seedRow.target2_audio_id, 'persistent', null)
+        const target1 = buildAudioRef(
+          seedRow.target1_audio_id, 'persistent', seedAudioDurationMs.get(seedRow.target1_audio_id ?? ''),
+        )
+        const target2 = buildAudioRef(
+          seedRow.target2_audio_id, 'persistent', seedAudioDurationMs.get(seedRow.target2_audio_id ?? ''),
+        )
         seed.knownText = seedRow.known_text ?? ''
         seed.targetText = targets.targetText
         if (targets.targetTextNative !== undefined) seed.targetTextNative = targets.targetTextNative

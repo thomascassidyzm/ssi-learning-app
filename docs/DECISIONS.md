@@ -2180,3 +2180,50 @@ scan per open of the panel — the price of not forking the minute — and nothi
 percentile can fall while a learner is away. This tool shows one at 20+ active people because the
 brief allows it; if that reads as a streak in disguise, the floor can be set to infinity and the
 card still says everything else.
+
+
+## 2026-09-14 — Player advancing on its own: an outside pause is a pause, a silent run stops, and a round knows which loop it is in (job #644)
+
+**Tom (10:40Z).** "Get onto these things that have come up from the forum this morning." Two learners:
+one on Welsh whose player "keeps skipping ahead" and whose back button "won't go any further back",
+one on Basque with one-second mic gaps before listening laps, exercises moving on a second into the
+mic stage, a lone Basque phrase with no framing, the red infinite-play bar appearing mid-course, and
+an app that "determinedly keeps on playing" after the car's bluetooth drops. Trace from the
+experience backwards for the shared false assumption; do not patch symptoms one by one.
+
+**What the trace found.** The shared false assumption was that the engine can tell what the learner
+is hearing from what its timers are doing. (1) An outside pause — bluetooth route lost, headset
+button, another app — was only *recorded*; every timer stayed armed, so the stall watchdog skipped
+the paused clip after ten seconds and played the next one, and the recovery timer un-paused the
+rest. That is the "keeps on playing" and the phantom progress. (2) The skip-on-failure path had no
+floor, so a dead block walked the cursor at machine speed with nothing audible. (3) "No intro, debut
+or build cycle" was read as "this is an infinite-play round"; a main-loop round whose LEGO has no
+audio yet has exactly that shape. Basque seeds 85 to 99 carry 16 such LEGOs, in the reporter's
+range, which is the red bar, the frozen belt, the INF PLAY back button and the stuck fast-forward.
+(4) Seed-sentence reviews are built from `course_seeds`, which carries audio ids but no durations,
+so their mic gap collapsed to the one-second floor. Measured in the reporter's own telemetry:
+sixteen seed reviews at 1.6 to 1.8 s, most within thirty seconds of a listening lap. The lone
+Basque phrase is the drained seed sandwich, which is by design.
+
+**Decision.** (1) `SimplePlayer.noteInterruption` now halts in place: generation bump, every timer
+disarmed, element stopped, `isPlaying=false`, position kept. The conductor mirrors the new
+`self_paused` event into `userPaused`. No auto-resume anywhere: `resumeFromInterruption`,
+`hasPendingInterruption`, `resumeAfterInterruption` and the visibility wiring are deleted. (2) Every
+advance-without-hearing path goes through one door; the fourth consecutive unheard clip stops the
+player with `audio_failed` reason `silent-run` and a tap-to-retry banner; three, one hollow cycle,
+is still walked through under the plays-what-it-has ruling; a real `ended` on a clip under 50 ms
+counts as unheard; `resume()` refunds the budget so each tap in a dead block steps one cycle.
+(3) Core `Round.revival` is stamped by all three producers; `isMainLoopRound` reads the stamp first
+and falls back to shape only for rounds from a cache that predates it. (4) The bundle route looks up
+seed clip durations from `course_audio`, and `computePauseDuration` assumes an ordinary 2.5 s
+sentence when both durations are missing rather than collapsing to the floor.
+
+**Better × Simpler × Cheaper.** Better: the player can no longer manufacture progress, and a
+learner two seeds past a missing clip stays in the main loop. Simpler: one halt path, one stop
+door, one fact on the round instead of a shape inference; the whole auto-resume machinery is
+deleted. Cheaper: one extra `course_audio` lookup per bundle build; nothing new at runtime.
+
+**Flag for Tom.** The 2026-08-09 auto-resume was built for his own WhatsApp case; after this change
+that case costs one tap. And the content: Welsh North has LEGOs authored to seed 305 of 668, Welsh
+South to 334, Basque to 300, so Black belt at seed 400 is unreachable on all three and a learner at
+the authored end is dropped into infinite play from every cold start.
