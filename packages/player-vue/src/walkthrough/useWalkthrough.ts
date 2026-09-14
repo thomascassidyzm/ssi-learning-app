@@ -178,21 +178,31 @@ export function startWalk(id: string): boolean {
  * minutes runs nothing. A mount that does not offer the walk leaves it
  * waiting, so passing through the class list on the way to a class page
  * does not lose it.
+ *
+ * CANDIDATES, NOT ONE ID (job #627, 2026-09-14). One capability can have a
+ * clip per node kind — "Bring your first person in" runs as the org walk on
+ * an organisation and as the teacher walk on a school — and the Handbook
+ * does not know which node the reader will land on. So a tap defers every
+ * walk that shows the capability, and the destination claims the first one
+ * offerable at ITS persona × place × kind. Before this, a govt leader on a
+ * plain group tapped Show me, landed on their group, and nothing played.
  */
 export const DEFERRED_WALK_TTL_MS = 10 * 60 * 1000
-let deferred: { id: string; at: number } | null = null
+let deferred: { ids: string[]; at: number } | null = null
 
-export function deferWalk(id: string): boolean {
-  if (!walkById(id)) return false
-  deferred = { id, at: Date.now() }
+export function deferWalk(id: string | string[]): boolean {
+  const ids = (Array.isArray(id) ? id : [id]).filter((w) => !!walkById(w))
+  if (!ids.length) return false
+  deferred = { ids, at: Date.now() }
   return true
 }
 
 export function claimDeferredWalk(persona: WalkPersona, place: string, kind?: string): boolean {
   if (!deferred) return false
   if (Date.now() - deferred.at > DEFERRED_WALK_TTL_MS) { deferred = null; return false }
-  if (!walksFor(persona, place, kind).some((w) => w.id === deferred!.id)) return false
-  const id = deferred.id
+  const offerable = walksFor(persona, place, kind)
+  const id = deferred.ids.find((w) => offerable.some((o) => o.id === w))
+  if (!id) return false
   deferred = null
   return startWalk(id)
 }

@@ -2111,3 +2111,42 @@ translation pass to sweep.
 **Left alone.** Learner level has no member-scope Overview/Insights pair, so nothing changed there. The
 "Show me — Reading your insights" link stays where it was. Reads only: a tab and the rail line are
 router navigations, so a view-as session still writes nothing.
+## 2026-09-14 — Handbook: the clip leads, the prose folds beneath it (job #627)
+
+**Tom (staging, 02:07Z).** "The handbook still appears to be pointing to the prose, rather than the
+clips. I know we may not HAVE clips for everything but we certainly have clips for most of the
+common things already." Reproduced headless on staging build `119cf6c` as four personas. A school
+admin got a Show me on 2 of 98 entries while the How-this-works panel on their own home offered 4
+walks; a govt leader's tap on "Bring your first person in" landed on their group and nothing played;
+every teacher tap landed on `/schools/classes`, where no surface claims a class-page walk. The
+learner's door, the Library hub, offered five clips and played all five: nothing to fix there.
+
+**Causes, in the code.** `HandbookView.vue` rendered four prose blocks and put the one Show me
+button last inside a collapsed body — job #302 wired the clip in as a footnote. Its persona gate
+asked `walk.personas.includes(persona)` with `persona = school_admin`, but the walks that run on the
+node home (`install-the-app`, `set-your-password`, `invite-first-person`) were authored for `leader`
+only, because `NodeHomeView.vue:605` calls every member "leader" — two spellings of the same person.
+`invite-first-person` carried `kinds: [org]`, so a plain group claimed nothing, and the school-kind
+twin `invite-first-teacher` was linked to no entry at all. `PLACE_LINKS['class-detail']` resolved to
+the class list, so a class-page clip could never be claimed from the Handbook.
+
+**Decision.** (1) A capability's clips are RESOLVED, not hand-linked: `clipsFor(entry, persona)` in
+`walkthrough/handbook.ts` takes the `walk:` line first and then every walk whose steps land on the
+entry's anchor, filtered to the reader's persona — so "Choose what role someone arrives as" plays the
+invite walk that passes through that field, and coverage grows with every walk authored, with no link
+to forget. (2) The tap defers ALL of them: `deferWalk` takes a list and `claimDeferredWalk` starts the
+first one offerable at the destination's persona × place × kind, so the org walk runs on an
+organisation or group and the teacher walk on a school, from one entry. (3) The walk data says who
+actually sees the anchors: `school_admin` joined the account-card walks and the five class-page walks
+(`canManageTeachers` is true for a school admin), and `group` joined the invite walk's kinds. (4) The
+entry body leads with Show me and one caption line; the four prose blocks sit behind "Written out",
+and "Read the lot" unfolds them. A ▶ on the closed row says it plays. (5) A class-page clip goes to
+the reader's first class, fetched on mount only when a class-page clip is on offer; with no class yet,
+the list.
+
+**Better × Simpler × Cheaper.** More entries play, for the people they belong to, without a walk
+being re-authored; one resolver replaces a hand-maintained link that was already drifting; the only
+new cost is one classes query on the Handbook for staff who have a class-page clip.
+
+**Result on staging.** See the coverage census published with the job report. Entries with no walk
+at all are listed there as the clip-coverage gap, with a proposed clip for each, for a follow-up job.
