@@ -2,7 +2,8 @@
   "id": "run-class-session",
   "title": "Run your first class session",
   "personas": [
-    "teacher"
+    "teacher",
+    "school_admin"
   ],
   "place": {
     "route": "class-detail"

@@ -11,12 +11,20 @@
  * exists on an entry with a walk for the reader's persona, is absent on an
  * entry without one, and a tap defers exactly that walk and navigates to
  * the walk's place.
+ *
+ * Job #627 (2026-09-14) — Tom on staging: "the handbook still appears to be
+ * pointing to the prose, rather than the clips". Three things were wrong
+ * and each has a test below: the clip sat under four blocks of prose; a
+ * school admin was offered almost nothing because the walks that run on
+ * their own home were authored for "leader" only; and a teacher's tap landed
+ * on the class LIST, where nothing claims a class-page walk.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import HandbookView from './HandbookView.vue'
 import { handbookEntries } from '@/walkthrough/handbook'
 import { walkById, clearDeferredWalk, claimDeferredWalk, useWalkthrough } from '@/walkthrough/useWalkthrough'
+import { clipsFor } from '@/walkthrough/handbook'
 
 const push = vi.fn(() => Promise.resolve())
 vi.mock('vue-router', () => ({
@@ -31,6 +39,15 @@ const SCHOOL_ADMIN = {
   school_id: 'school-1', _scopeSource: 'self' as const,
 }
 
+// The class list the view resolves a class-page clip against: empty here, so
+// the destination falls back to the list, except where a test fills it.
+vi.mock('@/composables/schools/useClassesData', async () => {
+  const { ref } = await import('vue')
+  const classes = ref<any[]>([])
+  const fetchClasses = vi.fn(() => Promise.resolve())
+  return { useClassesData: () => ({ classes, fetchClasses }), __classes: classes, __fetchClasses: fetchClasses }
+})
+
 vi.mock('@/composables/schools/useSchoolContext', async () => {
   const { ref } = await import('vue')
   const currentUser = ref<any>(null)
@@ -43,58 +60,99 @@ async function mountAs(user: any) {
   return mount(HandbookView)
 }
 
-// An entry whose walk is for the persona, read from the pack, so the test
+// An entry with a clip for the persona, read from the pack, so the test
 // cannot outlive the corpus.
-function entryWithWalkFor(persona: string) {
+function entryWithClipFor(persona: string, place?: string) {
   return handbookEntries().find((e) => {
-    const w = e.walk ? walkById(e.walk) : null
-    return !!w && w.personas.includes(persona as any) && e.personas.includes(persona as any)
+    const ids = clipsFor(e, persona as any)
+    return ids.length > 0 && e.personas.includes(persona as any) && (!place || walkById(ids[0])!.place.route === place)
   })
 }
 
-describe('HandbookView — Show me, where a clip exists', () => {
-  beforeEach(() => { push.mockClear(); clearDeferredWalk(); useWalkthrough().stopWalk() })
-
-  it('offers the walk on an entry that has one for the reader, and not on one that has none', async () => {
-    const wrapper = await mountAs(SCHOOL_ADMIN)
-    const withWalk = entryWithWalkFor('school_admin')
-    const without = handbookEntries().find((e) => !e.walk)
-    expect(withWalk, 'the pack has at least one school_admin entry with a walk').toBeTruthy()
-    expect(without).toBeTruthy()
-    await wrapper.find(`#hb-${withWalk!.id} .entry-head`).trigger('click')
-    await wrapper.find(`#hb-${without!.id} .entry-head`).trigger('click')
-    const offer = wrapper.find(`#hb-${withWalk!.id} [data-walk-offer]`)
-    expect(offer.exists(), 'the entry with a clip shows Show me').toBe(true)
-    expect(offer.attributes('data-walk-offer')).toBe(withWalk!.walk)
-    expect(offer.text()).toContain('Show me')
-    expect(offer.text()).toContain(walkById(withWalk!.walk!)!.title)
-    expect(wrapper.find(`#hb-${without!.id} [data-walk-offer]`).exists()).toBe(false)
+describe('HandbookView — the clip leads, where a clip exists', () => {
+  beforeEach(async () => {
+    push.mockClear(); clearDeferredWalk(); useWalkthrough().stopWalk()
+    const mod: any = await import('@/composables/schools/useClassesData')
+    mod.__classes.value = []
   })
 
-  it('a tap defers that walk and goes to the page it lives on; nothing plays on the Handbook itself', async () => {
+  it('opens a clip entry on Show me with one caption line, the words folded beneath; a prose-only entry opens on its words', async () => {
     const wrapper = await mountAs(SCHOOL_ADMIN)
-    const entry = entryWithWalkFor('school_admin')!
-    const walk = walkById(entry.walk!)!
+    const withClip = entryWithClipFor('school_admin')
+    const without = handbookEntries().find((e) => clipsFor(e, 'school_admin').length === 0)
+    expect(withClip, 'the pack has at least one school_admin entry with a clip').toBeTruthy()
+    expect(without).toBeTruthy()
+    expect(wrapper.find(`#hb-${withClip!.id} .entry-clip-mark`).exists(), 'the closed entry already says it plays').toBe(true)
+    await wrapper.find(`#hb-${withClip!.id} .entry-head`).trigger('click')
+    await wrapper.find(`#hb-${without!.id} .entry-head`).trigger('click')
+    const body = wrapper.find(`#hb-${withClip!.id} .entry-body`)
+    const first = body.element.firstElementChild as HTMLElement
+    expect(first.className).toContain('entry-clip')
+    const offer = body.find('[data-walk-offer]')
+    expect(offer.exists()).toBe(true)
+    expect(offer.attributes('data-walk-offer')).toBe(clipsFor(withClip!, 'school_admin')[0])
+    expect(offer.text()).toContain('Show me')
+    expect(body.find('.entry-caption').exists()).toBe(true)
+    expect(body.find('.entry-prose').exists(), 'the words are folded until asked for').toBe(false)
+    await body.find('.entry-prose-toggle').trigger('click')
+    expect(wrapper.find(`#hb-${withClip!.id} .entry-prose`).text()).toContain(withClip!.how[0].replace(/\*\*/g, ''))
+    const plain = wrapper.find(`#hb-${without!.id} .entry-body`)
+    expect(plain.find('[data-walk-offer]').exists()).toBe(false)
+    expect(plain.find('.entry-prose').exists()).toBe(true)
+  })
+
+  it('a school admin is offered the clips that run on their own home — the account and invite walks, not only Ways in', async () => {
+    const wrapper = await mountAs(SCHOOL_ADMIN)
+    for (const id of ['put-the-app-on-your-device', 'set-or-change-your-password', 'bring-your-first-person-in']) {
+      await wrapper.find(`#hb-${id} .entry-head`).trigger('click')
+      expect(wrapper.find(`#hb-${id} [data-walk-offer]`).exists(), `${id} offers a clip to a school admin`).toBe(true)
+    }
+  })
+
+  it('an entry whose anchor is a step of a walk offers that walk without a hand-written link', async () => {
+    const wrapper = await mountAs({ ...SCHOOL_ADMIN, educational_role: 'govt_admin' })
+    const entry = handbookEntries().find((e) => e.id === 'choose-what-role-someone-arrives-as')!
+    expect(entry.walk).toBeNull()
+    await wrapper.find(`#hb-${entry.id} .entry-head`).trigger('click')
+    expect(wrapper.find(`#hb-${entry.id} [data-walk-offer]`).attributes('data-walk-offer')).toBe('invite-first-person')
+  })
+
+  it('a tap defers every clip for the capability and goes to its place; the node that fits claims its own', async () => {
+    const wrapper = await mountAs({ ...SCHOOL_ADMIN, educational_role: 'govt_admin', group_id: 'g1' })
+    await wrapper.find('#hb-bring-your-first-person-in .entry-head').trigger('click')
+    await wrapper.find('#hb-bring-your-first-person-in [data-walk-offer]').trigger('click')
+    expect(push).toHaveBeenCalledWith('/org/g1')
+    expect(useWalkthrough().activeWalk.value).toBeNull()
+    // A school claims the teacher walk; the org walk is for an org or a group.
+    expect(claimDeferredWalk('leader', 'node-home', 'school')).toBe(true)
+    expect(useWalkthrough().activeWalk.value?.id).toBe('invite-first-teacher')
+  })
+
+  it('a class-page clip takes the teacher to their first class, not the class list', async () => {
+    const mod: any = await import('@/composables/schools/useClassesData')
+    mod.__classes.value = [{ id: 'class-7a' }, { id: 'class-8b' }]
+    const wrapper = await mountAs({ ...SCHOOL_ADMIN, educational_role: 'teacher' })
+    const entry = entryWithClipFor('teacher', 'class-detail')!
     await wrapper.find(`#hb-${entry.id} .entry-head`).trigger('click')
     await wrapper.find(`#hb-${entry.id} [data-walk-offer]`).trigger('click')
-    expect(push).toHaveBeenCalledTimes(1)
-    expect(String((push.mock.calls as unknown[][])[0][0]).length).toBeGreaterThan(1)
-    // Not started here — the Handbook has none of the walk's anchors.
-    expect(useWalkthrough().activeWalk.value).toBeNull()
-    // The destination's own Show-me surface claims it, by persona × place.
-    expect(claimDeferredWalk('teacher', 'nowhere')).toBe(false)
-    expect(claimDeferredWalk('school_admin', walk.place.route, walk.place.kinds?.[0])).toBe(true)
-    expect(useWalkthrough().activeWalk.value?.id).toBe(walk.id)
+    expect(push).toHaveBeenCalledWith('/schools/classes/class-7a')
+    expect(claimDeferredWalk('teacher', 'class-detail', 'class')).toBe(true)
+    expect(useWalkthrough().activeWalk.value?.id).toBe(clipsFor(entry, 'teacher')[0])
+  })
+
+  it('fetches the class list on mount for staff with a class-page clip, and falls back to the list until it lands', async () => {
+    const mod: any = await import('@/composables/schools/useClassesData')
+    const wrapper = await mountAs({ ...SCHOOL_ADMIN, educational_role: 'teacher' })
+    expect(mod.__fetchClasses).toHaveBeenCalled()
+    const entry = entryWithClipFor('teacher', 'class-detail')!
+    await wrapper.find(`#hb-${entry.id} .entry-head`).trigger('click')
+    await wrapper.find(`#hb-${entry.id} [data-walk-offer]`).trigger('click')
+    expect(push).toHaveBeenCalledWith('/schools/classes')
   })
 
   it('does not offer a walk that is not for the reader\'s persona', async () => {
     const wrapper = await mountAs({ ...SCHOOL_ADMIN, educational_role: 'teacher' })
-    const leaderOnly = handbookEntries().find((e) => {
-      const w = e.walk ? walkById(e.walk) : null
-      return !!w && !w.personas.includes('teacher')
-    })
-    expect(leaderOnly, 'the pack has a walk that is not a teacher\'s').toBeTruthy()
-    await wrapper.find(`#hb-${leaderOnly!.id} .entry-head`).trigger('click')
-    expect(wrapper.find(`#hb-${leaderOnly!.id} [data-walk-offer]`).exists()).toBe(false)
+    await wrapper.find('#hb-the-invites-desk .entry-head').trigger('click')
+    expect(wrapper.find('#hb-the-invites-desk [data-walk-offer]').exists()).toBe(false)
   })
 })

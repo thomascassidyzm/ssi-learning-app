@@ -34,6 +34,20 @@ describe('deferred walk', () => {
     expect(claimDeferredWalk(walk.personas[0], walk.place.route)).toBe(false)
   })
 
+  it('holds several candidates and starts the one the destination offers (job #627)', () => {
+    // The two invite walks: org/group nodes run one, a school runs the other.
+    expect(deferWalk(['invite-first-person', 'invite-first-teacher'])).toBe(true)
+    expect(claimDeferredWalk('leader', 'node-home', 'school')).toBe(true)
+    expect(activeWalk.value?.id).toBe('invite-first-teacher')
+    stopWalk()
+    expect(deferWalk(['invite-first-person', 'invite-first-teacher'])).toBe(true)
+    expect(claimDeferredWalk('leader', 'node-home', 'group')).toBe(true)
+    expect(activeWalk.value?.id).toBe('invite-first-person')
+    stopWalk()
+    expect(deferWalk(['no-such-walk'])).toBe(false)
+    expect(deferWalk(['no-such-walk', walk.id])).toBe(true)
+  })
+
   it('forgets a tap older than the TTL', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-12T10:00:00Z'))

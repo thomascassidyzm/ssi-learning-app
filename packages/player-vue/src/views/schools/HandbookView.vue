@@ -1,6 +1,8 @@
 <script setup lang="ts">
 /**
- * HandbookView — the map of everything this dashboard can do, in prose.
+ * HandbookView — the map of everything this dashboard can do. Where a
+ * capability has a clip, the clip leads and the prose sits folded beneath
+ * it; where it has none, the prose is the entry.
  *
  * Not a video and not a list somebody typed. Every entry on this page is
  * compiled from tools/walkthrough/walks/*.json by tools/walkthrough/compile.mjs,
@@ -17,8 +19,9 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useI18n } from '@/composables/useI18n'
+import { useClassesData } from '@/composables/schools/useClassesData'
 import {
-  handbookEntries, handbookSections, searchHandbook, viewerPersona, isMine, badgesFor, placeLink,
+  handbookEntries, handbookSections, searchHandbook, viewerPersona, isMine, badgesFor, placeLink, clipsFor,
   type HandbookEntry,
 } from '@/walkthrough/handbook'
 import { walkById, deferWalk, type Walk } from '@/walkthrough/useWalkthrough'
@@ -36,6 +39,8 @@ const persona = computed(() => viewerPersona(
 const query = ref('')
 const mineOnly = ref(false)
 const open = ref<Set<string>>(new Set())
+// The words under a clip entry, folded by default: "Written out" unfolds them.
+const prose = ref<Set<string>>(new Set())
 
 const all = handbookEntries()
 const matched = computed(() => searchHandbook(query.value, all))
@@ -56,9 +61,19 @@ function toggle(id: string): void {
   open.value = next
 }
 
+function toggleProse(id: string): void {
+  const next = new Set(prose.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  prose.value = next
+}
+
+// "Read the lot" reads: every entry open AND every clip entry's words unfolded.
 const allOpen = computed(() => visible.value.length > 0 && visible.value.every((e) => open.value.has(e.id)))
 function readTheLot(): void {
-  open.value = allOpen.value ? new Set() : new Set(visible.value.map((e) => e.id))
+  const ids = allOpen.value ? [] : visible.value.map((e) => e.id)
+  open.value = new Set(ids)
+  prose.value = new Set(ids)
 }
 
 // Deep link from a page's Handbook chip: /schools/handbook?entry=<id> opens
@@ -95,34 +110,58 @@ function goTo(entry: HandbookEntry): string | null {
   return placeLink(entry, nodeId.value)
 }
 
-// THE CLIP, WHERE ONE EXISTS (job #302, 2026-09-12). Tom: "the How This
-// Works clips don't surface in the handbook". An entry whose capability has
-// a walk in the pack offers it here with the same words the How-this-works
-// panel uses, under the same rule that panel applies: only where the walk is
-// for the reader's own persona, because a walk steps real anchors and a
-// school admin's walk would point a teacher at controls they do not have.
-// The walk cannot run on this page — its anchors live on the page the
-// capability lives on — so the tap defers it and goes there; the place's own
-// "Show me" surface claims it on mount and it runs on real data. Nothing
-// here ever plays without that tap.
-function walkFor(entry: HandbookEntry): Walk | null {
-  if (!entry.walk) return null
-  const walk = walkById(entry.walk)
-  return walk && walk.personas.includes(persona.value) ? walk : null
+// THE CLIP LEADS (job #627, 2026-09-14; supersedes the prose-first layout of
+// job #302). Tom, on staging: "the handbook still appears to be pointing to
+// the prose, rather than the clips." A capability with a clip for the reader
+// opens on Show me, with one line of caption; its words fold under "Written
+// out". Only where the walk is for the reader's own persona — a walk steps
+// real anchors, and a school admin's walk would point a teacher at controls
+// they do not have. The walk cannot run on this page, so the tap defers
+// every clip that shows the capability and goes to the place the first one
+// lives; the page's own Show-me surface claims whichever fits its node and
+// runs it on real data. Nothing here ever plays without that tap.
+function clipIds(entry: HandbookEntry): string[] {
+  return clipsFor(entry, persona.value)
 }
+
+function walkFor(entry: HandbookEntry): Walk | null {
+  const id = clipIds(entry)[0]
+  return id ? walkById(id) : null
+}
+
+// A class-page clip needs a class to run on. The list page has none of its
+// anchors, so the reader lands on their first class; with no class yet the
+// list is where they can make one. Before this the tap parked every teacher
+// on /schools/classes with the walk waiting for a page that never came.
+const { classes, fetchClasses } = useClassesData()
+const firstClassId = computed(() => classes.value[0]?.id ?? null)
 
 function showMeTo(entry: HandbookEntry): string | null {
   const walk = walkFor(entry)
-  return walk ? placeLink({ ...entry, place: walk.place }, nodeId.value) : null
+  if (!walk) return null
+  if (walk.place.route === 'class-detail' && firstClassId.value) return `/schools/classes/${firstClassId.value}`
+  return placeLink({ ...entry, place: walk.place }, nodeId.value)
 }
 
 async function showMe(entry: HandbookEntry): Promise<void> {
-  const walk = walkFor(entry)
   const to = showMeTo(entry)
-  if (!walk || !to) return
-  deferWalk(walk.id)
+  if (!to) return
+  deferWalk(clipIds(entry))
   await router.push(to)
 }
+
+// One line under the clip: the first sentence of what the capability is for.
+function caption(entry: HandbookEntry): string {
+  const m = entry.what.match(/^.*?[.!?](?=\s|$)/)
+  return m ? m[0] : entry.what
+}
+
+onMounted(() => {
+  const staff = persona.value === 'teacher' || persona.value === 'school_admin'
+  if (staff && !classes.value.length && all.some((e) => clipIds(e).some((id) => walkById(id)?.place.route === 'class-detail'))) {
+    void fetchClasses()
+  }
+})
 </script>
 
 <template>
@@ -130,7 +169,7 @@ async function showMe(entry: HandbookEntry): Promise<void> {
     <header class="handbook-head">
       <span class="schools-kicker">{{ t('schools.handbookPage.kicker', 'Handbook') }}</span>
       <h1 class="arsenal page-title">{{ t('schools.handbookPage.title', 'Everything this dashboard can do') }}</h1>
-      <p class="handbook-lede">{{ t('schools.handbookPage.lede', 'Written out in full. Search it, or read the lot.') }}</p>
+      <p class="handbook-lede">{{ t('schools.handbookPage.ledeClips', 'Where you see Show me, tap it and the steps play on your own dashboard. Everything is written out as well. Search it, or read the lot.') }}</p>
     </header>
 
     <div class="schools-card schools-card-pad handbook-controls">
@@ -159,6 +198,7 @@ async function showMe(entry: HandbookEntry): Promise<void> {
       <div class="entry-list">
         <article v-for="e in s.entries" :id="`hb-${e.id}`" :key="e.id" class="entry" :class="{ 'is-open': open.has(e.id) }">
           <button type="button" class="entry-head" :aria-expanded="open.has(e.id)" @click="toggle(e.id)">
+            <span v-if="walkFor(e)" class="entry-clip-mark" aria-hidden="true">&#9654;</span>
             <span class="entry-title">{{ e.title }}</span>
             <span class="entry-badges">
               <span v-for="b in badges(e)" :key="b" class="status-pill tone-muted">{{ b }}</span>
@@ -166,29 +206,40 @@ async function showMe(entry: HandbookEntry): Promise<void> {
             <span class="entry-chev" aria-hidden="true">{{ open.has(e.id) ? '−' : '+' }}</span>
           </button>
           <div v-if="open.has(e.id)" class="entry-body">
-            <h3 class="entry-h">{{ t('schools.handbookPage.whatItsFor', "What it's for") }}</h3>
-            <!-- eslint-disable-next-line vue/no-v-html — compiled repo prose, escaped in md() -->
-            <p class="entry-p" v-html="md(e.what)"></p>
-            <h3 class="entry-h">{{ t('schools.handbookPage.whereItIs', 'Where it is') }}</h3>
-            <!-- eslint-disable-next-line vue/no-v-html — compiled repo prose, escaped in md() -->
-            <p class="entry-p" v-html="md(e.where)"></p>
-            <h3 class="entry-h">{{ t('schools.handbookPage.howYouDoIt', 'How you do it') }}</h3>
-            <ol class="entry-steps">
-              <!-- eslint-disable-next-line vue/no-v-html — compiled repo prose, escaped in md() -->
-              <li v-for="(step, i) in e.how" :key="i" v-html="md(step)"></li>
-            </ol>
-            <template v-if="e.note">
-              <h3 class="entry-h">{{ t('schools.handbookPage.worthKnowing', 'Worth knowing') }}</h3>
-              <!-- eslint-disable-next-line vue/no-v-html — compiled repo prose, escaped in md() -->
-              <p class="entry-p" v-html="md(e.note)"></p>
+            <template v-if="walkFor(e) && showMeTo(e)">
+              <div class="entry-clip">
+                <button
+                  type="button" class="btn-play entry-showme"
+                  :data-walk-offer="walkFor(e)!.id"
+                  @click="showMe(e)"
+                >{{ t('org.ui.howThisWorks.showMe', 'Show me — {title}').replace('{title}', walkFor(e)!.title) }}</button>
+                <!-- eslint-disable-next-line vue/no-v-html — compiled repo prose, escaped in md() -->
+                <p class="entry-caption" v-html="md(caption(e))"></p>
+              </div>
+              <button type="button" class="entry-prose-toggle" :aria-expanded="prose.has(e.id)" @click="toggleProse(e.id)">
+                {{ prose.has(e.id) ? t('schools.handbookPage.hideTheWords', 'Hide the words') : t('schools.handbookPage.writtenOut', 'Written out') }}
+              </button>
             </template>
-            <div class="entry-actions">
-              <button
-                v-if="walkFor(e) && showMeTo(e)" type="button" class="btn-play entry-showme"
-                :data-walk-offer="walkFor(e)!.id"
-                @click="showMe(e)"
-              >{{ t('org.ui.howThisWorks.showMe', 'Show me — {title}').replace('{title}', walkFor(e)!.title) }}</button>
-              <router-link v-if="goTo(e)" class="entry-goto" :class="walkFor(e) && showMeTo(e) ? 'btn-ghost' : 'btn-play'" :to="goTo(e)!">{{ t('schools.handbookPage.takeMeThere', 'Take me there') }}</router-link>
+            <div v-if="!walkFor(e) || !showMeTo(e) || prose.has(e.id)" class="entry-prose">
+              <h3 class="entry-h">{{ t('schools.handbookPage.whatItsFor', "What it's for") }}</h3>
+              <!-- eslint-disable-next-line vue/no-v-html — compiled repo prose, escaped in md() -->
+              <p class="entry-p" v-html="md(e.what)"></p>
+              <h3 class="entry-h">{{ t('schools.handbookPage.whereItIs', 'Where it is') }}</h3>
+              <!-- eslint-disable-next-line vue/no-v-html — compiled repo prose, escaped in md() -->
+              <p class="entry-p" v-html="md(e.where)"></p>
+              <h3 class="entry-h">{{ t('schools.handbookPage.howYouDoIt', 'How you do it') }}</h3>
+              <ol class="entry-steps">
+                <!-- eslint-disable-next-line vue/no-v-html — compiled repo prose, escaped in md() -->
+                <li v-for="(step, i) in e.how" :key="i" v-html="md(step)"></li>
+              </ol>
+              <template v-if="e.note">
+                <h3 class="entry-h">{{ t('schools.handbookPage.worthKnowing', 'Worth knowing') }}</h3>
+                <!-- eslint-disable-next-line vue/no-v-html — compiled repo prose, escaped in md() -->
+                <p class="entry-p" v-html="md(e.note)"></p>
+              </template>
+            </div>
+            <div v-if="goTo(e)" class="entry-actions">
+              <router-link class="entry-goto" :class="walkFor(e) && showMeTo(e) ? 'btn-ghost' : 'btn-play'" :to="goTo(e)!">{{ t('schools.handbookPage.takeMeThere', 'Take me there') }}</router-link>
             </div>
           </div>
         </article>
@@ -234,6 +285,7 @@ async function showMe(entry: HandbookEntry): Promise<void> {
 .entry-title { flex: 1; color: var(--schools-fg, #0F1212); font-size: var(--text-sm); font-weight: var(--font-semibold); }
 .entry-badges { display: flex; gap: 6px; flex-wrap: wrap; }
 .entry-chev { color: var(--schools-fg-3, #6b6b6b); font-size: var(--text-sm); width: 1em; text-align: center; }
+.entry-clip-mark { color: var(--schools-red, #DB1E17); font-size: 10px; width: 1em; text-align: center; flex-shrink: 0; }
 
 /* PHONE (390px, 2026-09-09): title and badges sharing one row squeezed the
    title to one word per line. Below 560px the badges drop under the title —
@@ -254,5 +306,14 @@ async function showMe(entry: HandbookEntry): Promise<void> {
 .entry-steps li { margin-bottom: 2px; }
 .entry-actions { margin-top: var(--space-4); display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
 .entry-goto { text-decoration: none; }
-.entry-showme { font: inherit; cursor: pointer; }
+.entry-showme { font: inherit; cursor: pointer; align-self: flex-start; }
+.entry-clip { margin-top: var(--space-2); display: flex; flex-direction: column; gap: var(--space-2); }
+.entry-caption { margin: 0; color: var(--schools-fg-2, #555); font-size: var(--text-sm); line-height: 1.6; }
+.entry-prose-toggle {
+  align-self: flex-start; margin-top: var(--space-2); padding: 2px 0; background: none; border: none; cursor: pointer;
+  font: inherit; font-size: var(--text-xs); color: var(--schools-fg-3, #8A8078);
+  text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(44, 38, 34, 0.25);
+}
+.entry-prose-toggle:hover { color: var(--schools-fg-2, #555); }
+.entry-prose { display: flex; flex-direction: column; gap: 4px; }
 </style>

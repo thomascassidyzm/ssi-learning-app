@@ -25,6 +25,15 @@ const TEACHER = {
   school_id: 'school-1', _scopeSource: 'self' as const,
 }
 
+// The class list the view resolves a class-page clip against: empty here, so
+// the destination falls back to the list, except where a test fills it.
+vi.mock('@/composables/schools/useClassesData', async () => {
+  const { ref } = await import('vue')
+  const classes = ref<any[]>([])
+  const fetchClasses = vi.fn(() => Promise.resolve())
+  return { useClassesData: () => ({ classes, fetchClasses }), __classes: classes, __fetchClasses: fetchClasses }
+})
+
 vi.mock('@/composables/schools/useSchoolContext', async () => {
   const { ref } = await import('vue')
   const currentUser = ref<any>(null)

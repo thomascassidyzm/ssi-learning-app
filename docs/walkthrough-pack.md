@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `c47b76241891` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `ec756623e8a6` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## choose-something-else-to-learn — Choose something else to learn
 
@@ -22,7 +22,7 @@ Personas: learner · place: library
 
 ## hand-over-the-lead — Hand a class over to another teacher
 
-Personas: teacher · place: class-detail
+Personas: teacher, school_admin · place: class-detail
 
 1. [`class-teachers` · next] One teacher on a class is the **lead** — the one the class is listed under, and the one a school admin comes to about it. When you move on from a class, that name should move too.
 2. [`class-teacher-make-lead` · next] **Make lead** hands it to a colleague already on the class. It takes effect straight away, so add them first and hand over once you have.
@@ -31,7 +31,7 @@ Personas: teacher · place: class-detail
 
 ## install-the-app — Put the app on your device
 
-Personas: leader · place: node-home (org/group/school)
+Personas: leader, school_admin · place: node-home (org/group/school)
 
 1. [`account-card` · next] **Your account** holds the two things that are about you rather than your organisation: your sign-in, and the app on the device you are holding.
 2. [`account-install` · next] This row already knows what device you are on. On a computer it offers to install the app in its own window; on a phone it offers to add it to your home screen. Same organisation either way — it just saves you finding the tab.
@@ -40,7 +40,7 @@ Personas: leader · place: node-home (org/group/school)
 
 ## invite-a-supply-teacher — Invite a teacher who isn't here yet
 
-Personas: teacher · place: class-detail
+Personas: teacher, school_admin · place: class-detail
 
 1. [`class-teachers` · next] Use this when the colleague has no account yet — a supply teacher starting on Monday, or someone new to the school. It saves waiting for an admin to add them first.
 2. [`class-coteacher-link` · next] **Create a co-teacher link** mints a fresh link the moment you tap it. Whoever opens it lands as a teacher of this class, and of this school — not as its lead, and not over any of your other classes.
@@ -49,7 +49,7 @@ Personas: teacher · place: class-detail
 
 ## invite-first-person — Bring your first person in
 
-Personas: admin, leader · place: node-home (org)
+Personas: admin, leader · place: node-home (org/group)
 
 1. [`verb-invite-person` · click] People join through here — tap **Invite a person**. Nothing is created until you submit the form.
 2. [`invite-form-role` · next] Pick **Group leader** for someone who will run a group of their own, or **Learner** for someone who is here to learn. The link carries the role with it, so they arrive already belonging to this group.
@@ -79,7 +79,7 @@ Personas: admin · place: admin-invites
 
 ## move-a-teacher-between-classes — Move a teacher to another class
 
-Personas: teacher · place: class-detail
+Personas: teacher, school_admin · place: class-detail
 
 1. [`class-teachers` · next] **Teachers** answers 'who teaches this class?'. A head usually wants the other direction too — 'which classes does this person take?' — and that is the same question read backwards.
 2. [`class-teacher-other-classes` · click] **Other classes** on anyone's row asks it that way round. It never moves anybody on its own — it opens a list for you to change.
@@ -110,7 +110,7 @@ Personas: learner · place: library
 
 ## run-class-session — Run your first class session
 
-Personas: teacher · place: class-detail
+Personas: teacher, school_admin · place: class-detail
 
 1. [`class-join-link` · next] Students join with this link — share it and they sign up straight into this class.
 2. [`class-join-code` · next] Prefer a whiteboard? **Show code instead** reveals a standing code — anyone who enters it at saysomethingin.com/redeem joins this class, until the code changes.
@@ -127,7 +127,7 @@ Personas: learner · place: library (guest)
 
 ## set-your-password — Set or change your password
 
-Personas: leader · place: node-home (org/group/school)
+Personas: leader, school_admin · place: node-home (org/group/school)
 
 1. [`account-card` · next] **Your account** is your own corner of this page — not the organisation's, yours. Your sign-in and your device live here, and nothing in it is visible to anyone you have invited.
 2. [`account-password` · next] If you arrived through a **link in an email**, that link will not last forever. A password is how you get back into your organisation from a new laptop, a new phone, or after clearing your browser.
@@ -136,7 +136,7 @@ Personas: leader · place: node-home (org/group/school)
 
 ## share-a-class — Share a class with a colleague
 
-Personas: teacher · place: class-detail
+Personas: teacher, school_admin · place: class-detail
 
 1. [`class-teachers` · next] A class does not have to be yours alone. **Teachers** lists everyone who teaches it, with the lead marked — a job share, a department colleague, a supply teacher covering for a fortnight.
 2. [`class-teacher-add` · click] **Add another teacher** is how you share it. Nobody is added until you pick a name and confirm.

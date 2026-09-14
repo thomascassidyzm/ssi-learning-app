@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   HANDBOOK_SECTIONS, ROLE_BADGES, handbookEntries, handbookSections,
-  searchHandbook, viewerPersona, isMine, badgesFor, placeLink, PLACE_LINKS,
+  searchHandbook, viewerPersona, isMine, badgesFor, placeLink, PLACE_LINKS, clipsFor,
   type HandbookEntry,
 } from './handbook'
 
@@ -114,5 +114,23 @@ describe('one compiled pack carries two surfaces', () => {
     const intel = handbookEntries('intel')
     expect(intel.length).toBeGreaterThan(0)
     expect(intel.every((e) => e.surface === 'intel' && e.place.route === 'intel')).toBe(true)
+  })
+})
+
+describe('clipsFor — every clip that shows a capability (job #627)', () => {
+  it('names the hand-linked walk first, then every walk that steps on the anchor, for the reader\'s persona only', () => {
+    const e = entry({ anchor: 'verb-invite-person', walk: 'invite-first-person' })
+    expect(clipsFor(e, 'leader')).toEqual(['invite-first-person', 'invite-first-teacher'])
+    expect(clipsFor(e, 'school_admin')).toEqual(['invite-first-teacher'])
+    expect(clipsFor(e, 'teacher')).toEqual([])
+  })
+  it('finds a clip for an entry with no walk: line when a walk passes through its anchor', () => {
+    expect(clipsFor(entry({ anchor: 'invite-form-role', walk: null }), 'leader')).toEqual(['invite-first-person', 'invite-first-teacher'])
+    expect(clipsFor(entry({ anchor: 'no-such-anchor', walk: null }), 'leader')).toEqual([])
+  })
+  it('a school admin has clips for the account card on their own home', () => {
+    const ids = handbookEntries().filter((e) => e.personas.includes('school_admin')).flatMap((e) => clipsFor(e, 'school_admin'))
+    expect(ids).toContain('install-the-app')
+    expect(ids).toContain('set-your-password')
   })
 })

@@ -1316,7 +1316,7 @@
           "say": "**Compare to** puts an average alongside. Everything here is a rate, not a raw total — so groups of different sizes compare fairly."
         },
         "3": {
-          "say": "**Overview** takes you back to the same place's home — insights is a lens on where you already are, not a different page to get lost in.",
+          "say": "**Overview** and **Insights** are two tabs on the same place. Overview takes you back to its home — insights is a lens on where you already are, not a different page to get lost in.",
           "terminal": "Rates lead, position is context — and the picker text always says what a measure means."
         }
       }
@@ -1560,8 +1560,10 @@
       "everything": "Everything",
       "howYouDoIt": "How you do it",
       "justWhatICanDo": "Just what I can do",
+      "hideTheWords": "Hide the words",
       "kicker": "Handbook",
       "lede": "Written out in full. Search it, or read the lot.",
+      "ledeClips": "Where you see Show me, tap it and the steps play on your own dashboard. Everything is written out as well. Search it, or read the lot.",
       "readTheLot": "Read the lot",
       "scopeAriaLabel": "Which capabilities to show",
       "searchAriaLabel": "Search the handbook",
@@ -1570,7 +1572,8 @@
       "title": "Everything this dashboard can do",
       "whatItsFor": "What it's for",
       "whereItIs": "Where it is",
-      "worthKnowing": "Worth knowing"
+      "worthKnowing": "Worth knowing",
+      "writtenOut": "Written out"
     },
     "teacherDashboard": {
       "showAllClasses": "Show all {n} classes",
