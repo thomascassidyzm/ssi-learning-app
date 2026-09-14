@@ -136,7 +136,7 @@ import { createOfflineUrn, type UrnCandidate } from '../playback/offlineUrn'
 import { isCyclePlayableOffline, requiredClipUrls, filterLapToDeviceAudio, roundTeachesOffline } from '../playback/offlinePlayable'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { paywallLandingRound } from '../playback/paywallLanding'
-import { grantAction, restoreHeldPosition } from '../playback/paywallGrant'
+import { grantAction, recoverHeldPosition, restoreHeldPosition } from '../playback/paywallGrant'
 import { createPaywallRetreat } from '../playback/paywallRetreat'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 import { setCursorTelemetrySink } from '@ssi/core'
@@ -2505,6 +2505,67 @@ function tryRestoreHeldPosition(): boolean {
   return restoreHeldPosition(paywallRetreat, restoreEngine, (seed) => entitlementComposable.canAccessSeed(props.course!, seed))
 }
 
+/**
+ * The script again, under the entitlement the learner now holds (job #757).
+ *
+ * A learner held at the wall bootstrapped from the PREVIEW bundle the server
+ * issued before the grant, and that bundle sits in the in-session map for the
+ * life of the tab — so the held LEGO is not in the queue and never will be
+ * unless we ask again. The server gate honours entitlements per request
+ * (courseAccess.ts, since #745): fetch past every cache, build the script the
+ * way a belt jump does (generateScript → mergeGeneratedRoundsIntoQueue, the
+ * same addRounds path), and the held LEGO is in the live queue for the restore.
+ * Courses off the bundle path take the Supabase walk, which is already whole.
+ */
+const refetchScriptUnderGrant = async (): Promise<void> => {
+  const code = courseCode.value
+  if (!code) return
+  if (isBundleBootstrapEnabled(code)) await getCourseBundle(code, { forceRefresh: true })
+  const result = await generateScript()
+  if (result.roundCount > 0) {
+    if (result.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = result.mainLoopRoundCount
+    mergeGeneratedRoundsIntoQueue(result)
+  }
+}
+
+/** A newer grant recovery supersedes an older one still fetching. */
+let grantRecoveryToken = 0
+
+/**
+ * The wall is down but the held real place is not in the queue: recover it —
+ * refetch under the grant, swap the queue, restore — behind the player's own
+ * loading line, and resume only once the engine is verifiably on the held
+ * LEGO. Silent-paused at the moment of purchase is the thing this replaces
+ * (job #757). A recovery that does not land leaves the memory and the
+ * write-hold in place; the roundCount watcher below stays as the net.
+ */
+async function recoverHeldPositionAfterGrant(resumeWhenLanded: boolean): Promise<void> {
+  if (!props.course) return
+  const course = props.course
+  const mine = ++grantRecoveryToken
+  skipPrepMessage.value = t('loading.findingProgress')
+  skipPrepVisible.value = true
+  try {
+    const landed = await recoverHeldPosition(
+      paywallRetreat,
+      restoreEngine,
+      (seed) => entitlementComposable.canAccessSeed(course, seed),
+      refetchScriptUnderGrant,
+    )
+    if (mine !== grantRecoveryToken) return
+    if (landed) {
+      console.log('[LearningPlayer] grant received — script refetched under the grant, real position restored' + (resumeWhenLanded ? ', resuming' : ''))
+      if (resumeWhenLanded) simplePlayer.resume()
+    } else {
+      console.warn('[LearningPlayer] grant received but the real position could not be recovered — still held, paused, restore retried as rounds arrive')
+    }
+  } catch (err) {
+    console.warn('[LearningPlayer] grant recovery threw — still held, paused:', err)
+  } finally {
+    if (mine === grantRecoveryToken) clearSkipPrepDialog()
+  }
+}
+
 // Watch entitlements — auto-dismiss paywall if user redeems a code or subscribes
 watch(liveEntitlements, () => {
   if (!props.course) return
@@ -2512,24 +2573,31 @@ watch(liveEntitlements, () => {
   // not: the learner goes back to the round they were really on, resolved by
   // LEGO against the LIVE engine queue (the bootstrap queue is a window and
   // the full-script handoff swaps it, so a retreat-time index is worthless).
-  // A restore that does not land — the LEGO not in the queue yet, or the
-  // engine refusing the jump — keeps the memory and the write-hold; the wall
-  // still comes down (access is real) but playback is NOT resumed at the
-  // retreat, and the roundCount watcher below retries as rounds arrive
-  // (job #752 addition: the failure path used to resume and then persist the
-  // retreat on the next prompt).
+  // A restore that does not land — the LEGO not in the queue, because the
+  // queue is the preview the server issued before the grant — keeps the
+  // memory and the write-hold, lowers the wall (access is real) and RECOVERS:
+  // the script is refetched under the grant and the restore run again, and
+  // play resumes only when the engine is verifiably on the held LEGO (job
+  // #757; #752 left the learner paused with the wall down at the moment of
+  // purchase). Wall already down ("Maybe later"): the place is recovered the
+  // same way but the play state is the learner's — nothing is resumed.
   const held = paywallRetreat.current() !== null
   const restored = held ? tryRestoreHeldPosition() : false
-  if (!showPaywall.value) return
+  const wallWasUp = showPaywall.value
   const action = grantAction({
     held,
     restored,
     accessNow: entitlementComposable.canAccessSeed(props.course, PREMIUM_PREVIEW_MAX_SEED + 1),
   })
   if (action === 'stay') return
+  if (action === 'lower-and-recover') {
+    showPaywall.value = false
+    void recoverHeldPositionAfterGrant(wallWasUp)
+    return
+  }
+  if (!wallWasUp) return
   showPaywall.value = false
-  if (action === 'lower-and-resume') simplePlayer.resume()
-  else console.warn('[LearningPlayer] grant received but the real position is not in the engine queue yet — wall down, paused at the retreat, restore retried as rounds arrive')
+  simplePlayer.resume()
 })
 
 // Retry the held restore whenever the engine queue grows (addRounds /
