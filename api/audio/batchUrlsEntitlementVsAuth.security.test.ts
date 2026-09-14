@@ -344,7 +344,12 @@ describe('SEC0901-D-01: batch-urls gates on entitlement, not merely authenticati
     const batchUrlsSrc = readFileSync(resolve(here, 'batch-urls.ts'), 'utf8')
     const courseAccessSrc = readFileSync(resolve(here, '../_utils/courseAccess.ts'), 'utf8')
     expect(batchUrlsSrc).toContain('resolveServerCourseAccess')
-    expect(courseAccessSrc).toContain('user_entitlements')
+    // Since job #745 the table read lives in the ONE resolver
+    // (api/_utils/resolveEntitlements.ts), which courseAccess.ts delegates to —
+    // the same function /api/entitlement/user serves, so gate and list agree.
+    expect(courseAccessSrc).toContain('resolveActiveEntitlements(')
+    const resolverSrc = readFileSync(resolve(here, '../_utils/resolveEntitlements.ts'), 'utf8')
+    expect(resolverSrc).toContain('user_entitlements')
     expect(courseAccessSrc).toContain("from('learners')")
     // And the old authentication-only gate is gone.
     expect(batchUrlsSrc).not.toContain('hasVerifiedSession')
