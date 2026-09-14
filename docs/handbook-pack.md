@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `bcc9aaafa9b7` · generated 2026-09-13 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `278f9863e39d` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -581,13 +581,13 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-
 
 Section: seeing-progress · roles: admin · anchor: `question-pulse` · in `packages/player-vue/src/views/intel/PulseView.vue`
 
-**What it's for.** The first question: how many in-app minutes are being done, per course and per person on the course, and how each course stands against the average of all courses. A minute is everything between pressing play and stopping, on every screen, and Listening Mode minutes are shown apart from main-flow minutes.
+**What it's for.** The first question: how many in-app minutes are being done, per course, in total and per person on the course, and how each course stands against the average of all courses. A minute is everything between pressing play and stopping, on every screen, and Listening Mode minutes are shown apart from main-flow minutes. The average of all courses is the same number whichever course you pick: it counts this course too, and for the per-person and no-activity measures it is worked out over every person on every course, so a course with two enrolments weighs two people, not a whole course.
 
 **Where it is.** **Minutes**, the first question in the bar, and where Intelligence opens.
 
 1. Pick the **window**: today, the last seven days or the last thirty days.
 2. Pick the **course**. It opens on the busiest course in that window.
-3. Pick the **measure**: minutes per person, new enrolments, or people with no activity. The line under the pickers says what it counts.
+3. Pick the **measure**: minutes per person, minutes in total, new enrolments, or people with no activity. The line under the pickers says what it counts and what the average of all courses is for it.
 4. Read the two numbers: this course against the average of all courses, and the strip beneath for where the course sits among the rest.
 5. Read the line under the strip for the split between the main flow and Listening Mode, and how many people the minutes are spread over.
 6. The rows further down still count the real people who practised this week, by course; open one to see which bits of the course give trouble.
