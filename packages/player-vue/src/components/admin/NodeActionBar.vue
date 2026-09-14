@@ -220,6 +220,13 @@ async function submitPerson(): Promise<void> {
 // its node — never one generic link. 'school_leader' appears only on school
 // nodes (it grants the school-admin seat); 'student' is the learner join.
 const inviteRole = ref<'teacher' | 'leader' | 'school_leader' | 'student'>(defaultRole.value)
+const roleOptions = computed<{ value: 'teacher' | 'leader' | 'school_leader' | 'student'; label: string }[]>(() => [
+  ...(!neutral.value ? [{ value: 'teacher' as const, label: t('org.ui.nodeActionBar.roleTeacher', 'Teacher') }] : []),
+  { value: 'leader' as const, label: t('org.ui.nodeActionBar.roleGroupLeader', 'Group leader') },
+  ...(!neutral.value && props.node.commercial ? [{ value: 'school_leader' as const, label: t('org.ui.nodeActionBar.roleSchoolLeader', 'School leader') }] : []),
+  { value: 'student' as const, label: t('org.ui.nodeActionBar.roleLearner', 'Learner') },
+])
+
 // A node switch reuses this component instance — re-seed the defaults when
 // the dressing flips so a neutral node never opens on 'Teacher'.
 watch(defaultRole, (r) => {
@@ -812,14 +819,9 @@ function closeDelete(): void {
              Worth knowing. The place matters as much as the role — a group leader
              invited on a group leads that group and everything under it, so invite
              people on the node whose shape you actually mean.
-             checked: 8119168f.215b02bb
+             checked: 27dfbb12.215b02bb
         -->
-        <select v-if="!classMode" v-model="personRole" class="frost-select" data-walk="invite-form-role">
-          <option v-if="!neutral" value="teacher">{{ t('org.ui.nodeActionBar.roleTeacher', 'Teacher') }}</option>
-          <option value="leader">{{ t('org.ui.nodeActionBar.roleGroupLeader', 'Group leader') }}</option>
-          <option v-if="!neutral && node.commercial" value="school_leader">{{ t('org.ui.nodeActionBar.roleSchoolLeader', 'School leader') }}</option>
-          <option value="student">{{ t('org.ui.nodeActionBar.roleLearner', 'Learner') }}</option>
-        </select>
+        <FrostSelect v-if="!classMode" v-model="personRole" class="frost-select" data-walk="invite-form-role" :options="roleOptions" :aria-label="t('org.ui.nodeActionBar.roleAriaLabel', 'Role')" />
         <input v-model="personName" type="text" class="frost-input" :placeholder="classMode ? t('org.ui.nodeActionBar.studentsName', 'Student\'s name') : t('org.ui.nodeActionBar.theirName', 'Their name')" @keyup.enter="submitPerson" />
         <input v-model="personEmail" type="email" class="frost-input" :placeholder="t('org.ui.nodeActionBar.theirEmailWeSend', 'Their email — we\'ll send the invite')" />
         <button class="btn-primary-sm" data-walk="invite-form-submit" :disabled="isInvitingPerson || !personName.trim()" @click="submitPerson">
@@ -831,12 +833,7 @@ function closeDelete(): void {
     </div>
     <div v-else-if="openForm === 'invite'" class="verb-form-block">
       <div class="verb-form">
-        <select v-model="inviteRole" class="frost-select">
-          <option v-if="!neutral" value="teacher">{{ t('org.ui.nodeActionBar.roleTeacher', 'Teacher') }}</option>
-          <option value="leader">{{ t('org.ui.nodeActionBar.roleGroupLeader', 'Group leader') }}</option>
-          <option v-if="!neutral && node.commercial" value="school_leader">{{ t('org.ui.nodeActionBar.roleSchoolLeader', 'School leader') }}</option>
-          <option value="student">{{ t('org.ui.nodeActionBar.roleLearner', 'Learner') }}</option>
-        </select>
+        <FrostSelect v-model="inviteRole" class="frost-select" :options="roleOptions" :aria-label="t('org.ui.nodeActionBar.roleAriaLabel', 'Role')" />
         <button class="btn-primary-sm" :disabled="isInviting" @click="submitInvite">
           {{ isInviting ? t('org.ui.nodeActionBar.creating', 'Creating…') : t('org.ui.nodeActionBar.createInviteLink', 'Create invite link') }}
         </button>
@@ -873,7 +870,6 @@ function closeDelete(): void {
           <FrostSelect
             v-model="newClassCourse"
             :options="courseOptions"
-            filterable
             :filter-placeholder="t('org.ui.nodeActionBar.searchCourses', 'Search courses…')"
             :placeholder="t('org.ui.nodeActionBar.chooseCourse', 'Choose course')"
             :aria-label="t('org.ui.nodeActionBar.courseForThisClass', 'Course for this class')"

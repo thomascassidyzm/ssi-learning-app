@@ -2067,3 +2067,25 @@ Migration `20260914_diary_play_rows_carry_closing_ids.sql` (applied live) drops 
 successor within 30 s is a stop tap or a same-mode clip. Proof: packed v paged over the nine affected
 learners, same `sessioniseAll`: 93 s apart before, 0 s after. Carrying every id instead would have
 added ~4 MB to the packed payload for the same result.
+
+## 2026-09-14 — One dropdown component everywhere, and every dropdown searchable (job #625)
+
+**Ruling (Tom, 2026-09-14 01:57Z),** reviewing Intelligence on staging as ssi_admin and as a school
+leader: the plain bordered boxes beside the nice custom dropdown are "the old style of crap looking
+ones", and every dropdown on the site must have a search field at the top of its open panel, even a
+short list.
+
+**What changed.** `FrostSelect` is the one dropdown. Its filter is no longer opt-in: the search box is
+always at the top of the panel, focus lands in it on open, typing narrows by case-insensitive
+substring, arrows and Enter pick, Escape closes, the tick stays on the selected row. It measures the
+visual viewport when it opens and again when that viewport changes, so on a phone it opens upward
+when the keyboard leaves no room below, and its search field is 16px on touch screens so iOS does
+not zoom the page. Rows can be disabled; a `value` and an `option` slot carry flags and tier chips
+where a caller had them. Every native `<select>` in the learner app, schools and admin surfaces now
+uses it; so do the two hand-rolled dropdowns, the Create class course type-ahead and the onboarding
+taught-language menu; `FilterDropdown.vue` is deleted. On Intelligence, Course is a dropdown even
+when there is only one course, rather than a static paragraph next to real dropdowns.
+
+**Not dropdowns, left alone.** Segmented rows such as Window and Entity level, the navigation menus
+in the top bars, and the card pickers for plan, sector and course. Option lists and what a pick does
+are unchanged everywhere: this is the control only.

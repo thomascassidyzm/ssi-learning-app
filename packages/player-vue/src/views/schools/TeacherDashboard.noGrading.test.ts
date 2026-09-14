@@ -106,7 +106,8 @@ describe('TeacherDashboard grades nothing (job #494)', () => {
     expect(w.find('health-dot-stub').exists()).toBe(false)
     expect(w.find('.summary-strip').exists()).toBe(false)
     // Course and Sort by are the only pickers left.
-    expect(w.findAll('select')).toHaveLength(2)
+    expect(w.findAllComponents({ name: 'FrostSelect' })).toHaveLength(2)
+    expect(w.findAll('select')).toHaveLength(0)
     expect(w.findAll('thead th').map(th => th.text())).not.toContain('Health')
     // Time in app is the figure the page is for, and it is still there.
     expect(w.find('.page-subtitle').text()).toContain('3 classes across Ysgol Cas-gwent')

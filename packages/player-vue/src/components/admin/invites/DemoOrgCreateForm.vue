@@ -5,6 +5,7 @@
 // to the org's (per DESIGN.md §"New demo org") — so both the learner join
 // link and the leader invite link are ready in one click.
 import { ref, computed, onMounted } from 'vue'
+import FrostSelect from '@/components/FrostSelect.vue'
 import { useAdminClient } from '@/composables/useAdminClient'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 
@@ -20,6 +21,7 @@ const { getClient, getAuthToken } = useAdminClient()
 const courses = ref<CourseOption[]>([])
 const prospectName = ref('')
 const courseCode = ref('')
+const courseSelectOptions = computed(() => courses.value.map((c) => ({ value: c.course_code, label: c.display_name })))
 const isCreating = ref(false)
 const error = ref<string | null>(null)
 
@@ -114,10 +116,7 @@ onMounted(fetchCourses)
 
       <div class="field">
         <label class="schools-kicker">Language pair <span class="required">*</span></label>
-        <select v-model="courseCode" class="frost-select">
-          <option value="" disabled>Select a course…</option>
-          <option v-for="c in courses" :key="c.course_code" :value="c.course_code">{{ c.display_name }}</option>
-        </select>
+        <FrostSelect v-model="courseCode" class="frost-select" :options="courseSelectOptions" placeholder="Select a course…" aria-label="Language pair" />
       </div>
 
       <div class="field-actions">

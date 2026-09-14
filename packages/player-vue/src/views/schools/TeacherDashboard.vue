@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, reactive, inject } from 'vue'
+import FrostSelect from '@/components/FrostSelect.vue'
 import { useRouter, useRoute } from 'vue-router'
 import CreateClassModal from '@/components/schools/CreateClassModal.vue'
 import SchoolsPasswordPrompt from '@/components/schools/SchoolsPasswordPrompt.vue'
@@ -225,10 +226,20 @@ const enrichedClasses = computed(() => {
   })
 })
 
+const sortOptions = computed<{ value: SortKey; label: string }[]>(() => [
+  { value: 'name', label: t('schools.teacherDashboard.sortName', 'Name') },
+  { value: 'hours', label: t('schools.teacherDashboard.sortTimeInApp', 'Time in app') },
+  { value: 'journey', label: t('schools.teacherDashboard.sortJourney', 'Journey') },
+  { value: 'phrases', label: t('schools.teacherDashboard.sortPhrases', 'Phrases this week') },
+])
 const courses = computed(() => {
   const set = new Set(enrichedClasses.value.map(c => c.course_label))
   return Array.from(set).sort()
 })
+const courseFilterOptions = computed(() => [
+  { value: 'all', label: t('schools.teacherDashboard.allCourses', 'All courses') },
+  ...courses.value.map((c) => ({ value: c, label: c })),
+])
 
 const filtered = computed(() => {
   let rows = enrichedClasses.value.slice()
@@ -575,20 +586,12 @@ function exportCsv() {
     <div data-walk="classes-filters" v-if="enrichedClasses.length > 0" class="filters-bar schools-card">
       <label class="filter">
         <span class="filter-label">{{ t('schools.teacherDashboard.courseLabel', 'Course') }}</span>
-        <select v-model="courseFilter" class="filter-select">
-          <option value="all">{{ t('schools.teacherDashboard.allCourses', 'All courses') }}</option>
-          <option v-for="c in courses" :key="c" :value="c">{{ c }}</option>
-        </select>
+        <FrostSelect v-model="courseFilter" class="filter-select" :options="courseFilterOptions" :aria-label="t('schools.teacherDashboard.courseLabel', 'Course')" />
       </label>
 
       <div class="filter filter-sort">
         <span class="filter-label">{{ t('schools.teacherDashboard.sortLabel', 'Sort by') }}</span>
-        <select v-model="sortKey" class="filter-select">
-          <option value="name">{{ t('schools.teacherDashboard.sortName', 'Name') }}</option>
-          <option value="hours">{{ t('schools.teacherDashboard.sortTimeInApp', 'Time in app') }}</option>
-          <option value="journey">{{ t('schools.teacherDashboard.sortJourney', 'Journey') }}</option>
-          <option value="phrases">{{ t('schools.teacherDashboard.sortPhrases', 'Phrases this week') }}</option>
-        </select>
+        <FrostSelect v-model="sortKey" class="filter-select" :options="sortOptions" :aria-label="t('schools.teacherDashboard.sortLabel', 'Sort by')" />
       </div>
 
       <!-- The filters a tap on the school overview or a year tile brought

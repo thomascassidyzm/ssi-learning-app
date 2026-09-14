@@ -22,9 +22,7 @@
 
     <div class="aud__controls">
       <label>Course
-        <select v-model="courseCode">
-          <option v-for="c in COURSES" :key="c.code" :value="c.code">{{ c.label }}</option>
-        </select>
+        <FrostSelect v-model="courseCode" class="aud__select" :options="COURSE_OPTIONS" aria-label="Course" />
       </label>
       <span v-if="isLoading" class="aud__muted">loading…</span>
       <span v-else-if="error" class="aud__err">{{ error }}</span>
@@ -82,6 +80,7 @@
 
 <script setup lang="ts">
 import { ref, computed, inject, watch, onBeforeUnmount } from 'vue'
+import FrostSelect from '@/components/FrostSelect.vue'
 import { dirFor } from '@ssi/core'
 import type { Ref } from 'vue'
 import { usePodStage0 } from '../composables/usePodStage0'
@@ -98,6 +97,7 @@ const COURSES = [
   { code: 'ara_for_eng', label: 'Arabic' }, { code: 'jpn_for_eng', label: 'Japanese' },
   { code: 'kor_for_eng', label: 'Korean' },
 ]
+const COURSE_OPTIONS = COURSES.map((c) => ({ value: c.code, label: c.label }))
 
 interface AudPlay { audioId: string; speed: number; gapAfterMs?: number; label: string; role: string }
 interface StageView { key: string; label: string; kind: 'stage0' | 'main'; tierKey?: string; stage?: number; plays: AudPlay[] }

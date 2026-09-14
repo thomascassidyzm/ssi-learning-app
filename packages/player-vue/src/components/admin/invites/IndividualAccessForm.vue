@@ -17,6 +17,7 @@
 // /admin/structure (a peer of "+ Add organisation") and the create card on
 // /admin/invites.
 import { ref, computed, onMounted } from 'vue'
+import FrostSelect from '@/components/FrostSelect.vue'
 import { useAdminClient } from '@/composables/useAdminClient'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 import CoursePicker from './CoursePicker.vue'
@@ -49,6 +50,19 @@ const accessType = ref<'full' | 'courses'>('full')
 const selectedCourses = ref<Set<string>>(new Set())
 // FOR HOW LONG
 const durationType = ref<'lifetime' | 'time_limited'>('lifetime')
+const ROLE_OPTIONS: { value: 'learner' | 'ssi_admin' | 'popty_user'; label: string }[] = [
+  { value: 'learner', label: 'Learner' },
+  { value: 'ssi_admin', label: 'SSi admin' },
+  { value: 'popty_user', label: 'Popty user' },
+]
+const ACCESS_OPTIONS: { value: 'full' | 'courses'; label: string }[] = [
+  { value: 'full', label: 'Every course' },
+  { value: 'courses', label: 'Chosen courses only' },
+]
+const DURATION_OPTIONS: { value: 'lifetime' | 'time_limited'; label: string }[] = [
+  { value: 'lifetime', label: 'Forever' },
+  { value: 'time_limited', label: 'A set number of days' },
+]
 const durationDays = ref<number | ''>('')
 // LIMITS — one person, one sign-up, unless the admin says otherwise.
 const maxUses = ref<number | ''>(1)
@@ -175,19 +189,12 @@ onMounted(fetchCourses)
 
     <div class="field">
       <label class="schools-kicker">They sign in as</label>
-      <select v-model="role" class="frost-select">
-        <option value="learner">Learner</option>
-        <option value="ssi_admin">SSi admin</option>
-        <option value="popty_user">Popty user</option>
-      </select>
+      <FrostSelect v-model="role" class="frost-select" :options="ROLE_OPTIONS" aria-label="They sign in as" />
     </div>
 
     <div class="field">
       <label class="schools-kicker">Access</label>
-      <select v-model="accessType" class="frost-select">
-        <option value="full">Every course</option>
-        <option value="courses">Chosen courses only</option>
-      </select>
+      <FrostSelect v-model="accessType" class="frost-select" :options="ACCESS_OPTIONS" aria-label="Access" />
     </div>
 
     <div v-if="accessType === 'courses'" class="field field-wide">
@@ -197,10 +204,7 @@ onMounted(fetchCourses)
 
     <div class="field">
       <label class="schools-kicker">For how long</label>
-      <select v-model="durationType" class="frost-select">
-        <option value="lifetime">Forever</option>
-        <option value="time_limited">A set number of days</option>
-      </select>
+      <FrostSelect v-model="durationType" class="frost-select" :options="DURATION_OPTIONS" aria-label="For how long" />
     </div>
 
     <div v-if="durationType === 'time_limited'" class="field">
