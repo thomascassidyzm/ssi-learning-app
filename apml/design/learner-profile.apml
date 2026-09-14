@@ -157,6 +157,33 @@ system RelativeStanding:
   enforced_in: "api/me/standing.test.ts · components/me/StandingPanel.test.ts"
 
 # =============================================================================
+# YOUR INSIGHTS — me v the course average, added 2026-09-14 (job #634)
+# =============================================================================
+
+system YourInsights:
+  ruling: "Tom, 2026-09-14: the library insights tool can be built, all the pieces are there already — me v the course average, never against other individuals"
+  lives: "the Library (BrowseScreen), below Activity — a card that opens the engine beneath it"
+  built: "api/me/insights.ts · components/me/YourInsights.vue · the existing insight/NodeRateEngine.vue + RateCompare.vue"
+  engine: "NodeRateEngine with endpoint=/api/me/insights — the same widget, pickers and chips as /intel and every school surface; no second adapter, no second chart"
+  minute: "the ONE definition in api/_utils/inAppTime.ts (play to stop, tagged main flow / Listening Mode); the population, packed read and per-course facts are imported from api/intel/minutes.ts"
+  entity: "the caller's own learner — 'You'; own diary read in every env"
+  comparator:
+    course: "learner-weighted: every minute on the course ÷ every person on it, the caller included when they count (job #621's definition)"
+    all_courses: "the same, pooled over every course"
+    floor: "K_FLOOR (5) other people, or an honest 'not enough other people yet' with no number"
+  measures: ["in-app minutes", "minutes per session (a session = one play-to-stop span, the engine's own unit)", "Listening Mode minutes"]
+  windows: "today · 7 days · 30 days — no all-time: the packed read times out past ~30 days (measured 2026-09-14)"
+  percentile:
+    shown: "only against the anonymous course population, only when >= PERCENTILE_FLOOR (20) people were active in the window"
+    suppressed: "below the floor the server sends NO distribution shape and a percentileNote; RateCompare renders the note where the strip, chip and rank line would be"
+  never:
+    - "another named person, at any size"
+    - "a ranking or an ordinal ('1st of 3')"
+    - "a warning colour on the viewer's own shortfall — the delta chip goes quiet, never gold"
+  guests: "the card offers sign-in; a guest has no diary the server can name"
+  enforced_in: "api/me/insights.test.ts"
+
+# =============================================================================
 # THE PLAN
 # =============================================================================
 

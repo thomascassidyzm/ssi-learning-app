@@ -8,6 +8,7 @@ import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
 import CourseBrowser from '@/components/CourseBrowser.vue'
 import HowThisWorksLibrary from '@/components/me/HowThisWorksLibrary.vue'
 import StandingPanel from '@/components/me/StandingPanel.vue'
+import YourInsights from '@/components/me/YourInsights.vue'
 import { useAuthModal } from '@/composables/useAuthModal'
 import { useSharedUserEntitlements } from '@/composables/useUserEntitlements'
 import { useSharedSubscription } from '@/composables/useSubscription'
@@ -642,6 +643,10 @@ onMounted(() => {
           </div>
         </div>
       </section>
+
+      <!-- ── Your insights — you v the course average, never v another person
+           (Tom, 2026-09-14). The one insight engine, pointed at the learner. -->
+      <YourInsights :course-code="activeCourse?.course_code" :is-guest="isGuest" @sign-in="emit('close'); openAuth()" />
 
       <!-- ── Section 4: All Courses ── -->
       <section class="section">

@@ -2150,3 +2150,33 @@ new cost is one classes query on the Handbook for staff who have a class-page cl
 
 **Result on staging.** See the coverage census published with the job report. Entries with no walk
 at all are listed there as the clip-coverage gap, with a proposed clip for each, for a follow-up job.
+
+## 2026-09-14 — Your insights in the Library: me v the course average, never v a person (job #634)
+
+**Tom (02:45Z).** "The library insights tool can be built, all the pieces are there already." A
+learner sees how they are doing at a granular level and compares themselves against the course
+average — "never against other individuals of course".
+
+**Decision.** (1) One new route, `/api/me/insights`, speaks the rate-compare contract the
+NodeRateEngine and RateCompare widget already draw, so the Library mounts the SAME engine as
+`/intel` and every school surface with one prop changed. (2) No second minutes query: the population
+resolver, the packed diary read, the sessionisation and the per-course facts are imported from
+`api/intel/minutes.ts`; that module's facts grew span counts and per-bucket Listening Mode seconds
+so the learner's three measures ride the same object. (3) The comparator is the learner-weighted
+figure of job #621 — every minute on the course over every person on it, the caller included — or
+the same pooled over all courses. (4) A session is the engine's own unit, one play-to-stop span;
+nothing new was defined. (5) A percentile appears only against the anonymous course population and
+only when 20 or more people were active in the window; below that the server sends no shape at all
+and the widget says "not enough people yet". The widget also stops colouring the viewer's own
+shortfall as a warning. (6) No all-time window: the packed read carries 30 days in ~2 s and times
+out at 90, measured live; the chips say today / 7 days / 30 days and nothing pretends otherwise.
+
+**Better × Simpler × Cheaper.** The learner gets the same honest numbers the admin reads, in the
+same shape; one engine, one minute rule, one widget, and a route of ~300 lines whose only new maths
+is three learner-weighted divisions and a floor; the cost is one packed read plus the enrolment
+scan per open of the panel — the price of not forking the minute — and nothing on the home screen.
+
+**Flag for Tom.** The standing doctrine in `apml/design/learner-profile.apml` argues a windowed
+percentile can fall while a learner is away. This tool shows one at 20+ active people because the
+brief allows it; if that reads as a streak in disguise, the floor can be set to infinity and the
+card still says everything else.
