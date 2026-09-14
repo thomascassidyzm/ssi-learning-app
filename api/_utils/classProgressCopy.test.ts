@@ -18,29 +18,50 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import {
   planCopy, applyCopy, undoCopy, compareLego, cursorPosition, COPY_TABLES, SKIPPED_TABLES, AUDIT_TABLE,
 } from './classProgressCopy'
+import { backfillCopyNotices } from './copyPlayNotice'
 
 type Row = Record<string, any>
 let DB: Record<string, Row[]>
 let nextId = 1
 let failOnInsert: string | null = null
 
+const clone = <T>(v: T): T => (v == null ? v : JSON.parse(JSON.stringify(v)))
+
 function makeQuery(table: string) {
-  const filters: Array<[string, any]> = []
-  const inFilters: Array<[string, any[]]> = []
+  const filters: Array<(r: Row) => boolean> = []
   const q: any = {
     select() { return q },
-    eq(col: string, val: any) { filters.push([col, val]); return q },
-    is(col: string, val: any) { filters.push([col, val]); return q },
-    in(col: string, vals: any[]) { inFilters.push([col, vals]); return q },
-    order() { return q },
-    // Reads hand back COPIES, as the wire does: a caller that holds a read
-    // row must not see a later update through it.
-    range(from: number, to: number) {
-      return Promise.resolve({ data: read().slice(from, to + 1), error: null })
+    eq(col: string, val: any) { filters.push((r) => r[col] === val); return q },
+    is(col: string, val: any) { filters.push((r) => r[col] == val); return q },
+    gt(col: string, val: any) { filters.push((r) => r[col] != null && String(r[col]) > String(val)); return q },
+    in(col: string, vals: any[]) { const set = new Set(vals.map(String)); filters.push((r) => set.has(String(r[col]))); return q },
+    limit() { return q },
+    delete() {
+      const del: any = {
+        eq(col: string, val: any) { filters.push((r) => r[col] === val); return del },
+        in(col: string, vals: any[]) { const set = new Set(vals.map(String)); filters.push((r) => set.has(String(r[col]))); return del },
+        then(res: any, rej: any) {
+          const gone = new Set(rows())
+          DB[table] = (DB[table] ?? []).filter((r) => !gone.has(r))
+          return Promise.resolve({ data: null, error: null }).then(res, rej)
+        },
+      }
+      return del
     },
-    maybeSingle() { return Promise.resolve({ data: read()[0] ?? null, error: null }) },
-    single() { const r = read()[0]; return Promise.resolve({ data: r ?? null, error: r ? null : { message: 'none' } }) },
-    then(res: any, rej: any) { return Promise.resolve({ data: read(), error: null }).then(res, rej) },
+    upsert(payload: Row, opts: { onConflict: string }) {
+      const dup = (DB[table] ?? []).some((r) => r[opts.onConflict] != null && r[opts.onConflict] === payload[opts.onConflict])
+      if (dup) return { select: () => Promise.resolve({ data: [], error: null }) }
+      return q.insert(payload)
+    },
+    order() { return q },
+    // Reads hand back COPIES, as PostgREST does: a snapshot taken before an
+    // update must not change under it.
+    range(from: number, to: number) {
+      return Promise.resolve({ data: clone(rows().slice(from, to + 1)), error: null })
+    },
+    maybeSingle() { return Promise.resolve({ data: clone(rows()[0] ?? null), error: null }) },
+    single() { const r = rows()[0]; return Promise.resolve({ data: clone(r ?? null), error: r ? null : { message: 'none' } }) },
+    then(res: any, rej: any) { return Promise.resolve({ data: clone(rows()), error: null }).then(res, rej) },
     insert(payload: Row | Row[]) {
       const list = Array.isArray(payload) ? payload : [payload]
       if (failOnInsert === table) return { select: () => Promise.resolve({ data: null, error: { message: 'boom' } }) }
@@ -49,7 +70,7 @@ function makeQuery(table: string) {
         if (table === 'sessions' && !row.id) row.id = `s-new-${nextId++}`
         if (table === 'player_events' && !row.id) row.id = nextId++
         if ((table === 'response_metrics' || table === 'spike_events') && !row.db_id) row.db_id = `m-new-${nextId++}`
-        if (table === AUDIT_TABLE) row.id = `audit-${nextId++}`
+        if (table === AUDIT_TABLE) { row.id = `audit-${nextId++}`; row.created_at ??= new Date().toISOString() }
         if (!('id' in row)) row.id = `row-${nextId++}`
         DB[table].push(row)
         return row
@@ -63,7 +84,8 @@ function makeQuery(table: string) {
     },
     update(patch: Row) {
       const upd: any = {
-        eq(col: string, val: any) { filters.push([col, val]); return upd },
+        eq(col: string, val: any) { filters.push((r) => r[col] === val); return upd },
+        is(col: string, val: any) { filters.push((r) => r[col] == val); return upd },
         then(res: any, rej: any) {
           for (const r of rows()) Object.assign(r, patch)
           return Promise.resolve({ data: null, error: null }).then(res, rej)
@@ -71,32 +93,9 @@ function makeQuery(table: string) {
       }
       return upd
     },
-    delete() {
-      const del: any = {
-        eq(col: string, val: any) { filters.push([col, val]); return del },
-        in(col: string, vals: any[]) { inFilters.push([col, vals]); return del },
-        select() {
-          const hit = rows()
-          DB[table] = (DB[table] ?? []).filter((r) => !hit.includes(r))
-          return Promise.resolve({ data: hit, error: null })
-        },
-        then(res: any, rej: any) {
-          const hit = rows()
-          DB[table] = (DB[table] ?? []).filter((r) => !hit.includes(r))
-          return Promise.resolve({ data: hit, error: null }).then(res, rej)
-        },
-      }
-      return del
-    },
   }
-  function read(): Row[] { return rows().map((r) => structuredClone(r)) }
   function rows(): Row[] {
-    return (DB[table] ?? []).filter(
-      // `in` compares as text, the way PostgREST does: the filter goes over the
-      // wire as text and the server casts it to the column type.
-      (r) => filters.every(([c, v]) => r[c] === v)
-        && inFilters.every(([c, vs]) => vs.some((v) => String(v) === String(r[c]))),
-    )
+    return (DB[table] ?? []).filter((r) => filters.every((f) => f(r)))
   }
   return q
 }
@@ -107,9 +106,15 @@ const TEACHER = 'teacher-learner', CLASS = 'class-learner', COURSE = 'cym_s_for_
 beforeEach(() => {
   nextId = 1
   failOnInsert = null
-  DB = Object.fromEntries([...COPY_TABLES.map((s) => s.table), 'course_enrollments', AUDIT_TABLE].map((t) => [t, []]))
-  DB.sessions.push({ id: 's1', learner_id: TEACHER, course_id: COURSE, duration_seconds: 60 })
-  DB.sessions.push({ id: 's2', learner_id: TEACHER, course_id: COURSE, duration_seconds: 30 })
+  DB = Object.fromEntries([...COPY_TABLES.map((s) => s.table), 'course_enrollments', AUDIT_TABLE, 'learners', 'classes', 'courses', 'user_messages'].map((t) => [t, []]))
+  DB.learners.push({ id: TEACHER, user_id: 'teacher-uid' })
+  DB.classes.push({ id: 'class-1', class_name: 'Year 7 Spanish' })
+  DB.courses.push({ course_code: COURSE, display_name: 'Welsh (South)', learner_display_name: 'Welsh' })
+  DB.sessions.push({ id: 's1', learner_id: TEACHER, course_id: COURSE, duration_seconds: 60, started_at: '2026-09-10T07:00:00Z' })
+  DB.sessions.push({ id: 's2', learner_id: TEACHER, course_id: COURSE, duration_seconds: 30, started_at: '2026-09-10T08:00:00Z' })
+  // What the class account held BEFORE any copy: must survive an undo untouched.
+  DB.sessions.push({ id: 's-class-old', learner_id: CLASS, course_id: COURSE, duration_seconds: 20, started_at: '2026-09-01T09:00:00Z' })
+  DB.lego_progress.push({ id: 'lp-class-old', learner_id: CLASS, course_id: COURSE, lego_id: 'S0002L01', reps_completed: 1 })
   DB.sessions.push({ id: 's-other', learner_id: TEACHER, course_id: 'spa_for_eng', duration_seconds: 30 })
   DB.player_events.push({ id: 1, user_id: TEACHER, learner_id: TEACHER, course_code: COURSE, occurred_at: '2026-09-10T07:00:00Z', event_type: 'tap_play' })
   DB.player_events.push({ id: 2, user_id: TEACHER, learner_id: TEACHER, course_code: COURSE, occurred_at: '2026-09-10T07:02:00Z', event_type: 'audio_play' })
@@ -148,7 +153,7 @@ describe('applyCopy', () => {
     expect(error).toBeNull()
     expect(auditId).toBe(DB[AUDIT_TABLE][0].id)
     const classSessions = DB.sessions.filter((r) => r.learner_id === CLASS)
-    expect(classSessions).toHaveLength(2)
+    expect(classSessions).toHaveLength(3) // two copied, plus the one the class already had
     expect(DB.sessions.filter((r) => r.learner_id === TEACHER)).toHaveLength(3) // copy, not move
     const classEvents = DB.player_events.filter((r) => r.learner_id === CLASS)
     expect(classEvents).toHaveLength(2)
@@ -216,6 +221,90 @@ describe('applyCopy', () => {
   })
 })
 
+
+describe('the copy notice (job #684)', () => {
+  it('lands once in the teacher\'s inbox with the undo action, and the backfill does not double it', async () => {
+    await applyCopy(svc, await planCopy(svc, params), { actorUserId: 'angharad', classId: 'class-1' })
+    expect(DB.user_messages).toHaveLength(1)
+    const m = DB.user_messages[0]
+    expect(m.recipient_user_id).toBe('teacher-uid')
+    expect(m.source).toBe('class_play_copied')
+    expect(m.title).toBe("Your own practice on Welsh is now on Year 7 Spanish's account")
+    expect(m.action.kind).toBe('undo_class_play_copy')
+    expect(m.action.payload.audit_id).toBe(DB[AUDIT_TABLE][0].id)
+    expect(m.dedupe_key).toBe(`class_play_copied:${DB[AUDIT_TABLE][0].id}`)
+    expect(m.read_at).toBeUndefined() // delivered is not seen
+    const outcome = await backfillCopyNotices(svc)
+    expect(outcome).toMatchObject({ considered: 1, sent: 0, already: 1 })
+    expect(DB.user_messages).toHaveLength(1)
+  })
+
+  it('a no-op second run sends nothing', async () => {
+    await applyCopy(svc, await planCopy(svc, params), { actorUserId: 'angharad', classId: 'class-1' })
+    await applyCopy(svc, await planCopy(svc, params), { actorUserId: 'angharad', classId: 'class-1' })
+    expect(DB[AUDIT_TABLE]).toHaveLength(2)
+    expect(DB.user_messages).toHaveLength(1)
+  })
+})
+
+describe('undoCopy (job #684)', () => {
+  it('removes exactly the copied ids, leaves the rows the class held before untouched, restores the cursor, and lets the copy run again', async () => {
+    const { auditId } = await applyCopy(svc, await planCopy(svc, params), { actorUserId: 'angharad', classId: 'class-1' })
+    expect(DB.sessions.filter((r) => r.learner_id === CLASS)).toHaveLength(3)
+    expect(DB.lego_progress.filter((r) => r.learner_id === CLASS)).toHaveLength(2)
+
+    const outcome = await undoCopy(svc, auditId!, { actorUserId: 'teacher-uid' })
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    expect(outcome.deleted).toMatchObject({ sessions: 2, player_events: 2, response_metrics: 1, lego_progress: 1 })
+
+    // Exactly the copied rows are gone; the class's own rows survive.
+    expect(DB.sessions.filter((r) => r.learner_id === CLASS).map((r) => r.id)).toEqual(['s-class-old'])
+    expect(DB.player_events.filter((r) => r.learner_id === CLASS)).toHaveLength(0)
+    expect(DB.response_metrics.filter((r) => r.learner_id === CLASS)).toHaveLength(0)
+    expect(DB.lego_progress.filter((r) => r.learner_id === CLASS).map((r) => r.id)).toEqual(['lp-class-old'])
+    // The teacher's rows were never touched.
+    expect(DB.sessions.filter((r) => r.learner_id === TEACHER)).toHaveLength(3)
+    expect(DB.lego_progress.filter((r) => r.learner_id === TEACHER)).toHaveLength(1)
+    // Cursor and minutes back to before.
+    const cls = DB.course_enrollments.find((r) => r.learner_id === CLASS)
+    expect(cls.last_completed_lego_id).toBe('S0002L01')
+    expect(cls.last_completed_round_index).toBe(2)
+    expect(cls.helix_state).toEqual({ t: 0 })
+    expect(cls.total_practice_minutes).toBe(1)
+    expect(cls.last_practiced_at).toBe('2026-09-01T00:00:00Z')
+    // Append-only trail: the undo is a second row naming the first.
+    expect(DB[AUDIT_TABLE]).toHaveLength(2)
+    expect(DB[AUDIT_TABLE][1].record.undo_of).toBe(auditId)
+    expect(DB[AUDIT_TABLE][1].record.deleted.sessions).toHaveLength(2)
+    expect(DB[AUDIT_TABLE][1].actor_user_id).toBe('teacher-uid')
+    // And the next preview offers the rows again: undo made re-copy possible.
+    const plan = await planCopy(svc, params)
+    expect(plan.toCopy.sessions).toBe(2)
+    expect(plan.priorRuns).toBe(0)
+  })
+
+  it('refuses when the class account has played since the copy, and deletes nothing', async () => {
+    const { auditId } = await applyCopy(svc, await planCopy(svc, params), { actorUserId: 'angharad', classId: 'class-1' })
+    DB.sessions.push({ id: 's-class-new', learner_id: CLASS, course_id: COURSE, duration_seconds: 9, started_at: '2999-01-01T00:00:00Z' })
+    const before = JSON.stringify(DB)
+    const outcome = await undoCopy(svc, auditId!, { actorUserId: 'teacher-uid' })
+    expect(outcome).toEqual({ ok: false, reason: 'played_since' })
+    expect(JSON.stringify(DB)).toBe(before)
+  })
+
+  it('refuses a second undo of the same copy', async () => {
+    const { auditId } = await applyCopy(svc, await planCopy(svc, params), { actorUserId: 'angharad', classId: 'class-1' })
+    expect((await undoCopy(svc, auditId!, { actorUserId: 'teacher-uid' })).ok).toBe(true)
+    expect(await undoCopy(svc, auditId!, { actorUserId: 'teacher-uid' })).toEqual({ ok: false, reason: 'already_undone' })
+    expect(DB[AUDIT_TABLE]).toHaveLength(2)
+  })
+
+  it('an unknown audit id is not_found', async () => {
+    expect(await undoCopy(svc, 'nope', { actorUserId: 'x' })).toEqual({ ok: false, reason: 'not_found' })
+  })
+})
+
 describe('position arithmetic', () => {
   it('compares by round index first, then by zero-padded lego id, and null is furthest behind', () => {
     expect(compareLego({ legoId: 'S0008L01', roundIndex: 13 }, { legoId: 'S0009L01', roundIndex: 12 })).toBe(1)
@@ -227,72 +316,5 @@ describe('position arithmetic', () => {
     expect(cursorPosition({ last_completed_lego_id: 'S0008L01', last_completed_round_index: 13, highest_completed_lego_id: 'S0005L01', highest_completed_round_index: 7 } as any))
       .toEqual({ legoId: 'S0008L01', roundIndex: 13 })
     expect(cursorPosition(null)).toEqual({ legoId: null, roundIndex: null })
-  })
-})
-
-/**
- * undoCopy — the one tap behind the teacher's notice. The sweep writes her
- * play onto her class account without asking; this is how she puts it back.
- */
-describe('undoCopy', () => {
-  it('deletes exactly the rows the copy created, restores the class cursor, and leaves the teacher untouched', async () => {
-    const plan = await planCopy(svc, params)
-    const { auditId } = await applyCopy(svc, plan, { actorUserId: 'sweep', classId: 'class-1' })
-    expect(DB.sessions.filter((r) => r.learner_id === CLASS)).toHaveLength(2)
-
-    const res = await undoCopy(svc, auditId!, { actorUserId: 'davidlane' })
-
-    expect(res.undone).toBe(true)
-    expect(res.alreadyUndone).toBe(false)
-    expect(res.error).toBeUndefined()
-    // every copied row is gone from the class side
-    expect(DB.sessions.filter((r) => r.learner_id === CLASS)).toHaveLength(0)
-    expect(DB.player_events.filter((r) => r.learner_id === CLASS)).toHaveLength(0)
-    expect(DB.response_metrics.filter((r) => r.learner_id === CLASS)).toHaveLength(0)
-    expect(DB.lego_progress.filter((r) => r.learner_id === CLASS)).toHaveLength(0)
-    // the teacher's own rows were never touched, before or after
-    expect(DB.sessions.filter((r) => r.learner_id === TEACHER)).toHaveLength(3)
-    expect(DB.player_events.filter((r) => r.learner_id === TEACHER)).toHaveLength(2)
-    // the row the class already had is NOT collateral: its key was never in the record
-    expect(DB.learner_speaking_opportunities.filter((r) => r.learner_id === CLASS)).toHaveLength(1)
-    // the class's own cursor, exactly as it stood before the copy
-    const cls = DB.course_enrollments.find((r) => r.learner_id === CLASS)
-    expect(cls.last_completed_lego_id).toBe('S0002L01')
-    expect(cls.last_completed_round_index).toBe(2)
-    expect(cls.helix_state).toEqual({ t: 0 })
-    expect(cls.total_practice_minutes).toBe(1)
-    expect(res.detail!.cursor).toBe('restored')
-    expect(res.detail!.minutesRemoved).toBe(4)
-    // and one audit row naming the copy it reversed
-    const undoRow = DB[AUDIT_TABLE].find((r) => r.record.undo_of === auditId)
-    expect(undoRow).toBeTruthy()
-    expect(undoRow.actor_user_id).toBe('davidlane')
-  })
-
-  it('a re-copy after an undo works again: the undone source ids are copyable, not counted as already done', async () => {
-    const { auditId } = await applyCopy(svc, await planCopy(svc, params), { actorUserId: 'sweep', classId: 'class-1' })
-    await undoCopy(svc, auditId!, { actorUserId: 'davidlane' })
-    const plan = await planCopy(svc, params)
-    expect(plan.toCopy.sessions).toBe(2)
-    expect(plan.toCopy.player_events).toBe(2)
-    expect(plan.priorRuns).toBe(0)
-    expect(plan.minutesToAdd).toBe(4)
-  })
-
-  it('undoing twice is a no-op that says so, and deletes nothing the second time', async () => {
-    const { auditId } = await applyCopy(svc, await planCopy(svc, params), { actorUserId: 'sweep', classId: 'class-1' })
-    await undoCopy(svc, auditId!, { actorUserId: 'davidlane' })
-    const snapshot = JSON.stringify({ ...DB, [AUDIT_TABLE]: undefined })
-    const again = await undoCopy(svc, auditId!, { actorUserId: 'davidlane' })
-    expect(again.alreadyUndone).toBe(true)
-    expect(again.undone).toBe(false)
-    expect(JSON.stringify({ ...DB, [AUDIT_TABLE]: undefined })).toBe(snapshot)
-  })
-
-  it('refuses an unknown record and refuses to undo an undo', async () => {
-    const { auditId } = await applyCopy(svc, await planCopy(svc, params), { actorUserId: 'sweep', classId: 'class-1' })
-    const undo = await undoCopy(svc, auditId!, { actorUserId: 'davidlane' })
-    expect((await undoCopy(svc, 'no-such-id', { actorUserId: 'x' })).error).toBe('No such copy')
-    expect((await undoCopy(svc, undo.undoAuditId!, { actorUserId: 'x' })).error).toMatch(/itself an undo/)
   })
 })
