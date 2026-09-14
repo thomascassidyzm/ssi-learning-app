@@ -10,7 +10,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import { createPaywallRetreat } from './paywallRetreat'
-import { grantAction, restoreHeldPosition, type RestoreEngine } from './paywallGrant'
+import { grantAction, recoverHeldPosition, restoreHeldPosition, type RestoreEngine } from './paywallGrant'
 
 const upTo = (max: number) => (seed: number) => seed <= max
 
@@ -77,11 +77,59 @@ describe('grantAction', () => {
   it('a grant whose restore succeeded lowers the wall and resumes on the real place', () => {
     expect(grantAction({ held: true, restored: true, accessNow: true })).toBe('lower-and-resume')
   })
-  it('a grant whose restore FAILED lowers the wall but never resumes at the retreat', () => {
-    expect(grantAction({ held: true, restored: false, accessNow: true })).toBe('lower-paused')
+  it('a grant whose restore FAILED lowers the wall and RECOVERS the place — never resumes at the retreat, never sits paused (job #757)', () => {
+    expect(grantAction({ held: true, restored: false, accessNow: true })).toBe('lower-and-recover')
   })
   it('no access yet: the wall stays', () => {
     expect(grantAction({ held: true, restored: false, accessNow: false })).toBe('stay')
     expect(grantAction({ held: false, restored: false, accessNow: false })).toBe('stay')
+  })
+})
+
+// Job #757: the held LEGO is absent because the queue is the PREVIEW the server
+// issued before the grant. Waiting never brings it; a refetch under the grant
+// does. Real test against a fake engine whose refetch grows the queue.
+describe('recoverHeldPosition', () => {
+  it('refetches when the live queue lacks the held LEGO, then restores onto it and reports success', async () => {
+    const m = createPaywallRetreat()
+    m.remember({ roundIndex: 0, cycleIndex: 0, legoId: 'S0031L01' })
+    const e = fakeEngine(['S0019L01'])
+    let refetches = 0
+    const ok = await recoverHeldPosition(m, e, upTo(999), async () => { refetches += 1; e.add(['S0020L01', 'S0031L01']) })
+    expect(ok).toBe(true)
+    expect(refetches).toBe(1)
+    expect(e.currentLegoId()).toBe('S0031L01')
+    expect(m.blocksPersist()).toBe(true) // spent by the play-on prompt, not here
+  })
+
+  it('does not refetch when the LEGO is already in the queue', async () => {
+    const m = createPaywallRetreat()
+    m.remember({ roundIndex: 0, cycleIndex: 1, legoId: 'S0031L01' })
+    const e = fakeEngine(['S0019L01', 'S0031L01'])
+    let refetches = 0
+    expect(await recoverHeldPosition(m, e, upTo(999), async () => { refetches += 1 })).toBe(true)
+    expect(refetches).toBe(0)
+    expect(e.currentLegoId()).toBe('S0031L01')
+  })
+
+  it('a refetch that throws, or that still lacks the LEGO, is a failure that keeps the memory and moves nothing', async () => {
+    const m = createPaywallRetreat()
+    m.remember({ roundIndex: 0, cycleIndex: 0, legoId: 'S0031L01' })
+    const e = fakeEngine(['S0019L01'])
+    expect(await recoverHeldPosition(m, e, upTo(999), async () => { throw new Error('offline') })).toBe(false)
+    expect(await recoverHeldPosition(m, e, upTo(999), async () => { e.add(['S0020L01']) })).toBe(false)
+    expect(e.currentLegoId()).toBe('S0019L01')
+    expect(m.blocksPersist()).toBe(true)
+  })
+
+  it('never refetches when nothing is held or the held seed is still locked', async () => {
+    const m = createPaywallRetreat()
+    const e = fakeEngine(['S0019L01'])
+    let refetches = 0
+    const refetch = async () => { refetches += 1 }
+    expect(await recoverHeldPosition(m, e, upTo(999), refetch)).toBe(false)
+    m.remember({ roundIndex: 0, cycleIndex: 0, legoId: 'S0031L01' })
+    expect(await recoverHeldPosition(m, e, upTo(19), refetch)).toBe(false)
+    expect(refetches).toBe(0)
   })
 })
