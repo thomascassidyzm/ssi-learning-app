@@ -3,8 +3,8 @@
 
 metadata:
   title: "User Message Inbox"
-  version: "1.0.0"
-  date: "2026-09-14"   # Job #684: one message primitive per user; first specimen the teacher-play copy notice with one-tap undo
+  version: "1.1.0"
+  date: "2026-09-15"   # Job #821: admin-to-learner messaging + reply-to-support. Job #684: one message primitive per user; first specimen the teacher-play copy notice with one-tap undo
   author: "Tom Cassidy"
   status: "live on dev/staging"
 
@@ -85,3 +85,40 @@ surface learner:
   card: "BrowseScreen (Library) top — one card for the newest unread message; Dismiss hides it for good; tap opens the inbox"
   more: "views/me/ProfileView.vue — Inbox row with the count, above Report a bug; never in Settings"
   route: "/me/inbox → views/me/InboxView.vue"
+
+# =============================================================================
+# ADMIN-TO-LEARNER MESSAGING (job #821, 2026-09-15)
+# =============================================================================
+
+principle ReachOutByCourse:
+  ruling: "Tom, 2026-09-15: reaching out to learners with the ability to let them know about new features, other things that have gone live, new PODS and so on… by course… once they message support then the channel becomes live."
+  delivery: "inbox rows only — no push, no email, no badge beyond the existing quiet unread dot, no modal over play (dog energy, never dentist energy)"
+  copy: "pods are 1-indexed in anything a learner reads: Pod 1, never pod-0"
+
+table admin_messages:
+  purpose: "one row per broadcast; id minted by the composer before preview so a retried send is idempotent"
+  posture: "RLS on, no client grants; service-role only"
+  migration: "supabase/migrations/20260915b_admin_messages_and_learner_threads.sql (applied live 2026-09-15)"
+
+source admin_message:
+  dedupe_key: "admin_message:<broadcast id>:<recipient auth uid>"
+  audiences:
+    one: "a named learner by auth uid, chosen through the People search; taken as named"
+    course: "every learner with progress on the course (course_enrollments played: last_practiced_at, highest_completed_lego_id or minutes); demo, internal and class-entity accounts excluded"
+    all: "every learner; the same exclusions"
+  server: "api/_utils/adminMessages.ts — resolveAudience, courseAudiences, sendAdminMessage, parseSendBody"
+  routes:
+    - "GET /api/admin/messages → { courses[], sent[], all } (ssi_admin only)"
+    - "GET /api/admin/messages/audience?kind=…&course_code=…&user_id=… → { count, sample[] }"
+    - "POST /api/admin/messages/send {id, kind, course_code?, user_id?, title, body} → { id, audience, sent }; a retry reports sent 0"
+  composer: "/admin/messages → views/admin/AdminMessages.vue, Admin > Tools > Messages; phone-first; two-tap send (Send, then Yes, send to N)"
+  rendering: "UserMessageList — markdown-light (paragraphs, **bold**, bare https links) via utils/markdownLight.ts; no HTML ever injected"
+
+reply_to_support:
+  statement: "A learner's reply opens a learner-owned support thread: support_threads.learner_user_id + origin_message_id, one thread per learner-message pair."
+  routes:
+    - "POST /api/messages/reply {id, text} → writes support_messages direction 'in' (author_via jwt) with envelope.server.origin naming the message"
+    - "GET /api/messages/thread?id=… → the turns oldest first; marks the thread read"
+  admin_side: "the row reaches the support_inbox view and the watson-1 watcher (command-surface tools/support/inbox.cjs) exactly as a school admin's question; Tom's reply via tools/support/reply.cjs is an 'out' row"
+  back_to_learner: "user_messages_from_support_reply(): for a learner thread it clears read_at on the origin message instead of minting a new row, so the message shows unread again with the reply inside"
+  server: "api/_utils/learnerThread.ts"

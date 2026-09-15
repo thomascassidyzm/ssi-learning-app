@@ -6736,6 +6736,17 @@ BEGIN
     IF NOT FOUND THEN
       RETURN NEW;
     END IF;
+
+    -- A learner thread (job #821): the reply lives inside the origin message,
+    -- so make that message unread again rather than minting a second row.
+    IF t.learner_user_id IS NOT NULL THEN
+      UPDATE public.user_messages
+         SET read_at = NULL
+       WHERE id = t.origin_message_id
+         AND recipient_user_id = t.learner_user_id;
+      RETURN NEW;
+    END IF;
+
     IF t.language = 'cym' THEN
       v_title := 'Ateb ar sgwrs Gymorth eich ysgol';
       v_label := 'Agor Cymorth';
@@ -7006,6 +7017,32 @@ CREATE UNLOGGED TABLE public._fix_voice_map (
     raw text,
     canon text
 );
+
+
+--
+-- Name: admin_messages; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.admin_messages (
+    id uuid NOT NULL,
+    sender_user_id text NOT NULL,
+    audience_kind text NOT NULL,
+    course_code text,
+    target_user_id text,
+    title text NOT NULL,
+    body text NOT NULL,
+    recipient_count integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    sent_at timestamp with time zone,
+    CONSTRAINT admin_messages_audience_kind_check CHECK ((audience_kind = ANY (ARRAY['one'::text, 'course'::text, 'all'::text])))
+);
+
+
+--
+-- Name: TABLE admin_messages; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.admin_messages IS 'One row per admin-to-learner broadcast (job #821). The id is minted by the composer before preview, so a retried send is idempotent: user_messages rows carry dedupe_key admin_message:<id>:<recipient>. Service-role only.';
 
 
 --
@@ -12676,7 +12713,9 @@ CREATE TABLE public.support_threads (
     last_read_at timestamp with time zone,
     language text,
     standing_notes jsonb DEFAULT '{}'::jsonb NOT NULL,
-    CONSTRAINT support_threads_one_owner CHECK ((((school_id IS NOT NULL) AND (group_id IS NULL)) OR ((school_id IS NULL) AND (group_id IS NOT NULL))))
+    learner_user_id text,
+    origin_message_id uuid,
+    CONSTRAINT support_threads_one_owner CHECK ((((school_id IS NOT NULL) AND (group_id IS NULL) AND (learner_user_id IS NULL)) OR ((school_id IS NULL) AND (group_id IS NOT NULL) AND (learner_user_id IS NULL)) OR ((school_id IS NULL) AND (group_id IS NULL) AND (learner_user_id IS NOT NULL) AND (origin_message_id IS NOT NULL))))
 );
 
 
@@ -13229,7 +13268,7 @@ CREATE TABLE public.user_messages (
     dismissed_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     dedupe_key text,
-    CONSTRAINT user_messages_source_check CHECK ((source = ANY (ARRAY['support_reply'::text, 'class_play_copied'::text])))
+    CONSTRAINT user_messages_source_check CHECK ((source = ANY (ARRAY['support_reply'::text, 'class_play_copied'::text, 'admin_message'::text])))
 );
 
 
@@ -17690,6 +17729,13 @@ CREATE UNIQUE INDEX support_threads_group_uniq ON public.support_threads USING b
 --
 
 CREATE UNIQUE INDEX support_threads_school_uniq ON public.support_threads USING btree (school_id) WHERE (school_id IS NOT NULL);
+
+
+--
+-- Name: support_threads_learner_message_uniq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX support_threads_learner_message_uniq ON public.support_threads USING btree (learner_user_id, origin_message_id) WHERE (learner_user_id IS NOT NULL);
 
 
 --

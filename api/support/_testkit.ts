@@ -23,8 +23,9 @@ let seq = 0
 export function makeChainable(db: DB, table: string) {
   let rows: Row[] = [...(db[table] ?? [])]
   let single: 'maybe' | 'single' | null = null
-  let pending: { kind: 'insert' | 'update' | 'delete' | 'noop'; values: Row } | null = null
+  let pending: { kind: 'insert' | 'update' | 'delete' | 'noop'; values: Row | Row[] } | null = null
   const filters: Array<(r: Row) => boolean> = []
+  let rangeOf: [number, number] | null = null
   const builder: any = {
     select: () => builder,
     insert: (values: Row) => { pending = { kind: 'insert', values }; return builder },
@@ -42,11 +43,14 @@ export function makeChainable(db: DB, table: string) {
       filters.push((r) => subset(r[col], pattern))
       return builder
     },
-    upsert: (values: Row, opts: { onConflict: string; ignoreDuplicates?: boolean }) => {
-      const dup = (db[table] ?? []).some((r) => r[opts.onConflict] != null && r[opts.onConflict] === values[opts.onConflict])
-      pending = dup ? { kind: 'noop', values } : { kind: 'insert', values }
+    upsert: (values: Row | Row[], opts: { onConflict: string; ignoreDuplicates?: boolean }) => {
+      const list = Array.isArray(values) ? values : [values]
+      const fresh = list.filter((v) => !(db[table] ?? []).some((r) => r[opts.onConflict] != null && r[opts.onConflict] === v[opts.onConflict]))
+      pending = fresh.length === 0 ? { kind: 'noop', values: {} } : { kind: 'insert', values: Array.isArray(values) ? fresh : fresh[0] }
       return builder
     },
+    /** PostgREST paging: rows [from, to] of the filtered set. */
+    range: (from: number, to: number) => { rangeOf = [from, to]; return builder },
     delete: () => { pending = { kind: 'delete', values: {} }; return builder },
     gte: (col: string, val: string) => { filters.push((r) => String(r[col]) >= val); return builder },
     order: (col: string, opts?: { ascending?: boolean }) => {
@@ -63,12 +67,15 @@ export function makeChainable(db: DB, table: string) {
       if (failure) return Promise.resolve({ data: null, error: failure, count: null }).then(resolve, reject)
       let out: Row[]
       if (pending?.kind === 'insert') {
-        const row = { id: `row-${++seq}`, created_at: new Date(Date.now() + seq).toISOString(), ...pending.values }
-        ;(db[table] ||= []).push(row)
-        out = [row]
+        const list = Array.isArray(pending.values) ? pending.values : [pending.values]
+        out = list.map((v) => {
+          const row = { id: `row-${++seq}`, created_at: new Date(Date.now() + seq).toISOString(), ...v }
+          ;(db[table] ||= []).push(row)
+          return row
+        })
       } else if (pending?.kind === 'update') {
         out = []
-        for (const r of db[table] ?? []) if (filters.every((f) => f(r))) { Object.assign(r, pending.values); out.push(r) }
+        for (const r of db[table] ?? []) if (filters.every((f) => f(r))) { Object.assign(r, pending.values as Row); out.push(r) }
       } else if (pending?.kind === 'delete') {
         out = (db[table] ?? []).filter((r) => filters.every((f) => f(r)))
         db[table] = (db[table] ?? []).filter((r) => !out.includes(r))
@@ -76,6 +83,7 @@ export function makeChainable(db: DB, table: string) {
         out = []
       } else {
         out = rows.filter((r) => filters.every((f) => f(r)))
+        if (rangeOf) out = out.slice(rangeOf[0], rangeOf[1] + 1)
       }
       const data = single ? (out[0] ?? null) : out
       const error = single === 'single' && !out[0] ? { message: 'no row' } : null

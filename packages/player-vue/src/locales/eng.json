@@ -3166,6 +3166,16 @@
     "backToYou": "Back",
     "cardAria": "A message for you",
     "cardHint": "Tap to read",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "fromSsi": "From SSi",
+    "replyLabel": "Write back",
+    "replyPlaceholder": "Anything you want to tell us",
+    "send": "Send",
+    "sending": "Sending…",
+    "replySent": "Sent. We read every reply and will answer you here.",
+    "replyFailed": "That did not send. Please try again.",
+    "you": "You",
+    "ssi": "SSi",
+    "threadLoadFailed": "Could not load the replies."
   }
 }
