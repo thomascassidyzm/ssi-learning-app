@@ -51,3 +51,16 @@ describe('ViewAsPicker — real numbers beside every name, busiest first', () =>
     expect(viewAs).toHaveBeenCalledWith(expect.objectContaining({ userId: 'angharad' }))
   })
 })
+
+describe('ViewAsPicker — the person search on a phone', () => {
+  it('sits in its own block the phone puts first, with the Search key and no autocorrect (Tom, 2026-09-15: search broken on mobile)', async () => {
+    const { default: ViewAsPicker } = await import('./ViewAsPicker.vue')
+    const w = mount(ViewAsPicker)
+    await w.find('[data-testid="view-as-open"]').trigger('click')
+    const input = w.find('.vap-person [data-testid="view-as-search"]')
+    expect(input.exists()).toBe(true)
+    expect(input.attributes('enterkeyhint')).toBe('search')
+    expect(input.attributes('autocorrect')).toBe('off')
+    expect(w.find('.vap-roles [data-testid="view-as-role-teacher"]').exists()).toBe(true)
+  })
+})

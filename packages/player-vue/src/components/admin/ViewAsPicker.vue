@@ -175,6 +175,10 @@ const errorText = computed(() => viewAsError.value)
     </button>
 
     <div v-if="open" class="vap-menu">
+      <!-- Two blocks so a phone can put the person search FIRST: below the
+           four role rows the box sat at ~400px, under the iOS keyboard, and
+           its results under that (Tom, 2026-09-15: search broken on mobile). -->
+      <div class="vap-roles">
       <p class="vap-head">A role</p>
       <button
         v-for="r in ROLES"
@@ -188,7 +192,9 @@ const errorText = computed(() => viewAsError.value)
         <span class="vap-item-label">{{ r.label }}</span>
         <span class="vap-item-hint">{{ resolvingRole === r.role ? 'Finding one with real numbers…' : r.hint }}</span>
       </button>
+      </div>
 
+      <div class="vap-person">
       <p class="vap-head">Or a real person, with their own school and classes</p>
       <input
         v-model="query"
@@ -196,6 +202,12 @@ const errorText = computed(() => viewAsError.value)
         type="search"
         placeholder="Search name or email"
         data-testid="view-as-search"
+        enterkeyhint="search"
+        autocapitalize="off"
+        autocorrect="off"
+        autocomplete="off"
+        spellcheck="false"
+        @keydown.enter="($event.target as HTMLInputElement).blur()"
       />
       <p v-if="searching" class="vap-note">Searching…</p>
       <p v-else-if="query.trim().length >= 2 && results.length === 0" class="vap-note">
@@ -212,6 +224,7 @@ const errorText = computed(() => viewAsError.value)
         <span class="vap-item-label">{{ c.persona.name }}</span>
         <span class="vap-item-hint">{{ candidateLine(c) }}</span>
       </button>
+      </div>
 
       <p v-if="errorText" class="vap-error">{{ errorText }}</p>
     </div>
@@ -321,5 +334,9 @@ const errorText = computed(() => viewAsError.value)
   /* Icon only on a phone; the title still names it. */
   .vap-trigger span { display: none; }
   .vap-trigger { padding: 6px 8px; }
+  /* Person search first on a phone: the box and its results stay above the
+     keyboard instead of under it. Desktop order is unchanged. */
+  .vap-menu { display: flex; flex-direction: column; }
+  .vap-person { order: -1; }
 }
 </style>

@@ -83,9 +83,26 @@ function courseLabels(ids: string[]): string {
   return ids.map(c => parseCourseCode(c).label).join(', ')
 }
 
-function handleSearch() {
+// The phone's search key (Enter) commits the search: the list is already
+// live-filtered, so what's left to do is dismiss the keyboard and bring the
+// results up. On a phone the filters card alone fills the first screen, so
+// without this the first matching row starts BELOW the fold and typing
+// appears to do nothing at all (Tom, 2026-09-15: search "broken on mobile").
+const listPanel = ref<HTMLElement | null>(null)
+function handleSearch(event?: Event) {
   setSearch(searchInput.value)
+  ;(event?.target as HTMLElement | null)?.blur?.()
+  listPanel.value?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
 }
+
+// What the search found, said right under the box so the answer is on screen
+// even when the rows are under the keyboard.
+const searchSummary = computed(() => {
+  const q = searchInput.value.trim()
+  if (!q) return ''
+  const n = totalCount.value
+  return n === 1 ? `1 user matches` : `${n} users match`
+})
 
 function handleClear() {
   searchInput.value = ''
@@ -146,6 +163,13 @@ onMounted(() => { void refresh() })
             type="text"
             class="filter-bar-input"
             placeholder="Search by name, email, or account code…"
+            data-testid="users-search"
+            inputmode="search"
+            enterkeyhint="search"
+            autocapitalize="off"
+            autocorrect="off"
+            autocomplete="off"
+            spellcheck="false"
             @keydown.enter="handleSearch"
             @keydown.esc="handleClear"
           >
@@ -169,6 +193,9 @@ onMounted(() => { void refresh() })
           @update:model-value="(v) => setCourseFilter(v || null)"
         />
       </div>
+      <p v-if="searchSummary" class="search-summary" data-testid="users-search-summary" aria-live="polite">
+        {{ searchSummary }}
+      </p>
 
       <!-- Quick chips: tier filter (left) + sort (right) -->
       <div class="chips-bar">
@@ -206,7 +233,7 @@ onMounted(() => { void refresh() })
     <div v-if="isLoading" class="loading">Loading users…</div>
 
     <!-- List panel (canon §5.3 table-inside-panel) -->
-    <div v-else-if="users.length > 0" class="schools-card list-panel">
+    <div v-else-if="users.length > 0" ref="listPanel" class="schools-card list-panel">
       <div class="table-scroll">
       <table class="users-table">
         <thead>
@@ -441,6 +468,12 @@ onMounted(() => { void refresh() })
 .filter-bar-clear:hover {
   background: rgba(15, 18, 18, 0.12);
   color: var(--schools-fg);
+}
+
+.search-summary {
+  margin: calc(-1 * var(--space-2)) 0 0;
+  font-size: var(--text-sm);
+  color: var(--schools-fg-3);
 }
 
 /* Quick chips — tier filter + sort */
@@ -794,6 +827,24 @@ onMounted(() => { void refresh() })
     flex-direction: column;
     align-items: stretch;
   }
+
+  /* One scrollable row per chip group instead of three wrapped rows each,
+     so the results start on the first screen and the search has somewhere
+     visible to land. */
+  .chips-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .chip-group {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .chip-group::-webkit-scrollbar { display: none; }
+  .chip { flex: none; }
+  .chip-group-label { flex: none; }
 
   /* Hide Joined (3) and Practice time (6) on mobile — Email stays visible. */
   .users-table thead th:nth-child(3),
