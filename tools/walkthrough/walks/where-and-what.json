@@ -1,0 +1,56 @@
+{
+  "id": "where-and-what",
+  "title": "Where in the world people are using us, and on what",
+  "personas": [
+    "admin"
+  ],
+  "place": {
+    "route": "intel"
+  },
+  "keywords": [
+    "where",
+    "country",
+    "territory",
+    "device",
+    "phone",
+    "tablet",
+    "desktop",
+    "app",
+    "browser"
+  ],
+  "steps": [
+    {
+      "anchor": "question-where-and-what",
+      "say": "**Where and what**, under What's happening, answers two questions at once: which countries real people practised from in the last thirty days, and whether they were on phones, tablets or desktops, in the app or in a browser. Machine traffic is left out by rule.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "eb5e42fd.7df531f6"
+    },
+    {
+      "anchor": "answer",
+      "say": "The sentence gives you how many real people, from how many countries, and the country and device most of them are on. A person seen on two devices is counted once here and once under each device.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "37355d63.7d5b7f55"
+    },
+    {
+      "anchor": "evidence",
+      "say": "The chart is people by country, most first.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "31f48466.10da0b9a"
+    },
+    {
+      "anchor": "rows",
+      "say": "One row per country, each with its phone, tablet and desktop split and its in-the-app or in-a-browser split. Tap a country to narrow the page to it; tap a device chip to count only that device. Both choices are written into the page address, so a pasted link reproduces the view. In the app or in a browser has only been recorded since 10 September 2026, so earlier people read as not recorded rather than being guessed at.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "Countries and devices on one page. Tap a country or a device chip to narrow it, and the address carries the choice.",
+      "checked": "cbac0e66.1cb4168d"
+    }
+  ]
+}
