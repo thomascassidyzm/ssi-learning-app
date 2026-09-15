@@ -6,6 +6,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ||
 
 vi.mock('../_utils/auth', () => ({
   verifyAuthToken: vi.fn(async () => ({ valid: true, userId: 'auth-1' })),
+  verifyAdmin: vi.fn(async () => ({ error: 'Requires SSi admin access', status: 403, userId: 'auth-1' })),
 }))
 
 let DB: Record<string, any[]>
@@ -32,8 +33,8 @@ vi.mock('@supabase/supabase-js', () => ({
 
 let handler: typeof import('./teaching-context').default
 
-function makeReq(): VercelRequest {
-  return { method: 'GET', headers: { authorization: 'Bearer tok' } } as any
+function makeReq(extra: Record<string, any> = {}): VercelRequest {
+  return { method: 'GET', headers: { authorization: 'Bearer tok' }, query: {}, ...extra } as any
 }
 
 function makeRes(): VercelResponse & { statusCode?: number; body?: any } {
@@ -199,5 +200,39 @@ describe('GET /api/me/teaching-context', () => {
         { id: 'g1', label: 'group', name: 'IME Demo Programme' },
       ]),
     )
+  })
+
+  // ── View As (job #788, 2026-09-15). R Jeffery's class 11P had practised
+  // 18 minutes that week; Insights under View As said "No classes yet",
+  // because the call ran on the admin's token and asked for the ADMIN's
+  // classes — every ssi_admin teaches none. The viewed person's uid now
+  // rides `?as=`, admitted only from an admin carrying the View As header. ──
+  it('View As: an ssi_admin with ?as= gets the VIEWED teacher\'s classes, not their own', async () => {
+    const { verifyAdmin } = await import('../_utils/auth')
+    ;(verifyAdmin as any).mockResolvedValueOnce({ userId: 'auth-1' })
+    DB.learners = [{ id: 'l1', user_id: 'auth-1' }, { id: 'l2', user_id: 'teacher-uid' }]
+    DB.classes = [
+      { id: 'c-11p', teacher_user_id: 'teacher-uid', is_active: true, class_name: '11P', course_code: 'cym_s_for_eng' },
+    ]
+    DB.user_tags = [{ user_id: 'teacher-uid', tag_type: 'school', tag_value: 'SCHOOL:s1', removed_at: null }]
+    const res = makeRes()
+    await handler(makeReq({ headers: { authorization: 'Bearer tok', 'x-ssi-view-as': '1' }, query: { as: 'teacher-uid' } }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.classes).toEqual(['c-11p'])
+    expect(res.body.classes_detail).toEqual([{ id: 'c-11p', name: '11P', course_code: 'cym_s_for_eng' }])
+    expect(res.body.groups).toEqual([{ id: 's1', label: 'school' }])
+  })
+
+  it('a caller who is not an admin under View As sending ?as= is refused, never answered for themselves', async () => {
+    DB.classes = [{ id: 'c-mine', teacher_user_id: 'auth-1', is_active: true }]
+    // No View As header — a bare bookmark, not a tour — is refused without
+    // even consulting the admin check.
+    let res = makeRes()
+    await handler(makeReq({ query: { as: 'teacher-uid' } }), res)
+    expect(res.statusCode).toBe(403)
+    // View As header, but the token is a plain teacher's.
+    res = makeRes()
+    await handler(makeReq({ headers: { authorization: 'Bearer tok', 'x-ssi-view-as': '1' }, query: { as: 'teacher-uid' } }), res)
+    expect(res.statusCode).toBe(403)
   })
 })
