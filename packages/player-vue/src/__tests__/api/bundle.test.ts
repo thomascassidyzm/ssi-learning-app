@@ -770,6 +770,45 @@ describe('GET /api/courses/:code/bundle — script artifact identity', () => {
     expect(seed1.audio.known).toEqual({ id: 'seed1-known', lifecycle: 'persistent' })
   })
 
+  it('looks seed durations up in chunks the Supabase gateway accepts — a whole course of ids in one GET is a Bad Request (job #804)', async () => {
+    // Live 2026-09-15: Basque carries 1,038 seed target ids; one `.in()` with
+    // all of them is a 38 KB URL that came back "Bad Request", the lookup fell
+    // through its non-fatal path and every seed shipped without a duration —
+    // the very gap job #793 set out to close. 150 ids per query held live.
+    setupHappyFixture()
+    const seedRows = []
+    const audioRows: Array<{ id: string; role: string; duration_ms: number }> = []
+    for (let n = 1; n <= 600; n++) {
+      seedRows.push({
+        seed_number: n,
+        known_text: `known ${n}`,
+        target_text: `target ${n}`,
+        target_text_roman: null,
+        known_audio_id: `seed${n}-known`,
+        target1_audio_id: `seed${n}-t1`,
+        target2_audio_id: `seed${n}-t2`,
+      })
+      audioRows.push({ id: `seed${n}-t1`, role: 'target1', duration_ms: 2000 + n })
+      audioRows.push({ id: `seed${n}-t2`, role: 'target2', duration_ms: 3000 + n })
+    }
+    tableResponses.course_seeds = { data: seedRows, error: null }
+    tableResponses.course_audio = {
+      data: [...((tableResponses.course_audio.data as unknown[]) ?? []), ...audioRows],
+      error: null,
+    }
+    const res = makeRes()
+    await handler(makeReq({ code: 'spa_for_eng_v2' }), res as any)
+
+    const idLookups = filtersFor('course_audio').filter((f) => f.op === 'in' && f.col === 'id')
+    const sizes = idLookups.map((f) => (f.val as unknown[]).length)
+    expect(sizes.length).toBeGreaterThan(1)
+    for (const size of sizes) expect(size).toBeLessThanOrEqual(200)
+    expect(sizes.reduce((a, b) => a + b, 0)).toBe(1200)
+    const seed1 = (res._body as any).seeds.find((s: any) => s.seedId === 'S0001')
+    expect(seed1.audio.target1.durationMs).toBe(2001)
+    expect(seed1.audio.target2.durationMs).toBe(3001)
+  })
+
   it('leaves seeds bare (no knownText/audio) when course_seeds has no matching row', async () => {
     setupHappyFixture()
     tableResponses.course_seeds = { data: [], error: null }

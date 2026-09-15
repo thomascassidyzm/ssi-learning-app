@@ -3580,3 +3580,30 @@ table. Cheaper: the same audit rows, one extra column read.
 
 **Not done here.** The 51 wrong items on 7E are two copies to undo, in reverse order, through the tool's
 own `undoCopy`. Reported with ids to the parent job; no row moved by this worker.
+
+## 2026-09-15 — The seed-duration lookup is chunked: one GET with a whole course of ids was a Bad Request, so job #793 stamped nothing live (job #804)
+
+**What the staging check found.** Job #793's fix built and deployed (staging 3725b5bab, then main via
+the Friday ship), and `version.json` said so, but the Basque bundle it served carried zero seed
+durations out of 298. Running the handler against the live database showed the cause in its own log
+line: `[Bundle] seed audio duration lookup failed (non-fatal): Bad Request`. Basque has 1,038 seed
+target ids; supabase-js sends `.in()` as a GET, a 38 KB URL the Supabase gateway refuses outright,
+and at about 400 ids the echoed headers overflow Node's parser. The lookup is non-fatal by design,
+so every seed shipped bare. The unit test could not see it: a mock accepts any list length.
+
+**Decision.** 150 ids per query, pages fetched in parallel, each page's failure logged and skipped on
+its own. Nothing else about #793 changes. The formula half of #793 was already doing its job on
+production: a seed review with no duration now gets the ordinary 2.5 s assumption, so the phrase's
+gap in fast mode had already moved from the 1.0 s floor to 7.8 s. With the duration stamped it
+becomes the 8.5 s the sentence earns (2.8 × 2760 ms + 800 ms); easy mode 2.0 s → 9.7 s → 10.6 s.
+
+**Size.** Seed rows with target audio, all of which reviewed at the floor before #793: 11,663 across
+the 20 courses live in the new app, 27,433 across the 59 beta courses, 39,096 in all. No seed row with
+target audio lacks a `course_audio` duration, so once the lookup works nothing is left on the fallback.
+
+**Lesson.** A deploy that says the right sha is not a verified fix; the served payload is. A handler
+whose lookup is non-fatal must be probed against live data at course scale before its landing line
+says "verified".
+
+**Better × Simpler × Cheaper.** Better: the gap the sentence earns, on every course. Simpler: same
+lookup, paged. Cheaper: seven small indexed queries in parallel instead of one refused one.
