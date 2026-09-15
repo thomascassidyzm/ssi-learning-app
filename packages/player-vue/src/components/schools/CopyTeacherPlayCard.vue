@@ -157,7 +157,10 @@ const words = (p: PositionWords | null | undefined) => positionLabel(p, t)
 
     <div v-if="preview" class="copy-play-preview" data-walk="class-copy-play-preview-result">
       <template v-if="preview.nothing_to_copy">
-        <p class="rail-note">
+        <p v-if="preview.copied_elsewhere?.class_names.length" class="rail-note">
+          {{ t('schools.copyPlay.nothingElsewhere', 'Nothing to copy. {name}’s play on this course has already gone onto {classes}, and a lesson can only be credited to one class.').replace('{name}', pickedName).replace('{classes}', preview.copied_elsewhere.class_names.join(', ')) }}
+        </p>
+        <p v-else class="rail-note">
           {{ t('schools.copyPlay.nothing', 'Nothing to copy. Everything {name} did on this course is already on the class.').replace('{name}', pickedName) }}
         </p>
       </template>

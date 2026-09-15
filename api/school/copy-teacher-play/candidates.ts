@@ -24,6 +24,10 @@
  *
  * There is deliberately NO bulk apply. Apply stays one pair at a time through
  * the existing route, which refuses View-as and writes the audit row.
+ *
+ * A teacher tagged on two classes for one course appears on two rows with the
+ * SAME play; each row names the other under `also_offered_on`, and once one is
+ * copied the planner offers nothing on the other (ONE CLASS, job #792).
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
@@ -136,6 +140,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return { ...body, class_name: cls.class_name } as Record<string, unknown>
     })
     for (const body of plans) if (!body.nothing_to_copy) candidates.push(body)
+    // ONE CLASS (classProgressCopy.ts header): the same teacher's own play on
+    // the same course listed under two classes is ONE lesson that can only be
+    // credited once. Name the other rows on each, so the leader picks the
+    // class the lesson was for instead of copying both (job #792).
+    const rowsByTeacher = new Map<string, Array<Record<string, unknown>>>()
+    for (const c of candidates) {
+      const k = `${(c.teacher as { learner_id: string }).learner_id}|${String(c.course_code)}`
+      if (!rowsByTeacher.has(k)) rowsByTeacher.set(k, [])
+      rowsByTeacher.get(k)!.push(c)
+    }
+    for (const rows of rowsByTeacher.values()) {
+      for (const c of rows) c.also_offered_on = rows.filter((o) => o !== c).map((o) => String(o.class_name))
+    }
     candidates.sort((a, b) => String(a.class_name).localeCompare(String(b.class_name)) || String((a.teacher as { name: string }).name).localeCompare(String((b.teacher as { name: string }).name)))
 
     res.setHeader('Cache-Control', 'no-store')

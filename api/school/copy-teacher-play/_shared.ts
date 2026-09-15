@@ -176,6 +176,14 @@ export async function previewBody(svc: SupabaseClient, pair: PreviewPair, plan: 
     positionWords(svc, pair.courseCode, plan.resulting),
   ])
   const totalRows = Object.values(plan.toCopy).reduce((a, b) => a + b, 0)
+  // ONE CLASS (classProgressCopy.ts header): the other classes that already
+  // hold this teacher's play, by name, so the card can say where it went.
+  const elsewhereIds = plan.copiedElsewhere?.classIds ?? []
+  let elsewhereNames: string[] = []
+  if (elsewhereIds.length > 0) {
+    const { data } = await svc.from('classes').select('id, class_name').in('id', elsewhereIds)
+    elsewhereNames = ((data ?? []) as Array<{ class_name?: string | null }>).map((r) => String(r.class_name || '')).filter(Boolean)
+  }
   return {
     class_id: pair.classId,
     course_code: pair.courseCode,
@@ -188,6 +196,7 @@ export async function previewBody(svc: SupabaseClient, pair: PreviewPair, plan: 
     in_app_seconds: plan.inAppSecondsToCopy,
     minutes_to_add: plan.minutesToAdd,
     prior_runs: plan.priorRuns,
+    copied_elsewhere: { class_ids: elsewhereIds, class_names: elsewhereNames, rows: plan.copiedElsewhere?.rows ?? 0 },
     position: {
       teacher: teacherAt,
       class: classAt,

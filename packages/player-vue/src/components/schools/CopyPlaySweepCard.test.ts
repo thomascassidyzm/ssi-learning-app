@@ -36,6 +36,17 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('CopyPlaySweepCard', () => {
+  it('names the other class a teacher\'s same play is listed under, so the leader copies it onto one class (job #792)', async () => {
+    const rose = pair('c-7e', '7E', 'u-rose', 'roseribbeck', 500)
+    fetchMock.mockResolvedValueOnce(json({ ...CANDIDATES, candidates: [{ ...rose, also_offered_on: ['11S'] }, pair('c-8b', '8B', 'u-ben', 'benjones', 150)] }))
+    const w = mount(CopyPlaySweepCard)
+    await flushPromises()
+    const cues = w.findAll('[data-walk="school-copy-play-sweep-one-class"]')
+    expect(cues).toHaveLength(1)
+    expect(cues[0].text()).toContain('same play as the roseribbeck row under 11S')
+    expect(cues[0].text()).toContain('one class')
+  })
+
   it('lists every pair with its preview figures, copies ONE row on its own button, and shows the server\'s result line', async () => {
     fetchMock.mockResolvedValueOnce(json(CANDIDATES)).mockResolvedValueOnce(json(APPLIED))
     const w = mount(CopyPlaySweepCard)
