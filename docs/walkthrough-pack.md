@@ -1,6 +1,24 @@
 # Walkthrough pack — compiled render
 
-**Version `8b12438e3fcf` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `471b4a47da1b` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+
+## add-a-class-under-a-group — Add a class to a group
+
+Personas: admin, leader, school_admin · place: node-home
+
+1. [`verb-add-class` · click] **Add a class** creates a class under this group before anyone is teaching it yet — useful for setting a term up in advance.
+2. [`add-class-name` · next] Type the class name, then choose the course it will learn. A paid language your group has no cover for is refused when you tap Add, and the message says so.
+3. [`add-class-submit` · next] **Add** creates it. No teacher is needed yet — the class sits under the group waiting, and you can put a teacher on it whenever you're ready.
+   - terminal: That's adding a class ahead of staffing it. This tour added nobody and nothing; only your own tap does.
+
+## choose-a-class-course — Choose what a class learns
+
+Personas: school_admin, teacher · place: classes
+
+1. [`create-class-course` · next] Every class carries one course — it decides what the class practises and what students hear the moment they join. You set it here, in the **Create New Class** panel.
+2. [`create-class-course` · click] Type into the box to search the catalogue, then pick the language the class is learning.
+3. [`create-class-course` · next] A school on a free trial is held to the one language it signed up for until it subscribes — the picker only shows that course.
+   - terminal: The course is set when the class is made and stays with it. A class that needs a different language is a new class, which keeps the old one's records intact.
 
 ## choose-something-else-to-learn — Choose something else to learn
 
@@ -10,6 +28,49 @@ Personas: learner · place: library
 2. [`library-course-grid` · next] Tap any one of these and you are straight into it — no setting up, no starting over.
 3. [`library-course-grid` · next] Your current course is not going anywhere. Each one keeps its own place, so you can have a poke at a second language and come back without losing an inch in the first.
    - terminal: That's the Library. Close it and press play to carry on with the one you are in.
+
+## class-page-play-and-manage — Play as class or manage it, from the class page
+
+Personas: teacher, school_admin · place: node-home
+
+1. [`class-page-play` · next] **Play as class** starts a whole-class lesson on the class's own account, so the minutes and phrases land on the class, not on you. While a platform admin is viewing this page as you, the button is greyed out and does nothing.
+2. [`class-page-manage` · next] **Manage class** goes to the class's tools: the roster, the teachers, the join link and code, renaming and deleting. The class's practice, minutes and journey stay here on the class page.
+   - terminal: Play from here, manage from there — two different pages, one class. This tour started no lesson and opened no tools.
+
+## copy-a-teachers-play-onto-their-class — Copy a teacher's own play onto the class
+
+Personas: school_admin, teacher · place: class-detail
+
+1. [`class-copy-play-picker` · next] **Played as themselves by mistake?** — a school leader picks the teacher here. A teacher fixing their own lesson sees no list; the card is about them.
+2. [`class-copy-play-preview` · next] **See what would move** reads the sessions, the time in the app, and where the class will end up. Nothing moves yet.
+3. [`class-copy-play-preview-result` · next] The teacher keeps their own record either way. Only play on this class's course moves, and the class ends up at the further of the two places.
+4. [`class-copy-play-apply` · next] **Copy onto the class** commits it — one line afterwards says what was copied. Running it again copies nothing twice.
+   - terminal: Preview first, copy only when you're sure. This tour previewed nothing and copied nothing.
+
+## copy-every-teachers-play — Copy every teacher's own play onto their class
+
+Personas: school_admin · place: node-home
+
+1. [`school-copy-play-sweep` · next] Every teacher in your school who ran lessons signed in as themselves instead of using Play as class, one row per teacher on one class. When there is nothing to copy the card says so in words.
+2. [`school-copy-play-sweep-copy` · next] **Copy onto the class** does one row at a time — there is no button that copies everyone at once. The teacher keeps their own record; only play on that class's course moves.
+   - terminal: Row by row, teacher by teacher — that's the whole sweep. This tour copied nothing.
+
+## create-your-first-classes — Create your first classes
+
+Personas: school_admin · place: setup
+
+1. [`setup-add-class-row` · next] Step four of first-time setup. The first row's course is already set to the language you signed up with — change it if this class learns something else.
+2. [`setup-add-class-row` · next] **+ Add another class** for each further class; every new row starts on that same language. Finishing setup creates every filled-in row, marked Added as it saves. Running the wizard twice will not duplicate classes you've already made.
+   - terminal: One row per class, add as many as you need. This tour created no classes.
+
+## funded-org-courses — See what a funded organisation gives its learners
+
+Personas: admin · place: node-home (org)
+
+1. [`verb-courses` · click] Tap **Courses** on the organisation's home page.
+2. [`org-enrolment-courses` · next] This is what the organisation hands out through its own sign-up page — given to each learner as they join, not held on the organisation itself.
+3. [`org-enrolment-courses` · next] The courses listed here, and the length of the free period beside them, come from the organisation's enrolment policy. Changing that list is a change to the policy, so it isn't editable here — everyone who has already signed up keeps what they were given.
+   - terminal: That's it — a read-only summary of what this organisation grants on sign-up.
 
 ## go-back-over-something — Go back over something
 
@@ -77,6 +138,15 @@ Personas: admin · place: admin-invites
 4. [`invites-active-toggle` · next] This pill is not just a badge — tapping it is a live kill-switch. It disables or re-enables the link across all four underlying access mechanisms at once.
    - terminal: Rule of the desk: look before you mint — everything here is live the moment it exists.
 
+## manage-a-class-from-its-page — Rename, delete or remove a student
+
+Personas: teacher · place: class-detail
+
+1. [`class-rename` · next] The pencil beside the class name renames it. Only the name changes — the roster, the join link and the class's place on the course all carry on.
+2. [`class-delete` · next] The bin beside the name deletes the class. The app tells you what goes with it first, and asks you to type the class name back if there is real practice behind it. Students keep their own accounts and everything they have learned.
+3. [`class-student-remove` · next] **Remove** at the end of a student's row in the roster takes them off this class only. Their account and everything they've learned stays with them, and they can join another class straight away.
+   - terminal: Rename, delete, remove a student — all from the class's own tools page. This tour changed nothing; only your own taps do.
+
 ## move-a-teacher-between-classes — Move a teacher to another class
 
 Personas: teacher, school_admin · place: class-detail
@@ -95,6 +165,31 @@ Personas: teacher, school_admin, leader · place: dashboard
 1. [`schools-user-menu-trigger` · click] Tap your name at the top right to open the account menu.
 2. [`schools-inbox-menu` · next] **Inbox** sits near the top, just above Support. The number beside it is how many messages you have not opened yet — the dot on your own avatar is the same count.
    - terminal: Tap it and you're reading your messages — that count only drops once you open one.
+
+## org-choose-courses — Choose which courses a school can use
+
+Personas: admin · place: node-home (org/group/school)
+
+1. [`verb-courses` · click] **Courses** sets what a school or group is allowed to learn — the whole catalogue once they're paid up, or a named course or two while they're trialling.
+2. [`verb-courses` · next] Choose **Trial** and search for the one or two courses it should carry, or **Paid** for the whole catalogue with no per-course picking.
+3. [`verb-courses` · next] Save, and everyone below that node inherits it. A trial runs for thirty days on a paid course and a year on a free or community one — the server works the dates out on save, so what you see before saving is a preview.
+   - terminal: That's the whole of it — pick Trial or Paid, choose the courses if it's a trial, and save.
+
+## play-as-class-from-your-dashboard — Play as class from your dashboard
+
+Personas: teacher · place: dashboard
+
+1. [`dash-class-card-play` · next] **Play as class** on a class card starts a lesson straight from your dashboard, on the class's own account — the minutes and phrases land on the class, not on you.
+2. [`dash-class-card-play` · next] The player opens on the class's course, at the class's own place in it. While a platform admin is viewing your dashboard as you, this button is greyed out and does nothing.
+   - terminal: One tap from your dashboard, no need to open the class first. This tour started no lesson.
+
+## playing-as-yourself — Told when you are playing as yourself
+
+Personas: teacher, school_admin · place: library
+
+1. [`player-playing-as-yourself` · next] A line across the top of the player while a lesson runs on your own sign-in rather than on the class — noticed before the minutes land on you. It goes as soon as you pause or stop.
+2. [`player-playing-as-yourself` · next] **Your classes** takes you to start the lesson again with Play as class instead. Minutes already played on your own account aren't moved by this line — the copy tool on the class's tools page does that if you want it.
+   - terminal: That's the tell for playing as yourself. This tour moved no minutes.
 
 ## read-your-messages — Read your messages
 
@@ -123,6 +218,16 @@ Personas: learner · place: library
 3. [`library-course-card` · next] **Premium** with **Try free** next to it means the course is a paid one, and that you can properly get going in it first. You carry on until the app asks — nothing stops you mid-thought and nothing is taken before you have said yes.
 4. [`library-course-grid` · next] Some languages offer more than one card — a different region or accent of the same language. Pick whichever you would rather end up sounding like.
    - terminal: Nothing here commits you. Tapping a card takes you into it, and every course you have touched keeps its own place waiting.
+
+## reading-your-class-list — Reading your class list
+
+Personas: school_admin, teacher · place: classes
+
+1. [`classes-table` · next] One row per class. Belt, how far through the course, minutes played as class this week and the shape of those days — all the class account's own, never a pupil's.
+2. [`classes-filters` · next] **Course** narrows the list to one language. **Sort by** puts it in the order that answers your question — name, journey, or phrases practised.
+3. [`classes-year-groups` · next] Tiles by year, read off the class name — **7B** and **Year 9 French** both count. Tap a tile and the table narrows to that year.
+4. [`classes-row` · next] Anywhere on a row opens that class. The buttons at the right end do their own jobs and do not open it.
+   - terminal: That's reading the list — the row itself opens a class. This tour opened nothing.
 
 ## report-a-bug-from-settings — Report a bug from Settings
 
@@ -171,6 +276,23 @@ Personas: leader, school_admin · place: node-home (org/group/school)
 3. [`account-password` · next] Tap **Set a password** and the form opens right here. You will sign in with your email address and that password from then on — and you can come back and change it any time.
    - terminal: That is the whole thing — one password, always changeable, always in the same place.
 
+## setup-choose-courses — Choose which courses your school uses
+
+Personas: school_admin · place: setup
+
+1. [`setup-course-picker` · next] Step three of first-time setup, **Choose courses** — everything your school has access to starts ticked here.
+2. [`setup-course-picker` · click] Untick anything you don't plan to teach. This is a filter and nothing more — it doesn't change what your school has access to, it just shortens the list you pick from at the next step.
+   - terminal: Tap Continue and step four's course picker only offers what you left ticked here.
+
+## setup-give-class-course — Give a class its course
+
+Personas: school_admin · place: setup
+
+1. [`setup-class-course` · next] Step four, **Create classes** — each class row already holds the language you signed your school up with, so most classes need nothing done here.
+2. [`setup-class-course` · click] To teach something else, tap the picker and start typing — the catalogue runs to dozens of courses, and this only offers what you left ticked at Choose courses.
+3. [`setup-class-course` · next] Pick the one you want. Where a language offers more than one version, the versions differ by region or accent.
+   - terminal: Save the class and everyone who joins it lands in that course.
+
 ## share-a-class — Share a class with a colleague
 
 Personas: teacher, school_admin · place: class-detail
@@ -180,6 +302,25 @@ Personas: teacher, school_admin · place: class-detail
 3. [`class-teacher-picker` · next] You can pick anyone already teaching at your school. If the list is empty, your colleague has not joined the school yet — the link underneath brings them straight in.
 4. [`class-teachers` · next] What they get is the whole class: the roster, the sessions, the progress, and the right to run a class session. What they do not get is the lead — that stays with you until you hand it over.
    - terminal: That's sharing a class — same class, two teachers, one lead. This tour added nobody; only your own taps do.
+
+## start-or-make-a-class — Start a session or make a class from the list
+
+Personas: school_admin, teacher · place: classes
+
+1. [`classes-row-play` · next] **Play as class** at the end of a row starts a session straight from the list — no need to open the class first. Your device leads, the whole class moves on together.
+2. [`verb-new-class` · next] **+ New class** sets up a class of your own: a name, a language, and a join link made for you at the same moment.
+3. [`classes-export` · next] **Export CSV** takes the list away as a spreadsheet — belt, journey, minutes, join code, one row per class. What you export is whatever the filters currently show.
+   - terminal: Starting a session, making a class, exporting the list — all from the same page. This tour started nothing and made nothing.
+
+## take-a-teacher-off-a-class — Take a teacher off a class, or move them
+
+Personas: leader, school_admin, teacher · place: teachers
+
+1. [`teacher-assign-classes` · click] **Assign to a class** on a teacher's row opens their ticks — the classes they take now, already ticked.
+2. [`assign-classes-modal` · next] The ticks start from what is true today, so moving somebody from one class to another is a single change rather than two.
+3. [`assign-classes-list` · next] Untick the class they're leaving, tick the one they're joining. A move is one change here, not two.
+4. [`assign-classes-save` · next] **Save** counts your changes back to you before it commits. If part of it fails, the panel stays open and names the class it couldn't do — nothing is ever reported saved when it wasn't.
+   - terminal: Untick, tick, save — that's moving or removing a teacher. This tour changed nobody's classes.
 
 ## ways-in — Ways in — who can get in, and how to change it
 

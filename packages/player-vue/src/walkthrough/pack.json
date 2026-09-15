@@ -1,7 +1,93 @@
 {
-  "version": "8b12438e3fcf",
+  "version": "471b4a47da1b",
   "generatedAt": "2026-09-15",
   "walks": [
+    {
+      "id": "add-a-class-under-a-group",
+      "title": "Add a class to a group",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "keywords": [
+        "class",
+        "add",
+        "group",
+        "org",
+        "leader"
+      ],
+      "steps": [
+        {
+          "anchor": "verb-add-class",
+          "say": "**Add a class** creates a class under this group before anyone is teaching it yet — useful for setting a term up in advance.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "add-class-name",
+          "say": "Type the class name, then choose the course it will learn. A paid language your group has no cover for is refused when you tap Add, and the message says so.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "add-class-submit",
+          "say": "**Add** creates it. No teacher is needed yet — the class sits under the group waiting, and you can put a teacher on it whenever you're ready.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's adding a class ahead of staffing it. This tour added nobody and nothing; only your own tap does."
+        }
+      ]
+    },
+    {
+      "id": "choose-a-class-course",
+      "title": "Choose what a class learns",
+      "personas": [
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "classes"
+      },
+      "keywords": [
+        "course",
+        "language",
+        "choose",
+        "class",
+        "catalogue",
+        "create"
+      ],
+      "steps": [
+        {
+          "anchor": "create-class-course",
+          "say": "Every class carries one course — it decides what the class practises and what students hear the moment they join. You set it here, in the **Create New Class** panel.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "create-class-course",
+          "say": "Type into the box to search the catalogue, then pick the language the class is learning.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "create-class-course",
+          "say": "A school on a free trial is held to the one language it signed up for until it subscribes — the picker only shows that course.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "The course is set when the class is made and stays with it. A class that needs a different language is a new class, which keeps the old one's records intact."
+        }
+      ]
+    },
     {
       "id": "choose-something-else-to-learn",
       "title": "Choose something else to learn",
@@ -49,6 +135,204 @@
             "on": "next"
           },
           "terminal": "That's the Library. Close it and press play to carry on with the one you are in."
+        }
+      ]
+    },
+    {
+      "id": "class-page-play-and-manage",
+      "title": "Play as class or manage it, from the class page",
+      "personas": [
+        "teacher",
+        "school_admin"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "keywords": [
+        "play as class",
+        "manage",
+        "tools",
+        "class page",
+        "roster"
+      ],
+      "steps": [
+        {
+          "anchor": "class-page-play",
+          "say": "**Play as class** starts a whole-class lesson on the class's own account, so the minutes and phrases land on the class, not on you. While a platform admin is viewing this page as you, the button is greyed out and does nothing.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-page-manage",
+          "say": "**Manage class** goes to the class's tools: the roster, the teachers, the join link and code, renaming and deleting. The class's practice, minutes and journey stay here on the class page.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Play from here, manage from there — two different pages, one class. This tour started no lesson and opened no tools."
+        }
+      ]
+    },
+    {
+      "id": "copy-a-teachers-play-onto-their-class",
+      "title": "Copy a teacher's own play onto the class",
+      "personas": [
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "class-detail"
+      },
+      "keywords": [
+        "copy",
+        "play as class",
+        "mistake",
+        "own account",
+        "progress"
+      ],
+      "steps": [
+        {
+          "anchor": "class-copy-play-picker",
+          "say": "**Played as themselves by mistake?** — a school leader picks the teacher here. A teacher fixing their own lesson sees no list; the card is about them.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-copy-play-preview",
+          "say": "**See what would move** reads the sessions, the time in the app, and where the class will end up. Nothing moves yet.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-copy-play-preview-result",
+          "say": "The teacher keeps their own record either way. Only play on this class's course moves, and the class ends up at the further of the two places.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-copy-play-apply",
+          "say": "**Copy onto the class** commits it — one line afterwards says what was copied. Running it again copies nothing twice.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Preview first, copy only when you're sure. This tour previewed nothing and copied nothing."
+        }
+      ]
+    },
+    {
+      "id": "copy-every-teachers-play",
+      "title": "Copy every teacher's own play onto their class",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "node-home"
+      },
+      "keywords": [
+        "copy",
+        "sweep",
+        "teachers",
+        "play as class",
+        "mistake"
+      ],
+      "steps": [
+        {
+          "anchor": "school-copy-play-sweep",
+          "say": "Every teacher in your school who ran lessons signed in as themselves instead of using Play as class, one row per teacher on one class. When there is nothing to copy the card says so in words.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "school-copy-play-sweep-copy",
+          "say": "**Copy onto the class** does one row at a time — there is no button that copies everyone at once. The teacher keeps their own record; only play on that class's course moves.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Row by row, teacher by teacher — that's the whole sweep. This tour copied nothing."
+        }
+      ]
+    },
+    {
+      "id": "create-your-first-classes",
+      "title": "Create your first classes",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "setup"
+      },
+      "keywords": [
+        "class",
+        "classes",
+        "create",
+        "new",
+        "first",
+        "setup"
+      ],
+      "steps": [
+        {
+          "anchor": "setup-add-class-row",
+          "say": "Step four of first-time setup. The first row's course is already set to the language you signed up with — change it if this class learns something else.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "setup-add-class-row",
+          "say": "**+ Add another class** for each further class; every new row starts on that same language. Finishing setup creates every filled-in row, marked Added as it saves. Running the wizard twice will not duplicate classes you've already made.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "One row per class, add as many as you need. This tour created no classes."
+        }
+      ]
+    },
+    {
+      "id": "funded-org-courses",
+      "title": "See what a funded organisation gives its learners",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "node-home",
+        "kinds": [
+          "org"
+        ]
+      },
+      "keywords": [
+        "courses",
+        "enrolment",
+        "free year",
+        "organisation",
+        "granted",
+        "sign-up"
+      ],
+      "steps": [
+        {
+          "anchor": "verb-courses",
+          "say": "Tap **Courses** on the organisation's home page.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "org-enrolment-courses",
+          "say": "This is what the organisation hands out through its own sign-up page — given to each learner as they join, not held on the organisation itself.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "org-enrolment-courses",
+          "say": "The courses listed here, and the length of the free period beside them, come from the organisation's enrolment policy. Changing that list is a change to the policy, so it isn't editable here — everyone who has already signed up keeps what they were given.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's it — a read-only summary of what this organisation grants on sign-up."
         }
       ]
     },
@@ -393,6 +677,48 @@
       ]
     },
     {
+      "id": "manage-a-class-from-its-page",
+      "title": "Rename, delete or remove a student",
+      "personas": [
+        "teacher"
+      ],
+      "place": {
+        "route": "class-detail"
+      },
+      "keywords": [
+        "rename",
+        "delete",
+        "remove",
+        "student",
+        "roster",
+        "class"
+      ],
+      "steps": [
+        {
+          "anchor": "class-rename",
+          "say": "The pencil beside the class name renames it. Only the name changes — the roster, the join link and the class's place on the course all carry on.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-delete",
+          "say": "The bin beside the name deletes the class. The app tells you what goes with it first, and asks you to type the class name back if there is real practice behind it. Students keep their own accounts and everything they have learned.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-student-remove",
+          "say": "**Remove** at the end of a student's row in the roster takes them off this class only. Their account and everything they've learned stays with them, and they can join another class straight away.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Rename, delete, remove a student — all from the class's own tools page. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
       "id": "move-a-teacher-between-classes",
       "title": "Move a teacher to another class",
       "personas": [
@@ -484,6 +810,121 @@
             "on": "next"
           },
           "terminal": "Tap it and you're reading your messages — that count only drops once you open one."
+        }
+      ]
+    },
+    {
+      "id": "org-choose-courses",
+      "title": "Choose which courses a school can use",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "node-home",
+        "kinds": [
+          "org",
+          "group",
+          "school"
+        ]
+      },
+      "keywords": [
+        "courses",
+        "entitlement",
+        "trial",
+        "paid",
+        "access",
+        "catalogue"
+      ],
+      "steps": [
+        {
+          "anchor": "verb-courses",
+          "say": "**Courses** sets what a school or group is allowed to learn — the whole catalogue once they're paid up, or a named course or two while they're trialling.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "verb-courses",
+          "say": "Choose **Trial** and search for the one or two courses it should carry, or **Paid** for the whole catalogue with no per-course picking.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "verb-courses",
+          "say": "Save, and everyone below that node inherits it. A trial runs for thirty days on a paid course and a year on a free or community one — the server works the dates out on save, so what you see before saving is a preview.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's the whole of it — pick Trial or Paid, choose the courses if it's a trial, and save."
+        }
+      ]
+    },
+    {
+      "id": "play-as-class-from-your-dashboard",
+      "title": "Play as class from your dashboard",
+      "personas": [
+        "teacher"
+      ],
+      "place": {
+        "route": "dashboard"
+      },
+      "keywords": [
+        "play as class",
+        "lesson",
+        "dashboard",
+        "class card"
+      ],
+      "steps": [
+        {
+          "anchor": "dash-class-card-play",
+          "say": "**Play as class** on a class card starts a lesson straight from your dashboard, on the class's own account — the minutes and phrases land on the class, not on you.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "dash-class-card-play",
+          "say": "The player opens on the class's course, at the class's own place in it. While a platform admin is viewing your dashboard as you, this button is greyed out and does nothing.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "One tap from your dashboard, no need to open the class first. This tour started no lesson."
+        }
+      ]
+    },
+    {
+      "id": "playing-as-yourself",
+      "title": "Told when you are playing as yourself",
+      "personas": [
+        "teacher",
+        "school_admin"
+      ],
+      "place": {
+        "route": "library"
+      },
+      "keywords": [
+        "playing as yourself",
+        "own account",
+        "play as class",
+        "banner",
+        "player"
+      ],
+      "steps": [
+        {
+          "anchor": "player-playing-as-yourself",
+          "say": "A line across the top of the player while a lesson runs on your own sign-in rather than on the class — noticed before the minutes land on you. It goes as soon as you pause or stop.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "player-playing-as-yourself",
+          "say": "**Your classes** takes you to start the lesson again with Play as class instead. Minutes already played on your own account aren't moved by this line — the copy tool on the class's tools page does that if you want it.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's the tell for playing as yourself. This tour moved no minutes."
         }
       ]
     },
@@ -636,6 +1077,56 @@
             "on": "next"
           },
           "terminal": "Nothing here commits you. Tapping a card takes you into it, and every course you have touched keeps its own place waiting."
+        }
+      ]
+    },
+    {
+      "id": "reading-your-class-list",
+      "title": "Reading your class list",
+      "personas": [
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "classes"
+      },
+      "keywords": [
+        "classes",
+        "list",
+        "table",
+        "year group",
+        "filter",
+        "open"
+      ],
+      "steps": [
+        {
+          "anchor": "classes-table",
+          "say": "One row per class. Belt, how far through the course, minutes played as class this week and the shape of those days — all the class account's own, never a pupil's.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "classes-filters",
+          "say": "**Course** narrows the list to one language. **Sort by** puts it in the order that answers your question — name, journey, or phrases practised.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "classes-year-groups",
+          "say": "Tiles by year, read off the class name — **7B** and **Year 9 French** both count. Tap a tile and the table narrows to that year.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "classes-row",
+          "say": "Anywhere on a row opens that class. The buttons at the right end do their own jobs and do not open it.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's reading the list — the row itself opens a class. This tour opened nothing."
         }
       ]
     },
@@ -891,6 +1382,85 @@
       ]
     },
     {
+      "id": "setup-choose-courses",
+      "title": "Choose which courses your school uses",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "setup"
+      },
+      "keywords": [
+        "course",
+        "courses",
+        "choose",
+        "narrow",
+        "catalogue",
+        "setup",
+        "step 3"
+      ],
+      "steps": [
+        {
+          "anchor": "setup-course-picker",
+          "say": "Step three of first-time setup, **Choose courses** — everything your school has access to starts ticked here.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "setup-course-picker",
+          "say": "Untick anything you don't plan to teach. This is a filter and nothing more — it doesn't change what your school has access to, it just shortens the list you pick from at the next step.",
+          "advance": {
+            "on": "click"
+          },
+          "terminal": "Tap Continue and step four's course picker only offers what you left ticked here."
+        }
+      ]
+    },
+    {
+      "id": "setup-give-class-course",
+      "title": "Give a class its course",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "setup"
+      },
+      "keywords": [
+        "course",
+        "class",
+        "assign",
+        "language",
+        "picker",
+        "setup",
+        "step 4"
+      ],
+      "steps": [
+        {
+          "anchor": "setup-class-course",
+          "say": "Step four, **Create classes** — each class row already holds the language you signed your school up with, so most classes need nothing done here.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "setup-class-course",
+          "say": "To teach something else, tap the picker and start typing — the catalogue runs to dozens of courses, and this only offers what you left ticked at Choose courses.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "setup-class-course",
+          "say": "Pick the one you want. Where a language offers more than one version, the versions differ by region or accent.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Save the class and everyone who joins it lands in that course."
+        }
+      ]
+    },
+    {
       "id": "share-a-class",
       "title": "Share a class with a colleague",
       "personas": [
@@ -936,6 +1506,100 @@
             "on": "next"
           },
           "terminal": "That's sharing a class — same class, two teachers, one lead. This tour added nobody; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "start-or-make-a-class",
+      "title": "Start a session or make a class from the list",
+      "personas": [
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "classes"
+      },
+      "keywords": [
+        "play",
+        "session",
+        "class",
+        "new",
+        "export",
+        "csv"
+      ],
+      "steps": [
+        {
+          "anchor": "classes-row-play",
+          "say": "**Play as class** at the end of a row starts a session straight from the list — no need to open the class first. Your device leads, the whole class moves on together.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "verb-new-class",
+          "say": "**+ New class** sets up a class of your own: a name, a language, and a join link made for you at the same moment.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "classes-export",
+          "say": "**Export CSV** takes the list away as a spreadsheet — belt, journey, minutes, join code, one row per class. What you export is whatever the filters currently show.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Starting a session, making a class, exporting the list — all from the same page. This tour started nothing and made nothing."
+        }
+      ]
+    },
+    {
+      "id": "take-a-teacher-off-a-class",
+      "title": "Take a teacher off a class, or move them",
+      "personas": [
+        "leader",
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "teachers"
+      },
+      "keywords": [
+        "move",
+        "remove",
+        "class",
+        "teacher",
+        "swap",
+        "reassign"
+      ],
+      "steps": [
+        {
+          "anchor": "teacher-assign-classes",
+          "say": "**Assign to a class** on a teacher's row opens their ticks — the classes they take now, already ticked.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "assign-classes-modal",
+          "say": "The ticks start from what is true today, so moving somebody from one class to another is a single change rather than two.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "assign-classes-list",
+          "say": "Untick the class they're leaving, tick the one they're joining. A move is one change here, not two.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "assign-classes-save",
+          "say": "**Save** counts your changes back to you before it commits. If part of it fails, the panel stays open and names the class it couldn't do — nothing is ever reported saved when it wasn't.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Untick, tick, save — that's moving or removing a teacher. This tour changed nobody's classes."
         }
       ]
     },
