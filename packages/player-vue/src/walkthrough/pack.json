@@ -1,5 +1,5 @@
 {
-  "version": "779027ec6773",
+  "version": "4ba2d4146056",
   "generatedAt": "2026-09-15",
   "walks": [
     {
@@ -647,6 +647,73 @@
             "on": "next"
           },
           "terminal": "Everything you have already done comes with you — signing in adds your account to it, it never starts you again."
+        }
+      ]
+    },
+    {
+      "id": "seeing-how-it-is-going",
+      "title": "Seeing how it is going — the numbers and the map on any level",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "place": {
+        "route": "node-home",
+        "kinds": [
+          "org",
+          "group",
+          "school"
+        ]
+      },
+      "keywords": [
+        "numbers",
+        "stats",
+        "map",
+        "rail",
+        "updated",
+        "fresh",
+        "year group",
+        "below this",
+        "tree",
+        "drill down"
+      ],
+      "steps": [
+        {
+          "anchor": "node-map-rail",
+          "say": "This map stays down the side of every level. Read it top to bottom: the levels above you, the one you are on, its neighbours and what sits under it. Tap any name to move straight there — the page rebuilds around it and the map redraws.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "node-updated",
+          "say": "**Updated** and a time says when these figures were last fetched. Reload the page to fetch again and the stamp moves with it. An empty stamp means the numbers have not arrived yet, not that they are old.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "node-stats",
+          "say": "The row of numbers counts everything below this level, each person once. **Phrases practised this week** and **Classes practising this week** come from whole-class play over the last seven days. **Minutes in the app this week** is time in the lesson, pauses included, for the classes below and for staff and students on their own accounts. On your own school each card is a link to the list behind it.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "node-year-groups",
+          "say": "**By year group** splits the same minutes by year: **Y7**, **Y8** and so on, read off each class name, with the minutes this week beneath and how many of that year's classes practised out of how many there are. **Other** holds classes whose names carry no year. If fewer than half your class names carry a year, the card reads **By class** instead.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "below-tree-name",
+          "say": "**Below this** draws everything hanging beneath here — groups inside groups, their classes, the teachers who take them and staff who teach nothing yet. Tap a caret to open or close a branch, tap a name to go to that level. A class row already tells you its teachers, its student count and whether it practised together this week, so you need not open it to find out.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "The map tells you where you are, the numbers tell you how it is going below here, and the tree takes you down a level whenever you want the detail."
         }
       ]
     },
