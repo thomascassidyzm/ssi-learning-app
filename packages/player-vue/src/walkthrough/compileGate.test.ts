@@ -36,7 +36,8 @@ import {
   parseHandbookBlocks, fingerprintCapability, stampChecked, declarationSource,
   proseFingerprint, checkedCode, checkedProse, anchorFingerprint, stepProseFingerprint,
 } from '../../../../tools/walkthrough/handbookSource.mjs'
-import { readFileSync } from 'node:fs'
+import { readFileSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 
 // A walk is a CLIP and nothing else since 2026-09-07 — the prose moved into
 // the .vue source, beside the capability it describes.
@@ -231,6 +232,16 @@ describe('the real pack (live drift gate)', () => {
     const cli = join(process.cwd(), '..', '..', 'tools', 'walkthrough', 'compile.mjs')
     const res = spawnSync(process.execPath, [cli, '--check'], { encoding: 'utf8' })
     expect(res.status, res.stderr || res.stdout).toBe(0)
+  })
+  it('compile.mjs --build (the Vercel path) EXITS NON-ZERO on a coverage gap — gate failures are never advisory (#860)', () => {
+    const cli = join(process.cwd(), '..', '..', 'tools', 'walkthrough', 'compile.mjs')
+    const dir = mkdtempSync(join(tmpdir(), 'cov-'))
+    const gap = join(dir, 'coverage.json')
+    writeFileSync(gap, JSON.stringify({ capabilities: { obvious: {}, missing: {} }, pages: { obvious: {}, missing: {} } }))
+    const res = spawnSync(process.execPath, [cli, '--build'], { encoding: 'utf8', env: { ...process.env, WALKTHROUGH_COVERAGE_JSON: gap } })
+    expect(res.status, res.stderr || res.stdout).toBe(1)
+    expect(res.stderr).toContain('CLIPS:')
+    expect(res.stderr).not.toContain('building anyway')
   })
 })
 
@@ -704,12 +715,12 @@ describe('gateClipCoverage (every capability clipped, obvious, or on the backlog
     expect(failures[0]).toContain('F.vue:3')
     expect(failures[0]).toContain('a-bare')
   })
-  it('passes a capability a walk steps on, one named via walk:, one declared obvious, one on the backlog', () => {
+  it('passes a capability a walk steps on, one that names the walk which steps it, one declared obvious, one on the backlog', () => {
     const coverage = {
       capabilities: { obvious: { 'a-obvious': 'One button, labelled with what it does.' }, missing: { 'a-missing': 'Backlog, no clip yet.' } },
       pages: { obvious: {}, missing: {} },
     }
-    const entries = [entry('a-clipped'), entry('a-named', { walk: 'w1' }), entry('a-obvious'), entry('a-missing')]
+    const entries = [entry('a-clipped'), entry('a-clipped', { walk: 'w1', line: 9 }), entry('a-obvious'), entry('a-missing')]
     expect(gateClipCoverage({ entries, walks: [walk], coverage }).failures).toEqual([])
   })
   it('FAILS a registry line whose capability has since gained a walk, or whose anchor is gone', () => {
@@ -717,6 +728,27 @@ describe('gateClipCoverage (every capability clipped, obvious, or on the backlog
     const { failures } = gateClipCoverage({ entries: [entry('a-clipped')], walks: [walk], coverage })
     expect(failures.some((f: string) => f.includes('a-clipped') && f.includes('debt is paid'))).toBe(true)
     expect(failures.some((f: string) => f.includes('a-gone') && f.includes('no longer a capability'))).toBe(true)
+  })
+  it('FAILS a capability that NAMES a walk which never steps on its anchor, or a walk that does not exist (#860)', () => {
+    const { failures } = gateClipCoverage({ entries: [entry('a-named', { walk: 'w1' }), entry('a-ghost', { walk: 'no-such' })], walks: [walk], coverage: empty })
+    expect(failures.some((f: string) => f.includes('a-named') && f.includes('never steps on a-named'))).toBe(true)
+    expect(failures.some((f: string) => f.includes('a-ghost') && f.includes('does not exist'))).toBe(true)
+    expect(failures).toHaveLength(2)
+  })
+  it('FAILS a backlog line for a capability that names a walk AND is stepped by one — stale debt is never masked by naming (#860)', () => {
+    const coverage = { capabilities: { obvious: {}, missing: { 'a-clipped': 'stale' } }, pages: { obvious: {}, missing: {} } }
+    const { failures } = gateClipCoverage({ entries: [entry('a-clipped', { walk: 'w1' })], walks: [walk], coverage })
+    expect(failures.some((f: string) => f.includes('a-clipped') && f.includes('debt is paid'))).toBe(true)
+  })
+  it('routeViewsFrom reads double-quoted route and child imports too (#860)', () => {
+    const r2 = 'const A = () => import("@/views/admin/AdminMessages.vue")'
+    const f2 = [
+      { path: 'packages/player-vue/src/views/admin/AdminMessages.vue', src: 'import Bar from "@/components/schools/Bar.vue"' },
+      { path: 'packages/player-vue/src/components/schools/Bar.vue', src: '<button data-walk="bar-go" />' },
+    ]
+    const views = routeViewsFrom(r2, f2)
+    expect(views.map((v) => v.path)).toEqual(['packages/player-vue/src/views/admin/AdminMessages.vue'])
+    expect(views[0].children[0].path).toBe('packages/player-vue/src/components/schools/Bar.vue')
   })
   it('FAILS an obvious line with no real sentence behind it', () => {
     const coverage = { capabilities: { obvious: { 'a-x': 'yes' }, missing: {} }, pages: { obvious: {}, missing: {} } }
