@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `e3df8049dda1` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `0570e706599f` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## add-a-class-under-a-group — Add a class to a group
 
@@ -10,6 +10,14 @@ Personas: admin, leader, school_admin · place: node-home
 2. [`add-class-name` · next] Type the class name, then choose the course it will learn. A paid language your group has no cover for is refused when you tap Add, and the message says so.
 3. [`add-class-submit` · next] **Add** creates it. No teacher is needed yet — the class sits under the group waiting, and you can put a teacher on it whenever you're ready.
    - terminal: That's adding a class ahead of staffing it. This tour added nobody and nothing; only your own tap does.
+
+## add-a-school-to-your-programme — Add a school to your programme
+
+Personas: leader · place: schools-list
+
+1. [`verb-add-school` · click] **+ Add school** creates a new school inside your programme. It exists the moment you name it, already attached to your group, with its admin and teacher links ready to hand over.
+2. [`verb-add-school` · next] Type the school's name, tap **Create school**, then copy its Admin and Teacher links to send to whoever runs it. Both links stay on the school's own row afterwards, so you can fetch them again any time.
+   - terminal: That's a new school made — no separate onboarding step to remember.
 
 ## add-a-student-to-a-class — Add a student to a class
 
@@ -231,6 +239,18 @@ Personas: teacher · place: class-detail
 3. [`class-student-remove` · next] **Remove** at the end of a student's row in the roster takes them off this class only. Their account and everything they've learned stays with them, and they can join another class straight away.
    - terminal: Rename, delete, remove a student — all from the class's own tools page. This tour changed nothing; only your own taps do.
 
+## manage-your-school-settings — Manage your school's profile, billing and deletion
+
+Personas: school_admin · place: settings
+
+1. [`settings-tab-profile` · click] Settings opens on **School profile** — your school's name and details.
+2. [`settings-save-profile` · next] **School profile** is where your school's name and details live. Change them here and tap **Save changes** — this is the one place to update it after first-time setup.
+3. [`settings-tab-billing` · click] Tap **Billing** to see what your school is paying for.
+4. [`settings-billing-plan` · next] This line is the plain statement of your plan — its name, how many seats it pays for, and whether the subscription is running. **Manage subscription & seats** takes you to the one Upgrade page for any payment change.
+5. [`settings-tab-data` · click] Tap **Data & privacy** to reach the danger zone.
+6. [`settings-delete-school` · next] **Delete school** closes your school down for good — its classes and everyone's enrolment go with it, and it cannot be undone. A school with real activity in it asks you to type the school's name back before it confirms.
+   - terminal: That's your school's own settings — its name, what it pays, and the one door to close it, all in one place.
+
 ## minutes-in-the-app-this-week — Minutes in the app this week
 
 Personas: school_admin · place: dashboard
@@ -405,6 +425,14 @@ Personas: school_admin · place: settings
 3. [`settings-identity-remove` · next] **Remove** beside any entry takes it off the list. Nothing is revoked — the person just stops being sorted to the top as unfamiliar.
    - terminal: That's the whole list — it changes ordering, never access. Giving somebody a class is what actually brings them into your school.
 
+## school-language-and-time-zone — Set your language and time zone
+
+Personas: school_admin, teacher · place: settings
+
+1. [`settings-tab-locale` · click] Tap **Localisation** to choose the language the dashboard speaks to you in, and the time zone your dates and times are read against.
+2. [`settings-localisation-save` · next] Pick your interface language and time zone, then tap **Save changes**. This is remembered on the device you set it on — teachers and students each choose their own, so it doesn't change what anybody else sees.
+   - terminal: That's the whole thing — one language, one time zone, always changeable, always in the same place.
+
 ## seeing-how-it-is-going — Seeing how it is going — the numbers and the map on any level
 
 Personas: admin, leader, school_admin · place: node-home (org/group/school)
@@ -460,6 +488,41 @@ Personas: school_admin, teacher · place: classes
 2. [`verb-new-class` · next] **+ New class** sets up a class of your own: a name, a language, and a join link made for you at the same moment.
 3. [`classes-export` · next] **Export CSV** takes the list away as a spreadsheet — belt, journey, minutes, join code, one row per class. What you export is whatever the filters currently show.
    - terminal: Starting a session, making a class, exporting the list — all from the same page. This tour started nothing and made nothing.
+
+## structure-a-group — Add, rename and delete schools and groups
+
+Personas: admin · place: node-home (group)
+
+1. [`verb-add-school` · click] **Add a school** creates a school inside this group, with its own home page, its own staff and its own learners. This verb only shows on a plain group — a school can't contain another school.
+2. [`verb-mint-demo` · click] **Mint a demo org** stands up a whole organisation with plausible people and activity already in it, for showing somebody what the product looks like once it's running.
+3. [`verb-rename` · click] **Rename** changes what this school or group is called everywhere it appears. Nothing else moves — the same people, classes and links carry on under the new name.
+4. [`verb-delete` · next] **Delete** is the one verb here that takes everything below it with it. You're shown what goes — classes, people and links — and asked to type the name back before it confirms whenever there's real activity underneath.
+   - terminal: Everything here works the same way — open the school or group, and its verbs sit in a row along the top.
+
+## subscribe-as-a-tutor — Subscribe as a tutor
+
+Personas: teacher · place: upgrade
+
+1. [`upgrade-subscribe-tutor` · next] Choose Monthly or Annual — annual works out at two months free — then tap **Subscribe** and fill in the card details on the panel that opens. It's one seat, for you; your students pay for their own learning separately, and three paying students cover what your dashboard costs.
+   - terminal: Once it's running, this same button becomes **Manage subscription** for invoices and cancellation.
+
+## subscribe-your-organisation — Subscribe your organisation and change its seats
+
+Personas: leader · place: upgrade
+
+1. [`upgrade-seats-actual` · next] This line always tells the truth about who's actually joined against how many seats you're paying for — before you subscribe it previews what you're about to pay for, and it never blocks a class from running even if more people join than you've paid seats for.
+2. [`upgrade-subscribe-org` · next] Choose Monthly or Annual, set the number of learner seats with the stepper — it opens at the number of people already joined — then tap **Subscribe** and fill in the card details on the panel that opens.
+3. [`upgrade-update-seats` · next] Once you're subscribed, this same spot becomes **Update to N seats** — step the count up or down any time your organisation grows or shrinks, and it changes against your existing subscription with no second charge.
+   - terminal: One subscription covers every seat and every language across the group, and you can add or remove seats whenever you need to.
+
+## subscribe-your-school — Subscribe your school and change its seats
+
+Personas: school_admin · place: upgrade
+
+1. [`upgrade-seats-actual` · next] This line always tells the truth about how many teachers have joined against how many seats you're paying for — nothing is ever blocked, it just shows you the gap so you can put it right.
+2. [`upgrade-subscribe-school` · next] Choose Monthly or Annual, set the number of teacher seats with the stepper — it opens at the number of teachers who've actually joined — then tap **Subscribe** and fill in the card details on the panel that opens. Seats are teacher seats; your students don't each need one.
+3. [`upgrade-update-seats` · next] Once you're subscribed, this same spot becomes **Update to N seats** — step it up or down any time staff join or leave, changed against your existing subscription with no second charge.
+   - terminal: That's a trial turned into a paid school, with the same page covering it for as long as your staff numbers change.
 
 ## take-a-teacher-off-a-class — Take a teacher off a class, or move them
 
@@ -530,6 +593,15 @@ Personas: admin · place: intel
 3. [`evidence` · next] The chart is how long they have been gone.
 4. [`rows` · next] The rows are ordered by who was seen most recently, then by who was most regular before they stopped. Nobody is ranked by money, because no amount is stored for anyone. Each row carries every reason that applies, how long since they were seen, how regular they were, and when their access ends if it is ending. Open a row to see that person and act on them.
    - terminal: Who has gone quiet and why, most recently seen first. Open a row to write to them.
+
+## work-through-setup — Name your school and work through setup
+
+Personas: school_admin · place: setup
+
+1. [`setup-step-rail` · next] First-time setup is four short steps, listed down the left — your school, your staff, your courses, your classes. Tap any of them to jump straight to it, forwards or back.
+2. [`setup-school-name` · next] Type your school's name as you would write it on a letterhead — this is what your teachers and students see on every page and every invite link.
+3. [`setup-save-exit` · next] **Save & exit** saves the step you're on and puts you back on your dashboard, so you never have to finish setup in one sitting. Come back to Settings and First-time setup whenever you want to carry on.
+   - terminal: Everything the wizard sets up can also be changed later from Settings and from your class pages — nothing here is a one-shot.
 
 ## working-now — Whether the app is working right now
 

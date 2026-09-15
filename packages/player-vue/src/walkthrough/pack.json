@@ -1,5 +1,5 @@
 {
-  "version": "e3df8049dda1",
+  "version": "0570e706599f",
   "generatedAt": "2026-09-15",
   "walks": [
     {
@@ -42,6 +42,41 @@
             "on": "next"
           },
           "terminal": "That's adding a class ahead of staffing it. This tour added nobody and nothing; only your own tap does."
+        }
+      ]
+    },
+    {
+      "id": "add-a-school-to-your-programme",
+      "title": "Add a school to your programme",
+      "personas": [
+        "leader"
+      ],
+      "place": {
+        "route": "schools-list"
+      },
+      "keywords": [
+        "add",
+        "new",
+        "school",
+        "create",
+        "programme",
+        "register"
+      ],
+      "steps": [
+        {
+          "anchor": "verb-add-school",
+          "say": "**+ Add school** creates a new school inside your programme. It exists the moment you name it, already attached to your group, with its admin and teacher links ready to hand over.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "verb-add-school",
+          "say": "Type the school's name, tap **Create school**, then copy its Admin and Teacher links to send to whoever runs it. Both links stay on the school's own row afterwards, so you can fetch them again any time.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's a new school made — no separate onboarding step to remember."
         }
       ]
     },
@@ -1095,6 +1130,71 @@
       ]
     },
     {
+      "id": "manage-your-school-settings",
+      "title": "Manage your school's profile, billing and deletion",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "settings"
+      },
+      "keywords": [
+        "school",
+        "name",
+        "profile",
+        "billing",
+        "plan",
+        "pay",
+        "delete",
+        "danger"
+      ],
+      "steps": [
+        {
+          "anchor": "settings-tab-profile",
+          "say": "Settings opens on **School profile** — your school's name and details.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "settings-save-profile",
+          "say": "**School profile** is where your school's name and details live. Change them here and tap **Save changes** — this is the one place to update it after first-time setup.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "settings-tab-billing",
+          "say": "Tap **Billing** to see what your school is paying for.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "settings-billing-plan",
+          "say": "This line is the plain statement of your plan — its name, how many seats it pays for, and whether the subscription is running. **Manage subscription & seats** takes you to the one Upgrade page for any payment change.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "settings-tab-data",
+          "say": "Tap **Data & privacy** to reach the danger zone.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "settings-delete-school",
+          "say": "**Delete school** closes your school down for good — its classes and everyone's enrolment go with it, and it cannot be undone. A school with real activity in it asks you to type the school's name back before it confirms.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's your school's own settings — its name, what it pays, and the one door to close it, all in one place."
+        }
+      ]
+    },
+    {
       "id": "minutes-in-the-app-this-week",
       "title": "Minutes in the app this week",
       "personas": [
@@ -1946,6 +2046,43 @@
       ]
     },
     {
+      "id": "school-language-and-time-zone",
+      "title": "Set your language and time zone",
+      "personas": [
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "settings"
+      },
+      "keywords": [
+        "language",
+        "welsh",
+        "cymraeg",
+        "time zone",
+        "timezone",
+        "localisation",
+        "interface"
+      ],
+      "steps": [
+        {
+          "anchor": "settings-tab-locale",
+          "say": "Tap **Localisation** to choose the language the dashboard speaks to you in, and the time zone your dates and times are read against.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "settings-localisation-save",
+          "say": "Pick your interface language and time zone, then tap **Save changes**. This is remembered on the device you set it on — teachers and students each choose their own, so it doesn't change what anybody else sees.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's the whole thing — one language, one time zone, always changeable, always in the same place."
+        }
+      ]
+    },
+    {
       "id": "seeing-how-it-is-going",
       "title": "Seeing how it is going — the numbers and the map on any level",
       "personas": [
@@ -2227,6 +2364,177 @@
             "on": "next"
           },
           "terminal": "Starting a session, making a class, exporting the list — all from the same page. This tour started nothing and made nothing."
+        }
+      ]
+    },
+    {
+      "id": "structure-a-group",
+      "title": "Add, rename and delete schools and groups",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "node-home",
+        "kinds": [
+          "group"
+        ]
+      },
+      "keywords": [
+        "school",
+        "group",
+        "add",
+        "create",
+        "rename",
+        "delete",
+        "demo",
+        "structure"
+      ],
+      "steps": [
+        {
+          "anchor": "verb-add-school",
+          "say": "**Add a school** creates a school inside this group, with its own home page, its own staff and its own learners. This verb only shows on a plain group — a school can't contain another school.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "verb-mint-demo",
+          "say": "**Mint a demo org** stands up a whole organisation with plausible people and activity already in it, for showing somebody what the product looks like once it's running.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "verb-rename",
+          "say": "**Rename** changes what this school or group is called everywhere it appears. Nothing else moves — the same people, classes and links carry on under the new name.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "verb-delete",
+          "say": "**Delete** is the one verb here that takes everything below it with it. You're shown what goes — classes, people and links — and asked to type the name back before it confirms whenever there's real activity underneath.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Everything here works the same way — open the school or group, and its verbs sit in a row along the top."
+        }
+      ]
+    },
+    {
+      "id": "subscribe-as-a-tutor",
+      "title": "Subscribe as a tutor",
+      "personas": [
+        "teacher"
+      ],
+      "place": {
+        "route": "upgrade"
+      },
+      "keywords": [
+        "tutor",
+        "subscribe",
+        "pay",
+        "upgrade",
+        "freelance",
+        "monthly",
+        "annual"
+      ],
+      "steps": [
+        {
+          "anchor": "upgrade-subscribe-tutor",
+          "say": "Choose Monthly or Annual — annual works out at two months free — then tap **Subscribe** and fill in the card details on the panel that opens. It's one seat, for you; your students pay for their own learning separately, and three paying students cover what your dashboard costs.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Once it's running, this same button becomes **Manage subscription** for invoices and cancellation."
+        }
+      ]
+    },
+    {
+      "id": "subscribe-your-organisation",
+      "title": "Subscribe your organisation and change its seats",
+      "personas": [
+        "leader"
+      ],
+      "place": {
+        "route": "upgrade"
+      },
+      "keywords": [
+        "subscribe",
+        "pay",
+        "upgrade",
+        "organisation",
+        "seats",
+        "learner seats",
+        "monthly",
+        "annual"
+      ],
+      "steps": [
+        {
+          "anchor": "upgrade-seats-actual",
+          "say": "This line always tells the truth about who's actually joined against how many seats you're paying for — before you subscribe it previews what you're about to pay for, and it never blocks a class from running even if more people join than you've paid seats for.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "upgrade-subscribe-org",
+          "say": "Choose Monthly or Annual, set the number of learner seats with the stepper — it opens at the number of people already joined — then tap **Subscribe** and fill in the card details on the panel that opens.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "upgrade-update-seats",
+          "say": "Once you're subscribed, this same spot becomes **Update to N seats** — step the count up or down any time your organisation grows or shrinks, and it changes against your existing subscription with no second charge.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "One subscription covers every seat and every language across the group, and you can add or remove seats whenever you need to."
+        }
+      ]
+    },
+    {
+      "id": "subscribe-your-school",
+      "title": "Subscribe your school and change its seats",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "upgrade"
+      },
+      "keywords": [
+        "subscribe",
+        "pay",
+        "upgrade",
+        "seats",
+        "teacher seats",
+        "trial",
+        "monthly",
+        "annual"
+      ],
+      "steps": [
+        {
+          "anchor": "upgrade-seats-actual",
+          "say": "This line always tells the truth about how many teachers have joined against how many seats you're paying for — nothing is ever blocked, it just shows you the gap so you can put it right.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "upgrade-subscribe-school",
+          "say": "Choose Monthly or Annual, set the number of teacher seats with the stepper — it opens at the number of teachers who've actually joined — then tap **Subscribe** and fill in the card details on the panel that opens. Seats are teacher seats; your students don't each need one.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "upgrade-update-seats",
+          "say": "Once you're subscribed, this same spot becomes **Update to N seats** — step it up or down any time staff join or leave, changed against your existing subscription with no second charge.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's a trial turned into a paid school, with the same page covering it for as long as your staff numbers change."
         }
       ]
     },
@@ -2601,6 +2909,51 @@
             "on": "next"
           },
           "terminal": "Who has gone quiet and why, most recently seen first. Open a row to write to them."
+        }
+      ]
+    },
+    {
+      "id": "work-through-setup",
+      "title": "Name your school and work through setup",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "setup"
+      },
+      "keywords": [
+        "setup",
+        "wizard",
+        "first",
+        "name",
+        "onboarding",
+        "steps",
+        "save",
+        "exit",
+        "resume"
+      ],
+      "steps": [
+        {
+          "anchor": "setup-step-rail",
+          "say": "First-time setup is four short steps, listed down the left — your school, your staff, your courses, your classes. Tap any of them to jump straight to it, forwards or back.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "setup-school-name",
+          "say": "Type your school's name as you would write it on a letterhead — this is what your teachers and students see on every page and every invite link.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "setup-save-exit",
+          "say": "**Save & exit** saves the step you're on and puts you back on your dashboard, so you never have to finish setup in one sitting. Come back to Settings and First-time setup whenever you want to carry on.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Everything the wizard sets up can also be changed later from Settings and from your class pages — nothing here is a one-shot."
         }
       ]
     },

@@ -10,16 +10,6 @@ const { t } = useI18n()
 
 type SectionId = 'profile' | 'locale' | 'data' | 'billing'
 
-// A computed, not a plain array, for the same reason as dataToggles below:
-// evaluated once at setup it would read t() before the locale chunk has
-// landed and freeze the section nav in English for the session.
-const SECTIONS = computed<{ id: SectionId; label: string }[]>(() => [
-  { id: 'profile', label: t('schools.schoolSettings.sectionProfile', 'School profile') },
-  { id: 'locale', label: t('schools.schoolSettings.sectionLocalisation', 'Localisation') },
-  { id: 'data', label: t('schools.schoolSettings.sectionDataPrivacy', 'Data & privacy') },
-  { id: 'billing', label: t('schools.schoolSettings.sectionBilling', 'Billing') },
-])
-
 const isAdminView = inject<boolean>('isAdminView', false)
 const supabase = inject<import('vue').Ref<any>>('supabase', ref(null))
 const { currentUser, isSchoolAdmin } = useSchoolContext()
@@ -116,9 +106,6 @@ async function removeIdentityClaim(id: string) {
 // how other admin-only controls hide (not disable) for teachers elsewhere
 // (e.g. TeachersView's invite/remove buttons).
 const canEditSchool = computed(() => isSchoolAdmin.value && !isAdminView)
-// No billing panel in this build (store shell) => no Billing tab either.
-const visibleSections = computed(() =>
-  SECTIONS.value.filter((s) => s.id !== 'billing' || (isSchoolAdmin.value && seatPurchaseAvailable)))
 
 const activeSection = ref<SectionId>('profile')
 
@@ -489,15 +476,46 @@ function toggleDataItem(id: string) {
 
     <div class="settings-layout">
       <aside class="schools-card section-nav">
+        <!-- Unrolled from the SECTIONS v-for so each fixed tab carries its own
+             literal data-walk anchor (the walkthrough gate reads the source
+             text, not a bound attribute) — same ids, same classes, same
+             click, one branch per section. -->
         <button
-          v-for="s in visibleSections"
-          :key="s.id"
           type="button"
           class="section-link"
-          :class="{ active: activeSection === s.id }"
-          @click="activeSection = s.id"
+          data-walk="settings-tab-profile"
+          :class="{ active: activeSection === 'profile' }"
+          @click="activeSection = 'profile'"
         >
-          {{ s.label }}
+          {{ t('schools.schoolSettings.sectionProfile', 'School profile') }}
+        </button>
+        <button
+          type="button"
+          class="section-link"
+          data-walk="settings-tab-locale"
+          :class="{ active: activeSection === 'locale' }"
+          @click="activeSection = 'locale'"
+        >
+          {{ t('schools.schoolSettings.sectionLocalisation', 'Localisation') }}
+        </button>
+        <button
+          type="button"
+          class="section-link"
+          data-walk="settings-tab-data"
+          :class="{ active: activeSection === 'data' }"
+          @click="activeSection = 'data'"
+        >
+          {{ t('schools.schoolSettings.sectionDataPrivacy', 'Data & privacy') }}
+        </button>
+        <button
+          v-if="isSchoolAdmin && seatPurchaseAvailable"
+          type="button"
+          class="section-link"
+          data-walk="settings-tab-billing"
+          :class="{ active: activeSection === 'billing' }"
+          @click="activeSection = 'billing'"
+        >
+          {{ t('schools.schoolSettings.sectionBilling', 'Billing') }}
         </button>
       </aside>
 

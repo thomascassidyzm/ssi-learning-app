@@ -427,7 +427,7 @@ onMounted(() => {
     </header>
 
     <div class="setup-layout">
-      <aside class="schools-card step-rail">
+      <aside class="schools-card step-rail" data-walk="setup-step-rail">
         <button
           v-for="s in STEPS"
           :key="s.n"
