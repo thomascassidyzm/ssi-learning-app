@@ -3092,3 +3092,17 @@ under the hold too (a preview round's cycle index on the held LEGO's row would m
 same-sitting resume); `saveRoundProgress` writes no cursor in the main loop and its INF-PLAY ratchet
 is unreachable behind a wall. `paywallRetreat.test.ts` asserts both wirings: red on the pre-fix
 source, green after.
+
+**Addition (same job, found by the write-hold probe): the post-init resume gate waits for the
+subscription answer.** On served staging c730751 one open in four skipped the hold entirely: no
+wall, localStorage rewritten to S0019L01 within two seconds, the DB cursor saved only by its
+forward-only write. Cause: `positionInitialized` fired while `/api/subscription` was still in
+flight; `checkCourseAccess` treats that window as optimistic access (the morgan1009 rule — never
+bounce a payer to the wall on a page-load race), so `canAccessSeed(31)` said yes, the hold was
+skipped, and the lifecycle save two lines later wrote the preview landing over the real place.
+Now `useEntitlement` exposes `accessPending` and `subscriptionHydrated`, and the gate plus both
+lifecycle saves are deferred until hydration — bounded by useSubscription's own 8s timeout, which
+fails closed. The optimistic rule itself is untouched: a payer still sees no wall, they just wait
+for the answer before the cursor is stamped. Wiring asserted in `paywallRetreat.test.ts`, red on the
+pre-fix source, green after; three consecutive served-build opens held at the wall with both
+cursors on S0031L01.
