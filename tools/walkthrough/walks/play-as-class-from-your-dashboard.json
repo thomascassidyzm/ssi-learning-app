@@ -1,0 +1,35 @@
+{
+  "id": "play-as-class-from-your-dashboard",
+  "title": "Play as class from your dashboard",
+  "personas": [
+    "teacher"
+  ],
+  "place": {
+    "route": "dashboard"
+  },
+  "keywords": [
+    "play as class",
+    "lesson",
+    "dashboard",
+    "class card"
+  ],
+  "steps": [
+    {
+      "anchor": "dash-class-card-play",
+      "say": "**Play as class** on a class card starts a lesson straight from your dashboard, on the class's own account — the minutes and phrases land on the class, not on you.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "a560251d.44071d75"
+    },
+    {
+      "anchor": "dash-class-card-play",
+      "say": "The player opens on the class's course, at the class's own place in it. While a platform admin is viewing your dashboard as you, this button is greyed out and does nothing.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "One tap from your dashboard, no need to open the class first. This tour started no lesson.",
+      "checked": "a560251d.11b6a44d"
+    }
+  ]
+}

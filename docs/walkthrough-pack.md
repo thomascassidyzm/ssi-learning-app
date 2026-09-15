@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `da219dee07e8` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `7b1aecf2752c` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## add-a-class-under-a-group — Add a class to a group
 
@@ -54,6 +54,14 @@ Personas: school_admin · place: node-home
 1. [`school-copy-play-sweep` · next] Every teacher in your school who ran lessons signed in as themselves instead of using Play as class, one row per teacher on one class. When there is nothing to copy the card says so in words.
 2. [`school-copy-play-sweep-copy` · next] **Copy onto the class** does one row at a time — there is no button that copies everyone at once. The teacher keeps their own record; only play on that class's course moves.
    - terminal: Row by row, teacher by teacher — that's the whole sweep. This tour copied nothing.
+
+## create-your-first-classes — Create your first classes
+
+Personas: school_admin · place: setup
+
+1. [`setup-add-class-row` · next] Step four of first-time setup. The first row's course is already set to the language you signed up with — change it if this class learns something else.
+2. [`setup-add-class-row` · next] **+ Add another class** for each further class; every new row starts on that same language. Finishing setup creates every filled-in row, marked Added as it saves. Running the wizard twice will not duplicate classes you've already made.
+   - terminal: One row per class, add as many as you need. This tour created no classes.
 
 ## funded-org-courses — See what a funded organisation gives its learners
 
@@ -159,6 +167,22 @@ Personas: admin · place: node-home (org/group/school)
 3. [`verb-courses` · next] Save, and everyone below that node inherits it. A trial runs for thirty days on a paid course and a year on a free or community one — the server works the dates out on save, so what you see before saving is a preview.
    - terminal: That's the whole of it — pick Trial or Paid, choose the courses if it's a trial, and save.
 
+## play-as-class-from-your-dashboard — Play as class from your dashboard
+
+Personas: teacher · place: dashboard
+
+1. [`dash-class-card-play` · next] **Play as class** on a class card starts a lesson straight from your dashboard, on the class's own account — the minutes and phrases land on the class, not on you.
+2. [`dash-class-card-play` · next] The player opens on the class's course, at the class's own place in it. While a platform admin is viewing your dashboard as you, this button is greyed out and does nothing.
+   - terminal: One tap from your dashboard, no need to open the class first. This tour started no lesson.
+
+## playing-as-yourself — Told when you are playing as yourself
+
+Personas: teacher, school_admin · place: library
+
+1. [`player-playing-as-yourself` · next] A line across the top of the player while a lesson runs on your own sign-in rather than on the class — noticed before the minutes land on you. It goes as soon as you pause or stop.
+2. [`player-playing-as-yourself` · next] **Your classes** takes you to start the lesson again with Play as class instead. Minutes already played on your own account aren't moved by this line — the copy tool on the class's tools page does that if you want it.
+   - terminal: That's the tell for playing as yourself. This tour moved no minutes.
+
 ## reading-insights — Reading your insights
 
 Personas: admin, leader, school_admin · place: node-insights
@@ -250,6 +274,16 @@ Personas: school_admin, teacher · place: classes
 2. [`verb-new-class` · next] **+ New class** sets up a class of your own: a name, a language, and a join link made for you at the same moment.
 3. [`classes-export` · next] **Export CSV** takes the list away as a spreadsheet — belt, journey, minutes, join code, one row per class. What you export is whatever the filters currently show.
    - terminal: Starting a session, making a class, exporting the list — all from the same page. This tour started nothing and made nothing.
+
+## take-a-teacher-off-a-class — Take a teacher off a class, or move them
+
+Personas: leader, school_admin, teacher · place: teachers
+
+1. [`teacher-assign-classes` · click] **Assign to a class** on a teacher's row opens their ticks — the classes they take now, already ticked.
+2. [`assign-classes-modal` · next] The ticks start from what is true today, so moving somebody from one class to another is a single change rather than two.
+3. [`assign-classes-list` · next] Untick the class they're leaving, tick the one they're joining. A move is one change here, not two.
+4. [`assign-classes-save` · next] **Save** counts your changes back to you before it commits. If part of it fails, the panel stays open and names the class it couldn't do — nothing is ever reported saved when it wasn't.
+   - terminal: Untick, tick, save — that's moving or removing a teacher. This tour changed nobody's classes.
 
 ## ways-in — Ways in — who can get in, and how to change it
 

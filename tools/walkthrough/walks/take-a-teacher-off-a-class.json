@@ -1,0 +1,55 @@
+{
+  "id": "take-a-teacher-off-a-class",
+  "title": "Take a teacher off a class, or move them",
+  "personas": [
+    "leader",
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "teachers"
+  },
+  "keywords": [
+    "move",
+    "remove",
+    "class",
+    "teacher",
+    "swap",
+    "reassign"
+  ],
+  "steps": [
+    {
+      "anchor": "teacher-assign-classes",
+      "say": "**Assign to a class** on a teacher's row opens their ticks — the classes they take now, already ticked.",
+      "advance": {
+        "on": "click"
+      },
+      "checked": "525ae162.bf1352e7"
+    },
+    {
+      "anchor": "assign-classes-modal",
+      "say": "The ticks start from what is true today, so moving somebody from one class to another is a single change rather than two.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "e05b5403.cfad7691"
+    },
+    {
+      "anchor": "assign-classes-list",
+      "say": "Untick the class they're leaving, tick the one they're joining. A move is one change here, not two.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "9bbd16ec.988db977"
+    },
+    {
+      "anchor": "assign-classes-save",
+      "say": "**Save** counts your changes back to you before it commits. If part of it fails, the panel stays open and names the class it couldn't do — nothing is ever reported saved when it wasn't.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "Untick, tick, save — that's moving or removing a teacher. This tour changed nobody's classes.",
+      "checked": "6ecf2500.0d63517b"
+    }
+  ]
+}

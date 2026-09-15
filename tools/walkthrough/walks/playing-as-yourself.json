@@ -1,0 +1,37 @@
+{
+  "id": "playing-as-yourself",
+  "title": "Told when you are playing as yourself",
+  "personas": [
+    "teacher",
+    "school_admin"
+  ],
+  "place": {
+    "route": "library"
+  },
+  "keywords": [
+    "playing as yourself",
+    "own account",
+    "play as class",
+    "banner",
+    "player"
+  ],
+  "steps": [
+    {
+      "anchor": "player-playing-as-yourself",
+      "say": "A line across the top of the player while a lesson runs on your own sign-in rather than on the class — noticed before the minutes land on you. It goes as soon as you pause or stop.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "506b7e44.0fbe6bf3"
+    },
+    {
+      "anchor": "player-playing-as-yourself",
+      "say": "**Your classes** takes you to start the lesson again with Play as class instead. Minutes already played on your own account aren't moved by this line — the copy tool on the class's tools page does that if you want it.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's the tell for playing as yourself. This tour moved no minutes.",
+      "checked": "506b7e44.c57fc3d0"
+    }
+  ]
+}

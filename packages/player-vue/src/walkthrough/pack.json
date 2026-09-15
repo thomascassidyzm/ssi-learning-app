@@ -1,5 +1,5 @@
 {
-  "version": "da219dee07e8",
+  "version": "7b1aecf2752c",
   "generatedAt": "2026-09-15",
   "walks": [
     {
@@ -253,6 +253,41 @@
             "on": "next"
           },
           "terminal": "Row by row, teacher by teacher — that's the whole sweep. This tour copied nothing."
+        }
+      ]
+    },
+    {
+      "id": "create-your-first-classes",
+      "title": "Create your first classes",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "setup"
+      },
+      "keywords": [
+        "class",
+        "classes",
+        "create",
+        "new",
+        "first",
+        "setup"
+      ],
+      "steps": [
+        {
+          "anchor": "setup-add-class-row",
+          "say": "Step four of first-time setup. The first row's course is already set to the language you signed up with — change it if this class learns something else.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "setup-add-class-row",
+          "say": "**+ Add another class** for each further class; every new row starts on that same language. Finishing setup creates every filled-in row, marked Added as it saves. Running the wizard twice will not duplicate classes you've already made.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "One row per class, add as many as you need. This tour created no classes."
         }
       ]
     },
@@ -787,6 +822,74 @@
       ]
     },
     {
+      "id": "play-as-class-from-your-dashboard",
+      "title": "Play as class from your dashboard",
+      "personas": [
+        "teacher"
+      ],
+      "place": {
+        "route": "dashboard"
+      },
+      "keywords": [
+        "play as class",
+        "lesson",
+        "dashboard",
+        "class card"
+      ],
+      "steps": [
+        {
+          "anchor": "dash-class-card-play",
+          "say": "**Play as class** on a class card starts a lesson straight from your dashboard, on the class's own account — the minutes and phrases land on the class, not on you.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "dash-class-card-play",
+          "say": "The player opens on the class's course, at the class's own place in it. While a platform admin is viewing your dashboard as you, this button is greyed out and does nothing.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "One tap from your dashboard, no need to open the class first. This tour started no lesson."
+        }
+      ]
+    },
+    {
+      "id": "playing-as-yourself",
+      "title": "Told when you are playing as yourself",
+      "personas": [
+        "teacher",
+        "school_admin"
+      ],
+      "place": {
+        "route": "library"
+      },
+      "keywords": [
+        "playing as yourself",
+        "own account",
+        "play as class",
+        "banner",
+        "player"
+      ],
+      "steps": [
+        {
+          "anchor": "player-playing-as-yourself",
+          "say": "A line across the top of the player while a lesson runs on your own sign-in rather than on the class — noticed before the minutes land on you. It goes as soon as you pause or stop.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "player-playing-as-yourself",
+          "say": "**Your classes** takes you to start the lesson again with Play as class instead. Minutes already played on your own account aren't moved by this line — the copy tool on the class's tools page does that if you want it.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's the tell for playing as yourself. This tour moved no minutes."
+        }
+      ]
+    },
+    {
       "id": "reading-insights",
       "title": "Reading your insights",
       "personas": [
@@ -1253,6 +1356,57 @@
             "on": "next"
           },
           "terminal": "Starting a session, making a class, exporting the list — all from the same page. This tour started nothing and made nothing."
+        }
+      ]
+    },
+    {
+      "id": "take-a-teacher-off-a-class",
+      "title": "Take a teacher off a class, or move them",
+      "personas": [
+        "leader",
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "teachers"
+      },
+      "keywords": [
+        "move",
+        "remove",
+        "class",
+        "teacher",
+        "swap",
+        "reassign"
+      ],
+      "steps": [
+        {
+          "anchor": "teacher-assign-classes",
+          "say": "**Assign to a class** on a teacher's row opens their ticks — the classes they take now, already ticked.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "assign-classes-modal",
+          "say": "The ticks start from what is true today, so moving somebody from one class to another is a single change rather than two.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "assign-classes-list",
+          "say": "Untick the class they're leaving, tick the one they're joining. A move is one change here, not two.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "assign-classes-save",
+          "say": "**Save** counts your changes back to you before it commits. If part of it fails, the panel stays open and names the class it couldn't do — nothing is ever reported saved when it wasn't.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Untick, tick, save — that's moving or removing a teacher. This tour changed nobody's classes."
         }
       ]
     },

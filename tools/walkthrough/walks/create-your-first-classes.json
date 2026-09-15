@@ -1,0 +1,37 @@
+{
+  "id": "create-your-first-classes",
+  "title": "Create your first classes",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "setup"
+  },
+  "keywords": [
+    "class",
+    "classes",
+    "create",
+    "new",
+    "first",
+    "setup"
+  ],
+  "steps": [
+    {
+      "anchor": "setup-add-class-row",
+      "say": "Step four of first-time setup. The first row's course is already set to the language you signed up with — change it if this class learns something else.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "9056db89.90ca10c7"
+    },
+    {
+      "anchor": "setup-add-class-row",
+      "say": "**+ Add another class** for each further class; every new row starts on that same language. Finishing setup creates every filled-in row, marked Added as it saves. Running the wizard twice will not duplicate classes you've already made.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "One row per class, add as many as you need. This tour created no classes.",
+      "checked": "9056db89.c23abe43"
+    }
+  ]
+}
