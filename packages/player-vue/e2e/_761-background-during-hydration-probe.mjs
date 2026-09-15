@@ -88,22 +88,30 @@ const setVisibility = (state) => page.evaluate((s) => {
 
 await page.goto(`${BASE}/?course=${COURSE}`, { waitUntil: 'domcontentloaded' })
 log('page open')
-// Wait for the player to land: known text on screen, or 5s, whichever first.
-let landedAt = null
-for (let i = 0; i < 50; i++) {
-  await page.waitForTimeout(100)
-  const s = await readScreen()
-  if (s) { landedAt = Date.now(); log(`  landed: screen="${s}" wall=${await wallVisible()} local=${JSON.stringify(await readLocal())}`); break }
+// Background the page every 400ms until the subscription answer is released:
+// positionInitialized lands somewhere inside that window (the production
+// build strips the console line that would say when), so at least one
+// visibilitychange=hidden fires after init and before hydration — the
+// learner-visible case is "backgrounded at any moment during the first
+// seconds". Each hidden dispatch is the dormant save's trigger.
+let hiddenCount = 0, firstHiddenAfterLandingAt = null, lostAt = null, hiddenAt = null
+const afterHidden = { local: null, db: null }
+for (let i = 0; i < 40 && subscriptionAnsweredAt === null; i++) {
+  await page.waitForTimeout(250)
+  if (subscriptionAnsweredAt !== null) break
+  const screen = await readScreen()
+  hiddenAt = Date.now(); hiddenCount++
+  await setVisibility('hidden')
+  await page.waitForTimeout(150)
+  await setVisibility('visible')
+  const local = await readLocal()
+  if (screen && firstHiddenAfterLandingAt === null) firstHiddenAfterLandingAt = hiddenAt
+  if (local?.legoId !== REAL_LEGO && lostAt === null) { lostAt = Date.now(); log(`  LOCAL CURSOR LOST on hidden #${hiddenCount}: local=${JSON.stringify(local)} screen="${screen}"`) }
+  if (i % 4 === 3) log(`  hidden #${hiddenCount} wall=${await wallVisible()} local=${JSON.stringify(local)} screen="${screen}"`)
 }
-if (!landedAt) log('  no known text within 5s — backgrounding anyway')
-const hiddenAt = Date.now()
-await setVisibility('hidden')
-log('BACKGROUNDED (visibilitychange=hidden) — subscription answered yet:', subscriptionAnsweredAt !== null)
-await page.waitForTimeout(800)
-const afterHidden = { local: await readLocal(), db: await readDb() }
-log('  after hidden: local=', JSON.stringify(afterHidden.local), 'db=', JSON.stringify(afterHidden.db))
-await setVisibility('visible')
-log('FOREGROUNDED')
+log(`backgrounded ${hiddenCount} times before the subscription answer; last hidden at +${((hiddenAt - t0) / 1000).toFixed(2)}s`)
+afterHidden.local = await readLocal(); afterHidden.db = await readDb()
+log('  after the backgrounding window: local=', JSON.stringify(afterHidden.local), 'db=', JSON.stringify(afterHidden.db))
 // Let the held subscription answer land and the gate run.
 let firstWallAt = null
 for (let t = 0; t < 40; t++) {
@@ -115,9 +123,11 @@ for (let t = 0; t < 40; t++) {
 }
 const final = { local: await readLocal(), db: await readDb(), wall: await wallVisible(), screen: await readScreen() }
 await page.screenshot({ path: `${OUT}/end.png` })
-const preHydration = subscriptionAnsweredAt === null || hiddenAt < subscriptionAnsweredAt
+// Every backgrounding happened before the answer was released; the first one
+// after the player showed text is the one that matters.
+const preHydration = firstHiddenAfterLandingAt !== null && subscriptionAnsweredAt !== null && hiddenAt < subscriptionAnsweredAt
 const ok = preHydration && final.local?.legoId === REAL_LEGO && final.db?.last_completed_lego_id === REAL_LEGO && final.db?.last_completed_round_index === REAL_ROUND && final.wall
-log('RESULT', JSON.stringify({ backgroundedBeforeHydration: preHydration, hiddenAfterOpenMs: hiddenAt - t0, afterHidden, final }))
+log('RESULT', JSON.stringify({ backgroundedBeforeHydration: preHydration, hiddenCount, lastHiddenAfterOpenMs: hiddenAt - t0, localLostAtMs: lostAt && lostAt - t0, afterHidden, final }))
 log(ok ? 'PASS — both cursors still S0031L01, wall up' : 'FAIL — cursor moved or wall down')
 await browser.close()
 await cleanup()
