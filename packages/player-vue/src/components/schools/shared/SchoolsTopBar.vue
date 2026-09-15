@@ -362,7 +362,7 @@ if (typeof document !== 'undefined') {
       <RefreshButton />
 
       <div class="user-menu">
-        <button type="button" class="user-trigger" @click="toggleMenu">
+        <button type="button" class="user-trigger" data-walk="schools-user-menu-trigger" @click="toggleMenu">
           <span class="avatar" :style="{ background: roleAvatarColor }">{{ initials }}<span v-if="inboxUnread > 0" class="avatar-dot" :aria-label="t('schools.inbox.unreadAria', 'Unread messages')"></span></span>
           <span class="identity">
             <span class="identity-name">{{ displayName }}</span>

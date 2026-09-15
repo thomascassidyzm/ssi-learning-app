@@ -1,0 +1,42 @@
+{
+  "id": "read-your-messages",
+  "title": "Read your messages",
+  "personas": [
+    "teacher",
+    "school_admin",
+    "leader"
+  ],
+  "place": {
+    "route": "inbox"
+  },
+  "keywords": [
+    "inbox",
+    "messages",
+    "message",
+    "reply",
+    "replies",
+    "unread",
+    "undo",
+    "copied",
+    "notice"
+  ],
+  "steps": [
+    {
+      "anchor": "schools-inbox",
+      "say": "Everything sent to you lands here: a reply on your Support thread, or a notice about something done on your account — like your own practice being copied onto a class. Tap a message to open it, which is what marks it read.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "6c5e7898.d945a9bd"
+    },
+    {
+      "anchor": "schools-inbox",
+      "say": "If a message offers **Undo** or **Open Support**, tap that straight from the message. Undo only shows while it can still be done cleanly.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's your inbox — nothing here is timed out. A message stays unread until you actually open it, however long it has sat on the list.",
+      "checked": "6c5e7898.19b6bc62"
+    }
+  ]
+}
