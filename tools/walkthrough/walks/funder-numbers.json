@@ -1,0 +1,51 @@
+{
+  "id": "funder-numbers",
+  "title": "See and download your funder numbers",
+  "personas": [
+    "leader",
+    "admin"
+  ],
+  "place": {
+    "route": "node-home",
+    "kinds": [
+      "org"
+    ]
+  },
+  "keywords": [
+    "funder",
+    "report",
+    "monthly return",
+    "minutes",
+    "csv",
+    "download",
+    "registered",
+    "16 to 24"
+  ],
+  "steps": [
+    {
+      "anchor": "funder-numbers",
+      "say": "**Funder report** is the monthly return your funder asks for, on your own page, so you can read it or send it without asking us to pull it. Three blocks: the month, everything since people enrolled, and the funding year so far. Each block counts everyone and, separately, people aged 16 to 24 — how many registered, how many passed 5, 60 and 100 minutes, and the average minutes.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "8a787427.078d45fc"
+    },
+    {
+      "anchor": "funder-month",
+      "say": "The month shown is the last complete one. Change it here to report on another month, and the blocks below recompute.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "333b4e5b.f7596ffd"
+    },
+    {
+      "anchor": "funder-download",
+      "say": "**Download spreadsheet** gives you the same figures as a CSV, ready to send on.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "Minutes here are minutes the app was actually speaking to a learner, never time a screen sat open. Somebody who has studied both Welsh dialects is counted once, at their higher dialect. There are no names in this report and there never will be.",
+      "checked": "f4cb3665.cb22589b"
+    }
+  ]
+}
