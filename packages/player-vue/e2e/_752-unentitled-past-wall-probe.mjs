@@ -163,6 +163,19 @@ if (process.env.MAYBE_LATER === '1' && await wallVisible()) {
     if (t % 4 === 3) log(`  play+${(t + 1) * 0.5}s wall=${await wallVisible()} local=${JSON.stringify(await readLocal())} screen=${await readScreen()}`)
   }
   await page.screenshot({ path: `${OUT}/played-on.png` })
+  // PREV=1 (job #757 addition): tap "Previous phrase" inside the preview.
+  // That path (handleRoundBack → persistCursorAtCurrentRound → setRemoteCursor)
+  // used to bypass the hold and write a preview position over the DB cursor.
+  // Expected since #757: DB cursor still S0031L01 / 56 after the tap.
+  if (process.env.PREV === '1') {
+    await page.locator('button.pill-btn[title="Previous phrase"]').first().click().catch(e => log('previous tap failed', String(e).slice(0, 80)))
+    for (let t = 0; t < 12; t++) {
+      await page.waitForTimeout(500)
+      if (t % 4 === 3) log(`  prev+${(t + 1) * 0.5}s wall=${await wallVisible()} local=${JSON.stringify(await readLocal())} DB=${JSON.stringify(await readDb())} screen=${await readScreen()}`)
+    }
+    const db = await readDb()
+    log('PREV RESULT', JSON.stringify({ dbLego: db?.last_completed_lego_id, dbRound: db?.last_completed_round_index, cycle: db?.current_cycle_index, local: await readLocal(), screen: await readScreen() }))
+  }
 }
 await page.screenshot({ path: `${OUT}/end.png` })
 log('RESULT wallFirstSeenAt:', firstWallAt, '| wallNow:', await wallVisible(), '| local:', JSON.stringify(await readLocal()), '| DB:', JSON.stringify(await readDb()), '| screen:', await readScreen())
