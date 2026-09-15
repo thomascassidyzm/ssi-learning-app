@@ -74,6 +74,7 @@ async function runTtl(access: Access) {
     entitlementComposable: {
       subscriptionHydrated: ref(!access.pending),
       accessPending: () => access.pending,
+      verdictPending: () => access.pending,
       // Optimistic access while pending must not authorise a cursor write.
       canAccessSeed: (_course: unknown, seed: number) => access.pending || access.entitled || seed <= 19,
     },
@@ -141,13 +142,23 @@ describe('resume-TTL belt rewind waits for the subscription verdict (job #768)',
 })
 
 describe('awaitSubscriptionVerdict (the mechanism the TTL block waits on)', () => {
-  const build = (pending: boolean, hydrated: boolean) => {
+  // `mirrorActive` models a device whose localStorage mirror of the LAST
+  // /api/subscription answer says "active": useEntitlement derives
+  // `accessPending` from `!isPaid`, so it reads FALSE off that mirror before
+  // any answer has landed this session. `verdictPending` is the signed-in
+  // learner's `!hydrated`, mirror or no mirror.
+  const build = (opts: { hydrated: boolean; mirrorActive?: boolean }) => {
+    const { hydrated, mirrorActive = false } = opts
     const subscriptionHydrated = { value: hydrated }
     const stop = vi.fn()
     let watched: ((v: boolean) => void) | null = null
     const watch = vi.fn((_src: unknown, cb: (v: boolean) => void) => { watched = cb; return stop })
     const context = {
-      entitlementComposable: { accessPending: () => pending, subscriptionHydrated },
+      entitlementComposable: {
+        accessPending: () => !mirrorActive && !subscriptionHydrated.value,
+        verdictPending: () => !subscriptionHydrated.value,
+        subscriptionHydrated,
+      },
       watch,
     }
     const js = transpile(`${extractConst('awaitSubscriptionVerdict')} return awaitSubscriptionVerdict;`)
@@ -155,14 +166,37 @@ describe('awaitSubscriptionVerdict (the mechanism the TTL block waits on)', () =
     return { fn, watch, stop, fire: (v: boolean) => watched?.(v), subscriptionHydrated }
   }
 
-  it('resolves immediately when no answer is pending', async () => {
-    const b = build(false, true)
+  it('resolves immediately when the answer has landed', async () => {
+    const b = build({ hydrated: true })
     await expect(b.fn()).resolves.toBeUndefined()
     expect(b.watch).not.toHaveBeenCalled()
   })
 
+  it('resolves immediately when the answer has landed, even with an active mirror', async () => {
+    const b = build({ hydrated: true, mirrorActive: true })
+    await expect(b.fn()).resolves.toBeUndefined()
+    expect(b.watch).not.toHaveBeenCalled()
+  })
+
+  // Job #778 (Astra's cold verify of #768): a lapsed subscriber's device
+  // still holds last month's "active" mirror. Before the fix this resolved at
+  // once — accessPending() was false — and the TTL block rewound and wrote on
+  // the stale mirror before /api/subscription had said "lapsed".
+  it('still waits for the verdict when a stale "active" mirror makes accessPending() false', async () => {
+    const b = build({ hydrated: false, mirrorActive: true })
+    let settled = false
+    const p = b.fn().then(() => { settled = true })
+    await Promise.resolve()
+    expect(settled, 'must not resolve on the localStorage mirror alone').toBe(false)
+    expect(b.watch).toHaveBeenCalledWith(b.subscriptionHydrated, expect.any(Function))
+    b.subscriptionHydrated.value = true
+    b.fire(true)
+    await p
+    expect(settled).toBe(true)
+  })
+
   it('watches subscriptionHydrated while pending and resolves once it flips', async () => {
-    const b = build(true, false)
+    const b = build({ hydrated: false })
     let settled = false
     const p = b.fn().then(() => { settled = true })
     await Promise.resolve()

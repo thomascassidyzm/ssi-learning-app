@@ -22,7 +22,7 @@ const functions = names.map(name => {
   throw new Error(`Missing component function: ${name}`)
 }).join('\n')
 
-function harness(guardedControl: boolean) {
+function harness(guardedControl: boolean, staleMirror = false) {
   // These synchronous callbacks only read .value; no watcher is simulated.
   const ref = <T>(value: T) => ({ value })
   const courseCode = ref('cym_for_eng')
@@ -39,7 +39,12 @@ function harness(guardedControl: boolean) {
     courseCode,
     entitlementComposable: {
       subscriptionHydrated,
-      accessPending: () => !subscriptionHydrated.value,
+      // `staleMirror`: the device holds last month's "active" localStorage
+      // mirror, so useEntitlement's isPaid-derived accessPending() is FALSE
+      // before any answer has landed this session (job #778).
+      accessPending: () => !staleMirror && !subscriptionHydrated.value,
+      // The signed-in learner's "has the server answered this session".
+      verdictPending: () => !subscriptionHydrated.value,
     },
     // The race: initialisation has finished, but hydration has not yet allowed
     // the resume gate to establish a paywall hold. The preview queue is live.
@@ -119,5 +124,33 @@ describe.each([
     expect(h.setLivePosition).toHaveBeenCalledExactlyOnceWith(
       'returning-learner', 'cym_for_eng', 'S0019L01', 18, 0, { touchPracticedAt: false },
     )
+  })
+})
+
+// Job #778 (Astra's cold verify of the #761 writers): the guard the two
+// lifecycle writers refuse on must be the SERVER's verdict, not the mirror's.
+// With a stale "active" mirror accessPending() is false, so an
+// accessPending-based guard let the dormant save write behind a gate that had
+// not yet judged the position. Production functions only — the in-memory
+// accessPending control above is exactly the guard this case shows is not enough.
+describe('a stale "active" subscription mirror (job #778)', () => {
+  it.each([
+    ['pagehide', 'saveResumeAudio'],
+    ['visibilitychange hidden', 'onSaveResumeVisibilityChange'],
+  ])('%s still preserves the real place until the server verdict lands', (_event, callback) => {
+    const h = harness(false, true)
+    h.callbacks[callback]()
+
+    expect.soft(h.storage.get('position'), 'a stale mirror must not unlock the local writer before the verdict')
+      .toBe(h.realPosition)
+    expect.soft(h.setLivePosition, 'a stale mirror must not unlock the DB writer before the verdict')
+      .not.toHaveBeenCalled()
+
+    // Positive control: the verdict lands (no hold) and the same callback persists.
+    h.setLivePosition.mockClear()
+    h.subscriptionHydrated.value = true
+    h.callbacks[callback]()
+    expect(JSON.parse(h.storage.get('position')!)).toMatchObject({ legoId: 'S0019L01', itemInRound: 0 })
+    expect(h.setLivePosition).toHaveBeenCalledOnce()
   })
 })

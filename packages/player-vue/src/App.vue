@@ -14,7 +14,7 @@ import {
   setInstantPlaybackAuthProvider,
   isBundleBootstrapEnabled,
 } from './composables/useInstantPlayback'
-import { setCourseBundleAuthProvider, setCourseBundleIdentityProvider, getCourseBundle } from './composables/useCourseBundle'
+import { setCourseBundleAuthProvider, setCourseBundleIdentityProvider, setCourseBundleEntitlementProvider, revalidateCachedBundles, getCourseBundle } from './composables/useCourseBundle'
 import { checkKillSwitch, unregisterAllServiceWorkers, clearAllCaches, killSwitchMessage } from './composables/useServiceWorkerSafety'
 import { useTheme } from './composables/useTheme'
 import { useEagerScriptPreload } from './composables/useEagerScriptPreload'
@@ -356,6 +356,19 @@ if (IS_EMBED) {
         return null
       }
     })
+    // ...and what the caller is ENTITLED to on each course, as the app's own
+    // verdict has it (job #778). A cached full bundle is only valid while the
+    // identity that fetched it is still entitled: the identity check above
+    // cannot see a lapse, so a lapsed subscriber kept the whole course from
+    // IndexedDB until the content version moved. Null while the answer is
+    // still in flight — never a disagreement — so boot serves the cache as
+    // before and the sweep below re-asks once the verdict lands.
+    setCourseBundleEntitlementProvider((courseCode) => {
+      if (auth.isAuthenticated.value && !useSharedSubscription().hasHydrated.value) return null
+      const row = (enrolledCourses.value || []).find((c) => c?.course_code === courseCode)
+      const course = row ?? { course_code: courseCode, target_lang: courseCode.split('_')[0] }
+      return courseAccessResult(course).canAccess ? 'full' : 'preview'
+    })
 
     // Start the bundle download at the EARLIEST moment we can name a course.
     // Everything that used to kick it off — course-list resolution, the
@@ -520,8 +533,10 @@ const handleCourseSelect = async (course, origin = 'chosen') => {
   }
 }
 
-// Check if user can access a course (mirrors CourseSelector logic)
-const canAccessCourse = (course) => {
+// The app's access verdict for a course (mirrors CourseSelector logic) — the
+// same ONE resolver's answers (/api/entitlement/user + /api/subscription) as
+// the server's content gate reads.
+const courseAccessResult = (course) => {
   const { entitlements } = useSharedUserEntitlements()
   const { isSubscribed } = useSharedSubscription()
   const { platformRole } = useUserRole()
@@ -532,12 +547,17 @@ const canAccessCourse = (course) => {
     isActive: isSubscribed.value || devPaid,
     tier: (isSubscribed.value || devPaid) ? 'paid' : 'free',
   }
-  const result = checkCourseAccess(
+  return checkCourseAccess(
     { course_code: course.course_code, pricing_tier: pricingTier, is_community: isCommunity },
     subscription,
     entitlements.value,
     platformRole.value
   )
+}
+
+// Check if user can access a course
+const canAccessCourse = (course) => {
+  const result = courseAccessResult(course)
   // Premium courses are enterable/defaultable on preview — everyone can PLAY
   // every course through end-of-Yellow (seed 19). The seed-19 wall still gates
   // play via canAccessSeed in LearningPlayer; this only opens the door.
@@ -932,6 +952,20 @@ onMounted(async () => {
       const { initialize: initEntitlements } = useSharedUserEntitlements()
       const { initialize: initSubscription } = useSharedSubscription()
       const entitlementsReady = Promise.all([initEntitlements(), initSubscription()]).catch(() => {})
+
+      // THE VERDICT HAS LANDED: sweep the bundle cache against it (job #778).
+      // A same-owner full bundle is only valid while its owner is still
+      // entitled; the sweep re-asks the server for any course whose stored
+      // declaration the verdict now contradicts, and the server slices it.
+      // Silent, background, once per (course, identity, verdict); a lapse
+      // that lands later in the session (the clock crossing a period end, or
+      // a refreshed answer) re-runs it through the watch. Never tears down a
+      // running player — the next materialisation picks the change up.
+      void entitlementsReady.then(() => revalidateCachedBundles().catch(() => {}))
+      watch(
+        () => useSharedSubscription().isSubscribed.value,
+        () => { void revalidateCachedBundles().catch(() => {}) },
+      )
 
       // THE MOMENT AFTER SOMEBODY PAYS. Pick up any purchase that was paid
       // for and has not yet landed — written down before Paddle's success

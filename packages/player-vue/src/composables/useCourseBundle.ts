@@ -107,19 +107,34 @@ function tierOf(bundle: CourseBundle): 'preview' | 'full' {
  * Does this stored record still describe the caller in front of us, or must we
  * go and ask the server again?
  *
- * Three ways a record can disagree with the present:
+ * Four ways a record can disagree with the present:
  *  1. it is PROVISIONAL (fetched with no token) and we now hold one — the
  *     pole-position race, and the common case;
  *  2. it declares `preview` while we hold a token — the upgrade-to-paid case
  *     the read path already guards, restated here so the sweep sees it too;
- *  3. it declares `full` for a different identity — SEC0901-D-02, again.
+ *  3. it declares `full` for a different identity — SEC0901-D-02, again;
+ *  4. it declares `full` for THIS identity, but the entitlement verdict the
+ *     app now holds for the course says preview — the lapse case (job #778,
+ *     Astra's cold verify of #761's "safety by construction"). The head probe
+ *     compares versions only, so until this case existed a same-owner full
+ *     bundle outlived its subscription for as long as the content version
+ *     stood still — the record was authoritative for the identity, and the
+ *     identity had simply stopped paying. `entitledTier` is null while the
+ *     verdict is unknown (signed in, answer not yet landed), which never
+ *     disagrees: the sweep re-runs when the answer lands.
  */
-function declarationDisagrees(cached: CachedBundle, hasToken: boolean, identity: string | null): boolean {
+function declarationDisagrees(
+  cached: CachedBundle,
+  hasToken: boolean,
+  identity: string | null,
+  entitledTier: EntitledTier = null,
+): boolean {
   const declaredTier = cached.tier ?? tierOf(cached.bundle)
   const declaredWithAuth = cached.fetchedWithAuth === true
   if (hasToken && !declaredWithAuth) return true
   if (hasToken && declaredTier === 'preview') return true
   if (declaredTier === 'full' && !cachedOwnerMatches(cached, identity)) return true
+  if (declaredTier === 'full' && entitledTier === 'preview') return true
   return false
 }
 
@@ -145,6 +160,35 @@ export function setCourseBundleAuthProvider(fn: (() => Promise<string | null>) |
 
 export function setCourseBundleIdentityProvider(fn: (() => Promise<string | null>) | null): void {
   identityProvider = fn
+}
+
+/**
+ * The tier the caller is entitled to for a course RIGHT NOW, as the app's own
+ * entitlement verdict has it: `'full'`, `'preview'`, or `null` when the
+ * verdict is not in yet (signed in, /api/subscription not yet answered this
+ * session). Case 4 of `declarationDisagrees` reads it. The app's verdict is
+ * the same ONE resolver the server uses (`/api/entitlement/user` +
+ * `/api/subscription`, both hydrated before `revalidateCachedBundles` is
+ * asked to sweep on it), so a refetch it triggers is answered with the tier it
+ * predicted — the sweep is a request for the server to SAY so, never a local
+ * decision about content.
+ */
+export type EntitledTier = 'full' | 'preview' | null
+
+let entitlementProvider: ((courseCode: string) => EntitledTier) | null = null
+
+export function setCourseBundleEntitlementProvider(fn: ((courseCode: string) => EntitledTier) | null): void {
+  entitlementProvider = fn
+}
+
+/** The caller's entitled tier for `courseCode`, or null when unknown. */
+function entitledTierFor(courseCode: string): EntitledTier {
+  if (!entitlementProvider) return null
+  try {
+    return entitlementProvider(courseCode) ?? null
+  } catch {
+    return null
+  }
 }
 
 /** The caller's identity for cache-ownership purposes. Null = signed out. */
@@ -382,10 +426,14 @@ const session = new Map<string, CourseBundle>()
 
 /**
  * Which courses this session has already re-validated, and for whom. Keyed by
- * course, valued by identity, so a sign-out-and-in as somebody else re-asks
- * while a settled learner does not. Cleared with the caches.
+ * course, valued by identity AND the entitled tier the sweep ran under, so a
+ * sign-out-and-in as somebody else re-asks, a verdict that changes mid-session
+ * (the lapse, or the resubscription) re-asks, and a settled learner does not.
+ * Cleared with the caches.
  */
 const revalidated = new Map<string, string>()
+const revalidationKey = (identity: string | null, entitledTier: EntitledTier) =>
+  `${identity ?? ''}|${entitledTier ?? '?'}`
 
 export interface GetBundleOptions {
   apiBase?: string
@@ -427,7 +475,7 @@ export async function getCourseBundle(
     // versions only and would happily agree with a poisoned record.
     if (
       cached?.bundle &&
-      !declarationDisagrees(cached, await hasAuthToken(), await currentIdentityId())
+      !declarationDisagrees(cached, await hasAuthToken(), await currentIdentityId(), entitledTierFor(courseCode))
     ) {
       if (opts.skipVersionCheck) return cached.bundle
       const head = await probeBundleVersion(courseCode, apiBase)
@@ -528,15 +576,18 @@ export async function revalidateCachedBundles(opts: GetBundleOptions = {}): Prom
   for (const courseCode of codes) {
     const record = cached.find((c) => c.courseCode === courseCode)
     const inSession = session.get(courseCode)
+    const entitledTier = entitledTierFor(courseCode)
     const disagrees = record
-      ? declarationDisagrees(record, hasToken, identity)
+      ? declarationDisagrees(record, hasToken, identity, entitledTier)
       // Nothing on disk yet: the session entry is provisional exactly when it
       // is a preview, which is the only thing an anonymous fetch can return
-      // that a token might improve on.
-      : !!inSession?.previewOnly
+      // that a token might improve on — or a full bundle the verdict now says
+      // this caller is not entitled to (case 4, in memory only).
+      : !!inSession?.previewOnly || (!!inSession && entitledTier === 'preview')
     if (!disagrees) continue
-    if (revalidated.get(courseCode) === (identity ?? '')) continue
-    revalidated.set(courseCode, identity ?? '')
+    const key = revalidationKey(identity, entitledTier)
+    if (revalidated.get(courseCode) === key) continue
+    revalidated.set(courseCode, key)
 
     const storedTier: 'preview' | 'full' =
       record?.tier ?? (record ? tierOf(record.bundle) : inSession ? tierOf(inSession) : 'preview')

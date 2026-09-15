@@ -141,3 +141,23 @@ describe('createClassAwareProgressStore — in class mode', () => {
     await expect(store.setMode('l', 'c', 'infplay')).rejects.toThrow(/Class not in caller scope/)
   })
 })
+
+// Job #778: the playback ledger for the class account rides the same route.
+describe('createClassAwareProgressStore — bumpSpeakingOpportunities (job #778)', () => {
+  it('in class mode posts the deltas to the class route and reports them handled', async () => {
+    const base = makeBaseStore()
+    const store = createClassAwareProgressStore(ref(base), ref({ id: 'class-1' }), ref(makeSupabase('staff-tok')))
+    const handled = await store.bumpSpeakingOpportunities!('class-learner-id', 'course-1', 3, 72, 0)
+    expect(handled).toBe(true)
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as any).body)
+    expect(body).toEqual({ classId: 'class-1', method: 'bumpSpeakingOpportunities', args: [3, 72, 0] })
+  })
+
+  it('outside class mode reports NOT handled and touches nothing — the caller keeps its own RPC', async () => {
+    const base = makeBaseStore()
+    const store = createClassAwareProgressStore(ref(base), ref(null), ref(makeSupabase('tok')))
+    const handled = await store.bumpSpeakingOpportunities!('learner-1', 'course-1', 3, 72, 0)
+    expect(handled).toBe(false)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})

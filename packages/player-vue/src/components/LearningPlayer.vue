@@ -1394,7 +1394,7 @@ const paywallRetreat = createPaywallRetreat()
 const persistLivePositionToDb = (cycleOverride?: number, touchPracticedAt = true) => {
   if (practisingBlocksProgressWrite('live position')) return
   if (paywallRetreat.blocksPersist()) return
-  if (entitlementComposable.accessPending()) return
+  if (entitlementComposable.verdictPending()) return
   if (isGuestLearner.value || !progressStore?.value || !learnerId.value || !courseCode.value) return
   if (currentMode.value === 'infplay') return
   const round = simplePlayer.currentRound.value
@@ -4069,8 +4069,10 @@ const savePositionToLocalStorage = (cycleOverride?: number, touchTimestamp = tru
   // The subscription answer is still in flight: the resume gate has not judged
   // the landed position yet, so this writer refuses on its own as well as under
   // the pending-verdict hold the watcher raises (job #761; the #760 test drives
-  // the two lifecycle writers directly).
-  if (entitlementComposable.accessPending()) return
+  // the two lifecycle writers directly). `verdictPending`, not `accessPending`:
+  // the latter reads false off a stale "active" localStorage mirror before any
+  // answer has landed (job #778).
+  if (entitlementComposable.verdictPending()) return
   if (!courseCode.value) return
 
   const round = currentRound.value
@@ -4308,7 +4310,10 @@ watch(() => simplePlayer.phase.value, (phase) => {
  * hangs an init.
  */
 const awaitSubscriptionVerdict = (): Promise<void> => new Promise((resolve) => {
-  if (!entitlementComposable.accessPending() || entitlementComposable.subscriptionHydrated.value) { resolve(); return }
+  // `verdictPending`, not `accessPending`: a device holding last month's
+  // "active" mirror reads accessPending() false before any answer has landed,
+  // so the rewind ran — and wrote — on the stale mirror (job #778).
+  if (!entitlementComposable.verdictPending()) { resolve(); return }
   const stop = watch(entitlementComposable.subscriptionHydrated, (hydrated) => {
     if (!hydrated) return
     stop()
@@ -4365,7 +4370,11 @@ const runPostInitResumeGate = () => {
 
 watch(positionInitialized, (init) => {
   if (!(init && useRoundBasedPlayback.value)) return
-  if (!entitlementComposable.accessPending()) { runPostInitResumeGate(); return }
+  // `verdictPending`: the gate must wait for the SERVER's answer, not the
+  // localStorage mirror's. A lapsed subscriber's device still holds an
+  // "active" mirror, which made accessPending() false and ran the gate with
+  // no hold before /api/subscription had answered (job #778).
+  if (!entitlementComposable.verdictPending()) { runPostInitResumeGate(); return }
   console.log('[LearningPlayer] resume gate deferred until the subscription answer lands (job #757)')
   // While the gate waits, NOTHING may persist a position it has not judged:
   // the dormant save on backgrounding (saveResumeAudio), the prompt-entry
