@@ -19,7 +19,7 @@ import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { runGates, assemblePack, comparePack, indexAnchors } from './lib.mjs'
+import { runGates, assemblePack, comparePack, indexAnchors, gateClipCoverage, routeViewsFrom } from './lib.mjs'
 import {
   parseHandbookBlocks, fingerprintCapability, stampChecked, proseFingerprint,
   checkedCode, checkedProse, anchorFingerprint, stepProseFingerprint,
@@ -240,6 +240,16 @@ const { failures, warnings } = runGates({
   evaluateRulesSrc: readFileSync(join(ROOT, 'packages/player-vue/src/explainer/evaluateRules.ts'), 'utf8'),
   handbookSrc: readFileSync(join(ROOT, 'packages/player-vue/src/walkthrough/handbook.ts'), 'utf8'),
 })
+
+// Gate 13 — clip coverage "as we go" (job #854, 2026-09-15). Every capability
+// is clipped, obvious, or on the backlog; every routed page carries at least
+// one anchor or is declared. The registry is tools/walkthrough/coverage.json.
+failures.push(...gateClipCoverage({
+  entries,
+  walks,
+  coverage: JSON.parse(readFileSync(join(HERE, 'coverage.json'), 'utf8')),
+  routeViews: routeViewsFrom(readFileSync(join(ROOT, 'packages/player-vue/src/router/index.ts'), 'utf8'), vueFiles),
+}).failures)
 
 for (const w of warnings) console.log(`  ⚠ ${w}`)
 failures.unshift(...parseErrors)

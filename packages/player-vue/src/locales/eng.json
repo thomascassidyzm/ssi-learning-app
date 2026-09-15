@@ -2561,7 +2561,8 @@
         "close": "Close",
         "handbook": "Handbook",
         "howThisWorks": "How this works",
-        "showMe": "Show me — {title}"
+        "showMe": "Show me — {title}",
+        "showMeShort": "Show me"
       },
       "managerOnboardingGate": {
         "atLeastNCharacters": "At least {n} characters",

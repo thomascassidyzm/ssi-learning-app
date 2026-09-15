@@ -198,8 +198,13 @@ onMounted(() => {
       <div class="entry-list">
         <article v-for="e in s.entries" :id="`hb-${e.id}`" :key="e.id" class="entry" :class="{ 'is-open': open.has(e.id) }">
           <button type="button" class="entry-head" :aria-expanded="open.has(e.id)" @click="toggle(e.id)">
-            <span v-if="walkFor(e)" class="entry-clip-mark" aria-hidden="true">&#9654;</span>
             <span class="entry-title">{{ e.title }}</span>
+            <!-- A capability with a clip says so on the closed row (job #854, Tom 2026-09-15:
+                 "the handbook is STILL just a bunch of prose in most cases"). Before this the
+                 only sign was a 10px triangle, so 122 rows read as 122 pieces of prose. The
+                 chip is a mark, not a second button: opening the row puts the real Show me
+                 first, and nothing plays until that tap. -->
+            <span v-if="walkFor(e) && showMeTo(e)" class="entry-clip-pill" aria-hidden="true"><span class="entry-clip-dot"></span>{{ t('org.ui.howThisWorks.showMeShort', 'Show me') }}</span>
             <span class="entry-badges">
               <span v-for="b in badges(e)" :key="b" class="status-pill tone-muted">{{ b }}</span>
             </span>
@@ -285,7 +290,14 @@ onMounted(() => {
 .entry-title { flex: 1; color: var(--schools-fg, #0F1212); font-size: var(--text-sm); font-weight: var(--font-semibold); }
 .entry-badges { display: flex; gap: 6px; flex-wrap: wrap; }
 .entry-chev { color: var(--schools-fg-3, #6b6b6b); font-size: var(--text-sm); width: 1em; text-align: center; }
-.entry-clip-mark { color: var(--schools-red, #DB1E17); font-size: 10px; width: 1em; text-align: center; flex-shrink: 0; }
+.entry-clip-pill {
+  display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
+  padding: 2px 10px; border-radius: 999px; font-size: var(--text-xs); font-weight: var(--font-semibold);
+  color: var(--schools-red, #DB1E17); border: 1px solid var(--schools-red, #DB1E17); background: var(--schools-card, #fff);
+}
+.entry-clip-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--schools-red, #DB1E17); animation: entry-throb 2.6s ease-in-out infinite; }
+@keyframes entry-throb { 0%, 100% { opacity: .35; transform: scale(.85); } 50% { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .entry-clip-dot { animation: none; } }
 
 /* PHONE (390px, 2026-09-09): title and badges sharing one row squeezed the
    title to one word per line. Below 560px the badges drop under the title —
