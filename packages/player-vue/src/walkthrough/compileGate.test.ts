@@ -31,6 +31,11 @@ import {
   gateClipCoverage,
   routeViewsFrom,
   comparePack,
+  gateWalkClaimers,
+  routeTableFrom,
+  resolveRoute,
+  placeUrlsFrom,
+  claimsPlace,
 } from '../../../../tools/walkthrough/lib.mjs'
 import {
   parseHandbookBlocks, fingerprintCapability, stampChecked, declarationSource,
@@ -784,5 +789,94 @@ describe('gateClipCoverage (every capability clipped, obvious, or on the backlog
     const { failures } = gateClipCoverage({ entries: [], walks: [], coverage, routeViews })
     expect(failures.some((f: string) => f.includes('ClassDetail.vue') && f.includes('now carries an anchor'))).toBe(true)
     expect(failures.some((f: string) => f.includes('Old.vue') && f.includes('no longer imports'))).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Gate 14 (job #881): a walk's place must have a claimer mounted on the page
+// the Handbook's Show me navigates to. Two workers (#862, #872) found five
+// schools routes where the tap navigated and nothing ever started.
+// ---------------------------------------------------------------------------
+describe('gateWalkClaimers (every walk place has a claimer on its page)', () => {
+  const HANDBOOK = `export const PLACE_LINKS: Record<string, PlaceLink> = {
+  'node-home': (node) => (node ? \`/org/\${node}\` : null),
+  'class-detail': () => '/schools/classes',
+  teachers: () => '/schools/teachers',
+  intel: () => '/intel',
+}`
+  const ROUTER = `const Teachers = () => import('@/views/schools/TeachersView.vue')
+const NodeHome = () => import('@/views/admin/NodeHomeView.vue')
+const ClassDetail = () => import('@/views/schools/ClassDetail.vue')
+const INTEL_VIEWS: Record<string, () => Promise<unknown>> = { pulse: () => import('@/views/intel/PulseView.vue') }
+const routes: RouteRecordRaw[] = [
+  { path: '/schools', component: () => import('@/containers/SchoolsContainer.vue'), children: [
+    { path: 'teachers', name: 'teachers', component: Teachers },
+    { path: 'classes', component: () => import('@/views/schools/TeacherDashboard.vue') },
+    { path: 'classes/:id', component: ClassDetail },
+  ] },
+  { path: '/org', children: [ { path: ':id', component: NodeHome } ] },
+  { path: '/intel', children: [
+    { path: '', redirect: '/intel/pulse' },
+    ...QUESTIONS.map((q) => ({ path: q.slug, component: q.built ? INTEL_VIEWS[q.slug] : NotYetBuiltView })),
+  ] },
+]`
+  const file = (path: string, src: string) => ({ path: `packages/player-vue/src/${path}`, src })
+  const claimer = (place: string) => `<script setup>import WalkOffer from '@/components/admin/WalkOffer.vue'</script><template><WalkOffer persona="teacher" place="${place}" /></template>`
+  const WALK_OFFER = file('components/admin/WalkOffer.vue', "<script setup>import { claimDeferredWalk } from '@/walkthrough/useWalkthrough'\nwatch(x, ([persona, place, kind]) => { claimDeferredWalk(persona, place, kind) })</script>")
+  const w = (id: string, route: string) => ({ id, personas: ['teacher'], place: { route }, steps: [] })
+
+  it('reads the router into a flat table and resolves a URL to the page rendered there, following redirects and dynamic children', () => {
+    const table = routeTableFrom(ROUTER)
+    expect(resolveRoute(table, '/schools/teachers')?.components).toEqual(['@/views/schools/TeachersView.vue'])
+    expect(resolveRoute(table, '/schools/classes/abc')?.components).toEqual(['@/views/schools/ClassDetail.vue'])
+    expect(resolveRoute(table, '/org/x')?.components).toEqual(['@/views/admin/NodeHomeView.vue'])
+    expect(resolveRoute(table, '/intel')?.components).toEqual(['@/views/intel/PulseView.vue'])
+    expect(placeUrlsFrom(HANDBOOK)).toEqual({ 'node-home': '/org/:param', 'class-detail': '/schools/classes', teachers: '/schools/teachers', intel: '/intel' })
+  })
+
+  it('FAILS a walk whose place page mounts no claimer, naming the place, the URL, the view and the walk', () => {
+    const files = [file('views/schools/TeachersView.vue', '<template><button data-walk="verb-add-teacher" /></template>'), WALK_OFFER]
+    const { failures } = gateWalkClaimers({ walks: [w('add-teacher', 'teachers')], handbookSrc: HANDBOOK, routerSrc: ROUTER, vueFiles: files })
+    expect(failures).toHaveLength(1)
+    expect(failures[0]).toContain('"teachers"')
+    expect(failures[0]).toContain('/schools/teachers')
+    expect(failures[0]).toContain('TeachersView.vue')
+    expect(failures[0]).toContain('add-teacher')
+  })
+
+  it('passes when the page, or a .vue it imports, mounts WalkOffer or HowThisWorks naming that place', () => {
+    const files = [
+      file('views/schools/TeachersView.vue', "<script setup>import Head from '@/components/schools/Head.vue'</script><template><Head /></template>"),
+      file('components/schools/Head.vue', claimer('teachers')),
+      WALK_OFFER,
+    ]
+    expect(gateWalkClaimers({ walks: [w('add-teacher', 'teachers')], handbookSrc: HANDBOOK, routerSrc: ROUTER, vueFiles: files }).failures).toEqual([])
+  })
+
+  it('FAILS when the mounted claimer names a DIFFERENT place — the claimer component\'s own dynamic call is never evidence', () => {
+    const files = [file('views/schools/TeachersView.vue', claimer('classes')), WALK_OFFER]
+    const { failures } = gateWalkClaimers({ walks: [w('add-teacher', 'teachers')], handbookSrc: HANDBOOK, routerSrc: ROUTER, vueFiles: files })
+    expect(failures).toHaveLength(1)
+  })
+
+  it('accepts a claim one hop beneath the link — class-detail links to the class list and is claimed by the class page under it', () => {
+    const files = [
+      file('views/schools/TeacherDashboard.vue', '<template><div /></template>'),
+      file('views/schools/ClassDetail.vue', "<script setup>import HowThisWorks from '@/components/admin/HowThisWorks.vue'</script><template><HowThisWorks kind=\"class\" place=\"class-detail\" /></template>"),
+      file('components/admin/HowThisWorks.vue', 'x'),
+    ]
+    expect(gateWalkClaimers({ walks: [w('share-a-class', 'class-detail')], handbookSrc: HANDBOOK, routerSrc: ROUTER, vueFiles: files }).failures).toEqual([])
+  })
+
+  it('HowThisWorks with no place attribute claims node-home, its default', () => {
+    expect(claimsPlace("import HowThisWorks from '@/components/admin/HowThisWorks.vue'\n<HowThisWorks :persona=\"p\" :kind=\"k\" />", 'node-home')).toBe(true)
+    expect(claimsPlace("import HowThisWorks from '@/components/admin/HowThisWorks.vue'\n<HowThisWorks :persona=\"p\" :kind=\"k\" />", 'teachers')).toBe(false)
+    expect(claimsPlace("import { claimDeferredWalk } from '@/walkthrough/useWalkthrough'\nclaimDeferredWalk(persona, 'library', k)", 'library')).toBe(true)
+  })
+
+  it('FAILS a place with no PLACE_LINKS entry, and one whose URL the router renders with no component', () => {
+    const { failures } = gateWalkClaimers({ walks: [w('a', 'settings'), w('b', 'node-home')], handbookSrc: HANDBOOK, routerSrc: ROUTER, vueFiles: [] })
+    expect(failures.some((f: string) => f.includes('"settings"') && f.includes('no PLACE_LINKS'))).toBe(true)
+    expect(failures.some((f: string) => f.includes('"node-home"'))).toBe(true)
   })
 })

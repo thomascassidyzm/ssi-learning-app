@@ -7,6 +7,7 @@ import { courseTargetName } from '@/utils/courseDisplayName'
 import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
 import CourseBrowser from '@/components/CourseBrowser.vue'
 import HowThisWorksLibrary from '@/components/me/HowThisWorksLibrary.vue'
+import { viewerPersona } from '@/walkthrough/handbook'
 import StandingPanel from '@/components/me/StandingPanel.vue'
 import YourInsights from '@/components/me/YourInsights.vue'
 import { useAuthModal } from '@/composables/useAuthModal'
@@ -611,7 +612,7 @@ onMounted(() => {
       <!-- ── How this works (A-159) — practical walkthroughs first, the
            methodology behind them. Closed by default; nothing opens uninvited. -->
       <section class="section how-this-works-section">
-        <HowThisWorksLibrary :viewer-id="explainerViewerId" :is-guest="isGuest" />
+        <HowThisWorksLibrary :viewer-id="explainerViewerId" :is-guest="isGuest" :persona="viewerPersona(platformRole, educationalRole)" />
       </section>
 
       <!-- ── Where you are — the one comparison the doctrine allows.

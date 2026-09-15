@@ -29,7 +29,7 @@ describe('walksFor (offer filtering)', () => {
     expect(walksFor('teacher', 'class-detail').map((x) => x.id)).toEqual([
       'add-students-to-a-class', 'copy-a-teachers-play-onto-their-class', 'hand-over-the-lead',
       'invite-a-supply-teacher', 'manage-a-class-from-its-page', 'move-a-teacher-between-classes',
-      'run-class-session', 'share-a-class', 'where-the-class-has-got-to',
+      'run-class-session', 'share-a-class', 'what-the-class-tools-page-counts', 'where-the-class-has-got-to',
     ])
     expect(walksFor('admin', 'admin-invites').map((x) => x.id)).toEqual(['invites-desk'])
     expect(walksFor('teacher', 'admin-invites')).toEqual([])
@@ -65,9 +65,11 @@ describe('walksFor (offer filtering)', () => {
     expect(signedIn).toContain('where-you-are-in-this-course')
     expect(signedIn).not.toContain('save-your-progress')
     // No dashboard walk ever reaches a learner, and no learner walk leaks onto
-    // a dashboard place.
+    // a dashboard place. A teacher at the Library gets exactly the one walk
+    // authored for them there — "Playing as yourself" — and none of the learner's.
     expect(walksFor('learner', 'node-home')).toEqual([])
-    expect(walksFor('teacher', 'library')).toEqual([])
+    expect(walksFor('teacher', 'library').map((x) => x.id)).toEqual(['playing-as-yourself'])
+    expect(walksFor('teacher', 'library', 'signed-in').map((x) => x.id)).toEqual(['playing-as-yourself'])
   })
 
   // The learner content laws (learnerExplainers.ts header) apply to walk prose
