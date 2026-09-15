@@ -4,6 +4,8 @@ import FrostSelect from '@/components/FrostSelect.vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
+import WalkOffer from '@/components/admin/WalkOffer.vue'
+import { viewerPersona } from '@/walkthrough/handbook'
 import { useI18n } from '@/composables/useI18n'
 
 const { t } = useI18n()
@@ -23,6 +25,7 @@ const SECTIONS = computed<{ id: SectionId; label: string }[]>(() => [
 const isAdminView = inject<boolean>('isAdminView', false)
 const supabase = inject<import('vue').Ref<any>>('supabase', ref(null))
 const { currentUser, isSchoolAdmin } = useSchoolContext()
+const explainerPersona = computed(() => viewerPersona(currentUser.value?.platform_role ?? null, currentUser.value?.educational_role ?? null))
 const { activeSchool, currentSchool, fetchSchools } = useSchoolData()
 
 // WHO YOUR LINKS LET IN (job #371). The school's claimed email domains and
@@ -486,6 +489,7 @@ function toggleDataItem(id: string) {
 <template>
   <main class="settings-screen">
     <h1 class="arsenal page-title">{{ t('schools.schoolSettings.title', 'Settings') }}</h1>
+    <WalkOffer :persona="explainerPersona" place="settings" />
 
     <div class="settings-layout">
       <aside class="schools-card section-nav">

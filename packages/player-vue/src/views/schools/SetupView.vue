@@ -45,11 +45,14 @@ import { getLanguageName, t } from '@/composables/useI18n'
 import { courseShortName } from '@ssi/core'
 import FrostSelect from '@/components/FrostSelect.vue'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
+import WalkOffer from '@/components/admin/WalkOffer.vue'
+import { viewerPersona } from '@/walkthrough/handbook'
 import { preselectedCourseCode } from './setupCoursePreselect'
 
 const router = useRouter()
 const supabase = inject('supabase', ref(null)) as any
 const { currentUser } = useSchoolContext()
+const explainerPersona = computed(() => viewerPersona(currentUser.value?.platform_role ?? null, currentUser.value?.educational_role ?? null))
 const { activeSchool, currentSchool, fetchSchools } = useSchoolData()
 const { classes, fetchClasses, createClass, error: classesError } = useClassesData()
 const { availableCourses: effectiveCourseGrants, schoolTrialCourse, fetchCatalogue, loadSchoolPlatformState } = useSchoolCourseCatalogue()
@@ -408,6 +411,7 @@ onMounted(() => {
 
 <template>
   <main class="setup-screen" :class="{ 'is-visible': isVisible }">
+    <WalkOffer :persona="explainerPersona" place="setup" />
     <nav class="breadcrumb">
       <router-link to="/schools/settings">{{ t('schools.setup.breadcrumbSettings', 'Settings') }}</router-link>
       <span class="breadcrumb-sep">/</span>

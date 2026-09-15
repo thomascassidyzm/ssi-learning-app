@@ -24,6 +24,8 @@ import { yearGroupBreakdown, practisedWithin, parseYearGroup, type YearGroupTile
 import YearGroupTiles from '@/components/schools/shared/YearGroupTiles.vue'
 import ShowAll from '@/components/shared/ShowAll.vue'
 import { topThree } from '@/components/shared/topThree'
+import WalkOffer from '@/components/admin/WalkOffer.vue'
+import { viewerPersona } from '@/walkthrough/handbook'
 // A class IS one learner account (Tom's ruling, 2026-09-11, job #265), so
 // there is no per-pupil sort: name, time in app, how far the class has got,
 // or the phrases it practised this week — the last one is the school
@@ -38,6 +40,7 @@ const { t } = useI18n()
 const isAdminView = inject<boolean>('isAdminView', false)
 const { schoolsLink } = useSchoolsNav()
 const { currentUser: selectedUser, isTeacher, isSchoolAdmin } = useSchoolContext()
+const explainerPersona = computed(() => viewerPersona(selectedUser.value?.platform_role ?? null, selectedUser.value?.educational_role ?? null))
 const { classes: classesData, isLoading: classesLoading, error: classesError, classesLoaded, fetchClasses, createClass, getClassReport } = useClassesData()
 const { canPlayAsClass, playAsClassReadOnly, launchClassSession, playError } = usePlayAsClass()
 // Under View As the button is shown disabled, never hidden (job #683).
@@ -483,6 +486,7 @@ function exportCsv() {
     <div class="page-head">
       <div class="page-head-text">
         <h1 class="arsenal page-title">{{ headlineTitle }}</h1>
+        <WalkOffer :persona="explainerPersona" place="classes" />
         <p class="page-subtitle schools-subtle">
           <router-link :to="{ query: { ...route.query, sort: 'hours' } }" class="subtitle-link">{{ headlineSubtitle }}</router-link>
           <UpdatedStamp />

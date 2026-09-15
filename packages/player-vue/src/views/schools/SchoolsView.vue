@@ -12,6 +12,8 @@ import { useGovtAdminActions } from '@/composables/schools/useGovtAdminActions'
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 import { compareByName } from '@/utils/alphaSort'
 import { redeemLink } from '@/composables/schools/inviteLink'
+import WalkOffer from '@/components/admin/WalkOffer.vue'
+import { viewerPersona } from '@/walkthrough/handbook'
 import { useI18n } from '@/composables/useI18n'
 
 const { t } = useI18n()
@@ -19,6 +21,7 @@ const router = useRouter()
 const isAdminView = inject<boolean>('isAdminView', false)
 const { schoolsLink } = useSchoolsNav()
 const { currentUser } = useSchoolContext()
+const explainerPersona = computed(() => viewerPersona(currentUser.value?.platform_role ?? null, currentUser.value?.educational_role ?? null))
 const {
   schools,
   groupSummary,
@@ -215,6 +218,7 @@ watch(currentUser, (u) => {
 
 <template>
   <main class="schools-list-screen">
+    <WalkOffer :persona="explainerPersona" place="schools-list" />
     <div class="hero">
       <div class="hero-text">
         <div class="hero-eyebrow">{{ headerEyebrow }}</div>

@@ -25,11 +25,14 @@ import { missionsEnabled, startMission, useMission } from '@/missions/useMission
 import { redeemLink } from '@/composables/schools/inviteLink'
 import { formatPracticeMinutes, secondsToMinutes } from '@/composables/schools/practiceMinutes'
 import { useSchoolPractice7d } from '@/composables/schools/useSchoolPractice7d'
+import WalkOffer from '@/components/admin/WalkOffer.vue'
+import { viewerPersona } from '@/walkthrough/handbook'
 
 const { t } = useI18n()
 const router = useRouter()
 const { schoolsLink, isAdminView } = useSchoolsNav()
 const { currentUser, isTeacher, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
+const explainerPersona = computed(() => viewerPersona(currentUser.value?.platform_role ?? null, currentUser.value?.educational_role ?? null))
 
 // Guided missions (dev/staging-gated prototype): quiet ghost affordance next
 // to the teacher greeting while no mission is running.
@@ -525,6 +528,7 @@ async function handlePlayClass(cls: ClassInfo) {
   <div class="dashboard-view">
     <!-- A password is the one way back in that needs no inbox. -->
     <SchoolsPasswordPrompt />
+    <WalkOffer :persona="explainerPersona" place="dashboard" />
 
     <!-- Govt drill-down breadcrumb -->
     <nav v-if="breadcrumb" class="dashboard-breadcrumb">

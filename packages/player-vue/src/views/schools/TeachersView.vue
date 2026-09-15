@@ -8,6 +8,8 @@ import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { useClassesData } from '@/composables/schools/useClassesData'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 import AssignClassesModal from '@/components/schools/AssignClassesModal.vue'
+import WalkOffer from '@/components/admin/WalkOffer.vue'
+import { viewerPersona } from '@/walkthrough/handbook'
 import { orderPending, settledStaff } from '@/composables/schools/teacherRosterSections'
 import {
   applyAssignmentDiff,
@@ -23,6 +25,7 @@ const { t } = useI18n()
 
 const isAdminView = inject<boolean>('isAdminView', false)
 const { currentUser: selectedUser, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
+const explainerPersona = computed(() => viewerPersona(selectedUser.value?.platform_role ?? null, selectedUser.value?.educational_role ?? null))
 const { teachers: teachersData, isLoading: teachersLoading, error: teachersError, fetchTeachers, removeTeacher, createStaffSigninLink, createNamedSeat } = useTeachersData()
 const { currentSchool, fetchSchools } = useSchoolData()
 const {
@@ -385,6 +388,7 @@ watch(selectedUser, (newUser) => {
         <h1 class="arsenal page-title">{{ t('schools.teachers.pageTitle', 'Teachers') }}</h1>
         <p class="page-subtitle schools-subtle">{{ subtitle }}</p>
       </div>
+      <WalkOffer :persona="explainerPersona" place="teachers" />
       <div class="page-head-actions">
         <button v-if="teachers.length > 0" type="button" class="btn-ghost" @click="exportCsv">
           {{ t('schools.teachers.exportCsv', 'Export CSV') }}
