@@ -39,6 +39,7 @@ import { leadersForNodes } from '../../_utils/groupLeaderTag'
 import { sortByName } from '../../_utils/alphaSort'
 import { loadClassPractice, practisedSince, topPhrases, ownAccountLearnerIds, ownAccountLedgerSeconds, inAppTimeSeconds, legoOrdinal, CLASS_PRACTICE_WINDOW_DAYS } from '../../_utils/classPractice'
 import { applyCors } from '../../_utils/cors'
+import { secondsToMinutesUp } from '../../_utils/inAppTime'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -288,6 +289,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         ownAccountLedgerSeconds(svc, ownIds),
         inAppTimeSeconds(svc, subtreeClasses.map((c) => c.class_learner_id).filter((id): id is string => !!id), ownIds),
       ])
+      // Each class account's own minutes this week, keyed by class id — the
+      // figure the year-group tiles sum and the tree's class rows carry
+      // (job #766). Rounded UP per class like every other minute on a
+      // school page (secondsToMinutesUp, job #683).
+      // The SECONDS ride alongside so a year-group tile can sum them and
+      // round up once, the same as the headline does (job #772).
+      const minutesByClass: Record<string, number> = {}
+      const secondsByClass: Record<string, number> = {}
+      for (const c of subtreeClasses) {
+        if (!c.class_learner_id) continue
+        const seconds = inApp.classSecondsByLearner.get(c.class_learner_id) ?? 0
+        secondsByClass[c.id] = seconds
+        minutesByClass[c.id] = secondsToMinutesUp(seconds)
+      }
       return {
         windowDays: CLASS_PRACTICE_WINDOW_DAYS,
         classCount: subtreeClasses.length,
@@ -295,11 +310,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         phrases7d,
         classesWithPhrases7d,
         topPhrases7d,
-        inAppMinutes7d: Math.round(inApp.seconds / 60),
-        classInAppMinutes7d: Math.round(inApp.classSeconds / 60),
+        // Rounded UP like every other minute on a school page (job #683), so
+        // the org headline and the per-class tiles beneath it share one rule.
+        inAppMinutes7d: secondsToMinutesUp(inApp.seconds),
+        classInAppMinutes7d: secondsToMinutesUp(inApp.classSeconds),
         audioPlayedMinutes7d: Math.round(own.seconds / 60),
         ownAccountMinutes7d: Math.round(own.seconds / 60),
         ownAccountPeople7d: own.people,
+        minutesByClass,
+        secondsByClass,
       }
     })
     // WHO LEADS THIS NODE. The org page could name the leader of a group
@@ -478,7 +497,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         windowDays: CLASS_PRACTICE_WINDOW_DAYS,
         phrases7d: classFacts?.phrases ?? 0,
         // Whole-class time in the app this week, gaps included.
-        inAppMinutes7d: Math.round(classInApp.classSeconds / 60),
+        // Rounded UP like every other school-page minute (job #683, applied here by #766).
+        inAppMinutes7d: secondsToMinutesUp(classInApp.classSeconds),
         // The cursor stamp counts as evidence the class practised even when
         // the diary is empty, so "last practised" is never falsely blank.
         lastPractisedAt: classFacts?.lastPractisedAt ?? null,
@@ -572,6 +592,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // the nodes, never rows: a 400-pupil school is a number, not a list. ───
     let treePayload: Record<string, unknown> | null = null
     const classPracticeFacts = await classPracticeFactsPromise
+    // Per-class minutes this week ride the classPractice rollup; the payload
+    // strips them off the rollup below so the stats row keeps its shape.
+    const { minutesByClass: classMinutesByClass, secondsByClass: classSecondsByClass, ...classPracticeRollup } = classPractice
     if (drawsTree) {
       const subtreeClasses = await subtreeClassesPromise
       const classIds = subtreeClasses.map((c) => c.id)
@@ -673,6 +696,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
               // department reads on a Monday: who did it, who has gone quiet.
               phrases7d: classPracticeFacts.get(c.id)?.phrases ?? 0,
               lastPractisedAt: classPracticeFacts.get(c.id)?.lastPractisedAt ?? null,
+              // The class account's own in-app minutes this week — the number
+              // the year-group tiles sum and the tree orders by (job #766).
+              inAppMinutes7d: classMinutesByClass[c.id] ?? 0,
+              // The seconds behind it, unrounded, for the tiles to sum and
+              // round once (job #772). The minutes stay for existing readers.
+              inAppSeconds7d: classSecondsByClass[c.id] ?? 0,
             }))
             .sort((a, b) => a.name.localeCompare(b.name)),
           staff: staffUids
@@ -909,7 +938,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       funderReporting: (funderPolicy as any)?.data?.is_active
         ? { orgName: (funderPolicy as any).data.org_display_name as string }
         : null,
-      classPractice,
+      classPractice: classPracticeRollup,
       ...(treePayload || {}),
       ...(lensPayload || {}),
     })

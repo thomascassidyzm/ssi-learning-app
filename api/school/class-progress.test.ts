@@ -29,6 +29,7 @@ let DB: {
   course_enrollments: Array<Record<string, any>>
   lego_progress: Array<Record<string, any>>
   sessions: Array<Record<string, any>>
+  learner_speaking_opportunities: Array<Record<string, any>>
 }
 
 function makeChainable(table: string) {
@@ -92,6 +93,7 @@ beforeEach(async () => {
     course_enrollments: [{ learner_id: 'class-learner-1', course_id: 'cym_for_eng', last_completed_lego_id: null, last_completed_round_index: null, current_cycle_index: 0 }],
     lego_progress: [],
     sessions: [],
+    learner_speaking_opportunities: [],
   }
   scope = { role: 'teacher', classIds: ['class-1'], learnerIds: [], studentsByClass: {}, schoolIds: [], groupId: null, learnerId: 'staff-learner-a' }
 })
@@ -217,5 +219,51 @@ describe('POST /api/school/class-progress', () => {
     const res = makeRes()
     await handler(makeReq({ classId: 'class-1', method: 'getEnrollment', args: [] }), res)
     expect(res.statusCode).toBe(401)
+  })
+})
+
+// Job #778: the class account cannot pass the `bump_speaking_opportunities`
+// RPC (its user_id is `class-learner:<classId>`, nobody's login), so its
+// playback-ledger deltas come through here instead, onto the CLASS learner id.
+describe('POST /api/school/class-progress — bumpSpeakingOpportunities (job #778)', () => {
+  const today = () => new Date().toISOString().slice(0, 10)
+
+  it('opens today\'s ledger row for the CLASS learner, never the caller\'s own', async () => {
+    const res = makeRes()
+    await handler(makeReq({ classId: 'class-1', method: 'bumpSpeakingOpportunities', args: [3, 72, 0] }), res)
+    expect(res.statusCode).toBe(200)
+    expect(DB.learner_speaking_opportunities).toHaveLength(1)
+    expect(DB.learner_speaking_opportunities[0]).toMatchObject({
+      learner_id: 'class-learner-1', course_code: 'cym_for_eng', day: today(),
+      opportunities: 3, play_seconds: 72, phrases_spoken: 0,
+    })
+    expect(DB.learner_speaking_opportunities.some((r) => r.learner_id === scope.learnerId)).toBe(false)
+  })
+
+  it('adds onto an existing row for the same class-day, like the RPC\'s ON CONFLICT', async () => {
+    DB.learner_speaking_opportunities.push({
+      learner_id: 'class-learner-1', course_code: 'cym_for_eng', day: today(),
+      opportunities: 10, play_seconds: 200, phrases_spoken: 1,
+    })
+    const res = makeRes()
+    await handler(makeReq({ classId: 'class-1', method: 'bumpSpeakingOpportunities', args: [2, 30, 0] }), res)
+    expect(res.statusCode).toBe(200)
+    expect(DB.learner_speaking_opportunities).toHaveLength(1)
+    expect(DB.learner_speaking_opportunities[0]).toMatchObject({ opportunities: 12, play_seconds: 230, phrases_spoken: 1 })
+  })
+
+  it('clamps negative or garbage deltas to zero and writes nothing for an all-zero bump', async () => {
+    const res = makeRes()
+    await handler(makeReq({ classId: 'class-1', method: 'bumpSpeakingOpportunities', args: [-5, 'nope', null] }), res)
+    expect(res.statusCode).toBe(200)
+    expect(DB.learner_speaking_opportunities).toHaveLength(0)
+  })
+
+  it('is scope-gated like every other op: a caller outside the class is refused', async () => {
+    scope.classIds = ['some-other-class']
+    const res = makeRes()
+    await handler(makeReq({ classId: 'class-1', method: 'bumpSpeakingOpportunities', args: [3, 72, 0] }), res)
+    expect(res.statusCode).toBe(403)
+    expect(DB.learner_speaking_opportunities).toHaveLength(0)
   })
 })

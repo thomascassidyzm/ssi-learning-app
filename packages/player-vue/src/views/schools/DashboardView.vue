@@ -232,7 +232,17 @@ function lastPlayedLabel(iso: string | null | undefined): string {
 // pupilsOwnMinutes the aggregate of the pupils' own accounts. `started` is null
 // until the payload lands (the row says "loading"), false when the account
 // has never played (the row says "Not started" in words, never zeros).
-const teacherClassRows = computed(() => teacherClasses.value.map((c) => {
+// ACTIVITY FIRST (Tom, 2026-09-15, job #766): the class account's own
+// minutes this week, busiest at the top, name breaking ties — the same order
+// the Classes page opens in.
+const byMinutesWk = (a: { minutesWk: number; class_name: string }, b: { minutesWk: number; class_name: string }) =>
+  b.minutesWk - a.minutesWk || a.class_name.localeCompare(b.class_name)
+// The leader and admin-view tables show each class's average practice per
+// pupil, all-time (avg_practice_minutes) — no this-week figure rides that
+// row — so that column is their order, busiest first.
+const leaderClassRows = computed(() => teacherClasses.value.slice()
+  .sort((a, b) => (b.avg_practice_minutes || 0) - (a.avg_practice_minutes || 0) || a.class_name.localeCompare(b.class_name)))
+const teacherClassRowsUnordered = computed(() => teacherClasses.value.map((c) => {
   const p = teacherPractice.value
   const acct = p?.classAccountByClass[c.id]
   const started: boolean | null = p ? (acct?.started ?? false) : null
@@ -251,6 +261,7 @@ const teacherClassRows = computed(() => teacherClasses.value.map((c) => {
     class_belt: deriveBelt(acct?.seedNumber ?? 0),
   }
 }))
+const teacherClassRows = computed(() => teacherClassRowsUnordered.value.slice().sort(byMinutesWk))
 
 // The caller's own account this week — the number the Library shows them.
 const ownPractice = computed(() => teacherPractice.value?.callerOwn ?? null)
@@ -935,7 +946,7 @@ async function handlePlayClass(cls: ClassInfo) {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="cls in teacherClasses" :key="cls.id">
+              <tr v-for="cls in leaderClassRows" :key="cls.id">
                 <td>
                   <div class="class-cell">
                     <BeltDot belt="white" :size="20" ring />
@@ -1174,7 +1185,7 @@ async function handlePlayClass(cls: ClassInfo) {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="cls in teacherClasses" :key="cls.id">
+              <tr v-for="cls in leaderClassRows" :key="cls.id">
                 <td>
                   <router-link
                     :to="schoolsLink('class-detail', { classId: cls.id, schoolId: viewingSchool?.id })"

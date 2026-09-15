@@ -55,6 +55,7 @@ const ALLOWED_METHODS = [
   'startSession',
   'checkpointSession',
   'endSession',
+  'bumpSpeakingOpportunities',
 ] as const
 type Method = typeof ALLOWED_METHODS[number]
 
@@ -307,6 +308,60 @@ async function bumpInfplayRound(svc: SupabaseClient, learnerId: string, courseId
   if (error) throw new Error(`bumpInfplayRound write failed: ${error.message}`)
 }
 
+/**
+ * The playback ledger for the CLASS account (job #778). `learner_speaking_
+ * opportunities` is the ONE definition of a minute across the app (founder
+ * ruling 2026-08-19), written by the `bump_speaking_opportunities` RPC — whose
+ * first line requires `learners.user_id = auth.uid()`. A class account's
+ * user_id is the literal `class-learner:<classId>`, nobody's login, so every
+ * class-mode bump was refused with 42501 and the player only logged it: zero
+ * ledger rows for any class account, ever (verified live 2026-09-10 and again
+ * 2026-09-15). Same semantics as the RPC — non-negative deltas added onto
+ * today's UTC row — under the service role, on the class's own learner id.
+ * Read-then-write rather than an atomic increment: one teacher device drives
+ * a class, so two flushes for the same class-day never race in practice.
+ */
+async function bumpSpeakingOpportunities(
+  svc: SupabaseClient, learnerId: string, courseId: string,
+  oppsDelta: unknown, secondsDelta: unknown, phrasesDelta: unknown,
+) {
+  const nonNeg = (v: unknown) => Math.max(0, Math.floor(Number(v) || 0))
+  const opps = nonNeg(oppsDelta)
+  const seconds = nonNeg(secondsDelta)
+  const phrases = nonNeg(phrasesDelta)
+  if (opps === 0 && seconds === 0 && phrases === 0) return
+  const day = new Date().toISOString().slice(0, 10)
+  const { data: row, error: readErr } = await svc
+    .from('learner_speaking_opportunities')
+    .select('opportunities, play_seconds, phrases_spoken')
+    .eq('learner_id', learnerId)
+    .eq('course_code', courseId)
+    .eq('day', day)
+    .maybeSingle()
+  if (readErr) throw new Error(`bumpSpeakingOpportunities read failed: ${readErr.message}`)
+  if (row) {
+    const { error } = await svc
+      .from('learner_speaking_opportunities')
+      .update({
+        opportunities: ((row as any).opportunities || 0) + opps,
+        play_seconds: ((row as any).play_seconds || 0) + seconds,
+        phrases_spoken: ((row as any).phrases_spoken || 0) + phrases,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('learner_id', learnerId)
+      .eq('course_code', courseId)
+      .eq('day', day)
+    if (error) throw new Error(`bumpSpeakingOpportunities update failed: ${error.message}`)
+    return
+  }
+  const { error } = await svc
+    .from('learner_speaking_opportunities')
+    .insert({ learner_id: learnerId, course_code: courseId, day, opportunities: opps, play_seconds: seconds, phrases_spoken: phrases })
+    .select('learner_id')
+    .single()
+  if (error) throw new Error(`bumpSpeakingOpportunities insert failed: ${error.message}`)
+}
+
 async function updateCurrentCycle(svc: SupabaseClient, learnerId: string, courseId: string, cycleIndex: number) {
   const { error } = await svc
     .from('course_enrollments')
@@ -475,6 +530,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         break
       case 'bumpInfplayRound':
         await bumpInfplayRound(svc, learnerId, courseId)
+        break
+      case 'bumpSpeakingOpportunities':
+        await bumpSpeakingOpportunities(svc, learnerId, courseId, a[0], a[1], a[2])
         break
       case 'updateCurrentCycle':
         await updateCurrentCycle(svc, learnerId, courseId, a[0])

@@ -257,7 +257,10 @@ describe('GET /api/groups/:id/home', () => {
     // A class is a leaf ON its own node — the defect this replaces was a
     // school whose classes hung off itself reading as "nothing below this".
     expect(tree.classes).toEqual([
-      { id: 'class-1', name: 'Year 6 Hindi', nodeId: 'school-node', teachers: ['Mr Rao', 'Ms Mehta'], studentCount: 2, phrases7d: 4, lastPractisedAt: expect.any(String) },
+      // inAppMinutes7d: the class account's own minutes this week, the figure
+      // the year-group tiles sum (job #766) — rounded UP per class like every
+      // school-page minute (job #683), so the fixture's 25-and-a-bit is 26.
+      { id: 'class-1', name: 'Year 6 Hindi', nodeId: 'school-node', teachers: ['Mr Rao', 'Ms Mehta'], studentCount: 2, phrases7d: 4, lastPractisedAt: expect.any(String), inAppMinutes7d: 26, inAppSeconds7d: expect.any(Number) },
     ])
     // People are drawn, on the node they sit on: the verbs that belong to a
     // person (assign to a class, access code) need a row to live on.
@@ -354,7 +357,8 @@ describe('GET /api/groups/:id/home', () => {
     // `sessions` rows do not describe its lessons (_utils/classPractice.ts).
     // IN-APP TIME (founder ruling 2026-09-10): the class account's two
     // blocks yesterday, 25 minutes, the silence between them not counted.
-    expect(res.body.classPractice).toMatchObject({ windowDays: 7, phrases7d: 4, inAppMinutes7d: 25 })
+    // Rounded up (job #683 rule, applied here by job #766): 25-and-a-bit is 26.
+    expect(res.body.classPractice).toMatchObject({ windowDays: 7, phrases7d: 4, inAppMinutes7d: 26 })
     expect(res.body.classPractice).not.toHaveProperty('hours')
     expect(res.body.classPractice).not.toHaveProperty('weekSessions')
     expect(typeof res.body.classPractice.lastPractisedAt).toBe('string')
@@ -407,11 +411,12 @@ describe('GET /api/groups/:id/home', () => {
         { known: 'to learn', target: 'aprender', count: 1 },
       ],
       // IN-APP TIME leads (founder ruling 2026-09-10): the class account's
-      // 25 minutes of whole-class play plus learner-1's 10 minutes in the app
-      // today, each learner id once. The silence between the class's two
-      // blocks is not counted.
-      inAppMinutes7d: 35,
-      classInAppMinutes7d: 25,
+      // 25-and-a-bit minutes of whole-class play plus learner-1's 10 minutes
+      // in the app today, each learner id once. The silence between the
+      // class's two blocks is not counted. Rounded UP like every other
+      // school-page minute (job #683, applied here by #766): 26 and 36.
+      inAppMinutes7d: 36,
+      classInAppMinutes7d: 26,
       // learner-1 is a student on class-1: 600s today + 1200s yesterday on
       // the ledger = 30 minutes, one person — AUDIO PLAYED, the secondary
       // figure. The class account has no ledger rows and never can.

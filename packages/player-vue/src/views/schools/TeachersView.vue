@@ -118,7 +118,12 @@ const searchMatches = computed(() => {
   return teachers.value.filter(t => t.name.toLowerCase().includes(q))
 })
 
-const filtered = computed(() => settledStaff(searchMatches.value))
+// ACTIVITY FIRST (Tom, 2026-09-15, job #766): staff who teach here are
+// ordered by their pupils' practice minutes, the column the row shows, then
+// their own, then name. All-time figures — the roster carries no this-week
+// minutes per teacher. The pending arrivals keep their own order below.
+const filtered = computed(() => settledStaff(searchMatches.value)
+  .sort((a, b) => b.studentMinutes - a.studentMinutes || b.ownMinutes - a.ownMinutes || a.name.localeCompare(b.name)))
 
 // The domain match survives here and ONLY here: as the ORDER of this list, so
 // the admin's eye lands first on the arrivals who look least like their staff.
@@ -470,11 +475,13 @@ watch(selectedUser, (newUser) => {
       <div v-if="removeError" class="invite-hint remove-error schools-card schools-card-pad" role="alert">
         {{ removeError }}
       </div>
-
+    </Transition>
+    <Transition name="fade">
       <div v-if="signinLinkError" class="invite-hint remove-error schools-card schools-card-pad" role="alert">
         {{ signinLinkError }}
       </div>
-
+    </Transition>
+    <Transition name="fade">
       <div v-if="signinLinkFor" class="schools-card schools-card-pad signin-link-panel">
         <div class="schools-kicker">{{ t('schools.teachers.accessCodeForKicker', 'Access code for {name}').replace('{name}', signinLinkFor.name) }}</div>
         <p class="signin-link-body">

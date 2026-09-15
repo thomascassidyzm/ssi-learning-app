@@ -6719,7 +6719,7 @@ $$;
 
 CREATE FUNCTION public.user_messages_from_support_reply() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   t          public.support_threads%ROWTYPE;

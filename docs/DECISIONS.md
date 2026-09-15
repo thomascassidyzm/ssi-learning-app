@@ -1,3 +1,75 @@
+## 2026-09-15 — Insights under View As reads the VIEWED teacher's classes, so a class whose only practice is play-as-class draws (job #788)
+
+**Tom's report.** Schools > Insights, View as R Jeffery (teacher, Ysgol Cas-gwent, 11P): "No classes
+yet — once you have a class with sessions, it compares here." The dashboard and the class page for
+the same class read 18 minutes played as class that week, 55 phrases, 7 of 679 travelled.
+
+**Cause, verified against production, not the scout.** Scout #787's two candidates — the dead
+`player_events.session_id` join and the bulk-stamped `course_progress` view — are not on this path.
+TeacherInsightsView takes its class list from `GET /api/me/teaching-context`, which scopes to the
+CALLER's auth uid, and under View As the caller is the ssi_admin. All 13 ssi_admins teach zero
+classes, so production answered `{classes: []}` six times per page load and the view showed its
+honest zero-classes state. The rate engine itself already has 11P as its own entity off the class
+account's diary (18.4 min over 30 days, live probe) — Tom's ruling that play-as-class IS the class
+data was already true one layer down; the picker never got to ask.
+
+**Fix.** One door on teaching-context: a caller carrying the View As header who passes `verifyAdmin`
+may send `?as=<auth uid>` and gets that person's context. Any other caller sending `as` is refused
+with 403 rather than quietly answered for themselves. The view sends the persona uid while
+`viewingAs` is set. No learner progress row is read or written; nothing about a real teacher's own
+login changes.
+
+**Proof.** `api/me/teaching-context.test.ts` two new cases red on the pre-fix handler, 15/15 green
+after; `TeacherInsightsView.test.ts` one new case red on the pre-fix view, 8/8 green after; live
+opt-in case for 11P added to `rate-compare.live.test.ts`; `test:premerge` green; both typechecks
+clean against a per-worktree install. Production before/after screenshots via
+`e2e/_788-viewas-insights-probe.mjs`.
+
+## 2026-09-15 — Three red nightlies on dev were merges, not a broken build: eight fixes and a one-minute pre-merge gate (job #774)
+
+**Symptom.** The watson-1 nightly (`~/command-surface/ops/ci-run.sh`) went red on dev, staging
+and main on 13, 14 and 15 September, on three different dev heads (12c1e192, 541480a8, d3e2a89e)
+and three DIFFERENT sets of tests. Auto-fix workers #482 and #629 each fixed one night's list
+correctly and merged; by the next nightly a fresh day of merges had left a fresh list behind. On
+15 September the nightly muted auto-dispatch.
+
+**Diagnosis, from the whole history rather than one log.** Nothing was flaky and nothing was an
+environment gap: no test on the list needs DB credentials, and `.vercelignore` (job #694) touches
+only the Vercel upload — `pnpm test:api` still discovers 251 files locally and on the nightly. Every
+red was a merge whose author ran only the suite beside the file it changed:
+- job #683's "minutes round up, hours only from an hour" ruling changed `practiceMinutes.ts` and left
+  four component tests asserting the old numbers (CopyPlaySweepCard, CopyTeacherPlayCard, OrgIntelPanel,
+  useSchoolData) — and exposed a real defect: `hoursToMinutes(256.6)` became 15397 because
+  256.6 × 60 is 15396.000000000002 in floating point and the new ceiling read that noise as a minute;
+- job #766 registered `schools.yearGroupTiles.yearShort` in `pending-translation.json` but never added
+  the English string `YearGroupTiles.vue` reads;
+- job #684's `GET /api/messages` answers its preflight inside `resolveInboxCaller` in `_shared.ts`,
+  which the derived scanner (`scanClientApiCalls.ts`) cannot see — it reads the handler file for the
+  cors import;
+- job #680's `support-inbox-view-no-auth-users.security.test.ts` never joined the pinned roster in
+  `securityTestMachineryIntegrity.security.test.ts`;
+- job #684's `user_messages_from_support_reply()` is SECURITY DEFINER pinned to `search_path = public`
+  without `pg_temp` — the live function too (`pg_proc.proconfig` read 2026-09-15), a real gap.
+The 13 and 14 September lists (jobs #306/#340/#354/#379, then #609/#624) had the same shape.
+
+**What changed.** The float fix in `ceilPositive` (proof: `practiceMinutes.test.ts`, red on the old
+file, green on the new); the four minutes tests now assert the ruling's numbers (13 and 29 minutes,
+"5 h 52 min"); `yearShort: "Y{n}"` in `eng.json`; `applyCors` named in `api/messages/index.ts` itself,
+where the scanner looks; the roster gains the #680 file; migration
+`20260915a_user_messages_from_support_reply_pg_temp.sql` (ALTER FUNCTION, config only) applied live
+and `schema.sql` updated to match.
+
+**The mechanism, so it stops recurring.** `pnpm test:premerge` at the root: the repo-invariant tests
+(every test that reads the tree rather than importing it — preflight coverage, the security roster,
+definer search_path, locale parity, walkthrough mirrors, and their kin, 22 files) plus
+`vitest --changed origin/dev` in both configs, which runs every test importing a changed file. About
+a minute; documented in CLAUDE.md's feedback loops. Better: it catches exactly the two classes that
+went red three nights running. Simpler: two package.json scripts, no new tooling, the full nightly
+untouched. Cheaper: a minute at merge time against an eight-minute nightly, a muted auto-fix lane and
+three workers' worth of re-diagnosis. It is a convention, not a hard gate — the surface merges by
+hand — so the honest next step, if it recurs, is the command surface running `test:premerge` in the
+worker's worktree before it offers the merge.
+
 ## 2026-09-14 — Play as class restored beside every class; the playing-as-yourself warning moves to the player; minutes round up; hours only from an hour; View As lands on real numbers; a verification rule for schools jobs (job #683)
 
 **Symptom (Tom, 16:17Z, staging, ten screenshots).** "every single Play as Class button has GONE!!!!
@@ -3106,3 +3178,231 @@ fails closed. The optimistic rule itself is untouched: a payer still sees no wal
 for the answer before the cursor is stamped. Wiring asserted in `paywallRetreat.test.ts`, red on the
 pre-fix source, green after; three consecutive served-build opens held at the wall with both
 cursors on S0031L01.
+
+## 2026-09-15 — The schools release ships to main; the one-off teacher-play sweep applied (job #758, Tom's GO 00:14Z)
+
+**Promoted** staging → main at `bfda61b8c` (206 commits, promote merge `727a21afa`, notes commit on
+top), production serving build `bfda61b` from 00:23Z on `saysomethingin.app`. The #752 follow-up
+(job #757, four additions) had landed on staging before the promote and rides in it. The promote
+first refused because main carried the rate-compare preflight hotfix `993e1bd50` that staging had
+only as job #629's equivalent; back-merged main into staging keeping staging's file, and after the
+ship back-merged main into staging and dev again so the promote merge is an ancestor of both.
+**Standing shape:** after every promote, main holds the promote merge and the notes commit that
+staging does not, so the next `promote.sh` refuses until main is back-merged — do it as the last
+step of every ship, not the first step of the next.
+
+**Release notes** hand-drafted on dev before the promote so the finaliser carried them: three
+headlines — the wall keeps your place and resumes on a grant; Support replies arrive in the in-app
+inbox; teachers open on the dashboard with Play as class and minutes-based Insights — plus the one
+line. `tools/release-train/notes/2026-09-15.md`, on main and dev.
+
+**Spot-check on the served build**, `packages/player-vue/e2e/_758-ship-spotcheck.mjs`: the ZZ
+Test teacher-only persona's second open lands on `/schools` (the first open reaches the player once
+by design — the rule reads the cached role), Play as class present, no LEGO wording, one class
+Insights page renders with home and rate-compare 200, the school admin persona's support thread
+answers 200 with the composer visible; a teacher's 403 from the support thread and from
+`/api/org/intel` are both by design (admins-only channel; teacher lens is `/teacher-insights`).
+
+**Sweep applied** (`tools/copy-teacher-play-sweep.mjs --apply`, actor
+`sweep:copy-teacher-play:2026-09-14`, the #689 undo fix in place) only after main was confirmed
+live with the inbox. Fresh re-scan first: the same five pairs as the 14 Sep dry run, 336 rows, 0
+minutes. Result: 5 copied, 0 partial, 0 failed, 0 drift — Chepstow 11E davidlane 90 rows, 11H
+marielane 85, Tredegar 10R Miss Smith 8, SR Mrs Ruttley 102, Monmouth 7GSN Mr Snelgrove 51; five
+audit rows and five inbox notices with one-tap Undo, one per teacher, verified in the live DB.
+Reconcile re-scan: 0 copies remaining; ambiguous 183 → 188, the delta exactly the five classes now
+in `condition_3_class_account_has_play`, every other entry bit-identical. Trial scope untouched.
+
+**Addition (Tom, 00:16Z): the school leaders were told.** Four inbox messages, one per school row,
+sent through `sendUserMessage` with idempotent dedupe keys by
+`tools/leader-notice-teacher-play-sweep-2026-09-15.mjs`: angharadjones at Chepstow for 11E and 11H,
+Miss Morris at Ysgol Gyfun Tredegar for 10R, hughesr310 at the second Ysgol Gyfun Tredegar school row
+for SR, Anna Aggleton at Monmouth for 7GSN — Tredegar exists as two school rows with two different
+leaders, so each got the note for their own class. The five teachers received nothing further; the
+live table holds exactly one `class_play_copied` message per teacher and per leader, nine in all.
+## 2026-09-15 — A pending subscription verdict is itself a cursor write-hold; the resume-TTL rewind cannot cross the wall (job #761, follow-up to #757)
+
+**Decision.** While the post-init resume gate is waiting for the subscription answer, nothing may
+persist a position the gate has not yet judged. `paywallRetreat` gains `awaitVerdict` /
+`verdictReached`; `blocksPersist` is true while a verdict is pending, exactly as it is while a real
+spot is held. The `positionInitialized` watcher raises it the moment it defers the gate and drops it
+the instant `subscriptionHydrated` flips, right before the gate runs — so the dormant save on
+backgrounding, the prompt-entry save, the navigation cursor writer and the cycle queue (all of
+which consult `blocksPersist`) are all covered by one flag. Bounded by useSubscription's own 8s
+hydration timeout, which fails closed; a guest or an already-hydrated open never enters the window.
+
+**Why.** A cold verify of #757 found the dormant/visibility save in `saveResumeAudio` consulted only
+the reset-time sessionStorage flag, and the retreat hold existed only once the gate had run — which
+#757 made wait for hydration. An unentitled learner whose saved cursor was S0031L01, bootstrapped
+onto the preview's last round, who backgrounded the app inside that window, had S0019L01 written
+over S0031L01 in localStorage and the DB. Reproduced in memory by the verifier.
+
+**Proof.** `paywallRetreat.test.ts`: pending verdict blocks a save; verdict landed and gate held
+still blocks; verdict landed and entitled lets the save through — red on the pre-fix module (no
+such methods), green after; the wiring order (awaitVerdict before the hydration watch,
+verdictReached before the gate) asserted on the source. The #752 wiring test in
+`unentitledPastWall.test.ts` had been reading the watcher body for a gate #757 moved into
+`runPostInitResumeGate`, red on dev since then; repointed at the gate.
+
+**The resume-TTL writer is left alone, by construction.** The 60-day belt rewind calls
+`setEnrollmentCursor` directly, without the hold, but `beltRewindTarget` only ever returns a round
+that exists in the rounds the server served, and an unentitled learner is served the preview-only
+bundle (`api/courses/[code]/bundle.ts` filters rounds to `previewMaxSeed`). A learner past the wall
+holds a belt whose first round lies past the wall too, so the target is not in the served rounds,
+`beltRewindTarget` returns null, and no write happens. A learner inside the preview rewinds inside
+the preview — the feature working as designed, not a paywall move. Hydration does not enter the
+computation (it reads the saved timestamp and the served rounds), so pending hydration cannot
+change the target either. Nothing to route through the hold.
+
+**Addition (same job): the two lifecycle writers refuse on `accessPending()` themselves.** The #760
+test (`LearningPlayer.pendingHydration.test.ts`) drives `saveResumeAudio` and the visibilitychange
+callback straight from the extracted source against a hand-built context — no watcher runs, so a
+hold raised by the `positionInitialized` watcher is invisible to it. Rather than teach the harness
+the watcher's behaviour, `savePositionToLocalStorage` and `persistLivePositionToDb` now also return
+while `entitlementComposable.accessPending()` is true: the writer refuses on the source-of-truth
+predicate, and the pending-verdict hold in `paywallRetreat` still covers the navigation cursor
+writer and the cycle queue. Dev was deliberately red on those two cases until this landed; green
+now with the real guard, not the test's in-memory control.
+
+## 2026-09-15 — The long-absence belt rewind waits for the subscription verdict and rewinds only an entitled learner (job #768, follow-up to #761 / review #767)
+
+**Decision.** The resume-TTL belt rewind is a cursor writer, so it obeys the #761 rule that no
+cursor writer runs before the subscription verdict, and Tom's rule that a paywall never moves a
+position back. The legacy eagerLoad TTL block now `await`s a new `awaitSubscriptionVerdict()` (the
+same bounded `subscriptionHydrated` mechanism #757/#761 use; immediate for guests and already-
+hydrated opens) and then rewinds only when `entitlementComposable.canAccessSeed` allows the
+rewind target's seed — gating BOTH the in-memory landing and the `setEnrollmentCursor` write. A
+lapsed subscriber is therefore not rewound while lapsed: they stay on their real place, which the
+post-init gate then holds and walls. On their first entitled open after resubscribing the same
+days-since-practice check runs and they are regressed then — the regression is deferred, never
+escaped. The entitled learner's rewind, its telemetry reason and its landing are unchanged.
+
+**Why.** #761 left the rewind alone "by construction" on the grounds that an unentitled learner is
+served the preview-only bundle, so the target is never in the rounds. Review #767 showed the
+construction leaks: a same-owner cached FULL bundle outlives entitlement, so a lapsed learner at
+S0031 was rewound to S0020 and that cursor written — a position move by the paywall, and a write
+before the verdict. The await lands only on the rewind path (a returning learner past the
+regression threshold), so no other open pays for it.
+
+**Proof.** `LearningPlayer.resumeTtlEntitlement.test.ts`, Astra's #765 test adopted and
+narrowed: pending-at-init-then-unentitled and hydrated-but-expired both leave S0031L01 in memory
+and in the store (no write); pending awaits the verdict exactly once; hydrated-and-entitled still
+writes the S0020L01 / round 19 regression with the same reason payload. The helper itself is
+extracted from the source and shown to resolve at once when nothing is pending and to watch
+`subscriptionHydrated` until it flips. Astra's "held cursor" case is dropped with a comment: the
+retreat hold is raised by the post-init gate, which runs after this block, so it is unreachable.
+Red 5/7 on pre-fix dev, green 7/7 after; the 18 suites that read LearningPlayer's source stay
+green; typecheck and lint clean.
+## 2026-09-15 — Every school list opens by activity; the year-group tiles show minutes under a big year key (job #766, Tom 00:52Z)
+
+**Ruling.** Tom, reviewing the live Chepstow Classes page as school leader after the 2026-09-15
+release: "always sort students/classes/groups of any entity as the default by activity — the most
+logical being the in-app minutes". And the year-group tiles, which showed phrases practised as
+their big number under a headline reading "2 h 44 min in the app this week", he read as minutes.
+So they are minutes, and the year key is the thing the eye lands on.
+
+**What changed.**
+- **Default sort is activity everywhere it can be.** Classes page (`TeacherDashboard.vue`): opens
+  on time in app this week, busiest first; `?sort=` is written only for a non-default choice, so
+  the leader home's "minutes" stat link still lands on the same order. Teacher home rows
+  (`DashboardView.vue`) by the class account's minutes this week; the leader and admin-view class
+  tables by the average practice column they show. Org home (`NodeHomeView.vue` / `belowTree.ts`):
+  class rows under each node by the class account's in-app minutes this week, pupils on a class
+  page by their week minutes. Class roster (`ClassDetail.vue`), all-students page
+  (`StudentsView.vue`), staff who teach here (`TeachersView.vue`) and the govt schools list
+  (`SchoolsView.vue`) by the practice-minutes column each shows. Every Sort by control stays.
+- **Tiles show minutes.** `yearGroup.ts` carries `minutes7d` per class and sums it per year group;
+  the Classes page feeds each row's own `minutesWk`, the org home a new per-class
+  `inAppMinutes7d` on the tree payload (`api/groups/[id]/home.ts`, off the diary read the headline
+  already pays for — `inAppTimeSeconds` now returns per-class-account seconds). Formatted through
+  `practiceMinutes.ts`: round up, hours only from an hour. The phrases count is dropped from the
+  tile — it stays on the data for anyone who wants it, but a fourth line on a 104px tile costs
+  more than it says.
+- **Big year label.** "Y7", "Y8" … "Other"; the class's own name on a per-class fallback tile;
+  the long form "Year 7" on the hover and for the screen reader.
+- **One rounding rule on the org home too.** Its headline minutes and the class home's minutes
+  used `Math.round` while every school page rounded up (job #683). Both now round up, so the tiles
+  beneath the headline share its rule. Fixtures re-pinned: 25-and-a-bit is 26.
+
+**Honest scope.** Lists whose payload carries no minutes-this-week figure are ordered by the
+minutes they DO show — all-time practice minutes for the class roster, the students page, the
+teachers page and the schools list — and say so in a comment at the sort. Groups and schools as
+rows in the org tree carry only counts on their rollup, so they stay alphabetical; a per-subtree
+minutes-this-week figure is the one expensive item the #306 review left out and is not built here.
+
+**Proof.** `TeacherDashboard.defaultSort.test.ts` (default order 7H before 6S with no `?sort`,
+tiles read the rows' minutes) and `YearGroupTiles.test.ts` (Y7 / Other label, "1 h 4 min" through
+the formatter, dash when quiet): both red on the pre-change files, green after. `yearGroup.test.ts`
+sums minutes; `belowTree.test.ts` orders classes by minutes; `home.test.ts` carries
+`inAppMinutes7d` per class. Stale `DashboardView.minutesHeadline` expectations from #683 re-pinned
+("352 min" is "5 h 52 min"). Handbook: both tile descriptions and the Find-a-class sort step
+rewritten and re-pinned; `--check` green.
+
+## 2026-09-15 — House re-check of three Astra refutations: all three mechanisms confirmed, all three fixed (job #778)
+
+**Brief.** Re-check, against live code and the live DB, three cold-verify refutations Astra left
+open on 14-15 Sep, on the paywall/class-play fixes then on main `bfda61b`. Honesty rule: an honest
+"Astra was right" beats a defence. Result: Astra was right about the MECHANISM in all three; one
+of the three consequences Astra drew was wrong.
+
+**1. Class play never bumps the playback ledger — CONFIRMED, fixed.** Live
+`pg_get_functiondef(bump_speaking_opportunities)` requires `learners.user_id = auth.uid()::text`;
+the class learner `2ffd2a0d…` has `user_id = class-learner:d52efceb…`. Tom's test class played
+seven `audio_play` events (two `target2`) at 22:11Z on 14 Sep and holds a `sessions` row
+(50 s, 2 items); `learner_speaking_opportunities` has ZERO rows for it. The consequence Astra
+drew — class dashboard phrase/opportunity counts therefore wrong — is REFUTED: since job #159 the
+class figures are deliberately read off the diary (`api/_utils/classPractice.ts`: one phrase per
+`target2` clip; in-app time off `player_events` timestamps), never off the ledger, so a teacher
+sees the right phrases (2 for that play) and the right minutes today. What WAS wrong: the ONE
+definition of a minute silently excluded every class, and the player logged a refused RPC on
+every flush. Fix: `/api/school/class-progress` gains `bumpSpeakingOpportunities` (service role,
+teacher-scope-gated, onto the class's own learner id, same non-negative-delta-onto-today's-UTC-row
+semantics as the RPC); the class-aware progress store carries it; `useLearningSession` tries it
+first and falls through to the RPCs when the store reports not-handled. Nothing reads class
+ledger rows yet — the diary-based figures stay, so a class that played last month and one that
+plays today count the same way.
+
+**2. A same-owner cached FULL bundle outlives entitlement — CONFIRMED, fixed.**
+`declarationDisagrees` (useCourseBundle.ts) had three cases: provisional record, preview with a
+token, full for another identity. A full record for THIS identity passed all three, and the head
+probe compares content versions only, so a lapsed subscriber kept the whole course from IndexedDB
+until the content version moved. Cost to a real learner: bounded by the client gates — the
+post-init gate, the per-round advance check and the jump check all consult `canAccessSeed`, and
+the audio proxy is fail-open by default (`ENTITLEMENT_STRICT` off) — so the bundle was defence in
+depth that had failed, not the wall itself; #768 had already conceded and fixed the one gate that
+relied on it (the rewind). Fix: a fourth case — full record + the app's own verdict for the course
+says preview — plus `setCourseBundleEntitlementProvider` wired in App.vue off the same
+`/api/entitlement/user` + `/api/subscription` answers the server's ONE resolver gives, null while
+the verdict is in flight (never a disagreement, so boot serves the cache as before). The sweep
+runs on `entitlementsReady` and on every `isSubscribed` flip, once per (course, identity,
+verdict); the server slices the refetch. A verdict that is wrong the other way (client says
+preview, server says full — a covered pupil) costs one refetch of the full bundle, once.
+
+**3. A stale "active" mirror runs cursor writers before the verdict — CONFIRMED, fixed.**
+`accessPending()` is `!isPaid && signedIn && !hydrated`, and `isPaid` reads the localStorage
+mirror of the LAST `/api/subscription` answer, loaded into state at composable setup. So on a
+device holding last month's "active" mirror, accessPending() was false before any answer had
+landed: the `positionInitialized` watcher ran the gate immediately with no hold, the two lifecycle
+writers wrote behind it, and the legacy TTL rewind's `awaitSubscriptionVerdict` resolved at once.
+Cost to a real learner: the writers wrote the REAL position (no retreat had happened), so no
+position was lost; the rewind path is unreachable on the live boot path (see the #768 entry);
+the exposure was a lapsed learner in the 7-day renewal grace, or cancelled mid-period, playing
+past the wall until the answer landed and the next round-advance check caught them. Fix:
+`useEntitlement` gains `verdictPending()` = signed in && !subscriptionHydrated; the gate's
+deferral, `awaitSubscriptionVerdict` and both lifecycle writers use it. Access checks keep the
+mirror's optimism (an offline payer stays a payer).
+
+**Production right now.** Nothing a real learner would notice is wrong on main: class dashboards
+show the right figures off the diary; the paywall gates hold on the verdict once it lands; the
+only live effect of (2)+(3) is a lapsed-in-grace subscriber's first rounds of a session before
+the answer arrives. Not a hotfix; rides dev → staging → the next promotion.
+
+**Proof.** Red on the pre-fix sources, green after, suites run alone: `LearningPlayer.
+resumeTtlEntitlement.test.ts` + `LearningPlayer.pendingHydration.test.ts` (3 stale-mirror cases
+red, 30/30 green with `paywallRetreat.test.ts`); `useCourseBundle.tierDeclaration.test.ts`
+(3 #778 cases red, 8/8 green); `useLearningSessionPhrasesSpoken.test.ts` (2 red, 14/14 green);
+`api/school/class-progress.test.ts` (4 red, 18/18 green); `useClassProgressStore.test.ts` green.
+Pre-merge invariants and `--changed` green for the API; player-vue `--changed` 41/42 with the one
+red suite (`premiumPrompt.orgFreeAccess`) failing on `supportIdForLearnerId` missing from the
+SHARED checkout's stale `@ssi/core` dist (branch `perf/journey-baseline-2026-09-01`), which the
+worktree's symlinked node_modules resolves to — not this change; typecheck of both packages is
+clean against a locally built core.

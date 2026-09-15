@@ -22,8 +22,13 @@
  *     migrations 20260908c/d). Written by `bump_speaking_opportunities`, whose
  *     first line checks `learners.user_id = auth.uid()`. A class account's
  *     user_id is the literal `class-learner:<classId>`, nobody's login, so the
- *     write is REFUSED (42501) and the player logs it to the console. Zero
- *     rows for any class account, ever, estate-wide.
+ *     RPC write is REFUSED (42501). Zero rows for any class account before
+ *     job #778 (2026-09-15), which routes the class account's deltas through
+ *     /api/school/class-progress (`bumpSpeakingOpportunities`, service role,
+ *     teacher-authorised) onto the class's own learner id. Class-play rows
+ *     accrue from the player build that carries #778 onwards; nothing here
+ *     reads them — PHRASES stay counted off the diary below, so the count is
+ *     the same for a class that played last month and one that plays today.
  *   - `sessions` — the older session log. For class accounts it is inverted:
  *     of Chepstow's 19 real class lessons this week NONE has a row, and the 8
  *     rows that exist belong to app opens with no play (duration 0). Its
@@ -350,19 +355,26 @@ export async function inAppTimeSeconds(
   classLearnerIds: string[],
   ownLearnerIds: string[],
   now: number = Date.now(),
-): Promise<{ seconds: number; classSeconds: number }> {
+): Promise<{ seconds: number; classSeconds: number; classSecondsByLearner: Map<string, number> }> {
   const classSet = new Set(classLearnerIds.filter(Boolean))
   const ids = [...new Set([...classSet, ...ownLearnerIds])]
-  if (ids.length === 0) return { seconds: 0, classSeconds: 0 }
+  const classSecondsByLearner = new Map<string, number>()
+  if (ids.length === 0) return { seconds: 0, classSeconds: 0, classSecondsByLearner }
   const sinceIso = new Date(now - CLASS_PRACTICE_WINDOW_DAYS * 86400000).toISOString()
   const byLearner = await inAppSecondsByLearner(svc, ids, sinceIso)
   let seconds = 0
   let classSeconds = 0
   for (const [lid, s] of byLearner) {
     seconds += s
-    if (classSet.has(lid)) classSeconds += s
+    if (classSet.has(lid)) {
+      classSeconds += s
+      // Per class account too, off the same read — the year-group tiles and
+      // the org tree's class rows need each class's own minutes this week
+      // (job #766), and a second diary read for them would be the bug.
+      classSecondsByLearner.set(lid, s)
+    }
   }
-  return { seconds, classSeconds }
+  return { seconds, classSeconds, classSecondsByLearner }
 }
 
 /**

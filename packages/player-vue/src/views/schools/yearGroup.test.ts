@@ -28,15 +28,15 @@ describe('parseYearGroup — a leading 6 to 13, never stored', () => {
   })
 })
 
-function cls(id: string, name: string, phrases7d = 0, practising = false): YearGroupClass {
-  return { id, name, phrases7d, practising }
+function cls(id: string, name: string, phrases7d = 0, practising = false, minutes7d = 0, seconds7d = minutes7d * 60): YearGroupClass {
+  return { id, name, minutes7d, seconds7d, phrases7d, practising }
 }
 
 describe('yearGroupBreakdown — one tile per year group, Other last, or per-class when fewer than half parse', () => {
   it('groups by year, sums phrases, counts practising out of classes, and puts unparsed names in one Other tile', () => {
     const b = yearGroupBreakdown([
-      cls('a', '7H', 52, true), cls('b', '7O', 34, true), cls('c', '7T', 0, false),
-      cls('d', '8H', 53, true),
+      cls('a', '7H', 52, true, 41), cls('b', '7O', 34, true, 23), cls('c', '7T', 0, false),
+      cls('d', '8H', 53, true, 30),
       cls('e', 'B8', 0, false), cls('f', 'Rachel Tiller Cleaves Personal', 0, false),
     ])
     expect(b.mode).toBe('year')
@@ -47,13 +47,40 @@ describe('yearGroupBreakdown — one tile per year group, Other last, or per-cla
     ])
   })
 
-  it('falls back to per-class tiles, busiest first, when fewer than half the names parse', () => {
+  // Job #766 (Tom, 2026-09-15): the tile's number is IN-APP MINUTES this week,
+  // summed across the group's classes from the rows' own per-class figure.
+  // Seen RED on the pre-change module (no minutes7d on a tile) and GREEN after.
+  it('sums each class\'s in-app minutes this week into its year group', () => {
     const b = yearGroupBreakdown([
-      cls('a', 'Beginners', 10, true), cls('b', 'Staff room', 30, true), cls('c', 'Lunch club', 0, false), cls('d', '7B', 5, true),
+      cls('a', '7H', 52, true, 41), cls('b', '7O', 34, true, 23), cls('c', '7T', 0, false),
+      cls('d', '8H', 53, true, 30),
+      cls('e', 'B8', 0, false, 7),
+    ])
+    expect(b.tiles.map((t) => [t.key, t.minutes7d])).toEqual([['year:7', 64], ['year:8', 30], ['other', 7]])
+  })
+
+  // Job #772 (the #769 cold verify of #766): a year tile sums its classes'
+  // SECONDS and rounds up once, the same as the headline — never the sum of
+  // per-class minutes that were each already rounded up. Seen RED on the
+  // pre-change module (tile read 2) and GREEN after (tile reads 1).
+  it('rounds a year tile once off summed seconds: two classes of 20 seconds read as 1 min, not 2', () => {
+    const b = yearGroupBreakdown([
+      cls('a', '7H', 3, true, 1, 20), cls('b', '7O', 2, true, 1, 20),
+      cls('c', '8H', 0, false, 0, 0),
+    ])
+    expect(b.tiles.map((t) => [t.key, t.minutes7d, t.seconds7d])).toEqual([['year:7', 1, 40], ['year:8', 0, 0]])
+    // 61 + 61 seconds is 2 min 2 s, which rounds up once to 3 min, not to 2 + 2.
+    expect(yearGroupBreakdown([cls('a', '9A', 0, true, 2, 61), cls('b', '9B', 0, true, 2, 61)]).tiles[0].minutes7d).toBe(3)
+  })
+
+  it('falls back to per-class tiles, busiest first, when fewer than half the names parse', () => {
+    // Busiest = most minutes in the app (job #766); phrases only break a tie.
+    const b = yearGroupBreakdown([
+      cls('a', 'Beginners', 10, true, 12), cls('b', 'Staff room', 30, true, 25), cls('c', 'Lunch club', 0, false), cls('d', '7B', 5, true, 3),
     ])
     expect(b.mode).toBe('class')
     expect(b.tiles.map((t) => t.name)).toEqual(['Staff room', 'Beginners', '7B', 'Lunch club'])
-    expect(b.tiles[0]).toMatchObject({ classCount: 1, practising: 1, phrases7d: 30, year: null })
+    expect(b.tiles[0]).toMatchObject({ classCount: 1, practising: 1, minutes7d: 25, phrases7d: 30, year: null })
   })
 
   it('exactly half parsing still groups by year', () => {

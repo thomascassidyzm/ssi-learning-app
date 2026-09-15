@@ -18,7 +18,9 @@
  *     class. Until job #662 this field was class play PLUS pupils, which is the
  *     one number a teacher home must never show.
  * Audio-played seconds (learner_speaking_opportunities.play_seconds, students
- * only — the class account cannot write that ledger) stay in the payload as the
+ * only by design — the class account writes that ledger too since job #778,
+ * through /api/school/class-progress, but the class figure here is in-app
+ * time off the diary, never summed with the pupils) stay in the payload as the
  * secondary figure, demoted not deleted.
  *
  * WINDOW: the last 7 × 24 hours from now, by timestamp — the one rolling rule

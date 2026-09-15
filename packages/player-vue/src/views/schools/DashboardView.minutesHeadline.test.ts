@@ -111,11 +111,12 @@ describe('DashboardView — MINUTES, this week, the same number the admin reads 
   it('the headline is minutes in the app this week with classes practising beneath it — never hours, never the all-time view figure', async () => {
     const wrapper = await mountDashboard()
     const text = wrapper.text()
-    expect(text).toContain('352 min')
+    // 352 minutes reads "5 h 52 min" since job #683 (hours only from an hour up).
+    expect(text).toContain('5 h 52 min')
     expect(text).toContain('Minutes in the app this week')
     expect(text).toContain('20 of 34 classes practising this week')
     // The greeting line carries the same figure.
-    expect(text).toContain('352 min in the app this week')
+    expect(text).toContain('5 h 52 min in the app this week')
     // No hours anywhere on the page: not "3.1h", not "0h", not "6m" (the old
     // minutes-first rounding of the 0.1h view row).
     expect(text).not.toMatch(/\b\d+(\.\d+)?h\b/)

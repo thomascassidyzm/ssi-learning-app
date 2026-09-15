@@ -1010,6 +1010,18 @@ pnpm --filter player-vue lint       # Must pass — `eslint .` (covers src AND e
 pnpm run typecheck:api              # Must pass — tsc over ALL of api/** (widened 2026-07-17, was audio-only)
 pnpm run test:api                   # Must pass — vitest -c vitest.api.config.ts
 ```
+**Before you MERGE to dev, the cheap gate is `pnpm test:premerge` (about a minute).** It runs two
+things the touched-file rule never reaches: the repo-invariant tests, which read the whole tree
+rather than importing it (preflight coverage of every `/api/` route the client names, the pinned
+security-test roster, every SECURITY DEFINER's search_path in `supabase/schema.sql`, locale parity,
+the walkthrough mirrors), and `vitest --changed origin/dev`, which runs every test that IMPORTS a
+file you changed, so a formatter change reaches the component tests that render it. Between the
+13 and 15 September nightlies dev went red three nights on three different sets of tests, every one
+of them a merge whose author ran only the suite beside the file: an unregistered security test, a
+route behind a `_shared` guard, a rounding ruling whose four component tests were never re-run, an
+i18n key added to the register but not to `eng.json`. `~/command-surface/ops/ci-check` is the full
+nightly and still the last word; `test:premerge` is the minute that keeps the nightly green.
+
 **Lint gate detail:** `player-vue lint` fails on any **error** (exit 1); pre-existing **warnings** (147 as of 2026-07-20, mostly `no-unused-vars`) do NOT fail it — the command has no `--max-warnings`. So the bar is "zero new errors", e.g. `prefer-const`, not "zero warnings". Don't mass-fix warnings unless asked.
 
 ### Files Being Created

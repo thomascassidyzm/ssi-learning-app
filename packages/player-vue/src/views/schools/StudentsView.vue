@@ -105,6 +105,11 @@ const filtered = computed(() => {
     if (beltFilter.value !== 'all' && s.belt !== beltFilter.value) return false
     return true
   })
+    // ACTIVITY FIRST (Tom, 2026-09-15, job #766): by the practice minutes the
+    // row shows, busiest at the top, name breaking ties. These are all-time
+    // minutes off class_student_progress — the page has no this-week figure
+    // per pupil — so all-time is the order.
+    .sort((a, b) => b.practiceMinutes - a.practiceMinutes || a.name.localeCompare(b.name))
 })
 
 const totalCount = computed(() => filtered.value.length)
@@ -221,6 +226,11 @@ watch(selectedUser, (newUser) => {
         type="search"
         class="filters-search"
         :placeholder="t('schools.students.searchByNamePlaceholder', 'Search by name...')"
+        enterkeyhint="search"
+        autocapitalize="off"
+        autocorrect="off"
+        autocomplete="off"
+        spellcheck="false"
       />
       <label class="filter">
         <span class="filter-label">{{ t('schools.students.classFilterLabel', 'Class') }}</span>

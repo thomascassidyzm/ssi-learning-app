@@ -69,7 +69,9 @@ describe('LearningPlayer wiring (source read)', () => {
   }
 
   it('the resume gate holds a SAVED cursor past the wall: remembers it, lands on the last free round, raises the wall', () => {
-    const w = block('watch(positionInitialized, (init) => {', '\n})\n')
+    // Since job #757 the gate body lives in runPostInitResumeGate, which the
+    // positionInitialized watcher runs once the subscription answer lands.
+    const w = block('const runPostInitResumeGate = () => {', '\n}\n')
     const hold = w.indexOf('holdSavedCursorAtPaywall(')
     expect(hold).toBeGreaterThan(-1)
     // Held BEFORE the lifecycle saves, so the saves are blocked.

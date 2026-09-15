@@ -63,17 +63,31 @@ export interface PaywallRetreat {
    *  of replaying the preview, so a later subscription resumes there). */
   release(currentLegoId: string | null | undefined): void
   clear(): void
+  /** The subscription answer is still in flight, so the gate has not judged
+   *  the landed position yet: block every cursor write until it does. Cold
+   *  verify of job #757: positionInitialized fires before /api/subscription
+   *  answers; an unentitled learner bootstrapped onto the preview's last
+   *  round who backgrounded the app in that window had the dormant save
+   *  write S0019L01 over S0031L01 in localStorage and the DB — the hold
+   *  only existed once the gate ran, and the gate was waiting. Bounded by
+   *  the same 8s useSubscription bounds hydration (job #761). */
+  awaitVerdict(): void
+  /** The answer landed (or the bound expired): the gate runs next and holds
+   *  the real spot itself if it must. Neither `release` nor `clear` ends a
+   *  pending verdict — only the answer does. */
+  verdictReached(): void
 }
 
 export function createPaywallRetreat(): PaywallRetreat {
   let held: RememberedPosition | null = null
+  let verdictPending = false
   return {
     remember(pos) {
       if (held) return
       if (!Number.isInteger(pos.roundIndex) || pos.roundIndex < 0) return
       held = { roundIndex: pos.roundIndex, cycleIndex: Math.max(0, pos.cycleIndex | 0), legoId: pos.legoId ?? null }
     },
-    blocksPersist() { return held !== null },
+    blocksPersist() { return verdictPending || held !== null },
     current() { return held },
     takeRestore(canAccessSeed, findRoundIndex) {
       if (!held) return null
@@ -89,5 +103,7 @@ export function createPaywallRetreat(): PaywallRetreat {
       if (!held.legoId || held.legoId === (currentLegoId ?? null)) held = null
     },
     clear() { held = null },
+    awaitVerdict() { verdictPending = true },
+    verdictReached() { verdictPending = false },
   }
 }
