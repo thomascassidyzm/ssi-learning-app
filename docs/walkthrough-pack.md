@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `253c3416c523` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `9048a70100e9` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## add-a-class-under-a-group — Add a class to a group
 
@@ -380,6 +380,17 @@ Personas: school_admin · place: settings
 2. [`settings-identity-add-address` · next] For one named person on a personal address — a supply teacher, a colleague without a school email — type their address here and tap **Add address** instead.
 3. [`settings-identity-remove` · next] **Remove** beside any entry takes it off the list. Nothing is revoked — the person just stops being sorted to the top as unfamiliar.
    - terminal: That's the whole list — it changes ordering, never access. Giving somebody a class is what actually brings them into your school.
+
+## seeing-how-it-is-going — Seeing how it is going — the numbers and the map on any level
+
+Personas: admin, leader, school_admin · place: node-home (org/group/school)
+
+1. [`node-map-rail` · next] This map stays down the side of every level. Read it top to bottom: the levels above you, the one you are on, its neighbours and what sits under it. Tap any name to move straight there — the page rebuilds around it and the map redraws.
+2. [`node-updated` · next] **Updated** and a time says when these figures were last fetched. Reload the page to fetch again and the stamp moves with it. An empty stamp means the numbers have not arrived yet, not that they are old.
+3. [`node-stats` · next] The row of numbers counts everything below this level, each person once. **Phrases practised this week** and **Classes practising this week** come from whole-class play over the last seven days. **Minutes in the app this week** is time in the lesson, pauses included, for the classes below and for staff and students on their own accounts. On your own school each card is a link to the list behind it.
+4. [`node-year-groups` · next] **By year group** splits the same minutes by year: **Y7**, **Y8** and so on, read off each class name, with the minutes this week beneath and how many of that year's classes practised out of how many there are. **Other** holds classes whose names carry no year. If fewer than half your class names carry a year, the card reads **By class** instead.
+5. [`below-tree-name` · next] **Below this** draws everything hanging beneath here — groups inside groups, their classes, the teachers who take them and staff who teach nothing yet. Tap a caret to open or close a branch, tap a name to go to that level. A class row already tells you its teachers, its student count and whether it practised together this week, so you need not open it to find out.
+   - terminal: The map tells you where you are, the numbers tell you how it is going below here, and the tree takes you down a level whenever you want the detail.
 
 ## set-your-password — Set or change your password
 
