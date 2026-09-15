@@ -16,11 +16,18 @@
  * Each tile carries only numbers the page already fetched for its classes:
  * IN-APP MINUTES this week summed across the group's classes (job #766, Tom
  * 2026-09-15: the tiles read as minutes under a headline in minutes, so they
- * are minutes — the same per-class figure as the class rows, rounded up per
- * class by practiceMinutes.ts), classes practising this week out of classes
- * in the group, and phrases practised this week, kept on the tile data for
- * anyone who still wants them.
+ * are minutes — ONE definition with the headline and the class rows), classes
+ * practising this week out of classes in the group, and phrases practised
+ * this week, kept on the tile data for anyone who still wants them.
+ *
+ * The tile's minutes are SECONDS summed across the group's classes and rounded
+ * up ONCE through practiceMinutes.ts, exactly as the headline rounds its own
+ * combined seconds once (job #772, the #769 cold verify: summing per-class
+ * minutes that were already rounded up made two classes of 20 seconds read as
+ * a 2 min tile under a 1 min headline). The per-class fallback tiles keep the
+ * class row's own figure, because there they ARE the row.
  */
+import { secondsToMinutes } from '../../composables/schools/practiceMinutes'
 export const YEAR_MIN = 6
 export const YEAR_MAX = 13
 
@@ -36,8 +43,10 @@ export function parseYearGroup(name: string): number | null {
 export interface YearGroupClass {
   id: string
   name: string
-  /** The class account's own in-app minutes this week — the class row's figure, already rounded up. */
+  /** The class account's own in-app minutes this week — the class row's figure, already rounded up. Shown as-is on per-class tiles. */
   minutes7d: number
+  /** The same time in SECONDS, before rounding — what a year tile sums, so the group rounds once like the headline. */
+  seconds7d: number
   /** Phrases practised in whole-class play this week — from the payload the page already holds. */
   phrases7d: number
   /** Whether the class counts as practising this week, by the headline's own rule. */
@@ -52,8 +61,10 @@ export interface YearGroupTile {
   name: string | null
   classCount: number
   practising: number
-  /** In-app minutes this week, summed across the tile's classes — the big number. */
+  /** In-app minutes this week — the big number. A year tile's is its classes' seconds summed and rounded up once. */
   minutes7d: number
+  /** The seconds behind minutes7d, summed across the tile's classes. */
+  seconds7d: number
   phrases7d: number
 }
 
@@ -73,19 +84,22 @@ export function yearGroupBreakdown(classes: readonly YearGroupClass[]): YearGrou
     // row still says who is doing it.
     const tiles = [...classes]
       .sort((a, b) => b.minutes7d - a.minutes7d || b.phrases7d - a.phrases7d || a.name.localeCompare(b.name))
-      .map((c) => ({ key: `class:${c.id}`, year: null, name: c.name, classCount: 1, practising: c.practising ? 1 : 0, minutes7d: c.minutes7d, phrases7d: c.phrases7d }))
+      .map((c) => ({ key: `class:${c.id}`, year: null, name: c.name, classCount: 1, practising: c.practising ? 1 : 0, minutes7d: c.minutes7d, seconds7d: c.seconds7d, phrases7d: c.phrases7d }))
     return { mode: 'class', tiles }
   }
   const byYear = new Map<number | null, YearGroupTile>()
   for (const { c, year } of parsed) {
     const key = year === null ? 'other' : `year:${year}`
-    const tile = byYear.get(year) ?? { key, year, name: null, classCount: 0, practising: 0, minutes7d: 0, phrases7d: 0 }
+    const tile = byYear.get(year) ?? { key, year, name: null, classCount: 0, practising: 0, minutes7d: 0, seconds7d: 0, phrases7d: 0 }
     tile.classCount += 1
     tile.practising += c.practising ? 1 : 0
-    tile.minutes7d += c.minutes7d
+    // Sum the SECONDS; the minutes are rounded up once, below, the way the
+    // headline rounds its own combined seconds once (job #772).
+    tile.seconds7d += c.seconds7d
     tile.phrases7d += c.phrases7d
     byYear.set(year, tile)
   }
+  for (const tile of byYear.values()) tile.minutes7d = secondsToMinutes(tile.seconds7d)
   const tiles = [...byYear.values()].sort((a, b) => {
     // Years ascending, Other last.
     if (a.year === null) return 1

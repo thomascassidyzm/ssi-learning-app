@@ -19,9 +19,9 @@ import type { YearGroupBreakdown } from '@/views/schools/yearGroup'
 const breakdown: YearGroupBreakdown = {
   mode: 'year',
   tiles: [
-    { key: 'year:7', year: 7, name: null, classCount: 3, practising: 2, minutes7d: 64, phrases7d: 120 },
-    { key: 'year:8', year: 8, name: null, classCount: 2, practising: 0, minutes7d: 0, phrases7d: 0 },
-    { key: 'other', year: null, name: null, classCount: 1, practising: 1, minutes7d: 12, phrases7d: 30 },
+    { key: 'year:7', year: 7, name: null, classCount: 3, practising: 2, minutes7d: 64, seconds7d: 3840, phrases7d: 120 },
+    { key: 'year:8', year: 8, name: null, classCount: 2, practising: 0, minutes7d: 0, seconds7d: 0, phrases7d: 0 },
+    { key: 'other', year: null, name: null, classCount: 1, practising: 1, minutes7d: 12, seconds7d: 720, phrases7d: 30 },
   ],
 }
 

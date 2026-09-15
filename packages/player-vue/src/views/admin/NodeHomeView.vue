@@ -534,6 +534,11 @@ const yearGroups = computed(() => {
     // same diary read as the headline (job #766). Absent on a payload older
     // than this build, in which case the tile honestly shows a dash.
     minutes7d: c.inAppMinutes7d ?? 0,
+    // The seconds behind that figure, so a year tile sums seconds and rounds
+    // up once like the headline (job #772). A payload older than this build
+    // carries no seconds; the minutes it does carry stand in, rounded again
+    // harmlessly.
+    seconds7d: c.inAppSeconds7d ?? (c.inAppMinutes7d ?? 0) * 60,
     phrases7d: c.phrases7d ?? 0,
     practising: practisedWithin(c.lastPractisedAt, windowDays),
   })))
@@ -1151,7 +1156,7 @@ const listPayload = computed(() => {
                than half your class names carry a year the card reads **By class**
                instead, most minutes first, three then **Show all**, and each of
                those tiles opens its class.
-               checked: 164b97b8.4581d8f4
+               checked: af52ca09.4581d8f4
           -->
           <YearGroupTiles v-if="showYearGroups" data-walk="node-year-groups" :breakdown="yearGroups" :class="{ 'is-switching': switching }" :tile-link="yearTileLink" />
           <p v-if="canAskSupport && !switching" class="stats-ask">

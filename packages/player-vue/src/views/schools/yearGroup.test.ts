@@ -28,8 +28,8 @@ describe('parseYearGroup — a leading 6 to 13, never stored', () => {
   })
 })
 
-function cls(id: string, name: string, phrases7d = 0, practising = false, minutes7d = 0): YearGroupClass {
-  return { id, name, minutes7d, phrases7d, practising }
+function cls(id: string, name: string, phrases7d = 0, practising = false, minutes7d = 0, seconds7d = minutes7d * 60): YearGroupClass {
+  return { id, name, minutes7d, seconds7d, phrases7d, practising }
 }
 
 describe('yearGroupBreakdown — one tile per year group, Other last, or per-class when fewer than half parse', () => {
@@ -57,6 +57,20 @@ describe('yearGroupBreakdown — one tile per year group, Other last, or per-cla
       cls('e', 'B8', 0, false, 7),
     ])
     expect(b.tiles.map((t) => [t.key, t.minutes7d])).toEqual([['year:7', 64], ['year:8', 30], ['other', 7]])
+  })
+
+  // Job #772 (the #769 cold verify of #766): a year tile sums its classes'
+  // SECONDS and rounds up once, the same as the headline — never the sum of
+  // per-class minutes that were each already rounded up. Seen RED on the
+  // pre-change module (tile read 2) and GREEN after (tile reads 1).
+  it('rounds a year tile once off summed seconds: two classes of 20 seconds read as 1 min, not 2', () => {
+    const b = yearGroupBreakdown([
+      cls('a', '7H', 3, true, 1, 20), cls('b', '7O', 2, true, 1, 20),
+      cls('c', '8H', 0, false, 0, 0),
+    ])
+    expect(b.tiles.map((t) => [t.key, t.minutes7d, t.seconds7d])).toEqual([['year:7', 1, 40], ['year:8', 0, 0]])
+    // 61 + 61 seconds is 2 min 2 s, which rounds up once to 3 min, not to 2 + 2.
+    expect(yearGroupBreakdown([cls('a', '9A', 0, true, 2, 61), cls('b', '9B', 0, true, 2, 61)]).tiles[0].minutes7d).toBe(3)
   })
 
   it('falls back to per-class tiles, busiest first, when fewer than half the names parse', () => {
