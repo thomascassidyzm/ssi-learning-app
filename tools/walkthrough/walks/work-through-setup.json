@@ -1,0 +1,48 @@
+{
+  "id": "work-through-setup",
+  "title": "Name your school and work through setup",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "setup"
+  },
+  "keywords": [
+    "setup",
+    "wizard",
+    "first",
+    "name",
+    "onboarding",
+    "steps",
+    "save",
+    "exit",
+    "resume"
+  ],
+  "steps": [
+    {
+      "anchor": "setup-step-rail",
+      "say": "First-time setup is four short steps, listed down the left — your school, your staff, your courses, your classes. Tap any of them to jump straight to it, forwards or back.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "c0544d6c.7d1920e9"
+    },
+    {
+      "anchor": "setup-school-name",
+      "say": "Type your school's name as you would write it on a letterhead — this is what your teachers and students see on every page and every invite link.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "33751741.12c76ba8"
+    },
+    {
+      "anchor": "setup-save-exit",
+      "say": "**Save & exit** saves the step you're on and puts you back on your dashboard, so you never have to finish setup in one sitting. Come back to Settings and First-time setup whenever you want to carry on.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "Everything the wizard sets up can also be changed later from Settings and from your class pages — nothing here is a one-shot.",
+      "checked": "a0a9cc3a.7be4c6b8"
+    }
+  ]
+}

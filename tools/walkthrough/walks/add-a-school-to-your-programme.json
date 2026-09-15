@@ -1,0 +1,37 @@
+{
+  "id": "add-a-school-to-your-programme",
+  "title": "Add a school to your programme",
+  "personas": [
+    "leader"
+  ],
+  "place": {
+    "route": "schools-list"
+  },
+  "keywords": [
+    "add",
+    "new",
+    "school",
+    "create",
+    "programme",
+    "register"
+  ],
+  "steps": [
+    {
+      "anchor": "verb-add-school",
+      "say": "**+ Add school** creates a new school inside your programme. It exists the moment you name it, already attached to your group, with its admin and teacher links ready to hand over.",
+      "advance": {
+        "on": "click"
+      },
+      "checked": "5ed1155c.6ed509d5"
+    },
+    {
+      "anchor": "verb-add-school",
+      "say": "Type the school's name, tap **Create school**, then copy its Admin and Teacher links to send to whoever runs it. Both links stay on the school's own row afterwards, so you can fetch them again any time.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's a new school made — no separate onboarding step to remember.",
+      "checked": "5ed1155c.2419f960"
+    }
+  ]
+}
