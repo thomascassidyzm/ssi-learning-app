@@ -1,0 +1,31 @@
+{
+  "id": "one-persons-story",
+  "title": "One person's story",
+  "personas": [
+    "admin"
+  ],
+  "place": {
+    "route": "intel"
+  },
+  "keywords": [
+    "person",
+    "support",
+    "account",
+    "access",
+    "sign in",
+    "role",
+    "trial",
+    "flag"
+  ],
+  "steps": [
+    {
+      "anchor": "question-person",
+      "say": "**One person** is the page for a support call. Open it from a row on Leaving, or find them under People. The sentence gives their standing, their access and their last practice, and the pill beneath says whether they count as a real person. The verbs across the top act on them: give full access, take it back, make a one-off sign-in link, change their role or trial, or correct a wrong flag. Each verb says what it will change and asks first, and the server records it against your name. The cards below hold their access, memberships, course positions and last few events.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "Everything about one person, on one page, with every change recorded.",
+      "checked": "046b228d.134deda0"
+    }
+  ]
+}
