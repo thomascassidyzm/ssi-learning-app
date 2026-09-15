@@ -100,4 +100,17 @@ describe('the ten questions', () => {
       expect(questionPath(q)).toBe(`/intel/${q.slug}`)
     }
   })
+
+  it('keeps its own anchor when a page passes data-intel on the tag (job #869)', () => {
+    // PulseView writes data-intel="question-pulse" on <QuestionPage>. Left to
+    // fall through, that would replace the layout anchor on the root and the
+    // "How every question page is laid out" walk would have nothing to bind.
+    const w = mount(QuestionPage, {
+      props: { question: 'q', answer: 'a', fetchedAt: null, people: null },
+      attrs: { 'data-intel': 'question-pulse' },
+      global: { stubs: routerStubs },
+    })
+    expect(w.find('[data-intel="question-page"]').exists()).toBe(true)
+    expect(w.find('[data-intel="question-pulse"]').exists()).toBe(true)
+  })
 })

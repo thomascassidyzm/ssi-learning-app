@@ -3,7 +3,6 @@
   "capabilities": {
     "obvious": {},
     "missing": {
-      "question-not-yet": "Backlog since 2026-09-15 (job #854): \"A question whose page is not built yet\" — admin on intel. No clip yet.",
       "verb-add-class": "Backlog since 2026-09-15 (job #854): \"Add a class to a group\" — admin/leader/school_admin on node-home. No clip yet.",
       "verb-add-school": "Backlog since 2026-09-15 (job #854): \"Add a school under a group\" — admin on node-home. No clip yet.",
       "verb-invite-student": "Backlog since 2026-09-15 (job #854): \"Add a student to a class\" — admin/leader/school_admin on node-home. No clip yet.",
@@ -14,7 +13,6 @@
       "create-class-course": "Backlog since 2026-09-15 (job #854): \"Choose what a class learns\" — school_admin/teacher on classes. No clip yet.",
       "verb-courses": "Backlog since 2026-09-15 (job #854): \"Choose which courses a school can use\" — admin on node-home. No clip yet.",
       "setup-course-picker": "Backlog since 2026-09-15 (job #854): \"Choose which courses your school uses\" — school_admin on setup. No clip yet.",
-      "scope-rail": "Backlog since 2026-09-15 (job #854): \"Choosing who a question is asked about\" — admin on intel. No clip yet.",
       "settings-identity-add-domain": "Backlog since 2026-09-15 (job #854): \"Claim another email domain for your school\" — school_admin on settings. No clip yet.",
       "classes-share-link": "Backlog since 2026-09-15 (job #854): \"Copy a class link without opening the class\" — school_admin/teacher on classes. No clip yet.",
       "schools-list-link-chips": "Backlog since 2026-09-15 (job #854): \"Copy a school's joining links\" — leader on schools-list. No clip yet.",
@@ -35,10 +33,8 @@
       "teacher-signin-link": "Backlog since 2026-09-15 (job #854): \"Hand a teacher their access code\" — school_admin on teachers. No clip yet.",
       "ways-in-copy-course": "Backlog since 2026-09-15 (job #854): \"Hand out a sign-up link for one course\" — admin/leader/school_admin on node-home. No clip yet.",
       "setup-staff-links": "Backlog since 2026-09-15 (job #854): \"Hand out your staff links\" — school_admin on setup. No clip yet.",
-      "question-page": "Backlog since 2026-09-15 (job #854): \"How every question page is laid out\" — admin on intel. No clip yet.",
       "class-journey": "Backlog since 2026-09-15 (job #854): \"Where the class has got to\" — teacher on class-detail. No clip yet.",
       "node-updated": "Backlog since 2026-09-15 (job #854): \"How fresh these numbers are\" — admin/leader/school_admin on node-home. No clip yet.",
-      "question-pulse": "Backlog since 2026-09-15 (job #854): \"How many in-app minutes are being done\" — admin on intel. No clip yet.",
       "teachers-invite-link": "Backlog since 2026-09-15 (job #854): \"Invite a teacher to your school\" — school_admin on teachers. No clip yet.",
       "settings-identity-add-address": "Backlog since 2026-09-15 (job #854): \"Let a named address in through your links\" — school_admin on settings. No clip yet.",
       "student-view-link": "Backlog since 2026-09-15 (job #854): \"Look up one student\" — admin/school_admin/teacher on students. No clip yet.",

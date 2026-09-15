@@ -62,6 +62,19 @@ export interface Walk {
 
 export const ANCHOR_TIMEOUT_MS = 5000
 
+/**
+ * THE ANCHOR NAMESPACES the overlay resolves against — mirrors ANCHOR_ATTRS in
+ * tools/walkthrough/handbookSource.mjs. data-walk is the schools dashboard,
+ * data-intel the intelligence surface; a step's anchor id is looked up in both,
+ * so an intel walk binds to the real element rather than timing out unanchored.
+ */
+export const ANCHOR_ATTRS = ['data-walk', 'data-intel'] as const
+
+/** The querySelector for a step's anchor, across every namespace. */
+export function anchorSelector(anchorId: string): string {
+  return ANCHOR_ATTRS.map((a) => `[${a}="${anchorId}"]`).join(', ')
+}
+
 // Runtime mirror of the compiler's destructive-verb denylist (gate 6 in
 // tools/walkthrough/lib.mjs — lockstep-checked there, like KNOWN_PLACES).
 // The compiler refuses to BUILD a click-advance step on these; this mirror

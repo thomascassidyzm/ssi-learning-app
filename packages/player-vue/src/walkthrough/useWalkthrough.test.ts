@@ -227,3 +227,14 @@ describe('walkTopic', () => {
       .toBe('Only a title')
   })
 })
+
+describe('anchorSelector (job #869)', () => {
+  it('finds an anchor in the intel namespace as well as data-walk', async () => {
+    const { anchorSelector } = await import('./useWalkthrough')
+    document.body.innerHTML = '<div data-intel="scope-rail"></div><div data-walk="insights-window"></div>'
+    expect(document.querySelector(anchorSelector('scope-rail'))).not.toBeNull()
+    expect(document.querySelector(anchorSelector('insights-window'))).not.toBeNull()
+    expect(document.querySelector(anchorSelector('nothing'))).toBeNull()
+    document.body.innerHTML = ''
+  })
+})

@@ -1,0 +1,75 @@
+{
+  "id": "reading-a-question-page",
+  "title": "How every question page is laid out",
+  "personas": [
+    "admin"
+  ],
+  "place": {
+    "route": "intel"
+  },
+  "keywords": [
+    "question",
+    "page",
+    "layout",
+    "answer",
+    "evidence",
+    "rows",
+    "verbs",
+    "scope",
+    "everyone",
+    "course",
+    "organisation",
+    "people"
+  ],
+  "steps": [
+    {
+      "anchor": "question-page",
+      "say": "Every one of the ten questions is answered on a page with the same five parts in the same order. Once you can read one, you can read them all.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "234fd857.c58b1349"
+    },
+    {
+      "anchor": "scope-rail",
+      "say": "The map on the left says who the question is being asked about. **Everyone** asks it of every real person. Tap a course to ask it of that course alone, **Organisations** to pick a group, a school or a class, or **People** to find one person. The choice is written into the page address, so a pasted link asks the same question about the same people.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "ede34d50.17ffc686"
+    },
+    {
+      "anchor": "verb-bar",
+      "say": "Across the top of the main column are the things you can do about the answer. When there is nothing to do, the strip is empty rather than missing.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "9fdffe11.856d6132"
+    },
+    {
+      "anchor": "answer",
+      "say": "The answer: one plain sentence and one number. Beneath it, when the answer was fetched and who is counted.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "37355d63.21e4c4ad"
+    },
+    {
+      "anchor": "evidence",
+      "say": "The evidence: one chart, never two side by side.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "31f48466.9934e3d6"
+    },
+    {
+      "anchor": "rows",
+      "say": "The rows are the things behind the number. Every row is a link to the thing it names.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "Where you are, the answer, the evidence, the rows, the verbs. No page may add a part or move one.",
+      "checked": "cbac0e66.d1df39ad"
+    }
+  ]
+}

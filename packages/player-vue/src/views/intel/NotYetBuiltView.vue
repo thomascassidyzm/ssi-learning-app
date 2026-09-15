@@ -25,7 +25,7 @@ const question = computed(() => questionBySlug(route.path.split('/').filter(Bool
        What it's for. Holding the place of a question that is in the frame but
        has no page yet, in the same layout as the built ones, so the bar always
        shows all ten and nothing pretends to measure what it does not.
-       Where it is. Any question in the bar shown in the quieter grey.
+       Where it is. Any of the ten questions in the bar that has no page yet.
        How you do it.
        1. Tap the question in the bar.
        2. Read the card saying nothing is measured for it yet.
