@@ -3626,3 +3626,17 @@ against the shared database, red before and green after.
 
 **Better × Simpler × Cheaper.** Better: an additive ledger can never cost a real renewal. Simpler:
 one branch of one trigger, no new surface. Cheaper: no webhook retry storms, no support recovery.
+
+### 2026-09-15 — Bundle cache: blocked upgrade falls back to the network (job #853)
+
+The #838 version bump (2→3) could not complete while an older tab held a v2 connection, and the
+new tab's open request hung forever, so the bundle never loaded. Now every connection registers
+`onversionchange` and closes itself, and an opener that is `onblocked` gives up on the cache after
+1.5s and resolves null, which every caller already treats as "no cache": the bundle is fetched from
+the network and the learner plays. The upgrade lands on its own when the old tab goes. Proof:
+`useCourseBundle.dbVersionBump.test.ts` (#853 case), red on the pre-fix code by timing out, green
+on the fix; and a two-tab headless probe on staging `c9191a7` with a v2 connection held open.
+
+**Better × Simpler × Cheaper.** Better: loading never hangs on release day. Simpler: two handlers
+on the one open path, no new state or surface. Cheaper: one network fetch in the rare blocked
+case, no migration code, no reload prompt.
