@@ -108,6 +108,10 @@ export interface UseEntitlementReturn {
   canAccessSeed: (course: CourseInfo, seedNumber: number) => boolean
   /** Signed in, subscription answer not yet hydrated: access checks are optimistic. */
   accessPending: () => boolean
+  /** Signed in and the server's subscription answer has not landed this
+   *  session — whatever the localStorage mirror says. The predicate every
+   *  cursor writer and the resume gate wait on (job #778). */
+  verdictPending: () => boolean
   subscriptionHydrated: Ref<boolean>
   /** Get preview limit for premium courses */
   getPreviewLimit: () => number
@@ -389,6 +393,16 @@ export function useEntitlement(): UseEntitlementReturn {
      *  `subscriptionHydrated` before deciding (job #757). Bounded by
      *  useSubscription's own hydration timeout, so it always flips. */
     accessPending: () => getSubscriptionStatus().isPending,
+    /** The verdict is PENDING for every signed-in learner until `/api/subscription`
+     *  has answered this session (or useSubscription's 8s bound fails closed).
+     *  NOT `accessPending`: that one is false the moment the localStorage
+     *  mirror says "active", because `isPending` is derived from `!isPaid` —
+     *  so a lapsed subscriber whose device still holds last month's "active"
+     *  mirror read as "verdict in" before any answer arrived, the resume gate
+     *  ran on the stale mirror with no hold, and the cursor writers wrote
+     *  behind it (Astra's cold verify of #768, confirmed job #778). Writers
+     *  and the gate wait on THIS; access checks keep the mirror's optimism. */
+    verdictPending: () => !!auth?.isAuthenticated.value && !subscriptionHydrated.value,
     subscriptionHydrated,
     getPreviewLimit,
     canDownloadOffline,

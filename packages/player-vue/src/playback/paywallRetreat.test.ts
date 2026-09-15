@@ -158,7 +158,7 @@ describe('LearningPlayer wiring (source read)', () => {
     // hold was skipped and the lifecycle save wrote the preview landing over
     // the real place in localStorage — one open in four on served staging.
     const w = block('watch(positionInitialized, (init) => {', '\n})\n')
-    expect(w).toContain('if (!entitlementComposable.accessPending()) { runPostInitResumeGate(); return }')
+    expect(w).toContain('if (!entitlementComposable.verdictPending()) { runPostInitResumeGate(); return }')
     expect(w).toContain('watch(entitlementComposable.subscriptionHydrated')
     const gate = block('const runPostInitResumeGate = () => {', '\n}\n')
     expect(gate).toContain('holdSavedCursorAtPaywall()')
