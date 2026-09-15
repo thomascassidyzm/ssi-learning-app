@@ -146,7 +146,7 @@ const waitingOnTom = computed(() => {
           :placeholder="t('schools.support.writeMessage', 'Write a message')"
           :aria-label="t('schools.support.writeMessage', 'Write a message')"
         ></textarea>
-        <p class="support-door-line">{{ t('schools.support.doorLine', 'This thread belongs to your school, and any admin of your school can read it.') }}</p>
+        <p class="support-door-line">{{ t('schools.support.doorLine', 'This thread belongs to your school or organisation, and any of its admins can read it.') }}</p>
         <p v-if="sendError" class="support-error" role="alert">{{ sendError }}</p>
         <div class="support-actions">
           <button type="submit" class="btn-play btn-small" :disabled="sending || !text.trim()">

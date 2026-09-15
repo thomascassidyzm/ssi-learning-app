@@ -438,7 +438,8 @@
     "schoolInstitution": "School / institution",
     "eGYsgolGymraeg": "e.g. Ysgol Gymraeg…",
     "canChangeTheseAnytime": "You can change these anytime in your settings.",
-    "enterCodeSentTo": "Enter the 6-digit code we sent to {email}. It can take a couple of minutes to arrive."
+    "enterCodeSentTo": "Enter the 6-digit code we sent to {email}. It can take a couple of minutes to arrive.",
+    "stillNothingWorkFilters": "Still nothing? Some work email filters block these codes outright. Try entering a personal email address instead — you can add your work email later."
   },
   "driving": {
     "exitDrivingMode": "Exit driving mode",
@@ -915,7 +916,10 @@
     "nextNameTheyCan": "next to your name. They can read it out to you — no email at all.",
     "checkEmailDigitCode": "Check your email for a 6-digit code",
     "mayTakeMomentArrive": "It may take a moment to arrive. Check your spam folder if needed.",
-    "goBackSkipEmail": "Go back and skip the email code"
+    "goBackSkipEmail": "Go back and skip the email code",
+    "workEmailNeverDelivers": "If your work email never delivers our codes, ask whoever sent your invite to send it again — that link signs you in with no code at all.",
+    "stillNothingFilters": "Still nothing? Some school and work email filters block these codes outright. Try entering a personal email address instead — you can add your work email later — or ask whoever sent your invite to re-share the link.",
+    "stillNothingFiltersShort": "Still nothing? Some school and work email filters block these codes outright."
   },
   "tryLink": {
     "checkingLink": "Checking your link...",
@@ -2179,7 +2183,7 @@
         "trialSummary": "{label} — expires {expiry}"
       },
       "passwordPrompt": {
-        "body": "Right now the only way back into this account is a code emailed to you — and school email filters often swallow those. A password takes ten seconds and always works.",
+        "body": "Right now the only way back into this account is a code emailed to you — and some email filters swallow those. A password takes ten seconds and always works.",
         "kicker": "Set a password",
         "notNow": "Not now"
       },
@@ -2251,7 +2255,7 @@
       "doorAffordance": "Does this look wrong?",
       "youAskedAbout": "You are asking about: {label} — it reads {value}",
       "tellUs": "Tell us what you see",
-      "doorLine": "This thread belongs to your school, and any admin of your school can read it.",
+      "doorLine": "This thread belongs to your school or organisation, and any of its admins can read it.",
       "send": "Send",
       "sending": "Sending…",
       "sendFailed": "Could not send. Try again.",
@@ -2272,7 +2276,7 @@
       "menuInbox": "Inbox",
       "unreadAria": "Unread messages",
       "title": "Inbox",
-      "lede": "Messages to you: replies on your school's Support thread, and anything we have done on your account that you might want to undo."
+      "lede": "Messages to you: replies on your Support thread, and anything we have done on your account that you might want to undo."
     },
     "bugReport": {
       "menuItem": "Report a bug",

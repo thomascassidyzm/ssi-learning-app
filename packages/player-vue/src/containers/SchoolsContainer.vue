@@ -415,6 +415,16 @@ const authedEmail = computed(() => auth?.user?.value?.email || '')
 const route = useRoute()
 const isPlayRoute = computed(() => route.name === 'schools-play')
 
+// THE LANE THE VISITOR IS ON, read from the URL because a signed-out visitor
+// has no role yet. /org/* is the member node surface an organisation's own
+// people are sent to (their invite links, their bookmarks); /schools/* is the
+// schools product. The sign-in and no-access copy below follows the lane, so
+// a workplace member never reads "school" where their organisation belongs
+// (job #786, Deborah's National Museum test). A school admin bookmarked on
+// /org/:schoolId reads the neutral organisation wording, which is still true.
+const orgLane = computed(() => route.path === '/org' || route.path.startsWith('/org/'))
+const placeWord = computed(() => (orgLane.value ? 'organisation' : 'school'))
+
 // Second half of useAdminGate's guest hand-off: a signed-out visitor who
 // opened an /admin (or /methodology) deep link is sent here with the intended
 // destination in `next`, because this is the surface that carries the inline
@@ -531,16 +541,23 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
         <header class="brand-logo brand-text">
           <span class="logo-mark">S</span>
           <span class="logo-text">
-            SaySomethingin <span class="logo-dot">·</span> <span class="logo-tail">Schools</span>
+            SaySomethingin<template v-if="!orgLane"> <span class="logo-dot">·</span> <span class="logo-tail">Schools</span></template>
           </span>
         </header>
 
         <div class="brand-body">
           <div class="brand-kicker">Welcome back</div>
-          <h1 class="arsenal brand-headline">
+          <h1 v-if="orgLane" class="arsenal brand-headline">
+            Welcome back.<br />Your people are waiting.
+          </h1>
+          <h1 v-else class="arsenal brand-headline">
             Welcome back.<br />Your classes are waiting.
           </h1>
-          <p class="brand-lede">
+          <p v-if="orgLane" class="brand-lede">
+            Sign in to see how your people are doing, or jump into the insights for the week.
+            We work on laptops, tablets and phones.
+          </p>
+          <p v-else class="brand-lede">
             Sign in to see how your class is doing, play a session together, or jump into the
             analytics for the week. We work on Chromebooks, tablets and phones — and we never
             store student passwords.
@@ -574,8 +591,8 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
             <h2 class="arsenal form-title">Sign in</h2>
             <p class="form-lede">
               {{ usePassword
-                ? 'Enter the email your school registered with us, and your password.'
-                : "Enter the email address your school registered with us. We'll send a single-use code." }}
+                ? `Enter the email your ${placeWord} registered with us, and your password.`
+                : `Enter the email address your ${placeWord} registered with us. We'll send a single-use code.` }}
             </p>
 
             <div v-if="sessionExpiredNotice" class="form-alert form-alert--info" role="status">
@@ -587,11 +604,11 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
             </div>
 
             <label class="form-field">
-              <span class="form-label">School email</span>
+              <span class="form-label">{{ orgLane ? 'Work email' : 'School email' }}</span>
               <input
                 v-model="loginEmail"
                 type="email"
-                placeholder="you@school.edu"
+                :placeholder="orgLane ? 'you@example.org' : 'you@school.edu'"
                 autocomplete="email"
                 autofocus
               />
@@ -627,7 +644,17 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
               </button>
             </div>
 
-            <p class="form-footnote">
+            <!-- Access codes are minted by school admins only (api/school/
+                 staff-signin-link.ts refuses a group leader), so the org lane
+                 must not promise one: its ways in are a password or a fresh
+                 invite from whoever runs the organisation. -->
+            <p v-if="orgLane" class="form-footnote">
+              Codes from us are sometimes blocked by work email filters. If yours never
+              arrives, sign in with your password if you have set one &mdash; or ask
+              whoever runs your organisation&rsquo;s account to send your invite again;
+              that link signs you in with no code at all.
+            </p>
+            <p v-else class="form-footnote">
               Codes from us are often blocked by school email filters. If yours never
               arrives, ask whoever runs your school&rsquo;s account to open your school
               and tap <strong>Access code</strong> next to your name. They can read the
@@ -689,7 +716,16 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
             </div>
 
             <!-- Never a dead end: name the routes that need no inbox. -->
-            <div v-if="showDeliveryHint" class="form-alert form-alert--info" role="status">
+            <div v-if="showDeliveryHint && orgLane" class="form-alert form-alert--info" role="status">
+              Still nothing? Some work email filters block these codes outright, and
+              there is nothing you can do at your end about it. Two ways in that
+              need no email: sign in with a
+              <button type="button" class="form-inline-link" @click="handleBackToEmail(); usePassword = true">password</button>,
+              if you have set one &mdash; or ask whoever runs your organisation&rsquo;s
+              account to send your invite again; that link signs you in directly. Still stuck?
+              <a href="mailto:admin@saysomethingin.com">admin@saysomethingin.com</a>.
+            </div>
+            <div v-else-if="showDeliveryHint" class="form-alert form-alert--info" role="status">
               Still nothing? School email filters block these codes outright, and
               there is nothing you can do at your end about it. Two ways in that
               need no email: sign in with a
@@ -707,12 +743,12 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
             class="login-form"
             @submit.prevent="handleRedeemCode"
           >
-            <span class="no-access-pill">● No school access yet</span>
+            <span class="no-access-pill">● No {{ placeWord }} access yet</span>
             <h2 class="arsenal form-title">You're signed in, but…</h2>
             <p class="form-lede">
-              We couldn't find a school account linked to
-              <strong>{{ authedEmail || 'this address' }}</strong>. Ask your school admin for a
-              join code, or set up a new school below.
+              We couldn't find {{ orgLane ? 'an organisation' : 'a school account' }} linked to
+              <strong>{{ authedEmail || 'this address' }}</strong>. Ask whoever runs your {{ placeWord }} for a
+              join code, or set up a new {{ placeWord }} below.
             </p>
 
             <div v-if="joinCodeError" class="form-alert form-alert--error" role="alert">
@@ -723,7 +759,7 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
             </div>
 
             <label v-if="!joinCodeSuccess" class="form-field">
-              <span class="form-label">Join code from your school</span>
+              <span class="form-label">Join code from your {{ placeWord }}</span>
               <input
                 v-model="joinCode"
                 type="text"
@@ -739,12 +775,12 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
               class="btn-play btn-play--block"
               :disabled="!joinCode.trim() || isJoinCodeLoading"
             >
-              {{ isJoinCodeLoading ? 'Checking…' : 'Join school →' }}
+              {{ isJoinCodeLoading ? 'Checking…' : (orgLane ? 'Join →' : 'Join school →') }}
             </button>
 
             <div class="form-divider" />
-            <a href="/schools1" class="form-secondary form-secondary--link">
-              I'm setting up a new school →
+            <a :href="orgLane ? '/orgs' : '/schools1'" class="form-secondary form-secondary--link">
+              I'm setting up a new {{ placeWord }} →
             </a>
             <router-link to="/tutors/dashboard" class="form-secondary form-secondary--link">
               I'm a tutor — go to my dashboard →

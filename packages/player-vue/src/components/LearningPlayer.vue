@@ -79,7 +79,7 @@ import {
   type LearningMode,
 } from '../composables/useAlgorithmConfig'
 import { resolveNewLearnerMode } from '../composables/newLearnerMode'
-import { classStorageScope } from '../composables/classStorageScope'
+import { classStorageScope, deviceStorageScope } from '../composables/classStorageScope'
 import { computePauseDuration } from '../playback/computePauseDuration'
 import { bulkDownloadAudio, fetchBatchAudioUrls } from '../playback/bulkAudioDownload'
 import { buildOfflineDownloadQueue, buildFetchAheadOrder } from '../playback/offlineDownloadOrder'
@@ -1088,6 +1088,15 @@ const learnerId = computed(() => props.classContext?.class_learner_id || staffLe
 // self-practice key carries none.
 const classScope = computed(() => classStorageScope(props.classContext))
 
+// The ACCOUNT-level extension of the same idea (job #790, live production bug
+// 2026-09-15). classScope alone still let every account sharing a school
+// browser share one resume position and one belt: class 9AWI, own cursor
+// S0001L01, booted at seed 8 with a YELLOW belt, and its teacher's own account
+// booted to the identical round 13 on the same device six minutes later. null
+// = identity not resolved yet → touch NO device cache; the account's own
+// server cursor is the source of truth.
+const deviceScope = computed(() => deviceStorageScope(props.classContext, learnerId.value))
+
 // Every course_enrollments/lego_progress write for the class's learner id
 // MUST go through the server-mediated /api/school/class-progress endpoint —
 // RLS is own-row only (current_learner_id() resolves to the STAFF's row, not
@@ -1789,7 +1798,12 @@ const playerLogGetToken = (): Promise<string | null> =>
 // row, and a payload key the call site set itself is left alone.
 const playerLogContext = () => ({
   mode: learningMode.value,
-  belt: playingBelt.value?.name ?? null,
+  // The belt is stamped only once it is genuinely KNOWN. Before the belt
+  // composable exists, `playingBelt` falls back to a white belt object for the
+  // UI — stamping that produced 54 production cold starts that appeared to
+  // contradict themselves within 240 ms, every one of them a boot that had not
+  // yet read a belt (job #787 SIGNAL C1, job #790). No belt → no field.
+  belt: beltProgress.value ? (playingBelt.value?.name ?? null) : null,
   seedId: simplePlayer.currentRound.value?.seedId ?? null,
   roundIndex: simplePlayer.isInitialized.value ? simplePlayer.roundIndex.value : null,
 })
@@ -4025,7 +4039,11 @@ const isInitialized = ref(false)    // Legacy: whether component is fully initia
 // ============================================
 const POSITION_STORAGE_KEY_PREFIX = 'ssi_learning_position_'
 
-const getPositionStorageKey = () => `${POSITION_STORAGE_KEY_PREFIX}${courseCode.value}${classScope.value}`
+const getPositionStorageKey = (): string | null => {
+  const scope = deviceScope.value
+  if (scope === null) return null
+  return `${POSITION_STORAGE_KEY_PREFIX}${courseCode.value}${scope}`
+}
 
 // Set by SettingsScreen.vue (confirmReset / confirmRecover) immediately
 // before it clears the local cursor and reloads. Closes a race the reset
@@ -4086,7 +4104,7 @@ const savePositionToLocalStorage = (cycleOverride?: number, touchTimestamp = tru
   let carriedTimestamp: number | null = null
   if (!touchTimestamp) {
     try {
-      const prev = JSON.parse(localStorage.getItem(getPositionStorageKey()) || 'null')
+      const prev = JSON.parse(localStorage.getItem(getPositionStorageKey() ?? '') || 'null')
       carriedTimestamp = typeof prev?.lastUpdated === 'number' ? prev.lastUpdated : null
     } catch { /* fall through — omit the stamp */ }
   }
@@ -4118,7 +4136,12 @@ const savePositionToLocalStorage = (cycleOverride?: number, touchTimestamp = tru
       lastUpdated: touchTimestamp ? Date.now() : carriedTimestamp,
       courseCode: courseCode.value,
     }
-    localStorage.setItem(getPositionStorageKey(), JSON.stringify(position))
+    const key = getPositionStorageKey()
+    if (!key) {
+      console.log('[LearningPlayer] Position NOT saved: learner identity unresolved (no device cache under a shared placeholder)')
+      return
+    }
+    localStorage.setItem(key, JSON.stringify(position))
     console.log('[LearningPlayer] Position saved: LEGO', position.legoId, 'seed', position.seedNumber, 'item', position.itemInRound)
   } catch (err) {
     console.warn('[LearningPlayer] Failed to save position to localStorage:', err)
@@ -4134,7 +4157,9 @@ const loadPositionFromLocalStorage = () => {
   if (!courseCode.value) return null
 
   try {
-    const stored = localStorage.getItem(getPositionStorageKey())
+    const key = getPositionStorageKey()
+    if (!key) return null
+    const stored = localStorage.getItem(key)
     if (!stored) return null
 
     const position = JSON.parse(stored)
@@ -4243,7 +4268,8 @@ const resolveResumePosition = (rounds: any[]): { roundIndex: number; cycleIndex:
 const clearPositionFromLocalStorage = () => {
   if (!courseCode.value) return
   try {
-    localStorage.removeItem(getPositionStorageKey())
+    const clearKey = getPositionStorageKey()
+    if (clearKey) localStorage.removeItem(clearKey)
     console.log('[LearningPlayer] Position cleared from localStorage')
   } catch (err) {
     console.warn('[LearningPlayer] Failed to clear position:', err)
@@ -5595,14 +5621,17 @@ const beltCssVars = computed(() => {
 // White=100%, Yellow=75%, Orange=50%, Green=25%, Blue+=0%
 const starFieldOpacity = computed(() => 1)
 
-// Initialize belt progress when course code is available
-const initializeBeltProgress = async () => {
+// Initialize belt progress when course code is available.
+// `force` rebuilds it against the CURRENT course and identity — the belt is a
+// per-course, per-account thing and must never outlive either (job #790).
+const initializeBeltProgress = async (force = false) => {
+  if (force) beltProgress.value = null
   if (courseCode.value && !beltProgress.value) {
     // Initialize belt progress with Supabase sync config
     const syncConfig: BeltProgressSyncConfig = {
       supabase: supabase,
       learnerId: computed(() => learnerId.value),
-      storageScope: classScope.value,
+      storageScope: deviceScope.value,
     }
     beltProgress.value = useSharedBeltProgress(courseCode.value, syncConfig)
 
@@ -5623,6 +5652,21 @@ const initializeBeltProgress = async () => {
     console.log('[LearningPlayer] Belt progress initialized for', courseCode.value, '- seeds:', beltProgress.value.completedRounds.value)
   }
 }
+
+// The belt follows the COURSE and the ACCOUNT, always. Two live leaks closed
+// here (job #790, production 2026-09-15):
+//  - an in-app course switch left the previous course's belt composable in
+//    place, which is how a purple earned on cym_s_for_eng was stamped on a
+//    cold_start for spa_for_eng;
+//  - the identity resolves after mount, so the first instance can be built
+//    with a null (uncached) scope; when the real learner lands, rebuild.
+watch([courseCode, deviceScope], ([code, scope], [prevCode, prevScope]) => {
+  if (!code) return
+  if (code === prevCode && scope === prevScope) return
+  // The mount path owns the very first build; this watcher only re-points it.
+  if (!prevCode && !beltProgress.value) return
+  void initializeBeltProgress(true)
+})
 
 /**
  * Initialize per-LEGO adaptive pause engine.

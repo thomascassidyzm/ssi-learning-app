@@ -1,3 +1,31 @@
+## 2026-09-15 — The rate-compare privacy floor is by cohort kind, not by role: classes compare from one peer (job #799)
+
+**Tom's ruling (11:35Z).** "The comparison limit to 5 was for INDIVIDUAL users, to not be identified
+for GDPR purposes — not to prevent classes being compared." Both rate-compare engines carried the
+floor per ROLE: 5 for teachers and leaders, 1 for ssi_admins and demo worlds.
+
+**What the code says.** Every cohort either engine seats is an entity — peer classes when the
+entity is a class, peer schools when it is a school or group, each averaged from its own account's
+diary and whole-class play. No cohort anywhere in `api/school/rate-compare.ts` or
+`api/groups/[id]/rate-compare.ts` is a set of individual learners. The one caller whose cohort IS
+people, `api/me/insights.ts` (other learners on my course), keeps the 5.
+
+**Fix.** `api/_utils/rateCompare.ts` names the two kinds: `cohortFloor('individuals')` = 5,
+`cohortFloor('entities')` = 1; `K_FLOOR` keeps its name and value for the individual callers and
+for spec.ts sovereignty parity. Both engines take the entity floor for every caller, teacher
+included. The role and demo branches are gone; the reason text still names the floor it applied.
+
+**Verified live, real teacher door.** R Jeffery (Ysgol Cas-gwent, 11P, Welsh South) through
+`verifyAdmin` 403 + her own auth uid + the real caller resolver, not View As: 7-day cohort 16
+peer classes, 30-day cohort 29, her rate 6.8 against 8.2 and 4.7. Identical before and after —
+she was already over 5 on this endpoint, so the ruling changes her `kFloor` label, not her
+comparison. Where the floor now bites differently is a one- or two-class school.
+
+**Proof.** New case in `api/groups/[id]/rate-compare.test.ts` — a teacher with one class and one
+comparable class elsewhere on the course gets a comparison — red on the pre-fix engine ("expected
+true to be false"), green after; three role-floor cases flipped deliberately; rate-compare suites
+113/113 green; `test:premerge` green.
+
 ## 2026-09-15 — Insights under View As reads the VIEWED teacher's classes, so a class whose only practice is play-as-class draws (job #788)
 
 **Tom's report.** Schools > Insights, View as R Jeffery (teacher, Ysgol Cas-gwent, 11P): "No classes
@@ -25,6 +53,34 @@ opt-in case for 11P added to `rate-compare.live.test.ts`; `test:premerge` green;
 clean against a per-worktree install. Production before/after screenshots via
 `e2e/_788-viewas-insights-probe.mjs`.
 
+## 2026-09-15 — Admin user search "broken on mobile": the results were off-screen, not missing (job #789)
+
+**Symptom (Tom, 13:08 local).** In the Schools app, "search for users" is broken on mobile and
+fine on desktop, same production build, same account.
+
+**Mechanism, measured live on production at an iPhone 14 viewport, not a narrow desktop window.**
+Not an event, not a fetch: with touch and the mobile user agent the Users page filtered on every
+keystroke and the View-as person search called `/api/admin/users?search=` and got its rows, exactly
+as on desktop. The failure is layout. On a 390×664 screen the Users page filters card alone runs to
+y=579, the first matching row starts at y=661, and nothing above it changes as you type — the
+"1308 users" hero is the full set by design and the chips do not move — so with the keyboard up the
+search visibly does nothing. In the View-as picker the person search sat below the four role rows
+at y≈400, under the iOS keyboard, with its results under that. A third, iOS-only hazard sat on top:
+both boxes were plain `text`/`search` inputs with autocorrect and autocapitalize on, so a name or an
+email typed on a phone can be rewritten before it is searched.
+
+**Fix, the boring pattern.** Users page: a live "N users match" line directly under the box, so the
+answer is on screen above the keyboard; Enter, which is the phone keyboard's Search key via
+`enterkeyhint=search`, blurs the input and scrolls the list panel into view; autocorrect,
+autocapitalize, autocomplete and spellcheck off; on phones the tier and sort chips become one
+scrollable row each so the rows start on the first screen. View-as picker: the person search is
+its own block, ordered first on phones by CSS only, same input attributes, Enter drops the
+keyboard. Students roster search: the same input attributes. Desktop layout is unchanged.
+
+**Proof.** `AdminUsers.phoneSearch.test.ts` and the new case in
+`ViewAsPicker.classMinutes.test.ts` are red on the pre-fix sources and green after. Pre-merge gate
+(invariants, api `--changed`, player-vue `--changed`) green on the merged dev tree. Shipped
+dev → staging → main; the staging→main promotion also carried jobs #778 and #788 from the soak.
 ## 2026-09-15 — Three red nightlies on dev were merges, not a broken build: eight fixes and a one-minute pre-merge gate (job #774)
 
 **Symptom.** The watson-1 nightly (`~/command-surface/ops/ci-run.sh`) went red on dev, staging
@@ -3406,3 +3462,90 @@ red suite (`premiumPrompt.orgFreeAccess`) failing on `supportIdForLearnerId` mis
 SHARED checkout's stale `@ssi/core` dist (branch `perf/journey-baseline-2026-09-01`), which the
 worktree's symlinked node_modules resolves to — not this change; typecheck of both packages is
 clean against a locally built core.
+
+## 2026-09-15 — Organisation members never read "school" where their workplace belongs (job #786)
+
+**Trigger.** Deborah (SSi staff) set up a test organisation for the National Museum's Welsh
+learners, invited herself as Group Leader with a second email, and the Set-a-password card
+said "school email filters often swallow those". Tom: "I'll do a sweep for any inappropriate
+schools mentions." A customer is waiting, so this rode dev → staging → main in one pass.
+
+**Method.** The static grep is ~1,500 lines, most of them comments and schools-product files,
+so the sweep was walked, not grepped: a real organisation was provisioned on staging through
+`/orgs`, a second leader and a learner were invited by personal link and a shareable learner
+link was minted, and every screen those three people reach was screenshotted with its text
+dumped and searched for school / teacher / class / pupil / student. What surfaced, and what
+was done with it:
+
+- **Set a password card** (shared by school and org node homes): "school email filters" →
+  "some email filters". Neutral, because the card has no idea what it is mounted on.
+- **Signed-out sign-in page** at `/org/:id` read "SaySomethingin · Schools / Your classes are
+  waiting / School email / you@school.edu / Join school / I'm setting up a new school", and
+  promised an **Access code** that only a school admin can mint. The container now reads the
+  lane off the URL (`/org/*` vs `/schools/*`) — a signed-out visitor has no role yet — and the
+  org lane says organisation / people / work email / `/orgs`, with the no-inbox route being a
+  password or a re-sent invite. A school admin bookmarked on `/org/:schoolId` reads the
+  organisation wording, which is still true of a school.
+- **Support and Inbox** (reached from the org leader's menu): "This thread belongs to your
+  school" → "your school or organisation"; "replies on your school's Support thread" → "on
+  your Support thread"; and the top bar stops saying "· Schools" on those two `/schools/*`
+  pages for a group leader, the same rule it already applied on `/org/*`.
+- **Insights** on an organisation read "0 of your 0 classes practised together this week",
+  "Every class has practised…", "No class has started the course yet" and the rate engine's
+  "No classes below this yet". An organisation is groups all the way down (nodeTerminology's
+  neutral preset, derived from the same `/home` payload), so on such a node the class-only
+  readings are not shown: the rate engine and the Quiet and Journey questions go, and the
+  Practising question asks how many of your people practised. Not a new measure, the people
+  line the panel already carried. Schools are untouched — a school with no classes yet still
+  reads its three class questions.
+- **Redeem / invite screens**: a learner code minted at an organisation or plain group is a
+  "Learner Invite" that joins "{group name}", not a "Student Invite" that joins "this class";
+  govt_admin codes read "Group Leader" (the word the top bar already uses); the `/group` door's
+  facts name people and groups instead of schools; the OTP delivery hints only promise an
+  Access code when the code belongs to a school, and the org signup door's hint says work
+  email. Settings' "If your school blocks our mail" → "school or workplace"; its join-code
+  role label follows the same Student-vs-Learner rule.
+
+**Left alone, deliberately.** `JoinWithCode.vue` ("Someone at your school made you an access
+code") — access codes are refused to group leaders by `api/school/staff-signin-link.ts`, so
+only school staff can reach it. The Handbook page: 46 of its 122 capabilities are visible to a
+leader and almost all are written in school words (classes, teachers, pupils) because they
+describe school capabilities; an org handbook is its own job, not a copy sweep. The 21
+non-English locales still carry their translated "school" wording for the three reworded
+keys (`schools.ui.passwordPrompt.body`, `schools.support.doorLine`, `schools.inbox.lede`) —
+the register only takes keys missing somewhere, so they are listed as a gap for the next
+translation pass. Server-side rate-compare reason text unchanged (unreachable on an org now).
+
+**Proof.** `OrgIntelPanel.test.ts` (three classless cases) and
+`SchoolsPasswordPrompt.orgWording.test.ts` red on the origin/dev sources, green on this
+branch; i18n gates (no bare English, t-in-scope, locale parity) green; walkthrough `--check`
+green after `--reconfirm`; `test:premerge` invariants green and `--changed` 125 files / 883
+tests green once the worktree had its own `@ssi/core` build (the shared checkout's dist gave
+the usual false reds).
+
+## 2026-09-15 — Seed-sentence reviews get a real mic gap: the bundle stamps seed clips with their durations (job #793)
+
+**Tom (13:22).** Basque for English speakers, "how to say something in Basque" / "zerbait euskaraz
+nola esan" at progress 646: the gap to speak is almost nil, "as if the app is measuring the target
+file length completely wrongly."
+
+**What the live check found.** The file lengths are right. `course_audio` holds 2760 ms for both
+target voices and ffprobe on the bytes production serves says 2.736 s; a 26-clip sample across the
+Basque seeds had zero mismatches. The phrase is seed S0004, and a seed sentence only ever plays as a
+full production cycle in the SEED-PHASE spaced-rep review, which on a bundle-enabled course the
+server builds from `course_seeds`. That table carries audio ids but no durations, so the production
+bundle shipped the seed's target refs bare and `computePauseDuration` collapsed to the one-second
+floor. Every seed review on every bundle-enabled course had the same gap: 7,619 seed rows with
+target audio across the fifteen courses. Job #644 found this class yesterday; its fix was reverted
+under the 11:27Z diagnose-first hold. This ships the gap hunks only.
+
+**Decision.** One `course_audio` lookup per bundle build stamps `durationMs` onto every seed target
+ref, and when both durations are genuinely missing the formula assumes an ordinary 2.5 s sentence
+rather than the safety floor. No pointer moved, no audio regenerated, no duration number edited.
+
+**Better × Simpler × Cheaper.** Better: a seed review gets the gap its sentence earns, on every
+course at once. Simpler: seeds now carry the same fact LEGOs and phrases already carry; no new
+shape. Cheaper: one indexed query per bundle build, cached with the bundle.
+
+**Landed.** Merged to `dev`, promoted to `staging` and `main` the same afternoon on Tom's explicit
+ship instruction.

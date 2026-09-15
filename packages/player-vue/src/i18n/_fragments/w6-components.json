@@ -73,7 +73,7 @@
   "schools.ui.nodeEntitlement.stateGroupAriaLabel": "Course access state",
   "schools.ui.nodeEntitlement.trialBadge": "Trial",
   "schools.ui.nodeEntitlement.trialSummary": "{label} — expires {expiry}",
-  "schools.ui.passwordPrompt.body": "Right now the only way back into this account is a code emailed to you — and school email filters often swallow those. A password takes ten seconds and always works.",
+  "schools.ui.passwordPrompt.body": "Right now the only way back into this account is a code emailed to you — and some email filters swallow those. A password takes ten seconds and always works.",
   "schools.ui.passwordPrompt.kicker": "Set a password",
   "schools.ui.passwordPrompt.notNow": "Not now",
   "schools.ui.playAsClassIdentity.ariaLabel": "Playing as {name}",
