@@ -1,0 +1,29 @@
+{
+  "id": "invite-a-teacher-to-your-school",
+  "title": "Invite a teacher to your school",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "teachers"
+  },
+  "keywords": [
+    "teacher",
+    "invite",
+    "link",
+    "staff",
+    "join",
+    "code"
+  ],
+  "steps": [
+    {
+      "anchor": "teachers-invite-link",
+      "say": "This is one standing link — the same one every time. Tap **Copy invite link** and send it however you reach your staff room: Teams, WhatsApp, printed on a slip. Anyone who opens it signs in once and lands in your list as a teacher.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "Standing in front of them instead? Show code instead gives a short code to read out or write on a whiteboard — they type it in at saysomethingin.com/redeem.",
+      "checked": "0b48f90f.05dfc4c3"
+    }
+  ]
+}

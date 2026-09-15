@@ -1,0 +1,29 @@
+{
+  "id": "copy-a-class-link-without-opening-the-class",
+  "title": "Copy a class link without opening the class",
+  "personas": [
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "classes"
+  },
+  "keywords": [
+    "copy",
+    "link",
+    "share",
+    "join",
+    "classes"
+  ],
+  "steps": [
+    {
+      "anchor": "classes-share-link",
+      "say": "On **My Classes**, tap **Copy link** in a class's row — no need to open the class first. Paste it into an email or a lesson slide.",
+      "advance": {
+        "on": "click"
+      },
+      "terminal": "It's the same link the class page offers, so a student who follows it lands in that class either way.",
+      "checked": "1db38a8a.50b78a4d"
+    }
+  ]
+}

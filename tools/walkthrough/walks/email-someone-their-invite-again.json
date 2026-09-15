@@ -1,0 +1,36 @@
+{
+  "id": "email-someone-their-invite-again",
+  "title": "Email someone their invite again",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home",
+    "kinds": [
+      "org",
+      "group",
+      "school"
+    ]
+  },
+  "keywords": [
+    "resend",
+    "email",
+    "invite",
+    "again",
+    "lost",
+    "ways in"
+  ],
+  "steps": [
+    {
+      "anchor": "ways-in-resend",
+      "say": "Find the person's row in **Ways in** and tap **Email again**. Nothing changes and no new link is made — the same one they may yet dig out of a spam folder still works.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "Only rows for a named person with an email on file carry this button. If a school's mail gateway is eating our messages, read them the link instead of sending a third time.",
+      "checked": "9d928015.0c9b87a7"
+    }
+  ]
+}

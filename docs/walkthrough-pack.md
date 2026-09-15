@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `7b1aecf2752c` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `8f586f3c9709` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## add-a-class-under-a-group — Add a class to a group
 
@@ -10,6 +10,30 @@ Personas: admin, leader, school_admin · place: node-home
 2. [`add-class-name` · next] Type the class name, then choose the course it will learn. A paid language your group has no cover for is refused when you tap Add, and the message says so.
 3. [`add-class-submit` · next] **Add** creates it. No teacher is needed yet — the class sits under the group waiting, and you can put a teacher on it whenever you're ready.
    - terminal: That's adding a class ahead of staffing it. This tour added nobody and nothing; only your own tap does.
+
+## add-a-student-to-a-class — Add a student to a class
+
+Personas: admin, leader, school_admin · place: node-home (class)
+
+1. [`verb-invite-student` · click] On the class's own page, tap **Invite students**.
+2. [`invite-form-submit` · next] Type the student's name. Add their email if you want us to send it, or leave it blank and you get a link to hand over yourself — then submit, and repeat for the next student.
+   - terminal: One student at a time, on purpose — the link is theirs alone and carries the class with it. The Students page's + Invite students button brings you here for exactly this reason.
+
+## add-students-to-a-class — Add students to a class
+
+Personas: teacher · place: class-detail
+
+1. [`class-student-add` · click] Above the roster, tap **Add students** — for a pupil already in your school who has changed set or landed in the wrong class.
+2. [`class-student-picker` · next] Type a few letters of their name to narrow the list, then tap the pupil — they appear on the roster straight away. Add as many as you need, then tap Done.
+   - terminal: Adding doesn't take them out of any other class — a pupil can be in more than one, one for each course they're doing. A pupil with no account at all needs the class link in Invite students instead.
+
+## add-teacher-by-name — Add a teacher by name
+
+Personas: school_admin · place: teachers
+
+1. [`teacher-named-seat` · click] Tap **Add by name** when you know exactly who is joining but can't rely on email reaching them.
+2. [`teacher-named-seat` · next] Type their name and tap **Create code**. That mints their access code on the spot — read it out, write it down, or paste it wherever you already reach them. They use it once at saysomethingin.app/join.
+   - terminal: They appear on your list straight away under Not yet given classes, so you can tick their classes before they've even signed in.
 
 ## choose-a-class-course — Choose what a class learns
 
@@ -37,6 +61,20 @@ Personas: teacher, school_admin · place: node-home
 2. [`class-page-manage` · next] **Manage class** goes to the class's tools: the roster, the teachers, the join link and code, renaming and deleting. The class's practice, minutes and journey stay here on the class page.
    - terminal: Play from here, manage from there — two different pages, one class. This tour started no lesson and opened no tools.
 
+## copy-a-class-link-without-opening-the-class — Copy a class link without opening the class
+
+Personas: school_admin, teacher · place: classes
+
+1. [`classes-share-link` · click] On **My Classes**, tap **Copy link** in a class's row — no need to open the class first. Paste it into an email or a lesson slide.
+   - terminal: It's the same link the class page offers, so a student who follows it lands in that class either way.
+
+## copy-a-schools-joining-links — Copy a school's joining links
+
+Personas: leader · place: schools-list
+
+1. [`schools-list-link-chips` · click] On any school's row, tap **Admin** to copy its admin link or **Teacher** to copy its teacher link — the chip reads Copied so you know it worked. Paste it into an email or message to whoever needs it.
+   - terminal: Tapping a link chip never opens the school — the rest of the row does that. A school still flagged Awaiting admin is one whose admin link nobody has opened yet.
+
 ## copy-a-teachers-play-onto-their-class — Copy a teacher's own play onto the class
 
 Personas: school_admin, teacher · place: class-detail
@@ -63,6 +101,13 @@ Personas: school_admin · place: setup
 2. [`setup-add-class-row` · next] **+ Add another class** for each further class; every new row starts on that same language. Finishing setup creates every filled-in row, marked Added as it saves. Running the wizard twice will not duplicate classes you've already made.
    - terminal: One row per class, add as many as you need. This tour created no classes.
 
+## email-someone-their-invite-again — Email someone their invite again
+
+Personas: admin, leader, school_admin · place: node-home (org/group/school)
+
+1. [`ways-in-resend` · next] Find the person's row in **Ways in** and tap **Email again**. Nothing changes and no new link is made — the same one they may yet dig out of a spam folder still works.
+   - terminal: Only rows for a named person with an email on file carry this button. If a school's mail gateway is eating our messages, read them the link instead of sending a third time.
+
 ## funded-org-courses — See what a funded organisation gives its learners
 
 Personas: admin · place: node-home (org)
@@ -80,6 +125,28 @@ Personas: learner · place: library
 2. [`belt-browser-list` · next] Every belt is listed, with a tick on the ones you have already come through. Open one and you can look through everything you met there.
 3. [`belt-browser-list` · next] Choosing something in there does not just show it to you — it moves you to that point and starts you off from there. So use it when you genuinely want to go over old ground, not to peek.
    - terminal: If you land somewhere you did not mean to, come straight back in here and pick your way forward again. Nothing is lost by wandering.
+
+## hand-a-teacher-access-code — Hand a teacher their access code
+
+Personas: school_admin · place: teachers
+
+1. [`teacher-signin-link` · next] Tap **Access code** on a teacher's row when email isn't reaching them — school mail gateways quarantine our sign-in codes often enough that this is the rescue, not the exception. It mints a fresh code for them on the spot.
+2. [`teacher-signin-link` · next] Read the code out, write it down, or paste the link into whatever you already use. They go to saysomethingin.app/join and type it in, then you tap **Done**.
+   - terminal: It works once and lasts two days. Need another? Tap Access code again — the earlier one stops working the moment you do.
+
+## hand-out-a-sign-up-link-for-one-course — Hand out a sign-up link for one course
+
+Personas: admin, leader, school_admin · place: node-home (org/group/school)
+
+1. [`ways-in-copy-course` · click] On your sign-up link's row in **Ways in**, tap the button named after the course you want — it copies a link that puts a learner straight into that course, no choosing screen. Tap Show all first if the ledger is folded.
+   - terminal: It's the same link and the same cohort either way — the course name only decides where they land, and everyone gets the whole free year whichever link they came through.
+
+## hand-out-your-staff-links — Hand out your staff links
+
+Personas: school_admin · place: setup
+
+1. [`setup-staff-links` · next] Step two of first-time setup gives you two standing links: copy the **Teacher invite link** for anyone who will run classes, and the **Admin invite link** for anyone who needs to manage the school itself. Send either however you normally reach staff.
+   - terminal: Anyone who has already joined is listed underneath, so you can see who's in as you go. A teacher doesn't need to speak the language — the app does the teaching.
 
 ## hand-over-the-lead — Hand a class over to another teacher
 
@@ -107,6 +174,13 @@ Personas: teacher, school_admin · place: class-detail
 2. [`class-coteacher-link` · next] **Create a co-teacher link** mints a fresh link the moment you tap it. Whoever opens it lands as a teacher of this class, and of this school — not as its lead, and not over any of your other classes.
 3. [`class-join-link` · next] Keep it apart from this one. This is the **student** link — anyone who opens it joins the class as a learner. One link makes a colleague, the other makes a pupil, so send them to the right people.
    - terminal: Short version: the teacher link is minted per colleague and puts them beside you, the student link is the standing one for the class. This tour minted nothing.
+
+## invite-a-teacher-to-your-school — Invite a teacher to your school
+
+Personas: school_admin · place: teachers
+
+1. [`teachers-invite-link` · next] This is one standing link — the same one every time. Tap **Copy invite link** and send it however you reach your staff room: Teams, WhatsApp, printed on a slip. Anyone who opens it signs in once and lands in your list as a teacher.
+   - terminal: Standing in front of them instead? Show code instead gives a short code to read out or write on a whiteboard — they type it in at saysomethingin.com/redeem.
 
 ## invite-first-person — Bring your first person in
 
@@ -183,6 +257,14 @@ Personas: teacher, school_admin · place: library
 2. [`player-playing-as-yourself` · next] **Your classes** takes you to start the lesson again with Play as class instead. Minutes already played on your own account aren't moved by this line — the copy tool on the class's tools page does that if you want it.
    - terminal: That's the tell for playing as yourself. This tour moved no minutes.
 
+## prove-your-mailbox-reaches-you — Prove your mailbox reaches you
+
+Personas: school_admin, teacher · place: dashboard
+
+1. [`mailbox-check-send` · next] This card appears right after you create a class or copy a class join link, for as long as your own address is unproven. Tap **Send me a code**, or nominate a different address if your school one eats our mail.
+2. [`mailbox-check-confirm` · next] Type the six digits we send and tap **That's the one**.
+   - terminal: Close the card instead and it stays closed — it never comes back on a timer.
+
 ## reading-insights — Reading your insights
 
 Personas: admin, leader, school_admin · place: node-insights
@@ -213,6 +295,13 @@ Personas: school_admin, teacher · place: classes
 4. [`classes-row` · next] Anywhere on a row opens that class. The buttons at the right end do their own jobs and do not open it.
    - terminal: That's reading the list — the row itself opens a class. This tour opened nothing.
 
+## remove-a-teacher — Remove a teacher from your school
+
+Personas: school_admin · place: teachers
+
+1. [`teacher-remove` · next] **Remove** on a teacher's row takes them off your school when they leave, or clears out a name you don't recognise under Not yet given classes. You'll be asked to confirm their name back before it happens.
+   - terminal: Their own account survives — what goes is their place in this school and their view of its classes. An admin's row carries no Remove button at all, so you can never lose your own admin this way.
+
 ## run-class-session — Run your first class session
 
 Personas: teacher, school_admin · place: class-detail
@@ -229,6 +318,15 @@ Personas: learner · place: library (guest)
 1. [`library-save-progress` · next] Right now everything you have done lives on this device alone. It works perfectly well — but a cleared browser or a new phone takes it with it.
 2. [`library-save-progress` · next] Tap this and you give us an email address, nothing more. We send you a code, you type it in, and your position is yours on any device you sign in on.
    - terminal: Everything you have already done comes with you — signing in adds your account to it, it never starts you again.
+
+## school-identity-list — Which addresses look like your school
+
+Personas: school_admin · place: settings
+
+1. [`settings-identity-add-domain` · next] Type the part of your school's email after the @, such as example.sch.uk, and tap **Add domain**. Nobody is let in or kept out by this — it only sorts your Not yet given classes list, so an arrival from a domain you don't recognise rises to the top.
+2. [`settings-identity-add-address` · next] For one named person on a personal address — a supply teacher, a colleague without a school email — type their address here and tap **Add address** instead.
+3. [`settings-identity-remove` · next] **Remove** beside any entry takes it off the list. Nothing is revoked — the person just stops being sorted to the top as unfamiliar.
+   - terminal: That's the whole list — it changes ordering, never access. Giving somebody a class is what actually brings them into your school.
 
 ## set-your-password — Set or change your password
 

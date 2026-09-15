@@ -1,0 +1,27 @@
+{
+  "id": "remove-a-teacher",
+  "title": "Remove a teacher from your school",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "teachers"
+  },
+  "keywords": [
+    "remove",
+    "teacher",
+    "leaver",
+    "staff"
+  ],
+  "steps": [
+    {
+      "anchor": "teacher-remove",
+      "say": "**Remove** on a teacher's row takes them off your school when they leave, or clears out a name you don't recognise under Not yet given classes. You'll be asked to confirm their name back before it happens.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "Their own account survives — what goes is their place in this school and their view of its classes. An admin's row carries no Remove button at all, so you can never lose your own admin this way.",
+      "checked": "0f8715e2.9636f0b9"
+    }
+  ]
+}

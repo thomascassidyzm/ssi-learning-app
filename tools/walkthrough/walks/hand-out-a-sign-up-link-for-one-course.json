@@ -1,0 +1,36 @@
+{
+  "id": "hand-out-a-sign-up-link-for-one-course",
+  "title": "Hand out a sign-up link for one course",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home",
+    "kinds": [
+      "org",
+      "group",
+      "school"
+    ]
+  },
+  "keywords": [
+    "dialect",
+    "course",
+    "link",
+    "enrol",
+    "welsh",
+    "cohort"
+  ],
+  "steps": [
+    {
+      "anchor": "ways-in-copy-course",
+      "say": "On your sign-up link's row in **Ways in**, tap the button named after the course you want — it copies a link that puts a learner straight into that course, no choosing screen. Tap Show all first if the ledger is folded.",
+      "advance": {
+        "on": "click"
+      },
+      "terminal": "It's the same link and the same cohort either way — the course name only decides where they land, and everyone gets the whole free year whichever link they came through.",
+      "checked": "ca96f743.03ac950a"
+    }
+  ]
+}

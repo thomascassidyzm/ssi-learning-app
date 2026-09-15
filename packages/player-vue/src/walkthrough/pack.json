@@ -1,5 +1,5 @@
 {
-  "version": "7b1aecf2752c",
+  "version": "8f586f3c9709",
   "generatedAt": "2026-09-15",
   "walks": [
     {
@@ -42,6 +42,116 @@
             "on": "next"
           },
           "terminal": "That's adding a class ahead of staffing it. This tour added nobody and nothing; only your own tap does."
+        }
+      ]
+    },
+    {
+      "id": "add-a-student-to-a-class",
+      "title": "Add a student to a class",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "place": {
+        "route": "node-home",
+        "kinds": [
+          "class"
+        ]
+      },
+      "keywords": [
+        "student",
+        "invite",
+        "class",
+        "learner",
+        "join",
+        "link"
+      ],
+      "steps": [
+        {
+          "anchor": "verb-invite-student",
+          "say": "On the class's own page, tap **Invite students**.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "invite-form-submit",
+          "say": "Type the student's name. Add their email if you want us to send it, or leave it blank and you get a link to hand over yourself — then submit, and repeat for the next student.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "One student at a time, on purpose — the link is theirs alone and carries the class with it. The Students page's + Invite students button brings you here for exactly this reason."
+        }
+      ]
+    },
+    {
+      "id": "add-students-to-a-class",
+      "title": "Add students to a class",
+      "personas": [
+        "teacher"
+      ],
+      "place": {
+        "route": "class-detail"
+      },
+      "keywords": [
+        "add",
+        "student",
+        "class",
+        "roster",
+        "move",
+        "join"
+      ],
+      "steps": [
+        {
+          "anchor": "class-student-add",
+          "say": "Above the roster, tap **Add students** — for a pupil already in your school who has changed set or landed in the wrong class.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "class-student-picker",
+          "say": "Type a few letters of their name to narrow the list, then tap the pupil — they appear on the roster straight away. Add as many as you need, then tap Done.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Adding doesn't take them out of any other class — a pupil can be in more than one, one for each course they're doing. A pupil with no account at all needs the class link in Invite students instead."
+        }
+      ]
+    },
+    {
+      "id": "add-teacher-by-name",
+      "title": "Add a teacher by name",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "teachers"
+      },
+      "keywords": [
+        "add",
+        "teacher",
+        "name",
+        "code",
+        "seat",
+        "new staff"
+      ],
+      "steps": [
+        {
+          "anchor": "teacher-named-seat",
+          "say": "Tap **Add by name** when you know exactly who is joining but can't rely on email reaching them.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "teacher-named-seat",
+          "say": "Type their name and tap **Create code**. That mints their access code on the spot — read it out, write it down, or paste it wherever you already reach them. They use it once at saysomethingin.app/join.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "They appear on your list straight away under Not yet given classes, so you can tick their classes before they've even signed in."
         }
       ]
     },
@@ -174,6 +284,62 @@
       ]
     },
     {
+      "id": "copy-a-class-link-without-opening-the-class",
+      "title": "Copy a class link without opening the class",
+      "personas": [
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "classes"
+      },
+      "keywords": [
+        "copy",
+        "link",
+        "share",
+        "join",
+        "classes"
+      ],
+      "steps": [
+        {
+          "anchor": "classes-share-link",
+          "say": "On **My Classes**, tap **Copy link** in a class's row — no need to open the class first. Paste it into an email or a lesson slide.",
+          "advance": {
+            "on": "click"
+          },
+          "terminal": "It's the same link the class page offers, so a student who follows it lands in that class either way."
+        }
+      ]
+    },
+    {
+      "id": "copy-a-schools-joining-links",
+      "title": "Copy a school's joining links",
+      "personas": [
+        "leader"
+      ],
+      "place": {
+        "route": "schools-list"
+      },
+      "keywords": [
+        "link",
+        "links",
+        "invite",
+        "admin",
+        "teacher",
+        "chase"
+      ],
+      "steps": [
+        {
+          "anchor": "schools-list-link-chips",
+          "say": "On any school's row, tap **Admin** to copy its admin link or **Teacher** to copy its teacher link — the chip reads Copied so you know it worked. Paste it into an email or message to whoever needs it.",
+          "advance": {
+            "on": "click"
+          },
+          "terminal": "Tapping a link chip never opens the school — the rest of the row does that. A school still flagged Awaiting admin is one whose admin link nobody has opened yet."
+        }
+      ]
+    },
+    {
       "id": "copy-a-teachers-play-onto-their-class",
       "title": "Copy a teacher's own play onto the class",
       "personas": [
@@ -292,6 +458,41 @@
       ]
     },
     {
+      "id": "email-someone-their-invite-again",
+      "title": "Email someone their invite again",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "place": {
+        "route": "node-home",
+        "kinds": [
+          "org",
+          "group",
+          "school"
+        ]
+      },
+      "keywords": [
+        "resend",
+        "email",
+        "invite",
+        "again",
+        "lost",
+        "ways in"
+      ],
+      "steps": [
+        {
+          "anchor": "ways-in-resend",
+          "say": "Find the person's row in **Ways in** and tap **Email again**. Nothing changes and no new link is made — the same one they may yet dig out of a spam folder still works.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Only rows for a named person with an email on file carry this button. If a school's mail gateway is eating our messages, read them the link instead of sending a third time."
+        }
+      ]
+    },
+    {
       "id": "funded-org-courses",
       "title": "See what a funded organisation gives its learners",
       "personas": [
@@ -384,6 +585,103 @@
             "on": "next"
           },
           "terminal": "If you land somewhere you did not mean to, come straight back in here and pick your way forward again. Nothing is lost by wandering."
+        }
+      ]
+    },
+    {
+      "id": "hand-a-teacher-access-code",
+      "title": "Hand a teacher their access code",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "teachers"
+      },
+      "keywords": [
+        "access code",
+        "sign-in",
+        "locked out",
+        "email",
+        "teacher"
+      ],
+      "steps": [
+        {
+          "anchor": "teacher-signin-link",
+          "say": "Tap **Access code** on a teacher's row when email isn't reaching them — school mail gateways quarantine our sign-in codes often enough that this is the rescue, not the exception. It mints a fresh code for them on the spot.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "teacher-signin-link",
+          "say": "Read the code out, write it down, or paste the link into whatever you already use. They go to saysomethingin.app/join and type it in, then you tap **Done**.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "It works once and lasts two days. Need another? Tap Access code again — the earlier one stops working the moment you do."
+        }
+      ]
+    },
+    {
+      "id": "hand-out-a-sign-up-link-for-one-course",
+      "title": "Hand out a sign-up link for one course",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "place": {
+        "route": "node-home",
+        "kinds": [
+          "org",
+          "group",
+          "school"
+        ]
+      },
+      "keywords": [
+        "dialect",
+        "course",
+        "link",
+        "enrol",
+        "welsh",
+        "cohort"
+      ],
+      "steps": [
+        {
+          "anchor": "ways-in-copy-course",
+          "say": "On your sign-up link's row in **Ways in**, tap the button named after the course you want — it copies a link that puts a learner straight into that course, no choosing screen. Tap Show all first if the ledger is folded.",
+          "advance": {
+            "on": "click"
+          },
+          "terminal": "It's the same link and the same cohort either way — the course name only decides where they land, and everyone gets the whole free year whichever link they came through."
+        }
+      ]
+    },
+    {
+      "id": "hand-out-your-staff-links",
+      "title": "Hand out your staff links",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "setup"
+      },
+      "keywords": [
+        "invite",
+        "teacher",
+        "admin",
+        "link",
+        "setup",
+        "colleague"
+      ],
+      "steps": [
+        {
+          "anchor": "setup-staff-links",
+          "say": "Step two of first-time setup gives you two standing links: copy the **Teacher invite link** for anyone who will run classes, and the **Admin invite link** for anyone who needs to manage the school itself. Send either however you normally reach staff.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Anyone who has already joined is listed underneath, so you can see who's in as you go. A teacher doesn't need to speak the language — the app does the teaching."
         }
       ]
     },
@@ -517,6 +815,34 @@
             "on": "next"
           },
           "terminal": "Short version: the teacher link is minted per colleague and puts them beside you, the student link is the standing one for the class. This tour minted nothing."
+        }
+      ]
+    },
+    {
+      "id": "invite-a-teacher-to-your-school",
+      "title": "Invite a teacher to your school",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "teachers"
+      },
+      "keywords": [
+        "teacher",
+        "invite",
+        "link",
+        "staff",
+        "join",
+        "code"
+      ],
+      "steps": [
+        {
+          "anchor": "teachers-invite-link",
+          "say": "This is one standing link — the same one every time. Tap **Copy invite link** and send it however you reach your staff room: Teams, WhatsApp, printed on a slip. Anyone who opens it signs in once and lands in your list as a teacher.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Standing in front of them instead? Show code instead gives a short code to read out or write on a whiteboard — they type it in at saysomethingin.com/redeem."
         }
       ]
     },
@@ -890,6 +1216,41 @@
       ]
     },
     {
+      "id": "prove-your-mailbox-reaches-you",
+      "title": "Prove your mailbox reaches you",
+      "personas": [
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "dashboard"
+      },
+      "keywords": [
+        "email",
+        "mailbox",
+        "code",
+        "spam filter",
+        "locked out"
+      ],
+      "steps": [
+        {
+          "anchor": "mailbox-check-send",
+          "say": "This card appears right after you create a class or copy a class join link, for as long as your own address is unproven. Tap **Send me a code**, or nominate a different address if your school one eats our mail.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "mailbox-check-confirm",
+          "say": "Type the six digits we send and tap **That's the one**.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Close the card instead and it stays closed — it never comes back on a timer."
+        }
+      ]
+    },
+    {
       "id": "reading-insights",
       "title": "Reading your insights",
       "personas": [
@@ -1052,6 +1413,32 @@
       ]
     },
     {
+      "id": "remove-a-teacher",
+      "title": "Remove a teacher from your school",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "teachers"
+      },
+      "keywords": [
+        "remove",
+        "teacher",
+        "leaver",
+        "staff"
+      ],
+      "steps": [
+        {
+          "anchor": "teacher-remove",
+          "say": "**Remove** on a teacher's row takes them off your school when they leave, or clears out a name you don't recognise under Not yet given classes. You'll be asked to confirm their name back before it happens.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Their own account survives — what goes is their place in this school and their view of its classes. An admin's row carries no Remove button at all, so you can never lose your own admin this way."
+        }
+      ]
+    },
+    {
       "id": "run-class-session",
       "title": "Run your first class session",
       "personas": [
@@ -1138,6 +1525,49 @@
             "on": "next"
           },
           "terminal": "Everything you have already done comes with you — signing in adds your account to it, it never starts you again."
+        }
+      ]
+    },
+    {
+      "id": "school-identity-list",
+      "title": "Which addresses look like your school",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "settings"
+      },
+      "keywords": [
+        "domain",
+        "address",
+        "identity",
+        "claim",
+        "allow",
+        "remove",
+        "supply"
+      ],
+      "steps": [
+        {
+          "anchor": "settings-identity-add-domain",
+          "say": "Type the part of your school's email after the @, such as example.sch.uk, and tap **Add domain**. Nobody is let in or kept out by this — it only sorts your Not yet given classes list, so an arrival from a domain you don't recognise rises to the top.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "settings-identity-add-address",
+          "say": "For one named person on a personal address — a supply teacher, a colleague without a school email — type their address here and tap **Add address** instead.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "settings-identity-remove",
+          "say": "**Remove** beside any entry takes it off the list. Nothing is revoked — the person just stops being sorted to the top as unfamiliar.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's the whole list — it changes ordering, never access. Giving somebody a class is what actually brings them into your school."
         }
       ]
     },

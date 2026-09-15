@@ -1,0 +1,42 @@
+{
+  "id": "add-a-student-to-a-class",
+  "title": "Add a student to a class",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home",
+    "kinds": [
+      "class"
+    ]
+  },
+  "keywords": [
+    "student",
+    "invite",
+    "class",
+    "learner",
+    "join",
+    "link"
+  ],
+  "steps": [
+    {
+      "anchor": "verb-invite-student",
+      "say": "On the class's own page, tap **Invite students**.",
+      "advance": {
+        "on": "click"
+      },
+      "checked": "f13a613b.64a991a5"
+    },
+    {
+      "anchor": "invite-form-submit",
+      "say": "Type the student's name. Add their email if you want us to send it, or leave it blank and you get a link to hand over yourself — then submit, and repeat for the next student.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "One student at a time, on purpose — the link is theirs alone and carries the class with it. The Students page's + Invite students button brings you here for exactly this reason.",
+      "checked": "945d4b8b.66115f8a"
+    }
+  ]
+}
