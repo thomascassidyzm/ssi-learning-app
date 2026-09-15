@@ -19,6 +19,8 @@ vi.mock('../../_utils/auth', () => ({
 const live = process.env.INSIGHTS_LIVE === '1' && !!process.env.SUPABASE_SERVICE_ROLE_KEY
 const CHEPSTOW = '0f5bd6e4-f40b-4dbf-ac4f-a93478d20255'
 const IME = '2d98bc20-a9c7-4fed-b69a-aa64038ded2a'
+// Chepstow 11P — a class whose ONLY practice is play-as-class (job #788).
+const CHEPSTOW_11P = '1a89495d-564e-43ed-80d5-dd49b07fb742'
 
 type Json = Record<string, any>
 async function call(mod: { default: (req: unknown, res: unknown) => Promise<void> }, query: Record<string, string>): Promise<{ status: number; body: Json }> {
@@ -57,4 +59,13 @@ describe.skipIf(!live)('node insights, live and read-only: a real school beside 
       if (name === 'Chepstow') expect(body.scope.classes.length).toBeGreaterThan(30)
     }, 120_000)
   }
+
+  it('11P: a class with only play-as-class sessions draws as its own entity', async () => {
+    const mod = await import('./rate-compare')
+    const { status, body } = await call(mod, { id: CHEPSTOW_11P, window: '30d', measure: 'minutes' })
+    expect(status).toBe(200)
+    console.log('[11P minutes]', JSON.stringify({ insufficient: body.insufficientData, reason: body.reason, entity: body.entity, cohortSize: body.cohortSize }))
+    expect(body.insufficientData).toBeFalsy()
+    expect(body.entity?.value ?? 0).toBeGreaterThan(0)
+  }, 120_000)
 })

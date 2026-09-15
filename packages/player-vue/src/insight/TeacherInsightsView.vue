@@ -27,6 +27,7 @@ import TopNav from '@/components/schools/shared/TopNav.vue'
 import { getSchoolsClient } from '@/composables/schools/client'
 import { isDemoMode } from '@/composables/demo/demoMode'
 import { useI18n } from '@/composables/useI18n'
+import { useUserRole } from '@/composables/useUserRole'
 import '@/styles/schools-tokens.css'
 
 const { t } = useI18n()
@@ -38,6 +39,7 @@ const props = defineProps<{ embedded?: boolean }>()
 
 const route = useRoute()
 const router = useRouter()
+const { viewingAs } = useUserRole()
 
 interface GroupDetail { id: string; label: 'school' | 'group'; name: string }
 interface ClassDetail { id: string; name: string; course_code: string | null }
@@ -73,7 +75,14 @@ async function loadContext(): Promise<void> {
   try {
     const token = await getToken()
     if (!token) { authMissing.value = true; return }
-    const res = await fetch('/api/me/teaching-context', {
+    // Under View As the token is the ADMIN's, and every ssi_admin teaches
+    // no classes — so ask for the viewed teacher's context by uid (job #788;
+    // the server admits `as` only from an admin carrying the View As header).
+    const personaUid = viewingAs.value?.userId || ''
+    const url = personaUid
+      ? `/api/me/teaching-context?as=${encodeURIComponent(personaUid)}`
+      : '/api/me/teaching-context'
+    const res = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
     })
     if (!res.ok) throw new Error(`teaching-context ${res.status}`)

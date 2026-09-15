@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { reactive } from 'vue'
+import { reactive, ref } from 'vue'
 import TeacherInsightsView from './TeacherInsightsView.vue'
 
 const routeMock = reactive({ query: {} as Record<string, any> })
@@ -18,6 +18,11 @@ const replaceMock = vi.fn((to: any) => { routeMock.query = to.query || {} })
 vi.mock('vue-router', () => ({
   useRoute: () => routeMock,
   useRouter: () => ({ replace: replaceMock }),
+}))
+
+const viewingAsMock = ref<{ userId: string; role: string; name: string; key: string } | null>(null)
+vi.mock('@/composables/useUserRole', () => ({
+  useUserRole: () => ({ viewingAs: viewingAsMock }),
 }))
 
 const getSessionMock = vi.fn(async () => ({ data: { session: { access_token: 'tok' } } }))
@@ -55,6 +60,7 @@ let fetchMock: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
   routeMock.query = {}
+  viewingAsMock.value = null
   replaceMock.mockClear()
   getSessionMock.mockClear()
   fetchMock = vi.fn(async () => ({ ok: true, json: async () => teachingContext() }))
@@ -133,5 +139,24 @@ describe('TeacherInsightsView', () => {
     await flushPromises()
     const engine = wrapper.findComponent({ name: 'NodeRateEngine' })
     expect(engine.props('nodeId')).toBe('c2')
+  })
+
+  // Job #788 (2026-09-15): under View As the token is the admin's, and every
+  // ssi_admin teaches no classes — so the view asks for the VIEWED teacher's
+  // context by uid. A class whose only practice is play-as-class (11P,
+  // 18 minutes that week) then renders the engine, not "No classes yet".
+  it('View As: asks teaching-context for the viewed teacher and renders their class', async () => {
+    viewingAsMock.value = { key: 'teacher:t-1', userId: 'teacher-uid', role: 'teacher', name: 'R Jeffery' }
+    fetchMock.mockImplementation(async (url: string) => ({
+      ok: true,
+      json: async () => (String(url).includes('as=teacher-uid')
+        ? teachingContext({ classes: ['c-11p'], classes_detail: [{ id: 'c-11p', name: '11P', course_code: 'cym_s_for_eng' }] })
+        : teachingContext({ classes: [], classes_detail: [] })),
+    }))
+    const wrapper = mount(TeacherInsightsView)
+    await flushPromises()
+    expect(String(fetchMock.mock.calls[0][0])).toBe('/api/me/teaching-context?as=teacher-uid')
+    expect(wrapper.text()).not.toContain('No classes yet')
+    expect(wrapper.findComponent({ name: 'NodeRateEngine' }).props('nodeId')).toBe('c-11p')
   })
 })

@@ -8,14 +8,21 @@
  * (THE-MODEL §1.3/§2.2/I5).
  *
  * Auth required. Service-role: reads across learners/user_tags/schools/
- * classes/class_teachers, scoped to the caller's own auth uid only — never
- * accepts a caller-supplied id.
+ * classes/class_teachers, scoped to the caller's own auth uid — with ONE
+ * door (job #788, 2026-09-15): an ssi_admin touring under View As
+ * (`X-Ssi-View-As: 1`, actAsGuard) may pass `?as=<auth uid>` and gets the
+ * VIEWED person's context instead of their own. Before that door, Insights
+ * under View As asked for the admin's classes — every ssi_admin teaches
+ * none — and told Tom "No classes yet" for a teacher whose class had
+ * practised 18 minutes that week. Any other caller sending `as` is refused,
+ * never quietly answered for themselves.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { applyCors } from '../_utils/cors'
 import { createClient } from '@supabase/supabase-js'
-import { verifyAuthToken } from '../_utils/auth'
+import { verifyAdmin, verifyAuthToken } from '../_utils/auth'
+import { isViewAsRequest } from '../_utils/actAsGuard'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -54,7 +61,19 @@ export default async function handler(
     res.status(401).json({ error: authResult.error || 'Unauthorized' })
     return
   }
-  const authUid = authResult.userId
+  let authUid = authResult.userId
+
+  // View As: the admin's own token, the viewed person's context.
+  const asParam = req.query?.as
+  const viewedUid = typeof asParam === 'string' ? asParam.trim() : ''
+  if (viewedUid) {
+    const admin = isViewAsRequest(req) ? await verifyAdmin(req) : null
+    if (!admin || 'error' in admin) {
+      res.status(403).json({ error: 'Only an SSi admin under View As may read another person\'s teaching context' })
+      return
+    }
+    authUid = viewedUid
+  }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
