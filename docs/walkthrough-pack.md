@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `bd6821c132c3` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `e3df8049dda1` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## add-a-class-under-a-group — Add a class to a group
 
@@ -92,6 +92,16 @@ Personas: school_admin · place: node-home
 1. [`school-copy-play-sweep` · next] Every teacher in your school who ran lessons signed in as themselves instead of using Play as class, one row per teacher on one class. When there is nothing to copy the card says so in words.
 2. [`school-copy-play-sweep-copy` · next] **Copy onto the class** does one row at a time — there is no button that copies everyone at once. The teacher keeps their own record; only play on that class's course moves.
    - terminal: Row by row, teacher by teacher — that's the whole sweep. This tour copied nothing.
+
+## courses-worth-attention — Which courses are worth attention
+
+Personas: admin · place: intel
+
+1. [`question-courses` · next] **Courses**, under What's happening, is one ranking of every course by real people practising it this month, with how many have ever been in it and how many have reached its end.
+2. [`answer` · next] The sentence says how many courses are alive this month and which had the most people.
+3. [`evidence` · next] The chart is the courses with anybody in them, most first.
+4. [`rows` · next] The chips show every course, only the alive ones, or the quiet ones somebody once joined; the chip is written into the page address. Each row carries this month, ever, how many stick and how many finished. Reaching the end means nine tenths of the course, and a course with no recorded length shows a dash. Minutes are left off because the stored counters are not reliable. Open a course row to see which bits of it people stumble on.
+   - terminal: One ranking by people this month. Filter with the chips, open a row for its weak points.
 
 ## create-your-first-classes — Create your first classes
 
@@ -221,6 +231,13 @@ Personas: teacher · place: class-detail
 3. [`class-student-remove` · next] **Remove** at the end of a student's row in the roster takes them off this class only. Their account and everything they've learned stays with them, and they can join another class straight away.
    - terminal: Rename, delete, remove a student — all from the class's own tools page. This tour changed nothing; only your own taps do.
 
+## minutes-in-the-app-this-week — Minutes in the app this week
+
+Personas: school_admin · place: dashboard
+
+1. [`dash-minutes-this-week` · next] How much your school practised this week, in minutes, never hours: the time your classes spent in the app with a lesson running, pauses included, plus any teacher or pupil practising on their own account, each counted once. The line beneath is how many of your classes practised at all this week.
+   - terminal: A dash means this week's figures have not loaded yet. Pull to refresh. It is never a zero that is not real.
+
 ## move-a-teacher-between-classes — Move a teacher to another class
 
 Personas: teacher, school_admin · place: class-detail
@@ -231,6 +248,13 @@ Personas: teacher, school_admin · place: class-detail
 4. [`assign-classes-list` · next] A move is just both at once: tick where they are going, untick where they are leaving. You are looking at the truth before you change it, so nothing here is a guess.
 5. [`assign-classes-save` · next] Saving applies only the boxes you actually changed. If one of them fails, it says which class failed and why, rather than claiming everything saved.
    - terminal: That's moving a teacher — one untick, one tick, one save. This tour changed nothing; only your own taps do.
+
+## one-persons-story — One person's story
+
+Personas: admin · place: intel
+
+1. [`question-person` · next] **One person** is the page for a support call. Open it from a row on Leaving, or find them under People. The sentence gives their standing, their access and their last practice, and the pill beneath says whether they count as a real person. The verbs across the top act on them: give full access, take it back, make a one-off sign-in link, change their role or trial, or correct a wrong flag. Each verb says what it will change and asks first, and the server records it against your name. The cards below hold their access, memberships, course positions and last few events.
+   - terminal: Everything about one person, on one page, with every change recorded.
 
 ## open-your-inbox — Open your inbox
 
@@ -265,6 +289,13 @@ Personas: teacher, school_admin · place: library
 2. [`player-playing-as-yourself` · next] **Your classes** takes you to start the lesson again with Play as class instead. Minutes already played on your own account aren't moved by this line — the copy tool on the class's tools page does that if you want it.
    - terminal: That's the tell for playing as yourself. This tour moved no minutes.
 
+## practice-on-your-own-account — Practice on your own account
+
+Personas: teacher · place: dashboard
+
+1. [`dash-own-practice` · next] This line appears under your classes only in a week when your own account has practised. Pressing play on a course from your Library counts for you; only **Play as class** counts for the class. It names your own minutes and when you last played, so a lesson that went to the wrong place is found rather than lost. When it is not here, nothing went astray.
+   - terminal: To move this week's lesson onto the class, open the class and use **Ran a lesson signed in as yourself?** on its tools page.
+
 ## prove-your-mailbox-reaches-you — Prove your mailbox reaches you
 
 Personas: school_admin, teacher · place: dashboard
@@ -280,6 +311,15 @@ Personas: teacher, school_admin, leader · place: inbox
 1. [`schools-inbox` · next] Everything sent to you lands here: a reply on your Support thread, or a notice about something done on your account — like your own practice being copied onto a class. Tap a message to open it, which is what marks it read.
 2. [`schools-inbox` · next] If a message offers **Undo** or **Open Support**, tap that straight from the message. Undo only shows while it can still be done cleanly.
    - terminal: That's your inbox — nothing here is timed out. A message stays unread until you actually open it, however long it has sat on the list.
+
+## reading-a-question-page — Reading a question page
+
+Personas: admin · place: intel
+
+1. [`findings` · next] Every night a job reads the week's practice and writes a few findings in plain words. Each lands here, on the question it is about. The dot on a card is its tone: good, watch, alarm or quiet. The line above says when they were found. If that line is red the job has missed two nights or more and the cards are old. It runs from Tom's Mac, not from here.
+2. [`updated-stamp` · next] **Updated** and a time says when the numbers on this page were actually read from the database. It is stamped when the fetch finished, never when the page drew. While it reads **Updating**, nothing on the page is final yet.
+3. [`population-chip` · next] This pill says how many real people the numbers are counted from. Demo accounts, SSi staff, class accounts and machine traffic are never people. If a page is deliberately showing demo or staff data the pill says so in red. The count comes from the server, from one shared rule, so two pages can never disagree about who is real.
+   - terminal: Findings above, the answer, then when it was fetched and who it counts. Every question page reads the same way.
 
 ## reading-insights — Reading your insights
 
@@ -365,6 +405,17 @@ Personas: school_admin · place: settings
 3. [`settings-identity-remove` · next] **Remove** beside any entry takes it off the list. Nothing is revoked — the person just stops being sorted to the top as unfamiliar.
    - terminal: That's the whole list — it changes ordering, never access. Giving somebody a class is what actually brings them into your school.
 
+## seeing-how-it-is-going — Seeing how it is going — the numbers and the map on any level
+
+Personas: admin, leader, school_admin · place: node-home (org/group/school)
+
+1. [`node-map-rail` · next] This map stays down the side of every level. Read it top to bottom: the levels above you, the one you are on, its neighbours and what sits under it. Tap any name to move straight there — the page rebuilds around it and the map redraws.
+2. [`node-updated` · next] **Updated** and a time says when these figures were last fetched. Reload the page to fetch again and the stamp moves with it. An empty stamp means the numbers have not arrived yet, not that they are old.
+3. [`node-stats` · next] The row of numbers counts everything below this level, each person once. **Phrases practised this week** and **Classes practising this week** come from whole-class play over the last seven days. **Minutes in the app this week** is time in the lesson, pauses included, for the classes below and for staff and students on their own accounts. On your own school each card is a link to the list behind it.
+4. [`node-year-groups` · next] **By year group** splits the same minutes by year: **Y7**, **Y8** and so on, read off each class name, with the minutes this week beneath and how many of that year's classes practised out of how many there are. **Other** holds classes whose names carry no year. If fewer than half your class names carry a year, the card reads **By class** instead.
+5. [`below-tree-name` · next] **Below this** draws everything hanging beneath here — groups inside groups, their classes, the teachers who take them and staff who teach nothing yet. Tap a caret to open or close a branch, tap a name to go to that level. A class row already tells you its teachers, its student count and whether it practised together this week, so you need not open it to find out.
+   - terminal: The map tells you where you are, the numbers tell you how it is going below here, and the tree takes you down a level whenever you want the detail.
+
 ## set-your-password — Set or change your password
 
 Personas: leader, school_admin · place: node-home (org/group/school)
@@ -432,6 +483,15 @@ Personas: admin, leader, school_admin · place: node-home (org/group/school)
 6. [`verb-shareable-link` · next] And this is where a brand-new shareable link comes from — **Get a shareable link** at the top of this page, one per role. **Invite a person** next to it makes a personal link for someone you can name.
    - terminal: The short version: copy is safe, revoke can always be undone, re-mint is for one person's own link — and a new shareable link is made at the top of the page, not in the ledger.
 
+## weak-points — Which bits of a course make people stumble
+
+Personas: admin · place: intel
+
+1. [`question-weak-points` · next] **Weak points**, under What's happening, shows for one course which pieces of it real learners skip, retry or stop on, ranked by how much trouble each piece caused per person who met it. Pick a course under **Courses** in the map on the left first; until you do, the page waits.
+2. [`answer` · next] The sentence names the piece that gave people the most trouble. When fewer than five real people have practised the course, the page says **too few to say** instead of a number. That is the truth about the course, not a fault in the page.
+3. [`rows` · next] The rows are the bits, worst first, each showing both languages with its skips, retries, failures and the share of people who stopped there. Open a row to see that piece and its phrases.
+   - terminal: Pick a course, read the worst piece, open a row to see its phrases.
+
 ## what-your-numbers-mean — What your numbers mean
 
 Personas: learner · place: library
@@ -440,6 +500,16 @@ Personas: learner · place: library
 2. [`library-stat-total-time` · next] Time is the time you have actually spent learning. If it ever shows a **~** in front of it, that is us working it out from how far along you are, because we have not logged the sessions themselves.
 3. [`library-stat-phrases-learnt` · next] Phrases learnt is how many separate phrases every one of your courses has introduced you to so far. It is added up across all of them, so it grows whichever language you pick up.
    - terminal: Nothing here changes what you get next. The course follows your position, not these numbers.
+
+## where-and-what — Where in the world people are using us, and on what
+
+Personas: admin · place: intel
+
+1. [`question-where-and-what` · next] **Where and what**, under What's happening, answers two questions at once: which countries real people practised from in the last thirty days, and whether they were on phones, tablets or desktops, in the app or in a browser. Machine traffic is left out by rule.
+2. [`answer` · next] The sentence gives you how many real people, from how many countries, and the country and device most of them are on. A person seen on two devices is counted once here and once under each device.
+3. [`evidence` · next] The chart is people by country, most first.
+4. [`rows` · next] One row per country, each with its phone, tablet and desktop split and its in-the-app or in-a-browser split. Tap a country to narrow the page to it; tap a device chip to count only that device. Both choices are written into the page address, so a pasted link reproduces the view. In the app or in a browser has only been recorded since 10 September 2026, so earlier people read as not recorded rather than being guessed at.
+   - terminal: Countries and devices on one page. Tap a country or a device chip to narrow it, and the address carries the choice.
 
 ## where-you-are-in-this-course — Where you are in this course
 
@@ -451,6 +521,26 @@ Personas: learner · place: library
 4. [`library-belt-browser` · next] Tap the card itself to open the belts up. You can look through everything you have met so far, and start again from any point you fancy revisiting.
    - terminal: That's your position. Close this whenever you like and press play — it always picks up exactly where you left off.
 
+## who-is-about-to-leave — Who is about to leave
+
+Personas: admin · place: intel
+
+1. [`question-leaving` · next] **Leaving**, under What's happening, is the list of who to write to and why: real people who were practising regularly and have stopped, paying people who have gone quiet, and people whose access runs out within a fortnight. This page sends nothing.
+2. [`answer` · next] The sentence says how many, and why.
+3. [`evidence` · next] The chart is how long they have been gone.
+4. [`rows` · next] The rows are ordered by who was seen most recently, then by who was most regular before they stopped. Nobody is ranked by money, because no amount is stored for anyone. Each row carries every reason that applies, how long since they were seen, how regular they were, and when their access ends if it is ending. Open a row to see that person and act on them.
+   - terminal: Who has gone quiet and why, most recently seen first. Open a row to write to them.
+
+## working-now — Whether the app is working right now
+
+Personas: admin · place: intel
+
+1. [`question-working` · next] **Working now**, under What's happening, tells you whether audio is failing for real people, on which build and on which kind of device, so you can see whether the last fix reached them. Only real people's plays count, so your own session on staging is not here.
+2. [`answer` · next] The sentence gives the failure rate over the last seven days and the build most people are on today.
+3. [`evidence` · next] The chart is the failure rate by day.
+4. [`rows` · next] One row per build, most people first, with people, plays, how many failed and the rate. The build most people are on today carries a pill. Tap a build to narrow the rows to it; the choice is written into the page address. The line under the rows is the same rate for phones against desktops.
+   - terminal: Rate by day, then by build, then by device. If a fix landed, the newest build's row is where you see it.
+
 ## your-account-identity — Find out which email you are signed in with
 
 Personas: teacher, school_admin, leader · place: settings
@@ -458,3 +548,14 @@ Personas: teacher, school_admin, leader · place: settings
 1. [`account-identity` · next] At the top of **Account** in Settings is the address this account uses. Tap it and it copies — useful the moment you sign in on a new device and cannot remember which email you used.
 2. [`account-identity` · next] Under it is your account code. Tap that to copy it too, and give it to us if you ever get in touch — it names your account and nothing more, so it is safe to read out or put in a message.
    - terminal: That's the whole card — your address and your code, both a tap away from your clipboard.
+
+## your-classes-at-a-glance — Your classes at a glance
+
+Personas: teacher · place: dashboard
+
+1. [`dash-class-card` · next] Every class you teach is here, one entry each, with its course beside it. Tap the class name to open its class page.
+2. [`dash-class-week` · next] This is the class's own week: the minutes it spent in the app with a lesson running, the phrases it practised, and how far it has travelled through the course. Those minutes come from the lessons you ran with **Play as class**. A class that has never played says **Not started** in words.
+3. [`dash-class-week-pupils` · next] Kept apart, and never added in, is what the pupils did on their own accounts this week. When there is nothing it says so in words, which is usual for a class taught from the front.
+4. [`dash-teacher-stats` · next] Under your classes, one quiet line totals them: how many classes you teach, the minutes they spent in the app this week with a lesson running, pauses included, and the phrases they were prompted with. All of it is the classes' own play from the front.
+5. [`dash-teacher-own-accounts` · next] The second line is the minutes your pupils spent on their own accounts this week, kept apart from the first and never added to it.
+   - terminal: The join code on each class is what you read out to get a new pupil in.

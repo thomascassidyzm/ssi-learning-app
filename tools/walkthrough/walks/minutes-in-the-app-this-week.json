@@ -1,0 +1,29 @@
+{
+  "id": "minutes-in-the-app-this-week",
+  "title": "Minutes in the app this week",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "dashboard"
+  },
+  "keywords": [
+    "minutes",
+    "time in app",
+    "this week",
+    "classes practising",
+    "practice",
+    "stat strip"
+  ],
+  "steps": [
+    {
+      "anchor": "dash-minutes-this-week",
+      "say": "How much your school practised this week, in minutes, never hours: the time your classes spent in the app with a lesson running, pauses included, plus any teacher or pupil practising on their own account, each counted once. The line beneath is how many of your classes practised at all this week.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "A dash means this week's figures have not loaded yet. Pull to refresh. It is never a zero that is not real.",
+      "checked": "0139b54c.67efbc6d"
+    }
+  ]
+}

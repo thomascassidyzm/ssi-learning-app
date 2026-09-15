@@ -1,5 +1,5 @@
 {
-  "version": "bd6821c132c3",
+  "version": "e3df8049dda1",
   "generatedAt": "2026-09-15",
   "walks": [
     {
@@ -419,6 +419,56 @@
             "on": "next"
           },
           "terminal": "Row by row, teacher by teacher — that's the whole sweep. This tour copied nothing."
+        }
+      ]
+    },
+    {
+      "id": "courses-worth-attention",
+      "title": "Which courses are worth attention",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "intel"
+      },
+      "keywords": [
+        "courses",
+        "reach",
+        "stickiness",
+        "finishing",
+        "ranking",
+        "practised",
+        "month"
+      ],
+      "steps": [
+        {
+          "anchor": "question-courses",
+          "say": "**Courses**, under What's happening, is one ranking of every course by real people practising it this month, with how many have ever been in it and how many have reached its end.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "answer",
+          "say": "The sentence says how many courses are alive this month and which had the most people.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "evidence",
+          "say": "The chart is the courses with anybody in them, most first.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "rows",
+          "say": "The chips show every course, only the alive ones, or the quiet ones somebody once joined; the chip is written into the page address. Each row carries this month, ever, how many stick and how many finished. Reaching the end means nine tenths of the course, and a course with no recorded length shows a dash. Minutes are left off because the stored counters are not reliable. Open a course row to see which bits of it people stumble on.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "One ranking by people this month. Filter with the chips, open a row for its weak points."
         }
       ]
     },
@@ -1045,6 +1095,34 @@
       ]
     },
     {
+      "id": "minutes-in-the-app-this-week",
+      "title": "Minutes in the app this week",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "dashboard"
+      },
+      "keywords": [
+        "minutes",
+        "time in app",
+        "this week",
+        "classes practising",
+        "practice",
+        "stat strip"
+      ],
+      "steps": [
+        {
+          "anchor": "dash-minutes-this-week",
+          "say": "How much your school practised this week, in minutes, never hours: the time your classes spent in the app with a lesson running, pauses included, plus any teacher or pupil practising on their own account, each counted once. The line beneath is how many of your classes practised at all this week.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "A dash means this week's figures have not loaded yet. Pull to refresh. It is never a zero that is not real."
+        }
+      ]
+    },
+    {
       "id": "move-a-teacher-between-classes",
       "title": "Move a teacher to another class",
       "personas": [
@@ -1097,6 +1175,36 @@
             "on": "next"
           },
           "terminal": "That's moving a teacher — one untick, one tick, one save. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "one-persons-story",
+      "title": "One person's story",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "intel"
+      },
+      "keywords": [
+        "person",
+        "support",
+        "account",
+        "access",
+        "sign in",
+        "role",
+        "trial",
+        "flag"
+      ],
+      "steps": [
+        {
+          "anchor": "question-person",
+          "say": "**One person** is the page for a support call. Open it from a row on Leaving, or find them under People. The sentence gives their standing, their access and their last practice, and the pill beneath says whether they count as a real person. The verbs across the top act on them: give full access, take it back, make a one-off sign-in link, change their role or trial, or correct a wrong flag. Each verb says what it will change and asks first, and the server records it against your name. The cards below hold their access, memberships, course positions and last few events.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Everything about one person, on one page, with every change recorded."
         }
       ]
     },
@@ -1255,6 +1363,35 @@
       ]
     },
     {
+      "id": "practice-on-your-own-account",
+      "title": "Practice on your own account",
+      "personas": [
+        "teacher"
+      ],
+      "place": {
+        "route": "dashboard"
+      },
+      "keywords": [
+        "own account",
+        "library",
+        "play as class",
+        "minutes",
+        "mistake",
+        "my practice",
+        "wrong place"
+      ],
+      "steps": [
+        {
+          "anchor": "dash-own-practice",
+          "say": "This line appears under your classes only in a week when your own account has practised. Pressing play on a course from your Library counts for you; only **Play as class** counts for the class. It names your own minutes and when you last played, so a lesson that went to the wrong place is found rather than lost. When it is not here, nothing went astray.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "To move this week's lesson onto the class, open the class and use **Ran a lesson signed in as yourself?** on its tools page."
+        }
+      ]
+    },
+    {
       "id": "prove-your-mailbox-reaches-you",
       "title": "Prove your mailbox reaches you",
       "personas": [
@@ -1326,6 +1463,50 @@
             "on": "next"
           },
           "terminal": "That's your inbox — nothing here is timed out. A message stays unread until you actually open it, however long it has sat on the list."
+        }
+      ]
+    },
+    {
+      "id": "reading-a-question-page",
+      "title": "Reading a question page",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "intel"
+      },
+      "keywords": [
+        "findings",
+        "nightly",
+        "updated",
+        "fetched",
+        "population",
+        "real people",
+        "demo",
+        "staff"
+      ],
+      "steps": [
+        {
+          "anchor": "findings",
+          "say": "Every night a job reads the week's practice and writes a few findings in plain words. Each lands here, on the question it is about. The dot on a card is its tone: good, watch, alarm or quiet. The line above says when they were found. If that line is red the job has missed two nights or more and the cards are old. It runs from Tom's Mac, not from here.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "updated-stamp",
+          "say": "**Updated** and a time says when the numbers on this page were actually read from the database. It is stamped when the fetch finished, never when the page drew. While it reads **Updating**, nothing on the page is final yet.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "population-chip",
+          "say": "This pill says how many real people the numbers are counted from. Demo accounts, SSi staff, class accounts and machine traffic are never people. If a page is deliberately showing demo or staff data the pill says so in red. The count comes from the server, from one shared rule, so two pages can never disagree about who is real.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Findings above, the answer, then when it was fetched and who it counts. Every question page reads the same way."
         }
       ]
     },
@@ -1765,6 +1946,73 @@
       ]
     },
     {
+      "id": "seeing-how-it-is-going",
+      "title": "Seeing how it is going — the numbers and the map on any level",
+      "personas": [
+        "admin",
+        "leader",
+        "school_admin"
+      ],
+      "place": {
+        "route": "node-home",
+        "kinds": [
+          "org",
+          "group",
+          "school"
+        ]
+      },
+      "keywords": [
+        "numbers",
+        "stats",
+        "map",
+        "rail",
+        "updated",
+        "fresh",
+        "year group",
+        "below this",
+        "tree",
+        "drill down"
+      ],
+      "steps": [
+        {
+          "anchor": "node-map-rail",
+          "say": "This map stays down the side of every level. Read it top to bottom: the levels above you, the one you are on, its neighbours and what sits under it. Tap any name to move straight there — the page rebuilds around it and the map redraws.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "node-updated",
+          "say": "**Updated** and a time says when these figures were last fetched. Reload the page to fetch again and the stamp moves with it. An empty stamp means the numbers have not arrived yet, not that they are old.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "node-stats",
+          "say": "The row of numbers counts everything below this level, each person once. **Phrases practised this week** and **Classes practising this week** come from whole-class play over the last seven days. **Minutes in the app this week** is time in the lesson, pauses included, for the classes below and for staff and students on their own accounts. On your own school each card is a link to the list behind it.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "node-year-groups",
+          "say": "**By year group** splits the same minutes by year: **Y7**, **Y8** and so on, read off each class name, with the minutes this week beneath and how many of that year's classes practised out of how many there are. **Other** holds classes whose names carry no year. If fewer than half your class names carry a year, the card reads **By class** instead.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "below-tree-name",
+          "say": "**Below this** draws everything hanging beneath here — groups inside groups, their classes, the teachers who take them and staff who teach nothing yet. Tap a caret to open or close a branch, tap a name to go to that level. A class row already tells you its teachers, its student count and whether it practised together this week, so you need not open it to find out.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "The map tells you where you are, the numbers tell you how it is going below here, and the tree takes you down a level whenever you want the detail."
+        }
+      ]
+    },
+    {
       "id": "set-your-password",
       "title": "Set or change your password",
       "personas": [
@@ -2105,6 +2353,49 @@
       ]
     },
     {
+      "id": "weak-points",
+      "title": "Which bits of a course make people stumble",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "intel"
+      },
+      "keywords": [
+        "weak points",
+        "stumble",
+        "skip",
+        "retry",
+        "lego",
+        "course",
+        "too few to say"
+      ],
+      "steps": [
+        {
+          "anchor": "question-weak-points",
+          "say": "**Weak points**, under What's happening, shows for one course which pieces of it real learners skip, retry or stop on, ranked by how much trouble each piece caused per person who met it. Pick a course under **Courses** in the map on the left first; until you do, the page waits.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "answer",
+          "say": "The sentence names the piece that gave people the most trouble. When fewer than five real people have practised the course, the page says **too few to say** instead of a number. That is the truth about the course, not a fault in the page.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "rows",
+          "say": "The rows are the bits, worst first, each showing both languages with its skips, retries, failures and the share of people who stopped there. Open a row to see that piece and its phrases.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Pick a course, read the worst piece, open a row to see its phrases."
+        }
+      ]
+    },
+    {
       "id": "what-your-numbers-mean",
       "title": "What your numbers mean",
       "topic": "Your numbers",
@@ -2150,6 +2441,58 @@
             "on": "next"
           },
           "terminal": "Nothing here changes what you get next. The course follows your position, not these numbers."
+        }
+      ]
+    },
+    {
+      "id": "where-and-what",
+      "title": "Where in the world people are using us, and on what",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "intel"
+      },
+      "keywords": [
+        "where",
+        "country",
+        "territory",
+        "device",
+        "phone",
+        "tablet",
+        "desktop",
+        "app",
+        "browser"
+      ],
+      "steps": [
+        {
+          "anchor": "question-where-and-what",
+          "say": "**Where and what**, under What's happening, answers two questions at once: which countries real people practised from in the last thirty days, and whether they were on phones, tablets or desktops, in the app or in a browser. Machine traffic is left out by rule.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "answer",
+          "say": "The sentence gives you how many real people, from how many countries, and the country and device most of them are on. A person seen on two devices is counted once here and once under each device.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "evidence",
+          "say": "The chart is people by country, most first.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "rows",
+          "say": "One row per country, each with its phone, tablet and desktop split and its in-the-app or in-a-browser split. Tap a country to narrow the page to it; tap a device chip to count only that device. Both choices are written into the page address, so a pasted link reproduces the view. In the app or in a browser has only been recorded since 10 September 2026, so earlier people read as not recorded rather than being guessed at.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Countries and devices on one page. Tap a country or a device chip to narrow it, and the address carries the choice."
         }
       ]
     },
@@ -2211,6 +2554,107 @@
       ]
     },
     {
+      "id": "who-is-about-to-leave",
+      "title": "Who is about to leave",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "intel"
+      },
+      "keywords": [
+        "leaving",
+        "quiet",
+        "stopped",
+        "churn",
+        "paying",
+        "trial",
+        "ending",
+        "write to"
+      ],
+      "steps": [
+        {
+          "anchor": "question-leaving",
+          "say": "**Leaving**, under What's happening, is the list of who to write to and why: real people who were practising regularly and have stopped, paying people who have gone quiet, and people whose access runs out within a fortnight. This page sends nothing.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "answer",
+          "say": "The sentence says how many, and why.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "evidence",
+          "say": "The chart is how long they have been gone.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "rows",
+          "say": "The rows are ordered by who was seen most recently, then by who was most regular before they stopped. Nobody is ranked by money, because no amount is stored for anyone. Each row carries every reason that applies, how long since they were seen, how regular they were, and when their access ends if it is ending. Open a row to see that person and act on them.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Who has gone quiet and why, most recently seen first. Open a row to write to them."
+        }
+      ]
+    },
+    {
+      "id": "working-now",
+      "title": "Whether the app is working right now",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "intel"
+      },
+      "keywords": [
+        "working",
+        "health",
+        "audio",
+        "failed",
+        "build",
+        "device",
+        "fix landed"
+      ],
+      "steps": [
+        {
+          "anchor": "question-working",
+          "say": "**Working now**, under What's happening, tells you whether audio is failing for real people, on which build and on which kind of device, so you can see whether the last fix reached them. Only real people's plays count, so your own session on staging is not here.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "answer",
+          "say": "The sentence gives the failure rate over the last seven days and the build most people are on today.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "evidence",
+          "say": "The chart is the failure rate by day.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "rows",
+          "say": "One row per build, most people first, with people, plays, how many failed and the rate. The build most people are on today carries a pill. Tap a build to narrow the rows to it; the choice is written into the page address. The line under the rows is the same rate for phones against desktops.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Rate by day, then by build, then by device. If a fix landed, the newest build's row is where you see it."
+        }
+      ]
+    },
+    {
       "id": "your-account-identity",
       "title": "Find out which email you are signed in with",
       "personas": [
@@ -2245,6 +2689,67 @@
             "on": "next"
           },
           "terminal": "That's the whole card — your address and your code, both a tap away from your clipboard."
+        }
+      ]
+    },
+    {
+      "id": "your-classes-at-a-glance",
+      "title": "Your classes at a glance",
+      "personas": [
+        "teacher"
+      ],
+      "place": {
+        "route": "dashboard"
+      },
+      "keywords": [
+        "classes",
+        "dashboard",
+        "overview",
+        "minutes",
+        "phrases",
+        "journey",
+        "join code",
+        "numbers",
+        "totals",
+        "own accounts",
+        "students"
+      ],
+      "steps": [
+        {
+          "anchor": "dash-class-card",
+          "say": "Every class you teach is here, one entry each, with its course beside it. Tap the class name to open its class page.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "dash-class-week",
+          "say": "This is the class's own week: the minutes it spent in the app with a lesson running, the phrases it practised, and how far it has travelled through the course. Those minutes come from the lessons you ran with **Play as class**. A class that has never played says **Not started** in words.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "dash-class-week-pupils",
+          "say": "Kept apart, and never added in, is what the pupils did on their own accounts this week. When there is nothing it says so in words, which is usual for a class taught from the front.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "dash-teacher-stats",
+          "say": "Under your classes, one quiet line totals them: how many classes you teach, the minutes they spent in the app this week with a lesson running, pauses included, and the phrases they were prompted with. All of it is the classes' own play from the front.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "dash-teacher-own-accounts",
+          "say": "The second line is the minutes your pupils spent on their own accounts this week, kept apart from the first and never added to it.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "The join code on each class is what you read out to get a new pupil in."
         }
       ]
     }
