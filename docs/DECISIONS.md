@@ -3190,3 +3190,48 @@ while `entitlementComposable.accessPending()` is true: the writer refuses on the
 predicate, and the pending-verdict hold in `paywallRetreat` still covers the navigation cursor
 writer and the cycle queue. Dev was deliberately red on those two cases until this landed; green
 now with the real guard, not the test's in-memory control.
+
+## 2026-09-15 — Every school list opens by activity; the year-group tiles show minutes under a big year key (job #766, Tom 00:52Z)
+
+**Ruling.** Tom, reviewing the live Chepstow Classes page as school leader after the 2026-09-15
+release: "always sort students/classes/groups of any entity as the default by activity — the most
+logical being the in-app minutes". And the year-group tiles, which showed phrases practised as
+their big number under a headline reading "2 h 44 min in the app this week", he read as minutes.
+So they are minutes, and the year key is the thing the eye lands on.
+
+**What changed.**
+- **Default sort is activity everywhere it can be.** Classes page (`TeacherDashboard.vue`): opens
+  on time in app this week, busiest first; `?sort=` is written only for a non-default choice, so
+  the leader home's "minutes" stat link still lands on the same order. Teacher home rows
+  (`DashboardView.vue`) by the class account's minutes this week; the leader and admin-view class
+  tables by the average practice column they show. Org home (`NodeHomeView.vue` / `belowTree.ts`):
+  class rows under each node by the class account's in-app minutes this week, pupils on a class
+  page by their week minutes. Class roster (`ClassDetail.vue`), all-students page
+  (`StudentsView.vue`), staff who teach here (`TeachersView.vue`) and the govt schools list
+  (`SchoolsView.vue`) by the practice-minutes column each shows. Every Sort by control stays.
+- **Tiles show minutes.** `yearGroup.ts` carries `minutes7d` per class and sums it per year group;
+  the Classes page feeds each row's own `minutesWk`, the org home a new per-class
+  `inAppMinutes7d` on the tree payload (`api/groups/[id]/home.ts`, off the diary read the headline
+  already pays for — `inAppTimeSeconds` now returns per-class-account seconds). Formatted through
+  `practiceMinutes.ts`: round up, hours only from an hour. The phrases count is dropped from the
+  tile — it stays on the data for anyone who wants it, but a fourth line on a 104px tile costs
+  more than it says.
+- **Big year label.** "Y7", "Y8" … "Other"; the class's own name on a per-class fallback tile;
+  the long form "Year 7" on the hover and for the screen reader.
+- **One rounding rule on the org home too.** Its headline minutes and the class home's minutes
+  used `Math.round` while every school page rounded up (job #683). Both now round up, so the tiles
+  beneath the headline share its rule. Fixtures re-pinned: 25-and-a-bit is 26.
+
+**Honest scope.** Lists whose payload carries no minutes-this-week figure are ordered by the
+minutes they DO show — all-time practice minutes for the class roster, the students page, the
+teachers page and the schools list — and say so in a comment at the sort. Groups and schools as
+rows in the org tree carry only counts on their rollup, so they stay alphabetical; a per-subtree
+minutes-this-week figure is the one expensive item the #306 review left out and is not built here.
+
+**Proof.** `TeacherDashboard.defaultSort.test.ts` (default order 7H before 6S with no `?sort`,
+tiles read the rows' minutes) and `YearGroupTiles.test.ts` (Y7 / Other label, "1 h 4 min" through
+the formatter, dash when quiet): both red on the pre-change files, green after. `yearGroup.test.ts`
+sums minutes; `belowTree.test.ts` orders classes by minutes; `home.test.ts` carries
+`inAppMinutes7d` per class. Stale `DashboardView.minutesHeadline` expectations from #683 re-pinned
+("352 min" is "5 h 52 min"). Handbook: both tile descriptions and the Find-a-class sort step
+rewritten and re-pinned; `--check` green.

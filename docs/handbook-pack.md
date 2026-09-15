@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `a1dcf2ed4735` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `bcbb72f5d131` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -421,7 +421,7 @@ Section: running-classes · roles: school_admin, teacher · anchor: `classes-fil
 
 1. Open **My Classes**.
 2. Pick a language under **Course** to see only the classes learning it.
-3. Change **Sort by** to order by time in app this week or by how far through the course each class has got. On a phone it is the first control, and the number you sorted by shows beside each class name.
+3. The list opens ordered by time in app this week, most first. Change **Sort by** to order by name, by how far through the course each class has got, or by phrases practised. On a phone it is the first control, and the number you sorted by shows beside each class name.
 
 **Worth knowing.** The table shows the first three of whatever the pickers produce; **Show all** under it shows the rest.
 
@@ -1380,17 +1380,18 @@ Section: your-own-account · roles: teacher, school_admin, leader · anchor: `re
 
 Section: running-classes · roles: school_admin, teacher · anchor: `classes-year-groups` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
 
-**What it's for.** A row of small tiles under the page head, one per year group: the phrases that year's classes practised this week and how many of them practised out of how many there are. It says in one glance which years are the school's engine and which have barely started.
+**What it's for.** A row of small tiles under the page head, one per year group, each headed by its year, **Y7**, **Y8** and so on: the minutes that year's classes spent in the app this week and how many of them practised out of how many there are. It says in one glance which years are the school's engine and which have barely started.
 
 **Where it is.** **My Classes**, the **By year group** card under the page head, once this week's practice has loaded.
 
 1. Open **My Classes**.
-2. Read the big figure on each tile for phrases practised this week.
-3. Read the line under it for classes practising out of classes in that year.
-4. Tap a tile and the table below narrows to that year's classes; a **Year 7 ×** chip in the pickers takes the filter off again.
-5. A tile reading **Other** holds the classes whose names carry no year.
+2. Find the year by its big label on each tile.
+3. Read the minutes under it for time in the app this week. It is the same minute as the page head and the class rows, added up across that year's classes.
+4. Read the line under that for classes practising out of classes in that year.
+5. Tap a tile and the table below narrows to that year's classes; a **Year 7 ×** chip in the pickers takes the filter off again.
+6. A tile reading **Other** holds the classes whose names carry no year.
 
-**Worth knowing.** The year is read off the class name — a leading number from 6 to 13, so **7B**, **Year 9 French** and **10 Set 1** all count — and is never stored. If fewer than half your class names carry a year the card reads **By class** instead, busiest first, three then **Show all**, and each of those tiles opens its class.
+**Worth knowing.** The year is read off the class name — a leading number from 6 to 13, so **7B**, **Year 9 French** and **10 Set 1** all count — and is never stored. A dash means no minutes this week. If fewer than half your class names carry a year the card reads **By class** instead, most minutes first, three then **Show all**, and each of those tiles opens its class.
 
 ## The invites desk
 
@@ -1411,17 +1412,18 @@ Section: getting-people-in · roles: admin · anchor: `invites-mode-strip` · in
 
 Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-year-groups` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
 
-**What it's for.** The row of small tiles under the numbers, one per year group, so a head can see at a glance which years are doing it and which have barely started. Each tile gives the phrases the year's classes practised this week and how many of its classes practised out of how many there are.
+**What it's for.** The row of small tiles under the numbers, one per year group, so a head can see at a glance which years are doing it and which have barely started. Each tile is headed by its year, **Y7**, **Y8** and so on, with the minutes that year's classes spent in the app this week beneath it and how many of its classes practised out of how many there are.
 
 **Where it is.** The **By year group** card directly under the row of numbers on a school or group page.
 
 1. Open a school or a group.
-2. Read the big figure on each tile for phrases practised this week.
-3. Read the line under it for classes practising out of classes in that year.
-4. A tile reading **Other** holds the classes whose names carry no year.
-5. On your own school, tap a tile to open the classes list narrowed to that year's classes.
+2. Find the year by its big label on each tile.
+3. Read the minutes under it for time in the app this week, the same minute the numbers above and the class rows count.
+4. Read the line under that for classes practising out of classes in that year.
+5. A tile reading **Other** holds the classes whose names carry no year.
+6. On your own school, tap a tile to open the classes list narrowed to that year's classes.
 
-**Worth knowing.** The year is read off the class name — a leading number from 6 to 13, so **7B**, **Year 9 French** and **10 Set 1** all count — and is never stored. If fewer than half your class names carry a year the card reads **By class** instead, busiest first, three then **Show all**, and each of those tiles opens its class. No minutes are shown per year group.
+**Worth knowing.** The year is read off the class name — a leading number from 6 to 13, so **7B**, **Year 9 French** and **10 Set 1** all count — and is never stored. A dash means no minutes this week. If fewer than half your class names carry a year the card reads **By class** instead, most minutes first, three then **Show all**, and each of those tiles opens its class.
 
 ## The numbers on any level
 

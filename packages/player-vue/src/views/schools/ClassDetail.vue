@@ -218,10 +218,16 @@ const rosterObservedEmpty = computed(
   () => !classDetailLoading.value && !rosterError.value && !classDetailError.value && students.value.length === 0,
 )
 
+// ACTIVITY FIRST (Tom, 2026-09-15, job #766): the roster orders by the
+// minutes column it shows — a pupil's practice minutes, busiest at the top,
+// name breaking ties. This payload carries all-time minutes per pupil, not a
+// this-week figure, so all-time is what orders it.
+const byActivity = (a: { practiceMinutes: number; name: string }, b: { practiceMinutes: number; name: string }) =>
+  b.practiceMinutes - a.practiceMinutes || a.name.localeCompare(b.name)
 const filteredStudents = computed(() => {
-  if (!searchQuery.value.trim()) return students.value
+  if (!searchQuery.value.trim()) return [...students.value].sort(byActivity)
   const q = searchQuery.value.toLowerCase()
-  return students.value.filter(s => s.name.toLowerCase().includes(q))
+  return students.value.filter(s => s.name.toLowerCase().includes(q)).sort(byActivity)
 })
 
 // class_activity_stats is one of the views that times out for a non-lead

@@ -183,6 +183,8 @@ a tour taken only under View As reported the button gone for teachers too.
 - 🤔 **Revision ramp on class resume (NPTC promise 8d)** — promised: "a little extra revision at the start of each session." Nothing specifies trigger (time-gap? every resume?) or scope (since-last-session vs pool). Pedagogy design needed (Tom + design pass) before build.
 - 🤔 **Notification/alerting primitive** — promise 10 (student-caught-up → teacher alert) needs one; ZERO notification infra exists codebase-wide. Per the BSC spine rule (no signal before its consumer), park until individual accounts see real homework use — then design the primitive once, for all future alert consumers.
 
+- [x] @cs-766-fable 09-15 **Schools lists default to activity (in-app minutes) everywhere; year-group tiles show minutes under a big Y7/Y8/Other key (job #766, Tom's ruling 00:52Z).** Classes page, teacher/leader home, org tree and class-page pupils, roster, students, teachers, govt schools list. Tree payload carries per-class `inAppMinutes7d`; org headline rounds up like every other school minute. → docs/DECISIONS.md 2026-09-15 job #766
+
 ## 🚧 In flight / don't collide
 
 - [x] @claude 08-06 **A-64 consecutive-repeat law** — Tom: "no mode should ever repeat the same prompt more than twice consecutively". One enforcement point (`playback/capConsecutiveRepeats.ts`) applied in `generateLearningScript.ts`, `usePodLapScheduler.ts`, `useOfflinePlay.ts`. On dev, deployed, verified live (French/Easy 10 min: longest run 2). Spec `apml/playback/consecutive-repeat-law.apml`; note published at https://watson-1.tail4968cb.ts.net/d/e05e37e3

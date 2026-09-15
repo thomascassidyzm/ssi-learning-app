@@ -530,6 +530,10 @@ const yearGroups = computed(() => {
   return yearGroupBreakdown(classes.map((c) => ({
     id: String(c.id),
     name: String(c.name ?? ''),
+    // The class account's own in-app minutes this week, per class, off the
+    // same diary read as the headline (job #766). Absent on a payload older
+    // than this build, in which case the tile honestly shows a dash.
+    minutes7d: c.inAppMinutes7d ?? 0,
     phrases7d: c.phrases7d ?? 0,
     practising: practisedWithin(c.lastPractisedAt, windowDays),
   })))
@@ -627,6 +631,9 @@ const enrichedStudents = computed(() => {
     health: deriveStudentHealth(s.seeds_completed || 0, s.last_active_at, avg),
     journey_total: total,
   }))
+    // ACTIVITY FIRST (Tom, 2026-09-15, job #766): the pupils' own minutes this
+    // week, busiest at the top; the server's alphabetical order breaks ties.
+    .sort((a: any, b: any) => (b.week_minutes ?? 0) - (a.week_minutes ?? 0))
 })
 
 // ─── The self-explaining dashboard (archive/docs-retired-2026-08-24/self-explaining-dashboard.md):
@@ -1118,30 +1125,33 @@ const listPayload = computed(() => {
                section: seeing-progress
                roles: admin, leader, school_admin
                place: node-home
-               keywords: year group, year 7, tiles, breakdown, classes practising, phrases, by class
+               keywords: year group, year 7, tiles, breakdown, classes practising, minutes, by class
                What it's for. The row of small tiles under the numbers, one per year
                group, so a head can see at a glance which years are doing it and
-               which have barely started. Each tile gives the phrases the year's
-               classes practised this week and how many of its classes practised
-               out of how many there are.
+               which have barely started. Each tile is headed by its year, **Y7**,
+               **Y8** and so on, with the minutes that year's classes spent in the
+               app this week beneath it and how many of its classes practised out
+               of how many there are.
                Where it is. The **By year group** card directly under the row of
                numbers on a school or group page.
                How you do it.
                1. Open a school or a group.
-               2. Read the big figure on each tile for phrases practised this week.
-               3. Read the line under it for classes practising out of classes in
+               2. Find the year by its big label on each tile.
+               3. Read the minutes under it for time in the app this week, the same
+                  minute the numbers above and the class rows count.
+               4. Read the line under that for classes practising out of classes in
                   that year.
-               4. A tile reading **Other** holds the classes whose names carry no
+               5. A tile reading **Other** holds the classes whose names carry no
                   year.
-               5. On your own school, tap a tile to open the classes list narrowed
+               6. On your own school, tap a tile to open the classes list narrowed
                   to that year's classes.
                Worth knowing. The year is read off the class name — a leading number
                from 6 to 13, so **7B**, **Year 9 French** and **10 Set 1** all count
-               — and is never stored. If fewer than half your class names carry a
-               year the card reads **By class** instead, busiest first, three then
-               **Show all**, and each of those tiles opens its class. No minutes
-               are shown per year group.
-               checked: 96418a48.5625135b
+               — and is never stored. A dash means no minutes this week. If fewer
+               than half your class names carry a year the card reads **By class**
+               instead, most minutes first, three then **Show all**, and each of
+               those tiles opens its class.
+               checked: 164b97b8.4581d8f4
           -->
           <YearGroupTiles v-if="showYearGroups" data-walk="node-year-groups" :breakdown="yearGroups" :class="{ 'is-switching': switching }" :tile-link="yearTileLink" />
           <p v-if="canAskSupport && !switching" class="stats-ask">
