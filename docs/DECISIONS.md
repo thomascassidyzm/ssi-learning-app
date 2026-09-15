@@ -3608,6 +3608,21 @@ says "verified".
 **Better × Simpler × Cheaper.** Better: the gap the sentence earns, on every course. Simpler: same
 lookup, paged. Cheaper: seven small indexed queries in parallel instead of one refused one.
 
-- 2026-09-15, #812: additive individual grants ledger on `user_entitlements`, retaining `subscriptions` as Paddle detail and family cover. Source values include admin and email_allowlist. Implementation: `supabase/migrations/20260915_individual_grants_ledger.sql`. No production code promotion authorised. Build remains uncommitted because worktree git metadata is read-only.
+- 2026-09-15, #812: additive individual grants ledger on `user_entitlements`, retaining `subscriptions` as Paddle detail and family cover. Source values include admin and email_allowlist. Implementation: `supabase/migrations/20260915_individual_grants_ledger.sql`. Landed by job #837: merged to `dev`, promoted to `staging`, migration applied to the shared database and 7 Paddle grants backfilled. `main` untouched.
 
 - 2026-09-15, #812: transactional Paddle mirror plus service-role Play receipt RPC; verified source windows own individual access, family behaviour retained. Code references include learner ids for reusable codes. Implementation and access gaps: `docs/grants-ledger-build-812.md`; live read-only backfill: `docs/grants-ledger-paddle-dry-run-2026-09-15.md`.
+
+- 2026-09-15, #837: the Paddle mirror trigger is FAIL-SOFT on grant owner mismatch. It fires AFTER
+INSERT OR UPDATE on `subscriptions`, so it fires on production's Paddle webhook writes from `main`
+too; as written it raised when another learner already held the grant for the same
+`provider_subscription_id`, which would have failed the webhook's own write and so a real
+subscriber's renewal. Live reading before the apply: 19 subscriptions, all Paddle, no null
+`provider_subscription_id`, no subscription id under more than one learner — so the raise was not
+reachable on today's data, but an ordinary insert reaches it the moment a subscription id is
+re-pointed at another learner (account merge, support reassignment, linked-email stub). It now warns
+and leaves the existing owner's grant untouched. The service-role RPCs keep raising loudly: their
+callers decide. Proof: `supabase/secfix-toolkit/canary_812_mirror_failsoft.cjs`, rollback-only
+against the shared database, red before and green after.
+
+**Better × Simpler × Cheaper.** Better: an additive ledger can never cost a real renewal. Simpler:
+one branch of one trigger, no new surface. Cheaper: no webhook retry storms, no support recovery.
