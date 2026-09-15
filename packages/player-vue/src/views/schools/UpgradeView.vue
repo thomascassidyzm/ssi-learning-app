@@ -58,10 +58,13 @@ import { useTeachersData } from '@/composables/schools/useTeachersData'
 import { getPaddle, paddleConfig } from '@/lib/paddle'
 import { institutionalPurchaseAvailable, paddleBillingAvailable } from '@/platform/paymentRoute'
 import { useI18n } from '@/composables/useI18n'
+import WalkOffer from '@/components/admin/WalkOffer.vue'
+import { viewerPersona } from '@/walkthrough/handbook'
 
 const { t } = useI18n()
 const supabase = inject<Ref<any>>('supabase', ref(null))
 const { currentUser, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
+const explainerPersona = computed(() => viewerPersona(currentUser.value?.platform_role ?? null, currentUser.value?.educational_role ?? null))
 
 // DECISION A (worklist 07-02): no seat-cap gating of any kind — instead make
 // the display honest so admins self-correct. `joinedTeacherCount` is the
@@ -562,6 +565,7 @@ watch(currentUser, (user) => {
 
 <template>
   <div class="upgrade-page">
+    <WalkOffer :persona="explainerPersona" place="upgrade" />
     <div class="upgrade-card schools-card">
       <span class="schools-kicker">{{ t('schools.upgrade.ssiPremium', 'SSi Premium') }}</span>
 
