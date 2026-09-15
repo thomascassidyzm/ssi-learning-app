@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `9b4d79b57dd3` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `6078a8a2b830` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## add-a-class-under-a-group — Add a class to a group
 
@@ -349,7 +349,12 @@ Personas: admin, leader, school_admin · place: node-insights
 1. [`insights-measure` · next] The **measure** picks what's being counted — progress, practice, class sessions. The line underneath the pickers says exactly what the current one means.
 2. [`insights-window` · next] The **window** is the period the rate is computed over — shorter windows react faster, longer ones smooth the noise.
 3. [`insights-compare` · next] **Compare to** puts an average alongside. Everything here is a rate, not a raw total — so groups of different sizes compare fairly.
-4. [`insights-overview` · next] **Overview** and **Insights** are two tabs on the same place. Overview takes you back to its home — insights is a lens on where you already are, not a different page to get lost in.
+4. [`insights-rate-widget` · next] This block is the rate itself, beside whatever you are comparing to. It is an amount per learner per week, never a running total — a total only says how big and how old a place is, a rate says how fast it is moving, which is what you can act on.
+5. [`insights-org-practising` · next] **Practising** answers whether your classes are doing it: how many practised together this week against last week, the phrases practised each day over four weeks, and which people practised on their own account and for how long.
+6. [`insights-org-quiet` · next] **Quiet** is the half you act on: which classes practised before and have stopped, how long ago, and which have never started. Open a class row to see where it stopped.
+7. [`insights-org-journey` · next] **Journey** shows where in the course each class has got to, as the last phrase it played in both languages, and the funnel shows the sentence most classes stop before. Class rows run furthest first.
+8. [`insights-voice-pause` · next] **Voice and pause** is what the microphone is giving us below this level. Read the uptake figure first — it is how many learners the rest is based on. A learner with no mic data is absent here, never a zero.
+9. [`insights-overview` · next] **Overview** and **Insights** are two tabs on the same place. Overview takes you back to its home — insights is a lens on where you already are, not a different page to get lost in.
    - terminal: Rates lead, position is context — and the picker text always says what a measure means.
 
 ## reading-minutes — How many in-app minutes are being done

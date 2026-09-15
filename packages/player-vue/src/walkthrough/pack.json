@@ -1,5 +1,5 @@
 {
-  "version": "9b4d79b57dd3",
+  "version": "6078a8a2b830",
   "generatedAt": "2026-09-15",
   "walks": [
     {
@@ -1640,7 +1640,13 @@
         "rate",
         "compare",
         "measure",
-        "window"
+        "window",
+        "total",
+        "practising",
+        "quiet",
+        "journey",
+        "voice",
+        "pause"
       ],
       "steps": [
         {
@@ -1660,6 +1666,41 @@
         {
           "anchor": "insights-compare",
           "say": "**Compare to** puts an average alongside. Everything here is a rate, not a raw total — so groups of different sizes compare fairly.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "insights-rate-widget",
+          "say": "This block is the rate itself, beside whatever you are comparing to. It is an amount per learner per week, never a running total — a total only says how big and how old a place is, a rate says how fast it is moving, which is what you can act on.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "insights-org-practising",
+          "say": "**Practising** answers whether your classes are doing it: how many practised together this week against last week, the phrases practised each day over four weeks, and which people practised on their own account and for how long.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "insights-org-quiet",
+          "say": "**Quiet** is the half you act on: which classes practised before and have stopped, how long ago, and which have never started. Open a class row to see where it stopped.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "insights-org-journey",
+          "say": "**Journey** shows where in the course each class has got to, as the last phrase it played in both languages, and the funnel shows the sentence most classes stop before. Class rows run furthest first.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "insights-voice-pause",
+          "say": "**Voice and pause** is what the microphone is giving us below this level. Read the uptake figure first — it is how many learners the rest is based on. A learner with no mic data is absent here, never a zero.",
           "advance": {
             "on": "next"
           }
