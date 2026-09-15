@@ -161,6 +161,39 @@ describe('useBeltProgress - local only', () => {
     expect(bp2.highestLegoId.value).toBe('S0045L03')
   })
 
+  // The live bug (production, 2026-09-15): a class entity whose own cursor was
+  // S0001L01 booted at seed 8 and stamped a YELLOW belt, and six minutes later
+  // its teacher's own account booted to the identical round on the same
+  // device. The device belt cache was keyed by course alone, so every account
+  // sharing a school browser shared one belt.
+  it('does not hand one account the belt another account cached on the same device', () => {
+    const teacher = useBeltProgress('cym_s_for_eng', { storageScope: ':u:teacher-1' })
+    teacher.initializeSync()
+    teacher.setLastLegoId('S0008L01') // seed 8 = yellow
+    expect(teacher.highestBeltIndex.value).toBe(1)
+
+    const classEntity = useBeltProgress('cym_s_for_eng', { storageScope: ':u:class-learner-1' })
+    classEntity.initializeSync()
+
+    expect(classEntity.lastLegoId.value).toBeNull()
+    expect(classEntity.highestBeltIndex.value).toBe(0) // white — its own position
+  })
+
+  // An unresolved identity must cache NOTHING rather than cache under a
+  // placeholder every account shares.
+  it('reads and writes no device belt cache while the identity is unknown', () => {
+    const unknown = useBeltProgress('cym_s_for_eng', { storageScope: null })
+    unknown.initializeSync()
+    unknown.setLastLegoId('S0008L01')
+
+    const known = useBeltProgress('cym_s_for_eng', { storageScope: ':u:learner-9' })
+    known.initializeSync()
+    expect(known.lastLegoId.value).toBeNull()
+
+    // …and nothing was written under the bare course key either.
+    expect(localStorageMock.getItem('ssi_belt_progress_cym_s_for_eng')).toBeNull()
+  })
+
   it('currentSeedNumber computed returns correct seed', () => {
     const bp = useBeltProgress('test_course')
     bp.initializeSync()
