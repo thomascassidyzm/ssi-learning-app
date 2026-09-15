@@ -1,3 +1,9 @@
+## 2026-09-15 — Payment architecture option space gathered, nothing decided (job #802·G)
+
+**Pointer only.** `docs/payment-architecture-options-2026-09-15.md` lays out rails by fee shape at
+SSi's real price points, tests entitlement as a ledger of grants against the tables that already
+exist, and ends with three combinations for Tom's taste. No option is chosen there and none is here.
+
 ## 2026-09-15 — Insights under View As reads the VIEWED teacher's classes, so a class whose only practice is play-as-class draws (job #788)
 
 **Tom's report.** Schools > Insights, View as R Jeffery (teacher, Ysgol Cas-gwent, 11P): "No classes
