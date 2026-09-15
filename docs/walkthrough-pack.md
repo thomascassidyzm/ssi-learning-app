@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `e3df8049dda1` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `9b4d79b57dd3` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## add-a-class-under-a-group — Add a class to a group
 
@@ -167,6 +167,18 @@ Personas: teacher, school_admin · place: class-detail
 3. [`class-teachers` · next] Nothing else moves. The pupils, their progress and every session stay exactly where they are, and you stay on the class as a teacher — you have passed the lead, not left.
    - terminal: That's handover — the lead is a name, not a wall. Nothing changed while you read this; only your own taps do.
 
+## how-every-question-page-is-laid-out — How every question page is laid out
+
+Personas: admin · place: intel
+
+1. [`question-page` · next] Every one of the ten questions is answered on a page with the same five parts in the same order. Once you can read one, you can read them all.
+2. [`scope-rail` · next] The map on the left says who the question is being asked about. **Everyone** asks it of every real person. Tap a course to ask it of that course alone, **Organisations** to pick a group, a school or a class, or **People** to find one person. The choice is written into the page address, so a pasted link asks the same question about the same people.
+3. [`verb-bar` · next] Across the top of the main column are the things you can do about the answer. When there is nothing to do, the strip is empty rather than missing.
+4. [`answer` · next] The answer: one plain sentence and one number. Beneath it, when the answer was fetched and who is counted.
+5. [`evidence` · next] The evidence: one chart, never two side by side.
+6. [`rows` · next] The rows are the things behind the number. Every row is a link to the thing it names.
+   - terminal: Where you are, the answer, the evidence, the rows, the verbs. No page may add a part or move one.
+
 ## install-the-app — Put the app on your device
 
 Personas: leader, school_admin · place: node-home (org/group/school)
@@ -304,6 +316,15 @@ Personas: school_admin, teacher · place: dashboard
 2. [`mailbox-check-confirm` · next] Type the six digits we send and tap **That's the one**.
    - terminal: Close the card instead and it stays closed — it never comes back on a timer.
 
+## question-not-yet — A question whose page is not built yet
+
+Personas: admin · place: intel (not-yet)
+
+1. [`question-not-yet` · next] This is one of the ten questions the surface exists to answer. It has no page yet, and it wears the same layout as the built ones so the bar always shows all ten.
+2. [`answer` · next] The answer says exactly that: the page has not been built yet. No number is shown because nothing is measured.
+3. [`evidence` · next] Where a chart would be, a card says nothing is measured for this question yet.
+   - terminal: Never a teaser and never a stub with a fake number on it.
+
 ## read-your-messages — Read your messages
 
 Personas: teacher, school_admin, leader · place: inbox
@@ -330,6 +351,17 @@ Personas: admin, leader, school_admin · place: node-insights
 3. [`insights-compare` · next] **Compare to** puts an average alongside. Everything here is a rate, not a raw total — so groups of different sizes compare fairly.
 4. [`insights-overview` · next] **Overview** and **Insights** are two tabs on the same place. Overview takes you back to its home — insights is a lens on where you already are, not a different page to get lost in.
    - terminal: Rates lead, position is context — and the picker text always says what a measure means.
+
+## reading-minutes — How many in-app minutes are being done
+
+Personas: admin · place: intel (pulse)
+
+1. [`question-pulse` · next] The first question: how many in-app minutes are being done, per course, in total and per person, and how each course stands against the average of all courses. A minute is everything between pressing play and stopping, on every screen.
+2. [`insights-window` · next] Pick the **window**: today, the last seven days or the last thirty days. The course picker beside it opens on the busiest course in that window.
+3. [`insights-measure` · next] Pick the **measure**: minutes per person, minutes in total, new enrolments, or people with no activity. The line under the pickers says what it counts and what the average of all courses is for it.
+4. [`evidence` · next] Two numbers: this course against the average of all courses, and the strip beneath for where the course sits among the rest. The average counts this course too, and a course with two enrolments weighs two people, not a whole course.
+5. [`rows` · next] The rows count the real people who practised in the last fourteen days, by course. Open one to see which bits of that course give trouble.
+   - terminal: Every minute here is the same minute every school page shows, and a person on the course who did not press play still counts in the denominator.
 
 ## reading-the-course-list — Reading the course list
 

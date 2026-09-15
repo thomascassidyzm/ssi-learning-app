@@ -1,5 +1,5 @@
 {
-  "version": "e3df8049dda1",
+  "version": "9b4d79b57dd3",
   "generatedAt": "2026-09-15",
   "walks": [
     {
@@ -778,6 +778,75 @@
       ]
     },
     {
+      "id": "how-every-question-page-is-laid-out",
+      "title": "How every question page is laid out",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "intel"
+      },
+      "keywords": [
+        "question",
+        "page",
+        "layout",
+        "answer",
+        "evidence",
+        "rows",
+        "verbs",
+        "scope",
+        "everyone",
+        "course",
+        "organisation",
+        "people"
+      ],
+      "steps": [
+        {
+          "anchor": "question-page",
+          "say": "Every one of the ten questions is answered on a page with the same five parts in the same order. Once you can read one, you can read them all.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "scope-rail",
+          "say": "The map on the left says who the question is being asked about. **Everyone** asks it of every real person. Tap a course to ask it of that course alone, **Organisations** to pick a group, a school or a class, or **People** to find one person. The choice is written into the page address, so a pasted link asks the same question about the same people.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "verb-bar",
+          "say": "Across the top of the main column are the things you can do about the answer. When there is nothing to do, the strip is empty rather than missing.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "answer",
+          "say": "The answer: one plain sentence and one number. Beneath it, when the answer was fetched and who is counted.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "evidence",
+          "say": "The evidence: one chart, never two side by side.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "rows",
+          "say": "The rows are the things behind the number. Every row is a link to the thing it names.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Where you are, the answer, the evidence, the rows, the verbs. No page may add a part or move one."
+        }
+      ]
+    },
+    {
       "id": "install-the-app",
       "title": "Put the app on your device",
       "personas": [
@@ -1427,6 +1496,50 @@
       ]
     },
     {
+      "id": "question-not-yet",
+      "title": "A question whose page is not built yet",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "intel",
+        "kinds": [
+          "not-yet"
+        ]
+      },
+      "keywords": [
+        "not yet",
+        "unbuilt",
+        "coming",
+        "question",
+        "frame"
+      ],
+      "steps": [
+        {
+          "anchor": "question-not-yet",
+          "say": "This is one of the ten questions the surface exists to answer. It has no page yet, and it wears the same layout as the built ones so the bar always shows all ten.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "answer",
+          "say": "The answer says exactly that: the page has not been built yet. No number is shown because nothing is measured.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "evidence",
+          "say": "Where a chart would be, a card says nothing is measured for this question yet.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Never a teaser and never a stub with a fake number on it."
+        }
+      ]
+    },
+    {
       "id": "read-your-messages",
       "title": "Read your messages",
       "personas": [
@@ -1558,6 +1671,70 @@
             "on": "next"
           },
           "terminal": "Rates lead, position is context — and the picker text always says what a measure means."
+        }
+      ]
+    },
+    {
+      "id": "reading-minutes",
+      "title": "How many in-app minutes are being done",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "intel",
+        "kinds": [
+          "pulse"
+        ]
+      },
+      "keywords": [
+        "minutes",
+        "in-app",
+        "per person",
+        "total",
+        "course",
+        "compare",
+        "average",
+        "listening mode",
+        "main flow",
+        "enrolments",
+        "no activity"
+      ],
+      "steps": [
+        {
+          "anchor": "question-pulse",
+          "say": "The first question: how many in-app minutes are being done, per course, in total and per person, and how each course stands against the average of all courses. A minute is everything between pressing play and stopping, on every screen.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "insights-window",
+          "say": "Pick the **window**: today, the last seven days or the last thirty days. The course picker beside it opens on the busiest course in that window.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "insights-measure",
+          "say": "Pick the **measure**: minutes per person, minutes in total, new enrolments, or people with no activity. The line under the pickers says what it counts and what the average of all courses is for it.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "evidence",
+          "say": "Two numbers: this course against the average of all courses, and the strip beneath for where the course sits among the rest. The average counts this course too, and a course with two enrolments weighs two people, not a whole course.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "rows",
+          "say": "The rows count the real people who practised in the last fourteen days, by course. Open one to see which bits of that course give trouble.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Every minute here is the same minute every school page shows, and a person on the course who did not press play still counts in the denominator."
         }
       ]
     },
@@ -2777,7 +2954,7 @@
       "source": "packages/player-vue/src/views/intel/NotYetBuiltView.vue",
       "walk": null,
       "what": "Holding the place of a question that is in the frame but has no page yet, in the same layout as the built ones, so the bar always shows all ten and nothing pretends to measure what it does not.",
-      "where": "Any question in the bar shown in the quieter grey.",
+      "where": "Any of the ten questions in the bar that has no page yet.",
       "how": [
         "Tap the question in the bar.",
         "Read the card saying nothing is measured for it yet."

@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `e3df8049dda1` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `9b4d79b57dd3` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -8,7 +8,7 @@ Section: seeing-progress · roles: admin · anchor: `question-not-yet` · in `pa
 
 **What it's for.** Holding the place of a question that is in the frame but has no page yet, in the same layout as the built ones, so the bar always shows all ten and nothing pretends to measure what it does not.
 
-**Where it is.** Any question in the bar shown in the quieter grey.
+**Where it is.** Any of the ten questions in the bar that has no page yet.
 
 1. Tap the question in the bar.
 2. Read the card saying nothing is measured for it yet.
