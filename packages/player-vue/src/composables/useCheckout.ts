@@ -496,6 +496,13 @@ export function useCheckout() {
         checkoutError.value = 'Sign in again to start checkout'
         return
       }
+      const { data: buyer, error: buyerError } = await client.from('learners')
+        .select('id').eq('user_id', userId).single()
+      if (buyerError || !buyer?.id) {
+        checkoutError.value = 'Your learner account could not be loaded'
+        return
+      }
+      const learnerId = buyer.id
       const code = plan === 'family' ? null : (courseCode || null) // Family checkout stays dumb (spec §2.2) — no course attribution
       // Show our safe-area overlay FIRST and let Vue paint its host element, so
       // the inline Paddle frame has a mount target.
@@ -510,8 +517,8 @@ export function useCheckout() {
         customer: { email },
         customData:
           plan === 'family'
-            ? { kind: 'family_plan', supabase_user_id: userId } // no other custom data — membership is managed by /api/family/* afterwards
-            : { kind: 'premium', supabase_user_id: userId, ...(code ? { course: code } : {}) },
+            ? { kind: 'family_plan', supabase_user_id: userId, learner_id: learnerId } // no other custom data — membership is managed by /api/family/* afterwards
+            : { kind: 'premium', supabase_user_id: userId, learner_id: learnerId, ...(code ? { course: code } : {}) },
         settings: {
           // INLINE into our overlay's host (not Paddle's own overlay, whose
           // close X can land under the iOS safe-area in a standalone PWA).

@@ -97,14 +97,23 @@ export async function resolveServerCourseAccess(
     // Fail-soft: a resolver error is preview-only for this request, never a
     // full unlock — and never a 500 for a free-preview caller.
     const [subResult, resolved] = await Promise.all([
-      resolveEffectiveSubscription(supabase, learner.id, 'status, current_period_end'),
+      resolveEffectiveSubscription(supabase, learner.id, 'status, current_period_end, provider, provider_subscription_id'),
       resolveActiveEntitlements(supabase, authResult.userId, learner.id).catch((err) => {
         console.error('[courseAccess] entitlement resolution failed (preview-only for this request):', err)
         return [] as ResolvedEntitlement[]
       }),
     ])
 
-    if (subResult.sub) {
+    let grantOwnsSubscription = false
+    if (subResult.sub && !subResult.viaFamily && subResult.sub.provider === 'paddle') {
+      const { data: grant, error: grantError } = await supabase.from('user_entitlements')
+        .select('id').eq('source', 'paddle')
+        .eq('source_ref', subResult.sub.provider_subscription_id).maybeSingle()
+      // Once migrated, only the grant's active window can open this door.
+      // Legacy subscribers still use the old path until their grant exists.
+      grantOwnsSubscription = !!grant || !!grantError
+    }
+    if (subResult.sub && !grantOwnsSubscription) {
       const isActive =
         subResult.sub.status === 'active' &&
         (!subResult.sub.current_period_end || new Date(subResult.sub.current_period_end) > new Date())

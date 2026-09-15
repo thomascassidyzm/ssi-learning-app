@@ -61,7 +61,8 @@ import { useCheckout } from './useCheckout'
 import { setSchoolsClient } from './schools/client'
 
 let session: any = { user: { id: 'user-1', email: 'payer@example.test' } }
-const client: any = { auth: { getSession: async () => ({ data: { session } }) } }
+const client: any = {
+  from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: { id: 'learner-1' }, error: null }) }) }) }), auth: { getSession: async () => ({ data: { session } }) } }
 
 const settle = () => new Promise((r) => setTimeout(r, 0))
 
