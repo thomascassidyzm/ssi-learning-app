@@ -2298,8 +2298,10 @@
       "closeAria": "Close"
     },
     "copyPlay": {
+      "alsoOfferedOn": "This is the same play as the {name} row under {classes}. A lesson can only be credited to one class, so copy it onto the class it was for.",
       "introSelf": "If you ran a lesson signed in as yourself instead of using Play as class, copy that play onto this class so the class shows where it really is. Your own record stays as it is.",
       "kickerSelf": "Ran a lesson signed in as yourself?",
+      "nothingElsewhere": "Nothing to copy. {name}’s play on this course has already gone onto {classes}, and a lesson can only be credited to one class.",
       "sweepAllDone": "All copied. Every row above is now on its class account.",
       "sweepError": "Couldn’t check the teachers: {error}",
       "sweepIntro": "Each row is a teacher whose own account has practised the class’s course further than the class has. Copy moves that play onto the class, one teacher at a time. The teacher keeps their own record.",
