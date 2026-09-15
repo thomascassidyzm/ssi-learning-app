@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `8f586f3c9709` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `fc674fb24f0d` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## add-a-class-under-a-group — Add a class to a group
 
@@ -232,6 +232,14 @@ Personas: teacher, school_admin · place: class-detail
 5. [`assign-classes-save` · next] Saving applies only the boxes you actually changed. If one of them fails, it says which class failed and why, rather than claiming everything saved.
    - terminal: That's moving a teacher — one untick, one tick, one save. This tour changed nothing; only your own taps do.
 
+## open-your-inbox — Open your inbox
+
+Personas: teacher, school_admin, leader · place: dashboard
+
+1. [`schools-user-menu-trigger` · click] Tap your name at the top right to open the account menu.
+2. [`schools-inbox-menu` · next] **Inbox** sits near the top, just above Support. The number beside it is how many messages you have not opened yet — the dot on your own avatar is the same count.
+   - terminal: Tap it and you're reading your messages — that count only drops once you open one.
+
 ## org-choose-courses — Choose which courses a school can use
 
 Personas: admin · place: node-home (org/group/school)
@@ -264,6 +272,14 @@ Personas: school_admin, teacher · place: dashboard
 1. [`mailbox-check-send` · next] This card appears right after you create a class or copy a class join link, for as long as your own address is unproven. Tap **Send me a code**, or nominate a different address if your school one eats our mail.
 2. [`mailbox-check-confirm` · next] Type the six digits we send and tap **That's the one**.
    - terminal: Close the card instead and it stays closed — it never comes back on a timer.
+
+## read-your-messages — Read your messages
+
+Personas: teacher, school_admin, leader · place: inbox
+
+1. [`schools-inbox` · next] Everything sent to you lands here: a reply on your Support thread, or a notice about something done on your account — like your own practice being copied onto a class. Tap a message to open it, which is what marks it read.
+2. [`schools-inbox` · next] If a message offers **Undo** or **Open Support**, tap that straight from the message. Undo only shows while it can still be done cleanly.
+   - terminal: That's your inbox — nothing here is timed out. A message stays unread until you actually open it, however long it has sat on the list.
 
 ## reading-insights — Reading your insights
 
@@ -301,6 +317,27 @@ Personas: school_admin · place: teachers
 
 1. [`teacher-remove` · next] **Remove** on a teacher's row takes them off your school when they leave, or clears out a name you don't recognise under Not yet given classes. You'll be asked to confirm their name back before it happens.
    - terminal: Their own account survives — what goes is their place in this school and their view of its classes. An admin's row carries no Remove button at all, so you can never lose your own admin this way.
+
+## report-a-bug-from-settings — Report a bug from Settings
+
+Personas: teacher, school_admin, leader · place: settings
+
+1. [`report-bug` · click] Under **Tools** in Settings sits **Report a bug** — tap it to open the sheet. Nothing is sent until you tap Send on it.
+2. [`report-bug-sheet` · next] This sheet is the whole flow — one box, one optional screenshot, one Send. Tap outside it and it closes without sending anything.
+3. [`report-bug-text` · next] Write what you saw in your own words here. Your course and device details are added for you, so you only need to describe the problem itself.
+4. [`report-bug-send` · next] **Send** stays off until you have written something. Tap it and it reads **Sending…** while your note, and your screenshot if you added one, goes.
+5. [`report-bug-thanks` · next] **Got it, thank you** replaces the form the moment it lands — that line is the whole reply. The sheet closes on its own a moment later, or tap the line to close it now.
+   - terminal: Nobody replies through the app: your note goes to one place where we read it, whether or not you are signed in.
+
+## report-a-bug-from-the-dashboard — Report a bug from the dashboard
+
+Personas: teacher, school_admin, leader · place: dashboard
+
+1. [`schools-user-menu-trigger` · click] Tap your name at the top right to open the account menu.
+2. [`schools-report-bug` · click] **Report a bug** sits in that menu — tap it to open the window without leaving the dashboard. The page you are on, and your school, are attached for you.
+3. [`schools-report-bug-happened` · next] Write what you saw, or what you would like to see, in **What happened?**. Add what you expected underneath if that helps — that part is optional.
+4. [`schools-report-bug-send` · next] **Send** stays off until you have written something. Tap it and it reads **Sending…** while your note goes, with your screenshot too if you added one.
+   - terminal: A **Got it, thank you** toast appears at the top of the page and that is the whole reply — nobody answers through the app. Questions about the dashboard itself go to Support instead.
 
 ## run-class-session — Run your first class session
 
@@ -413,3 +450,11 @@ Personas: learner · place: library
 3. [`library-position-track` · next] The bar underneath lays the whole course out end to end, with each belt as its own band of colour. The marker on it is you — so it shows how far you have come rather than how far is left.
 4. [`library-belt-browser` · next] Tap the card itself to open the belts up. You can look through everything you have met so far, and start again from any point you fancy revisiting.
    - terminal: That's your position. Close this whenever you like and press play — it always picks up exactly where you left off.
+
+## your-account-identity — Find out which email you are signed in with
+
+Personas: teacher, school_admin, leader · place: settings
+
+1. [`account-identity` · next] At the top of **Account** in Settings is the address this account uses. Tap it and it copies — useful the moment you sign in on a new device and cannot remember which email you used.
+2. [`account-identity` · next] Under it is your account code. Tap that to copy it too, and give it to us if you ever get in touch — it names your account and nothing more, so it is safe to read out or put in a message.
+   - terminal: That's the whole card — your address and your code, both a tap away from your clipboard.
