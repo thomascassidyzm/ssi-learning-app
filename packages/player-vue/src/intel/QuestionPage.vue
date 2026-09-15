@@ -27,6 +27,7 @@ import PopulationChip from './PopulationChip.vue'
 import UpdatedStamp from './UpdatedStamp.vue'
 import ScopeRail from './ScopeRail.vue'
 import QuestionFindings from './QuestionFindings.vue'
+import WalkOffer from '@/components/admin/WalkOffer.vue'
 import { useIntelUsage } from './useIntelUsage'
 
 withDefaults(defineProps<{
@@ -118,6 +119,10 @@ watch(() => [route.path, route.query.course], record)
         <div class="meta">
           <UpdatedStamp :fetched-at="fetchedAt" />
           <PopulationChip :people="people" :showing-test-data="showingTestData" :note="populationNote" />
+          <!-- The Handbook's Show-me door, in the layout so every question page
+               has it (job #878). The surface is admin-only, so the persona is
+               fixed; WalkOffer renders nothing when no intel walk exists. -->
+          <WalkOffer persona="admin" place="intel" />
         </div>
       </section>
 
