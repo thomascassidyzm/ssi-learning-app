@@ -171,3 +171,42 @@ describe('phrases-spoken telemetry', () => {
     expect(() => api.flushTelemetryDelta()).not.toThrow()
   })
 })
+
+// Job #778: while playing AS A CLASS the class-aware progress store carries a
+// `bumpSpeakingOpportunities` that routes the ledger deltas through the
+// teacher-authorised class route. The RPCs must NOT fire in that case — the
+// class account can never pass them (42501, logged, zero rows) — and MUST
+// still fire when the store says it did not handle the write.
+describe('class-mode ledger routing (job #778)', () => {
+  const flushAndSettle = async (api: any) => { await api.flushTelemetryDelta(); await Promise.resolve() }
+
+  it('sends opportunities, seconds and phrases through the class store and skips both RPCs', async () => {
+    const bump = vi.fn(async () => true)
+    const { api } = mountSession({ ...baseOpts(), progressStore: ref({ bumpSpeakingOpportunities: bump }) })
+    api.bumpPhraseSpoken()
+    api.bumpPhraseSpoken()
+    ;(api as any).bumpOpportunity?.()
+    await flushAndSettle(api)
+    expect(bump).toHaveBeenCalled()
+    expect(bump.mock.calls.some((c: any[]) => c[4] === 2)).toBe(true)
+    expect(phraseCalls()).toHaveLength(0)
+    expect(oppsCalls()).toHaveLength(0)
+  })
+
+  it('falls through to the RPCs when the store reports the write not handled (own account)', async () => {
+    const bump = vi.fn(async () => false)
+    const { api } = mountSession({ ...baseOpts(), progressStore: ref({ bumpSpeakingOpportunities: bump }) })
+    api.bumpPhraseSpoken()
+    await flushAndSettle(api)
+    expect(bump).toHaveBeenCalled()
+    expect(phraseCalls()).toHaveLength(1)
+    expect(phraseCalls()[0].args.p_phrases_delta).toBe(1)
+  })
+
+  it('uses the RPCs unchanged when the store has no class route at all', async () => {
+    const { api } = mountSession({ ...baseOpts(), progressStore: ref({}) })
+    api.bumpPhraseSpoken()
+    await flushAndSettle(api)
+    expect(phraseCalls()).toHaveLength(1)
+  })
+})

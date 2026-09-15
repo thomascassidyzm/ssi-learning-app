@@ -109,12 +109,50 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
    * direct-supabase pattern as usePairingsTelemetry, which writes
    * successfully on every cycle for the same flow.
    */
+  /**
+   * CLASS MODE (job #778): the class account cannot pass either ledger RPC —
+   * `bump_speaking_opportunities` requires `learners.user_id = auth.uid()` and
+   * a class's user_id is `class-learner:<classId>`, nobody's login — so every
+   * class-mode bump was refused (42501) and only logged; zero ledger rows for
+   * any class, ever. The class-aware progress store carries a
+   * `bumpSpeakingOpportunities` that routes the same deltas through the
+   * teacher-authorised /api/school/class-progress endpoint and resolves true
+   * when it handled them. Outside class mode it resolves false and the RPC
+   * runs exactly as before. Best-effort like the RPC: a failure is logged,
+   * never thrown into the flush.
+   */
+  const bumpViaClassRoute = (
+    learnerId: string, courseId: string, oppsDelta: number, secondsDelta: number, phrasesDelta: number,
+  ): Promise<boolean> | null => {
+    const store = getProgressStore() as unknown as {
+      bumpSpeakingOpportunities?: (l: string, c: string, o: number, s: number, p: number) => Promise<boolean>
+    } | undefined
+    if (typeof store?.bumpSpeakingOpportunities !== 'function') return null
+    let attempt: Promise<boolean>
+    try {
+      attempt = store.bumpSpeakingOpportunities(learnerId, courseId, oppsDelta, secondsDelta, phrasesDelta)
+    } catch (err) {
+      console.error('[useLearningSession] class ledger bump threw:', err)
+      return Promise.resolve(true)
+    }
+    return attempt.then((handled) => handled === true, (err: unknown) => {
+      console.error('[useLearningSession] class ledger bump FAILED:', err)
+      return true
+    })
+  }
+
   const bumpOpportunities = (oppsDelta: number, secondsDelta: number) => {
     if (oppsDelta <= 0 && secondsDelta <= 0) return
     const supabase = getSupabase()
     const learnerId = getLearnerId()
     const courseId = getCourseId()
     if (!supabase || !learnerId || !courseId || isGuestLearner(learnerId)) return
+    const viaClass = bumpViaClassRoute(learnerId, courseId, oppsDelta, secondsDelta, 0)
+    if (viaClass) return viaClass.then((handled) => { if (!handled) return bumpOpportunitiesRpc(supabase, learnerId, courseId, oppsDelta, secondsDelta) })
+    return bumpOpportunitiesRpc(supabase, learnerId, courseId, oppsDelta, secondsDelta)
+  }
+
+  const bumpOpportunitiesRpc = (supabase: SupabaseClient, learnerId: string, courseId: string, oppsDelta: number, secondsDelta: number) => {
     // Return the promise so callers that need the write to land before reading
     // (e.g. opening the stats modal) can await it; fire-and-forget callers ignore it.
     return supabase.rpc('bump_speaking_opportunities', {
@@ -157,6 +195,12 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
     const learnerId = getLearnerId()
     const courseId = getCourseId()
     if (!supabase || !learnerId || !courseId || isGuestLearner(learnerId)) return
+    const viaClass = bumpViaClassRoute(learnerId, courseId, 0, 0, phrasesDelta)
+    if (viaClass) return viaClass.then((handled) => { if (!handled) return bumpPhrasesSpokenRpc(supabase, learnerId, courseId, phrasesDelta) })
+    return bumpPhrasesSpokenRpc(supabase, learnerId, courseId, phrasesDelta)
+  }
+
+  const bumpPhrasesSpokenRpc = (supabase: SupabaseClient, learnerId: string, courseId: string, phrasesDelta: number) => {
     return supabase.rpc('bump_phrases_spoken', {
       p_learner_id: learnerId,
       p_course_code: courseId,
