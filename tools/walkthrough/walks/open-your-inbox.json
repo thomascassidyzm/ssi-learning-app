@@ -1,0 +1,41 @@
+{
+  "id": "open-your-inbox",
+  "title": "Open your inbox",
+  "personas": [
+    "teacher",
+    "school_admin",
+    "leader"
+  ],
+  "place": {
+    "route": "dashboard"
+  },
+  "keywords": [
+    "inbox",
+    "messages",
+    "unread",
+    "badge",
+    "reply",
+    "notice",
+    "undo",
+    "menu"
+  ],
+  "steps": [
+    {
+      "anchor": "schools-user-menu-trigger",
+      "say": "Tap your name at the top right to open the account menu.",
+      "advance": {
+        "on": "click"
+      },
+      "checked": "3e2f51f4.7280b14d"
+    },
+    {
+      "anchor": "schools-inbox-menu",
+      "say": "**Inbox** sits near the top, just above Support. The number beside it is how many messages you have not opened yet — the dot on your own avatar is the same count.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "Tap it and you're reading your messages — that count only drops once you open one.",
+      "checked": "371ff781.a6f27cad"
+    }
+  ]
+}
