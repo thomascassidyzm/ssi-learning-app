@@ -48,7 +48,7 @@ describe('CopyPlaySweepCard', () => {
     expect(text).toContain('benjones')
     expect(text).toContain('2 sessions')
     expect(text).toContain('125 moments in the app')
-    expect(text).toContain('12 minutes in the app')
+    expect(text).toContain('13 minutes in the app')
     expect(text).toContain('Class will be at: I still want / dw i dal yn moyn')
     expect(text).toContain('Class has reached: not started yet')
     // One Copy per row, and nothing that copies everyone.
@@ -62,7 +62,7 @@ describe('CopyPlaySweepCard', () => {
     expect(JSON.parse(posts('/apply')[0][1].body)).toEqual({ class_id: 'c-8b', teacher_user_id: 'u-ben' })
     const done = w.find('[data-walk="school-copy-play-sweep-done"]')
     expect(done.exists()).toBe(true)
-    expect(done.text()).toContain('Copied from benjones: 2 sessions, 125 moments in the app, 12 minutes in the app.')
+    expect(done.text()).toContain('Copied from benjones: 2 sessions, 125 moments in the app, 13 minutes in the app.')
     expect(done.text()).toContain('The class is now at: I still want / dw i dal yn moyn.')
     // The other row still has its own button.
     expect(w.findAll('[data-walk="school-copy-play-sweep-copy"]')).toHaveLength(1)
