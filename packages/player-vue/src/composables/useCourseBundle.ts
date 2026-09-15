@@ -44,8 +44,14 @@ const DB_NAME = 'ssi-bundle-cache'
  * debut order would silently differ from a freshly-fetched one. Bumping the
  * IndexedDB version drops the store on upgrade: one refetch per learner per
  * course (~300KB gzipped), once.
+ *
+ * 3 (2026-09-15, job #838) — #793/#804 stamped each seed's clip duration into
+ * the bundle so the seed-clip gap is timed off the real clip rather than the
+ * 2.5s fallback. Neither bumped a content or shape version, so a returning
+ * learner kept the unstamped v2 record and heard ~7.8s gaps. Same lever: drop
+ * the store, one refetch, done.
  */
-const DB_VERSION = 2
+const DB_VERSION = 3
 const STORE = 'bundles'
 
 /** Bundle fetches are boot-adjacent; never let one hang a session. */
