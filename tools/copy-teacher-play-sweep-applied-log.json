@@ -1,0 +1,358 @@
+{
+  "mode": "applied",
+  "generated_at": "2026-09-15T00:32:39.613Z",
+  "actor": "sweep:copy-teacher-play:2026-09-14",
+  "planned": 5,
+  "copied": 5,
+  "partial": 0,
+  "failed": 0,
+  "skipped_drift": 0,
+  "applied": [
+    {
+      "school": {
+        "id": "0f5bd6e4-f40b-4dbf-ac4f-a93478d20255",
+        "name": "Ysgol Cas-gwent Chepstow School"
+      },
+      "class": {
+        "id": "fc55b08b-95d6-4aa5-a964-12f5713e76e1",
+        "name": "11E",
+        "course_code": "cym_s_for_eng",
+        "class_learner_id": "1fb4e230-73b4-4482-aa13-6c675b7131ca"
+      },
+      "teacher": {
+        "user_id": "49fbd204-d309-40ab-9fda-b9be19ce8afa",
+        "name": "davidlane",
+        "learner_id": "7a655031-cea8-4447-9c17-fddc4927807a"
+      },
+      "teachers_on_class": 1,
+      "classes_taught_platform_wide": 1,
+      "teacher_minutes": 0,
+      "class_minutes": 0,
+      "teacher_position": "S0002L01",
+      "class_position": null,
+      "class_rows_on_course": 0,
+      "to_copy": {
+        "sessions": 5,
+        "player_events": 84,
+        "lego_progress": 0,
+        "seed_progress": 0,
+        "response_metrics": 0,
+        "spike_events": 0,
+        "learner_points": 0,
+        "learner_milestones": 0,
+        "learner_lego_metrics": 0,
+        "learner_lego_pairings": 0,
+        "learner_l1_state": 0,
+        "learner_pod_state": 0,
+        "learner_speaking_opportunities": 1
+      },
+      "total_rows": 90,
+      "in_app_seconds": 371,
+      "minutes_to_add": 0,
+      "prior_runs": 0,
+      "resulting_position": "S0002L01",
+      "class_learner_will_be_created": false,
+      "outcome": "copied",
+      "audit_id": "5442b0d9-8ea3-4fe9-8f91-e0b52ce06c3e",
+      "copied": {
+        "sessions": 5,
+        "player_events": 84,
+        "lego_progress": 0,
+        "seed_progress": 0,
+        "response_metrics": 0,
+        "spike_events": 0,
+        "learner_points": 0,
+        "learner_milestones": 0,
+        "learner_lego_metrics": 0,
+        "learner_lego_pairings": 0,
+        "learner_l1_state": 0,
+        "learner_pod_state": 0,
+        "learner_speaking_opportunities": 1
+      },
+      "minutes_added": 0,
+      "cursor_taken_from_teacher": true,
+      "notice": {
+        "sent": false,
+        "id": null
+      }
+    },
+    {
+      "school": {
+        "id": "0f5bd6e4-f40b-4dbf-ac4f-a93478d20255",
+        "name": "Ysgol Cas-gwent Chepstow School"
+      },
+      "class": {
+        "id": "e594dace-fa80-43c9-93a1-f36538c94d9b",
+        "name": "11H",
+        "course_code": "cym_s_for_eng",
+        "class_learner_id": "9c17f80c-8cb7-43f8-af25-92488d604928"
+      },
+      "teacher": {
+        "user_id": "bc78afaa-932b-48f6-84a2-5ff5eb96cc7e",
+        "name": "marielane",
+        "learner_id": "0002e0f5-c6d4-4c97-9527-bb5487ad5883"
+      },
+      "teachers_on_class": 1,
+      "classes_taught_platform_wide": 1,
+      "teacher_minutes": 0,
+      "class_minutes": 0,
+      "teacher_position": "S0002L01",
+      "class_position": null,
+      "class_rows_on_course": 0,
+      "to_copy": {
+        "sessions": 4,
+        "player_events": 79,
+        "lego_progress": 0,
+        "seed_progress": 0,
+        "response_metrics": 0,
+        "spike_events": 0,
+        "learner_points": 0,
+        "learner_milestones": 0,
+        "learner_lego_metrics": 0,
+        "learner_lego_pairings": 0,
+        "learner_l1_state": 0,
+        "learner_pod_state": 0,
+        "learner_speaking_opportunities": 2
+      },
+      "total_rows": 85,
+      "in_app_seconds": 373,
+      "minutes_to_add": 0,
+      "prior_runs": 0,
+      "resulting_position": "S0002L01",
+      "class_learner_will_be_created": false,
+      "outcome": "copied",
+      "audit_id": "6c5ea2b5-77a7-4b1a-bca1-32743de0403a",
+      "copied": {
+        "sessions": 4,
+        "player_events": 79,
+        "lego_progress": 0,
+        "seed_progress": 0,
+        "response_metrics": 0,
+        "spike_events": 0,
+        "learner_points": 0,
+        "learner_milestones": 0,
+        "learner_lego_metrics": 0,
+        "learner_lego_pairings": 0,
+        "learner_l1_state": 0,
+        "learner_pod_state": 0,
+        "learner_speaking_opportunities": 2
+      },
+      "minutes_added": 0,
+      "cursor_taken_from_teacher": true,
+      "notice": {
+        "sent": false,
+        "id": null
+      }
+    },
+    {
+      "school": {
+        "id": "468d8132-c1ff-4e0d-8cf8-8ee786d60c95",
+        "name": "Ysgol Gyfun Tredegar"
+      },
+      "class": {
+        "id": "29798009-6c6b-465e-b8be-b23879a7016a",
+        "name": "10R",
+        "course_code": "cym_s_for_eng",
+        "class_learner_id": "7fb7eb67-6657-4f2f-9c71-a3521f9ac053"
+      },
+      "teacher": {
+        "user_id": "c93113c7-5169-417c-99a2-4d1e7bcc7aba",
+        "name": "Miss Smith",
+        "learner_id": "bed49efe-8e66-4b68-9388-2826b449053c"
+      },
+      "teachers_on_class": 1,
+      "classes_taught_platform_wide": 1,
+      "teacher_minutes": 0,
+      "class_minutes": 0,
+      "teacher_position": "S0001L01",
+      "class_position": null,
+      "class_rows_on_course": 0,
+      "to_copy": {
+        "sessions": 1,
+        "player_events": 7,
+        "lego_progress": 0,
+        "seed_progress": 0,
+        "response_metrics": 0,
+        "spike_events": 0,
+        "learner_points": 0,
+        "learner_milestones": 0,
+        "learner_lego_metrics": 0,
+        "learner_lego_pairings": 0,
+        "learner_l1_state": 0,
+        "learner_pod_state": 0,
+        "learner_speaking_opportunities": 0
+      },
+      "total_rows": 8,
+      "in_app_seconds": 10,
+      "minutes_to_add": 0,
+      "prior_runs": 0,
+      "resulting_position": "S0001L01",
+      "class_learner_will_be_created": false,
+      "outcome": "copied",
+      "audit_id": "d5847ad7-35f4-4a8d-878e-7ab4c6055a05",
+      "copied": {
+        "sessions": 1,
+        "player_events": 7,
+        "lego_progress": 0,
+        "seed_progress": 0,
+        "response_metrics": 0,
+        "spike_events": 0,
+        "learner_points": 0,
+        "learner_milestones": 0,
+        "learner_lego_metrics": 0,
+        "learner_lego_pairings": 0,
+        "learner_l1_state": 0,
+        "learner_pod_state": 0,
+        "learner_speaking_opportunities": 0
+      },
+      "minutes_added": 0,
+      "cursor_taken_from_teacher": true,
+      "notice": {
+        "sent": false,
+        "id": null
+      }
+    },
+    {
+      "school": {
+        "id": "1389a525-e04a-45d3-a718-9403ea2e48e1",
+        "name": "Ysgol Gyfun Tredegar"
+      },
+      "class": {
+        "id": "cc68d602-75c0-4ec0-b7fe-ace0e1347320",
+        "name": "SR",
+        "course_code": "cym_s_for_eng",
+        "class_learner_id": "5e9bc321-aeb2-4975-a4b0-03299287875d"
+      },
+      "teacher": {
+        "user_id": "b08a1ddc-af20-4c12-b3cc-c79effabf625",
+        "name": "Mrs Ruttley",
+        "learner_id": "5aacb680-0fb8-4f59-81be-8f3889c69fab"
+      },
+      "teachers_on_class": 1,
+      "classes_taught_platform_wide": 1,
+      "teacher_minutes": 0,
+      "class_minutes": 0,
+      "teacher_position": "S0003L01",
+      "class_position": null,
+      "class_rows_on_course": 0,
+      "to_copy": {
+        "sessions": 2,
+        "player_events": 99,
+        "lego_progress": 0,
+        "seed_progress": 0,
+        "response_metrics": 0,
+        "spike_events": 0,
+        "learner_points": 0,
+        "learner_milestones": 0,
+        "learner_lego_metrics": 0,
+        "learner_lego_pairings": 0,
+        "learner_l1_state": 0,
+        "learner_pod_state": 0,
+        "learner_speaking_opportunities": 1
+      },
+      "total_rows": 102,
+      "in_app_seconds": 560,
+      "minutes_to_add": 0,
+      "prior_runs": 0,
+      "resulting_position": "S0003L01",
+      "class_learner_will_be_created": false,
+      "outcome": "copied",
+      "audit_id": "59c90cae-b586-436b-8192-dcbff241cf5c",
+      "copied": {
+        "sessions": 2,
+        "player_events": 99,
+        "lego_progress": 0,
+        "seed_progress": 0,
+        "response_metrics": 0,
+        "spike_events": 0,
+        "learner_points": 0,
+        "learner_milestones": 0,
+        "learner_lego_metrics": 0,
+        "learner_lego_pairings": 0,
+        "learner_l1_state": 0,
+        "learner_pod_state": 0,
+        "learner_speaking_opportunities": 1
+      },
+      "minutes_added": 0,
+      "cursor_taken_from_teacher": true,
+      "notice": {
+        "sent": false,
+        "id": null
+      }
+    },
+    {
+      "school": {
+        "id": "5ec6cb90-f25c-4bc9-9e63-b4a93317737b",
+        "name": "Ysgol Gyfun Trefynwy/ Monmouth Comprehensive School"
+      },
+      "class": {
+        "id": "e9a6d132-7fc7-414f-95fa-7bf4e96164d2",
+        "name": "7GSN",
+        "course_code": "cym_s_for_eng",
+        "class_learner_id": "cf6f4bb2-110f-47eb-84eb-5a19a6b6464a"
+      },
+      "teacher": {
+        "user_id": "f706492b-86d8-4c32-b7c6-47a379d069f7",
+        "name": "Mr Snelgrove",
+        "learner_id": "ba023eb0-0564-4977-bc05-62b3ed5ed6f4"
+      },
+      "teachers_on_class": 1,
+      "classes_taught_platform_wide": 1,
+      "teacher_minutes": 0,
+      "class_minutes": 0,
+      "teacher_position": "S0002L01",
+      "class_position": null,
+      "class_rows_on_course": 0,
+      "to_copy": {
+        "sessions": 3,
+        "player_events": 47,
+        "lego_progress": 0,
+        "seed_progress": 0,
+        "response_metrics": 0,
+        "spike_events": 0,
+        "learner_points": 0,
+        "learner_milestones": 0,
+        "learner_lego_metrics": 0,
+        "learner_lego_pairings": 0,
+        "learner_l1_state": 0,
+        "learner_pod_state": 0,
+        "learner_speaking_opportunities": 1
+      },
+      "total_rows": 51,
+      "in_app_seconds": 189,
+      "minutes_to_add": 0,
+      "prior_runs": 0,
+      "resulting_position": "S0002L01",
+      "class_learner_will_be_created": false,
+      "outcome": "copied",
+      "audit_id": "a528f41f-de79-4455-8736-3c63abd57f86",
+      "copied": {
+        "sessions": 3,
+        "player_events": 47,
+        "lego_progress": 0,
+        "seed_progress": 0,
+        "response_metrics": 0,
+        "spike_events": 0,
+        "learner_points": 0,
+        "learner_milestones": 0,
+        "learner_lego_metrics": 0,
+        "learner_lego_pairings": 0,
+        "learner_l1_state": 0,
+        "learner_pod_state": 0,
+        "learner_speaking_opportunities": 1
+      },
+      "minutes_added": 0,
+      "cursor_taken_from_teacher": true,
+      "notice": {
+        "sent": false,
+        "id": null
+      }
+    }
+  ],
+  "reconciliation": {
+    "copies_remaining_after": 0,
+    "ambiguous_before": 183,
+    "ambiguous_after": 188,
+    "ambiguous_identical": false
+  }
+}

@@ -4342,9 +4342,18 @@ watch(positionInitialized, (init) => {
   if (!(init && useRoundBasedPlayback.value)) return
   if (!entitlementComposable.accessPending()) { runPostInitResumeGate(); return }
   console.log('[LearningPlayer] resume gate deferred until the subscription answer lands (job #757)')
+  // While the gate waits, NOTHING may persist a position it has not judged:
+  // the dormant save on backgrounding (saveResumeAudio), the prompt-entry
+  // save, the navigation cursor writer and the cycle queue all consult
+  // blocksPersist, so the pending verdict is raised as a hold here — not only
+  // in the gate — and dropped the instant the answer lands, right before the
+  // gate holds the real spot itself if it must (job #761: backgrounding in
+  // that window wrote the preview landing over S0031L01).
+  paywallRetreat.awaitVerdict()
   const stop = watch(entitlementComposable.subscriptionHydrated, (hydrated) => {
     if (!hydrated) return
     stop()
+    paywallRetreat.verdictReached()
     runPostInitResumeGate()
   })
 })
@@ -10160,6 +10169,8 @@ const saveResumeAudio = () => {
   // (phase='prompt' entry) handles steady-state; this covers the
   // case where the user backgrounds the app mid-cycle without
   // advancing. Tom 2026-05-26.
+  // Both writers below also skip while paywallRetreat.blocksPersist() — the
+  // held real spot, or a subscription verdict still pending (job #761).
   if (positionInitialized.value && useRoundBasedPlayback.value && !arePositionWritesSuspended()) {
     // Lifecycle save: position only, no practice timestamp.
     savePositionToLocalStorage(simplePlayer.cycleIndex.value, false)
