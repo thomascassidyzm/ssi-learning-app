@@ -3106,3 +3106,37 @@ fails closed. The optimistic rule itself is untouched: a payer still sees no wal
 for the answer before the cursor is stamped. Wiring asserted in `paywallRetreat.test.ts`, red on the
 pre-fix source, green after; three consecutive served-build opens held at the wall with both
 cursors on S0031L01.
+
+## 2026-09-15 — A pending subscription verdict is itself a cursor write-hold; the resume-TTL rewind cannot cross the wall (job #761, follow-up to #757)
+
+**Decision.** While the post-init resume gate is waiting for the subscription answer, nothing may
+persist a position the gate has not yet judged. `paywallRetreat` gains `awaitVerdict` /
+`verdictReached`; `blocksPersist` is true while a verdict is pending, exactly as it is while a real
+spot is held. The `positionInitialized` watcher raises it the moment it defers the gate and drops it
+the instant `subscriptionHydrated` flips, right before the gate runs — so the dormant save on
+backgrounding, the prompt-entry save, the navigation cursor writer and the cycle queue (all of
+which consult `blocksPersist`) are all covered by one flag. Bounded by useSubscription's own 8s
+hydration timeout, which fails closed; a guest or an already-hydrated open never enters the window.
+
+**Why.** A cold verify of #757 found the dormant/visibility save in `saveResumeAudio` consulted only
+the reset-time sessionStorage flag, and the retreat hold existed only once the gate had run — which
+#757 made wait for hydration. An unentitled learner whose saved cursor was S0031L01, bootstrapped
+onto the preview's last round, who backgrounded the app inside that window, had S0019L01 written
+over S0031L01 in localStorage and the DB. Reproduced in memory by the verifier.
+
+**Proof.** `paywallRetreat.test.ts`: pending verdict blocks a save; verdict landed and gate held
+still blocks; verdict landed and entitled lets the save through — red on the pre-fix module (no
+such methods), green after; the wiring order (awaitVerdict before the hydration watch,
+verdictReached before the gate) asserted on the source. The #752 wiring test in
+`unentitledPastWall.test.ts` had been reading the watcher body for a gate #757 moved into
+`runPostInitResumeGate`, red on dev since then; repointed at the gate.
+
+**The resume-TTL writer is left alone, by construction.** The 60-day belt rewind calls
+`setEnrollmentCursor` directly, without the hold, but `beltRewindTarget` only ever returns a round
+that exists in the rounds the server served, and an unentitled learner is served the preview-only
+bundle (`api/courses/[code]/bundle.ts` filters rounds to `previewMaxSeed`). A learner past the wall
+holds a belt whose first round lies past the wall too, so the target is not in the served rounds,
+`beltRewindTarget` returns null, and no write happens. A learner inside the preview rewinds inside
+the preview — the feature working as designed, not a paywall move. Hydration does not enter the
+computation (it reads the saved timestamp and the served rounds), so pending hydration cannot
+change the target either. Nothing to route through the hold.

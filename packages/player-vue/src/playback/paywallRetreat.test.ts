@@ -75,6 +75,42 @@ describe('createPaywallRetreat', () => {
     m.remember({ roundIndex: -1, cycleIndex: 0, legoId: 'S0031L02' })
     expect(m.blocksPersist()).toBe(false)
   })
+
+  it('blocks every cursor write while the subscription verdict is pending, then lets writes through once it lands clean (job #761)', () => {
+    // Cold verify of #757: positionInitialized fires before /api/subscription
+    // answers; the gate waits for the answer, so nothing is held yet — and the
+    // dormant save (visibilitychange) only consulted the reset flag. An
+    // unentitled learner bootstrapped onto the preview's last round who
+    // backgrounded the app in that window wrote S0019L01 over S0031L01.
+    const m = createPaywallRetreat()
+    // init → not hydrated: the verdict is pending, so a dormant save writes nothing.
+    m.awaitVerdict()
+    expect(m.blocksPersist()).toBe(true)
+    expect(m.current()).toBeNull()
+    // hydrated → gate holds the real spot: still nothing written.
+    m.verdictReached()
+    m.remember({ roundIndex: 33, cycleIndex: 0, legoId: 'S0031L01' })
+    expect(m.blocksPersist()).toBe(true)
+    // playing on inside the preview does not spend the hold either.
+    m.release('S0019L01')
+    expect(m.blocksPersist()).toBe(true)
+  })
+
+  it('hydrated and entitled: the verdict lands, nothing is held, the save proceeds (job #761)', () => {
+    const m = createPaywallRetreat()
+    m.awaitVerdict()
+    expect(m.blocksPersist()).toBe(true)
+    m.verdictReached()
+    expect(m.blocksPersist()).toBe(false)
+    // A late verdictReached without an awaitVerdict is harmless.
+    m.verdictReached()
+    expect(m.blocksPersist()).toBe(false)
+    // release/clear never un-pend a verdict: the answer is the only thing that does.
+    m.awaitVerdict()
+    m.release(null)
+    m.clear()
+    expect(m.blocksPersist()).toBe(true)
+  })
 })
 
 describe('LearningPlayer wiring (source read)', () => {
@@ -127,6 +163,22 @@ describe('LearningPlayer wiring (source read)', () => {
     const gate = block('const runPostInitResumeGate = () => {', '\n}\n')
     expect(gate).toContain('holdSavedCursorAtPaywall()')
     expect(gate.indexOf('holdSavedCursorAtPaywall()')).toBeLessThan(gate.indexOf('savePositionToLocalStorage(undefined, false)'))
+  })
+
+  it('the pending subscription verdict is itself a write-hold for every cursor writer (job #761)', () => {
+    // The dormant save (saveResumeAudio) goes through savePositionToLocalStorage
+    // and persistLivePositionToDb, which consult blocksPersist — so the hold
+    // must be raised the moment the gate defers, and dropped only when the
+    // answer lands (bounded 8s by useSubscription, which fails closed).
+    const w = block('watch(positionInitialized, (init) => {', '\n})\n')
+    const awaitIdx = w.indexOf('paywallRetreat.awaitVerdict()')
+    const watchIdx = w.indexOf('watch(entitlementComposable.subscriptionHydrated')
+    const reachedIdx = w.indexOf('paywallRetreat.verdictReached()')
+    const gateIdx = w.indexOf('runPostInitResumeGate()', watchIdx)
+    expect(awaitIdx).toBeGreaterThan(-1)
+    expect(awaitIdx).toBeLessThan(watchIdx)
+    expect(reachedIdx).toBeGreaterThan(watchIdx)
+    expect(reachedIdx).toBeLessThan(gateIdx)
   })
 
   it('a grant jumps back to the real position before resuming', () => {
