@@ -263,8 +263,8 @@ export function identityOf(bundle: CourseBundle): BundleIdentity {
 // ---------------------------------------------------------------------------
 
 /**
- * How long an open request may sit BLOCKED before we give up on the cache for
- * this call (#853). A version bump (#838) cannot complete while another tab
+ * How long an open request may sit unanswered before we give up on the cache
+ * for this call (#853, armed at open time since #858). A version bump (#838) cannot complete while another tab
  * still holds a connection at the old version; an older build never closes
  * its connection, so without this the new tab's open request hangs and the
  * bundle never loads. Giving up resolves null, which every caller already
@@ -283,9 +283,14 @@ function openDb(): Promise<IDBDatabase | null> {
       return resolve(null)
     }
     let settled = false
-    let blockedTimer: ReturnType<typeof setTimeout> | null = null
+    // Armed at open time, not on onblocked: only the FIRST request queued
+    // behind a blocked upgrade ever receives onblocked. A second open (course
+    // B after course A) queues silently behind it and would hang until the old
+    // tab closed. Cleared on success or error, so an unblocked open never sees
+    // it fire.
+    const blockedTimer = setTimeout(() => settle(null), OPEN_BLOCKED_TIMEOUT_MS)
     const settle = (db: IDBDatabase | null) => {
-      if (blockedTimer) clearTimeout(blockedTimer)
+      clearTimeout(blockedTimer)
       if (settled) {
         // A late success after we already gave up: the upgrade has completed,
         // so release this connection rather than leave a stray one holding
@@ -303,10 +308,6 @@ function openDb(): Promise<IDBDatabase | null> {
       // carrying migration code for every wire change.
       if (db.objectStoreNames.contains(STORE)) db.deleteObjectStore(STORE)
       db.createObjectStore(STORE, { keyPath: 'courseCode' })
-    }
-    req.onblocked = () => {
-      if (blockedTimer) return
-      blockedTimer = setTimeout(() => settle(null), OPEN_BLOCKED_TIMEOUT_MS)
     }
     req.onsuccess = () => {
       const db = req.result
