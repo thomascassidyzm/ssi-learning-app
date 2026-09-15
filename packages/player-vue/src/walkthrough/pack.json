@@ -1,5 +1,5 @@
 {
-  "version": "da219dee07e8",
+  "version": "f1bea59201cd",
   "generatedAt": "2026-09-15",
   "walks": [
     {
@@ -253,6 +253,56 @@
             "on": "next"
           },
           "terminal": "Row by row, teacher by teacher — that's the whole sweep. This tour copied nothing."
+        }
+      ]
+    },
+    {
+      "id": "courses-worth-attention",
+      "title": "Which courses are worth attention",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "intel"
+      },
+      "keywords": [
+        "courses",
+        "reach",
+        "stickiness",
+        "finishing",
+        "ranking",
+        "practised",
+        "month"
+      ],
+      "steps": [
+        {
+          "anchor": "question-courses",
+          "say": "**Courses**, under What's happening, is one ranking of every course by real people practising it this month, with how many have ever been in it and how many have reached its end.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "answer",
+          "say": "The sentence says how many courses are alive this month and which had the most people.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "evidence",
+          "say": "The chart is the courses with anybody in them, most first.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "rows",
+          "say": "The chips show every course, only the alive ones, or the quiet ones somebody once joined; the chip is written into the page address. Each row carries this month, ever, how many stick and how many finished. Reaching the end means nine tenths of the course, and a course with no recorded length shows a dash. Minutes are left off because the stored counters are not reliable. Open a course row to see which bits of it people stumble on.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "One ranking by people this month. Filter with the chips, open a row for its weak points."
         }
       ]
     },
@@ -1328,6 +1378,49 @@
       ]
     },
     {
+      "id": "weak-points",
+      "title": "Which bits of a course make people stumble",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "intel"
+      },
+      "keywords": [
+        "weak points",
+        "stumble",
+        "skip",
+        "retry",
+        "lego",
+        "course",
+        "too few to say"
+      ],
+      "steps": [
+        {
+          "anchor": "question-weak-points",
+          "say": "**Weak points**, under What's happening, shows for one course which pieces of it real learners skip, retry or stop on, ranked by how much trouble each piece caused per person who met it. Pick a course under **Courses** in the map on the left first; until you do, the page waits.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "answer",
+          "say": "The sentence names the piece that gave people the most trouble. When fewer than five real people have practised the course, the page says **too few to say** instead of a number. That is the truth about the course, not a fault in the page.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "rows",
+          "say": "The rows are the bits, worst first, each showing both languages with its skips, retries, failures and the share of people who stopped there. Open a row to see that piece and its phrases.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Pick a course, read the worst piece, open a row to see its phrases."
+        }
+      ]
+    },
+    {
       "id": "what-your-numbers-mean",
       "title": "What your numbers mean",
       "topic": "Your numbers",
@@ -1373,6 +1466,58 @@
             "on": "next"
           },
           "terminal": "Nothing here changes what you get next. The course follows your position, not these numbers."
+        }
+      ]
+    },
+    {
+      "id": "where-and-what",
+      "title": "Where in the world people are using us, and on what",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "intel"
+      },
+      "keywords": [
+        "where",
+        "country",
+        "territory",
+        "device",
+        "phone",
+        "tablet",
+        "desktop",
+        "app",
+        "browser"
+      ],
+      "steps": [
+        {
+          "anchor": "question-where-and-what",
+          "say": "**Where and what**, under What's happening, answers two questions at once: which countries real people practised from in the last thirty days, and whether they were on phones, tablets or desktops, in the app or in a browser. Machine traffic is left out by rule.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "answer",
+          "say": "The sentence gives you how many real people, from how many countries, and the country and device most of them are on. A person seen on two devices is counted once here and once under each device.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "evidence",
+          "say": "The chart is people by country, most first.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "rows",
+          "say": "One row per country, each with its phone, tablet and desktop split and its in-the-app or in-a-browser split. Tap a country to narrow the page to it; tap a device chip to count only that device. Both choices are written into the page address, so a pasted link reproduces the view. In the app or in a browser has only been recorded since 10 September 2026, so earlier people read as not recorded rather than being guessed at.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Countries and devices on one page. Tap a country or a device chip to narrow it, and the address carries the choice."
         }
       ]
     },
@@ -1430,6 +1575,107 @@
             "on": "next"
           },
           "terminal": "That's your position. Close this whenever you like and press play — it always picks up exactly where you left off."
+        }
+      ]
+    },
+    {
+      "id": "who-is-about-to-leave",
+      "title": "Who is about to leave",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "intel"
+      },
+      "keywords": [
+        "leaving",
+        "quiet",
+        "stopped",
+        "churn",
+        "paying",
+        "trial",
+        "ending",
+        "write to"
+      ],
+      "steps": [
+        {
+          "anchor": "question-leaving",
+          "say": "**Leaving**, under What's happening, is the list of who to write to and why: real people who were practising regularly and have stopped, paying people who have gone quiet, and people whose access runs out within a fortnight. This page sends nothing.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "answer",
+          "say": "The sentence says how many, and why.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "evidence",
+          "say": "The chart is how long they have been gone.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "rows",
+          "say": "The rows are ordered by who was seen most recently, then by who was most regular before they stopped. Nobody is ranked by money, because no amount is stored for anyone. Each row carries every reason that applies, how long since they were seen, how regular they were, and when their access ends if it is ending. Open a row to see that person and act on them.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Who has gone quiet and why, most recently seen first. Open a row to write to them."
+        }
+      ]
+    },
+    {
+      "id": "working-now",
+      "title": "Whether the app is working right now",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "intel"
+      },
+      "keywords": [
+        "working",
+        "health",
+        "audio",
+        "failed",
+        "build",
+        "device",
+        "fix landed"
+      ],
+      "steps": [
+        {
+          "anchor": "question-working",
+          "say": "**Working now**, under What's happening, tells you whether audio is failing for real people, on which build and on which kind of device, so you can see whether the last fix reached them. Only real people's plays count, so your own session on staging is not here.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "answer",
+          "say": "The sentence gives the failure rate over the last seven days and the build most people are on today.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "evidence",
+          "say": "The chart is the failure rate by day.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "rows",
+          "say": "One row per build, most people first, with people, plays, how many failed and the rate. The build most people are on today carries a pill. Tap a build to narrow the rows to it; the choice is written into the page address. The line under the rows is the same rate for phones against desktops.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Rate by day, then by build, then by device. If a fix landed, the newest build's row is where you see it."
         }
       ]
     }

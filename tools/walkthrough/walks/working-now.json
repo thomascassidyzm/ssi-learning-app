@@ -1,0 +1,54 @@
+{
+  "id": "working-now",
+  "title": "Whether the app is working right now",
+  "personas": [
+    "admin"
+  ],
+  "place": {
+    "route": "intel"
+  },
+  "keywords": [
+    "working",
+    "health",
+    "audio",
+    "failed",
+    "build",
+    "device",
+    "fix landed"
+  ],
+  "steps": [
+    {
+      "anchor": "question-working",
+      "say": "**Working now**, under What's happening, tells you whether audio is failing for real people, on which build and on which kind of device, so you can see whether the last fix reached them. Only real people's plays count, so your own session on staging is not here.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "cd79bb07.d590a45d"
+    },
+    {
+      "anchor": "answer",
+      "say": "The sentence gives the failure rate over the last seven days and the build most people are on today.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "37355d63.37d67d06"
+    },
+    {
+      "anchor": "evidence",
+      "say": "The chart is the failure rate by day.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "31f48466.d5e2f1d6"
+    },
+    {
+      "anchor": "rows",
+      "say": "One row per build, most people first, with people, plays, how many failed and the rate. The build most people are on today carries a pill. Tap a build to narrow the rows to it; the choice is written into the page address. The line under the rows is the same rate for phones against desktops.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "Rate by day, then by build, then by device. If a fix landed, the newest build's row is where you see it.",
+      "checked": "cbac0e66.efd6b204"
+    }
+  ]
+}

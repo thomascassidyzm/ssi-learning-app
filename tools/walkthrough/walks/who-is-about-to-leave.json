@@ -1,0 +1,55 @@
+{
+  "id": "who-is-about-to-leave",
+  "title": "Who is about to leave",
+  "personas": [
+    "admin"
+  ],
+  "place": {
+    "route": "intel"
+  },
+  "keywords": [
+    "leaving",
+    "quiet",
+    "stopped",
+    "churn",
+    "paying",
+    "trial",
+    "ending",
+    "write to"
+  ],
+  "steps": [
+    {
+      "anchor": "question-leaving",
+      "say": "**Leaving**, under What's happening, is the list of who to write to and why: real people who were practising regularly and have stopped, paying people who have gone quiet, and people whose access runs out within a fortnight. This page sends nothing.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "3b7b1589.5065fa9c"
+    },
+    {
+      "anchor": "answer",
+      "say": "The sentence says how many, and why.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "37355d63.c02a02d6"
+    },
+    {
+      "anchor": "evidence",
+      "say": "The chart is how long they have been gone.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "31f48466.a9820081"
+    },
+    {
+      "anchor": "rows",
+      "say": "The rows are ordered by who was seen most recently, then by who was most regular before they stopped. Nobody is ranked by money, because no amount is stored for anyone. Each row carries every reason that applies, how long since they were seen, how regular they were, and when their access ends if it is ending. Open a row to see that person and act on them.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "Who has gone quiet and why, most recently seen first. Open a row to write to them.",
+      "checked": "cbac0e66.26f2a659"
+    }
+  ]
+}
