@@ -1,5 +1,5 @@
 {
-  "version": "b7ffed88cbb0",
+  "version": "e3df8049dda1",
   "generatedAt": "2026-09-15",
   "walks": [
     {
@@ -1095,6 +1095,34 @@
       ]
     },
     {
+      "id": "minutes-in-the-app-this-week",
+      "title": "Minutes in the app this week",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "dashboard"
+      },
+      "keywords": [
+        "minutes",
+        "time in app",
+        "this week",
+        "classes practising",
+        "practice",
+        "stat strip"
+      ],
+      "steps": [
+        {
+          "anchor": "dash-minutes-this-week",
+          "say": "How much your school practised this week, in minutes, never hours: the time your classes spent in the app with a lesson running, pauses included, plus any teacher or pupil practising on their own account, each counted once. The line beneath is how many of your classes practised at all this week.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "A dash means this week's figures have not loaded yet. Pull to refresh. It is never a zero that is not real."
+        }
+      ]
+    },
+    {
       "id": "move-a-teacher-between-classes",
       "title": "Move a teacher to another class",
       "personas": [
@@ -1331,6 +1359,35 @@
             "on": "next"
           },
           "terminal": "That's the tell for playing as yourself. This tour moved no minutes."
+        }
+      ]
+    },
+    {
+      "id": "practice-on-your-own-account",
+      "title": "Practice on your own account",
+      "personas": [
+        "teacher"
+      ],
+      "place": {
+        "route": "dashboard"
+      },
+      "keywords": [
+        "own account",
+        "library",
+        "play as class",
+        "minutes",
+        "mistake",
+        "my practice",
+        "wrong place"
+      ],
+      "steps": [
+        {
+          "anchor": "dash-own-practice",
+          "say": "This line appears under your classes only in a week when your own account has practised. Pressing play on a course from your Library counts for you; only **Play as class** counts for the class. It names your own minutes and when you last played, so a lesson that went to the wrong place is found rather than lost. When it is not here, nothing went astray.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "To move this week's lesson onto the class, open the class and use **Ran a lesson signed in as yourself?** on its tools page."
         }
       ]
     },
@@ -2632,6 +2689,67 @@
             "on": "next"
           },
           "terminal": "That's the whole card — your address and your code, both a tap away from your clipboard."
+        }
+      ]
+    },
+    {
+      "id": "your-classes-at-a-glance",
+      "title": "Your classes at a glance",
+      "personas": [
+        "teacher"
+      ],
+      "place": {
+        "route": "dashboard"
+      },
+      "keywords": [
+        "classes",
+        "dashboard",
+        "overview",
+        "minutes",
+        "phrases",
+        "journey",
+        "join code",
+        "numbers",
+        "totals",
+        "own accounts",
+        "students"
+      ],
+      "steps": [
+        {
+          "anchor": "dash-class-card",
+          "say": "Every class you teach is here, one entry each, with its course beside it. Tap the class name to open its class page.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "dash-class-week",
+          "say": "This is the class's own week: the minutes it spent in the app with a lesson running, the phrases it practised, and how far it has travelled through the course. Those minutes come from the lessons you ran with **Play as class**. A class that has never played says **Not started** in words.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "dash-class-week-pupils",
+          "say": "Kept apart, and never added in, is what the pupils did on their own accounts this week. When there is nothing it says so in words, which is usual for a class taught from the front.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "dash-teacher-stats",
+          "say": "Under your classes, one quiet line totals them: how many classes you teach, the minutes they spent in the app this week with a lesson running, pauses included, and the phrases they were prompted with. All of it is the classes' own play from the front.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "dash-teacher-own-accounts",
+          "say": "The second line is the minutes your pupils spent on their own accounts this week, kept apart from the first and never added to it.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "The join code on each class is what you read out to get a new pupil in."
         }
       ]
     }
