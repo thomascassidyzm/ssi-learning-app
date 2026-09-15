@@ -3139,6 +3139,14 @@ marielane 85, Tredegar 10R Miss Smith 8, SR Mrs Ruttley 102, Monmouth 7GSN Mr Sn
 audit rows and five inbox notices with one-tap Undo, one per teacher, verified in the live DB.
 Reconcile re-scan: 0 copies remaining; ambiguous 183 → 188, the delta exactly the five classes now
 in `condition_3_class_account_has_play`, every other entry bit-identical. Trial scope untouched.
+
+**Addition (Tom, 00:16Z): the school leaders were told.** Four inbox messages, one per school row,
+sent through `sendUserMessage` with idempotent dedupe keys by
+`tools/leader-notice-teacher-play-sweep-2026-09-15.mjs`: angharadjones at Chepstow for 11E and 11H,
+Miss Morris at Ysgol Gyfun Tredegar for 10R, hughesr310 at the second Ysgol Gyfun Tredegar school row
+for SR, Anna Aggleton at Monmouth for 7GSN — Tredegar exists as two school rows with two different
+leaders, so each got the note for their own class. The five teachers received nothing further; the
+live table holds exactly one `class_play_copied` message per teacher and per leader, nine in all.
 ## 2026-09-15 — A pending subscription verdict is itself a cursor write-hold; the resume-TTL rewind cannot cross the wall (job #761, follow-up to #757)
 
 **Decision.** While the post-init resume gate is waiting for the subscription answer, nothing may
@@ -3172,3 +3180,13 @@ holds a belt whose first round lies past the wall too, so the target is not in t
 the preview — the feature working as designed, not a paywall move. Hydration does not enter the
 computation (it reads the saved timestamp and the served rounds), so pending hydration cannot
 change the target either. Nothing to route through the hold.
+
+**Addition (same job): the two lifecycle writers refuse on `accessPending()` themselves.** The #760
+test (`LearningPlayer.pendingHydration.test.ts`) drives `saveResumeAudio` and the visibilitychange
+callback straight from the extracted source against a hand-built context — no watcher runs, so a
+hold raised by the `positionInitialized` watcher is invisible to it. Rather than teach the harness
+the watcher's behaviour, `savePositionToLocalStorage` and `persistLivePositionToDb` now also return
+while `entitlementComposable.accessPending()` is true: the writer refuses on the source-of-truth
+predicate, and the pending-verdict hold in `paywallRetreat` still covers the navigation cursor
+writer and the cycle queue. Dev was deliberately red on those two cases until this landed; green
+now with the real guard, not the test's in-memory control.

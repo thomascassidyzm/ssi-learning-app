@@ -1394,6 +1394,7 @@ const paywallRetreat = createPaywallRetreat()
 const persistLivePositionToDb = (cycleOverride?: number, touchPracticedAt = true) => {
   if (practisingBlocksProgressWrite('live position')) return
   if (paywallRetreat.blocksPersist()) return
+  if (entitlementComposable.accessPending()) return
   if (isGuestLearner.value || !progressStore?.value || !learnerId.value || !courseCode.value) return
   if (currentMode.value === 'infplay') return
   const round = simplePlayer.currentRound.value
@@ -4065,6 +4066,11 @@ const savePositionToLocalStorage = (cycleOverride?: number, touchTimestamp = tru
   // resume reads first, so leaving it writable would reopen the route locally.
   if (practisingBlocksProgressWrite('local position')) return
   if (paywallRetreat.blocksPersist()) return
+  // The subscription answer is still in flight: the resume gate has not judged
+  // the landed position yet, so this writer refuses on its own as well as under
+  // the pending-verdict hold the watcher raises (job #761; the #760 test drives
+  // the two lifecycle writers directly).
+  if (entitlementComposable.accessPending()) return
   if (!courseCode.value) return
 
   const round = currentRound.value
