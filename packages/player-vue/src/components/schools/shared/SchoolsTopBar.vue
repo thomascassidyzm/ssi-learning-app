@@ -226,8 +226,13 @@ const schoolLabel = computed(() => currentUser.value?.school_name || '')
 // (/org/:id) gets the bare wordmark, pointing home at their own node instead
 // of the /schools dashboard they have no business being sent to. Everywhere
 // else — the whole schools lane, teachers included — is untouched.
+// The two shared pages a group leader reaches from this menu — Inbox and
+// Support — still live at /schools/* URLs, so they count as the org surface
+// for the same leader (job #786: an org leader's Support page read
+// "SaySomethingin · Schools" across the top).
+const SHARED_MEMBER_PAGES = new Set(['/schools/support', '/schools/inbox'])
 const onOrgSurface = computed(
-  () => isGovtAdmin.value && (route.path === '/org' || route.path.startsWith('/org/')),
+  () => isGovtAdmin.value && (route.path === '/org' || route.path.startsWith('/org/') || SHARED_MEMBER_PAGES.has(route.path)),
 )
 const brandTail = computed(() => (onOrgSurface.value ? '' : t('schools.ui.topBar.brandTailSchools', 'Schools')))
 const brandTo = computed(() => {
@@ -372,7 +377,7 @@ if (typeof document !== 'undefined') {
                roles: teacher, school_admin, leader
                place: dashboard
                keywords: inbox, messages, unread, badge, reply, notice, undo
-               What it's for. Getting to the messages sent to you: a reply on your school's Support thread, or a notice that your own practice was copied onto a class account. The dot on your avatar and the number beside **Inbox** are how many you have not opened.
+               What it's for. Getting to the messages sent to you: a reply on your Support thread, or a notice that your own practice was copied onto a class account. The dot on your avatar and the number beside **Inbox** are how many you have not opened.
                Where it is. **Inbox** in the account menu at the top right, under your name, just above Support.
                How you do it.
                1. Tap your name at the top right.

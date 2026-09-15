@@ -3434,3 +3434,63 @@ red suite (`premiumPrompt.orgFreeAccess`) failing on `supportIdForLearnerId` mis
 SHARED checkout's stale `@ssi/core` dist (branch `perf/journey-baseline-2026-09-01`), which the
 worktree's symlinked node_modules resolves to — not this change; typecheck of both packages is
 clean against a locally built core.
+
+## 2026-09-15 — Organisation members never read "school" where their workplace belongs (job #786)
+
+**Trigger.** Deborah (SSi staff) set up a test organisation for the National Museum's Welsh
+learners, invited herself as Group Leader with a second email, and the Set-a-password card
+said "school email filters often swallow those". Tom: "I'll do a sweep for any inappropriate
+schools mentions." A customer is waiting, so this rode dev → staging → main in one pass.
+
+**Method.** The static grep is ~1,500 lines, most of them comments and schools-product files,
+so the sweep was walked, not grepped: a real organisation was provisioned on staging through
+`/orgs`, a second leader and a learner were invited by personal link and a shareable learner
+link was minted, and every screen those three people reach was screenshotted with its text
+dumped and searched for school / teacher / class / pupil / student. What surfaced, and what
+was done with it:
+
+- **Set a password card** (shared by school and org node homes): "school email filters" →
+  "some email filters". Neutral, because the card has no idea what it is mounted on.
+- **Signed-out sign-in page** at `/org/:id` read "SaySomethingin · Schools / Your classes are
+  waiting / School email / you@school.edu / Join school / I'm setting up a new school", and
+  promised an **Access code** that only a school admin can mint. The container now reads the
+  lane off the URL (`/org/*` vs `/schools/*`) — a signed-out visitor has no role yet — and the
+  org lane says organisation / people / work email / `/orgs`, with the no-inbox route being a
+  password or a re-sent invite. A school admin bookmarked on `/org/:schoolId` reads the
+  organisation wording, which is still true of a school.
+- **Support and Inbox** (reached from the org leader's menu): "This thread belongs to your
+  school" → "your school or organisation"; "replies on your school's Support thread" → "on
+  your Support thread"; and the top bar stops saying "· Schools" on those two `/schools/*`
+  pages for a group leader, the same rule it already applied on `/org/*`.
+- **Insights** on an organisation read "0 of your 0 classes practised together this week",
+  "Every class has practised…", "No class has started the course yet" and the rate engine's
+  "No classes below this yet". An organisation is groups all the way down (nodeTerminology's
+  neutral preset, derived from the same `/home` payload), so on such a node the class-only
+  readings are not shown: the rate engine and the Quiet and Journey questions go, and the
+  Practising question asks how many of your people practised. Not a new measure, the people
+  line the panel already carried. Schools are untouched — a school with no classes yet still
+  reads its three class questions.
+- **Redeem / invite screens**: a learner code minted at an organisation or plain group is a
+  "Learner Invite" that joins "{group name}", not a "Student Invite" that joins "this class";
+  govt_admin codes read "Group Leader" (the word the top bar already uses); the `/group` door's
+  facts name people and groups instead of schools; the OTP delivery hints only promise an
+  Access code when the code belongs to a school, and the org signup door's hint says work
+  email. Settings' "If your school blocks our mail" → "school or workplace"; its join-code
+  role label follows the same Student-vs-Learner rule.
+
+**Left alone, deliberately.** `JoinWithCode.vue` ("Someone at your school made you an access
+code") — access codes are refused to group leaders by `api/school/staff-signin-link.ts`, so
+only school staff can reach it. The Handbook page: 46 of its 122 capabilities are visible to a
+leader and almost all are written in school words (classes, teachers, pupils) because they
+describe school capabilities; an org handbook is its own job, not a copy sweep. The 21
+non-English locales still carry their translated "school" wording for the three reworded
+keys (`schools.ui.passwordPrompt.body`, `schools.support.doorLine`, `schools.inbox.lede`) —
+the register only takes keys missing somewhere, so they are listed as a gap for the next
+translation pass. Server-side rate-compare reason text unchanged (unreachable on an org now).
+
+**Proof.** `OrgIntelPanel.test.ts` (three classless cases) and
+`SchoolsPasswordPrompt.orgWording.test.ts` red on the origin/dev sources, green on this
+branch; i18n gates (no bare English, t-in-scope, locale parity) green; walkthrough `--check`
+green after `--reconfirm`; `test:premerge` invariants green and `--changed` 125 files / 883
+tests green once the worktree had its own `@ssi/core` build (the shared checkout's dist gave
+the usual false reds).

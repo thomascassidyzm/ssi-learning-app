@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `bcbb72f5d131` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `b1ccb8275ae4` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -818,7 +818,7 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `way
 
 Section: your-own-account · roles: teacher, school_admin, leader · anchor: `schools-inbox-menu` · in `packages/player-vue/src/components/schools/shared/SchoolsTopBar.vue`
 
-**What it's for.** Getting to the messages sent to you: a reply on your school's Support thread, or a notice that your own practice was copied onto a class account. The dot on your avatar and the number beside **Inbox** are how many you have not opened.
+**What it's for.** Getting to the messages sent to you: a reply on your Support thread, or a notice that your own practice was copied onto a class account. The dot on your avatar and the number beside **Inbox** are how many you have not opened.
 
 **Where it is.** **Inbox** in the account menu at the top right, under your name, just above Support.
 
@@ -916,7 +916,7 @@ Section: running-classes · roles: school_admin, teacher · anchor: `classes-tab
 
 Section: your-own-account · roles: teacher, school_admin, leader · anchor: `schools-inbox` · in `packages/player-vue/src/views/schools/InboxView.vue`
 
-**What it's for.** Reading what has been sent to you: a reply on your school's Support thread, or a notice that your own practice was copied onto a class account, with one tap to undo it.
+**What it's for.** Reading what has been sent to you: a reply on your Support thread, or a notice that your own practice was copied onto a class account, with one tap to undo it.
 
 **Where it is.** **Inbox** in the account menu at the top right, under your name. The number beside it is how many you have not opened.
 
@@ -1578,7 +1578,7 @@ Section: seeing-progress · roles: teacher, school_admin · anchor: `class-tools
 
 Section: seeing-progress · roles: leader, school_admin · anchor: `insights-org-journey` · in `packages/player-vue/src/insight/OrgIntelPanel.vue`
 
-**What it's for.** Where in the course your classes have got to, shown as the last phrase each class played, and the point most of them stop before.
+**What it's for.** Where in the course your classes have got to, shown as the last phrase each class played, and the point most of them stop before. An organisation with no classes does not see this question.
 
 **Where it is.** The **Journey** question on any level's insights page, under Quiet.
 
@@ -1665,7 +1665,7 @@ Section: seeing-progress · roles: admin · anchor: `question-weak-points` · in
 
 Section: seeing-progress · roles: leader, school_admin · anchor: `insights-org-quiet` · in `packages/player-vue/src/insight/OrgIntelPanel.vue`
 
-**What it's for.** The half you act on: which classes practised before and have stopped, how long ago, and which have never started at all.
+**What it's for.** The half you act on: which classes practised before and have stopped, how long ago, and which have never started at all. An organisation with no classes does not see this question.
 
 **Where it is.** The **Quiet** question on any level's insights page, under Practising.
 
@@ -1679,7 +1679,7 @@ Section: seeing-progress · roles: leader, school_admin · anchor: `insights-org
 
 Section: seeing-progress · roles: leader, school_admin · anchor: `insights-org-practising` · in `packages/player-vue/src/insight/OrgIntelPanel.vue`
 
-**What it's for.** Whether your classes are actually doing it: how many practised together in the last seven days against the seven before, how many phrases they practised, and which people practised on their own account and for how long.
+**What it's for.** Whether your classes are actually doing it: how many practised together in the last seven days against the seven before, how many phrases they practised, and which people practised on their own account and for how long. An organisation with no classes reads only the people line here, asked as how many of your people practised.
 
 **Where it is.** The **Practising** question at the top of any level's insights page.
 
