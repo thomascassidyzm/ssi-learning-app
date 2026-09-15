@@ -1,3 +1,30 @@
+## 2026-09-15 — Insights under View As reads the VIEWED teacher's classes, so a class whose only practice is play-as-class draws (job #788)
+
+**Tom's report.** Schools > Insights, View as R Jeffery (teacher, Ysgol Cas-gwent, 11P): "No classes
+yet — once you have a class with sessions, it compares here." The dashboard and the class page for
+the same class read 18 minutes played as class that week, 55 phrases, 7 of 679 travelled.
+
+**Cause, verified against production, not the scout.** Scout #787's two candidates — the dead
+`player_events.session_id` join and the bulk-stamped `course_progress` view — are not on this path.
+TeacherInsightsView takes its class list from `GET /api/me/teaching-context`, which scopes to the
+CALLER's auth uid, and under View As the caller is the ssi_admin. All 13 ssi_admins teach zero
+classes, so production answered `{classes: []}` six times per page load and the view showed its
+honest zero-classes state. The rate engine itself already has 11P as its own entity off the class
+account's diary (18.4 min over 30 days, live probe) — Tom's ruling that play-as-class IS the class
+data was already true one layer down; the picker never got to ask.
+
+**Fix.** One door on teaching-context: a caller carrying the View As header who passes `verifyAdmin`
+may send `?as=<auth uid>` and gets that person's context. Any other caller sending `as` is refused
+with 403 rather than quietly answered for themselves. The view sends the persona uid while
+`viewingAs` is set. No learner progress row is read or written; nothing about a real teacher's own
+login changes.
+
+**Proof.** `api/me/teaching-context.test.ts` two new cases red on the pre-fix handler, 15/15 green
+after; `TeacherInsightsView.test.ts` one new case red on the pre-fix view, 8/8 green after; live
+opt-in case for 11P added to `rate-compare.live.test.ts`; `test:premerge` green; both typechecks
+clean against a per-worktree install. Production before/after screenshots via
+`e2e/_788-viewas-insights-probe.mjs`.
+
 ## 2026-09-15 — Three red nightlies on dev were merges, not a broken build: eight fixes and a one-minute pre-merge gate (job #774)
 
 **Symptom.** The watson-1 nightly (`~/command-surface/ops/ci-run.sh`) went red on dev, staging
