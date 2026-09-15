@@ -1,0 +1,50 @@
+{
+  "id": "org-choose-courses",
+  "title": "Choose which courses a school can use",
+  "personas": [
+    "admin"
+  ],
+  "place": {
+    "route": "node-home",
+    "kinds": [
+      "org",
+      "group",
+      "school"
+    ]
+  },
+  "keywords": [
+    "courses",
+    "entitlement",
+    "trial",
+    "paid",
+    "access",
+    "catalogue"
+  ],
+  "steps": [
+    {
+      "anchor": "verb-courses",
+      "say": "**Courses** sets what a school or group is allowed to learn — the whole catalogue once they're paid up, or a named course or two while they're trialling.",
+      "advance": {
+        "on": "click"
+      },
+      "checked": "bce2618f.f4c32f5f"
+    },
+    {
+      "anchor": "verb-courses",
+      "say": "Choose **Trial** and search for the one or two courses it should carry, or **Paid** for the whole catalogue with no per-course picking.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "bce2618f.eff71434"
+    },
+    {
+      "anchor": "verb-courses",
+      "say": "Save, and everyone below that node inherits it. A trial runs for thirty days on a paid course and a year on a free or community one — the server works the dates out on save, so what you see before saving is a preview.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's the whole of it — pick Trial or Paid, choose the courses if it's a trial, and save.",
+      "checked": "bce2618f.8b8d66a3"
+    }
+  ]
+}
