@@ -89,12 +89,15 @@ const landingHeading = computed(() => 'Bring SSi to your group')
 const landingSub = computed(() => {
   const groupName = pendingCode.value?.groupName
   if (groupName) return `You've been invited to lead ${groupName}'s SSi rollout.`
-  return "You've been invited to lead a group's SSi rollout — schools, academy chains, counties, whole countries."
+  return "You've been invited to lead a group's SSi rollout — a workplace, a college, a council, a whole country."
 })
+// Neutral on purpose: this door is reached by the leader of ANY group — a
+// museum, a council, a school network — so the facts name people and groups,
+// never schools (job #786).
 const landingFacts = [
-  'Invite schools with one shareable link — no spreadsheets to maintain',
-  'Every school you add shows up on your dashboard automatically',
-  'See progress across your whole group, roll up or drill into one school',
+  'Invite your people with one shareable link — no spreadsheets to maintain',
+  'Everyone you add shows up on your dashboard automatically',
+  'See progress across your whole organisation, or drill into one group',
 ]
 const isSignedIn = computed(() => auth?.isAuthenticated?.value ?? false)
 const userEmail = computed(() => auth?.user?.value?.email || '')
@@ -105,13 +108,17 @@ const displayTitle = computed(() => {
   if (pendingCode.value.codeKind === 'entitlement') {
     return pendingCode.value.label || 'Access Code'
   }
+  // A learner code that belongs to a school or a class is a Student invite;
+  // one minted at an organisation or a plain group is a Learner invite
+  // (job #786: the word follows the place, never the schools product).
+  const inSchool = !!(pendingCode.value.schoolName || pendingCode.value.className)
   const map: Record<string, string> = {
     ssi_admin: 'SSi Admin Invite',
-    govt_admin: 'Group Admin Invite',
+    govt_admin: 'Group Leader Invite',
     school_admin: 'School Admin Invite',
     school_admin_join: 'School Admin Invite',
     teacher: 'Teacher Invite',
-    student: 'Student Invite',
+    student: inSchool ? 'Student Invite' : 'Learner Invite',
     tester: 'Beta Tester Invite',
   }
   return map[pendingCode.value.codeType || ''] || 'Invite Code'
@@ -193,11 +200,13 @@ const authInstructionText = computed(() => {
     case 'teacher': return 'Enter your email to set up your teacher account'
     case 'student': {
       const cls = pc.className
-      return cls ? `Enter your email to join ${cls}` : 'Enter your email to join this class'
+      if (cls) return `Enter your email to join ${cls}`
+      if (pc.schoolName) return `Enter your email to join ${pc.schoolName}`
+      return pc.groupName ? `Enter your email to join ${pc.groupName}` : 'Enter your email to join this group'
     }
     case 'school_admin': return 'Enter your email to set up your school account'
     case 'school_admin_join': return 'Enter your email to join this school as an admin'
-    case 'govt_admin': return 'Enter your email to set up your group admin account'
+    case 'govt_admin': return 'Enter your email to set up your group leader account'
     default: return 'Enter your email to get started'
   }
 })
@@ -208,10 +217,10 @@ const successHeading = computed(() => {
   if (pc.codeKind === 'entitlement') return 'Access activated!'
   switch (pc.codeType) {
     case 'teacher': return 'Welcome! Your teacher account is ready'
-    case 'student': return "You've joined the class!"
+    case 'student': return pc.className || pc.schoolName ? "You've joined the class!" : (pc.groupName ? `You've joined ${pc.groupName}!` : "You're in!")
     case 'school_admin': return 'Your school account is ready'
     case 'school_admin_join': return 'Your school admin account is ready'
-    case 'govt_admin': return 'Your group admin account is ready'
+    case 'govt_admin': return 'Your group leader account is ready'
     default: return "You're all set!"
   }
 })
@@ -960,10 +969,16 @@ function goHome() {
           <button type="button" class="link-action" :disabled="isLoading" @click="step = 'details'; error = ''">
             {{ t('redeem.useDifferentEmail') }}
           </button>
-          <p class="detail-text detail-text--muted">
+          <!-- Access codes exist only at a school (a school admin mints them on
+               the Teachers page), so the neutral line for an organisation or a
+               plain group points at the invite instead (job #786). -->
+          <p v-if="pendingCode?.schoolName || pendingCode?.className" class="detail-text detail-text--muted">
             If your school email never delivers our codes, ask whoever runs your
             school&rsquo;s account to open Teachers and tap <strong>Access code</strong>
             {{ t('redeem.nextNameTheyCan') }}
+          </p>
+          <p v-else class="detail-text detail-text--muted">
+            {{ t('redeem.workEmailNeverDelivers', 'If your work email never delivers our codes, ask whoever sent your invite to send it again — that link signs you in with no code at all.') }}
           </p>
         </div>
 
@@ -1074,15 +1089,13 @@ function goHome() {
           <Transition name="error-fade">
             <div v-if="showDeliveryHint" class="delivery-hint">
               <p v-if="isPossessionEligible">
-                Still nothing? School email filters often block these codes outright.
+                {{ t('redeem.stillNothingFiltersShort', 'Still nothing? Some school and work email filters block these codes outright.') }}
                 <button type="button" class="delivery-hint-link" @click="backToDetails">{{ t('redeem.goBackSkipEmail') }}</button>
                 — you won't need to wait for anything. Still stuck? Email
                 <a href="mailto:admin@saysomethingin.com">admin@saysomethingin.com</a>.
               </p>
               <p v-else>
-                Still nothing? School email filters often block these codes outright.
-                Try entering a personal email address instead — you can add your school
-                email later — or ask whoever sent your invite to re-share the link.
+                {{ t('redeem.stillNothingFilters', 'Still nothing? Some school and work email filters block these codes outright. Try entering a personal email address instead — you can add your work email later — or ask whoever sent your invite to re-share the link.') }}
                 Still stuck? Email <a href="mailto:admin@saysomethingin.com">admin@saysomethingin.com</a>.
               </p>
             </div>

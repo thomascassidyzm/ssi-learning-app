@@ -104,3 +104,54 @@ describe('OrgIntelPanel', () => {
     expect(w.findAll('.widget-stub')).toHaveLength(3)
   })
 })
+
+// ─── An organisation with no classes (job #786) ─────────────────────────────
+// Deborah's National Museum test: an org is groups all the way down, so two of
+// the three questions have nothing to count and the third must ask about
+// people. Before this the page read "0 of your 0 classes practised together
+// this week" to a workplace leader.
+describe('OrgIntelPanel on a classless organisation', () => {
+  function orgPayload(): OrgIntelPayload {
+    const p = payload()
+    return {
+      ...p,
+      node: { id: 'org-node', name: 'National Museum', kind: 'group' },
+      practising: { ...p.practising, classCount: 0, classesThisWeek: 0, classesLastWeek: 0, phrasesThisWeek: 0, phrasesLastWeek: 0, classMinutesThisWeek: 0, classMinutesLastWeek: 0, peopleCount: 2, peopleThisWeek: 1, ownMinutesThisWeek: 31 },
+      quiet: { quietCount: 0, neverCount: 0, buckets: [] },
+      journey: { courses: [], stages: [{ id: 'started', sentence: null, label: null, classes: 0 }] },
+      classes: [],
+    }
+  }
+
+  it('asks about people, answers about people, and never says class', () => {
+    const w = mount(OrgIntelPanel, {
+      props: { payload: orgPayload(), isLoading: false, error: null, member: true, classless: true },
+      global: { stubs: { RouterLink: RouterLinkStub } },
+    })
+    const text = w.text()
+    expect(text).toContain('How many of your people practised this week')
+    expect(text).toContain('1 of 2 people practised on their own account, 31 minutes between them.')
+    expect(text).not.toMatch(/\bclass(es)?\b/i)
+    expect(w.find('[data-walk="insights-org-quiet"]').exists()).toBe(false)
+    expect(w.find('[data-walk="insights-org-journey"]').exists()).toBe(false)
+  })
+
+  it('says nobody has practised yet when the organisation is empty', () => {
+    const p = orgPayload()
+    p.practising = { ...p.practising, peopleCount: 0, peopleThisWeek: 0, ownMinutesThisWeek: 0 }
+    const w = mount(OrgIntelPanel, {
+      props: { payload: p, isLoading: false, error: null, member: true, classless: true },
+      global: { stubs: { RouterLink: RouterLinkStub } },
+    })
+    expect(w.text()).toContain('Nobody below this has practised yet.')
+  })
+
+  it('keeps the three class questions for a school, classless or not', () => {
+    const w = mount(OrgIntelPanel, {
+      props: { payload: payload(), isLoading: false, error: null, member: true, classless: false },
+      global: { stubs: { RouterLink: RouterLinkStub } },
+    })
+    expect(w.text()).toContain('14 of your 34 classes practised together this week')
+    expect(w.find('[data-walk="insights-org-quiet"]').exists()).toBe(true)
+  })
+})

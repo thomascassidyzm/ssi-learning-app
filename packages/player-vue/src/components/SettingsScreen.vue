@@ -1070,7 +1070,11 @@ const joinContextRole = computed(() => {
   if (joinContext.value.codeKind === 'entitlement') {
     return joinContext.value.label || 'Access Code'
   }
-  const map: Record<string, string> = { ssi_admin: 'SSi Admin', govt_admin: 'Group Admin', school_admin: 'School Admin', school_admin_join: 'School Admin', teacher: 'Teacher', student: 'Student', tester: 'Beta Tester' }
+  // A learner code minted at a school or a class is a Student; one minted at
+  // an organisation or a plain group is a Learner (job #786: role words follow
+  // the place the code belongs to, never the schools product by default).
+  const inSchool = !!(joinContext.value.schoolName || joinContext.value.className)
+  const map: Record<string, string> = { ssi_admin: 'SSi Admin', govt_admin: 'Group Leader', school_admin: 'School Admin', school_admin_join: 'School Admin', teacher: 'Teacher', student: inSchool ? 'Student' : 'Learner', tester: 'Beta Tester' }
   return map[joinContext.value.codeType || ''] || joinContext.value.codeType || ''
 })
 
@@ -2319,7 +2323,7 @@ const confirmReset = async () => {
               <span class="setting-label">
                 {{ isPrimaryEmailPlaceholder ? 'A way to reach you' : primaryEmail }}
               </span>
-              <span class="setting-desc">{{ isPrimaryEmailPlaceholder ? 'Somewhere we can reach you if you ever lose this device. Nothing else gets sent there.' : "If your school blocks our mail, add a personal address too — that's your way back in if you lose this device." }}</span>
+              <span class="setting-desc">{{ isPrimaryEmailPlaceholder ? 'Somewhere we can reach you if you ever lose this device. Nothing else gets sent there.' : "If your school or workplace blocks our mail, add a personal address too — that's your way back in if you lose this device." }}</span>
               <!-- Outcome shown HERE, at the button that was pressed. The form
                    itself is below a collapsed section and off-screen on a phone. -->
               <span v-if="verifyingPrimary && addEmailError" class="setting-status error">{{ addEmailError }}</span>

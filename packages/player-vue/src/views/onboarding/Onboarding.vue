@@ -1303,7 +1303,14 @@ async function continueIn() {
 
           <Transition name="fade">
             <div v-if="showDeliveryHint" class="ob-delivery-hint">
-              <p>
+              <!-- The organisation door is a workplace's door, so its hint
+                   must not say school (job #786). The school and tutor doors
+                   keep the wording below. -->
+              <p v-if="props.track === 'org'">
+                {{ t('onboarding.stillNothingWorkFilters', 'Still nothing? Some work email filters block these codes outright. Try entering a personal email address instead — you can add your work email later.') }}
+                Still stuck? Email <a href="mailto:admin@saysomethingin.com">admin@saysomethingin.com</a>.
+              </p>
+              <p v-else>
                 Still nothing? School email filters often block these codes outright.
                 Try entering a personal email address instead — you can add your school
                 email later — or ask whoever sent your invite to re-share the link.
