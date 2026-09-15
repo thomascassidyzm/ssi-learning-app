@@ -1,0 +1,48 @@
+{
+  "id": "funded-org-courses",
+  "title": "See what a funded organisation gives its learners",
+  "personas": [
+    "admin"
+  ],
+  "place": {
+    "route": "node-home",
+    "kinds": [
+      "org"
+    ]
+  },
+  "keywords": [
+    "courses",
+    "enrolment",
+    "free year",
+    "organisation",
+    "granted",
+    "sign-up"
+  ],
+  "steps": [
+    {
+      "anchor": "verb-courses",
+      "say": "Tap **Courses** on the organisation's home page.",
+      "advance": {
+        "on": "click"
+      },
+      "checked": "bce2618f.51c9945b"
+    },
+    {
+      "anchor": "org-enrolment-courses",
+      "say": "This is what the organisation hands out through its own sign-up page — given to each learner as they join, not held on the organisation itself.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "a5eef0fd.8e69b5d1"
+    },
+    {
+      "anchor": "org-enrolment-courses",
+      "say": "The courses listed here, and the length of the free period beside them, come from the organisation's enrolment policy. Changing that list is a change to the policy, so it isn't editable here — everyone who has already signed up keeps what they were given.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's it — a read-only summary of what this organisation grants on sign-up.",
+      "checked": "a5eef0fd.090fb5c5"
+    }
+  ]
+}

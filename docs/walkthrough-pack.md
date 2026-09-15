@@ -1,6 +1,15 @@
 # Walkthrough pack — compiled render
 
-**Version `779027ec6773` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `80fc8b44cac5` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+
+## choose-a-class-course — Choose what a class learns
+
+Personas: school_admin, teacher · place: classes
+
+1. [`create-class-course` · next] Every class carries one course — it decides what the class practises and what students hear the moment they join. You set it here, in the **Create New Class** panel.
+2. [`create-class-course` · click] Type into the box to search the catalogue, then pick the language the class is learning.
+3. [`create-class-course` · next] A school on a free trial is held to the one language it signed up for until it subscribes — the picker only shows that course.
+   - terminal: The course is set when the class is made and stays with it. A class that needs a different language is a new class, which keeps the old one's records intact.
 
 ## choose-something-else-to-learn — Choose something else to learn
 
@@ -10,6 +19,15 @@ Personas: learner · place: library
 2. [`library-course-grid` · next] Tap any one of these and you are straight into it — no setting up, no starting over.
 3. [`library-course-grid` · next] Your current course is not going anywhere. Each one keeps its own place, so you can have a poke at a second language and come back without losing an inch in the first.
    - terminal: That's the Library. Close it and press play to carry on with the one you are in.
+
+## funded-org-courses — See what a funded organisation gives its learners
+
+Personas: admin · place: node-home (org)
+
+1. [`verb-courses` · click] Tap **Courses** on the organisation's home page.
+2. [`org-enrolment-courses` · next] This is what the organisation hands out through its own sign-up page — given to each learner as they join, not held on the organisation itself.
+3. [`org-enrolment-courses` · next] The courses listed here, and the length of the free period beside them, come from the organisation's enrolment policy. Changing that list is a change to the policy, so it isn't editable here — everyone who has already signed up keeps what they were given.
+   - terminal: That's it — a read-only summary of what this organisation grants on sign-up.
 
 ## go-back-over-something — Go back over something
 
@@ -88,6 +106,15 @@ Personas: teacher, school_admin · place: class-detail
 5. [`assign-classes-save` · next] Saving applies only the boxes you actually changed. If one of them fails, it says which class failed and why, rather than claiming everything saved.
    - terminal: That's moving a teacher — one untick, one tick, one save. This tour changed nothing; only your own taps do.
 
+## org-choose-courses — Choose which courses a school can use
+
+Personas: admin · place: node-home (org/group/school)
+
+1. [`verb-courses` · click] **Courses** sets what a school or group is allowed to learn — the whole catalogue once they're paid up, or a named course or two while they're trialling.
+2. [`verb-courses` · next] Choose **Trial** and search for the one or two courses it should carry, or **Paid** for the whole catalogue with no per-course picking.
+3. [`verb-courses` · next] Save, and everyone below that node inherits it. A trial runs for thirty days on a paid course and a year on a free or community one — the server works the dates out on save, so what you see before saving is a preview.
+   - terminal: That's the whole of it — pick Trial or Paid, choose the courses if it's a trial, and save.
+
 ## reading-insights — Reading your insights
 
 Personas: admin, leader, school_admin · place: node-insights
@@ -133,6 +160,23 @@ Personas: leader, school_admin · place: node-home (org/group/school)
 2. [`account-password` · next] If you arrived through a **link in an email**, that link will not last forever. A password is how you get back into your organisation from a new laptop, a new phone, or after clearing your browser.
 3. [`account-password` · next] Tap **Set a password** and the form opens right here. You will sign in with your email address and that password from then on — and you can come back and change it any time.
    - terminal: That is the whole thing — one password, always changeable, always in the same place.
+
+## setup-choose-courses — Choose which courses your school uses
+
+Personas: school_admin · place: setup
+
+1. [`setup-course-picker` · next] Step three of first-time setup, **Choose courses** — everything your school has access to starts ticked here.
+2. [`setup-course-picker` · click] Untick anything you don't plan to teach. This is a filter and nothing more — it doesn't change what your school has access to, it just shortens the list you pick from at the next step.
+   - terminal: Tap Continue and step four's course picker only offers what you left ticked here.
+
+## setup-give-class-course — Give a class its course
+
+Personas: school_admin · place: setup
+
+1. [`setup-class-course` · next] Step four, **Create classes** — each class row already holds the language you signed your school up with, so most classes need nothing done here.
+2. [`setup-class-course` · click] To teach something else, tap the picker and start typing — the catalogue runs to dozens of courses, and this only offers what you left ticked at Choose courses.
+3. [`setup-class-course` · next] Pick the one you want. Where a language offers more than one version, the versions differ by region or accent.
+   - terminal: Save the class and everyone who joins it lands in that course.
 
 ## share-a-class — Share a class with a colleague
 
