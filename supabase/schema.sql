@@ -15852,6 +15852,13 @@ CREATE INDEX idx_class_progress_copy_audit_pair ON public.class_progress_copy_au
 
 
 --
+-- Name: uq_class_progress_copy_audit_running_claim; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_class_progress_copy_audit_running_claim ON public.class_progress_copy_audit USING btree (source_learner_id, course_code) WHERE ((record ->> 'state'::text) = 'running'::text);
+
+
+--
 -- Name: idx_class_sessions_class; Type: INDEX; Schema: public; Owner: -
 --
 

@@ -5,7 +5,9 @@
  * play-as-class learner, merges the cursor to the further position, and
  * writes one append-only class_progress_copy_audit record. Re-plans from the
  * database at the moment of the call (never trusts a client-held preview),
- * so a preview shown minutes ago cannot double anything.
+ * so a preview shown minutes ago cannot double anything. The apply claims
+ * its audit row before it plans; a second apply for the same teacher and
+ * course while one is running is refused with 409 (job #811).
  *
  * Refused under View-as with the standard 403 (Tom browsing staging as
  * Angharad is read-only by design): the preview works there, the apply does
@@ -17,21 +19,25 @@
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { resolveCopyContext, positionWords } from './_shared'
-import { planCopy, applyCopy, cursorPosition } from '../../_utils/classProgressCopy'
+import { applyCopy, cursorPosition } from '../../_utils/classProgressCopy'
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   const ctx = await resolveCopyContext(req, res, { allowViewAs: false })
   if (!ctx) return
   try {
-    const plan = await planCopy(ctx.svc, {
+    const outcome = await applyCopy(ctx.svc, {
       sourceLearnerId: ctx.sourceLearnerId,
       targetLearnerId: ctx.targetLearnerId,
       courseCode: ctx.courseCode,
-    })
-    const { record, auditId, error } = await applyCopy(ctx.svc, plan, {
+    }, {
       actorUserId: ctx.callerUserId,
       classId: ctx.classId,
     })
+    if (outcome.conflict) {
+      res.status(409).json({ error: 'This teacher\'s play is being copied right now. Wait a moment and refresh.' })
+      return
+    }
+    const { record, auditId, error } = outcome
     const copiedCounts = Object.fromEntries(Object.entries(record.copied).map(([t, m]) => [t, Object.keys(m).length]))
     const totalRows = Object.values(copiedCounts).reduce((a, b) => a + b, 0)
     const classNow = await positionWords(ctx.svc, ctx.courseCode, cursorPosition(record.cursorAfter.target))
