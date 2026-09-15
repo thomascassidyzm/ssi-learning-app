@@ -3139,3 +3139,11 @@ marielane 85, Tredegar 10R Miss Smith 8, SR Mrs Ruttley 102, Monmouth 7GSN Mr Sn
 audit rows and five inbox notices with one-tap Undo, one per teacher, verified in the live DB.
 Reconcile re-scan: 0 copies remaining; ambiguous 183 → 188, the delta exactly the five classes now
 in `condition_3_class_account_has_play`, every other entry bit-identical. Trial scope untouched.
+
+**Addition (Tom, 00:16Z): the school leaders were told.** Four inbox messages, one per school row,
+sent through `sendUserMessage` with idempotent dedupe keys by
+`tools/leader-notice-teacher-play-sweep-2026-09-15.mjs`: angharadjones at Chepstow for 11E and 11H,
+Miss Morris at Ysgol Gyfun Tredegar for 10R, hughesr310 at the second Ysgol Gyfun Tredegar school row
+for SR, Anna Aggleton at Monmouth for 7GSN — Tredegar exists as two school rows with two different
+leaders, so each got the note for their own class. The five teachers received nothing further; the
+live table holds exactly one `class_play_copied` message per teacher and per leader, nine in all.
