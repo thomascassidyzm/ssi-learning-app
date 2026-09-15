@@ -77,7 +77,13 @@ BEGIN
     revoked_at = CASE WHEN NEW.status = 'past_due' AND NEW.paddle_revoked_at IS NULL
                       THEN user_entitlements.revoked_at ELSE EXCLUDED.revoked_at END
   WHERE user_entitlements.learner_id = EXCLUDED.learner_id;
-  IF NOT FOUND THEN RAISE EXCEPTION 'Paddle grant owner mismatch'; END IF;
+  -- Fail-soft, deliberately (job #837): this mirror is additive and fires on
+  -- every subscriptions write, including production's Paddle webhook on main.
+  -- A grant already owned by another learner leaves the ledger untouched and
+  -- warns; it must never be the reason a real subscriber's renewal fails.
+  IF NOT FOUND THEN
+    RAISE WARNING 'Paddle grant owner mismatch: % retained by its existing owner', NEW.provider_subscription_id;
+  END IF;
   RETURN NEW;
 END;
 $$;
