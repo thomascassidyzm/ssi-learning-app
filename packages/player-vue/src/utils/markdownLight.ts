@@ -16,6 +16,10 @@ export type Paragraph = Run[][] // lines of runs
 
 const URL_RE = /https?:\/\/[^\s<>()]+[^\s<>().,!?;:'"]/g
 
+function run(text: string, bold: boolean): Run {
+  return bold ? { text, bold: true } : { text }
+}
+
 function runsOf(line: string): Run[] {
   const out: Run[] = []
   const parts = line.split(/(\*\*[^*]+\*\*)/g)
@@ -26,11 +30,11 @@ function runsOf(line: string): Run[] {
     let last = 0
     for (const m of text.matchAll(URL_RE)) {
       const at = m.index ?? 0
-      if (at > last) out.push({ text: text.slice(last, at), bold })
-      out.push({ text: m[0], bold, href: m[0] })
+      if (at > last) out.push(run(text.slice(last, at), bold))
+      out.push({ ...run(m[0], bold), href: m[0] })
       last = at + m[0].length
     }
-    if (last < text.length) out.push({ text: text.slice(last), bold })
+    if (last < text.length) out.push(run(text.slice(last), bold))
   }
   return out
 }
