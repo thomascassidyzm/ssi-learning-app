@@ -3180,3 +3180,13 @@ holds a belt whose first round lies past the wall too, so the target is not in t
 the preview — the feature working as designed, not a paywall move. Hydration does not enter the
 computation (it reads the saved timestamp and the served rounds), so pending hydration cannot
 change the target either. Nothing to route through the hold.
+
+**Addition (same job): the two lifecycle writers refuse on `accessPending()` themselves.** The #760
+test (`LearningPlayer.pendingHydration.test.ts`) drives `saveResumeAudio` and the visibilitychange
+callback straight from the extracted source against a hand-built context — no watcher runs, so a
+hold raised by the `positionInitialized` watcher is invisible to it. Rather than teach the harness
+the watcher's behaviour, `savePositionToLocalStorage` and `persistLivePositionToDb` now also return
+while `entitlementComposable.accessPending()` is true: the writer refuses on the source-of-truth
+predicate, and the pending-verdict hold in `paywallRetreat` still covers the navigation cursor
+writer and the cycle queue. Dev was deliberately red on those two cases until this landed; green
+now with the real guard, not the test's in-memory control.
