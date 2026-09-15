@@ -3679,13 +3679,13 @@ on the one open path, no new state or surface. Cheaper: one network fetch in the
 case, no migration code, no reload prompt.
 - 2026-09-15, #854: CLIPS ARE GATED "AS WE GO". Tom: "the handbook is STILL just a bunch of prose
 in most cases … we should be building the clips for everything else as we go along." The wiring
-of clips into the Handbook (#302, #627) was already live; the gap was coverage: 17 of 122
-capabilities had a walk. Gate 13 in `tools/walkthrough/lib.mjs` reads
+of clips into the Handbook (#302, #627) was already live; the gap was coverage: 15 of 122
+capabilities had a walk, 107 did not. Gate 13 in `tools/walkthrough/lib.mjs` reads
 `tools/walkthrough/coverage.json` and fails `compile.mjs --check` on any HANDBOOK capability no
 walk steps on that is not declared obvious with a sentence or on the missing backlog, and on any
 routed page under `views/` with no anchor on it or on what it imports. A registry line whose
-subject has since gained a walk or an anchor fails too. Enrolled today: 105 capabilities on the
-backlog, 16 pages obvious, 6 pages missing. The support drafter (command-surface
+subject has since gained a walk or an anchor fails too. Enrolled today: 107 capabilities on the
+backlog under 105 keys, two keys each covering two entries, 16 pages obvious, 6 pages missing. The support drafter (command-surface
 `tools/support/handbook.cjs`, `moves.cjs`) now points on a walked entry even without prose steps
 and tells the admin to tap Show me. Closed Handbook rows with a clip carry a Show-me chip.
 Inventory: https://watson-1.tail4968cb.ts.net/d/1f70d46b
@@ -3693,3 +3693,20 @@ Inventory: https://watson-1.tail4968cb.ts.net/d/1f70d46b
 **Better × Simpler × Cheaper.** Better: a new page or capability cannot ship silently unclipped;
 the debt is a list, not a feeling. Simpler: one more gate in the compiler that already exists, one
 JSON registry, no new system. Cheaper: the gate runs inside the existing `--check` and vitest run.
+
+## 2026-09-15 — Gate 13 tightened: a named walk must step the anchor, and a build failure is a build failure (job #860)
+
+A cold verifier found gate 13 read as enforced and was not, twice. `gateClipCoverage` accepted a
+capability as clipped when its block merely NAMED a walk, without that walk stepping the anchor,
+and the stale-debt checks only looked at stepped anchors, so a named walk beside a backlog line
+passed. And `compile.mjs --build`, the path Vercel runs, printed gate failures as advisory and
+built anyway. Both closed: a `walk:` line whose walk does not exist or never steps the anchor
+fails; clipped-ness is decided by stepping alone, so a stale backlog line is always caught; and
+gate failures exit 1 on every path including the build. `routeViewsFrom` now reads double-quoted
+imports too. `WALKTHROUGH_COVERAGE_JSON` exists only so a test can hand `--build` a registry with a
+gap and watch it exit non-zero. Inventory corrected above: 15 clipped, 107 unclipped under 105
+backlog keys. Live tree was audited first: all 11 named walks step their anchors, so nothing broke.
+
+**Better × Simpler × Cheaper.** Better: the control is now what it claims to be. Simpler: fewer
+lines, the advisory branch is gone. Cheaper: a broken Handbook stops a deploy instead of costing a
+morning of trust later.
