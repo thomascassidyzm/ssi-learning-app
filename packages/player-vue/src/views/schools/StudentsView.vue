@@ -226,6 +226,11 @@ watch(selectedUser, (newUser) => {
         type="search"
         class="filters-search"
         :placeholder="t('schools.students.searchByNamePlaceholder', 'Search by name...')"
+        enterkeyhint="search"
+        autocapitalize="off"
+        autocorrect="off"
+        autocomplete="off"
+        spellcheck="false"
       />
       <label class="filter">
         <span class="filter-label">{{ t('schools.students.classFilterLabel', 'Class') }}</span>
