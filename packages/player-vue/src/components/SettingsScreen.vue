@@ -3,6 +3,7 @@ import { ref, computed, inject, onMounted } from 'vue'
 import { unregisterAllServiceWorkers, clearAllCaches } from '../composables/useServiceWorkerSafety'
 import { getAudioCache } from '../cache/createAudioCache'
 import { useBeltProgress } from '../composables/useBeltProgress'
+import { clearDeviceCache, deviceStorageScope } from '../composables/classStorageScope'
 import { useTheme } from '../composables/useTheme'
 import { useInviteCode, type InviteCodeContext } from '../composables/useInviteCode'
 import { useAuthModal } from '../composables/useAuthModal'
@@ -240,9 +241,8 @@ const confirmRecover = async () => {
     // The device's cached position (localStorage) is checked BEFORE the
     // server cursor on resume — clear it so the reload below actually picks
     // up the recovered position instead of re-serving a stale local cache.
-    try {
-      localStorage.removeItem(`ssi_learning_position_${courseCode.value}`)
-    } catch { /* ignore — best-effort */ }
+    // Account-suffixed keys AND the legacy unsuffixed ones (job #811).
+    clearDeviceCache(courseCode.value, deviceStorageScope(null, auth?.learnerId?.value ?? null))
 
     // Same pagehide race as confirmReset below: Settings only pauses
     // playback, so a dormancy flush on the reload could re-save the
@@ -1790,9 +1790,10 @@ const confirmReset = async () => {
     // server cursor on resume when it's fresher — clear it so a reset
     // can't be resurrected by a stale local key (same fix as
     // confirmRecover above; the two flows used to disagree here).
-    try {
-      localStorage.removeItem(`ssi_learning_position_${course}`)
-    } catch { /* ignore — best-effort */ }
+    // Account-suffixed keys AND the legacy unsuffixed ones (job #811). This
+    // also clears the belt cursor and session history, which
+    // resetProgress() below only rewrites under the legacy key.
+    clearDeviceCache(course, deviceStorageScope(null, auth?.learnerId?.value ?? null))
 
     // Suspend position writes until the reload below actually happens —
     // opening Settings only pauses playback, it doesn't unmount

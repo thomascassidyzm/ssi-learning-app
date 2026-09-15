@@ -87,7 +87,7 @@ beforeEach(async () => {
   canTeach = true
   planCopy.mockReset().mockResolvedValue(PLAN)
   applyCopy.mockReset().mockResolvedValue({
-    auditId: 'audit-1', error: null,
+    conflict: false, auditId: 'audit-1', error: null,
     record: { copied: { sessions: { s1: 'n1', s2: 'n2' } }, alreadyPresent: {}, skipped: [], cursorBefore: {}, cursorAfter: { target: null }, cursorTakenFromSource: true, minutesAdded: 4, inAppSecondsCopied: 120 },
   })
   apply = (await import('./apply')).default
@@ -140,13 +140,14 @@ describe('apply happy path and failure', () => {
     const res = makeRes()
     await apply(makeReq({ class_id: 'class-1', teacher_user_id: 'co-teacher' }), res)
     expect(res.statusCode).toBe(200)
-    expect(planCopy).toHaveBeenCalledWith(expect.anything(), { sourceLearnerId: 'co-learner', targetLearnerId: 'class-learner', courseCode: 'cym_s_for_eng' })
-    expect(applyCopy).toHaveBeenCalledWith(expect.anything(), PLAN, { actorUserId: 'angharad', classId: 'class-1' })
+    // The route never plans itself: the apply claims first, then plans inside the claim (job #811).
+    expect(planCopy).not.toHaveBeenCalled()
+    expect(applyCopy).toHaveBeenCalledWith(expect.anything(), { sourceLearnerId: 'co-learner', targetLearnerId: 'class-learner', courseCode: 'cym_s_for_eng' }, { actorUserId: 'angharad', classId: 'class-1' })
     expect(res.body).toMatchObject({ audit_id: 'audit-1', copied: { sessions: 2 }, total_rows: 2, cursor_taken_from_teacher: true, teacher: { name: 'Mr Pugh' } })
   })
   it('a part-way failure is a 500 naming the table — never a false Copied', async () => {
     applyCopy.mockResolvedValue({
-      auditId: 'audit-2', error: 'response_metrics: boom',
+      conflict: false, auditId: 'audit-2', error: 'response_metrics: boom',
       record: { copied: { sessions: { s1: 'n1' } }, alreadyPresent: {}, skipped: [], cursorBefore: {}, cursorAfter: { target: null }, cursorTakenFromSource: false, minutesAdded: 0, inAppSecondsCopied: 0 },
     })
     const res = makeRes()
@@ -154,5 +155,12 @@ describe('apply happy path and failure', () => {
     expect(res.statusCode).toBe(500)
     expect(res.body.error).toMatch(/Copy stopped part-way: response_metrics/)
     expect(res.body.copied.sessions).toBe(1)
+  })
+  it('a concurrent apply for the same teacher and course is a 409, never a double (job #811)', async () => {
+    applyCopy.mockResolvedValue({ conflict: true })
+    const res = makeRes()
+    await apply(makeReq({ class_id: 'class-1', teacher_user_id: 'lead-teacher' }), res)
+    expect(res.statusCode).toBe(409)
+    expect(res.body.error).toMatch(/being copied right now/)
   })
 })

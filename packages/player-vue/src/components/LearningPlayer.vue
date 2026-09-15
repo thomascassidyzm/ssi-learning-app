@@ -79,7 +79,7 @@ import {
   type LearningMode,
 } from '../composables/useAlgorithmConfig'
 import { resolveNewLearnerMode } from '../composables/newLearnerMode'
-import { classStorageScope, deviceStorageScope } from '../composables/classStorageScope'
+import { classStorageScope, deviceStorageScope, clearDeviceCache } from '../composables/classStorageScope'
 import { computePauseDuration } from '../playback/computePauseDuration'
 import { bulkDownloadAudio, fetchBatchAudioUrls } from '../playback/bulkAudioDownload'
 import { buildOfflineDownloadQueue, buildFetchAheadOrder } from '../playback/offlineDownloadOrder'
@@ -4267,13 +4267,11 @@ const resolveResumePosition = (rounds: any[]): { roundIndex: number; cycleIndex:
  */
 const clearPositionFromLocalStorage = () => {
   if (!courseCode.value) return
-  try {
-    const clearKey = getPositionStorageKey()
-    if (clearKey) localStorage.removeItem(clearKey)
-    console.log('[LearningPlayer] Position cleared from localStorage')
-  } catch (err) {
-    console.warn('[LearningPlayer] Failed to clear position:', err)
-  }
+  // Every device cache for this account on this course — position, belt,
+  // session history — under the account suffix AND the legacy unsuffixed
+  // key (job #811: only the legacy key was being cleared after #790).
+  const keys = clearDeviceCache(courseCode.value, deviceScope.value)
+  console.log('[LearningPlayer] Device cache cleared from localStorage:', keys.length, 'keys')
 }
 
 // Course welcome from cached script (plays once on first visit)
