@@ -46,6 +46,7 @@ import { setSchoolsClient } from './schools/client'
 // sign-in within one page load.
 let session: any = null
 const client: any = {
+  from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: { id: 'learner-1' }, error: null }) }) }) }),
   auth: { getSession: async () => ({ data: { session } }) },
 }
 

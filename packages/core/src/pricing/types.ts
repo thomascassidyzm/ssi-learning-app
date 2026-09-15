@@ -98,7 +98,7 @@ export interface CourseAccessResult {
 }
 
 /**
- * User subscription status (sourced from Supabase + Stripe webhooks).
+ * User subscription status (sourced from Supabase and the grants ledger).
  */
 export interface UserSubscriptionStatus {
   /** Whether user has an active subscription */
@@ -120,7 +120,7 @@ export interface UserSubscriptionStatus {
   expiresAt?: string | null;
 
   /** Source of subscription */
-  source?: 'stripe' | 'gift' | 'government' | 'admin_grant';
+  source?: 'paddle' | 'play' | 'apple' | 'invoice' | 'code' | 'gift' | 'admin' | 'email_allowlist';
 }
 
 /**

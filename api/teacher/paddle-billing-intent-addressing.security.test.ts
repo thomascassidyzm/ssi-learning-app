@@ -118,7 +118,13 @@ function makeSupabase(opts: Options = {}) {
     builder.then = (resolve: any) => resolve({ data: [], error: null })
     return builder
   }
-  return { from } as any
+  return { from, rpc: async (name: string, args: Record<string, unknown>) => {
+    expect(name).toBe('write_additional_paddle_grant')
+    expect(args.p_ref).toBe('sub_NEW')
+    // The grant is keyed to this purchase; it cannot change the victim's paid grant.
+    expect(args.p_ref).not.toBe(subscription?.provider_subscription_id)
+    return { data: null, error: null }
+  } } as any
 }
 
 let handleSubscriptionEvent: typeof import('./paddle-webhook').handleSubscriptionEvent

@@ -33,6 +33,7 @@ import PlanPicker from './PlanPicker.vue'
 import { useCheckout } from '@/composables/useCheckout'
 
 const supabase = ref({
+  from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: { id: 'learner-1' }, error: null }) }) }) }),
   auth: {
     getSession: async () => ({ data: { session: { user: { id: 'user-1', email: 'a@b.test' } } } }),
   },
