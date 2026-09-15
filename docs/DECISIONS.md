@@ -1,3 +1,40 @@
+## 2026-09-15 — A Paddle refund closes the grant at the trigger, not with a main deploy (job #851)
+
+**The hole.** Production runs `main` at `ea0683f`, cut before the grants ledger. Its refund and
+chargeback writer sets only `status='cancelled', cancel_at_period_end=true, updated_at` on
+`subscriptions`; it cannot set `paddle_revoked_at`. The #837 mirror trigger read that as an ordinary
+cancellation and left the mirrored grant OPEN until `current_period_end`, which `main`'s resolver
+then honours. Confirmed on live rows: replaying that exact UPDATE on a real annual subscriber inside
+a rolled-back transaction left the grant open to 2027-09-14. A refunded learner would have kept a
+year of paid access. No live row is currently in that state.
+
+**The choice.** Option (a) of the brief: teach the trigger `main`'s refund signature. **Better** — it
+closes the hole for production today, and it names the intent at the source, so the ledger's own
+`revoked_at` carries the truth rather than an expiry fudge. **Simpler** — one `CREATE OR REPLACE` of
+a function that already exists, no new object, no code change, no deploy, and it becomes dead weight
+rather than a conflict once `main` catches up with dev's writer, which sets `paddle_revoked_at`
+explicitly and takes the earlier branch. **Cheaper** — a migration against a database all three
+environments already share beats a production hotfix that would need Tom's decision, a Vercel build
+and a soak; and it costs nothing at runtime, being four extra column comparisons inside a trigger
+that already fires on the same write.
+
+**Why the signature is safe.** The refund write is the only one that sets `status='cancelled'` with
+`cancel_at_period_end=true` in one statement, and it writes nothing else, so `plan_id`, `plan_name`,
+`current_period_end` and `provider_customer_id` are all unchanged from OLD; every webhook upsert
+writes those four. Requiring them unchanged therefore cannot miss a refund and excludes an ordinary
+`subscription.updated`/`canceled` write. A period-end cancellation arrives as cancelled with
+`cancel_at_period_end=false` and a null period end — all twelve live cancelled rows look exactly like
+that — and keeps #837's access to the paid period end. The reverse adjustment writes
+`status='active'` and re-opens the grant through the existing CASE. The clamp can only fire on a row
+whose status is not `active`, which had no access at all on `main` before #837, so it cannot cut a
+live payer off. Nothing in the path raises: fail-soft is preserved, because the trigger runs inside
+production's webhook transaction.
+
+**Proof.** `supabase/secfix-toolkit/canary_851_refund_revokes_grant.cjs`, one rolled-back
+transaction: RED against the live trigger, GREEN with `20260915d_paddle_refund_revokes_grant.sql`
+applied in-transaction, asserting in the same run that a period-end cancellation, a renewal, a
+reversed refund and the seven live active subscribers are all untouched.
+
 ## 2026-09-15 — The rate-compare privacy floor is by cohort kind, not by role: classes compare from one peer (job #799)
 
 **Tom's ruling (11:35Z).** "The comparison limit to 5 was for INDIVIDUAL users, to not be identified
