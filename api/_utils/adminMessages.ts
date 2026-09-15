@@ -16,11 +16,14 @@
  * a last_practiced_at, a highest completed LEGO, or practice minutes. An
  * enrolment that was only ever opened is not an audience.
  *
- * IDEMPOTENT. The composer mints the broadcast id before the preview. The send
- * upserts admin_messages by that id and every inbox row carries dedupe_key
+ * IDEMPOTENT. The composer mints the broadcast id before the preview. The first
+ * send freezes the audience (recipient_user_ids) and the words on the
+ * admin_messages row; every inbox row carries dedupe_key
  * admin_message:<id>:<recipient>, so a retried send, a double tap or a
  * timed-out request that actually landed never puts a second copy in anyone's
- * inbox. The count reported is the rows that landed THIS call.
+ * inbox, never sweeps in a learner who qualified only after the first send,
+ * and is refused if it carries different words or a different audience (job
+ * #847). The count reported is the rows that landed THIS call.
  *
  * NO PUSH, NO EMAIL, NO NAG. This writes inbox rows and nothing else. The
  * learner meets the message when they next open the app (Tom's standing rule:
@@ -229,37 +232,78 @@ export function parseAudience(q: Record<string, unknown>): { spec: AudienceSpec 
   return { error: 'kind must be one, course or all' }
 }
 
+/** A retry under a broadcast id whose title, body or audience differ from the frozen row. */
+export class BroadcastMismatchError extends Error {
+  readonly status = 409
+  constructor(field: string) {
+    super(`broadcast ${field} differs from the one already sent under this id; mint a new id to send a different message`)
+    this.name = 'BroadcastMismatchError'
+  }
+}
+
+interface FrozenBroadcast {
+  audience_kind: string
+  course_code: string | null
+  target_user_id: string | null
+  title: string
+  body: string
+  recipient_user_ids: string[] | null
+}
+
 /**
  * Send to the resolved audience. Safe to call twice with the same id: the
- * broadcast row is upserted and every inbox row is keyed, so a retry adds
- * nothing and reports sent: 0.
+ * FIRST send freezes the audience and the words on the broadcast row; a retry
+ * reuses the frozen recipient list (never re-resolving it, so nobody who
+ * qualified only later is swept in) and every inbox row is keyed, so a retry
+ * adds nothing and reports sent: 0. A retry whose title, body or audience
+ * differ from the frozen row is refused with BroadcastMismatchError.
  */
 export async function sendAdminMessage(svc: SupabaseClient, input: SendInput): Promise<SendResult> {
-  const audience = await resolveAudience(svc, input.spec)
-  const { error: headErr } = await svc.from(ADMIN_MESSAGES_TABLE).upsert(
-    {
-      id: input.id,
-      sender_user_id: input.senderUserId,
-      audience_kind: input.spec.kind,
-      course_code: input.spec.kind === 'course' ? input.spec.courseCode : null,
-      target_user_id: input.spec.kind === 'one' ? input.spec.userId : null,
-      title: input.title,
-      body: input.body,
-      recipient_count: audience.members.length,
-    },
-    { onConflict: 'id', ignoreDuplicates: true },
-  )
-  if (headErr) throw new Error(headErr.message)
+  const { data: existing, error: readErr } = await svc
+    .from(ADMIN_MESSAGES_TABLE)
+    .select('audience_kind, course_code, target_user_id, title, body, recipient_user_ids')
+    .eq('id', input.id)
+    .maybeSingle()
+  if (readErr) throw new Error(readErr.message)
+  const frozen = (existing ?? null) as FrozenBroadcast | null
+
+  let recipientIds: string[]
+  if (frozen) {
+    if (frozen.audience_kind !== input.spec.kind) throw new BroadcastMismatchError('audience')
+    if ((frozen.course_code ?? null) !== (input.spec.kind === 'course' ? input.spec.courseCode : null)) throw new BroadcastMismatchError('audience')
+    if ((frozen.target_user_id ?? null) !== (input.spec.kind === 'one' ? input.spec.userId : null)) throw new BroadcastMismatchError('audience')
+    if (frozen.title !== input.title) throw new BroadcastMismatchError('title')
+    if (frozen.body !== input.body) throw new BroadcastMismatchError('body')
+    // Broadcasts from before the column existed carry null: resolve once more, as they always did.
+    recipientIds = frozen.recipient_user_ids ?? (await resolveAudience(svc, input.spec)).members.map((m) => m.userId)
+  } else {
+    recipientIds = (await resolveAudience(svc, input.spec)).members.map((m) => m.userId)
+    const { error: headErr } = await svc.from(ADMIN_MESSAGES_TABLE).upsert(
+      {
+        id: input.id,
+        sender_user_id: input.senderUserId,
+        audience_kind: input.spec.kind,
+        course_code: input.spec.kind === 'course' ? input.spec.courseCode : null,
+        target_user_id: input.spec.kind === 'one' ? input.spec.userId : null,
+        title: input.title,
+        body: input.body,
+        recipient_count: recipientIds.length,
+        recipient_user_ids: recipientIds,
+      },
+      { onConflict: 'id', ignoreDuplicates: true },
+    )
+    if (headErr) throw new Error(headErr.message)
+  }
 
   let sent = 0
-  for (let i = 0; i < audience.members.length; i += WRITE_CHUNK) {
-    const rows = audience.members.slice(i, i + WRITE_CHUNK).map((m) => ({
-      recipient_user_id: m.userId,
+  for (let i = 0; i < recipientIds.length; i += WRITE_CHUNK) {
+    const rows = recipientIds.slice(i, i + WRITE_CHUNK).map((userId) => ({
+      recipient_user_id: userId,
       source: ADMIN_MESSAGE_SOURCE,
       title: input.title,
       body: input.body,
       action: null,
-      dedupe_key: dedupeKeyFor(input.id, m.userId),
+      dedupe_key: dedupeKeyFor(input.id, userId),
     }))
     const { data, error } = await svc
       .from(USER_MESSAGES_TABLE)
@@ -270,7 +314,7 @@ export async function sendAdminMessage(svc: SupabaseClient, input: SendInput): P
   }
   const { error: stampErr } = await svc.from(ADMIN_MESSAGES_TABLE).update({ sent_at: new Date().toISOString() }).eq('id', input.id).is('sent_at', null)
   if (stampErr) throw new Error(stampErr.message)
-  return { id: input.id, audience: audience.members.length, sent }
+  return { id: input.id, audience: recipientIds.length, sent }
 }
 
 export interface SentSummary {

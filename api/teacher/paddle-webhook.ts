@@ -511,6 +511,7 @@ async function handlePlanChangeOnHeldSubscription(supabase: any, data: any): Pro
 
   const base = {
     status,
+    paddle_status: data.status,
     current_period_end: periodEnd,
     cancel_at_period_end: !!data.scheduledChange,
     provider: 'paddle',
@@ -1205,6 +1206,17 @@ async function handleTutorPlatformSubscription(
 // Upsert the premium subscription entitlement for a learner (the SAME entitlement
 // path as a learner_premium checkout: unlocks all premium courses past Yellow).
 // Idempotent on learner_id. Returns the subscription row id (or null on failure).
+async function writeAdditionalPaddleGrant(supabase: any, learnerId: string, data: any): Promise<void> {
+  const periodEnd = data.currentBillingPeriod?.endsAt || data.nextBilledAt
+  if (!periodEnd) throw new Error('Paddle grant has no verified period end')
+  const { error } = await supabase.rpc('write_additional_paddle_grant', {
+    p_learner_id: learnerId, p_ref: data.id,
+    p_starts_at: data.startedAt || data.createdAt || data.currentBillingPeriod?.startsAt || null,
+    p_expires_at: periodEnd, p_status: data.status,
+  })
+  if (error) throw new Error(`Additional Paddle grant failed: ${error.message}`)
+}
+
 async function grantLearnerPremium(
   supabase: any,
   data: any,
@@ -1227,6 +1239,7 @@ async function grantLearnerPremium(
     (await wouldDowngradePlan(supabase, learnerId, planName)) ||
     (await wouldStealLiveSubscriptionRow(supabase, learnerId, data.id))
   ) {
+    await writeAdditionalPaddleGrant(supabase, learnerId, data)
     const { data: existingRow } = await supabase
       .from('subscriptions')
       .select('id')
@@ -1241,6 +1254,7 @@ async function grantLearnerPremium(
       {
         learner_id: learnerId,
         status,
+        paddle_status: data.status,
         plan_id: planId,
         plan_name: planName,
         current_period_end: periodEnd,
@@ -1256,8 +1270,7 @@ async function grantLearnerPremium(
     .single()
 
   if (error || !subRow) {
-    console.error('[paddle-webhook] Failed to grant learner premium:', error)
-    return null
+    throw new Error(`Paddle premium grant failed: ${error?.message || 'missing row'}`)
   }
   return subRow.id
 }
@@ -1270,9 +1283,11 @@ export async function handlePremiumSubscription(
   const teacherId = customData.teacher_id as string | undefined
   const supabaseUserId = customData.supabase_user_id as string | undefined
 
-  // Resolve learner_id: prefer teacher row, else fall back to learners.user_id
+  // New checkout carries the domain identity; old in-flight checkout keeps its fallback.
   let learnerId: string | null = null
-  if (teacherId) {
+  if (typeof customData.learner_id === 'string' && customData.learner_id) {
+    learnerId = customData.learner_id
+  } else if (teacherId) {
     const { data: teacher, error: teacherErr } = await supabase
       .from('teachers')
       .select('learner_id')
@@ -1333,6 +1348,7 @@ export async function handlePremiumSubscription(
         {
           learner_id: learnerId,
           status,
+          paddle_status: data.status,
           plan_id: planId,
           plan_name: 'SSi Premium',
           current_period_end: periodEnd,
@@ -1348,11 +1364,11 @@ export async function handlePremiumSubscription(
       .single()
 
     if (upsertErr || !upsertedRow) {
-      console.error('[paddle-webhook] Failed to upsert premium subscription:', upsertErr)
-      return
+      throw new Error(`Paddle premium write failed: ${upsertErr?.message || 'missing row'}`)
     }
     subRow = upsertedRow
   } else {
+    await writeAdditionalPaddleGrant(supabase, learnerId, data)
     // Row write skipped (existing plan outranks this one) — fetch the
     // existing row so the downstream teacher link still has a subscription
     // id to point at, instead of losing it entirely.
@@ -1449,6 +1465,10 @@ export async function handleFamilySubscription(
   data: any,
   customData: Record<string, unknown>
 ): Promise<void> {
+  if (typeof customData.learner_id === 'string' && customData.learner_id) {
+    await writeFamilyRow(supabase, customData.learner_id, data)
+    return
+  }
   const supabaseUserId = customData.supabase_user_id as string | undefined
   if (!supabaseUserId) {
     console.error('[paddle-webhook] Family subscription missing supabase_user_id in customData')
@@ -1484,6 +1504,7 @@ async function writeFamilyRow(supabase: any, learnerId: string, data: any): Prom
     (await wouldDowngradePlan(supabase, learnerId, 'SSi Family')) ||
     (await wouldStealLiveSubscriptionRow(supabase, learnerId, data.id))
   if (skipRowWrite) {
+    await writeAdditionalPaddleGrant(supabase, learnerId, data)
     console.log('[paddle-webhook] Family subscription row write skipped (existing row already outranks — unexpected, Family is top rank):', data.id)
     return
   }
@@ -1494,6 +1515,7 @@ async function writeFamilyRow(supabase: any, learnerId: string, data: any): Prom
       {
         learner_id: learnerId,
         status,
+        paddle_status: data.status,
         plan_id: planId,
         plan_name: 'SSi Family',
         current_period_end: periodEnd,
@@ -1507,8 +1529,7 @@ async function writeFamilyRow(supabase: any, learnerId: string, data: any): Prom
     )
 
   if (upsertErr) {
-    console.error('[paddle-webhook] Failed to upsert family subscription:', upsertErr)
-    return
+    throw new Error(`Paddle family write failed: ${upsertErr.message}`)
   }
 
   console.log('[paddle-webhook] Family subscription processed:', data.id, 'status:', status, 'owner learner:', learnerId)
@@ -1629,6 +1650,7 @@ export async function handleStudentSubscription(
         {
           learner_id: learner.id,
           status,
+          paddle_status: data.status,
           plan_id: planId,
           plan_name: 'SSi Student Access',
           current_period_end: periodEnd,
@@ -1644,11 +1666,11 @@ export async function handleStudentSubscription(
       .single()
 
     if (subErr || !upsertedRow) {
-      console.error('[paddle-webhook] Failed to upsert student subscription:', subErr)
-      return
+      throw new Error(`Paddle student write failed: ${subErr?.message || 'missing row'}`)
     }
     subRow = upsertedRow
   } else {
+    await writeAdditionalPaddleGrant(supabase, learner.id, data)
     // Row write skipped (existing plan outranks 'SSi Student Access') —
     // fetch the existing row so the referral upsert below still has a
     // subscription id to key off, instead of losing the referral entirely.
@@ -1759,9 +1781,27 @@ async function handleTransactionPaidEvent(supabase: any, data: any): Promise<voi
   // rather than silently dropping the £5 accrual.
   if (subErr) throw new Error(`subscription lookup failed: ${subErr.message}`)
   if (!sub) {
-    console.log('[paddle-webhook] transaction.paid for unknown subscription:', subscriptionId)
+    const { data: grant, error } = await supabase.from('user_entitlements').select('id')
+      .eq('source', 'paddle').eq('source_ref', subscriptionId).maybeSingle()
+    if (error) throw error
+    if (grant) {
+      const { error: paidError } = await supabase.rpc('refresh_paid_paddle_grant', {
+        p_subscription_id: subscriptionId, p_period_end: data.billingPeriod?.endsAt || null,
+        p_period_start: data.billingPeriod?.startsAt || null,
+      })
+      if (paidError) throw paidError
+    }
     return
   }
+
+  // The paid event may arrive separately from subscription.updated. Extend
+  // the same grant under a row lock without changing billing or plan writes.
+  const { error: grantError } = await supabase.rpc('refresh_paid_paddle_grant', {
+    p_subscription_id: subscriptionId,
+    p_period_end: data.billingPeriod?.endsAt || null,
+    p_period_start: data.billingPeriod?.startsAt || null,
+  })
+  if (grantError) throw new Error(`paid Paddle grant failed: ${grantError.message}`)
 
   // Look up the teacher_referral (only student-via-teacher subs have referrals)
   const { data: referral, error: referralErr } = await supabase
@@ -2083,7 +2123,19 @@ async function handleAdjustmentEvent(supabase: any, data: any): Promise<void> {
     .maybeSingle()
   if (subErr) throw new Error(`adjustment subscription lookup failed: ${subErr.message}`)
   if (!sub) {
-    console.log('[paddle-webhook] adjustment for unknown subscription:', subscriptionId)
+    const revoke = !isReverse && (action === 'chargeback' || await isFullRefund(data))
+    if (revoke || isReverse) {
+      const { data: grant, error: readError } = await supabase.from('user_entitlements')
+        .select('id, revoked_at').eq('source', 'paddle').eq('source_ref', subscriptionId).maybeSingle()
+      if (readError) throw readError
+      if (grant) {
+        let update = supabase.from('user_entitlements')
+          .update({ revoked_at: revoke ? new Date().toISOString() : null }).eq('id', grant.id)
+        update = grant.revoked_at ? update.eq('revoked_at', grant.revoked_at) : update.is('revoked_at', null)
+        const { data: updated, error } = await update.select('id').maybeSingle()
+        if (error || !updated) throw new Error('Paddle grant changed during adjustment; retry required')
+      }
+    }
     return
   }
 
@@ -2117,9 +2169,9 @@ async function handleAdjustmentEvent(supabase: any, data: any): Promise<void> {
   if (entitlementChange === 'revoke') {
     const { error: subUpdErr } = await supabase
       .from('subscriptions')
-      .update({ status: 'cancelled', cancel_at_period_end: true, updated_at: new Date().toISOString() })
+      .update({ status: 'cancelled', cancel_at_period_end: true, paddle_revoked_at: new Date().toISOString(), updated_at: new Date().toISOString() })
       .eq('id', sub.id)
-    if (subUpdErr) console.error('[paddle-webhook] adjustment: failed to revoke entitlement:', subUpdErr)
+    if (subUpdErr) throw new Error(`adjustment grant revocation failed: ${subUpdErr.message}`)
     if (referral) {
       await supabase
         .from('teacher_referrals')
@@ -2130,9 +2182,9 @@ async function handleAdjustmentEvent(supabase: any, data: any): Promise<void> {
     // regrant: re-activate; a following subscription.updated will reconcile exact dates.
     const { error: subUpdErr } = await supabase
       .from('subscriptions')
-      .update({ status: 'active', cancel_at_period_end: false, updated_at: new Date().toISOString() })
+      .update({ status: 'active', cancel_at_period_end: false, paddle_revoked_at: null, updated_at: new Date().toISOString() })
       .eq('id', sub.id)
-    if (subUpdErr) console.error('[paddle-webhook] adjustment: failed to re-grant entitlement:', subUpdErr)
+    if (subUpdErr) throw new Error(`adjustment grant restoration failed: ${subUpdErr.message}`)
     if (referral) {
       await supabase
         .from('teacher_referrals')
