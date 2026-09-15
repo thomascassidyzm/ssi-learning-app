@@ -35,6 +35,16 @@ describe('admin messaging routes', () => {
     expect(res.statusCode).toBe(403)
     expect(DB.user_messages).toHaveLength(0)
   })
+  it('a retry with different words under the same id is 409 and writes nothing', async () => {
+    let res = makeRes()
+    await send(makeReq({ method: 'POST', body: { id, kind: 'all', title: 't', body: 'b' } }), res)
+    expect(res.statusCode).toBe(200)
+    res = makeRes()
+    await send(makeReq({ method: 'POST', body: { id, kind: 'all', title: 'changed', body: 'b' } }), res)
+    expect(res.statusCode).toBe(409)
+    expect(DB.user_messages).toHaveLength(1)
+    expect(DB.user_messages[0].title).toBe('t')
+  })
   it('previews the count without writing, then sends, then a retry sends nothing', async () => {
     let res = makeRes()
     await audience(makeReq({ query: { kind: 'all' } }), res)
