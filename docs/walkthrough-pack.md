@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `6078a8a2b830` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `1ecc0da09fed` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## add-a-class-under-a-group — Add a class to a group
 
@@ -111,12 +111,27 @@ Personas: school_admin · place: setup
 2. [`setup-add-class-row` · next] **+ Add another class** for each further class; every new row starts on that same language. Finishing setup creates every filled-in row, marked Added as it saves. Running the wizard twice will not duplicate classes you've already made.
    - terminal: One row per class, add as many as you need. This tour created no classes.
 
+## download-your-schools-data — Download your school's data
+
+Personas: school_admin, teacher · place: settings
+
+1. [`settings-export-data` · next] Under **Data & privacy** in Settings, **Download all data** takes your school's progress figures out of the app as one spreadsheet file — every student, their class, how far they have got, how long they have practised and when they were last active. The file lands in your downloads, named after your school and today's date.
+   - terminal: It is a snapshot of the moment you press the button, not a live link — download it again whenever you want current figures.
+
 ## email-someone-their-invite-again — Email someone their invite again
 
 Personas: admin, leader, school_admin · place: node-home (org/group/school)
 
 1. [`ways-in-resend` · next] Find the person's row in **Ways in** and tap **Email again**. Nothing changes and no new link is made — the same one they may yet dig out of a spam folder still works.
    - terminal: Only rows for a named person with an email on file carry this button. If a school's mail gateway is eating our messages, read them the link instead of sending a third time.
+
+## find-a-student-or-export-the-list — Look up one student, or take the list away
+
+Personas: admin, school_admin, teacher · place: students
+
+1. [`student-view-link` · next] Type part of a name in the search box above the list, or narrow it by class or belt. Each row already carries the learner's belt, their hours this week and when they were last here — often that answers the question on its own. **View** opens what they have actually done on their own account.
+2. [`students-export` · next] **Export CSV** downloads whoever is on screen right now as a spreadsheet file, with today's date in its name. It follows your search and filters, so a narrowed list gives you a narrowed file — clear them first if you want everybody.
+   - terminal: The row records what a learner has done and when they were last here. It makes no judgement about how they are doing.
 
 ## funded-org-courses — See what a funded organisation gives its learners
 
@@ -442,6 +457,13 @@ Personas: school_admin · place: settings
 3. [`settings-identity-remove` · next] **Remove** beside any entry takes it off the list. Nothing is revoked — the person just stops being sorted to the top as unfamiliar.
    - terminal: That's the whole list — it changes ordering, never access. Giving somebody a class is what actually brings them into your school.
 
+## see-every-school-in-your-programme — See every school in your programme
+
+Personas: leader · place: schools-list
+
+1. [`schools-list-table` · next] Every school you look after, one row each, with its students, teachers, classes and practice hours side by side. The totals above the table are the programme as a whole. Search by name to find one school, or sort by name, hours or students. A school with nobody running it yet is flagged in the Status column as awaiting admin. Tap any row to open that school's own dashboard.
+   - terminal: The list holds still until you refresh it, so a number will not change under you while you read. If a refresh fails you are told plainly rather than shown stale figures as current.
+
 ## seeing-how-it-is-going — Seeing how it is going — the numbers and the map on any level
 
 Personas: admin, leader, school_admin · place: node-home (org/group/school)
@@ -529,6 +551,14 @@ Personas: admin · place: intel
 3. [`rows` · next] The rows are the bits, worst first, each showing both languages with its skips, retries, failures and the share of people who stopped there. Open a row to see that piece and its phrases.
    - terminal: Pick a course, read the worst piece, open a row to see its phrases.
 
+## what-the-class-tools-page-counts — Where a class's practice is read
+
+Personas: teacher, school_admin · place: class-detail
+
+1. [`class-tools-note` · next] A class has two pages. This one is its tools: the roster, the teachers, the join link, renaming and deleting. What the class has practised together, its minutes in the app and how far it has travelled live on the class page — the link in this line takes you there. Nothing on this page totals whole-class play.
+2. [`class-roster` · next] **Students on their own accounts** lists the pupils who have signed in as themselves and joined this class, one row each, with their belt, what they have learned, how much they have practised on that account and when they were last at it. Type a name into the search box to jump to one of them.
+   - terminal: This table counts only what each pupil did signed in as themselves. A class taught from the front with no pupil accounts has nobody here, and that is not a class that has done nothing.
+
 ## what-your-numbers-mean — What your numbers mean
 
 Personas: learner · place: library
@@ -585,6 +615,16 @@ Personas: teacher, school_admin, leader · place: settings
 1. [`account-identity` · next] At the top of **Account** in Settings is the address this account uses. Tap it and it copies — useful the moment you sign in on a new device and cannot remember which email you used.
 2. [`account-identity` · next] Under it is your account code. Tap that to copy it too, and give it to us if you ever get in touch — it names your account and nothing more, so it is safe to read out or put in a message.
    - terminal: That's the whole card — your address and your code, both a tap away from your clipboard.
+
+## your-class-against-the-average — Your class against the average
+
+Personas: teacher · place: analytics
+
+1. [`teacher-insights-class` · next] **Your classes** picks which of your classes you are reading. If you teach only one, this picker stays out of the way and the page is already about that class.
+2. [`insights-measure` · next] The **measure** is what is being counted — the line underneath says exactly what the current one means.
+3. [`insights-window` · next] The **window** is the period the rate is worked out over. Shorter windows react faster, longer ones smooth the noise.
+4. [`insights-compare` · next] **Compare to** sets your class's rate beside an average. Everything here is a rate, not a raw total, so a class of eight and a class of thirty compare fairly.
+   - terminal: This answers whether a class is moving well, which a roster of totals cannot. A class with too few sessions to compare honestly says so rather than showing a number built from nothing.
 
 ## your-classes-at-a-glance — Your classes at a glance
 
