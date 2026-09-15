@@ -28,13 +28,16 @@
  * distribution (spec.ts sovereignty) — never another entity's name.
  *
  * AUTHZ — three doors, most-powerful first:
- *   · ssi_admin/god (verifyAdmin): any node. The K_FLOOR privacy floor is a
- *     protection against outside inference; admins already hold row-level
- *     access to every entity, so their floor is 1 active peer (the tool would
- *     otherwise be blank at current scale while protecting nothing).
+ *   · ssi_admin/god (verifyAdmin): any node.
  *   · leaders/school admins/teachers (resolveVisibleScope): class → their
  *     classIds; school node → its own school in their schoolIds; group node →
- *     their governed group or a strict descendant. K_FLOOR held in full.
+ *     their governed group or a strict descendant.
+ *
+ * PRIVACY FLOOR is by COHORT KIND, not by role (Tom's ruling 2026-09-15, see
+ * _utils/rateCompare.ts cohortFloor): every cohort here is made of ENTITIES —
+ * classes or schools — so the floor is cohortFloor('entities') = 1 active
+ * peer for every caller, teacher included. The 5-floor belongs to cohorts of
+ * individual learners (me/insights) and never applied to classes by intent.
  *
  * Cohort member unit: peers-like-me — classes when the entity is a class,
  * schools when the entity is a school node or an interior group (school
@@ -58,7 +61,7 @@ import {
   deltaPct,
   meanTrend,
   computeMeasureForClassIds,
-  K_FLOOR,
+  cohortFloor,
   type ScopedSessionRow,
   type MeasureId,
 } from '../../_utils/rateCompare'
@@ -420,12 +423,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       if (censusError) console.error('[node-rate-compare] course census error:', censusError.message)
       censusRows = (censusData as ScopedSessionRow[]) || []
     }
-    // Privacy floor: K_FLOOR protects REAL peers from inference. A DEMO
-    // entity's cohort is demo-only by construction (schoolIdsInWorld), i.e.
-    // seeded fictional schools — the floor would blank every demo leader
-    // surface (a demo world has ~3-4 peer schools) while protecting nothing,
-    // the same rationale as the admin floor of 1.
-    const effectiveFloor = isAdmin || entityIsDemo ? 1 : K_FLOOR
+    // Privacy floor: the cohort is classes or schools (entities), never
+    // individual learners — so cohortFloor('entities') = 1 for every role.
+    // (Before 2026-09-15 teachers carried the individuals' floor of 5 here,
+    // which blanked a real one-class school against one comparable class.)
+    const effectiveFloor = cohortFloor('entities')
     const courseByClass = new Map(entityAllClasses.map((c) => [c.id, c.course_code]))
     const rankCutoffMs = now.getTime() - CENSUS_RANK_DAYS * 86_400_000
     const courseActivity = new Map<string, { recent: number; ever: number }>()
@@ -609,7 +611,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return { members: [...bySchool.entries()].map(([id, classIds]) => ({ id, classIds })) }
     }
 
-    // ─── Sessions + math (shared primitives). Gating (K_FLOOR / "does this
+    // ─── Sessions + math (shared primitives). Gating (entity floor / "does this
     // peer have any data") is always decided by RATE activity — the same
     // cohort, regardless of which measure is displayed. `preRows`: the k-floor
     // preference pass already fetched the whole ancestor scope's rows (a
