@@ -24,15 +24,10 @@
       "upgrade-subscribe-org": "Backlog since 2026-09-15 (job #854): \"Subscribe your organisation\" — leader on upgrade. No clip yet.",
       "upgrade-subscribe-school": "Backlog since 2026-09-15 (job #854): \"Subscribe your school\" — school_admin on upgrade. No clip yet.",
       "students-export": "Backlog since 2026-09-15 (job #854): \"Take your lists away as a spreadsheet\" — admin/school_admin/teacher on students. No clip yet.",
-      "insights-voice-pause": "Backlog since 2026-09-15 (job #854): \"Voice and pause\" — admin/leader/school_admin on node-insights. No clip yet.",
       "node-phrases": "Backlog since 2026-09-15 (job #854): \"What your classes actually practised\" — admin/leader/school_admin on node-home. No clip yet.",
       "upgrade-seats-actual": "Backlog since 2026-09-15 (job #854): \"When more people join than you have seats\" — school_admin/leader on upgrade. No clip yet.",
       "class-tools-note": "Backlog since 2026-09-15 (job #854): \"Where a class's practice is read\" — teacher/school_admin on class-detail. No clip yet.",
-      "insights-org-journey": "Backlog since 2026-09-15 (job #854): \"Where classes are in the course and where they stop\" — leader/school_admin on node-insights. No clip yet.",
       "class-practice": "Backlog since 2026-09-15 (job #854): \"Whether a class is practising together\" — admin/leader/school_admin on node-home. No clip yet.",
-      "insights-org-quiet": "Backlog since 2026-09-15 (job #854): \"Which classes have gone quiet\" — leader/school_admin on node-insights. No clip yet.",
-      "insights-org-practising": "Backlog since 2026-09-15 (job #854): \"Which classes practised this week\" — leader/school_admin on node-insights. No clip yet.",
-      "insights-rate-widget": "Backlog since 2026-09-15 (job #854): \"Why the insights show a rate, not a total\" — admin/leader/school_admin on node-insights. No clip yet.",
       "setup-save-exit": "Backlog since 2026-09-15 (job #854): \"Work through setup at your own pace\" — school_admin on setup. No clip yet.",
       "teacher-insights-class": "Backlog since 2026-09-15 (job #854): \"Your class against the average\" — teacher on analytics. No clip yet."
     }

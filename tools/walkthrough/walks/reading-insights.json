@@ -15,7 +15,13 @@
     "rate",
     "compare",
     "measure",
-    "window"
+    "window",
+    "total",
+    "practising",
+    "quiet",
+    "journey",
+    "voice",
+    "pause"
   ],
   "steps": [
     {
@@ -41,6 +47,46 @@
         "on": "next"
       },
       "checked": "dcff4a14.97ac1945"
+    },
+    {
+      "anchor": "insights-rate-widget",
+      "say": "This block is the rate itself, beside whatever you are comparing to. It is an amount per learner per week, never a running total — a total only says how big and how old a place is, a rate says how fast it is moving, which is what you can act on.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "1e01448b.aceb6f49"
+    },
+    {
+      "anchor": "insights-org-practising",
+      "say": "**Practising** answers whether your classes are doing it: how many practised together this week against last week, the phrases practised each day over four weeks, and which people practised on their own account and for how long.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "27fe00c8.ebb6e2b0"
+    },
+    {
+      "anchor": "insights-org-quiet",
+      "say": "**Quiet** is the half you act on: which classes practised before and have stopped, how long ago, and which have never started. Open a class row to see where it stopped.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "4a8354a5.cc9d58fe"
+    },
+    {
+      "anchor": "insights-org-journey",
+      "say": "**Journey** shows where in the course each class has got to, as the last phrase it played in both languages, and the funnel shows the sentence most classes stop before. Class rows run furthest first.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "ea10e603.724b2c8e"
+    },
+    {
+      "anchor": "insights-voice-pause",
+      "say": "**Voice and pause** is what the microphone is giving us below this level. Read the uptake figure first — it is how many learners the rest is based on. A learner with no mic data is absent here, never a zero.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "5320ccbd.5fb81d2c"
     },
     {
       "anchor": "insights-overview",
