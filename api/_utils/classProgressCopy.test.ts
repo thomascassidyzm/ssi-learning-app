@@ -196,6 +196,50 @@ describe('applyCopy', () => {
     expect(DB[AUDIT_TABLE]).toHaveLength(2) // the no-op is still recorded
   })
 
+  it('ONE CLASS: play copied onto one class is not offered to, or copied onto, a second class (job #792)', async () => {
+    // A teacher tagged on two classes for the same course — Chepstow 2026-09-15:
+    // roseribbeck's own play went onto her 11S AND a colleague's 7E.
+    const CLASS2 = 'class2-learner'
+    DB.course_enrollments.push({ learner_id: CLASS2, course_id: COURSE, last_completed_lego_id: 'S0001L01', last_completed_round_index: 0, highest_completed_lego_id: null, highest_completed_round_index: null, current_cycle_index: 0, current_mode: 'main', helix_state: { t: 0 }, total_practice_minutes: 0, last_practiced_at: null, completed_pod_rounds: 0, rounds_since_pod: 0, pod_activation_round: null, infplay_round_index: 0 })
+    await applyCopy(svc, await planCopy(svc, params), { actorUserId: 'angharad', classId: 'class-1' })
+
+    const plan2 = await planCopy(svc, { ...params, targetLearnerId: CLASS2 })
+    // Every row the first copy inserted is off the table for the second class.
+    // (The fixture's speaking-opportunities day row was never copied — the
+    // first class already held that day — so the audit does not name it and
+    // it is the one natural-key row still on offer; the ledger and the diary,
+    // which carry the practice figures, are what the rule protects.)
+    expect(plan2.toCopy.sessions).toBe(0)
+    expect(plan2.toCopy.player_events).toBe(0)
+    expect(plan2.toCopy.response_metrics).toBe(0)
+    expect(plan2.toCopy.lego_progress).toBe(0)
+    expect(plan2.alreadyPresent.sessions).toBe(2)
+    expect(plan2.copiedElsewhere).toEqual({ classIds: ['class-1'], rows: 6 }) // 2 sessions + 2 diary + 1 metric + 1 lego
+    expect(plan2.resulting.takenFromSource).toBe(false) // the second class keeps its own position
+    expect(plan2.minutesToAdd).toBe(0)
+    expect(plan2.priorRuns).toBe(0)
+
+    const { error } = await applyCopy(svc, plan2, { actorUserId: 'angharad', classId: 'class-2' })
+    expect(error).toBeNull()
+    expect(DB.sessions.filter((r) => r.learner_id === CLASS2)).toHaveLength(0)
+    expect(DB.player_events.filter((r) => r.learner_id === CLASS2)).toHaveLength(0)
+    const cursor2 = DB.course_enrollments.find((r) => r.learner_id === CLASS2)
+    expect(cursor2.last_completed_lego_id).toBe('S0001L01')
+    expect(cursor2.total_practice_minutes).toBe(0)
+  })
+
+  it('ONE CLASS: after an undo the play can go onto the other class', async () => {
+    const CLASS2 = 'class2-learner'
+    DB.course_enrollments.push({ learner_id: CLASS2, course_id: COURSE, last_completed_lego_id: null, last_completed_round_index: null, highest_completed_lego_id: null, highest_completed_round_index: null, current_cycle_index: 0, current_mode: 'main', helix_state: null, total_practice_minutes: 0, last_practiced_at: null, completed_pod_rounds: 0, rounds_since_pod: 0, pod_activation_round: null, infplay_round_index: 0 })
+    const { auditId } = await applyCopy(svc, await planCopy(svc, params), { actorUserId: 'angharad', classId: 'class-1' })
+    const undo = await undoCopy(svc, String(auditId), { actorUserId: 'angharad' })
+    expect(undo.ok).toBe(true)
+    const plan2 = await planCopy(svc, { ...params, targetLearnerId: CLASS2 })
+    expect(plan2.toCopy.sessions).toBe(2)
+    expect(plan2.copiedElsewhere).toEqual({ classIds: [], rows: 0 })
+    expect(plan2.resulting.takenFromSource).toBe(true)
+  })
+
   it('the class keeps its own cursor when it is already further than the teacher', async () => {
     const cls = DB.course_enrollments.find((r) => r.learner_id === CLASS)
     cls.last_completed_lego_id = 'S0020L02'; cls.last_completed_round_index = 40; cls.helix_state = { t: 0 }

@@ -86,7 +86,7 @@ function doneLine(c: CopyCandidate): string {
        roles: school_admin
        place: node-home
        keywords: copy, sweep, teachers, play as class, own account, mistake, progress
-       parts: school-copy-play-sweep-copy, school-copy-play-sweep-empty, school-copy-play-sweep-done
+       parts: school-copy-play-sweep-copy, school-copy-play-sweep-empty, school-copy-play-sweep-done, school-copy-play-sweep-one-class
        What it's for. Finding every teacher in your school who ran lessons signed
        in as themselves instead of using Play as class, and moving that play onto
        their class, one teacher at a time. Each row names the class, the teacher,
@@ -101,7 +101,10 @@ function doneLine(c: CopyCandidate): string {
           everyone at once.
        Worth knowing. The teacher keeps their own record. Only play on that class's
        course moves, the class ends up at the further of the two places, and
-       copying the same teacher again moves nothing twice. When there is nothing
+       copying the same teacher again moves nothing twice. A teacher who is on
+       two classes for the same course appears on two rows with the same play:
+       the row says so, and a lesson goes onto one class only, so once you have
+       copied it the other row has nothing left to copy. When there is nothing
        to copy the card says so in words. While viewing as someone else you can
        read the rows but not copy.
        checked: 7ea0b042.ce7fb63a
@@ -132,6 +135,7 @@ function doneLine(c: CopyCandidate): string {
             {{ t('schools.copyPlay.afterAt', 'Class will be at:') }} {{ positionLabel(c.position.resulting, t) }}
           </p>
           <p v-if="c.prior_runs > 0" class="schools-subtle sweep-note">{{ t('schools.copyPlay.priorRuns', 'Copied before: only what is new since then will move.') }}</p>
+          <p v-if="c.also_offered_on?.length" class="sweep-note sweep-one-class" data-walk="school-copy-play-sweep-one-class">{{ t('schools.copyPlay.alsoOfferedOn', 'This is the same play as the {name} row under {classes}. A lesson can only be credited to one class, so copy it onto the class it was for.').replace('{name}', c.teacher.name).replace('{classes}', c.also_offered_on.join(', ')) }}</p>
           <button type="button" class="btn-play btn-small" data-walk="school-copy-play-sweep-copy" :disabled="!!busyKey" @click="copy(c)">
             {{ busyKey === keyOf(c) ? t('schools.copyPlay.copying', 'Copying…') : t('schools.copyPlay.applyCta', 'Copy onto the class') }}
           </button>
@@ -147,6 +151,7 @@ function doneLine(c: CopyCandidate): string {
 .sweep-card { display: block; }
 .sweep-intro { margin: 6px 0 0; font-size: 13px; line-height: 1.5; color: var(--schools-fg-2); }
 .sweep-note { margin: 10px 0 0; font-size: 12.5px; }
+.sweep-one-class { color: var(--schools-fg-1); }
 .sweep-list { list-style: none; margin: 12px 0 0; padding: 0; }
 .sweep-row { padding: 12px 0; border-top: 1px solid var(--schools-line, rgba(44, 38, 34, 0.12)); }
 .sweep-row-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
