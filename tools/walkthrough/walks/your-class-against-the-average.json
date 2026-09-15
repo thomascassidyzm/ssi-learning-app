@@ -1,0 +1,54 @@
+{
+  "id": "your-class-against-the-average",
+  "title": "Your class against the average",
+  "personas": [
+    "teacher"
+  ],
+  "place": {
+    "route": "analytics"
+  },
+  "keywords": [
+    "analytics",
+    "insights",
+    "rate",
+    "compare",
+    "average",
+    "class",
+    "pace"
+  ],
+  "steps": [
+    {
+      "anchor": "teacher-insights-class",
+      "say": "**Your classes** picks which of your classes you are reading. If you teach only one, this picker stays out of the way and the page is already about that class.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "dd4fbd49.0a9a0e2d"
+    },
+    {
+      "anchor": "insights-measure",
+      "say": "The **measure** is what is being counted — the line underneath says exactly what the current one means.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "ee636721.8cd12d76"
+    },
+    {
+      "anchor": "insights-window",
+      "say": "The **window** is the period the rate is worked out over. Shorter windows react faster, longer ones smooth the noise.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "e4bdf6b9.8a885a2d"
+    },
+    {
+      "anchor": "insights-compare",
+      "say": "**Compare to** sets your class's rate beside an average. Everything here is a rate, not a raw total, so a class of eight and a class of thirty compare fairly.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "This answers whether a class is moving well, which a roster of totals cannot. A class with too few sessions to compare honestly says so rather than showing a number built from nothing.",
+      "checked": "dcff4a14.386e4f76"
+    }
+  ]
+}

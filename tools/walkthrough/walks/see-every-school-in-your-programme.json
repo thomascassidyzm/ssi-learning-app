@@ -1,0 +1,30 @@
+{
+  "id": "see-every-school-in-your-programme",
+  "title": "See every school in your programme",
+  "personas": [
+    "leader"
+  ],
+  "place": {
+    "route": "schools-list"
+  },
+  "keywords": [
+    "schools",
+    "all",
+    "list",
+    "programme",
+    "compare",
+    "search",
+    "sort"
+  ],
+  "steps": [
+    {
+      "anchor": "schools-list-table",
+      "say": "Every school you look after, one row each, with its students, teachers, classes and practice hours side by side. The totals above the table are the programme as a whole. Search by name to find one school, or sort by name, hours or students. A school with nobody running it yet is flagged in the Status column as awaiting admin. Tap any row to open that school's own dashboard.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "The list holds still until you refresh it, so a number will not change under you while you read. If a refresh fails you are told plainly rather than shown stale figures as current.",
+      "checked": "cfb20708.ec047331"
+    }
+  ]
+}
