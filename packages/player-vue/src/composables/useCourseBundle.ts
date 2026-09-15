@@ -262,6 +262,17 @@ export function identityOf(bundle: CourseBundle): BundleIdentity {
 // INDEXEDDB
 // ---------------------------------------------------------------------------
 
+/**
+ * How long an open request may sit BLOCKED before we give up on the cache for
+ * this call (#853). A version bump (#838) cannot complete while another tab
+ * still holds a connection at the old version; an older build never closes
+ * its connection, so without this the new tab's open request hangs and the
+ * bundle never loads. Giving up resolves null, which every caller already
+ * treats as "no cache": the bundle is fetched from the network and the learner
+ * plays. The upgrade completes on its own the moment the old tab goes away.
+ */
+const OPEN_BLOCKED_TIMEOUT_MS = 1500
+
 function openDb(): Promise<IDBDatabase | null> {
   return new Promise((resolve) => {
     if (typeof indexedDB === 'undefined') return resolve(null)
@@ -271,6 +282,20 @@ function openDb(): Promise<IDBDatabase | null> {
     } catch {
       return resolve(null)
     }
+    let settled = false
+    let blockedTimer: ReturnType<typeof setTimeout> | null = null
+    const settle = (db: IDBDatabase | null) => {
+      if (blockedTimer) clearTimeout(blockedTimer)
+      if (settled) {
+        // A late success after we already gave up: the upgrade has completed,
+        // so release this connection rather than leave a stray one holding
+        // the version for the NEXT bump. The next call reopens cheaply.
+        db?.close()
+        return
+      }
+      settled = true
+      resolve(db)
+    }
     req.onupgradeneeded = () => {
       const db = req.result
       // Drop and recreate rather than migrate: a bundle is a derived artifact
@@ -279,8 +304,20 @@ function openDb(): Promise<IDBDatabase | null> {
       if (db.objectStoreNames.contains(STORE)) db.deleteObjectStore(STORE)
       db.createObjectStore(STORE, { keyPath: 'courseCode' })
     }
-    req.onsuccess = () => resolve(req.result)
-    req.onerror = () => resolve(null)
+    req.onblocked = () => {
+      if (blockedTimer) return
+      blockedTimer = setTimeout(() => settle(null), OPEN_BLOCKED_TIMEOUT_MS)
+    }
+    req.onsuccess = () => {
+      const db = req.result
+      // Another tab (a newer build) wants to upgrade: step aside at once so its
+      // open request is never blocked by us. Every read/write here reopens on
+      // demand, so a closed connection costs the next call one open and nothing
+      // else; a transaction already in flight on it completes first.
+      db.onversionchange = () => db.close()
+      settle(db)
+    }
+    req.onerror = () => settle(null)
   })
 }
 
