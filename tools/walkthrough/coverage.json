@@ -17,10 +17,8 @@
       "node-updated": "Backlog since 2026-09-15 (job #854): \"How fresh these numbers are\" — admin/leader/school_admin on node-home. No clip yet.",
       "question-pulse": "Backlog since 2026-09-15 (job #854): \"How many in-app minutes are being done\" — admin on intel. No clip yet.",
       "student-view-link": "Backlog since 2026-09-15 (job #854): \"Look up one student\" — admin/school_admin/teacher on students. No clip yet.",
-      "dash-minutes-this-week": "Backlog since 2026-09-15 (job #854): \"Minutes in the app this week\" — school_admin on dashboard. No clip yet.",
       "setup-school-name": "Backlog since 2026-09-15 (job #854): \"Name your school\" — school_admin on setup. No clip yet.",
       "question-person": "Backlog since 2026-09-15 (job #854): \"One person's story\" — admin on intel. No clip yet.",
-      "dash-own-practice": "Backlog since 2026-09-15 (job #854): \"Practice on your own account\" — teacher on dashboard. No clip yet.",
       "class-students": "Backlog since 2026-09-15 (job #854): \"Reading one student's progress\" — admin/leader/school_admin on node-home. No clip yet.",
       "verb-rename": "Backlog since 2026-09-15 (job #854): \"Rename a school or group\" — admin on node-home. No clip yet.",
       "funder-numbers": "Backlog since 2026-09-15 (job #854): \"See and download your funder numbers\" — leader/admin on node-home. No clip yet.",
@@ -54,9 +52,7 @@
       "population-chip": "Backlog since 2026-09-15 (job #854): \"Who is behind every number\" — admin on intel. No clip yet.",
       "insights-rate-widget": "Backlog since 2026-09-15 (job #854): \"Why the insights show a rate, not a total\" — admin/leader/school_admin on node-insights. No clip yet.",
       "setup-save-exit": "Backlog since 2026-09-15 (job #854): \"Work through setup at your own pace\" — school_admin on setup. No clip yet.",
-      "teacher-insights-class": "Backlog since 2026-09-15 (job #854): \"Your class against the average\" — teacher on analytics. No clip yet.",
-      "dash-class-card": "Backlog since 2026-09-15 (job #854): \"Your classes at a glance\" — teacher on dashboard. No clip yet.",
-      "dash-teacher-stats": "Backlog since 2026-09-15 (job #854): \"Your own teaching numbers\" — teacher on dashboard. No clip yet."
+      "teacher-insights-class": "Backlog since 2026-09-15 (job #854): \"Your class against the average\" — teacher on analytics. No clip yet."
     }
   },
   "pages": {
