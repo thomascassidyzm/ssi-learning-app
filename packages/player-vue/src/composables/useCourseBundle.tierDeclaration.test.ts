@@ -220,3 +220,86 @@ describe('#685: the stored bundle declares its tier and heals when it disagrees'
     expect(fetchMock.mock.calls.length).toBe(afterFirstHeal)
   })
 })
+
+// Job #778 — Astra's cold verify of #761's "TTL safety by construction": a
+// same-owner cached FULL bundle outlived its subscription. The record was
+// authoritative for the identity (fetchedWithAuth, ownerId matched) and the
+// head probe compares versions only, so a lapsed subscriber kept the whole
+// course from IndexedDB for as long as the content version stood still. The
+// app's own entitlement verdict is now the fourth declaration check: full
+// record + verdict "preview" = re-ask the server, which slices it.
+describe('#778: a same-owner FULL bundle does not outlive the entitlement verdict', () => {
+  beforeEach(() => { vi.resetModules() })
+  afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
+
+  /** A payer fetched the full bundle last month; the record is theirs and authoritative. */
+  async function cacheFullAsPayer(courseCode: string) {
+    vi.resetModules()
+    const mod = await import('./useCourseBundle')
+    mod.setCourseBundleAuthProvider(async () => 'jwt')
+    mod.setCourseBundleIdentityProvider(async () => 'lapsed-uid')
+    mod.setCourseBundleEntitlementProvider(() => 'full')
+    vi.stubGlobal('fetch', vi.fn(async (url: string) =>
+      url.includes('head=1') ? headOk : { ok: true, json: async () => fullBundle(courseCode) }))
+    expect((await mod.getCourseBundle(courseCode)).previewOnly).toBeFalsy()
+    await settle()
+  }
+
+  it('the read path refetches (and the server slices) once the verdict says preview', async () => {
+    await cacheFullAsPayer(COURSE_C)
+    // Next month: same device, same identity, subscription lapsed. The server
+    // now answers with the preview; the question is whether the app asks.
+    vi.resetModules()
+    const mod = await import('./useCourseBundle')
+    mod.setCourseBundleAuthProvider(async () => 'jwt')
+    mod.setCourseBundleIdentityProvider(async () => 'lapsed-uid')
+    mod.setCourseBundleEntitlementProvider(() => 'preview')
+    const fetchMock = vi.fn(async (url: string) =>
+      url.includes('head=1') ? headOk : { ok: true, json: async () => previewBundle(COURSE_C) })
+    vi.stubGlobal('fetch', fetchMock)
+    const served = await mod.getCourseBundle(COURSE_C)
+    expect(served.previewOnly, 'a lapsed learner must not be served the cached full course').toBe(true)
+    expect(fetchMock.mock.calls.some(([url]) => !String(url).includes('head=1'))).toBe(true)
+    await settle()
+    expect((await mod.getCachedCourseBundle(COURSE_C))?.previewOnly).toBe(true)
+  })
+
+  it('an unknown verdict (answer not yet landed) still serves the same-owner full record', async () => {
+    await cacheFullAsPayer(COURSE_D)
+    vi.resetModules()
+    const mod = await import('./useCourseBundle')
+    mod.setCourseBundleAuthProvider(async () => 'jwt')
+    mod.setCourseBundleIdentityProvider(async () => 'lapsed-uid')
+    mod.setCourseBundleEntitlementProvider(() => null)
+    const fetchMock = vi.fn(async (url: string) =>
+      url.includes('head=1') ? headOk : { ok: true, json: async () => previewBundle(COURSE_D) })
+    vi.stubGlobal('fetch', fetchMock)
+    expect((await mod.getCourseBundle(COURSE_D)).previewOnly).toBeFalsy()
+    expect(fetchMock.mock.calls.every(([url]) => String(url).includes('head=1'))).toBe(true)
+  })
+
+  it('the sweep swaps a pinned full bundle for the preview when the verdict lands mid-session', async () => {
+    vi.resetModules()
+    const mod = await import('./useCourseBundle')
+    let verdict: 'full' | 'preview' | null = null
+    mod.setCourseBundleAuthProvider(async () => 'jwt')
+    mod.setCourseBundleIdentityProvider(async () => 'lapsed-uid')
+    mod.setCourseBundleEntitlementProvider(() => verdict)
+    const fetchMock = vi.fn(async (url: string) =>
+      url.includes('head=1') ? headOk : { ok: true, json: async () => (verdict === 'preview' ? previewBundle(COURSE_E) : fullBundle(COURSE_E)) })
+    vi.stubGlobal('fetch', fetchMock)
+    // Boot: verdict unknown, the server (still) hands the full bundle and it is pinned.
+    expect((await mod.getCourseBundle(COURSE_E)).previewOnly).toBeFalsy()
+    await settle()
+    // The answer lands: lapsed. The sweep the app runs on that answer re-asks.
+    verdict = 'preview'
+    await mod.revalidateCachedBundles()
+    await settle()
+    expect((await mod.getCourseBundle(COURSE_E)).previewOnly).toBe(true)
+    expect((await mod.getCachedCourseBundle(COURSE_E))?.previewOnly).toBe(true)
+    // And asks ONCE per verdict: a second sweep under the same answer is silent.
+    const calls = fetchMock.mock.calls.length
+    await mod.revalidateCachedBundles()
+    expect(fetchMock.mock.calls.length).toBe(calls)
+  })
+})

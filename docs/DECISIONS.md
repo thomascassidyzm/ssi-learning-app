@@ -3309,3 +3309,73 @@ sums minutes; `belowTree.test.ts` orders classes by minutes; `home.test.ts` carr
 `inAppMinutes7d` per class. Stale `DashboardView.minutesHeadline` expectations from #683 re-pinned
 ("352 min" is "5 h 52 min"). Handbook: both tile descriptions and the Find-a-class sort step
 rewritten and re-pinned; `--check` green.
+
+## 2026-09-15 — House re-check of three Astra refutations: all three mechanisms confirmed, all three fixed (job #778)
+
+**Brief.** Re-check, against live code and the live DB, three cold-verify refutations Astra left
+open on 14-15 Sep, on the paywall/class-play fixes then on main `bfda61b`. Honesty rule: an honest
+"Astra was right" beats a defence. Result: Astra was right about the MECHANISM in all three; one
+of the three consequences Astra drew was wrong.
+
+**1. Class play never bumps the playback ledger — CONFIRMED, fixed.** Live
+`pg_get_functiondef(bump_speaking_opportunities)` requires `learners.user_id = auth.uid()::text`;
+the class learner `2ffd2a0d…` has `user_id = class-learner:d52efceb…`. Tom's test class played
+seven `audio_play` events (two `target2`) at 22:11Z on 14 Sep and holds a `sessions` row
+(50 s, 2 items); `learner_speaking_opportunities` has ZERO rows for it. The consequence Astra
+drew — class dashboard phrase/opportunity counts therefore wrong — is REFUTED: since job #159 the
+class figures are deliberately read off the diary (`api/_utils/classPractice.ts`: one phrase per
+`target2` clip; in-app time off `player_events` timestamps), never off the ledger, so a teacher
+sees the right phrases (2 for that play) and the right minutes today. What WAS wrong: the ONE
+definition of a minute silently excluded every class, and the player logged a refused RPC on
+every flush. Fix: `/api/school/class-progress` gains `bumpSpeakingOpportunities` (service role,
+teacher-scope-gated, onto the class's own learner id, same non-negative-delta-onto-today's-UTC-row
+semantics as the RPC); the class-aware progress store carries it; `useLearningSession` tries it
+first and falls through to the RPCs when the store reports not-handled. Nothing reads class
+ledger rows yet — the diary-based figures stay, so a class that played last month and one that
+plays today count the same way.
+
+**2. A same-owner cached FULL bundle outlives entitlement — CONFIRMED, fixed.**
+`declarationDisagrees` (useCourseBundle.ts) had three cases: provisional record, preview with a
+token, full for another identity. A full record for THIS identity passed all three, and the head
+probe compares content versions only, so a lapsed subscriber kept the whole course from IndexedDB
+until the content version moved. Cost to a real learner: bounded by the client gates — the
+post-init gate, the per-round advance check and the jump check all consult `canAccessSeed`, and
+the audio proxy is fail-open by default (`ENTITLEMENT_STRICT` off) — so the bundle was defence in
+depth that had failed, not the wall itself; #768 had already conceded and fixed the one gate that
+relied on it (the rewind). Fix: a fourth case — full record + the app's own verdict for the course
+says preview — plus `setCourseBundleEntitlementProvider` wired in App.vue off the same
+`/api/entitlement/user` + `/api/subscription` answers the server's ONE resolver gives, null while
+the verdict is in flight (never a disagreement, so boot serves the cache as before). The sweep
+runs on `entitlementsReady` and on every `isSubscribed` flip, once per (course, identity,
+verdict); the server slices the refetch. A verdict that is wrong the other way (client says
+preview, server says full — a covered pupil) costs one refetch of the full bundle, once.
+
+**3. A stale "active" mirror runs cursor writers before the verdict — CONFIRMED, fixed.**
+`accessPending()` is `!isPaid && signedIn && !hydrated`, and `isPaid` reads the localStorage
+mirror of the LAST `/api/subscription` answer, loaded into state at composable setup. So on a
+device holding last month's "active" mirror, accessPending() was false before any answer had
+landed: the `positionInitialized` watcher ran the gate immediately with no hold, the two lifecycle
+writers wrote behind it, and the legacy TTL rewind's `awaitSubscriptionVerdict` resolved at once.
+Cost to a real learner: the writers wrote the REAL position (no retreat had happened), so no
+position was lost; the rewind path is unreachable on the live boot path (see the #768 entry);
+the exposure was a lapsed learner in the 7-day renewal grace, or cancelled mid-period, playing
+past the wall until the answer landed and the next round-advance check caught them. Fix:
+`useEntitlement` gains `verdictPending()` = signed in && !subscriptionHydrated; the gate's
+deferral, `awaitSubscriptionVerdict` and both lifecycle writers use it. Access checks keep the
+mirror's optimism (an offline payer stays a payer).
+
+**Production right now.** Nothing a real learner would notice is wrong on main: class dashboards
+show the right figures off the diary; the paywall gates hold on the verdict once it lands; the
+only live effect of (2)+(3) is a lapsed-in-grace subscriber's first rounds of a session before
+the answer arrives. Not a hotfix; rides dev → staging → the next promotion.
+
+**Proof.** Red on the pre-fix sources, green after, suites run alone: `LearningPlayer.
+resumeTtlEntitlement.test.ts` + `LearningPlayer.pendingHydration.test.ts` (3 stale-mirror cases
+red, 30/30 green with `paywallRetreat.test.ts`); `useCourseBundle.tierDeclaration.test.ts`
+(3 #778 cases red, 8/8 green); `useLearningSessionPhrasesSpoken.test.ts` (2 red, 14/14 green);
+`api/school/class-progress.test.ts` (4 red, 18/18 green); `useClassProgressStore.test.ts` green.
+Pre-merge invariants and `--changed` green for the API; player-vue `--changed` 41/42 with the one
+red suite (`premiumPrompt.orgFreeAccess`) failing on `supportIdForLearnerId` missing from the
+SHARED checkout's stale `@ssi/core` dist (branch `perf/journey-baseline-2026-09-01`), which the
+worktree's symlinked node_modules resolves to — not this change; typecheck of both packages is
+clean against a locally built core.

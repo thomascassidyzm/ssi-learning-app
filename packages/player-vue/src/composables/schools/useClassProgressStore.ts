@@ -45,6 +45,17 @@ interface MinimalProgressStore {
   getLegoProgressById: (learnerId: string, legoId: string, courseId: string) => Promise<any>
   saveLegoProgress: (progress: Record<string, unknown>) => Promise<any>
   updateLegoProgress: (id: string, updates: Record<string, unknown>) => Promise<void>
+  /**
+   * The playback ledger (`learner_speaking_opportunities`) for the CLASS
+   * account (job #778). The base store has no such method — own accounts
+   * write it through the `bump_speaking_opportunities` RPC in
+   * useLearningSession, which the class account can never pass (its user_id
+   * is nobody's login). Resolves `true` when the class route handled the
+   * write, `false` outside class mode so the caller falls through to the RPC.
+   */
+  bumpSpeakingOpportunities?: (
+    learnerId: string, courseId: string, oppsDelta: number, secondsDelta: number, phrasesDelta: number,
+  ) => Promise<boolean>
 }
 
 export interface ClassContextForProgress {
@@ -118,6 +129,11 @@ export function createClassAwareProgressStore(
     async bumpInfplayRound(learnerId, courseId) {
       if (!inClass()) return baseStore.value?.bumpInfplayRound(learnerId, courseId)
       await call('bumpInfplayRound', [])
+    },
+    async bumpSpeakingOpportunities(_learnerId, _courseId, oppsDelta, secondsDelta, phrasesDelta) {
+      if (!inClass()) return false
+      await call('bumpSpeakingOpportunities', [oppsDelta, secondsDelta, phrasesDelta])
+      return true
     },
     async updateCurrentCycle(learnerId, courseId, cycleIndex) {
       if (!inClass()) return baseStore.value?.updateCurrentCycle(learnerId, courseId, cycleIndex)

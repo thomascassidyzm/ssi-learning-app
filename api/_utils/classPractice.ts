@@ -22,8 +22,13 @@
  *     migrations 20260908c/d). Written by `bump_speaking_opportunities`, whose
  *     first line checks `learners.user_id = auth.uid()`. A class account's
  *     user_id is the literal `class-learner:<classId>`, nobody's login, so the
- *     write is REFUSED (42501) and the player logs it to the console. Zero
- *     rows for any class account, ever, estate-wide.
+ *     RPC write is REFUSED (42501). Zero rows for any class account before
+ *     job #778 (2026-09-15), which routes the class account's deltas through
+ *     /api/school/class-progress (`bumpSpeakingOpportunities`, service role,
+ *     teacher-authorised) onto the class's own learner id. Class-play rows
+ *     accrue from the player build that carries #778 onwards; nothing here
+ *     reads them — PHRASES stay counted off the diary below, so the count is
+ *     the same for a class that played last month and one that plays today.
  *   - `sessions` — the older session log. For class accounts it is inverted:
  *     of Chepstow's 19 real class lessons this week NONE has a row, and the 8
  *     rows that exist belong to app opens with no play (duration 0). Its
