@@ -218,6 +218,7 @@ const handleSubmit = () => {
                    roles: school_admin, teacher
                    place: classes
                    keywords: course, language, choose, class, catalogue
+                   walk: choose-a-class-course
                    What it's for. Setting the language a class learns. Every
                    class carries one course, and it decides what the class
                    practises, what students hear when they join, and where the

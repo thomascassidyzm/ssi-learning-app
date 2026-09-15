@@ -1,5 +1,5 @@
 {
-  "version": "80fc8b44cac5",
+  "version": "f05b29577268",
   "generatedAt": "2026-09-15",
   "walks": [
     {
@@ -1499,7 +1499,7 @@
       "anchor": "create-class-course",
       "surface": "schools",
       "source": "packages/player-vue/src/components/schools/CreateClassModal.vue",
-      "walk": null,
+      "walk": "choose-a-class-course",
       "what": "Setting the language a class learns. Every class carries one course, and it decides what the class practises, what students hear when they join, and where the class's shared position sits.",
       "where": "The **Create New Class** panel, the **Course / Language** picker.",
       "how": [
@@ -1565,7 +1565,7 @@
       "anchor": "verb-courses",
       "surface": "schools",
       "source": "packages/player-vue/src/components/admin/NodeActionBar.vue",
-      "walk": null,
+      "walk": "org-choose-courses",
       "what": "Setting what a school or group is allowed to learn: the whole catalogue when they are paid up, or a named course or two while they are trialling.",
       "where": "The node's home page, **Courses** along the top.",
       "how": [
@@ -1600,7 +1600,7 @@
       "anchor": "setup-course-picker",
       "surface": "schools",
       "source": "packages/player-vue/src/views/schools/SetupView.vue",
-      "walk": null,
+      "walk": "setup-choose-courses",
       "what": "Narrowing the full list of courses your school can teach down to the handful you actually intend to use, so that choosing a course for a class is a short list rather than a long one.",
       "where": "Step three of first-time setup, the grid of tickable course tiles under **Choose courses**.",
       "how": [
@@ -2162,7 +2162,7 @@
       "anchor": "setup-class-course",
       "surface": "schools",
       "source": "packages/player-vue/src/views/schools/SetupView.vue",
-      "walk": null,
+      "walk": "setup-give-class-course",
       "what": "Picking the language a class is learning. This is how a course reaches learners at all — a course does not belong to a person, it belongs to a class, and everybody in that class practises it.",
       "where": "On each class row, the course picker beside the class name. It already holds the language you chose when you signed your school up, so most classes need nothing done here.",
       "how": [
@@ -3681,7 +3681,7 @@
       "anchor": "org-enrolment-courses",
       "surface": "schools",
       "source": "packages/player-vue/src/components/schools/NodeEntitlementControl.vue",
-      "walk": null,
+      "walk": "funded-org-courses",
       "what": "Showing the courses an organisation hands out through its own sign-up page, which are given to each learner as they join rather than held on the organisation itself.",
       "where": "The organisation's home page, **Courses** along the top, at the head of the panel.",
       "how": [

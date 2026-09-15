@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `80fc8b44cac5` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `f05b29577268` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## choose-a-class-course — Choose what a class learns
 

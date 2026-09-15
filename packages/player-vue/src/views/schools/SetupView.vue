@@ -577,6 +577,7 @@ onMounted(() => {
                roles: school_admin
                place: setup
                keywords: course, courses, language, languages, choose, pick, catalogue, setup, step 3
+               walk: setup-choose-courses
                What it's for. Narrowing the full list of courses your school can
                teach down to the handful you actually intend to use, so that choosing
                a course for a class is a short list rather than a long one.
@@ -678,6 +679,7 @@ onMounted(() => {
                    roles: school_admin
                    place: setup
                    keywords: course, class, assign, choose, language, which, search, picker
+                   walk: setup-give-class-course
                    What it's for. Picking the language a class is learning. This
                    is how a course reaches learners at all — a course does not
                    belong to a person, it belongs to a class, and everybody in
