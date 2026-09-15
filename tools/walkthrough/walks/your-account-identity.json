@@ -7,7 +7,7 @@
     "leader"
   ],
   "place": {
-    "route": "settings"
+    "route": "player-settings"
   },
   "keywords": [
     "email",

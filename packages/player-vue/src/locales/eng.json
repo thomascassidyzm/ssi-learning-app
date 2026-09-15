@@ -1485,6 +1485,78 @@
           "terminal": "Who has gone quiet and why, most recently seen first. Open a row to write to them."
         }
       }
+    },
+    "report-a-bug-from-settings": {
+      "title": "Report a bug from Settings",
+      "steps": {
+        "0": {
+          "say": "Under **Tools** in Settings sits **Report a bug** — tap it to open the sheet. Nothing is sent until you tap Send on it."
+        },
+        "1": {
+          "say": "This sheet is the whole flow — one box, one optional screenshot, one Send. Tap outside it and it closes without sending anything."
+        },
+        "2": {
+          "say": "Write what you saw in your own words here. Your course and device details are added for you, so you only need to describe the problem itself."
+        },
+        "3": {
+          "say": "**Send** stays off until you have written something. You would tap **Send** here — press Next to continue without sending. When you do send for real it reads **Sending…** while your note, and your screenshot if you added one, goes.",
+          "terminal": "Once it lands, **Got it, thank you** replaces the form — that line is the whole reply. The sheet closes on its own a moment later, or tap the line to close it now. Nobody replies through the app: your note goes to one place where we read it, whether or not you are signed in."
+        }
+      }
+    },
+    "report-a-bug-from-the-dashboard": {
+      "title": "Report a bug from the dashboard",
+      "steps": {
+        "0": {
+          "say": "Tap your name at the top right to open the account menu."
+        },
+        "1": {
+          "say": "**Report a bug** sits in that menu — tap it to open the window without leaving the dashboard. The page you are on, and your school, are attached for you."
+        },
+        "2": {
+          "say": "Write what you saw, or what you would like to see, in **What happened?**. Add what you expected underneath if that helps — that part is optional."
+        },
+        "3": {
+          "say": "**Send** stays off until you have written something. You would tap **Send** here — press Next to continue without sending. When you do send for real it reads **Sending…** while your note goes, with your screenshot too if you added one.",
+          "terminal": "A **Got it, thank you** toast appears at the top of the page and that is the whole reply — nobody answers through the app. Questions about the dashboard itself go to Support instead."
+        }
+      }
+    },
+    "your-account-identity": {
+      "title": "Find out which email you are signed in with",
+      "steps": {
+        "0": {
+          "say": "At the top of **Account** in Settings is the address this account uses. Tap it and it copies — useful the moment you sign in on a new device and cannot remember which email you used."
+        },
+        "1": {
+          "say": "Under it is your account code. Tap that to copy it too, and give it to us if you ever get in touch — it names your account and nothing more, so it is safe to read out or put in a message.",
+          "terminal": "That's the whole card — your address and your code, both a tap away from your clipboard."
+        }
+      }
+    },
+    "open-your-inbox": {
+      "title": "Open your inbox",
+      "steps": {
+        "0": {
+          "say": "Tap your name at the top right to open the account menu."
+        },
+        "1": {
+          "say": "**Inbox** sits near the top, just above Support. The number beside it is how many messages you have not opened yet — the dot on your own avatar is the same count.",
+          "terminal": "Tap it and you're reading your messages — that count only drops once you open one."
+        }
+      }
+    },
+    "read-your-messages": {
+      "title": "Read your messages",
+      "steps": {
+        "0": {
+          "say": "Everything sent to you lands here: a reply on your Support thread, or a notice about something done on your account — like your own practice being copied onto a class. Tap a message to open it, which is what marks it read."
+        },
+        "1": {
+          "say": "If a message offers **Undo** or **Open Support**, tap that straight from the message. Undo only shows while it can still be done cleanly.",
+          "terminal": "That's your inbox — nothing here is timed out. A message stays unread until you actually open it, however long it has sat on the list."
+        }
+      }
     }
   },
   "schools": {

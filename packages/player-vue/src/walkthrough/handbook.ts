@@ -71,6 +71,8 @@ export const PLACE_LINKS: Record<string, PlaceLink> = {
   students: () => '/schools/students',
   classes: () => '/schools/classes',
   settings: () => '/schools/settings',
+  // SettingsScreen.vue is the player's Settings overlay, not a schools route.
+  'player-settings': () => '/?screen=settings',
   setup: () => '/schools/setup',
   'schools-list': () => '/schools/all',
   analytics: () => '/schools/analytics',

@@ -47,7 +47,7 @@
     },
     {
       "anchor": "schools-report-bug-send",
-      "say": "**Send** stays off until you have written something. Tap it and it reads **Sending…** while your note goes, with your screenshot too if you added one.",
+      "say": "**Send** stays off until you have written something. You would tap **Send** here — press Next to continue without sending. When you do send for real it reads **Sending…** while your note goes, with your screenshot too if you added one.",
       "advance": {
         "on": "next"
       },

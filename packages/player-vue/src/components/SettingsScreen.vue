@@ -19,6 +19,8 @@ import { useOrgFreeAccess } from '../composables/useOrgFreeAccess'
 import { usePendingPurchase } from '../composables/usePendingPurchase'
 import { useFamilyModal } from '@/composables/useFamilyModal'
 import { useCheckout } from '../composables/useCheckout'
+import WalkOffer from '@/components/admin/WalkOffer.vue'
+import { viewerPersona } from '@/walkthrough/handbook'
 import { useFamilyManagement, type FamilyMember } from '@/composables/useFamilyManagement'
 import { paddleConfig } from '@/lib/paddle'
 // The ONE payment-route declaration (platform/paymentRoute). Every control in
@@ -998,6 +1000,11 @@ async function copyIdentity(field: 'email' | 'supportId') {
 // had drifted from useUserRole's own role list (missing 'tutor' — a tutor
 // account never saw the Dashboards section at all).
 const { isSsiAdmin: isAdmin, isTester, hasSchoolRole, isGovtAdmin } = useUserRole()
+// The Handbook's Show-me for walks placed on this overlay (report a bug,
+// account identity) is claimed here — a deferred walk only starts on a page
+// that mounts WalkOffer or HowThisWorks at its place (job #882).
+const { platformRole, effectiveEducationalRole } = useUserRole()
+const walkPersona = computed(() => viewerPersona(platformRole.value, effectiveEducationalRole.value))
 const hasAdminRole = isAdmin
 
 // Org lane (2026-08-06): an organisation leader also carries
@@ -2536,6 +2543,7 @@ const confirmReset = async () => {
 
         <h3 class="section-title">{{ t('settings.tools') }}</h3>
         <div class="card">
+          <WalkOffer :persona="walkPersona" place="player-settings" />
           <!-- Report a bug: the learner postbox. One way; the only reply is the
                automatic thank-you. Tom's ruling, 2026-09-12. -->
           <!-- HANDBOOK Report a bug from Settings

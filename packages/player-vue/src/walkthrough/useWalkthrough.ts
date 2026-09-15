@@ -33,6 +33,9 @@ export const KNOWN_PLACES = [
   'schools-list', 'analytics', 'upgrade',
   'inbox',
   'intel',
+  // The learner-side Settings overlay (SettingsScreen.vue, opened on the
+  // player by ?screen=settings) — NOT /schools/settings, which is SettingsView.
+  'player-settings',
 ]
 
 // 'learner' (A-159, 2026-08-18) — the engine's first non-dashboard persona.
