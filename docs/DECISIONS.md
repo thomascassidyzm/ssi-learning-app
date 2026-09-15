@@ -1,3 +1,31 @@
+## 2026-09-15 — Admin user search "broken on mobile": the results were off-screen, not missing (job #789)
+
+**Symptom (Tom, 13:08 local).** In the Schools app, "search for users" is broken on mobile and
+fine on desktop, same production build, same account.
+
+**Mechanism, measured live on production at an iPhone 14 viewport, not a narrow desktop window.**
+Not an event, not a fetch: with touch and the mobile user agent the Users page filtered on every
+keystroke and the View-as person search called `/api/admin/users?search=` and got its rows, exactly
+as on desktop. The failure is layout. On a 390×664 screen the Users page filters card alone runs to
+y=579, the first matching row starts at y=661, and nothing above it changes as you type — the
+"1308 users" hero is the full set by design and the chips do not move — so with the keyboard up the
+search visibly does nothing. In the View-as picker the person search sat below the four role rows
+at y≈400, under the iOS keyboard, with its results under that. A third, iOS-only hazard sat on top:
+both boxes were plain `text`/`search` inputs with autocorrect and autocapitalize on, so a name or an
+email typed on a phone can be rewritten before it is searched.
+
+**Fix, the boring pattern.** Users page: a live "N users match" line directly under the box, so the
+answer is on screen above the keyboard; Enter, which is the phone keyboard's Search key via
+`enterkeyhint=search`, blurs the input and scrolls the list panel into view; autocorrect,
+autocapitalize, autocomplete and spellcheck off; on phones the tier and sort chips become one
+scrollable row each so the rows start on the first screen. View-as picker: the person search is
+its own block, ordered first on phones by CSS only, same input attributes, Enter drops the
+keyboard. Students roster search: the same input attributes. Desktop layout is unchanged.
+
+**Proof.** `AdminUsers.phoneSearch.test.ts` and the new case in
+`ViewAsPicker.classMinutes.test.ts` are red on the pre-fix sources and green after. Pre-merge gate
+(invariants, api `--changed`, player-vue `--changed`) green on the merged dev tree. Shipped
+dev → staging → main; the staging→main promotion also carried jobs #778 and #788 from the soak.
 ## 2026-09-15 — Three red nightlies on dev were merges, not a broken build: eight fixes and a one-minute pre-merge gate (job #774)
 
 **Symptom.** The watson-1 nightly (`~/command-surface/ops/ci-run.sh`) went red on dev, staging
