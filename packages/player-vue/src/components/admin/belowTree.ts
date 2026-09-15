@@ -28,6 +28,8 @@ export interface BelowClass {
   lastPractisedAt: string | null
   /** The class account's own in-app minutes this week; 0 on a payload older than job #766. */
   inAppMinutes7d: number
+  /** The seconds behind inAppMinutes7d, so a year tile can round once (job #772); minutes × 60 on an older payload. */
+  inAppSeconds7d: number
 }
 
 export interface BelowPerson {
@@ -127,6 +129,7 @@ export function buildBelowTree(payload: Record<string, any> | null | undefined):
       phrases7d: Number(c.phrases7d ?? 0),
       lastPractisedAt: typeof c.lastPractisedAt === 'string' ? c.lastPractisedAt : null,
       inAppMinutes7d: Number(c.inAppMinutes7d ?? 0),
+      inAppSeconds7d: Number(c.inAppSeconds7d ?? Number(c.inAppMinutes7d ?? 0) * 60),
     })
   }
   for (const p of staffRows) {

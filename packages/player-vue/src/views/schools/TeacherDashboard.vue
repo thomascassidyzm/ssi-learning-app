@@ -293,10 +293,12 @@ const showAllClassesLabel = computed(() => t('schools.teacherDashboard.showAllCl
 // holds. Drawn only once the practice payload has landed — before that the
 // numbers would be zeros that read like data.
 // The tile's minutes are the row's minutesWk, so the tiles, the rows and the
-// summary line above them are one figure (job #766).
+// summary line above them are one figure (job #766). A year tile is fed the
+// row's SECONDS too, so the group sums seconds and rounds up once like the
+// headline, rather than summing minutes already rounded up per class (job #772).
 const yearGroups = computed(() => yearGroupBreakdown(enrichedClasses.value.map(c => {
   const acct = classAccounts.value[c.id]
-  return { id: c.id, name: c.class_name, minutes7d: c.minutesWk, phrases7d: acct?.phrases7d ?? 0, practising: practisedWithin(acct?.lastPractisedAt) }
+  return { id: c.id, name: c.class_name, minutes7d: c.minutesWk, seconds7d: practice7dSeconds.value[c.id] ?? 0, phrases7d: acct?.phrases7d ?? 0, practising: practisedWithin(acct?.lastPractisedAt) }
 })))
 const showYearGroups = computed(() => practiceLoaded.value && enrichedClasses.value.length > 0)
 
@@ -580,7 +582,7 @@ function exportCsv() {
          class names carry a year the card reads **By class** instead, most
          minutes first, three then **Show all**, and each of those tiles opens its
          class.
-         checked: a21955b5.097e5930
+         checked: b06eb982.097e5930
     -->
     <YearGroupTiles v-if="showYearGroups" data-walk="classes-year-groups" class="year-groups" :breakdown="yearGroups" :tile-link="yearTileLink" />
 
