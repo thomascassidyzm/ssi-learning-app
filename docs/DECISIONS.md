@@ -3771,3 +3771,37 @@ backlog keys. Live tree was audited first: all 11 named walks step their anchors
 **Better × Simpler × Cheaper.** Better: the control is now what it claims to be. Simpler: fewer
 lines, the advisory branch is gone. Cheaper: a broken Handbook stops a deploy instead of costing a
 morning of trust later.
+
+## 2026-09-15 — Paddle grant ledger: past_due is dunning, and an unknown period start never reopens (job #879)
+
+Astra's cold-verify of #857 found two defects in the three Paddle grant writers. Both are fixed by
+`supabase/migrations/20260915f_paddle_ledger_rpc_null_period_and_past_due.sql`, applied live.
+
+**The past_due ruling.** #857's own comment promised "past_due keeps the learner's existing dates
+(dunning is not revocation)" and its code did the opposite in three places: the trigger revoked and
+clamped expiry to now on any status outside active/cancelled, and `write_additional_paddle_grant`
+INSERTed `revoked_at = now()` beside a future `expires_at`, a row production and dev read
+differently. The intent was right, so the CODE moved, not the comment. Paid dates are kept through
+Paddle's dunning retries; revocation happens on refund or chargeback, through #857's durable
+`paddle_revoked_at` marker, or on final cancellation, never on a failed payment retry. A payer in
+dunning keeps access.
+
+**The NULL-period rule.** An unknown comparison never decides to reopen. `NOT (p_period_start >
+revoked_at)` evaluated to NULL when the caller passed no period start, which both live callers do,
+so the CASE fell to its ELSE and pushed a revoked grant's expiry a year out while `revoked_at`
+stayed set — production access for a refunded learner, since production reads `expires_at` alone.
+Every such comparison is now `coalesce(<comparison>, false)`: a NULL period start means NOT PROVEN
+LATER than the revocation, so the clamp applies and the marker is kept. The reversal path is
+unchanged — a receipt that genuinely carries a later period start still reopens. The same pass made
+the clamp read whichever revocation marker is set, `coalesce(user_entitlements.revoked_at,
+s.paddle_revoked_at)`, rather than the subscription's alone.
+
+The fallback status `none` is deliberately left revoked-now: main's resolver grants the subscription
+path only on `status === 'active'`, so closing it mirrors main rather than overriding it.
+
+**Better × Simpler × Cheaper.** Better: a refunded learner cannot regain a year of paid access on an
+ordinary receipt, and a live payer in dunning is not cut off mid-retry. Simpler: one rule for
+three-valued logic stated once and applied to every comparison, and a row that can no longer be
+revoked-but-open. Cheaper: three function bodies replaced, no schema change, no application code,
+and `canary_879_ledger_rpcs.cjs` now exercises both RPCs read-only under `--pre` so the next
+verifier needs no synthetic write to check the ledger.

@@ -1,0 +1,42 @@
+
+=== PHASE A (read-only: live text + live evaluator) ===
+PASS  refresh_paid: NULL-unsafe guard `NOT (p_period_start > revoked_at)` is GONE  — replaced by coalesce(...,false)
+PASS  refresh_paid: every period-start comparison is coalesce(...,false)  — 5 coalesced comparisons found (expect >= 4)
+PASS  refresh_paid: clamp reads coalesce(grant revoked_at, subscription marker)  — both markers
+PASS  trigger: past_due yields v_revoked_at NULL before the NOT IN arm  — present
+PASS  write_additional: past_due is in the non-revoking INSERT list  — present
+PASS  defect 1 evaluated live: the OLD guard leaves main OPEN on a revoked grant  — old expression → expires_at=Wed Sep 15 2027 14:09:15 GMT+0000 (Coordinated Universal Time)
+PASS  defect 1 evaluated live: the NEW guard closes main on the same input  — new expression → expires_at=Mon Sep 14 2026 14:09:15 GMT+0000 (Coordinated Universal Time)
+PASS  reversal path intact: a provably later period start still reopens both  — expires_at=Mon Aug 16 2027 14:09:15 GMT+0000 (Coordinated Universal Time) revoked_at=null
+PASS  defect 1b evaluated live: the OLD clamp leaves main OPEN (grant-row marker ignored)  — old expression → expires_at=Wed Sep 15 2027 14:09:15 GMT+0000 (Coordinated Universal Time) revoked_at=Mon Sep 14 2026 14:09:15 GMT+0000 (Coordinated Universal Time)
+PASS  defect 1b evaluated live: the NEW clamp closes main and keeps the row consistent  — new expression → expires_at=Mon Sep 14 2026 14:09:15 GMT+0000 (Coordinated Universal Time) revoked_at=Mon Sep 14 2026 14:09:15 GMT+0000 (Coordinated Universal Time)
+PASS  defect 2 evaluated live: the OLD INSERT row is self-contradictory (main open, dev closed)  — old → expires_at=Wed Sep 15 2027 14:09:15 GMT+0000 (Coordinated Universal Time) revoked_at=Tue Sep 15 2026 14:09:15 GMT+0000 (Coordinated Universal Time)
+PASS  defect 2 evaluated live: the NEW INSERT row keeps the payer open on BOTH resolvers  — new → revoked_at=null
+live paddle grants: 19; main would see 7 open, dev 7
+PASS  no synthetic canary rows are live  — 19 rows scanned
+
+=== PHASE B (synthetic, rolled back; tag cs879_canary_u6q7i0a9) ===
+applied 20260915f inside the transaction
+PASS  RPC refresh_paid (no sub row, NULL period start, revoked): main sees ACCESS CLOSED  — expires_at=Mon Sep 14 2026 14:09:15 GMT+0000 (Coordinated Universal Time) revoked_at=Mon Sep 14 2026 14:09:15 GMT+0000 (Coordinated Universal Time)
+PASS  RPC refresh_paid (same): dev sees ACCESS CLOSED
+PASS  RPC refresh_paid: a provably later period start REOPENS on both resolvers  — expires_at=Wed Sep 15 2027 14:09:16 GMT+0000 (Coordinated Universal Time) revoked_at=null
+PASS  RPC refresh_paid (grant-row marker, subscription marker NULL): main CLOSED  — expires_at=Mon Sep 14 2026 14:09:15 GMT+0000 (Coordinated Universal Time) revoked_at=Mon Sep 14 2026 14:09:15 GMT+0000 (Coordinated Universal Time)
+PASS  RPC refresh_paid (same): the row is not self-contradictory
+PASS  RPC write_additional (INSERT, past_due): main sees ACCESS OPEN  — expires_at=Mon Aug 16 2027 14:09:16 GMT+0000 (Coordinated Universal Time) revoked_at=null
+PASS  RPC write_additional (INSERT, past_due): dev sees ACCESS OPEN — dunning is not revocation
+PASS  RPC write_additional (UPDATE, past_due): existing dates kept unchanged  — Mon Aug 16 2027 14:09:16 GMT+0000 (Coordinated Universal Time) → Mon Aug 16 2027 14:09:16 GMT+0000 (Coordinated Universal Time)
+PASS  RPC write_additional on a revoked grant: #857 clamp still holds, main CLOSED  — expires_at=Mon Sep 14 2026 14:09:15 GMT+0000 (Coordinated Universal Time) revoked_at=Mon Sep 14 2026 14:09:15 GMT+0000 (Coordinated Universal Time)
+PASS  trigger: active synthetic opens on both  — expires_at=Mon Jul 12 2027 14:09:15 GMT+0000 (Coordinated Universal Time)
+PASS  trigger past_due: main STILL OPEN (dunning is not revocation)  — expires_at=Mon Jul 12 2027 14:09:15 GMT+0000 (Coordinated Universal Time) revoked_at=null
+PASS  trigger past_due: dev STILL OPEN
+PASS  trigger past_due: dates unchanged by the dunning write  — Mon Jul 12 2027 14:09:15 GMT+0000 (Coordinated Universal Time) → Mon Jul 12 2027 14:09:15 GMT+0000 (Coordinated Universal Time)
+PASS  trigger past_due on INSERT: main OPEN to the paid period end  — expires_at=Sat Apr 03 2027 14:09:15 GMT+0000 (Coordinated Universal Time) revoked_at=null
+PASS  trigger past_due on INSERT: dev OPEN
+PASS  #857 refund signature unchanged: main sees ACCESS CLOSED  — expires_at=Tue Sep 15 2026 14:09:15 GMT+0000 (Coordinated Universal Time) revoked_at=Tue Sep 15 2026 14:09:15 GMT+0000 (Coordinated Universal Time)
+PASS  #857 durable marker still stamped  — Tue Sep 15 2026 14:09:15 GMT+0000 (Coordinated Universal Time)
+PASS  #857 fail-closed replay unchanged: main STILL CLOSED after an active replay
+PASS  period-end cancellation: still OPEN to the paid period end on both  — expires_at=Mon Dec 14 2026 14:09:15 GMT+0000 (Coordinated Universal Time)
+PASS  every live paddle grant unchanged, ALL columns, row by row  — 19 rows × 13 columns compared
+PASS  nothing synthetic survives the rollback  — 0 synthetic learners found
+
+GREEN — 34/34 passed

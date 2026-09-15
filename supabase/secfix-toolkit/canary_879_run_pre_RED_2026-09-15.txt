@@ -1,0 +1,20 @@
+
+=== PHASE A (read-only: live text + live evaluator) ===
+FAIL  refresh_paid: NULL-unsafe guard `NOT (p_period_start > revoked_at)` is GONE  — still present (defect 1)
+FAIL  refresh_paid: every period-start comparison is coalesce(...,false)  — 0 coalesced comparisons found (expect >= 4)
+FAIL  refresh_paid: clamp reads coalesce(grant revoked_at, subscription marker)  — subscription marker only (defect 1b)
+FAIL  trigger: past_due yields v_revoked_at NULL before the NOT IN arm  — falls into NOT IN ('active','cancelled') THEN now() (defect 2)
+FAIL  write_additional: past_due is in the non-revoking INSERT list  — INSERTs revoked_at=now() beside a future expiry (defect 2)
+PASS  defect 1 evaluated live: the OLD guard leaves main OPEN on a revoked grant  — old expression → expires_at=Wed Sep 15 2027 14:08:39 GMT+0000 (Coordinated Universal Time)
+PASS  defect 1 evaluated live: the NEW guard closes main on the same input  — new expression → expires_at=Mon Sep 14 2026 14:08:39 GMT+0000 (Coordinated Universal Time)
+PASS  reversal path intact: a provably later period start still reopens both  — expires_at=Mon Aug 16 2027 14:08:39 GMT+0000 (Coordinated Universal Time) revoked_at=null
+PASS  defect 1b evaluated live: the OLD clamp leaves main OPEN (grant-row marker ignored)  — old expression → expires_at=Wed Sep 15 2027 14:08:39 GMT+0000 (Coordinated Universal Time) revoked_at=Mon Sep 14 2026 14:08:39 GMT+0000 (Coordinated Universal Time)
+PASS  defect 1b evaluated live: the NEW clamp closes main and keeps the row consistent  — new expression → expires_at=Mon Sep 14 2026 14:08:39 GMT+0000 (Coordinated Universal Time) revoked_at=Mon Sep 14 2026 14:08:39 GMT+0000 (Coordinated Universal Time)
+PASS  defect 2 evaluated live: the OLD INSERT row is self-contradictory (main open, dev closed)  — old → expires_at=Wed Sep 15 2027 14:08:39 GMT+0000 (Coordinated Universal Time) revoked_at=Tue Sep 15 2026 14:08:39 GMT+0000 (Coordinated Universal Time)
+PASS  defect 2 evaluated live: the NEW INSERT row keeps the payer open on BOTH resolvers  — new → revoked_at=null
+live paddle grants: 19; main would see 7 open, dev 7
+PASS  no synthetic canary rows are live  — 19 rows scanned
+
+--pre: STOPPING HERE. No transaction was opened and nothing was written.
+
+RED — 8/13 passed   (--pre: RED here means the live definitions still carry the defects)
