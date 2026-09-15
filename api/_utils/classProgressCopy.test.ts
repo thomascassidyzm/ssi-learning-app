@@ -189,23 +189,26 @@ describe('applyCopy', () => {
         { targetLearnerId: CLASS, classId: 'class-1' },
         { targetLearnerId: CLASS2, classId: 'class-2' },
       ]
-      const apply = (plan: Awaited<ReturnType<typeof planCopy>>, classId: string) =>
-        applyCopy(svc, plan, { actorUserId: 'angharad', classId })
+      // Since #811 the apply takes the claim BEFORE it plans, so a plan can no
+      // longer be held across another request's insert: the race is two
+      // applies in flight at once, and the claim index (one running claim per
+      // source learner + course) lets exactly one of them through.
+      const apply = (targetLearnerId: string, classId: string) =>
+        applyCopyRaw(svc, { ...params, targetLearnerId }, { actorUserId: 'angharad', classId })
 
       if (schedule === 'overlapping') {
-        // Both server requests finish their fresh plan before either inserts.
-        // This explicit barrier reproduces the race without sleeps or timing luck.
-        const plans = await Promise.all(requests.map(({ targetLearnerId }) =>
-          planCopy(svc, { ...params, targetLearnerId })))
-        expect(plans.map((plan) => plan.toCopy.sessions)).toEqual([2, 2])
         expect(DB[AUDIT_TABLE]).toHaveLength(0)
-        await Promise.all(plans.map((plan, i) => apply(plan, requests[i].classId)))
+        const outcomes = await Promise.all(requests.map(({ targetLearnerId, classId }) => apply(targetLearnerId, classId)))
+        expect(outcomes.filter((o) => o.conflict)).toHaveLength(1)
+        const winner = outcomes.find((o) => !o.conflict)!
+        if (!winner.conflict) expect(winner.error).toBeNull()
       } else {
         // Positive control: the same invariant holds when the second plan
         // sees the first audit. This is not evidence of an atomic fix.
         for (const { targetLearnerId, classId } of requests) {
-          const result = await apply(await planCopy(svc, { ...params, targetLearnerId }), classId)
-          expect(result.error).toBeNull()
+          const result = await apply(targetLearnerId, classId)
+          expect(result.conflict).toBe(false)
+          if (!result.conflict) expect(result.error).toBeNull()
         }
       }
 
