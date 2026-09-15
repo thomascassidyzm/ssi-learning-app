@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `9048a70100e9` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `b7ffed88cbb0` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## add-a-class-under-a-group — Add a class to a group
 
@@ -92,6 +92,16 @@ Personas: school_admin · place: node-home
 1. [`school-copy-play-sweep` · next] Every teacher in your school who ran lessons signed in as themselves instead of using Play as class, one row per teacher on one class. When there is nothing to copy the card says so in words.
 2. [`school-copy-play-sweep-copy` · next] **Copy onto the class** does one row at a time — there is no button that copies everyone at once. The teacher keeps their own record; only play on that class's course moves.
    - terminal: Row by row, teacher by teacher — that's the whole sweep. This tour copied nothing.
+
+## courses-worth-attention — Which courses are worth attention
+
+Personas: admin · place: intel
+
+1. [`question-courses` · next] **Courses**, under What's happening, is one ranking of every course by real people practising it this month, with how many have ever been in it and how many have reached its end.
+2. [`answer` · next] The sentence says how many courses are alive this month and which had the most people.
+3. [`evidence` · next] The chart is the courses with anybody in them, most first.
+4. [`rows` · next] The chips show every course, only the alive ones, or the quiet ones somebody once joined; the chip is written into the page address. Each row carries this month, ever, how many stick and how many finished. Reaching the end means nine tenths of the course, and a course with no recorded length shows a dash. Minutes are left off because the stored counters are not reliable. Open a course row to see which bits of it people stumble on.
+   - terminal: One ranking by people this month. Filter with the chips, open a row for its weak points.
 
 ## create-your-first-classes — Create your first classes
 
@@ -459,6 +469,15 @@ Personas: admin, leader, school_admin · place: node-home (org/group/school)
 6. [`verb-shareable-link` · next] And this is where a brand-new shareable link comes from — **Get a shareable link** at the top of this page, one per role. **Invite a person** next to it makes a personal link for someone you can name.
    - terminal: The short version: copy is safe, revoke can always be undone, re-mint is for one person's own link — and a new shareable link is made at the top of the page, not in the ledger.
 
+## weak-points — Which bits of a course make people stumble
+
+Personas: admin · place: intel
+
+1. [`question-weak-points` · next] **Weak points**, under What's happening, shows for one course which pieces of it real learners skip, retry or stop on, ranked by how much trouble each piece caused per person who met it. Pick a course under **Courses** in the map on the left first; until you do, the page waits.
+2. [`answer` · next] The sentence names the piece that gave people the most trouble. When fewer than five real people have practised the course, the page says **too few to say** instead of a number. That is the truth about the course, not a fault in the page.
+3. [`rows` · next] The rows are the bits, worst first, each showing both languages with its skips, retries, failures and the share of people who stopped there. Open a row to see that piece and its phrases.
+   - terminal: Pick a course, read the worst piece, open a row to see its phrases.
+
 ## what-your-numbers-mean — What your numbers mean
 
 Personas: learner · place: library
@@ -467,6 +486,16 @@ Personas: learner · place: library
 2. [`library-stat-total-time` · next] Time is the time you have actually spent learning. If it ever shows a **~** in front of it, that is us working it out from how far along you are, because we have not logged the sessions themselves.
 3. [`library-stat-phrases-learnt` · next] Phrases learnt is how many separate phrases every one of your courses has introduced you to so far. It is added up across all of them, so it grows whichever language you pick up.
    - terminal: Nothing here changes what you get next. The course follows your position, not these numbers.
+
+## where-and-what — Where in the world people are using us, and on what
+
+Personas: admin · place: intel
+
+1. [`question-where-and-what` · next] **Where and what**, under What's happening, answers two questions at once: which countries real people practised from in the last thirty days, and whether they were on phones, tablets or desktops, in the app or in a browser. Machine traffic is left out by rule.
+2. [`answer` · next] The sentence gives you how many real people, from how many countries, and the country and device most of them are on. A person seen on two devices is counted once here and once under each device.
+3. [`evidence` · next] The chart is people by country, most first.
+4. [`rows` · next] One row per country, each with its phone, tablet and desktop split and its in-the-app or in-a-browser split. Tap a country to narrow the page to it; tap a device chip to count only that device. Both choices are written into the page address, so a pasted link reproduces the view. In the app or in a browser has only been recorded since 10 September 2026, so earlier people read as not recorded rather than being guessed at.
+   - terminal: Countries and devices on one page. Tap a country or a device chip to narrow it, and the address carries the choice.
 
 ## where-you-are-in-this-course — Where you are in this course
 
@@ -477,6 +506,26 @@ Personas: learner · place: library
 3. [`library-position-track` · next] The bar underneath lays the whole course out end to end, with each belt as its own band of colour. The marker on it is you — so it shows how far you have come rather than how far is left.
 4. [`library-belt-browser` · next] Tap the card itself to open the belts up. You can look through everything you have met so far, and start again from any point you fancy revisiting.
    - terminal: That's your position. Close this whenever you like and press play — it always picks up exactly where you left off.
+
+## who-is-about-to-leave — Who is about to leave
+
+Personas: admin · place: intel
+
+1. [`question-leaving` · next] **Leaving**, under What's happening, is the list of who to write to and why: real people who were practising regularly and have stopped, paying people who have gone quiet, and people whose access runs out within a fortnight. This page sends nothing.
+2. [`answer` · next] The sentence says how many, and why.
+3. [`evidence` · next] The chart is how long they have been gone.
+4. [`rows` · next] The rows are ordered by who was seen most recently, then by who was most regular before they stopped. Nobody is ranked by money, because no amount is stored for anyone. Each row carries every reason that applies, how long since they were seen, how regular they were, and when their access ends if it is ending. Open a row to see that person and act on them.
+   - terminal: Who has gone quiet and why, most recently seen first. Open a row to write to them.
+
+## working-now — Whether the app is working right now
+
+Personas: admin · place: intel
+
+1. [`question-working` · next] **Working now**, under What's happening, tells you whether audio is failing for real people, on which build and on which kind of device, so you can see whether the last fix reached them. Only real people's plays count, so your own session on staging is not here.
+2. [`answer` · next] The sentence gives the failure rate over the last seven days and the build most people are on today.
+3. [`evidence` · next] The chart is the failure rate by day.
+4. [`rows` · next] One row per build, most people first, with people, plays, how many failed and the rate. The build most people are on today carries a pill. Tap a build to narrow the rows to it; the choice is written into the page address. The line under the rows is the same rate for phones against desktops.
+   - terminal: Rate by day, then by build, then by device. If a fix landed, the newest build's row is where you see it.
 
 ## your-account-identity — Find out which email you are signed in with
 
