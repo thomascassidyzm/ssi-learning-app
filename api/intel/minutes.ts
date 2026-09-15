@@ -63,7 +63,15 @@ import {
   type PlaySpan,
   type DiarySessionisation,
 } from '../_utils/inAppTime'
-import { distributionStats, deltaPct, K_FLOOR } from '../_utils/rateCompare'
+import { distributionStats, deltaPct, cohortFloor } from '../_utils/rateCompare'
+
+// The cohort here is COURSES, not people: a course average is already an
+// aggregate, so it takes the entity floor (Tom, 2026-09-15: the 5 was a GDPR
+// floor for individual learners only). One other course is a comparison.
+export const COURSE_COHORT_FLOOR = cohortFloor('entities')
+export function courseCohortTooSmall(otherCourses: number): boolean {
+  return otherCourses < COURSE_COHORT_FLOOR
+}
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -361,7 +369,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       windowLabel: windowConfig.label,
       trendLabel: windowConfig.trendLabel,
       trendPeriodDays: windowConfig.periodDays,
-      kFloor: K_FLOOR,
+      kFloor: COURSE_COHORT_FLOOR,
       population: populationCount,
       diaryEnv: DIARY_ENV,
       coursePersonRule: 'a real learner enrolled on the course at the end of the window, or who played it inside the window',
@@ -413,8 +421,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // stays the siblings: the widget adds the entity itself when it ranks.
     const cohort = ranked.filter((f) => f.people.size > 0)
     const members = cohort.filter((f) => f.code !== courseCode)
-    if (members.length < K_FLOOR) {
-      res.status(200).json({ ...baseBody, insufficientData: true, cohortSize: members.length, reason: `Only ${members.length} other course${members.length === 1 ? '' : 's'} to compare with — the comparison needs at least ${K_FLOOR}.`, reconcile })
+    if (courseCohortTooSmall(members.length)) {
+      res.status(200).json({ ...baseBody, insufficientData: true, cohortSize: members.length, reason: `Only ${members.length} other course${members.length === 1 ? '' : 's'} to compare with — the comparison needs at least ${COURSE_COHORT_FLOOR}.`, reconcile })
       return
     }
     const cohortValues = members.map((f) => measureFor(measureConfig.value, f).value)
