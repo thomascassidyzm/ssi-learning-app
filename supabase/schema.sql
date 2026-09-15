@@ -7034,6 +7034,7 @@ CREATE TABLE public.admin_messages (
     recipient_count integer DEFAULT 0 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     sent_at timestamp with time zone,
+    recipient_user_ids text[],
     CONSTRAINT admin_messages_audience_kind_check CHECK ((audience_kind = ANY (ARRAY['one'::text, 'course'::text, 'all'::text])))
 );
 
