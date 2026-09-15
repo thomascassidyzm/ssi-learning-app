@@ -23,8 +23,13 @@
  * Every school view formats through this file; a second formatter is the bug.
  */
 
+// Round up, but only past a REAL fraction: 256.6 h × 60 is 15396.000000000002
+// in floating point, and a ceiling that reads that as "15397 min" invents a
+// minute nobody practised. Anything within a millionth of a whole is whole.
 function ceilPositive(n: number): number {
   if (!Number.isFinite(n) || n <= 0) return 0
+  const nearest = Math.round(n)
+  if (Math.abs(n - nearest) < 1e-6) return nearest
   return Math.ceil(n)
 }
 

@@ -11,6 +11,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:invariants": "vitest run --maxWorkers=2 src/composables/useI18n.localeParity.test.ts src/i18n/noBareEnglish.test.ts src/i18n/tInScope.test.ts src/intel/grammar.test.ts src/platform/apiPreflightCoverage.test.ts src/platform/bottomChromeOffsets.test.ts src/platform/courseChoiceCallers.test.ts src/platform/institutionalVisibility.test.ts src/platform/platformDoors.test.ts src/playback/progressivePrefetch.boundary.test.ts src/security/classInsertServerMediated.security.test.ts src/walkthrough/compileGate.test.ts src/walkthrough/localiseWalk.test.ts",
+    "test:changed": "vitest run --maxWorkers=2 --passWithNoTests --changed ${PREMERGE_BASE:-origin/dev}",
     "typecheck": "vue-tsc --noEmit",
     "lint": "eslint .",
     "e2e": "playwright test",

@@ -23,6 +23,11 @@ describe('practiceMinutes — minutes round UP, hours only from an hour', () => 
   it('a fraction of an hour from the DB views rounds up too', () => {
     expect(hoursToMinutes(0.01)).toBe(1)
     expect(hoursToMinutes(0.5)).toBe(30)
+    // group_summary carries 256.6 h; × 60 is 15396.000000000002 in floating
+    // point, and rounding UP must not read that noise as a 15397th minute
+    // (nightly red 2026-09-15 on useSchoolData.test.ts, job #774).
+    expect(hoursToMinutes(256.6)).toBe(15396)
+    expect(hoursToMinutes(256.61)).toBe(15397)
   })
   it('under an hour is minutes only', () => {
     expect(formatPracticeMinutes(59)).toBe('59 min')

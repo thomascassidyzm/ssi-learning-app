@@ -4,10 +4,14 @@
  * schools avatar menu's badge and the learner Library card both read this.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { applyCors } from '../_utils/cors'
 import { resolveInboxCaller } from './_shared'
 import { listUserMessages, toView, unreadCount } from '../_utils/userMessages'
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  // Named here, not only inside resolveInboxCaller: the preflight-coverage scanner
+  // (src/platform/scanClientApiCalls.ts) reads the handler file for the cors import.
+  if (applyCors(req, res, { methods: 'GET' })) return
   const caller = await resolveInboxCaller(req, res, { method: 'GET' })
   if (!caller) return
   try {

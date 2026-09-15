@@ -55,7 +55,7 @@ describe('CopyTeacherPlayCard', () => {
 
     const text = w.text()
     expect(text).toContain('74 sessions')
-    expect(text).toContain('28 minutes in the app')
+    expect(text).toContain('29 minutes in the app')
     expect(text).toContain('Class will be at: I still want / dw i dal yn moyn')
     expect(text).toContain('Class has reached: not started yet')
     expect(text).not.toMatch(/seed|lego/i)
@@ -65,7 +65,7 @@ describe('CopyTeacherPlayCard', () => {
     await flushPromises()
     expect(posts('/apply')).toHaveLength(1)
     expect(w.emitted('copied')).toHaveLength(1)
-    expect(w.text()).toContain('Copied from Angharad Jones: 74 sessions, 244 moments in the app, 28 minutes in the app.')
+    expect(w.text()).toContain('Copied from Angharad Jones: 74 sessions, 244 moments in the app, 29 minutes in the app.')
     expect(w.text()).toContain('The class is now at: I still want / dw i dal yn moyn.')
   })
 
