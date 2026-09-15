@@ -1,0 +1,47 @@
+{
+  "id": "question-not-yet",
+  "title": "A question whose page is not built yet",
+  "personas": [
+    "admin"
+  ],
+  "place": {
+    "route": "intel",
+    "kinds": [
+      "not-yet"
+    ]
+  },
+  "keywords": [
+    "not yet",
+    "unbuilt",
+    "coming",
+    "question",
+    "frame"
+  ],
+  "steps": [
+    {
+      "anchor": "question-not-yet",
+      "say": "This is one of the ten questions the surface exists to answer. It has no page yet, and it wears the same layout as the built ones so the bar always shows all ten.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "9ccb04d1.1df30357"
+    },
+    {
+      "anchor": "answer",
+      "say": "The answer says exactly that: the page has not been built yet. No number is shown because nothing is measured.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "37355d63.2a4e8e02"
+    },
+    {
+      "anchor": "evidence",
+      "say": "Where a chart would be, a card says nothing is measured for this question yet.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "Never a teaser and never a stub with a fake number on it.",
+      "checked": "31f48466.8b677286"
+    }
+  ]
+}

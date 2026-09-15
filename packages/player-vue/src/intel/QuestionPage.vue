@@ -21,14 +21,22 @@
  * what makes "every page shows them, in the same slot" true by construction
  * instead of true by everybody remembering.
  */
-import { onMounted, watch } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import PopulationChip from './PopulationChip.vue'
 import UpdatedStamp from './UpdatedStamp.vue'
 import ScopeRail from './ScopeRail.vue'
 import QuestionFindings from './QuestionFindings.vue'
-import WalkOffer from '@/components/admin/WalkOffer.vue'
 import { useIntelUsage } from './useIntelUsage'
+import WalkOffer from '@/components/admin/WalkOffer.vue'
+import { questionBySlug } from './questions'
+
+// A page passes its own anchor on this tag — data-intel="question-pulse" and
+// so on. Left to fall through it would REPLACE the layout's own anchor on the
+// root, and "How every question page is laid out" would have no element to
+// point at. So the page's anchor lands on the main column instead, and the
+// root keeps data-intel="question-page".
+defineOptions({ inheritAttrs: false })
 
 withDefaults(defineProps<{
   /** The question, said out loud, as the kicker. */
@@ -67,6 +75,11 @@ function record(): void {
 }
 onMounted(record)
 watch(() => [route.path, route.query.course], record)
+
+// The Show-me surface for the intelligence walks. Every question page is the
+// same place, 'intel'; the kind tells a walk which page it is standing on —
+// the question's slug, or 'not-yet' for one with no page built.
+const walkKind = computed(() => (questionBySlug(slug())?.built === false ? 'not-yet' : slug()))
 </script>
 
 <template>
@@ -100,7 +113,7 @@ watch(() => [route.path, route.query.course], record)
       <ScopeRail :courses="courses" :course-scopable="courseScopable" :person="person" />
     </aside>
 
-    <div class="main">
+    <div class="main" v-bind="$attrs">
       <!-- 5. THE VERBS — first in the source because it sits across the top of
            the main column; empty is a rendered state, not a missing one. -->
       <div class="verbs" data-intel="verb-bar">
@@ -119,10 +132,6 @@ watch(() => [route.path, route.query.course], record)
         <div class="meta">
           <UpdatedStamp :fetched-at="fetchedAt" />
           <PopulationChip :people="people" :showing-test-data="showingTestData" :note="populationNote" />
-          <!-- The Handbook's Show-me door, in the layout so every question page
-               has it (job #878). The surface is admin-only, so the persona is
-               fixed; WalkOffer renders nothing when no intel walk exists. -->
-          <WalkOffer persona="admin" place="intel" />
         </div>
       </section>
 
@@ -135,6 +144,8 @@ watch(() => [route.path, route.query.course], record)
       <section class="rows" data-intel="rows">
         <slot name="rows" />
       </section>
+
+      <WalkOffer persona="admin" place="intel" :kind="walkKind" />
     </div>
   </div>
 </template>

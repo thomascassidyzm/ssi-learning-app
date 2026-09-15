@@ -3,17 +3,13 @@
   "capabilities": {
     "obvious": {},
     "missing": {
-      "question-not-yet": "Backlog since 2026-09-15 (job #854): \"A question whose page is not built yet\" — admin on intel. No clip yet.",
       "verb-add-school": "Backlog since 2026-09-15 (job #854): \"Add a school under a group\" — admin on node-home. No clip yet.",
       "upgrade-update-seats": "Backlog since 2026-09-15 (job #854): \"Change how many seats you pay for\" — school_admin/leader on upgrade. No clip yet.",
       "settings-save-profile": "Backlog since 2026-09-15 (job #854): \"Change your school's name and details\" — school_admin on settings. No clip yet.",
-      "scope-rail": "Backlog since 2026-09-15 (job #854): \"Choosing who a question is asked about\" — admin on intel. No clip yet.",
       "verb-delete": "Backlog since 2026-09-15 (job #854): \"Delete a school or group\" — admin on node-home. No clip yet.",
       "settings-delete-school": "Backlog since 2026-09-15 (job #854): \"Delete your school\" — school_admin on settings. No clip yet.",
       "settings-export-data": "Backlog since 2026-09-15 (job #854): \"Download your school's data\" — school_admin/teacher on settings. No clip yet.",
-      "question-page": "Backlog since 2026-09-15 (job #854): \"How every question page is laid out\" — admin on intel. No clip yet.",
       "class-journey": "Backlog since 2026-09-15 (job #854): \"Where the class has got to\" — teacher on class-detail. No clip yet.",
-      "question-pulse": "Backlog since 2026-09-15 (job #854): \"How many in-app minutes are being done\" — admin on intel. No clip yet.",
       "student-view-link": "Backlog since 2026-09-15 (job #854): \"Look up one student\" — admin/school_admin/teacher on students. No clip yet.",
       "setup-school-name": "Backlog since 2026-09-15 (job #854): \"Name your school\" — school_admin on setup. No clip yet.",
       "class-students": "Backlog since 2026-09-15 (job #854): \"Reading one student's progress\" — admin/leader/school_admin on node-home. No clip yet.",

@@ -3805,3 +3805,23 @@ three-valued logic stated once and applied to every comparison, and a row that c
 revoked-but-open. Cheaper: three function bodies replaced, no schema change, no application code,
 and `canary_879_ledger_rpcs.cjs` now exercises both RPCs read-only under `--pre` so the next
 verifier needs no synthetic write to check the ledger.
+## 2026-09-15 — Intel walks: the overlay resolves both anchor namespaces, and a question page keeps its own anchor (job #869)
+
+The first walks on the intelligence surface found three things standing between a `data-intel`
+anchor and a playing clip. The overlay looked up a step's anchor with `[data-walk=…]` only, so
+every intel step would have timed out unanchored; no Show-me surface was mounted on any question
+page, so nothing could start a walk there; and each page's own `data-intel="question-pulse"` on
+the `<QuestionPage>` tag fell through onto the root and REPLACED the layout's
+`data-intel="question-page"`, so the layout capability had no element in the DOM. All three
+closed in the smallest way: `anchorSelector()` in useWalkthrough.ts mirrors `ANCHOR_ATTRS` and the
+overlay queries it; `QuestionPage` turns `inheritAttrs` off and lands the page's attrs on the main
+column, keeping its own anchor on the root; and one `WalkOffer` in the layout offers admin walks
+at place `intel` with the question's slug as the kind, or `not-yet` for an unbuilt question, so a
+walk about the not-built card is only offered where that card is. The walk on the minutes page
+steps `evidence` rather than `insights-rate-widget` so it does not pay another capability's debt
+by accident. The not-yet capability's "quieter grey" line was rewritten: the bar has no such
+styling in the code.
+
+**Better × Simpler × Cheaper.** Better: three intel capabilities and the layout are clipped by
+walks that bind to real elements. Simpler: one selector helper instead of a second overlay, one
+offer mount for all ten pages instead of ten. Cheaper: two proof tests, no new surface, no new gate.
