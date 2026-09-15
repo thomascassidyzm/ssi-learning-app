@@ -1,10 +1,10 @@
 {
   "mode": "dry-run",
-  "generated_at": "2026-09-14T16:49:10.509Z",
+  "generated_at": "2026-09-15T00:25:36.054Z",
   "schools_scanned": 43,
-  "classes_scanned": 183,
-  "candidate_classes": 183,
-  "pairs_checked": 190,
+  "classes_scanned": 184,
+  "candidate_classes": 184,
+  "pairs_checked": 191,
   "copies": [
     {
       "school": {
@@ -2835,14 +2835,14 @@
       "teachers_on_class": 1,
       "classes_taught_platform_wide": 1,
       "teacher_minutes": 0,
-      "class_minutes": 481,
+      "class_minutes": 421,
       "teacher_position": null,
       "class_position": "S0012L03",
-      "class_rows_on_course": 19,
+      "class_rows_on_course": 34,
       "failed": "condition_3_class_account_has_play",
-      "detail": "the class account already has 19 rows, position S0012L03, 481 minutes on this course",
+      "detail": "the class account already has 34 rows, position S0012L03, 421 minutes on this course",
       "class_rows_per_table": {
-        "sessions": 19,
+        "sessions": 17,
         "player_events": 0,
         "lego_progress": 0,
         "seed_progress": 0,
@@ -2854,7 +2854,7 @@
         "learner_lego_pairings": 0,
         "learner_l1_state": 0,
         "learner_pod_state": 0,
-        "learner_speaking_opportunities": 0
+        "learner_speaking_opportunities": 17
       }
     },
     {
@@ -2876,14 +2876,14 @@
       "teachers_on_class": 1,
       "classes_taught_platform_wide": 1,
       "teacher_minutes": 0,
-      "class_minutes": 632,
+      "class_minutes": 331,
       "teacher_position": null,
       "class_position": "S0014L03",
-      "class_rows_on_course": 23,
+      "class_rows_on_course": 26,
       "failed": "condition_3_class_account_has_play",
-      "detail": "the class account already has 23 rows, position S0014L03, 632 minutes on this course",
+      "detail": "the class account already has 26 rows, position S0014L03, 331 minutes on this course",
       "class_rows_per_table": {
-        "sessions": 23,
+        "sessions": 13,
         "player_events": 0,
         "lego_progress": 0,
         "seed_progress": 0,
@@ -2895,7 +2895,7 @@
         "learner_lego_pairings": 0,
         "learner_l1_state": 0,
         "learner_pod_state": 0,
-        "learner_speaking_opportunities": 0
+        "learner_speaking_opportunities": 13
       }
     },
     {
@@ -2917,14 +2917,14 @@
       "teachers_on_class": 1,
       "classes_taught_platform_wide": 1,
       "teacher_minutes": 0,
-      "class_minutes": 478,
+      "class_minutes": 506,
       "teacher_position": null,
       "class_position": "S0033L03",
-      "class_rows_on_course": 18,
+      "class_rows_on_course": 38,
       "failed": "condition_3_class_account_has_play",
-      "detail": "the class account already has 18 rows, position S0033L03, 478 minutes on this course",
+      "detail": "the class account already has 38 rows, position S0033L03, 506 minutes on this course",
       "class_rows_per_table": {
-        "sessions": 18,
+        "sessions": 19,
         "player_events": 0,
         "lego_progress": 0,
         "seed_progress": 0,
@@ -2936,7 +2936,7 @@
         "learner_lego_pairings": 0,
         "learner_l1_state": 0,
         "learner_pod_state": 0,
-        "learner_speaking_opportunities": 0
+        "learner_speaking_opportunities": 19
       }
     },
     {
@@ -2958,14 +2958,14 @@
       "teachers_on_class": 1,
       "classes_taught_platform_wide": 1,
       "teacher_minutes": 0,
-      "class_minutes": 464,
+      "class_minutes": 330,
       "teacher_position": "S0001L01",
       "class_position": "S0001L03",
-      "class_rows_on_course": 23,
+      "class_rows_on_course": 30,
       "failed": "condition_3_class_account_has_play",
-      "detail": "the class account already has 23 rows, position S0001L03, 464 minutes on this course",
+      "detail": "the class account already has 30 rows, position S0001L03, 330 minutes on this course",
       "class_rows_per_table": {
-        "sessions": 21,
+        "sessions": 14,
         "player_events": 2,
         "lego_progress": 0,
         "seed_progress": 0,
@@ -2977,7 +2977,7 @@
         "learner_lego_pairings": 0,
         "learner_l1_state": 0,
         "learner_pod_state": 0,
-        "learner_speaking_opportunities": 0
+        "learner_speaking_opportunities": 14
       }
     },
     {
@@ -2999,14 +2999,14 @@
       "teachers_on_class": 1,
       "classes_taught_platform_wide": 1,
       "teacher_minutes": 0,
-      "class_minutes": 1,
+      "class_minutes": 473,
       "teacher_position": "S0008L01",
-      "class_position": "S0001L03",
-      "class_rows_on_course": 43,
+      "class_position": "S0001L01",
+      "class_rows_on_course": 76,
       "failed": "condition_3_class_account_has_play",
-      "detail": "the class account already has 43 rows, position S0001L03, 1 minutes on this course",
+      "detail": "the class account already has 76 rows, position S0001L01, 473 minutes on this course",
       "class_rows_per_table": {
-        "sessions": 3,
+        "sessions": 18,
         "player_events": 40,
         "lego_progress": 0,
         "seed_progress": 0,
@@ -3018,7 +3018,7 @@
         "learner_lego_pairings": 0,
         "learner_l1_state": 0,
         "learner_pod_state": 0,
-        "learner_speaking_opportunities": 0
+        "learner_speaking_opportunities": 18
       }
     },
     {
@@ -3040,14 +3040,14 @@
       "teachers_on_class": 1,
       "classes_taught_platform_wide": 1,
       "teacher_minutes": 0,
-      "class_minutes": 518,
+      "class_minutes": 543,
       "teacher_position": null,
       "class_position": "S0019L03",
-      "class_rows_on_course": 20,
+      "class_rows_on_course": 45,
       "failed": "condition_3_class_account_has_play",
-      "detail": "the class account already has 20 rows, position S0019L03, 518 minutes on this course",
+      "detail": "the class account already has 45 rows, position S0019L03, 543 minutes on this course",
       "class_rows_per_table": {
-        "sessions": 20,
+        "sessions": 24,
         "player_events": 0,
         "lego_progress": 0,
         "seed_progress": 0,
@@ -3059,7 +3059,7 @@
         "learner_lego_pairings": 0,
         "learner_l1_state": 0,
         "learner_pod_state": 0,
-        "learner_speaking_opportunities": 0
+        "learner_speaking_opportunities": 21
       }
     },
     {
@@ -3081,14 +3081,14 @@
       "teachers_on_class": 1,
       "classes_taught_platform_wide": 1,
       "teacher_minutes": 0,
-      "class_minutes": 460,
+      "class_minutes": 410,
       "teacher_position": null,
       "class_position": "S0015L03",
-      "class_rows_on_course": 20,
+      "class_rows_on_course": 34,
       "failed": "condition_3_class_account_has_play",
-      "detail": "the class account already has 20 rows, position S0015L03, 460 minutes on this course",
+      "detail": "the class account already has 34 rows, position S0015L03, 410 minutes on this course",
       "class_rows_per_table": {
-        "sessions": 20,
+        "sessions": 17,
         "player_events": 0,
         "lego_progress": 0,
         "seed_progress": 0,
@@ -3100,7 +3100,7 @@
         "learner_lego_pairings": 0,
         "learner_l1_state": 0,
         "learner_pod_state": 0,
-        "learner_speaking_opportunities": 0
+        "learner_speaking_opportunities": 17
       }
     },
     {
@@ -3122,14 +3122,14 @@
       "teachers_on_class": 1,
       "classes_taught_platform_wide": 1,
       "teacher_minutes": 0,
-      "class_minutes": 380,
+      "class_minutes": 428,
       "teacher_position": null,
       "class_position": "S0012L03",
-      "class_rows_on_course": 15,
+      "class_rows_on_course": 36,
       "failed": "condition_3_class_account_has_play",
-      "detail": "the class account already has 15 rows, position S0012L03, 380 minutes on this course",
+      "detail": "the class account already has 36 rows, position S0012L03, 428 minutes on this course",
       "class_rows_per_table": {
-        "sessions": 15,
+        "sessions": 18,
         "player_events": 0,
         "lego_progress": 0,
         "seed_progress": 0,
@@ -3141,7 +3141,7 @@
         "learner_lego_pairings": 0,
         "learner_l1_state": 0,
         "learner_pod_state": 0,
-        "learner_speaking_opportunities": 0
+        "learner_speaking_opportunities": 18
       }
     },
     {
@@ -3163,14 +3163,14 @@
       "teachers_on_class": 1,
       "classes_taught_platform_wide": 1,
       "teacher_minutes": 0,
-      "class_minutes": 380,
+      "class_minutes": 341,
       "teacher_position": null,
       "class_position": "S0005L03",
-      "class_rows_on_course": 15,
+      "class_rows_on_course": 32,
       "failed": "condition_3_class_account_has_play",
-      "detail": "the class account already has 15 rows, position S0005L03, 380 minutes on this course",
+      "detail": "the class account already has 32 rows, position S0005L03, 341 minutes on this course",
       "class_rows_per_table": {
-        "sessions": 15,
+        "sessions": 16,
         "player_events": 0,
         "lego_progress": 0,
         "seed_progress": 0,
@@ -3182,7 +3182,7 @@
         "learner_lego_pairings": 0,
         "learner_l1_state": 0,
         "learner_pod_state": 0,
-        "learner_speaking_opportunities": 0
+        "learner_speaking_opportunities": 16
       }
     },
     {
@@ -3204,14 +3204,14 @@
       "teachers_on_class": 1,
       "classes_taught_platform_wide": 1,
       "teacher_minutes": 0,
-      "class_minutes": 358,
+      "class_minutes": 365,
       "teacher_position": null,
       "class_position": "S0001L03",
-      "class_rows_on_course": 20,
+      "class_rows_on_course": 37,
       "failed": "condition_3_class_account_has_play",
-      "detail": "the class account already has 20 rows, position S0001L03, 358 minutes on this course",
+      "detail": "the class account already has 37 rows, position S0001L03, 365 minutes on this course",
       "class_rows_per_table": {
-        "sessions": 15,
+        "sessions": 16,
         "player_events": 5,
         "lego_progress": 0,
         "seed_progress": 0,
@@ -3223,7 +3223,7 @@
         "learner_lego_pairings": 0,
         "learner_l1_state": 0,
         "learner_pod_state": 0,
-        "learner_speaking_opportunities": 0
+        "learner_speaking_opportunities": 16
       }
     },
     {
@@ -3245,12 +3245,12 @@
       "teachers_on_class": 1,
       "classes_taught_platform_wide": 1,
       "teacher_minutes": 0,
-      "class_minutes": 494,
+      "class_minutes": 491,
       "teacher_position": null,
       "class_position": "S0017L03",
-      "class_rows_on_course": 21,
+      "class_rows_on_course": 41,
       "failed": "condition_3_class_account_has_play",
-      "detail": "the class account already has 21 rows, position S0017L03, 494 minutes on this course",
+      "detail": "the class account already has 41 rows, position S0017L03, 491 minutes on this course",
       "class_rows_per_table": {
         "sessions": 20,
         "player_events": 1,
@@ -3264,7 +3264,7 @@
         "learner_lego_pairings": 0,
         "learner_l1_state": 0,
         "learner_pod_state": 0,
-        "learner_speaking_opportunities": 0
+        "learner_speaking_opportunities": 20
       }
     },
     {
@@ -3286,14 +3286,14 @@
       "teachers_on_class": 1,
       "classes_taught_platform_wide": 1,
       "teacher_minutes": 0,
-      "class_minutes": 340,
+      "class_minutes": 518,
       "teacher_position": null,
       "class_position": "S0022L03",
-      "class_rows_on_course": 13,
+      "class_rows_on_course": 39,
       "failed": "condition_3_class_account_has_play",
-      "detail": "the class account already has 13 rows, position S0022L03, 340 minutes on this course",
+      "detail": "the class account already has 39 rows, position S0022L03, 518 minutes on this course",
       "class_rows_per_table": {
-        "sessions": 13,
+        "sessions": 20,
         "player_events": 0,
         "lego_progress": 0,
         "seed_progress": 0,
@@ -3305,7 +3305,7 @@
         "learner_lego_pairings": 0,
         "learner_l1_state": 0,
         "learner_pod_state": 0,
-        "learner_speaking_opportunities": 0
+        "learner_speaking_opportunities": 19
       }
     },
     {
@@ -3327,14 +3327,14 @@
       "teachers_on_class": 1,
       "classes_taught_platform_wide": 1,
       "teacher_minutes": 0,
-      "class_minutes": 500,
+      "class_minutes": 355,
       "teacher_position": null,
       "class_position": "S0014L03",
-      "class_rows_on_course": 20,
+      "class_rows_on_course": 28,
       "failed": "condition_3_class_account_has_play",
-      "detail": "the class account already has 20 rows, position S0014L03, 500 minutes on this course",
+      "detail": "the class account already has 28 rows, position S0014L03, 355 minutes on this course",
       "class_rows_per_table": {
-        "sessions": 20,
+        "sessions": 14,
         "player_events": 0,
         "lego_progress": 0,
         "seed_progress": 0,
@@ -3346,7 +3346,7 @@
         "learner_lego_pairings": 0,
         "learner_l1_state": 0,
         "learner_pod_state": 0,
-        "learner_speaking_opportunities": 0
+        "learner_speaking_opportunities": 14
       }
     },
     {
@@ -3368,14 +3368,14 @@
       "teachers_on_class": 1,
       "classes_taught_platform_wide": 1,
       "teacher_minutes": 0,
-      "class_minutes": 520,
+      "class_minutes": 355,
       "teacher_position": null,
       "class_position": "S0001L03",
-      "class_rows_on_course": 77,
+      "class_rows_on_course": 86,
       "failed": "condition_3_class_account_has_play",
-      "detail": "the class account already has 77 rows, position S0001L03, 520 minutes on this course",
+      "detail": "the class account already has 86 rows, position S0001L03, 355 minutes on this course",
       "class_rows_per_table": {
-        "sessions": 21,
+        "sessions": 15,
         "player_events": 56,
         "lego_progress": 0,
         "seed_progress": 0,
@@ -3387,7 +3387,7 @@
         "learner_lego_pairings": 0,
         "learner_l1_state": 0,
         "learner_pod_state": 0,
-        "learner_speaking_opportunities": 0
+        "learner_speaking_opportunities": 15
       }
     },
     {
@@ -3409,14 +3409,14 @@
       "teachers_on_class": 1,
       "classes_taught_platform_wide": 1,
       "teacher_minutes": 0,
-      "class_minutes": 453,
+      "class_minutes": 487,
       "teacher_position": null,
       "class_position": "S0041L03",
-      "class_rows_on_course": 18,
+      "class_rows_on_course": 41,
       "failed": "condition_3_class_account_has_play",
-      "detail": "the class account already has 18 rows, position S0041L03, 453 minutes on this course",
+      "detail": "the class account already has 41 rows, position S0041L03, 487 minutes on this course",
       "class_rows_per_table": {
-        "sessions": 18,
+        "sessions": 21,
         "player_events": 0,
         "lego_progress": 0,
         "seed_progress": 0,
@@ -3428,7 +3428,7 @@
         "learner_lego_pairings": 0,
         "learner_l1_state": 0,
         "learner_pod_state": 0,
-        "learner_speaking_opportunities": 0
+        "learner_speaking_opportunities": 20
       }
     },
     {
@@ -4361,6 +4361,47 @@
       "class_rows_per_table": {
         "sessions": 0,
         "player_events": 10,
+        "lego_progress": 0,
+        "seed_progress": 0,
+        "response_metrics": 0,
+        "spike_events": 0,
+        "learner_points": 0,
+        "learner_milestones": 0,
+        "learner_lego_metrics": 0,
+        "learner_lego_pairings": 0,
+        "learner_l1_state": 0,
+        "learner_pod_state": 0,
+        "learner_speaking_opportunities": 0
+      }
+    },
+    {
+      "school": {
+        "id": "648185c9-78cf-48bd-98bd-8a5dd73670d5",
+        "name": "ZZ Test — Chepstow scenario"
+      },
+      "class": {
+        "id": "d52efceb-da67-413b-a660-9fbe6c48a494",
+        "name": "Y7 Welsh",
+        "course_code": "cym_n_for_eng",
+        "class_learner_id": "2ffd2a0d-80e1-4fa9-9c69-28e509ed0949"
+      },
+      "teacher": {
+        "user_id": "07ac183d-a4cc-4e2f-842e-235a0105772e",
+        "name": "Mr Tom Tester",
+        "learner_id": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd"
+      },
+      "teachers_on_class": 1,
+      "classes_taught_platform_wide": 1,
+      "teacher_minutes": 1,
+      "class_minutes": 0,
+      "teacher_position": "S0008L01",
+      "class_position": "S0008L01",
+      "class_rows_on_course": 31,
+      "failed": "condition_3_class_account_has_play",
+      "detail": "the class account already has 31 rows, position S0008L01, 0 minutes on this course",
+      "class_rows_per_table": {
+        "sessions": 9,
+        "player_events": 22,
         "lego_progress": 0,
         "seed_progress": 0,
         "response_metrics": 0,
