@@ -117,6 +117,18 @@ describe('LearningPlayer wiring (source read)', () => {
     expect(queue).toContain('paywallRetreat.blocksPersist()')
   })
 
+  it('the post-init gate waits for the subscription answer before deciding the hold (job #757 addition)', () => {
+    // While the answer is optimistic every canAccessSeed says yes, so the
+    // hold was skipped and the lifecycle save wrote the preview landing over
+    // the real place in localStorage — one open in four on served staging.
+    const w = block('watch(positionInitialized, (init) => {', '\n})\n')
+    expect(w).toContain('if (!entitlementComposable.accessPending()) { runPostInitResumeGate(); return }')
+    expect(w).toContain('watch(entitlementComposable.subscriptionHydrated')
+    const gate = block('const runPostInitResumeGate = () => {', '\n}\n')
+    expect(gate).toContain('holdSavedCursorAtPaywall()')
+    expect(gate.indexOf('holdSavedCursorAtPaywall()')).toBeLessThan(gate.indexOf('savePositionToLocalStorage(undefined, false)'))
+  })
+
   it('a grant jumps back to the real position before resuming', () => {
     const w = block('watch(liveEntitlements, () => {', '\n})\n')
     const restore = w.indexOf('tryRestoreHeldPosition()')

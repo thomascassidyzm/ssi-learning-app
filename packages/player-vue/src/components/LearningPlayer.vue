@@ -4291,8 +4291,17 @@ watch(() => simplePlayer.phase.value, (phase) => {
 // instant it's loaded, so refreshing again immediately (before any
 // cycle plays) still has a fresh localStorage entry. Lifecycle save:
 // position only, no practice timestamp (see savePositionToLocalStorage).
-watch(positionInitialized, (init) => {
-  if (init && useRoundBasedPlayback.value) {
+/**
+ * The post-init resume gate and the lifecycle saves that follow it. Split from
+ * the watcher so it can be DEFERRED: while the subscription answer is still
+ * optimistic (`accessPending`), every canAccessSeed says yes, the hold is
+ * skipped, and the lifecycle save two lines later writes the preview landing
+ * over the real place in localStorage — Tom's rule broken on a page-load race
+ * (served staging, job #757: one open in four). So the gate waits for the
+ * answer; useSubscription bounds that wait at 8s and fails closed.
+ */
+const runPostInitResumeGate = () => {
+  {
     // RESUME GATE: a returning premium non-subscriber whose saved / deep-linked
     // position resolved PAST the free preview must not resume INTO locked
     // territory. The resume/init branches above can land the cursor anywhere
@@ -4327,6 +4336,17 @@ watch(positionInitialized, (init) => {
     // stamp here made a 23h absence read as a brief pause (Aran 2026-06-11).
     persistLivePositionToDb(undefined, false)
   }
+}
+
+watch(positionInitialized, (init) => {
+  if (!(init && useRoundBasedPlayback.value)) return
+  if (!entitlementComposable.accessPending()) { runPostInitResumeGate(); return }
+  console.log('[LearningPlayer] resume gate deferred until the subscription answer lands (job #757)')
+  const stop = watch(entitlementComposable.subscriptionHydrated, (hydrated) => {
+    if (!hydrated) return
+    stop()
+    runPostInitResumeGate()
+  })
 })
 
 // Watch for approaching end of loaded rounds - trigger expansion.
