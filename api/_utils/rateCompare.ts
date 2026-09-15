@@ -24,7 +24,27 @@ export interface ScopedSessionRow {
   started_at: string
 }
 
-export const K_FLOOR = 5 // matches spec.ts Sovereignty.kFloor default — a band of one/few can't leak
+/**
+ * PRIVACY FLOOR — by COHORT KIND, never by caller role (Tom's ruling,
+ * 2026-09-15: "the comparison limit to 5 was for INDIVIDUAL users, to not be
+ * identified for GDPR purposes — not to prevent classes being compared").
+ *
+ *   · individuals — a cohort made of PEOPLE (me/insights: other learners on
+ *     my course). Fewer than 5 and a person could be read off the average.
+ *     Held for every role, admins included.
+ *   · entities — a cohort made of CLASSES / SCHOOLS / GROUPS as entities
+ *     (both rate-compare engines). A class average is already an aggregate;
+ *     one comparable class is a comparison. Floor 1, teacher included.
+ *
+ * K_FLOOR keeps its name and value (5) for the individual-cohort callers and
+ * for spec.ts Sovereignty.kFloor parity; entity cohorts call cohortFloor().
+ */
+export const K_FLOOR = 5 // individuals — matches spec.ts Sovereignty.kFloor default; a band of one/few can't leak
+export const K_FLOOR_ENTITIES = 1
+export type CohortKind = 'individuals' | 'entities'
+export function cohortFloor(kind: CohortKind): number {
+  return kind === 'individuals' ? K_FLOOR : K_FLOOR_ENTITIES
+}
 
 const MS_PER_DAY = 86_400_000
 const MS_PER_WEEK = MS_PER_DAY * 7

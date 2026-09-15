@@ -334,16 +334,35 @@ describe('GET /api/groups/:id/rate-compare', () => {
     expect(res2.body.applied.course_code).toBe('hin_for_eng')
   })
 
-  it('teacher · own class passes the door but K_FLOOR holds (never a tiny cohort)', async () => {
+  it('teacher · own class passes the door; a CLASS cohort has floor 1, so 2 peer classes compare (Tom, 2026-09-15)', async () => {
     verifyAuthTokenResult = { valid: true, userId: 'teacher-1' }
     visibleScopeResult = { ...EMPTY_SCOPE, role: 'teacher', classIds: ['c1'] }
     const res = makeRes()
     await handler(makeReq('c1', { compare_to: 'programme' }), res)
     expect(res.statusCode).toBe(200)
-    // 2 active peers < K_FLOOR 5 → honest insufficiency for a non-admin
-    expect(res.body.insufficientData).toBe(true)
+    // The 5-floor is for cohorts of INDIVIDUAL learners (GDPR); classes are
+    // entities. Before this ruling a teacher here was told "needs at least 5".
+    expect(res.body.insufficientData).toBe(false)
     expect(res.body.cohortSize).toBe(2)
-    expect(res.body.kFloor).toBe(5)
+    expect(res.body.kFloor).toBe(1)
+  })
+
+  it('teacher · one class, ONE comparable class elsewhere on the course → a comparison, not a blank (Tom, 2026-09-15)', async () => {
+    verifyAuthTokenResult = { valid: true, userId: 'teacher-1' }
+    visibleScopeResult = { ...EMPTY_SCOPE, role: 'teacher', classIds: ['c1'] }
+    // One class, one comparable class elsewhere: only c1 and c2 (another
+    // school, same course) have practised — a cohort of exactly one.
+    SESSION_ROWS = [
+      ...sessions('c1', 'hin_for_eng', [[0, 5], [5, 10]]),
+      ...sessions('c2', 'hin_for_eng', [[0, 4], [4, 8]]),
+    ]
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'global' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.insufficientData).toBe(false)
+    expect(res.body.cohortSize).toBe(1)
+    expect(res.body.kFloor).toBe(1)
+    expect(res.body.average.value).toBeGreaterThan(0)
   })
 
   it('teacher · someone else’s class is 403', async () => {
@@ -583,13 +602,15 @@ describe('GET /api/groups/:id/rate-compare — course defaulting (founder rule 2
     expect(res.body.kFloor).toBe(1)
     expect(res.body.insufficientData).toBe(false) // school-1 is a single valid demo peer
     expect(res.body.cohortSize).toBe(1)
-    // a REAL school for the same leader keeps the full privacy floor
+    // a REAL school for the same leader: a SCHOOL cohort is entities too, so
+    // the floor is 1 there as well (Tom, 2026-09-15) — one real peer compares.
     for (const g of TABLES.groups) g.is_demo = false
     for (const s of TABLES.schools) s.is_demo = false
     const res2 = makeRes()
     await handler(makeReq('school-2'), res2)
-    expect(res2.body.kFloor).toBe(5)
-    expect(res2.body.insufficientData).toBe(true) // 1 peer < 5
+    expect(res2.body.kFloor).toBe(1)
+    expect(res2.body.insufficientData).toBe(false)
+    expect(res2.body.cohortSize).toBe(1)
   })
 
   it('an INTERIOR node whose peers share NONE of its courses ladders the compare to global · all courses (the Metro case)', async () => {
