@@ -260,7 +260,7 @@ describe('GET /api/groups/:id/home', () => {
       // inAppMinutes7d: the class account's own minutes this week, the figure
       // the year-group tiles sum (job #766) — rounded UP per class like every
       // school-page minute (job #683), so the fixture's 25-and-a-bit is 26.
-      { id: 'class-1', name: 'Year 6 Hindi', nodeId: 'school-node', teachers: ['Mr Rao', 'Ms Mehta'], studentCount: 2, phrases7d: 4, lastPractisedAt: expect.any(String), inAppMinutes7d: 26 },
+      { id: 'class-1', name: 'Year 6 Hindi', nodeId: 'school-node', teachers: ['Mr Rao', 'Ms Mehta'], studentCount: 2, phrases7d: 4, lastPractisedAt: expect.any(String), inAppMinutes7d: 26, inAppSeconds7d: expect.any(Number) },
     ])
     // People are drawn, on the node they sit on: the verbs that belong to a
     // person (assign to a class, access code) need a row to live on.

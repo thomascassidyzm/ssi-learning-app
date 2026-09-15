@@ -293,9 +293,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       // figure the year-group tiles sum and the tree's class rows carry
       // (job #766). Rounded UP per class like every other minute on a
       // school page (secondsToMinutesUp, job #683).
+      // The SECONDS ride alongside so a year-group tile can sum them and
+      // round up once, the same as the headline does (job #772).
       const minutesByClass: Record<string, number> = {}
+      const secondsByClass: Record<string, number> = {}
       for (const c of subtreeClasses) {
-        if (c.class_learner_id) minutesByClass[c.id] = secondsToMinutesUp(inApp.classSecondsByLearner.get(c.class_learner_id) ?? 0)
+        if (!c.class_learner_id) continue
+        const seconds = inApp.classSecondsByLearner.get(c.class_learner_id) ?? 0
+        secondsByClass[c.id] = seconds
+        minutesByClass[c.id] = secondsToMinutesUp(seconds)
       }
       return {
         windowDays: CLASS_PRACTICE_WINDOW_DAYS,
@@ -312,6 +318,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         ownAccountMinutes7d: Math.round(own.seconds / 60),
         ownAccountPeople7d: own.people,
         minutesByClass,
+        secondsByClass,
       }
     })
     // WHO LEADS THIS NODE. The org page could name the leader of a group
@@ -587,7 +594,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const classPracticeFacts = await classPracticeFactsPromise
     // Per-class minutes this week ride the classPractice rollup; the payload
     // strips them off the rollup below so the stats row keeps its shape.
-    const { minutesByClass: classMinutesByClass, ...classPracticeRollup } = classPractice
+    const { minutesByClass: classMinutesByClass, secondsByClass: classSecondsByClass, ...classPracticeRollup } = classPractice
     if (drawsTree) {
       const subtreeClasses = await subtreeClassesPromise
       const classIds = subtreeClasses.map((c) => c.id)
@@ -692,6 +699,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
               // The class account's own in-app minutes this week — the number
               // the year-group tiles sum and the tree orders by (job #766).
               inAppMinutes7d: classMinutesByClass[c.id] ?? 0,
+              // The seconds behind it, unrounded, for the tiles to sum and
+              // round once (job #772). The minutes stay for existing readers.
+              inAppSeconds7d: classSecondsByClass[c.id] ?? 0,
             }))
             .sort((a, b) => a.name.localeCompare(b.name)),
           staff: staffUids
