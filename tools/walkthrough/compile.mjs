@@ -19,7 +19,7 @@ import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { runGates, assemblePack, comparePack, indexAnchors, gateClipCoverage, routeViewsFrom } from './lib.mjs'
+import { runGates, assemblePack, comparePack, indexAnchors, gateClipCoverage, routeViewsFrom, gateWalkClaimers } from './lib.mjs'
 import {
   parseHandbookBlocks, fingerprintCapability, stampChecked, proseFingerprint,
   checkedCode, checkedProse, anchorFingerprint, stepProseFingerprint,
@@ -228,6 +228,7 @@ if (RECONFIRM_WALKS) {
   process.exit(refused.length ? 1 : res.status ?? 1)
 }
 
+const routerSrc = readFileSync(join(ROOT, 'packages/player-vue/src/router/index.ts'), 'utf8')
 const { failures, warnings } = runGates({
   walks,
   entries,
@@ -249,7 +250,18 @@ failures.push(...gateClipCoverage({
   // WALKTHROUGH_COVERAGE_JSON lets the build-path test hand the gate a registry
   // with a gap and prove `--build` exits non-zero on it (job #860).
   coverage: JSON.parse(readFileSync(process.env.WALKTHROUGH_COVERAGE_JSON || join(HERE, 'coverage.json'), 'utf8')),
-  routeViews: routeViewsFrom(readFileSync(join(ROOT, 'packages/player-vue/src/router/index.ts'), 'utf8'), vueFiles),
+  routeViews: routeViewsFrom(routerSrc, vueFiles),
+}).failures)
+
+// Gate 14 — every walk's place has a claimer on the page the Handbook sends
+// the reader to (job #881, 2026-09-15). Show me defers the walk and navigates;
+// only a <HowThisWorks> / <WalkOffer> mount naming that place ever starts it.
+// Five schools routes mounted neither, so every Show me there landed silently.
+failures.push(...gateWalkClaimers({
+  walks,
+  handbookSrc: readFileSync(join(ROOT, 'packages/player-vue/src/walkthrough/handbook.ts'), 'utf8'),
+  routerSrc,
+  vueFiles,
 }).failures)
 
 for (const w of warnings) console.log(`  ⚠ ${w}`)

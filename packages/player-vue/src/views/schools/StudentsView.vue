@@ -5,6 +5,8 @@ import { formatPracticeMinutes } from '@/composables/schools/practiceMinutes'
 import { useRouter } from 'vue-router'
 import BeltDot from '@/components/schools/shared/BeltDot.vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
+import WalkOffer from '@/components/admin/WalkOffer.vue'
+import { viewerPersona } from '@/walkthrough/handbook'
 import { useStudentsData } from '@/composables/schools/useStudentsData'
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 import { deriveBelt, type Belt } from '@/composables/schools/belts'
@@ -15,6 +17,9 @@ const { t } = useI18n()
 const isAdminView = inject<boolean>('isAdminView', false)
 const { schoolsLink } = useSchoolsNav()
 const { currentUser: selectedUser } = useSchoolContext()
+// The Handbook's Show me lands here and defers its walk; this mount is what
+// claims and starts it (job #881), the same claim ClassDetail's HowThisWorks makes.
+const explainerPersona = computed(() => viewerPersona(selectedUser.value?.platform_role ?? null, selectedUser.value?.educational_role ?? null))
 const { students: studentsData, isLoading: studentsLoading, error: studentsError, fetchStudents } = useStudentsData()
 
 const searchQuery = ref('')
@@ -184,6 +189,7 @@ watch(selectedUser, (newUser) => {
         <p class="page-subtitle schools-subtle">{{ headlineSubtitle }}</p>
       </div>
       <div class="page-head-actions">
+        <WalkOffer v-if="!isAdminView" :persona="explainerPersona" place="students" />
         <!-- data-walk sits BEFORE v-if here on purpose: the walkthrough
              compiler scans the opening tag with a no-'>' regex, and the
              "> 0" inside this condition would hide the anchor from it. -->

@@ -28,6 +28,8 @@ import { getSchoolsClient } from '@/composables/schools/client'
 import { isDemoMode } from '@/composables/demo/demoMode'
 import { useI18n } from '@/composables/useI18n'
 import { useUserRole } from '@/composables/useUserRole'
+import WalkOffer from '@/components/admin/WalkOffer.vue'
+import { viewerPersona } from '@/walkthrough/handbook'
 import '@/styles/schools-tokens.css'
 
 const { t } = useI18n()
@@ -39,7 +41,10 @@ const props = defineProps<{ embedded?: boolean }>()
 
 const route = useRoute()
 const router = useRouter()
-const { viewingAs } = useUserRole()
+const { viewingAs, platformRole, educationalRole } = useUserRole()
+// The Handbook's Show me lands on /schools/analytics and defers its walk; this
+// mount claims and starts it (job #881), the same claim the schools views make.
+const explainerPersona = computed(() => viewerPersona(platformRole.value, educationalRole.value))
 
 interface GroupDetail { id: string; label: 'school' | 'group'; name: string }
 interface ClassDetail { id: string; name: string; course_code: string | null }
@@ -172,6 +177,7 @@ const requestedLearnerName = computed(() => {
 
     <div :class="['tiv-scroll', { 'tiv-scroll--embedded': props.embedded }]">
     <div class="tiv schools-surface">
+    <WalkOffer v-if="props.embedded" :persona="explainerPersona" place="analytics" />
     <!-- ── Honest states before there's anything to show ── -->
     <div v-if="isLoadingContext" class="tiv-status-card">
       <p>{{ t('insights.teacher.loadingClasses', 'Loading your classes…') }}</p>
