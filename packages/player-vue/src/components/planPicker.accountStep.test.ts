@@ -36,6 +36,7 @@ import { useCheckout } from '@/composables/useCheckout'
 const verifyOtp = vi.fn()
 let session: any = null
 const supabase = ref({
+  from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: { id: 'learner-1' }, error: null }) }) }) }),
   auth: {
     getSession: async () => ({ data: { session } }),
     verifyOtp: (...a: any[]) => verifyOtp(...a),

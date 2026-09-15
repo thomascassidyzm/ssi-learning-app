@@ -40,6 +40,7 @@ function makeSupabaseMock(responses: Record<string, any>) {
   }
   return {
     from: (table: string) => chainFor(table),
+    rpc: async () => ({ data: null, error: null }),
     calls,
   }
 }

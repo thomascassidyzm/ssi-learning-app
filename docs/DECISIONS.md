@@ -3607,3 +3607,7 @@ says "verified".
 
 **Better × Simpler × Cheaper.** Better: the gap the sentence earns, on every course. Simpler: same
 lookup, paged. Cheaper: seven small indexed queries in parallel instead of one refused one.
+
+- 2026-09-15, #812: additive individual grants ledger on `user_entitlements`, retaining `subscriptions` as Paddle detail and family cover. Source values include admin and email_allowlist. Implementation: `supabase/migrations/20260915_individual_grants_ledger.sql`. No production code promotion authorised. Build remains uncommitted because worktree git metadata is read-only.
+
+- 2026-09-15, #812: transactional Paddle mirror plus service-role Play receipt RPC; verified source windows own individual access, family behaviour retained. Code references include learner ids for reusable codes. Implementation and access gaps: `docs/grants-ledger-build-812.md`; live read-only backfill: `docs/grants-ledger-paddle-dry-run-2026-09-15.md`.
