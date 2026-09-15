@@ -150,6 +150,57 @@ describe('planCopy (the preview)', () => {
 })
 
 describe('applyCopy', () => {
+  it.each(['overlapping', 'serial control'] as const)(
+    'ONE CLASS: %s requests copy each source session onto at most one class (verify #808)',
+    async (schedule) => {
+      const CLASS2 = 'class2-learner'
+      DB.classes.push({ id: 'class-2', class_name: 'Year 8 Welsh' })
+      DB.course_enrollments.push({
+        ...clone(DB.course_enrollments.find((r) => r.learner_id === CLASS)),
+        learner_id: CLASS2,
+      })
+      const sourceSessions = clone(DB.sessions.filter((r) => r.learner_id === TEACHER && r.course_id === COURSE))
+      const existingClassSessions = clone(DB.sessions.filter((r) => r.learner_id === CLASS))
+      const requests = [
+        { targetLearnerId: CLASS, classId: 'class-1' },
+        { targetLearnerId: CLASS2, classId: 'class-2' },
+      ]
+      const apply = (plan: Awaited<ReturnType<typeof planCopy>>, classId: string) =>
+        applyCopy(svc, plan, { actorUserId: 'angharad', classId })
+
+      if (schedule === 'overlapping') {
+        // Both server requests finish their fresh plan before either inserts.
+        // This explicit barrier reproduces the race without sleeps or timing luck.
+        const plans = await Promise.all(requests.map(({ targetLearnerId }) =>
+          planCopy(svc, { ...params, targetLearnerId })))
+        expect(plans.map((plan) => plan.toCopy.sessions)).toEqual([2, 2])
+        expect(DB[AUDIT_TABLE]).toHaveLength(0)
+        await Promise.all(plans.map((plan, i) => apply(plan, requests[i].classId)))
+      } else {
+        // Positive control: the same invariant holds when the second plan
+        // sees the first audit. This is not evidence of an atomic fix.
+        for (const { targetLearnerId, classId } of requests) {
+          const result = await apply(await planCopy(svc, { ...params, targetLearnerId }), classId)
+          expect(result.error).toBeNull()
+        }
+      }
+
+      // Inspect actual landed rows: unique generated IDs or audit counts alone
+      // would miss the same source play being credited to two classes.
+      const landed = DB.sessions.filter((r) =>
+        [CLASS, CLASS2].includes(r.learner_id) && r.course_id === COURSE &&
+        !existingClassSessions.some((old) => old.id === r.id))
+      for (const source of sourceSessions) {
+        expect(landed.filter((r) => r.started_at === source.started_at &&
+          r.duration_seconds === source.duration_seconds),
+        `source session ${source.id} must land exactly once across both classes`).toHaveLength(1)
+      }
+      expect(landed).toHaveLength(sourceSessions.length)
+      expect(DB.sessions.filter((r) => r.learner_id === TEACHER && r.course_id === COURSE)).toEqual(sourceSessions)
+      expect(DB.sessions.filter((r) => existingClassSessions.some((old) => old.id === r.id))).toEqual(existingClassSessions)
+    },
+  )
+
   it('copies re-keyed rows onto the class learner, keeps the teacher rows, remaps session ids, merges the cursor, writes one audit record', async () => {
     const plan = await planCopy(svc, params)
     const { record, auditId, error } = await applyCopy(svc, plan, { actorUserId: 'angharad', classId: 'class-1' })
