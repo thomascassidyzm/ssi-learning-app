@@ -35,7 +35,6 @@ const CHECK_ONLY = process.argv.includes('--check')
 // prose gates remain are advisory here and hard in --check, because a sentence
 // somebody forgot to rewrite must never be what stops a fix reaching learners
 // on a Monday morning.
-const BUILD = process.argv.includes('--build')
 // --reconfirm is the REPAIR TOOL for the freshness gate. A gate with no
 // one-step repair gets routed around, so this is one command: re-read the
 // sentence against the code, then stamp it. With an anchor id it re-pins one
@@ -247,18 +246,18 @@ const { failures, warnings } = runGates({
 failures.push(...gateClipCoverage({
   entries,
   walks,
-  coverage: JSON.parse(readFileSync(join(HERE, 'coverage.json'), 'utf8')),
+  // WALKTHROUGH_COVERAGE_JSON lets the build-path test hand the gate a registry
+  // with a gap and prove `--build` exits non-zero on it (job #860).
+  coverage: JSON.parse(readFileSync(process.env.WALKTHROUGH_COVERAGE_JSON || join(HERE, 'coverage.json'), 'utf8')),
   routeViews: routeViewsFrom(readFileSync(join(ROOT, 'packages/player-vue/src/router/index.ts'), 'utf8'), vueFiles),
 }).failures)
 
 for (const w of warnings) console.log(`  ⚠ ${w}`)
 failures.unshift(...parseErrors)
-if (failures.length && BUILD) {
-  console.error(`\n[walkthrough] HANDBOOK NOT VERIFIED — ${failures.length} gate failure${failures.length === 1 ? '' : 's'}, building anyway:`)
-  for (const f of failures) console.error(`  ⚠ ${f}`)
-  console.error('  These are advisory during a build. Run `node tools/walkthrough/compile.mjs --check` to see them fail properly.\n')
-  failures.length = 0
-}
+// A gate failure fails the BUILD too (job #860). Until then a deployment build
+// printed the failures and carried on, which made every gate below decoration
+// on the one path that matters: the pack the page serves. A control that looks
+// enforced and is not is the worst defect shape, so the exit is the same everywhere.
 if (failures.length) {
   console.error('\n[walkthrough] COMPILE FAILED — a walk would lie about the product:')
   for (const f of failures) console.error(`  ✗ ${f}`)

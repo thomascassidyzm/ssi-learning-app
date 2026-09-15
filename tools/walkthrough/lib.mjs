@@ -628,12 +628,13 @@ export function runGates({
 /** The view files the router lazy-imports, plus one level of the .vue files each imports. */
 export function routeViewsFrom(routerSrc, vueFiles) {
   const byPath = new Map(vueFiles.map((f) => [f.path, f.src]))
-  const views = [...new Set([...routerSrc.matchAll(/import\('@\/(views\/[^']+\.vue)'\)/g)].map((m) => `packages/player-vue/src/${m[1]}`))]
+  // Both quote styles: a double-quoted import is the same route (job #860).
+  const views = [...new Set([...routerSrc.matchAll(/import\(\s*(['"])@\/(views\/[^'"]+\.vue)\1\s*\)/g)].map((m) => `packages/player-vue/src/${m[2]}`))]
   return views.map((path) => {
     const src = byPath.get(path) ?? ''
     const children = []
-    for (const m of src.matchAll(/from\s+'(@\/[^']+\.vue|\.{1,2}\/[^']+\.vue)'/g)) {
-      const spec = m[1]
+    for (const m of src.matchAll(/from\s+(['"])(@\/[^'"]+\.vue|\.{1,2}\/[^'"]+\.vue)\1/g)) {
+      const spec = m[2]
       if (spec.startsWith('@/')) children.push(`packages/player-vue/src/${spec.slice(2)}`)
       else {
         const parts = path.split('/').slice(0, -1)
@@ -660,14 +661,17 @@ export function gateClipCoverage({ entries, walks, coverage, routeViews = [], at
   const obvious = cap.obvious ?? {}
   const missing = cap.missing ?? {}
   const stepped = new Set(walks.flatMap((w) => (w.steps ?? []).map((s) => s.anchor)))
-  const walkIds = new Set(walks.map((w) => w.id))
+  const walkSteps = new Map(walks.map((w) => [w.id, new Set((w.steps ?? []).map((s) => s.anchor))]))
   const known = new Set(entries.map((e) => e.anchor))
   const fix = 'Author a walk in tools/walkthrough/walks/ that steps on it, or declare it in tools/walkthrough/coverage.json under capabilities.obvious with one sentence on why nobody needs showing, or under capabilities.missing with a note — in this same change'
 
   for (const e of entries) {
     const a = e.anchor
-    const clipped = stepped.has(a) || (e.walk && walkIds.has(e.walk))
-    if (clipped) continue
+    // Naming a walk is a claim, not a clip: the named walk has to STEP this
+    // anchor, or the Show-me chip opens a clip that never shows the thing (#860).
+    if (e.walk && !walkSteps.has(e.walk)) { failures.push(`CLIPS: ${e.path}:${e.line} — "${e.title}" (${a}) names walk "${e.walk}", which does not exist. Name a walk in tools/walkthrough/walks/ that steps on ${a}, or drop the walk: line`); continue }
+    if (e.walk && !walkSteps.get(e.walk).has(a)) { failures.push(`CLIPS: ${e.path}:${e.line} — "${e.title}" (${a}) names walk "${e.walk}", but that walk never steps on ${a}. Add a step on it, or name the walk that does, or drop the walk: line`); continue }
+    if (stepped.has(a)) continue
     if (a in obvious || a in missing) continue
     failures.push(`CLIPS: ${e.path}:${e.line} — "${e.title}" (${a}) has no walkthrough and no coverage entry. ${fix}`)
   }
