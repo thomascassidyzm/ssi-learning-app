@@ -1,0 +1,86 @@
+[
+ {
+  "subscription_id": "sub_01ksxqr3rc9enp09db1p2pmsc3",
+  "period_end": "2026-06-07T00:43:08.422Z",
+  "source": "last completed transaction txn_01ksxqpp16ctgag6aytndxabdm billing_period.ends_at (Paddle current_billing_period is null on a canceled subscription)",
+  "paddle_status": "canceled",
+  "paddle_canceled_at": "2026-06-07T00:44:03.684Z"
+ },
+ {
+  "subscription_id": "sub_01ksxysnj4abeamf904sny1rnd",
+  "period_end": "2026-06-07T02:46:19.455Z",
+  "source": "last completed transaction txn_01ksxyrfzrs1fwzqha7ycw9qhg billing_period.ends_at (Paddle current_billing_period is null on a canceled subscription)",
+  "paddle_status": "canceled",
+  "paddle_canceled_at": "2026-06-07T02:47:07.27Z"
+ },
+ {
+  "subscription_id": "sub_01ksxz8q5bhs0fjnjrergg90xp",
+  "period_end": "2026-06-07T02:54:32.615Z",
+  "source": "last completed transaction txn_01ksxz78fx0gyakzcjpa9w3n2y billing_period.ends_at (Paddle current_billing_period is null on a canceled subscription)",
+  "paddle_status": "canceled",
+  "paddle_canceled_at": "2026-06-07T02:55:07.686Z"
+ },
+ {
+  "subscription_id": "sub_01ksycm8y3x4k13e2rrbaxswdq",
+  "period_end": "2026-06-07T06:48:02.708Z",
+  "source": "last completed transaction txn_01ksycj11kdbcgmtsrmact4mw2 billing_period.ends_at (Paddle current_billing_period is null on a canceled subscription)",
+  "paddle_status": "canceled",
+  "paddle_canceled_at": "2026-06-07T06:49:01.996Z"
+ },
+ {
+  "subscription_id": "sub_01ksydp2yjadn25tkb4j7pm3tq",
+  "period_end": "2026-06-07T07:06:30.733Z",
+  "source": "last completed transaction txn_01ksydn7wfb2mfwes5cxfc3zk0 billing_period.ends_at (Paddle current_billing_period is null on a canceled subscription)",
+  "paddle_status": "canceled",
+  "paddle_canceled_at": "2026-06-07T07:07:06.567Z"
+ },
+ {
+  "subscription_id": "sub_01kt4cw13db4ngmak8ps1rjn1p",
+  "period_end": "2026-06-09T14:47:43.465Z",
+  "source": "last completed transaction txn_01kt4cv70s46wxrafm5pvznam2 billing_period.ends_at (Paddle current_billing_period is null on a canceled subscription)",
+  "paddle_status": "canceled",
+  "paddle_canceled_at": "2026-06-09T14:48:13.775Z"
+ },
+ {
+  "subscription_id": "sub_01kt4n3qjqb0q7ed94c93z8wy6",
+  "period_end": "2026-06-09T17:11:44.466Z",
+  "source": "last completed transaction txn_01kt4n1vs05k385mkgjqnwwcwa billing_period.ends_at (Paddle current_billing_period is null on a canceled subscription)",
+  "paddle_status": "canceled",
+  "paddle_canceled_at": "2026-06-09T17:12:14.235Z"
+ },
+ {
+  "subscription_id": "sub_01kt4ravc4f7342vy6gpn742a6",
+  "period_end": "2026-06-09T18:08:03.455Z",
+  "source": "last completed transaction txn_01kt4r7hjhbw7rmb1nxkvpbqmx billing_period.ends_at (Paddle current_billing_period is null on a canceled subscription)",
+  "paddle_status": "canceled",
+  "paddle_canceled_at": "2026-06-09T18:09:01.917Z"
+ },
+ {
+  "subscription_id": "sub_01ktkejgwrs31j45g2ydcfgztz",
+  "period_end": "2026-06-15T11:06:05.588Z",
+  "source": "last completed transaction txn_01ktkehgzfkcg9mz1ekap6tsre billing_period.ends_at (Paddle current_billing_period is null on a canceled subscription)",
+  "paddle_status": "canceled",
+  "paddle_canceled_at": "2026-06-15T11:07:03.01Z"
+ },
+ {
+  "subscription_id": "sub_01ktvg6mhm2tmexsc5zg59gk74",
+  "period_end": "2026-06-18T14:08:28.718Z",
+  "source": "last completed transaction txn_01ktvg0t8q6w17e1rb1qw9nybq billing_period.ends_at (Paddle current_billing_period is null on a canceled subscription)",
+  "paddle_status": "canceled",
+  "paddle_canceled_at": "2026-06-18T14:09:09.985Z"
+ },
+ {
+  "subscription_id": "sub_01kvx8a6dbetnqzbzwxqwg3xka",
+  "period_end": "2026-07-24T16:44:47.011903Z",
+  "source": "last completed transaction txn_01kvx88gnwew1m7wf2f5qpr5hx billing_period.ends_at (Paddle current_billing_period is null on a canceled subscription)",
+  "paddle_status": "canceled",
+  "paddle_canceled_at": "2026-08-23T16:44:49.436Z"
+ },
+ {
+  "subscription_id": "sub_01kwrr1y331cpy59tmkqw3hkrp",
+  "period_end": "2026-08-05T08:59:23.156109Z",
+  "source": "last completed transaction txn_01kwrqzd9acgvh0e0rqe8h8tnd billing_period.ends_at (Paddle current_billing_period is null on a canceled subscription)",
+  "paddle_status": "canceled",
+  "paddle_canceled_at": "2026-08-05T09:00:06.241Z"
+ }
+]

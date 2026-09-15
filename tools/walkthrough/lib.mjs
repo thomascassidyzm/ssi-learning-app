@@ -599,3 +599,104 @@ export function runGates({
   failures.push(...gateWalkFreshness(walks, (id) => anchorFingerprint(sites.get(id)), walkPathOf).failures)
   return { failures, warnings }
 }
+
+// ---------------------------------------------------------------------------
+// Gate 13 — CLIP COVERAGE, "as we go" (Tom, 2026-09-15: "the handbook is
+// STILL just a bunch of prose in most cases … we should be building the clips
+// for everything else as we go along"). Doctrine 2026-08-18: every feature is
+// either visually obvious or covered by a drift-gated walkthrough.
+//
+// Two units, one registry (tools/walkthrough/coverage.json):
+//
+//   capabilities — every HANDBOOK entry is either STEPPED by a walk, declared
+//     "obvious" with a sentence saying why nobody needs showing, or on the
+//     "missing" backlog with a note. None of the three = build failure. The
+//     backlog is honest debt, enrolled in one pass on 2026-09-15; every NEW
+//     capability after that has to be clipped or declared by the agent adding
+//     it, in the same change. A capability listed as obvious or missing that
+//     has since gained a walk fails too, so the registry never carries stale
+//     debt; one whose anchor is gone fails for the same reason.
+//
+//   pages — every route view the router imports under views/ must carry an
+//     anchor itself or through a .vue it imports one level down, or be
+//     declared under pages.obvious / pages.missing. This is the check the
+//     anchor gate cannot do: a page with NO anchors at all was invisible to
+//     every gate before this one — the admin Messages composer (#821) and the
+//     phone Users search (#789) shipped that way.
+// ---------------------------------------------------------------------------
+
+/** The view files the router lazy-imports, plus one level of the .vue files each imports. */
+export function routeViewsFrom(routerSrc, vueFiles) {
+  const byPath = new Map(vueFiles.map((f) => [f.path, f.src]))
+  const views = [...new Set([...routerSrc.matchAll(/import\('@\/(views\/[^']+\.vue)'\)/g)].map((m) => `packages/player-vue/src/${m[1]}`))]
+  return views.map((path) => {
+    const src = byPath.get(path) ?? ''
+    const children = []
+    for (const m of src.matchAll(/from\s+'(@\/[^']+\.vue|\.{1,2}\/[^']+\.vue)'/g)) {
+      const spec = m[1]
+      if (spec.startsWith('@/')) children.push(`packages/player-vue/src/${spec.slice(2)}`)
+      else {
+        const parts = path.split('/').slice(0, -1)
+        for (const seg of spec.split('/')) {
+          if (seg === '..') parts.pop()
+          else if (seg !== '.') parts.push(seg)
+        }
+        children.push(parts.join('/'))
+      }
+    }
+    return { path, src, children: children.map((c) => ({ path: c, src: byPath.get(c) ?? '' })) }
+  })
+}
+
+function hasAnchor(src, attrs) {
+  return Boolean(src) && anchorAttrRe(attrs).test(src)
+}
+
+export function gateClipCoverage({ entries, walks, coverage, routeViews = [], attrs = ANCHOR_ATTRS }) {
+  const failures = []
+  const reg = coverage ?? {}
+  const cap = reg.capabilities ?? {}
+  const pages = reg.pages ?? {}
+  const obvious = cap.obvious ?? {}
+  const missing = cap.missing ?? {}
+  const stepped = new Set(walks.flatMap((w) => (w.steps ?? []).map((s) => s.anchor)))
+  const walkIds = new Set(walks.map((w) => w.id))
+  const known = new Set(entries.map((e) => e.anchor))
+  const fix = 'Author a walk in tools/walkthrough/walks/ that steps on it, or declare it in tools/walkthrough/coverage.json under capabilities.obvious with one sentence on why nobody needs showing, or under capabilities.missing with a note — in this same change'
+
+  for (const e of entries) {
+    const a = e.anchor
+    const clipped = stepped.has(a) || (e.walk && walkIds.has(e.walk))
+    if (clipped) continue
+    if (a in obvious || a in missing) continue
+    failures.push(`CLIPS: ${e.path}:${e.line} — "${e.title}" (${a}) has no walkthrough and no coverage entry. ${fix}`)
+  }
+  for (const [a, why] of Object.entries(obvious)) {
+    if (!known.has(a)) failures.push(`CLIPS: coverage.json capabilities.obvious names "${a}", which is no longer a capability — remove it`)
+    else if (stepped.has(a)) failures.push(`CLIPS: coverage.json capabilities.obvious names "${a}", but a walk now steps on it — remove the line`)
+    if (typeof why !== 'string' || why.trim().length < 12) failures.push(`CLIPS: coverage.json capabilities.obvious "${a}" needs a sentence saying why nobody needs showing`)
+  }
+  for (const [a, note] of Object.entries(missing)) {
+    if (!known.has(a)) failures.push(`CLIPS: coverage.json capabilities.missing names "${a}", which is no longer a capability — remove it`)
+    else if (stepped.has(a)) failures.push(`CLIPS: coverage.json capabilities.missing names "${a}", but a walk now steps on it — remove the line, the debt is paid`)
+    if (typeof note !== 'string' || !note.trim()) failures.push(`CLIPS: coverage.json capabilities.missing "${a}" needs a note`)
+  }
+
+  const pObvious = pages.obvious ?? {}
+  const pMissing = pages.missing ?? {}
+  const viewPaths = new Set(routeViews.map((v) => v.path))
+  for (const v of routeViews) {
+    const anchored = hasAnchor(v.src, attrs) || v.children.some((c) => hasAnchor(c.src, attrs))
+    if (anchored) continue
+    if (v.path in pObvious || v.path in pMissing) continue
+    failures.push(`CLIPS: ${v.path} is a routed page with no data-walk anchor on it or on anything it imports. Anchor its first capability and describe it, or declare the page in tools/walkthrough/coverage.json under pages.obvious or pages.missing — in this same change`)
+  }
+  for (const p of [...Object.keys(pObvious), ...Object.keys(pMissing)]) {
+    if (!viewPaths.has(p)) failures.push(`CLIPS: coverage.json pages names "${p}", which the router no longer imports — remove it`)
+    else {
+      const v = routeViews.find((x) => x.path === p)
+      if (hasAnchor(v.src, attrs) || v.children.some((c) => hasAnchor(c.src, attrs))) failures.push(`CLIPS: coverage.json pages names "${p}", but it now carries an anchor — remove the line`)
+    }
+  }
+  return { failures }
+}

@@ -82,7 +82,7 @@ describe('HandbookView — the clip leads, where a clip exists', () => {
     const without = handbookEntries().find((e) => clipsFor(e, 'school_admin').length === 0)
     expect(withClip, 'the pack has at least one school_admin entry with a clip').toBeTruthy()
     expect(without).toBeTruthy()
-    expect(wrapper.find(`#hb-${withClip!.id} .entry-clip-mark`).exists(), 'the closed entry already says it plays').toBe(true)
+    expect(wrapper.find(`#hb-${withClip!.id} .entry-clip-pill`).exists(), 'the closed entry already says it plays').toBe(true)
     await wrapper.find(`#hb-${withClip!.id} .entry-head`).trigger('click')
     await wrapper.find(`#hb-${without!.id} .entry-head`).trigger('click')
     const body = wrapper.find(`#hb-${withClip!.id} .entry-body`)
