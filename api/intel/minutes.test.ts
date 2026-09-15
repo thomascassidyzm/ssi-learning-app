@@ -4,7 +4,7 @@
  * the three measures over them (job #609, Tom's ruling 2026-09-13).
  */
 import { describe, it, expect } from 'vitest'
-import { courseFactsFromSpans, measureFor, averageOfAllCourses, pooledFacts, WINDOWS, MEASURES, type CourseFacts } from './minutes'
+import { courseFactsFromSpans, measureFor, averageOfAllCourses, pooledFacts, courseCohortTooSmall, COURSE_COHORT_FLOOR, WINDOWS, MEASURES, type CourseFacts } from './minutes'
 import type { DiarySessionisation, PlaySpan } from '../_utils/inAppTime'
 
 const NOW = Date.UTC(2026, 8, 13, 22, 0, 0)
@@ -145,5 +145,14 @@ describe('the contract', () => {
   })
   it('every measure says in its description what the average of all courses is', () => {
     for (const m of MEASURES) expect(m.desc).toMatch(/average of all courses is .*this course included/)
+  })
+})
+
+describe('course cohort floor — entities, not people (Tom, 2026-09-15)', () => {
+  it('one other course is enough to compare; the GDPR 5 is for individuals only', () => {
+    expect(COURSE_COHORT_FLOOR).toBe(1)
+    expect(courseCohortTooSmall(0)).toBe(true)
+    expect(courseCohortTooSmall(1)).toBe(false)
+    expect(courseCohortTooSmall(4)).toBe(false)
   })
 })
