@@ -1,0 +1,66 @@
+{
+  "id": "your-classes-at-a-glance",
+  "title": "Your classes at a glance",
+  "personas": [
+    "teacher"
+  ],
+  "place": {
+    "route": "dashboard"
+  },
+  "keywords": [
+    "classes",
+    "dashboard",
+    "overview",
+    "minutes",
+    "phrases",
+    "journey",
+    "join code",
+    "numbers",
+    "totals",
+    "own accounts",
+    "students"
+  ],
+  "steps": [
+    {
+      "anchor": "dash-class-card",
+      "say": "Every class you teach is here, one entry each, with its course beside it. Tap the class name to open its class page.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "723b8b2b.99686ca3"
+    },
+    {
+      "anchor": "dash-class-week",
+      "say": "This is the class's own week: the minutes it spent in the app with a lesson running, the phrases it practised, and how far it has travelled through the course. Those minutes come from the lessons you ran with **Play as class**. A class that has never played says **Not started** in words.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "e1cc2578.b6c2b3bf"
+    },
+    {
+      "anchor": "dash-class-week-pupils",
+      "say": "Kept apart, and never added in, is what the pupils did on their own accounts this week. When there is nothing it says so in words, which is usual for a class taught from the front.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "0bd35864.34e433b3"
+    },
+    {
+      "anchor": "dash-teacher-stats",
+      "say": "Under your classes, one quiet line totals them: how many classes you teach, the minutes they spent in the app this week with a lesson running, pauses included, and the phrases they were prompted with. All of it is the classes' own play from the front.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "0677c8b6.a0ea5b5b"
+    },
+    {
+      "anchor": "dash-teacher-own-accounts",
+      "say": "The second line is the minutes your pupils spent on their own accounts this week, kept apart from the first and never added to it.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "The join code on each class is what you read out to get a new pupil in.",
+      "checked": "ad94eab7.7a15bc92"
+    }
+  ]
+}
