@@ -821,10 +821,12 @@ describe('NodeHomeView — year-group tiles under the headline numbers', () => {
       tree: {
         nodes: [],
         classes: [
-          { id: 'c1', name: '7H', nodeId: 'school-node', teachers: [], studentCount: 0, phrases7d: 52, lastPractisedAt: now },
-          { id: 'c2', name: '7O', nodeId: 'school-node', teachers: [], studentCount: 0, phrases7d: 0, lastPractisedAt: '2026-08-01T08:00:00Z' },
-          { id: 'c3', name: '8H', nodeId: 'school-node', teachers: [], studentCount: 0, phrases7d: 53, lastPractisedAt: now },
-          { id: 'c4', name: 'B8', nodeId: 'school-node', teachers: [], studentCount: 0, phrases7d: 0, lastPractisedAt: null },
+          // inAppMinutes7d per class rides the tree since job #766: the tile's
+          // number is minutes in the app this week, summed per year group.
+          { id: 'c1', name: '7H', nodeId: 'school-node', teachers: [], studentCount: 0, phrases7d: 52, lastPractisedAt: now, inAppMinutes7d: 41 },
+          { id: 'c2', name: '7O', nodeId: 'school-node', teachers: [], studentCount: 0, phrases7d: 0, lastPractisedAt: '2026-08-01T08:00:00Z', inAppMinutes7d: 0 },
+          { id: 'c3', name: '8H', nodeId: 'school-node', teachers: [], studentCount: 0, phrases7d: 53, lastPractisedAt: now, inAppMinutes7d: 30 },
+          { id: 'c4', name: 'B8', nodeId: 'school-node', teachers: [], studentCount: 0, phrases7d: 0, lastPractisedAt: null, inAppMinutes7d: 0 },
         ],
         staff: [],
       },
@@ -837,8 +839,8 @@ describe('NodeHomeView — year-group tiles under the headline numbers', () => {
     expect(tiles.exists()).toBe(true)
     const read = tiles.findAll('.year-tile').map((t) => [t.find('.year-tile-value').text(), t.find('.year-tile-word').text(), t.find('.year-tile-sub').text()])
     expect(read).toEqual([
-      ['52', 'Year 7', '1 of 2 classes'],
-      ['53', 'Year 8', '1 of 1 class'],
+      ['41 min', 'Y7', '1 of 2 classes'],
+      ['30 min', 'Y8', '1 of 1 class'],
       ['—', 'Other', 'none of 1 yet'],
     ])
   })
