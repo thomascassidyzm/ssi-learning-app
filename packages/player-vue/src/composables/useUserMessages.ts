@@ -18,13 +18,22 @@ export type UserMessageActionKind = 'undo_class_play_copy' | 'open_support'
 
 export interface UserMessage {
   id: string
-  source: 'support_reply' | 'class_play_copied'
+  source: 'support_reply' | 'class_play_copied' | 'admin_message'
   title: string
   body: string
   action: { kind: UserMessageActionKind; label: string } | null
   action_taken_at: string | null
   read_at: string | null
   dismissed_at: string | null
+  created_at: string
+}
+
+/** One turn of the conversation under an admin message: 'in' is the learner's, 'out' is ours. */
+export interface ThreadTurn {
+  id: string
+  body: string
+  direction: 'in' | 'out'
+  author_name: string | null
   created_at: string
 }
 
@@ -124,5 +133,39 @@ export function useUserMessages() {
     return { ok: true }
   }
 
-  return { messages, unread, unreadBadge, cardMessage, loaded, loading, loadError, refresh, markRead, dismiss, act }
+  /** The conversation under an admin message (job #821): the learner's replies and ours, oldest first. */
+  async function loadThread(id: string): Promise<ThreadTurn[]> {
+    if (isViewingAs.value) return []
+    const headers = await authHeaders()
+    if (!headers) return []
+    const resp = await fetch(`/api/messages/thread?id=${encodeURIComponent(id)}`, { headers })
+    const data = await resp.json().catch(() => ({}))
+    if (!resp.ok) throw new Error(String(data?.error || 'thread'))
+    return (data.turns ?? []) as ThreadTurn[]
+  }
+
+  /** Write back to SSi. This is what makes the channel live. */
+  async function reply(id: string, text: string): Promise<{ ok: true; turn: ThreadTurn } | { ok: false; error: string }> {
+    if (isViewingAs.value) return { ok: false, error: 'not available' }
+    const headers = await authHeaders()
+    if (!headers) return { ok: false, error: 'not available' }
+    const resp = await fetch('/api/messages/reply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify({
+        id,
+        text,
+        route: typeof location !== 'undefined' ? location.pathname : undefined,
+        build_version: (import.meta as any).env?.VITE_APP_VERSION,
+        device_info: typeof navigator !== 'undefined' ? { userAgent: navigator.userAgent, screen: typeof screen !== 'undefined' ? `${screen.width}x${screen.height}` : undefined, language: navigator.language } : undefined,
+      }),
+    })
+    const data = await resp.json().catch(() => ({}))
+    if (!resp.ok) return { ok: false, error: String(data?.error || 'failed') }
+    const m = messages.value.find((x) => x.id === id)
+    if (m && !m.read_at) replace({ ...m, read_at: new Date().toISOString() })
+    return { ok: true, turn: data.turn as ThreadTurn }
+  }
+
+  return { messages, unread, unreadBadge, cardMessage, loaded, loading, loadError, refresh, markRead, dismiss, act, loadThread, reply }
 }

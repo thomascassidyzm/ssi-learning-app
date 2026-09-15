@@ -709,6 +709,13 @@ const routes: RouteRecordRaw[] = [
         redirect: '/admin/structure',
       },
       {
+        // Admin-to-learner messaging (job #821): one composer, three audiences.
+        path: 'messages',
+        name: 'admin-messages',
+        component: () => import('@/views/admin/AdminMessages.vue'),
+        meta: { title: 'Messages', description: 'Tell learners what has gone live — one course, one learner, or everyone' },
+      },
+      {
         path: 'release-notes',
         name: 'admin-release-notes',
         component: () => import('@/views/admin/AdminReleaseNotes.vue'),

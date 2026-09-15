@@ -1653,6 +1653,16 @@
     "backToYou": "Yn ôl",
     "cardAria": "Neges i chi",
     "cardHint": "Tapiwch i ddarllen",
-    "dismiss": "Diystyru"
+    "dismiss": "Diystyru",
+    "fromSsi": "Gan SSi",
+    "replyLabel": "Ysgrifennwch yn ôl",
+    "replyPlaceholder": "Unrhyw beth rydych am ei ddweud wrthym",
+    "send": "Anfon",
+    "sending": "Yn anfon…",
+    "replySent": "Wedi'i anfon. Rydym yn darllen pob ateb a byddwn yn eich ateb yma.",
+    "replyFailed": "Wnaeth hynny ddim anfon. Rhowch gynnig arall arni.",
+    "you": "Chi",
+    "ssi": "SSi",
+    "threadLoadFailed": "Methu llwytho'r atebion."
   }
 }

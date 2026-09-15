@@ -25,7 +25,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 export const USER_MESSAGES_TABLE = 'user_messages'
 
-export type UserMessageSource = 'support_reply' | 'class_play_copied'
+export type UserMessageSource = 'support_reply' | 'class_play_copied' | 'admin_message'
 
 export type UserMessageActionKind = 'undo_class_play_copy' | 'open_support'
 
