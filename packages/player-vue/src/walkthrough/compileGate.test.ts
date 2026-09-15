@@ -28,6 +28,8 @@ import {
   HANDBOOK_SECTIONS,
   PERSONAS,
   runGates,
+  gateClipCoverage,
+  routeViewsFrom,
   comparePack,
 } from '../../../../tools/walkthrough/lib.mjs'
 import {
@@ -679,5 +681,76 @@ describe('both anchor namespaces (data-walk and data-intel)', () => {
     expect(warnings[0]).toContain('still landing')
     // …and a data-walk anchor is still a hard failure.
     expect(gateHandbookCoverage([{ ...loose, attr: 'data-walk' }], [], []).failures).toHaveLength(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// GATE 13 — CLIP COVERAGE "AS WE GO" (job #854, Tom 2026-09-15: "the handbook
+// is STILL just a bunch of prose in most cases … we should be building the
+// clips for everything else as we go along"). A capability is clipped,
+// declared obvious, or on the backlog; a routed page carries an anchor or is
+// declared. The registry cannot carry paid debt.
+// ---------------------------------------------------------------------------
+describe('gateClipCoverage (every capability clipped, obvious, or on the backlog)', () => {
+  const entry = (anchor: string, over: Record<string, unknown> = {}) => ({
+    path: 'F.vue', line: 3, title: `Cap ${anchor}`, anchor, walk: null, ...over,
+  })
+  const walk = { id: 'w1', steps: [{ anchor: 'a-clipped' }] }
+  const empty = { capabilities: { obvious: {}, missing: {} }, pages: { obvious: {}, missing: {} } }
+
+  it('FAILS a capability with no walk and no coverage line, naming file:line and the anchor', () => {
+    const { failures } = gateClipCoverage({ entries: [entry('a-bare')], walks: [walk], coverage: empty })
+    expect(failures).toHaveLength(1)
+    expect(failures[0]).toContain('F.vue:3')
+    expect(failures[0]).toContain('a-bare')
+  })
+  it('passes a capability a walk steps on, one named via walk:, one declared obvious, one on the backlog', () => {
+    const coverage = {
+      capabilities: { obvious: { 'a-obvious': 'One button, labelled with what it does.' }, missing: { 'a-missing': 'Backlog, no clip yet.' } },
+      pages: { obvious: {}, missing: {} },
+    }
+    const entries = [entry('a-clipped'), entry('a-named', { walk: 'w1' }), entry('a-obvious'), entry('a-missing')]
+    expect(gateClipCoverage({ entries, walks: [walk], coverage }).failures).toEqual([])
+  })
+  it('FAILS a registry line whose capability has since gained a walk, or whose anchor is gone', () => {
+    const coverage = { capabilities: { obvious: {}, missing: { 'a-clipped': 'paid', 'a-gone': 'x' } }, pages: { obvious: {}, missing: {} } }
+    const { failures } = gateClipCoverage({ entries: [entry('a-clipped')], walks: [walk], coverage })
+    expect(failures.some((f: string) => f.includes('a-clipped') && f.includes('debt is paid'))).toBe(true)
+    expect(failures.some((f: string) => f.includes('a-gone') && f.includes('no longer a capability'))).toBe(true)
+  })
+  it('FAILS an obvious line with no real sentence behind it', () => {
+    const coverage = { capabilities: { obvious: { 'a-x': 'yes' }, missing: {} }, pages: { obvious: {}, missing: {} } }
+    const { failures } = gateClipCoverage({ entries: [entry('a-x')], walks: [], coverage })
+    expect(failures.some((f: string) => f.includes('needs a sentence'))).toBe(true)
+  })
+
+  const router = "const A = () => import('@/views/admin/AdminMessages.vue')\n{ component: () => import('@/views/schools/ClassDetail.vue') }"
+  const files = [
+    { path: 'packages/player-vue/src/views/admin/AdminMessages.vue', src: '<template><textarea /></template>' },
+    { path: 'packages/player-vue/src/views/schools/ClassDetail.vue', src: "<script setup>import Bar from '@/components/schools/Bar.vue'</script><template><Bar /></template>" },
+    { path: 'packages/player-vue/src/components/schools/Bar.vue', src: '<template><button data-walk="bar-go">Go</button></template>' },
+  ]
+  it('routeViewsFrom reads the router\'s view imports and one level of their own .vue imports', () => {
+    const views = routeViewsFrom(router, files)
+    expect(views.map((v) => v.path)).toEqual([
+      'packages/player-vue/src/views/admin/AdminMessages.vue',
+      'packages/player-vue/src/views/schools/ClassDetail.vue',
+    ])
+    expect(views[1].children[0].path).toBe('packages/player-vue/src/components/schools/Bar.vue')
+  })
+  it('FAILS a routed page with no anchor on it or on what it imports; a page anchored through a child passes', () => {
+    const routeViews = routeViewsFrom(router, files)
+    const { failures } = gateClipCoverage({ entries: [], walks: [], coverage: empty, routeViews })
+    expect(failures).toHaveLength(1)
+    expect(failures[0]).toContain('AdminMessages.vue')
+    const declared = { ...empty, pages: { obvious: {}, missing: { 'packages/player-vue/src/views/admin/AdminMessages.vue': 'no clip yet' } } }
+    expect(gateClipCoverage({ entries: [], walks: [], coverage: declared, routeViews }).failures).toEqual([])
+  })
+  it('FAILS a pages line for a page that now carries an anchor, or that the router no longer imports', () => {
+    const routeViews = routeViewsFrom(router, files)
+    const coverage = { ...empty, pages: { obvious: { 'packages/player-vue/src/views/schools/ClassDetail.vue': 'x', 'packages/player-vue/src/views/Old.vue': 'x' }, missing: {} } }
+    const { failures } = gateClipCoverage({ entries: [], walks: [], coverage, routeViews })
+    expect(failures.some((f: string) => f.includes('ClassDetail.vue') && f.includes('now carries an anchor'))).toBe(true)
+    expect(failures.some((f: string) => f.includes('Old.vue') && f.includes('no longer imports'))).toBe(true)
   })
 })
