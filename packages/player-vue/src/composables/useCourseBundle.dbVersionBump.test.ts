@@ -147,4 +147,41 @@ describe('#853: an open old-version connection does not stall the bundle load', 
     expect(bundleFetches()).toBe(beforeThirdTab)
     expect((third.seeds[0] as { clipDurationMs?: number }).clipDurationMs).toBe(1234)
   }, 15000)
+
+  /**
+   * #858 — a SECOND open queued behind the blocked upgrade never receives
+   * onblocked (only the first request does), so a timer armed on onblocked
+   * never starts for it. Fails on the #853 code: course B hangs until the old
+   * tab closes. Passes with the timer armed at open time.
+   */
+  it('a second course load queued behind the blocked upgrade also falls back within ~2s', async () => {
+    await new Promise<void>((resolve, reject) => {
+      const del = indexedDB.deleteDatabase('ssi-bundle-cache')
+      del.onsuccess = () => resolve()
+      del.onerror = () => reject(del.error)
+    })
+    const oldTab = await new Promise<IDBDatabase>((resolve, reject) => {
+      const q = indexedDB.open('ssi-bundle-cache', PRE_FIX_DB_VERSION)
+      q.onupgradeneeded = () => q.result.createObjectStore('bundles', { keyPath: 'courseCode' })
+      q.onsuccess = () => resolve(q.result)
+      q.onerror = () => reject(q.error)
+    })
+
+    const mod = await import('./useCourseBundle')
+    mod.setCourseBundleAuthProvider(async () => 'token')
+    mod.setCourseBundleIdentityProvider(async () => 'learner-1')
+    const fetchMock = vi.fn(async (url: string) =>
+      url.includes('head=1') ? headOk : { ok: true, json: async () => bundle(true) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const started = Date.now()
+    const a = await mod.getCourseBundle(COURSE)
+    const b = await mod.getCourseBundle('spa_for_eng')
+    expect((a.seeds[0] as { clipDurationMs?: number }).clipDurationMs).toBe(1234)
+    expect((b.seeds[0] as { clipDurationMs?: number }).clipDurationMs).toBe(1234)
+    expect(Date.now() - started).toBeLessThan(4500)
+    expect(oldTab.version).toBe(PRE_FIX_DB_VERSION)
+    oldTab.close()
+    await new Promise((r) => setTimeout(r, 50))
+  }, 15000)
 })
