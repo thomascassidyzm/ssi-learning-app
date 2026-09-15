@@ -27,8 +27,9 @@ describe('walksFor (offer filtering)', () => {
     // since 2026-08-08, reading the class↔teacher relationship the other way
     // round to move somebody between classes.
     expect(walksFor('teacher', 'class-detail').map((x) => x.id)).toEqual([
-      'hand-over-the-lead', 'invite-a-supply-teacher', 'move-a-teacher-between-classes',
-      'run-class-session', 'share-a-class',
+      'add-students-to-a-class', 'copy-a-teachers-play-onto-their-class', 'hand-over-the-lead',
+      'invite-a-supply-teacher', 'manage-a-class-from-its-page', 'move-a-teacher-between-classes',
+      'run-class-session', 'share-a-class', 'where-the-class-has-got-to',
     ])
     expect(walksFor('admin', 'admin-invites').map((x) => x.id)).toEqual(['invites-desk'])
     expect(walksFor('teacher', 'admin-invites')).toEqual([])

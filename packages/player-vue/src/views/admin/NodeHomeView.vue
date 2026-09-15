@@ -1208,7 +1208,7 @@ const listPayload = computed(() => {
             <span class="schools-kicker">{{ t('org.nodeHome.phrasesCardTitle', 'What they practised this week') }}</span>
             <InsightTable v-if="phraseRows.length" :data="phrasesTable" />
             <p v-else class="class-card-note">{{ t('org.nodeHome.noClassPlayThisWeek', 'No whole-class practice recorded in the last seven days.') }}</p>
-            <ShowAll v-if="phrasesShown.collapsible" :expanded="showAllPhrases" :label="showAllPhrasesLabel" @toggle="showAllPhrases = !showAllPhrases" />
+            <ShowAll v-if="phrasesShown.collapsible" data-walk="node-phrases-show-all" :expanded="showAllPhrases" :label="showAllPhrasesLabel" @toggle="showAllPhrases = !showAllPhrases" />
           </div>
 
           <!-- NOTICING INVITATIONS — the pack's rules over the payload just
@@ -1266,7 +1266,7 @@ const listPayload = computed(() => {
                 </p>
                 <InsightTable v-if="phraseRows.length" :data="phrasesTable" />
                 <p v-else class="class-card-note">{{ t('org.nodeHome.noClassPlayThisWeek', 'No whole-class practice recorded in the last seven days.') }}</p>
-                <ShowAll v-if="phrasesShown.collapsible" :expanded="showAllPhrases" :label="showAllPhrasesLabel" @toggle="showAllPhrases = !showAllPhrases" />
+                <ShowAll v-if="phrasesShown.collapsible" data-walk="class-practice-show-all" :expanded="showAllPhrases" :label="showAllPhrasesLabel" @toggle="showAllPhrases = !showAllPhrases" />
               </template>
               <p v-else class="class-card-note">{{ t('org.nodeHome.noClassPracticeYet', "No class practice yet — the teacher's Play as class button starts the first session.") }}</p>
               <p v-if="canAskSupport" class="stats-ask">
@@ -1406,7 +1406,7 @@ const listPayload = computed(() => {
                   <template #empty>{{ t('org.nodeHome.noStudentsYet', 'No students in this class yet.') }}</template>
                 </NodeChildrenList>
                 <div v-if="studentsShown.collapsible" class="children-show-all">
-                  <ShowAll :expanded="showAllStudents" :label="showAllStudentsLabel" @toggle="showAllStudents = !showAllStudents" />
+                  <ShowAll data-walk="class-students-show-all" :expanded="showAllStudents" :label="showAllStudentsLabel" @toggle="showAllStudents = !showAllStudents" />
                 </div>
               </template>
             </div>

@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `8f586f3c9709` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `1110faf26334` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## add-a-class-under-a-group — Add a class to a group
 
@@ -116,6 +116,15 @@ Personas: admin · place: node-home (org)
 2. [`org-enrolment-courses` · next] This is what the organisation hands out through its own sign-up page — given to each learner as they join, not held on the organisation itself.
 3. [`org-enrolment-courses` · next] The courses listed here, and the length of the free period beside them, come from the organisation's enrolment policy. Changing that list is a change to the policy, so it isn't editable here — everyone who has already signed up keeps what they were given.
    - terminal: That's it — a read-only summary of what this organisation grants on sign-up.
+
+## funder-numbers — See and download your funder numbers
+
+Personas: leader, admin · place: node-home (org)
+
+1. [`funder-numbers` · next] **Funder report** is the monthly return your funder asks for, on your own page, so you can read it or send it without asking us to pull it. Three blocks: the month, everything since people enrolled, and the funding year so far. Each block counts everyone and, separately, people aged 16 to 24 — how many registered, how many passed 5, 60 and 100 minutes, and the average minutes.
+2. [`funder-month` · next] The month shown is the last complete one. Change it here to report on another month, and the blocks below recompute.
+3. [`funder-download` · next] **Download spreadsheet** gives you the same figures as a CSV, ready to send on.
+   - terminal: Minutes here are minutes the app was actually speaking to a learner, never time a screen sat open. Somebody who has studied both Welsh dialects is counted once, at their higher dialect. There are no names in this report and there never will be.
 
 ## go-back-over-something — Go back over something
 
@@ -265,6 +274,17 @@ Personas: school_admin, teacher · place: dashboard
 2. [`mailbox-check-confirm` · next] Type the six digits we send and tap **That's the one**.
    - terminal: Close the card instead and it stays closed — it never comes back on a timer.
 
+## reading-a-class-page — Reading a class page — practice, journey and students
+
+Personas: admin, leader, school_admin · place: node-home (class)
+
+1. [`class-practice` · next] **Class practice** leads, because a class practising together is what a programme lives on. The big figure is how many phrases the class was prompted with together in the last seven days. The line under it says when it last practised and its minutes in the app this week, pauses included. A class that has never played together says so in words and names the teacher's Play as class button as the thing that starts it.
+2. [`class-practice-show-all` · click] Under the figure are the three phrases the class practised most this week and how many times each came round. A phrase that keeps coming back is the course bringing it back on purpose. Tap **Show all** for the whole list.
+3. [`class-journey` · next] **Course journey** is how far the class has travelled, in phrases. A class is one learner account played from the front, so this position is the class's own. The line underneath gives the figure, then names the next belt and how many phrases are left to reach it. Not started is said in words, never drawn as an empty bar.
+4. [`class-students` · next] **Students on their own accounts** is the bonus layer: only pupils who have signed in themselves appear here. Each row carries that student's own position in the course, a small chart of their practice over the past week with the minutes named, and how recently they were active. The dot and word at the start say whether they are excellent, good, needing attention or inactive. Needing attention means nothing for a fortnight or under half the class average, so it is a prompt to look, not a verdict. Tap a row to open that person.
+5. [`class-students-show-all` · click] The first three students show. When there are more, tap **Show all** for the rest.
+   - terminal: Class practice first, the class's own journey second, and individual accounts as the layer beneath. This section is only there when at least one pupil has an account of their own.
+
 ## reading-insights — Reading your insights
 
 Personas: admin, leader, school_admin · place: node-insights
@@ -395,6 +415,14 @@ Personas: admin, leader, school_admin · place: node-home (org/group/school)
 6. [`verb-shareable-link` · next] And this is where a brand-new shareable link comes from — **Get a shareable link** at the top of this page, one per role. **Invite a person** next to it makes a personal link for someone you can name.
    - terminal: The short version: copy is safe, revoke can always be undone, re-mint is for one person's own link — and a new shareable link is made at the top of the page, not in the ledger.
 
+## what-they-practised — What your classes actually practised
+
+Personas: admin, leader, school_admin · place: node-home (org/group/school)
+
+1. [`node-phrases` · next] **What they practised this week** is the teaching story rather than the register: the phrases the classes beneath this level practised together in the last seven days. Three columns — the prompt, the phrase the class practised, and how many times it came round. The three most practised come first, and you can tap a column heading to sort. A phrase that appears again and again is the course bringing it back on purpose, which is how it sticks. Only whole-class play counts here; what staff and students do on their own accounts is in the minutes figure above.
+2. [`node-phrases-show-all` · click] Tap **Show all** to see every phrase. **Show fewer** folds the list back to the top three.
+   - terminal: A level whose classes have not played together this week says so in words instead of showing an empty list.
+
 ## what-your-numbers-mean — What your numbers mean
 
 Personas: learner · place: library
@@ -403,6 +431,13 @@ Personas: learner · place: library
 2. [`library-stat-total-time` · next] Time is the time you have actually spent learning. If it ever shows a **~** in front of it, that is us working it out from how far along you are, because we have not logged the sessions themselves.
 3. [`library-stat-phrases-learnt` · next] Phrases learnt is how many separate phrases every one of your courses has introduced you to so far. It is added up across all of them, so it grows whichever language you pick up.
    - terminal: Nothing here changes what you get next. The course follows your position, not these numbers.
+
+## where-the-class-has-got-to — Where the class has got to
+
+Personas: teacher · place: class-detail
+
+1. [`class-journey` · next] **Course Journey** is how far your class has travelled through its course, as a bar in phrases. A class is one learner account played from the front, so this is the class's own place on the course, moved by the sessions you run together. The line under the bar says how many phrases are left to the next belt.
+   - terminal: A class that has never played says Not started in words. It is never shown as a bar of zero.
 
 ## where-you-are-in-this-course — Where you are in this course
 

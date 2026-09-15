@@ -182,13 +182,14 @@ defineExpose({ load })
     </div>
 
     <div class="funder-controls">
-      <label class="funder-month">
+      <label class="funder-month" data-walk="funder-month">
         <span class="funder-month-label">{{ t('org.ui.funder.month', 'Month') }}</span>
         <input v-model="month" type="month" :max="previousMonth()" class="funder-month-input" />
       </label>
       <button
         type="button"
         class="funder-verb"
+        data-walk="funder-download"
         :disabled="downloading || isLoading || !report"
         @click="downloadCsv"
       >

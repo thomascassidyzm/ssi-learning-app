@@ -1,0 +1,28 @@
+{
+  "id": "where-the-class-has-got-to",
+  "title": "Where the class has got to",
+  "personas": [
+    "teacher"
+  ],
+  "place": {
+    "route": "class-detail"
+  },
+  "keywords": [
+    "progress",
+    "journey",
+    "belt",
+    "position",
+    "course"
+  ],
+  "steps": [
+    {
+      "anchor": "class-journey",
+      "say": "**Course Journey** is how far your class has travelled through its course, as a bar in phrases. A class is one learner account played from the front, so this is the class's own place on the course, moved by the sessions you run together. The line under the bar says how many phrases are left to the next belt.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "A class that has never played says Not started in words. It is never shown as a bar of zero.",
+      "checked": "6bf22aa4.8c98cdae"
+    }
+  ]
+}

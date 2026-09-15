@@ -1,0 +1,44 @@
+{
+  "id": "what-they-practised",
+  "title": "What your classes actually practised",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home",
+    "kinds": [
+      "org",
+      "group",
+      "school"
+    ]
+  },
+  "keywords": [
+    "phrases",
+    "practised",
+    "this week",
+    "repetition",
+    "show all",
+    "sort"
+  ],
+  "steps": [
+    {
+      "anchor": "node-phrases",
+      "say": "**What they practised this week** is the teaching story rather than the register: the phrases the classes beneath this level practised together in the last seven days. Three columns — the prompt, the phrase the class practised, and how many times it came round. The three most practised come first, and you can tap a column heading to sort. A phrase that appears again and again is the course bringing it back on purpose, which is how it sticks. Only whole-class play counts here; what staff and students do on their own accounts is in the minutes figure above.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "4255285e.78834de9"
+    },
+    {
+      "anchor": "node-phrases-show-all",
+      "say": "Tap **Show all** to see every phrase. **Show fewer** folds the list back to the top three.",
+      "advance": {
+        "on": "click"
+      },
+      "terminal": "A level whose classes have not played together this week says so in words instead of showing an empty list.",
+      "checked": "a086faa4.02f68032"
+    }
+  ]
+}
