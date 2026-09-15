@@ -3549,3 +3549,27 @@ shape. Cheaper: one indexed query per bundle build, cached with the bundle.
 
 **Landed.** Merged to `dev`, promoted to `staging` and `main` the same afternoon on Tom's explicit
 ship instruction.
+## 2026-09-15 — Copy-teacher-play: a lesson is credited to ONE class (job #792)
+
+**The bug, as found.** Chepstow's 7E showed 51 practice items it never played, the headline figure on
+that school's dashboard for a week. The scout's hypothesis was a stale class context on the play-as-class
+write path. Refuted by the rows themselves: the wrong `sessions` rows share `started_at` AND `ended_at`
+to the millisecond with the teacher's own rows, which no per-call server write can produce. They are
+COPIES. `class_progress_copy_audit` names the writer: five runs of `/api/school/copy-teacher-play/apply`
+by the school admin at 06:54Z on 2026-09-15, of which two put roseribbeck's and kaneesien's own play onto
+7E as well as onto their own 11S and 8T. Both carry live co-teacher tags on 7E, so the server's
+"teaches this class" check was right to admit them. The planner's idempotency key was the
+(source, target, course) PAIR, so the same own-account play was offered on every class the teacher is
+tagged on, with identical figures on each sweep row, and a leader copying down the list credited one
+lesson to two classes. A third such pair exists in the estate: petrasilva onto 8S and B8.
+
+**Ruling applied.** A teacher's own-account play is credited to ONE class, the one the leader copies it
+onto. The prior-record scan is now by source learner and course across every target: a source row any
+class account already holds is never offered to, or copied onto, a second class; the cursor follows the
+play, so a class with nothing new coming keeps its own position and gains no minutes. Undo releases the
+rows again. The sweep names the other rows the same play is listed under, and the class card says where
+the play already went. Better: one lesson counts once. Simpler: one scan instead of one per pair, no new
+table. Cheaper: the same audit rows, one extra column read.
+
+**Not done here.** The 51 wrong items on 7E are two copies to undo, in reverse order, through the tool's
+own `undoCopy`. Reported with ids to the parent job; no row moved by this worker.

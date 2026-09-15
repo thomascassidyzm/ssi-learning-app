@@ -17,6 +17,18 @@
  * record already names. Natural-key tables (one row per learner+course+key)
  * are insert-if-absent on the class side, so they cannot duplicate either.
  *
+ * ONE CLASS. A teacher's own-account play is credited to ONE class, the one a
+ * leader copies it onto. The prior-record scan is by SOURCE learner and
+ * course, across every target: a source row any class account already holds
+ * is never offered to, or copied onto, a second class. This used to be keyed
+ * per (source, target) pair, and a teacher tagged on two classes for the
+ * same course was offered on both rows of the sweep with identical figures —
+ * Chepstow, 2026-09-15 06:54Z: two teachers' play, 51 practice items, went
+ * onto their own classes AND onto a colleague's 7E, which had never played
+ * it, and 7E's figure led that school's dashboard for the morning (job #792).
+ * Play copied elsewhere carries no cursor either: when nothing new is left
+ * to copy, the class keeps its own position and gains no minutes.
+ *
  * CURSOR. The class learner's course_enrollments row is never duplicated; it
  * ends at the FURTHER of the two positions. Position is the last LEGO
  * actually played (last_completed_lego_id — the column the live cursor path
@@ -199,6 +211,12 @@ export interface CopyPlan {
   inAppSecondsToCopy: number
   minutesToAdd: number
   priorRuns: number
+  /**
+   * The ONE CLASS rule (file header): other classes already holding rows from
+   * this teacher's own play on this course, and how many rows. Those rows are
+   * counted in alreadyPresent and are never copied here.
+   */
+  copiedElsewhere: { classIds: string[]; rows: number }
   /** Everything the apply needs, so it never re-derives the plan. */
   rows: Record<string, Record<string, unknown>[]>
 }
@@ -244,34 +262,48 @@ async function readCursor(svc: SupabaseClient, learnerId: string, courseCode: st
   return (data as unknown as CursorSnapshot) ?? null
 }
 
-/** Union of source ids every earlier record for this pair already copied. */
+/**
+ * Union of source ids every earlier record for this SOURCE and course already
+ * copied — onto this class or any other (the ONE CLASS rule, file header).
+ * `runs` counts the runs onto THIS target; `elsewhere` names the other classes
+ * that hold rows from this source, and how many.
+ */
 async function priorCopied(
   svc: SupabaseClient,
   sourceLearnerId: string,
   targetLearnerId: string,
   courseCode: string,
-): Promise<{ runs: number; ids: Record<string, Set<string>> }> {
+): Promise<{ runs: number; ids: Record<string, Set<string>>; elsewhere: { classIds: string[]; rows: number } }> {
   const { data, error } = await svc
     .from(AUDIT_TABLE)
-    .select('id, record')
+    .select('id, class_id, target_learner_id, record')
     .eq('source_learner_id', sourceLearnerId)
-    .eq('target_learner_id', targetLearnerId)
     .eq('course_code', courseCode)
   if (error) throw new Error(`${AUDIT_TABLE} read failed: ${error.message}`)
   const ids: Record<string, Set<string>> = {}
-  const all = (data ?? []) as Array<{ id: string; record: CopyRecord | UndoRecord }>
+  const all = (data ?? []) as Array<{ id: string; class_id: string | null; target_learner_id: string; record: CopyRecord | UndoRecord }>
   // An undone run no longer holds its rows on the class side, so its ids must
   // not be skipped by the next copy — otherwise undo would make re-copy
   // impossible. The undo record names the run it reversed.
   const undone = new Set(all.map((r) => (r.record as UndoRecord)?.undo_of).filter(Boolean) as string[])
   const rows = all.filter((r) => !isUndoRow(r.record) && !undone.has(String(r.id)))
+  let runs = 0
+  const elsewhereClasses = new Set<string>()
+  let elsewhereRows = 0
   for (const r of rows) {
+    const onThisTarget = r.target_learner_id === targetLearnerId
+    if (onThisTarget) runs++
+    let copiedHere = 0
     for (const [table, map] of Object.entries((r.record as CopyRecord)?.copied ?? {})) {
       ids[table] ??= new Set()
-      for (const src of Object.keys(map)) ids[table].add(src)
+      for (const src of Object.keys(map)) { ids[table].add(src); copiedHere++ }
+    }
+    if (!onThisTarget && copiedHere > 0) {
+      elsewhereRows += copiedHere
+      if (r.class_id) elsewhereClasses.add(String(r.class_id))
     }
   }
-  return { runs: rows.length, ids }
+  return { runs, ids, elsewhere: { classIds: [...elsewhereClasses], rows: elsewhereRows } }
 }
 
 /**
@@ -318,21 +350,28 @@ export async function planCopy(
   ])
   const sPos = cursorPosition(sourceCursor)
   const tPos = cursorPosition(targetCursor)
-  const takenFromSource = compareLego(sPos, tPos) > 0
+  // The cursor follows the PLAY. Once another class holds this teacher's
+  // play, this class's position moves only if new sessions or diary rows are
+  // going onto it now; otherwise it keeps its own cursor (ONE CLASS).
+  const newPlayHere = (toCopy['sessions'] ?? 0) + (toCopy['player_events'] ?? 0) > 0
+  const creditedElsewhere = prior.elsewhere.rows > 0 && !newPlayHere
+  const takenFromSource = !creditedElsewhere && compareLego(sPos, tPos) > 0
   const resulting = takenFromSource ? { ...sPos, takenFromSource } : { ...tPos, takenFromSource }
 
   const diaryTs = (rows['player_events'] ?? [])
     .map((r) => Date.parse(String(r['occurred_at'])))
     .filter((t) => Number.isFinite(t))
   const inAppSecondsToCopy = sessioniseSeconds(diaryTs)
-  // Practice minutes on the enrollment are added ONCE: the first run for a pair.
-  const minutesToAdd = prior.runs === 0 && sourceCursor ? Number(sourceCursor.total_practice_minutes || 0) : 0
+  // Practice minutes on the enrollment are added ONCE: the first run for a
+  // pair, and never when another class already holds this teacher's play.
+  const minutesToAdd = prior.runs === 0 && prior.elsewhere.rows === 0 && sourceCursor ? Number(sourceCursor.total_practice_minutes || 0) : 0
 
   return {
     courseCode, sourceLearnerId, targetLearnerId,
     toCopy, alreadyPresent, skipped: SKIPPED_TABLES,
     cursor: { source: sourceCursor, target: targetCursor },
-    resulting, inAppSecondsToCopy, minutesToAdd, priorRuns: prior.runs, rows,
+    resulting, inAppSecondsToCopy, minutesToAdd, priorRuns: prior.runs,
+    copiedElsewhere: prior.elsewhere, rows,
   }
 }
 

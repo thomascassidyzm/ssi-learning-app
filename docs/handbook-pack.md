@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `b1ccb8275ae4` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `779027ec6773` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -301,7 +301,7 @@ Section: running-classes · roles: school_admin · anchor: `school-copy-play-swe
 2. Tap **Copy onto the class** on a row. One line tells you what was copied and where the class now is.
 3. Do the next row when you are ready. There is no button that copies everyone at once.
 
-**Worth knowing.** The teacher keeps their own record. Only play on that class's course moves, the class ends up at the further of the two places, and copying the same teacher again moves nothing twice. When there is nothing to copy the card says so in words. While viewing as someone else you can read the rows but not copy.
+**Worth knowing.** The teacher keeps their own record. Only play on that class's course moves, the class ends up at the further of the two places, and copying the same teacher again moves nothing twice. A teacher who is on two classes for the same course appears on two rows with the same play: the row says so, and a lesson goes onto one class only, so once you have copied it the other row has nothing left to copy. When there is nothing to copy the card says so in words. While viewing as someone else you can read the rows but not copy.
 
 ## Create your first classes
 

@@ -25,6 +25,8 @@ export interface CopyPreview {
   minutes_to_add: number
   prior_runs: number
   nothing_to_copy: boolean
+  /** Other classes already holding this teacher's play on this course: a lesson is credited to ONE class (job #792). */
+  copied_elsewhere?: { class_ids: string[]; class_names: string[]; rows: number }
   position: {
     teacher: PositionWords
     class: PositionWords
@@ -41,7 +43,11 @@ export interface CopyApplied {
 }
 
 /** A candidate pair on the sweep: the preview plus the class's name. */
-export interface CopyCandidate extends CopyPreview { class_name: string }
+export interface CopyCandidate extends CopyPreview {
+  class_name: string
+  /** The other classes this same teacher's play is listed under on the sweep; it can only go onto one. */
+  also_offered_on?: string[]
+}
 
 export interface CopyCandidates {
   school_id: string
