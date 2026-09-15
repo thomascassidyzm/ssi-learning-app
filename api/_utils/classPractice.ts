@@ -350,19 +350,26 @@ export async function inAppTimeSeconds(
   classLearnerIds: string[],
   ownLearnerIds: string[],
   now: number = Date.now(),
-): Promise<{ seconds: number; classSeconds: number }> {
+): Promise<{ seconds: number; classSeconds: number; classSecondsByLearner: Map<string, number> }> {
   const classSet = new Set(classLearnerIds.filter(Boolean))
   const ids = [...new Set([...classSet, ...ownLearnerIds])]
-  if (ids.length === 0) return { seconds: 0, classSeconds: 0 }
+  const classSecondsByLearner = new Map<string, number>()
+  if (ids.length === 0) return { seconds: 0, classSeconds: 0, classSecondsByLearner }
   const sinceIso = new Date(now - CLASS_PRACTICE_WINDOW_DAYS * 86400000).toISOString()
   const byLearner = await inAppSecondsByLearner(svc, ids, sinceIso)
   let seconds = 0
   let classSeconds = 0
   for (const [lid, s] of byLearner) {
     seconds += s
-    if (classSet.has(lid)) classSeconds += s
+    if (classSet.has(lid)) {
+      classSeconds += s
+      // Per class account too, off the same read — the year-group tiles and
+      // the org tree's class rows need each class's own minutes this week
+      // (job #766), and a second diary read for them would be the bug.
+      classSecondsByLearner.set(lid, s)
+    }
   }
-  return { seconds, classSeconds }
+  return { seconds, classSeconds, classSecondsByLearner }
 }
 
 /**

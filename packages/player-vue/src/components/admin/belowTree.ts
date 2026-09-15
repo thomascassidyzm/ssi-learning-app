@@ -26,6 +26,8 @@ export interface BelowClass {
   phrases7d: number
   /** Newest evidence the class practised together, or null if it never has. */
   lastPractisedAt: string | null
+  /** The class account's own in-app minutes this week; 0 on a payload older than job #766. */
+  inAppMinutes7d: number
 }
 
 export interface BelowPerson {
@@ -124,6 +126,7 @@ export function buildBelowTree(payload: Record<string, any> | null | undefined):
       studentCount: Number(c.studentCount ?? 0),
       phrases7d: Number(c.phrases7d ?? 0),
       lastPractisedAt: typeof c.lastPractisedAt === 'string' ? c.lastPractisedAt : null,
+      inAppMinutes7d: Number(c.inAppMinutes7d ?? 0),
     })
   }
   for (const p of staffRows) {
@@ -131,9 +134,13 @@ export function buildBelowTree(payload: Record<string, any> | null | undefined):
     holder.staff.push({ user_id: String(p.user_id), name: p.name })
   }
 
+  // ACTIVITY FIRST for the rows that carry it (Tom, 2026-09-15, job #766):
+  // classes by their own in-app minutes this week, busiest first, name
+  // breaking ties. Groups and schools carry no minutes-this-week figure on
+  // this payload (the rollup is counts), so they stay alphabetical.
   const sortDeep = (n: BelowNode): void => {
     n.children.sort((a, b) => a.name.localeCompare(b.name))
-    n.classes.sort((a, b) => a.name.localeCompare(b.name))
+    n.classes.sort((a, b) => b.inAppMinutes7d - a.inAppMinutes7d || a.name.localeCompare(b.name))
     n.staff.sort((a, b) => a.name.localeCompare(b.name))
     n.children.forEach(sortDeep)
   }

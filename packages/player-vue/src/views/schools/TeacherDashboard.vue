@@ -86,9 +86,14 @@ const courseFilter = ref<string>('all')
 // school overview's cards and year-group tiles land here with ?sort=hours,
 // ?practising=1 or ?year=7, and the tiles on this page set the same query, so
 // a tap is a link and the back button undoes it. Read on mount and on change.
+// THE DEFAULT IS ACTIVITY (Tom, 2026-09-15, job #766: "always sort
+// students/classes/groups of any entity as the default by activity — the
+// most logical being the in-app minutes"): time in the app this week,
+// busiest first. Name and the other orders stay one tap away in Sort by.
+const DEFAULT_SORT: SortKey = 'hours'
 function sortFromQuery(): SortKey {
   const q = route.query.sort
-  return typeof q === 'string' && (SORT_KEYS as readonly string[]).includes(q) ? (q as SortKey) : 'name'
+  return typeof q === 'string' && (SORT_KEYS as readonly string[]).includes(q) ? (q as SortKey) : DEFAULT_SORT
 }
 // 'all' | 'other' | a year number as a string.
 function yearFromQuery(): string {
@@ -107,7 +112,7 @@ watch(() => [route.query.sort, route.query.year, route.query.practising], () => 
 // The pickers write the URL too, so a sort chosen by hand is shareable and
 // the tiles' links and the pickers never disagree about the page's state.
 watch(sortKey, (k) => {
-  if (k !== sortFromQuery()) void router.replace({ query: { ...route.query, sort: k === 'name' ? undefined : k } })
+  if (k !== sortFromQuery()) void router.replace({ query: { ...route.query, sort: k === DEFAULT_SORT ? undefined : k } })
 })
 function clearYearFilter(): void {
   void router.replace({ query: { ...route.query, year: undefined } })
@@ -264,7 +269,7 @@ const filtered = computed(() => {
   }
   rows.sort((a, b) => {
     if (sortKey.value === 'name') return a.class_name.localeCompare(b.class_name)
-    if (sortKey.value === 'hours') return b.minutesWk - a.minutesWk
+    if (sortKey.value === 'hours') return b.minutesWk - a.minutesWk || a.class_name.localeCompare(b.class_name)
     if (sortKey.value === 'journey') return b.journeyDone - a.journeyDone
     if (sortKey.value === 'phrases') return b.phrases7d - a.phrases7d
     return 0
@@ -287,9 +292,11 @@ const showAllClassesLabel = computed(() => t('schools.teacherDashboard.showAllCl
 // YearGroupTiles.vue), fed from the class-account figures this page already
 // holds. Drawn only once the practice payload has landed — before that the
 // numbers would be zeros that read like data.
+// The tile's minutes are the row's minutesWk, so the tiles, the rows and the
+// summary line above them are one figure (job #766).
 const yearGroups = computed(() => yearGroupBreakdown(enrichedClasses.value.map(c => {
   const acct = classAccounts.value[c.id]
-  return { id: c.id, name: c.class_name, phrases7d: acct?.phrases7d ?? 0, practising: practisedWithin(acct?.lastPractisedAt) }
+  return { id: c.id, name: c.class_name, minutes7d: c.minutesWk, phrases7d: acct?.phrases7d ?? 0, practising: practisedWithin(acct?.lastPractisedAt) }
 })))
 const showYearGroups = computed(() => practiceLoaded.value && enrichedClasses.value.length > 0)
 
@@ -548,27 +555,32 @@ function exportCsv() {
          section: running-classes
          roles: school_admin, teacher
          place: classes
-         keywords: year group, year 7, tiles, breakdown, classes practising, phrases, by class
+         keywords: year group, year 7, tiles, breakdown, classes practising, minutes, by class
          What it's for. A row of small tiles under the page head, one per year
-         group: the phrases that year's classes practised this week and how many of
-         them practised out of how many there are. It says in one glance which
-         years are the school's engine and which have barely started.
+         group, each headed by its year, **Y7**, **Y8** and so on: the minutes that
+         year's classes spent in the app this week and how many of them practised
+         out of how many there are. It says in one glance which years are the
+         school's engine and which have barely started.
          Where it is. **My Classes**, the **By year group** card under the page
          head, once this week's practice has loaded.
          How you do it.
          1. Open **My Classes**.
-         2. Read the big figure on each tile for phrases practised this week.
-         3. Read the line under it for classes practising out of classes in that
+         2. Find the year by its big label on each tile.
+         3. Read the minutes under it for time in the app this week. It is the
+            same minute as the page head and the class rows, added up across
+            that year's classes.
+         4. Read the line under that for classes practising out of classes in that
             year.
-         4. Tap a tile and the table below narrows to that year's classes; a
+         5. Tap a tile and the table below narrows to that year's classes; a
             **Year 7 ×** chip in the pickers takes the filter off again.
-         5. A tile reading **Other** holds the classes whose names carry no year.
+         6. A tile reading **Other** holds the classes whose names carry no year.
          Worth knowing. The year is read off the class name — a leading number from
          6 to 13, so **7B**, **Year 9 French** and **10 Set 1** all count — and is
-         never stored. If fewer than half your class names carry a year the card
-         reads **By class** instead, busiest first, three then **Show all**, and
-         each of those tiles opens its class.
-         checked: 47222cdc.8e33b776
+         never stored. A dash means no minutes this week. If fewer than half your
+         class names carry a year the card reads **By class** instead, most
+         minutes first, three then **Show all**, and each of those tiles opens its
+         class.
+         checked: a21955b5.097e5930
     -->
     <YearGroupTiles v-if="showYearGroups" data-walk="classes-year-groups" class="year-groups" :breakdown="yearGroups" :tile-link="yearTileLink" />
 
@@ -584,8 +596,9 @@ function exportCsv() {
          How you do it.
          1. Open **My Classes**.
          2. Pick a language under **Course** to see only the classes learning it.
-         3. Change **Sort by** to order by time in app this week or by how far
-            through the course each class has got. On a phone it is the first
+         3. The list opens ordered by time in app this week, most first. Change
+            **Sort by** to order by name, by how far through the course each
+            class has got, or by phrases practised. On a phone it is the first
             control, and the number you sorted by shows beside each class name.
          Worth knowing. The table shows
          the first three of whatever the pickers produce; **Show all** under it

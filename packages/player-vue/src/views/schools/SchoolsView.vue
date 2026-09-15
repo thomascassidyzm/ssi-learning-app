@@ -35,10 +35,12 @@ const { createSchoolInMyGroup, error: createError } = useGovtAdminActions()
 
 const searchQuery = ref('')
 type SortKey = 'hours' | 'students' | 'name'
-// Alphabetical is the default everywhere (founder ruling 2026-07-30) —
-// metric orders stay available but must be an explicit, visible choice
-// (this dropdown), never the silent default.
-const sortKey = ref<SortKey>('name')
+// ACTIVITY IS THE DEFAULT (Tom, 2026-09-15, job #766: "always sort
+// students/classes/groups of any entity as the default by activity"), which
+// supersedes the 2026-07-30 alphabetical default. The figure this list
+// carries is the school's all-time practice minutes (school_summary), not a
+// this-week one, so all-time is what orders it; name stays in the dropdown.
+const sortKey = ref<SortKey>('hours')
 const sortOptions = computed<{ value: SortKey; label: string }[]>(() => [
   { value: 'name', label: t('schools.schoolsList.sortByName', 'Sort by name') },
   { value: 'hours', label: t('schools.schoolsList.sortByHours', 'Sort by hours') },

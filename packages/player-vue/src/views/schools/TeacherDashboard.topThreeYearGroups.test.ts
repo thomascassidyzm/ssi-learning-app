@@ -115,15 +115,18 @@ describe('TeacherDashboard — three rows then Show all, and year-group tiles (j
     expect(w.find('.table-show-all').exists()).toBe(false)
   })
 
-  it('year-group tiles under the page head: phrases and classes practising per year, unparsed names in Other', async () => {
+  // Job #766 (Tom, 2026-09-15): the tile's number is in-app MINUTES this week
+  // — c1 1020 s + c2 660 s = 17 + 11 = 28 min for Year 7 — the same per-class
+  // figure as the rows, and the year key is the big label.
+  it('year-group tiles under the page head: minutes and classes practising per year, unparsed names in Other', async () => {
     const w = await mountView()
     const tiles = w.find('[data-walk="classes-year-groups"]')
     expect(tiles.exists()).toBe(true)
     expect(tiles.attributes('data-mode')).toBe('year')
     const read = tiles.findAll('.year-tile').map((t) => [t.find('.year-tile-value').text(), t.find('.year-tile-word').text(), t.find('.year-tile-sub').text()])
     expect(read).toEqual([
-      ['86', 'Year 7', '2 of 2 classes'],
-      ['53', 'Year 8', '1 of 2 classes'],
+      ['28 min', 'Y7', '2 of 2 classes'],
+      ['19 min', 'Y8', '1 of 2 classes'],
       ['—', 'Other', 'none of 1 yet'],
     ])
   })

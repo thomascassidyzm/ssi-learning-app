@@ -57,6 +57,26 @@ describe('buildBelowTree — the shape, not a slice', () => {
     expect(flattenNodes(tree)).toHaveLength(4)
   })
 
+  // Job #766 (Tom, 2026-09-15): every list of classes opens by activity — the
+  // class account's own in-app minutes this week, busiest first, name breaking
+  // ties. Seen RED on the pre-change module (alphabetical: 7B, 7H, 8H) and
+  // GREEN after (8H 40 min, 7H 12 min, 7B 0).
+  it('orders a node\'s classes by in-app minutes this week, busiest first, then name', () => {
+    const tree = buildBelowTree({
+      node: { id: 'root', name: 'Chepstow', label: 'school', hasSchool: true, rollup: { learnerCount: 90 } },
+      tree: {
+        nodes: [],
+        classes: [
+          { id: 'c1', name: '7B', nodeId: 'root', teachers: [], studentCount: 30, phrases7d: 90, lastPractisedAt: null, inAppMinutes7d: 0 },
+          { id: 'c2', name: '7H', nodeId: 'root', teachers: [], studentCount: 30, phrases7d: 20, lastPractisedAt: null, inAppMinutes7d: 12 },
+          { id: 'c3', name: '8H', nodeId: 'root', teachers: [], studentCount: 30, phrases7d: 5, lastPractisedAt: null, inAppMinutes7d: 40 },
+        ],
+        staff: [],
+      },
+    })!
+    expect(tree.classes.map((c) => [c.name, c.inAppMinutes7d])).toEqual([['8H', 40], ['7H', 12], ['7B', 0]])
+  })
+
   it('an empty group LOOKS empty — nothing under it, and nothing written there', () => {
     const tree = buildBelowTree({
       node: { id: 'root', name: 'Killay Country Council', label: 'organisation', rollup: { learnerCount: 0 } },

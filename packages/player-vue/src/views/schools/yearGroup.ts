@@ -14,9 +14,12 @@
  * tiles instead, because a row of "Other" is not a breakdown.
  *
  * Each tile carries only numbers the page already fetched for its classes:
- * classes practising this week out of classes in the group, and phrases
- * practised this week. No minutes per year group — the one expensive item the
- * review left out.
+ * IN-APP MINUTES this week summed across the group's classes (job #766, Tom
+ * 2026-09-15: the tiles read as minutes under a headline in minutes, so they
+ * are minutes — the same per-class figure as the class rows, rounded up per
+ * class by practiceMinutes.ts), classes practising this week out of classes
+ * in the group, and phrases practised this week, kept on the tile data for
+ * anyone who still wants them.
  */
 export const YEAR_MIN = 6
 export const YEAR_MAX = 13
@@ -33,6 +36,8 @@ export function parseYearGroup(name: string): number | null {
 export interface YearGroupClass {
   id: string
   name: string
+  /** The class account's own in-app minutes this week — the class row's figure, already rounded up. */
+  minutes7d: number
   /** Phrases practised in whole-class play this week — from the payload the page already holds. */
   phrases7d: number
   /** Whether the class counts as practising this week, by the headline's own rule. */
@@ -47,6 +52,8 @@ export interface YearGroupTile {
   name: string | null
   classCount: number
   practising: number
+  /** In-app minutes this week, summed across the tile's classes — the big number. */
+  minutes7d: number
   phrases7d: number
 }
 
@@ -61,19 +68,21 @@ export function yearGroupBreakdown(classes: readonly YearGroupClass[]): YearGrou
   const parsed = classes.map((c) => ({ c, year: parseYearGroup(c.name) }))
   const parsedCount = parsed.filter((p) => p.year !== null).length
   if (parsedCount * 2 < classes.length) {
-    // Fewer than half parse: per-class tiles, busiest first, so the row still
-    // says who is doing it.
+    // Fewer than half parse: per-class tiles, busiest first — by minutes in
+    // the app, the activity every school list defaults to (job #766) — so the
+    // row still says who is doing it.
     const tiles = [...classes]
-      .sort((a, b) => b.phrases7d - a.phrases7d || a.name.localeCompare(b.name))
-      .map((c) => ({ key: `class:${c.id}`, year: null, name: c.name, classCount: 1, practising: c.practising ? 1 : 0, phrases7d: c.phrases7d }))
+      .sort((a, b) => b.minutes7d - a.minutes7d || b.phrases7d - a.phrases7d || a.name.localeCompare(b.name))
+      .map((c) => ({ key: `class:${c.id}`, year: null, name: c.name, classCount: 1, practising: c.practising ? 1 : 0, minutes7d: c.minutes7d, phrases7d: c.phrases7d }))
     return { mode: 'class', tiles }
   }
   const byYear = new Map<number | null, YearGroupTile>()
   for (const { c, year } of parsed) {
     const key = year === null ? 'other' : `year:${year}`
-    const tile = byYear.get(year) ?? { key, year, name: null, classCount: 0, practising: 0, phrases7d: 0 }
+    const tile = byYear.get(year) ?? { key, year, name: null, classCount: 0, practising: 0, minutes7d: 0, phrases7d: 0 }
     tile.classCount += 1
     tile.practising += c.practising ? 1 : 0
+    tile.minutes7d += c.minutes7d
     tile.phrases7d += c.phrases7d
     byYear.set(year, tile)
   }
