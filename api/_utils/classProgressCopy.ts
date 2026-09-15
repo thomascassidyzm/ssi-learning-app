@@ -214,11 +214,29 @@ export const isUndoRow = (r: CopyRecord | UndoRecord | ClaimRecord | null | unde
  * run ends, so the audit row that names the copied ids is the row that held
  * the claim. A claim older than CLAIM_STALE_MS whose holder died is marked
  * `abandoned` by the next apply and then never blocks anything.
+ *
+ * The claim also carries what the run has LANDED (job #841). PostgREST gives
+ * no transaction across insert + finalise, so before every chunk insert the
+ * claim is checkpointed with `copied` (every id landed so far) and `pending`
+ * (the source ids of the chunk about to go in); the checkpoint failing stops
+ * the run before that chunk, so nothing lands unrecorded. If the finalising
+ * write then fails after the rows are in, the claim still names them, and
+ * priorCopied treats a claim's copied AND pending ids as done. The one
+ * remaining failure mode is under-copy: a pending chunk whose insert failed
+ * and whose clearing write also failed stays skipped. Never a duplicate.
  */
 export interface ClaimRecord {
   state: 'running' | 'abandoned'
   started_at: string
   error?: string
+  copied?: CopiedIds
+  pending?: Record<string, string[]>
+}
+const claimIds = (r: ClaimRecord): Record<string, string[]> => {
+  const out: Record<string, string[]> = {}
+  for (const [t, m] of Object.entries(r.copied ?? {})) out[t] = [...(out[t] ?? []), ...Object.keys(m)]
+  for (const [t, ids] of Object.entries(r.pending ?? {})) out[t] = [...(out[t] ?? []), ...ids]
+  return out
 }
 export const isClaimRow = (r: CopyRecord | UndoRecord | ClaimRecord | null | undefined): boolean =>
   (r as ClaimRecord)?.state === 'running' || (r as ClaimRecord)?.state === 'abandoned'
@@ -315,19 +333,26 @@ async function priorCopied(
   // An undone run no longer holds its rows on the class side, so its ids must
   // not be skipped by the next copy — otherwise undo would make re-copy
   // impossible. The undo record names the run it reversed. A claim row (the
-  // run in progress, or one abandoned) holds no ids and is not a run.
+  // run in progress, or one abandoned) is a run only if it checkpointed ids
+  // (job #841): those rows ARE on the class side, so they count as done, and
+  // the run's minutes were added, so it counts towards `runs`.
   const undone = new Set(all.map((r) => (r.record as UndoRecord)?.undo_of).filter(Boolean) as string[])
-  const rows = all.filter((r) => !isUndoRow(r.record) && !isClaimRow(r.record) && !undone.has(String(r.id)))
+  const rows = all.filter((r) => !isUndoRow(r.record) && !undone.has(String(r.id)))
   let runs = 0
   const elsewhereClasses = new Set<string>()
   let elsewhereRows = 0
   for (const r of rows) {
     const onThisTarget = r.target_learner_id === targetLearnerId
+    const landed: Record<string, string[]> = isClaimRow(r.record)
+      ? claimIds(r.record as ClaimRecord)
+      : Object.fromEntries(Object.entries((r.record as CopyRecord)?.copied ?? {}).map(([t, m]) => [t, Object.keys(m)]))
+    const landedAny = Object.values(landed).some((l) => l.length > 0)
+    if (isClaimRow(r.record) && !landedAny) continue
     if (onThisTarget) runs++
     let copiedHere = 0
-    for (const [table, map] of Object.entries((r.record as CopyRecord)?.copied ?? {})) {
+    for (const [table, list] of Object.entries(landed)) {
       ids[table] ??= new Set()
-      for (const src of Object.keys(map)) { ids[table].add(src); copiedHere++ }
+      for (const src of list) { ids[table].add(src); copiedHere++ }
     }
     if (!onThisTarget && copiedHere > 0) {
       elsewhereRows += copiedHere
@@ -497,6 +522,13 @@ export async function applyCopy(
   const copied: CopiedIds = {}
   const sessionMap = new Map<string, string>()
   let failure: string | null = null
+  const startedAt = new Date().toISOString()
+  // Checkpoint the claim (see ClaimRecord): what has landed, what is about to.
+  const checkpoint = async (pending: Record<string, string[]>): Promise<string | null> => {
+    const claim: ClaimRecord = { state: 'running', started_at: startedAt, copied, pending }
+    const { error } = await svc.from(AUDIT_TABLE).update({ record: claim }).eq('id', auditId)
+    return error ? `${AUDIT_TABLE} checkpoint: ${error.message}` : null
+  }
 
   for (const spec of COPY_TABLES) {
     const pending = plan.rows[spec.table] ?? []
@@ -506,8 +538,20 @@ export async function applyCopy(
       const slice = pending.slice(i, i + INSERT_CHUNK)
       const payload = slice.map((r) => rekey(r, spec, targetLearnerId, sessionMap))
       const returning = spec.key.kind === 'generated' ? spec.key.idColumn : spec.key.keyColumns.join(',')
+      // Record the chunk BEFORE it goes in; a checkpoint that fails stops the
+      // run while nothing is landed unrecorded.
+      failure = await checkpoint({ [spec.table]: slice.map((r) => sourceIdOf(r, spec)) })
+      if (failure) break
       const { data, error } = await svc.from(spec.table).insert(payload).select(returning)
-      if (error) { failure = `${spec.table}: ${error.message}`; break }
+      if (error) {
+        failure = `${spec.table}: ${error.message}`
+        // Nothing of this chunk landed: clear its pending ids so they are not
+        // treated as done. If this write fails too, the chunk is skipped by
+        // later runs (under-copy), never duplicated.
+        const cleared = await checkpoint({})
+        if (cleared) console.error('[classProgressCopy] could not clear pending ids after a failed insert', auditId, cleared)
+        break
+      }
       const inserted = (data ?? []) as unknown as Record<string, unknown>[]
       if (inserted.length !== slice.length) { failure = `${spec.table}: inserted ${inserted.length} of ${slice.length}`; break }
       slice.forEach((src, idx) => {
@@ -571,9 +615,15 @@ export async function applyCopy(
   // free for the next run.
   const { error: auditErr } = await svc.from(AUDIT_TABLE).update({ record }).eq('id', auditId)
   if (auditErr) {
-    // The rows are in; losing the record would make the next run double them.
+    // The rows are in. The last checkpoint already names every id that
+    // landed (copied + pending), so the next run cannot double them; try to
+    // release the claim carrying those ids, and if that fails too the stale
+    // path abandons it with them intact.
     console.error('[classProgressCopy] audit write failed:', auditErr.message, JSON.stringify(record.copied).slice(0, 4000))
     failure = failure ?? `audit: ${auditErr.message}`
+    const abandoned: ClaimRecord = { state: 'abandoned', started_at: startedAt, copied, error: failure }
+    const { error: relErr } = await svc.from(AUDIT_TABLE).update({ record: abandoned }).eq('id', auditId)
+    if (relErr) console.error('[classProgressCopy] could not release claim after audit failure', auditId, relErr.message)
   }
   // The notice to the teacher whose play moved (job #684), with one-tap undo.
   // Sent from HERE, not from the route, so the sweep and the card cannot

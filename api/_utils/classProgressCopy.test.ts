@@ -25,6 +25,8 @@ let DB: Record<string, Row[]>
 let nextId = 1
 let failOnInsert: string | null = null
 let failOnDelete: string | null = null
+/** Fail an update when this returns true — set per test for the audit-finalisation path. */
+let failOnUpdate: ((table: string, patch: Row) => boolean) | null = null
 
 const clone = <T>(v: T): T => (v == null ? v : JSON.parse(JSON.stringify(v)))
 
@@ -102,6 +104,7 @@ function makeQuery(table: string) {
         eq(col: string, val: any) { filters.push((r) => cell(r, col) === val); return upd },
         is(col: string, val: any) { filters.push((r) => r[col] == val); return upd },
         then(res: any, rej: any) {
+          if (failOnUpdate?.(table, patch)) return Promise.resolve({ data: null, error: { message: 'audit boom' } }).then(res, rej)
           for (const r of rows()) Object.assign(r, patch)
           return Promise.resolve({ data: null, error: null }).then(res, rej)
         },
@@ -127,6 +130,7 @@ beforeEach(() => {
   nextId = 1
   failOnInsert = null
   failOnDelete = null
+  failOnUpdate = null
   DB = Object.fromEntries([...COPY_TABLES.map((s) => s.table), 'course_enrollments', AUDIT_TABLE, 'learners', 'classes', 'courses', 'user_messages'].map((t) => [t, []]))
   DB.learners.push({ id: TEACHER, user_id: 'teacher-uid' })
   DB.classes.push({ id: 'class-1', class_name: 'Year 7 Spanish' })
@@ -425,6 +429,44 @@ describe('applyCopy — two concurrent requests (job #811: 7E was credited 22 + 
     expect(DB[AUDIT_TABLE][0].record.state).toBe('abandoned')
     const out = await applyCopyRaw(svc, params, ctx)
     expect(out.conflict).toBe(false)
+  })
+
+  it('audit finalisation failing AFTER the rows landed: the retry copies nothing again (job #841)', async () => {
+    const ctx = { actorUserId: 'angharad', classId: 'class-1' }
+    // The finalising write is the one that turns the claim into the full
+    // record, i.e. the patch whose record carries no `state`. Checkpoints
+    // and the release still go through.
+    failOnUpdate = (table, patch) => table === AUDIT_TABLE && patch.record && patch.record.state === undefined
+    const first = await applyCopyRaw(svc, params, ctx)
+    expect(first.conflict).toBe(false)
+    if (first.conflict) return
+    expect(first.error).toMatch(/^audit: audit boom/)
+    // Rows landed and minutes were added before the finalisation failed.
+    expect(DB.sessions.filter((r) => r.learner_id === CLASS)).toHaveLength(3)
+    expect(DB.course_enrollments.find((r) => r.learner_id === CLASS).total_practice_minutes).toBe(5)
+    const claim = DB[AUDIT_TABLE][0]
+    failOnUpdate = null
+    // Whether the claim was released or has gone stale, the next apply must
+    // find the landed ids and copy NOTHING twice.
+    claim.created_at = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+    const plan = await planCopy(svc, params)
+    expect(plan.toCopy.sessions).toBe(0)
+    expect(plan.toCopy.player_events).toBe(0)
+    expect(plan.toCopy.response_metrics).toBe(0)
+    expect(plan.minutesToAdd).toBe(0)
+    const retry = await applyCopyRaw(svc, params, ctx)
+    expect(retry.conflict).toBe(false)
+    if (retry.conflict) return
+    expect(retry.error).toBeNull()
+    expect(DB.sessions.filter((r) => r.learner_id === CLASS)).toHaveLength(3)
+    expect(DB.player_events.filter((r) => r.learner_id === CLASS)).toHaveLength(2)
+    expect(DB.response_metrics.filter((r) => r.learner_id === CLASS)).toHaveLength(1)
+    expect(DB.course_enrollments.find((r) => r.learner_id === CLASS).total_practice_minutes).toBe(5)
+    // The failed run's claim is not a finished record and was released, not
+    // left running; the retry's own row is the finished record.
+    expect(claim.record.state).toBe('abandoned')
+    expect(Object.keys(claim.record.copied.sessions)).toEqual(['s1', 's2'])
+    expect(DB[AUDIT_TABLE]).toHaveLength(2)
   })
 })
 
