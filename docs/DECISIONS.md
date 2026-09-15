@@ -1,3 +1,48 @@
+## 2026-09-15 — Three red nightlies on dev were merges, not a broken build: eight fixes and a one-minute pre-merge gate (job #774)
+
+**Symptom.** The watson-1 nightly (`~/command-surface/ops/ci-run.sh`) went red on dev, staging
+and main on 13, 14 and 15 September, on three different dev heads (12c1e192, 541480a8, d3e2a89e)
+and three DIFFERENT sets of tests. Auto-fix workers #482 and #629 each fixed one night's list
+correctly and merged; by the next nightly a fresh day of merges had left a fresh list behind. On
+15 September the nightly muted auto-dispatch.
+
+**Diagnosis, from the whole history rather than one log.** Nothing was flaky and nothing was an
+environment gap: no test on the list needs DB credentials, and `.vercelignore` (job #694) touches
+only the Vercel upload — `pnpm test:api` still discovers 251 files locally and on the nightly. Every
+red was a merge whose author ran only the suite beside the file it changed:
+- job #683's "minutes round up, hours only from an hour" ruling changed `practiceMinutes.ts` and left
+  four component tests asserting the old numbers (CopyPlaySweepCard, CopyTeacherPlayCard, OrgIntelPanel,
+  useSchoolData) — and exposed a real defect: `hoursToMinutes(256.6)` became 15397 because
+  256.6 × 60 is 15396.000000000002 in floating point and the new ceiling read that noise as a minute;
+- job #766 registered `schools.yearGroupTiles.yearShort` in `pending-translation.json` but never added
+  the English string `YearGroupTiles.vue` reads;
+- job #684's `GET /api/messages` answers its preflight inside `resolveInboxCaller` in `_shared.ts`,
+  which the derived scanner (`scanClientApiCalls.ts`) cannot see — it reads the handler file for the
+  cors import;
+- job #680's `support-inbox-view-no-auth-users.security.test.ts` never joined the pinned roster in
+  `securityTestMachineryIntegrity.security.test.ts`;
+- job #684's `user_messages_from_support_reply()` is SECURITY DEFINER pinned to `search_path = public`
+  without `pg_temp` — the live function too (`pg_proc.proconfig` read 2026-09-15), a real gap.
+The 13 and 14 September lists (jobs #306/#340/#354/#379, then #609/#624) had the same shape.
+
+**What changed.** The float fix in `ceilPositive` (proof: `practiceMinutes.test.ts`, red on the old
+file, green on the new); the four minutes tests now assert the ruling's numbers (13 and 29 minutes,
+"5 h 52 min"); `yearShort: "Y{n}"` in `eng.json`; `applyCors` named in `api/messages/index.ts` itself,
+where the scanner looks; the roster gains the #680 file; migration
+`20260915a_user_messages_from_support_reply_pg_temp.sql` (ALTER FUNCTION, config only) applied live
+and `schema.sql` updated to match.
+
+**The mechanism, so it stops recurring.** `pnpm test:premerge` at the root: the repo-invariant tests
+(every test that reads the tree rather than importing it — preflight coverage, the security roster,
+definer search_path, locale parity, walkthrough mirrors, and their kin, 22 files) plus
+`vitest --changed origin/dev` in both configs, which runs every test importing a changed file. About
+a minute; documented in CLAUDE.md's feedback loops. Better: it catches exactly the two classes that
+went red three nights running. Simpler: two package.json scripts, no new tooling, the full nightly
+untouched. Cheaper: a minute at merge time against an eight-minute nightly, a muted auto-fix lane and
+three workers' worth of re-diagnosis. It is a convention, not a hard gate — the surface merges by
+hand — so the honest next step, if it recurs, is the command surface running `test:premerge` in the
+worker's worktree before it offers the merge.
+
 ## 2026-09-14 — Play as class restored beside every class; the playing-as-yourself warning moves to the player; minutes round up; hours only from an hour; View As lands on real numbers; a verification rule for schools jobs (job #683)
 
 **Symptom (Tom, 16:17Z, staging, ten screenshots).** "every single Play as Class button has GONE!!!!

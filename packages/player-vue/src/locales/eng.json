@@ -1404,6 +1404,7 @@
       "byYearGroup": "By year group",
       "byClass": "By class",
       "year": "Year {n}",
+      "yearShort": "Y{n}",
       "other": "Other",
       "ofClassesOne": "{n} of {total} class",
       "ofClassesMany": "{n} of {total} classes",

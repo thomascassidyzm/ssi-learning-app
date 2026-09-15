@@ -475,11 +475,13 @@ watch(selectedUser, (newUser) => {
       <div v-if="removeError" class="invite-hint remove-error schools-card schools-card-pad" role="alert">
         {{ removeError }}
       </div>
-
+    </Transition>
+    <Transition name="fade">
       <div v-if="signinLinkError" class="invite-hint remove-error schools-card schools-card-pad" role="alert">
         {{ signinLinkError }}
       </div>
-
+    </Transition>
+    <Transition name="fade">
       <div v-if="signinLinkFor" class="schools-card schools-card-pad signin-link-panel">
         <div class="schools-kicker">{{ t('schools.teachers.accessCodeForKicker', 'Access code for {name}').replace('{name}', signinLinkFor.name) }}</div>
         <p class="signin-link-body">

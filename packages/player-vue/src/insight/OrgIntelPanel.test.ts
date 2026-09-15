@@ -64,9 +64,9 @@ describe('OrgIntelPanel', () => {
   it('answers the three questions in words, from the one payload', () => {
     const w = mountPanel(payload())
     const text = w.text()
-    expect(text).toContain('14 of your 34 classes practised together this week, up from 1 last week, 422 phrases practised, 352 min in the app.')
+    expect(text).toContain('14 of your 34 classes practised together this week, up from 1 last week, 422 phrases practised, 5 h 52 min in the app.')
     expect(text).toContain('24 min')                    // 7H's own in-app minutes on its row
-    expect(text).not.toMatch(/\b\d+(\.\d+)?h\b/)      // minutes, never hours
+    expect(text).not.toMatch(/\b\d+(\.\d+)?h\b/)      // never "1.2h": minutes, or "5 h 52 min" from an hour up (job #683)
     expect(text).toContain('17 of 39 people practised on their own account, 124 minutes between them.')
     expect(text).toContain('1 class has gone quiet, and 13 have never started.')
     expect(text).toContain('21 of 34 classes have started.')
