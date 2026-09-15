@@ -1,5 +1,5 @@
 {
-  "version": "dd6b544ba1d2",
+  "version": "49b365e065b9",
   "generatedAt": "2026-09-15",
   "walks": [
     {
@@ -579,6 +579,36 @@
       ]
     },
     {
+      "id": "one-persons-story",
+      "title": "One person's story",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "intel"
+      },
+      "keywords": [
+        "person",
+        "support",
+        "account",
+        "access",
+        "sign in",
+        "role",
+        "trial",
+        "flag"
+      ],
+      "steps": [
+        {
+          "anchor": "question-person",
+          "say": "**One person** is the page for a support call. Open it from a row on Leaving, or find them under People. The sentence gives their standing, their access and their last practice, and the pill beneath says whether they count as a real person. The verbs across the top act on them: give full access, take it back, make a one-off sign-in link, change their role or trial, or correct a wrong flag. Each verb says what it will change and asks first, and the server records it against your name. The cards below hold their access, memberships, course positions and last few events.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Everything about one person, on one page, with every change recorded."
+        }
+      ]
+    },
+    {
       "id": "org-choose-courses",
       "title": "Choose which courses a school can use",
       "personas": [
@@ -622,6 +652,50 @@
             "on": "next"
           },
           "terminal": "That's the whole of it — pick Trial or Paid, choose the courses if it's a trial, and save."
+        }
+      ]
+    },
+    {
+      "id": "reading-a-question-page",
+      "title": "Reading a question page",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "intel"
+      },
+      "keywords": [
+        "findings",
+        "nightly",
+        "updated",
+        "fetched",
+        "population",
+        "real people",
+        "demo",
+        "staff"
+      ],
+      "steps": [
+        {
+          "anchor": "findings",
+          "say": "Every night a job reads the week's practice and writes a few findings in plain words. Each lands here, on the question it is about. The dot on a card is its tone: good, watch, alarm or quiet. The line above says when they were found. If that line is red the job has missed two nights or more and the cards are old. It runs from Tom's Mac, not from here.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "updated-stamp",
+          "say": "**Updated** and a time says when the numbers on this page were actually read from the database. It is stamped when the fetch finished, never when the page drew. While it reads **Updating**, nothing on the page is final yet.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "population-chip",
+          "say": "This pill says how many real people the numbers are counted from. Demo accounts, SSi staff, class accounts and machine traffic are never people. If a page is deliberately showing demo or staff data the pill says so in red. The count comes from the server, from one shared rule, so two pages can never disagree about who is real.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Findings above, the answer, then when it was fetched and who it counts. Every question page reads the same way."
         }
       ]
     },

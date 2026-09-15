@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `dd6b544ba1d2` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `49b365e065b9` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## choose-a-class-course — Choose what a class learns
 
@@ -115,6 +115,13 @@ Personas: teacher, school_admin · place: class-detail
 5. [`assign-classes-save` · next] Saving applies only the boxes you actually changed. If one of them fails, it says which class failed and why, rather than claiming everything saved.
    - terminal: That's moving a teacher — one untick, one tick, one save. This tour changed nothing; only your own taps do.
 
+## one-persons-story — One person's story
+
+Personas: admin · place: intel
+
+1. [`question-person` · next] **One person** is the page for a support call. Open it from a row on Leaving, or find them under People. The sentence gives their standing, their access and their last practice, and the pill beneath says whether they count as a real person. The verbs across the top act on them: give full access, take it back, make a one-off sign-in link, change their role or trial, or correct a wrong flag. Each verb says what it will change and asks first, and the server records it against your name. The cards below hold their access, memberships, course positions and last few events.
+   - terminal: Everything about one person, on one page, with every change recorded.
+
 ## org-choose-courses — Choose which courses a school can use
 
 Personas: admin · place: node-home (org/group/school)
@@ -123,6 +130,15 @@ Personas: admin · place: node-home (org/group/school)
 2. [`verb-courses` · next] Choose **Trial** and search for the one or two courses it should carry, or **Paid** for the whole catalogue with no per-course picking.
 3. [`verb-courses` · next] Save, and everyone below that node inherits it. A trial runs for thirty days on a paid course and a year on a free or community one — the server works the dates out on save, so what you see before saving is a preview.
    - terminal: That's the whole of it — pick Trial or Paid, choose the courses if it's a trial, and save.
+
+## reading-a-question-page — Reading a question page
+
+Personas: admin · place: intel
+
+1. [`findings` · next] Every night a job reads the week's practice and writes a few findings in plain words. Each lands here, on the question it is about. The dot on a card is its tone: good, watch, alarm or quiet. The line above says when they were found. If that line is red the job has missed two nights or more and the cards are old. It runs from Tom's Mac, not from here.
+2. [`updated-stamp` · next] **Updated** and a time says when the numbers on this page were actually read from the database. It is stamped when the fetch finished, never when the page drew. While it reads **Updating**, nothing on the page is final yet.
+3. [`population-chip` · next] This pill says how many real people the numbers are counted from. Demo accounts, SSi staff, class accounts and machine traffic are never people. If a page is deliberately showing demo or staff data the pill says so in red. The count comes from the server, from one shared rule, so two pages can never disagree about who is real.
+   - terminal: Findings above, the answer, then when it was fetched and who it counts. Every question page reads the same way.
 
 ## reading-insights — Reading your insights
 
