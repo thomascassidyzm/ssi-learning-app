@@ -17,7 +17,8 @@
       "upgrade-subscribe-org": "Backlog since 2026-09-15 (job #854): \"Subscribe your organisation\" — leader on upgrade. No clip yet.",
       "upgrade-subscribe-school": "Backlog since 2026-09-15 (job #854): \"Subscribe your school\" — school_admin on upgrade. No clip yet.",
       "upgrade-seats-actual": "Backlog since 2026-09-15 (job #854): \"When more people join than you have seats\" — school_admin/leader on upgrade. No clip yet.",
-      "setup-save-exit": "Backlog since 2026-09-15 (job #854): \"Work through setup at your own pace\" — school_admin on setup. No clip yet."
+      "setup-save-exit": "Backlog since 2026-09-15 (job #854): \"Work through setup at your own pace\" — school_admin on setup. No clip yet.",
+      "report-bug-thanks": "Backlog since 2026-09-15 (job #882): \"See that your report arrived\" — teacher/school_admin/leader on settings. The Got it, thank you line only mounts after a real Send, and a walk must never file a real bug report, so no honest step can anchor to it. The report-a-bug-from-settings walk describes it in its closing card instead."
     }
   },
   "pages": {

@@ -7,7 +7,7 @@
     "leader"
   ],
   "place": {
-    "route": "settings"
+    "route": "player-settings"
   },
   "keywords": [
     "bug",
@@ -46,20 +46,12 @@
     },
     {
       "anchor": "report-bug-send",
-      "say": "**Send** stays off until you have written something. Tap it and it reads **Sending…** while your note, and your screenshot if you added one, goes.",
+      "say": "**Send** stays off until you have written something. You would tap **Send** here — press Next to continue without sending. When you do send for real it reads **Sending…** while your note, and your screenshot if you added one, goes.",
       "advance": {
         "on": "next"
       },
-      "checked": "565f1b85.afedad59"
-    },
-    {
-      "anchor": "report-bug-thanks",
-      "say": "**Got it, thank you** replaces the form the moment it lands — that line is the whole reply. The sheet closes on its own a moment later, or tap the line to close it now.",
-      "advance": {
-        "on": "next"
-      },
-      "terminal": "Nobody replies through the app: your note goes to one place where we read it, whether or not you are signed in.",
-      "checked": "f7c064f1.85648f3b"
+      "checked": "565f1b85.afedad59",
+      "terminal": "Once it lands, **Got it, thank you** replaces the form — that line is the whole reply. The sheet closes on its own a moment later, or tap the line to close it now. Nobody replies through the app: your note goes to one place where we read it, whether or not you are signed in."
     }
   ]
 }

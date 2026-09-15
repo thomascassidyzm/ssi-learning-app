@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `760d7c69f3a9` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `8602816f7212` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## add-a-class-under-a-group — Add a class to a group
 
@@ -432,14 +432,13 @@ Personas: school_admin · place: teachers
 
 ## report-a-bug-from-settings — Report a bug from Settings
 
-Personas: teacher, school_admin, leader · place: settings
+Personas: teacher, school_admin, leader · place: player-settings
 
 1. [`report-bug` · click] Under **Tools** in Settings sits **Report a bug** — tap it to open the sheet. Nothing is sent until you tap Send on it.
 2. [`report-bug-sheet` · next] This sheet is the whole flow — one box, one optional screenshot, one Send. Tap outside it and it closes without sending anything.
 3. [`report-bug-text` · next] Write what you saw in your own words here. Your course and device details are added for you, so you only need to describe the problem itself.
-4. [`report-bug-send` · next] **Send** stays off until you have written something. Tap it and it reads **Sending…** while your note, and your screenshot if you added one, goes.
-5. [`report-bug-thanks` · next] **Got it, thank you** replaces the form the moment it lands — that line is the whole reply. The sheet closes on its own a moment later, or tap the line to close it now.
-   - terminal: Nobody replies through the app: your note goes to one place where we read it, whether or not you are signed in.
+4. [`report-bug-send` · next] **Send** stays off until you have written something. You would tap **Send** here — press Next to continue without sending. When you do send for real it reads **Sending…** while your note, and your screenshot if you added one, goes.
+   - terminal: Once it lands, **Got it, thank you** replaces the form — that line is the whole reply. The sheet closes on its own a moment later, or tap the line to close it now. Nobody replies through the app: your note goes to one place where we read it, whether or not you are signed in.
 
 ## report-a-bug-from-the-dashboard — Report a bug from the dashboard
 
@@ -448,7 +447,7 @@ Personas: teacher, school_admin, leader · place: dashboard
 1. [`schools-user-menu-trigger` · click] Tap your name at the top right to open the account menu.
 2. [`schools-report-bug` · click] **Report a bug** sits in that menu — tap it to open the window without leaving the dashboard. The page you are on, and your school, are attached for you.
 3. [`schools-report-bug-happened` · next] Write what you saw, or what you would like to see, in **What happened?**. Add what you expected underneath if that helps — that part is optional.
-4. [`schools-report-bug-send` · next] **Send** stays off until you have written something. Tap it and it reads **Sending…** while your note goes, with your screenshot too if you added one.
+4. [`schools-report-bug-send` · next] **Send** stays off until you have written something. You would tap **Send** here — press Next to continue without sending. When you do send for real it reads **Sending…** while your note goes, with your screenshot too if you added one.
    - terminal: A **Got it, thank you** toast appears at the top of the page and that is the whole reply — nobody answers through the app. Questions about the dashboard itself go to Support instead.
 
 ## run-class-session — Run your first class session
@@ -645,7 +644,7 @@ Personas: admin · place: intel
 
 ## your-account-identity — Find out which email you are signed in with
 
-Personas: teacher, school_admin, leader · place: settings
+Personas: teacher, school_admin, leader · place: player-settings
 
 1. [`account-identity` · next] At the top of **Account** in Settings is the address this account uses. Tap it and it copies — useful the moment you sign in on a new device and cannot remember which email you used.
 2. [`account-identity` · next] Under it is your account code. Tap that to copy it too, and give it to us if you ever get in touch — it names your account and nothing more, so it is safe to read out or put in a message.
