@@ -1,3 +1,31 @@
+## 2026-09-15 — The rate-compare privacy floor is by cohort kind, not by role: classes compare from one peer (job #799)
+
+**Tom's ruling (11:35Z).** "The comparison limit to 5 was for INDIVIDUAL users, to not be identified
+for GDPR purposes — not to prevent classes being compared." Both rate-compare engines carried the
+floor per ROLE: 5 for teachers and leaders, 1 for ssi_admins and demo worlds.
+
+**What the code says.** Every cohort either engine seats is an entity — peer classes when the
+entity is a class, peer schools when it is a school or group, each averaged from its own account's
+diary and whole-class play. No cohort anywhere in `api/school/rate-compare.ts` or
+`api/groups/[id]/rate-compare.ts` is a set of individual learners. The one caller whose cohort IS
+people, `api/me/insights.ts` (other learners on my course), keeps the 5.
+
+**Fix.** `api/_utils/rateCompare.ts` names the two kinds: `cohortFloor('individuals')` = 5,
+`cohortFloor('entities')` = 1; `K_FLOOR` keeps its name and value for the individual callers and
+for spec.ts sovereignty parity. Both engines take the entity floor for every caller, teacher
+included. The role and demo branches are gone; the reason text still names the floor it applied.
+
+**Verified live, real teacher door.** R Jeffery (Ysgol Cas-gwent, 11P, Welsh South) through
+`verifyAdmin` 403 + her own auth uid + the real caller resolver, not View As: 7-day cohort 16
+peer classes, 30-day cohort 29, her rate 6.8 against 8.2 and 4.7. Identical before and after —
+she was already over 5 on this endpoint, so the ruling changes her `kFloor` label, not her
+comparison. Where the floor now bites differently is a one- or two-class school.
+
+**Proof.** New case in `api/groups/[id]/rate-compare.test.ts` — a teacher with one class and one
+comparable class elsewhere on the course gets a comparison — red on the pre-fix engine ("expected
+true to be false"), green after; three role-floor cases flipped deliberately; rate-compare suites
+113/113 green; `test:premerge` green.
+
 ## 2026-09-15 — Insights under View As reads the VIEWED teacher's classes, so a class whose only practice is play-as-class draws (job #788)
 
 **Tom's report.** Schools > Insights, View as R Jeffery (teacher, Ysgol Cas-gwent, 11P): "No classes
