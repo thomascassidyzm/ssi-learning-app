@@ -4298,6 +4298,25 @@ watch(() => simplePlayer.phase.value, (phase) => {
 // cycle plays) still has a fresh localStorage entry. Lifecycle save:
 // position only, no practice timestamp (see savePositionToLocalStorage).
 /**
+ * Resolves once the subscription verdict has hydrated — immediately when the
+ * answer is already known, or the learner is a guest (`accessPending` false).
+ * The resume-TTL belt rewind awaits this before deciding (job #768): while
+ * the answer is optimistic every canAccessSeed says yes, so a lapsed
+ * subscriber with a cached full bundle was rewound past the preview and that
+ * cursor written, in the same window #757/#761 closed for the other writers.
+ * useSubscription bounds hydration at 8s and fails closed, so this never
+ * hangs an init.
+ */
+const awaitSubscriptionVerdict = (): Promise<void> => new Promise((resolve) => {
+  if (!entitlementComposable.accessPending() || entitlementComposable.subscriptionHydrated.value) { resolve(); return }
+  const stop = watch(entitlementComposable.subscriptionHydrated, (hydrated) => {
+    if (!hydrated) return
+    stop()
+    resolve()
+  })
+})
+
+/**
  * The post-init resume gate and the lifecycle saves that follow it. Split from
  * the watcher so it can be DEFERRED: while the subscription answer is still
  * optimistic (`accessPending`), every canAccessSeed says yes, the hold is
@@ -16071,7 +16090,28 @@ onMounted(async () => {
                     // setEnrollmentCursor write — that update doesn't lower
                     // highest_completed_*.
                     const target = beltRewindTarget(resumeLegoId, simpleRounds as any[], BELTS)
+                    // Job #768: the rewind is a cursor writer, so it obeys the
+                    // #761 rule — nothing writes before the subscription
+                    // verdict — and Tom's rule that a paywall never moves a
+                    // position back. A lapsed subscriber can still hold a
+                    // cached FULL bundle, so the target can lie past the
+                    // preview; wait for the verdict, then rewind only a
+                    // learner who can access the target's seed. A lapsed
+                    // learner is left where they were (the post-init gate
+                    // holds that spot and raises the wall); the same
+                    // days-since check runs on their first entitled open, so
+                    // the regression is deferred, never escaped.
+                    let rewindAllowed = false
                     if (target) {
+                      await awaitSubscriptionVerdict()
+                      const targetSeed = getSeedFromLegoId(target.legoId)
+                      rewindAllowed = !!props.course && targetSeed !== null
+                        && entitlementComposable.canAccessSeed(props.course, targetSeed)
+                      if (!rewindAllowed) {
+                        console.log(`[ResumeTTL] ${Math.round(daysSince)}d gap, but ${target.legoId} (seed ${targetSeed}) is not accessible to this learner — no rewind while unentitled (job #768)`)
+                      }
+                    }
+                    if (target && rewindAllowed) {
                       console.log(`[ResumeTTL] ${Math.round(daysSince)}d gap → belt regression to ${target.beltName} (lego ${target.legoId}, round index ${target.roundIndex})`)
                       const rewoundFrom = resumeLegoId
                       resumeLegoId = target.legoId

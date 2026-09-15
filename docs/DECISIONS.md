@@ -3190,3 +3190,33 @@ while `entitlementComposable.accessPending()` is true: the writer refuses on the
 predicate, and the pending-verdict hold in `paywallRetreat` still covers the navigation cursor
 writer and the cycle queue. Dev was deliberately red on those two cases until this landed; green
 now with the real guard, not the test's in-memory control.
+
+## 2026-09-15 — The long-absence belt rewind waits for the subscription verdict and rewinds only an entitled learner (job #768, follow-up to #761 / review #767)
+
+**Decision.** The resume-TTL belt rewind is a cursor writer, so it obeys the #761 rule that no
+cursor writer runs before the subscription verdict, and Tom's rule that a paywall never moves a
+position back. The legacy eagerLoad TTL block now `await`s a new `awaitSubscriptionVerdict()` (the
+same bounded `subscriptionHydrated` mechanism #757/#761 use; immediate for guests and already-
+hydrated opens) and then rewinds only when `entitlementComposable.canAccessSeed` allows the
+rewind target's seed — gating BOTH the in-memory landing and the `setEnrollmentCursor` write. A
+lapsed subscriber is therefore not rewound while lapsed: they stay on their real place, which the
+post-init gate then holds and walls. On their first entitled open after resubscribing the same
+days-since-practice check runs and they are regressed then — the regression is deferred, never
+escaped. The entitled learner's rewind, its telemetry reason and its landing are unchanged.
+
+**Why.** #761 left the rewind alone "by construction" on the grounds that an unentitled learner is
+served the preview-only bundle, so the target is never in the rounds. Review #767 showed the
+construction leaks: a same-owner cached FULL bundle outlives entitlement, so a lapsed learner at
+S0031 was rewound to S0020 and that cursor written — a position move by the paywall, and a write
+before the verdict. The await lands only on the rewind path (a returning learner past the
+regression threshold), so no other open pays for it.
+
+**Proof.** `LearningPlayer.resumeTtlEntitlement.test.ts`, Astra's #765 test adopted and
+narrowed: pending-at-init-then-unentitled and hydrated-but-expired both leave S0031L01 in memory
+and in the store (no write); pending awaits the verdict exactly once; hydrated-and-entitled still
+writes the S0020L01 / round 19 regression with the same reason payload. The helper itself is
+extracted from the source and shown to resolve at once when nothing is pending and to watch
+`subscriptionHydrated` until it flips. Astra's "held cursor" case is dropped with a comment: the
+retreat hold is raised by the post-init gate, which runs after this block, so it is unreachable.
+Red 5/7 on pre-fix dev, green 7/7 after; the 18 suites that read LearningPlayer's source stay
+green; typecheck and lint clean.
