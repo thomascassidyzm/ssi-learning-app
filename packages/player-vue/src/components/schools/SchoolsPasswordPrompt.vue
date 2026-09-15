@@ -68,7 +68,7 @@ function onPassworded() {
     <div class="pw-text">
       <div class="schools-kicker">{{ t('schools.ui.passwordPrompt.kicker', 'Set a password') }}</div>
       <p class="pw-body">
-        {{ t('schools.ui.passwordPrompt.body', 'Right now the only way back into this account is a code emailed to you — and school email filters often swallow those. A password takes ten seconds and always works.') }}
+        {{ t('schools.ui.passwordPrompt.body', 'Right now the only way back into this account is a code emailed to you — and some email filters swallow those. A password takes ten seconds and always works.') }}
       </p>
     </div>
     <div class="pw-actions">

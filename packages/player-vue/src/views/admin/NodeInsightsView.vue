@@ -29,6 +29,7 @@ import VadPanel from '@/insight/VadPanel.vue'
 import { fetchVadScope, type VadScopePayload } from '@/insight/data/vadScope'
 import { summariseVad, type VadSummary } from '@/insight/data/vadUptake'
 import OrgIntelPanel from '@/insight/OrgIntelPanel.vue'
+import { derivePreset } from '@/composables/nodeTerminology'
 import { fetchOrgIntel, OrgIntelError, type OrgIntelPayload } from '@/insight/data/orgIntel'
 
 const route = useRoute()
@@ -124,6 +125,14 @@ const subtitle = computed(() =>
   isClass.value
     ? t('org.insights.subtitleClass', 'How this class is moving, compared with the average you choose.')
     : t('org.insights.subtitleDefault', 'How everyone below this is moving, compared with the average you choose.'))
+
+// An organisation with no class structure anywhere below it (the neutral
+// preset, derived from the same /home payload the node home reads). The
+// rate engine and two of the three org questions are readings of classes
+// practising together, so on such a node they would only ever say "0 of your
+// 0 classes" — hidden, and the people question carries the page (job #786).
+// False until the payload is in, so a school never flashes the bare layout.
+const classless = computed(() => !!home.value && !isClass.value && derivePreset(home.value) === 'neutral')
 
 // ─── VOICE & PAUSE, scoped to this node ────────────────────────────────────
 // Founder ruling 2026-08-20, verbatim: "the VAD data should follow the same
@@ -267,6 +276,7 @@ const homeLink = computed(() => {
              org questions follow it, then voice. Order only; neither block
              was redesigned. -->
         <NodeRateEngine
+          v-if="!classless"
           v-model:course="course"
           v-model:compare="compare"
           v-model:window="window_"
@@ -281,13 +291,16 @@ const homeLink = computed(() => {
           <header class="vad-section-head">
             <span class="schools-kicker">{{ t('org.intel.kicker', 'Attention · practice') }}</span>
             <h2 class="vad-section-title arsenal">{{ t('org.intel.title', 'Are they doing it, who is not, and where do they stop') }}</h2>
-            <p class="vad-section-sub">{{ t('org.intel.sub', 'Three questions about this level only, answered from what the app actually recorded in the last four weeks. Nothing here compares you with anyone else.') }}</p>
+            <p class="vad-section-sub">{{ classless
+              ? t('org.intel.subOne', 'One question about this level only, answered from what the app actually recorded in the last four weeks. Nothing here compares you with anyone else.')
+              : t('org.intel.sub', 'Three questions about this level only, answered from what the app actually recorded in the last four weeks. Nothing here compares you with anyone else.') }}</p>
           </header>
           <OrgIntelPanel
             :payload="orgIntel"
             :is-loading="orgIntelLoading"
             :error="orgIntelError"
             :member="member"
+            :classless="classless"
           />
         </section>
 

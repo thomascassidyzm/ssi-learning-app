@@ -30,6 +30,13 @@ const props = defineProps<{
   error: string | null
   /** Member mount (/org/:id) links a class to its member node home; admin mounts to /admin/classes/:id. */
   member: boolean
+  /**
+   * The node is an organisation with no class structure anywhere below it
+   * (nodeTerminology's neutral preset). Two of the three questions are about
+   * classes practising together, which such a node cannot have, so only the
+   * people reading is shown and the class words never appear (job #786).
+   */
+  classless?: boolean
 }>()
 
 const { t } = useI18n()
@@ -37,13 +44,16 @@ const fill = (s: string, vars: Record<string, string | number>) => Object.entrie
 const q = (slug: 'practising' | 'quiet' | 'journey') => ORG_QUESTIONS.find((x) => x.slug === slug)!
 
 const questionText = {
-  practising: computed(() => t('org.intel.practising.question', q('practising').question)),
+  practising: computed(() => (classless.value
+    ? t('org.intel.practising.questionPeople', 'How many of your people practised this week, and is that more or fewer than last week?')
+    : t('org.intel.practising.question', q('practising').question))),
   quiet: computed(() => t('org.intel.quiet.question', q('quiet').question)),
   journey: computed(() => t('org.intel.journey.question', q('journey').question)),
 }
 
 const classLink = (id: string) => (props.member ? `/org/${id}` : `/admin/classes/${id}`)
 const isClassNode = computed(() => props.payload?.node.kind === 'class')
+const classless = computed(() => !!props.classless && !isClassNode.value)
 
 function positionWords(p: OrgIntelPosition | null): string {
   if (!p) return t('org.intel.notStarted', 'not started')
@@ -65,6 +75,11 @@ const moreOrFewer = (now: number, before: number) =>
 const practisingAnswer = computed<string | null>(() => {
   const p = props.payload?.practising
   if (!p) return null
+  if (classless.value) {
+    return p.peopleCount === 0
+      ? t('org.intel.practising.nobodyYet', 'Nobody below this has practised yet.')
+      : fill(t('org.intel.practising.people', '{n} of {total} people practised on their own account, {minutes} minutes between them.'), { n: p.peopleThisWeek, total: p.peopleCount, minutes: p.ownMinutesThisWeek })
+  }
   const classes = isClassNode.value
     ? (p.classesThisWeek > 0
       ? fill(t('org.intel.practising.classYesMinutes', 'This class practised together this week, {phrases} phrases practised, {change}, {minutes} in the app.'), { phrases: p.phrasesThisWeek, change: moreOrFewer(p.phrasesThisWeek, p.phrasesLastWeek), minutes: formatPracticeMinutes(p.classMinutesThisWeek) })
@@ -206,7 +221,8 @@ const journeyRows = computed(() => [...(props.payload?.classes ?? [])]
          What it's for. Whether your classes are actually doing it: how many
          practised together in the last seven days against the seven before,
          how many phrases they practised, and which people practised on their own
-         account and for how long.
+         account and for how long. An organisation with no classes reads
+         only the people line here, asked as how many of your people practised.
          Where it is. The **Practising** question at the top of any level's
          insights page.
          How you do it.
@@ -224,12 +240,12 @@ const journeyRows = computed(() => [...(props.payload?.classes ?? [])]
     <section class="oq" data-walk="insights-org-practising">
       <p class="oq-question">{{ questionText.practising.value }}</p>
       <div class="oq-answer">
-        <span v-if="payload" class="oq-num">{{ isClassNode ? payload.practising.phrasesThisWeek : payload.practising.classesThisWeek }}</span>
+        <span v-if="payload" class="oq-num">{{ classless ? payload.practising.peopleThisWeek : isClassNode ? payload.practising.phrasesThisWeek : payload.practising.classesThisWeek }}</span>
         <p class="oq-sentence">{{ practisingAnswer ?? (isLoading ? t('org.intel.counting', 'Counting…') : '') }}</p>
       </div>
-      <InsightWidget :spec="practisingSpec" :resolved="practisingResolved" />
-      <p class="oq-note">{{ t('org.intel.practising.classTime', 'A class\'s minutes are time in the app on its own class account, the gaps between phrases included. People\'s minutes are their own logins.') }}</p>
-      <div v-if="payload && !isClassNode" class="oq-rows">
+      <InsightWidget v-if="!classless" :spec="practisingSpec" :resolved="practisingResolved" />
+      <p v-if="!classless" class="oq-note">{{ t('org.intel.practising.classTime', 'A class\'s minutes are time in the app on its own class account, the gaps between phrases included. People\'s minutes are their own logins.') }}</p>
+      <div v-if="payload && !isClassNode && !classless" class="oq-rows">
         <p class="oq-rows-title">{{ t('org.intel.practising.rowsClassesMinutes', 'Classes, by phrases practised this week, with minutes in the app') }}</p>
         <p v-if="practisingRows.length === 0" class="oq-empty">{{ t('org.intel.practising.rowsEmpty', 'No class has practised together in the last fourteen days.') }}</p>
         <router-link v-for="c in practisingRows" :key="c.id" class="oq-row" :to="classLink(c.id)">
@@ -256,7 +272,8 @@ const journeyRows = computed(() => [...(props.payload?.classes ?? [])]
          place: node-insights
          keywords: quiet, gone quiet, never started, stopped, not practising, drop off
          What it's for. The half you act on: which classes practised before and
-         have stopped, how long ago, and which have never started at all.
+         have stopped, how long ago, and which have never started at all. An
+         organisation with no classes does not see this question.
          Where it is. The **Quiet** question on any level's insights page,
          under Practising.
          How you do it.
@@ -267,9 +284,9 @@ const journeyRows = computed(() => [...(props.payload?.classes ?? [])]
          Worth knowing. Practised this week counts any sign of practice, a
          phrase reached in a lesson or the course opened and progress saved. The
          Practising figure above counts phrases practised only, so it can be lower.
-         checked: cb9d6d4f.7087bea9
+         checked: 3dbdd778.b6e028a4
     -->
-    <section class="oq" data-walk="insights-org-quiet">
+    <section v-if="!classless" class="oq" data-walk="insights-org-quiet">
       <p class="oq-question">{{ questionText.quiet.value }}</p>
       <div class="oq-answer">
         <span v-if="payload && !isClassNode" class="oq-num">{{ payload.quiet.quietCount + payload.quiet.neverCount }}</span>
@@ -294,7 +311,7 @@ const journeyRows = computed(() => [...(props.payload?.classes ?? [])]
          keywords: journey, how far, drop off, stop, sentence, position, funnel, course
          What it's for. Where in the course your classes have got to, shown as
          the last phrase each class played, and the point most of them stop
-         before.
+         before. An organisation with no classes does not see this question.
          Where it is. The **Journey** question on any level's insights page,
          under Quiet.
          How you do it.
@@ -306,9 +323,9 @@ const journeyRows = computed(() => [...(props.payload?.classes ?? [])]
          Worth knowing. A position is the phrase the class last played, in
          both languages. A sentence is one of the course's own sentences; the
          count out of the total says how far along that is.
-         checked: 13dc14db.406c304f
+         checked: 6d80899e.bbf25315
     -->
-    <section class="oq" data-walk="insights-org-journey">
+    <section v-if="!classless" class="oq" data-walk="insights-org-journey">
       <p class="oq-question">{{ questionText.journey.value }}</p>
       <div class="oq-answer">
         <span v-if="payload && !isClassNode" class="oq-num">{{ payload.journey.stages[0]?.classes ?? 0 }}</span>

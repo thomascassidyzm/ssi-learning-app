@@ -63,7 +63,7 @@ async function send(): Promise<void> {
             :placeholder="t('schools.support.tellUs', 'Tell us what you see')"
             :aria-label="t('schools.support.tellUs', 'Tell us what you see')"
           ></textarea>
-          <p class="sheet-door-line">{{ t('schools.support.doorLine', 'This thread belongs to your school, and any admin of your school can read it.') }}</p>
+          <p class="sheet-door-line">{{ t('schools.support.doorLine', 'This thread belongs to your school or organisation, and any of its admins can read it.') }}</p>
           <p v-if="error" class="sheet-error" role="alert">{{ error }}</p>
           <div class="sheet-actions">
             <button type="button" class="btn-ghost btn-small" @click="emit('close')">{{ t('schools.support.notNow', 'Not now') }}</button>

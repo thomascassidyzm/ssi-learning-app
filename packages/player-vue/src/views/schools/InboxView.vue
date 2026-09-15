@@ -16,14 +16,14 @@ const router = useRouter()
   <main class="inbox-screen">
     <header class="inbox-head">
       <h1 class="arsenal inbox-title">{{ t('schools.inbox.title', 'Inbox') }}</h1>
-      <p class="inbox-lede">{{ t('schools.inbox.lede', 'Messages to you: replies on your school\'s Support thread, and anything we have done on your account that you might want to undo.') }}</p>
+      <p class="inbox-lede">{{ t('schools.inbox.lede', 'Messages to you: replies on your Support thread, and anything we have done on your account that you might want to undo.') }}</p>
     </header>
     <!-- HANDBOOK Read your messages
          section: your-own-account
          roles: teacher, school_admin, leader
          place: inbox
          keywords: inbox, messages, message, reply, replies, unread, undo, copied, notice
-         What it's for. Reading what has been sent to you: a reply on your school's Support thread, or a notice that your own practice was copied onto a class account, with one tap to undo it.
+         What it's for. Reading what has been sent to you: a reply on your Support thread, or a notice that your own practice was copied onto a class account, with one tap to undo it.
          Where it is. **Inbox** in the account menu at the top right, under your name. The number beside it is how many you have not opened.
          How you do it.
          1. Tap your name at the top right, then **Inbox**.
