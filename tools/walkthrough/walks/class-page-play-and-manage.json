@@ -1,0 +1,37 @@
+{
+  "id": "class-page-play-and-manage",
+  "title": "Play as class or manage it, from the class page",
+  "personas": [
+    "teacher",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "keywords": [
+    "play as class",
+    "manage",
+    "tools",
+    "class page",
+    "roster"
+  ],
+  "steps": [
+    {
+      "anchor": "class-page-play",
+      "say": "**Play as class** starts a whole-class lesson on the class's own account, so the minutes and phrases land on the class, not on you. While a platform admin is viewing this page as you, the button is greyed out and does nothing.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "41cfabf0.237752c7"
+    },
+    {
+      "anchor": "class-page-manage",
+      "say": "**Manage class** goes to the class's tools: the roster, the teachers, the join link and code, renaming and deleting. The class's practice, minutes and journey stay here on the class page.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "Play from here, manage from there — two different pages, one class. This tour started no lesson and opened no tools.",
+      "checked": "389f38f3.a9f834c9"
+    }
+  ]
+}

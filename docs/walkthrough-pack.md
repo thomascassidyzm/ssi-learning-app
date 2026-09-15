@@ -1,6 +1,15 @@
 # Walkthrough pack — compiled render
 
-**Version `dd6b544ba1d2` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `da219dee07e8` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+
+## add-a-class-under-a-group — Add a class to a group
+
+Personas: admin, leader, school_admin · place: node-home
+
+1. [`verb-add-class` · click] **Add a class** creates a class under this group before anyone is teaching it yet — useful for setting a term up in advance.
+2. [`add-class-name` · next] Type the class name, then choose the course it will learn. A paid language your group has no cover for is refused when you tap Add, and the message says so.
+3. [`add-class-submit` · next] **Add** creates it. No teacher is needed yet — the class sits under the group waiting, and you can put a teacher on it whenever you're ready.
+   - terminal: That's adding a class ahead of staffing it. This tour added nobody and nothing; only your own tap does.
 
 ## choose-a-class-course — Choose what a class learns
 
@@ -19,6 +28,32 @@ Personas: learner · place: library
 2. [`library-course-grid` · next] Tap any one of these and you are straight into it — no setting up, no starting over.
 3. [`library-course-grid` · next] Your current course is not going anywhere. Each one keeps its own place, so you can have a poke at a second language and come back without losing an inch in the first.
    - terminal: That's the Library. Close it and press play to carry on with the one you are in.
+
+## class-page-play-and-manage — Play as class or manage it, from the class page
+
+Personas: teacher, school_admin · place: node-home
+
+1. [`class-page-play` · next] **Play as class** starts a whole-class lesson on the class's own account, so the minutes and phrases land on the class, not on you. While a platform admin is viewing this page as you, the button is greyed out and does nothing.
+2. [`class-page-manage` · next] **Manage class** goes to the class's tools: the roster, the teachers, the join link and code, renaming and deleting. The class's practice, minutes and journey stay here on the class page.
+   - terminal: Play from here, manage from there — two different pages, one class. This tour started no lesson and opened no tools.
+
+## copy-a-teachers-play-onto-their-class — Copy a teacher's own play onto the class
+
+Personas: school_admin, teacher · place: class-detail
+
+1. [`class-copy-play-picker` · next] **Played as themselves by mistake?** — a school leader picks the teacher here. A teacher fixing their own lesson sees no list; the card is about them.
+2. [`class-copy-play-preview` · next] **See what would move** reads the sessions, the time in the app, and where the class will end up. Nothing moves yet.
+3. [`class-copy-play-preview-result` · next] The teacher keeps their own record either way. Only play on this class's course moves, and the class ends up at the further of the two places.
+4. [`class-copy-play-apply` · next] **Copy onto the class** commits it — one line afterwards says what was copied. Running it again copies nothing twice.
+   - terminal: Preview first, copy only when you're sure. This tour previewed nothing and copied nothing.
+
+## copy-every-teachers-play — Copy every teacher's own play onto their class
+
+Personas: school_admin · place: node-home
+
+1. [`school-copy-play-sweep` · next] Every teacher in your school who ran lessons signed in as themselves instead of using Play as class, one row per teacher on one class. When there is nothing to copy the card says so in words.
+2. [`school-copy-play-sweep-copy` · next] **Copy onto the class** does one row at a time — there is no button that copies everyone at once. The teacher keeps their own record; only play on that class's course moves.
+   - terminal: Row by row, teacher by teacher — that's the whole sweep. This tour copied nothing.
 
 ## funded-org-courses — See what a funded organisation gives its learners
 

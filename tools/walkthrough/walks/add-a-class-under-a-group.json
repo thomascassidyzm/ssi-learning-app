@@ -1,0 +1,46 @@
+{
+  "id": "add-a-class-under-a-group",
+  "title": "Add a class to a group",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "keywords": [
+    "class",
+    "add",
+    "group",
+    "org",
+    "leader"
+  ],
+  "steps": [
+    {
+      "anchor": "verb-add-class",
+      "say": "**Add a class** creates a class under this group before anyone is teaching it yet — useful for setting a term up in advance.",
+      "advance": {
+        "on": "click"
+      },
+      "checked": "488df924.0fe2791f"
+    },
+    {
+      "anchor": "add-class-name",
+      "say": "Type the class name, then choose the course it will learn. A paid language your group has no cover for is refused when you tap Add, and the message says so.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "20e9d989.d7dc7dd9"
+    },
+    {
+      "anchor": "add-class-submit",
+      "say": "**Add** creates it. No teacher is needed yet — the class sits under the group waiting, and you can put a teacher on it whenever you're ready.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's adding a class ahead of staffing it. This tour added nobody and nothing; only your own tap does.",
+      "checked": "3d317f5f.5257a145"
+    }
+  ]
+}

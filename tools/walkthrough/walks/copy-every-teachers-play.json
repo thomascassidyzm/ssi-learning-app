@@ -1,0 +1,36 @@
+{
+  "id": "copy-every-teachers-play",
+  "title": "Copy every teacher's own play onto their class",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home"
+  },
+  "keywords": [
+    "copy",
+    "sweep",
+    "teachers",
+    "play as class",
+    "mistake"
+  ],
+  "steps": [
+    {
+      "anchor": "school-copy-play-sweep",
+      "say": "Every teacher in your school who ran lessons signed in as themselves instead of using Play as class, one row per teacher on one class. When there is nothing to copy the card says so in words.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "def3b765.ffc165f2"
+    },
+    {
+      "anchor": "school-copy-play-sweep-copy",
+      "say": "**Copy onto the class** does one row at a time — there is no button that copies everyone at once. The teacher keeps their own record; only play on that class's course moves.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "Row by row, teacher by teacher — that's the whole sweep. This tour copied nothing.",
+      "checked": "88be2287.7c4c1a70"
+    }
+  ]
+}
