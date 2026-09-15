@@ -62,6 +62,7 @@ import { setSchoolsClient } from './composables/schools/client'
 import { useViewAs } from './composables/useViewAs'
 import { installViewAsFetchGuard } from './composables/viewAsFetchGuard'
 import AppEscape from './components/AppEscape.vue'
+import PlayingAsYourselfBanner from './components/schools/PlayingAsYourselfBanner.vue'
 import CheckoutOverlay from './components/CheckoutOverlay.vue'
 import PurchasePendingOverlay from './components/PurchasePendingOverlay.vue'
 import PlanPicker from './components/PlanPicker.vue'
@@ -1092,6 +1093,9 @@ onMounted(async () => {
     <template v-if="!IS_EMBED">
     <AppEscape v-if="showAppEscape" />
     <AppEscape v-else-if="dashboardEscape" :to="dashboardEscape" />
+    <!-- School staff playing on their OWN account: the live warning sits on
+         the player, the only place anything is playing (job #683). -->
+    <PlayingAsYourselfBanner v-if="route.name === 'player'" />
     <PwaUpdatePrompt />
     <AccountContestPrompt :client="supabaseClient" />
     <InstallBanner />
@@ -1138,8 +1142,10 @@ onMounted(async () => {
 
 <style scoped>
 .app-root {
-  min-height: 100vh;
-  min-height: 100dvh;
+  /* Same as the schools shell: the view-as band pads the body down, so the
+     root's full-height floor comes down by the band's height (job #675). */
+  min-height: calc(100vh - var(--top-bands-h, 0px));
+  min-height: calc(100dvh - var(--top-bands-h, 0px));
   background: var(--bg-primary);
 }
 

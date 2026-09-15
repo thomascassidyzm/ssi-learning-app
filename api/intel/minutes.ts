@@ -13,8 +13,11 @@
  * So this route speaks the rate-compare contract (api/groups/:id/rate-compare)
  * — the same options / applied / entity / average / distribution shape the
  * NodeRateEngine + RateCompare widget already draw — with the ENTITY being
- * every real learner on one course and the COHORT being the other courses.
- * No second set of charts, no second data adapter.
+ * every real learner on one course and the COHORT being every course, the
+ * selected one included (Tom, 2026-09-14: the comparator must not move when
+ * the course changes; and it is the average of all LEARNERS, so ratio
+ * measures are learner-weighted — see MEASURES.kind). No second set of
+ * charts, no second data adapter.
  *
  *   ?course_code=<code>       optional — defaults to the busiest course by
  *                              minutes in the window
@@ -44,6 +47,9 @@
  * row. Minutes per person = the course's minutes in the window ÷ that count.
  * `no_activity` = the share of those people with no span in the window.
  * `new_enrolments` = course_enrollments created inside the window.
+ * `minutes_total` = the course's minutes in the window, whoever did them —
+ * so a course with a handful of very active learners cannot read as popular
+ * on the per-person measure alone (Tom, 2026-09-14).
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
@@ -57,7 +63,7 @@ import {
   type PlaySpan,
   type DiarySessionisation,
 } from '../_utils/inAppTime'
-import { distributionStats, deltaPct, meanTrend, K_FLOOR } from '../_utils/rateCompare'
+import { distributionStats, deltaPct, K_FLOOR } from '../_utils/rateCompare'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -79,12 +85,24 @@ export const WINDOWS: WindowConfig[] = [
 const DEFAULT_WINDOW = '7d'
 const WINDOW_ALIASES: Record<string, string> = { week: '7d', '4w': '30d', term: '30d', all: '30d' }
 
-export type MinutesMeasureId = 'minutes_per_person' | 'new_enrolments' | 'no_activity'
-interface MeasureConfig { value: MinutesMeasureId; label: string; unit: string; per: string; desc: string }
+export type MinutesMeasureId = 'minutes_per_person' | 'minutes_total' | 'new_enrolments' | 'no_activity'
+/**
+ * `kind` decides what "Average of all courses" means for the measure:
+ *   ratio — the LEARNER-WEIGHTED figure: the numerator summed over every
+ *           course divided by the denominator summed over every course, so a
+ *           dead course with two enrolments weighs two people, not one whole
+ *           course (Tom, 2026-09-14: "the averages of all LEARNERS");
+ *   count — the plain mean per course, because a total has no denominator
+ *           to weight by.
+ * Either way the selected course is INCLUDED: one fixed number for a window
+ * and a measure, whichever course is picked.
+ */
+interface MeasureConfig { value: MinutesMeasureId; label: string; unit: string; per: string; kind: 'ratio' | 'count'; desc: string }
 export const MEASURES: MeasureConfig[] = [
-  { value: 'minutes_per_person', label: 'In-app minutes per person', unit: 'min', per: '', desc: 'Minutes in the app in the selected period, from pressing play to stopping, divided by the people on the course. Main flow and Listening Mode are shown beneath.' },
-  { value: 'new_enrolments', label: 'New enrolments', unit: 'people', per: '', desc: 'Real people who joined the course in the selected period.' },
-  { value: 'no_activity', label: 'People with no activity', unit: '%', per: '', desc: 'The share of people on the course who did not press play at all in the selected period.' },
+  { value: 'minutes_per_person', label: 'In-app minutes per person', unit: 'min', per: '', kind: 'ratio', desc: 'Minutes in the app in the selected period, from pressing play to stopping, divided by the people on the course. Main flow and Listening Mode are shown beneath. The average of all courses is every minute done on every course, divided by every person on every course, this course included.' },
+  { value: 'minutes_total', label: 'In-app minutes (total)', unit: 'min', per: '', kind: 'count', desc: 'All the minutes done on the course in the selected period, from pressing play to stopping, whoever did them. Main flow and Listening Mode are shown beneath. The average of all courses is the total across every course divided by the number of courses, this course included.' },
+  { value: 'new_enrolments', label: 'New enrolments', unit: 'people', per: '', kind: 'count', desc: 'Real people who joined the course in the selected period. The average of all courses is the total across every course divided by the number of courses, this course included.' },
+  { value: 'no_activity', label: 'People with no activity', unit: '%', per: '', kind: 'ratio', desc: 'The share of people on the course who did not press play at all in the selected period. The average of all courses is every silent person on every course, divided by every person on every course, this course included.' },
 ]
 const DEFAULT_MEASURE: MinutesMeasureId = 'minutes_per_person'
 const COMPARE_ALL_COURSES = 'global_all_courses'
@@ -148,6 +166,23 @@ export interface CourseFacts {
   bucketActive: Set<string>[]
   newEnrolments: number
   bucketEnrolments: number[]
+  /**
+   * Play-to-stop spans (the engine's session unit) and Listening Mode seconds
+   * per bucket — read by the learner's own insights (api/me/insights.ts) for
+   * "minutes per session" and "Listening Mode minutes" on the same facts.
+   */
+  spans: number
+  bucketSpans: number[]
+  bucketListeningSeconds: number[]
+}
+
+function emptyFacts(code: string, periods: number): CourseFacts {
+  return {
+    code, people: new Set(), activePeople: new Set(), seconds: 0, mainSeconds: 0, listeningSeconds: 0,
+    bucketSeconds: new Array(periods).fill(0), bucketActive: Array.from({ length: periods }, () => new Set<string>()),
+    newEnrolments: 0, bucketEnrolments: new Array(periods).fill(0),
+    spans: 0, bucketSpans: new Array(periods).fill(0), bucketListeningSeconds: new Array(periods).fill(0),
+  }
 }
 
 /**
@@ -168,7 +203,7 @@ export function courseFactsFromSpans(
   const factsFor = (code: string): CourseFacts => {
     let f = facts.get(code)
     if (!f) {
-      f = { code, people: new Set(), activePeople: new Set(), seconds: 0, mainSeconds: 0, listeningSeconds: 0, bucketSeconds: new Array(periods).fill(0), bucketActive: Array.from({ length: periods }, () => new Set<string>()), newEnrolments: 0, bucketEnrolments: new Array(periods).fill(0) }
+      f = emptyFacts(code, periods)
       facts.set(code, f)
     }
     return f
@@ -194,11 +229,17 @@ export function courseFactsFromSpans(
       f.people.add(lid)
       f.activePeople.add(lid)
       f.seconds += secs
+      f.spans += 1
       if (span.mode === 'listening') f.listeningSeconds += secs
       else f.mainSeconds += secs
       for (let i = 1; i < bounds.length; i++) {
         const o = overlapSeconds(span, bounds[i - 1], bounds[i])
-        if (o > 0) { f.bucketSeconds[i - 1] += o; f.bucketActive[i - 1].add(lid) }
+        if (o > 0) {
+          f.bucketSeconds[i - 1] += o
+          f.bucketActive[i - 1].add(lid)
+          f.bucketSpans[i - 1] += 1
+          if (span.mode === 'listening') f.bucketListeningSeconds[i - 1] += o
+        }
       }
     }
   }
@@ -210,11 +251,56 @@ export function measureFor(measure: MinutesMeasureId, f: CourseFacts): { value: 
   switch (measure) {
     case 'minutes_per_person':
       return { value: people ? round1(f.seconds / 60 / people) : 0, trend: f.bucketSeconds.map((s) => (people ? round1(s / 60 / people) : 0)) }
+    case 'minutes_total':
+      return { value: Math.round(f.seconds / 60), trend: f.bucketSeconds.map((s) => round1(s / 60)) }
     case 'new_enrolments':
       return { value: f.newEnrolments, trend: f.bucketEnrolments }
     case 'no_activity':
       return { value: people ? round1(((people - f.activePeople.size) / people) * 100) : 0, trend: f.bucketActive.map((a) => (people ? round1(((people - a.size) / people) * 100) : 0)) }
   }
+}
+
+/**
+ * Every course pooled as if it were one: seconds and enrolments summed, and
+ * people counted per COURSE-PERSON (a learner on two courses is two people,
+ * exactly as the per-course denominators count them). Keys are course-scoped
+ * so the sets add across courses.
+ */
+export function pooledFacts(courses: readonly CourseFacts[]): CourseFacts {
+  const periods = courses[0]?.bucketSeconds.length ?? 0
+  const pooled = emptyFacts('*', periods)
+  for (const f of courses) {
+    for (const lid of f.people) pooled.people.add(`${f.code}\u0000${lid}`)
+    for (const lid of f.activePeople) pooled.activePeople.add(`${f.code}\u0000${lid}`)
+    pooled.seconds += f.seconds
+    pooled.mainSeconds += f.mainSeconds
+    pooled.listeningSeconds += f.listeningSeconds
+    pooled.newEnrolments += f.newEnrolments
+    pooled.spans += f.spans
+    for (let i = 0; i < periods; i++) {
+      pooled.bucketSeconds[i] += f.bucketSeconds[i] ?? 0
+      pooled.bucketEnrolments[i] += f.bucketEnrolments[i] ?? 0
+      pooled.bucketSpans[i] += f.bucketSpans[i] ?? 0
+      pooled.bucketListeningSeconds[i] += f.bucketListeningSeconds[i] ?? 0
+      for (const lid of f.bucketActive[i] ?? []) pooled.bucketActive[i].add(`${f.code}\u0000${lid}`)
+    }
+  }
+  return pooled
+}
+
+/**
+ * THE COMPARATOR — "Average of all courses" over `courses`, the selected
+ * course among them. Ratio measures are learner-weighted (the pooled
+ * numerator over the pooled denominator); count measures are the mean per
+ * course. Pure and exported: the same list gives the same number whichever
+ * course is the entity, and the test pins that.
+ */
+export function averageOfAllCourses(measure: MinutesMeasureId, courses: readonly CourseFacts[]): { value: number; trend: number[] } {
+  const kind = MEASURES.find((m) => m.value === measure)!.kind
+  const pooled = measureFor(measure, pooledFacts(courses))
+  if (kind === 'ratio' || courses.length === 0) return pooled
+  const n = courses.length
+  return { value: round1(pooled.value / n), trend: pooled.trend.map((v) => round1(v / n)) }
 }
 
 function fmtMin(seconds: number): string {
@@ -320,15 +406,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     const entityFacts = facts.get(courseCode)!
     const entity = measureFor(measureConfig.value, entityFacts)
-    const members = ranked.filter((f) => f.code !== courseCode && f.people.size > 0)
-    const memberMeasures = members.map((f) => measureFor(measureConfig.value, f))
+    // The COHORT is every course with anyone on it, the selected course
+    // included, so the average is one fixed number for a window and a measure
+    // (Tom, 2026-09-14: a comparator that moves when the course changes is
+    // "confusing and not helpful for us as admin"). The DISTRIBUTION strip
+    // stays the siblings: the widget adds the entity itself when it ranks.
+    const cohort = ranked.filter((f) => f.people.size > 0)
+    const members = cohort.filter((f) => f.code !== courseCode)
     if (members.length < K_FLOOR) {
       res.status(200).json({ ...baseBody, insufficientData: true, cohortSize: members.length, reason: `Only ${members.length} other course${members.length === 1 ? '' : 's'} to compare with — the comparison needs at least ${K_FLOOR}.`, reconcile })
       return
     }
-    const cohortValues = memberMeasures.map((m) => m.value)
-    const averageValue = round1(cohortValues.reduce((a, b) => a + b, 0) / cohortValues.length)
-    const averageTrend = meanTrend(memberMeasures.map((m) => m.trend))
+    const cohortValues = members.map((f) => measureFor(measureConfig.value, f).value)
+    const average = averageOfAllCourses(measureConfig.value, cohort)
+    const averageValue = average.value
+    const averageTrend = average.trend
     const dist = distributionStats(cohortValues)
 
     const split = {
@@ -368,6 +460,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         percentile: dist.percentileOf(entity.value),
       },
       cohortSize: members.length,
+      averageCourses: cohort.length,
       split,
       reconcile,
     })

@@ -48,10 +48,10 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAdmin, verifyAuthToken } from '../../_utils/auth'
 import { resolveVisibleScope, ownSchoolIdForNode, chunk } from '../../_utils/schoolScope'
 import { ensureSchoolNode } from '../../_utils/schoolNode'
-import { applyCors } from '../../_utils/cors'
 import { isEntityCoverageExpired } from '../../_utils/schoolCoverageGate'
 import { descendantIds } from '../../_utils/groupSubtree'
 import { loadScopedSessionRows } from '../../_utils/diarySessionRows'
+import { applyCors } from '../../_utils/cors'
 import {
   aggregateWindowPace,
   distributionStats,
@@ -105,12 +105,16 @@ interface MeasureConfig {
   classLevelExcluded?: boolean
 }
 const MEASURES: MeasureConfig[] = [
-  { value: 'rate', label: 'Rate of progress', unit: 'LEGOs', per: 'week', desc: 'How fast new LEGOs are being learned, per week.' },
-  { value: 'minutes_per_class', label: 'Practice minutes per class', unit: 'min', per: 'week', desc: 'How many minutes each class practises, per week on average.' },
-  { value: 'hours_total', label: 'Practice hours', unit: 'hours', per: '', desc: 'Total hours of practice in the selected period.' },
+  { value: 'rate', label: 'Rate of progress', unit: 'phrases', per: 'week', desc: 'How fast new phrases are being learned, per week.' },
+  { value: 'minutes', label: 'Practice minutes', unit: 'min', per: '', desc: 'Minutes the class practised together in the selected period, from pressing play to stopping, pauses included.' },
   { value: 'active_classes', label: 'Active classes share', unit: '%', per: '', desc: 'The share of classes that practised at least once in the selected period.', classLevelExcluded: true },
 ]
 const DEFAULT_MEASURE: MeasureId = 'rate'
+// Old measure ids live in bookmarks/deep links. `minutes_per_class` was a
+// per-week rate and `hours_total` the same total in hours; both are now the
+// one total, `minutes` (Tom, 2026-09-14: a window total can never shrink as
+// the window grows, and one aggregation everywhere).
+const MEASURE_ALIASES: Record<string, MeasureId> = { minutes_per_class: 'minutes', hours_total: 'minutes' }
 
 interface GroupRow {
   id: string
@@ -200,7 +204,13 @@ async function schoolIdsInWorld(svc: SupabaseClient, schoolIds: string[], wantDe
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  // Cross-origin policy and preflight both live in `api/_utils/cors.ts`.
+  // Without this the native WebView's preflight for the `Authorization`
+  // header goes unanswered and the call fails there while working on the web
+  // (caught by apiPreflightCoverage.test.ts once NodeRateEngine named this
+  // route through its endpoint prop, job #609).
   if (applyCors(req, res, { methods: 'GET' })) return
+
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' })
     return
@@ -448,7 +458,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // 0/100 — a class either ran or didn't). An unavailable/unknown request
     // falls back to the default rather than erroring. ───
     const availableMeasures = MEASURES.filter((m) => !(nodeMeta.kind === 'class' && m.classLevelExcluded))
-    const requestedMeasure = String(req.query.measure || '').trim()
+    const requestedMeasureRaw = String(req.query.measure || '').trim()
+    const requestedMeasure = MEASURE_ALIASES[requestedMeasureRaw] ?? requestedMeasureRaw
     const measureConfig = availableMeasures.find((m) => m.value === requestedMeasure)
       ?? availableMeasures.find((m) => m.value === DEFAULT_MEASURE)!
 
@@ -727,7 +738,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         .maybeSingle()
       const target = (lego as any)?.target_text_roman || (lego as any)?.target_text
       const known = (lego as any)?.known_text
-      if (target && known) contextLine = `Furthest LEGO · "${target}" — "${known}"`
+      if (target && known) contextLine = `Furthest phrase · "${target}" — "${known}"`
     }
 
     res.setHeader('Cache-Control', 'no-store')

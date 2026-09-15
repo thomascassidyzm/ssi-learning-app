@@ -1,6 +1,6 @@
 {
-  "version": "6e4883c90fe8",
-  "generatedAt": "2026-09-12",
+  "version": "721845e6d104",
+  "generatedAt": "2026-09-14",
   "truth": {
     "verbs": [
       {
@@ -57,10 +57,10 @@
       "Paid — all courses",
       "No end date — inactive",
       "Phrases practised this week",
-      "Minutes in the app this week",
-      "LEGOs travelled together",
+      "Minutes played as class this week",
+      "Phrases travelled together",
       "Teachers",
-      "Minutes practised",
+      "Minutes in the app this week",
       "Groups",
       "Learners",
       "Classes",
@@ -70,23 +70,16 @@
       {
         "value": "rate",
         "label": "Rate of progress",
-        "unit": "LEGOs",
+        "unit": "phrases",
         "per": "week",
-        "desc": "How fast new LEGOs are being learned, per week."
+        "desc": "How fast new phrases are being learned, per week."
       },
       {
-        "value": "minutes_per_class",
-        "label": "Practice minutes per class",
+        "value": "minutes",
+        "label": "Practice minutes",
         "unit": "min",
-        "per": "week",
-        "desc": "How many minutes each class practises, per week on average."
-      },
-      {
-        "value": "hours_total",
-        "label": "Practice hours",
-        "unit": "hours",
         "per": "",
-        "desc": "Total hours of practice in the selected period."
+        "desc": "Minutes the class practised together in the selected period, from pressing play to stopping, pauses included."
       },
       {
         "value": "active_classes",
@@ -123,7 +116,7 @@
       "class": "A class is a learner in its own right: it has its own course position, moved by the teacher\npressing **Play as class**. That shared journey is the headline; each student's own practice is\nthe layer below. The belt strip shows where the class sits on the course; each student row\ncarries their own belt, practice hours and last-active — a quiet flag marks anyone drifting.\n**See insights** compares this class's pace with its school and everywhere above it.\n**Invite students** is the class page's own verb: one personal link per student that IS their\nlogin and puts them in this class."
     },
     "leader": {
-      "org": "This is your organisation, one page per level. It's groups all the way down: a group can hold\nmore groups — each with its own leader — or learners directly. The map on the left is the whole\ntree; tap any name to look closer, and the page stays put.\n\nThe numbers are always **everyone below this level**, counted once. **Practice hours** is the one\nto watch — it's your organisation actually using the language.\n\nYou can grow it from right here. **Invite a person** makes a personal link that IS their login —\nemail it and they're in, nothing to set up. **Get a shareable link** makes an open link anyone\ncan use to join this level as a leader or a learner. **Add a group** creates the next level down.\n**See insights** shows the pace here against the levels above.",
+      "org": "This is your organisation, one page per level. It's groups all the way down: a group can hold\nmore groups — each with its own leader — or learners directly. The map on the left is the whole\ntree; tap any name to look closer, and the page stays put.\n\nThe numbers are always **everyone below this level**, counted once. **Minutes in the app this\nweek** is the one to watch — it's your organisation actually using the language, from pressing\nplay to stopping, and the same minute wherever you read it.\n\nYou can grow it from right here. **Invite a person** makes a personal link that IS their login —\nemail it and they're in, nothing to set up. **Get a shareable link** makes an open link anyone\ncan use to join this level as a leader or a learner. **Add a group** creates the next level down.\n**See insights** shows the pace here against the levels above.",
       "group": "This is your organisation, one page per level. The map on the left runs from your top group down\nto every school and class — tap any name to look closer; the page stays put.\n\nThe numbers are always **everyone below this level**, counted once. **Class practice** leads:\nclasses practising together is what a language programme lives on, so that's the number to watch.\nIndividual student practice sits underneath it as the bonus.\n\nYou can bring people in from right here. **Invite a person** makes a personal link that IS their\nlogin — email it to a school leader or teacher and they're in, nothing to set up. **Get a\nshareable link** makes an open link anyone can use to join this level in a given role. **Add a\nclass** creates a class here — a class belongs to a group and needs no teacher to exist. **See\ninsights** shows the pace here against the levels above, over the window you choose.",
       "school": "Each school is the same page one level down: its teachers, their classes, and the same numbers\nscoped to just that school. A school comes alive through its links — one for teachers, one for\nlearners. If a school shows no teachers yet, sharing its teacher link is the whole job.",
       "class": "A class page is where the teaching shows. The class travels the course **together** — that shared\nposition is the headline, moved every time its teacher runs a class session. Each student row\nunderneath carries their own pace, practice and last-active, with a quiet flag for anyone\ndrifting. **See insights** compares this class's pace fairly with its school and the levels above.\n**Invite students** is the class page's own verb: one personal link per student that IS their\nlogin and puts them in this class."

@@ -482,10 +482,13 @@ watch(
     // flat views.
     const schoolId = user?.school_id
     if (schoolId && ctx.isSchoolAdmin.value) {
+      // /schools/teachers is NOT redirected any more (job #624): the node
+      // home's teachers lens went with the filter chips (2026-09-07), so the
+      // staff list is the one place a leader can read their teachers and
+      // remove a leaver — and the Teachers card on the school overview
+      // points at it.
       if (routeName === 'schools-dashboard') {
         void router.replace(`/org/${schoolId}`)
-      } else if (routeName === 'teachers') {
-        void router.replace({ path: `/org/${schoolId}`, query: { lens: 'teachers' } })
       } else if (routeName === 'analytics') {
         void router.replace(`/org/${schoolId}/insights`)
       }
@@ -891,7 +894,10 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
 }
 
 .schools-container {
-  height: 100vh;
+  /* The view-as band pads the body down (job #675); take its height off the
+     shell so the dashboard still ends at the bottom of the screen. 0px when
+     no band is up. */
+  height: calc(100vh - var(--top-bands-h, 0px));
   position: relative;
   background: var(--schools-page-backdrop, #e8e5dd);
   overflow-y: auto;

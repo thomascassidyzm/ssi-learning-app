@@ -106,6 +106,9 @@ export interface UseEntitlementReturn {
   checkCourseAccess: (course: CourseInfo) => CourseAccessResult
   /** Check if user can access a specific seed */
   canAccessSeed: (course: CourseInfo, seedNumber: number) => boolean
+  /** Signed in, subscription answer not yet hydrated: access checks are optimistic. */
+  accessPending: () => boolean
+  subscriptionHydrated: Ref<boolean>
   /** Get preview limit for premium courses */
   getPreviewLimit: () => number
   /** Can the user START an offline download? Open to everyone — the 30-day lease
@@ -380,6 +383,13 @@ export function useEntitlement(): UseEntitlementReturn {
     // Access control (new)
     checkCourseAccess: checkAccess,
     canAccessSeed: canAccessSeedCheck,
+    /** True while the subscription answer is still optimistic (signed in,
+     *  not yet hydrated): every access check above says YES in that window.
+     *  A gate that must not fail open — the paywall resume gate — waits on
+     *  `subscriptionHydrated` before deciding (job #757). Bounded by
+     *  useSubscription's own hydration timeout, so it always flips. */
+    accessPending: () => getSubscriptionStatus().isPending,
+    subscriptionHydrated,
     getPreviewLimit,
     canDownloadOffline,
     offlineRenews,

@@ -8,14 +8,22 @@
  *
  * THE HEADLINE IS IN-APP SESSION TIME (founder ruling, Tom 2026-09-10: "in-app
  * time is in-class time, they want to know that precisely"; rule and defaults
- * in api/_utils/inAppTime.ts). Per class it is the sum, each learner id once, of
- *   - the CLASS's own account (`classes.class_learner_id`) — whole-class play
- *     from the front, which is most of what a school does; and
- *   - each STUDENT's own account on that class.
+ * in api/_utils/inAppTime.ts). Per class it comes as TWO FIGURES, KEPT APART,
+ * NEVER SUMMED (Tom's ruling, 2026-09-14, job #662: "Teacher SHOULD be able to
+ * see both: Play-as-class minutes AND an aggregate of the class students own
+ * playing times"):
+ *   - classPlayByClass — the CLASS's own account (`classes.class_learner_id`),
+ *     whole-class play from the front, which is most of what a school does; and
+ *   - practiceByClass — the aggregate of each STUDENT's own account on that
+ *     class. Until job #662 this field was class play PLUS pupils, which is the
+ *     one number a teacher home must never show.
  * Audio-played seconds (learner_speaking_opportunities.play_seconds, students
  * only — the class account cannot write that ledger) stay in the payload as the
  * secondary figure, demoted not deleted.
  *
+ * WINDOW: the last 7 × 24 hours from now, by timestamp — the one rolling rule
+ * every other minutes reader uses (job #673, 2026-09-14). minutesByDay is the
+ * last seven UTC days, today last, and is a shape, not the total.
  * Auth required. The caller's visible scope is resolved server-side
  * (resolveVisibleScope) — requested class_ids are intersected with what the
  * caller may actually see, so a teacher/school/gov admin only ever gets practice
@@ -23,8 +31,10 @@
  * given, every class in the caller's scope is returned.
  *
  * Returns: {
- *   practiceByClass:   { [classId]: in-app seconds, last 7 days } — the headline
- *   classPlayByClass:  { [classId]: of which, the class account's own play }
+ *   practiceByClass:   { [classId]: the PUPILS' own-account in-app seconds, last
+ *                        7 days } — never includes the class account
+ *   classPlayByClass:  { [classId]: the class account's own play, last 7 days }
+ *                        — the play-as-class figure, the class row's headline
  *   audioPlayedByClass:{ [classId]: students' audio-played seconds off the ledger }
  *   activeDaysByClass: { [classId]: distinct UTC days in the window with any play,
  *                        the class account and its students together } — what
@@ -47,6 +57,16 @@
  *                        in-app minutes per UTC day, oldest first, today last; started
  *                        is false only when the account has never played at all — the
  *                        list then says "not started" in words, never a row of zeros.
+ *   callerOwn: { learnerId, inAppMinutes7d, minutesByDay[7], lastPlayedDay } | null —
+ *                        THE CALLER'S OWN ACCOUNT this week (job #651, Chepstow
+ *                        2026-09-14). Half that school's teachers ran their lesson
+ *                        signed in as themselves, so the Library said 12 minutes and
+ *                        every class said 0. The teacher home names the gap: these
+ *                        minutes are yours, not the class's, and Play as class is
+ *                        what moves them. Null when the caller has no learner row.
+ *                        Under the admin passthrough, `?own_user_id=` names the
+ *                        persona whose own account is meant (View-as runs as the
+ *                        admin) — verifyAdmin-gated like `?school_id=`.
  *   metric: 'in_app_session_time', idleCutoffSeconds, days: 7
  * }
  *
@@ -64,7 +84,7 @@ import { resolveVisibleScope, scopeForSchoolRead, chunk } from '../_utils/school
 import { loadClassPractice, practisedSince, ownAccountLearnerIds, inAppTimeSeconds, legoOrdinal, CLASS_PRACTICE_WINDOW_DAYS } from '../_utils/classPractice'
 import { filterActiveScope } from '../_utils/schoolCoverageGate'
 import { applyCors } from '../_utils/cors'
-import { inAppTimeByLearner, IDLE_CUTOFF_SECONDS } from '../_utils/inAppTime'
+import { inAppTimeByLearner, IDLE_CUTOFF_SECONDS, secondsToMinutesUp } from '../_utils/inAppTime'
 
 const DAYS = 7
 
@@ -96,6 +116,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   try {
     let scope = await resolveVisibleScope(svc, auth.userId)
+    // The caller's OWN learner account — a teacher's own play lives here, and
+    // the teacher home says so in words (callerOwn below).
+    let ownLearnerId: string | null = scope.learnerId || null
     const requestedSchoolId = typeof req.query.school_id === 'string' ? req.query.school_id.trim() : ''
     if (requestedSchoolId && scope.classIds.length === 0 && scope.schoolIds.length === 0) {
       const adminResult = await verifyAdmin(req)
@@ -104,6 +127,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         return
       }
       scope = await scopeForSchoolRead(svc, requestedSchoolId)
+      // View-as: the persona's own account, never the admin's.
+      const ownUserId = typeof req.query.own_user_id === 'string' ? req.query.own_user_id.trim() : ''
+      ownLearnerId = null
+      if (ownUserId) {
+        const { data: personaLearner } = await svc.from('learners').select('id').eq('user_id', ownUserId).maybeSingle()
+        ownLearnerId = (personaLearner as any)?.id ?? null
+      }
     }
 
     // Intersect any requested class_ids with the caller's actual scope; default
@@ -128,7 +158,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     if (classIds.length === 0) {
       res.setHeader('Cache-Control', 'no-store')
-      res.status(200).json({ practiceByClass: {}, classPlayByClass: {}, audioPlayedByClass: {}, activeDaysByClass: {}, rollup: { windowDays: CLASS_PRACTICE_WINDOW_DAYS, classCount: 0, activeClasses7d: 0, inAppMinutes7d: 0 }, classAccountByClass: {}, metric: 'in_app_session_time', idleCutoffSeconds: IDLE_CUTOFF_SECONDS, days: DAYS })
+      res.status(200).json({ practiceByClass: {}, classPlayByClass: {}, audioPlayedByClass: {}, activeDaysByClass: {}, rollup: { windowDays: CLASS_PRACTICE_WINDOW_DAYS, classCount: 0, activeClasses7d: 0, inAppMinutes7d: 0 }, classAccountByClass: {}, callerOwn: null, metric: 'in_app_session_time', idleCutoffSeconds: IDLE_CUTOFF_SECONDS, days: DAYS })
       return
     }
 
@@ -147,10 +177,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     const studentIds = [...new Set(classIds.flatMap(c => scope.studentsByClass[c] || []))]
 
-    // Last 7 UTC days — the same window for the diary and the ledger.
-    const since = new Date()
-    since.setUTCDate(since.getUTCDate() - (DAYS - 1))
-    since.setUTCHours(0, 0, 0, 0)
+    // ONE WINDOW RULE (Tom, 2026-09-14, job #673: "calculated the same way
+    // across all metrics, always"): the last DAYS × 24 hours from now, by
+    // timestamp — the rule the school rollup, the org lens and Insights
+    // already use. This endpoint alone counted the last seven UTC calendar
+    // days, so the classes list and the class page disagreed with every
+    // sibling by up to a day of play. The per-day bars stay the last seven
+    // UTC days (today last); the ledger's secondary figure is day-grained.
+    const now = new Date()
+    const since = new Date(now.getTime() - DAYS * 86_400_000)
+    const firstBarDay = new Date(now)
+    firstBarDay.setUTCDate(firstBarDay.getUTCDate() - (DAYS - 1))
+    firstBarDay.setUTCHours(0, 0, 0, 0)
     const sinceDay = since.toISOString().split('T')[0]
 
     // The school headline — identical helpers and rule to the admin's node
@@ -169,8 +207,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       const weekAgo = Date.now() - CLASS_PRACTICE_WINDOW_DAYS * 86400000
       let activeClasses7d = 0
       for (const f of facts.values()) if (practisedSince(f, weekAgo)) activeClasses7d += 1
-      const inApp = await inAppTimeSeconds(svc, [...classLearnerByClass.values()], ownIds)
-      return { facts, rollup: { windowDays: CLASS_PRACTICE_WINDOW_DAYS, classCount: classIds.length, activeClasses7d, inAppMinutes7d: Math.round(inApp.seconds / 60) } }
+      const inApp = await inAppTimeSeconds(svc, [...classLearnerByClass.values()], ownIds, now.getTime())
+      return { facts, rollup: { windowDays: CLASS_PRACTICE_WINDOW_DAYS, classCount: classIds.length, activeClasses7d, inAppMinutes7d: secondsToMinutesUp(inApp.seconds) } }
     })()
 
     // THE CLASS ACCOUNT'S OWN PROGRESS per class (Tom's ruling, 2026-09-11):
@@ -224,7 +262,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     })()
 
     const [inAppByLearner, secondsByLearner, { facts, rollup }, classAccountBase] = await Promise.all([
-      inAppTimeByLearner(svc, [...studentIds, ...classLearnerByClass.values()], since.toISOString()),
+      // One diary read for the students, the class accounts AND the caller's
+      // own account: a learner id is sessionised once whichever list it is on.
+      inAppTimeByLearner(svc, [...new Set([...studentIds, ...classLearnerByClass.values(), ...(ownLearnerId ? [ownLearnerId] : [])])], since.toISOString()),
       audioPlayedByLearner(svc, studentIds, sinceDay),
       rollupPromise,
       classAccountPromise,
@@ -247,7 +287,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       const classLearner = classLearnerByClass.get(c)
       const classPlay = classLearner ? (inAppByLearner.get(classLearner)?.seconds || 0) : 0
       classPlayByClass[c] = classPlay
-      practiceByClass[c] = classPlay + students.reduce((sum, lid) => sum + (inAppByLearner.get(lid)?.seconds || 0), 0)
+      // Pupils' own accounts ONLY. The class account is classPlayByClass; the
+      // two are never added (Tom, 2026-09-14, job #662).
+      practiceByClass[c] = students.reduce((sum, lid) => sum + (inAppByLearner.get(lid)?.seconds || 0), 0)
       audioPlayedByClass[c] = students.reduce((sum, lid) => sum + (secondsByLearner.get(lid) || 0), 0)
       const days = new Set<string>()
       for (const lid of [classLearner, ...students]) if (lid) for (const d of inAppByLearner.get(lid)?.days ?? []) days.add(d)
@@ -257,14 +299,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     res.setHeader('Cache-Control', 'no-store')
     // The seven UTC days of the window, oldest first, today last.
     const windowDays: string[] = []
-    for (let i = 0; i < DAYS; i++) { const d = new Date(since); d.setUTCDate(d.getUTCDate() + i); windowDays.push(d.toISOString().split('T')[0]) }
+    for (let i = 0; i < DAYS; i++) { const d = new Date(firstBarDay); d.setUTCDate(d.getUTCDate() + i); windowDays.push(d.toISOString().split('T')[0]) }
     const classAccountByClass: Record<string, any> = {}
     for (const c of classIds) {
       const base = classAccountBase[c]
       const lid = classLearnerByClass.get(c)
       const own = lid ? inAppByLearner.get(lid) : undefined
       const f = facts.get(c)
-      const minutesByDay = windowDays.map((day) => Math.round((own?.secondsByDay?.[day] || 0) / 60))
+      const minutesByDay = windowDays.map((day) => secondsToMinutesUp(own?.secondsByDay?.[day] || 0))
       const lastPractisedAt = [base?.lastPractisedAt, f?.lastPractisedAt].filter(Boolean).sort().pop() ?? null
       classAccountByClass[c] = {
         started: !!(base?.started || f?.lastPractisedAt || (own?.seconds ?? 0) > 0),
@@ -277,7 +319,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       }
     }
 
-    res.status(200).json({ practiceByClass, classPlayByClass, audioPlayedByClass, activeDaysByClass, rollup, classAccountByClass, metric: 'in_app_session_time', idleCutoffSeconds: IDLE_CUTOFF_SECONDS, days: DAYS })
+    // THE CALLER'S OWN ACCOUNT this week — the number the Library shows them.
+    let callerOwn: { learnerId: string; inAppMinutes7d: number; minutesByDay: number[]; lastPlayedDay: string | null } | null = null
+    if (ownLearnerId) {
+      const own = inAppByLearner.get(ownLearnerId)
+      const days = (own?.days ?? []).slice().sort()
+      callerOwn = {
+        learnerId: ownLearnerId,
+        inAppMinutes7d: secondsToMinutesUp(own?.seconds ?? 0),
+        minutesByDay: windowDays.map((day) => secondsToMinutesUp(own?.secondsByDay?.[day] || 0)),
+        lastPlayedDay: days.length ? days[days.length - 1] : null,
+      }
+    }
+
+    res.status(200).json({ practiceByClass, classPlayByClass, audioPlayedByClass, activeDaysByClass, rollup, classAccountByClass, callerOwn, metric: 'in_app_session_time', idleCutoffSeconds: IDLE_CUTOFF_SECONDS, days: DAYS })
   } catch (err) {
     console.error('[class-practice-7d] error:', err)
     res.status(500).json({ error: 'Internal server error' })

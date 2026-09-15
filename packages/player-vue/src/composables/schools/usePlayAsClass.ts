@@ -2,6 +2,7 @@ import { computed, inject, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSchoolContext } from './useSchoolContext'
 import { rememberCourse } from '../../platform/courseChoice'
+import { useSharedUserEntitlements } from '../useUserEntitlements'
 
 /**
  * Shared "force the app onto this course right now" step for every Play-as-class
@@ -30,7 +31,19 @@ export interface PlayableClass {
   course_code: string
   current_seed?: number | null
   last_lego_id?: string | null
-  class_learner_id?: string | null
+  /**
+   * REQUIRED, nullable — never optional. This is the identity every
+   * player_events row of the session is attributed to: LearningPlayer's
+   * learnerId is `classContext.class_learner_id || the STAFF member's own`, so
+   * a launcher that simply forgets the key hands the whole class session's
+   * telemetry to the teacher. The sessions row never suffers this (the
+   * class-aware session store resolves the class learner server-side from the
+   * class id), which is exactly how staging split on 2026-09-14 21:32Z:
+   * sessions said class, player_events said teacher, for one and the same
+   * play (job #733). A row shape without the key is now a type error, and
+   * launchClassSession resolves a null from the classes row anyway.
+   */
+  class_learner_id: string | null
 }
 
 export function usePlayAsClass() {
@@ -41,7 +54,16 @@ export function usePlayAsClass() {
   const { isSchoolStaff, currentUser } = useSchoolContext()
   const router = useRouter()
 
-  const canPlayAsClass = computed(() => isSchoolStaff.value && !isAdminView)
+  // Who SEES the button: any school staff member. Who may PRESS it: the same
+  // people on a live account. Under View As the button is SHOWN DISABLED,
+  // never hidden (Tom, 2026-09-14 16:17Z, job #683: "every single Play as
+  // Class button has GONE!!!! That should be prominent next to the class, not
+  // invisible") — a viewer sees the control a teacher has, and the launch
+  // below still refuses, which is the honest rendering of the #681 write ban.
+  // Before this, canPlayAsClass carried `&& !isAdminView` (2026-07-16,
+  // 8ca0f01b2) and View As hid every button on every surface.
+  const canPlayAsClass = computed(() => isSchoolStaff.value)
+  const playAsClassReadOnly = computed(() => canPlayAsClass.value && isAdminView)
   // Was silent (console.warn/error only) — a teacher clicking Play on a
   // half-loaded or misconfigured class saw nothing happen at all (trinity
   // ledger LA #5). Callers render this next to the Play button.
@@ -75,7 +97,7 @@ export function usePlayAsClass() {
    */
   async function launchClassSession(cls: PlayableClass | null | undefined): Promise<boolean> {
     playError.value = null
-    if (!canPlayAsClass.value) return false
+    if (!canPlayAsClass.value || isAdminView) return false
     if (!cls?.id || !cls?.course_code) {
       console.warn('[usePlayAsClass] class not ready (missing id or course_code) — not launching')
       playError.value = 'This class is still loading — try again in a moment.'
@@ -97,21 +119,47 @@ export function usePlayAsClass() {
       return false
     }
     rememberCourse(cls.course_code, 'chosen')
+    // The class's own learner id, from the classes row when the caller has
+    // none (a freshly created class, or a row shape that dropped the key —
+    // see PlayableClass). Missing here means the teacher's own account owns
+    // the session's telemetry, so it is worth one read. Still null after the
+    // read = the DB has not minted the class learner yet, and the player's
+    // existing fallback applies exactly as before.
+    let classLearnerId: string | null = cls.class_learner_id ?? null
+    if (!classLearnerId && supabase?.value) {
+      try {
+        const { data } = await supabase.value
+          .from('classes')
+          .select('class_learner_id')
+          .eq('id', cls.id)
+          .maybeSingle()
+        classLearnerId = (data?.class_learner_id as string | null | undefined) ?? null
+      } catch {
+        classLearnerId = null
+      }
+    }
     localStorage.setItem('ssi-active-class', JSON.stringify({
       id: cls.id,
       name: cls.class_name,
       course_code: cls.course_code,
       current_seed: cls.current_seed ?? null,
       last_lego_id: cls.last_lego_id ?? null,
-      class_learner_id: cls.class_learner_id ?? null,
+      class_learner_id: classLearnerId,
       teacherUserId: currentUser.value?.user_id ?? null,
       timestamp: new Date().toISOString(),
     }))
+    // The player gates the end of Yellow on the entitlement snapshot held in
+    // memory, fetched at boot and on sign-in and not since. A class made a
+    // minute ago grants its course through class coverage, and the snapshot
+    // does not know it: Tom's Y7 Welsh hit the wall at seed 20 on a school
+    // with a live trial (2026-09-14, job #734). Ask again before the player
+    // mounts. Fail-soft — a failed fetch keeps whatever the snapshot held.
+    await useSharedUserEntitlements().refresh().catch(() => {})
     // /schools/play renders PlayerContainer as a child of SchoolsContainer,
     // so the schools top bar stays above the player.
     await router.push({ path: '/schools/play', query: { class: cls.id } })
     return true
   }
 
-  return { canPlayAsClass, switchActiveCourseTo, launchClassSession, playError }
+  return { canPlayAsClass, playAsClassReadOnly, switchActiveCourseTo, launchClassSession, playError }
 }

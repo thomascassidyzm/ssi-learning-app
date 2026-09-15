@@ -7,6 +7,7 @@
 // itself — label-not-type (I3): no behaviour branches on label beyond
 // choosing an icon/word and showing the commercial badge when present.
 import { computed, inject, nextTick, ref } from 'vue'
+import FrostSelect from '@/components/FrostSelect.vue'
 import type { StructureApi, StructureNode, StructureQuickFilter } from './structureApi'
 import { structureNodeIsVisible } from './structureApi'
 
@@ -53,13 +54,19 @@ const editing = computed(() => api.editingId.value === props.node.id)
 
 const showOverflow = ref(false)
 const showLabelPicker = ref(false)
-const labelPickerEl = ref<HTMLSelectElement | null>(null)
+const labelPickerEl = ref<{ open: () => void } | null>(null)
 
 const LABEL_OPTIONS = ['group', 'organisation', 'school', 'nation', 'region', 'district', 'programme', 'lea']
 
+const labelOptions = computed(() => [
+  ...(!LABEL_OPTIONS.includes(props.node.label) ? [{ value: props.node.label, label: props.node.label }] : []),
+  ...LABEL_OPTIONS.map((opt) => ({ value: opt, label: opt === 'lea' ? 'LEA' : opt })),
+])
+
 function openLabelPicker(): void {
   showLabelPicker.value = true
-  nextTick(() => labelPickerEl.value?.focus())
+  // The picker only exists while it is being used, so it opens as it appears.
+  nextTick(() => labelPickerEl.value?.open())
 }
 
 async function pickLabel(label: string): Promise<void> {
@@ -135,20 +142,17 @@ const attentionStatus = computed(() => {
       {{ node.name }}
     </span>
 
-    <select
+    <FrostSelect
       v-if="showLabelPicker"
       ref="labelPickerEl"
       class="label-select"
-      :value="node.label"
-      title="Change label"
+      :model-value="node.label"
+      :options="labelOptions"
+      aria-label="Change label"
       @click.stop
-      @change="pickLabel(($event.target as HTMLSelectElement).value)"
-      @blur="showLabelPicker = false"
-      @keyup.escape="showLabelPicker = false"
-    >
-      <option v-if="!LABEL_OPTIONS.includes(node.label)" :value="node.label">{{ node.label }}</option>
-      <option v-for="opt in LABEL_OPTIONS" :key="opt" :value="opt">{{ opt === 'lea' ? 'LEA' : opt }}</option>
-    </select>
+      @update:model-value="pickLabel"
+      @close="showLabelPicker = false"
+    />
     <span v-else-if="showLabel" class="label-word">{{ node.label === 'lea' ? 'LEA' : node.label }}</span>
 
     <span v-if="showDemoBadge" class="org-badge is-demo">Demo</span>
@@ -263,13 +267,9 @@ const attentionStatus = computed(() => {
 .structure-rename-input:focus { outline: none; box-shadow: 0 0 0 3px rgba(var(--tone-red), 0.14); }
 
 .label-select {
-  font-size: var(--text-xs);
-  font-family: var(--font-mono);
-  color: var(--schools-fg-3);
-  background: transparent;
-  border: 1px solid rgba(var(--tone-red), 0.55);
-  border-radius: var(--radius-sm);
-  padding: 1px 4px;
+  /* FrostSelect reads these; the shared dropdown wears this page's look. */
+  display: inline-block; min-width: 150px; vertical-align: middle;
+  --fs-font: var(--font-mono); --fs-font-size: var(--text-xs); --fs-radius: var(--radius-sm); --fs-bg: transparent; --fs-border: rgba(var(--tone-red), 0.55); --fs-ink: var(--schools-fg-3); --fs-min-height: 24px; --fs-pad: 1px 6px; --rc-entity: var(--tone-red); --rc-entity-ink: rgb(var(--tone-red));
 }
 
 .label-word {

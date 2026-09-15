@@ -49,7 +49,8 @@ function escape() {
 <style scoped>
 .app-escape {
   position: fixed;
-  top: max(12px, env(safe-area-inset-top, 0px));
+  /* Clears the view-as band when one is up (job #675); 0px otherwise. */
+  top: calc(var(--top-bands-h, 0px) + max(12px, env(safe-area-inset-top, 0px)));
   left: max(12px, env(safe-area-inset-left, 0px));
   z-index: 60;
   display: inline-flex;

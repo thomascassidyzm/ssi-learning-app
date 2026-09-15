@@ -8,6 +8,7 @@ import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
 import CourseBrowser from '@/components/CourseBrowser.vue'
 import HowThisWorksLibrary from '@/components/me/HowThisWorksLibrary.vue'
 import StandingPanel from '@/components/me/StandingPanel.vue'
+import YourInsights from '@/components/me/YourInsights.vue'
 import { useAuthModal } from '@/composables/useAuthModal'
 import { useSharedUserEntitlements } from '@/composables/useUserEntitlements'
 import { useSharedSubscription } from '@/composables/useSubscription'
@@ -15,9 +16,26 @@ import { useUserRole } from '@/composables/useUserRole'
 import { useOrgLeadership } from '@/composables/useOrgLeadership'
 import { checkCourseAccess, inferPricingTier } from '@ssi/core'
 import { hasTryEntitlement } from '@/composables/useEntitlement'
+import { useUserMessages } from '@/composables/useUserMessages'
 
 const router = useRouter()
 const { t } = useI18n()
+
+// The inbox card (job #684): the newest unread, undismissed message, shown
+// once at the top of the Library. Dismiss hides it for good (the message
+// stays in the inbox, unread); a tap opens the inbox and marks it read.
+const { cardMessage: inboxCard, refresh: refreshInbox, markRead: markInboxRead, dismiss: dismissInbox } = useUserMessages()
+const openInboxCard = async () => {
+  const m = inboxCard.value
+  if (!m) return
+  emit('close')
+  await markInboxRead(m.id)
+  router.push('/me/inbox')
+}
+const dismissInboxCard = async () => {
+  const m = inboxCard.value
+  if (m) await dismissInbox(m.id)
+}
 
 // Entitlement + subscription (same check as CourseSelector)
 const { entitlements: userEntitlements } = useSharedUserEntitlements()
@@ -426,6 +444,7 @@ const getProgress = (courseCode) => {
 }
 
 onMounted(() => {
+  if (!isGuest.value) void refreshInbox()
   fetchCourses()
   // Which dashboard door(s) this account gets — org, school, or both.
   if (!isGuest.value && hasSchoolRole.value) void ensureOrgChecked()
@@ -458,6 +477,15 @@ onMounted(() => {
         <svg class="guest-auth-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="9 18 15 12 9 6"/>
         </svg>
+      </div>
+
+      <!-- ── Inbox card (job #684): one message, once, dismissable ── -->
+      <div v-if="!isGuest && inboxCard" class="inbox-card" role="group" :aria-label="t('inbox.cardAria')">
+        <button type="button" class="inbox-card-main" @click="openInboxCard">
+          <span class="inbox-card-title">{{ inboxCard.title }}</span>
+          <span class="inbox-card-hint">{{ t('inbox.cardHint') }}</span>
+        </button>
+        <button type="button" class="inbox-card-dismiss" @click="dismissInboxCard" :aria-label="t('inbox.dismiss')">{{ t('inbox.dismiss') }}</button>
       </div>
 
       <!-- ── Organisation Dashboard Link (org leaders) ── -->
@@ -642,6 +670,10 @@ onMounted(() => {
           </div>
         </div>
       </section>
+
+      <!-- ── Your insights — you v the course average, never v another person
+           (Tom, 2026-09-14). The one insight engine, pointed at the learner. -->
+      <YourInsights :course-code="activeCourse?.course_code" :is-guest="isGuest" @sign-in="emit('close'); openAuth()" />
 
       <!-- ── Section 4: All Courses ── -->
       <section class="section">
@@ -1269,6 +1301,42 @@ onMounted(() => {
 
 /* Schools Dashboard Link */
 /* Guest auth banner */
+.inbox-card {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2, 0.5rem);
+  margin-bottom: var(--space-4, 1rem);
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--belt-color, #c23a3a);
+  border-radius: var(--radius-lg, 12px);
+  overflow: hidden;
+}
+.inbox-card-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+  background: none;
+  border: 0;
+  text-align: left;
+  font: inherit;
+  color: var(--text-primary, #2C2622);
+  cursor: pointer;
+}
+.inbox-card-title { font-size: 0.95rem; font-weight: 600; }
+.inbox-card-hint { font-size: 0.78rem; color: var(--text-secondary, #6B635C); }
+.inbox-card-dismiss {
+  padding: 0 var(--space-3, 0.75rem);
+  background: none;
+  border: 0;
+  border-left: 1px solid var(--border-subtle, #e5e1dc);
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--text-secondary, #6B635C);
+  cursor: pointer;
+}
+
 .guest-auth-banner {
   display: flex;
   align-items: center;

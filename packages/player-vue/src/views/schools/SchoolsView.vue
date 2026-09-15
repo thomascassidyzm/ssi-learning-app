@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, inject } from 'vue'
+import FrostSelect from '@/components/FrostSelect.vue'
 import { useRouter } from 'vue-router'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
@@ -38,6 +39,11 @@ type SortKey = 'hours' | 'students' | 'name'
 // metric orders stay available but must be an explicit, visible choice
 // (this dropdown), never the silent default.
 const sortKey = ref<SortKey>('name')
+const sortOptions = computed<{ value: SortKey; label: string }[]>(() => [
+  { value: 'name', label: t('schools.schoolsList.sortByName', 'Sort by name') },
+  { value: 'hours', label: t('schools.schoolsList.sortByHours', 'Sort by hours') },
+  { value: 'students', label: t('schools.schoolsList.sortByStudents', 'Sort by students') },
+])
 
 // The ONE refresh protocol: register this page's loader; the navbar button and
 // pull-to-refresh both drive it, and the initial/reactive loads route through
@@ -292,11 +298,7 @@ watch(currentUser, (u) => {
             :placeholder="t('schools.schoolsList.searchPlaceholder', 'Search…')"
             :aria-label="t('schools.schoolsList.searchAriaLabel', 'Search schools')"
           />
-          <select v-model="sortKey" class="list-sort" :aria-label="t('schools.schoolsList.sortAriaLabel', 'Sort schools')">
-            <option value="name">{{ t('schools.schoolsList.sortByName', 'Sort by name') }}</option>
-            <option value="hours">{{ t('schools.schoolsList.sortByHours', 'Sort by hours') }}</option>
-            <option value="students">{{ t('schools.schoolsList.sortByStudents', 'Sort by students') }}</option>
-          </select>
+          <FrostSelect v-model="sortKey" class="list-sort" :options="sortOptions" :aria-label="t('schools.schoolsList.sortAriaLabel', 'Sort schools')" />
         </div>
       </div>
 
@@ -583,14 +585,9 @@ watch(currentUser, (u) => {
 }
 
 .list-sort {
-  padding: 5px 8px;
-  font-size: 12px;
-  border: 1px solid var(--schools-border);
-  border-radius: 6px;
-  background: #fff;
-  font-family: var(--font-body);
-  color: var(--schools-fg);
-  cursor: pointer;
+  /* FrostSelect reads these; the shared dropdown wears this page's look. */
+  min-width: 170px;
+  --fs-font: var(--font-body); --fs-bg: #fff; --rc-entity: 219 30 23; --rc-entity-ink: var(--schools-red); --fs-font-size: 12px; --fs-radius: 6px; --fs-border: var(--schools-border); --fs-min-height: 34px; --fs-pad: 5px 10px;
 }
 
 .school-cell {

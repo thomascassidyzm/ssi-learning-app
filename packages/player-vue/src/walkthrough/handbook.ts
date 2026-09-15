@@ -75,6 +75,7 @@ export const PLACE_LINKS: Record<string, PlaceLink> = {
   'schools-list': () => '/schools/all',
   analytics: () => '/schools/analytics',
   upgrade: () => '/schools/upgrade',
+  inbox: () => '/schools/inbox',
   'admin-invites': () => '/admin/invites',
   intel: () => '/intel',
   library: () => '/',
@@ -114,6 +115,29 @@ export interface HandbookEntry {
 }
 
 const entries = (pack as unknown as { handbook: HandbookEntry[] }).handbook
+
+interface PackWalk { id: string; personas: WalkPersona[]; place: { route: string; kinds?: string[] }; steps: Array<{ anchor: string }> }
+const packWalks = (pack as unknown as { walks: PackWalk[] }).walks
+
+/**
+ * THE CLIPS THAT SHOW A CAPABILITY (job #627, 2026-09-14). Tom: "the handbook
+ * still appears to be pointing to the prose, rather than the clips … we
+ * certainly have clips for most of the common things already."
+ *
+ * A capability has a clip when a walk steps on its anchor — the `walk:` line
+ * in its HANDBOOK comment names one by hand, and every other walk in the pack
+ * whose steps land on the same element counts too, so "Choose what role
+ * someone arrives as" plays the invite walk that passes through that field
+ * without anyone authoring a link. Only walks for the reader's own persona:
+ * a walk steps real anchors, and a school admin's walk would point a teacher
+ * at controls they do not have. Ids only, in pack order with the named walk
+ * first — the view localises through walkById.
+ */
+export function clipsFor(entry: HandbookEntry, persona: WalkPersona): string[] {
+  const stepping = packWalks.filter((w) => w.steps.some((s) => s.anchor === entry.anchor)).map((w) => w.id)
+  const ids = [...new Set([...(entry.walk ? [entry.walk] : []), ...stepping])]
+  return ids.filter((id) => packWalks.find((w) => w.id === id)?.personas.includes(persona))
+}
 
 /**
  * The entries for ONE surface, sorted for the page. One compiled pack carries

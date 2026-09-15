@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, inject } from 'vue'
+import FrostSelect from '@/components/FrostSelect.vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useClassesData, type ClassReport, type ClassDeleteImpact, type StudentCandidate } from '@/composables/schools/useClassesData'
@@ -41,7 +42,7 @@ const { t } = useI18n()
 
 const isAdminView = inject<boolean>('isAdminView', false)
 const { schoolsLink } = useSchoolsNav()
-const { currentUser: selectedUser, isGovtAdmin, isSchoolAdmin } = useSchoolContext()
+const { currentUser: selectedUser, isGovtAdmin, isSchoolAdmin, isTeacher } = useSchoolContext()
 const {
   classDetail,
   isLoading: classDetailLoading,
@@ -64,7 +65,9 @@ const {
 } = useClassesData()
 const { fetchClassTeacherCandidates } = useTeachersData()
 const { viewingSchool } = useSchoolData()
-const { canPlayAsClass, launchClassSession, playError } = usePlayAsClass()
+const { canPlayAsClass, playAsClassReadOnly, launchClassSession, playError } = usePlayAsClass()
+// Under View As the button is shown disabled, never hidden (job #683).
+const playAsClassTitle = computed(() => (playAsClassReadOnly.value ? t('schools.playAsClass.viewAsReadOnly', 'Read only while you are viewing as someone else. A teacher can press this.') : ''))
 
 // When a govt admin drilled group → school → class, "back" should return to
 // the school dashboard, not the (empty for them) classes list.
@@ -158,7 +161,8 @@ async function loadClassAccount(classId: string) {
   try {
     const data = await fetchClassPractice7d([classId], selectedUser.value)
     classAccount.value = data?.classAccountByClass[classId] ?? null
-    classMinutesWk.value = data ? secondsToMinutes(data.practiceByClass[classId] ?? 0) : null
+    // The class account's own play, never summed with the pupils' own accounts (job #662).
+    classMinutesWk.value = data ? secondsToMinutes(data.classPlayByClass[classId] ?? 0) : null
     classPracticeLoaded.value = !!data
   } catch {
     classAccount.value = null
@@ -531,6 +535,8 @@ async function handleAssignConfirm(tickedClassIds: string[]): Promise<void> {
 }
 
 // Candidates minus the people already on the class.
+const addableTeacherOptions = computed(() =>
+  addableTeachers.value.map((at) => ({ value: at.user_id, label: at.display_name })))
 const addableTeachers = computed(() => {
   const already = new Set((classDetail.value?.teachers ?? []).map(t => t.user_id))
   return teacherCandidates.value.filter(t => !already.has(t.user_id))
@@ -748,10 +754,20 @@ const mailboxPrompt = useMailboxPrompt()
 
 <template>
   <main class="detail">
+    <!-- THE CLASS TOOLS PAGE (job #651). The class PAGE — its play-as-class
+         practice, minutes and journey — is the class node home at
+         /org/:classId for every role; this page is the class's tooling
+         (roster, teachers, join link, rename, delete, the copy-play repair)
+         and says so at the top, with the way back to the class page. -->
     <nav class="breadcrumb">
       <a href="#" @click.prevent="handleBack">{{ backToSchool ? (viewingSchool?.school_name || t('schools.classDetail.schoolFallback', 'School')) : t('schools.classDetail.classesCrumb', 'Classes') }}</a>
       <span class="crumb-sep">/</span>
-      <span class="crumb-current">{{ classData.class_name }}</span>
+      <router-link v-if="!isAdminView && classData.id" class="crumb-link" :to="schoolsLink('class-detail', { classId: classData.id })">{{ classData.class_name }}</router-link>
+      <span v-else class="crumb-current">{{ classData.class_name }}</span>
+      <template v-if="!isAdminView">
+        <span class="crumb-sep">/</span>
+        <span class="crumb-current">{{ t('schools.classDetail.toolsCrumb', 'Manage class') }}</span>
+      </template>
     </nav>
 
     <div v-if="playError" class="fetch-error-banner">
@@ -765,7 +781,7 @@ const mailboxPrompt = useMailboxPrompt()
           {{ classData.class_name }}
           <!-- HANDBOOK Rename a class
                section: running-classes
-               roles: leader, school_admin, teacher
+               roles: teacher
                place: class-detail
                keywords: class, rename, name, edit, title
                What it's for. Changing what a class is called, for a name typed in a
@@ -794,7 +810,7 @@ const mailboxPrompt = useMailboxPrompt()
           </button>
           <!-- HANDBOOK Delete a class
                section: running-classes
-               roles: leader, school_admin, teacher
+               roles: teacher
                place: class-detail
                keywords: class, delete, remove, close, archive
                What it's for. Removing a class you no longer want, usually one set up
@@ -837,10 +853,31 @@ const mailboxPrompt = useMailboxPrompt()
           <span class="meta-dot">·</span>
           <span v-if="classStarted === null">{{ t('schools.classDetail.minutesThisWeekLoading', 'minutes this week loading…') }}</span>
           <span v-else-if="classStarted === false">{{ t('schools.classDetail.noMinutesYet', 'no time in the app yet') }}</span>
-          <span v-else>{{ t('schools.classDetail.minutesThisWeek', '{n} min in the app this week').replace('{n}', String(classMinutesWk ?? 0)) }}</span>
+          <span v-else>{{ t('schools.classDetail.minutesThisWeek', '{n} min played as class this week').replace('{n}', String(classMinutesWk ?? 0)) }}</span>
           <span class="meta-dot">·</span>
           <UpdatedStamp />
         </div>
+        <!-- HANDBOOK Where a class's practice is read
+             section: seeing-progress
+             roles: teacher, school_admin
+             place: class-detail
+             keywords: class page, tools, practice, minutes, journey, manage
+             What it's for. Telling the two pages of a class apart. The class page
+             carries what the class has practised together, its minutes in the app
+             and how far it has travelled. This page is the class's tools: the
+             roster, the teachers, the join link, renaming and deleting.
+             Where it is. The line under the class name at the top of the tools page.
+             How you do it.
+             1. Read the line.
+             2. Tap **Open the class page** to go to the class's practice.
+             Worth knowing. Nothing on this page totals whole-class play. A class
+             played from the front shows its minutes on the class page, never here.
+             checked: 03dbe287.fa128e02
+        -->
+        <p v-if="!isAdminView && classData.id" class="tools-note schools-subtle" data-walk="class-tools-note">
+          {{ t('schools.classDetail.toolsNote', "This is the class's tools page. Its practice, minutes in the app and journey are on the class page.") }}
+          <router-link :to="schoolsLink('class-detail', { classId: classData.id })">{{ t('schools.classDetail.openClassPage', 'Open the class page') }}</router-link>
+        </p>
       </div>
 
       <div class="page-head-actions">
@@ -861,7 +898,7 @@ const mailboxPrompt = useMailboxPrompt()
         />
         <!-- HANDBOOK Run your first class session
              section: running-classes
-             roles: school_admin, teacher
+             roles: teacher
              place: class-detail
              keywords: session, play, class, run, join, code
              walk: run-class-session
@@ -874,10 +911,11 @@ const mailboxPrompt = useMailboxPrompt()
              3. Wait for the students to arrive on their own devices.
              4. Tap play to start the session.
              Worth knowing. The join code is the same code all lesson, so a student
-             arriving late still gets in.
-             checked: a56c85be.e182c56c
+             arriving late still gets in. While a platform admin is viewing the page
+             as you the play button is greyed out and does nothing.
+             checked: 03574751.2708ad9f
         -->
-        <button v-if="canPlayAsClass" type="button" class="btn-play btn-play-lg" data-walk="class-play" :disabled="!canLaunch" @click="handlePlay">
+        <button v-if="canPlayAsClass" type="button" class="btn-play btn-play-lg" data-walk="class-play" :disabled="!canLaunch || playAsClassReadOnly" :title="playAsClassTitle" @click="handlePlay">
           <span class="play-glyph">&#9654;</span>
           {{ t('schools.classDetail.playAsClass', 'Play as class') }}
         </button>
@@ -908,7 +946,7 @@ const mailboxPrompt = useMailboxPrompt()
                    another is one untick and one tick in here. -->
               <!-- HANDBOOK Move a teacher to another class
                    section: running-classes
-                   roles: leader, school_admin, teacher
+                   roles: teacher
                    place: class-detail
                    keywords: move, teacher, classes, assign, timetable
                    walk: move-a-teacher-between-classes
@@ -938,7 +976,7 @@ const mailboxPrompt = useMailboxPrompt()
               </button>
               <!-- HANDBOOK Hand a class over to another teacher
                    section: running-classes
-                   roles: leader, school_admin, teacher
+                   roles: teacher
                    place: class-detail
                    keywords: lead, hand over, class, teacher, transfer
                    walk: hand-over-the-lead
@@ -995,7 +1033,7 @@ const mailboxPrompt = useMailboxPrompt()
                English rather than leaving a head to infer it. -->
           <!-- HANDBOOK Share a class with a colleague
                section: running-classes
-               roles: leader, school_admin, teacher
+               roles: teacher
                place: class-detail
                keywords: class, share, co-teacher, colleague, teachers
                walk: share-a-class
@@ -1020,12 +1058,15 @@ const mailboxPrompt = useMailboxPrompt()
           ></p>
         </template>
         <template v-else>
-          <select v-model="pickedTeacherId" class="teacher-select" data-walk="class-teacher-picker" :disabled="teacherBusy">
-            <option value="">{{ t('schools.classDetail.chooseTeacherOption', 'Choose a teacher…') }}</option>
-            <option v-for="at in addableTeachers" :key="at.user_id" :value="at.user_id">
-              {{ at.display_name }}
-            </option>
-          </select>
+          <FrostSelect
+            v-model="pickedTeacherId"
+            class="teacher-select"
+            data-walk="class-teacher-picker"
+            :disabled="teacherBusy"
+            :options="addableTeacherOptions"
+            :placeholder="t('schools.classDetail.chooseTeacherOption', 'Choose a teacher…')"
+            :aria-label="t('schools.classDetail.chooseTeacherOption', 'Choose a teacher…')"
+          />
           <p v-if="!addableTeachers.length" class="rail-note schools-subtle">
             {{ t('schools.classDetail.noAddableTeachers', 'Nobody else on the staff list yet — a colleague has to join the school before you can share the class with them.') }}
           </p>
@@ -1041,7 +1082,7 @@ const mailboxPrompt = useMailboxPrompt()
 
         <!-- HANDBOOK Invite a teacher who isn't here yet
              section: running-classes
-             roles: leader, school_admin, teacher
+             roles: teacher
              place: class-detail
              keywords: supply, cover, teacher, invite, class, link
              walk: invite-a-supply-teacher
@@ -1081,32 +1122,38 @@ const mailboxPrompt = useMailboxPrompt()
       </div>
 
     <div class="body-grid">
-      <!-- HANDBOOK The class roster
+      <!-- HANDBOOK Students on their own accounts
            section: seeing-progress
-           roles: leader, school_admin, teacher
+           roles: teacher, school_admin
            place: class-detail
-           keywords: roster, students, progress, belt, last active
+           keywords: roster, students, own accounts, progress, belt, last active
            parts: class-roster-empty
-           What it's for. Everyone in the class, one row each, with their belt, how much
-           they have learned, how much they have practised and when they were last at it.
-           This is the answer to who is quietly drifting.
-           Where it is. The class page, the **Roster** table.
+           What it's for. The pupils who have signed in on their own account and
+           joined this class, one row each, with their belt, how much they have
+           learned, how much they have practised on that account and when they were
+           last at it. It counts only what each pupil did signed in as themselves.
+           Whole-class play from the front is not in this table; that is on the
+           class page.
+           Where it is. The class tools page, the **Students on their own accounts**
+           table.
            How you do it.
-           1. Open the class from **My Classes**.
-           2. Read down the mark under each name, which flags anyone behind the class or
-              long gone quiet.
+           1. Open **Manage class** from the class page.
+           2. Read down the rows for who is practising on their own and who has gone
+              quiet.
            3. Type a name into the search box to jump to one student.
-           4. Compare a student's practice against the class average shown in the rail
-              beside the table.
-           Worth knowing. A student who has never started shows as inactive rather than
-           as behind, because nothing has happened yet to judge. A class nobody has
-           joined yet shows its empty places instead of a table, with **Add students**
-           in it.
+           Worth knowing. A class taught from the front with no pupil accounts has
+           nobody in this table, and that is not a class that has done nothing. A
+           student who has never started shows as inactive rather than as behind.
+           A class nobody has joined yet shows **Add students** and points at the
+           invite link instead of an empty table.
            checked: 9e190afc.6717ecd4
       -->
       <section class="roster schools-card" data-walk="class-roster">
         <header class="roster-head">
-          <h3 class="arsenal roster-title">{{ t('schools.classDetail.rosterTitle', 'Roster') }}</h3>
+          <div class="roster-titles">
+            <h3 class="arsenal roster-title">{{ t('schools.classDetail.ownAccountsTitle', 'Students on their own accounts') }}</h3>
+            <p class="roster-caption schools-subtle">{{ t('schools.classDetail.ownAccountsCaption', 'Only pupils who have signed in themselves are counted here. Whole-class play counts on the class page.') }}</p>
+          </div>
           <div class="roster-tools">
             <!-- One search at a time: nothing to search in an empty class, and
                  while the picker is open ITS box is the one you mean. -->
@@ -1119,7 +1166,7 @@ const mailboxPrompt = useMailboxPrompt()
             />
             <!-- HANDBOOK Add students to a class
                  section: getting-people-in
-                 roles: leader, school_admin, teacher
+                 roles: teacher
                  place: class-detail
                  keywords: add, student, class, roster, move, join
                  parts: class-student-picker
@@ -1221,7 +1268,7 @@ const mailboxPrompt = useMailboxPrompt()
           <div class="empty-seats" aria-hidden="true">
             <span v-for="n in 6" :key="n" class="empty-seat"></span>
           </div>
-          <p class="empty-line">{{ t('schools.classDetail.rosterEmptyLine', 'Nobody is in this class yet.') }}</p>
+          <p class="empty-line">{{ t('schools.classDetail.rosterEmptyOwnAccounts', 'No pupil has their own account in this class yet. Lessons played from the front count on the class page.') }}</p>
           <button
             v-if="!isAdminView && !showAddStudent"
             type="button"
@@ -1243,7 +1290,7 @@ const mailboxPrompt = useMailboxPrompt()
               <tr>
                 <th>{{ t('schools.classDetail.studentColumn', 'Student') }}</th>
                 <th>{{ t('schools.classDetail.beltColumn', 'Belt') }}</th>
-                <th>{{ t('schools.classDetail.legosColumn', 'LEGOs') }}</th>
+                <th>{{ t('schools.classDetail.legosColumn', 'Phrases') }}</th>
                 <th>{{ t('schools.classDetail.practiceColumn', 'Practice') }}</th>
                 <th>{{ t('schools.classDetail.lastActiveColumn', 'Last active') }}</th>
                 <th></th>
@@ -1271,7 +1318,7 @@ const mailboxPrompt = useMailboxPrompt()
                 <td class="row-action">
                   <!-- HANDBOOK Remove a student from a class
                        section: running-classes
-                       roles: leader, school_admin, teacher
+                       roles: teacher
                        place: class-detail
                        keywords: remove, student, roster, leave, class
                        What it's for. Taking a student off a class roster,
@@ -1323,11 +1370,11 @@ const mailboxPrompt = useMailboxPrompt()
       <aside class="rail">
         <!-- HANDBOOK Where the class has got to
              section: seeing-progress
-             roles: leader, school_admin, teacher
+             roles: teacher
              place: class-detail
              keywords: progress, journey, belt, position, course
              What it's for. How far the class has travelled through its course, as a
-             bar in LEGOs with the next belt named. A class is one learner account
+             bar in phrases with the next belt named. A class is one learner account
              played from the front, so this is the class's own place on the course,
              moved by the sessions you run together.
              Where it is. The class page, the **Course Journey** card in the column
@@ -1348,21 +1395,24 @@ const mailboxPrompt = useMailboxPrompt()
           <template v-else>
             <JourneyBar :done="journeyDone" :total="Math.max(journeyTotal, journeyDone)" />
             <p class="rail-note">
-              {{ t('schools.classDetail.classTravelled', 'The class has travelled {done} of {total} LEGOs together.').replace('{done}', String(journeyDone)).replace('{total}', String(journeyTotal)) }}<br />
+              {{ t('schools.classDetail.classTravelled', 'The class has travelled {done} of {total} phrases together.').replace('{done}', String(journeyDone)).replace('{total}', String(journeyTotal)) }}<br />
               <template v-if="nextBeltInfo">{{ t('schools.classDetail.moreToNextBelt', '{n} more to {belt} belt.').replace('{n}', String(nextBeltInfo.remaining)).replace('{belt}', nextBeltInfo.name) }}</template>
               <template v-else>{{ t('schools.classDetail.reachedBlackBelt', 'Reached Black belt — top of the ladder.') }}</template>
             </p>
           </template>
         </div>
 
-        <!-- School leaders only: the repair for a teacher who played as themselves.
-             The server accepts teachers of the class too, but the card is a
-             leader's tool by commission (Angharad, 2026-09-11). -->
+        <!-- The repair for a lesson played on a teacher's own account. A leader
+             picks the teacher (Angharad's commission, 2026-09-11); a teacher
+             fixes their OWN lesson, no picker (job #651 — half of Chepstow's
+             teachers had done exactly that in one week, and the server always
+             admitted a teacher of the class). -->
         <CopyTeacherPlayCard
-          v-if="!isAdminView && (isSchoolAdmin || isGovtAdmin) && classIdParam"
+          v-if="!isAdminView && classIdParam && (isSchoolAdmin || isGovtAdmin || isTeacher)"
           :class-id="classIdParam"
           :teachers="classTeachers.map(x => ({ user_id: x.user_id, name: x.name }))"
           :teachers-state="teacherListState"
+          :self-user-id="isSchoolAdmin || isGovtAdmin ? undefined : (selectedUser?.user_id || undefined)"
           @copied="loadClass"
         />
 
@@ -1378,7 +1428,7 @@ const mailboxPrompt = useMailboxPrompt()
             </p>
             <!-- HANDBOOK How students join a class
                  section: getting-people-in
-                 roles: leader, school_admin, teacher
+                 roles: teacher
                  place: class-detail
                  keywords: join, link, code, students, invite, class
                  What it's for. The one door into a class. A student who follows
@@ -1474,6 +1524,13 @@ const mailboxPrompt = useMailboxPrompt()
 </template>
 
 <style scoped>
+.roster-titles { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.roster-caption { margin: 0; font-size: var(--text-xs, 12px); }
+.tools-note { margin: 6px 0 0; font-size: var(--text-sm); }
+.tools-note a { color: inherit; text-decoration: underline; margin-left: 4px; }
+.crumb-link { color: inherit; text-decoration: none; }
+.crumb-link:hover { text-decoration: underline; }
+
 .detail {
   padding: 18px 32px 32px;
   max-width: 1320px;
@@ -1857,14 +1914,9 @@ const mailboxPrompt = useMailboxPrompt()
 }
 
 .teacher-select {
+  /* FrostSelect reads these; the shared dropdown wears this page's look. */
   margin-top: 12px;
-  padding: 6px 8px;
-  font-size: 12.5px;
-  font-family: var(--font-body);
-  border: 1px solid var(--schools-border);
-  border-radius: 6px;
-  background: #fafaf6;
-  color: var(--schools-fg);
+  --fs-font: var(--font-body); --fs-bg: #fff; --rc-entity: 219 30 23; --rc-entity-ink: var(--schools-red); --fs-font-size: 12.5px; --fs-radius: 6px; --fs-bg: #fafaf6; --fs-border: var(--schools-border); --fs-min-height: 34px; --fs-pad: 6px 10px;
 }
 
 .teacher-add-actions {

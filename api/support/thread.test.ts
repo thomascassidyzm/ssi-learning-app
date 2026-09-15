@@ -3,7 +3,7 @@
  * and a peek never counts as reading.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { makeChainable, makeReq, makeRes, TEACHER_SCOPE, ADMIN_SCOPE, type DB } from './_testkit'
+import { makeChainable, makeReq, makeRes, TEACHER_SCOPE, ADMIN_SCOPE, FAILING_TABLES, VIEW_AS_HEADERS, type DB } from './_testkit'
 
 process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://example.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'service-role-key'
@@ -22,6 +22,7 @@ beforeEach(async () => {
   vi.resetModules()
   handler = (await import('./thread')).default
   DB = { support_threads: [], support_messages: [] }
+  FAILING_TABLES.clear()
   scope = ADMIN_SCOPE
 })
 
@@ -62,6 +63,49 @@ describe('GET /api/support/thread', () => {
     expect(JSON.stringify(res.body)).not.toContain('another school')
   })
 
+  it('opening the thread marks the inbox rows for its replies read, and only those (job #684)', async () => {
+    DB.support_threads = [{ id: 't1', school_id: 's1', last_read_at: null, language: 'eng', standing_notes: {} }]
+    DB.support_messages = [
+      { id: 'm2', thread_id: 't1', body: 'reply', direction: 'out', author_source: 'agent', author_name: 'SSi', in_reply_to: 'm1', created_at: '2026-09-10T19:41:00.000Z' },
+    ]
+    DB.user_messages = [
+      { id: 'um1', recipient_user_id: 'caller-1', source: 'support_reply', read_at: null, action: { kind: 'open_support', label: 'Open Support', payload: { thread_id: 't1', message_id: 'm2' } } },
+      { id: 'um2', recipient_user_id: 'caller-1', source: 'support_reply', read_at: null, action: { kind: 'open_support', label: 'Open Support', payload: { thread_id: 'OTHER', message_id: 'm9' } } },
+      { id: 'um3', recipient_user_id: 'someone-else', source: 'support_reply', read_at: null, action: { kind: 'open_support', label: 'Open Support', payload: { thread_id: 't1', message_id: 'm2' } } },
+      { id: 'um4', recipient_user_id: 'caller-1', source: 'class_play_copied', read_at: null, action: { kind: 'undo_class_play_copy', label: 'Undo', payload: { audit_id: 'a1' } } },
+    ]
+    const res = makeRes()
+    await handler(makeReq(), res)
+    expect(res.statusCode).toBe(200)
+    expect(DB.user_messages.find((m) => m.id === 'um1').read_at).toBeTruthy()
+    expect(DB.user_messages.find((m) => m.id === 'um2').read_at).toBeNull()
+    expect(DB.user_messages.find((m) => m.id === 'um3').read_at).toBeNull()
+    expect(DB.user_messages.find((m) => m.id === 'um4').read_at).toBeNull()
+  })
+
+  it('?peek=1 creates no thread when the school has none yet (job #677: four schools "opened" one by loading the dashboard)', async () => {
+    DB.support_threads = []
+    const res = makeRes()
+    await handler(makeReq({ query: { peek: '1' } }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toEqual({ unread: 0 })
+    expect(DB.support_threads).toHaveLength(0)
+  })
+
+  it('?peek=1 answers 500, not unread zero, when the thread lookup itself fails (job #680: silent to loud)', async () => {
+    DB.support_threads = [{ id: 't1', school_id: 's1', last_read_at: null, language: null, standing_notes: {} }]
+    DB.support_messages = [{ id: 'm1', thread_id: 't1', body: 'q', direction: 'in', author_source: 'human', created_at: '2026-09-10T19:39:00.000Z' }]
+    FAILING_TABLES.set('support_threads', { message: 'permission denied for table support_threads', code: '42501' })
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const res = makeRes()
+    await handler(makeReq({ query: { peek: '1' } }), res)
+    expect(res.statusCode).toBe(500)
+    expect(res.body.unread).toBeUndefined()
+    expect(res.body.error).toContain('permission denied for table support_threads')
+    expect(errorSpy).toHaveBeenCalled()
+    errorSpy.mockRestore()
+  })
+
   it('?peek=1 reports the unread count without marking the thread read', async () => {
     DB.support_threads = [{ id: 't1', school_id: 's1', last_read_at: '2026-09-10T18:00:00.000Z', language: null, standing_notes: {} }]
     DB.support_messages = [
@@ -71,5 +115,42 @@ describe('GET /api/support/thread', () => {
     await handler(makeReq({ query: { peek: '1' } }), res)
     expect(res.body).toEqual({ unread: 1 })
     expect(DB.support_threads[0].last_read_at).toBe('2026-09-10T18:00:00.000Z')
+  })
+})
+
+/**
+ * Job #681, 2026-09-14. Tom: "viewing as a school admin/teacher must never
+ * create rows in that person's name". ONE guard at the entry of the support
+ * action, so the open, the mark-read and the peek are all refused together —
+ * the open is what wrote a thread, so the open is what has to stop.
+ */
+describe('GET /api/support/thread under View As', () => {
+  it('refuses the open, creates no thread and marks nothing read', async () => {
+    const res = makeRes()
+    await handler(makeReq({ headers: VIEW_AS_HEADERS }), res)
+    expect(res.statusCode).toBe(403)
+    expect(DB.support_threads).toHaveLength(0)
+  })
+
+  it('refuses the open of an EXISTING thread without touching last_read_at', async () => {
+    DB.support_threads = [{ id: 't1', school_id: 's1', last_read_at: '2026-09-10T18:00:00.000Z', language: null, standing_notes: {} }]
+    const res = makeRes()
+    await handler(makeReq({ headers: VIEW_AS_HEADERS }), res)
+    expect(res.statusCode).toBe(403)
+    expect(DB.support_threads[0].last_read_at).toBe('2026-09-10T18:00:00.000Z')
+  })
+
+  it('refuses the peek too — one guard at the entry, not a patch per step', async () => {
+    const res = makeRes()
+    await handler(makeReq({ query: { peek: '1' }, headers: VIEW_AS_HEADERS }), res)
+    expect(res.statusCode).toBe(403)
+    expect(DB.support_threads).toHaveLength(0)
+  })
+
+  it('a real school admin session, which never sends the header, is untouched', async () => {
+    const res = makeRes()
+    await handler(makeReq(), res)
+    expect(res.statusCode).toBe(200)
+    expect(DB.support_threads).toHaveLength(1)
   })
 })

@@ -10,6 +10,7 @@ import { BELTS } from '../composables/useBeltProgress'
 import { useListeningPods, SPEAKER_PALETTE } from '../composables/useListeningPods'
 import { getCachedListeningMeta } from '../composables/listeningMetaCache'
 import { buildSilentWavDataUri } from '../playback/silentWav'
+import { setPlaybackLive } from '../playback/playbackLiveness'
 import { buildModalQueue as buildPodModalQueue } from '../playback/podModalQueue'
 import { podLineShown } from '../playback/podLineText'
 import { changeoverGapMs, isJumpInChangeover, jumpInLeadMs, GAP_DRILL_MS, GAP_IMMERSION_JOIN_MS } from '../playback/podChangeover'
@@ -516,9 +517,11 @@ const loopScene = ref(false)
 //               target (t·k·t·t). Tight repetition to lock a line in.
 // (The admin Progression preview was retired 2026-06-24 — it now lives in the
 // dashboard Listening Config tool's full-arc preview.)
+// No captions under the toggle: Aran + Tom (2026-09-14) cut the
+// over-explaining one-liners; the two labels carry the choice on their own.
 const BASE_LISTEN_MODES = [
-  { key: 'immersion', label: 'Immersion', desc: 'The whole scene in the target language, at your pace' },
-  { key: 'drill',     label: 'Drill',     desc: 'Each line four times — target, its meaning, then target twice more' },
+  { key: 'immersion', label: 'Immersion' },
+  { key: 'drill',     label: 'Drill' },
 ]
 const LISTEN_MODES = computed(() => BASE_LISTEN_MODES)
 const validModeKeys = computed(() => new Set(LISTEN_MODES.value.map((m) => m.key)))
@@ -2168,6 +2171,9 @@ const clearMediaSession = () => {
 }
 
 watch(isPlaying, async (playing) => {
+  // Listening Mode is live play too: the playing-as-yourself banner and the
+  // never-interrupt gates read it through playbackLiveness (job #693).
+  setPlaybackLive('listening', playing)
   if ('mediaSession' in navigator) {
     navigator.mediaSession.playbackState = playing ? 'playing' : 'paused'
   }
@@ -2256,6 +2262,7 @@ onMounted(async () => {
 onUnmounted(() => {
   stopClipClock()
   stopPlayback()
+  setPlaybackLive('listening', false)
   releaseWakeLock()
   clearMediaSession()
   if (listeningTickTimer) { clearInterval(listeningTickTimer); listeningTickTimer = null }
@@ -2309,12 +2316,6 @@ watch(
         <polyline points="15 18 9 12 15 6"/>
       </svg>
     </button>
-
-    <!-- Ambient progress — a hairline at the top edge, not a transport bar.
-         The scene's position reads like a reading-progress line. -->
-    <div v-if="view === 'pods' && selectedScene" class="top-progress" aria-hidden="true">
-      <div class="top-progress-fill" :style="{ width: progressPercent + '%' }"></div>
-    </div>
 
     <!-- (Offline download button removed 2026-05-20; its script-side
          machinery removed 2026-09-01 — the learner's route to these bytes is
@@ -2501,10 +2502,15 @@ watch(
             <polygon points="7 3 20 12 7 21 7 3"/>
           </svg>
         </button>
-        <div class="progress-bar">
-          <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
-        </div>
-        <span class="progress-text">{{ progressPercent }}%</span>
+        <!-- Progress bar + percentage: All / Core only. A dialogue scene has
+             no bar — the highlighted line IS the position (Aran + Tom,
+             2026-09-14). -->
+        <template v-if="!isDialogueScene">
+          <div class="progress-bar">
+            <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
+          </div>
+          <span class="progress-text">{{ progressPercent }}%</span>
+        </template>
       </div>
 
       <!-- Speed slot — always present, in every view and both modes, so the
@@ -2535,11 +2541,6 @@ watch(
         :model-value="listenMode"
         @update:model-value="listenMode = $event"
       />
-      <!-- Immersion vs Drill were visually identical before pressing play — the
-           desc lived only in a hover :title, invisible on touch (Gap 6). Surface
-           the selected mode's one-liner directly, matching the pattern the mode
-           tray already uses for its Offline sub-description. -->
-      <p v-if="modeSurface" class="listen-mode-desc">{{ LISTEN_MODES.find(m => m.key === listenMode)?.desc }}</p>
 
       <!-- Gloss eye: show/hide the known-language line under each phrase. -->
       <button
@@ -2630,6 +2631,16 @@ watch(
           @select="handlePhraseClick"
         >
           <template #line="{ line: phrase, isCurrent }">
+            <!-- Paused disc, anchored to the CURRENT card: it floats a fixed
+                 distance above the card, so it can never sit over the speaker
+                 name or the line (job #650 regression — the viewport-centred
+                 disc landed on the card once the captions went). Playing shows
+                 nothing. Pointer-events none; the tap lands beneath. -->
+            <div v-if="isCurrent && !isPlaying" class="paused-glyph" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="8 5 19 12 8 19 8 5"/>
+              </svg>
+            </div>
             <!-- Dialogue speaker chip — the conversation colouring made
                  visible. Same character = same colour across the whole pod;
                  two characters in the same scene never share a colour. -->
@@ -2739,15 +2750,6 @@ watch(
         </div>
       </div>
 
-      <!-- Paused state, dialogue scenes: a soft glyph floats over the
-           teleprompter — the video-player idiom. While playing there is
-           NOTHING: the dialogue owns the screen. Pointer-events none; the
-           tap lands on the surface beneath, which toggles playback. -->
-      <div v-if="view === 'pods' && selectedScene && !isPlaying" class="paused-glyph" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="currentColor">
-          <polygon points="8 5 19 12 8 19 8 5"/>
-        </svg>
-      </div>
     </div>
   </div>
 </template>
@@ -2758,6 +2760,10 @@ watch(
 .listening-overlay {
   position: fixed;
   inset: 0;
+  /* Starts below the playing-as-yourself strip when one is across the top
+     (job #699), which is the whole top inset in that case — the strip has
+     already cleared the notch, so the shell token below reads 0 under it. */
+  top: var(--top-bands-h, 0px);
   /* Intentionally BELOW the bottom NavPill (z-index 2900) and BottomNav
    * (z-index 3000) — the nav stays visible during Listening Mode as an
    * escape route so the learner can leave via the normal nav pill as
@@ -2776,14 +2782,14 @@ watch(
   backdrop-filter: blur(20px) saturate(120%);
   -webkit-backdrop-filter: blur(20px) saturate(120%);
   font-family: var(--font-body);
-  padding: env(safe-area-inset-top, 20px) 0 calc(env(safe-area-inset-bottom, 20px) + 100px) 0;
+  padding: var(--shell-inset-top) 0 calc(env(safe-area-inset-bottom, 20px) + 100px) 0;
   cursor: pointer;
 }
 
 /* Close button */
 .close-btn {
   position: absolute;
-  top: calc(env(safe-area-inset-top, 20px) + 12px);
+  top: calc(var(--shell-inset-top) + 12px);
   right: 16px;
   width: 44px;
   height: 44px;
@@ -2900,16 +2906,6 @@ watch(
 
 /* Drill: an empty slot that only reserves the row's height, so switching
  * modes never shifts the layout (nothing is shown under Drill). */
-
-/* One-liner under the Immersion/Drill toggle — same treatment as the mode
- * tray's Offline sub-description, so the two modes read as distinct
- * before the learner ever presses play (Gap 6). */
-.listen-mode-desc {
-  margin: 4px 0 0;
-  text-align: center;
-  font-size: 0.72rem;
-  color: var(--text-muted);
-}
 
 .speed-selector {
   display: flex;
@@ -3264,7 +3260,7 @@ watch(
   /* Same safe-area pattern as .close-btn / .download-btn — absolutely
    * positioned children ignore the parent's safe-area padding, so the
    * notch/Dynamic Island ate the tabs on iOS PWA. */
-  top: calc(env(safe-area-inset-top, 0px) + 0.6rem);
+  top: calc(var(--shell-inset-top) + 0.6rem);
   left: 50%;
   transform: translateX(-50%);
   z-index: 5;
@@ -3619,26 +3615,6 @@ watch(
   left: 16px;
 }
 
-/* Ambient progress — a 2px reading line at the very top edge. Ink at low
- * opacity; it informs without performing. */
-.top-progress {
-  position: absolute;
-  top: env(safe-area-inset-top, 0px);
-  left: 0;
-  right: 0;
-  height: 2px;
-  z-index: 11;
-  background: transparent;
-  pointer-events: none;
-}
-
-.top-progress-fill {
-  height: 100%;
-  background: var(--text-primary);
-  opacity: 0.35;
-  transition: width 0.6s ease;
-}
-
 /* Scene orientation — a whisper of mono caps under the controls. */
 .scene-strip {
   text-align: center;
@@ -3654,13 +3630,15 @@ watch(
 }
 
 /* Paused glyph — the surface IS the transport. Soft elevated disc, ink
- * triangle, floats over the teleprompter only while paused; playing shows
- * nothing. Taps pass through to the tap-anywhere toggle beneath. */
+ * triangle, floats a fixed distance ABOVE the current card only while paused;
+ * playing shows nothing. Anchored to the card (the card is position:relative)
+ * so it never overlaps the card's contents whatever the toolbar height. Taps
+ * pass through to the tap-anywhere toggle beneath. */
 .paused-glyph {
-  position: fixed;
-  top: 50%;
+  position: absolute;
+  bottom: calc(100% + 18px);
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
   width: 76px;
   height: 76px;
   border-radius: 50%;
@@ -3685,8 +3663,8 @@ watch(
 }
 
 @keyframes paused-glyph-in {
-  from { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
-  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  from { opacity: 0; transform: translateX(-50%) scale(0.85); }
+  to   { opacity: 1; transform: translateX(-50%) scale(1); }
 }
 
 /* Interleaved gloss pairs — one sentence + its translation, matchable at

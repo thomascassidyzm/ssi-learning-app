@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, reactive, inject } from 'vue'
-import { useRouter } from 'vue-router'
+import FrostSelect from '@/components/FrostSelect.vue'
+import { useRouter, useRoute } from 'vue-router'
 import CreateClassModal from '@/components/schools/CreateClassModal.vue'
 import SchoolsPasswordPrompt from '@/components/schools/SchoolsPasswordPrompt.vue'
 import ClassCreatedModal from '@/components/schools/ClassCreatedModal.vue'
@@ -19,22 +20,28 @@ import { getLanguageName, useI18n } from '@/composables/useI18n'
 import { deriveBelt } from '@/composables/schools/belts'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
 
-import { yearGroupBreakdown, practisedWithin } from './yearGroup'
+import { yearGroupBreakdown, practisedWithin, parseYearGroup, type YearGroupTile } from './yearGroup'
 import YearGroupTiles from '@/components/schools/shared/YearGroupTiles.vue'
 import ShowAll from '@/components/shared/ShowAll.vue'
 import { topThree } from '@/components/shared/topThree'
 // A class IS one learner account (Tom's ruling, 2026-09-11, job #265), so
-// there is no per-pupil sort: name, time in app, or how far the class has got.
-type SortKey = 'name' | 'hours' | 'journey'
+// there is no per-pupil sort: name, time in app, how far the class has got,
+// or the phrases it practised this week — the last one is the school
+// overview's phrases card broken down per class (job #624).
+type SortKey = 'name' | 'hours' | 'journey' | 'phrases'
+const SORT_KEYS: readonly SortKey[] = ['name', 'hours', 'journey', 'phrases']
 
 const router = useRouter()
+const route = useRoute()
 const { t } = useI18n()
 
 const isAdminView = inject<boolean>('isAdminView', false)
 const { schoolsLink } = useSchoolsNav()
 const { currentUser: selectedUser, isTeacher, isSchoolAdmin } = useSchoolContext()
 const { classes: classesData, isLoading: classesLoading, error: classesError, classesLoaded, fetchClasses, createClass, getClassReport } = useClassesData()
-const { canPlayAsClass, launchClassSession, playError } = usePlayAsClass()
+const { canPlayAsClass, playAsClassReadOnly, launchClassSession, playError } = usePlayAsClass()
+// Under View As the button is shown disabled, never hidden (job #683).
+const playAsClassTitle = computed(() => (playAsClassReadOnly.value ? t('schools.playAsClass.viewAsReadOnly', 'Read only while you are viewing as someone else. A teacher can press this.') : ''))
 
 const isCreateModalOpen = ref(false)
 const createdClass = ref<any>(null)
@@ -75,7 +82,52 @@ const schoolAvailableCourses = computed(() => {
 })
 
 const courseFilter = ref<string>('all')
-const sortKey = ref<SortKey>('name')
+// THE URL IS THE FILTER (job #624, Tom: "everything should be tappable"): the
+// school overview's cards and year-group tiles land here with ?sort=hours,
+// ?practising=1 or ?year=7, and the tiles on this page set the same query, so
+// a tap is a link and the back button undoes it. Read on mount and on change.
+function sortFromQuery(): SortKey {
+  const q = route.query.sort
+  return typeof q === 'string' && (SORT_KEYS as readonly string[]).includes(q) ? (q as SortKey) : 'name'
+}
+// 'all' | 'other' | a year number as a string.
+function yearFromQuery(): string {
+  const q = route.query.year
+  if (q === 'other') return 'other'
+  return typeof q === 'string' && /^\d{1,2}$/.test(q) ? q : 'all'
+}
+const sortKey = ref<SortKey>(sortFromQuery())
+const yearFilter = ref<string>(yearFromQuery())
+const practisingOnly = ref<boolean>(route.query.practising === '1')
+watch(() => [route.query.sort, route.query.year, route.query.practising], () => {
+  sortKey.value = sortFromQuery()
+  yearFilter.value = yearFromQuery()
+  practisingOnly.value = route.query.practising === '1'
+})
+// The pickers write the URL too, so a sort chosen by hand is shareable and
+// the tiles' links and the pickers never disagree about the page's state.
+watch(sortKey, (k) => {
+  if (k !== sortFromQuery()) void router.replace({ query: { ...route.query, sort: k === 'name' ? undefined : k } })
+})
+function clearYearFilter(): void {
+  void router.replace({ query: { ...route.query, year: undefined } })
+}
+function clearPractisingFilter(): void {
+  void router.replace({ query: { ...route.query, practising: undefined } })
+}
+// A year-group tile links to this same page filtered to that year; a per-class
+// tile (fewer than half the names parse) opens the class itself.
+function yearTileLink(tile: YearGroupTile): string | null {
+  if (tile.name) return schoolsLink('class-detail', { classId: tile.key.replace(/^class:/, '') })
+  const year = tile.year === null ? 'other' : String(tile.year)
+  const q = new URLSearchParams()
+  for (const [k, v] of Object.entries(route.query ?? {})) if (typeof v === 'string' && k !== 'year') q.set(k, v)
+  q.set('year', year)
+  return `${schoolsLink('classes')}?${q.toString()}`
+}
+const yearFilterLabel = computed(() => (yearFilter.value === 'other'
+  ? t('schools.yearGroupTiles.other', 'Other')
+  : t('schools.yearGroupTiles.year', 'Year {n}').replace('{n}', yearFilter.value)))
 // At phone width the table becomes one card per class, and the ONE number the
 // admin sorted by sits beside the class name; the rest stack underneath. When
 // the sort is by name, the pinned number is time in app, the school metric.
@@ -108,7 +160,9 @@ async function loadPractice7d() {
     // Shared with the class page (classPractice7d.ts) so both read the same
     // class-account figures; under View-as it names the school being read.
     const data = await fetchClassPractice7d(classIds, selectedUser.value, supabase.value)
-    practice7dSeconds.value = data.practiceByClass
+    // The CLASS ACCOUNT's own play. practiceByClass is the pupils' own accounts
+    // and is never added to this (Tom, 2026-09-14, job #662).
+    practice7dSeconds.value = data.classPlayByClass
     classAccounts.value = data.classAccountByClass
     practiceLoaded.value = true
     practiceError.value = null
@@ -156,6 +210,11 @@ const enrichedClasses = computed(() => {
       course_label: courseShortName(c.course_code),
       teacher_user_id: c.teacher_user_id,
       join_code: c.student_join_code,
+      // The class's OWN learner id rides the row because Play as class stores
+      // it as the identity the session's telemetry belongs to. This row had
+      // no such key on staging 2026-09-14 21:32Z, and a class session's
+      // player_events went to the teacher (job #733).
+      class_learner_id: c.class_learner_id ?? null,
       started,
       // The class's OWN belt, from its play-as-class position — the seed the
       // class has reached — exactly as the class page derives it.
@@ -164,6 +223,7 @@ const enrichedClasses = computed(() => {
       journeyDone: acct?.journeyDone ?? 0,
       journeyTotal: acct?.journeyTotal ?? (c.journey_total ?? 0),
       lastPractisedAt: acct?.lastPractisedAt ?? null,
+      phrases7d: acct?.phrases7d ?? 0,
       minutesWk,
       sessions: report?.class.total_sessions ?? 0,
       active_days: report?.class.active_days_last_7 ?? 0,
@@ -175,20 +235,38 @@ const enrichedClasses = computed(() => {
   })
 })
 
+const sortOptions = computed<{ value: SortKey; label: string }[]>(() => [
+  { value: 'name', label: t('schools.teacherDashboard.sortName', 'Name') },
+  { value: 'hours', label: t('schools.teacherDashboard.sortTimeInApp', 'Time in app') },
+  { value: 'journey', label: t('schools.teacherDashboard.sortJourney', 'Journey') },
+  { value: 'phrases', label: t('schools.teacherDashboard.sortPhrases', 'Phrases practised this week') },
+])
 const courses = computed(() => {
   const set = new Set(enrichedClasses.value.map(c => c.course_label))
   return Array.from(set).sort()
 })
+const courseFilterOptions = computed(() => [
+  { value: 'all', label: t('schools.teacherDashboard.allCourses', 'All courses') },
+  ...courses.value.map((c) => ({ value: c, label: c })),
+])
 
 const filtered = computed(() => {
   let rows = enrichedClasses.value.slice()
   if (courseFilter.value !== 'all') {
     rows = rows.filter(r => r.course_label === courseFilter.value)
   }
+  if (yearFilter.value !== 'all') {
+    const want = yearFilter.value === 'other' ? null : Number(yearFilter.value)
+    rows = rows.filter(r => parseYearGroup(r.class_name) === want)
+  }
+  if (practisingOnly.value) {
+    rows = rows.filter(r => practisedWithin(r.lastPractisedAt))
+  }
   rows.sort((a, b) => {
     if (sortKey.value === 'name') return a.class_name.localeCompare(b.class_name)
     if (sortKey.value === 'hours') return b.minutesWk - a.minutesWk
     if (sortKey.value === 'journey') return b.journeyDone - a.journeyDone
+    if (sortKey.value === 'phrases') return b.phrases7d - a.phrases7d
     return 0
   })
   return rows
@@ -226,9 +304,9 @@ const headlineSubtitle = computed(() => {
     ? t('schools.teacherDashboard.classSingular', 'class')
     : t('schools.teacherDashboard.classPlural', 'classes')
   const base = selectedUser.value?.school_name
-    ? t('schools.teacherDashboard.summaryWithSchoolMinutes', '{n} {classWord} across {school} · {minutes} in the app this week')
+    ? t('schools.teacherDashboard.summaryWithSchoolMinutes', '{n} {classWord} across {school} · {minutes} played as class this week')
         .replace('{school}', selectedUser.value.school_name)
-    : t('schools.teacherDashboard.summaryNoSchoolMinutes', '{n} {classWord} · {minutes} in the app this week')
+    : t('schools.teacherDashboard.summaryNoSchoolMinutes', '{n} {classWord} · {minutes} played as class this week')
   return base
     .replace('{n}', String(enrichedClasses.value.length))
     .replace('{classWord}', classWord)
@@ -329,7 +407,7 @@ function closeCreatedModal() {
   mailboxPrompt.noteKeepWorthyMoment()
 }
 
-function openClass(cls: { id: string; class_name: string; course_code: string; current_seed: number; join_code: string; class_learner_id?: string | null }) {
+function openClass(cls: { id: string; class_name: string; course_code: string; current_seed: number; join_code: string; class_learner_id: string | null }) {
   const stored = {
     id: cls.id,
     class_name: cls.class_name,
@@ -344,7 +422,7 @@ function openClass(cls: { id: string; class_name: string; course_code: string; c
 
 // Play-as-class straight from the row's right-hand action (mirrors ClassDetail /
 // DashboardView): one shared launch path in usePlayAsClass.launchClassSession.
-async function handlePlayClass(cls: { id: string; class_name: string; course_code: string; current_seed: number; join_code: string; class_learner_id?: string | null }) {
+async function handlePlayClass(cls: { id: string; class_name: string; course_code: string; current_seed: number; join_code: string; class_learner_id: string | null }) {
   await launchClassSession(cls)
 }
 
@@ -366,7 +444,7 @@ async function copyShareLink(cls: { id: string; join_code: string }) {
 }
 
 function exportCsv() {
-  const header = ['Class', 'Course', 'Belt', 'Journey LEGOs', 'Journey total', 'Time in app min/wk', 'Sessions', 'Join code']
+  const header = ['Class', 'Course', 'Belt', 'Journey phrases', 'Journey total', 'Played as class this week', 'Sessions', 'Join code']
   const rows = filtered.value.map(c => [
     c.class_name,
     c.course_label,
@@ -396,7 +474,10 @@ function exportCsv() {
     <div class="page-head">
       <div class="page-head-text">
         <h1 class="arsenal page-title">{{ headlineTitle }}</h1>
-        <p class="page-subtitle schools-subtle">{{ headlineSubtitle }} <UpdatedStamp /></p>
+        <p class="page-subtitle schools-subtle">
+          <router-link :to="{ query: { ...route.query, sort: 'hours' } }" class="subtitle-link">{{ headlineSubtitle }}</router-link>
+          <UpdatedStamp />
+        </p>
       </div>
       <div class="page-head-actions">
         <!-- HANDBOOK Export your class list
@@ -405,7 +486,7 @@ function exportCsv() {
              place: classes
              keywords: export, csv, download, report, classes
              What it's for. Taking the class list away as a spreadsheet, with the name,
-             language, belt, journey in LEGOs, minutes in the app this week, sessions
+             language, belt, journey in phrases, minutes in the app this week, sessions
              and join code for every class.
              Where it is. **My Classes**, the **Export CSV** button along the top.
              How you do it.
@@ -479,14 +560,17 @@ function exportCsv() {
          2. Read the big figure on each tile for phrases practised this week.
          3. Read the line under it for classes practising out of classes in that
             year.
-         4. A tile reading **Other** holds the classes whose names carry no year.
+         4. Tap a tile and the table below narrows to that year's classes; a
+            **Year 7 ×** chip in the pickers takes the filter off again.
+         5. A tile reading **Other** holds the classes whose names carry no year.
          Worth knowing. The year is read off the class name — a leading number from
          6 to 13, so **7B**, **Year 9 French** and **10 Set 1** all count — and is
          never stored. If fewer than half your class names carry a year the card
-         reads **By class** instead, busiest first, three then **Show all**.
-         checked: fe07be7c.eeedfa69
+         reads **By class** instead, busiest first, three then **Show all**, and
+         each of those tiles opens its class.
+         checked: 47222cdc.8e33b776
     -->
-    <YearGroupTiles v-if="showYearGroups" data-walk="classes-year-groups" class="year-groups" :breakdown="yearGroups" />
+    <YearGroupTiles v-if="showYearGroups" data-walk="classes-year-groups" class="year-groups" :breakdown="yearGroups" :tile-link="yearTileLink" />
 
     <!-- Filters -->
     <!-- HANDBOOK Find a class in a long list
@@ -511,20 +595,22 @@ function exportCsv() {
     <div data-walk="classes-filters" v-if="enrichedClasses.length > 0" class="filters-bar schools-card">
       <label class="filter">
         <span class="filter-label">{{ t('schools.teacherDashboard.courseLabel', 'Course') }}</span>
-        <select v-model="courseFilter" class="filter-select">
-          <option value="all">{{ t('schools.teacherDashboard.allCourses', 'All courses') }}</option>
-          <option v-for="c in courses" :key="c" :value="c">{{ c }}</option>
-        </select>
+        <FrostSelect v-model="courseFilter" class="filter-select" :options="courseFilterOptions" :aria-label="t('schools.teacherDashboard.courseLabel', 'Course')" />
       </label>
 
       <div class="filter filter-sort">
         <span class="filter-label">{{ t('schools.teacherDashboard.sortLabel', 'Sort by') }}</span>
-        <select v-model="sortKey" class="filter-select">
-          <option value="name">{{ t('schools.teacherDashboard.sortName', 'Name') }}</option>
-          <option value="hours">{{ t('schools.teacherDashboard.sortTimeInApp', 'Time in app') }}</option>
-          <option value="journey">{{ t('schools.teacherDashboard.sortJourney', 'Journey') }}</option>
-        </select>
+        <FrostSelect v-model="sortKey" class="filter-select" :options="sortOptions" :aria-label="t('schools.teacherDashboard.sortLabel', 'Sort by')" />
       </div>
+
+      <!-- The filters a tap on the school overview or a year tile brought
+           here, each with its own way off. -->
+      <button v-if="yearFilter !== 'all'" type="button" class="filter-chip" @click="clearYearFilter">
+        {{ yearFilterLabel }} <span aria-hidden="true">×</span>
+      </button>
+      <button v-if="practisingOnly" type="button" class="filter-chip" @click="clearPractisingFilter">
+        {{ t('schools.teacherDashboard.practisingThisWeek', 'Practising this week') }} <span aria-hidden="true">×</span>
+      </button>
     </div>
 
     <!-- Table -->
@@ -537,11 +623,13 @@ function exportCsv() {
            What it's for. One row per class, showing at a glance what each one has done.
            A class is one learner account, played from the front of the room, so every
            figure on the row is that account's own: the belt the class has reached, how
-           far through the course it has travelled in LEGOs, minutes in the app this
-           week and the shape of its last seven days. Nothing on the row grades the
-           class. Time in app is time with the lesson running, pauses included — the
-           time the class was in the lesson. A class that has never played says
-           **Not started** in words rather than showing a row of zeros.
+           far through the course it has travelled in phrases, minutes played as class
+           over the last seven days and the shape of those days. Nothing on the row
+           grades the class. Played as class is time with the lesson running on the
+           class account, from pressing play to stopping, pauses included — the same
+           minute the class page, the school home and Insights count. Pupils' own
+           practice is not in it. A class that has never played says **Not started**
+           in words rather than showing a row of zeros.
            Where it is. **My Classes**, the table filling most of the page. On a
            phone each class is a card instead, with the number you sorted by beside
            its name and the rest underneath.
@@ -564,8 +652,9 @@ function exportCsv() {
             <th>{{ t('schools.teacherDashboard.tableHeaderClass', 'Class') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderCourse', 'Course') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderBelt', 'Belt') }}</th>
-            <th>{{ t('schools.teacherDashboard.tableHeaderJourney', 'Journey, LEGOs') }}</th>
-            <th>{{ t('schools.teacherDashboard.tableHeaderTimeInAppMinutes', 'Time in app, min/wk') }}</th>
+            <th>{{ t('schools.teacherDashboard.tableHeaderJourney', 'Journey, phrases') }}</th>
+            <th>{{ t('schools.teacherDashboard.tableHeaderTimeInApp', 'Played as class, this week') }}</th>
+            <th>{{ t('schools.teacherDashboard.tableHeaderPhrases', 'Phrases practised this week') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderActivity', 'Activity') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderShare', 'Share') }}</th>
             <th></th>
@@ -577,18 +666,21 @@ function exportCsv() {
                roles: school_admin, teacher
                place: classes
                keywords: class, open, detail, roster, view
-               What it's for. Going from the summary row into the class itself, where
-               the roster, the teachers, the join link and the class's progress all
-               live.
+               What it's for. Going from the summary row into the class itself.
+               A school leader lands on the class's own page: what it practised
+               this week, its minutes in the app, how far it has travelled and
+               who teaches it, with **Invite students** and **See insights** at
+               the top. A teacher lands on the class tools: the roster, the
+               teachers, the join link and the class's progress.
                Where it is. **My Classes**, anywhere on the class's row.
                How you do it.
                1. Open **My Classes**.
                2. Tap the row for the class you want.
-               3. The class page opens on its roster.
+               3. The class page opens.
                Worth knowing. The row is a button in its own right, so a keyboard
                works too. The buttons at the right of the row do their own jobs and
                do not open the class.
-               checked: 0a6c4f98.5d707d0d
+               checked: a021ba99.b9c5c0f1
           -->
           <tr
             v-for="cls in rowsShown.shown"
@@ -615,15 +707,20 @@ function exportCsv() {
                 <span class="belt-name">{{ cls.class_belt }}</span>
               </div>
             </td>
-            <td :data-label="t('schools.teacherDashboard.tableHeaderJourney', 'Journey, LEGOs')" :class="{ 'is-sorted': pinnedKey === 'journey' }">
+            <td :data-label="t('schools.teacherDashboard.tableHeaderJourney', 'Journey, phrases')" :class="{ 'is-sorted': pinnedKey === 'journey' }">
               <template v-if="cls.started === false">{{ t('schools.teacherDashboard.notStarted', 'Not started') }}</template>
               <template v-else-if="cls.started === null">…</template>
               <template v-else>{{ cls.journeyDone }}<span class="schools-subtle"> / {{ cls.journeyTotal }}</span></template>
             </td>
-            <td :data-label="t('schools.teacherDashboard.tableHeaderTimeInAppMinutes', 'Time in app, min/wk')" :class="{ 'is-sorted': pinnedKey === 'hours' }">
+            <td :data-label="t('schools.teacherDashboard.tableHeaderTimeInApp', 'Played as class, this week')" :class="{ 'is-sorted': pinnedKey === 'hours' }">
               <template v-if="cls.started === false">{{ t('schools.teacherDashboard.notStarted', 'Not started') }}</template>
               <template v-else-if="cls.started === null">…</template>
               <template v-else>{{ formatPracticeMinutes(cls.minutesWk) }}</template>
+            </td>
+            <td :data-label="t('schools.teacherDashboard.tableHeaderPhrases', 'Phrases practised this week')" :class="{ 'is-sorted': pinnedKey === 'phrases' }">
+              <template v-if="cls.started === false">{{ t('schools.teacherDashboard.notStarted', 'Not started') }}</template>
+              <template v-else-if="cls.started === null">…</template>
+              <template v-else>{{ cls.phrases7d }}</template>
             </td>
             <td :data-label="t('schools.teacherDashboard.tableHeaderActivity', 'Activity')"><Sparkline v-if="cls.started" :data="cls.activity" :width="80" :height="20" /><span v-else class="schools-subtle">—</span></td>
             <td class="cell-share">
@@ -669,11 +766,13 @@ function exportCsv() {
                       place in it.
                    Worth knowing. It is the same session the class page starts,
                    so it moves the class on for everyone on the roster. Only
-                   school staff see this button, and only on a live account
-                   rather than a read-only view.
-                   checked: 20cba773.bd7d13d8
+                   school staff see this button. While a platform admin is
+                   viewing the dashboard as you it is greyed out and does
+                   nothing, so they can see what you have without starting a
+                   lesson in your name.
+                   checked: 56db392c.1333b484
               -->
-              <button v-if="canPlayAsClass" type="button" class="row-play-btn" data-walk="classes-row-play" @click.stop="handlePlayClass(cls)">▶ {{ t('schools.teacherDashboard.playAsClass', 'Play as class') }}</button>
+              <button v-if="canPlayAsClass" type="button" class="row-play-btn" data-walk="classes-row-play" :disabled="playAsClassReadOnly" :title="playAsClassTitle" @click.stop="handlePlayClass(cls)">▶ {{ t('schools.teacherDashboard.playAsClass', 'Play as class') }}</button>
             </td>
           </tr>
         </tbody>
@@ -690,7 +789,7 @@ function exportCsv() {
       <button
         type="button"
         class="btn-ghost"
-        @click="() => { courseFilter = 'all' }"
+        @click="() => { courseFilter = 'all'; void router.replace({ query: { ...route.query, year: undefined, practising: undefined } }) }"
       >
         {{ t('schools.teacherDashboard.resetFilters', 'Reset filters') }}
       </button>
@@ -814,6 +913,15 @@ function exportCsv() {
   gap: 8px;
 }
 
+.subtitle-link { color: inherit; text-decoration: none; border-bottom: 1px dotted currentColor; }
+.subtitle-link:hover { color: var(--schools-fg); }
+.filter-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; min-height: 32px;
+  border: 1px solid rgba(44, 38, 34, 0.18); border-radius: 999px; background: #fff;
+  font: inherit; font-size: 13px; color: var(--schools-fg); cursor: pointer;
+}
+.filter-chip:hover { border-color: var(--schools-red); }
+
 .filters-bar {
   display: flex;
   gap: 14px;
@@ -839,20 +947,11 @@ function exportCsv() {
 }
 
 .filter-select {
-  padding: 7px 10px;
-  font-size: 12.5px;
-  border: 1px solid var(--schools-border-strong);
-  border-radius: 6px;
-  background: #fff;
-  font-family: var(--font-body);
-  color: var(--schools-fg);
-  cursor: pointer;
+  /* FrostSelect reads these; the shared dropdown wears this page's look. */
+  min-width: 190px;
+  --fs-font: var(--font-body); --fs-bg: #fff; --rc-entity: 219 30 23; --rc-entity-ink: var(--schools-red); --fs-font-size: 12.5px; --fs-radius: 6px; --fs-border: var(--schools-border-strong);
 }
 
-.filter-select:focus {
-  outline: none;
-  border-color: var(--schools-red);
-}
 
 .table-card {
   overflow: hidden;

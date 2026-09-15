@@ -35,6 +35,7 @@ const UpgradeView = INSTITUTIONAL_PURCHASE_IN_BUILD
 // native WebView has the constant true and the capability false.
 const seatPurchaseAvailable = computed(() => institutionalPurchaseAvailable())
 import NodeMapRail from '@/components/admin/NodeMapRail.vue'
+import LensTabs from '@/components/admin/LensTabs.vue'
 import NodeMapRailSkeleton from '@/components/admin/NodeMapRailSkeleton.vue'
 import NodeChildrenList from '@/components/admin/NodeChildrenList.vue'
 import NodeBelowTree from '@/components/admin/NodeBelowTree.vue'
@@ -53,14 +54,16 @@ import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import ShowAll from '@/components/shared/ShowAll.vue'
 import { topThree } from '@/components/shared/topThree'
 import YearGroupTiles from '@/components/schools/shared/YearGroupTiles.vue'
-import { yearGroupBreakdown, practisedWithin } from '@/views/schools/yearGroup'
+import { yearGroupBreakdown, practisedWithin, type YearGroupTile } from '@/views/schools/yearGroup'
 import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
 import { deriveBelt, BELTS, type Belt } from '@/composables/schools/belts'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
-import { formatPracticeMinutes, hoursToMinutes } from '@/composables/schools/practiceMinutes'
 import { isMemberNodeSurface, nodeInsightsPath } from '@/composables/nodeSurfacePaths'
 import { derivePreset } from '@/composables/nodeTerminology'
 import { timeAgo } from '@/composables/admin/adminUtils'
+import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
+import CopyTeacherPlayCard from '@/components/schools/CopyTeacherPlayCard.vue'
+import CopyPlaySweepCard from '@/components/schools/CopyPlaySweepCard.vue'
 import InsightTable from '@/insight/widgets/Table.vue'
 import type { TableData } from '@/insight/spec'
 
@@ -82,7 +85,32 @@ const member = computed(() => isMemberNodeSurface(route.path))
 // caller's own govt_admins row, never a route param). FAILS OPEN: an
 // unresolved/errored read leaves orgGate null, so nothing renders and nothing
 // blocks. ───
-const { isGovtAdmin, isSchoolAdmin } = useSchoolContext()
+const { isGovtAdmin, isSchoolAdmin, isTeacher, currentUser: schoolUser } = useSchoolContext()
+
+// ─── THE TEACHER'S VERBS on the class page (job #651, Tom 2026-09-14: one
+// class page for every role, leading with play-as-class). The server says
+// whether the viewer teaches this class (callerTeachesClass) — the verbs
+// hang off that fact, never off a role guess. Play as class is the same one
+// launch path every schools surface uses (usePlayAsClass); Manage class is
+// the flat tools page (roster, teachers, join link, rename). Member surface
+// only: the admin mount is a read-view. ───
+const { canPlayAsClass, playAsClassReadOnly, launchClassSession, playError } = usePlayAsClass()
+// Under View As the button is shown disabled, never hidden (job #683).
+const playAsClassTitle = computed(() => (playAsClassReadOnly.value ? t('schools.playAsClass.viewAsReadOnly', 'Read only while you are viewing as someone else. A teacher can press this.') : ''))
+const viewerTeachesClass = computed(() => !!home.value?.callerTeachesClass)
+const viewerIsLeader = computed(() => isSchoolAdmin.value || isGovtAdmin.value)
+const showClassVerbs = computed(() => member.value && isClass.value && !!home.value?.node)
+const classToolsPath = computed(() => (home.value?.node ? `/schools/classes/${home.value.node.id}` : ''))
+async function playThisClass(): Promise<void> {
+  const n = home.value?.node
+  if (!n) return
+  await launchClassSession({ id: n.id, class_name: n.name, course_code: n.course_code, class_learner_id: home.value?.classLearnerId ?? null, last_lego_id: home.value?.journey?.legoId ?? null })
+}
+// The copy-play repair on the class page itself: a leader picks the teacher;
+// a teacher of this class fixes their own lesson (self mode, no picker).
+const showCopyPlay = computed(() => showClassVerbs.value && (viewerIsLeader.value || viewerTeachesClass.value))
+const copyPlaySelfUserId = computed(() => (viewerIsLeader.value ? undefined : (schoolUser.value?.user_id || undefined)))
+const copyPlayTeachers = computed(() => (home.value?.teachers ?? []).map((x: any) => ({ user_id: x.user_id, name: x.name })))
 const isOrgLeaderView = computed(() => member.value && isGovtAdmin.value)
 const orgGate = ref<{ active: boolean; trial_days_remaining: number } | null>(null)
 const orgGateLoaded = ref(false)
@@ -390,52 +418,66 @@ const classPractice = computed(() => home.value?.classPractice ?? null)
 // (api/_utils/inAppTime.ts). Audio-played minutes off the ledger are the
 // secondary figure, named in the sentence under the row. Every figure here is
 // backed by a live record.
-// All-time practice in MINUTES (Tom, 2026-09-11, job #265). practiceMinutes is
-// what the server sends now; a cached pre-#265 payload only has hours.
-const practiceMinutesAllTime = computed(() => {
-  const h = home.value as any
-  if (!h) return 0
-  return typeof h.practiceMinutes === 'number' ? h.practiceMinutes : hoursToMinutes(h.practiceHours)
-})
+// NO ALL-TIME "MINUTES PRACTISED" HERE ANY MORE (Tom, 2026-09-14, job #673:
+// one minute definition, one aggregation, everywhere). The server's
+// practiceMinutes / practiceHours sum school_summary and class_student_progress
+// off the sessions ledger, which the class account cannot write, so it was a
+// second truth beside the in-app minutes below. Every minutes figure on this
+// page is now the in-app rule (api/_utils/inAppTime.ts) over the last seven days.
 
-const stats = computed(() => {
+// EVERYTHING IS TAPPABLE (Tom on staging, 2026-09-14, job #624): on a school
+// leader's own school overview each card is a link to that figure broken
+// down by class — the classes list, sorted or filtered to answer the card —
+// and Teachers to the staff list. The classes list is the school leader's
+// (/schools/classes reads their school), so the links exist only on the
+// member surface for a school leader, never on the admin mount, a class, a
+// group leader's node or a neutral org.
+const statLinksLive = computed(() => member.value && isSchoolAdmin.value && !isClass.value && !neutral.value)
+const stats = computed<{ value: string | number; word: string; to?: string }[]>(() => {
   const n = home.value?.node
   if (!n) return []
   const r = n.rollup || {}
   const cp = classPractice.value
+  const link = (to: string) => (statLinksLive.value ? to : undefined)
   if (isClass.value) {
     return [
       { value: cp?.phrases7d ?? 0, word: t('org.nodeHome.statPhrasesSpokenThisWeek', 'Phrases practised this week') },
-      { value: cp?.inAppMinutes7d ?? 0, word: t('org.nodeHome.statMinutesInAppThisWeek', 'Minutes in the app this week') },
+      { value: cp?.inAppMinutes7d ?? 0, word: t('org.nodeHome.statMinutesPlayedAsClassThisWeek', 'Minutes played as class this week') },
       // The class's own journey — never a per-pupil count on a class, which
       // is one learner account (Tom's ruling, 2026-09-11, job #265).
-      { value: journey.value ? `${journey.value.source === 'class-play' ? journey.value.done : 0}/${journey.value.total}` : '—', word: t('org.nodeHome.statJourneyLegos', 'LEGOs travelled together') },
+      { value: journey.value ? `${journey.value.source === 'class-play' ? journey.value.done : 0}/${journey.value.total}` : '—', word: t('org.nodeHome.statJourneyLegos', 'Phrases travelled together') },
       { value: r.teacherCount ?? 0, word: t('org.nodeHome.statTeachers', 'Teachers') },
     ]
   }
   // Neutral dressing: no class/teacher words — practice, groups, learners.
   if (neutral.value) {
     return [
-      { value: formatPracticeMinutes(practiceMinutesAllTime.value), word: t('org.nodeHome.statMinutesPractised', 'Minutes practised') },
+      ...(cp ? [{ value: cp.inAppMinutes7d ?? 0, word: t('org.nodeHome.statMinutesInAppThisWeek', 'Minutes in the app this week') }] : []),
       { value: r.childGroupCount ?? 0, word: t('org.nodeHome.statGroups', 'Groups') },
       { value: r.learnerCount ?? 0, word: t('org.nodeHome.statLearners', 'Learners') },
     ]
   }
   if (!cp) {
     return [
-      { value: formatPracticeMinutes(practiceMinutesAllTime.value), word: t('org.nodeHome.statMinutesPractised', 'Minutes practised') },
-      { value: r.classCount ?? 0, word: t('org.nodeHome.statClasses', 'Classes') },
-      { value: r.teacherCount ?? 0, word: t('org.nodeHome.statTeachers', 'Teachers') },
-      { value: r.learnerCount ?? 0, word: t('org.nodeHome.statLearners', 'Learners') },
+      { value: r.classCount ?? 0, word: t('org.nodeHome.statClasses', 'Classes'), to: link('/schools/classes') },
+      { value: r.teacherCount ?? 0, word: t('org.nodeHome.statTeachers', 'Teachers'), to: link('/schools/teachers') },
+      { value: r.learnerCount ?? 0, word: t('org.nodeHome.statLearners', 'Learners'), to: link('/schools/students') },
     ]
   }
   return [
-    { value: cp.phrases7d ?? 0, word: t('org.nodeHome.statPhrasesSpokenThisWeek', 'Phrases practised this week') },
-    { value: `${cp.activeClasses7d ?? 0}/${cp.classCount || r.classCount || 0}`, word: t('org.nodeHome.statClassesPractisingThisWeek', 'Classes practising this week') },
-    { value: cp.inAppMinutes7d ?? 0, word: t('org.nodeHome.statMinutesInAppThisWeek', 'Minutes in the app this week') },
-    { value: r.teacherCount ?? 0, word: t('org.nodeHome.statTeachers', 'Teachers') },
+    { value: cp.phrases7d ?? 0, word: t('org.nodeHome.statPhrasesSpokenThisWeek', 'Phrases practised this week'), to: link('/schools/classes?sort=phrases') },
+    { value: `${cp.activeClasses7d ?? 0}/${cp.classCount || r.classCount || 0}`, word: t('org.nodeHome.statClassesPractisingThisWeek', 'Classes practising this week'), to: link('/schools/classes?practising=1&sort=hours') },
+    { value: cp.inAppMinutes7d ?? 0, word: t('org.nodeHome.statMinutesInAppThisWeek', 'Minutes in the app this week'), to: link('/schools/classes?sort=hours') },
+    { value: r.teacherCount ?? 0, word: t('org.nodeHome.statTeachers', 'Teachers'), to: link('/schools/teachers') },
   ]
 })
+// A year-group tile on the school overview opens the classes list filtered to
+// that year; a per-class tile opens the class. Same gate as the cards.
+function yearTileLink(tile: YearGroupTile): string | null {
+  if (!statLinksLive.value) return null
+  if (tile.name) return `/org/${tile.key.replace(/^class:/, '')}`
+  return `/schools/classes?year=${tile.year === null ? 'other' : tile.year}`
+}
 // The phrase-by-count list — what the classes actually said, and how often
 // each phrase came round: the spaced-repetition mechanism visible on the
 // page. School and group nodes carry the top phrases across every class
@@ -527,6 +569,9 @@ function askAboutClassPractice(): void {
 const insightsLink = computed(() => {
   const n = home.value?.node
   if (!n) return null
+  // A teacher on their class page: the node insights endpoint is a leader's,
+  // so the tab opens the teacher-scoped tool on this class instead.
+  if (member.value && isClass.value && isTeacher.value && !viewerIsLeader.value) return `/schools/analytics?class=${encodeURIComponent(n.id)}`
   return nodeInsightsPath(n, isClass.value, member.value)
 })
 
@@ -820,6 +865,7 @@ const listPayload = computed(() => {
             :siblings="(rail.siblings as any) || []"
             :children="rail.kind === 'class' ? [] : ((rail.children as any) || [])"
             :kind="rail.kind"
+            :lens="insightsLink ? { current: 'overview', overviewPath: route.path, insightsPath: insightsLink } : null"
           />
           <NodeMapRailSkeleton v-else />
         </aside>
@@ -874,11 +920,67 @@ const listPayload = computed(() => {
               </p>
             </div>
 
-            <!-- Lens/insight nav — same corner, every level -->
+            <!-- Overview | Insights as tabs, same corner, every level (Tom,
+                 2026-09-14) — Overview lit here, Insights lit on the lens. -->
             <div class="verbs">
-              <router-link v-if="insightsLink" :to="insightsLink" class="verb-btn verb-btn-secondary">{{ t('org.nodeHome.seeInsights', 'See insights') }}</router-link>
+              <!-- HANDBOOK Play as class from the class page
+                   section: running-classes
+                   roles: teacher, school_admin
+                   place: node-home
+                   keywords: play as class, lesson, start, class page, front of the room
+                   What it's for. Starting a whole-class lesson from the class's own
+                   page, on the class's own account, so the minutes and the phrases
+                   land on the class rather than on you.
+                   Where it is. The class page, the **Play as class** button beside
+                   the class name.
+                   How you do it.
+                   1. Open the class from your dashboard or from My Classes.
+                   2. Tap **Play as class**.
+                   3. The player opens on the class's course at the class's own place.
+                   Worth knowing. Pressing play on a course from your own Library
+                   counts for you, not for the class. Only Play as class moves the
+                   class. While a platform admin is viewing the page as you the
+                   button is greyed out and does nothing.
+                   checked: 3088b4ac.9ae057f0
+              -->
+              <button
+                v-if="showClassVerbs && canPlayAsClass && !switching"
+                type="button"
+                class="btn-play"
+                data-walk="class-page-play"
+                :disabled="playAsClassReadOnly"
+                :title="playAsClassTitle"
+                @click="playThisClass"
+              >&#9654; {{ t('org.nodeHome.playAsClass', 'Play as class') }}</button>
+              <!-- HANDBOOK Manage a class
+                   section: running-classes
+                   roles: teacher, school_admin
+                   place: node-home
+                   keywords: manage, tools, roster, teachers, join link, rename, delete
+                   What it's for. Getting from the class page to the class's tools:
+                   the roster of pupils on their own accounts, the teachers, the
+                   join link and code, renaming and deleting.
+                   Where it is. The class page, the **Manage class** link beside the
+                   class name.
+                   How you do it.
+                   1. Open the class.
+                   2. Tap **Manage class**.
+                   3. The tools page opens; its own **Open the class page** line
+                      brings you back.
+                   Worth knowing. The class's practice, minutes and journey stay on
+                   the class page. The tools page never totals whole-class play.
+                   checked: f1b631d2.b60644b6
+              -->
+              <router-link
+                v-if="showClassVerbs && !switching"
+                :to="classToolsPath"
+                class="btn-ghost"
+                data-walk="class-page-manage"
+              >{{ t('org.nodeHome.manageClass', 'Manage class') }}</router-link>
+              <LensTabs v-if="insightsLink" :overview-path="route.path" :insights-path="insightsLink" current="overview" />
             </div>
           </header>
+          <div v-if="playError" class="fetch-error-banner"><span>{{ playError }}</span></div>
 
           <!-- ACTION BAR — the verbs, across the top of the node page
                (founder-ruled 2026-07-19: rows are links, verbs live here). -->
@@ -988,15 +1090,29 @@ const listPayload = computed(() => {
                   many classes they take.
                6. On a class the row switches to that class's own phrases practised
                   this week, its minutes in the app, its students and its teachers.
-               Worth knowing. An organisation that is not school-shaped sees the same
-               row worded as practice hours, groups and learners instead.
+               7. On your own school every card is a link: phrases and minutes
+                  open the classes list with the classes in that order, classes
+                  practising opens it narrowed to the classes that played this
+                  week, and teachers opens the staff list.
+               Worth knowing. An organisation that is not school-shaped sees minutes
+               in the app this week, groups and learners instead. Every minute on this
+               page is the same minute: from pressing play to stopping, over the last
+               seven days, each account once. There is no all-time total here.
                checked: b278e3a1.b7def846
           -->
           <div class="stats-row" data-walk="node-stats">
-            <div v-for="s in stats" :key="s.word" class="stat-card schools-card">
+            <component
+              :is="s.to ? 'router-link' : 'div'"
+              v-for="s in stats"
+              :key="s.word"
+              :to="s.to || undefined"
+              class="stat-card schools-card"
+              :class="{ 'is-link': !!s.to }"
+              :data-stat-link="s.to || undefined"
+            >
               <span class="stat-value frost-mono-nums">{{ switching ? NBSP : s.value }}</span>
               <span class="stat-word">{{ s.word }}</span>
-            </div>
+            </component>
           </div>
           <!-- HANDBOOK The numbers by year group
                section: seeing-progress
@@ -1017,14 +1133,17 @@ const listPayload = computed(() => {
                   that year.
                4. A tile reading **Other** holds the classes whose names carry no
                   year.
+               5. On your own school, tap a tile to open the classes list narrowed
+                  to that year's classes.
                Worth knowing. The year is read off the class name — a leading number
                from 6 to 13, so **7B**, **Year 9 French** and **10 Set 1** all count
                — and is never stored. If fewer than half your class names carry a
                year the card reads **By class** instead, busiest first, three then
-               **Show all**. No minutes are shown per year group.
-               checked: 38696cd6.94b8442d
+               **Show all**, and each of those tiles opens its class. No minutes
+               are shown per year group.
+               checked: 96418a48.5625135b
           -->
-          <YearGroupTiles v-if="showYearGroups" data-walk="node-year-groups" :breakdown="yearGroups" :class="{ 'is-switching': switching }" />
+          <YearGroupTiles v-if="showYearGroups" data-walk="node-year-groups" :breakdown="yearGroups" :class="{ 'is-switching': switching }" :tile-link="yearTileLink" />
           <p v-if="canAskSupport && !switching" class="stats-ask">
             <button type="button" class="ask-support" @click="askAboutStats">{{ t('schools.support.doorAffordance', 'Does this look wrong?') }}</button>
             <HandbookMark anchor="node-stats" />
@@ -1032,6 +1151,13 @@ const listPayload = computed(() => {
           <p v-if="showPhrasesCard && !switching" class="stats-note">
             {{ t('org.nodeHome.statsNoteInAppTime', 'Minutes in the app is the time your classes, staff and students spent in the app over the last seven days, pauses included — the time they were in the lesson. Whole-class play accounts for {classMinutes} of those minutes. Audio actually playing came to {audioMinutes} minutes.').replace('{classMinutes}', String(classPractice?.classInAppMinutes7d ?? 0)).replace('{audioMinutes}', String(classPractice?.audioPlayedMinutes7d ?? 0)) }}
           </p>
+
+          <!-- THE SCHOOL LEADER'S SWEEP for lessons played on teachers' own
+               accounts (job #662): every mis-played (class, teacher) pair, one
+               Copy each. On the leader's OWN school node only — the surface a
+               school admin actually lands on. Under View-as it lists and the
+               copy is refused server-side, shown on the row. -->
+          <CopyPlaySweepCard v-if="isOwnSchoolNode && !switching" :school-id="currentSchool!.id" @copied="fetchHome" />
 
           <!-- WHAT THEY PRACTISED — the phrase-by-count list across every
                class below. This is the teaching story, not the register: it
@@ -1138,7 +1264,7 @@ const listPayload = computed(() => {
                  place: node-home
                  keywords: journey, progress, legos, position, course, belt, how far
                  What it's for. A bar showing where a class has got to in its
-                 course, measured in LEGOs — the individual pieces of language the
+                 course, measured in phrases — the individual pieces of language the
                  course teaches. A class is one learner account played from the
                  front, so the position is the class's own.
                  Where it is. The **Course journey** card on a class page.
@@ -1146,8 +1272,8 @@ const listPayload = computed(() => {
                  1. Open a class.
                  2. Read the bar for how much of the course the class has covered
                     together.
-                 3. The line underneath gives the figure in LEGOs, then names the
-                    next belt and how many LEGOs are left to reach it.
+                 3. The line underneath gives the figure in phrases, then names the
+                    next belt and how many phrases are left to reach it.
                  Worth knowing. A class that has never played together says
                  **Not started** in words; it is never shown as a bar of zero.
                  checked: 37cd9c93.325026db
@@ -1168,7 +1294,7 @@ const listPayload = computed(() => {
               <JourneyBar v-else-if="journey" :done="0" :total="journey.total" />
               <p class="class-card-note">
                 <template v-if="journey && journey.source === 'class-play'">
-                  {{ t('org.nodeHome.classTravelled', 'The class has travelled {done} of {total} LEGOs together.').replace('{done}', String(journey.done)).replace('{total}', String(journey.total)) }}<br />
+                  {{ t('org.nodeHome.classTravelled', 'The class has travelled {done} of {total} phrases together.').replace('{done}', String(journey.done)).replace('{total}', String(journey.total)) }}<br />
                 </template>
                 <template v-else>{{ t('org.nodeHome.classNotStartedJourney', 'Not started — the class has not played together yet.') }}<br /></template>
                 <template v-if="nextBeltInfo">{{ t('org.nodeHome.moreToBelt', '{n} more to {belt} belt.').replace('{n}', String(nextBeltInfo.remaining)).replace('{belt}', nextBeltInfo.name) }}</template>
@@ -1177,10 +1303,26 @@ const listPayload = computed(() => {
             </div>
           </div>
 
-          <!-- CHILDREN LIST + lenses -->
-          <section class="children-section schools-card">
+          <!-- THE COPY-PLAY REPAIR on the class page (job #651): Angharad's
+               card moved here with the leaders in job #624, and a teacher
+               fixes their own lesson from the same place. -->
+          <CopyTeacherPlayCard
+            v-if="showCopyPlay && !switching && home.node"
+            :class-id="home.node.id"
+            :teachers="copyPlayTeachers"
+            :self-user-id="copyPlaySelfUserId"
+            @copied="fetchHome"
+          />
+
+          <!-- CHILDREN LIST + lenses. On a class this is the pupils' OWN
+               accounts — a second, clearly headed section beneath the class's
+               own practice, and absent altogether when no pupil has one (Tom,
+               2026-09-14, job #651: the aggregate of individual accounts read
+               as "nothing happened" for a class played from the front). -->
+          <section v-if="!isClass || isLoading || (home.students?.length ?? 0) > 0" class="children-section schools-card">
             <div class="children-head">
-              <span class="schools-kicker">{{ isClass ? t('org.nodeHome.statStudents', 'Students') : t('org.nodeHome.belowThis', 'Below this') }}</span>
+              <span class="schools-kicker">{{ isClass ? t('org.nodeHome.studentsOwnAccounts', 'Students on their own accounts') : t('org.nodeHome.belowThis', 'Below this') }}</span>
+              <p v-if="isClass" class="children-caption">{{ t('org.nodeHome.studentsOwnAccountsCaption', 'Only pupils who have signed in themselves are counted here. Whole-class play is in the Class practice card above.') }}</p>
             </div>
             <!-- The body holds its pre-load height while rows re-fetch (node
                  switch, lens change or refresh) — no collapse-to-spinner,
@@ -1222,12 +1364,13 @@ const listPayload = computed(() => {
                    practice over the last week and how recently they were active.
                    A quiet coloured dot flags anyone who has gone quiet or fallen
                    well behind the class.
-                   Where it is. The **Students** list at the bottom of a class
-                   page.
+                   Where it is. The **Students on their own accounts** list at
+                   the bottom of a class page. It is only there when at least
+                   one pupil has an account of their own.
                    How you do it.
                    1. Open a class.
                    2. Read down the rows — the bar on each is that student's own
-                      position in the course, in LEGOs. The first three show; tap
+                      position in the course, in phrases. The first three show; tap
                       **Show all** under them for the rest.
                    3. The small chart beside it is their practice over the past
                       week, with the minutes named.
@@ -1335,6 +1478,9 @@ const listPayload = computed(() => {
 </template>
 
 <style scoped>
+.children-caption { margin: 4px 0 0; font-size: var(--text-xs, 12px); color: var(--schools-fg-3, #777); }
+.verbs .btn-play, .verbs .btn-ghost { text-decoration: none; }
+
 .signin-link-error,
 .signin-link-panel {
   margin: 0.75rem 0;
@@ -1478,6 +1624,9 @@ const listPayload = computed(() => {
 .stats-updated { display: flex; justify-content: flex-end; min-height: 14px; margin-bottom: 4px; }
 .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--space-3); }
 .stat-card { display: flex; flex-direction: column; gap: 2px; padding: var(--space-4); }
+.stat-card.is-link { color: inherit; text-decoration: none; cursor: pointer; }
+.stat-card.is-link:hover { box-shadow: 0 0 0 2px rgba(44, 38, 34, 0.12); }
+.stat-card.is-link:focus-visible { outline: 2px solid var(--schools-red, #DB1E17); outline-offset: 2px; }
 .stat-value { font-size: clamp(22px, 2.6vw, 30px); font-weight: var(--font-semibold); color: var(--ink-primary, #2C2622); line-height: 1.1; }
 .stat-word { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--schools-fg-3, #8A8078); }
 

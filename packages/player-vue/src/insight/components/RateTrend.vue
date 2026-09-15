@@ -1,10 +1,9 @@
 <script setup lang="ts">
 // ============================================================================
-// components/RateTrend.vue — THE HERO graph of RateCompare: the rate over time,
-// entity vs average, as a rolling line.
-//
-// A rate is a TRAJECTORY, so the line is the story — where you're heading vs
-// where the cohort is heading (the curvature, per Measuring Progress, leads).
+// components/RateTrend.vue — THE HERO graph of RateCompare: the measure over
+// time, entity vs average, as REAL BARS per bucket (Tom, 2026-09-14, job #673:
+// no spline, a bucket with no play is a zero bar). The option itself is
+// built in rateTrendOption.ts so the shape is testable without a canvas.
 //
 //   · props { entityLabel, entity[], averageLabel, average[], yLabel?, periodDays? }
 //   · x-axis = the last N points ending "now" (real calendar dates), spaced by
@@ -12,15 +11,16 @@
 //     contract's trendPeriodDays) so the axis is always the honest window,
 //     whichever time window the caller picked.
 //   · y-axis = the rate, titled with its unit ("LEGOs / week").
-//   · ENTITY = blue (--rc-entity / --rc-glow), area-filled + a "now" endpoint
-//     so you can read your current value off the line. AVERAGE = grey dashed.
+//   · ENTITY = blue bars (--rc-entity / --rc-glow), the newest bar labelled
+//     so you can read the current value off the chart. AVERAGE = grey dashed.
 //   · lazy echarts in onMounted; registerInsightTheme; ResizeObserver → resize.
 // ============================================================================
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import {
-  registerInsightTheme, INSIGHT_THEME_NAME, palette, FONT_MONO,
+  registerInsightTheme, INSIGHT_THEME_NAME, palette,
   type EChartsLike,
 } from '../theme'
+import { buildRateTrendOption } from './rateTrendOption'
 
 const props = withDefaults(defineProps<{
   entityLabel: string
@@ -76,13 +76,6 @@ const xLabels = computed(() => {
   return out
 })
 
-// Compact value formatter for the endpoint label.
-function fmt(v: number): string {
-  if (!Number.isFinite(v)) return ''
-  if (Number.isInteger(v)) return String(v)
-  return Math.abs(v) < 10 ? v.toFixed(1) : v.toFixed(0)
-}
-
 // The entity (identity) and average colours come from the green/blue role tokens
 // (--rc-entity = blue / --rc-secondary = grey / --rc-glow = blue), resolved off
 // the live DOM because ECharts can't read CSS vars.
@@ -100,101 +93,18 @@ function roleTriplet(name: string, fallback: string): string {
 function buildOption(): Record<string, unknown> {
   const p = palette()
   const entityRgb = roleTriplet('--rc-entity', ENTITY_FALLBACK)
-  const glowRgb = roleTriplet('--rc-glow', entityRgb)
-  const avgRgb = roleTriplet('--rc-secondary', AVERAGE_FALLBACK)
-  const entityColor = `rgb(${entityRgb})`
-  const averageColor = `rgb(${avgRgb})`
-
-  const entityData = props.entity ?? []
-  const lastIdx = entityData.length - 1
-
-  return {
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: { type: 'line', lineStyle: { color: p.line, type: 'dashed' } },
-      valueFormatter: (v: number) => fmt(Number(v)),
-    },
-    legend: {
-      data: [props.entityLabel, props.averageLabel],
-      bottom: 0,
-      left: 'center',
-      icon: 'roundRect',
-      itemWidth: 16,
-      itemHeight: 4,
-      textStyle: { fontFamily: FONT_MONO, fontSize: 11, color: p.ink2 },
-    },
-    // Room for the y-axis title (top-left), the "now" endpoint label (right) and
-    // the legend (bottom).
-    grid: { left: 46, right: 52, top: 30, bottom: 40 },
-    xAxis: {
-      type: 'category',
-      data: xLabels.value,
-      boundaryGap: false,
-      axisLine: { lineStyle: { color: p.line } },
-      axisTick: { show: false },
-      axisLabel: { fontFamily: FONT_MONO, color: p.ink3, fontSize: 10.5, hideOverlap: true },
-      splitLine: { show: false },
-    },
-    yAxis: {
-      type: 'value',
-      name: props.yLabel ?? '',
-      nameLocation: 'end',
-      nameGap: 12,
-      nameTextStyle: { fontFamily: FONT_MONO, fontSize: 10, color: p.ink3, align: 'left' },
-      min: 0,
-      axisLine: { show: false },
-      axisTick: { show: false },
-      axisLabel: { fontFamily: FONT_MONO, color: p.ink3, fontSize: 10 },
-      splitLine: { lineStyle: { color: p.line, type: 'dashed' } },
-    },
-    series: [
-      {
-        name: props.entityLabel,
-        type: 'line',
-        smooth: true,                    // a rolling, settled curve — not jagged raw points
-        symbol: 'circle',
-        symbolSize: 6,
-        showSymbol: false,
-        // The entity is the identity/focus line — blue, lifted by a soft glow and
-        // a gentle area fill so it reads as the hero against the dashed average.
-        lineStyle: { color: entityColor, width: 2.8, shadowColor: `rgba(${glowRgb}, 0.5)`, shadowBlur: 10 },
-        itemStyle: { color: entityColor, borderColor: '#fff', borderWidth: 2 },
-        areaStyle: {
-          color: {
-            type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-            colorStops: [
-              { offset: 0, color: `rgba(${entityRgb}, 0.18)` },
-              { offset: 1, color: `rgba(${entityRgb}, 0.0)` },
-            ],
-          },
-        },
-        // Show the current value at the line's "now" end so it's readable off the chart.
-        endLabel: {
-          show: true,
-          formatter: () => (lastIdx >= 0 ? fmt(entityData[lastIdx]) : ''),
-          color: entityColor,
-          fontFamily: FONT_MONO,
-          fontWeight: 'bold',
-          fontSize: 12,
-        },
-        emphasis: { focus: 'series' },
-        data: entityData,
-        z: 3,
-      },
-      {
-        name: props.averageLabel,
-        type: 'line',
-        smooth: true,
-        symbol: 'none',
-        // The cohort baseline — grey, dashed, recedes behind the entity.
-        lineStyle: { color: averageColor, width: 1.8, type: 'dashed' },
-        itemStyle: { color: averageColor },
-        emphasis: { focus: 'series' },
-        data: props.average ?? [],
-        z: 2,
-      },
-    ],
-  }
+  return buildRateTrendOption({
+    entityLabel: props.entityLabel,
+    entity: props.entity ?? [],
+    averageLabel: props.averageLabel,
+    average: props.average ?? [],
+    yLabel: props.yLabel,
+    xLabels: xLabels.value,
+    entityRgb,
+    glowRgb: roleTriplet('--rc-glow', entityRgb),
+    avgRgb: roleTriplet('--rc-secondary', AVERAGE_FALLBACK),
+    palette: { line: p.line, ink2: p.ink2, ink3: p.ink3 },
+  })
 }
 
 async function ensureChart() {

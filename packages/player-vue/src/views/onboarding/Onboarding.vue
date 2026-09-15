@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from '../../composables/useI18n'
+import FrostSelect from '@/components/FrostSelect.vue'
 const { t } = useI18n()
 import { ref, computed, inject, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
@@ -256,7 +257,6 @@ function maybeAutoSelect() {
 // is a LANGUAGE picker, so the label is the language name ("Welsh"), NOT a course
 // display name — otherwise multi-course targets leaked dialect labels (cym →
 // "South Welsh", which hid Welsh from anyone scanning under "W").
-const targetOpen = ref(false)
 function targetName(code: string): string {
   return targetLangName(code)
 }
@@ -361,38 +361,26 @@ function chipKeyFor(o: { value: string; yearFree: boolean }) {
 // after mount.
 watch([courses, visibleCourses, targetOptions], maybeAutoSelect, { immediate: true })
 
-// There will eventually be hundreds of target languages, so the open menu is
-// filterable by name (mirrors the learner-language search below).
-const targetQuery = ref('')
-const visibleTargetOptions = computed(() => {
-  const q = targetQuery.value.trim().toLowerCase()
-  if (!q) return targetOptions.value
-  return targetOptions.value.filter(
-    (o) => o.name.toLowerCase().includes(q) || o.value.toLowerCase().includes(q)
-  )
+// The dropdown is the shared FrostSelect, which filters by itself. Rows are
+// language names; the tier chip rides alongside via the option slot.
+const targetSelectOptions = computed(() => targetOptions.value.map((o) => ({ value: o.value, label: o.name })))
+const chipKeyByValue = computed<Record<string, string>>(() => {
+  const out: Record<string, string> = {}
+  for (const o of targetOptions.value) { const k = chipKeyFor(o); if (k) out[o.value] = k }
+  return out
 })
-// The dropdown button's current-value label. On the heritage door it reflects the
-// chosen course variant (or a prompt before one is picked); elsewhere the language.
+// What the dropdown shows as picked: on the heritage door the row whose course
+// variant is the chosen course; elsewhere the taught language itself.
+const targetPickerValue = computed(() => {
+  if (isHeritageDoor.value) return targetOptions.value.find((o) => o.courseCode === selectedCourse.value)?.value ?? ''
+  return targetLang.value
+})
 const pickerValueLabel = computed(() => {
   if (isHeritageDoor.value) {
     return selectedCourseObj.value ? targetLabel(selectedCourseObj.value) : 'Choose a language'
   }
   return targetName(targetLang.value)
 })
-function isOptionActive(o: { value: string; courseCode: string | null }): boolean {
-  return isHeritageDoor.value ? o.courseCode === selectedCourse.value : o.value === targetLang.value
-}
-// The trigger button — focus returns here when the menu closes, otherwise the
-// v-if unmount drops keyboard/screen-reader focus to <body>.
-const targetTriggerEl = ref<HTMLButtonElement | null>(null)
-function openTarget() {
-  targetOpen.value = !targetOpen.value
-  if (targetOpen.value) targetQuery.value = ''
-}
-function closeTarget() {
-  targetOpen.value = false
-  targetTriggerEl.value?.focus()
-}
 function selectTarget(value: string) {
   const opt = targetOptions.value.find((o) => o.value === value)
   if (opt?.courseCode) {
@@ -403,7 +391,6 @@ function selectTarget(value: string) {
   } else {
     targetLang.value = value
   }
-  closeTarget()
 }
 const email = ref('')
 const otp = ref('')
@@ -998,66 +985,28 @@ async function continueIn() {
           <!-- Taught-language switcher — defaulted to English; a custom on-brand
                menu (not the native OS select). Pick the language you'll teach,
                then the list shows who you can teach it to. -->
-          <div
-            v-else-if="targetOptions.length > 1"
-            class="ob-known-wrap"
-            @keyup.escape="closeTarget"
-          >
-            <button
-              ref="targetTriggerEl"
-              type="button"
+          <div v-else-if="targetOptions.length > 1" class="ob-known-wrap">
+            <FrostSelect
               class="ob-known"
-              :aria-expanded="targetOpen"
-              aria-haspopup="listbox"
-              @click="openTarget"
+              :model-value="targetPickerValue"
+              :options="targetSelectOptions"
+              :filter-placeholder="t('onboarding.searchLanguages')"
+              :aria-label="t('onboarding.youllTeach')"
+              @update:model-value="selectTarget"
             >
-              <span class="ob-known-label">{{ t('onboarding.youllTeach') }}</span>
-              <span class="ob-known-value">{{ pickerValueLabel }}</span>
-              <svg class="ob-known-caret" :class="{ open: targetOpen }" viewBox="0 0 20 20" aria-hidden="true">
-                <path d="M5 8l5 5 5-5" />
-              </svg>
-            </button>
-            <div v-if="targetOpen" class="ob-known-backdrop" @click="closeTarget"></div>
-            <div v-if="targetOpen" class="ob-known-menu" role="listbox">
-              <!-- Filterable: hundreds of target languages, so the open menu has
-                   its own search (mirrors the learner-language search). -->
-              <input
-                v-model="targetQuery"
-                type="search"
-                class="ob-input ob-known-search"
-                :placeholder="t('onboarding.searchLanguages')"
-                :aria-label="t('onboarding.searchTaughtLanguages')"
-                autofocus
-              />
-              <ul class="ob-known-opts">
-                <li v-for="o in visibleTargetOptions" :key="o.value">
-                  <button
-                    type="button"
-                    class="ob-known-opt"
-                    :class="{ 'is-on': isOptionActive(o) }"
-                    role="option"
-                    :aria-selected="isOptionActive(o)"
-                    @click="selectTarget(o.value)"
-                  >
-                    <span class="ob-known-opt-name">
-                      {{ o.name }}
-                      <!-- EVERY row states what you get: a year on the
-                           heritage offer, thirty days on the premium ones.
-                           A silent row next to a chipped one reads as "this
-                           one costs money", which is not what the door
-                           offers. -->
-                      <span v-if="chipKeyFor(o)" class="ob-tier">{{ t(chipKeyFor(o)!) }}</span>
-                    </span>
-                    <svg v-if="isOptionActive(o)" class="ob-known-tick" viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M5 12.5l4.2 4.2L19 7" />
-                    </svg>
-                  </button>
-                </li>
-                <li v-if="!visibleTargetOptions.length" class="ob-known-empty">
-                  No languages match “{{ targetQuery }}”.
-                </li>
-              </ul>
-            </div>
+              <template #value>
+                <span class="ob-known-label">{{ t('onboarding.youllTeach') }}</span>
+                <span class="ob-known-value">{{ pickerValueLabel }}</span>
+              </template>
+              <template #option="{ option }">
+                {{ option.label }}
+                <!-- EVERY row states what you get: a year on the heritage
+                     offer, thirty days on the premium ones. A silent row next
+                     to a chipped one reads as "this one costs money", which is
+                     not what the door offers. -->
+                <span v-if="chipKeyByValue[option.value]" class="ob-tier">{{ t(chipKeyByValue[option.value]) }}</span>
+              </template>
+            </FrostSelect>
           </div>
 
           <!-- Once a language is chosen, collapse the whole picker to the ONE
@@ -1882,106 +1831,22 @@ async function continueIn() {
 .ob-lang-search { margin-bottom: var(--space-1, 0.25rem); }
 
 /* Source-language switcher — a custom on-brand menu (not the native OS select) */
-.ob-known-wrap { position: relative; align-self: flex-start; }
-.ob-known {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2, 0.5rem);
-  padding: 7px 10px 7px 16px;
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(44, 38, 34, 0.12);
-  border-radius: var(--radius-full, 999px);
-  font-family: var(--font-body);
-  font-size: var(--text-sm, 0.875rem);
-  cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
-}
-.ob-known:hover { background: rgba(255, 255, 255, 0.92); border-color: rgba(44, 38, 34, 0.2); }
-.ob-known:focus-visible {
-  outline: none;
-  border-color: var(--ob-accent-2);
-  box-shadow: 0 0 0 3px var(--ob-accent-soft);
+.ob-known-wrap {
+  position: relative;
+  align-self: flex-start;
+  min-width: min(300px, 100%);
+  /* FrostSelect reads these; the shared dropdown wears the door's pill and
+     accent rather than the insight-board mono. */
+  --fs-font: var(--font-body);
+  --fs-font-size: var(--text-sm, 0.875rem);
+  --fs-radius: var(--radius-full, 999px);
+  --fs-bg: rgba(255, 255, 255, 0.7);
+  --fs-border: rgba(44, 38, 34, 0.12);
+  --rc-entity: 212 168 83;
+  --rc-entity-ink: var(--ob-accent-ink);
 }
 .ob-known-label { color: var(--text-muted, #6a6360); }
 .ob-known-value { color: var(--ob-accent-ink); font-weight: var(--font-semibold, 600); }
-.ob-known-caret {
-  width: 16px; height: 16px;
-  fill: none; stroke: var(--text-muted, #6a6360);
-  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
-  transition: transform 0.2s ease;
-}
-.ob-known-caret.open { transform: rotate(180deg); }
-.ob-known-backdrop { position: fixed; inset: 0; z-index: 40; }
-.ob-known-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 50;
-  min-width: 240px;
-  margin: 0;
-  padding: 6px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 250, 245, 0.96));
-  border: 1px solid rgba(44, 38, 34, 0.12);
-  border-radius: var(--radius-lg, 16px);
-  box-shadow: 0 20px 48px rgba(73, 3, 0, 0.18), 0 4px 12px rgba(73, 3, 0, 0.08);
-  -webkit-backdrop-filter: blur(14px) saturate(150%);
-  backdrop-filter: blur(14px) saturate(150%);
-}
-/* Search box pinned at the top; only the option list scrolls beneath it. */
-.ob-known-search {
-  margin-bottom: 6px;
-  padding: 0.55rem 0.75rem;
-  font-size: var(--text-sm, 0.875rem);
-}
-.ob-known-opts {
-  max-height: min(320px, 52vh);
-  overflow-y: auto;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  -webkit-overflow-scrolling: touch;
-}
-.ob-known-empty {
-  padding: 9px 12px;
-  font-family: var(--font-body);
-  font-size: var(--text-sm, 0.875rem);
-  color: var(--text-muted, #8a8078);
-}
-.ob-known-opt {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  width: 100%;
-  padding: 9px 12px;
-  border: none;
-  background: transparent;
-  border-radius: var(--radius-md, 8px);
-  font-family: var(--font-body);
-  font-size: var(--text-base, 1rem);
-  color: var(--text-primary, #0f1212);
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.12s ease;
-}
-.ob-known-opt:hover { background: var(--ob-accent-soft); }
-.ob-known-opt:focus-visible {
-  outline: none;
-  background: var(--ob-accent-soft);
-  box-shadow: inset 0 0 0 2px var(--ob-accent-2);
-}
-.ob-known-opt.is-on { color: var(--ob-accent-ink); font-weight: var(--font-semibold, 600); }
-.ob-known-opt-name {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-.ob-known-tick {
-  width: 18px; height: 18px; flex: none;
-  fill: none; stroke: var(--ob-accent-ink);
-  stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round;
-}
 .ob-label {
   padding: 0;
   font-family: var(--font-body);

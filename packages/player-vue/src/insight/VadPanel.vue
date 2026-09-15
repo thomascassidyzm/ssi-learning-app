@@ -77,7 +77,7 @@ const masterySpec = computed((): InsightSpec<'ranked-bar'> => ({
   title: t('insights.vad.masteryTitle', 'Adaptive pause mastery, across the learners who have mic data'),
   story: t(
     'insights.vad.masteryStory',
-    "Each bar counts (learner, LEGO) pairs the adaptive pause engine has a state for, over the {withData} learners in {scope} carrying mic-derived data — not all {total} on the roster. A LEGO climbs acquisition → consolidating → confident → mastered as the learner's responses come back smooth and fast enough, run after run.",
+    "Each bar counts (learner, phrase) pairs the adaptive pause engine has a state for, over the {withData} learners in {scope} carrying mic-derived data — not all {total} on the roster. A phrase climbs acquisition → consolidating → confident → mastered as the learner's responses come back smooth and fast enough, run after run.",
   )
     .replace('{withData}', String(props.summary?.withData ?? 0))
     .replace('{scope}', props.scopeLabel)
@@ -89,7 +89,7 @@ const masteryResolved = computed((): ResolvedInsight => {
   const m = props.summary?.mastery
   const data: RankedBarData = {
     kind: 'ranked-bar',
-    unit: 'LEGOs',
+    unit: 'phrases',
     horizontal: true,
     bars: m
       ? [
@@ -148,7 +148,7 @@ const CLASS_COLUMNS = computed<TableData['columns']>(() => [
   { key: 'course', label: t('insights.vad.columnCourse', 'Course'), align: 'left' },
   { key: 'uptake', label: t('insights.vad.columnWithMicData', 'With mic data'), align: 'left' },
   { key: 'share', label: t('insights.vad.columnShare', 'Share'), align: 'right', format: 'percent' },
-  { key: 'legos', label: t('insights.vad.columnLegoSeries', 'LEGO series'), align: 'right', format: 'number' },
+  { key: 'legos', label: t('insights.vad.columnLegoSeries', 'Phrase series'), align: 'right', format: 'number' },
   { key: 'latency', label: t('insights.vad.columnMedianMsChar', 'Median ms/char'), align: 'right', format: 'number' },
 ])
 const classTableResolved = computed((): ResolvedInsight => {
@@ -208,7 +208,7 @@ const classTableResolved = computed((): ResolvedInsight => {
           </template>
         </p>
         <p class="vad-uptake-fine">
-          {{ t('insights.vad.uptakeFine', '{legos} per-LEGO latency series · {events} prosody events from {withProsody} learners')
+          {{ t('insights.vad.uptakeFine', '{legos} per-phrase latency series · {events} prosody events from {withProsody} learners')
             .replace('{legos}', String(summary.legoSeries)).replace('{events}', String(summary.prosody.events)).replace('{withProsody}', String(summary.withProsody)) }}
           <template v-if="truncated"> {{ t('insights.vad.uptakeFineCapped', '· capped read, so these are a floor, not a total') }}</template>
         </p>
@@ -297,7 +297,7 @@ const classTableResolved = computed((): ResolvedInsight => {
             <thead>
               <tr>
                 <th>{{ t('insights.vad.colLearner', 'Learner') }}</th>
-                <th class="r">{{ t('insights.vad.colLegosTracked', 'LEGOs tracked') }}</th>
+                <th class="r">{{ t('insights.vad.colLegosTracked', 'Phrases tracked') }}</th>
                 <th class="r">{{ t('insights.vad.colMastered', 'Mastered') }}</th>
                 <th class="r">{{ t('insights.vad.colMsChar', 'ms/char') }}</th>
                 <th class="r">{{ t('insights.vad.colProsodyEvents', 'Prosody events') }}</th>

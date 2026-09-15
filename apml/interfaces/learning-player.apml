@@ -104,7 +104,7 @@ BELT_SYSTEM:
       glow: "rgba(212, 168, 83, 0.2)"
 
   persistence:
-    local: "localStorage key: ssi_belt_progress_{courseCode}"
+    local: "localStorage key: ssi_belt_progress_{courseCode}, suffixed :class:{classId} in a play-as-class session (classStorageScope, job #742) — position (ssi_learning_position_) and mode (ssi-learning-mode) keys carry the same suffix"
     remote: "Supabase: course_enrollments.highest_completed_seed"
     sync_strategy: "max(local, remote) wins - progress never goes backward"
 
@@ -472,7 +472,7 @@ LEARNING_MODE:
 
   persistence:
     source_of_truth: "learner preferences `learning_mode: 'easy' | 'fast'` (optional; absent reads as 'fast') — replaced `turbo_mode_enabled`"
-    fallback: "localStorage key `ssi-learning-mode` for signed-out learners; the learner row wins once auth resolves (watched)"
+    fallback: "localStorage key `ssi-learning-mode` for signed-out learners; the learner row wins once auth resolves (watched). Play-as-class uses `ssi-learning-mode:class:{classId}` and never reads or writes the driving teacher's learner row (job #742)"
 
   config:
     rows: "algorithm_config `fast_mode` + `easy_mode` (was `normal_mode` + `turbo_boost`)"

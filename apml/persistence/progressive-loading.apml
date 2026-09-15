@@ -224,7 +224,7 @@ SYNC_STRATEGY:
       storage: "localStorage"
       timing: "Instant (synchronous)"
       purpose: "Primary source, works offline"
-      key_pattern: "ssi_belt_progress_{courseCode}"
+      key_pattern: "ssi_belt_progress_{courseCode}[:class:{classId}]  # play-as-class sessions carry the class suffix (classStorageScope) so a class on the teacher's own course never shares their cache (job #742)"
 
     remote:
       storage: "Supabase course_enrollments.highest_completed_seed"

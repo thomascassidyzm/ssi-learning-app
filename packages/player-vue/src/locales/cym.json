@@ -605,7 +605,7 @@
   },
   "nav": {
     "library": "Llyfrgell",
-    "previousLego": "LEGO blaenorol"
+    "previousLego": "Ymadrodd blaenorol"
   },
   "browse": {
     "closeLibrary": "Cau'r llyfrgell",
@@ -1159,7 +1159,7 @@
       "lastActiveNever": "Byth",
       "leadLabel": "prif",
       "leaveLabel": "Gadael",
-      "legosColumn": "LEGOs",
+      "legosColumn": "Ymadroddion",
       "loadingJoinLink": "Wrthi'n llwytho dolen wahodd y dosbarth hwn…",
       "loadingLabel": "Wrthi'n llwytho…",
       "loadingRoster": "Wrthi'n llwytho'r rhestr…",
@@ -1191,10 +1191,10 @@
       "courseColumn": "Cwrs",
       "currentBeltKicker": "Gwregys presennol",
       "greeting": "Helô, {name}.",
-      "keepGoingLabel": "Daliwch ati — LEGO {n}",
+      "keepGoingLabel": "Daliwch ati — ymadrodd {n}",
       "last7DaysKicker": "7 diwrnod diwethaf",
       "lastSessionColumn": "Sesiwn ddiwethaf",
-      "legosRetiredColumn": "LEGOs wedi ymddeol",
+      "legosRetiredColumn": "Ymadroddion wedi ymddeol",
       "neverLabel": "Byth",
       "noCoursesHint": "Nid ydych wedi cofrestru ar unrhyw gwrs eto. Gofynnwch i'ch athro am god ymuno dosbarth.",
       "noCoursesTitle": "Dim cyrsiau eto",
@@ -1221,7 +1221,7 @@
       "lastActiveColumn": "Gweithredol ddiwethaf",
       "lastActiveNever": "Byth",
       "lastActiveNow": "nawr",
-      "legosColumn": "LEGOs",
+      "legosColumn": "Ymadroddion",
       "loadStudentsError": "Methwyd llwytho'r dysgwyr",
       "loadingStudents": "Wrthi'n llwytho dysgwyr…",
       "noFilterMatchTitle": "Nid oes unrhyw ddysgwr yn cyd-fynd â'r hidlyddion hynny",
@@ -1380,7 +1380,14 @@
       "waitingOnTom": "Yn aros am Tom ers {time}",
       "you": "Chi",
       "handbookMarkAria": "Beth yw hwn",
-      "readInHandbook": "Darllen yn y Llawlyfr"
+      "readInHandbook": "Darllen yn y Llawlyfr",
+      "viewAsReadOnly": "Dim ond darllen sydd ar gael ar Gymorth tra byddwch yn gweld fel rhywun arall. Camwch yn ôl allan i ddarllen neu ysgrifennu edefyn yr ysgol hon."
+    },
+    "inbox": {
+      "menuInbox": "Mewnflwch",
+      "unreadAria": "Negeseuon heb eu darllen",
+      "title": "Mewnflwch",
+      "lede": "Negeseuon i chi: atebion ar sgwrs Gymorth eich ysgol, ac unrhyw beth rydym wedi'i wneud ar eich cyfrif y gallech fod am ei ddadwneud."
     }
   },
   "teach": {
@@ -1418,7 +1425,7 @@
       "lastActive": "Gweithredol ddiwethaf",
       "lastActiveNever": "Byth",
       "lastActiveToday": "Heddiw",
-      "legosMastered": "LEGOs wedi'u meistroli",
+      "legosMastered": "Ymadroddion wedi'u meistroli",
       "lifetimePaid": "Wedi'i dalu erioed",
       "newClass": "Dosbarth newydd",
       "newClassSub": "Mae gan bob dosbarth ei ddolen rannu a'i restr ei hun.",
@@ -1555,7 +1562,7 @@
         "school": "Ysgol",
         "wordBelt": "Gwregys",
         "wordClass": "Dosbarth",
-        "wordLegos": "LEGOs",
+        "wordLegos": "Ymadroddion",
         "wordPractised": "wedi ymarfer",
         "wordTeachers": "Athrawon"
       },
@@ -1628,5 +1635,24 @@
     "sending": "Yn anfon…",
     "thanks": "Wedi'i gael, diolch.",
     "failed": "Ni chafodd hwn ei anfon. Rhowch gynnig arall arni."
+  },
+  "inbox": {
+    "title": "Mewnflwch",
+    "menuLabel": "Mewnflwch",
+    "menuDesc": "Negeseuon a anfonwyd atoch chi.",
+    "menuDescUnread": "Mae gennych negeseuon heb eu hagor.",
+    "unreadAria": "Negeseuon heb eu darllen",
+    "empty": "Dim byd i chi eto. Bydd unrhyw beth a anfonir atoch yn ymddangos yma.",
+    "loadFailed": "Methu llwytho eich negeseuon.",
+    "viewAsReadOnly": "Mae'r mewnflwch yn ddarllen yn unig tra byddwch yn gweld fel rhywun arall.",
+    "undo": "Dadwneud",
+    "undone": "Wedi'i ddadwneud",
+    "openSupport": "Agor Cymorth",
+    "working": "Un eiliad…",
+    "actionFailed": "Wnaeth hynny ddim gweithio. Rhowch gynnig arall arni.",
+    "backToYou": "Yn ôl",
+    "cardAria": "Neges i chi",
+    "cardHint": "Tapiwch i ddarllen",
+    "dismiss": "Diystyru"
   }
 }

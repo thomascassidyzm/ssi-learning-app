@@ -36,7 +36,7 @@ vi.mock('@/composables/schools/useClassesData', () => ({
   }),
 }))
 vi.mock('@/composables/schools/usePlayAsClass', () => ({
-  usePlayAsClass: () => ({ canPlayAsClass: computed(() => true), launchClassSession: vi.fn(), playError: ref(null), switchActiveCourseTo: vi.fn() }),
+  usePlayAsClass: () => ({ canPlayAsClass: computed(() => true), playAsClassReadOnly: computed(() => false), launchClassSession: vi.fn(), playError: ref(null), switchActiveCourseTo: vi.fn() }),
 }))
 vi.mock('@/composables/useDashboardRefresh', () => {
   let handler: (() => Promise<void>) | null = null
@@ -59,7 +59,7 @@ async function mountView(scopeSource: 'self' | 'admin-view') {
   globalThis.fetch = vi.fn(async (url: any) => {
     const u = String(url)
     calls.push(u)
-    if (u.includes('class-practice-7d')) return { ok: true, json: async () => ({ practiceByClass: { 'c-7h': 2100 }, activeDaysByClass: { 'c-7h': 2 }, rollup: { windowDays: 7, classCount: 1, activeClasses7d: 1, inAppMinutes7d: 35 }, classAccountByClass: { 'c-7h': { started: true, journeyDone: 6, journeyTotal: 679, seedNumber: 3, lastPractisedAt: new Date().toISOString(), phrases7d: 53, minutesByDay: [0, 0, 0, 0, 10, 0, 25] } } }) } as any
+    if (u.includes('class-practice-7d')) return { ok: true, json: async () => ({ classPlayByClass: { 'c-7h': 2100 }, activeDaysByClass: { 'c-7h': 2 }, rollup: { windowDays: 7, classCount: 1, activeClasses7d: 1, inAppMinutes7d: 35 }, classAccountByClass: { 'c-7h': { started: true, journeyDone: 6, journeyTotal: 679, seedNumber: 3, lastPractisedAt: new Date().toISOString(), phrases7d: 53, minutesByDay: [0, 0, 0, 0, 10, 0, 25] } } }) } as any
     return { ok: true, json: async () => ({}) } as any
   }) as any
   const { useSchoolContext } = await import('@/composables/schools/useSchoolContext')

@@ -312,7 +312,9 @@ describe('AdminStructure — node actions (tree lens)', () => {
     })
     const wrapper = await mountStructure()
     await clickOverflowItem(wrapper, 'Change label')
-    await wrapper.find('select.label-select').setValue('school')
+    // The label picker is the shared FrostSelect dropdown: open it and pick the row.
+    await flushPromises()
+    await wrapper.findAll('.label-select .fs-opt').find((b) => b.text() === 'school')!.trigger('click')
     await flushPromises()
     const call = fetchMock.mock.calls.find((c) => c[0] === '/api/groups/group-a' && c[1]?.method === 'PATCH')
     expect(call).toBeTruthy()

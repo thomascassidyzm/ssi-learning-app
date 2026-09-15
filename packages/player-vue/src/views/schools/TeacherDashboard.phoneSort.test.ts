@@ -48,7 +48,7 @@ vi.mock('@/composables/schools/useClassesData', () => ({
   }),
 }))
 vi.mock('@/composables/schools/usePlayAsClass', () => ({
-  usePlayAsClass: () => ({ canPlayAsClass: computed(() => true), launchClassSession: vi.fn(), playError: ref(null), switchActiveCourseTo: vi.fn() }),
+  usePlayAsClass: () => ({ canPlayAsClass: computed(() => true), playAsClassReadOnly: computed(() => false), launchClassSession: vi.fn(), playError: ref(null), switchActiveCourseTo: vi.fn() }),
 }))
 vi.mock('@/composables/useDashboardRefresh', () => {
   let handler: (() => Promise<void>) | null = null
@@ -69,7 +69,7 @@ async function mountView() {
   // shows "…" — honestly unloaded — so this pins the loaded shape.
   globalThis.fetch = vi.fn(async (url: any) => {
     const u = String(url)
-    if (u.includes('class-practice-7d')) return { ok: true, json: async () => ({ practiceByClass: { 'c-7h': 2100, 'c-6s': 600 }, activeDaysByClass: { 'c-7h': 2, 'c-6s': 1 }, rollup: { windowDays: 7, classCount: 2, activeClasses7d: 2, inAppMinutes7d: 45 }, classAccountByClass: { 'c-7h': { started: true, journeyDone: 9, journeyTotal: 334, seedNumber: 3, lastPractisedAt: new Date().toISOString(), phrases7d: 20, minutesByDay: [0, 5, 0, 10, 10, 0, 10] }, 'c-6s': { started: true, journeyDone: 2, journeyTotal: 334, seedNumber: 1, lastPractisedAt: new Date().toISOString(), phrases7d: 4, minutesByDay: [0, 0, 0, 0, 0, 0, 10] } } }) } as any
+    if (u.includes('class-practice-7d')) return { ok: true, json: async () => ({ classPlayByClass: { 'c-7h': 2100, 'c-6s': 600 }, activeDaysByClass: { 'c-7h': 2, 'c-6s': 1 }, rollup: { windowDays: 7, classCount: 2, activeClasses7d: 2, inAppMinutes7d: 45 }, classAccountByClass: { 'c-7h': { started: true, journeyDone: 9, journeyTotal: 334, seedNumber: 3, lastPractisedAt: new Date().toISOString(), phrases7d: 20, minutesByDay: [0, 5, 0, 10, 10, 0, 10] }, 'c-6s': { started: true, journeyDone: 2, journeyTotal: 334, seedNumber: 1, lastPractisedAt: new Date().toISOString(), phrases7d: 4, minutesByDay: [0, 0, 0, 0, 0, 0, 10] } } }) } as any
     return { ok: true, json: async () => ({}) } as any
   }) as any
   const { useSchoolContext } = await import('@/composables/schools/useSchoolContext')
@@ -101,27 +101,29 @@ describe('TeacherDashboard — the sorted metric is reachable on a phone', () =>
     const rows = wrapper.findAll('table[data-walk="classes-table"] tbody tr')
     expect(rows.length).toBe(2)
 
-    const sortSelect = wrapper.find('.filter-sort select')
+    // Sort by is the shared FrostSelect dropdown; drive its model the way a tap does.
+    const sortSelect = wrapper.find('.filter-sort').findComponent({ name: 'FrostSelect' })
     expect(wrapper.find('.filter-sort .filter-label').text()).toBe('Sort by')
-    await sortSelect.setValue('hours')
+    sortSelect.vm.$emit('update:modelValue', 'hours')
     await flushPromises()
 
     const table = wrapper.find('table[data-walk="classes-table"]')
     expect(table.attributes('data-sorted')).toBe('hours')
     const pinned = wrapper.findAll('tbody td.is-sorted')
     expect(pinned.length).toBe(2)
-    expect(pinned[0].attributes('data-label')).toBe('Time in app, min/wk')
+    expect(pinned[0].attributes('data-label')).toBe('Played as class, this week')
     expect(pinned[0].text()).toMatch(/ min$/)
 
     const labelled = wrapper.findAll('tbody tr:first-child td[data-label]').map(td => td.attributes('data-label'))
-    expect(labelled).toEqual(['Course', 'Belt', 'Journey, LEGOs', 'Time in app, min/wk', 'Activity'])
+    expect(labelled).toEqual(['Course', 'Belt', 'Journey, phrases', 'Played as class, this week', 'Phrases practised this week', 'Activity'])
   })
 
   it('sorting by name still pins time in app, the school metric', async () => {
     const wrapper = await mountView()
     expect(wrapper.find('table[data-walk="classes-table"]').attributes('data-sorted')).toBe('hours')
-    await wrapper.find('.filter-sort select').setValue('journey')
+    wrapper.find('.filter-sort').findComponent({ name: 'FrostSelect' }).vm.$emit('update:modelValue', 'journey')
+    await flushPromises()
     expect(wrapper.find('table[data-walk="classes-table"]').attributes('data-sorted')).toBe('journey')
-    expect(wrapper.find('tbody td.is-sorted').attributes('data-label')).toBe('Journey, LEGOs')
+    expect(wrapper.find('tbody td.is-sorted').attributes('data-label')).toBe('Journey, phrases')
   })
 })

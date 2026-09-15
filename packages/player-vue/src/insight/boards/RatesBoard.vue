@@ -158,19 +158,13 @@ const comparison = computed<RateComparisonData>(() =>
       <!-- Entity picker -->
       <label class="rtb-field rtb-field-wide">
         <span class="rtb-field-label">Entity</span>
-        <select v-model="entityId" class="rtb-select">
-          <option v-for="e in entityOptions" :key="e.value" :value="e.value">
-            {{ e.label }}
-          </option>
-        </select>
+        <FrostSelect v-model="entityId" :options="entityOptions" aria-label="Entity" />
       </label>
 
       <!-- Average picker — the entity's ancestor chain, nearest first -->
       <label class="rtb-field">
         <span class="rtb-field-label">Compare to</span>
-        <select v-model="averageId" class="rtb-select">
-          <option v-for="a in averageOptions" :key="a.value" :value="a.value">{{ a.label }}</option>
-        </select>
+        <FrostSelect v-model="averageId" :options="averageOptions" aria-label="Compare to" />
       </label>
     </div>
 
@@ -242,20 +236,6 @@ const comparison = computed<RateComparisonData>(() =>
   text-transform: uppercase;
   color: var(--ink-muted);
 }
-.rtb-select {
-  appearance: none;
-  font-family: var(--font-mono);
-  font-size: 13px;
-  color: var(--ink-primary);
-  background: var(--schools-card, #fff);
-  border: 1px solid rgba(44, 38, 34, 0.18);
-  border-radius: 9px;
-  padding: 9px 12px;
-  cursor: pointer;
-  transition: border-color 140ms ease;
-}
-.rtb-select:hover { border-color: rgba(var(--tone-red), 0.35); }
-.rtb-select:focus { outline: none; border-color: rgba(var(--tone-red), 0.55); box-shadow: 0 0 0 3px rgba(var(--tone-red), 0.08); }
 
 /* ── Segmented level switch ── */
 .rtb-segs { display: inline-flex; border: 1px solid rgba(44, 38, 34, 0.15); border-radius: 9px; overflow: hidden; }

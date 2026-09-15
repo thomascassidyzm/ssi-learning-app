@@ -36,6 +36,34 @@ html, body, #app {
   min-height: 100%;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   VIEW-AS BAND — the page gets out of its way
+
+   ViewingAsBanner is a fixed full-width band across the very top while an
+   ssi_admin is viewing as somebody else, and it publishes its own measured
+   height as --viewing-as-h on <html>. This one rule pushes every in-flow
+   shell (schools dashboard, org lens, player) down by exactly that, so the
+   band covers no control anywhere. Fixed top chrome cannot be reached by
+   body padding and names the variable itself; --viewing-as-h is absent when
+   view-as is off, so every use falls back to 0px.
+   Tom, 2026-09-14 (job #675): "it blocks all my nav functionality".
+
+   The playing-as-yourself strip on the player (job #699) publishes
+   --own-play-banner-h the same way with a has-own-play-banner class. The two
+   are summed once, here, as --top-bands-h, and that is the variable every
+   consumer names — the player root and the Listening overlay are fixed
+   inset:0 surfaces that body padding never reaches, so they name it too.
+   ═══════════════════════════════════════════════════════════════ */
+html {
+  /* Every fixed band across the top, summed. Add a band here once and every
+     consumer of --top-bands-h moves for it. */
+  --top-bands-h: calc(var(--viewing-as-h, 0px) + var(--own-play-banner-h, 0px));
+}
+html.is-viewing-as body,
+html.has-own-play-banner body {
+  padding-top: var(--top-bands-h, 0px);
+}
+
 body {
   font-family: var(--font-body);
   background: var(--bg-primary);

@@ -1,5 +1,6 @@
 <script setup>
 import { ref, watch, computed, onMounted } from 'vue'
+import FrostSelect from '@/components/FrostSelect.vue'
 import { getSchoolsClient } from '@/composables/schools/client'
 import { isDemoMode } from '@/composables/demo/demoMode'
 import LanguageFlag from './shared/LanguageFlag.vue'
@@ -97,27 +98,12 @@ const courseList = computed(() =>
 )
 const courseLocked = computed(() => courseList.value.length === 1)
 
-// Type-ahead filter over the catalogue \u2014 needed once the list is ~74 items.
-const courseSearch = ref('')
-const isCourseListOpen = ref(false)
-const filteredCourses = computed(() => {
-  const q = courseSearch.value.trim().toLowerCase()
-  if (!q) return courseList.value
-  return courseList.value.filter((c) => c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q))
-})
-const selectedCourse = computed(() => courseList.value.find((c) => c.code === courseCode.value) || null)
-
-function selectCourse(course) {
-  courseCode.value = course.code
-  courseSearch.value = ''
-  isCourseListOpen.value = false
-}
+// The dropdown carries its own type-to-filter; ~74 courses need it.
+const courseSelectOptions = computed(() => courseList.value.map((c) => ({ value: c.code, label: c.name })))
 
 // Reset form when modal opens/closes. On open, preselect the only option when
 // the list is locked to a single course (the trial language).
 watch(() => props.isOpen, (newVal) => {
-  courseSearch.value = ''
-  isCourseListOpen.value = false
   if (newVal) {
     className.value = ''
     courseCode.value = courseLocked.value ? courseList.value[0].code : ''
@@ -226,7 +212,7 @@ const handleSubmit = () => {
                 <p class="form-locked"><LanguageFlag :code="courseList[0].code" :size="18" /> {{ courseList[0].name }}</p>
                 <p v-if="lockedNote" class="form-hint">{{ lockedNote }}</p>
               </template>
-              <!-- Full catalogue (~74 courses): searchable type-ahead, not a plain <select>. -->
+              <!-- Full catalogue (~74 courses): the shared searchable dropdown. -->
               <!-- HANDBOOK Choose what a class learns
                    section: courses-and-content
                    roles: school_admin, teacher
@@ -251,41 +237,23 @@ const handleSubmit = () => {
                    checked: 674a1caa.ad8cb09b
               -->
               <div v-else class="course-picker" data-walk="create-class-course">
-                <button
-                  v-if="selectedCourse && !isCourseListOpen"
+                <FrostSelect
                   id="courseCode"
-                  type="button"
-                  class="course-picker-selected"
-                  @click="isCourseListOpen = true"
-                >
-                  <LanguageFlag :code="selectedCourse.code" :size="18" />
-                  <span>{{ selectedCourse.name }}</span>
-                  <span class="course-picker-change">{{ t('schools.ui.createClass.changeCourse', 'Change') }}</span>
-                </button>
-                <input
-                  v-else
-                  id="courseCode"
-                  v-model="courseSearch"
-                  type="text"
-                  class="form-input"
-                  :placeholder="isLoadingCatalogue ? t('schools.ui.createClass.loadingCoursesPlaceholder', 'Loading courses…') : t('schools.ui.createClass.searchCoursesPlaceholder', 'Search courses…')"
-                  autocomplete="off"
+                  v-model="courseCode"
+                  class="course-picker-select"
+                  :options="courseSelectOptions"
                   :disabled="isLoadingCatalogue"
-                  required
-                  @focus="isCourseListOpen = true"
-                  @blur="isCourseListOpen = false"
-                />
-                <ul v-if="isCourseListOpen" class="course-picker-list">
-                  <li v-for="course in filteredCourses" :key="course.code">
-                    <button type="button" class="course-picker-option" @mousedown.prevent="selectCourse(course)">
-                      <LanguageFlag :code="course.code" :size="18" />
-                      <span>{{ course.name }}</span>
-                    </button>
-                  </li>
-                  <li v-if="filteredCourses.length === 0" class="course-picker-empty">
-                    {{ t('schools.ui.createClass.noCoursesMatch', 'No courses match "{query}"').replace('{query}', courseSearch) }}
-                  </li>
-                </ul>
+                  :filter-placeholder="t('schools.ui.createClass.searchCoursesPlaceholder', 'Search courses…')"
+                  :aria-label="t('schools.ui.createClass.courseLabel', 'Course / Language')"
+                >
+                  <template #value="{ option }">
+                    <template v-if="option"><LanguageFlag :code="option.value" :size="18" /> {{ option.label }}</template>
+                    <template v-else>{{ isLoadingCatalogue ? t('schools.ui.createClass.loadingCoursesPlaceholder', 'Loading courses…') : t('schools.ui.createClass.searchCoursesPlaceholder', 'Search courses…') }}</template>
+                  </template>
+                  <template #option="{ option }">
+                    <LanguageFlag :code="option.value" :size="18" /> {{ option.label }}
+                  </template>
+                </FrostSelect>
                 <p v-if="catalogueError" class="form-hint">{{ catalogueError }}</p>
               </div>
             </div>
@@ -479,76 +447,13 @@ const handleSubmit = () => {
 
 .course-picker {
   position: relative;
-}
-
-.course-picker-selected {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 14px 16px;
-  background: var(--bg-secondary, #1a1a1a);
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
-  border-radius: 12px;
-  color: var(--text-primary, #ffffff);
-  font-family: inherit;
-  font-size: 0.9375rem;
-  min-height: 48px;
-  cursor: pointer;
-  text-align: left;
-}
-
-.course-picker-selected span:first-of-type {
-  flex: 1;
-}
-
-.course-picker-change {
-  font-size: 0.75rem;
-  color: var(--text-muted, #707070);
-  font-weight: 500;
-}
-
-.course-picker-list {
-  position: absolute;
-  z-index: 10;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  max-height: 240px;
-  overflow-y: auto;
-  margin: 0;
-  padding: 6px;
-  list-style: none;
-  background: var(--bg-card, #242424);
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
-  border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
-}
-
-.course-picker-option {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  background: none;
-  border: none;
-  border-radius: 8px;
-  color: var(--text-primary, #ffffff);
-  font-family: inherit;
-  font-size: 0.875rem;
-  text-align: left;
-  cursor: pointer;
-}
-
-.course-picker-option:hover {
-  background: var(--bg-secondary, #1a1a1a);
-}
-
-.course-picker-empty {
-  padding: 10px 12px;
-  color: var(--text-muted, #707070);
-  font-size: 0.8125rem;
+  /* FrostSelect reads these; they make the shared dropdown wear the form's
+     field typography and radius rather than the insight-board mono. */
+  --fs-font: inherit;
+  --fs-font-size: 0.9375rem;
+  --fs-radius: 12px;
+  --fs-bg: var(--bg-secondary, #1a1a1a);
+  --fs-border: var(--border-subtle, rgba(255, 255, 255, 0.08));
 }
 
 .info-box {

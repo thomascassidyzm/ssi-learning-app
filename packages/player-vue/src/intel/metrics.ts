@@ -30,6 +30,7 @@ export interface Metric {
 
 export const METRICS = {
   minutesPerPerson: { question: 'pulse', label: 'in-app minutes per person on the course, play to stop, main flow and Listening Mode', endpoint: '/api/intel/minutes', unit: 'minutes' },
+  minutesTotal: { question: 'pulse', label: 'in-app minutes done on the course in the period, whoever did them, play to stop, main flow and Listening Mode', endpoint: '/api/intel/minutes', unit: 'minutes' },
   newEnrolments: { question: 'pulse', label: 'real people who joined the course in the period', endpoint: '/api/intel/minutes', unit: 'people' },
   noActivity: { question: 'pulse', label: 'share of people on the course who did not press play in the period', endpoint: '/api/intel/minutes', unit: 'share' },
   practisedThisWeek: { question: 'pulse', label: 'real people who practised in the last seven days', endpoint: '/api/intel/pulse', unit: 'people' },

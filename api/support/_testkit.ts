@@ -12,11 +12,18 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 export type Row = Record<string, any>
 export type DB = Record<string, Row[]>
 
+/**
+ * Make every read of `table` answer the way PostgREST does when the database
+ * refuses it: `{ data: null, error }`, no throw. The route under test must turn
+ * that into a loud failure rather than an empty result (RLS doctrine rule 8).
+ */
+export const FAILING_TABLES = new Map<string, { message: string; code?: string }>()
+
 let seq = 0
 export function makeChainable(db: DB, table: string) {
   let rows: Row[] = [...(db[table] ?? [])]
   let single: 'maybe' | 'single' | null = null
-  let pending: { kind: 'insert' | 'update'; values: Row } | null = null
+  let pending: { kind: 'insert' | 'update' | 'delete' | 'noop'; values: Row } | null = null
   const filters: Array<(r: Row) => boolean> = []
   const builder: any = {
     select: () => builder,
@@ -25,6 +32,22 @@ export function makeChainable(db: DB, table: string) {
     eq: (col: string, val: unknown) => { filters.push((r) => r[col] === val); return builder },
     in: (col: string, vals: unknown[]) => { filters.push((r) => vals.includes(r[col])); return builder },
     is: (col: string, val: unknown) => { filters.push((r) => r[col] == val); return builder },
+    /** jsonb @> : the row's column carries every key the pattern names, recursively. */
+    contains: (col: string, pattern: Record<string, unknown>) => {
+      const subset = (have: any, want: any): boolean => {
+        if (want === null || typeof want !== 'object') return have === want
+        if (have === null || typeof have !== 'object') return false
+        return Object.entries(want).every(([k, v]) => subset(have[k], v))
+      }
+      filters.push((r) => subset(r[col], pattern))
+      return builder
+    },
+    upsert: (values: Row, opts: { onConflict: string; ignoreDuplicates?: boolean }) => {
+      const dup = (db[table] ?? []).some((r) => r[opts.onConflict] != null && r[opts.onConflict] === values[opts.onConflict])
+      pending = dup ? { kind: 'noop', values } : { kind: 'insert', values }
+      return builder
+    },
+    delete: () => { pending = { kind: 'delete', values: {} }; return builder },
     gte: (col: string, val: string) => { filters.push((r) => String(r[col]) >= val); return builder },
     order: (col: string, opts?: { ascending?: boolean }) => {
       const asc = opts?.ascending !== false
@@ -36,6 +59,8 @@ export function makeChainable(db: DB, table: string) {
     maybeSingle: () => { single = 'maybe'; return builder },
     single: () => { single = 'single'; return builder },
     then: (resolve: any, reject?: any) => {
+      const failure = FAILING_TABLES.get(table)
+      if (failure) return Promise.resolve({ data: null, error: failure, count: null }).then(resolve, reject)
       let out: Row[]
       if (pending?.kind === 'insert') {
         const row = { id: `row-${++seq}`, created_at: new Date(Date.now() + seq).toISOString(), ...pending.values }
@@ -44,6 +69,11 @@ export function makeChainable(db: DB, table: string) {
       } else if (pending?.kind === 'update') {
         out = []
         for (const r of db[table] ?? []) if (filters.every((f) => f(r))) { Object.assign(r, pending.values); out.push(r) }
+      } else if (pending?.kind === 'delete') {
+        out = (db[table] ?? []).filter((r) => filters.every((f) => f(r)))
+        db[table] = (db[table] ?? []).filter((r) => !out.includes(r))
+      } else if (pending?.kind === 'noop') {
+        out = []
       } else {
         out = rows.filter((r) => filters.every((f) => f(r)))
       }
@@ -55,14 +85,17 @@ export function makeChainable(db: DB, table: string) {
   return builder
 }
 
-export function makeReq(init: { method?: string; query?: Record<string, string>; body?: unknown } = {}): VercelRequest {
+export function makeReq(init: { method?: string; query?: Record<string, string>; body?: unknown; headers?: Record<string, string> } = {}): VercelRequest {
   return {
     method: init.method ?? 'GET',
     query: init.query ?? {},
     body: init.body,
-    headers: { authorization: 'Bearer tok' },
+    headers: { authorization: 'Bearer tok', ...(init.headers ?? {}) },
   } as any
 }
+
+/** A request made by an ssi_admin who is touring under View As. */
+export const VIEW_AS_HEADERS = { 'x-ssi-view-as': '1' }
 
 export function makeRes(): VercelResponse & { statusCode?: number; body?: any } {
   const res: any = {}

@@ -8,6 +8,7 @@
 // "school admin — new school" option here. Minting a new node is a tree
 // action (create-school-in-group / the tree UI), not an invite shape.
 import { ref, computed, onMounted, watch } from 'vue'
+import FrostSelect from '@/components/FrostSelect.vue'
 import { useUserRole } from '@/composables/useUserRole'
 import { useAdminClient } from '@/composables/useAdminClient'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
@@ -54,6 +55,13 @@ const who = ref<Who>(normalizeWho(props.initialWho))
 watch(() => props.initialWho, (v) => { who.value = normalizeWho(v) })
 
 const whereId = ref('')
+const whoOptions = computed<{ value: Who; label: string }[]>(() => [
+  ...(isSsiAdmin.value || isGovtAdmin.value ? [{ value: 'leader' as const, label: 'Group leader' }] : []),
+  { value: 'school_admin_join' as const, label: 'School admin — join existing' },
+  { value: 'teacher' as const, label: 'Teacher' },
+  { value: 'learner_demo' as const, label: 'Learner — demo node' },
+])
+const whereSelectOptions = computed(() => whereOptions.value.map((o) => ({ value: o.id, label: o.label })))
 const expiresAt = ref('')
 const maxUses = ref<number | ''>('')
 
@@ -222,20 +230,12 @@ onMounted(async () => {
 
     <div class="field">
       <label class="schools-kicker">Who</label>
-      <select v-model="who" class="frost-select" data-walk="invites-org-who">
-        <option v-if="isSsiAdmin || isGovtAdmin" value="leader">Group leader</option>
-        <option value="school_admin_join">School admin — join existing</option>
-        <option value="teacher">Teacher</option>
-        <option value="learner_demo">Learner — demo node</option>
-      </select>
+      <FrostSelect v-model="who" class="frost-pick" data-walk="invites-org-who" :options="whoOptions" aria-label="Who" />
     </div>
 
     <div class="field">
       <label class="schools-kicker">{{ whoLabel }} <span class="required">*</span></label>
-      <select v-model="whereId" class="frost-select">
-        <option value="">— Select —</option>
-        <option v-for="opt in whereOptions" :key="opt.id" :value="opt.id">{{ opt.label }}</option>
-      </select>
+      <FrostSelect v-model="whereId" class="frost-pick" :options="whereSelectOptions" placeholder="— Select —" :aria-label="whoLabel" />
       <span v-if="who === 'learner_demo' && demoGroupOptions.length === 0" class="field-hint">
         No demo organisations yet — create one in "New demo org" first.
       </span>
@@ -333,8 +333,7 @@ onMounted(async () => {
   letter-spacing: 0;
 }
 
-.frost-input,
-.frost-select {
+.frost-input {
   font: inherit;
   font-size: var(--text-base);
   padding: 10px 14px;
@@ -347,21 +346,12 @@ onMounted(async () => {
 
 .frost-input::placeholder { color: var(--schools-fg-3); }
 
-.frost-input:focus,
-.frost-select:focus {
+.frost-input:focus {
   outline: none;
   border-color: rgba(var(--tone-red), 0.55);
   box-shadow: 0 0 0 3px rgba(var(--tone-red), 0.14);
 }
 
-.frost-select {
-  appearance: none;
-  background-image:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238A8078' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  padding-right: 32px;
-}
 
 .btn-primary {
   display: inline-flex;
@@ -403,5 +393,10 @@ onMounted(async () => {
 
 @media (max-width: 768px) {
   .create-form { grid-template-columns: 1fr; }
+}
+.frost-pick {
+  /* FrostSelect reads these; the shared dropdown wears this page's look. */
+  min-width: 200px;
+  --fs-font: inherit; --fs-font-size: var(--text-sm); --fs-radius: var(--radius-lg); --fs-bg: rgba(255, 255, 255, 0.7); --fs-border: rgba(44, 38, 34, 0.12); --rc-entity: var(--tone-red); --rc-entity-ink: rgb(var(--tone-red));
 }
 </style>

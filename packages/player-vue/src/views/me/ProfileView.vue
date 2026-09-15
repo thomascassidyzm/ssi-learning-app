@@ -37,6 +37,7 @@ import WhyThisWorks from '@/components/me/WhyThisWorks.vue'
 import CourseSwitchRow from '@/components/me/CourseSwitchRow.vue'
 import SettingsDirection from '@/components/me/SettingsDirection.vue'
 import ReportBugSheet from '@/components/ReportBugSheet.vue'
+import { useUserMessages } from '@/composables/useUserMessages'
 
 const supabaseClient = inject<Ref<any> | null>('supabase', null)
 const activeCourse = inject<Ref<{ course_code?: string } | null> | null>('activeCourse', null)
@@ -66,8 +67,12 @@ const nudge = computed(() =>
   profile.value ? suggestedMode(profile.value.plan.hoursDone) : null
 )
 
+// The inbox row's count (job #684). Listing never marks anything read.
+const { unread: inboxUnread, unreadBadge: inboxBadge, refresh: refreshInbox } = useUserMessages()
+
 onMounted(() => {
   void load(activeCourse?.value?.course_code ?? null)
+  void refreshInbox()
 })
 </script>
 
@@ -100,6 +105,16 @@ onMounted(() => {
 
       <SettingsDirection />
     </template>
+
+    <!-- Inbox (job #684): messages sent to you, and their one-tap actions.
+         Lives here on the More page, never in Settings. -->
+    <router-link to="/me/inbox" class="bug-row inbox-row">
+      <span class="bug-row-label">
+        {{ t('inbox.menuLabel') }}
+        <span v-if="inboxUnread > 0" class="inbox-count" :aria-label="t('inbox.unreadAria')">{{ inboxBadge }}</span>
+      </span>
+      <span class="bug-row-desc">{{ inboxUnread > 0 ? t('inbox.menuDescUnread') : t('inbox.menuDesc') }}</span>
+    </router-link>
 
     <!-- Report a bug: the learner postbox. One way, no reply path. -->
     <button class="bug-row" type="button" data-walk="report-bug" @click="showBugReport = true">
@@ -172,6 +187,13 @@ onMounted(() => {
 }
 .bug-row-label { font-size: var(--text-base, 15px); color: var(--ink-primary, #2C2622); }
 .bug-row-desc { font-size: var(--text-xs, 12px); color: var(--ink-tertiary, #8A8078); }
+.inbox-row { text-decoration: none; }
+.inbox-count {
+  display: inline-flex; align-items: center; justify-content: center; margin-left: 8px;
+  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; box-sizing: border-box;
+  font-size: 12px; font-weight: 600; line-height: 1; color: #fff;
+  background: var(--belt-color, #c23a3a);
+}
 .foot { padding-top: var(--space-2, 8px); }
 .foot-link {
   font-size: var(--text-sm, 13px);

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, inject } from 'vue'
+import FrostSelect from '@/components/FrostSelect.vue'
 import { formatPracticeMinutes } from '@/composables/schools/practiceMinutes'
 import { useRouter } from 'vue-router'
 import BeltDot from '@/components/schools/shared/BeltDot.vue'
@@ -80,6 +81,19 @@ const classOptions = computed(() => {
   for (const s of enrichedStudents.value) map.set(s.class_id, s.class_name)
   return Array.from(map, ([value, label]) => ({ value, label }))
 })
+const classFilterOptions = computed(() => [
+  { value: 'all', label: t('schools.students.allClassesOption', 'All classes') },
+  ...classOptions.value,
+])
+const beltFilterOptions = computed(() => [
+  { value: 'all', label: t('schools.students.allOption', 'All') },
+  { value: 'white', label: t('schools.students.beltWhite', 'White') },
+  { value: 'yellow', label: t('schools.students.beltYellow', 'Yellow') },
+  { value: 'orange', label: t('schools.students.beltOrange', 'Orange') },
+  { value: 'green', label: t('schools.students.beltGreen', 'Green') },
+  { value: 'blue', label: t('schools.students.beltBlue', 'Blue') },
+  { value: 'black', label: t('schools.students.beltBlack', 'Black') },
+])
 
 const filtered = computed(() => {
   return enrichedStudents.value.filter(s => {
@@ -123,7 +137,7 @@ function viewStudent(s: { learner_id: string; name?: string }) {
 }
 
 function exportCsv() {
-  const header = ['Name', 'Class', 'Belt', 'Seeds', 'LEGOs', 'Minutes practised', 'Last active']
+  const header = ['Name', 'Class', 'Belt', 'Seeds', 'Phrases', 'Minutes practised', 'Last active']
   const rows = filtered.value.map(s => [
     s.name, s.class_name, s.belt, s.seeds_completed, s.legos_mastered, s.practiceMinutes, s.last_active_display,
   ].join(','))
@@ -210,22 +224,11 @@ watch(selectedUser, (newUser) => {
       />
       <label class="filter">
         <span class="filter-label">{{ t('schools.students.classFilterLabel', 'Class') }}</span>
-        <select v-model="classFilter" class="filter-select">
-          <option value="all">{{ t('schools.students.allClassesOption', 'All classes') }}</option>
-          <option v-for="opt in classOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-        </select>
+        <FrostSelect v-model="classFilter" class="filter-select" :options="classFilterOptions" :aria-label="t('schools.students.classFilterLabel', 'Class')" />
       </label>
       <label class="filter">
         <span class="filter-label">{{ t('schools.students.beltFilterLabel', 'Belt') }}</span>
-        <select v-model="beltFilter" class="filter-select">
-          <option value="all">{{ t('schools.students.allOption', 'All') }}</option>
-          <option value="white">{{ t('schools.students.beltWhite', 'White') }}</option>
-          <option value="yellow">{{ t('schools.students.beltYellow', 'Yellow') }}</option>
-          <option value="orange">{{ t('schools.students.beltOrange', 'Orange') }}</option>
-          <option value="green">{{ t('schools.students.beltGreen', 'Green') }}</option>
-          <option value="blue">{{ t('schools.students.beltBlue', 'Blue') }}</option>
-          <option value="black">{{ t('schools.students.beltBlack', 'Black') }}</option>
-        </select>
+        <FrostSelect v-model="beltFilter" class="filter-select" :options="beltFilterOptions" :aria-label="t('schools.students.beltFilterLabel', 'Belt')" />
       </label>
     </div>
 
@@ -236,7 +239,7 @@ watch(selectedUser, (newUser) => {
             <th>{{ t('schools.students.studentColumn', 'Student') }}</th>
             <th>{{ t('schools.students.classFilterLabel', 'Class') }}</th>
             <th>{{ t('schools.students.beltFilterLabel', 'Belt') }}</th>
-            <th>{{ t('schools.students.legosColumn', 'LEGOs') }}</th>
+            <th>{{ t('schools.students.legosColumn', 'Phrases') }}</th>
             <th>{{ t('schools.students.minutesPractisedColumn', 'Minutes practised') }}</th>
             <th>{{ t('schools.students.lastActiveColumn', 'Last active') }}</th>
             <th></th>
@@ -249,7 +252,7 @@ watch(selectedUser, (newUser) => {
                 <div class="avatar">{{ s.initials }}</div>
                 <div class="student-info">
                   <div class="student-name">{{ s.name }}</div>
-                  <div class="student-sub schools-subtle">{{ t('schools.students.legosMasteredLabel', '{n} LEGOs mastered').replace('{n}', String(s.legos_mastered)) }}</div>
+                  <div class="student-sub schools-subtle">{{ t('schools.students.legosMasteredLabel', '{n} phrases mastered').replace('{n}', String(s.legos_mastered)) }}</div>
                 </div>
               </div>
             </td>
@@ -422,20 +425,11 @@ watch(selectedUser, (newUser) => {
 .filter-label { font-size: 12px; }
 
 .filter-select {
-  padding: 5px 8px;
-  font-size: 12.5px;
-  border: 1px solid var(--schools-border);
-  border-radius: 6px;
-  background: #fff;
-  font-family: var(--font-body);
-  color: var(--schools-fg);
-  cursor: pointer;
+  /* FrostSelect reads these; the shared dropdown wears this page's look. */
+  min-width: 190px;
+  --fs-font: var(--font-body); --fs-bg: #fff; --rc-entity: 219 30 23; --rc-entity-ink: var(--schools-red); --fs-font-size: 12.5px; --fs-radius: 6px; --fs-border: var(--schools-border-strong);
 }
 
-.filter-select:focus {
-  outline: none;
-  border-color: var(--schools-red);
-}
 
 .table-card {
   overflow: hidden;

@@ -8,7 +8,8 @@
   "place": {
     "route": "node-home",
     "kinds": [
-      "org"
+      "org",
+      "group"
     ]
   },
   "keywords": [
@@ -34,7 +35,7 @@
       "advance": {
         "on": "next"
       },
-      "checked": "be0bc360.72372263"
+      "checked": "ad566922.72372263"
     },
     {
       "anchor": "invite-form-submit",

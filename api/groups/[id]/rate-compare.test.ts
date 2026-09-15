@@ -234,7 +234,7 @@ describe('GET /api/groups/:id/rate-compare', () => {
     expect(res.body.levelNoun).toBe('class')
     expect(res.body.cohortLabel).toBe('classes in IME Demo Programme')
     // Position line = the LEGO's content (roman preferred), not "S10 · L1"
-    expect(res.body.contextLine).toBe('Furthest LEGO · "main seekhna chaahta hoon" — "I want to learn"')
+    expect(res.body.contextLine).toBe('Furthest phrase · "main seekhna chaahta hoon" — "I want to learn"')
 
     // A node whose furthest LEGO has no content row gets NO line (never a raw id)
     const res2 = makeRes()
@@ -739,29 +739,63 @@ describe('GET /api/groups/:id/rate-compare — windows (?window=, rolling day un
 })
 
 describe('GET /api/groups/:id/rate-compare — measures (?measure=)', () => {
-  it('measure=minutes_per_class: same grammar, a different metric — practice minutes per week', async () => {
+  it('minutes: one burst of play reads at least as much over 30 days as over 7 — a TOTAL in the window, never a rate (Tom, 2026-09-14)', async () => {
     verifyAdminResult = { userId: 'admin-1' }
-    const res = makeRes()
-    await handler(makeReq('c1', { compare_to: 'programme', measure: 'minutes_per_class' }), res)
-    expect(res.statusCode).toBe(200)
-    expect(res.body.applied.measure).toBe('minutes_per_class')
-    expect(res.body.metricLabel).toBe('Practice minutes per class')
-    expect(res.body.unit).toBe('min')
-    expect(res.body.per).toBe('week')
-    expect(res.body.entity.value).toBe(60) // 60 practice min total / 1-week span since first activity
-    expect(res.body.contextLine).toBeUndefined() // contextLine rides ONLY on the rate measure
+    // The class 7H shape: an hour two days ago, five minutes twenty days ago.
+    // A per-week rate anchored to first activity read 210 for the week and
+    // 22.8 for the month; a total reads 60 and 65.
+    SESSION_ROWS = SESSION_ROWS.filter((r) => r.class_id !== 'c1')
+    SESSION_ROWS.push(
+      { class_id: 'c1', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S5L01', start_ord: 0, end_ord: 5, duration_seconds: 3600, started_at: daysAgo(2) },
+      { class_id: 'c1', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 1, duration_seconds: 300, started_at: daysAgo(20) },
+    )
+    const week = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', measure: 'minutes', window: '7d' }), week)
+    const month = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', measure: 'minutes', window: '30d' }), month)
+    const all = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', measure: 'minutes', window: 'all' }), all)
+    expect(week.statusCode).toBe(200)
+    expect(week.body.applied.measure).toBe('minutes')
+    expect(week.body.per).toBe('')
+    expect(week.body.entity.value).toBe(60)
+    expect(month.body.entity.value).toBe(65)
+    expect(month.body.entity.value).toBeGreaterThanOrEqual(week.body.entity.value)
+    expect(all.body.entity.value).toBeGreaterThanOrEqual(month.body.entity.value)
   })
 
-  it('measure=hours_total: a straight sum, unit hours, no per', async () => {
+  it('the old measure ids in bookmarks resolve to minutes rather than 404ing to the default', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    for (const legacy of ['minutes_per_class', 'hours_total']) {
+      const res = makeRes()
+      await handler(makeReq('c1', { compare_to: 'programme', measure: legacy }), res)
+      expect(res.statusCode).toBe(200)
+      expect(res.body.applied.measure).toBe('minutes')
+    }
+  })
+
+  it('under Today the minutes total is the total — never divided by seven', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    SESSION_ROWS = SESSION_ROWS.filter((r) => r.class_id !== 'c1')
+    SESSION_ROWS.push({ class_id: 'c1', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S5L01', start_ord: 0, end_ord: 5, duration_seconds: 1800, started_at: daysAgo(0) })
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', measure: 'minutes', window: 'today' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.entity.value).toBe(30)
+    expect(res.body.per).toBe('')
+  })
+
+  it('measure=minutes: same grammar, a different metric — the in-app minutes total in the window', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
-    await handler(makeReq('c1', { compare_to: 'programme', measure: 'hours_total' }), res)
+    await handler(makeReq('c1', { compare_to: 'programme', measure: 'minutes' }), res)
     expect(res.statusCode).toBe(200)
-    expect(res.body.metricLabel).toBe('Practice hours')
-    expect(res.body.unit).toBe('hours')
+    expect(res.body.applied.measure).toBe('minutes')
+    expect(res.body.metricLabel).toBe('Practice minutes')
+    expect(res.body.unit).toBe('min')
     expect(res.body.per).toBe('')
-    expect(res.body.entity.value).toBe(1) // 3600s of sessions in the window
-    expect(res.body.contextLine).toBeUndefined()
+    expect(res.body.entity.value).toBe(60) // 2 × 1800 s of class play in the window
+    expect(res.body.contextLine).toBeUndefined() // contextLine rides ONLY on the rate measure
   })
 
   it('measure=active_classes: % of the entity’s own classes active — available at node level', async () => {
@@ -785,17 +819,17 @@ describe('GET /api/groups/:id/rate-compare — measures (?measure=)', () => {
     expect(res.body.options.measures.map((m: any) => m.value)).not.toContain('active_classes')
   })
 
-  it('options.measures: full 4 at node level, 3 (no active_classes) at class level; each carries a plain-language desc', async () => {
+  it('options.measures: full 3 at node level, 2 (no active_classes) at class level; each carries a plain-language desc', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
     await handler(makeReq('school-2'), res)
     expect(res.body.options.measures.map((m: any) => m.value)).toEqual(
-      ['rate', 'minutes_per_class', 'hours_total', 'active_classes'])
+      ['rate', 'minutes', 'active_classes'])
     expect(res.body.options.measures.every((m: any) => typeof m.desc === 'string' && m.desc.length > 0)).toBe(true)
 
     const res2 = makeRes()
     await handler(makeReq('c1'), res2)
-    expect(res2.body.options.measures.map((m: any) => m.value)).toEqual(['rate', 'minutes_per_class', 'hours_total'])
+    expect(res2.body.options.measures.map((m: any) => m.value)).toEqual(['rate', 'minutes'])
   })
 
   it('unknown measure falls back to the default (rate)', async () => {
@@ -835,7 +869,7 @@ describe('GET /api/groups/:id/rate-compare — whole-class play lives in the dia
     expect(res.body.contextLine).toBeUndefined()           // S5L01 has no content row in this fixture: no line, never a raw id
 
     const mins = makeRes()
-    await handler(makeReq('c6', { compare_to: 'programme', measure: 'minutes_per_class' }), mins)
+    await handler(makeReq('c6', { compare_to: 'programme', measure: 'minutes' }), mins)
     expect(mins.statusCode).toBe(200)
     expect(mins.body.entity.value).toBeGreaterThan(0)      // in-app minutes off the same diary blocks
   })

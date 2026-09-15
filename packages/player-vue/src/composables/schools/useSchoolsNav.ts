@@ -18,6 +18,7 @@ import { useRoute } from 'vue-router'
 export type SchoolsNavKind =
   | 'classes'
   | 'class-detail'
+  | 'class-tools'
   | 'teachers'
   | 'students'
   | 'analytics'
@@ -27,6 +28,15 @@ export type SchoolsNavKind =
 export function useSchoolsNav() {
   const isAdminView = inject<boolean>('isAdminView', false)
   const route = useRoute()
+  // ONE CLASS PAGE, for every role (Tom, 2026-09-14, jobs #624 then #651): a
+  // class opens on its node home, /org/:classId — the page that leads with
+  // the class's own play-as-class figures. Job #624 sent leaders there and
+  // left teachers on the flat /schools/classes/:id page, which totals the
+  // pupils' individual accounts; at Chepstow that page read "0 students,
+  // 0 min" under a teacher who had run her lesson that week, and the school
+  // wrote in. The flat page is now the class's TOOLS page (roster, teachers,
+  // join link, rename), reached from the class page's own "Manage class",
+  // never from a class row or card.
 
   // WHICH TREE a link belongs to is decided by where the caller is standing,
   // never by `isAdminView`. That flag means "read-only browse" and is provided
@@ -48,7 +58,10 @@ export function useSchoolsNav() {
     if (!onAdminTree()) {
       switch (kind) {
         case 'classes': return '/schools/classes'
-        case 'class-detail': return `/schools/classes/${params?.classId ?? ''}`
+        case 'class-detail':
+          return params?.classId ? `/org/${params.classId}` : '/schools/classes'
+        case 'class-tools':
+          return `/schools/classes/${params?.classId ?? ''}`
         case 'teachers': return '/schools/teachers'
         case 'students': return '/schools/students'
         case 'analytics': return '/schools/analytics'
@@ -75,7 +88,8 @@ export function useSchoolsNav() {
     const schoolBase = `/admin/schools/${params?.schoolId ?? id}`
     switch (kind) {
       case 'classes': return `${schoolBase}/classes`
-      case 'class-detail': return `${schoolBase}/classes/${params?.classId ?? ''}`
+      case 'class-detail':
+      case 'class-tools': return `${schoolBase}/classes/${params?.classId ?? ''}`
       case 'teachers': return `${schoolBase}/teachers`
       case 'students': return `${schoolBase}/students`
       case 'analytics': return `${schoolBase}/analytics`

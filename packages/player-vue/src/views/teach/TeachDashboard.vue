@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, inject, onMounted, defineAsyncComponent } from 'vue'
+import FrostSelect from '@/components/FrostSelect.vue'
 import { useRouter } from 'vue-router'
 import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import Button from '@/components/schools/shared/Button.vue'
@@ -165,6 +166,7 @@ const fullCatalogue = computed(() => {
 // signed up to teach (teachers.teaching_languages). A paid subscription unlocks
 // the full catalogue. If teaching_languages is somehow empty, don't lock them
 // out — fall back to the full list.
+const newClassCourseOptions = computed(() => availableCourses.value.map((c) => ({ value: c.code, label: c.label })))
 const availableCourses = computed(() => {
   if (hasSubscription.value) return fullCatalogue.value
   const langs = teacher.value?.teaching_languages || []
@@ -745,11 +747,7 @@ async function submitRecipient() {
               {{ courseLabelFor(newClassCourse) }}
               <span class="locked-hint">{{ seatPurchaseAvailable ? t('teach.dashboard.subscribeToTeachMore', 'Subscribe to teach more languages') : t('teach.dashboard.notInCurrentPlan', 'Not included in your current plan') }}</span>
             </p>
-            <select v-else id="new-class-course" v-model="newClassCourse" required>
-              <option v-for="c in availableCourses" :key="c.code" :value="c.code">
-                {{ c.label }}
-              </option>
-            </select>
+            <FrostSelect v-else id="new-class-course" v-model="newClassCourse" class="new-class-course" :options="newClassCourseOptions" :aria-label="t('teach.dashboard.course', 'Course')" />
           </div>
         </div>
 
@@ -823,7 +821,7 @@ async function submitRecipient() {
               <tr>
                 <th>{{ t('teach.dashboard.student', 'Student') }}</th>
                 <th>{{ t('teach.dashboard.seeds', 'Seeds') }}</th>
-                <th>{{ t('teach.dashboard.legosMastered', 'LEGOs mastered') }}</th>
+                <th>{{ t('teach.dashboard.legosMastered', 'Phrases mastered') }}</th>
                 <th>{{ t('teach.dashboard.lastActive', 'Last active') }}</th>
               </tr>
             </thead>
@@ -1233,22 +1231,12 @@ async function submitRecipient() {
 }
 
 .field input[type='text'],
-.field select {
-  padding: var(--space-3) var(--space-4);
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(44, 38, 34, 0.10);
-  border-radius: var(--radius-lg);
-  font-size: var(--text-sm);
-  font-family: var(--font-body);
-  color: var(--ink-primary);
+.field .new-class-course {
+  /* FrostSelect reads these; the shared dropdown wears this page's look. */
+  --fs-font: var(--font-body); --fs-bg: #fff; --rc-entity: 219 30 23; --rc-entity-ink: var(--schools-red); --fs-font-size: 14px; --fs-radius: 8px; --fs-border: var(--schools-border-strong);
 }
 
 .field input:focus,
-.field select:focus {
-  outline: none;
-  border-color: var(--ssi-red);
-  box-shadow: 0 0 0 3px rgba(var(--tone-red), 0.12);
-}
 
 .locked-course {
   margin: 0;

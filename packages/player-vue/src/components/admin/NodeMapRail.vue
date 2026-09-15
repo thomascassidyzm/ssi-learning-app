@@ -44,6 +44,13 @@ const props = defineProps<{
    * true forces member; absent/false falls back to path detection — Vue
    * defaults absent boolean props to false, so ?? can't express this. */
   member?: boolean
+  /** Which of the node's two pages is open — Overview or Insights — named as
+   * one quiet line beneath you-are-here. Only the OPEN page is named (Tom,
+   * 2026-09-14: "it should only show one of these"); the Overview | Insights
+   * switch is the LensTabs pair top-right, so the line is orientation, not a
+   * control. The prop keeps both paths so neither caller changed. Absent on
+   * rails whose node has no insights page. */
+  lens?: { current: 'overview' | 'insights'; overviewPath: string; insightsPath: string } | null
 }>()
 
 const router = useRouter()
@@ -60,6 +67,11 @@ function open(ref_: RailRef): void {
   if (ref_.inert) return
   router.push(ref_.path || groupHomePath(ref_.id, member.value))
 }
+
+// The lens line: the open page named, nothing else.
+const lensWord = computed(() => props.lens?.current === 'insights'
+  ? t('org.lensTabs.insights', 'Insights')
+  : t('org.insights.overview', 'Overview'))
 
 function labelWord(r: RailRef): string {
   if (r.hasSchool || r.label === 'school') return t('org.ui.nodeMapRail.school', 'school')
@@ -96,6 +108,11 @@ function labelWord(r: RailRef): string {
         <span class="rail-here">
           <span class="rail-name">{{ props.node.name }}</span>
           <span class="rail-label">{{ t('org.ui.nodeMapRail.youreHere', 'you\'re here') }}</span>
+        </span>
+      </li>
+      <li v-if="props.lens" class="rail-row is-lens" :style="{ '--depth': props.ancestors.length }">
+        <span class="rail-lens">
+          <span class="rail-lens-current">{{ lensWord }}</span>
         </span>
       </li>
       <li v-if="props.siblings.length" class="rail-row is-siblings" :style="{ '--depth': props.ancestors.length }">
@@ -179,6 +196,13 @@ function labelWord(r: RailRef): string {
 }
 .is-here .rail-name { font-weight: var(--font-bold, 700); color: var(--schools-fg, #0F1212); }
 .is-here .rail-label { color: var(--schools-red, #DB1E17); font-weight: var(--font-medium); }
+
+/* The lens line: same indent as you-are-here, quieter than a row, plain text. */
+.rail-lens {
+  display: flex; align-items: baseline; width: 100%; min-width: 0;
+  padding: 2px 10px 4px 13px; font-size: var(--text-xs);
+}
+.rail-lens-current { color: var(--schools-fg-2, #555); font-weight: var(--font-medium); }
 
 .rail-toggle { cursor: pointer; color: var(--schools-fg-3, #8A8078); font-size: var(--text-xs); padding: 4px 10px; }
 .rail-toggle:hover { color: var(--schools-fg, #0F1212); }

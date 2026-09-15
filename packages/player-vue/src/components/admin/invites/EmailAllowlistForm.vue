@@ -5,6 +5,7 @@
 // (many emails, granted automatically at sign-in) — same underlying
 // entitlement mechanisms, both kept exactly as they behaved there.
 import { ref, computed, watch, onMounted } from 'vue'
+import FrostSelect from '@/components/FrostSelect.vue'
 import { useUserRole } from '@/composables/useUserRole'
 import { useAdminClient } from '@/composables/useAdminClient'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
@@ -43,6 +44,18 @@ const grantName = ref('')
 const grantNote = ref('')
 const grantAccessType = ref<'full' | 'courses'>('full')
 const grantDurationType = ref<'lifetime' | 'time_limited'>('lifetime')
+const GRANT_ACCESS_OPTIONS: { value: 'full' | 'courses'; label: string }[] = [
+  { value: 'full', label: 'Full access (all courses)' },
+  { value: 'courses', label: 'Specific courses' },
+]
+const GRANT_DURATION_OPTIONS: { value: 'lifetime' | 'time_limited'; label: string }[] = [
+  { value: 'lifetime', label: 'Lifetime' },
+  { value: 'time_limited', label: 'Time-limited' },
+]
+const ALLOWLIST_ACCESS_OPTIONS: { value: 'full' | 'courses'; label: string; disabled?: boolean }[] = [
+  { value: 'full', label: 'Full / Lifetime (default)' },
+  { value: 'courses', label: 'Specific courses — use a code for now', disabled: true },
+]
 const grantDurationDays = ref<number | ''>('')
 const grantSelectedCourses = ref<Set<string>>(new Set())
 const grantMintedLink = ref<{ code: string; email: string } | null>(null)
@@ -281,18 +294,12 @@ onMounted(() => {
 
       <div class="field">
         <label class="schools-kicker">Access</label>
-        <select v-model="grantAccessType" class="frost-select">
-          <option value="full">Full access (all courses)</option>
-          <option value="courses">Specific courses</option>
-        </select>
+        <FrostSelect v-model="grantAccessType" class="frost-pick" :options="GRANT_ACCESS_OPTIONS" aria-label="Access" />
       </div>
 
       <div class="field">
         <label class="schools-kicker">Duration</label>
-        <select v-model="grantDurationType" class="frost-select">
-          <option value="lifetime">Lifetime</option>
-          <option value="time_limited">Time-limited</option>
-        </select>
+        <FrostSelect v-model="grantDurationType" class="frost-pick" :options="GRANT_DURATION_OPTIONS" aria-label="Duration" />
       </div>
 
       <div v-if="grantDurationType === 'time_limited'" class="field">
@@ -359,10 +366,7 @@ onMounted(() => {
         <div class="allowlist-row">
           <div class="field">
             <label class="schools-kicker">Access</label>
-            <select v-model="allowlistAccessType" class="frost-select">
-              <option value="full">Full / Lifetime (default)</option>
-              <option value="courses" disabled>Specific courses — use a code for now</option>
-            </select>
+            <FrostSelect v-model="allowlistAccessType" class="frost-pick" :options="ALLOWLIST_ACCESS_OPTIONS" aria-label="Access" />
           </div>
 
           <div class="field">
@@ -511,8 +515,7 @@ onMounted(() => {
   letter-spacing: 0;
 }
 
-.frost-input,
-.frost-select {
+.frost-input {
   font: inherit;
   font-size: var(--text-base);
   padding: 10px 14px;
@@ -525,21 +528,12 @@ onMounted(() => {
 
 .frost-input::placeholder { color: var(--schools-fg-3); }
 
-.frost-input:focus,
-.frost-select:focus {
+.frost-input:focus {
   outline: none;
   border-color: rgba(var(--tone-red), 0.55);
   box-shadow: 0 0 0 3px rgba(var(--tone-red), 0.14);
 }
 
-.frost-select {
-  appearance: none;
-  background-image:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238A8078' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  padding-right: 32px;
-}
 
 .btn-primary {
   display: inline-flex;
@@ -731,5 +725,10 @@ onMounted(() => {
 @media (max-width: 768px) {
   .create-form { grid-template-columns: 1fr; }
   .allowlist-row { grid-template-columns: 1fr; }
+}
+.frost-pick {
+  /* FrostSelect reads these; the shared dropdown wears this page's look. */
+  min-width: 200px;
+  --fs-font: inherit; --fs-font-size: var(--text-sm); --fs-radius: var(--radius-lg); --fs-bg: rgba(255, 255, 255, 0.7); --fs-border: rgba(44, 38, 34, 0.12); --rc-entity: var(--tone-red); --rc-entity-ink: rgb(var(--tone-red));
 }
 </style>

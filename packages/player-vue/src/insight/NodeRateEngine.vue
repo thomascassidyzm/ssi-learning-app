@@ -197,7 +197,9 @@ const compareModel = computed({
   set: (v: string) => emit('update:compare', v),
 })
 
-const showCoursePicker = computed(() => (engineState.value?.options.courses.length ?? 0) > 1)
+// Even one course is a dropdown — the same control everywhere, never a
+// static box beside real dropdowns (Tom, 2026-09-14).
+const showCoursePicker = computed(() => (engineState.value?.options.courses.length ?? 0) >= 1)
 
 // ── Window chips: server-sent options; absent → no chip row at all (defensive
 // — renders exactly as today until the server ships options.windows). ──
@@ -223,7 +225,7 @@ const measureModel = computed({
 // set; this page is the scoped door, not a fork).
 const LEGACY_METRIC_DESC = t(
   'insights.rateEngine.legacyMetricDesc',
-  'New LEGOs reached per week — the headline rate. Rate of progress matters more than position: a learner three seeds back but climbing fast is healthier than one parked far ahead.',
+  'New phrases reached per week — the headline rate. Rate of progress matters more than position: a learner three seeds back but climbing fast is healthier than one parked far ahead.',
 )
 const metricDesc = computed(() => {
   const selected = measureOptions.value.find((m) => m.value === measureModel.value)
@@ -260,16 +262,18 @@ const metricDesc = computed(() => {
            Where it is. The node's home page, **See insights**.
            How you do it.
            1. Open the node's home page and tap **See insights**.
-           2. Pick the **measure** — progress, practice, or class sessions. The line
-              underneath says exactly what it means.
-           3. Pick the **window** — the period the rate is computed over. Shorter reacts
-              faster, longer smooths the noise.
+           2. Pick the **measure** — rate of progress, practice minutes, or active
+              classes. The line underneath says exactly what it means.
+           3. Pick the **window** — the period the figure covers. A wider window never
+              reads less practice than a narrower one, because practice minutes are the
+              total inside the window, from pressing play to stopping.
            4. Use **Compare to** to put an average alongside.
            5. **Overview** takes you back to the same place's home page.
-           Worth knowing. Everything here is a rate, not a raw total, so groups of very
-           different sizes still compare fairly. A class that practises from the front
-           is counted through its own class account, so whole-class lessons show here
-           the same as any other practice.
+           Worth knowing. Rate of progress is a per-week rate; practice minutes is a
+           plain total. The chart is one bar per day, hour or month, and a bar with no
+           play is a zero. A class that practises from the front is counted through its
+           own class account, so whole-class lessons show here the same as any other
+           practice.
            checked: d02609b0.1e86d15d
       -->
       <label v-if="showMeasurePicker" class="nre-field nre-field-wide" data-walk="insights-measure">
@@ -278,7 +282,7 @@ const metricDesc = computed(() => {
       </label>
       <div v-else class="nre-field" data-walk="insights-measure">
         <span class="nre-field-label">{{ t('insights.rateEngine.measureLabel', 'Measure') }}</span>
-        <p class="nre-fixed">{{ t('insights.rateEngine.rateOfProgressFixed', 'Rate of progress (LEGOs / week)') }}</p>
+        <p class="nre-fixed">{{ t('insights.rateEngine.rateOfProgressFixed', 'Rate of progress (new phrases / week)') }}</p>
       </div>
 
       <label class="nre-field nre-field-wide" data-walk="insights-compare">

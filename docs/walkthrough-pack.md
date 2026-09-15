@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `bcc9aaafa9b7` · generated 2026-09-13 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `a1dcf2ed4735` · generated 2026-09-14 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## choose-something-else-to-learn — Choose something else to learn
 
@@ -31,7 +31,7 @@ Personas: teacher, school_admin · place: class-detail
 
 ## install-the-app — Put the app on your device
 
-Personas: leader · place: node-home (org/group/school)
+Personas: leader, school_admin · place: node-home (org/group/school)
 
 1. [`account-card` · next] **Your account** holds the two things that are about you rather than your organisation: your sign-in, and the app on the device you are holding.
 2. [`account-install` · next] This row already knows what device you are on. On a computer it offers to install the app in its own window; on a phone it offers to add it to your home screen. Same organisation either way — it just saves you finding the tab.
@@ -49,7 +49,7 @@ Personas: teacher, school_admin · place: class-detail
 
 ## invite-first-person — Bring your first person in
 
-Personas: admin, leader · place: node-home (org)
+Personas: admin, leader · place: node-home (org/group)
 
 1. [`verb-invite-person` · click] People join through here — tap **Invite a person**. Nothing is created until you submit the form.
 2. [`invite-form-role` · next] Pick **Group leader** for someone who will run a group of their own, or **Learner** for someone who is here to learn. The link carries the role with it, so they arrive already belonging to this group.
@@ -95,7 +95,7 @@ Personas: admin, leader, school_admin · place: node-insights
 1. [`insights-measure` · next] The **measure** picks what's being counted — progress, practice, class sessions. The line underneath the pickers says exactly what the current one means.
 2. [`insights-window` · next] The **window** is the period the rate is computed over — shorter windows react faster, longer ones smooth the noise.
 3. [`insights-compare` · next] **Compare to** puts an average alongside. Everything here is a rate, not a raw total — so groups of different sizes compare fairly.
-4. [`insights-overview` · next] **Overview** takes you back to the same place's home — insights is a lens on where you already are, not a different page to get lost in.
+4. [`insights-overview` · next] **Overview** and **Insights** are two tabs on the same place. Overview takes you back to its home — insights is a lens on where you already are, not a different page to get lost in.
    - terminal: Rates lead, position is context — and the picker text always says what a measure means.
 
 ## reading-the-course-list — Reading the course list
@@ -127,7 +127,7 @@ Personas: learner · place: library (guest)
 
 ## set-your-password — Set or change your password
 
-Personas: leader · place: node-home (org/group/school)
+Personas: leader, school_admin · place: node-home (org/group/school)
 
 1. [`account-card` · next] **Your account** is your own corner of this page — not the organisation's, yours. Your sign-in and your device live here, and nothing in it is visible to anyone you have invited.
 2. [`account-password` · next] If you arrived through a **link in an email**, that link will not last forever. A password is how you get back into your organisation from a new laptop, a new phone, or after clearing your browser.

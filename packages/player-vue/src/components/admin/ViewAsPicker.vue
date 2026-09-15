@@ -6,12 +6,18 @@
  *
  * Two ways to pick, which is exactly the two questions being asked:
  *   - a ROLE ("show me what any school leader sees") — for a school role this
- *     picks a REAL person of that role, the one most recently active, so the
- *     pages carry a real school's numbers. A bare role with no scope rendered
- *     every count as 0 as if that were the truth (Tom on staging, 2026-09-11,
- *     job #265: "why the fucking hell are they all showing 0h progress") — a
- *     silent lie, so it no longer exists. Learner stays role-only: a learner
- *     has no school scope to fake.
+ *     picks a REAL person of that role, so the pages carry a real school's
+ *     numbers. A bare role with no scope rendered every count as 0 as if that
+ *     were the truth (Tom on staging, 2026-09-11, job #265: "why the fucking
+ *     hell are they all showing 0h progress") — a silent lie, so it no longer
+ *     exists. Learner stays role-only: a learner has no school scope to fake.
+ *     WHICH person (job #683, Tom 2026-09-14 16:20Z): the teacher or school
+ *     leader whose classes played the most AS CLASS in the last seven days,
+ *     never the most recently active — that landed him on Mr Williams at
+ *     Monmouth, whose one class had 0 minutes, so every screen read zero.
+ *     The figure is shown beside every name here and the list sorts by it.
+ *     Group leader stays most-recently-active: a seven-day rollup across a
+ *     whole group is out of price for a picker.
  *   - a PERSON (search) — their role AND their real school/group/class scope,
  *     so the pages render with their actual data.
  *
@@ -22,6 +28,7 @@ import { ref, computed, watch } from 'vue'
 import { useViewAs } from '@/composables/useViewAs'
 import { useUserRole, type ViewAsPersona } from '@/composables/useUserRole'
 import { useAdminClient } from '@/composables/useAdminClient'
+import { formatPracticeMinutes } from '@/composables/schools/practiceMinutes'
 
 const { viewAs, viewAsError } = useViewAs()
 const { canViewAs } = useUserRole()
@@ -29,13 +36,14 @@ const { getAuthToken } = useAdminClient()
 
 const open = ref(false)
 const query = ref('')
-const results = ref<ViewAsPersona[]>([])
+type Candidate = { persona: ViewAsPersona; minutes: number | null; school: string | null }
+const results = ref<Candidate[]>([])
 const searching = ref(false)
 
 const ROLES: { role: ViewAsPersona['role']; label: string; hint: string }[] = [
   { role: 'student', label: 'Learner', hint: 'the app with no staff surfaces at all' },
-  { role: 'teacher', label: 'Teacher', hint: 'the most recently active teacher, with their real classes' },
-  { role: 'school_admin', label: 'School leader', hint: 'the most recently active school leader, with their real school' },
+  { role: 'teacher', label: 'Teacher', hint: 'the teacher whose classes played most this week, with their real classes' },
+  { role: 'school_admin', label: 'School leader', hint: 'the school leader whose classes played most this week, with their real school' },
   { role: 'govt_admin', label: 'Group leader', hint: 'the most recently active group leader, with their real group' },
 ]
 
@@ -49,6 +57,22 @@ function toPersona(u: any): ViewAsPersona {
     role: u.educational_role as ViewAsPersona['role'],
     name: u.display_name || u.primary_email || 'Unnamed',
   }
+}
+const ROLE_LABEL: Record<string, string> = { teacher: 'Teacher', school_admin: 'School leader', govt_admin: 'Group leader', student: 'Learner' }
+function toCandidate(u: any): Candidate {
+  const hasMinutes = u.educational_role === 'teacher' || u.educational_role === 'school_admin'
+  return { persona: toPersona(u), minutes: hasMinutes ? Number(u.class_minutes_7d ?? 0) : null, school: u.school_name || null }
+}
+/** "School leader · Chepstow · 272 min this week" — the line under a name. */
+function candidateLine(c: Candidate): string {
+  const parts = [ROLE_LABEL[c.persona.role] || c.persona.role]
+  if (c.school) parts.push(c.school)
+  if (c.minutes !== null) parts.push(`${formatPracticeMinutes(c.minutes)} this week`)
+  return parts.join(' · ')
+}
+/** Most class minutes first; ties keep the server's order. A person with no figure sorts last. */
+function byMinutes(a: Candidate, b: Candidate): number {
+  return (b.minutes ?? -1) - (a.minutes ?? -1)
 }
 
 /**
@@ -65,7 +89,11 @@ async function asRole(role: ViewAsPersona['role'], label: string): Promise<void>
   resolvingRole.value = role
   try {
     const auth = await getAuthToken()
-    const res = await fetch(`/api/admin/users?limit=50&role=${encodeURIComponent(role)}`, {
+    // Teacher / school leader: the server ranks the whole role by seven-day
+    // play-as-class minutes and returns the busiest first. Group leader keeps
+    // the most-recently-active pick.
+    const ranked = role === 'teacher' || role === 'school_admin'
+    const res = await fetch(`/api/admin/users?limit=50&role=${encodeURIComponent(role)}${ranked ? '&sort=class_minutes_7d' : ''}`, {
       headers: auth ? { Authorization: `Bearer ${auth}` } : {},
     })
     const data = await res.json().catch(() => ({}))
@@ -74,9 +102,11 @@ async function asRole(role: ViewAsPersona['role'], label: string): Promise<void>
       viewAsError.value = `Nobody with the ${label.toLowerCase()} role has an account yet — search for a person instead.`
       return
     }
-    users.sort((a, b) => String(b.last_active || '').localeCompare(String(a.last_active || '')))
+    const candidates = users.map(toCandidate)
+    if (ranked) candidates.sort(byMinutes)
+    else users.sort((a, b) => String(b.last_active || '').localeCompare(String(a.last_active || '')))
     open.value = false
-    await viewAs(toPersona(users[0]))
+    await viewAs(ranked ? candidates[0].persona : toPersona(users[0]))
   } catch {
     viewAsError.value = 'Could not find a person with that role — network error.'
   } finally {
@@ -97,7 +127,7 @@ async function search(): Promise<void> {
   searching.value = true
   try {
     const auth = await getAuthToken()
-    const res = await fetch(`/api/admin/users?limit=25&search=${encodeURIComponent(q)}`, {
+    const res = await fetch(`/api/admin/users?limit=25&class_minutes_7d=1&search=${encodeURIComponent(q)}`, {
       headers: auth ? { Authorization: `Bearer ${auth}` } : {},
     })
     const data = await res.json().catch(() => ({}))
@@ -105,7 +135,8 @@ async function search(): Promise<void> {
     const users = Array.isArray(data?.users) ? data.users : []
     results.value = users
       .filter((u: any) => u.educational_role && VIEW_AS_ROLES.has(u.educational_role))
-      .map(toPersona)
+      .map(toCandidate)
+      .sort(byMinutes)
   } catch {
     if (token === searchToken) results.value = []
   } finally {
@@ -155,7 +186,7 @@ const errorText = computed(() => viewAsError.value)
         @click="asRole(r.role, r.label)"
       >
         <span class="vap-item-label">{{ r.label }}</span>
-        <span class="vap-item-hint">{{ resolvingRole === r.role ? 'Finding the most recently active one…' : r.hint }}</span>
+        <span class="vap-item-hint">{{ resolvingRole === r.role ? 'Finding one with real numbers…' : r.hint }}</span>
       </button>
 
       <p class="vap-head">Or a real person, with their own school and classes</p>
@@ -171,14 +202,15 @@ const errorText = computed(() => viewAsError.value)
         Nobody with a school role matches that.
       </p>
       <button
-        v-for="p in results"
-        :key="p.key"
+        v-for="c in results"
+        :key="c.persona.key"
         type="button"
         class="vap-item"
-        @click="pick(p)"
+        data-testid="view-as-result"
+        @click="pick(c.persona)"
       >
-        <span class="vap-item-label">{{ p.name }}</span>
-        <span class="vap-item-hint">{{ p.role }}</span>
+        <span class="vap-item-label">{{ c.persona.name }}</span>
+        <span class="vap-item-hint">{{ candidateLine(c) }}</span>
       </button>
 
       <p v-if="errorText" class="vap-error">{{ errorText }}</p>

@@ -3,7 +3,9 @@ import {
   createWebHistory,
   type NavigationGuardWithThis,
   type RouteRecordRaw,
+  START_LOCATION,
 } from 'vue-router'
+import { teacherLandingTarget } from '@/composables/teacherLanding'
 import { useUserRole } from '@/composables/useUserRole'
 import { isChunkLoadError } from './staleChunkError'
 import { prepareMissionFromRoute } from '@/missions/useMission'
@@ -87,6 +89,7 @@ const SetupView = () => import('@/views/schools/SetupView.vue')
 // /schools and /org mounts: one component, one address per lane.
 const HandbookView = () => import('@/views/schools/HandbookView.vue')
 const SupportView = () => import('@/views/schools/SupportView.vue')
+const SchoolsInboxView = () => import('@/views/schools/InboxView.vue')
 // THE INTELLIGENCE SURFACE — the question pages. They ride AdminContainer,
 // the ONE shell over SSi's internal surfaces (Tom's ruling 2026-09-10:
 // "share"), whose bar carries the ten questions.
@@ -190,6 +193,25 @@ const routes: RouteRecordRaw[] = [
     meta: {
       title: 'Learn',
       hideAppEscape: true, // immersive player — its own flow, no shell escape
+    },
+    // TEACHERS OPEN WITH THE DASHBOARD (Tom, 2026-09-14 13:03Z, job #662:
+    // "We need teacher accounts to open with the dashboard and not the
+    // player"). On the app's FIRST navigation only, a cached `teacher` role
+    // arriving at the bare player goes to /schools; every in-app Learn /
+    // My player tap still reaches the player, so her own play is one
+    // deliberate step away, never the default. Rule and scope in
+    // composables/teacherLanding.ts. For teachers this supersedes the
+    // 2026-07-24 ruling below; everyone else keeps it.
+    beforeEnter: (to, from) => {
+      const { effectiveEducationalRole, restoreFromCache } = useUserRole()
+      restoreFromCache()
+      const target = teacherLandingTarget({
+        role: effectiveEducationalRole.value,
+        isFirstNavigation: from === START_LOCATION,
+        path: to.path,
+        queryKeys: Object.keys(to.query).length,
+      })
+      return target ? { path: target } : true
     },
     // Owner ruling 2026-07-24: everyone lands in the player by default,
     // regardless of role. /schools is somewhere you deliberately navigate to
@@ -321,12 +343,23 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        // THE CLASS TOOLS PAGE (Tom, 2026-09-14, jobs #624 then #651). The
+        // CLASS PAGE for every role is the class node home, /org/:id, which
+        // leads with the class's own play-as-class figures; every class row
+        // and card links there (useSchoolsNav 'class-detail'). This flat page
+        // is where the class's tooling lives — roster, co-teachers, join link,
+        // rename, delete, the copy-play repair — and is reached from the
+        // class page's own "Manage class". Job #624 redirected leaders away
+        // from it, which also took Angharad's copy-play card out of reach;
+        // it is open to every member role again, and it no longer leads with
+        // the pupils' aggregate, so landing here by an old link misleads
+        // nobody.
         path: 'classes/:id',
         name: 'class-detail',
         component: ClassDetail,
         meta: {
-          title: 'Class Detail',
-          description: 'View class roster and settings',
+          title: 'Class tools',
+          description: 'Roster, teachers, join link and settings for one class',
           railFrame: true,
         },
       },
@@ -377,6 +410,18 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: 'Support',
           description: 'Your school\'s conversation with SSi, inside the app',
+          railFrame: true,
+        },
+      },
+      {
+        // The inbox (job #684): messages to this person — Support replies and
+        // the copy-play notice with its undo. Every schools role has one.
+        path: 'inbox',
+        name: 'schools-inbox',
+        component: SchoolsInboxView,
+        meta: {
+          title: 'Inbox',
+          description: 'Messages sent to you, and the one-tap actions they carry',
           railFrame: true,
         },
       },
@@ -571,6 +616,18 @@ const routes: RouteRecordRaw[] = [
       title: 'You',
       description: 'Learner profile, mirror and plan — preview surface',
       hideAppEscape: true, // carries its own Back-to-learning link
+    },
+  },
+  {
+    // The learner inbox (job #684): reached from the More page and the
+    // Library card. Never from Settings.
+    path: '/me/inbox',
+    name: 'learner-inbox',
+    component: () => import('@/views/me/InboxView.vue'),
+    meta: {
+      title: 'Inbox',
+      description: 'Messages sent to you',
+      hideAppEscape: true,
     },
   },
   // Admin panel

@@ -34,12 +34,40 @@ describe('SchoolsTopBar — Learn button', () => {
     await router.isReady()
   })
 
-  it('targets the immersive navless player, not the embedded schools-play route', async () => {
+  // Tom, 2026-09-14 13:07Z (job #662): a TEACHER's own learner account is not
+  // in the nav itself — it lives in the avatar menu as My player. Leaders keep
+  // the Learn button, which still targets the navless player '/'.
+  it('a teacher has no Learn button in the nav; My player waits in the avatar menu, one step away', async () => {
     const wrapper = mount(SchoolsTopBar, {
       global: { plugins: [router], provide: { auth: null } },
     })
-    const link = wrapper.get('a.learn-btn')
-    expect(link.attributes('href')).toBe('/')
+    expect(wrapper.find('a.learn-btn').exists()).toBe(false)
+    await wrapper.get('button.user-trigger').trigger('click')
+    const myPlayer = wrapper.findAll('a.menu-item').find((a) => a.text().includes('My player'))
+    expect(myPlayer?.attributes('href')).toBe('/')
+  })
+
+  // Tom, 2026-09-14 14:50Z (job #675), extending the teacher case above to
+  // EVERY school role: "We have the My Player as a dropdown menu, correctly
+  // already, so we can deprecate the Learn next to the User Avatar? THat would
+  // make it a lot simpler". One door to your own player, and it is the avatar
+  // menu — there is no Learn button in the nav for anybody.
+  it.each([
+    ['school_admin', 'admin-1', 'Angharad'],
+    ['govt_admin', 'govt-1', 'Gwen'],
+  ])('a %s has no Learn button either; My player waits in the avatar menu', async (r, userId, name) => {
+    role.clear()
+    role.initialize(null, r as any)
+    ;(ctx.currentUser as any).value = {
+      user_id: userId, learner_id: 'l2', display_name: name, educational_role: r, platform_role: null,
+    }
+    const wrapper = mount(SchoolsTopBar, {
+      global: { plugins: [router], provide: { auth: null } },
+    })
+    expect(wrapper.find('a.learn-btn').exists()).toBe(false)
+    await wrapper.get('button.user-trigger').trigger('click')
+    const myPlayer = wrapper.findAll('a.menu-item').find((a) => a.text().includes('My player'))
+    expect(myPlayer?.attributes('href')).toBe('/')
   })
 
   it('does not render while already in the player (embedded schools-play, class session live)', async () => {

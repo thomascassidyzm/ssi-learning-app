@@ -34,7 +34,8 @@ function makeChainable(table: string) {
   let rows: any[] = [...((DB as any)[table] ?? [])]
   const builder: any = {
     select: () => builder,
-    eq: (col: string, v: unknown) => { if (col === 'learner_id' || col === 'course_id') rows = rows.filter((r) => r[col] === v); return builder },
+    eq: (col: string, v: unknown) => { if (col === 'learner_id' || col === 'course_id' || col === 'user_id') rows = rows.filter((r) => r[col] === v); return builder },
+    maybeSingle: () => Promise.resolve({ data: rows[0] ?? null, error: null }),
     lt: () => builder,
     lte: () => builder,
     is: () => builder,
@@ -55,8 +56,14 @@ vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({ from: (table: string) => makeChainable(table) }),
 }))
 
-/** ISO stamp `min` minutes from now (negative = ago). */
-const at = (min: number) => new Date(Date.now() + min * 60000).toISOString()
+/**
+ * ISO stamp `min` minutes from ONE captured "now" (negative = ago). Captured
+ * once per test rather than read per call: two clips five minutes apart sit
+ * exactly on the idle cut-off, and a millisecond of jitter between two
+ * Date.now() reads split them into two spans (a 1200-for-1500 flake).
+ */
+let nowBase = Date.now()
+const at = (min: number) => new Date(nowBase + min * 60000).toISOString()
 
 function makeReq(query: Record<string, string>): VercelRequest {
   return { method: 'GET', query, headers: { authorization: 'Bearer tok' } } as any
@@ -74,6 +81,7 @@ let handler: typeof import('./class-practice-7d').default
 
 beforeEach(async () => {
   vi.resetModules()
+  nowBase = Date.now()
   handler = (await import('./class-practice-7d')).default
   DB = {
     classes: [{ id: 'c1', school_id: 's1', class_learner_id: 'class-learner-1' }],
@@ -99,6 +107,46 @@ beforeEach(async () => {
   schoolReadScope = null
 })
 
+describe('GET /api/school/class-practice-7d — the CALLER\'S OWN ACCOUNT (job #651, Chepstow 2026-09-14)', () => {
+  // florencecotten's Wednesday: 125 clips on HER account, none on 10C's. The
+  // payload must carry her own minutes so the teacher home can say whose they
+  // are — and must never fold them into the class's figure.
+  it('callerOwn carries the caller\'s own in-app minutes this week, kept apart from the class figure', async () => {
+    scope.learnerId = 'teacher-own'
+    DB.player_events.push(...[0, 4, 8, 12].map((min) => ({ learner_id: 'teacher-own', event_type: 'audio_play', duration: 0, occurred_at: at(-min) })))
+    const res = makeRes()
+    await handler(makeReq({}), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.callerOwn.learnerId).toBe('teacher-own')
+    expect(res.body.callerOwn.inAppMinutes7d).toBe(12)
+    expect(res.body.callerOwn.minutesByDay).toHaveLength(7)
+    expect(res.body.callerOwn.minutesByDay[6]).toBe(12)
+    expect(res.body.callerOwn.lastPlayedDay).toBe(new Date().toISOString().split('T')[0])
+    // Neither per-class figure is touched by the caller's play.
+    expect(res.body.classPlayByClass).toEqual({ c1: 1500 })
+    expect(res.body.practiceByClass).toEqual({ c1: 600 })
+  })
+
+  it('under the admin passthrough, ?own_user_id= names the persona\'s own account, never the admin\'s', async () => {
+    scope = { learnerId: 'admin-learner', role: null, classIds: [], learnerIds: [], studentsByClass: {}, schoolIds: [], groupId: null }
+    schoolReadScope = { learnerId: null, role: 'school_admin', classIds: ['c1'], learnerIds: [], studentsByClass: {}, schoolIds: ['s1'], groupId: null }
+    adminOk = true
+    DB.learners = [{ id: 'persona-learner', user_id: 'persona-uid', display_name: 'Ms Cotten' }]
+    DB.player_events.push(...[0, 5, 10].map((min) => ({ learner_id: 'persona-learner', event_type: 'audio_play', duration: 0, occurred_at: at(-min) })))
+    const res = makeRes()
+    await handler(makeReq({ school_id: 's1', own_user_id: 'persona-uid' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.callerOwn).toMatchObject({ learnerId: 'persona-learner', inAppMinutes7d: 10 })
+  })
+
+  it('a caller with no learner row gets callerOwn null, not a zero that reads like data', async () => {
+    scope.learnerId = null
+    const res = makeRes()
+    await handler(makeReq({}), res)
+    expect(res.body.callerOwn).toBeNull()
+  })
+})
+
 describe('GET /api/school/class-practice-7d — the SCHOOL HEADLINE rollup (job #265, 2026-09-11)', () => {
   it('rollup: minutes in the app this week count the class account AND staff own accounts once each; classes practising this week come off the enrollment cursor', async () => {
     // A teacher's own account: 15 minutes today. Tagged as school staff, so
@@ -118,9 +166,11 @@ describe('GET /api/school/class-practice-7d — the SCHOOL HEADLINE rollup (job 
     await handler(makeReq({}), res)
     expect(res.statusCode).toBe(200)
     // class account 1500s + student 600s + teacher 900s = 3000s = 50 min.
-    // (The per-class figure stays students + class account: 2100s.)
+    // The school headline is the one place the accounts are added, each once;
+    // the per-class figures stay apart (job #662).
     expect(res.body.rollup).toEqual({ windowDays: 7, classCount: 1, activeClasses7d: 1, inAppMinutes7d: 50 })
-    expect(res.body.practiceByClass).toEqual({ c1: 2100 })
+    expect(res.body.classPlayByClass).toEqual({ c1: 1500 })
+    expect(res.body.practiceByClass).toEqual({ c1: 600 })
   })
 
   it('CLASS ACCOUNT ROW (Tom, 2026-09-11): each class carries its own account\'s progress — started, minutes per day, journey — and a class that never played says so', async () => {
@@ -142,6 +192,36 @@ describe('GET /api/school/class-practice-7d — the SCHOOL HEADLINE rollup (job 
     expect(a['c-never']).toEqual({ started: false, journeyDone: 0, journeyTotal: 0, seedNumber: null, lastPractisedAt: null, phrases7d: 0, minutesByDay: [0, 0, 0, 0, 0, 0, 0] })
   })
 
+  it('ONE WINDOW RULE (Tom, 2026-09-14, job #673): a class row and the school rollup count the same seven days — the last 7 × 24 h, not the last 7 UTC dates', async () => {
+    // Noon UTC, so a lesson 6 days 23 hours ago falls on the 8th UTC date
+    // back: inside a rolling week, outside a calendar one.
+    const base = new Date(); base.setUTCHours(12, 0, 0, 0)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(base)
+    nowBase = Date.now()
+    try {
+      // The pupil is tagged on the class, so the rollup counts her own account.
+      DB.user_tags = [{ tag_type: 'class', tag_value: 'CLASS:c1', user_id: 'uid-l1', role_in_context: 'student', removed_at: null }]
+      DB.learners = [{ id: 'l1', user_id: 'uid-l1', display_name: 'Asha' }]
+      DB.player_events = [
+        ...[0, 3, 7, 10].map((min) => ({ learner_id: 'l1', event_type: 'audio_play', duration: 0, occurred_at: at(-min) })),
+        ...[0, 5, 10, 15, 20, 60, 65].map((min) => ({ learner_id: 'class-learner-1', event_type: 'audio_play', duration: 0, occurred_at: at(-1440 - 65 + min) })),
+        // The lesson 6 d 23 h ago: three clips, ten minutes.
+        ...[0, 5, 10].map((min) => ({ learner_id: 'class-learner-1', event_type: 'audio_play', duration: 0, occurred_at: at(-(7 * 1440 - 60) + min) })),
+      ]
+      const res = makeRes()
+      await handler(makeReq({}), res)
+      expect(res.statusCode).toBe(200)
+      expect(res.body.classPlayByClass).toEqual({ c1: 1500 + 600 })
+      // The rollup adds the class account and the pupil, each once, over the
+      // SAME window — so the classes list header and the school home agree.
+      expect(res.body.rollup.inAppMinutes7d * 60).toBe(1500 + 600 + 600)
+      expect(res.body.classAccountByClass.c1.minutesByDay).toHaveLength(7)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('rollup is present, and zero, when the caller has no classes — never absent', async () => {
     scope.classIds = []
     const res = makeRes()
@@ -157,7 +237,7 @@ describe('GET /api/school/class-practice-7d — the SCHOOL HEADLINE rollup (job 
     const res = makeRes()
     await handler(makeReq({ school_id: 's1' }), res)
     expect(res.statusCode).toBe(200)
-    expect(res.body.practiceByClass).toEqual({ c1: 2100 })
+    expect(res.body.classPlayByClass).toEqual({ c1: 1500 })
     expect(res.body.rollup.classCount).toBe(1)
   })
 
@@ -183,14 +263,27 @@ describe('GET /api/school/class-practice-7d — IN-APP TIME (founder ruling 2026
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(200)
-    // Student: 600s in the app. Class account: 1200s + 300s, the 40-minute
-    // silence between them not counted. Never 120 (audio played), never the
-    // class account's sessions.duration_seconds.
-    expect(res.body.practiceByClass).toEqual({ c1: 2100 })
+    // Class account: 1200s + 300s, the 40-minute silence between them not
+    // counted. Never 120 (audio played), never the class account's
+    // sessions.duration_seconds.
     expect(res.body.classPlayByClass).toEqual({ c1: 1500 })
     expect(res.body.audioPlayedByClass).toEqual({ c1: 120 })
     expect(res.body.metric).toBe('in_app_session_time')
     expect(res.body.idleCutoffSeconds).toBe(300)
+  })
+
+  // TWO FIGURES, KEPT APART, NEVER SUMMED (Tom, 2026-09-14, job #662: "Teacher
+  // SHOULD be able to see both: Play-as-class minutes AND an aggregate of the
+  // class students own playing times"). Red on the pre-#662 code, where
+  // practiceByClass was class play PLUS pupils (2100); green after.
+  it('practiceByClass is the PUPILS\' own accounts only and classPlayByClass the class account — the two are never added', async () => {
+    const res = makeRes()
+    await handler(makeReq({}), res)
+    expect(res.statusCode).toBe(200)
+    // Student l1: 600s on their own account. Class account: 1500s. No 2100 anywhere.
+    expect(res.body.practiceByClass).toEqual({ c1: 600 })
+    expect(res.body.classPlayByClass).toEqual({ c1: 1500 })
+    expect(JSON.stringify(res.body)).not.toContain('2100')
   })
 
   it('ACTIVE DAYS: the days a class practised on count the class account and its students together — a class with no pupil accounts still earns its days from the front', async () => {
@@ -218,7 +311,7 @@ describe('GET /api/school/class-practice-7d — coverage gate', () => {
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(200)
-    expect(res.body.practiceByClass).toEqual({ c1: 2100 })
+    expect(res.body.practiceByClass).toEqual({ c1: 600 })
   })
 
   it('403s coverage_expired once the school\'s coverage has lapsed', async () => {
@@ -237,7 +330,7 @@ describe('GET /api/school/class-practice-7d — coverage gate', () => {
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(200)
-    expect(res.body.practiceByClass).toEqual({ c1: 2100 })
+    expect(res.body.practiceByClass).toEqual({ c1: 600 })
   })
 
   it('a teacher spanning two schools only loses the expired school\'s classes', async () => {
@@ -253,6 +346,6 @@ describe('GET /api/school/class-practice-7d — coverage gate', () => {
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(200)
-    expect(res.body.practiceByClass).toEqual({ c1: 2100 })
+    expect(res.body.practiceByClass).toEqual({ c1: 600 })
   })
 })

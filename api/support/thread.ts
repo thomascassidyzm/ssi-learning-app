@@ -5,6 +5,10 @@
  *
  * ?peek=1 answers only { unread: n } and does NOT mark the thread read — the
  * user-menu dot uses this so a glance at the menu never counts as reading.
+ * Nor does a peek CREATE a thread (job #677, 2026-09-14): the dashboard peeks
+ * on every mount, so four real schools' admins "opened a support thread and
+ * typed nothing" on the day they merely loaded the dashboard. A thread exists
+ * from the moment the admin opens Support, not before.
  *
  * Admins only, server-side (Tom, 2026-09-10).
  */
@@ -13,7 +17,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { applyCors } from '../_utils/cors'
-import { resolveSupportScope, getOrCreateThread, MESSAGE_VIEW_COLUMNS, type SupportMessageView } from './_shared'
+import { resolveSupportScope, refuseSupportUnderViewAs, getOrCreateThread, findThread, MESSAGE_VIEW_COLUMNS, type SupportMessageView } from './_shared'
+import { markSupportRepliesRead } from '../_utils/userMessages'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -30,6 +35,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     res.status(405).json({ error: 'Method not allowed' })
     return
   }
+  if (refuseSupportUnderViewAs(req, res)) return
 
   const auth = await verifyAuthToken(req)
   if (!auth.valid || !auth.userId) {
@@ -49,7 +55,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return
     }
 
-    const thread = await getOrCreateThread(svc, scope)
+    const peek = req.query.peek === '1'
+    const thread = peek ? await findThread(svc, scope) : await getOrCreateThread(svc, scope)
+    if (!thread) {
+      // A peek with no thread yet: nothing to be unread, nothing to create.
+      res.status(200).json({ unread: 0 })
+      return
+    }
     const { data: rows } = await svc
       .from('support_messages')
       .select(MESSAGE_VIEW_COLUMNS)
@@ -58,12 +70,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const messages = (rows ?? []) as SupportMessageView[]
     const unread = unreadCount(messages, thread.last_read_at)
 
-    if (req.query.peek === '1') {
+    if (peek) {
       res.status(200).json({ unread })
       return
     }
 
     await svc.from('support_threads').update({ last_read_at: new Date().toISOString() }).eq('id', thread.id)
+    // Opening the thread IS reading its replies: the inbox rows the support
+    // trigger fanned out for this admin (job #684) are marked read here so the
+    // avatar badge never nags about a reply already read on this screen.
+    try {
+      await markSupportRepliesRead(svc, auth.userId, thread.id)
+    } catch (err) {
+      console.error('[support/thread] inbox read-mark failed:', err instanceof Error ? err.message : err)
+    }
 
     res.status(200).json({
       thread: {

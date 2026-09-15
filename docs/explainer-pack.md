@@ -1,8 +1,8 @@
 # Explanation pack — compiled render
 
-**Version `6e4883c90fe8` · generated 2026-09-12 by `tools/explainer/compile.mjs`. DO NOT EDIT — edit the rulings/rules and recompile.**
+**Version `721845e6d104` · generated 2026-09-14 by `tools/explainer/compile.mjs`. DO NOT EDIT — edit the rulings/rules and recompile.**
 
-Truth manifest: 12 verbs (Invite students · Invite a person · Get a shareable link · Add a group · Add a school · Add a class · Mint a demo org · Courses · Rename · Refresh demo activity · Delete · See insights) · stat words: Demo · Paid — all courses · No end date — inactive · Phrases practised this week · Minutes in the app this week · LEGOs travelled together · Teachers · Minutes practised · Groups · Learners · Classes · Classes practising this week · 4 measures · windows: Today / Last 7 days / Last 30 days / All time.
+Truth manifest: 12 verbs (Invite students · Invite a person · Get a shareable link · Add a group · Add a school · Add a class · Mint a demo org · Courses · Rename · Refresh demo activity · Delete · See insights) · stat words: Demo · Paid — all courses · No end date — inactive · Phrases practised this week · Minutes played as class this week · Phrases travelled together · Teachers · Minutes in the app this week · Groups · Learners · Classes · Classes practising this week · 3 measures · windows: Today / Last 7 days / Last 30 days / All time.
 
 ## admin
 
@@ -67,8 +67,9 @@ This is your organisation, one page per level. It's groups all the way down: a g
 more groups — each with its own leader — or learners directly. The map on the left is the whole
 tree; tap any name to look closer, and the page stays put.
 
-The numbers are always **everyone below this level**, counted once. **Practice hours** is the one
-to watch — it's your organisation actually using the language.
+The numbers are always **everyone below this level**, counted once. **Minutes in the app this
+week** is the one to watch — it's your organisation actually using the language, from pressing
+play to stopping, and the same minute wherever you read it.
 
 You can grow it from right here. **Invite a person** makes a personal link that IS their login —
 email it and they're in, nothing to set up. **Get a shareable link** makes an open link anyone

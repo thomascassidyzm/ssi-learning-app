@@ -17,6 +17,7 @@
 // /admin/structure (a peer of "+ Add organisation") and the create card on
 // /admin/invites.
 import { ref, computed, onMounted } from 'vue'
+import FrostSelect from '@/components/FrostSelect.vue'
 import { useAdminClient } from '@/composables/useAdminClient'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 import CoursePicker from './CoursePicker.vue'
@@ -49,6 +50,19 @@ const accessType = ref<'full' | 'courses'>('full')
 const selectedCourses = ref<Set<string>>(new Set())
 // FOR HOW LONG
 const durationType = ref<'lifetime' | 'time_limited'>('lifetime')
+const ROLE_OPTIONS: { value: 'learner' | 'ssi_admin' | 'popty_user'; label: string }[] = [
+  { value: 'learner', label: 'Learner' },
+  { value: 'ssi_admin', label: 'SSi admin' },
+  { value: 'popty_user', label: 'Popty user' },
+]
+const ACCESS_OPTIONS: { value: 'full' | 'courses'; label: string }[] = [
+  { value: 'full', label: 'Every course' },
+  { value: 'courses', label: 'Chosen courses only' },
+]
+const DURATION_OPTIONS: { value: 'lifetime' | 'time_limited'; label: string }[] = [
+  { value: 'lifetime', label: 'Forever' },
+  { value: 'time_limited', label: 'A set number of days' },
+]
 const durationDays = ref<number | ''>('')
 // LIMITS — one person, one sign-up, unless the admin says otherwise.
 const maxUses = ref<number | ''>(1)
@@ -175,19 +189,12 @@ onMounted(fetchCourses)
 
     <div class="field">
       <label class="schools-kicker">They sign in as</label>
-      <select v-model="role" class="frost-select">
-        <option value="learner">Learner</option>
-        <option value="ssi_admin">SSi admin</option>
-        <option value="popty_user">Popty user</option>
-      </select>
+      <FrostSelect v-model="role" class="frost-pick" :options="ROLE_OPTIONS" aria-label="They sign in as" />
     </div>
 
     <div class="field">
       <label class="schools-kicker">Access</label>
-      <select v-model="accessType" class="frost-select">
-        <option value="full">Every course</option>
-        <option value="courses">Chosen courses only</option>
-      </select>
+      <FrostSelect v-model="accessType" class="frost-pick" :options="ACCESS_OPTIONS" aria-label="Access" />
     </div>
 
     <div v-if="accessType === 'courses'" class="field field-wide">
@@ -197,10 +204,7 @@ onMounted(fetchCourses)
 
     <div class="field">
       <label class="schools-kicker">For how long</label>
-      <select v-model="durationType" class="frost-select">
-        <option value="lifetime">Forever</option>
-        <option value="time_limited">A set number of days</option>
-      </select>
+      <FrostSelect v-model="durationType" class="frost-pick" :options="DURATION_OPTIONS" aria-label="For how long" />
     </div>
 
     <div v-if="durationType === 'time_limited'" class="field">
@@ -309,8 +313,7 @@ onMounted(fetchCourses)
   letter-spacing: 0;
 }
 
-.frost-input,
-.frost-select {
+.frost-input {
   font: inherit;
   font-size: var(--text-base);
   padding: 10px 14px;
@@ -323,21 +326,12 @@ onMounted(fetchCourses)
 
 .frost-input::placeholder { color: var(--schools-fg-3); }
 
-.frost-input:focus,
-.frost-select:focus {
+.frost-input:focus {
   outline: none;
   border-color: rgba(var(--tone-red), 0.55);
   box-shadow: 0 0 0 3px rgba(var(--tone-red), 0.14);
 }
 
-.frost-select {
-  appearance: none;
-  background-image:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238A8078' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  padding-right: 32px;
-}
 
 .btn-primary {
   display: inline-flex;
@@ -379,5 +373,10 @@ onMounted(fetchCourses)
 
 @media (max-width: 768px) {
   .create-form { grid-template-columns: 1fr; }
+}
+.frost-pick {
+  /* FrostSelect reads these; the shared dropdown wears this page's look. */
+  min-width: 200px;
+  --fs-font: inherit; --fs-font-size: var(--text-sm); --fs-radius: var(--radius-lg); --fs-bg: rgba(255, 255, 255, 0.7); --fs-border: rgba(44, 38, 34, 0.12); --rc-entity: var(--tone-red); --rc-entity-ink: rgb(var(--tone-red));
 }
 </style>

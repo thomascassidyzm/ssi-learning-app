@@ -1,3 +1,321 @@
+## 2026-09-14 — Play as class restored beside every class; the playing-as-yourself warning moves to the player; minutes round up; hours only from an hour; View As lands on real numbers; a verification rule for schools jobs (job #683)
+
+**Symptom (Tom, 16:17Z, staging, ten screenshots).** "every single Play as Class button has GONE!!!!
+That should be prominent next to the class, not invisible" · "the 'You are now playing as yourself'
+makes no sense when in dashboard view - they're not playing anything. that warning should be on the
+dashboard top nav when the player is playing" · "round up to the nearest minute, not down. because
+learners who start playing and do 20-30s are showing as 0 mins" · "0 hours? it shouldn't round down
+to the nearest full hour. it should just give the mins. 0 h 14 mins" · "overall we MAY be rushing on
+this, because we're doing logically stupid things like removing massive functionality". At 16:20Z:
+the View As picker "should show him examples with ACTUAL data, not default to a teacher with zero
+play-as-class minutes".
+
+**Cause of the missing button, established in a real browser before any edit.** Signed in on
+staging as a real teacher and a real school leader of the ZZ Test Chepstow scenario school, Play as
+class was present on the class page, the classes list row and the teacher home. Under View As of
+the same two people it was absent on every surface. The one cause is the 2026-07-16 gate in
+`usePlayAsClass.ts` (commit 8ca0f01b2): `canPlayAsClass = isSchoolStaff && !isAdminView`, and
+`SchoolsContainer.vue` provides `isAdminView` as `isViewingAs`. Not #651's `showClassVerbs`, not
+#662, #675 or #681. Every one of Tom's nine View As screenshots was that gate; the tenth, the 9AWI
+class tools page with no band in frame, shows "Mr Williams · Teacher" in the avatar, so it was View
+As too. Real teachers never lost the button.
+
+**Ruling applied.**
+1. **Play as class is prominent beside every class, and under View As it is SHOWN DISABLED, never
+   hidden.** `canPlayAsClass` is staff-only again with no View As term; a new `playAsClassReadOnly`
+   drives `:disabled` and a title, "Read only while you are viewing as someone else. A teacher can
+   press this.", on the class page, the classes list row, the teacher home card and row, the admin
+   lane table and the class tools page. `launchClassSession` still refuses under View As, so the
+   #681 write ban stands: the disabled button is its honest rendering. Group leaders stay excluded.
+2. **The "You are now playing as yourself" line is off the teacher home.** Nothing plays there. It
+   lives in `PlayingAsYourselfBanner.vue`, mounted by `App.vue` on the player route only, shown
+   while the player's own transport state says playing, for a school staff account, never under
+   View As. Own-account play happens at `/`, the immersive player, which carries no schools nav at
+   all, so "the dashboard top nav" is the top of the player itself; the sentence and the Your
+   classes link are unchanged. The past-tense own-practice line on the teacher home stays.
+3. **Minutes round UP.** `secondsToMinutes` and `hoursToMinutes` take the ceiling of a positive
+   value; zero stays zero. The API rounds at the seconds source too (`secondsToMinutesUp` in
+   `inAppTime.ts`, used by `class-practice-7d.ts` for the rollup, the daily bars and the caller's
+   own minutes), so 25 seconds reaches every page as 1. The copy-onto-the-class card's "N minutes in
+   the app" goes through the same rule.
+4. **Duration format.** Under an hour "N min"; from an hour "1 h 14 min"; "0 h" never. This
+   refines the 2026-09-11 ruling of job #265 ("Why the fuck is hours a thing anyway?"): both say a
+   number never rounds to a lying zero, and today's words win where they differ. The header of
+   `practiceMinutes.ts` carries both. The only hour formatter reachable from an Insights page,
+   `SovereignComparison.vue`, printed "0h 14m" for a raw hours value and now goes through the one
+   formatter; none of Tom's ten screenshots shows the "0 h", so that is the best candidate, not a
+   confirmed sighting.
+5. **The classes list column is no longer a rate.** "Time in app, min/wk" read as minutes per week
+   over a value that is the class account's seven-day total; job #673 ruled rates out. It now reads
+   "Played as class, this week" in the header, the phone data-label and the CSV. Taste-safe default,
+   chosen over the brief's "Time in app, this week" because #673 also ruled every label says whose
+   minutes they are. No school surface divides minutes by weeks; the "Active min/wk" column in the
+   admin Coverage board is admin-only draft data and untouched.
+6. **View As picker lands on real numbers.** `api/admin/users.ts` takes `sort=class_minutes_7d`
+   with `role=teacher|school_admin`, ranks the whole role by seven-day play-as-class minutes across
+   their classes (`api/_utils/viewAsCandidates.ts`: teachers via `class_teachers`, leaders via every
+   class in the school they administer, one diary read of the class accounts) and returns the top
+   50; `class_minutes_7d=1` adds the figure and the school name to search results. The picker
+   sorts most-active first and writes "School leader · Chepstow · 4 h 32 min this week" under each
+   name; no play reads "0 min this week" and sorts last. Group leader stays most-recently-active: a
+   seven-day rollup across a whole group is out of price for a picker.
+
+**The process rule (written into WORKLIST.md as well).** Every schools-dashboard job verifies in a
+real browser as a REAL signed-in teacher and a REAL signed-in school leader, not View As, before
+any done card; and no control may be removed unless the job's landing line names it with
+before-and-after screenshots. Tom's diagnosis of the week, in his words: "we MAY be rushing on this,
+because we're doing logically stupid things like removing massive functionality, e.g. the Play as
+Class button."
+
+**Not changed, and why.** The minutes definition in `inAppTime.ts` (job #673). The per-person
+all-time minutes on the roster, students and teachers lists, which still read the sessions ledger
+and were out of this job's price in #673 too. Welsh and the other locales: the two new English keys
+are enrolled in `pending-translation.json`.
+## 2026-09-14 — The in-app message inbox primitive, and the teacher-play copy notice with one-tap undo as its first specimen (job #684)
+
+**Ruling (Tom, via the RBF room, 16:30Z).** "we DO want to be able to send them in-app messages
+about stuff like this." The shape he agreed: ONE message primitive per user — a source, a real read
+state, an optional one-tap action — not a per-surface strip. Schools Support replies become one
+source into it, "the same place Support replies land, Support becoming one source into it rather than
+a second inbox". In the learner app, "a card at the top of the Library, once, dismissable, dismissing
+into the same inbox reachable from the More menu; not Settings."
+
+**The policy line, Tom's own, which governs every future source:** "the bar for sending a learner
+anything is whether it changes what they would do, or the inbox becomes the tab nobody opens." It is
+in the doc comment of `sendUserMessage` in `api/_utils/userMessages.ts`, where anyone adding a source
+will read it.
+
+**Read state is real.** "Delivered is not seen." A message is unread until the person taps it, or
+opens the thing it points at — opening the Support thread marks that thread's reply notices read,
+because the reply is on the screen the person tapped for. Listing never marks anything. Dismiss is the
+Library card only and is not reading.
+
+**Support lands by trigger, not by cron or poll.** The brief offered the doorbell cron or the thread
+poll and said "choose the cron" if ambiguous. Neither is the single point where a reply is known to
+have landed: the reply row is written by the watcher on watson-1 with the service key, outside this
+app's API, and the cron runs hourly with a three-hour delay, so the avatar badge — an instant
+`?peek=1` until today — would have regressed to hourly. An AFTER INSERT trigger on `support_messages`
+fires wherever the row comes from, is instant, and fans out to the thread's admins with the same two
+admin spellings `schoolScope.ts` uses. It never fails the reply insert. Better (instant, every
+writer), simpler (no cron change, no poll change), cheaper (no hourly scan). Deviation from the
+brief's default, named.
+
+**Removed from the UI, named:** the unread dot on the Support entry of the schools account menu.
+The count now lives on the new Inbox entry above it and as a dot on the avatar. The `?peek=1`
+endpoint still exists and still answers; nothing calls it. `useSupportChannel.peekUnread` is
+therefore unused code, left in place for one release rather than deleted in the same change.
+
+**Undo is exact and refuses when it cannot be clean.** `undoCopy` deletes precisely the `newId`
+rows the audit record lists per table, children before sessions, restores the class cursor to
+`cursorBefore.target`, and appends an undo audit row so the trail stays append-only. It refuses when
+the class account holds a session or a diary row newer than the copy that the copy did not put there
+— then the message says so and offers nothing. After an undo the copy can run again: `priorCopied`
+ignores undone runs.
+
+**The seam for the sibling teacher-play sweep.** Nothing to call. `applyCopy` sends the notice
+itself, so any caller of the copy engine sends it; for audit rows that predate this, the backfill is
+`POST /api/messages/backfill-copy-notices` with an ssi_admin bearer, or `backfillCopyNotices(svc)` in
+`api/_utils/copyPlayNotice.ts`. Helper signature:
+`sendUserMessage(svc, { recipientUserId, source, title, body, action?, dedupeKey? })`. The dedupe key
+`class_play_copied:<audit_id>` makes double-sending impossible whichever lands first.
+
+**Dedupe key for support replies is per recipient** — `support_reply:<message_id>:<recipient>` —
+because a school can have more than one admin and one key cannot serve two rows. The brief's
+`support_reply:<message_id>` is the prefix.
+
+**Migration.** `20260914e_user_messages.sql`, applied live through the postgres role, additive only:
+RLS on, own-row SELECT, own-row UPDATE with a column grant on `read_at` and `dismissed_at` only,
+inserts service-role only. `schema.sql` refreshed; the snapshot also picked up job #680's
+`support_inbox` view, which had not been snapshotted.
+## 2026-09-14 — The one-off teacher-play sweep: five unambiguous copies, and what the strict rule costs (job #685)
+
+**Ruling (Tom, 16:30Z, via the RBF room).** "wherever there is no ambiguity - i.e. one teacher, one
+class, and no play as class data, we should copy it all over ... they can always skip back to the
+beginning easily on the play as class account." And, on telling them: "we DO want to be able to
+send them in-app messages about stuff like this." This SUPERSEDES #662's "there is deliberately NO
+bulk apply" — but only for the unambiguous cases. The per-pair admin card stays exactly as it is,
+and everything ambiguous stays on it.
+
+**The four conditions, plus two of our own.** A pair is unambiguous when: one teacher on the class,
+by the same union of `classes.teacher_user_id` and active class teacher `user_tags` that
+`candidates.ts` builds; that teacher on exactly one class ACROSS THE PLATFORM, not just within her
+school; the class account with zero play on the course, read as direct row counts in every
+COPY_TABLES table and not merely the enrolment row; and real own-account play to copy. Two further
+exclusions were ours, both conservative, both listed rather than copied: a class whose only teacher
+IS the school admin reads as an admin or test class — Angharad's own account on her own admin class
+was one of #662's 27 — and a class belonging to no school is outside a schools sweep.
+
+**The distribution is the finding.** 43 schools, 183 classes, 190 pairs → FIVE unambiguous copies
+totalling 336 rows, and 182 ambiguous. Chepstow alone listed 27 candidates under #662's looser
+rule; the strict rule takes the whole platform to five. The dominant filter is not play at all: 91
+pairs fail because the teacher teaches more than one class, and 38 because the class account
+already has play. None of the five carries any practice minutes, so no headline hours move
+anywhere; what moves is a class's position and its diary, from S0001 to S0003.
+
+**Reversible by the teacher, not only by an admin.** Every copy sends the teacher one in-app
+message whose single tap runs `undoCopy` — job #684's inbox primitive, `POST /api/messages/act`.
+The undo deletes exactly the rows that copy created, from its own audit record, and restores the
+class's own cursor. `priorCopied` now subtracts anything since undone, so an undo genuinely
+restores the pre-copy state and a later copy can run again rather than silently doing nothing.
+
+**Two implementations, one kept.** #684 and #685 both built the undo and the notice. We took #684's
+whole — it owns the inbox, the one-tap route, the dedupe key and the backfill — and dropped ours
+rather than leave a merge conflict in one file for a human to settle. The one behaviour lost with
+it: ours deleted the class's `course_enrollments` row when the class had none before the copy,
+where #684's restores a cursor only when there is one. No pair in this sweep is in that case.
+
+**Not done, and why.** The apply is armed and HELD. Tom's own sequence was dry-run plan first,
+published, then apply; the plan is published and no reply had arrived by the end of this job, so
+nothing was written. One sentence runs it.
+
+## 2026-09-14 — View As never writes in the viewed person's name; today's five empty support threads are gone (job #681)
+
+**Ruling (Tom, 15:51Z, on Watson's finding that four real schools "opened a support thread today and
+typed nothing").** "That MIGHT have been me, using View As" — and then, at 15:54Z, his testimony:
+under View As he TRIED to send a support message and it would not let him. So the decision: "viewing
+as a school admin/teacher must never create rows in that person's name", and the empty threads from
+today are removed "if they carry no text". On the shape of the fix, his words: ONE guard covering the
+whole support action — creating the thread, sending, marking read — applied once at the entry of the
+action, not a second patch on the send step.
+
+**The no-op reading, not the stamped-viewer one.** Tom offered two: no-op under View As, or stamp
+`viewer=<actual user>` and exclude from the support inbox. No-op wins on all three legs — it adds no
+column, no inbox filter and no new state, and the thing a tour needs from Support is to SEE the
+screen, not to write on it. Every write the action can make now stops at
+`refuseSupportUnderViewAs` at the entry of `api/support/thread.ts` and `api/support/messages.ts`.
+The screen says so in one sentence instead of showing a failure, and the top bar does not peek the
+unread dot at all while viewing-as.
+
+**The second gap, which the enumeration found and the commission did not name.** View As LANDS on
+the org lens at `/org/<id>`, whose action bar and ways-in ledger write to the group routes: create a
+sub-group, rename it, DELETE it, mint demo activity, mint an invite, create or update a school.
+Every one of those carries a deliberate ssi_admin bypass, so the protection the rest of the estate
+leans on — an ssi_admin has no school or group scope of their own, so the route 403s naturally — does
+NOT hold on them. `refuseViewAsWrite` now sits at the entry of all seven, refusing by METHOD so a
+tagged GET still renders the lens.
+
+**Who actually created the five threads.** Not View As. Tom's ssi account (`ef65ea1f…`) has no active
+school tag, no `schools.admin_user_id` row and no `govt_admins` row, so `resolveSupportScope` returns
+null for it and both support routes answer 403 — which is exactly the refusal he felt. The Monmouth
+thread at 14:35:19Z, twelve seconds after a View As session started, is a coincidence: that session's
+target was Chepstow, which already had a thread from 07:13, and four Monmouth staff self-tagged into
+that school at 14:44-14:45, so its own admin was live in the dashboard at the time. All five are job
+#677's peek defect, still running on production because the fix is on dev and staging and not yet
+promoted to main.
+
+**Production cleanup, applied 2026-09-14 16:06Z.** Each of the five re-read at the moment of
+deletion and refused if it had gained a message; none had. Before: `support_threads` 6,
+`support_messages` 4. After: `support_threads` 1, `support_messages` 4. The survivor is the ZZ Test
+school's thread with job #302's four probe messages. The IME Demo Programme group thread was not one
+of Tom's named four but is the same defect with the same emptiness, so it went under the same rule.
+
+## 2026-09-14 — LEGO becomes Phrases in learner and school copy; the Where-you-are rail names only the open view (job #674)
+
+**Ruling (Tom, 14:42Z).** On the word: "can we retire LEGOS for learner-facing language? that's really
+internal language for us / we can call it / Phrases? / I think that will cover it." On the rail line
+that #628 added beneath you-are-here: "It's not THAT clear that we're in Overview OR Insights / I
+think it should only show one of these, right? / I'm not sure it should show both, but if it DOES,
+then it should be clearer which one of the 2 views we're looking at right now."
+
+**Decision, the word.** Every learner- and school-facing string that said LEGO or LEGOs now says
+phrase or phrases: the teacher table's journey column, the class and school journey bars, the
+students and class-detail columns, the student-progress belt line and retired count, the org
+children list, the insights rate measure and its caption, the voice-pause panel, the player's
+next and previous tooltips and jump messages. The unit and the "Furthest phrase" line on the
+insights page come from the two rate-compare API routes, so those changed with the client. The
+three teacher-table figures now read as three things: "Journey, phrases" for position in the
+course, "Phrases practised this week" for the practice count, and "Rate of progress (new phrases /
+week)" for the rate, with the tight figure caption reading "phrases / week" as Tom quoted it.
+Handbook sentences on the four capabilities that named the unit were rewritten and re-pinned.
+
+**What stays.** Internal vocabulary is untouched: i18n keys, props, columns, data-walk anchors,
+CSS classes, code comments, console lines, the LegoAssembly component, and every admin-gated or
+developer surface: the settings view-script and debug-overlay rows, the practising-mode test
+switch, the Course Explorer, the methodology page, the /intel boards, the release-notes
+placeholder. Handbook keywords keep "lego" so a search for the old word still finds the entry.
+
+**Locales.** Welsh, Spanish, French, Italian and Portuguese had the bare token replaced with the
+language's word for phrase in the six non-settings keys. The other twenty locales keep their old
+wording for those keys because the pending-translation register only accepts keys missing from a
+locale, and these exist everywhere. They are listed as awaiting translation in the job's grep
+document.
+
+**Decision, the rail.** `NodeMapRail.vue`'s lens line names the open view only, capitalised as
+Tom wrote it, "Insights" or "Overview", as plain text under you-are-here at the same indent. The
+"· other" span, the switch handler and its aria-label are gone. The `lens` prop keeps both paths
+so neither caller changed; the LensTabs pair top-right is the switch. The #628 entry below
+records the state this supersedes; it is left as written.
+
+## 2026-09-14 — Listening Mode: cut the mode captions and the scene progress bar (job #650)
+
+**Ruling (Aran reviewing production, Tom agreeing, 2026-09-14).** "Probably don't need the Each
+line four times bit, and I'm not sure we need the progress bar in there"; "The whole scene in
+the target language, at your pace, probably don't need that either"; "AI overexplanations etc".
+
+**Decision.** In `ListeningOverlay.vue` the two one-liners under the Immersion / Drill toggle are
+gone, and so is the hover `title` that carried the same words. In a dialogue scene the transport
+progress bar and its percentage are gone, and so is the 2px ambient hairline at the top edge,
+which was the same signal drawn twice. All and Core keep their bar: those lists run to hundreds of
+rows and the bar is the only position there. The "Scene N · time" strip stays as the orientation.
+Swept the rest of the surface: "N sentences" on a scene card, "N scenes" plus the offline chip on a
+pod card, the Speed label and the empty or offline states are information, not explanation, and
+stay. "Tap to play / tap to pause" under the All and Core list is a prompt, not an explanation,
+and stays. The "Audio only, no speaking" line on the mode tray is outside Listening Mode and was
+not touched.
+
+**Better × Simpler × Cheaper.** Better: the scene view reads as the dialogue, not as a manual for
+it. Simpler: two fewer strings, one fewer element, one CSS block deleted. Cheaper: nothing new.
+
+## 2026-09-14 — Vercel builds `dev` only when the commit subject carries `[preview]`; staging and main build on every push (job #619)
+
+**Ruling (Tom, 2026-09-14 00:32Z).** Asked "make learning-app dev builds opt-in on Vercel, staging
+and main always building. Recommendation stands at yes." Tom: "Yes".
+
+**Why.** The Aug 12–Sep 11 Vercel month was $467, $366 of it Build CPU Minutes. The preview gate of
+2026-09-12 removed worker-branch builds; the first build-hours reading, job #610, showed the
+remainder: of 12.4 build hours in 24 hours, 10.5 were this app's builds on `dev`, one ~13-minute
+build per merge, and nobody looks at most of them.
+
+**The setting, and where it lives.** The Vercel project's Ignored Build Step, PATCHed through the
+API, never an `ignoreCommand` in `vercel.json`, which overrides the dashboard rule and is the
+mistake the hexagon workers made on 2026-09-13. `vercel.json` here carries no such key; keep it so.
+
+Before, verbatim:
+
+```
+case "$VERCEL_GIT_COMMIT_REF" in main|dev|staging|preview/*) exit 1;; esac; printf '%s' "$VERCEL_GIT_COMMIT_MESSAGE" | head -1 | grep -q "\[preview\]" && exit 1; echo "skipped: previews are opt-in (preview/* branch or [preview] in commit subject)"; exit 0
+```
+
+After, verbatim, read back from the API:
+
+```
+case "$VERCEL_GIT_COMMIT_REF" in main|staging|preview/*) exit 1;; esac; printf '%s' "$VERCEL_GIT_COMMIT_MESSAGE" | head -1 | grep -q "\[preview\]" && exit 1; echo "skipped: dev and other branches are opt-in ([preview] in subject or preview/*)"; exit 0
+```
+
+Vercel caps the command at 256 characters, hence the short skip message. Exit 1 means build.
+
+**What it means for everyone.** A plain push or merge to `dev` no longer builds, so the dev alias
+`ssi-learning-app-git-dev-zenjin.vercel.app` no longer updates on it. An agent that needs the dev
+alias to show its change puts `[preview]` at the start of the merge commit's subject, first line
+only. `staging` and `main` build on every push exactly as before, so the release train, the
+Colombo test team and real learners are untouched; the release-train scripts push only reports and
+notes to `dev` and never needed a build. The same `[preview]` convention as the preview gate.
+
+**The nightly scan.** `command-surface/ops/vercel-gate-scan.js` now treats a learning-app `dev`
+deployment whose subject lacks `[preview]` as off-allowlist, so a READY one turns the night RED
+like a worker-branch build. Its first run after this change will list the day's pre-change dev
+builds as RED once; the window is 24 hours and they roll out the next night. The same commit fixed
+the month-to-date figure that Astra #613 found summing overlapping windows.
+
+**Proof.** Two docs-only pushes to `dev`, each a fresh SHA. Push 1, merge `ff5f9fc6e` with a plain
+subject: deployment `dpl_E5kotR4qzuc34nWb1y1wxrhJLnm4` CANCELED, container 4 seconds, never READY. Push 2,
+merge `77dd34852` with `[preview]` at the start of its subject: deployment
+`dpl_BAk8r3K1QtiwH3BkvfGfZXsjTdnx` READY after 14 minutes, holding the alias
+`ssi-learning-app-git-dev-zenjin.vercel.app`. This sentence rode a third plain-subject merge, which
+was cancelled the same way as push 1. A side-lesson from push 1: the branch commit's subject quoted the literal text
+`[preview]`, so the gate built the worker branch; that build was cancelled through the API after four
+minutes. Never quote the marker on a subject line unless you mean it.
+
 ## 2026-09-13 — Listening Mode: the Senedd pod is a named extra slot for every Welsh (Northern) learner (job #605)
 
 **Ruling (Tom, 2026-09-13 20:31Z).** Open `cym_n_for_eng:senedd-s4c-steve` to all Welsh North
@@ -1987,3 +2305,804 @@ minutes on — the pre-change module returned 120 s, this one 53 s, seen red the
 fixtures were flipped to typed play rows because under this rule a tap with no audio is no play
 time. Listening Mode minutes are exact on production from 2026-09-13 04:21Z (per-clip rows,
 jobs #339/#343); before that only the 30 s tick exists and listening minutes are tick-bounded.
+
+## 2026-09-14 — Intelligence: the average of all courses includes the selected course, is learner-weighted, and total in-app minutes is a measure (job #621)
+
+**Tom's rulings (staging review, 01:29Z).** The 'Average of all courses' comparator moved with the
+course (Basque v 11.5, French v 12.7, Welsh North v 13): job #609 had built a leave-one-out mean
+(`api/intel/minutes.ts`, `members = ranked.filter(f => f.code !== courseCode)`), "confusing and not
+helpful for us as admin". And it was a per-course mean, so dead or near-empty courses dragged it
+toward zero and every real course sat at the 92nd–100th percentile. Tom's words: "the averages of
+all LEARNERS". Second ruling: a course with a handful of very active learners must not read as
+popular, so 'In-app minutes (total)' joins 'In-app minutes per person'.
+
+**Decision.** `averageOfAllCourses(measure, cohort)` is the comparator, pure and exported, over every
+course with anyone on it, the selected course INCLUDED — one fixed number for a window and a
+measure. Each measure carries a `kind`: `ratio` (minutes per person, no activity) is learner-weighted,
+the numerator summed over every course divided by course-people summed over every course, so a dead
+course with two enrolments weighs two people, not a whole course; `count` (minutes total, new
+enrolments) is the plain mean per course, a total having no denominator to weight by. The
+distribution strip stays the siblings, because `RateCompare` adds the entity itself when it ranks.
+Each measure's description line says what its average is, and the Handbook entry was re-pinned.
+Every school surface's minute is untouched: `inAppTime.ts` did not change.
+
+**On the way: the packed read now agrees with the paged read.** Astra's cold check (needs-you #714)
+refuted "one minute definition" by 100 s across ten diaries on 131,804 rows: `diary_play_rows`
+dropped a clip's audio id whenever any event followed within 30 s, but `spansFromDiary` closes at
+the last audio-ended point on a play tap, a mode switch or a tick, so the dropped clip's whole length
+was lost. Measured live: 104,037 unbounded clips, 261 ids carried, 19 dropped that could matter.
+Migration `20260914_diary_play_rows_carry_closing_ids.sql` (applied live) drops the id only when the
+successor within 30 s is a stop tap or a same-mode clip. Proof: packed v paged over the nine affected
+learners, same `sessioniseAll`: 93 s apart before, 0 s after. Carrying every id instead would have
+added ~4 MB to the packed payload for the same result.
+
+## 2026-09-14 — One dropdown component everywhere, and every dropdown searchable (job #625)
+
+**Ruling (Tom, 2026-09-14 01:57Z),** reviewing Intelligence on staging as ssi_admin and as a school
+leader: the plain bordered boxes beside the nice custom dropdown are "the old style of crap looking
+ones", and every dropdown on the site must have a search field at the top of its open panel, even a
+short list.
+
+**What changed.** `FrostSelect` is the one dropdown. Its filter is no longer opt-in: the search box is
+always at the top of the panel, focus lands in it on open, typing narrows by case-insensitive
+substring, arrows and Enter pick, Escape closes, the tick stays on the selected row. It measures the
+visual viewport when it opens and again when that viewport changes, so on a phone it opens upward
+when the keyboard leaves no room below, and its search field is 16px on touch screens so iOS does
+not zoom the page. Rows can be disabled; a `value` and an `option` slot carry flags and tier chips
+where a caller had them. Every native `<select>` in the learner app, schools and admin surfaces now
+uses it; so do the two hand-rolled dropdowns, the Create class course type-ahead and the onboarding
+taught-language menu; `FilterDropdown.vue` is deleted. On Intelligence, Course is a dropdown even
+when there is only one course, rather than a static paragraph next to real dropdowns.
+
+**Not dropdowns, left alone.** Segmented rows such as Window and Entity level, the navigation menus
+in the top bars, and the card pickers for plan, sector and course. Option lists and what a pick does
+are unchanged everywhere: this is the control only.
+
+## 2026-09-14 — Insights page: graph tool first, Overview | Insights as tabs, Where you are names the page (job #628)
+
+**Ruling (Tom, 2026-09-14 02:22Z),** reviewing staging as ssi_admin viewing as a school leader on
+class 10E: "the graph tool should be the leading thing"; Overview and Insights should read as a pair of
+tabs, side by side on both pages, in the same family as the Window control; and the Where you are card
+should say which of the two is open.
+
+**What changed.** On every node's Insights page the window / course / measure / compare block with its
+headline figure, over-time chart and "where this sits" now renders first, the "Are they doing it" block
+below it, voice last. Order only; neither block was redesigned. The "See insights" button on the node
+home and the plain "Overview" button on the lens are replaced by one `LensTabs` component, Overview |
+Insights, drawn in the WindowChips pill grammar with the open tab lit, at group, school and class level
+on both mounts. The map rail takes a `lens` prop and draws one quiet line under you're-here naming the
+open page with the other a tap away. The "Reading your insights" walk step that pointed at the Overview
+button now points at the tab pair and was re-pinned. Three English keys minted and enrolled in
+`pending-translation.json`; the old `org.nodeHome.seeInsights` key is now unused and left for the
+translation pass to sweep.
+
+**Left alone.** Learner level has no member-scope Overview/Insights pair, so nothing changed there. The
+"Show me — Reading your insights" link stays where it was. Reads only: a tab and the rail line are
+router navigations, so a view-as session still writes nothing.
+## 2026-09-14 — Handbook: the clip leads, the prose folds beneath it (job #627)
+
+**Tom (staging, 02:07Z).** "The handbook still appears to be pointing to the prose, rather than the
+clips. I know we may not HAVE clips for everything but we certainly have clips for most of the
+common things already." Reproduced headless on staging build `119cf6c` as four personas. A school
+admin got a Show me on 2 of 98 entries while the How-this-works panel on their own home offered 4
+walks; a govt leader's tap on "Bring your first person in" landed on their group and nothing played;
+every teacher tap landed on `/schools/classes`, where no surface claims a class-page walk. The
+learner's door, the Library hub, offered five clips and played all five: nothing to fix there.
+
+**Causes, in the code.** `HandbookView.vue` rendered four prose blocks and put the one Show me
+button last inside a collapsed body — job #302 wired the clip in as a footnote. Its persona gate
+asked `walk.personas.includes(persona)` with `persona = school_admin`, but the walks that run on the
+node home (`install-the-app`, `set-your-password`, `invite-first-person`) were authored for `leader`
+only, because `NodeHomeView.vue:605` calls every member "leader" — two spellings of the same person.
+`invite-first-person` carried `kinds: [org]`, so a plain group claimed nothing, and the school-kind
+twin `invite-first-teacher` was linked to no entry at all. `PLACE_LINKS['class-detail']` resolved to
+the class list, so a class-page clip could never be claimed from the Handbook.
+
+**Decision.** (1) A capability's clips are RESOLVED, not hand-linked: `clipsFor(entry, persona)` in
+`walkthrough/handbook.ts` takes the `walk:` line first and then every walk whose steps land on the
+entry's anchor, filtered to the reader's persona — so "Choose what role someone arrives as" plays the
+invite walk that passes through that field, and coverage grows with every walk authored, with no link
+to forget. (2) The tap defers ALL of them: `deferWalk` takes a list and `claimDeferredWalk` starts the
+first one offerable at the destination's persona × place × kind, so the org walk runs on an
+organisation or group and the teacher walk on a school, from one entry. (3) The walk data says who
+actually sees the anchors: `school_admin` joined the account-card walks and the five class-page walks
+(`canManageTeachers` is true for a school admin), and `group` joined the invite walk's kinds. (4) The
+entry body leads with Show me and one caption line; the four prose blocks sit behind "Written out",
+and "Read the lot" unfolds them. A ▶ on the closed row says it plays. (5) A class-page clip goes to
+the reader's first class, fetched on mount only when a class-page clip is on offer; with no class yet,
+the list.
+
+**Better × Simpler × Cheaper.** More entries play, for the people they belong to, without a walk
+being re-authored; one resolver replaces a hand-maintained link that was already drifting; the only
+new cost is one classes query on the Handbook for staff who have a class-page clip.
+
+**Result on staging.** See the coverage census published with the job report. Entries with no walk
+at all are listed there as the clip-coverage gap, with a proposed clip for each, for a follow-up job.
+
+## 2026-09-14 — Your insights in the Library: me v the course average, never v a person (job #634)
+
+**Tom (02:45Z).** "The library insights tool can be built, all the pieces are there already." A
+learner sees how they are doing at a granular level and compares themselves against the course
+average — "never against other individuals of course".
+
+**Decision.** (1) One new route, `/api/me/insights`, speaks the rate-compare contract the
+NodeRateEngine and RateCompare widget already draw, so the Library mounts the SAME engine as
+`/intel` and every school surface with one prop changed. (2) No second minutes query: the population
+resolver, the packed diary read, the sessionisation and the per-course facts are imported from
+`api/intel/minutes.ts`; that module's facts grew span counts and per-bucket Listening Mode seconds
+so the learner's three measures ride the same object. (3) The comparator is the learner-weighted
+figure of job #621 — every minute on the course over every person on it, the caller included — or
+the same pooled over all courses. (4) A session is the engine's own unit, one play-to-stop span;
+nothing new was defined. (5) A percentile appears only against the anonymous course population and
+only when 20 or more people were active in the window; below that the server sends no shape at all
+and the widget says "not enough people yet". The widget also stops colouring the viewer's own
+shortfall as a warning. (6) No all-time window: the packed read carries 30 days in ~2 s and times
+out at 90, measured live; the chips say today / 7 days / 30 days and nothing pretends otherwise.
+
+**Better × Simpler × Cheaper.** The learner gets the same honest numbers the admin reads, in the
+same shape; one engine, one minute rule, one widget, and a route of ~300 lines whose only new maths
+is three learner-weighted divisions and a floor; the cost is one packed read plus the enrolment
+scan per open of the panel — the price of not forking the minute — and nothing on the home screen.
+
+**Flag for Tom.** The standing doctrine in `apml/design/learner-profile.apml` argues a windowed
+percentile can fall while a learner is away. This tool shows one at 20+ active people because the
+brief allows it; if that reads as a streak in disguise, the floor can be set to infinity and the
+card still says everything else.
+
+## 2026-09-14 — Aran's Chromebook: the report that "never arrived" and the picker that "would not scroll" (job #652)
+
+**Tom (11:23Z).** "Aran is saying on his Chromebook he can't scroll down on the courses page. He just
+tried a bug submit actually, can we see if that's come through?"
+
+**Finding.** Both reports arrived, at 11:23Z and 11:24Z, in `tester_feedback`, the table the floating
+tester widget writes and nothing polls; `bug_reports`, the postbox the poller reads, was searched and
+found empty. The widget's own failure path was a `console.error` and an open form, never a word on
+screen. The scroll complaint is not a scroll defect: his screenshot shows the Choose Your Course sheet
+with 中文 selected in the I-speak row, which the picker remembers in localStorage from an earlier tap,
+and there are exactly five courses for Chinese speakers. The list was complete and the sheet had
+nothing below to scroll to, and said nothing about why. Headless production at 1366x768, 1280x720 and
+his own 1616x842, ChromeOS user agent, wheel and touch, with English selected: 42 rows, the panel
+scrolls to its end every time.
+
+**Decision.** (1) One postbox: the tester widget files through `useBugReport` with source
+`tester_widget`, the route accepts that source, and a failed send says so on the panel. The
+`tester_feedback` table stays as it is; nothing new writes to it. (2) The filtered picker ends with
+"That is every course for X speakers. Show all languages", one tap out of the remembered filter;
+absent in a scoped picker, under a search, or when the catalogue serves one known language anyway.
+The filter itself stays remembered: a Chinese speaker should not have to re-pick every open.
+
+**Better × Simpler × Cheaper.** Every report from every door reaches the one channel that is read;
+one route and one poller instead of a table nobody watches; the picker change is a computed and a
+footer, no new state. Cost: two English strings enrolled for the translation pass.
+
+**Landed.** Branch `cs/652-ssi-app`, rebased on `dev`, not merged, under Tom's 11:27Z hold
+("diagnose first, no fixes yet").
+
+## 2026-09-14 — Player advancing on its own: an outside pause is a pause, a silent run stops, and a round knows which loop it is in (job #644)
+
+**Tom (10:40Z).** "Get onto these things that have come up from the forum this morning." Two learners:
+one on Welsh whose player "keeps skipping ahead" and whose back button "won't go any further back",
+one on Basque with one-second mic gaps before listening laps, exercises moving on a second into the
+mic stage, a lone Basque phrase with no framing, the red infinite-play bar appearing mid-course, and
+an app that "determinedly keeps on playing" after the car's bluetooth drops. Trace from the
+experience backwards for the shared false assumption; do not patch symptoms one by one.
+
+**What the trace found.** The shared false assumption was that the engine can tell what the learner
+is hearing from what its timers are doing. (1) An outside pause — bluetooth route lost, headset
+button, another app — was only *recorded*; every timer stayed armed, so the stall watchdog skipped
+the paused clip after ten seconds and played the next one, and the recovery timer un-paused the
+rest. That is the "keeps on playing" and the phantom progress. (2) The skip-on-failure path had no
+floor, so a dead block walked the cursor at machine speed with nothing audible. (3) "No intro, debut
+or build cycle" was read as "this is an infinite-play round"; a main-loop round whose LEGO has no
+audio yet has exactly that shape. Basque seeds 85 to 99 carry 16 such LEGOs, in the reporter's
+range, which is the red bar, the frozen belt, the INF PLAY back button and the stuck fast-forward.
+(4) Seed-sentence reviews are built from `course_seeds`, which carries audio ids but no durations,
+so their mic gap collapsed to the one-second floor. Measured in the reporter's own telemetry:
+sixteen seed reviews at 1.6 to 1.8 s, most within thirty seconds of a listening lap. The lone
+Basque phrase is the drained seed sandwich, which is by design.
+
+**Decision.** (1) `SimplePlayer.noteInterruption` now halts in place: generation bump, every timer
+disarmed, element stopped, `isPlaying=false`, position kept. The conductor mirrors the new
+`self_paused` event into `userPaused`. No auto-resume anywhere: `resumeFromInterruption`,
+`hasPendingInterruption`, `resumeAfterInterruption` and the visibility wiring are deleted. (2) Every
+advance-without-hearing path goes through one door; the fourth consecutive unheard clip stops the
+player with `audio_failed` reason `silent-run` and a tap-to-retry banner; three, one hollow cycle,
+is still walked through under the plays-what-it-has ruling; a real `ended` on a clip under 50 ms
+counts as unheard; `resume()` refunds the budget so each tap in a dead block steps one cycle.
+(3) Core `Round.revival` is stamped by all three producers; `isMainLoopRound` reads the stamp first
+and falls back to shape only for rounds from a cache that predates it. (4) The bundle route looks up
+seed clip durations from `course_audio`, and `computePauseDuration` assumes an ordinary 2.5 s
+sentence when both durations are missing rather than collapsing to the floor.
+
+**Better × Simpler × Cheaper.** Better: the player can no longer manufacture progress, and a
+learner two seeds past a missing clip stays in the main loop. Simpler: one halt path, one stop
+door, one fact on the round instead of a shape inference; the whole auto-resume machinery is
+deleted. Cheaper: one extra `course_audio` lookup per bundle build; nothing new at runtime.
+
+**Flag for Tom.** The 2026-08-09 auto-resume was built for his own WhatsApp case; after this change
+that case costs one tap. And the content: Welsh North has LEGOs authored to seed 305 of 668, Welsh
+South to 334, Basque to 300, so Black belt at seed 400 is unreachable on all three and a learner at
+the authored end is dropped into infinite play from every cold start.
+
+## 2026-09-14 — One class page for teachers too; the teacher home reads play-as-class (job #651)
+
+**Trigger.** Ysgol Cas-gwent Chepstow, 2026-09-14: "some teachers say 0 minutes, yet they screenshot
+and it says they have done some." Teacher florencecotten, class 10C, code EKA-766: her Library said
+12 min total, 9 min on Welsh; her teacher dashboard said "One class on the go, 0 students across
+it", benchmarks 0c, "0 students · 0 min practised · 0 sessions". Tom: the WRONG class view, the one
+that aggregates the student learners, was still surfacing for teachers.
+
+**What the live data says.** Two causes stacked. (1) Her Wednesday lesson, 07:41 to 08:01Z on
+2026-09-09, 125 clips and 737 seconds of audio, sits on HER OWN learner account. The 10C class
+account has nothing that day: its rows carry the play-as-class `actor_user_id` stamp and hers do
+not. She pressed play from her own account, not Play as class. Thirteen of Chepstow's 34 class
+accounts have never played at all while their teachers carry 150 to 722 seconds on their own
+accounts on lesson days, so this is the school's pattern, not one teacher's slip. (2) The teacher
+home read the pupils' aggregate spine, class_activity_stats and class_student_progress, which is
+zero for every class taught from the front, so even the teachers who did use Play as class saw
+zeros on that page. Job #624 moved leaders to the class node home and left teachers on the flat
+page, whose node-home endpoint refused a teacher.
+
+**Decision.**
+- The node home endpoint admits a teacher of the class, to that one class, with no rail above it;
+  the payload says `callerTeachesClass`. Every class link for every member role goes to
+  /org/:classId. The flat /schools/classes/:id page is the class TOOLS page, reached from the
+  class page's own Manage class, open to every member role again. Job #624's leader redirect is
+  gone: it had also put Angharad's copy-play card out of a leader's reach.
+- The teacher home reads /api/school/class-practice-7d, the same payload the classes list and the
+  leader pages read: per class, minutes in the app this week, phrases practised, LEGOs travelled,
+  last played, on the ONE minute definition. The benchmarks-in-cycles column is dropped rather than
+  recomputed: its inputs are the dead pupil-aggregate spine, and a school-wide play-as-class
+  average is a rollup a teacher is not scoped to read.
+- The payload carries `callerOwn`, the caller's own account this week, and the teacher home names
+  it: "You practised 12 min on your own account this week, last on Wed 9 Sept. That counts for you,
+  not for a class. Use Play as class so a lesson counts for the class." Under view-as the persona's
+  own account is asked for by `own_user_id`, admin-gated like `school_id`.
+- Wherever the pupils' aggregate remains it is a second section headed "Students on their own
+  accounts" with a one-line caption, and it is absent when no pupil has an account.
+- The copy-play repair card sits on the class page for leaders, and in a self mode for the class's
+  teacher. The server always admitted a teacher of the class; only the card was leader-only.
+
+**Better × Simpler × Cheaper.** Better: a teacher sees the same class page and the same numbers a
+leader sees, and a lesson that went to the wrong account is named rather than lost. Simpler: one
+class page, one link rule, one payload; the cycles benchmark and the dead-spine reads on the teacher
+home are deleted. Cheaper: one extra learner id on a diary read the endpoint already makes; no new
+table, no new endpoint.
+
+**Not done, and why.** All-time minutes on the one minute definition: the minute engine reads a
+window of the diary, and no materialised all-time figure exists for it; the leader pages do not
+show one either. Named as a gap, not faked from the pupil spine.
+
+**Flag for Tom.** The prevention is upstream of any dashboard: a teacher who opens the app lands
+on their own Library and presses play. A one-line nudge on the learner player for a teacher whose
+class is on that course would stop the next fifteen mistakes; that is a learner-surface change and
+is his call.
+
+## 2026-09-14 — Teacher home: two figures kept apart; a school-admin sweep for the copy tool (job #662)
+
+**Trigger.** Tom's ruling on #651's diagnosis, relayed at 12:23Z: "Teacher SHOULD be able to see
+both: Play-as-class minutes AND an aggregate of the class students own playing times - there wont
+be a lot of this at the moment." And: "Angharad Jones as school admin SHOULD have a tool to copy
+any individual teacher account stats over to the play as class stats, including progress ... I
+THINK we built that tool for her." The tool exists one class at a time; thirteen Chepstow teachers
+it had never been run for. Staging only; nothing to main.
+
+**What the code said.** `api/school/class-practice-7d.ts` returned `practiceByClass` as the class
+account's play PLUS the pupils' own accounts, one number, and #651's teacher home read that summed
+field into every class row and the footer, deriving the pupils' share by subtraction. That sum is
+the one figure the ruling forbids.
+
+**Decision.**
+- `practiceByClass` is now the PUPILS' own-account seconds only; `classPlayByClass` stays the class
+  account's figure. No consumer summed them on purpose: the classes list column, the class page
+  header and the teacher home all meant the class account and now read `classPlayByClass`. The
+  school headline `rollup.inAppMinutes7d` still adds class accounts and staff/pupil own accounts
+  once each — that is a different surface, shared with the leader node home, and untouched.
+- The teacher home shows both figures on every class row and in the footer, never a total. The
+  pupils' figure is always present; at zero it says "Nothing on pupils' own accounts this week.
+  That is usual for a class taught from the front", so absence is never read as breakage.
+- The sweep: a read-only `copy-teacher-play/candidates` route, one school per call, admin of that
+  school or platform admin, allowed under View-as, lists every (class, teacher) pair where the
+  teacher's own account is enrolled on the class course and the planner finds something to copy,
+  each with the preview payload built by the same `previewBody` the single-pair preview now uses.
+  A card on the leader's OWN school node home, /org/:schoolId, the page a school admin actually
+  lands on (the /schools dashboard's admin block is unreachable for her since the 2026-07-30 nav
+  unification), renders the rows with one Copy each, calling the existing apply for that pair. No bulk apply exists, by design: apply stays one teacher at a time, refuses
+  View-as, and writes `class_progress_copy_audit`.
+
+**Better × Simpler × Cheaper.** Better: a teacher reads the class's own minutes beside the pupils'
+own, and a leader clears thirteen mis-played teachers from one page with one look per teacher.
+Simpler: the subtraction on the client is gone; the copy tool's fetch and words live once
+(`composables/schools/copyTeacherPlay.ts`) and serve both cards; one body builder serves both
+server routes. Cheaper: no new table, no new writer; the sweep costs one planner pass per enrolled
+teacher, pre-filtered by enrollment so a school of 34 classes plans a dozen pairs, not 34.
+
+**Addition, 12:58Z (Tom: "teachers must play as class, not as themselves, and Angharad is telling
+them so").** The steer BEFORE the minutes are lost: when a signed-in teacher presses play in the
+learner player on a course one of their classes is on, a one-line bar says "This counts for you,
+not for 10C. To make it count for the class, use Play as class", with a link to the class page and
+a dismiss. Who: read from GET /api/me/teaching-context, the one capability read, matched on course
+code; nobody else sees it, and a failed read means no bar. A steer, never a block. Never under a
+class context or in the schools shell (`composables/useOwnAccountPlayNudge.ts`).
+
+**Second addition, 13:03Z (Tom: "We need teacher accounts to open with the dashboard and not the
+player").** The player route's guard sends a cached `teacher` role, on the app's FIRST navigation
+to the bare `/`, to `/schools` — the teacher home, her classes and Play as class in front of her.
+Every in-app Learn / My player tap still reaches the player, so her own play is one deliberate step
+away, never the default; deep links with a query keep their intention; school admins, group leaders
+and tutors are not in the ruling and keep the 2026-07-24 default (`composables/teacherLanding.ts`).
+For teachers this supersedes 2026-07-24. Job #624's leaving teachers on the flat class page was
+already reversed by #651 (one class page for every role) and needs nothing more. Known edge: the
+guard reads the cached role, so a brand-new device's very first sign-in reaches the player once;
+from the next open, the dashboard.
+
+**Third addition, 13:07Z (Tom: "a warning across the dashboard navigation? You are now playing as
+yourself. If you want to play as class please go here." and "make it harder for the teachers to
+find their own learner account? Maybe that is in a drop down menu by the avatar? Rather than in
+the nav itself?").** (1) The Learn button leaves the schools top bar for a TEACHER; her own
+account stays one step away as My player in the avatar menu; leaders keep Learn. (2) The warning,
+in his words, with a link to her classes, DASHBOARD-SIDE (Tom, 13:11Z: "The regular app does not
+have a whole screen top nav at all"; the play-as-class path already names itself in the school
+dashboard's top nav, so nothing changes in the player). It sits across the top of the teacher
+home, above the welcome, whenever her own account has practised this week — the sibling of the
+top nav's "playing as class" strip — and links to her classes. The 12:58Z player steer is gone.
+Firmed at 13:13Z: "removing the play button from the top right hand screen and putting it into the
+avatar drop down is a definite thing" — done as (1).
+
+**Not done, and why.** No bulk apply, per the brief and the audit model. The sweep is not run
+against any real teacher by this job: Angharad runs it. The first live sweep on Chepstow lists 27
+pairs, not the 13 of #651's diagnosis: the planner's rule is "anything left to copy", which also
+catches teachers whose class has since caught up in position but whose own-account sessions were
+never moved, and Angharad's own account on her admin class.
+
+## 2026-09-14 — Insights minutes: one definition, one aggregation, totals per window, real daily bars (job #673)
+
+**Symptom (Tom, 14:39Z, staging, View-as angharadjones · Chepstow · class 7H Insights).** "Practice
+minutes per class" read 18.7 for the last 7 days, 11.5 for the last 30 days and 11.5 for all time,
+all labelled MIN / WEEK. "last 30 days can NEVER be less than last 7 days ... wrong data is a
+disaster - way worse than no data ... how is in-app minutes calculated, and it needs to be
+calculated the same way across all metrics, always."
+
+**Cause.** The measure was a per-week RATE: minutes in the window divided by the weeks from first
+activity in the window to now, then divided by seven again under Today. One burst of play in the
+week of 7 September therefore fell as the window widened. Beside it, the same class's seven-day
+minutes were counted three different ways: Insights and the org lens by rolling timestamp, the
+classes list and class page by the last seven UTC calendar dates, and the node home carried an
+all-time "Minutes practised" off the sessions ledger, which the class account cannot write.
+
+**Ruling applied.** Every window shows the TOTAL in-app minutes inside it, so a wider window is
+never smaller by construction. Every minutes figure on a school surface is the one definition in
+`api/_utils/inAppTime.ts` (play to stop, pauses included, listening counted, no stop means the last
+audio ended, each account once) over the last N × 24 hours by timestamp. Class-level figures are
+the class account alone and say "played as class"; school-level figures are classes, staff and
+pupils each once and say so. Charts are one bar per bucket, never a spline; a bucket with no play
+is a zero bar.
+
+**What changed.** `minutes_per_class` and `hours_total` are one measure, `minutes`, in
+`api/groups/[id]/rate-compare.ts` and `api/_utils/rateCompare.ts` (old ids aliased so deep links
+still open). `api/school/class-practice-7d.ts` counts the rolling week. `RateTrend.vue` builds
+its option in `rateTrendOption.ts` as bars; `TimeSeries.vue` and the theme's line default follow.
+The node home and children list no longer show the sessions-ledger all-time figure. Labels on the
+classes header, the class page, the school home and the class node say whose minutes they are.
+
+**Enumerating command** (re-run rather than trust; full table with verdicts in
+`docs/insights-minutes-readers-2026-09-14.md`):
+
+```
+grep -rln "inAppTime\|diarySessionRows\|inAppSecondsByLearner\|inAppTimeByLearner\|sessioniseSeconds\|duration_seconds\|total_practice_minutes\|admin_practice_minutes\|total_practice_hours\|total_practice_seconds\|practice_minutes\|practiceMinutes\|minutesThisWeek\|inAppMinutes7d\|play_seconds\|engagedMinutes" api packages/player-vue/src --include=*.ts --include=*.vue | grep -v '\.test\.' | sort
+```
+
+**Not changed, and why.** The per-person all-time minutes on the students list, the class page's
+pupil rows, the teachers list, the schools list and the govt tiles still read the sessions ledger
+via `api/school/roster.ts` and `school_summary`; the student progress page reads the
+`admin_practice_minutes_by_course` RPC; the node home's per-pupil spark reads audio-played seconds.
+Moving those to the diary is a per-person read across a whole school and was out of this job's
+price; they are listed as the honest gap. The classes-header-versus-school-home difference from
+job #301 (174 v 352) is closed by scope labels, not by making the numbers equal: the header is
+class accounts, the home is classes, staff and pupils.
+## 2026-09-14 — The Viewing-As strip comes off the nav, and the Learn button retires for every school role (job #675)
+
+Tom, 14:50Z, with a staging screenshot of the school-admin dashboard under View-as:
+
+> "this Viewing As feature is great
+>
+> BUT
+>
+> it blocks all my nav functionality
+>
+> and this is staging and the Learn button top right still shows, which I supect takes the school
+> admin/teacher to their own player
+>
+> We have the My Player as a dropdown menu, correctly already, so we can deprecate the Learn next
+> to the User Avatar?
+>
+> THat would make it a lot simpler"
+
+**Measured first, and it was worse than it looked.** A staging probe as ssi_admin viewing as
+angharadjones and as florencecotten, at 390x844 and 1280x800, found the pill's box intersecting the
+schools top bar at every width — and on the phone the hamburger and the avatar were not merely
+covered but UNTAPPABLE: Playwright's click on each timed out, the pill swallowing the taps. That is
+the whole complaint, reproduced.
+
+**(1) The strip is now a full-width band across the very top, and the page moves down for it.** It
+keeps everything it had — the eye, the name and scope, "read only", Pages with its list, Exit — and
+overlaps nothing. The band measures its own height and publishes it as `--viewing-as-h` on `<html>`
+with an `is-viewing-as` class; ONE global rule in `style.css` pads the body by it, so every in-flow
+shell (schools dashboard, org lens) moves down for free, and only the handful of fixed top chrome
+that body padding cannot reach — the tutor tab rail, the player escape, the bug toast — names the
+variable itself. It falls back to `0px` when view-as is off, so the rules are inert the rest of the
+time. The alternative considered and rejected: a strip rendered per-shell under each header, which
+is the same offset written four times and forgotten on the fifth. Better (nothing is covered on any
+surface), simpler (one variable, one global rule), cheaper (no per-shell strip to keep in step). The
+band is forced to one line — wrapping breaks before the text shrinks, and a two-row band on a phone
+eats the dashboard it exists to let you use.
+
+**(2) There is no Learn button in the schools nav for ANY role.** Job #662 had removed it for a
+teacher and left school and group leaders with it; `ownPlayInNav` is gone. My player in the avatar
+menu is the one and only door to your own player, hidden on player routes exactly as before.
+
+**Scope.** Staging only; Tom promotes to main on the weekly train after he has looked. The TUTOR
+surface's own Learn button in `TopNav.vue` is untouched — a tutor is not a school role, and his
+ruling named school admin, leader and teacher. Worth asking him about separately.
+
+## 2026-09-14 — One in-app support door for everyone, one table via a view, one watcher (job #677)
+
+**Ruling.** Tom, 15:01Z, to Watson's proposal: "one door for everyone, learner, tester, teacher,
+school admin, writing to one table with the account code and build attached, and one poller that
+turns each new row into a job in the right project channel": "yes, let's do that". Trigger: Neil
+Dickson's report could not be matched to an account by email, and Aran's Chromebook reports sat all
+day in tester_feedback, which nothing read.
+
+**What changed.** The player's content flag (`ReportIssueButton.vue`) posts through
+`POST /api/report/bug` as source `content_flag`, naming the clip; its `sample_flags` upsert stays
+for Popty's QA. Every `bug_reports` row is stamped server-side at report time with account_code
+(the code Settings shows), reporter_email from the verified bearer, platform_role,
+educational_role, and for staff school_role, school_id and group_id; nothing about identity is
+taken from the client and guests carry nulls (`20260914b_bug_reports_identity_and_content_flag.sql`,
+applied live). The view `support_inbox` (`20260914c_support_inbox_view.sql`, service-role only)
+unions bug_reports, inbound support_messages and, for history, tester_feedback, content_feedback
+and handbook_questions, so "are there any messages?" is one query. **Corrected by job #680 the same afternoon:** that view joined `auth.users` five times for legacy email, and under `security_invoker` no API role holds SELECT there, so every PostgREST read returned 403 `permission denied for table users`, even with the service key. `20260914d_support_inbox_no_auth_users.sql`, applied live, recreates the view with no `auth.users` at all: legacy email now comes from `support_messages.author_name` or the learner's first `verified_emails` entry, else null, and the view reads 200 through the API with rows from every door. On watson-1 one user unit,
+`ssi-support-inbox.service` running `command-surface/tools/support/inbox.cjs`, replaced the
+bug-report poster and the support watcher: a post lane that renders each row once into the
+`ssi-learning-app` room, or the `ssi-dashboard-v7-clean` room for a content flag, and stamps
+posted_at; and the school admins' draft-only support lane, moved not rewritten.
+
+**Not changed, and why.** Learners are never replied to by an agent (Tom, 2026-09-12); the only
+reply is the client's thank-you. The school-admin two-way thread and its draft-for-Tom loop
+(2026-09-10) are as they were; teachers still do not get it. No row was moved, deleted or updated
+in any old table. Posting is into the channel room, not an automatic dispatch per row: the room
+reads and decides what to commission. Known test senders (Tom's own addresses and +tags, Kai,
+ssi_admin accounts, test schools, probe bodies) are stamped and not posted, so they never
+resurface and never wake a channel chief; a tester-role report such as Aran's is real and is
+posted.
+
+## 2026-09-14 — A failed undo is not an undo; the sweep plans from the fresh row (job #689)
+
+**Undo retryable.** `undoCopy` used to write its audit row with `undo_of` even when a per-table
+deletion had failed. The next attempt found that row and answered `already_undone`, so a
+half-deleted copy could never be finished and was reported as reversed. Now a failed attempt is
+written as `undo_failed_of`: it stays on the append-only trail with what it did delete, but the
+already-undone check, the prior-copy scan and the copy-notice helper all ignore it, so the copy
+stays in force and the undo runs again. Deletions were already idempotent, so the retry completes.
+Test: `classProgressCopy.test.ts` "a failed undo is not recorded as an undo" — red on the old code,
+green on the new.
+
+**Sweep drift check uses `still`.** `tools/copy-teacher-play-sweep.mjs` rescanned before each
+write but then planned from the original scan's learner id and course code. It now plans from the
+fresh row, and skips-and-names the pair if the class's course or the teacher's learner id changed
+between scan and write. Dry run after the change still reproduces five copies / 336 rows.
+
+## 2026-09-14 — Test files under api/ are no longer compiled as serverless functions (job #694)
+
+**What changed.** A root `.vercelignore` excludes `api/**/*.test.ts`, `api/**/*.spec.ts` and
+`api/**/__tests__/**` from the Vercel upload. Vercel treats every `.ts` under `api/` as a function
+to compile, so ~250 test files were being built on every deploy; job #690's diagnosis put the
+build step at 282s on 25 Aug and 726-925s by 14 Sep, all of it in the function-compile phase, with
+`api/admin/testDoors.security.test.ts` alone costing 280-347s because it reads player-vue sources
+by path. Install and Vite were unchanged at 40-50s.
+
+**Not changed.** `pnpm test:api` reads `vitest.api.config.ts`, which includes `api/**/*.test.ts`
+from the git checkout, not the Vercel upload, so it collects the same 250 files (243 listed with
+tests; the seven `.live.test.ts` files skip themselves without a service key, as before). No live
+route imports a test file, and `tsconfig.api.json` already excluded tests from typecheck.
+`vercel.json` had no `ignore` key and its `functions` block names only real routes.
+## 2026-09-14 — Two gaps in job #683: the banner on cold loads and in Listening Mode; the picker tie-break (job #693)
+
+**Who is playing.** The playing-as-yourself banner took teacher-ness from `useSchoolContext`,
+which a teacher who opens the app straight into the player never populates, so the banner stayed
+hidden for her whole session. It now reads the cached educational role from `useUserRole`
+(`restoreFromCache`, the same cache the first-open redirect reads) and still honours school
+context when it is there. Teacher, tutor and school leader count; a group leader has no class to
+play as. Never under View As, never for a learner, as before.
+
+**What counts as playing.** The main player alone echoed its transport state on the window, so
+Listening Mode, which has its own transport inside `ListeningOverlay`, was invisible to the banner
+and to the never-interrupt gates. `playback/playbackLiveness.ts` is the one answer now: each
+transport reports itself by name and `isAnyPlaybackLive` is the OR; the `ssi-play-state` window
+event is dispatched from there when the combined answer changes, so the install banner and the
+update prompt keep working unchanged and gain Listening Mode for free. Tests:
+`PlayingAsYourselfBanner.test.ts` (cold load with no school context: red on the #683 banner) and
+`playbackLiveness.test.ts` (the overlay reports its transport: red on the #683 overlay).
+
+**The picker tie-break.** `rankByClassMinutes` broke ties on `last_active`, but `api/admin/users.ts`
+ranked before the enrollment rollup that carries it was loaded, so every tie compared empty
+strings. For a ranked read the rollup is now loaded for the whole candidate set first, handed to
+the ranker keyed on `learners.id`, and reused for the page. Test: equal minutes rank by the rollup's
+last activity, red on the old ranker.
+
+**The record corrected.** The #683 report said the School leader shortcut showed angharadjones with
+"272 min". The picker's own function, read live today, gives 144 min for her: class-account
+in-app time over seven days, 8,623 seconds rounded up. 272 was the school total including personal
+accounts, from a different surface. The picker line and the ranking use the same figure, so there
+is no third defect in code.
+
+## 2026-09-14 — The playing-as-yourself strip pushes the player down instead of covering it (job #699)
+
+**Seen on staging a5a37c6.** The strip from jobs #683/#693 was a fixed band across the top of the
+player and sat ON it: in the main player it half-covered the belt row's back and forward buttons and
+the progress readout; in Listening Mode it covered the tabs and the close circle. Wording and
+behaviour were right; only the layout was wrong.
+
+**Same mechanism as the Viewing-As band, and both bands now sum.** The strip measures its own
+height and publishes it as `--own-play-banner-h` on `<html>` with a `has-own-play-banner` class,
+exactly as `ViewingAsBanner` does with `--viewing-as-h`. Rather than name two variables in every
+consumer, `style.css` sums them once as `--top-bands-h`, and that is what the body padding rule and
+every piece of fixed top chrome now name: the player escape, the tutor tab rail, the schools top bar
+and drawer, the app root, the QA report button. Body padding cannot reach a `position: fixed;
+inset: 0` surface, and both the player root and the Listening overlay are one, so each names
+`top: var(--top-bands-h, 0px)` itself; a side effect is that the Viewing-As band now clears the
+player too, which #675 had claimed and the CSS did not deliver. The strip already pads itself out of
+the notch, so while it is up the shell's top inset token is zero under it; the Listening overlay's
+three direct `env(safe-area-inset-top)` reads now go through that token, as the tokens file says
+they should, or the header and the overlay would pad out of the notch twice on a phone. Better: no
+control covered in either mode. Simpler: one summed variable, one class per band, no per-surface
+strip. Cheaper: the next band is one term in one calc.
+
+**Proof.** `PlayingAsYourselfBanner.test.ts` gains a case that the variable and class are set while
+the strip shows, cleared when play stops, and cleared on unmount: red on the #693 banner, green
+here. Staging only; main untouched on Tom's 17:01Z ruling.
+
+## 2026-09-14 — Play as class from the Classes page stamped the teacher on the class's telemetry (job #733)
+
+**Seen on staging c7f9ec8, 21:32Z.** A brand-new teacher launched Play as class for Y7 Welsh from the
+Classes page. The `sessions` row for that play belongs to the class, as it should; every
+`player_events` row of the same play, and the speaking-opportunities counter, belong to the
+teacher's own learner. One play, two owners.
+
+**Cause.** The Classes page builds its own row object for each class and that object carried no
+`class_learner_id`, so the shared launcher stored the class payload with `class_learner_id: null`
+and the player's learner id fell back to the staff member's own. That fallback is the identity the
+telemetry client claims on every batch and the identity the opportunities RPC is keyed on. The
+sessions, enrollment and lego-progress writes never saw it, because in class mode they go through
+the class-aware stores, which hand the server the class id and let it resolve the class learner
+from the classes row. Same bug on `main`: the Classes page row has been shaped this way since it
+gained its own Play button, so this is not a regression of tonight's promotion train.
+
+**Fix.** Three parts, all in the launch path. The Classes page row now carries the class learner
+id. The launcher's class shape makes `class_learner_id` required and nullable rather than optional,
+so a row shape that drops the key is a type error, not a silent null. And when a caller does hand
+over a null, the launcher reads the classes row once before storing the payload, so a freshly
+created class or any future partial row still launches with the right identity. Better: one
+identity for one play. Simpler: no new plumbing, the read reuses the launcher's existing Supabase
+fallback shape. Cheaper: one row read, only when the key is missing.
+
+**Blast radius of the mis-stamped rows.** Everything that reads `player_events` or
+`learner_speaking_opportunities` by learner: the Time in app column and the class "Not started"
+state on the Classes page and the dashboard cards, the dashboard's "you have been playing as
+yourself this week" line, daily activity, the intel and diary endpoints, and the copy-teacher-play
+candidate sweep, which would offer to copy this play from the teacher onto the class. Practice
+minutes on the enrollment and the class's position were right all along.
+
+**By design, not bugs.** No `class_sessions` row: the player still attempts the insert on the
+eager-load path, but the class's practice record is the `sessions` row under the class learner
+since the class became a first-class learner; the insert is best-effort and logs on failure. No
+`lego_progress` row for either learner after a completed round: on the live SimplePlayer path the
+per-cycle call that would write lego_progress runs with no current playable item and only advances
+the opportunities counter, and the round path writes the position to the enrollment or, in class
+mode, to `classes.last_lego_id`. Neither learner was ever going to get a lego_progress row here.
+
+**Proof.** `usePlayAsClass.test.ts` gains a case that launches with the exact row shape the Classes
+page handed over and asserts the stored payload carries the id from the classes row: red before
+the fix, green after. Staging only; main untouched on Tom's ruling.
+## 2026-09-14 — The paywall never sends a learner back to the start of the course (job #734)
+
+**Seen on staging c7f9ec8, 21:33Z.** Tom, a brand-new teacher on the ZZ Test Chepstow school
+(platform_status trial, trial_course_code cym_s_for_eng, expires 2027-08-07), pressed Play as
+class on Y7 Welsh (cym_n_for_eng), belt-skipped to Yellow, lego-skipped to its last round, and the
+wall came up at seed 20; dismissing it put the class at round 0. Two defects, one in each half.
+
+**A — entitlement: bug, not policy.** The server resolver, replayed live for the teacher's auth uid
+today, grants cym_n_for_eng through class coverage: the teacher is tagged on the class, the class's
+school has a live trial, so the class's own course is covered until the school's date. The
+school-staff layer adds cym_s_for_eng from trial_course_code. So the policy answer is "entitled",
+and by that policy the wall was wrong. The player did not see it because the entitlement snapshot
+it gates on is fetched at boot and on sign-in and then held in memory; the class, and the tag that
+grants its course, were created at 21:23:57, after the teacher's sign-in, and nothing asked again
+before the wall. Code read, not observed: the phone's snapshot is not in any table. Two refreshes
+close it: the play-as-class launch asks again before the player mounts, and the wall itself asks
+again the moment it rises, so the existing entitlement watcher closes it and resumes if the fresh
+answer grants. The policy question that remains is Tom's, not the code's: the school's trial names
+cym_s_for_eng and the class teaches cym_n_for_eng; class coverage covers it today because the
+rule is "any class course while the school's platform is live", and that is what shipped 2026-09-09.
+
+**B — the reset.** Both rewind sites called `jumpToRound(0)`: `dismissPaywall` by design
+("rewind to the start of the free preview") and the post-init resume gate. The wall was the
+mechanism that threw the position away. The rule now lives in `playback/paywallLanding.ts`: a
+cursor still inside the preview does not move at all; a cursor already past the wall (the
+round-boundary advance bumps roundIndex before the listener pauses; a saved position can resolve
+past the wall on a cold load) retreats to the last playable round, never to round 0. Better: the
+learner keeps their place. Simpler: one pure rule, two call sites. Cheaper: nothing new to fetch.
+
+**Proof.** `paywallLanding.test.ts` proves the rule and reads LearningPlayer.vue for the wiring:
+red on the old `jumpToRound(0)` sites, green here. `usePlayAsClass.test.ts` gains the launch
+refresh, red on the old launch. Staging only; main untouched on Tom's word.
+
+**Left for #733 (event identity).** Every player_event in the class session is stamped
+user_id = the teacher's own learner with actor_user_id set, while the sessions row and the
+enrollment cursor are the class learner's; the teacher's own enrollment also carries the class's
+S0008L01/13 cursor from that window. Not touched here.
+
+## 2026-09-14 — A paywall retreat never loses the learner's real position; the content gate learns class and school cover (job #745, follow-up to #734)
+
+**Decision.** Tom's rule (2026-09-14): a paywall never moves a learner's belt or position back.
+#734 stopped the rewind to round 0; the retreat to the last free round still overwrote the real
+cursor in localStorage on the same tick, so a grant from the wall's own refresh resumed from the
+retreat. Now `playback/paywallRetreat.ts` holds the real position when `settleCursorAtPaywall`
+retreats; while held, `savePositionToLocalStorage` and `persistLivePositionToDb` skip; the
+liveEntitlements watcher jumps back to the round carrying the held LEGO in the live engine queue
+before resuming; the memory is spent by the one signal that means "playing on", a cycle prompt
+with the wall down. Better: the learner keeps their place across a stale-snapshot wall and across
+"Maybe later" followed by a grant. Simpler: one pure memory, three moments, no new fetch. Cheaper:
+nothing runs that did not run before.
+
+**Two more losses of place, found by the served-build probe.** (1) `api/_utils/courseAccess.ts`,
+the gate on bundle/cycles/infplay-cycles/batch-urls, read only stored rows plus the cascade RPC,
+while `/api/entitlement/user` resolves five layers. A class-covered teacher was told she held the
+course and then served the preview-only bundle and a 403 past Yellow; her saved LEGO was not in
+the preview round map and the player started her at S0001L01 with no wall. The gate now delegates
+to `resolveActiveEntitlements`, fail-soft to preview-only. (2) The restore first jumped by the
+round index kept at retreat time; the bootstrap queue is a window with the resume LEGO at round 0,
+and the full-script handoff swaps in the whole course, so index 0 became "I want". Restore
+resolves by LEGO against `getEngineRounds()` and stays put if the LEGO is not there.
+
+**Proof.** `paywallRetreat.test.ts` (memory + wiring + by-LEGO restore) and
+`api/_utils/courseAccess.test.ts`, each red on the pre-fix code and green after. Served staging
+build dc04740, ZZ Test cover teacher, saved S0031L01/round 56, first entitlement fetch forced
+empty: wall up with localStorage still S0031L01; grant; playback resumed on "that you speak"
+(S0031L01) with localStorage and the DB cursor unchanged. The first build of this job (627722e)
+ended on S0001L01, which is how (1) and (2) surfaced.
+
+**Left open.** A genuinely unentitled learner with a saved position past the wall still gets the
+preview-only bundle, whose round map lacks their LEGO, so the player starts them at S0001L01 and
+the lifecycle save writes seed 1 to localStorage with no wall shown; the DB cursor is safe behind
+the forward-only write. Same family, not this job. Waiting on an in-flight refresh in the resume
+gate would not help: nothing is in flight until the wall itself asks.
+
+## 2026-09-14 — An unentitled learner's saved cursor past the wall is held at the wall, never dropped to seed 1 (job #752, follow-up to #734 / #745)
+
+**Decision.** Tom's rule (2026-09-14): a paywall never moves a learner's belt or position back to
+the start of the course. #745 left one case open: a learner who is genuinely NOT entitled (lapsed
+subscriber, or a free-preview learner whose cursor was carried past the wall) with a saved place past
+Yellow is served the preview-only bundle, which has no round for that LEGO. Served staging build
+dc04740, +colombo-wall (empty entitlement list), S0031L01 saved on cym_s_for_eng: the local winner
+went straight to bootstrap, `/cycles?from=S0031L01` was refused, the legacy walk landed on S0001L01,
+and within two seconds the lifecycle save wrote seed 1 over the saved place in localStorage with no
+wall shown. The DB cursor survived only because its write is forward-only.
+
+Now the post-init resume gate asks a second question after "did we land somewhere locked": "is the
+SAVED place locked?" — the same local-vs-server authority rule the resume uses, against a
+`serverCursorSnapshot` read at boot. If it is, `holdSavedCursorAtPaywall` puts the saved LEGO into
+the #745 memory (every position write blocked), lands on the last free round of the LIVE engine queue
+through `paywallLandingRound`, and raises the wall. The memory is now spent only by a prompt on the
+REMEMBERED round (`paywallRetreat.release`), not by any prompt with the wall down, so "Maybe later"
+followed by replaying the preview never overwrites the saved place either. Upstream, a local winner
+in `resolveStartLegoId` is resolved against the round map like a server one (fail-to-local if the
+map cannot be read), and the cache fast-path uses the same `beyondSliceLanding` rule as
+`resolveResumeStart`, so a cursor beyond the preview slice bootstraps on the last preview round
+instead of asking the server for a LEGO it will refuse. Better: the learner sees the wall on the
+round they can play, and a later subscription or code opens the player on the place they really had.
+Simpler: one more question in the one gate, one pure rule shared by two resume paths, no new
+mechanism beside the #745 memory. Cheaper: one avoided 403 and legacy walk per such open.
+
+**Proof.** `unentitledPastWall.test.ts`: ten assertions red on the pre-fix code, green after
+(beyond-slice rule, release rule, gate / phase-watcher / resolver / fast-path wiring);
+`paywallRetreat.test.ts`'s "spent by any prompt" assertion flipped on purpose. Local dev build
+proxied to staging, +colombo-wall, S0031L01 planted in localStorage and the DB: wall up at 2.5s
+on "I was trying" (S0019L01, the last round of the preview map), localStorage and DB cursor
+unchanged through 25s, and unchanged through "Maybe later" plus 15s of play. Cold device (DB row
+only): same, localStorage stays empty.
+
+**Addition (same job, from a cold verify of #745): a grant resumes only after a verified restore.**
+The liveEntitlements watcher tried the restore and then, whether or not it landed — the remembered
+LEGO not yet in `getEngineRounds()` (lazy load, or the queue still the preview window), or the jump
+throwing — lowered the wall and called `resume()` at the RETREATED position; the next prompt spent
+the memory and the cursor writers persisted the retreat. Now `playback/paywallGrant.ts` carries
+`restoreHeldPosition` (true only when the engine is verifiably on the held LEGO afterwards; never
+spends the memory) and `grantAction` (held and not restored → lower the wall, stay paused; otherwise
+lower and resume), and a `roundCount` watcher retries the restore whenever the engine queue grows.
+Tested against a fake engine (`paywallGrant.test.ts`), not a source read.
+
+**Left open.** After a grant inside the wall the held LEGO is not in the preview queue, so the
+learner is left paused on the preview's last round with the wall down; the restore fires as soon as
+rounds carrying that LEGO arrive, otherwise the real place is restored on the next open.
+`useBeltProgress`'s boot upsert stamps `last_practiced_at` to now on every open (seen in every probe,
+before and after); not a position write, not touched here.
+
+## 2026-09-14 — A grant at the wall recovers the real place and resumes play; never silent-paused at the moment of purchase (job #757, follow-up to #752)
+
+**Decision.** #752 left one honest gap: after a grant INSIDE the wall (a code redeemed, a
+subscription completing in-app, a class created after sign-in) the held LEGO was not in the
+preview-only queue the player had bootstrapped from, so the wall came down and the learner sat
+paused on the preview's last round, indefinitely, until rounds carrying it happened to arrive or
+the next cold open. Served staging 657218b showed it: wall down, no resume for 24s. That is the
+moment of purchase or redemption and it must not feel broken. The reason waiting could never help:
+the preview bundle the server issued before the grant sits in `useCourseBundle`'s in-session map
+for the life of the tab, and a locked LEGO never enters a preview queue.
+
+Now `grantAction` answers `lower-and-recover` for a held-and-not-restored grant, and
+`recoverHeldPosition` (pure, `playback/paywallGrant.ts`) does the rest: restore if the live queue
+already carries the LEGO; otherwise re-fetch under the grant and restore again — true ONLY when the
+engine is verifiably on the held LEGO afterwards. The player's `refetchScriptUnderGrant` is the
+existing belt-jump pipeline with one difference: `getCourseBundle(code, { forceRefresh: true })`
+first, past the in-session map and IndexedDB, so the server gate (which honours entitlements per
+request since #745) hands the full bundle; then `generateScript` → `mergeGeneratedRoundsIntoQueue`
+(the same `addRounds` path a belt jump uses). While it runs the player shows its own loading line
+(`loading.findingProgress`, already translated everywhere); play resumes only once the restore
+lands, and only if the wall was up — after "Maybe later" the place is recovered the same way and the
+play state is left to the learner. The write-hold stays until the play-on prompt, as in #752; a
+recovery that fails (offline, or a server that still says preview) keeps the memory, stays paused,
+and the `roundCount` retry remains as the net. Better: the learner hears the phrase they were on
+within two seconds of paying. Simpler: one new branch in the one grant rule, one pure async
+function, no second loader. Cheaper: one bundle fetch per in-wall grant, the same fetch a cold open
+would have paid.
+
+**Proof.** `paywallGrant.test.ts`: the flipped `grantAction` assertion and four `recoverHeldPosition`
+cases (refetch brings the LEGO → restored; already present → no refetch; refetch throws or still
+lacks it → false, memory kept, nothing moved; nothing held or still locked → no refetch) red on the
+pre-fix rule (5 failures), green after; `paywallRetreat.test.ts` asserts the watcher wiring.
+Typecheck, the three paywall suites and lint green. Served staging build c150c21 (chunk
+PlayerContainer-BvUOQc4l.js carrying the #757 string), +colombo-wall (empty entitlement list),
+S0031L01 / round 56 planted in localStorage and the DB, and — new in the probe, `GRANT=db` — a REAL
+`user_entitlements` row (access_type full) inserted while the wall's own entitlement refresh was
+held, then the refresh continued to the real server:
+
+| Moment | localStorage | DB cursor | Screen | Playing |
+|---|---|---|---|---|
+| wall up, 1s after open | S0031L01 | S0031L01 / 56 | last preview round | no |
+| grant +0.6s | S0031L01 | S0031L01 / 56 | wall DOWN | — |
+| grant +1.7s | S0031L01 | S0031L01 / 56 | "that you speak" (S0031L01) | yes |
+| grant +10s | S0031L01 | S0031L01 / 56 | "that you speak" | yes |
+
+Planted enrollment and grant rows removed after (204 / 204). The loading line was not seen by the
+probe: the whole recovery took about a second on staging.
+
+**Left open.** A client-side fake grant with a server that still serves the preview (the probe's
+older `GRANT=1` mode) recovers nothing, by design: the refetch returns the preview, the memory and
+the write-hold stay, the player stays paused with the warning logged. `useBeltProgress`'s boot
+upsert stamps `last_practiced_at` on every open, as before; not a position write.
+
+**Addition (same job, from a cold verify of #752): the write-hold covers every DB cursor writer.**
+Previous-phrase inside the preview after "Maybe later" went `handleRoundBack` →
+`persistCursorAtCurrentRound` → `setRemoteCursor` → `ProgressStore.setEnrollmentCursor`, which
+permits a backward write — so the DB cursor took a preview position while localStorage stayed
+protected. Audit of every cursor writer: `persistLivePositionToDb` and `savePositionToLocalStorage`
+already held; `setRemoteCursor` (belt jumps, round back/forward, jump-to-furthest, offline entry)
+now returns while the real place is held; the throttled `current_cycle_index` queue now refuses
+under the hold too (a preview round's cycle index on the held LEGO's row would mislead the
+same-sitting resume); `saveRoundProgress` writes no cursor in the main loop and its INF-PLAY ratchet
+is unreachable behind a wall. `paywallRetreat.test.ts` asserts both wirings: red on the pre-fix
+source, green after.
+
+**Addition (same job, found by the write-hold probe): the post-init resume gate waits for the
+subscription answer.** On served staging c730751 one open in four skipped the hold entirely: no
+wall, localStorage rewritten to S0019L01 within two seconds, the DB cursor saved only by its
+forward-only write. Cause: `positionInitialized` fired while `/api/subscription` was still in
+flight; `checkCourseAccess` treats that window as optimistic access (the morgan1009 rule — never
+bounce a payer to the wall on a page-load race), so `canAccessSeed(31)` said yes, the hold was
+skipped, and the lifecycle save two lines later wrote the preview landing over the real place.
+Now `useEntitlement` exposes `accessPending` and `subscriptionHydrated`, and the gate plus both
+lifecycle saves are deferred until hydration — bounded by useSubscription's own 8s timeout, which
+fails closed. The optimistic rule itself is untouched: a payer still sees no wall, they just wait
+for the answer before the cursor is stamped. Wiring asserted in `paywallRetreat.test.ts`, red on the
+pre-fix source, green after; three consecutive served-build opens held at the wall with both
+cursors on S0031L01.

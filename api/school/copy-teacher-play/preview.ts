@@ -8,11 +8,14 @@
  * course, and where the class will end up. Writes NOTHING, so it works under
  * View-as as well (see _shared.ts).
  *
+ * The payload is built by `previewBody` in _shared.ts, the same builder the
+ * school-wide candidates list uses (job #662).
+ *
  * Model, scope and idempotency: api/_utils/classProgressCopy.ts.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { resolveCopyContext, positionWords } from './_shared'
-import { planCopy, cursorPosition } from '../../_utils/classProgressCopy'
+import { resolveCopyContext, previewBody } from './_shared'
+import { planCopy } from '../../_utils/classProgressCopy'
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   const ctx = await resolveCopyContext(req, res, { allowViewAs: true })
@@ -23,31 +26,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       targetLearnerId: ctx.targetLearnerId,
       courseCode: ctx.courseCode,
     })
-    const [teacherAt, classAt, resultingAt] = await Promise.all([
-      positionWords(ctx.svc, ctx.courseCode, cursorPosition(plan.cursor.source)),
-      positionWords(ctx.svc, ctx.courseCode, cursorPosition(plan.cursor.target)),
-      positionWords(ctx.svc, ctx.courseCode, plan.resulting),
-    ])
-    const totalRows = Object.values(plan.toCopy).reduce((a, b) => a + b, 0)
-    res.status(200).json({
-      class_id: ctx.classId,
-      course_code: ctx.courseCode,
+    const body = await previewBody(ctx.svc, {
+      classId: ctx.classId,
+      courseCode: ctx.courseCode,
       teacher: { user_id: ctx.teacherUserId, name: ctx.teacherName, learner_id: ctx.sourceLearnerId },
-      class_learner_id: ctx.targetLearnerId,
-      to_copy: plan.toCopy,
-      already_present: plan.alreadyPresent,
-      total_rows: totalRows,
-      skipped: plan.skipped,
-      in_app_seconds: plan.inAppSecondsToCopy,
-      minutes_to_add: plan.minutesToAdd,
-      prior_runs: plan.priorRuns,
-      position: {
-        teacher: teacherAt,
-        class: classAt,
-        resulting: { ...resultingAt, taken_from_teacher: plan.resulting.takenFromSource },
-      },
-      nothing_to_copy: totalRows === 0 && !plan.resulting.takenFromSource,
-    })
+      classLearnerId: ctx.targetLearnerId,
+    }, plan)
+    res.status(200).json(body)
   } catch (err) {
     console.error('[school/copy-teacher-play/preview]', err)
     res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' })

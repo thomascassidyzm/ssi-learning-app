@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Greeting from '@/components/schools/shared/Greeting.vue'
 import BeltDot from '@/components/schools/shared/BeltDot.vue'
-import Bench from '@/components/schools/shared/Bench.vue'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
-import { useClassesData, type ClassInfo, type ClassReport } from '@/composables/schools/useClassesData'
+import { useClassesData, type ClassInfo } from '@/composables/schools/useClassesData'
+import { fetchClassPractice7d, ClassPracticeFetchError, type ClassPractice7d } from '@/composables/schools/classPractice7d'
+import { deriveBelt } from '@/composables/schools/belts'
 import { useSchoolsDensity } from '@/composables/schools/useSchoolsDensity'
 import { useGovtAdminActions } from '@/composables/schools/useGovtAdminActions'
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
@@ -58,7 +59,9 @@ watch(
 )
 
 const { density } = useSchoolsDensity()
-const { canPlayAsClass, launchClassSession, playError } = usePlayAsClass()
+const { canPlayAsClass, playAsClassReadOnly, launchClassSession, playError } = usePlayAsClass()
+// Under View As the button is shown disabled, never hidden (job #683).
+const playAsClassTitle = computed(() => (playAsClassReadOnly.value ? t('schools.playAsClass.viewAsReadOnly', 'Read only while you are viewing as someone else. A teacher can press this.') : ''))
 
 const {
   schools,
@@ -83,7 +86,6 @@ const {
   isLoading: classesLoading,
   fetchClasses,
   createClass,
-  getClassReport,
   error: classesFetchError,
 } = useClassesData()
 
@@ -187,20 +189,84 @@ async function handleCreateSchool() {
   }
 }
 
-// Per-class benchmark reports, fetched lazily.
-const classReports = reactive(new Map<string, ClassReport>())
+// ─── THE TEACHER'S NUMBERS ARE PLAY-AS-CLASS (job #651, Tom 2026-09-14).
+// Until this change the teacher home totalled the pupils' individual accounts
+// (class_activity_stats / class_student_progress — the roster spine) and
+// benchmarked "cycles" off the same. At Ysgol Cas-gwent Chepstow, where the
+// teacher plays from the front and no pupil has an account, that read
+// "0 students · 0 min practised · 0 sessions" under a class whose teacher had
+// run her lesson that week, and the school wrote in. The home now reads the
+// SAME payload the classes list and the leader pages read
+// (/api/school/class-practice-7d): each class's own account — minutes in the
+// app this week, phrases practised, LEGOs travelled, last played — plus the
+// caller's OWN account, so a lesson that landed on the teacher's own sign-in
+// is named as such rather than vanishing. ───
+const teacherPractice = ref<ClassPractice7d | null>(null)
+const teacherPracticeError = ref<string | null>(null)
+const teacherPracticeLoaded = computed(() => teacherPractice.value !== null)
 
-async function fetchReports() {
-  for (const c of teacherClasses.value) {
-    if (classReports.has(c.id)) continue
-    try {
-      const r = await getClassReport(c.id)
-      if (r) classReports.set(c.id, r)
-    } catch {
-      /* benchmark is optional — skip silently */
-    }
+async function loadTeacherPractice(): Promise<void> {
+  const ids = teacherClasses.value.map((c) => c.id)
+  if (ids.length === 0) { teacherPractice.value = null; return }
+  try {
+    teacherPractice.value = await fetchClassPractice7d(ids, currentUser.value)
+    teacherPracticeError.value = null
+  } catch (err) {
+    // Loud, not silent (job #301): the rows say "not loaded", and the page says why.
+    const status = err instanceof ClassPracticeFetchError ? err.status : 0
+    const detail = err instanceof Error && err.message ? err.message : 'network error'
+    teacherPracticeError.value = status ? `${detail} (HTTP ${status})` : detail
+    teacherPractice.value = null
   }
 }
+
+function lastPlayedLabel(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+}
+
+// One row per class, carrying TWO figures kept apart and never summed (Tom's
+// ruling, 2026-09-14, job #662): minutesWk is the class account's own play,
+// pupilsOwnMinutes the aggregate of the pupils' own accounts. `started` is null
+// until the payload lands (the row says "loading"), false when the account
+// has never played (the row says "Not started" in words, never zeros).
+const teacherClassRows = computed(() => teacherClasses.value.map((c) => {
+  const p = teacherPractice.value
+  const acct = p?.classAccountByClass[c.id]
+  const started: boolean | null = p ? (acct?.started ?? false) : null
+  const minutesWk = p ? secondsToMinutes(p.classPlayByClass[c.id] ?? 0) : 0
+  const pupilsOwnMinutes = p ? secondsToMinutes(p.practiceByClass[c.id] ?? 0) : 0
+  return {
+    ...c,
+    started,
+    minutesWk,
+    pupilsOwnMinutes,
+    phrases7d: acct?.phrases7d ?? 0,
+    journeyDone: acct?.journeyDone ?? 0,
+    journeyTotal: acct?.journeyTotal ?? 0,
+    lastPractisedAt: acct?.lastPractisedAt ?? null,
+    lastPlayed: lastPlayedLabel(acct?.lastPractisedAt),
+    class_belt: deriveBelt(acct?.seedNumber ?? 0),
+  }
+}))
+
+// The caller's own account this week — the number the Library shows them.
+const ownPractice = computed(() => teacherPractice.value?.callerOwn ?? null)
+// The warning across the top (Tom, 2026-09-14 13:07Z, job #662): any practice
+// on her own account this week means she has been playing as herself.
+const ownPracticeLine = computed(() => {
+  const own = ownPractice.value
+  if (!own || own.inAppMinutes7d <= 0) return ''
+  const when = own.lastPlayedDay ? lastPlayedLabel(`${own.lastPlayedDay}T12:00:00Z`) : ''
+  const base = when
+    ? t('schools.dashboard.ownPracticeWhen', 'You practised {minutes} on your own account this week, last on {day}.')
+        .replace('{minutes}', formatPracticeMinutes(own.inAppMinutes7d)).replace('{day}', when)
+    : t('schools.dashboard.ownPractice', 'You practised {minutes} on your own account this week.')
+        .replace('{minutes}', formatPracticeMinutes(own.inAppMinutes7d))
+  return `${base} ${t('schools.dashboard.ownPracticeNote', 'That counts for you, not for a class. Use Play as class so a lesson counts for the class.')}`
+})
 
 // FOUNDER RULING (demo pass 2026-07-31): the dashboard's "+ Create class"
 // buttons open the Create New Class modal RIGHT HERE. They used to navigate
@@ -279,11 +345,14 @@ async function loadDashboard(): Promise<void> {
   if (!user) return
   await fetchSchools()
   if (isTeacher.value || isSchoolAdmin.value) {
-    await Promise.all([fetchClasses().then(fetchReports), isSchoolAdmin.value ? practice7d.fetchRollup() : Promise.resolve()])
+    await Promise.all([
+      fetchClasses().then(() => (isTeacher.value ? loadTeacherPractice() : Promise.resolve())),
+      isSchoolAdmin.value ? practice7d.fetchRollup() : Promise.resolve(),
+    ])
   }
   if (isGovtAdmin.value) {
     await fetchSchoolLinks()
-    if (viewingSchool.value) await fetchClasses().then(fetchReports)
+    if (viewingSchool.value) await fetchClasses()
   }
 }
 const { registerRefresh, refresh } = useDashboardRefresh()
@@ -304,7 +373,7 @@ watch(currentUser, (user) => {
 // stays empty until an unrelated re-render happens to touch viewingSchool.
 watch(viewingSchool, (school) => {
   if (school && isGovtAdmin.value) {
-    fetchClasses().then(fetchReports)
+    fetchClasses()
   }
 }, { immediate: true })
 
@@ -348,31 +417,48 @@ function courseDisplayName(code: string): string {
   return m ? getLanguageName(m[1]) : code
 }
 
-// Aggregates across the teacher's classes (all-time, from class reports).
+// Totals across the teacher's classes, this week: the class accounts' own
+// play, and, kept apart and never added to it, what the pupils did on their
+// OWN accounts. Both are always shown; a zero is said in words (Tom's ruling,
+// 2026-09-14, job #662: "there wont be a lot of this at the moment").
 const teacherStats = computed(() => {
-  const reports = Array.from(classReports.values())
-  const totalStudentsAcross = teacherClasses.value.reduce((sum, c) => sum + (c.student_count || 0), 0)
-  const totalCycles = reports.reduce((sum, r) => sum + r.class.total_cycles, 0)
-  const totalSessions = reports.reduce((sum, r) => sum + r.class.total_sessions, 0)
-  const totalSeconds = reports.reduce((sum, r) => sum + r.class.total_practice_seconds, 0)
+  const rows = teacherClassRows.value
   return {
-    students: totalStudentsAcross,
-    minutes: secondsToMinutes(totalSeconds),
-    sessions: totalSessions,
-    cycles: totalCycles,
-    classes: teacherClasses.value.length,
+    classes: rows.length,
+    minutes: rows.reduce((sum, c) => sum + c.minutesWk, 0),
+    phrases: rows.reduce((sum, c) => sum + c.phrases7d, 0),
+    students: teacherClasses.value.reduce((sum, c) => sum + (c.student_count || 0), 0),
+    studentsOwnMinutes: rows.reduce((sum, c) => sum + c.pupilsOwnMinutes, 0),
   }
 })
+
+// The pupils' own-accounts line, always present once the payload has landed.
+const pupilsOwnLine = computed(() => {
+  if (!teacherPracticeLoaded.value) return ''
+  const s = teacherStats.value
+  if (s.studentsOwnMinutes <= 0) {
+    return t('schools.dashboard.pupilsOwnAccountsNone', 'Nothing on pupils’ own accounts this week. That is usual for a class taught from the front.')
+  }
+  return t('schools.dashboard.studentsOwnAccountsLine', '{n} pupils on their own accounts · {minutes} on those accounts this week')
+    .replace('{n}', String(s.students)).replace('{minutes}', formatPracticeMinutes(s.studentsOwnMinutes))
+})
+
+function pupilsOwnRowLabel(minutes: number): string {
+  return minutes > 0
+    ? t('schools.dashboard.pupilsOwnAccountsRow', 'pupils’ own accounts {minutes}').replace('{minutes}', formatPracticeMinutes(minutes))
+    : t('schools.dashboard.pupilsOwnAccountsRowNone', 'nothing on pupils’ own accounts')
+}
 
 const greetingLines = computed(() => {
   const n = teacherClasses.value.length
   if (!n) return t('schools.dashboard.noClassesYetCreateOne', 'No classes yet — create one to get your students playing.')
-  if (n === 1) {
-    return t('schools.dashboard.oneClassOnTheGo', 'One class on the go, {n} students across it.')
-      .replace('{n}', String(teacherStats.value.students))
-  }
-  return t('schools.dashboard.classesOnTheGo', '{n} classes on the go, {students} students total.')
-    .replace('{n}', String(n)).replace('{students}', String(teacherStats.value.students))
+  const base = n === 1
+    ? t('schools.dashboard.oneClassOnTheGoPlain', 'One class on the go.')
+    : t('schools.dashboard.classesOnTheGoPlain', '{n} classes on the go.').replace('{n}', String(n))
+  if (!teacherPracticeLoaded.value) return base
+  return t('schools.dashboard.onTheGoMinutesWeek', '{base} {minutes} in the app this week.')
+    .replace('{base}', base)
+    .replace('{minutes}', formatPracticeMinutes(teacherStats.value.minutes))
 })
 
 // MINUTES, never hours, on every school surface (Tom, 2026-09-11, job #265) —
@@ -402,7 +488,7 @@ const adminGreetingLines = computed(() => {
     .replace('{students}', String(totalStudents.value))
     .replace('{classes}', String(totalClasses.value))
   if (!practice7d.loaded.value) return base
-  return t('schools.dashboard.adminGreetingMinutesWeek', '{base} — {minutes} in the app this week.')
+  return t('schools.dashboard.adminGreetingMinutesWeek', '{base} — {minutes} in the app this week, classes, staff and pupils together.')
     .replace('{base}', base)
     .replace('{minutes}', formatPracticeMinutes(practice7d.minutesThisWeek.value))
 })
@@ -414,16 +500,6 @@ const breadcrumb = computed(() => {
     school: viewingSchool.value?.school_name || t('schools.dashboard.school', 'School'),
   }
 })
-
-// ---------- Bench data per class ----------
-function benchFor(report: ClassReport | undefined) {
-  if (!report) return null
-  return {
-    class:  Math.round(report.class.total_cycles),
-    school: Math.round(report.schoolAvg?.avg_total_cycles ?? 0),
-    course: Math.round(report.courseAvg?.avg_total_cycles ?? 0),
-  }
-}
 
 // ---------- Actions ----------
 async function handlePlayClass(cls: ClassInfo) {
@@ -463,6 +539,13 @@ async function handlePlayClass(cls: ClassInfo) {
          TEACHER
          ============================================================ -->
     <template v-if="isTeacher">
+      <!-- The "You are now playing as yourself" line used to sit here (job
+           #662). Tom, 2026-09-14 16:17Z (job #683): "makes no sense when in
+           dashboard view - they're not playing anything. that warning should
+           be on the dashboard top nav when the player is playing". It now
+           lives in PlayingAsYourselfBanner.vue, across the top of the player,
+           only while own-account play is live. The past-tense own-practice
+           line further down stays. -->
       <Greeting
         :name="greetingName"
         :lines="greetingLines"
@@ -482,82 +565,84 @@ async function handlePlayClass(cls: ClassInfo) {
       <!-- Classes-first (founder ruling 2026-07-30): the teacher's classes ARE
            the page — Play-as-Class is the primary affordance, everything else
            (stats, invites, guided look) is subordinate. Two taps from login
-           to teaching. -->
+           to teaching. Every figure on a class is the CLASS ACCOUNT'S OWN
+           (job #651): minutes in the app this week, phrases practised, LEGOs
+           travelled, last played. -->
+
+      <div v-if="teacherPracticeError" class="fetch-error-banner">
+        <span>{{ t('schools.dashboard.practiceNotLoaded', "Couldn't load this week's practice — the rows below show no minutes until it loads. {error}").replace('{error}', teacherPracticeError) }}</span>
+        <button type="button" class="btn-ghost" @click="refresh">{{ t('schools.dashboard.retry', 'Retry') }}</button>
+      </div>
 
       <!-- Compact: dense table -->
       <div v-if="density === 'compact'" class="schools-card teacher-compact">
         <div class="teacher-compact-head">
           <div>{{ t('schools.dashboard.class', 'Class') }}</div>
           <div>{{ t('schools.dashboard.course', 'Course') }}</div>
-          <div>{{ t('schools.dashboard.benchmarksCyclesVsSchoolGlobal', 'Benchmarks (cycles vs school · global)') }}</div>
+          <div>{{ t('schools.dashboard.thisWeekHead', 'This week') }}</div>
           <div>{{ t('schools.dashboard.code', 'Code') }}</div>
           <div></div>
         </div>
         <div
-          v-for="(cls, i) in teacherClasses"
+          v-for="(cls, i) in teacherClassRows"
           :key="cls.id"
-          :class="['teacher-compact-row', { last: i === teacherClasses.length - 1 }]"
+          :class="['teacher-compact-row', { last: i === teacherClassRows.length - 1 }]"
         >
           <!-- HANDBOOK Your classes at a glance
                section: seeing-progress
                roles: teacher
                place: dashboard
-               keywords: classes, dashboard, overview, students, join code, course
+               keywords: classes, dashboard, overview, minutes, phrases, journey, join code, course
+               parts: dash-class-week, dash-class-week-pupils
                What it's for. Your teaching dashboard, with your classes first. Every
-               class you teach is a row or a card carrying its course, how many
-               students are in it, their average practice, and the join code you read
-               out to get a new pupil in.
+               class you teach is a row or a card carrying its course, the minutes
+               it spent in the app this week, the phrases it practised, how far it
+               has travelled through the course, when it last played, and the join
+               code you read out to get a new pupil in. The minutes are the class's
+               own, from the lessons you ran with Play as class. Beside them, kept
+               apart and never added in, is what the pupils did on their own
+               accounts this week, said in words when there is nothing.
                Where it is. The schools dashboard you land on, above everything else
                on the page.
                How you do it.
                1. Open the schools dashboard.
                2. Read down the list — one entry per class you teach.
-               3. Tap a class name to open its own page, with the roster and its
-                  settings.
+               3. Tap a class name to open its class page, with what it practised
+                  this week and how far it has got.
                4. **Play as class** on any entry starts a session the whole class
-                  does together.
-               Worth knowing. A brand new account shows a single button to create
-               your first class instead of the list.
-               checked: fb0e12ae.aef59826
+                  does together, on the class's own account.
+               Worth knowing. A class that has never played says **Not started** in
+               words. A brand new account shows a single button to create your
+               first class instead of the list.
+               checked: 89f2f1e6.c3b41033
           -->
           <router-link :to="schoolsLink('class-detail', { classId: cls.id })" class="class-link" data-walk="dash-class-card">
-            <BeltDot belt="white" :size="28" ring />
+            <BeltDot :belt="cls.started ? cls.class_belt : 'white'" :size="28" ring />
             <div class="class-link-text">
               <div class="class-name">{{ cls.class_name }}</div>
-              <div class="class-meta">{{ t('schools.dashboard.nStudents', '{n} students').replace('{n}', String(cls.student_count)) }}</div>
+              <div class="class-meta">
+                <template v-if="cls.started === null">{{ t('schools.dashboard.loadingThisWeek', 'loading this week…') }}</template>
+                <template v-else-if="cls.started === false">{{ t('schools.dashboard.notStartedClass', 'Not started — Play as class starts the first lesson') }}</template>
+                <template v-else-if="cls.lastPlayed">{{ t('schools.dashboard.lastPlayed', 'Last played {day}').replace('{day}', cls.lastPlayed) }}</template>
+              </div>
             </div>
           </router-link>
           <div class="schools-subtle">{{ courseDisplayName(cls.course_code) }}</div>
-          <!-- HANDBOOK How your class measures up
-               section: seeing-progress
-               roles: teacher
-               place: dashboard
-               keywords: benchmark, compare, cycles, school, global, average, bench
-               What it's for. A three-bar benchmark on each class, showing the cycles
-               that class has done against the average for your school and the
-               average across everyone learning that course anywhere. It answers the
-               question a total cannot: is this normal.
-               Where it is. On each class on the schools dashboard, under the heading
-               naming class, school and global.
-               How you do it.
-               1. Open the schools dashboard and find the class you want to read.
-               2. The top bar is **Class** — your own class's figure.
-               3. **School** underneath it is the average across the other classes in
-                  your school.
-               4. **Global** is the average across every class doing that course.
-               5. Longer bars mean more; the number at the end of each bar is the
-                  figure itself.
-               Worth knowing. A class with too little recorded activity shows a dash
-               rather than an invented bar.
-               checked: 8f36867c.46d20570
-          -->
-          <div data-walk="dash-class-bench">
-            <Bench v-if="benchFor(classReports.get(cls.id))" :data="benchFor(classReports.get(cls.id))!" unit="c" />
-            <span v-else class="schools-subtle">—</span>
+          <div class="class-week" data-walk="dash-class-week">
+            <template v-if="cls.started === null"><span class="schools-subtle">…</span></template>
+            <template v-else-if="cls.started === false"><span class="schools-subtle">{{ t('schools.dashboard.notStarted', 'Not started') }}</span></template>
+            <template v-else>
+              <strong class="arsenal">{{ formatPracticeMinutes(cls.minutesWk) }}</strong> {{ t('schools.dashboard.inTheApp', 'in the app') }}
+              <span class="dot-sep">·</span>
+              {{ t('schools.dashboard.nPhrases', '{n} phrases').replace('{n}', String(cls.phrases7d)) }}
+              <span class="dot-sep">·</span>
+              {{ t('schools.dashboard.legosTravelled', '{done}/{total} phrases').replace('{done}', String(cls.journeyDone)).replace('{total}', String(cls.journeyTotal)) }}
+            </template>
+            <span v-if="cls.started !== null" class="class-week-pupils schools-subtle" data-walk="dash-class-week-pupils">{{ pupilsOwnRowLabel(cls.pupilsOwnMinutes) }}</span>
           </div>
           <div class="join-code">{{ cls.student_join_code }}</div>
           <div class="row-cta">
-            <button v-if="canPlayAsClass" class="btn-play" @click="handlePlayClass(cls)">{{ t('schools.dashboard.playAsClass', '▶ Play as class') }}</button>
+            <button v-if="canPlayAsClass" class="btn-play" :disabled="playAsClassReadOnly" :title="playAsClassTitle" data-walk="dash-class-row-play" @click="handlePlayClass(cls)">{{ t('schools.dashboard.playAsClass', '▶ Play as class') }}</button>
           </div>
         </div>
 
@@ -573,7 +658,7 @@ async function handlePlayClass(cls: ClassInfo) {
       <!-- Detailed: card grid -->
       <div v-else class="class-grid">
         <article
-          v-for="cls in teacherClasses"
+          v-for="cls in teacherClassRows"
           :key="cls.id"
           class="schools-card class-panel"
         >
@@ -583,22 +668,54 @@ async function handlePlayClass(cls: ClassInfo) {
               <h2 class="arsenal panel-title">{{ cls.class_name }}</h2>
             </router-link>
             <div class="panel-meta">
-              <BeltDot belt="white" :size="14" ring />
-              <span>{{ t('schools.dashboard.nStudents', '{n} students').replace('{n}', String(cls.student_count)) }}</span>
-              <span class="dot-sep">·</span>
-              <span>{{ t('schools.dashboard.nMinAvgPractice', '{n}m avg practice').replace('{n}', String(Math.round(cls.avg_practice_minutes || 0))) }}</span>
+              <BeltDot :belt="cls.started ? cls.class_belt : 'white'" :size="14" ring />
+              <template v-if="cls.started === null"><span>{{ t('schools.dashboard.loadingThisWeek', 'loading this week…') }}</span></template>
+              <template v-else-if="cls.started === false"><span>{{ t('schools.dashboard.notStartedClass', 'Not started — Play as class starts the first lesson') }}</span></template>
+              <template v-else>
+                <span>{{ t('schools.dashboard.minutesInAppThisWeekN', '{minutes} in the app this week').replace('{minutes}', formatPracticeMinutes(cls.minutesWk)) }}</span>
+                <span class="dot-sep">·</span>
+                <span>{{ t('schools.dashboard.nPhrases', '{n} phrases').replace('{n}', String(cls.phrases7d)) }}</span>
+              </template>
+              <span v-if="cls.started !== null" class="class-week-pupils schools-subtle" data-walk="dash-class-week-pupils">{{ pupilsOwnRowLabel(cls.pupilsOwnMinutes) }}</span>
             </div>
           </div>
 
+          <!-- HANDBOOK Play as class from your dashboard
+               section: running-classes
+               roles: teacher
+               place: dashboard
+               parts: dash-class-row-play
+               keywords: play as class, lesson, start, dashboard, class card, front of the room
+               What it's for. Starting a whole-class lesson straight from your
+               dashboard, on the class's own account, so the minutes and the
+               phrases land on the class rather than on you.
+               Where it is. Your dashboard, the **Play as class** button on each
+               class's card or row.
+               How you do it.
+               1. Find the class on your dashboard.
+               2. Tap **Play as class**.
+               3. The player opens on the class's course at the class's own place.
+               Worth knowing. The button is always there beside the class. While
+               a platform admin is viewing the dashboard as you it is greyed out
+               and does nothing, so they can see what you have without starting
+               a lesson in your name.
+               checked: 36d97e0a.2cfe4355
+          -->
           <button
             v-if="canPlayAsClass"
             class="btn-play pac-hero"
+            :disabled="playAsClassReadOnly"
+            :title="playAsClassTitle"
+            data-walk="dash-class-card-play"
             @click="handlePlayClass(cls)"
           >{{ t('schools.dashboard.playAsClass', '▶ Play as class') }}</button>
 
-          <div v-if="benchFor(classReports.get(cls.id))" class="panel-bench" data-walk="dash-class-bench">
-            <div class="schools-kicker bench-kicker">{{ t('schools.dashboard.cyclesClassVsSchoolVsGlobal', 'Cycles · class vs school vs global') }}</div>
-            <Bench :data="benchFor(classReports.get(cls.id))!" unit="c" />
+          <div v-if="cls.started" class="panel-week" data-walk="dash-class-week">
+            <div class="schools-kicker">{{ t('schools.dashboard.togetherKicker', 'Together, this week') }}</div>
+            <p class="panel-week-line">
+              {{ t('schools.dashboard.legosTravelledTogether', 'The class has travelled {done} of {total} phrases.').replace('{done}', String(cls.journeyDone)).replace('{total}', String(cls.journeyTotal)) }}
+              <template v-if="cls.lastPlayed"> {{ t('schools.dashboard.lastPlayed', 'Last played {day}').replace('{day}', cls.lastPlayed) }}.</template>
+            </p>
           </div>
 
           <div class="panel-footer">
@@ -616,33 +733,64 @@ async function handlePlayClass(cls: ClassInfo) {
         </div>
       </div>
 
+      <!-- HANDBOOK Practice on your own account
+           section: seeing-progress
+           roles: teacher
+           place: dashboard
+           keywords: own account, library, play as class, minutes, mistake, my practice
+           What it's for. Telling you when practice this week landed on your own
+           sign-in rather than on a class. Pressing play on a course from your
+           Library counts for you; only Play as class counts for the class. The
+           line names your own minutes and when you last played, so a lesson that
+           went to the wrong place is found rather than lost.
+           Where it is. Under your classes on the schools dashboard, only in a
+           week when your own account has practised.
+           How you do it.
+           1. Read the line.
+           2. Next lesson, tap **Play as class** on the class instead of playing
+              from the Library.
+           3. To move this week's lesson onto the class, open the class and use
+              **Ran a lesson signed in as yourself?** on its tools page.
+           Worth knowing. The line never appears when your own account is quiet,
+           so its absence means nothing went astray.
+           checked: 8353ee38.a7f54312
+      -->
+      <p v-if="ownPracticeLine" class="own-practice-line" data-walk="dash-own-practice">{{ ownPracticeLine }}</p>
+
       <!-- Stats, demoted: one quiet line under the classes (founder ruling
            2026-07-30 — classes lead, numbers follow). -->
       <!-- HANDBOOK Your own teaching numbers
            section: seeing-progress
            roles: teacher
            place: dashboard
-           keywords: numbers, totals, students, minutes, sessions, practice
-           What it's for. One quiet line totalling your whole teaching load — how many
-           students you have across every class, how many minutes they have practised
-           between them, and how many sessions have been run. It is a record of what has
-           happened, never a target.
+           keywords: numbers, totals, classes, minutes, phrases, students, own accounts
+           parts: dash-teacher-own-accounts
+           What it's for. One quiet line totalling your classes this week: how many
+           classes, the minutes they spent in the app with a lesson running, and the
+           phrases they practised. All of it is the classes' own play from the front.
+           A second line, always there, is the minutes your pupils spent on their
+           own accounts this week, kept apart from the first and never added to it.
+           When no pupil has practised on their own account it says so in words,
+           because that is usual for a class taught from the front and not a fault.
            Where it is. Underneath your classes on the schools dashboard.
            How you do it.
            1. Open the schools dashboard and scroll past your classes.
-           2. **Students** counts every pupil in every class you teach, each person once.
-           3. **Minutes practised** is real practice time those pupils have logged, in minutes.
-           4. **Sessions** is how many class sessions have been run.
-           Worth knowing. The line only appears once you have at least one class — there
-           is nothing to total before that.
+           2. **Classes** is how many you teach.
+           3. **In the app this week** is time with a lesson running, pauses included.
+           4. **Phrases practised** is how many phrases your classes were prompted with
+              this week.
+           Worth knowing. The line only appears once you have at least one class.
            checked: 4ec80f25.f3a99573
       -->
       <div v-if="teacherClasses.length" class="teacher-stat-line schools-subtle" data-walk="dash-teacher-stats">
-        <span><strong class="arsenal stat-line-value">{{ teacherStats.students }}</strong> {{ t('schools.dashboard.students', 'students') }}</span>
+        <span><strong class="arsenal stat-line-value">{{ teacherStats.classes }}</strong> {{ teacherStats.classes === 1 ? t('schools.dashboard.classSingular', 'class') : t('schools.dashboard.classesWord', 'classes') }}</span>
         <span class="dot-sep">·</span>
-        <span><strong class="arsenal stat-line-value">{{ formatPracticeMinutes(teacherStats.minutes) }}</strong> {{ t('schools.dashboard.practised', 'practised') }}</span>
+        <span><strong class="arsenal stat-line-value">{{ teacherPracticeLoaded ? formatPracticeMinutes(teacherStats.minutes) : '—' }}</strong> {{ t('schools.dashboard.inTheAppThisWeek', 'in the app this week') }}</span>
         <span class="dot-sep">·</span>
-        <span><strong class="arsenal stat-line-value">{{ teacherStats.sessions }}</strong> {{ t('schools.dashboard.sessions', 'sessions') }}</span>
+        <span><strong class="arsenal stat-line-value">{{ teacherPracticeLoaded ? teacherStats.phrases : '—' }}</strong> {{ t('schools.dashboard.phrasesPractised', 'phrases practised') }}</span>
+      </div>
+      <div v-if="teacherClasses.length && pupilsOwnLine" class="teacher-stat-line teacher-stat-line-own schools-subtle" data-walk="dash-teacher-own-accounts">
+        <span>{{ pupilsOwnLine }}</span>
       </div>
     </template>
 
@@ -752,6 +900,7 @@ async function handlePlayClass(cls: ClassInfo) {
           <span class="stat-label">{{ t('schools.dashboard.minutesInAppThisWeek', 'Minutes in the app this week') }}</span>
           <span v-if="classesPractisingLine" class="stat-subnote">{{ classesPractisingLine }}</span>
           <span v-else class="stat-subnote">{{ t('schools.dashboard.thisWeekNotLoaded', 'This week’s figures have not loaded — pull to refresh.') }}</span>
+          <span class="stat-subnote">{{ t('schools.dashboard.minutesScopeNote', 'Classes, staff and pupils, each counted once.') }}</span>
         </div>
         <div class="stat-card">
           <span class="arsenal stat-value">{{ teacherClasses.length }}</span>
@@ -800,7 +949,7 @@ async function handlePlayClass(cls: ClassInfo) {
                 <td>{{ cls.student_count }}</td>
                 <td>{{ Math.round(cls.avg_practice_minutes || 0) }}m</td>
                 <td v-if="canPlayAsClass" class="row-cta">
-                  <button class="btn-play" @click="handlePlayClass(cls)">{{ t('schools.dashboard.playAsClass', '▶ Play as class') }}</button>
+                  <button class="btn-play" :disabled="playAsClassReadOnly" :title="playAsClassTitle" @click="handlePlayClass(cls)">{{ t('schools.dashboard.playAsClass', '▶ Play as class') }}</button>
                 </td>
               </tr>
               <tr v-if="classesLoading && !teacherClasses.length">
@@ -1085,6 +1234,21 @@ async function handlePlayClass(cls: ClassInfo) {
 </template>
 
 <style scoped>
+.class-week { font-size: var(--text-sm); color: var(--schools-fg-2, #555); }
+.class-week-pupils { display: block; font-size: var(--text-xs, 12px); margin-top: 2px; }
+.class-week strong { color: var(--schools-fg, #222); }
+.panel-week { display: flex; flex-direction: column; gap: 4px; }
+.panel-week-line { margin: 0; font-size: var(--text-sm); color: var(--schools-fg-2, #555); }
+.own-practice-line { margin: 12px 0 0; font-size: var(--text-sm); color: var(--schools-fg-2, #555); }
+.playing-as-yourself {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin: 0 0 14px; padding: 10px 14px;
+  background: var(--schools-red-soft, #fbeaea); border: 1px solid var(--schools-red, #c23a3a);
+  border-radius: 8px; font-size: var(--text-sm); color: var(--schools-fg);
+}
+.playing-as-yourself-link { font-weight: 600; color: var(--schools-red, #c23a3a); text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
+.teacher-stat-line-own { margin-top: 4px; }
+
 .dashboard-view {
   padding-bottom: 32px;
 }

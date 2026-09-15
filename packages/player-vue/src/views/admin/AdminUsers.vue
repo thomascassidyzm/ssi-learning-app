@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import FrostSelect from '@/components/FrostSelect.vue'
 import { useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useAdminUsers, type Tier, type SortKey } from '@/composables/admin/useAdminUsers'
 import { parseCourseCode, timeAgo, formatDuration } from '@/composables/admin/adminUtils'
-import FilterDropdown from '@/components/schools/shared/FilterDropdown.vue'
 import Badge from '@/components/schools/shared/Badge.vue'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
@@ -37,12 +37,13 @@ const searchInput = ref('')
 
 // Course filter options reflect every course any user is enrolled in,
 // not just courses visible on the current page slice.
-const courseOptions = computed(() =>
-  allEnrolledCourseIds.value.map(c => ({
+const courseFilterOptions = computed(() => [
+  { value: '', label: 'All courses' },
+  ...allEnrolledCourseIds.value.map(c => ({
     value: c,
     label: parseCourseCode(c).label,
   })),
-)
+])
 
 // Tier filter chips — count badges let an admin see the permission split at a
 // glance (the page's core job: find users / check access). null = All.
@@ -160,12 +161,12 @@ onMounted(() => { void refresh() })
             </svg>
           </button>
         </div>
-        <FilterDropdown
-          :model-value="courseFilter"
-          :options="courseOptions"
-          placeholder="All courses"
-          size="md"
-          @update:model-value="setCourseFilter"
+        <FrostSelect
+          class="course-filter"
+          :model-value="courseFilter ?? ''"
+          :options="courseFilterOptions"
+          aria-label="Filter by course"
+          @update:model-value="(v) => setCourseFilter(v || null)"
         />
       </div>
 
@@ -824,5 +825,10 @@ onMounted(() => { void refresh() })
   .users-table {
     min-width: 560px;
   }
+}
+.course-filter {
+  /* FrostSelect reads these; the shared dropdown wears this page's look. */
+  min-width: 220px;
+  --fs-font: inherit; --fs-font-size: var(--text-sm); --fs-radius: var(--radius-lg); --fs-bg: rgba(255, 255, 255, 0.7); --fs-border: rgba(44, 38, 34, 0.12); --rc-entity: var(--tone-red); --rc-entity-ink: rgb(var(--tone-red));
 }
 </style>

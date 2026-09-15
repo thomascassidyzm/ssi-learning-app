@@ -22,9 +22,7 @@
 
     <div class="aud__controls">
       <label>Course
-        <select v-model="courseCode">
-          <option v-for="c in COURSES" :key="c.code" :value="c.code">{{ c.label }}</option>
-        </select>
+        <FrostSelect v-model="courseCode" class="aud__select" :options="COURSE_OPTIONS" aria-label="Course" />
       </label>
       <span v-if="isLoading" class="aud__muted">loading…</span>
       <span v-else-if="error" class="aud__err">{{ error }}</span>
@@ -82,6 +80,7 @@
 
 <script setup lang="ts">
 import { ref, computed, inject, watch, onBeforeUnmount } from 'vue'
+import FrostSelect from '@/components/FrostSelect.vue'
 import { dirFor } from '@ssi/core'
 import type { Ref } from 'vue'
 import { usePodStage0 } from '../composables/usePodStage0'
@@ -98,6 +97,7 @@ const COURSES = [
   { code: 'ara_for_eng', label: 'Arabic' }, { code: 'jpn_for_eng', label: 'Japanese' },
   { code: 'kor_for_eng', label: 'Korean' },
 ]
+const COURSE_OPTIONS = COURSES.map((c) => ({ value: c.code, label: c.label }))
 
 interface AudPlay { audioId: string; speed: number; gapAfterMs?: number; label: string; role: string }
 interface StageView { key: string; label: string; kind: 'stage0' | 'main'; tierKey?: string; stage?: number; plays: AudPlay[] }
@@ -254,7 +254,7 @@ onBeforeUnmount(stop)
 .aud__tag { font-size: 11px; background: #475569; color: #fff; padding: 2px 7px; border-radius: 10px; vertical-align: middle; }
 .aud__sub { margin: 0 0 16px; color: #6b655d; }
 .aud__controls { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; font-size: 13px; }
-.aud__controls select { margin-left: 6px; padding: 5px 8px; border-radius: 6px; border: 1px solid #cfc8bf; }
+.aud__controls .aud__select { display: inline-block; min-width: 240px; margin-left: 6px; vertical-align: middle; --fs-radius: 6px; --fs-border: #cfc8bf; --fs-bg: #fff; --fs-min-height: 32px; --fs-pad: 5px 10px; }
 .aud__muted { color: #8c857b; } .aud__err { color: #c0392b; }
 .aud__body { display: grid; grid-template-columns: 360px 1fr; gap: 18px; align-items: start; }
 .aud__list { list-style: none; margin: 0; padding: 0; max-height: 74vh; overflow: auto; border: 1px solid #e4ded6; border-radius: 10px; background: #fff; }

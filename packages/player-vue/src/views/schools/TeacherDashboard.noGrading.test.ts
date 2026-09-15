@@ -38,7 +38,7 @@ vi.mock('@/composables/schools/useClassesData', () => ({
   }),
 }))
 vi.mock('@/composables/schools/usePlayAsClass', () => ({
-  usePlayAsClass: () => ({ canPlayAsClass: computed(() => true), launchClassSession: vi.fn(), playError: ref(null), switchActiveCourseTo: vi.fn() }),
+  usePlayAsClass: () => ({ canPlayAsClass: computed(() => true), playAsClassReadOnly: computed(() => false), launchClassSession: vi.fn(), playError: ref(null), switchActiveCourseTo: vi.fn() }),
 }))
 vi.mock('@/composables/useDashboardRefresh', () => {
   let handler: (() => Promise<void>) | null = null
@@ -65,7 +65,7 @@ async function mountView() {
     if (u.includes('class-practice-7d')) return { ok: true, json: async () => ({
       // One busy class, one quiet class, one that has never played: on the old
       // page these read Excellent, Needs attention and Inactive.
-      practiceByClass: { c1: 3000, c2: 60, c3: 0 }, activeDaysByClass: { c1: 5, c2: 1, c3: 0 },
+      classPlayByClass: { c1: 3000, c2: 60, c3: 0 }, activeDaysByClass: { c1: 5, c2: 1, c3: 0 },
       rollup: { windowDays: 7, classCount: 3, activeClasses7d: 2, inAppMinutes7d: 51 },
       classAccountByClass: { c1: acct(52, NOW, 50), c2: acct(3, NOW, 1), c3: acct(0, null, 0) },
     }) } as any
@@ -106,7 +106,8 @@ describe('TeacherDashboard grades nothing (job #494)', () => {
     expect(w.find('health-dot-stub').exists()).toBe(false)
     expect(w.find('.summary-strip').exists()).toBe(false)
     // Course and Sort by are the only pickers left.
-    expect(w.findAll('select')).toHaveLength(2)
+    expect(w.findAllComponents({ name: 'FrostSelect' })).toHaveLength(2)
+    expect(w.findAll('select')).toHaveLength(0)
     expect(w.findAll('thead th').map(th => th.text())).not.toContain('Health')
     // Time in app is the figure the page is for, and it is still there.
     expect(w.find('.page-subtitle').text()).toContain('3 classes across Ysgol Cas-gwent')

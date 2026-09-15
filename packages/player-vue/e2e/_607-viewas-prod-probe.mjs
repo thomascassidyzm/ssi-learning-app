@@ -27,6 +27,10 @@ const adminL = await sb(`learners?user_id=eq.${adminUid}&select=id,preferences,u
 const personaL = await sb(`learners?user_id=eq.${PERSONA.userId}&select=id,preferences,updated_at`)
 console.log('admin learners', JSON.stringify(adminL.map(r => [r.id, r.preferences?.last_course_code, r.updated_at])))
 console.log('persona learners', JSON.stringify(personaL.map(r => [r.id, r.preferences?.last_course_code, r.updated_at])))
+const ceRows = async (ids) => ids.length ? sb(`course_enrollments?learner_id=in.(${ids.join(',')})&select=learner_id,course_id,last_completed_lego_id,highest_completed_lego_id,last_practiced_at,updated_at&order=updated_at.desc`) : []
+const allIds = [...adminL.map(r => r.id), ...personaL.map(r => r.id)]
+const ceBefore = await ceRows(allIds)
+console.log('BEFORE course_enrollments (admin+persona):', JSON.stringify(ceBefore))
 const peCount = async (ids) => ids.length ? sb(`player_events?user_id=in.(${ids.join(',')})&occurred_at=gte.${START}&select=id,user_id,event_type,occurred_at`) : []
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_BIN, args: ['--no-sandbox'] })
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } })
@@ -83,4 +87,13 @@ console.log('DB player_events since START for admin+persona learners:', JSON.str
 const adminL2 = await sb(`learners?user_id=eq.${adminUid}&select=id,preferences,updated_at`); const personaL2 = await sb(`learners?user_id=eq.${PERSONA.userId}&select=id,preferences,updated_at`)
 console.log('AFTER admin', JSON.stringify(adminL2.map(r => [r.id, r.preferences?.last_course_code, r.updated_at])))
 console.log('AFTER persona', JSON.stringify(personaL2.map(r => [r.id, r.preferences?.last_course_code, r.updated_at])))
+const ceAfter = await ceRows(allIds)
+console.log('AFTER course_enrollments (admin+persona):', JSON.stringify(ceAfter))
+const key = (r) => `${r.learner_id}|${r.course_id}`
+const changed = ceAfter.filter(a => { const b = ceBefore.find(x => key(x) === key(a)); return !b || b.updated_at !== a.updated_at })
+console.log('course_enrollments rows changed since BEFORE (job #618 success = []):', JSON.stringify(changed))
+console.log('course_enrollments PATCH/POST requests seen (job #618 success = 0):', net.filter(l => /course_enrollments/.test(l) && /^\S+ (PATCH|POST)/.test(l)).length)
 console.log('NET\n' + net.join('\n')); console.log('LOGS\n' + logs.join('\n'))
+fs.writeFileSync(path.join(SHOTS, 'net.log'), net.join('\n') + '\n')
+fs.writeFileSync(path.join(SHOTS, 'console.log'), logs.join('\n') + '\n')
+fs.writeFileSync(path.join(SHOTS, 'db.json'), JSON.stringify({ START, adminL, personaL, ceBefore, ceAfter, changed, pe, adminL2, personaL2 }, null, 2))

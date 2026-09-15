@@ -4,7 +4,7 @@
  * the three measures over them (job #609, Tom's ruling 2026-09-13).
  */
 import { describe, it, expect } from 'vitest'
-import { courseFactsFromSpans, measureFor, WINDOWS, MEASURES } from './minutes'
+import { courseFactsFromSpans, measureFor, averageOfAllCourses, pooledFacts, WINDOWS, MEASURES, type CourseFacts } from './minutes'
 import type { DiarySessionisation, PlaySpan } from '../_utils/inAppTime'
 
 const NOW = Date.UTC(2026, 8, 13, 22, 0, 0)
@@ -75,20 +75,75 @@ describe('measureFor', () => {
     expect(measureFor('minutes_per_person', facts)).toMatchObject({ value: 7.5 })
     expect(measureFor('minutes_per_person', facts).trend).toHaveLength(7)
   })
+  it('total minutes is the course\'s minutes in the window, whoever did them', () => {
+    expect(measureFor('minutes_total', facts)).toMatchObject({ value: 30 })
+    expect(measureFor('minutes_total', facts).trend).toHaveLength(7)
+  })
   it('new enrolments and the no-activity share', () => {
     expect(measureFor('new_enrolments', facts).value).toBe(1)
     expect(measureFor('no_activity', facts).value).toBe(50)
   })
   it('a course with nobody on it reads 0, never NaN', () => {
-    const empty = { code: 'x', people: new Set<string>(), activePeople: new Set<string>(), seconds: 0, mainSeconds: 0, listeningSeconds: 0, bucketSeconds: [0], bucketActive: [new Set<string>()], newEnrolments: 0, bucketEnrolments: [0] }
+    const empty = { code: 'x', people: new Set<string>(), activePeople: new Set<string>(), seconds: 0, mainSeconds: 0, listeningSeconds: 0, bucketSeconds: [0], bucketActive: [new Set<string>()], newEnrolments: 0, bucketEnrolments: [0], spans: 0, bucketSpans: [0], bucketListeningSeconds: [0] }
     expect(measureFor('minutes_per_person', empty).value).toBe(0)
     expect(measureFor('no_activity', empty).value).toBe(0)
   })
 })
 
+describe('averageOfAllCourses — the comparator (Tom, 2026-09-14)', () => {
+  const course = (code: string, people: string[], active: string[], seconds: number, newEnrolments = 0): CourseFacts => ({
+    code, people: new Set(people), activePeople: new Set(active), seconds, mainSeconds: seconds, listeningSeconds: 0,
+    bucketSeconds: [seconds, 0], bucketActive: [new Set(active), new Set()], newEnrolments, bucketEnrolments: [newEnrolments, 0],
+    spans: active.length, bucketSpans: [active.length, 0], bucketListeningSeconds: [0, 0],
+  })
+  // A busy course, a middling one, and a dead course with two enrolments.
+  const busy = course('cym', ['a', 'b'], ['a', 'b'], 2 * 60 * 60, 2)   // 120 min over 2 people = 60/person
+  const mid = course('spa', ['c', 'd', 'e', 'f'], ['c'], 40 * 60, 1)   // 40 min over 4 people = 10/person
+  const dead = course('zho', ['g', 'h'], [], 0)                          // 0 over 2 people
+  const all = [busy, mid, dead]
+
+  it('is one fixed number for the window and the measure, whichever course is selected', () => {
+    for (const m of MEASURES) {
+      const a = averageOfAllCourses(m.value, [busy, mid, dead])
+      const b = averageOfAllCourses(m.value, [dead, busy, mid])
+      expect(a.value).toBe(b.value)
+      expect(a.trend).toEqual(b.trend)
+    }
+  })
+  it('includes the selected course — never the leave-one-out average #609 shipped', () => {
+    const withAll = averageOfAllCourses('minutes_per_person', all).value
+    const leaveOneOut = averageOfAllCourses('minutes_per_person', [mid, dead]).value
+    expect(withAll).not.toBe(leaveOneOut)
+  })
+  it('weights ratio measures by learners: 160 min over 8 course-people is 20, not the per-course mean of 23.3', () => {
+    expect(averageOfAllCourses('minutes_per_person', all).value).toBe(20)
+    expect(averageOfAllCourses('minutes_per_person', all).trend).toEqual([20, 0])
+    // no activity: 5 silent of 8 = 62.5%, not the per-course mean of (0 + 75 + 100) / 3
+    expect(averageOfAllCourses('no_activity', all).value).toBe(62.5)
+  })
+  it('means count measures per course, the dead course counting as a course', () => {
+    expect(averageOfAllCourses('minutes_total', all).value).toBe(round1(160 / 3))
+    expect(averageOfAllCourses('new_enrolments', all).value).toBe(1)
+  })
+  it('pools course-people per course, so one learner on two courses is two people', () => {
+    const twice = [course('cym', ['a'], ['a'], 600), course('spa', ['a'], [], 0)]
+    expect(pooledFacts(twice).people.size).toBe(2)
+    expect(averageOfAllCourses('minutes_per_person', twice).value).toBe(5)
+  })
+  it('an empty cohort reads 0, never NaN', () => {
+    expect(averageOfAllCourses('minutes_per_person', []).value).toBe(0)
+    expect(averageOfAllCourses('minutes_total', []).value).toBe(0)
+  })
+})
+
+const round1 = (n: number) => Math.round(n * 10) / 10
+
 describe('the contract', () => {
-  it('offers the windows Tom named and the three measures, the minutes one first', () => {
+  it('offers the windows Tom named and the four measures, the minutes ones first', () => {
     expect(WINDOWS.map((w) => w.value)).toEqual(['today', '7d', '30d'])
-    expect(MEASURES.map((m) => m.value)).toEqual(['minutes_per_person', 'new_enrolments', 'no_activity'])
+    expect(MEASURES.map((m) => m.value)).toEqual(['minutes_per_person', 'minutes_total', 'new_enrolments', 'no_activity'])
+  })
+  it('every measure says in its description what the average of all courses is', () => {
+    for (const m of MEASURES) expect(m.desc).toMatch(/average of all courses is .*this course included/)
   })
 })

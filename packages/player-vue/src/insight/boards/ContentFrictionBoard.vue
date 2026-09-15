@@ -20,6 +20,7 @@
 // problem). The action terminates in Popty: re-split the LEGO or open the cohort.
 // ============================================================================
 import { ref, computed, watch, onMounted } from 'vue'
+import FrostSelect from '@/components/FrostSelect.vue'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useAdminCourses } from '@/composables/admin/useAdminCourses'
 import { resolveMetric } from '../registry'
@@ -317,9 +318,6 @@ watch(selectedCourse, async (code) => {
   if (code) await fetchFriction(code)
 })
 
-function onCourseChange(e: Event) {
-  selectedCourse.value = (e.target as HTMLSelectElement).value
-}
 </script>
 
 <template>
@@ -337,20 +335,15 @@ function onCourseChange(e: Event) {
       <!-- Course picker -->
       <div class="cfb-picker">
         <label class="cfb-picker-label" for="cfb-course-select">Course</label>
-        <select
+        <FrostSelect
           id="cfb-course-select"
+          v-model="selectedCourse"
           class="cfb-select"
-          :value="selectedCourse"
+          :options="courseOptions"
           :disabled="coursesComposable.isLoading.value || isLoading"
-          @change="onCourseChange"
-        >
-          <option value="" disabled>Select a course…</option>
-          <option
-            v-for="opt in courseOptions"
-            :key="opt.value"
-            :value="opt.value"
-          >{{ opt.label }}</option>
-        </select>
+          placeholder="Select a course…"
+          aria-label="Course"
+        />
         <span v-if="coursesComposable.isLoading.value" class="cfb-picker-hint">Loading courses…</span>
         <span v-else-if="isLoading" class="cfb-picker-hint">Loading friction…</span>
         <span v-else-if="selectedCourse" class="cfb-picker-hint">{{ selectedCourseLabel }}</span>
@@ -469,37 +462,13 @@ function onCourseChange(e: Event) {
 }
 
 .cfb-select {
-  appearance: none;
-  -webkit-appearance: none;
-  background: var(--card-bg, #fff);
-  border: 1px solid rgba(44, 38, 34, 0.15);
-  border-radius: 10px;
-  padding: 8px 32px 8px 12px;
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  color: var(--ink-primary);
-  cursor: pointer;
-  min-width: 200px;
-  /* chevron via inline background */
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238A8078' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
+  /* FrostSelect reads these; the shared dropdown wears this page's look. */
+  min-width: 220px;
+  --fs-font: var(--font-mono); --fs-font-size: 12.5px; --fs-radius: 10px; --fs-bg: var(--card-bg, #fff); --fs-border: rgba(44, 38, 34, 0.15); --rc-entity: var(--tone-red); --rc-entity-ink: rgb(var(--tone-red));
 }
 
-.cfb-select:hover {
-  border-color: rgba(44, 38, 34, 0.28);
-}
 
-.cfb-select:focus {
-  outline: none;
-  border-color: rgba(var(--tone-red), 0.5);
-  box-shadow: 0 0 0 3px rgba(var(--tone-red), 0.08);
-}
 
-.cfb-select:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
 
 .cfb-picker-hint {
   font-family: var(--font-mono);
