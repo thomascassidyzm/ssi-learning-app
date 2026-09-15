@@ -91,8 +91,14 @@ export interface BeltProgressSyncConfig {
    * a learner's own practice; `classStorageScope(classContext)` for a
    * play-as-class session, so a class on the SAME course as the teacher never
    * shares the teacher's cached belt cursor (job #742, 2026-09-14).
+   *
+   * NULL means the learner is not known yet (`deviceStorageScope` returns null
+   * for an unresolved identity): this instance then reads and writes NO device
+   * cache at all, and the account's own server cursor is the only source of
+   * belt. Caching under a placeholder every account shares is the production
+   * leak of 2026-09-15 (job #790).
    */
-  storageScope?: string
+  storageScope?: string | null
 }
 
 // ============================================================================
@@ -128,7 +134,10 @@ export function getBeltIndexForSeed(seedNumber: number): number {
 export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyncConfig) {
   // Every device key below is `<prefix><course><scope>` — the scope is '' for
   // self-practice, so no existing learner's cache moves.
-  const storageScope = syncConfig?.storageScope ?? ''
+  // null = identity unknown → no device cache at all (see BeltProgressSyncConfig).
+  const storageScope = syncConfig?.storageScope === undefined ? '' : syncConfig.storageScope
+  const deviceKey = (prefix: string): string | null =>
+    storageScope === null ? null : `${prefix}${courseCode}${storageScope}`
   // Core state
   const highestBeltIndex = ref(0)  // 0-7, belt for the current cursor position
   const lastLegoId = ref<string | null>(null)  // Resume position
@@ -323,7 +332,13 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
 
   const loadProgressLocal = () => {
     try {
-      const key = `${PROGRESS_KEY_PREFIX}${courseCode}${storageScope}`
+      const key = deviceKey(PROGRESS_KEY_PREFIX)
+      if (!key) {
+        highestBeltIndex.value = 0
+        lastLegoId.value = null
+        highestLegoId.value = null
+        return
+      }
       const stored = localStorage.getItem(key)
       if (stored) {
         const data = JSON.parse(stored)
@@ -360,7 +375,8 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
 
   const saveProgressLocal = () => {
     try {
-      const key = `${PROGRESS_KEY_PREFIX}${courseCode}${storageScope}`
+      const key = deviceKey(PROGRESS_KEY_PREFIX)
+      if (!key) return
       const data: StoredProgress = {
         highestBeltIndex: highestBeltIndex.value,
         lastLegoId: lastLegoId.value,
@@ -382,7 +398,8 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
 
   const loadSessionHistory = () => {
     try {
-      const key = `${SESSION_HISTORY_KEY_PREFIX}${courseCode}${storageScope}`
+      const key = deviceKey(SESSION_HISTORY_KEY_PREFIX)
+      if (!key) { sessionHistory.value = []; return }
       const stored = localStorage.getItem(key)
       if (stored) {
         const data: StoredSessionHistory = JSON.parse(stored)
@@ -397,7 +414,8 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
 
   const saveSessionHistory = () => {
     try {
-      const key = `${SESSION_HISTORY_KEY_PREFIX}${courseCode}${storageScope}`
+      const key = deviceKey(SESSION_HISTORY_KEY_PREFIX)
+      if (!key) return
       const data: StoredSessionHistory = {
         sessions: sessionHistory.value,
       }
@@ -861,7 +879,9 @@ function syncConfigsMatch(
   const bSb = unwrapMaybeRef(b?.supabase)
   const aLi = unwrapMaybeRef(a?.learnerId)
   const bLi = unwrapMaybeRef(b?.learnerId)
-  return aSb === bSb && aLi === bLi && (a?.storageScope ?? '') === (b?.storageScope ?? '')
+  const aScope = a?.storageScope === undefined ? '' : a.storageScope
+  const bScope = b?.storageScope === undefined ? '' : b.storageScope
+  return aSb === bSb && aLi === bLi && aScope === bScope
 }
 
 export function useSharedBeltProgress(
