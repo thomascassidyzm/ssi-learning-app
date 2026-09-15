@@ -1,0 +1,46 @@
+{
+  "id": "start-or-make-a-class",
+  "title": "Start a session or make a class from the list",
+  "personas": [
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "classes"
+  },
+  "keywords": [
+    "play",
+    "session",
+    "class",
+    "new",
+    "export",
+    "csv"
+  ],
+  "steps": [
+    {
+      "anchor": "classes-row-play",
+      "say": "**Play as class** at the end of a row starts a session straight from the list — no need to open the class first. Your device leads, the whole class moves on together.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "fbec56e2.3c7fda0b"
+    },
+    {
+      "anchor": "verb-new-class",
+      "say": "**+ New class** sets up a class of your own: a name, a language, and a join link made for you at the same moment.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "8e2b04f7.09b67d41"
+    },
+    {
+      "anchor": "classes-export",
+      "say": "**Export CSV** takes the list away as a spreadsheet — belt, journey, minutes, join code, one row per class. What you export is whatever the filters currently show.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "Starting a session, making a class, exporting the list — all from the same page. This tour started nothing and made nothing.",
+      "checked": "dd98709d.5d6ef4ea"
+    }
+  ]
+}

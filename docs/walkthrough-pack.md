@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `779027ec6773` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `f010fabf23c5` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## choose-something-else-to-learn — Choose something else to learn
 
@@ -77,6 +77,15 @@ Personas: admin · place: admin-invites
 4. [`invites-active-toggle` · next] This pill is not just a badge — tapping it is a live kill-switch. It disables or re-enables the link across all four underlying access mechanisms at once.
    - terminal: Rule of the desk: look before you mint — everything here is live the moment it exists.
 
+## manage-a-class-from-its-page — Rename, delete or remove a student
+
+Personas: teacher · place: class-detail
+
+1. [`class-rename` · next] The pencil beside the class name renames it. Only the name changes — the roster, the join link and the class's place on the course all carry on.
+2. [`class-delete` · next] The bin beside the name deletes the class. The app tells you what goes with it first, and asks you to type the class name back if there is real practice behind it. Students keep their own accounts and everything they have learned.
+3. [`class-student-remove` · next] **Remove** at the end of a student's row in the roster takes them off this class only. Their account and everything they've learned stays with them, and they can join another class straight away.
+   - terminal: Rename, delete, remove a student — all from the class's own tools page. This tour changed nothing; only your own taps do.
+
 ## move-a-teacher-between-classes — Move a teacher to another class
 
 Personas: teacher, school_admin · place: class-detail
@@ -107,6 +116,16 @@ Personas: learner · place: library
 3. [`library-course-card` · next] **Premium** with **Try free** next to it means the course is a paid one, and that you can properly get going in it first. You carry on until the app asks — nothing stops you mid-thought and nothing is taken before you have said yes.
 4. [`library-course-grid` · next] Some languages offer more than one card — a different region or accent of the same language. Pick whichever you would rather end up sounding like.
    - terminal: Nothing here commits you. Tapping a card takes you into it, and every course you have touched keeps its own place waiting.
+
+## reading-your-class-list — Reading your class list
+
+Personas: school_admin, teacher · place: classes
+
+1. [`classes-table` · next] One row per class. Belt, how far through the course, minutes played as class this week and the shape of those days — all the class account's own, never a pupil's.
+2. [`classes-filters` · next] **Course** narrows the list to one language. **Sort by** puts it in the order that answers your question — name, journey, or phrases practised.
+3. [`classes-year-groups` · next] Tiles by year, read off the class name — **7B** and **Year 9 French** both count. Tap a tile and the table narrows to that year.
+4. [`classes-row` · next] Anywhere on a row opens that class. The buttons at the right end do their own jobs and do not open it.
+   - terminal: That's reading the list — the row itself opens a class. This tour opened nothing.
 
 ## run-class-session — Run your first class session
 
@@ -143,6 +162,15 @@ Personas: teacher, school_admin · place: class-detail
 3. [`class-teacher-picker` · next] You can pick anyone already teaching at your school. If the list is empty, your colleague has not joined the school yet — the link underneath brings them straight in.
 4. [`class-teachers` · next] What they get is the whole class: the roster, the sessions, the progress, and the right to run a class session. What they do not get is the lead — that stays with you until you hand it over.
    - terminal: That's sharing a class — same class, two teachers, one lead. This tour added nobody; only your own taps do.
+
+## start-or-make-a-class — Start a session or make a class from the list
+
+Personas: school_admin, teacher · place: classes
+
+1. [`classes-row-play` · next] **Play as class** at the end of a row starts a session straight from the list — no need to open the class first. Your device leads, the whole class moves on together.
+2. [`verb-new-class` · next] **+ New class** sets up a class of your own: a name, a language, and a join link made for you at the same moment.
+3. [`classes-export` · next] **Export CSV** takes the list away as a spreadsheet — belt, journey, minutes, join code, one row per class. What you export is whatever the filters currently show.
+   - terminal: Starting a session, making a class, exporting the list — all from the same page. This tour started nothing and made nothing.
 
 ## ways-in — Ways in — who can get in, and how to change it
 

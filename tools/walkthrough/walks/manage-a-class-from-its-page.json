@@ -1,0 +1,45 @@
+{
+  "id": "manage-a-class-from-its-page",
+  "title": "Rename, delete or remove a student",
+  "personas": [
+    "teacher"
+  ],
+  "place": {
+    "route": "class-detail"
+  },
+  "keywords": [
+    "rename",
+    "delete",
+    "remove",
+    "student",
+    "roster",
+    "class"
+  ],
+  "steps": [
+    {
+      "anchor": "class-rename",
+      "say": "The pencil beside the class name renames it. Only the name changes — the roster, the join link and the class's place on the course all carry on.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "b23e8cf9.0e02fb2f"
+    },
+    {
+      "anchor": "class-delete",
+      "say": "The bin beside the name deletes the class. The app tells you what goes with it first, and asks you to type the class name back if there is real practice behind it. Students keep their own accounts and everything they have learned.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "7852bcc7.6cbb8ed1"
+    },
+    {
+      "anchor": "class-student-remove",
+      "say": "**Remove** at the end of a student's row in the roster takes them off this class only. Their account and everything they've learned stays with them, and they can join another class straight away.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "Rename, delete, remove a student — all from the class's own tools page. This tour changed nothing; only your own taps do.",
+      "checked": "462d3cd3.b8194097"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 {
-  "version": "779027ec6773",
+  "version": "f010fabf23c5",
   "generatedAt": "2026-09-15",
   "walks": [
     {
@@ -393,6 +393,48 @@
       ]
     },
     {
+      "id": "manage-a-class-from-its-page",
+      "title": "Rename, delete or remove a student",
+      "personas": [
+        "teacher"
+      ],
+      "place": {
+        "route": "class-detail"
+      },
+      "keywords": [
+        "rename",
+        "delete",
+        "remove",
+        "student",
+        "roster",
+        "class"
+      ],
+      "steps": [
+        {
+          "anchor": "class-rename",
+          "say": "The pencil beside the class name renames it. Only the name changes — the roster, the join link and the class's place on the course all carry on.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-delete",
+          "say": "The bin beside the name deletes the class. The app tells you what goes with it first, and asks you to type the class name back if there is real practice behind it. Students keep their own accounts and everything they have learned.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-student-remove",
+          "say": "**Remove** at the end of a student's row in the roster takes them off this class only. Their account and everything they've learned stays with them, and they can join another class straight away.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Rename, delete, remove a student — all from the class's own tools page. This tour changed nothing; only your own taps do."
+        }
+      ]
+    },
+    {
       "id": "move-a-teacher-between-classes",
       "title": "Move a teacher to another class",
       "personas": [
@@ -557,6 +599,56 @@
             "on": "next"
           },
           "terminal": "Nothing here commits you. Tapping a card takes you into it, and every course you have touched keeps its own place waiting."
+        }
+      ]
+    },
+    {
+      "id": "reading-your-class-list",
+      "title": "Reading your class list",
+      "personas": [
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "classes"
+      },
+      "keywords": [
+        "classes",
+        "list",
+        "table",
+        "year group",
+        "filter",
+        "open"
+      ],
+      "steps": [
+        {
+          "anchor": "classes-table",
+          "say": "One row per class. Belt, how far through the course, minutes played as class this week and the shape of those days — all the class account's own, never a pupil's.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "classes-filters",
+          "say": "**Course** narrows the list to one language. **Sort by** puts it in the order that answers your question — name, journey, or phrases practised.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "classes-year-groups",
+          "say": "Tiles by year, read off the class name — **7B** and **Year 9 French** both count. Tap a tile and the table narrows to that year.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "classes-row",
+          "say": "Anywhere on a row opens that class. The buttons at the right end do their own jobs and do not open it.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's reading the list — the row itself opens a class. This tour opened nothing."
         }
       ]
     },
@@ -743,6 +835,49 @@
             "on": "next"
           },
           "terminal": "That's sharing a class — same class, two teachers, one lead. This tour added nobody; only your own taps do."
+        }
+      ]
+    },
+    {
+      "id": "start-or-make-a-class",
+      "title": "Start a session or make a class from the list",
+      "personas": [
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "classes"
+      },
+      "keywords": [
+        "play",
+        "session",
+        "class",
+        "new",
+        "export",
+        "csv"
+      ],
+      "steps": [
+        {
+          "anchor": "classes-row-play",
+          "say": "**Play as class** at the end of a row starts a session straight from the list — no need to open the class first. Your device leads, the whole class moves on together.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "verb-new-class",
+          "say": "**+ New class** sets up a class of your own: a name, a language, and a join link made for you at the same moment.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "classes-export",
+          "say": "**Export CSV** takes the list away as a spreadsheet — belt, journey, minutes, join code, one row per class. What you export is whatever the filters currently show.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Starting a session, making a class, exporting the list — all from the same page. This tour started nothing and made nothing."
         }
       ]
     },
