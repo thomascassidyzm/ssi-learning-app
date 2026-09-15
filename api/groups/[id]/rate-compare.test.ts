@@ -602,13 +602,15 @@ describe('GET /api/groups/:id/rate-compare — course defaulting (founder rule 2
     expect(res.body.kFloor).toBe(1)
     expect(res.body.insufficientData).toBe(false) // school-1 is a single valid demo peer
     expect(res.body.cohortSize).toBe(1)
-    // a REAL school for the same leader keeps the full privacy floor
+    // a REAL school for the same leader: a SCHOOL cohort is entities too, so
+    // the floor is 1 there as well (Tom, 2026-09-15) — one real peer compares.
     for (const g of TABLES.groups) g.is_demo = false
     for (const s of TABLES.schools) s.is_demo = false
     const res2 = makeRes()
     await handler(makeReq('school-2'), res2)
-    expect(res2.body.kFloor).toBe(5)
-    expect(res2.body.insufficientData).toBe(true) // 1 peer < 5
+    expect(res2.body.kFloor).toBe(1)
+    expect(res2.body.insufficientData).toBe(false)
+    expect(res2.body.cohortSize).toBe(1)
   })
 
   it('an INTERIOR node whose peers share NONE of its courses ladders the compare to global · all courses (the Metro case)', async () => {
