@@ -3080,3 +3080,15 @@ probe: the whole recovery took about a second on staging.
 older `GRANT=1` mode) recovers nothing, by design: the refetch returns the preview, the memory and
 the write-hold stay, the player stays paused with the warning logged. `useBeltProgress`'s boot
 upsert stamps `last_practiced_at` on every open, as before; not a position write.
+
+**Addition (same job, from a cold verify of #752): the write-hold covers every DB cursor writer.**
+Previous-phrase inside the preview after "Maybe later" went `handleRoundBack` →
+`persistCursorAtCurrentRound` → `setRemoteCursor` → `ProgressStore.setEnrollmentCursor`, which
+permits a backward write — so the DB cursor took a preview position while localStorage stayed
+protected. Audit of every cursor writer: `persistLivePositionToDb` and `savePositionToLocalStorage`
+already held; `setRemoteCursor` (belt jumps, round back/forward, jump-to-furthest, offline entry)
+now returns while the real place is held; the throttled `current_cycle_index` queue now refuses
+under the hold too (a preview round's cycle index on the held LEGO's row would mislead the
+same-sitting resume); `saveRoundProgress` writes no cursor in the main loop and its INF-PLAY ratchet
+is unreachable behind a wall. `paywallRetreat.test.ts` asserts both wirings: red on the pre-fix
+source, green after.

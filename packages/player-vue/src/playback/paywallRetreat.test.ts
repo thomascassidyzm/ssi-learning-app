@@ -103,6 +103,20 @@ describe('LearningPlayer wiring (source read)', () => {
     expect(local).toContain('if (paywallRetreat.blocksPersist()) return')
   })
 
+  it('the navigation cursor writer and the mid-round cycle writer honour the hold too (job #757 addition)', () => {
+    // Cold verify of #752: previous-phrase after "Maybe later" went
+    // persistCursorAtCurrentRound → setRemoteCursor → setEnrollmentCursor,
+    // which permits a backward write — so the DB cursor took a preview
+    // position while localStorage stayed protected. Every DB cursor writer
+    // consults the hold: the live-position writer, this one, and the
+    // throttled current_cycle_index queue (a preview round's cycle index
+    // against the held LEGO's row would mislead the same-sitting resume).
+    const remote = block('const setRemoteCursor = async (', '\n}\n')
+    expect(remote).toContain('if (paywallRetreat.blocksPersist()) return')
+    const queue = block('const cursorQueue = createCursorQueue({', '\n})\n')
+    expect(queue).toContain('paywallRetreat.blocksPersist()')
+  })
+
   it('a grant jumps back to the real position before resuming', () => {
     const w = block('watch(liveEntitlements, () => {', '\n})\n')
     const restore = w.indexOf('tryRestoreHeldPosition()')

@@ -1313,6 +1313,12 @@ const practisingBlocksProgressWrite = (what: string, round?: any): boolean => {
 
 const setRemoteCursor = async (legoId: string, roundIndex: number, reason = 'persist_cursor') => {
   if (practisingBlocksProgressWrite('remote cursor')) return
+  // The learner's real place is held behind a wall (paywallRetreat): no
+  // cursor write at all, this one included. setEnrollmentCursor permits a
+  // backward write, so a previous-phrase tap inside the preview after
+  // "Maybe later" used to stamp a preview position over the real one in the
+  // DB while localStorage stayed protected (cold verify of #752, job #757).
+  if (paywallRetreat.blocksPersist()) return
   if (isGuestLearner.value || !progressStore?.value || !legoId) return
   try {
     await activeProgressStore.value.setEnrollmentCursor(
@@ -1744,7 +1750,9 @@ const pairingsTelemetry = usePairingsTelemetry()
 // job #615 finishing #607 — the #606 shape on the progress path).
 const { isViewingAs: cursorViewingAs } = useUserRole()
 const cursorQueue = createCursorQueue({
-  refuse: () => cursorViewingAs.value || practisingBlocksProgressWrite('current cycle'),
+  // …and while the real place is held behind a wall (job #757): a preview
+  // round's cycle index on the held LEGO's row would mislead the resume.
+  refuse: () => cursorViewingAs.value || practisingBlocksProgressWrite('current cycle') || paywallRetreat.blocksPersist(),
   write: (p) => {
     if (!progressStore?.value) return Promise.resolve()
     return activeProgressStore.value.updateCurrentCycle(p.learnerId, p.courseId, p.idx)
