@@ -1,3 +1,64 @@
+## 2026-09-15 — The clamp, not the timestamp: what actually closes a refund on production (job #857)
+
+Supersedes the #851 entry below. That entry stays as written; it is the record of a fix that was
+believed and was not true.
+
+**What #851 believed.** That stamping `user_entitlements.revoked_at` on main's refund signature shut
+the hole, and that the signature was exclusive because every webhook upsert writes `plan_id`,
+`plan_name`, `current_period_end` and `provider_customer_id`, so requiring all four unchanged from
+OLD could not miss a refund and could not catch anything else.
+
+**What the cross-verify showed, and I re-confirmed against the code.** Production's resolver,
+`main:api/_utils/resolveEntitlements.ts`, selects `id, access_type, granted_courses, expires_at,
+redeemed_at, entitlement_code_id` and filters on `expires_at` ALONE. It never reads `revoked_at` and
+never selects it — that column arrived with dev's resolver, after `ea0683f` was cut. So #851 closed
+staging and left production open to `current_period_end`: a refunded annual kept a year of access.
+The canary run reproduces the divergence in one pair of lines — after the refund, **dev sees CLOSED,
+main sees OPEN to 2027**. The four-column argument fails too: the held-plan branch of main's
+`subscription.updated` handler (`paddle-webhook.ts:512-525`) omits both plan fields, and comparing
+OLD with NEW tells you which values CHANGED, never which columns a statement WROTE.
+
+**What this fix does.** One invariant, applied to all three writers of a Paddle grant: *while a grant
+is revoked, its `expires_at` is clamped to the revocation instant.* The mirror trigger becomes BEFORE
+ROW so it can stamp `subscriptions.paddle_revoked_at` on the row itself — a column main never writes,
+so once set it survives every later main write, including the reverse adjustment's `status='active'`.
+The two ledger RPCs carried the same reopening hole (`refresh_paid_paddle_grant`'s
+`greatest(expires_at, period_end)` and `write_additional_paddle_grant`'s unconditional
+`expires_at = EXCLUDED.expires_at` preserved `revoked_at` while pushing expiry back out, which
+production honours) and are clamped the same way. Staging is the only live Paddle webhook
+destination, so those RPCs write to this same shared database and the hole was reachable.
+
+**The signature, re-derived honestly.** Gate on state, not provenance: `status='cancelled' AND
+cancel_at_period_end IS TRUE`, no OLD, no TG_OP, no column-set guessing. It is NOT exclusive to the
+refund writer — a paused subscription carrying a scheduled change maps to the same pair under main's
+`SUB_STATUS_MAP`. That is accepted rather than argued away, because the justification is consequence,
+not authorship: `main:api/_utils/courseAccess.ts` grants the subscription path only on
+`status === 'active'`, so in the cancelled-and-pending state main by itself grants nothing, and
+mirroring it closed can only ever restore main's own pre-ledger behaviour. It is unreachable on
+`status='active'`, so it cannot cut off a live payer — the two live subscribers with a scheduled
+cancellation are `status='active'` and untouched. A period-end cancellation arrives with
+`cancel_at_period_end=false` and keeps paid access to `current_period_end`, proven live.
+
+**Better × simpler × cheaper.** *Better* — it is verified by what production ANSWERS, not by what the
+database stores: `GET https://saysomethingin.app/api/admin/effective-access` shows a synthetic
+subscriber OPEN, then CLOSED the moment main's exact refund UPDATE lands, then still CLOSED through
+both replay shapes. *Simpler* — the four-column test, the `TG_OP` check and the OLD comparison all
+delete; what remains is one state predicate and one `least()`, and one sentence describes the whole
+system. *Cheaper* — one migration against the shared database, no code change, no build, no deploy,
+no Tom decision; and it becomes inert rather than conflicting once main carries dev's writer.
+
+**The consequence, stated plainly.** A refund REVERSED on production stays closed. Main's reverse
+write is byte-indistinguishable from an ordinary replay, so nothing automatic may clear the marker.
+Reversal is explicit only: dev's writer clearing `paddle_revoked_at`, the later-billing-period rule
+in `refresh_paid_paddle_grant`, or an operator. Fail-closed on money is the taste-safe default and is
+chosen deliberately.
+
+**Proof.** `supabase/secfix-toolkit/canary_857_revocation_clamps_expiry.cjs` — RED 10/13 against the
+#851 definition, GREEN 13/13 with this one, every write rolled back, the 19 live grants compared row
+by row. `supabase/secfix-toolkit/verify_857_production_access.cjs` — the acceptance test, against the
+deployed production API at build `ea0683f`, synthetic rows created and deleted, none surviving.
+Transcript: https://watson-1.tail4968cb.ts.net/d/9f458e78
+
 ## 2026-09-15 — A Paddle refund closes the grant at the trigger, not with a main deploy (job #851)
 
 **The hole.** Production runs `main` at `ea0683f`, cut before the grants ledger. Its refund and
