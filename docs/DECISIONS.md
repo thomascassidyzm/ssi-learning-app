@@ -3677,3 +3677,19 @@ on the fix; and a two-tab headless probe on staging `c9191a7` with a v2 connecti
 **Better × Simpler × Cheaper.** Better: loading never hangs on release day. Simpler: two handlers
 on the one open path, no new state or surface. Cheaper: one network fetch in the rare blocked
 case, no migration code, no reload prompt.
+- 2026-09-15, #854: CLIPS ARE GATED "AS WE GO". Tom: "the handbook is STILL just a bunch of prose
+in most cases … we should be building the clips for everything else as we go along." The wiring
+of clips into the Handbook (#302, #627) was already live; the gap was coverage: 17 of 122
+capabilities had a walk. Gate 13 in `tools/walkthrough/lib.mjs` reads
+`tools/walkthrough/coverage.json` and fails `compile.mjs --check` on any HANDBOOK capability no
+walk steps on that is not declared obvious with a sentence or on the missing backlog, and on any
+routed page under `views/` with no anchor on it or on what it imports. A registry line whose
+subject has since gained a walk or an anchor fails too. Enrolled today: 105 capabilities on the
+backlog, 16 pages obvious, 6 pages missing. The support drafter (command-surface
+`tools/support/handbook.cjs`, `moves.cjs`) now points on a walked entry even without prose steps
+and tells the admin to tap Show me. Closed Handbook rows with a clip carry a Show-me chip.
+Inventory: https://watson-1.tail4968cb.ts.net/d/1f70d46b
+
+**Better × Simpler × Cheaper.** Better: a new page or capability cannot ship silently unclipped;
+the debt is a list, not a feeling. Simpler: one more gate in the compiler that already exists, one
+JSON registry, no new system. Cheaper: the gate runs inside the existing `--check` and vitest run.
