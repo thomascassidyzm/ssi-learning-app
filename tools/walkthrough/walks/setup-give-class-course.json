@@ -1,0 +1,46 @@
+{
+  "id": "setup-give-class-course",
+  "title": "Give a class its course",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "setup"
+  },
+  "keywords": [
+    "course",
+    "class",
+    "assign",
+    "language",
+    "picker",
+    "setup",
+    "step 4"
+  ],
+  "steps": [
+    {
+      "anchor": "setup-class-course",
+      "say": "Step four, **Create classes** — each class row already holds the language you signed your school up with, so most classes need nothing done here.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "5d968a7e.7f12d134"
+    },
+    {
+      "anchor": "setup-class-course",
+      "say": "To teach something else, tap the picker and start typing — the catalogue runs to dozens of courses, and this only offers what you left ticked at Choose courses.",
+      "advance": {
+        "on": "click"
+      },
+      "checked": "5d968a7e.59c3dad0"
+    },
+    {
+      "anchor": "setup-class-course",
+      "say": "Pick the one you want. Where a language offers more than one version, the versions differ by region or accent.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "Save the class and everyone who joins it lands in that course.",
+      "checked": "5d968a7e.74d8db0c"
+    }
+  ]
+}

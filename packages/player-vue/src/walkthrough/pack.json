@@ -1,7 +1,50 @@
 {
-  "version": "f010fabf23c5",
+  "version": "dd6b544ba1d2",
   "generatedAt": "2026-09-15",
   "walks": [
+    {
+      "id": "choose-a-class-course",
+      "title": "Choose what a class learns",
+      "personas": [
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "classes"
+      },
+      "keywords": [
+        "course",
+        "language",
+        "choose",
+        "class",
+        "catalogue",
+        "create"
+      ],
+      "steps": [
+        {
+          "anchor": "create-class-course",
+          "say": "Every class carries one course — it decides what the class practises and what students hear the moment they join. You set it here, in the **Create New Class** panel.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "create-class-course",
+          "say": "Type into the box to search the catalogue, then pick the language the class is learning.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "create-class-course",
+          "say": "A school on a free trial is held to the one language it signed up for until it subscribes — the picker only shows that course.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "The course is set when the class is made and stays with it. A class that needs a different language is a new class, which keeps the old one's records intact."
+        }
+      ]
+    },
     {
       "id": "choose-something-else-to-learn",
       "title": "Choose something else to learn",
@@ -49,6 +92,51 @@
             "on": "next"
           },
           "terminal": "That's the Library. Close it and press play to carry on with the one you are in."
+        }
+      ]
+    },
+    {
+      "id": "funded-org-courses",
+      "title": "See what a funded organisation gives its learners",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "node-home",
+        "kinds": [
+          "org"
+        ]
+      },
+      "keywords": [
+        "courses",
+        "enrolment",
+        "free year",
+        "organisation",
+        "granted",
+        "sign-up"
+      ],
+      "steps": [
+        {
+          "anchor": "verb-courses",
+          "say": "Tap **Courses** on the organisation's home page.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "org-enrolment-courses",
+          "say": "This is what the organisation hands out through its own sign-up page — given to each learner as they join, not held on the organisation itself.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "org-enrolment-courses",
+          "say": "The courses listed here, and the length of the free period beside them, come from the organisation's enrolment policy. Changing that list is a change to the policy, so it isn't editable here — everyone who has already signed up keeps what they were given.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's it — a read-only summary of what this organisation grants on sign-up."
         }
       ]
     },
@@ -491,6 +579,53 @@
       ]
     },
     {
+      "id": "org-choose-courses",
+      "title": "Choose which courses a school can use",
+      "personas": [
+        "admin"
+      ],
+      "place": {
+        "route": "node-home",
+        "kinds": [
+          "org",
+          "group",
+          "school"
+        ]
+      },
+      "keywords": [
+        "courses",
+        "entitlement",
+        "trial",
+        "paid",
+        "access",
+        "catalogue"
+      ],
+      "steps": [
+        {
+          "anchor": "verb-courses",
+          "say": "**Courses** sets what a school or group is allowed to learn — the whole catalogue once they're paid up, or a named course or two while they're trialling.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "verb-courses",
+          "say": "Choose **Trial** and search for the one or two courses it should carry, or **Paid** for the whole catalogue with no per-course picking.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "verb-courses",
+          "say": "Save, and everyone below that node inherits it. A trial runs for thirty days on a paid course and a year on a free or community one — the server works the dates out on save, so what you see before saving is a preview.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "That's the whole of it — pick Trial or Paid, choose the courses if it's a trial, and save."
+        }
+      ]
+    },
+    {
       "id": "reading-insights",
       "title": "Reading your insights",
       "personas": [
@@ -786,6 +921,85 @@
             "on": "next"
           },
           "terminal": "That is the whole thing — one password, always changeable, always in the same place."
+        }
+      ]
+    },
+    {
+      "id": "setup-choose-courses",
+      "title": "Choose which courses your school uses",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "setup"
+      },
+      "keywords": [
+        "course",
+        "courses",
+        "choose",
+        "narrow",
+        "catalogue",
+        "setup",
+        "step 3"
+      ],
+      "steps": [
+        {
+          "anchor": "setup-course-picker",
+          "say": "Step three of first-time setup, **Choose courses** — everything your school has access to starts ticked here.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "setup-course-picker",
+          "say": "Untick anything you don't plan to teach. This is a filter and nothing more — it doesn't change what your school has access to, it just shortens the list you pick from at the next step.",
+          "advance": {
+            "on": "click"
+          },
+          "terminal": "Tap Continue and step four's course picker only offers what you left ticked here."
+        }
+      ]
+    },
+    {
+      "id": "setup-give-class-course",
+      "title": "Give a class its course",
+      "personas": [
+        "school_admin"
+      ],
+      "place": {
+        "route": "setup"
+      },
+      "keywords": [
+        "course",
+        "class",
+        "assign",
+        "language",
+        "picker",
+        "setup",
+        "step 4"
+      ],
+      "steps": [
+        {
+          "anchor": "setup-class-course",
+          "say": "Step four, **Create classes** — each class row already holds the language you signed your school up with, so most classes need nothing done here.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "setup-class-course",
+          "say": "To teach something else, tap the picker and start typing — the catalogue runs to dozens of courses, and this only offers what you left ticked at Choose courses.",
+          "advance": {
+            "on": "click"
+          }
+        },
+        {
+          "anchor": "setup-class-course",
+          "say": "Pick the one you want. Where a language offers more than one version, the versions differ by region or accent.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "Save the class and everyone who joins it lands in that course."
         }
       ]
     },

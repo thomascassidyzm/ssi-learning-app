@@ -1,0 +1,38 @@
+{
+  "id": "setup-choose-courses",
+  "title": "Choose which courses your school uses",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "setup"
+  },
+  "keywords": [
+    "course",
+    "courses",
+    "choose",
+    "narrow",
+    "catalogue",
+    "setup",
+    "step 3"
+  ],
+  "steps": [
+    {
+      "anchor": "setup-course-picker",
+      "say": "Step three of first-time setup, **Choose courses** — everything your school has access to starts ticked here.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "0daacc57.0db6eafc"
+    },
+    {
+      "anchor": "setup-course-picker",
+      "say": "Untick anything you don't plan to teach. This is a filter and nothing more — it doesn't change what your school has access to, it just shortens the list you pick from at the next step.",
+      "advance": {
+        "on": "click"
+      },
+      "terminal": "Tap Continue and step four's course picker only offers what you left ticked here.",
+      "checked": "0daacc57.e377b70a"
+    }
+  ]
+}
