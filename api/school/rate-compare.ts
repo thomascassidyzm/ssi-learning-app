@@ -34,7 +34,7 @@
  * — each peer class already carries its own course's ordinal system, so
  * mixing courses in the average pool is the same "self-computed rate, then
  * averaged" pattern already used for same-course cohorts, just over a wider
- * pool. Same K_FLOOR applies.
+ * pool. Same entity floor applies.
  *
  * Auth required. `entity_id` MUST be inside the caller's resolveVisibleScope:
  *   class  -> scope.classIds
@@ -47,11 +47,13 @@
  * aggregate: no other entity's identity, name, or row is ever included in
  * the response.
  *
- * PRIVACY FLOOR: if the cohort (excluding the entity) has fewer than K_FLOOR
- * peer entities with any activity in the window, responds with
- * insufficientData instead of an average computed from too small a group —
- * held at EVERY aggregate level (classes, schools, AND groups) and both
- * global variants.
+ * PRIVACY FLOOR: if the cohort (excluding the entity) has fewer than
+ * cohortFloor('entities') peer entities with any activity in the window,
+ * responds with insufficientData — held at EVERY aggregate level (classes,
+ * schools, AND groups) and both global variants. Every cohort here is made of
+ * ENTITIES (classes/schools/groups), never individual learners, so that floor
+ * is 1 for every role (Tom's ruling 2026-09-15: the 5-floor was for
+ * individuals' GDPR protection, not to stop classes being compared).
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -68,7 +70,7 @@ import {
   deltaPct,
   meanTrend,
   coverageLabel,
-  K_FLOOR,
+  cohortFloor,
   type ScopedSessionRow,
 } from '../_utils/rateCompare'
 
@@ -305,9 +307,11 @@ async function resolveCohort(
   return { members }
 }
 
+const ENTITY_FLOOR = cohortFloor('entities')
+
 function respondInsufficientData(res: VercelResponse, reason: string, cohortSize = 0): void {
   res.setHeader('Cache-Control', 'no-store')
-  res.status(200).json({ insufficientData: true, cohortSize, kFloor: K_FLOOR, reason })
+  res.status(200).json({ insufficientData: true, cohortSize, kFloor: ENTITY_FLOOR, reason })
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -402,7 +406,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       trend: aggregateWeeklyTrend(rows, m.classIds, TREND_WEEKS, now),
     }))
     const active = memberResults.filter((m) => m.window.hasData)
-    if (active.length < K_FLOOR) {
+    if (active.length < ENTITY_FLOOR) {
       respondInsufficientData(res, 'Not enough data to compare fairly yet.', active.length)
       return
     }

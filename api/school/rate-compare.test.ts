@@ -126,7 +126,7 @@ describe('GET /api/school/rate-compare — class entity', () => {
     await handler(req, res)
     expect(res.statusCode).toBe(200)
     expect(res.body.insufficientData).toBe(true)
-    expect(res.body.kFloor).toBe(5)
+    expect(res.body.kFloor).toBe(1)
   })
 
   it('returns insufficientData under the k-floor even when class ids exist but have no session activity', async () => {
@@ -267,7 +267,7 @@ describe('GET /api/school/rate-compare — global_all_courses (offered alongside
     expect(allCoursesRes.body.average.label).toBe('Global average · all courses')
   })
 
-  it('holds the same K_FLOOR for the all-courses cohort as every other aggregate', async () => {
+  it('holds the same entity floor (1) for the all-courses cohort as every other aggregate — 3 peer classes compare', async () => {
     DB.classes.push(
       ...Array.from({ length: 3 }, (_, i) => ({
         id: `few-other-${i}`, class_name: 'X', course_code: 'cym_for_eng', school_id: 'sch-1', is_active: true,
@@ -278,8 +278,9 @@ describe('GET /api/school/rate-compare — global_all_courses (offered alongside
     const req = makeReq({ course_code: 'gle_for_eng', entity_level: 'class', entity_id: 'class-1', compare_to: 'global_all_courses' })
     const res = makeRes()
     await handler(req, res)
-    expect(res.body.insufficientData).toBe(true) // only 3 active peers, below K_FLOOR=5
-    expect(res.body.kFloor).toBe(5)
+    // 3 active peer CLASSES clear an entity floor of 1 (Tom, 2026-09-15).
+    expect(res.body.insufficientData).toBe(false)
+    expect(res.body.cohortSize).toBe(3)
   })
 
   it('school-vs-global_all_courses aggregates each peer school across ALL its courses, not just the selected one', async () => {
@@ -289,7 +290,7 @@ describe('GET /api/school/rate-compare — global_all_courses (offered alongside
       // this peer school's ONLY class is on a DIFFERENT course than gle_for_eng.
       { id: 'peer-0-other-course', class_name: 'X', course_code: 'cym_for_eng', school_id: 'peer-sch-0', is_active: true },
     )
-    // 4 more peer schools WITH the selected course, to reach K_FLOOR=5 total.
+    // 4 more peer schools WITH the selected course — 5 total in the cohort.
     DB.schools.push(...Array.from({ length: 4 }, (_, i) => ({ id: `peer-sch-${i + 1}`, school_name: `Peer ${i + 1}`, group_id: null })))
     DB.classes.push(...Array.from({ length: 4 }, (_, i) => ({ id: `peer-${i + 1}-class`, class_name: 'X', course_code: 'gle_for_eng', school_id: `peer-sch-${i + 1}`, is_active: true })))
     const now = new Date().toISOString()
