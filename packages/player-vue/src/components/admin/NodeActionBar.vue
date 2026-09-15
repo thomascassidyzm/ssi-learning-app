@@ -733,6 +733,7 @@ function closeDelete(): void {
            roles: admin
            place: node-home
            keywords: courses, entitlement, trial, paid, access, catalogue
+           walk: org-choose-courses
            What it's for. Setting what a school or group is allowed to learn: the whole
            catalogue when they are paid up, or a named course or two while they are
            trialling.

@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `fc674fb24f0d` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `bd6821c132c3` · generated 2026-09-15 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -158,7 +158,7 @@ Section: your-school · roles: school_admin · anchor: `settings-save-profile` �
 
 ## Choose what a class learns
 
-Section: courses-and-content · roles: school_admin, teacher · anchor: `create-class-course` · in `packages/player-vue/src/components/schools/CreateClassModal.vue`
+Section: courses-and-content · roles: school_admin, teacher · anchor: `create-class-course` · in `packages/player-vue/src/components/schools/CreateClassModal.vue` · has a walk
 
 **What it's for.** Setting the language a class learns. Every class carries one course, and it decides what the class practises, what students hear when they join, and where the class's shared position sits.
 
@@ -188,7 +188,7 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `inv
 
 ## Choose which courses a school can use
 
-Section: courses-and-content · roles: admin · anchor: `verb-courses` · in `packages/player-vue/src/components/admin/NodeActionBar.vue`
+Section: courses-and-content · roles: admin · anchor: `verb-courses` · in `packages/player-vue/src/components/admin/NodeActionBar.vue` · has a walk
 
 **What it's for.** Setting what a school or group is allowed to learn: the whole catalogue when they are paid up, or a named course or two while they are trialling.
 
@@ -203,7 +203,7 @@ Section: courses-and-content · roles: admin · anchor: `verb-courses` · in `pa
 
 ## Choose which courses your school uses
 
-Section: courses-and-content · roles: school_admin · anchor: `setup-course-picker` · in `packages/player-vue/src/views/schools/SetupView.vue`
+Section: courses-and-content · roles: school_admin · anchor: `setup-course-picker` · in `packages/player-vue/src/views/schools/SetupView.vue` · has a walk
 
 **What it's for.** Narrowing the full list of courses your school can teach down to the handful you actually intend to use, so that choosing a course for a class is a short list rather than a long one.
 
@@ -456,7 +456,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `node-
 
 ## Give a class its course
 
-Section: courses-and-content · roles: school_admin · anchor: `setup-class-course` · in `packages/player-vue/src/views/schools/SetupView.vue`
+Section: courses-and-content · roles: school_admin · anchor: `setup-class-course` · in `packages/player-vue/src/views/schools/SetupView.vue` · has a walk
 
 **What it's for.** Picking the language a class is learning. This is how a course reaches learners at all — a course does not belong to a person, it belongs to a class, and everybody in that class practises it.
 
@@ -1133,7 +1133,7 @@ Section: your-own-account · roles: teacher, school_admin, leader · anchor: `re
 
 ## See what a funded organisation gives its learners
 
-Section: courses-and-content · roles: admin · anchor: `org-enrolment-courses` · in `packages/player-vue/src/components/schools/NodeEntitlementControl.vue`
+Section: courses-and-content · roles: admin · anchor: `org-enrolment-courses` · in `packages/player-vue/src/components/schools/NodeEntitlementControl.vue` · has a walk
 
 **What it's for.** Showing the courses an organisation hands out through its own sign-up page, which are given to each learner as they join rather than held on the organisation itself.
 
