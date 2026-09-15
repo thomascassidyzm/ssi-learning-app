@@ -307,6 +307,9 @@ function buildAudioRef(
  * the seed query itself: on failure every seed review simply keeps the
  * fallback gap `computePauseDuration` gives an unknown sentence.
  */
+/** Ids per course_audio lookup — see the note inside fetchSeedAudioDurations. */
+const SEED_AUDIO_LOOKUP_CHUNK = 150
+
 async function fetchSeedAudioDurations(
   supabase: SupabaseClient,
   seedRows: SeedRow[],
@@ -323,15 +326,29 @@ async function fetchSeedAudioDurations(
     // course_audio primary key is the bare uuid.
     const bare = new Map<string, string>()
     for (const id of ids) bare.set(id.split('.')[0], id)
-    const { data, error } = await supabase
-      .from('course_audio')
-      .select('id, duration_ms')
-      .in('id', [...bare.keys()])
-    if (error) {
-      console.warn('[Bundle] seed audio duration lookup failed (non-fatal):', error.message)
-      return durations
+    // CHUNKED, and not as a nicety. supabase-js sends `.in()` as a GET whose
+    // URL carries every id: Basque has 1,038 seed target ids, a 38 KB URL the
+    // Supabase gateway answers with a bare "Bad Request", and at ~400 ids the
+    // echoed headers overflow undici's parser. Seen live 2026-09-15 (job #804)
+    // on the deployment that first carried this lookup: every seed shipped
+    // bare and the mic gap stayed on the fallback. 150 ids is a ~5.5 KB URL.
+    const bareIds = [...bare.keys()]
+    const pages: string[][] = []
+    for (let i = 0; i < bareIds.length; i += SEED_AUDIO_LOOKUP_CHUNK) {
+      pages.push(bareIds.slice(i, i + SEED_AUDIO_LOOKUP_CHUNK))
     }
-    for (const row of (data || []) as Array<{ id: string; duration_ms: number | null }>) {
+    const results = await Promise.all(
+      pages.map((page) => supabase.from('course_audio').select('id, duration_ms').in('id', page)),
+    )
+    const rows: Array<{ id: string; duration_ms: number | null }> = []
+    for (const { data, error } of results) {
+      if (error) {
+        console.warn('[Bundle] seed audio duration lookup failed (non-fatal):', error.message)
+        continue
+      }
+      rows.push(...((data || []) as Array<{ id: string; duration_ms: number | null }>))
+    }
+    for (const row of rows) {
       if (typeof row.duration_ms !== 'number' || row.duration_ms <= 0) continue
       const stamped = bare.get(row.id)
       if (stamped) durations.set(stamped, row.duration_ms)
