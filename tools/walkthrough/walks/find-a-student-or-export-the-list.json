@@ -1,0 +1,40 @@
+{
+  "id": "find-a-student-or-export-the-list",
+  "title": "Look up one student, or take the list away",
+  "personas": [
+    "admin",
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "students"
+  },
+  "keywords": [
+    "student",
+    "search",
+    "find",
+    "view",
+    "export",
+    "csv",
+    "spreadsheet"
+  ],
+  "steps": [
+    {
+      "anchor": "student-view-link",
+      "say": "Type part of a name in the search box above the list, or narrow it by class or belt. Each row already carries the learner's belt, their hours this week and when they were last here — often that answers the question on its own. **View** opens what they have actually done on their own account.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "9e5df27b.84a538b1"
+    },
+    {
+      "anchor": "students-export",
+      "say": "**Export CSV** downloads whoever is on screen right now as a spreadsheet file, with today's date in its name. It follows your search and filters, so a narrowed list gives you a narrowed file — clear them first if you want everybody.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "The row records what a learner has done and when they were last here. It makes no judgement about how they are doing.",
+      "checked": "bb80602c.9b13f445"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 {
-  "version": "bd6821c132c3",
+  "version": "4153065e47f0",
   "generatedAt": "2026-09-15",
   "walks": [
     {
@@ -458,6 +458,35 @@
       ]
     },
     {
+      "id": "download-your-schools-data",
+      "title": "Download your school's data",
+      "personas": [
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "settings"
+      },
+      "keywords": [
+        "export",
+        "download",
+        "csv",
+        "data",
+        "spreadsheet",
+        "records"
+      ],
+      "steps": [
+        {
+          "anchor": "settings-export-data",
+          "say": "Under **Data & privacy** in Settings, **Download all data** takes your school's progress figures out of the app as one spreadsheet file — every student, their class, how far they have got, how long they have practised and when they were last active. The file lands in your downloads, named after your school and today's date.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "It is a snapshot of the moment you press the button, not a live link — download it again whenever you want current figures."
+        }
+      ]
+    },
+    {
       "id": "email-someone-their-invite-again",
       "title": "Email someone their invite again",
       "personas": [
@@ -489,6 +518,44 @@
             "on": "next"
           },
           "terminal": "Only rows for a named person with an email on file carry this button. If a school's mail gateway is eating our messages, read them the link instead of sending a third time."
+        }
+      ]
+    },
+    {
+      "id": "find-a-student-or-export-the-list",
+      "title": "Look up one student, or take the list away",
+      "personas": [
+        "admin",
+        "school_admin",
+        "teacher"
+      ],
+      "place": {
+        "route": "students"
+      },
+      "keywords": [
+        "student",
+        "search",
+        "find",
+        "view",
+        "export",
+        "csv",
+        "spreadsheet"
+      ],
+      "steps": [
+        {
+          "anchor": "student-view-link",
+          "say": "Type part of a name in the search box above the list, or narrow it by class or belt. Each row already carries the learner's belt, their hours this week and when they were last here — often that answers the question on its own. **View** opens what they have actually done on their own account.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "students-export",
+          "say": "**Export CSV** downloads whoever is on screen right now as a spreadsheet file, with today's date in its name. It follows your search and filters, so a narrowed list gives you a narrowed file — clear them first if you want everybody.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "The row records what a learner has done and when they were last here. It makes no judgement about how they are doing."
         }
       ]
     },
@@ -1765,6 +1832,35 @@
       ]
     },
     {
+      "id": "see-every-school-in-your-programme",
+      "title": "See every school in your programme",
+      "personas": [
+        "leader"
+      ],
+      "place": {
+        "route": "schools-list"
+      },
+      "keywords": [
+        "schools",
+        "all",
+        "list",
+        "programme",
+        "compare",
+        "search",
+        "sort"
+      ],
+      "steps": [
+        {
+          "anchor": "schools-list-table",
+          "say": "Every school you look after, one row each, with its students, teachers, classes and practice hours side by side. The totals above the table are the programme as a whole. Search by name to find one school, or sort by name, hours or students. A school with nobody running it yet is flagged in the Status column as awaiting admin. Tap any row to open that school's own dashboard.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "The list holds still until you refresh it, so a number will not change under you while you read. If a refresh fails you are told plainly rather than shown stale figures as current."
+        }
+      ]
+    },
+    {
       "id": "set-your-password",
       "title": "Set or change your password",
       "personas": [
@@ -2105,6 +2201,42 @@
       ]
     },
     {
+      "id": "what-the-class-tools-page-counts",
+      "title": "Where a class's practice is read",
+      "personas": [
+        "teacher",
+        "school_admin"
+      ],
+      "place": {
+        "route": "class-detail"
+      },
+      "keywords": [
+        "class page",
+        "tools",
+        "practice",
+        "minutes",
+        "roster",
+        "own accounts"
+      ],
+      "steps": [
+        {
+          "anchor": "class-tools-note",
+          "say": "A class has two pages. This one is its tools: the roster, the teachers, the join link, renaming and deleting. What the class has practised together, its minutes in the app and how far it has travelled live on the class page — the link in this line takes you there. Nothing on this page totals whole-class play.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "class-roster",
+          "say": "**Students on their own accounts** lists the pupils who have signed in as themselves and joined this class, one row each, with their belt, what they have learned, how much they have practised on that account and when they were last at it. Type a name into the search box to jump to one of them.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "This table counts only what each pupil did signed in as themselves. A class taught from the front with no pupil accounts has nobody here, and that is not a class that has done nothing."
+        }
+      ]
+    },
+    {
       "id": "what-your-numbers-mean",
       "title": "What your numbers mean",
       "topic": "Your numbers",
@@ -2245,6 +2377,56 @@
             "on": "next"
           },
           "terminal": "That's the whole card — your address and your code, both a tap away from your clipboard."
+        }
+      ]
+    },
+    {
+      "id": "your-class-against-the-average",
+      "title": "Your class against the average",
+      "personas": [
+        "teacher"
+      ],
+      "place": {
+        "route": "analytics"
+      },
+      "keywords": [
+        "analytics",
+        "insights",
+        "rate",
+        "compare",
+        "average",
+        "class",
+        "pace"
+      ],
+      "steps": [
+        {
+          "anchor": "teacher-insights-class",
+          "say": "**Your classes** picks which of your classes you are reading. If you teach only one, this picker stays out of the way and the page is already about that class.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "insights-measure",
+          "say": "The **measure** is what is being counted — the line underneath says exactly what the current one means.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "insights-window",
+          "say": "The **window** is the period the rate is worked out over. Shorter windows react faster, longer ones smooth the noise.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "insights-compare",
+          "say": "**Compare to** sets your class's rate beside an average. Everything here is a rate, not a raw total, so a class of eight and a class of thirty compare fairly.",
+          "advance": {
+            "on": "next"
+          },
+          "terminal": "This answers whether a class is moving well, which a roster of totals cannot. A class with too few sessions to compare honestly says so rather than showing a number built from nothing."
         }
       ]
     }

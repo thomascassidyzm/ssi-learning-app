@@ -1,0 +1,38 @@
+{
+  "id": "what-the-class-tools-page-counts",
+  "title": "Where a class's practice is read",
+  "personas": [
+    "teacher",
+    "school_admin"
+  ],
+  "place": {
+    "route": "class-detail"
+  },
+  "keywords": [
+    "class page",
+    "tools",
+    "practice",
+    "minutes",
+    "roster",
+    "own accounts"
+  ],
+  "steps": [
+    {
+      "anchor": "class-tools-note",
+      "say": "A class has two pages. This one is its tools: the roster, the teachers, the join link, renaming and deleting. What the class has practised together, its minutes in the app and how far it has travelled live on the class page — the link in this line takes you there. Nothing on this page totals whole-class play.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "46d65d04.373c375b"
+    },
+    {
+      "anchor": "class-roster",
+      "say": "**Students on their own accounts** lists the pupils who have signed in as themselves and joined this class, one row each, with their belt, what they have learned, how much they have practised on that account and when they were last at it. Type a name into the search box to jump to one of them.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "This table counts only what each pupil did signed in as themselves. A class taught from the front with no pupil accounts has nobody here, and that is not a class that has done nothing.",
+      "checked": "e7358d1d.256a3dfb"
+    }
+  ]
+}
