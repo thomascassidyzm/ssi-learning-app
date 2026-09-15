@@ -730,6 +730,46 @@ describe('GET /api/courses/:code/bundle — script artifact identity', () => {
     expect('target2' in seed2.audio).toBe(false)
   })
 
+  it('stamps seed target clips with their course_audio duration, so a seed-sentence review gets a real mic gap (job #793)', async () => {
+    // course_seeds carries audio IDS but no durations. Before this fix the
+    // seed refs shipped bare and the SEED-PHASE review's gap collapsed to the
+    // one-second floor — Tom, 2026-09-15, Basque "how to say something in
+    // Basque" at progress 646. The durations live on course_audio; one lookup
+    // gives the seed the same durationMs every LEGO and phrase already has.
+    setupHappyFixture()
+    tableResponses.course_seeds = {
+      data: [
+        {
+          seed_number: 1,
+          known_text: 'how to say something in Basque',
+          target_text: 'zerbait euskaraz nola esan',
+          target_text_roman: null,
+          known_audio_id: 'seed1-known',
+          target1_audio_id: 'seed1-t1',
+          target2_audio_id: 'seed1-t2',
+        },
+      ],
+      error: null,
+    }
+    tableResponses.course_audio = {
+      data: [
+        ...((tableResponses.course_audio.data as unknown[]) ?? []),
+        { id: 'seed1-t1', role: 'target1', duration_ms: 2760 },
+        { id: 'seed1-t2', role: 'target2', duration_ms: 2760 },
+        { id: 'seed1-known', role: 'known', duration_ms: 2328 },
+      ],
+      error: null,
+    }
+    const res = makeRes()
+    await handler(makeReq({ code: 'spa_for_eng_v2' }), res as any)
+
+    const seed1 = (res._body as any).seeds.find((s: any) => s.seedId === 'S0001')
+    expect(seed1.audio.target1).toEqual({ id: 'seed1-t1', lifecycle: 'persistent', durationMs: 2760 })
+    expect(seed1.audio.target2).toEqual({ id: 'seed1-t2', lifecycle: 'persistent', durationMs: 2760 })
+    // The gap is computed from the TARGET voices only; the known clip stays bare.
+    expect(seed1.audio.known).toEqual({ id: 'seed1-known', lifecycle: 'persistent' })
+  })
+
   it('leaves seeds bare (no knownText/audio) when course_seeds has no matching row', async () => {
     setupHappyFixture()
     tableResponses.course_seeds = { data: [], error: null }

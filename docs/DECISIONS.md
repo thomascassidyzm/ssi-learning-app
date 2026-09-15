@@ -3494,3 +3494,30 @@ branch; i18n gates (no bare English, t-in-scope, locale parity) green; walkthrou
 green after `--reconfirm`; `test:premerge` invariants green and `--changed` 125 files / 883
 tests green once the worktree had its own `@ssi/core` build (the shared checkout's dist gave
 the usual false reds).
+
+## 2026-09-15 — Seed-sentence reviews get a real mic gap: the bundle stamps seed clips with their durations (job #793)
+
+**Tom (13:22).** Basque for English speakers, "how to say something in Basque" / "zerbait euskaraz
+nola esan" at progress 646: the gap to speak is almost nil, "as if the app is measuring the target
+file length completely wrongly."
+
+**What the live check found.** The file lengths are right. `course_audio` holds 2760 ms for both
+target voices and ffprobe on the bytes production serves says 2.736 s; a 26-clip sample across the
+Basque seeds had zero mismatches. The phrase is seed S0004, and a seed sentence only ever plays as a
+full production cycle in the SEED-PHASE spaced-rep review, which on a bundle-enabled course the
+server builds from `course_seeds`. That table carries audio ids but no durations, so the production
+bundle shipped the seed's target refs bare and `computePauseDuration` collapsed to the one-second
+floor. Every seed review on every bundle-enabled course had the same gap: 7,619 seed rows with
+target audio across the fifteen courses. Job #644 found this class yesterday; its fix was reverted
+under the 11:27Z diagnose-first hold. This ships the gap hunks only.
+
+**Decision.** One `course_audio` lookup per bundle build stamps `durationMs` onto every seed target
+ref, and when both durations are genuinely missing the formula assumes an ordinary 2.5 s sentence
+rather than the safety floor. No pointer moved, no audio regenerated, no duration number edited.
+
+**Better × Simpler × Cheaper.** Better: a seed review gets the gap its sentence earns, on every
+course at once. Simpler: seeds now carry the same fact LEGOs and phrases already carry; no new
+shape. Cheaper: one indexed query per bundle build, cached with the bundle.
+
+**Landed.** Merged to `dev`, promoted to `staging` and `main` the same afternoon on Tom's explicit
+ship instruction.
