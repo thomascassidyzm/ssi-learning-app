@@ -10,3 +10,10 @@
 
 ## #985·G school leader — FAILED, delivered nothing
 Worker ended its turn with three background tasks still running; the surface killed them. Its branch cs/985-hb-school-leader has NO commits and no result files. Only salvage: an uncommitted probe script, which I have taken over and am running myself as systemd unit cs-long-984-schoolleader (genuine/view-as x desktop/phone, DEEP=1, 80 school_admin entries), writing incrementally to audit/984-handbook-showme/results/.
+
+## #987·G teacher — https://watson-1.tail4968cb.ts.net/d/c4b91146 (genuine account, desktop only)
+- Handbook makes NO lead/non-lead distinction; is_lead only affects UI inside a class. Tutor reads identically (unverified live).
+- DEFECT: "Take me there" never lands inside a class for any class-detail entry (~20 of 48 teacher entries) — goTo() uses placeLink() with no firstClassId special case, so it resolves to /schools/classes; showMeTo() DOES have the special case. VERIFIED BY ME in HandbookView.vue L109-111 vs L139-144.
+- DEFECT: two entries compute a clip but render no Show-me button: download-your-school-s-data, read-your-class-list.
+- Unproven: manage-a-class, play-as-class-from-the-class-page start a walk that never becomes active, landing on /org/<id> not the class.
+- GAPS: view-as mode never run; phone width never run; 8 of 49 entries never reached; per-step ring fidelity unverified (probe bug clicked a decorative overlay).
