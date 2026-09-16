@@ -1,0 +1,62 @@
+[
+  {
+    "enrollment_id": "8e182eb5-603d-4fb2-8f9c-ec73396f155b",
+    "learner_id": "de757444-2c5c-493f-9e51-42d1d6e7147d",
+    "who": "nba4191",
+    "course": "lit_for_eng",
+    "before": {
+      "highest_completed_lego_id": "S0300L02",
+      "highest_completed_round_index": 642
+    },
+    "after": {
+      "highest_completed_lego_id": "S0029L01",
+      "highest_completed_round_index": 85
+    },
+    "cursor": {
+      "last_completed_lego_id": "S0029L01",
+      "last_completed_round_index": 85
+    },
+    "applied": false,
+    "at": "2026-09-16T12:10:37.273Z"
+  },
+  {
+    "enrollment_id": "96636881-44ae-4780-b3c0-7d1510f332ea",
+    "learner_id": "aa85be4f-29fb-4556-bd1c-5840cd6fa459",
+    "who": "knightghost1",
+    "course": "hrv_for_eng",
+    "before": {
+      "highest_completed_lego_id": "S0300L02",
+      "highest_completed_round_index": 662
+    },
+    "after": {
+      "highest_completed_lego_id": "S0006L02",
+      "highest_completed_round_index": 16
+    },
+    "cursor": {
+      "last_completed_lego_id": "S0006L02",
+      "last_completed_round_index": 16
+    },
+    "applied": false,
+    "at": "2026-09-16T12:10:37.459Z"
+  },
+  {
+    "enrollment_id": "5405f151-3041-48a2-ba87-bd7d46074585",
+    "learner_id": "dd4d61e5-a442-4c2b-8b78-2f51d37f5411",
+    "who": "silverjfangio",
+    "course": "hye_for_eng",
+    "before": {
+      "highest_completed_lego_id": "S0300L02",
+      "highest_completed_round_index": 69
+    },
+    "after": {
+      "highest_completed_lego_id": "S0026L01",
+      "highest_completed_round_index": 68
+    },
+    "cursor": {
+      "last_completed_lego_id": "S0026L01",
+      "last_completed_round_index": 68
+    },
+    "applied": false,
+    "at": "2026-09-16T12:10:37.630Z"
+  }
+]

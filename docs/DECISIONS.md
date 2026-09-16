@@ -1,3 +1,30 @@
+## 2026-09-16 — Both held fixes re-land, and the ceiling only ratchets down by hand (job #998)
+
+**Tom's ruling (11:59Z).** GO on both fixes held on 2026-09-14 for a diagnosis first: the player
+fix (job #644) and the linked-emails fix (job #646), re-merged through dev with the three
+single-row ceiling repairs the diagnosis names, and promoted to staging. Not to main: main ships
+on the weekly release.
+
+**How they re-landed.** By reverting the two hold reverts, not by re-merging the branches — the
+seed-gap half of #644 had already come back on its own through jobs #793 and #804, so bundle.ts
+and computePauseDuration.ts keep dev's chunked lookup and only the rest of the fix returns.
+
+**What the re-land found.** `LearningPlayer` asks for `t('player.audioSilentRun')`, but the
+original commit filed the string under `pronunciation` in eng.json and cym.json. The tap-to-retry
+banner — the whole visible half of "a silent run stops the player" — would have rendered its key,
+and the locale-parity gate was red on 21 locales against an enrolment naming `player.*`. A string
+is only shipped when the section the code names is the section it sits in.
+
+**The ceiling repair, and why it needed a transaction.** Three enrollments carry a ceiling at the
+course's final LEGO with the cursor 50+ seeds behind and zero belt skips — nba4191 `lit_for_eng`,
+knightghost1 `hrv_for_eng`, silverjfangio `hye_for_eng`. `course_enrollments_ratchet_highest_round`
+is monotonic by design and honours only an explicit reset to NULL, so an ordinary UPDATE that
+lowers the ceiling is silently discarded — it returns no error and changes nothing. Each row was
+repaired in one transaction: NULL the two ceiling columns, then name the cursor values so the
+trigger lifts the ceiling to exactly where the learner is. Before-state asserted per row, result
+read back per row, logged in `tools/job998-ceiling-repair-applied-log.json`; the script is
+`tools/job998-ceiling-repair.mjs`.
+
 ## 2026-09-16 — The comparison average is self-inclusive and structural: every class in scope counts, active or not (job #979)
 
 **Tom's ruling (10:05Z).** "The averages need to be logical to a teacher, not technically correct,

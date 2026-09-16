@@ -1305,7 +1305,13 @@ const handleVerifyAddEmail = async () => {
     const data = await res.json()
 
     if (!res.ok || !data.success) {
-      addEmailError.value = data.error || 'Verification failed'
+      // A genuine second account holds this address — one with its own
+      // progress. A bare refusal left Tom guessing (2026-09-14); say what the
+      // person can actually do. No merge exists yet, so the honest offer is
+      // to sign in to that account, or ask us to join the two.
+      addEmailError.value = data.code === 'email_on_other_account'
+        ? 'This email already has its own SSi account with progress on it. To use that one, sign out and sign in with it. If you would like the two joined together, contact us and we will do it for you.'
+        : (data.error || 'Verification failed')
       return
     }
 

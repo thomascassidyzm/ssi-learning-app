@@ -15,20 +15,12 @@ function deferred<T = void>() {
 /** Minimal fake engine — isPlaying flips on play/pause/resume/stop, everything else is a spy. */
 function makeFakeEngine() {
   let isPlaying = false
-  let interrupted = false
   let sessionCompleteCb: (() => void) | null = null
+  let selfPausedCb: (() => void) | null = null
   const engine: ConductorEngine = {
     get currentState() {
       return { isPlaying }
     },
-    get hasPendingInterruption() {
-      return interrupted
-    },
-    resumeFromInterruption: vi.fn(() => {
-      if (!interrupted) return
-      interrupted = false
-      isPlaying = true
-    }),
     play: vi.fn(() => { isPlaying = true }),
     pause: vi.fn(() => { isPlaying = false }),
     resume: vi.fn(() => { isPlaying = true }),
@@ -42,12 +34,14 @@ function makeFakeEngine() {
     replaceQueueFromCurrent: vi.fn(),
     on: vi.fn((event, cb) => {
       if (event === 'session_complete') sessionCompleteCb = cb
+      if (event === 'self_paused') selfPausedCb = cb
     }),
   }
   return {
     engine,
     setPlaying: (v: boolean) => { isPlaying = v },
-    setInterrupted: (v: boolean) => { interrupted = v },
+    /** The engine pausing ITSELF (outside interruption / silent run). */
+    selfPause: () => { isPlaying = false; selfPausedCb?.() },
     fireSessionComplete: () => sessionCompleteCb?.(),
   }
 }
@@ -388,53 +382,29 @@ describe('PlayerConductor — dev guard', () => {
   })
 })
 
-describe('PlayerConductor — resumeAfterInterruption', () => {
-  it('resumes from `playing` when the engine has a pending interruption', () => {
-    const { engine, setInterrupted } = makeFakeEngine()
+describe('PlayerConductor — the engine pausing itself', () => {
+  it('mirrors a self-pause into userPaused, so the UI shows play and nothing resumes on its own', () => {
+    const { engine, selfPause } = makeFakeEngine()
     const conductor = new PlayerConductor(engine, { devGuard: false })
     conductor.request((e) => e.play())
-    // The interruption does not change the engine's play INTENT — that's the
-    // whole trap: isPlaying stays true while nothing sounds.
-    setInterrupted(true)
-
-    conductor.resumeAfterInterruption()
-
-    expect(engine.resumeFromInterruption).toHaveBeenCalledTimes(1)
     expect(conductor.currentState).toEqual({ kind: 'playing' })
-  })
 
-  it('never resumes a learner-paused session', () => {
-    const { engine, setInterrupted } = makeFakeEngine()
-    const conductor = new PlayerConductor(engine, { devGuard: false })
-    conductor.request((e) => e.play())
-    conductor.request((e) => e.pause())
-    setInterrupted(true) // a stale interruption must not outrank the learner
+    selfPause()
 
-    conductor.resumeAfterInterruption()
-
-    expect(engine.resumeFromInterruption).not.toHaveBeenCalled()
     expect(conductor.currentState).toEqual({ kind: 'userPaused' })
+    expect(engine.resume).not.toHaveBeenCalled()
   })
 
-  it('no-ops when there is no interruption to recover from', () => {
-    const { engine } = makeFakeEngine()
-    const conductor = new PlayerConductor(engine, { devGuard: false })
-    conductor.request((e) => e.play())
-
-    conductor.resumeAfterInterruption()
-
-    expect(engine.resumeFromInterruption).not.toHaveBeenCalled()
-  })
-
-  it('stays out of a transient state — the interlude owns its own landing', async () => {
-    const { engine, setInterrupted } = makeFakeEngine()
+  it('does not disturb a transient state — the interlude owns its own landing', async () => {
+    const { engine, selfPause } = makeFakeEngine()
     const conductor = new PlayerConductor(engine, { devGuard: false })
     conductor.request((e) => e.play())
 
     await conductor.runInterlude('pod-lap', async () => {
-      setInterrupted(true)
-      conductor.resumeAfterInterruption()
-      expect(engine.resumeFromInterruption).not.toHaveBeenCalled()
+      selfPause()
+      expect(conductor.currentState.kind).toBe('interlude')
     })
+    // The interlude landed on the engine's truth: paused.
+    expect(conductor.currentState).toEqual({ kind: 'userPaused' })
   })
 })
