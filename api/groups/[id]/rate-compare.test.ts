@@ -1039,16 +1039,34 @@ describe('GET /api/groups/:id/rate-compare — self-inclusive averaging (Tom, 20
     ]
     const res = makeRes()
     // measure=rate is where the bug lived: the minutes trend already emitted
-    // zeros for a dormant member, the LEGO-progress trend emitted nothing.
-    await handler(makeReq('c1', { compare_to: 'programme', measure: 'rate', window: '7d' }), res)
+    // zeros for a dormant member, the LEGO-progress trend emitted nothing. It
+    // rides the ?days= path now — the week windows carry their own bars.
+    await handler(makeReq('c1', { compare_to: 'programme', measure: 'rate', days: '7' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.cohortSize).toBe(3)
-    expect(res.body.average.trend).toHaveLength(7)
-    // Today's point is mean(c1's 6 LEGOs, c2's 3, c3's 0) = 3. Dropping c3
+    // The newest point is mean(c1's 6 LEGOs, c2's 3, c3's 0) = 3. Dropping c3
     // reads 4.5 — a dashed line drawn over a different cohort than the
     // figure it sits beside.
     const trend: number[] = res.body.average.trend
     expect(trend[trend.length - 1]).toBe(3)
     expect(trend.slice(0, -1).every((v: number) => v === 0)).toBe(true)
+  })
+
+  it('the same rule under a WEEK window: the dashed weekly bars are a mean over every member, dormant ones at zero (job #989)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // c1 and c2 each play half an hour this week; c3 is on the course and has
+    // never practised. The bars are total learning time, so this week's bar is
+    // mean(30, 30, 0) = 20 — dropping c3 would read 30.
+    SESSION_ROWS = [
+      { class_id: 'c1', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 6, duration_seconds: 1800, started_at: new Date().toISOString() },
+      { class_id: 'c2', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 3, duration_seconds: 1800, started_at: new Date().toISOString() },
+    ]
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'this_week', tz: 'Europe/London' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.week.cohort.size).toBe(3)
+    const bars: number[] = res.body.week.bars.cohort
+    expect(bars).toHaveLength(12)
+    expect(bars[bars.length - 1]).toBe(20)
   })
 })
