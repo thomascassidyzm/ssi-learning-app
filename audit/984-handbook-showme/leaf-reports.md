@@ -17,3 +17,9 @@ Worker ended its turn with three background tasks still running; the surface kil
 - DEFECT: two entries compute a clip but render no Show-me button: download-your-school-s-data, read-your-class-list.
 - Unproven: manage-a-class, play-as-class-from-the-class-page start a walk that never becomes active, landing on /org/<id> not the class.
 - GAPS: view-as mode never run; phone width never run; 8 of 49 entries never reached; per-step ring fidelity unverified (probe bug clicked a decorative overlay).
+
+## #986·G leader (govt_admin) — https://watson-1.tail4968cb.ts.net/d/a8292ef7 (genuine only, desktop only, ONE node)
+- All 46 leader-scoped entries exercised.
+- DEFECT: 5 entries kind-gated unreachable — see-and-download-your-funder-numbers (kind org) + 4 class-page entries (kind class). nodeKindOf() never returns 'org' for a real signed-in viewer; no path routes Show-me onto a class node except the class-detail special case.
+- DEFECT: 3 entries redirect — add-a-school-to-your-programme, copy-a-school-s-joining-links, see-every-school-in-your-programme: Take-me-there href /schools/all redirects to /org/<node>?lens=schools where nothing claims the walk.
+- GAPS: view-as 0% coverage; mobile 0%; only ONE node kind reached (zz.chepstow.leader turned out to be school_admin, discarded); ~8 entries uncertain.

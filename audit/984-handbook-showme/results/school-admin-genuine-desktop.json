@@ -2114,5 +2114,1984 @@
     "gotoHref": "/schools/teachers",
     "urlAfterGoto": "https://staging.saysomethingin.app/schools/teachers",
     "anchorExistsAfterGoto": true
+  },
+  {
+    "id": "let-a-named-address-in-through-your-links",
+    "title": "Let a named address in through your links",
+    "anchor": "settings-identity-add-address",
+    "place": "settings",
+    "clips": [
+      "school-identity-list"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/schools/settings",
+    "walkActiveAfterShowMe": "school-identity-list:0",
+    "walkId": "school-identity-list",
+    "steps": [
+      {
+        "idx": 0,
+        "anchorWanted": "settings-identity-add-domain",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Add domain",
+          "box": {
+            "x": 1109.0625,
+            "y": 1102.875,
+            "w": 110.9375,
+            "h": 39.25
+          },
+          "inViewport": false
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "settings-identity-add-address",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Add address",
+          "box": {
+            "x": 1107.359375,
+            "y": 694.375,
+            "w": 112.640625,
+            "h": 39.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "settings-identity-remove",
+        "ringCount": 0,
+        "anchored": {
+          "exists": false
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "settings-identity-remove",
+        "ringCount": 0,
+        "anchored": {
+          "exists": false
+        },
+        "cardPresent": true
+      },
+      {
+        "note": "no active state — walk ended/lost"
+      }
+    ],
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools/settings",
+    "urlAfterGoto": "https://staging.saysomethingin.app/schools/settings",
+    "anchorExistsAfterGoto": true
+  },
+  {
+    "id": "look-up-one-student",
+    "title": "Look up one student",
+    "anchor": "student-view-link",
+    "place": "students",
+    "clips": [
+      "find-a-student-or-export-the-list"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/schools/students",
+    "walkActiveAfterShowMe": "find-a-student-or-export-the-list:0",
+    "walkId": "find-a-student-or-export-the-list",
+    "steps": [
+      {
+        "idx": 0,
+        "anchorWanted": "student-view-link",
+        "ringCount": 0,
+        "anchored": {
+          "exists": false
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "students-export",
+        "ringCount": 0,
+        "anchored": {
+          "exists": false
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "students-export",
+        "ringCount": 0,
+        "anchored": {
+          "exists": false
+        },
+        "cardPresent": true
+      },
+      {
+        "note": "no active state — walk ended/lost"
+      }
+    ],
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools/students",
+    "urlAfterGoto": "https://staging.saysomethingin.app/schools/students",
+    "anchorExistsAfterGoto": false
+  },
+  {
+    "id": "make-a-class",
+    "title": "Make a class",
+    "anchor": "verb-new-class",
+    "place": "classes",
+    "clips": [
+      "start-or-make-a-class"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/schools/classes",
+    "walkActiveAfterShowMe": "start-or-make-a-class:0",
+    "walkId": "start-or-make-a-class",
+    "steps": [
+      {
+        "idx": 0,
+        "anchorWanted": "classes-row-play",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "▶ Play as class",
+          "box": {
+            "x": 1094.140625,
+            "y": 815.9375,
+            "w": 112.859375,
+            "h": 30
+          },
+          "inViewport": false
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "verb-new-class",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "+ New class",
+          "box": {
+            "x": 1112.453125,
+            "y": 380.59375,
+            "w": 107.546875,
+            "h": 39.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "classes-export",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Export CSV",
+          "box": {
+            "x": 1007.328125,
+            "y": 380.59375,
+            "w": 97.125,
+            "h": 39.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "classes-export",
+        "ringCount": 0,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Export CSV",
+          "box": {
+            "x": 1007.328125,
+            "y": 380.59375,
+            "w": 97.125,
+            "h": 39.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "note": "no active state — walk ended/lost"
+      }
+    ],
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools/classes",
+    "urlAfterGoto": "https://staging.saysomethingin.app/schools/classes",
+    "anchorExistsAfterGoto": true
+  },
+  {
+    "id": "make-a-link-anyone-can-use",
+    "title": "Make a link anyone can use",
+    "anchor": "verb-shareable-link",
+    "place": "node-home",
+    "clips": [
+      "ways-in"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "walkActiveAfterShowMe": "ways-in:0",
+    "walkId": "ways-in",
+    "steps": [
+      {
+        "idx": 0,
+        "anchorWanted": "ways-in-ledger",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "Ways in5 links",
+          "box": {
+            "x": 363,
+            "y": 491.75,
+            "w": 864,
+            "h": 18
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "ways-in-show-all",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "▸ Show all 5 links",
+          "box": {
+            "x": 363,
+            "y": 507.75,
+            "w": 864,
+            "h": 33
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "ways-in-copy",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Copy",
+          "box": {
+            "x": 1101.78125,
+            "y": 385.75,
+            "w": 50.34375,
+            "h": 28
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 3,
+        "anchorWanted": "ways-in-remint",
+        "ringCount": 0,
+        "anchored": {
+          "exists": false
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 4,
+        "anchorWanted": "ways-in-revoke",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Revoke",
+          "box": {
+            "x": 1156.125,
+            "y": 385.75,
+            "w": 60.875,
+            "h": 28
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 5,
+        "anchorWanted": "verb-shareable-link",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Get a shareable link",
+          "box": {
+            "x": 479.53125,
+            "y": 380.890625,
+            "w": 163.078125,
+            "h": 39
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 5,
+        "anchorWanted": "verb-shareable-link",
+        "ringCount": 0,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Get a shareable link",
+          "box": {
+            "x": 479.53125,
+            "y": 380.890625,
+            "w": 163.078125,
+            "h": 39
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "note": "no active state — walk ended/lost"
+      }
+    ],
+    "gotoLinkPresent": true,
+    "gotoHref": "/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "urlAfterGoto": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "anchorExistsAfterGoto": true
+  },
+  {
+    "id": "manage-a-class",
+    "title": "Manage a class",
+    "anchor": "class-page-manage",
+    "place": "node-home",
+    "clips": [
+      "class-page-play-and-manage"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "walkActiveAfterShowMe": null,
+    "gotoLinkPresent": true,
+    "gotoHref": "/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "urlAfterGoto": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "anchorExistsAfterGoto": false
+  },
+  {
+    "id": "minutes-in-the-app-this-week",
+    "title": "Minutes in the app this week",
+    "anchor": "dash-minutes-this-week",
+    "place": "dashboard",
+    "clips": [
+      "minutes-in-the-app-this-week"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "walkActiveAfterShowMe": null,
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools",
+    "urlAfterGoto": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "anchorExistsAfterGoto": false
+  },
+  {
+    "id": "name-your-school",
+    "title": "Name your school",
+    "anchor": "setup-school-name",
+    "place": "setup",
+    "clips": [
+      "work-through-setup"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/schools/setup",
+    "walkActiveAfterShowMe": "work-through-setup:0",
+    "walkId": "work-through-setup",
+    "steps": [
+      {
+        "idx": 0,
+        "anchorWanted": "setup-step-rail",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "ASIDE",
+          "text": "1Your schoolWhat your school is called.2Add staffShare your ",
+          "box": {
+            "x": 128,
+            "y": 445.484375,
+            "w": 260,
+            "h": 273.46875
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "setup-school-name",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "INPUT",
+          "text": "",
+          "box": {
+            "x": 427,
+            "y": 401.734375,
+            "w": 704,
+            "h": 43
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "setup-save-exit",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Save & exit",
+          "box": {
+            "x": 914.625,
+            "y": 678.234375,
+            "w": 97.65625,
+            "h": 39.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "setup-save-exit",
+        "ringCount": 0,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Save & exit",
+          "box": {
+            "x": 914.625,
+            "y": 678.234375,
+            "w": 97.65625,
+            "h": 39.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "note": "no active state — walk ended/lost"
+      }
+    ],
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools/setup",
+    "urlAfterGoto": "https://staging.saysomethingin.app/schools/setup",
+    "anchorExistsAfterGoto": true
+  },
+  {
+    "id": "open-a-class",
+    "title": "Open a class",
+    "anchor": "classes-row",
+    "place": "classes",
+    "clips": [
+      "reading-your-class-list"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/schools/classes",
+    "walkActiveAfterShowMe": "reading-your-class-list:0",
+    "walkId": "reading-your-class-list",
+    "steps": [
+      {
+        "idx": 0,
+        "anchorWanted": "classes-table",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "TABLE",
+          "text": "ClassCourseBeltJourney, phrasesPlayed as class, this weekPhr",
+          "box": {
+            "x": 371,
+            "y": 718.9375,
+            "w": 848,
+            "h": 257.75
+          },
+          "inViewport": false
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "classes-filters",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "CourseAll coursesSort byTime in app",
+          "box": {
+            "x": 370,
+            "y": 397.9375,
+            "w": 850,
+            "h": 66
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "classes-year-groups",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "By year groupY71 min1 of 1 classOther—none of 1 yet",
+          "box": {
+            "x": 370,
+            "y": 322.84375,
+            "w": 850,
+            "h": 154.09375
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 3,
+        "anchorWanted": "classes-row",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "TR",
+          "text": "Y7 WelshMPG-692Welsh (North)yellow14 / 6351 min2Copy link▶ P",
+          "box": {
+            "x": 371,
+            "y": 546.9375,
+            "w": 848,
+            "h": 84
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 3,
+        "anchorWanted": "classes-row",
+        "ringCount": 0,
+        "anchored": {
+          "exists": true,
+          "tag": "TR",
+          "text": "Y7 WelshMPG-692Welsh (North)yellow14 / 6351 min2Copy link▶ P",
+          "box": {
+            "x": 371,
+            "y": 546.9375,
+            "w": 848,
+            "h": 84
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "note": "no active state — walk ended/lost"
+      }
+    ],
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools/classes",
+    "urlAfterGoto": "https://staging.saysomethingin.app/schools/classes",
+    "anchorExistsAfterGoto": true
+  },
+  {
+    "id": "open-the-folded-ledger",
+    "title": "Open the folded ledger",
+    "anchor": "ways-in-show-all",
+    "place": "node-home",
+    "clips": [
+      "ways-in"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "walkActiveAfterShowMe": "ways-in:0",
+    "walkId": "ways-in",
+    "steps": [
+      {
+        "idx": 0,
+        "anchorWanted": "ways-in-ledger",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "Ways in5 links",
+          "box": {
+            "x": 363,
+            "y": 491.75,
+            "w": 864,
+            "h": 18
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "ways-in-show-all",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "▸ Show all 5 links",
+          "box": {
+            "x": 363,
+            "y": 507.75,
+            "w": 864,
+            "h": 33
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "ways-in-copy",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Copy",
+          "box": {
+            "x": 1101.78125,
+            "y": 385.75,
+            "w": 50.34375,
+            "h": 28
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 3,
+        "anchorWanted": "ways-in-remint",
+        "ringCount": 0,
+        "anchored": {
+          "exists": false
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 4,
+        "anchorWanted": "ways-in-revoke",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Revoke",
+          "box": {
+            "x": 1156.125,
+            "y": 385.75,
+            "w": 60.875,
+            "h": 28
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 5,
+        "anchorWanted": "verb-shareable-link",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Get a shareable link",
+          "box": {
+            "x": 479.53125,
+            "y": 380.890625,
+            "w": 163.078125,
+            "h": 39
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 5,
+        "anchorWanted": "verb-shareable-link",
+        "ringCount": 0,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Get a shareable link",
+          "box": {
+            "x": 479.53125,
+            "y": 380.890625,
+            "w": 163.078125,
+            "h": 39
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "note": "no active state — walk ended/lost"
+      }
+    ],
+    "gotoLinkPresent": true,
+    "gotoHref": "/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "urlAfterGoto": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "anchorExistsAfterGoto": false
+  },
+  {
+    "id": "open-your-inbox",
+    "title": "Open your inbox",
+    "anchor": "schools-inbox-menu",
+    "place": "dashboard",
+    "clips": [
+      "open-your-inbox"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "walkActiveAfterShowMe": null,
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools",
+    "urlAfterGoto": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "anchorExistsAfterGoto": false
+  },
+  {
+    "id": "play-as-class-from-the-class-page",
+    "title": "Play as class from the class page",
+    "anchor": "class-page-play",
+    "place": "node-home",
+    "clips": [
+      "class-page-play-and-manage"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "walkActiveAfterShowMe": null,
+    "gotoLinkPresent": true,
+    "gotoHref": "/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "urlAfterGoto": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "anchorExistsAfterGoto": false
+  },
+  {
+    "id": "prove-your-mailbox-reaches-you",
+    "title": "Prove your mailbox reaches you",
+    "anchor": "mailbox-check-send",
+    "place": "dashboard",
+    "clips": [
+      "prove-your-mailbox-reaches-you"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "walkActiveAfterShowMe": null,
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools",
+    "urlAfterGoto": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "anchorExistsAfterGoto": false
+  },
+  {
+    "id": "put-the-app-on-your-device",
+    "title": "Put the app on your device",
+    "anchor": "account-install",
+    "place": "node-home",
+    "clips": [
+      "install-the-app"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "walkActiveAfterShowMe": "install-the-app:0",
+    "walkId": "install-the-app",
+    "steps": [
+      {
+        "idx": 0,
+        "anchorWanted": "account-card",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "Your accountthomas.cassidy+chepstowtest-leader@gmail.com",
+          "box": {
+            "x": 363,
+            "y": 756.75,
+            "w": 864,
+            "h": 18
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "account-install",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "Install it as a Chrome appYour organisation opens in its own",
+          "box": {
+            "x": 363,
+            "y": 694.75,
+            "w": 864,
+            "h": 54
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "account-install",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "Install it as a Chrome appYour organisation opens in its own",
+          "box": {
+            "x": 363,
+            "y": 694.75,
+            "w": 864,
+            "h": 54
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "account-install",
+        "ringCount": 0,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "Install it as a Chrome appYour organisation opens in its own",
+          "box": {
+            "x": 363,
+            "y": 694.75,
+            "w": 864,
+            "h": 54
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "note": "no active state — walk ended/lost"
+      }
+    ],
+    "gotoLinkPresent": true,
+    "gotoHref": "/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "urlAfterGoto": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "anchorExistsAfterGoto": true
+  },
+  {
+    "id": "read-your-class-list",
+    "title": "Read your class list",
+    "anchor": "classes-table",
+    "place": "classes",
+    "clips": [
+      "reading-your-class-list"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/schools/classes",
+    "walkActiveAfterShowMe": "reading-your-class-list:0",
+    "walkId": "reading-your-class-list",
+    "steps": [
+      {
+        "idx": 0,
+        "anchorWanted": "classes-table",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "TABLE",
+          "text": "ClassCourseBeltJourney, phrasesPlayed as class, this weekPhr",
+          "box": {
+            "x": 371,
+            "y": 718.9375,
+            "w": 848,
+            "h": 257.75
+          },
+          "inViewport": false
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "classes-filters",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "CourseAll coursesSort byTime in app",
+          "box": {
+            "x": 370,
+            "y": 397.9375,
+            "w": 850,
+            "h": 66
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "classes-year-groups",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "By year groupY71 min1 of 1 classOther—none of 1 yet",
+          "box": {
+            "x": 370,
+            "y": 322.84375,
+            "w": 850,
+            "h": 154.09375
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 3,
+        "anchorWanted": "classes-row",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "TR",
+          "text": "Y7 WelshMPG-692Welsh (North)yellow14 / 6351 min2Copy link▶ P",
+          "box": {
+            "x": 371,
+            "y": 546.9375,
+            "w": 848,
+            "h": 84
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 3,
+        "anchorWanted": "classes-row",
+        "ringCount": 0,
+        "anchored": {
+          "exists": true,
+          "tag": "TR",
+          "text": "Y7 WelshMPG-692Welsh (North)yellow14 / 6351 min2Copy link▶ P",
+          "box": {
+            "x": 371,
+            "y": 546.9375,
+            "w": 848,
+            "h": 84
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "note": "no active state — walk ended/lost"
+      }
+    ],
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools/classes",
+    "urlAfterGoto": "https://staging.saysomethingin.app/schools/classes",
+    "anchorExistsAfterGoto": true
+  },
+  {
+    "id": "read-your-messages",
+    "title": "Read your messages",
+    "anchor": "schools-inbox",
+    "place": "inbox",
+    "clips": [
+      "read-your-messages"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/schools/inbox",
+    "walkActiveAfterShowMe": "read-your-messages:0",
+    "walkId": "read-your-messages",
+    "steps": [
+      {
+        "idx": 0,
+        "anchorWanted": "schools-inbox",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "SECTION",
+          "text": "Nothing for you yet. Anything sent to you will appear here.",
+          "box": {
+            "x": 342,
+            "y": 272.5,
+            "w": 906,
+            "h": 59
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "schools-inbox",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "SECTION",
+          "text": "Nothing for you yet. Anything sent to you will appear here.",
+          "box": {
+            "x": 342,
+            "y": 272.5,
+            "w": 906,
+            "h": 59
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "schools-inbox",
+        "ringCount": 0,
+        "anchored": {
+          "exists": true,
+          "tag": "SECTION",
+          "text": "Nothing for you yet. Anything sent to you will appear here.",
+          "box": {
+            "x": 342,
+            "y": 272.5,
+            "w": 906,
+            "h": 59
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "note": "no active state — walk ended/lost"
+      }
+    ],
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools/inbox",
+    "urlAfterGoto": "https://staging.saysomethingin.app/schools/inbox",
+    "anchorExistsAfterGoto": true
+  },
+  {
+    "id": "reading-one-student-s-progress",
+    "title": "Reading one student's progress",
+    "anchor": "class-students",
+    "place": "node-home",
+    "clips": [
+      "reading-a-class-page"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "walkActiveAfterShowMe": null,
+    "gotoLinkPresent": true,
+    "gotoHref": "/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "urlAfterGoto": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "anchorExistsAfterGoto": false
+  },
+  {
+    "id": "reading-your-insights",
+    "title": "Reading your insights",
+    "anchor": "insights-measure",
+    "place": "node-insights",
+    "clips": [
+      "reading-insights"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5/insights?course=cym_n_for_eng&compare=global_all_courses&window=30d&measure=rate",
+    "walkActiveAfterShowMe": "reading-insights:0",
+    "walkId": "reading-insights",
+    "steps": [
+      {
+        "idx": 0,
+        "anchorWanted": "insights-measure",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "LABEL",
+          "text": "MeasureRate of progress",
+          "box": {
+            "x": 996.1875,
+            "y": 303.359375,
+            "w": 232.8125,
+            "h": 61
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "insights-window",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "WindowTodayLast 7 daysLast 30 daysAll time",
+          "box": {
+            "x": 361,
+            "y": 306.859375,
+            "w": 370.390625,
+            "h": 57.5
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "insights-compare",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "LABEL",
+          "text": "Compare toGlobal average · all courses",
+          "box": {
+            "x": 361,
+            "y": 369.359375,
+            "w": 868,
+            "h": 61
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 3,
+        "anchorWanted": "insights-rate-widget",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "Rate of progress0v28.6ZZ Test — Chepstow scenario v Global a",
+          "box": {
+            "x": 342,
+            "y": -0.265625,
+            "w": 906,
+            "h": 810
+          },
+          "inViewport": false
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 4,
+        "anchorWanted": "insights-org-practising",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "SECTION",
+          "text": "How many of your classes practised together this week, and i",
+          "box": {
+            "x": 342,
+            "y": 0.203125,
+            "w": 906,
+            "h": 682.5
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 5,
+        "anchorWanted": "insights-org-quiet",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "SECTION",
+          "text": "Which classes have gone quiet, and which have never started?",
+          "box": {
+            "x": 342,
+            "y": 123.703125,
+            "w": 906,
+            "h": 553.5
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 6,
+        "anchorWanted": "insights-org-journey",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "SECTION",
+          "text": "How far through the course have your classes got, and where ",
+          "box": {
+            "x": 342,
+            "y": 0.203125,
+            "w": 906,
+            "h": 596
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 7,
+        "anchorWanted": "insights-voice-pause",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "SECTION",
+          "text": "Attention · voiceVoice & pauseWhat the microphone is actuall",
+          "box": {
+            "x": 342,
+            "y": 296.203125,
+            "w": 906,
+            "h": 471.515625
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 8,
+        "anchorWanted": "insights-overview",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "OverviewInsights",
+          "box": {
+            "x": 1072.8125,
+            "y": 196,
+            "w": 175.1875,
+            "h": 36.5
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 8,
+        "anchorWanted": "insights-overview",
+        "ringCount": 0,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "OverviewInsights",
+          "box": {
+            "x": 1072.8125,
+            "y": 196,
+            "w": 175.1875,
+            "h": 36.5
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "note": "no active state — walk ended/lost"
+      }
+    ],
+    "gotoLinkPresent": true,
+    "gotoHref": "/org/648185c9-78cf-48bd-98bd-8a5dd73670d5/insights",
+    "urlAfterGoto": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5/insights",
+    "anchorExistsAfterGoto": false
+  },
+  {
+    "id": "remove-a-teacher-from-your-school",
+    "title": "Remove a teacher from your school",
+    "anchor": "teacher-remove",
+    "place": "teachers",
+    "clips": [
+      "remove-a-teacher"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/schools/teachers",
+    "walkActiveAfterShowMe": "remove-a-teacher:0",
+    "walkId": "remove-a-teacher",
+    "steps": [
+      {
+        "idx": 0,
+        "anchorWanted": "teacher-remove",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Remove",
+          "box": {
+            "x": 1151.484375,
+            "y": 469.234375,
+            "w": 67.953125,
+            "h": 33
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "anchorWanted": "teacher-remove",
+        "ringCount": 0,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Remove",
+          "box": {
+            "x": 1151.484375,
+            "y": 469.234375,
+            "w": 67.953125,
+            "h": 33
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "note": "no active state — walk ended/lost"
+      }
+    ],
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools/teachers",
+    "urlAfterGoto": "https://staging.saysomethingin.app/schools/teachers",
+    "anchorExistsAfterGoto": true
+  },
+  {
+    "id": "report-a-bug-from-settings",
+    "title": "Report a bug from Settings",
+    "anchor": "report-bug",
+    "place": "settings",
+    "clips": [
+      "report-a-bug-from-settings"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/?screen=settings",
+    "walkActiveAfterShowMe": "report-a-bug-from-settings:0",
+    "walkId": "report-a-bug-from-settings",
+    "steps": [
+      {
+        "idx": 0,
+        "anchorWanted": "report-bug",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "Report a bugTell us what went wrong. We attach the details f",
+          "box": {
+            "x": 424,
+            "y": 418.90625,
+            "w": 432,
+            "h": 82
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "report-bug-sheet",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "Report a bug×Add a screenshot Send",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 1280,
+            "h": 800
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "report-bug-text",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "TEXTAREA",
+          "text": "",
+          "box": {
+            "x": 376,
+            "y": 537,
+            "w": 528,
+            "h": 146
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 3,
+        "anchorWanted": "report-bug-send",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Send",
+          "box": {
+            "x": 376,
+            "y": 728,
+            "w": 528,
+            "h": 52
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 3,
+        "anchorWanted": "report-bug-send",
+        "ringCount": 0,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Send",
+          "box": {
+            "x": 376,
+            "y": 728,
+            "w": 528,
+            "h": 52
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "note": "no active state — walk ended/lost"
+      }
+    ],
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools/settings",
+    "urlAfterGoto": "https://staging.saysomethingin.app/schools/settings",
+    "anchorExistsAfterGoto": false
+  },
+  {
+    "id": "report-a-bug-from-the-dashboard",
+    "title": "Report a bug from the dashboard",
+    "anchor": "schools-report-bug",
+    "place": "dashboard",
+    "clips": [
+      "report-a-bug-from-the-dashboard"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "walkActiveAfterShowMe": null,
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools",
+    "urlAfterGoto": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "anchorExistsAfterGoto": false
+  },
+  {
+    "id": "say-what-happened",
+    "title": "Say what happened",
+    "anchor": "report-bug-text",
+    "place": "settings",
+    "clips": [
+      "report-a-bug-from-settings"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/?screen=settings",
+    "walkActiveAfterShowMe": "report-a-bug-from-settings:0",
+    "walkId": "report-a-bug-from-settings",
+    "steps": [
+      {
+        "idx": 0,
+        "anchorWanted": "report-bug",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "Report a bugTell us what went wrong. We attach the details f",
+          "box": {
+            "x": 424,
+            "y": 418.90625,
+            "w": 432,
+            "h": 82
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "report-bug-sheet",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "Report a bug×Add a screenshot Send",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 1280,
+            "h": 800
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "report-bug-text",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "TEXTAREA",
+          "text": "",
+          "box": {
+            "x": 376,
+            "y": 537,
+            "w": 528,
+            "h": 146
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 3,
+        "anchorWanted": "report-bug-send",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Send",
+          "box": {
+            "x": 376,
+            "y": 728,
+            "w": 528,
+            "h": 52
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 3,
+        "anchorWanted": "report-bug-send",
+        "ringCount": 0,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Send",
+          "box": {
+            "x": 376,
+            "y": 728,
+            "w": 528,
+            "h": 52
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "note": "no active state — walk ended/lost"
+      }
+    ],
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools/settings",
+    "urlAfterGoto": "https://staging.saysomethingin.app/schools/settings",
+    "anchorExistsAfterGoto": false
+  },
+  {
+    "id": "say-what-happened-on-the-dashboard",
+    "title": "Say what happened on the dashboard",
+    "anchor": "schools-report-bug-happened",
+    "place": "dashboard",
+    "clips": [
+      "report-a-bug-from-the-dashboard"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "walkActiveAfterShowMe": null,
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools",
+    "urlAfterGoto": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "anchorExistsAfterGoto": false
+  },
+  {
+    "id": "see-that-your-report-arrived",
+    "title": "See that your report arrived",
+    "anchor": "report-bug-thanks",
+    "place": "settings",
+    "clips": [],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": false,
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools/settings",
+    "urlAfterGoto": "https://staging.saysomethingin.app/schools/settings",
+    "anchorExistsAfterGoto": false
+  },
+  {
+    "id": "see-what-your-school-pays",
+    "title": "See what your school pays",
+    "anchor": "settings-billing-plan",
+    "place": "settings",
+    "clips": [
+      "manage-your-school-settings"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/schools/settings",
+    "walkActiveAfterShowMe": "manage-your-school-settings:0",
+    "walkId": "manage-your-school-settings",
+    "steps": [
+      {
+        "idx": 0,
+        "anchorWanted": "settings-tab-profile",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "School profile",
+          "box": {
+            "x": 379,
+            "y": 336.5,
+            "w": 202,
+            "h": 40.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "settings-save-profile",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Save changes",
+          "box": {
+            "x": 629,
+            "y": 380,
+            "w": 119.28125,
+            "h": 39.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "settings-tab-billing",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Billing",
+          "box": {
+            "x": 379,
+            "y": 205.75,
+            "w": 202,
+            "h": 40.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 3,
+        "anchorWanted": "settings-billing-plan",
+        "ringCount": 0,
+        "anchored": {
+          "exists": false
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 4,
+        "anchorWanted": "settings-tab-data",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Data & privacy",
+          "box": {
+            "x": 379,
+            "y": 380,
+            "w": 202,
+            "h": 40.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 5,
+        "anchorWanted": "settings-delete-school",
+        "ringCount": 0,
+        "anchored": {
+          "exists": false
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 5,
+        "anchorWanted": "settings-delete-school",
+        "ringCount": 0,
+        "anchored": {
+          "exists": false
+        },
+        "cardPresent": true
+      },
+      {
+        "note": "no active state — walk ended/lost"
+      }
+    ],
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools/settings",
+    "urlAfterGoto": "https://staging.saysomethingin.app/schools/settings",
+    "anchorExistsAfterGoto": false
+  },
+  {
+    "id": "send-a-dashboard-bug-report",
+    "title": "Send a dashboard bug report",
+    "anchor": "schools-report-bug-send",
+    "place": "dashboard",
+    "clips": [
+      "report-a-bug-from-the-dashboard"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "walkActiveAfterShowMe": null,
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools",
+    "urlAfterGoto": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "anchorExistsAfterGoto": false
+  },
+  {
+    "id": "send-the-report",
+    "title": "Send the report",
+    "anchor": "report-bug-send",
+    "place": "settings",
+    "clips": [
+      "report-a-bug-from-settings"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/?screen=settings",
+    "walkActiveAfterShowMe": "report-a-bug-from-settings:0",
+    "walkId": "report-a-bug-from-settings",
+    "steps": [
+      {
+        "idx": 0,
+        "anchorWanted": "report-bug",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "Report a bugTell us what went wrong. We attach the details f",
+          "box": {
+            "x": 424,
+            "y": 418.90625,
+            "w": 432,
+            "h": 82
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "report-bug-sheet",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "Report a bug×Add a screenshot Send",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 1280,
+            "h": 800
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "report-bug-text",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "TEXTAREA",
+          "text": "",
+          "box": {
+            "x": 376,
+            "y": 537,
+            "w": 528,
+            "h": 146
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 3,
+        "anchorWanted": "report-bug-send",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Send",
+          "box": {
+            "x": 376,
+            "y": 728,
+            "w": 528,
+            "h": 52
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 3,
+        "anchorWanted": "report-bug-send",
+        "ringCount": 0,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Send",
+          "box": {
+            "x": 376,
+            "y": 728,
+            "w": 528,
+            "h": 52
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "note": "no active state — walk ended/lost"
+      }
+    ],
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools/settings",
+    "urlAfterGoto": "https://staging.saysomethingin.app/schools/settings",
+    "anchorExistsAfterGoto": false
+  },
+  {
+    "id": "set-or-change-your-password",
+    "title": "Set or change your password",
+    "anchor": "account-password",
+    "place": "node-home",
+    "clips": [
+      "set-your-password"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "walkActiveAfterShowMe": "set-your-password:0",
+    "walkId": "set-your-password",
+    "steps": [
+      {
+        "idx": 0,
+        "anchorWanted": "account-card",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "Your accountthomas.cassidy+chepstowtest-leader@gmail.com",
+          "box": {
+            "x": 363,
+            "y": 756.75,
+            "w": 864,
+            "h": 18
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "account-password",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "No password yetYou got in through a link. A password is how ",
+          "box": {
+            "x": 363,
+            "y": 628.75,
+            "w": 864,
+            "h": 54
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "account-password",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "No password yetYou got in through a link. A password is how ",
+          "box": {
+            "x": 363,
+            "y": 628.75,
+            "w": 864,
+            "h": 54
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "account-password",
+        "ringCount": 0,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "No password yetYou got in through a link. A password is how ",
+          "box": {
+            "x": 363,
+            "y": 628.75,
+            "w": 864,
+            "h": 54
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "note": "no active state — walk ended/lost"
+      }
+    ],
+    "gotoLinkPresent": true,
+    "gotoHref": "/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "urlAfterGoto": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "anchorExistsAfterGoto": true
   }
 ]
