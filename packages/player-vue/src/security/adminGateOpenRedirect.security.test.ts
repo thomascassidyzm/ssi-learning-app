@@ -11,14 +11,14 @@
  * 1. `deniedDestination` only ever produces '/' or a same-origin '/schools'
  *    path object — it never echoes an arbitrary string back as a bare
  *    navigation target itself.
- * 2. `SchoolsContainer.vue`'s replay regex accepts only same-app relative
- *    paths under /admin or /methodology, and rejects protocol-relative
- *    ('//host/evil'), absolute ('https://evil'), and 'javascript:' payloads.
- *    (This is a source-level lock rather than a mount, because
- *    `adminNextTarget` is a local, unexported function — the regex itself is
- *    the control, and it is what the 08-11 audit's own note on `next`
- *    params — CLIENT-CONFIG-01's referrer-leakage discussion — flagged as
- *    the class of bug to watch for.)
+ * 2. `adminNextFromQuery` accepts only same-app relative paths under /admin
+ *    or /methodology, and rejects protocol-relative ('//host/evil'),
+ *    absolute ('https://evil') and 'javascript:' payloads. It lives in
+ *    useAdminGate since 2026-09-16 (job #34) because memberSurfaceGuard needs
+ *    the same answer — an ssi_admin with a cached role was ejected off
+ *    /schools before the replay could run — so the lock exercises the one
+ *    exported control and asserts both call sites use it, rather than
+ *    scraping a regex literal out of a component.
  *
  * VERDICT: both halves hold. `router.replace(target)` also cannot itself be
  * an open redirect even if the regex were looser, because vue-router
@@ -29,7 +29,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { deniedDestination } from '../composables/useAdminGate'
+import { adminNextFromQuery, deniedDestination } from '../composables/useAdminGate'
 
 describe('deniedDestination — never echoes an arbitrary redirect target', () => {
   it('a guest is sent to /schools with next carrying the ORIGINAL fullPath, unmodified but not itself used as a bare navigation string', () => {
@@ -59,35 +59,40 @@ describe('SchoolsContainer.vue — the next-param replay regex rejects everythin
     resolve(__dirname, '../containers/SchoolsContainer.vue'),
     'utf8',
   )
+  const routerSrc = readFileSync(resolve(__dirname, '../router/index.ts'), 'utf8')
 
-  // Pull the exact regex literal out of source so the test tracks the real
-  // control rather than a hand-copied approximation of it.
-  const regexMatch = src.match(/function adminNextTarget[\s\S]*?if \(!(\/\^[\s\S]*?\/)\.test\(next\)\) return null/)
-  const regexSource = regexMatch?.[1]
-  it('the guard regex is present in source (regression lock — if this fails, the control moved or was removed)', () => {
-    expect(regexSource, 'expected to find the /^\\/(admin|methodology).../ guard regex in SchoolsContainer.vue').toBeDefined()
+  // The control moved on 2026-09-16 (job #34) from a local regex inside
+  // SchoolsContainer to the exported `adminNextFromQuery` in useAdminGate,
+  // because memberSurfaceGuard needs the SAME answer: an ssi_admin whose role
+  // was already cached was ejected from /schools to /admin/structure before
+  // the replay could run, and the deep link died there. One control, two call
+  // sites — so this lock now exercises the function itself rather than
+  // scraping a regex literal out of a component, which is strictly stronger.
+  it('accepts same-app admin/methodology paths', () => {
+    expect(adminNextFromQuery({ next: '/admin' })).toBe('/admin')
+    expect(adminNextFromQuery({ next: '/admin/users/123' })).toBe('/admin/users/123')
+    expect(adminNextFromQuery({ next: '/admin?tab=x' })).toBe('/admin?tab=x')
+    expect(adminNextFromQuery({ next: '/methodology' })).toBe('/methodology')
+    expect(adminNextFromQuery({ next: '/methodology/' })).toBe('/methodology/')
   })
 
-  // Reconstructing the literal regex the component actually uses, from its
-  // own source text, is the point of this lock: it fails loudly if the
-  // pattern is ever loosened.
-  const guard = regexSource ? (eval(regexSource) as RegExp) : null
-
-  it.runIf(guard)('accepts same-app admin/methodology paths', () => {
-    expect(guard!.test('/admin')).toBe(true)
-    expect(guard!.test('/admin/users/123')).toBe(true)
-    expect(guard!.test('/admin?tab=x')).toBe(true)
-    expect(guard!.test('/methodology')).toBe(true)
-    expect(guard!.test('/methodology/')).toBe(true)
+  it('rejects protocol-relative, absolute, and non-admin payloads', () => {
+    expect(adminNextFromQuery({ next: '//evil.example/admin' })).toBeNull()
+    expect(adminNextFromQuery({ next: 'https://evil.example/admin' })).toBeNull()
+    expect(adminNextFromQuery({ next: 'javascript:alert(1)' })).toBeNull()
+    expect(adminNextFromQuery({ next: '/adminx' })).toBeNull() // prefix match without a boundary would be a bug
+    expect(adminNextFromQuery({ next: '/schools' })).toBeNull()
+    expect(adminNextFromQuery({ next: '/' })).toBeNull()
+    expect(adminNextFromQuery({})).toBeNull()
+    expect(adminNextFromQuery({ next: ['/admin'] })).toBeNull()
   })
 
-  it.runIf(guard)('rejects protocol-relative, absolute, and non-admin payloads', () => {
-    expect(guard!.test('//evil.example/admin')).toBe(false)
-    expect(guard!.test('https://evil.example/admin')).toBe(false)
-    expect(guard!.test('javascript:alert(1)')).toBe(false)
-    expect(guard!.test('/adminx')).toBe(false) // prefix match without a boundary would be a bug
-    expect(guard!.test('/schools')).toBe(false)
-    expect(guard!.test('/')).toBe(false)
+  it('both call sites go through that one control — no second, looser copy', () => {
+    expect(src).toMatch(/adminNextFromQuery\(route\.query/)
+    expect(routerSrc).toMatch(/adminNextFromQuery\(to\.query/)
+    // A hand-rolled next-regex anywhere else is exactly the drift this locks.
+    expect(src).not.toMatch(/\/\^\\\/\(admin\|methodology\)/)
+    expect(routerSrc).not.toMatch(/\/\^\\\/\(admin\|methodology\)/)
   })
 
   it('the replay call uses router.replace (SPA navigation), never window.location, on the guarded target', () => {

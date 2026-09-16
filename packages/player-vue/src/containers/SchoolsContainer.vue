@@ -12,6 +12,7 @@ import { useAuthModal } from '@/composables/useAuthModal'
 import { usePullToRefresh } from '@/composables/usePullToRefresh'
 import { SIGNIN_AGAIN_NOTICE_KEY } from '@/composables/useAuth'
 import { useUserRole } from '@/composables/useUserRole'
+import { adminNextFromQuery } from '@/composables/useAdminGate'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { setSchoolsClient } from '@/composables/schools/client'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
@@ -440,10 +441,7 @@ const placeWord = computed(() => (orgLane.value ? 'organisation' : 'school'))
 // actually use, and the prefix check keeps `next` from being an open redirect
 // (no protocol-relative '//evil.example', no arbitrary in-app route).
 function adminNextTarget(): string | null {
-  const next = route.query.next
-  if (typeof next !== 'string') return null
-  if (!/^\/(admin|methodology)(\/|\?|$)/.test(next)) return null
-  return next
+  return adminNextFromQuery(route.query as Record<string, unknown>)
 }
 watch(
   () => isAuthenticated.value && isRoleInitialized.value && isSsiAdmin.value,

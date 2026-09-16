@@ -7,6 +7,7 @@ import {
 } from 'vue-router'
 import { teacherLandingTarget } from '@/composables/teacherLanding'
 import { useUserRole } from '@/composables/useUserRole'
+import { adminNextFromQuery } from '@/composables/useAdminGate'
 import { isChunkLoadError } from './staleChunkError'
 import { prepareMissionFromRoute } from '@/missions/useMission'
 // Build-time: seat/institutional purchase is a WEB-ONLY rail. In a store build
@@ -164,7 +165,15 @@ const memberSurfaceGuard: NavigationGuardWithThis<undefined> = (to, _from, next)
   // through to the live school experience as intended. (Guard on the PARENT
   // so it covers every child route, not just the bare dashboard.)
   if (canAccessAdmin.value && !hasSchoolRole.value) {
-    return next('/admin/structure')
+    // …unless they were sent here BY the admin estate. useAdminGate hands a
+    // visitor it could not place to /schools with the destination in ?next=,
+    // for the inline sign-in; SchoolsContainer replays it once the role
+    // resolves. An admin whose role was ALREADY cached never reaches that
+    // replay — this guard ejects them first and the destination is lost, so
+    // a deep link to any admin page died on /admin/structure (job #34, Tom's
+    // phone on /admin/insights-lab). Honour the next; it is checked to be an
+    // in-app admin path, so nothing new is reachable through it.
+    return next(adminNextFromQuery(to.query as Record<string, unknown>) ?? '/admin/structure')
   }
   // A user with a KNOWN role but NO school role is not a member.
   // Solo tutors have no `educational_role`, so they look identical to a
