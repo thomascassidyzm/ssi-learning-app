@@ -1,5 +1,5 @@
 {
-  "version": "124a3fa2ecdd",
+  "version": "99d5ecc28093",
   "generatedAt": "2026-09-16",
   "walks": [
     {
@@ -1906,7 +1906,6 @@
         "total",
         "classes",
         "quiet",
-        "not practised",
         "voice",
         "pause"
       ],
@@ -1935,13 +1934,6 @@
         {
           "anchor": "insights-classes",
           "say": "Under the card, every class here, the one that has gone longest without practising first. Each says when it last practised and its week. Tap one for its own card. Nothing is ranked by minutes.",
-          "advance": {
-            "on": "next"
-          }
-        },
-        {
-          "anchor": "insights-not-practised",
-          "say": "**Who has not practised this week** lists the people on their own accounts who have not — by name, never by minutes. Tap it to open.",
           "advance": {
             "on": "next"
           }
@@ -7670,9 +7662,9 @@
         "Open a level and tap **See insights**.",
         "Tap **Voice and pause** at the bottom of the page.",
         "Read the uptake figure first — it is how many learners this is based on.",
-        "Open a class or a learner within it to see the same reading at a smaller scope."
+        "Open a class to see the same reading at a smaller scope."
       ],
-      "note": "A learner with no microphone data is absent from these figures rather than counted as a zero, so the denominator is always stated. A class that practises from the front counts as one learner, its own class account, so a school with no pupil accounts still has a roster here."
+      "note": "Nobody is named here: the figures are counts over the level, never a row per pupil. A learner with no microphone data is absent from these figures rather than counted as a zero, so the denominator is always stated. A class that practises from the front counts as one learner, its own class account, so a school with no pupil accounts still has a reading here."
     },
     {
       "id": "walking-down-to-a-school-a-class-or-a-person",
@@ -8190,15 +8182,14 @@
         "/org/:id/insights"
       ],
       "walk": null,
-      "what": "Whether your classes are actually doing it: how many practised together in the last seven days against the seven before, how many phrases they practised, and which people practised on their own account and for how long. An organisation with no classes reads only the people line here, asked as how many of your people practised.",
-      "where": "The **Practising** question at the top of any level's insights page.",
+      "what": "Whether your classes are actually doing it: how many practised together in the last seven days against the seven before, how many phrases they practised, and how many people practised on their own account — a count, never a name. An organisation with no classes reads only the people line here, asked as how many of your people practised.",
+      "where": "The **Practising** question under **More about this level** on any level's insights page.",
       "how": [
         "Read the sentence for this week against last week.",
         "Read the line for how many phrases were practised each day over the last four weeks.",
-        "Read the class rows for who practised, when they last practised together and where in the course they are.",
-        "Read the people rows for own-account minutes."
+        "Read the class rows for which classes practised, when they last practised together and where in the course they are."
       ],
-      "note": "A class's minutes are time in the app on its own class account, the gaps between phrases included, the same number its class page shows. People's minutes are their own logins."
+      "note": "A class's minutes are time in the app on its own class account, the gaps between phrases included, the same number its class page shows. People's own-account minutes are counted in the sentence and never listed by name."
     },
     {
       "id": "which-courses-are-worth-attention",
@@ -8236,46 +8227,6 @@
         "Open a course row to see which bits of it people stumble on."
       ],
       "note": "Reaching the end means getting through nine tenths of the course. A course with no recorded length shows a dash there rather than a zero. Minutes are not shown: the stored counters are not reliable, and a number that might be wrong is left off."
-    },
-    {
-      "id": "who-has-not-practised-this-week",
-      "title": "Who has not practised this week",
-      "section": "seeing-progress",
-      "moment": "something-wrong",
-      "personas": [
-        "school_admin",
-        "leader",
-        "admin"
-      ],
-      "keywords": [
-        "not practised",
-        "quiet",
-        "students",
-        "pupils",
-        "people",
-        "this week",
-        "names"
-      ],
-      "place": {
-        "route": "node-insights"
-      },
-      "anchor": "insights-not-practised",
-      "surface": "schools",
-      "source": "packages/player-vue/src/views/admin/NodeInsightsView.vue",
-      "routes": [
-        "/admin/classes/:id/insights",
-        "/admin/groups/:id/analytics",
-        "/admin/schools/:id/analytics",
-        "/org/:id/insights"
-      ],
-      "walk": null,
-      "what": "The names of the people on their own accounts who have not practised in the last seven days — the half you act on. By name, never by minutes: this is not a league table.",
-      "where": "**Who has not practised this week**, under the class list on a school's or group's insights page. Tap it to open.",
-      "how": [
-        "Tap the line to open it.",
-        "Read the names. The count beside the title says how many of how many."
-      ],
-      "note": "Someone who practised for a minute is not on this list. A school with no pupil accounts has nobody to list and says so."
     },
     {
       "id": "who-is-about-to-leave",

@@ -68,6 +68,8 @@ describe('OrgIntelPanel', () => {
     expect(text).toContain('24 min')                    // 7H's own in-app minutes on its row
     expect(text).not.toMatch(/\b\d+(\.\d+)?h\b/)      // never "1.2h": minutes, or "5 h 52 min" from an hour up (job #683)
     expect(text).toContain('17 of 39 people practised on their own account, 124 minutes between them.')
+    // the count, never the names (Tom, 2026-09-16: per-pupil practice is recorded, never published)
+    for (const p of payload().people) expect(text).not.toContain(p.name)
     expect(text).toContain('1 class has gone quiet, and 13 have never started.')
     expect(text).toContain('21 of 34 classes have started.')
     expect(text).toContain('The furthest 5 have reached I still want · dw i dal yn moyn, sentence 8 of 334.')

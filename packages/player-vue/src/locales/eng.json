@@ -1730,24 +1730,21 @@
           "say": "Under the card, every class here, the one that has gone longest without practising first. Each says when it last practised and its week. Tap one for its own card. Nothing is ranked by minutes."
         },
         "4": {
-          "say": "**Who has not practised this week** lists the people on their own accounts who have not — by name, never by minutes. Tap it to open."
-        },
-        "5": {
           "say": "**More about this level** keeps the three four-week questions off the first screen. Tap it to open them."
         },
-        "6": {
+        "5": {
           "say": "Open **More about this level** for the three questions over the last four weeks. **Practising** answers whether your classes are doing it: how many practised together this week against last week, and the phrases practised each day."
         },
-        "7": {
+        "6": {
           "say": "**Quiet** is the half you act on: which classes practised before and have stopped, how long ago, and which have never started. Open a class row to see where it stopped."
         },
-        "8": {
+        "7": {
           "say": "**Journey** shows where in the course each class has got to, as the last phrase it played in both languages, and the funnel shows the sentence most classes stop before. Class rows run furthest first."
         },
-        "9": {
+        "8": {
           "say": "**Voice and pause**, the last line, is what the microphone is giving us below this level. Tap it to open; read the uptake figure first — it is how many learners the rest is based on."
         },
-        "10": {
+        "9": {
           "say": "**Overview** and **Insights** are two tabs on the same place. Overview takes you back to its home — insights is a lens on where you already are, not a different page to get lost in.",
           "terminal": "Weeks lead, and there is no score to chase — a quiet week is allowed to read as a quiet week."
         }

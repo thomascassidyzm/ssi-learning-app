@@ -51,6 +51,8 @@ const props = withDefaults(defineProps<{
   prosodyByLearner?: Map<string, ProsodyAgg>
   /** true when the server capped its read — stated, never implied away. */
   truncated?: boolean
+  /** Insights never publishes a pupil (Tom, 2026-09-16): the uptake stays, the named rows do not. */
+  hideLearners?: boolean
 }>(), {
   isLoading: false,
   error: null,
@@ -284,8 +286,8 @@ const classTableResolved = computed((): ResolvedInsight => {
           <InsightWidget :spec="classTableSpec" :resolved="classTableResolved" />
         </div>
 
-        <!-- ---- Per-learner rows, click through ------------------------- -->
-        <section class="vad-panel">
+        <!-- ---- Per-learner rows, click through — admin boards only ------ -->
+        <section v-if="!hideLearners" class="vad-panel">
           <header class="vad-panel-head">
             <h3 class="vad-panel-title">{{ t('insights.vad.learnersWhoHaveData', 'The learners who have data') }}</h3>
             <p class="vad-panel-sub">
