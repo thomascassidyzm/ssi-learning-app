@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `28c7b5efffc9` · generated 2026-09-16 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `919e66a26910` · generated 2026-09-16 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -946,17 +946,18 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `class
 
 Section: seeing-progress · roles: admin, leader, school_admin · anchor: `insights-measure` · in `packages/player-vue/src/insight/NodeRateEngine.vue` · has a walk
 
-**What it's for.** Reading the pace of learning at this level — what is being counted, over what period, and against what.
+**What it's for.** Reading a week of learning at this level — how much time was spent, how much new ground was covered, and how that sits beside the school.
 
 **Where it is.** The node's home page, **See insights**.
 
 1. Open the node's home page and tap **See insights**.
-2. Pick the **measure** — rate of progress, practice minutes, or active classes. The line underneath says exactly what it means.
-3. Pick the **window** — the period the figure covers. A wider window never reads less practice than a narrower one, because practice minutes are the total inside the window, from pressing play to stopping.
-4. Use **Compare to** to put an average alongside. That average is the mean of every class in the chosen scope on this course, counted whether or not it has practised, and the class you are looking at is one of them — so it reads the same number whichever class you open it from. The figure under the average names how many classes it is a mean of.
-5. **Overview** takes you back to the same place's home page.
+2. Pick the **window**. **This week** runs from Monday morning to right now; **Last week** is the Monday to Sunday just gone. Those are the only two, because a school works in weeks.
+3. Read the three numbers. **Play as class** is time on the class's own account, the lesson from the front. **Students on their own** is time on their own accounts. **Total learning time** is those two added together.
+4. **New phrases** is how much new ground was reached for the first time that week. A week spent going back over old ground reads zero there and a healthy pile of minutes, which is exactly what that week was.
+5. Use **Compare to** to choose whose average sits in the second column. It is the mean of every class in that scope on this course, counted whether or not it has practised, and the class you are looking at is one of them — so it reads the same number whichever class you open it from.
+6. **Overview** takes you back to the same place's home page.
 
-**Worth knowing.** Rate of progress is a per-week rate; practice minutes is a plain total. The chart is one bar per day, hour or month, and a bar with no play is a zero. A class that practises from the front is counted through its own class account, so whole-class lessons show here the same as any other practice.
+**Worth knowing.** The two columns are plain numbers side by side. There is no score and no percentage, so you do the comparing yourself. The chart is one bar per week for the last twelve weeks, Monday-anchored, and a week with no play is an empty week. A class that practises from the front is counted through its own class account, so whole-class lessons show here the same as any other practice.
 
 ## Remove a student from a class
 
@@ -1733,20 +1734,20 @@ Section: seeing-progress · roles: admin · anchor: `population-chip` · in `pac
 
 **Worth knowing.** The count comes from the server, from one shared rule, never from the page itself. Two pages cannot disagree about who is real.
 
-## Why the insights show a rate, not a total
+## Why the insights are told in weeks
 
 Section: seeing-progress · roles: admin, leader, school_admin · anchor: `insights-rate-widget` · in `packages/player-vue/src/insight/NodeRateEngine.vue`
 
-**What it's for.** Everything on the insights page is a rate — an amount per learner per week — rather than a running total. A total only ever says how big and how old something is, so a large school always beats a small one. A rate says how fast it is moving, which is the thing you can actually act on.
+**What it's for.** A school plans and reviews in weeks, so the insights page counts in weeks too — Monday morning to Sunday night, on your own clock. A rolling "last seven days" straddles two different weeks of teaching and cannot be talked about in a staff meeting.
 
-**Where it is.** The comparison block under the pickers on any level's insights page.
+**Where it is.** The block under the pickers on any level's insights page.
 
 1. Open a level and tap **See insights**.
-2. Read the line under the pickers — it says in words what the current measure counts.
-3. The block below puts this level's rate beside whatever you are comparing it to.
-4. Change the window to compute the same rate over a shorter or longer period.
+2. Read the line under the pickers — it says in words what the numbers count.
+3. The block below puts this level's week beside the average's same week, as two columns of plain numbers.
+4. Switch between **This week** and **Last week**. On a Monday or a Tuesday the page opens on last week, because the week in progress is barely a lesson old.
 
-**Worth knowing.** A pace matters more than a position: a class three sentences behind but climbing fast is healthier than one parked far ahead.
+**Worth knowing.** Nothing here is a score, a target or a streak. A quiet week is allowed to read as a quiet week.
 
 ## Work through setup at your own pace
 

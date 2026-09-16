@@ -1729,16 +1729,16 @@
       "title": "Reading your insights",
       "steps": {
         "0": {
-          "say": "The **measure** picks what's being counted — progress, practice, class sessions. The line underneath the pickers says exactly what the current one means."
+          "say": "This page counts time and new phrases, by week. There is nothing to pick here — the line under the pickers says exactly what the numbers mean."
         },
         "1": {
-          "say": "The **window** is the period the rate is computed over — shorter windows react faster, longer ones smooth the noise."
+          "say": "The **window** is the school week. **This week** runs from Monday morning to right now; **Last week** is the Monday to Sunday just gone. Those are the only two."
         },
         "2": {
-          "say": "**Compare to** puts an average alongside. Everything here is a rate, not a raw total — so groups of different sizes compare fairly."
+          "say": "**Compare to** decides whose average sits beside yours. It divides by every class on the course, the quiet ones and this one included."
         },
         "3": {
-          "say": "This block is the rate itself, beside whatever you are comparing to. It is an amount per learner per week, never a running total — a total only says how big and how old a place is, a rate says how fast it is moving, which is what you can act on."
+          "say": "Three numbers for the week: time playing as a class, time students put in on their own accounts, and those two added together. Underneath, the new phrases the class reached for the first time this week. The school's same three sit beside them so you do the comparing yourself."
         },
         "4": {
           "say": "**Practising** answers whether your classes are doing it: how many practised together this week against last week, the phrases practised each day over four weeks, and which people practised on their own account and for how long."
@@ -1754,7 +1754,7 @@
         },
         "8": {
           "say": "**Overview** and **Insights** are two tabs on the same place. Overview takes you back to its home — insights is a lens on where you already are, not a different page to get lost in.",
-          "terminal": "Rates lead, position is context — and the picker text always says what a measure means."
+          "terminal": "Weeks lead, and there is no score to chase — a quiet week is allowed to read as a quiet week."
         }
       }
     },
@@ -3875,6 +3875,8 @@
       "measureLabel": "Measure",
       "notEnoughData": "Not enough data to compare fairly yet.",
       "rateOfProgressFixed": "Rate of progress (new phrases / week)",
+      "weekDesc": "A school week, Monday to Sunday. Time is in-app time from pressing play to stopping; play-as-class and students on their own accounts are counted separately and then added. New phrases are the ones the class reached for the first time in the week.",
+      "weekMeasureFixed": "Time and new phrases, by week",
       "sessionExpired": "Your session has expired — sign in again to see these numbers.",
       "timeWindowAriaLabel": "Time window",
       "windowLabel": "Window"

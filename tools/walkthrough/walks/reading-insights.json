@@ -12,10 +12,10 @@
   "keywords": [
     "insights",
     "numbers",
-    "rate",
+    "week",
     "compare",
-    "measure",
-    "window",
+    "minutes",
+    "phrases",
     "total",
     "practising",
     "quiet",
@@ -26,7 +26,7 @@
   "steps": [
     {
       "anchor": "insights-measure",
-      "say": "The **measure** picks what's being counted — progress, practice, class sessions. The line underneath the pickers says exactly what the current one means.",
+      "say": "This page counts time and new phrases, by week. There is nothing to pick here — the line under the pickers says exactly what the numbers mean.",
       "advance": {
         "on": "next"
       },
@@ -34,7 +34,7 @@
     },
     {
       "anchor": "insights-window",
-      "say": "The **window** is the period the rate is computed over — shorter windows react faster, longer ones smooth the noise.",
+      "say": "The **window** is the school week. **This week** runs from Monday morning to right now; **Last week** is the Monday to Sunday just gone. Those are the only two.",
       "advance": {
         "on": "next"
       },
@@ -42,7 +42,7 @@
     },
     {
       "anchor": "insights-compare",
-      "say": "**Compare to** puts an average alongside. Everything here is a rate, not a raw total — so groups of different sizes compare fairly.",
+      "say": "**Compare to** decides whose average sits beside yours. It divides by every class on the course, the quiet ones and this one included.",
       "advance": {
         "on": "next"
       },
@@ -50,11 +50,11 @@
     },
     {
       "anchor": "insights-rate-widget",
-      "say": "This block is the rate itself, beside whatever you are comparing to. It is an amount per learner per week, never a running total — a total only says how big and how old a place is, a rate says how fast it is moving, which is what you can act on.",
+      "say": "Three numbers for the week: time playing as a class, time students put in on their own accounts, and those two added together. Underneath, the new phrases the class reached for the first time this week. The school's same three sit beside them so you do the comparing yourself.",
       "advance": {
         "on": "next"
       },
-      "checked": "1e01448b.aceb6f49"
+      "checked": "7d832afa.c234fff1"
     },
     {
       "anchor": "insights-org-practising",
@@ -94,7 +94,7 @@
       "advance": {
         "on": "next"
       },
-      "terminal": "Rates lead, position is context — and the picker text always says what a measure means.",
+      "terminal": "Weeks lead, and there is no score to chase — a quiet week is allowed to read as a quiet week.",
       "checked": "7f2e884d.cf8e6712"
     }
   ]
