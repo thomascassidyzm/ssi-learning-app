@@ -10,9 +10,12 @@ import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import WalkOffer from './WalkOffer.vue'
 
-vi.mock('@/composables/useI18n', () => ({
-  useI18n: () => ({ t: (_k: string, fb: string) => fb }),
-}))
+// localiseWalk reads `t` directly, so the mock carries both shapes. Defined
+// inside the factory: vi.mock is hoisted above every const in this file.
+vi.mock('@/composables/useI18n', () => {
+  const t = (_k: string, fb: string) => fb
+  return { useI18n: () => ({ t }), t }
+})
 
 /** Mount standing on a route, the way the router's global $route reads. */
 function onRoute(path: string, props: Record<string, unknown>) {
