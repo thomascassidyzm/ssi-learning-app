@@ -65,7 +65,7 @@ describe('SchoolsContainer legacy flat-view redirect (govt_admin with group)', (
     expect(teacherAt).toBeGreaterThan(schoolAdminAt)
     // The school_admin branch ends in a return, so a school-scoped leader
     // never falls through into the teacher case.
-    expect(source.slice(schoolAdminAt, teacherAt)).toMatch(/\n      return\n/)
+    expect(source.slice(schoolAdminAt, teacherAt)).toMatch(/\n {6}return\n/)
   })
 
   it('is a watch on the resolving context, not a one-shot (group_id lands async after deep links)', () => {
