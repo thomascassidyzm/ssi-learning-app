@@ -5,9 +5,11 @@ import { useUserRole } from '@/composables/useUserRole'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import SchoolsTopBar from './SchoolsTopBar.vue'
 
-// Founder ruling 2026-09-16: a teacher's My Classes is a top-nav entry, sitting
-// between Dashboard and Students. Before this it was reachable only sideways,
-// through the 'Classes /' crumb on a class page.
+// Founder ruling 2026-09-16: a teacher's My Classes is a top-nav entry. Before
+// this it was reachable only sideways, through the 'Classes /' crumb on a class
+// page. Later the same day, the second half of that ruling: the dashboard and
+// My Classes are ONE page, so the teacher's nav is exactly My Classes,
+// Students, Insights and the Dashboard tab is gone.
 describe('SchoolsTopBar — teacher My Classes', () => {
   const role = useUserRole()
   const ctx = useSchoolContext()
@@ -29,12 +31,12 @@ describe('SchoolsTopBar — teacher My Classes', () => {
     await router.isReady()
   })
 
-  it('sits between Dashboard and Students and points at /schools/classes', async () => {
+  it('leads the nav, with no Dashboard tab beside it, and points at /schools/classes', async () => {
     signInTeacher()
     const wrapper = mount(SchoolsTopBar, { global: { plugins: [router], provide: { auth: null } } })
     const links = wrapper.findAll('.tabs a')
-    expect(links.map((l) => l.text())).toEqual(['Dashboard', 'My Classes', 'Students', 'Insights'])
-    expect(links[1].attributes('href')).toBe('/schools/classes')
+    expect(links.map((l) => l.text())).toEqual(['My Classes', 'Students', 'Insights'])
+    expect(links[0].attributes('href')).toBe('/schools/classes')
   })
 
   it('is highlighted on the classes list AND on a class page', async () => {

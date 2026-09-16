@@ -236,7 +236,10 @@ describe('your next three', () => {
 
   it('answers a school that has pupils and no play this week with play as class', () => {
     const picked = nextThree({ learnerCount: 40, teacherCount: 2, classCount: 3, inAppMinutes7d: 0 }, 'teacher')
-    expect(picked[0].anchor).toBe('dash-class-card-play')
+    // The dashboard's own class card went when the dashboard folded into My
+    // Classes (job #999), so the play the reader is pointed at is the one on
+    // the class page — the only Play as class a teacher now has.
+    expect(picked[0].anchor).toBe('class-page-play')
   })
 
   it('falls back to the top of Every lesson when no signal applies', () => {
