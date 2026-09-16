@@ -23,7 +23,8 @@
       "packages/player-vue/src/views/admin/AdminReleaseNotes.vue": "A reading page of release notes; nothing to operate.",
       "packages/player-vue/src/views/admin/AdminStatsView.vue": "Read-only tiles of numbers for SSi admins; nothing to operate.",
       "packages/player-vue/src/views/onboarding/Onboarding.vue": "The onboarding flow is itself a guided walk with one choice per screen.",
-      "packages/player-vue/src/views/marketing/PartnerDoor.vue": "A marketing door with one call to action."
+      "packages/player-vue/src/views/marketing/PartnerDoor.vue": "A marketing door with one call to action.",
+      "packages/player-vue/src/views/admin/AdminInsightsLabView.vue": "An admin-only decision instrument, not a schools capability: twelve drawings of one set of numbers and three tap buttons under each."
     },
     "missing": {
       "packages/player-vue/src/views/me/InboxView.vue": "Learner inbox with reply to a support thread (job #821). No anchor, no clip. Named missing by Tom 2026-09-15.",

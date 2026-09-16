@@ -867,6 +867,15 @@ const routes: RouteRecordRaw[] = [
     ],
   },
   {
+    // THE DISPLAY LAB (job #26) — a dozen renderings of one rate-compare
+    // series, side by side, with like / unsure / no per tile. Admin-gated by
+    // the /admin prefix; a decision instrument, not a product surface.
+    path: '/admin/insights-lab',
+    name: 'admin-insights-lab',
+    component: () => import('@/views/admin/AdminInsightsLabView.vue'),
+    meta: { title: 'Insights display lab' },
+  },
+  {
     // THE LENS at class level — "See insights" on a class node home.
     path: '/admin/classes/:id/insights',
     name: 'admin-class-insights',

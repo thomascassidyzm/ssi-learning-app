@@ -7897,7 +7897,10 @@ CREATE TABLE public.bug_reports (
     educational_role text,
     school_role text,
     school_id uuid,
-    group_id uuid
+    group_id uuid,
+    reply_message_id uuid,
+    replied_at timestamp with time zone,
+    replied_by text
 );
 
 
@@ -7934,6 +7937,27 @@ COMMENT ON COLUMN public.bug_reports.account_code IS 'The account code Settings 
 --
 
 COMMENT ON COLUMN public.bug_reports.reporter_email IS 'The signed-in email on the verified bearer at report time. Never from the client. Job #677.';
+
+
+--
+-- Name: COLUMN bug_reports.reply_message_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.bug_reports.reply_message_id IS 'The user_messages row the reply went out as, or null if nobody has replied. The words the learner reads live on that row, never here: bug_reports is still a postbox and the player never reads it.';
+
+
+--
+-- Name: COLUMN bug_reports.replied_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.bug_reports.replied_at IS 'When the reply was sent. Null means unanswered; the reply tool refuses to answer an answered report unless told to resend.';
+
+
+--
+-- Name: COLUMN bug_reports.replied_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.bug_reports.replied_by IS 'Auth uid of whoever sent the reply — the sender_user_id on the admin_messages broadcast.';
 
 
 --
@@ -11070,6 +11094,31 @@ ALTER TABLE public.insight_discoveries ALTER COLUMN id ADD GENERATED ALWAYS AS I
     NO MINVALUE
     NO MAXVALUE
     CACHE 1
+);
+
+
+--
+-- Name: insights_lab_verdicts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.insights_lab_verdicts (
+    id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    made_at timestamp with time zone NOT NULL,
+    admin_user_id text NOT NULL,
+    rendering text NOT NULL,
+    verdict text NOT NULL,
+    note text,
+    entity_id text NOT NULL,
+    entity_label text,
+    compare_to text NOT NULL,
+    compare_label text,
+    metric text NOT NULL,
+    window_id text NOT NULL,
+    week_label text,
+    build text,
+    screen jsonb,
+    CONSTRAINT insights_lab_verdicts_verdict_check CHECK ((verdict = ANY (ARRAY['like'::text, 'unsure'::text, 'no'::text])))
 );
 
 
@@ -14889,6 +14938,14 @@ ALTER TABLE ONLY public.htw_copy_versions
 
 ALTER TABLE ONLY public.insight_discoveries
     ADD CONSTRAINT insight_discoveries_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: insights_lab_verdicts insights_lab_verdicts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.insights_lab_verdicts
+    ADD CONSTRAINT insights_lab_verdicts_pkey PRIMARY KEY (id);
 
 
 --
@@ -18745,6 +18802,14 @@ ALTER TABLE ONLY public.bug_reports
 
 
 --
+-- Name: bug_reports bug_reports_reply_message_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bug_reports
+    ADD CONSTRAINT bug_reports_reply_message_id_fkey FOREIGN KEY (reply_message_id) REFERENCES public.user_messages(id) ON DELETE SET NULL;
+
+
+--
 -- Name: build_jobs build_jobs_course_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -20883,6 +20948,12 @@ ALTER TABLE public.htw_copy_versions ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.insight_discoveries ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: insights_lab_verdicts; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.insights_lab_verdicts ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: invite_codes; Type: ROW SECURITY; Schema: public; Owner: -
@@ -24449,6 +24520,13 @@ GRANT ALL ON TABLE public.human_clip_speakers TO service_role;
 GRANT ALL ON SEQUENCE public.insight_discoveries_id_seq TO anon;
 GRANT ALL ON SEQUENCE public.insight_discoveries_id_seq TO authenticated;
 GRANT ALL ON SEQUENCE public.insight_discoveries_id_seq TO service_role;
+
+
+--
+-- Name: TABLE insights_lab_verdicts; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.insights_lab_verdicts TO service_role;
 
 
 --

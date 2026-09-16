@@ -7,6 +7,7 @@ import {
   newPhrasesInRange,
   rangeMinutesByActor,
   weeklyMinutesBars,
+  weeklyPhrasesBars,
   type ScopedSessionRow,
 } from './rateCompare'
 
@@ -235,5 +236,16 @@ describe('bars — absence and zero are different nothings', () => {
   it('meanBars averages only what is present, and keeps a fully-absent week absent', () => {
     expect(meanBars([[null, 10, 20], [null, 20, null]])).toEqual([null, 15, 20])
     expect(meanBars([])).toEqual([])
+  })
+
+  it('weeklyPhrasesBars: the cursor advance per week, absent before the cohort started, and the last bar equals newPhrasesInRange for that week', () => {
+    const firstPlay = new Map<string, number | null>([['c1', MON + WEEK + 1000]])
+    const rows = [
+      row({ class_id: 'c1', started_at: MON + WEEK + 1000, start_ord: 1, end_ord: 12 }),
+      row({ class_id: 'c1', started_at: MON + 2 * WEEK + 2000, start_ord: 12, end_ord: 17 }),
+    ]
+    const bars = weeklyPhrasesBars(rows, ['c1'], buckets, (end) => cohortFor(['c1'], firstPlay, end))
+    expect(bars).toEqual([null, 12, 5])
+    expect(bars[2]).toBe(newPhrasesInRange(rows, ['c1'], buckets[2].startMs, buckets[2].endMs))
   })
 })
