@@ -4093,5 +4093,236 @@
     "gotoHref": "/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
     "urlAfterGoto": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
     "anchorExistsAfterGoto": true
+  },
+  {
+    "id": "set-your-language-and-time-zone",
+    "title": "Set your language and time zone",
+    "anchor": "settings-localisation-save",
+    "place": "settings",
+    "clips": [
+      "school-language-and-time-zone"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/schools/settings",
+    "walkActiveAfterShowMe": "school-language-and-time-zone:0",
+    "walkId": "school-language-and-time-zone",
+    "steps": [
+      {
+        "idx": 0,
+        "anchorWanted": "settings-tab-locale",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Localisation",
+          "box": {
+            "x": 379,
+            "y": 378.75,
+            "w": 202,
+            "h": 40.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "settings-localisation-save",
+        "ringCount": 0,
+        "anchored": {
+          "exists": false
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "settings-localisation-save",
+        "ringCount": 0,
+        "anchored": {
+          "exists": false
+        },
+        "cardPresent": true
+      },
+      {
+        "note": "no active state — walk ended/lost"
+      }
+    ],
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools/settings",
+    "urlAfterGoto": "https://staging.saysomethingin.app/schools/settings",
+    "anchorExistsAfterGoto": false
+  },
+  {
+    "id": "start-a-class-session-from-the-list",
+    "title": "Start a class session from the list",
+    "anchor": "classes-row-play",
+    "place": "classes",
+    "clips": [
+      "start-or-make-a-class"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/schools/classes",
+    "walkActiveAfterShowMe": "start-or-make-a-class:0",
+    "walkId": "start-or-make-a-class",
+    "steps": [
+      {
+        "idx": 0,
+        "anchorWanted": "classes-row-play",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "▶ Play as class",
+          "box": {
+            "x": 1094.140625,
+            "y": 815.9375,
+            "w": 112.859375,
+            "h": 30
+          },
+          "inViewport": false
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "verb-new-class",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "+ New class",
+          "box": {
+            "x": 1112.453125,
+            "y": 380.59375,
+            "w": 107.546875,
+            "h": 39.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "classes-export",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Export CSV",
+          "box": {
+            "x": 1007.328125,
+            "y": 380.59375,
+            "w": 97.125,
+            "h": 39.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "classes-export",
+        "ringCount": 0,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Export CSV",
+          "box": {
+            "x": 1007.328125,
+            "y": 380.59375,
+            "w": 97.125,
+            "h": 39.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "note": "no active state — walk ended/lost"
+      }
+    ],
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools/classes",
+    "urlAfterGoto": "https://staging.saysomethingin.app/schools/classes",
+    "anchorExistsAfterGoto": true
+  },
+  {
+    "id": "students-on-their-own-accounts",
+    "title": "Students on their own accounts",
+    "anchor": "class-roster",
+    "place": "class-detail",
+    "clips": [
+      "what-the-class-tools-page-counts"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/schools/classes/d52efceb-da67-413b-a660-9fbe6c48a494",
+    "walkActiveAfterShowMe": "what-the-class-tools-page-counts:0",
+    "walkId": "what-the-class-tools-page-counts",
+    "steps": [
+      {
+        "idx": 0,
+        "anchorWanted": "class-tools-note",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "P",
+          "text": "This is the class's tools page. Its practice, minutes in the",
+          "box": {
+            "x": 374,
+            "y": 304.4375,
+            "w": 468.1875,
+            "h": 42
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "class-roster",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "SECTION",
+          "text": "Students on their own accountsOnly pupils who have signed in",
+          "box": {
+            "x": 374,
+            "y": 70.4375,
+            "w": 509.53125,
+            "h": 640
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "class-roster",
+        "ringCount": 0,
+        "anchored": {
+          "exists": true,
+          "tag": "SECTION",
+          "text": "Students on their own accountsOnly pupils who have signed in",
+          "box": {
+            "x": 374,
+            "y": 70.4375,
+            "w": 509.53125,
+            "h": 640
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "note": "no active state — walk ended/lost"
+      }
+    ],
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools/classes",
+    "urlAfterGoto": "https://staging.saysomethingin.app/schools/classes",
+    "anchorExistsAfterGoto": false
   }
 ]
