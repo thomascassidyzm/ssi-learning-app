@@ -1,5 +1,5 @@
 {
-  "version": "efb62cfe6bd8",
+  "version": "e5ad5ac76500",
   "generatedAt": "2026-09-16",
   "walks": [
     {
@@ -1905,9 +1905,9 @@
         "phrases",
         "total",
         "classes",
-        "quiet",
         "voice",
-        "pause"
+        "pause",
+        "journey"
       ],
       "steps": [
         {
@@ -1940,28 +1940,14 @@
         },
         {
           "anchor": "insights-more",
-          "say": "**More about this level** keeps the three four-week questions off the first screen. Tap it to open them.",
-          "advance": {
-            "on": "next"
-          }
-        },
-        {
-          "anchor": "insights-org-practising",
-          "say": "Open **More about this level** for the three questions over the last four weeks. **Practising** answers whether your classes are doing it: how many practised together this week against last week, and the phrases practised each day.",
-          "advance": {
-            "on": "next"
-          }
-        },
-        {
-          "anchor": "insights-org-quiet",
-          "say": "**Quiet** is the half you act on: which classes practised before and have stopped, how long ago, and which have never started. Open a class row to see where it stopped.",
+          "say": "**More about this level** keeps the journey question off the first screen — how far through the course your classes are, and where most of them stop. Tap it to open.",
           "advance": {
             "on": "next"
           }
         },
         {
           "anchor": "insights-org-journey",
-          "say": "**Journey** shows where in the course each class has got to, as the last phrase it played in both languages, and the funnel shows the sentence most classes stop before. Class rows run furthest first.",
+          "say": "**Journey** shows where in the course each class has got to, as the last phrase it played in both languages, and the funnel shows the sentence most classes stop before. Nothing here is ranked.",
           "advance": {
             "on": "next"
           }
@@ -5637,9 +5623,10 @@
       ],
       "keywords": [
         "more",
-        "practising",
-        "quiet",
         "journey",
+        "course",
+        "stop",
+        "drop off",
         "four weeks",
         "questions"
       ],
@@ -5656,13 +5643,13 @@
         "/org/:id/insights"
       ],
       "walk": null,
-      "what": "The three questions about this level — are they doing it, who has stopped, and where in the course each class has got to — kept off the first screen so the card and the class list can be read at a glance.",
+      "what": "Where in the course this level's classes have got to, and the point most of them stop before — kept off the first screen so the card and the class list can be read at a glance.",
       "where": "**More about this level**, under the class list on any level's insights page. Tap it to open.",
       "how": [
         "Tap the line to open it.",
-        "Read the three questions, each answered in a sentence with its own small chart underneath."
+        "Read the journey question, answered in a sentence with its funnel underneath."
       ],
-      "note": "These count the last four weeks, not the school week the card above counts, and nothing in them compares you with anyone else."
+      "note": "It reads the same course the card above reads. Whether classes are practising, and which have gone quiet, are answered by the card and the class list above rather than asked again here — they used to be, counted over a different four weeks, and the two answers disagreed. An organisation with no classes anywhere sees the people question here instead, which is the only one that can apply to it."
     },
     {
       "id": "move-a-teacher-to-another-class",
@@ -7949,13 +7936,12 @@
       ],
       "walk": null,
       "what": "Where in the course your classes have got to, shown as the last phrase each class played, and the point most of them stop before. An organisation with no classes does not see this question.",
-      "where": "The **Journey** question on any level's insights page, under Quiet.",
+      "where": "The **Journey** question under **More about this level** on any level's insights page. It is the only question there, because the card and the class list above it answer the other two.",
       "how": [
         "Read the sentence for how many classes have started, how far the furthest have got and where most stop.",
-        "Read the funnel: each step is a sentence of the course, and the bar is how many classes have reached it.",
-        "Read the class rows, furthest first, for each class's own position."
+        "Read the funnel: each step is a sentence of the course, and the bar is how many classes have reached it."
       ],
-      "note": "A position is the phrase the class last played, in both languages. A sentence is one of the course's own sentences; the count out of the total says how far along that is."
+      "note": "A position is the phrase the class last played, in both languages. A sentence is one of the course's own sentences; the count out of the total says how far along that is. No class is named or ranked here: there is no order of merit to read off it, and the list on the page above is ordered by who has been quiet longest. It reads the same course the card above it reads."
     },
     {
       "id": "where-in-the-world-people-are-using-us-and-on-what",
@@ -8112,45 +8098,6 @@
       "note": "When fewer than five real people have practised a course, the page says **too few to say** rather than showing a number. That is the truth about the course, not a fault in the page."
     },
     {
-      "id": "which-classes-have-gone-quiet",
-      "title": "Which classes have gone quiet",
-      "section": "seeing-progress",
-      "moment": "something-wrong",
-      "personas": [
-        "leader",
-        "school_admin"
-      ],
-      "keywords": [
-        "quiet",
-        "gone quiet",
-        "never started",
-        "stopped",
-        "not practising",
-        "drop off"
-      ],
-      "place": {
-        "route": "node-insights"
-      },
-      "anchor": "insights-org-quiet",
-      "surface": "schools",
-      "source": "packages/player-vue/src/insight/OrgIntelPanel.vue",
-      "routes": [
-        "/admin/classes/:id/insights",
-        "/admin/groups/:id/analytics",
-        "/admin/schools/:id/analytics",
-        "/org/:id/insights"
-      ],
-      "walk": null,
-      "what": "The half you act on: which classes practised before and have stopped, how long ago, and which have never started at all. An organisation with no classes does not see this question.",
-      "where": "The **Quiet** question on any level's insights page, under Practising.",
-      "how": [
-        "Read the sentence for how many classes have gone quiet and how many have never started.",
-        "Read the bars for how long since each class last practised.",
-        "Open a class row to see where it stopped."
-      ],
-      "note": "Practised this week counts any sign of practice, a phrase reached in a lesson or the course opened and progress saved. The Practising figure above counts phrases practised only, so it can be lower."
-    },
-    {
       "id": "which-classes-practised-this-week",
       "title": "Which classes practised this week",
       "section": "seeing-progress",
@@ -8182,14 +8129,12 @@
         "/org/:id/insights"
       ],
       "walk": null,
-      "what": "Whether your classes are actually doing it: how many practised together in the last seven days against the seven before, how many phrases they practised, and how many people practised on their own account — a count, never a name. An organisation with no classes reads only the people line here, asked as how many of your people practised.",
-      "where": "The **Practising** question under **More about this level** on any level's insights page.",
+      "what": "Whether the people under an organisation that runs no classes are actually doing it: how many practised on their own account in the last seven days against the seven before, and how many minutes between them — a count, never a name.",
+      "where": "Under **More about this level** on the insights page of an organisation with no classes anywhere below it. A school or a group with classes does not see this question: the card at the top of its page answers it, in school weeks, and the class list under the card says which classes those minutes came from.",
       "how": [
-        "Read the sentence for this week against last week.",
-        "Read the line for how many phrases were practised each day over the last four weeks.",
-        "Read the class rows for which classes practised, when they last practised together and where in the course they are."
+        "Read the sentence for this week against last week."
       ],
-      "note": "A class's minutes are time in the app on its own class account, the gaps between phrases included, the same number its class page shows. People's own-account minutes are counted in the sentence and never listed by name."
+      "note": "People's own-account minutes are counted in the sentence and never listed by name."
     },
     {
       "id": "which-courses-are-worth-attention",

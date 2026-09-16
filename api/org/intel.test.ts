@@ -142,8 +142,8 @@ vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({ from: (table: string) => makeChainable(table) }),
 }))
 
-function makeReq(nodeId: string): VercelRequest {
-  return { method: 'GET', query: { nodeId }, headers: { authorization: 'Bearer tok' } } as any
+function makeReq(nodeId: string, extra: Record<string, string> = {}): VercelRequest {
+  return { method: 'GET', query: { nodeId, ...extra }, headers: { authorization: 'Bearer tok' } } as any
 }
 function makeRes(): VercelResponse & { statusCode?: number; body?: any } {
   const res: any = {}
@@ -316,5 +316,44 @@ describe('GET /api/org/intel — the three answers', () => {
     expect(pure.journeyStages([1, 1], 334)).toEqual([{ sentence: null, classes: 2 }, { sentence: 2, classes: 0 }])
     // Never a milestone beyond the course's own length.
     expect(pure.journeyStages([3], 3).map((s) => s.sentence)).toEqual([null, 2, 3])
+  })
+})
+
+// ── THE INSIGHTS PAGE'S OWN CALL (job #32 fix-up, 2026-09-16) ──────────────
+// Two defects the cold check found on staging, pinned: the panel under the
+// card answered for every course while the card answered for one, and the
+// page received 90 named pupils it never drew. Both seen RED before the fix.
+describe('GET /api/org/intel — the call the Insights page makes', () => {
+  it('?courseCode= narrows every figure to the card\'s own course', async () => {
+    TABLES.classes.push({ id: 'class-m', class_name: '8M Marathi', course_code: 'eng_for_mar', school_id: 'school-1', group_id: 'school-node', teacher_user_id: 'teacher-1', class_learner_id: 'cl-m', is_active: true })
+    const res = makeRes()
+    await handler(makeReq('school-1', { courseCode: 'eng_for_mar' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.courseCode).toBe('eng_for_mar')
+    expect(res.body.classes.map((c: any) => c.name)).toEqual(['8M Marathi'])
+    expect(res.body.practising.classCount).toBe(1)
+    expect(res.body.journey.courses.map((c: any) => c.code)).toEqual(['eng_for_mar'])
+  })
+
+  it('?questions=journey sends no pupil, and reads no ledger to build one', async () => {
+    const res = makeRes()
+    await handler(makeReq('school-1', { questions: 'journey' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.people).toEqual([])
+    // Absence, never a zero: the payload says the people were not asked for.
+    expect(res.body.peopleIncluded).toBe(false)
+    expect(reads).not.toContain('learner_speaking_opportunities')
+    const wire = JSON.stringify(res.body)
+    for (const name of ['Mr Lloyd', 'Ms Rhys', 'Angharad']) expect(wire).not.toContain(name)
+    // The journey itself is intact.
+    expect(res.body.journey.stages[0].classes).toBe(2)
+  })
+
+  it('the default call is unchanged — the people question still answers', async () => {
+    const res = makeRes()
+    await handler(makeReq('school-1'), res)
+    expect(res.body.peopleIncluded).toBe(true)
+    expect(res.body.people.length).toBeGreaterThan(0)
+    expect(res.body.courseCode).toBeNull()
   })
 })

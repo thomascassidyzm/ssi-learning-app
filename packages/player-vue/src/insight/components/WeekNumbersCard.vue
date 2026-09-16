@@ -104,6 +104,13 @@ const props = defineProps<{
   noCohortReason?: string | null
   /** Totals since the class started; class entities only. */
   allTime?: AllTimeBlock | null
+  /**
+   * What ONE member of the cohort is — "class" above a class, "school" above a
+   * school (the server's own `levelNoun`, the noun its `sizeLabel` is counted
+   * in). The why? text said "the mean of classes" on a leader's page where the
+   * denominator was three schools (job #32 fix-up, 2026-09-16).
+   */
+  unitNoun?: string
 }>()
 
 /** Minutes as a school reads them: "1h 25m" past the hour, plain minutes below. */
@@ -143,6 +150,14 @@ const rows = computed(() => [
 
 const whyOpen = ref(false)
 
+// The cohort's own unit, never a guess: a school's average is a mean of
+// schools, a class's a mean of classes.
+const unitWord = computed(() => props.unitNoun || t('insights.week.unitClass', 'class'))
+const whyText = computed(() => t(
+  'insights.week.whyText',
+  'Minutes are time while the play button was playing, on the class account and on students’ own accounts, added together. New phrases are the ones the class reached for the first time that week. The two move apart on purpose: in Fast mode a class covers more new phrases in the same minutes, in Easy mode fewer. Neither is skipping ahead or going back. The average beside you is the mean of every {unit} in that scope that has started this course, this {unit} included, so it reads the same whoever opens it.',
+).split('{unit}').join(unitWord.value))
+
 const allTimeLine = computed(() => {
   const a = props.allTime
   if (!a) return null
@@ -161,9 +176,7 @@ const allTimeLine = computed(() => {
       <p class="wk-range">{{ data.rangeLabel }}</p>
       <button type="button" class="wk-why" :aria-expanded="whyOpen" @click="whyOpen = !whyOpen">{{ t('insights.widget.whyLink', 'why?') }}</button>
     </header>
-    <p v-if="whyOpen" class="wk-why-text">
-      {{ t('insights.week.whyText', 'Minutes are time while the play button was playing, on the class account and on students’ own accounts, added together. New phrases are the ones the class reached for the first time that week. The two move apart on purpose: in Fast mode a class covers more new phrases in the same minutes, in Easy mode fewer. Neither is skipping ahead or going back. The average beside you is the mean of every class in that scope that has started this course, this class included, so it reads the same whoever opens it.') }}
-    </p>
+    <p v-if="whyOpen" class="wk-why-text">{{ whyText }}</p>
 
     <!-- ── The three numbers: label | this class | the cohort, side by side ── -->
     <div class="wk-table" :class="{ 'wk-table-solo': !cohort }" role="table">

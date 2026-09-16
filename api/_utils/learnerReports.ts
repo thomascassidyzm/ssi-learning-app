@@ -197,7 +197,9 @@ async function loadReplyMessages(svc: SupabaseClient, ids: string[]): Promise<Ma
 }
 
 export async function loadLearnerReport(svc: SupabaseClient, source: ReportSource, id: string): Promise<LearnerReport | null> {
-  const columns = source === 'bug_report' ? BUG_COLUMNS : TESTER_COLUMNS
+  // `as string`: a union of two column literals sends PostgREST's generic
+  // select() inference past its own limit (TS2590), red on dev since job #28.
+  const columns: string = source === 'bug_report' ? BUG_COLUMNS : TESTER_COLUMNS
   const { data, error } = await svc.from(REPORT_TABLES[source]).select(columns).eq('id', id).maybeSingle()
   if (error) throw new LearnerReportError(error.message)
   if (!data) return null

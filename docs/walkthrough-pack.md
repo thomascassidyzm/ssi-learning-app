@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `efb62cfe6bd8` · generated 2026-09-16 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `e5ad5ac76500` · generated 2026-09-16 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## add-a-class-under-a-group — Add a class to a group
 
@@ -397,12 +397,10 @@ Personas: admin, leader, school_admin · place: node-insights
 2. [`insights-compare` · next] **Compare to** decides whose average sits beside yours. It opens on the smallest group this level is part of that holds more than one, and walks up from there — year, department, school, district. Every class in that scope that has started this course counts, this one included.
 3. [`insights-rate-widget` · next] One card, two columns. Down the left: time playing as a class, time students put in on their own accounts, those two added together, and the new phrases reached for the first time this week. The average's same numbers sit beside each so you do the comparing yourself. The thin line under the total is the last twelve weeks.
 4. [`insights-classes` · next] Under the card, every class here, the one that has gone longest without practising first. Each says when it last practised and its week. Tap one for its own card. Nothing is ranked by minutes.
-5. [`insights-more` · next] **More about this level** keeps the three four-week questions off the first screen. Tap it to open them.
-6. [`insights-org-practising` · next] Open **More about this level** for the three questions over the last four weeks. **Practising** answers whether your classes are doing it: how many practised together this week against last week, and the phrases practised each day.
-7. [`insights-org-quiet` · next] **Quiet** is the half you act on: which classes practised before and have stopped, how long ago, and which have never started. Open a class row to see where it stopped.
-8. [`insights-org-journey` · next] **Journey** shows where in the course each class has got to, as the last phrase it played in both languages, and the funnel shows the sentence most classes stop before. Class rows run furthest first.
-9. [`insights-voice-pause` · next] **Voice and pause**, the last line, is what the microphone is giving us below this level. Tap it to open; read the uptake figure first — it is how many learners the rest is based on.
-10. [`insights-overview` · next] **Overview** and **Insights** are two tabs on the same place. Overview takes you back to its home — insights is a lens on where you already are, not a different page to get lost in.
+5. [`insights-more` · next] **More about this level** keeps the journey question off the first screen — how far through the course your classes are, and where most of them stop. Tap it to open.
+6. [`insights-org-journey` · next] **Journey** shows where in the course each class has got to, as the last phrase it played in both languages, and the funnel shows the sentence most classes stop before. Nothing here is ranked.
+7. [`insights-voice-pause` · next] **Voice and pause**, the last line, is what the microphone is giving us below this level. Tap it to open; read the uptake figure first — it is how many learners the rest is based on.
+8. [`insights-overview` · next] **Overview** and **Insights** are two tabs on the same place. Overview takes you back to its home — insights is a lens on where you already are, not a different page to get lost in.
    - terminal: Weeks lead, and there is no score to chase — a quiet week is allowed to read as a quiet week.
 
 ## reading-minutes — How many in-app minutes are being done

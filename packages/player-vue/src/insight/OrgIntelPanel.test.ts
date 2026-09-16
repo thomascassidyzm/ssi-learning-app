@@ -3,6 +3,9 @@
  * a head of department can act on, and never in a vendor's terms.
  */
 import { describe, it, expect, vi } from 'vitest'
+
+/** The last element — `.at(-1)` is past this package's tsconfig lib. */
+const last = <T>(xs: T[]): T => xs[xs.length - 1]
 import { mount } from '@vue/test-utils'
 import OrgIntelPanel from './OrgIntelPanel.vue'
 import type { OrgIntelPayload } from './data/orgIntel'
@@ -53,7 +56,7 @@ function payload(): OrgIntelPayload {
   }
 }
 
-function mountPanel(p: OrgIntelPayload | null, extra: Partial<{ isLoading: boolean; error: string | null; member: boolean }> = {}) {
+function mountPanel(p: OrgIntelPayload | null, extra: Partial<{ isLoading: boolean; error: string | null; member: boolean; questions: ('practising' | 'quiet' | 'journey')[] }> = {}) {
   return mount(OrgIntelPanel, {
     props: { payload: p, isLoading: false, error: null, member: true, ...extra },
     global: { stubs: { RouterLink: RouterLinkStub } },
@@ -65,12 +68,10 @@ describe('OrgIntelPanel', () => {
     const w = mountPanel(payload())
     const text = w.text()
     expect(text).toContain('14 of your 34 classes practised together this week, up from 1 last week, 422 phrases practised, 5 h 52 min in the app.')
-    expect(text).toContain('24 min')                    // 7H's own in-app minutes on its row
     expect(text).not.toMatch(/\b\d+(\.\d+)?h\b/)      // never "1.2h": minutes, or "5 h 52 min" from an hour up (job #683)
     expect(text).toContain('17 of 39 people practised on their own account, 124 minutes between them.')
     // the count, never the names (Tom, 2026-09-16: per-pupil practice is recorded, never published)
     for (const p of payload().people) expect(text).not.toContain(p.name)
-    expect(text).toContain('1 class has gone quiet, and 13 have never started.')
     expect(text).toContain('21 of 34 classes have started.')
     expect(text).toContain('The furthest 5 have reached I still want · dw i dal yn moyn, sentence 8 of 334.')
     // The drop-off place: the biggest fall, earliest on a tie — 16 reached
@@ -78,19 +79,38 @@ describe('OrgIntelPanel', () => {
     expect(text).toContain('Most stop before to practice speaking · ymarfer siarad, sentence 5 of 334: 11 classes got to the step before it and no further.')
   })
 
-  it('uses one widget per question — line, bars, funnel — and links each class to its own node', () => {
+  it('uses one widget per question — the line and the funnel', () => {
     const w = mountPanel(payload())
-    expect(w.findAll('.widget-stub').map((el) => el.attributes('data-kind'))).toEqual(['time-series', 'ranked-bar', 'funnel'])
-    expect(w.find('a[href="/org/c-7h"]').exists()).toBe(true)
-    // Admin mount links into the admin class page instead.
-    expect(mountPanel(payload(), { member: false }).find('a[href="/admin/classes/c-7h"]').exists()).toBe(true)
+    expect(w.findAll('.widget-stub').map((el) => el.attributes('data-kind'))).toEqual(['funnel'])
   })
 
-  it('shows position as the phrase last played, never a bare seed id, and says what a class\'s minutes are', () => {
+  // ── job #32 fix-up, 2026-09-16 ──────────────────────────────────────────
+  it('NO CLASS IS LISTED OR RANKED: the "Classes, furthest first" table is gone', () => {
     const w = mountPanel(payload())
-    expect(w.text()).toContain('I’m going to · dw i’n mynd i')
+    expect(w.text()).not.toContain('furthest first')
+    // Not one class row, in any question: the page's own list, ordered
+    // quietest first, is where a class is read — this is the funnel.
+    expect(w.findAll('.oq-row')).toHaveLength(0)
+    expect(w.find('a[href="/org/c-7h"]').exists()).toBe(false)
+    for (const c of payload().classes) expect(w.text()).not.toContain(`>${c.name}<`)
+  })
+
+  it('asks only the questions the page says it asks', () => {
+    const w = mountPanel(payload(), { questions: ['journey'] })
+    expect(w.find('[data-walk="insights-org-journey"]').exists()).toBe(true)
+    expect(w.find('[data-walk="insights-org-practising"]').exists()).toBe(false)
+    expect(w.findAll('.widget-stub').map((el) => el.attributes('data-kind'))).toEqual(['funnel'])
+    // The card above answers the week; this says nothing about one.
+    expect(w.text()).not.toContain('practised together this week')
+  })
+
+  it('shows position as the phrase last played, never a bare seed id', () => {
+    const w = mountPanel(payload())
+    // In the sentence, and on every step of the funnel.
+    expect(w.text()).toContain('I still want · dw i dal yn moyn')
     expect(w.text()).not.toMatch(/S00\d\dL\d\d/)
-    expect(w.text()).toContain('time in the app on its own class account')
+    const funnel = last(w.findAllComponents({ name: 'InsightWidget' })).props('resolved') as any
+    expect(funnel.data.stages.map((st: any) => st.label)).toContain('I’m going to · dw i’n mynd i · sentence 3 of 334')
   })
 
   it('carries no vendor figure', () => {
@@ -103,7 +123,7 @@ describe('OrgIntelPanel', () => {
   it('states a 403 or a lapsed coverage in words rather than hiding the section', () => {
     const w = mountPanel(null, { error: 'You do not have access to this level’s practice.' })
     expect(w.text()).toContain('You do not have access to this level’s practice.')
-    expect(w.findAll('.widget-stub')).toHaveLength(3)
+    expect(w.findAll('.widget-stub')).toHaveLength(1)
   })
 })
 
@@ -134,7 +154,6 @@ describe('OrgIntelPanel on a classless organisation', () => {
     expect(text).toContain('How many of your people practised this week')
     expect(text).toContain('1 of 2 people practised on their own account, 31 minutes between them.')
     expect(text).not.toMatch(/\bclass(es)?\b/i)
-    expect(w.find('[data-walk="insights-org-quiet"]').exists()).toBe(false)
     expect(w.find('[data-walk="insights-org-journey"]').exists()).toBe(false)
   })
 
@@ -148,12 +167,12 @@ describe('OrgIntelPanel on a classless organisation', () => {
     expect(w.text()).toContain('Nobody below this has practised yet.')
   })
 
-  it('keeps the three class questions for a school, classless or not', () => {
+  it('keeps the class questions for a school, classless or not', () => {
     const w = mount(OrgIntelPanel, {
       props: { payload: payload(), isLoading: false, error: null, member: true, classless: false },
       global: { stubs: { RouterLink: RouterLinkStub } },
     })
     expect(w.text()).toContain('14 of your 34 classes practised together this week')
-    expect(w.find('[data-walk="insights-org-quiet"]').exists()).toBe(true)
+    expect(w.find('[data-walk="insights-org-journey"]').exists()).toBe(true)
   })
 })

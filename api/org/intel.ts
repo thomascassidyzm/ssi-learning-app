@@ -64,6 +64,17 @@
  * and JOURNEY's started partition the classes exactly. The write side still
  * leaves the cursor; that is a separate follow-up.
  *
+ * THE CARD'S SCOPE, WHEN THE CALLER NAMES IT (job #32 fix-up, 2026-09-16).
+ * `?courseCode=` narrows the classes to the one course the Insights card above
+ * is reading, and `?questions=journey` asks for that question alone. Both
+ * exist because a panel that answers a different question from the card it
+ * sits under is worse than no panel: the leader's page reported four classes
+ * and a rolling seven days while the card reported one class and a Monday
+ * week. `?questions=` also decides what is READ: without `practising` the
+ * people ledger is never touched, so no pupil name is assembled, let alone
+ * sent (Tom, 2026-09-16 16:31Z: nothing in Insights names a pupil). The
+ * response says `peopleIncluded: false` rather than reporting zero people.
+ *
  * NOTHING HERE COMPARES THIS NODE WITH ANY OTHER. Every figure is the node's
  * own subtree. The anonymous, k-floored rate comparison lives in
  * rate-compare.ts and stays there.
@@ -164,7 +175,12 @@ export interface OrgIntelResponse {
     stages: { id: string; sentence: number | null; label: OrgIntelPosition | null; classes: number }[]
   }
   classes: OrgIntelClassRow[]
+  /** Empty when `peopleIncluded` is false — absence, never a zero. */
   people: OrgIntelPersonRow[]
+  /** false when the caller did not ask for the practising question. */
+  peopleIncluded: boolean
+  /** The course the figures were narrowed to, echoed back; null = every course. */
+  courseCode: string | null
 }
 
 interface ClassRow {
@@ -272,7 +288,11 @@ export async function computeOrgIntel(
   classes: ClassRow[],
   scope: { schoolIds: string[]; groupIds: string[] },
   now: number = Date.now(),
+  opts: { includePeople?: boolean; courseCode?: string | null } = {},
 ): Promise<OrgIntelResponse> {
+  // People are READ only when the practising question is asked for. The
+  // Insights page asks for the journey alone, so no pupil name is assembled.
+  const includePeople = opts.includePeople !== false
   const weekAgo = now - CLASS_PRACTICE_WINDOW_DAYS * DAY_MS
   const twoWeeksAgo = now - 2 * CLASS_PRACTICE_WINDOW_DAYS * DAY_MS
   const classIds = classes.map((c) => c.id)
@@ -288,7 +308,9 @@ export async function computeOrgIntel(
         .in('learner_id', batch)
       return (data ?? []) as { learner_id: string; course_id: string | null; highest_completed_lego_id: string | null; last_completed_lego_id: string | null; last_practiced_at: string | null }[]
     })).then((pages) => pages.flat()),
-    ownAccountLearners(svc, { schoolIds: scope.schoolIds, groupIds: scope.groupIds, classIds }),
+    includePeople
+      ? ownAccountLearners(svc, { schoolIds: scope.schoolIds, groupIds: scope.groupIds, classIds })
+      : Promise.resolve(new Map<string, string>()),
     loadCourseLengths(svc, courseCodes),
     // Whole-class time: the class account's in-app seconds this week, and over
     // the fortnight so last week is the difference. Same rule as the class
@@ -322,7 +344,9 @@ export async function computeOrgIntel(
   }
   const [legoText, ledger] = await Promise.all([
     loadLegoText(svc, wantedText),
-    ownAccountLedgerByPerson(svc, [...people.keys()], LOOKBACK_DAYS, now),
+    includePeople
+      ? ownAccountLedgerByPerson(svc, [...people.keys()], LOOKBACK_DAYS, now)
+      : Promise.resolve(new Map<string, Map<string, number>>()),
   ])
 
   const positionFor = (c: ClassRow): OrgIntelPosition | null => {
@@ -447,6 +471,8 @@ export async function computeOrgIntel(
     },
     classes: classRows,
     people: personRows,
+    peopleIncluded: includePeople,
+    courseCode: opts.courseCode ?? null,
   }
 }
 
@@ -465,6 +491,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     res.status(400).json({ error: 'nodeId is required' })
     return
   }
+  // The card's own scope, when the caller names it (see the header).
+  const courseCode = String(req.query.courseCode || '').trim() || null
+  const asked = String(req.query.questions || '').trim()
+  const questions = asked ? asked.split(',').map((q) => q.trim()).filter(Boolean) : null
+  const includePeople = !questions || questions.includes('practising')
   const svc = createClient(supabaseUrl, supabaseServiceKey)
 
   try {
@@ -545,10 +576,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       ])
       classes = [...seen.values()]
     }
+    // ONE course, when the card is reading one: a class on another course is
+    // outside the question, not a quiet class inside it.
+    if (courseCode) classes = classes.filter((c) => c.course_code === courseCode)
 
     // A class lens counts its own teachers and students only — not the whole
     // school's staff — so the school ids are dropped from the people scope.
-    const body = await computeOrgIntel(svc, node, classes, { schoolIds: classRow ? [] : schoolIds, groupIds: classRow ? [] : subtreeIds })
+    const body = await computeOrgIntel(
+      svc,
+      node,
+      classes,
+      { schoolIds: classRow ? [] : schoolIds, groupIds: classRow ? [] : subtreeIds },
+      Date.now(),
+      { includePeople, courseCode },
+    )
     res.status(200).json(body)
   } catch (err) {
     console.error('[org/intel] failed', err)

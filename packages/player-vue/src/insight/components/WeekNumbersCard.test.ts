@@ -15,7 +15,7 @@ function block(over: Partial<WeekBlock> = {}): WeekBlock {
   }
 }
 
-type CardProps = { data: WeekBlock; noCohortReason?: string; allTime?: AllTimeBlock | null }
+type CardProps = { data: WeekBlock; noCohortReason?: string; allTime?: AllTimeBlock | null; unitNoun?: string }
 const render = (props: CardProps) => mount(WeekNumbersCard, { props })
 const rowText = (w: ReturnType<typeof render>, key: string) => w.findAll(`.wk-row-${key} .wk-cell`).map((c) => c.text().trim()).join(' ').trim()
 
@@ -111,5 +111,27 @@ describe('WeekNumbersCard — one card, two columns, three numbers, no rank', ()
     expect(w.text()).not.toMatch(/Fast mode/)
     await w.find('.wk-why').trigger('click')
     expect(w.text()).toMatch(/Fast mode/)
+  })
+
+  // ── job #32 fix-up, 2026-09-16 ──────────────────────────────────────────
+  it('the why? text says what the cohort is COUNTED IN — schools above a school, classes above a class', async () => {
+    const leader = render({
+      data: block({ cohort: { label: 'Pilot Districts Region average', classMinutes: 8, pupilMinutes: 2, totalMinutes: 10, newPhrases: 4, size: 3, sizeLabel: '3 schools' } }),
+      unitNoun: 'school',
+    })
+    await leader.find('.wk-why').trigger('click')
+    // Seen RED before the fix: "the mean of every class in that scope" on a
+    // page whose denominator says 3 schools.
+    expect(leader.text()).toContain('the mean of every school in that scope that has started this course, this school included')
+    expect(leader.text()).not.toContain('every class in that scope')
+
+    const teacher = render({ data: block(), unitNoun: 'class' })
+    await teacher.find('.wk-why').trigger('click')
+    expect(teacher.text()).toContain('the mean of every class in that scope')
+
+    // No noun from the server — a class, as every mount before this one was.
+    const bare = render({ data: block() })
+    await bare.find('.wk-why').trigger('click')
+    expect(bare.text()).toContain('the mean of every class in that scope')
   })
 })
