@@ -90,6 +90,7 @@ import {
   rangeMinutesByActor,
   meanWeekNumbers,
   weeklyMinutesBars,
+  weeklyPhrasesBars,
   meanBars,
   cohortFor,
   type ScopedSessionRow,
@@ -930,6 +931,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       // whenever schools differ in size, and the caption says schools.
       const cohortBars = meanBars(cohortUnits.map((u) =>
         weeklyMinutesBars(rows, u.classIds, buckets, (end) => cohortFor(u.classIds, firstPlay, end))))
+      // The phrases twin of both series (job #26, the display lab): same
+      // buckets, same cohortFor, so a phrases bar and the newPhrases number
+      // above it are one function. Additive — the minutes fields are untouched.
+      const entityPhrasesBars = weeklyPhrasesBars(rows, entityClassIds, buckets,
+        (end) => cohortFor(entityClassIds, firstPlay, end))
+      const cohortPhrasesBars = meanBars(cohortUnits.map((u) =>
+        weeklyPhrasesBars(rows, u.classIds, buckets, (end) => cohortFor(u.classIds, firstPlay, end))))
       weekBlock = {
         window: weekWindowId,
         label: windowConfig.label,
@@ -962,6 +970,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           weeks: buckets.map((b) => weekLabel(b, timeZone)),
           entity: entityBars,
           cohort: noCohortReason ? cohortBars.map(() => null) : cohortBars,
+          entityPhrases: entityPhrasesBars,
+          cohortPhrases: noCohortReason ? cohortPhrasesBars.map(() => null) : cohortPhrasesBars,
         },
         // Named, not hidden: past the cap Y is not read at all, so the total
         // is class play only and says so.

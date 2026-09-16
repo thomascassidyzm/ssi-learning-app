@@ -604,6 +604,28 @@ export function weeklyMinutesBars(
   })
 }
 
+/**
+ * Weekly NEW-PHRASES bars — the cursor advance per week bucket, oldest first,
+ * the phrases twin of weeklyMinutesBars (job #26, the display lab). SAME
+ * buckets, SAME `cohortAt` started-by-that-week rule, SAME two nothings: a
+ * `null` is a week nobody in the cohort had started, a `0` is a started week
+ * spent consolidating. Each bucket is `newPhrasesInRange` over the cohort as
+ * it stood that week, so the phrases bar for the current week and the
+ * `newPhrases` number above it are one function and cannot disagree.
+ */
+export function weeklyPhrasesBars(
+  rows: ScopedSessionRow[],
+  classIds: string[],
+  buckets: { startMs: number; endMs: number }[],
+  cohortAt?: (weekEndMs: number) => string[],
+): (number | null)[] {
+  return buckets.map((b) => {
+    const ids = cohortAt ? cohortAt(b.endMs) : classIds
+    if (ids.length === 0) return null
+    return newPhrasesInRange(rows, ids, b.startMs, b.endMs)
+  })
+}
+
 /** Element-wise mean of bar series, absence-aware: a bucket every series is absent from stays absent. */
 export function meanBars(series: (number | null)[][]): (number | null)[] {
   if (series.length === 0) return []
