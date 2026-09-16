@@ -2066,8 +2066,6 @@
     "walkthrough.weak-points.steps.2.terminal",
     "walkthrough.weak-points.title",
     "walkthrough.what-the-class-tools-page-counts.steps.0.say",
-    "walkthrough.what-the-class-tools-page-counts.steps.1.say",
-    "walkthrough.what-the-class-tools-page-counts.steps.1.terminal",
     "walkthrough.what-the-class-tools-page-counts.title",
     "walkthrough.what-they-practised.steps.0.say",
     "walkthrough.what-they-practised.steps.1.say",
@@ -2128,6 +2126,7 @@
     "walkthrough.your-classes-at-a-glance.steps.3.say",
     "walkthrough.your-classes-at-a-glance.steps.4.say",
     "walkthrough.your-classes-at-a-glance.steps.4.terminal",
-    "walkthrough.your-classes-at-a-glance.title"
+    "walkthrough.your-classes-at-a-glance.title",
+    "walkthrough.what-the-class-tools-page-counts.steps.0.terminal"
   ]
 }

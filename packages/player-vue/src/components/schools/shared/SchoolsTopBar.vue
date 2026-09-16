@@ -21,6 +21,8 @@ type NavTab = {
    * distinguishes the Schools tab (node home, schools lens) from plain
    * node-home navigation. */
   lens?: string
+  /** Stays lit on a node page — the teacher's class page is /org/:id. */
+  orgNode?: boolean
 }
 
 import { institutionalPurchaseAvailable } from '@/platform/paymentRoute'
@@ -189,7 +191,10 @@ const tabs = computed<NavTab[]>(() => {
     // routed to TeacherDashboard), which is also what every Handbook
     // description already calls it. A groupless tutor is a derived teacher and
     // keeps the same entry: their classes live on the same page.
-    { label: t('schools.ui.topBar.tabMyClasses', 'My Classes'), to: '/schools/classes', routeName: 'classes' },
+    // orgNode: since job #999 a teacher's ONE class page is the class node
+    // home at /org/:id, and a teacher reaches no other node — so the tab they
+    // came through stays lit while they are on a class.
+    { label: t('schools.ui.topBar.tabMyClasses', 'My Classes'), to: '/schools/classes', routeName: 'classes', orgNode: true },
     { label: t('schools.ui.topBar.tabStudents', 'Students'),  to: '/schools/students',  routeName: 'students' },
     // Same "Insights" unification as the school_admin set above.
     { label: t('schools.ui.topBar.tabInsights', 'Insights'),  to: '/schools/analytics', routeName: 'analytics' },
@@ -207,6 +212,8 @@ function isActive(tab: NavTab): boolean {
   }
   // /schools/classes/:id should keep "Classes" tab highlighted
   if (tab.to === '/schools/classes' && route.path.startsWith('/schools/classes')) return true
+  // …and so should the class page it now redirects to.
+  if (tab.orgNode && route.path.startsWith('/org/')) return true
   return false
 }
 

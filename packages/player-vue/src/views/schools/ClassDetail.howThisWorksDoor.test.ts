@@ -80,11 +80,13 @@ describe('ClassDetail — the How this works door opens the explainer', () => {
     expect(body.text()).toContain(opening(pack.explanations.school_admin.class))
   })
 
-  it('lists the class-detail clips for a school leader and keeps the Handbook as the second door', async () => {
+  it('keeps the Handbook as the second door', async () => {
+    // The class CLIPS moved with the class walks when the two class pages
+    // became one (job #999): they are offered at the class node home, which
+    // is where running a session, the roster and the co-teaching verbs now
+    // live. This door keeps the prose map as its second way out.
     const w = await mountAs('school_admin')
     await w.find('.htw-toggle').trigger('click')
-    const offers = w.findAll('[data-walk-offer]').map((b) => b.attributes('data-walk-offer'))
-    expect(offers).toContain('run-class-session')
     expect(w.find('.htw-handbook').attributes('href')).toBe('/schools/handbook')
   })
 

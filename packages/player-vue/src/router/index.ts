@@ -78,7 +78,6 @@ const DashboardView = () => import('@/views/schools/DashboardView.vue')
 const TeachersView = () => import('@/views/schools/TeachersView.vue')
 const StudentsView = () => import('@/views/schools/StudentsView.vue')
 const TeacherDashboard = () => import('@/views/schools/TeacherDashboard.vue')
-const ClassDetail = () => import('@/views/schools/ClassDetail.vue')
 // THE LENS: the node-scoped Insight Engine — mounted at the old analytics
 // URLs (the URLs live, the old-school analytics page died).
 const NodeInsightsView = () => import('@/views/admin/NodeInsightsView.vue')
@@ -343,25 +342,17 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
-        // THE CLASS TOOLS PAGE (Tom, 2026-09-14, jobs #624 then #651). The
-        // CLASS PAGE for every role is the class node home, /org/:id, which
-        // leads with the class's own play-as-class figures; every class row
-        // and card links there (useSchoolsNav 'class-detail'). This flat page
-        // is where the class's tooling lives — roster, co-teachers, join link,
-        // rename, delete, the copy-play repair — and is reached from the
-        // class page's own "Manage class". Job #624 redirected leaders away
-        // from it, which also took Angharad's copy-play card out of reach;
-        // it is open to every member role again, and it no longer leads with
-        // the pupils' aggregate, so landing here by an old link misleads
-        // nobody.
+        // THE CLASS TOOLS PAGE IS THE CLASS PAGE (job #999, Tom's ruling
+        // 2026-09-16: six teacher-facing views of one class collapse to four,
+        // and a teacher gets ONE class page). The tools — roster, co-teachers,
+        // join link, rename, delete, the copy-play repair — are now the
+        // **Manage class** section of the class node home at /org/:id, which
+        // already led with the class's own figures. This URL lives on as a
+        // redirect so old links, bookmarks and the admin lane's own
+        // /admin/schools/:id/classes/:classId hop keep working; query and hash
+        // ride along. The admin read-view collapsed the same way in July.
         path: 'classes/:id',
-        name: 'class-detail',
-        component: ClassDetail,
-        meta: {
-          title: 'Class tools',
-          description: 'Roster, teachers, join link and settings for one class',
-          railFrame: true,
-        },
+        redirect: (to) => ({ path: `/org/${to.params.id}`, query: to.query, hash: to.hash }),
       },
       {
         path: 'analytics',

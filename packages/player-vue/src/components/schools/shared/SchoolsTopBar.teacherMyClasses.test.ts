@@ -39,7 +39,9 @@ describe('SchoolsTopBar — teacher My Classes', () => {
 
   it('is highlighted on the classes list AND on a class page', async () => {
     signInTeacher()
-    for (const path of ['/schools/classes', '/schools/classes/abc-123']) {
+    // The class page is /org/:id since job #999; /schools/classes/:id
+    // redirects there, so the tab has to light on the destination.
+    for (const path of ['/schools/classes', '/org/abc-123']) {
       await router.push(path)
       const wrapper = mount(SchoolsTopBar, { global: { plugins: [router], provide: { auth: null } } })
       const active = wrapper.findAll('.tabs a.active').map((l) => l.text())

@@ -1,5 +1,5 @@
 {
-  "version": "5e7e1b529b13",
+  "version": "1cb763957868",
   "generatedAt": "2026-09-16",
   "walks": [
     {
@@ -127,7 +127,10 @@
         "teacher"
       ],
       "place": {
-        "route": "class-detail"
+        "route": "node-home",
+        "kinds": [
+          "class"
+        ]
       },
       "keywords": [
         "add",
@@ -310,7 +313,7 @@
         },
         {
           "anchor": "class-page-manage",
-          "say": "**Manage class** goes to the class's tools: the roster, the teachers, the join link and code, renaming and deleting. The class's practice, minutes and journey stay here on the class page.",
+          "say": "**Manage class** takes you down to the class's tools on this same page: the roster, the teachers, the join link and code, renaming and deleting.",
           "advance": {
             "on": "next"
           },
@@ -382,7 +385,10 @@
         "teacher"
       ],
       "place": {
-        "route": "class-detail"
+        "route": "node-home",
+        "kinds": [
+          "class"
+        ]
       },
       "keywords": [
         "copy",
@@ -893,7 +899,10 @@
         "school_admin"
       ],
       "place": {
-        "route": "class-detail"
+        "route": "node-home",
+        "kinds": [
+          "class"
+        ]
       },
       "keywords": [
         "lead",
@@ -1052,7 +1061,10 @@
         "school_admin"
       ],
       "place": {
-        "route": "class-detail"
+        "route": "node-home",
+        "kinds": [
+          "class"
+        ]
       },
       "keywords": [
         "supply",
@@ -1278,7 +1290,10 @@
         "teacher"
       ],
       "place": {
-        "route": "class-detail"
+        "route": "node-home",
+        "kinds": [
+          "class"
+        ]
       },
       "keywords": [
         "rename",
@@ -1291,14 +1306,14 @@
       "steps": [
         {
           "anchor": "class-rename",
-          "say": "The pencil beside the class name renames it. Only the name changes — the roster, the join link and the class's place on the course all carry on.",
+          "say": "The pencil beside the **Manage class** heading renames the class. Only the name changes — the roster, the join link and the class's place on the course all carry on.",
           "advance": {
             "on": "next"
           }
         },
         {
           "anchor": "class-delete",
-          "say": "The bin beside the name deletes the class. The app tells you what goes with it first, and asks you to type the class name back if there is real practice behind it. Students keep their own accounts and everything they have learned.",
+          "say": "The bin beside the **Manage class** heading deletes the class. The app tells you what goes with it first, and asks you to type the class name when there is real practice behind it.",
           "advance": {
             "on": "next"
           }
@@ -1414,7 +1429,10 @@
         "school_admin"
       ],
       "place": {
-        "route": "class-detail"
+        "route": "node-home",
+        "kinds": [
+          "class"
+        ]
       },
       "keywords": [
         "move",
@@ -2308,7 +2326,10 @@
         "school_admin"
       ],
       "place": {
-        "route": "class-detail"
+        "route": "node-home",
+        "kinds": [
+          "class"
+        ]
       },
       "keywords": [
         "session",
@@ -2334,7 +2355,7 @@
           }
         },
         {
-          "anchor": "class-play",
+          "anchor": "class-page-play",
           "say": "**Play as class** is the heart of it: one device — yours — leads the whole class through a session, and it counts for every student on the roster.",
           "advance": {
             "on": "next"
@@ -2700,7 +2721,10 @@
         "school_admin"
       ],
       "place": {
-        "route": "class-detail"
+        "route": "node-home",
+        "kinds": [
+          "class"
+        ]
       },
       "keywords": [
         "class",
@@ -3128,7 +3152,10 @@
         "school_admin"
       ],
       "place": {
-        "route": "class-detail"
+        "route": "node-home",
+        "kinds": [
+          "class"
+        ]
       },
       "keywords": [
         "class page",
@@ -3140,15 +3167,8 @@
       ],
       "steps": [
         {
-          "anchor": "class-tools-note",
-          "say": "A class has two pages. This one is its tools: the roster, the teachers, the join link, renaming and deleting. What the class has practised together, its minutes in the app and how far it has travelled live on the class page — the link in this line takes you there. Nothing on this page totals whole-class play.",
-          "advance": {
-            "on": "next"
-          }
-        },
-        {
           "anchor": "class-roster",
-          "say": "**Students on their own accounts** lists the pupils who have signed in as themselves and joined this class, one row each, with their belt, what they have learned, how much they have practised on that account and when they were last at it. Type a name into the search box to jump to one of them.",
+          "say": "**Roster**, under **Manage class**, lists the pupils who have signed in as themselves and joined this class, one row each, with their belt, what they have learned, how much they have practised on that account and when they were last at it. Type a name into the search box to jump to one of them.",
           "advance": {
             "on": "next"
           },
@@ -3306,7 +3326,10 @@
         "teacher"
       ],
       "place": {
-        "route": "class-detail"
+        "route": "node-home",
+        "kinds": [
+          "class"
+        ]
       },
       "keywords": [
         "progress",
@@ -3900,7 +3923,7 @@
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
       "walk": null,
       "what": "Putting a pupil who is already in your school into this class, for a pupil who has changed set or landed in the wrong class.",
-      "where": "The class page, the **Add students** button at the top of the roster.",
+      "where": "The class page, under **Manage class**, the **Add students** button at the top of the roster.",
       "how": [
         "Open the class from **My Classes**.",
         "Tap **Add students** above the roster.",
@@ -4405,7 +4428,7 @@
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
       "walk": null,
       "what": "Removing a class you no longer want, usually one set up by mistake or a group that has finished. Before anything is deleted the app tells you what goes with it.",
-      "where": "The class page, the small bin beside the class name.",
+      "where": "The class page, the small bin beside the **Manage class** heading.",
       "how": [
         "Open the class from **My Classes**.",
         "Tap the bin next to the name at the top.",
@@ -4769,7 +4792,7 @@
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
       "walk": "hand-over-the-lead",
       "what": "Passing the lead of a class to another teacher who already teaches it — for a maternity cover, a term swap, or a permanent handover.",
-      "where": "The class page, the **Teachers** section.",
+      "where": "The class page, under **Manage class**, the **Teachers** section.",
       "how": [
         "Open the class from My Classes.",
         "Scroll to **Teachers**.",
@@ -5047,7 +5070,7 @@
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
       "walk": null,
       "what": "The one door into a class. A student who follows the class link signs up and lands straight in the class, on the right course, with no code to type. The same class also has a short code for a room where a link is awkward.",
-      "where": "The class page, the **Invite students** card.",
+      "where": "The class page, under **Manage class**, the **Invite students** card.",
       "how": [
         "Open the class from **My Classes**.",
         "Copy the link from the **Invite students** card and send it to your students.",
@@ -5112,7 +5135,7 @@
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
       "walk": "invite-a-supply-teacher",
       "what": "Getting a teacher who has no account yet into one class of yours, without going through the school admin.",
-      "where": "The class page, the **Teachers** section.",
+      "where": "The class page, under **Manage class**, the **Teachers** section.",
       "how": [
         "Open the class from My Classes.",
         "Scroll to **Teachers**.",
@@ -5279,14 +5302,14 @@
       "surface": "schools",
       "source": "packages/player-vue/src/views/admin/NodeHomeView.vue",
       "walk": null,
-      "what": "Getting from the class page to the class's tools: the roster of pupils on their own accounts, the teachers, the join link and code, renaming and deleting.",
+      "what": "Getting to the class's tools: the roster of pupils on their own accounts, the teachers, the join link and code, renaming and deleting.",
       "where": "The class page, the **Manage class** link beside the class name.",
       "how": [
         "Open the class.",
         "Tap **Manage class**.",
-        "The tools page opens; its own **Open the class page** line brings you back."
+        "The page scrolls down to the tools, on the same page."
       ],
-      "note": "The class's practice, minutes and journey stay on the class page. The tools page never totals whole-class play."
+      "note": "The class's practice, minutes and journey stay at the top of the page, above the tools. Nothing in the tools totals whole-class play."
     },
     {
       "id": "minutes-in-the-app-this-week",
@@ -5339,7 +5362,7 @@
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
       "walk": "move-a-teacher-between-classes",
       "what": "Changing which classes a teacher is on, in one pass, without visiting each class in turn.",
-      "where": "The class page, the **Teachers** section, a teacher's other classes.",
+      "where": "The class page, under **Manage class**, the **Teachers** section, a teacher's other classes.",
       "how": [
         "Open a class the teacher is on.",
         "Scroll to **Teachers** and open their other classes.",
@@ -5834,7 +5857,7 @@
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
       "walk": null,
       "what": "Taking a student off a class roster, for a pupil who has changed set or joined the wrong class from a shared link.",
-      "where": "The class page, the **Remove** button at the end of the student's row in the roster.",
+      "where": "The class page, under **Manage class**, the **Remove** button at the end of the student's row in the roster.",
       "how": [
         "Open the class from **My Classes**.",
         "Find the student in the roster.",
@@ -5896,7 +5919,7 @@
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
       "walk": null,
       "what": "Changing what a class is called, for a name typed in a hurry or a group that has moved up a year.",
-      "where": "The class page, the small pencil beside the class name.",
+      "where": "The class page, the small pencil beside the **Manage class** heading.",
       "how": [
         "Open the class from **My Classes**.",
         "Tap the pencil next to the name at the top.",
@@ -6002,38 +6025,6 @@
         "Write what happened, add a screenshot if you have one, and tap **Send**."
       ],
       "note": "Nobody replies through the app: the note goes to one place where we read it. Questions about the dashboard go to **Support** instead. The item is not shown while a platform admin is viewing the dashboard as someone else."
-    },
-    {
-      "id": "run-your-first-class-session",
-      "title": "Run your first class session",
-      "section": "running-classes",
-      "personas": [
-        "teacher"
-      ],
-      "keywords": [
-        "session",
-        "play",
-        "class",
-        "run",
-        "join",
-        "code"
-      ],
-      "place": {
-        "route": "class-detail"
-      },
-      "anchor": "class-play",
-      "surface": "schools",
-      "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
-      "walk": "run-class-session",
-      "what": "Running a live practice session with a class in the room, everyone hearing the same thing at the same time.",
-      "where": "The class page, the join link and the play button.",
-      "how": [
-        "Open the class from My Classes.",
-        "Put the join link or the join code on the screen for the room.",
-        "Wait for the students to arrive on their own devices.",
-        "Tap play to start the session."
-      ],
-      "note": "The join code is the same code all lesson, so a student arriving late still gets in. While a platform admin is viewing the page as you the play button is greyed out and does nothing."
     },
     {
       "id": "say-what-happened",
@@ -6455,7 +6446,7 @@
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
       "walk": "share-a-class",
       "what": "Adding another teacher to a class you already run, so you both see the same roster and the same progress.",
-      "where": "The class page, the **Teachers** section.",
+      "where": "The class page, under **Manage class**, the **Teachers** section.",
       "how": [
         "Open the class from My Classes.",
         "Scroll to **Teachers**.",
@@ -6520,9 +6511,9 @@
       "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
       "walk": null,
       "what": "The pupils who have signed in on their own account and joined this class, one row each, with their belt, how much they have learned, how much they have practised on that account and when they were last at it. It counts only what each pupil did signed in as themselves. Whole-class play from the front is not in this table; that is on the class page.",
-      "where": "The class tools page, the **Students on their own accounts** table.",
+      "where": "The class page, under **Manage class**, the roster table.",
       "how": [
-        "Open **Manage class** from the class page.",
+        "Open the class from **My Classes** and scroll to **Manage class**.",
         "Read down the rows for who is practising on their own and who has gone quiet.",
         "Type a name into the search box to jump to one student."
       ],
@@ -7184,37 +7175,6 @@
       "note": "This is deliberately an honest count rather than a gate. We would rather show you the gap than shut a class out mid-lesson."
     },
     {
-      "id": "where-a-class-s-practice-is-read",
-      "title": "Where a class's practice is read",
-      "section": "seeing-progress",
-      "personas": [
-        "teacher",
-        "school_admin"
-      ],
-      "keywords": [
-        "class page",
-        "tools",
-        "practice",
-        "minutes",
-        "journey",
-        "manage"
-      ],
-      "place": {
-        "route": "class-detail"
-      },
-      "anchor": "class-tools-note",
-      "surface": "schools",
-      "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
-      "walk": null,
-      "what": "Telling the two pages of a class apart. The class page carries what the class has practised together, its minutes in the app and how far it has travelled. This page is the class's tools: the roster, the teachers, the join link, renaming and deleting.",
-      "where": "The line under the class name at the top of the tools page.",
-      "how": [
-        "Read the line.",
-        "Tap **Open the class page** to go to the class's practice."
-      ],
-      "note": "Nothing on this page totals whole-class play. A class played from the front shows its minutes on the class page, never here."
-    },
-    {
       "id": "where-classes-are-in-the-course-and-where-they-stop",
       "title": "Where classes are in the course and where they stop",
       "section": "seeing-progress",
@@ -7282,36 +7242,6 @@
         "Read the rows, one per country, each with its phone, tablet and desktop split and its in-the-app or in-a-browser split. Tap a country to narrow the page to it; tap a device chip to count only that device. Both choices are written into the page address."
       ],
       "note": "A person seen on two devices is counted once in the headline and once under each device. In the app or in a browser has only been recorded since 10 September 2026, so earlier people read as not recorded rather than being guessed at. Machine traffic is left out by rule."
-    },
-    {
-      "id": "where-the-class-has-got-to",
-      "title": "Where the class has got to",
-      "section": "seeing-progress",
-      "personas": [
-        "teacher"
-      ],
-      "keywords": [
-        "progress",
-        "journey",
-        "belt",
-        "position",
-        "course"
-      ],
-      "place": {
-        "route": "class-detail"
-      },
-      "anchor": "class-journey",
-      "surface": "schools",
-      "source": "packages/player-vue/src/views/schools/ClassDetail.vue",
-      "walk": null,
-      "what": "How far the class has travelled through its course, as a bar in phrases with the next belt named. A class is one learner account played from the front, so this is the class's own place on the course, moved by the sessions you run together.",
-      "where": "The class page, the **Course Journey** card in the column beside the roster.",
-      "how": [
-        "Open the class from **My Classes**.",
-        "Read the bar for how much of the course the class has covered.",
-        "Read the line under it for how far it is to the next belt."
-      ],
-      "note": "A class that has never played says **Not started** in words; it is never shown as a bar of zero."
     },
     {
       "id": "whether-a-class-is-practising-together",
