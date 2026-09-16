@@ -78,7 +78,7 @@ describe('SchoolsTopBar — school_admin tab set', () => {
     expect(active).toEqual(['Dashboard'])
   })
 
-  it('a teacher tab set is unchanged (Dashboard/Students/Insights, flat)', async () => {
+  it('a teacher keeps the flat set, now with My Classes between Dashboard and Students', async () => {
     role.initialize(null, 'teacher')
     ;(ctx.currentUser as any).value = {
       user_id: 'teach-1', learner_id: 'l3', display_name: 'Teacher', educational_role: 'teacher',
@@ -86,8 +86,9 @@ describe('SchoolsTopBar — school_admin tab set', () => {
     }
     const wrapper = mount(SchoolsTopBar, { global: { plugins: [router], provide: { auth: null } } })
     const links = wrapper.findAll('.tabs a')
-    expect(links.map((l) => l.text())).toEqual(['Dashboard', 'Students', 'Insights'])
+    expect(links.map((l) => l.text())).toEqual(['Dashboard', 'My Classes', 'Students', 'Insights'])
     expect(links[0].attributes('href')).toBe('/schools')
-    expect(links[2].attributes('href')).toBe('/schools/analytics')
+    expect(links[1].attributes('href')).toBe('/schools/classes')
+    expect(links[3].attributes('href')).toBe('/schools/analytics')
   })
 })

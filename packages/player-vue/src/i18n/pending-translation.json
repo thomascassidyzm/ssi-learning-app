@@ -1474,6 +1474,7 @@
     "schools.ui.topBar.tabClasses",
     "schools.ui.topBar.tabDashboard",
     "schools.ui.topBar.tabInsights",
+    "schools.ui.topBar.tabMyClasses",
     "schools.ui.topBar.tabOrganisation",
     "schools.ui.topBar.tabStudents",
     "schools.ui.topBar.tabTeachers",
