@@ -124,6 +124,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const admin = createClient(supabaseUrl, supabaseServiceKey)
+  // A SECOND client, used for nothing but the OTP round-trip.
+  //
+  // supabase-js keeps the session a successful verifyOtp returns ON THE
+  // CLIENT IT WAS CALLED ON, and every later PostgREST call from that client
+  // then goes out as that user instead of as the service role. When the code
+  // being verified belongs to the CALLER's own primary email that is
+  // invisible — same person either way. When it belongs to a SECOND address,
+  // the session is the address's own stub, and the rest of this handler ran
+  // as the stub under own-row RLS: it could delete the stub's learner row and
+  // then could not see the caller's, so every genuine second-email link
+  // ended in 404 "Learner not found" (staging, 2026-09-16, job #998 — the
+  // fix that shipped for job #646 got as far as absorbing the stub and no
+  // further). Keeping the OTP on its own client keeps `admin` the service
+  // role for the whole request.
+  const otpClient = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
   const ipHash = hashIp(getClientIp(req))
 
   try {
@@ -143,9 +160,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       outcome: 'email_verify_attempt',
     })
 
-    // Verify the OTP server-side using the admin client
-    // This confirms the user has access to this email without affecting client session
-    const { error: verifyError } = await admin.auth.verifyOtp({
+    // Verify the OTP server-side, on otpClient, so the session it returns
+    // cannot follow `admin` into the queries below. This confirms the person
+    // has access to this email without affecting their browser session.
+    const { error: verifyError } = await otpClient.auth.verifyOtp({
       email: normalizedEmail,
       token,
       type: 'email',
