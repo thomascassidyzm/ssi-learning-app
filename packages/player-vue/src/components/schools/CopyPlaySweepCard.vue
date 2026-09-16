@@ -83,6 +83,7 @@ function doneLine(c: CopyCandidate): string {
 <template>
   <!-- HANDBOOK Copy every teacher's own play onto their class
        section: running-classes
+       moment: something-wrong
        roles: school_admin
        place: node-home
        keywords: copy, sweep, teachers, play as class, own account, mistake, progress

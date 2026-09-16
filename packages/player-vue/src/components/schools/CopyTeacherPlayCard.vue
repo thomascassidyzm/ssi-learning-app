@@ -126,6 +126,7 @@ const words = (p: PositionWords | null | undefined) => positionLabel(p, t)
 
     <!-- HANDBOOK Copy a teacher's own play onto the class
          section: running-classes
+         moment: something-wrong
          roles: school_admin, teacher
          place: class-detail
          keywords: copy, teacher, play as class, progress, mistake, own account

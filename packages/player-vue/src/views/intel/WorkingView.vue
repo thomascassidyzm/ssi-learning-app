@@ -89,6 +89,7 @@ const rows = computed(() => {
 <template>
   <!-- HANDBOOK Whether the app is working right now
        section: seeing-progress
+       moment: something-wrong
        roles: admin
        place: intel
        keywords: working, health, audio, failed, build, device, fix landed

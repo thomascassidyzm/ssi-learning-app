@@ -277,6 +277,7 @@ onMounted(() => {
 
       <!-- HANDBOOK See what a funded organisation gives its learners
            section: courses-and-content
+           moment: setting-up
            roles: admin
            place: node-home
            keywords: courses, enrolment, free year, organisation, canolfan, granted, sign-up

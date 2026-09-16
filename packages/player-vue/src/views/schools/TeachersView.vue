@@ -401,6 +401,7 @@ watch(selectedUser, (newUser) => {
              same day and the code travels on the school's own channel. -->
         <!-- HANDBOOK Add a teacher by name
              section: getting-people-in
+             moment: setting-up
              roles: school_admin
              place: teachers
              keywords: add, teacher, name, code, seat, new staff, join
@@ -574,6 +575,7 @@ watch(selectedUser, (newUser) => {
                    appear here as staff), so this is offered on every row. -->
               <!-- HANDBOOK Give a teacher their classes
                    section: getting-people-in
+                   moment: setting-up
                    roles: school_admin, leader
                    place: teachers
                    keywords: assign, class, teacher, staff, classes
@@ -614,6 +616,7 @@ watch(selectedUser, (newUser) => {
                    way a teacher is. -->
               <!-- HANDBOOK Hand a teacher their access code
                    section: getting-people-in
+                   moment: something-wrong
                    roles: school_admin
                    place: teachers
                    keywords: access code, sign-in, locked out, email, teacher, link
@@ -653,6 +656,7 @@ watch(selectedUser, (newUser) => {
                    admin through the staff list) — so don't offer the control. -->
               <!-- HANDBOOK Remove a teacher from your school
                    section: getting-people-in
+                   moment: setting-up
                    roles: school_admin
                    place: teachers
                    keywords: remove, teacher, leaver, staff, delete
@@ -732,6 +736,7 @@ watch(selectedUser, (newUser) => {
         </p>
         <!-- HANDBOOK Invite a teacher to your school
              section: getting-people-in
+             moment: setting-up
              roles: school_admin
              place: teachers
              keywords: teacher, invite, link, staff, join, code

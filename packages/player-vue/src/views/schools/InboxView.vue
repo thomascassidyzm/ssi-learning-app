@@ -30,6 +30,7 @@ const explainerPersona = computed(() => viewerPersona(currentUser.value?.platfor
     <WalkOffer :persona="explainerPersona" place="inbox" />
     <!-- HANDBOOK Read your messages
          section: your-own-account
+         moment: something-wrong
          roles: teacher, school_admin, leader
          place: inbox
          keywords: inbox, messages, message, reply, replies, unread, undo, copied, notice

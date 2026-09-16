@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `5e7e1b529b13` · generated 2026-09-16 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `f73c9e686c3b` · generated 2026-09-16 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## add-a-class-under-a-group — Add a class to a group
 
@@ -29,7 +29,7 @@ Personas: admin, leader, school_admin · place: node-home (class)
 
 ## add-students-to-a-class — Add students to a class
 
-Personas: teacher · place: class-detail
+Personas: teacher · place: node-home (class)
 
 1. [`class-student-add` · click] Above the roster, tap **Add students** — for a pupil already in your school who has changed set or landed in the wrong class.
 2. [`class-student-picker` · next] Type a few letters of their name to narrow the list, then tap the pupil — they appear on the roster straight away. Add as many as you need, then tap Done.
@@ -66,7 +66,7 @@ Personas: learner · place: library
 Personas: teacher, school_admin · place: node-home
 
 1. [`class-page-play` · next] **Play as class** starts a whole-class lesson on the class's own account, so the minutes and phrases land on the class, not on you. While a platform admin is viewing this page as you, the button is greyed out and does nothing.
-2. [`class-page-manage` · next] **Manage class** goes to the class's tools: the roster, the teachers, the join link and code, renaming and deleting. The class's practice, minutes and journey stay here on the class page.
+2. [`class-page-manage` · next] **Manage class** takes you down to the class's tools on this same page: the roster, the teachers, the join link and code, renaming and deleting.
    - terminal: Play from here, manage from there — two different pages, one class. This tour started no lesson and opened no tools.
 
 ## copy-a-class-link-without-opening-the-class — Copy a class link without opening the class
@@ -85,7 +85,7 @@ Personas: leader · place: schools-list
 
 ## copy-a-teachers-play-onto-their-class — Copy a teacher's own play onto the class
 
-Personas: school_admin, teacher · place: class-detail
+Personas: school_admin, teacher · place: node-home (class)
 
 1. [`class-copy-play-picker` · next] **Played as themselves by mistake?** — a school leader picks the teacher here. A teacher fixing their own lesson sees no list; the card is about them.
 2. [`class-copy-play-preview` · next] **See what would move** reads the sessions, the time in the app, and where the class will end up. Nothing moves yet.
@@ -192,7 +192,7 @@ Personas: school_admin · place: setup
 
 ## hand-over-the-lead — Hand a class over to another teacher
 
-Personas: teacher, school_admin · place: class-detail
+Personas: teacher, school_admin · place: node-home (class)
 
 1. [`class-teachers` · next] One teacher on a class is the **lead** — the one the class is listed under, and the one a school admin comes to about it. When you move on from a class, that name should move too.
 2. [`class-teacher-make-lead` · next] **Make lead** hands it to a colleague already on the class. It takes effect straight away, so add them first and hand over once you have.
@@ -222,7 +222,7 @@ Personas: leader, school_admin · place: node-home (org/group/school)
 
 ## invite-a-supply-teacher — Invite a teacher who isn't here yet
 
-Personas: teacher, school_admin · place: class-detail
+Personas: teacher, school_admin · place: node-home (class)
 
 1. [`class-teachers` · next] Use this when the colleague has no account yet — a supply teacher starting on Monday, or someone new to the school. It saves waiting for an admin to add them first.
 2. [`class-coteacher-link` · next] **Create a co-teacher link** mints a fresh link the moment you tap it. Whoever opens it lands as a teacher of this class, and of this school — not as its lead, and not over any of your other classes.
@@ -268,10 +268,10 @@ Personas: admin · place: admin-invites
 
 ## manage-a-class-from-its-page — Rename, delete or remove a student
 
-Personas: teacher · place: class-detail
+Personas: teacher · place: node-home (class)
 
-1. [`class-rename` · next] The pencil beside the class name renames it. Only the name changes — the roster, the join link and the class's place on the course all carry on.
-2. [`class-delete` · next] The bin beside the name deletes the class. The app tells you what goes with it first, and asks you to type the class name back if there is real practice behind it. Students keep their own accounts and everything they have learned.
+1. [`class-rename` · next] The pencil beside the **Manage class** heading renames the class. Only the name changes — the roster, the join link and the class's place on the course all carry on.
+2. [`class-delete` · next] The bin beside the **Manage class** heading deletes the class. The app tells you what goes with it first, and asks you to type the class name when there is real practice behind it.
 3. [`class-student-remove` · next] **Remove** at the end of a student's row in the roster takes them off this class only. Their account and everything they've learned stays with them, and they can join another class straight away.
    - terminal: Rename, delete, remove a student — all from the class's own tools page. This tour changed nothing; only your own taps do.
 
@@ -296,7 +296,7 @@ Personas: school_admin · place: dashboard
 
 ## move-a-teacher-between-classes — Move a teacher to another class
 
-Personas: teacher, school_admin · place: class-detail
+Personas: teacher, school_admin · place: node-home (class)
 
 1. [`class-teachers` · next] **Teachers** answers 'who teaches this class?'. A head usually wants the other direction too — 'which classes does this person take?' — and that is the same question read backwards.
 2. [`class-teacher-other-classes` · click] **Other classes** on anyone's row asks it that way round. It never moves anybody on its own — it opens a list for you to change.
@@ -472,11 +472,11 @@ Personas: teacher, school_admin, leader · place: dashboard
 
 ## run-class-session — Run your first class session
 
-Personas: teacher, school_admin · place: class-detail
+Personas: teacher, school_admin · place: node-home (class)
 
 1. [`class-join-link` · next] Students join with this link — share it and they sign up straight into this class.
 2. [`class-join-code` · next] Prefer a whiteboard? **Show code instead** reveals a standing code — anyone who enters it at saysomethingin.com/redeem joins this class, until the code changes.
-3. [`class-play` · next] **Play as class** is the heart of it: one device — yours — leads the whole class through a session, and it counts for every student on the roster.
+3. [`class-page-play` · next] **Play as class** is the heart of it: one device — yours — leads the whole class through a session, and it counts for every student on the roster.
    - terminal: When you're ready, tap Play as class for real — this tour never starts a session for you.
 
 ## save-your-progress — Save your progress
@@ -550,7 +550,7 @@ Personas: school_admin · place: setup
 
 ## share-a-class — Share a class with a colleague
 
-Personas: teacher, school_admin · place: class-detail
+Personas: teacher, school_admin · place: node-home (class)
 
 1. [`class-teachers` · next] A class does not have to be yours alone. **Teachers** lists everyone who teaches it, with the lead marked — a job share, a department colleague, a supply teacher covering for a fortnight.
 2. [`class-teacher-add` · click] **Add another teacher** is how you share it. Nobody is added until you pick a name and confirm.
@@ -635,10 +635,9 @@ Personas: admin · place: intel
 
 ## what-the-class-tools-page-counts — Where a class's practice is read
 
-Personas: teacher, school_admin · place: class-detail
+Personas: teacher, school_admin · place: node-home (class)
 
-1. [`class-tools-note` · next] A class has two pages. This one is its tools: the roster, the teachers, the join link, renaming and deleting. What the class has practised together, its minutes in the app and how far it has travelled live on the class page — the link in this line takes you there. Nothing on this page totals whole-class play.
-2. [`class-roster` · next] **Students on their own accounts** lists the pupils who have signed in as themselves and joined this class, one row each, with their belt, what they have learned, how much they have practised on that account and when they were last at it. Type a name into the search box to jump to one of them.
+1. [`class-roster` · next] **Roster**, under **Manage class**, lists the pupils who have signed in as themselves and joined this class, one row each, with their belt, what they have learned, how much they have practised on that account and when they were last at it. Type a name into the search box to jump to one of them.
    - terminal: This table counts only what each pupil did signed in as themselves. A class taught from the front with no pupil accounts has nobody here, and that is not a class that has done nothing.
 
 ## what-they-practised — What your classes actually practised
@@ -670,7 +669,7 @@ Personas: admin · place: intel
 
 ## where-the-class-has-got-to — Where the class has got to
 
-Personas: teacher · place: class-detail
+Personas: teacher · place: node-home (class)
 
 1. [`class-journey` · next] **Course Journey** is how far your class has travelled through its course, as a bar in phrases. A class is one learner account played from the front, so this is the class's own place on the course, moved by the sessions you run together. The line under the bar says how many phrases are left to the next belt.
    - terminal: A class that has never played says Not started in words. It is never shown as a bar of zero.

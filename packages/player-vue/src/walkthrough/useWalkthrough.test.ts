@@ -22,12 +22,15 @@ describe('pack shape', () => {
 
 describe('walksFor (offer filtering)', () => {
   it('filters by persona × place × kind', () => {
-    // Class detail is the teacher's whole desk: running a session, the three
-    // co-teaching capabilities (A-74) — sharing, inviting, handover — and,
-    // since 2026-08-08, reading the class↔teacher relationship the other way
-    // round to move somebody between classes.
-    expect(walksFor('teacher', 'class-detail').map((x) => x.id)).toEqual([
-      'add-students-to-a-class', 'copy-a-teachers-play-onto-their-class', 'hand-over-the-lead',
+    // ONE class page since job #999: the teacher's whole desk — running a
+    // session, the three co-teaching capabilities (A-74) — sharing, inviting,
+    // handover — reading the class↔teacher relationship the other way round to
+    // move somebody between classes, and the tools themselves — is offered at
+    // the class node home, because that is where all of it now lives.
+    expect(walksFor('teacher', 'class-detail')).toEqual([])
+    expect(walksFor('teacher', 'node-home', 'class').map((x) => x.id)).toEqual([
+      'add-students-to-a-class', 'class-page-play-and-manage',
+      'copy-a-teachers-play-onto-their-class', 'hand-over-the-lead',
       'invite-a-supply-teacher', 'manage-a-class-from-its-page', 'move-a-teacher-between-classes',
       'run-class-session', 'share-a-class', 'what-the-class-tools-page-counts', 'where-the-class-has-got-to',
     ])

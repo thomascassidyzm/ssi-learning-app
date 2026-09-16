@@ -36,6 +36,16 @@ import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 import { redeemLink } from '@/composables/schools/inviteLink'
 import { teacherPanelState, joinPanelState } from './classDetailPanels'
 
+// EMBEDDED (job #999, Tom's ruling 2026-09-16): this view is the class's
+// tools, and since the collapse it renders as the **Manage class** section of
+// the class page itself — /org/:classId — rather than behind its own route.
+// The flag turns off everything the class page already carries above it: the
+// crumb, the class's own title line, belt and minutes, the How-this-works
+// door, Play as class, the course-journey card and the copy-play repair. What
+// is left is the tooling, which exists nowhere else.
+const props = defineProps<{ embedded?: boolean }>()
+const embedded = computed(() => !!props.embedded)
+
 const router = useRouter()
 const route = useRoute()
 const { t } = useI18n()
@@ -759,13 +769,13 @@ const mailboxPrompt = useMailboxPrompt()
 </script>
 
 <template>
-  <main class="detail">
+  <component :is="embedded ? 'section' : 'main'" id="manage-class" class="detail" :class="{ 'detail-embedded': embedded }">
     <!-- THE CLASS TOOLS PAGE (job #651). The class PAGE — its play-as-class
          practice, minutes and journey — is the class node home at
          /org/:classId for every role; this page is the class's tooling
          (roster, teachers, join link, rename, delete, the copy-play repair)
          and says so at the top, with the way back to the class page. -->
-    <nav class="breadcrumb">
+    <nav v-if="!embedded" class="breadcrumb">
       <a href="#" @click.prevent="handleBack">{{ backToSchool ? (viewingSchool?.school_name || t('schools.classDetail.schoolFallback', 'School')) : t('schools.classDetail.classesCrumb', 'Classes') }}</a>
       <span class="crumb-sep">/</span>
       <router-link v-if="!isAdminView && classData.id" class="crumb-link" :to="schoolsLink('class-detail', { classId: classData.id })">{{ classData.class_name }}</router-link>
@@ -783,16 +793,19 @@ const mailboxPrompt = useMailboxPrompt()
     <header class="page-head">
       <div class="page-head-text">
         <div class="schools-kicker page-eyebrow">{{ courseLabel }}</div>
-        <h1 class="arsenal page-title">
-          {{ classData.class_name }}
+        <component :is="embedded ? 'h2' : 'h1'" class="arsenal page-title">
+          <template v-if="embedded">{{ t('schools.classDetail.toolsCrumb', 'Manage class') }}</template>
+          <template v-else>{{ classData.class_name }}</template>
           <!-- HANDBOOK Rename a class
                section: running-classes
+               moment: setting-up
                roles: teacher
                place: class-detail
                keywords: class, rename, name, edit, title
                What it's for. Changing what a class is called, for a name typed in a
                hurry or a group that has moved up a year.
-               Where it is. The class page, the small pencil beside the class name.
+               Where it is. The class page, the small pencil beside the **Manage
+               class** heading.
                How you do it.
                1. Open the class from **My Classes**.
                2. Tap the pencil next to the name at the top.
@@ -816,13 +829,15 @@ const mailboxPrompt = useMailboxPrompt()
           </button>
           <!-- HANDBOOK Delete a class
                section: running-classes
+               moment: setting-up
                roles: teacher
                place: class-detail
                keywords: class, delete, remove, close, archive
                What it's for. Removing a class you no longer want, usually one set up
                by mistake or a group that has finished. Before anything is deleted
                the app tells you what goes with it.
-               Where it is. The class page, the small bin beside the class name.
+               Where it is. The class page, the small bin beside the **Manage
+               class** heading.
                How you do it.
                1. Open the class from **My Classes**.
                2. Tap the bin next to the name at the top.
@@ -846,8 +861,8 @@ const mailboxPrompt = useMailboxPrompt()
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
           </button>
-        </h1>
-        <div class="meta-row">
+        </component>
+        <div v-if="!embedded" class="meta-row">
           <!-- The class account's own belt and minutes — a class is one learner
                account, so no pupil count here (Tom's ruling, 2026-09-11). A
                never-played account says so in words. -->
@@ -863,27 +878,6 @@ const mailboxPrompt = useMailboxPrompt()
           <span class="meta-dot">·</span>
           <UpdatedStamp />
         </div>
-        <!-- HANDBOOK Where a class's practice is read
-             section: seeing-progress
-             roles: teacher, school_admin
-             place: class-detail
-             keywords: class page, tools, practice, minutes, journey, manage
-             What it's for. Telling the two pages of a class apart. The class page
-             carries what the class has practised together, its minutes in the app
-             and how far it has travelled. This page is the class's tools: the
-             roster, the teachers, the join link, renaming and deleting.
-             Where it is. The line under the class name at the top of the tools page.
-             How you do it.
-             1. Read the line.
-             2. Tap **Open the class page** to go to the class's practice.
-             Worth knowing. Nothing on this page totals whole-class play. A class
-             played from the front shows its minutes on the class page, never here.
-             checked: 03dbe287.fa128e02
-        -->
-        <p v-if="!isAdminView && classData.id" class="tools-note schools-subtle" data-walk="class-tools-note">
-          {{ t('schools.classDetail.toolsNote', "This is the class's tools page. Its practice, minutes in the app and journey are on the class page.") }}
-          <router-link :to="schoolsLink('class-detail', { classId: classData.id })">{{ t('schools.classDetail.openClassPage', 'Open the class page') }}</router-link>
-        </p>
       </div>
 
       <div class="page-head-actions">
@@ -895,36 +889,13 @@ const mailboxPrompt = useMailboxPrompt()
              leader or teacher would see. Renders nothing when the pack has no
              explanation for this persona at a class. -->
         <HowThisWorks
-          v-if="!isAdminView"
+          v-if="!isAdminView && !embedded"
           :persona="explainerPersona"
           kind="class"
           place="class-detail"
           :node-id="classIdParam || ''"
           :viewer-id="selectedUser?.user_id || 'anon'"
         />
-        <!-- HANDBOOK Run your first class session
-             section: running-classes
-             roles: teacher
-             place: class-detail
-             keywords: session, play, class, run, join, code
-             walk: run-class-session
-             What it's for. Running a live practice session with a class in the room,
-             everyone hearing the same thing at the same time.
-             Where it is. The class page, the join link and the play button.
-             How you do it.
-             1. Open the class from My Classes.
-             2. Put the join link or the join code on the screen for the room.
-             3. Wait for the students to arrive on their own devices.
-             4. Tap play to start the session.
-             Worth knowing. The join code is the same code all lesson, so a student
-             arriving late still gets in. While a platform admin is viewing the page
-             as you the play button is greyed out and does nothing.
-             checked: 03574751.2708ad9f
-        -->
-        <button v-if="canPlayAsClass" type="button" class="btn-play btn-play-lg" data-walk="class-play" :disabled="!canLaunch || playAsClassReadOnly" :title="playAsClassTitle" @click="handlePlay">
-          <span class="play-glyph">&#9654;</span>
-          {{ t('schools.classDetail.playAsClass', 'Play as class') }}
-        </button>
       </div>
     </header>
 
@@ -952,13 +923,14 @@ const mailboxPrompt = useMailboxPrompt()
                    another is one untick and one tick in here. -->
               <!-- HANDBOOK Move a teacher to another class
                    section: running-classes
+                   moment: setting-up
                    roles: teacher
                    place: class-detail
                    keywords: move, teacher, classes, assign, timetable
                    walk: move-a-teacher-between-classes
                    What it's for. Changing which classes a teacher is on, in one
                    pass, without visiting each class in turn.
-                   Where it is. The class page, the **Teachers** section, a
+                   Where it is. The class page, under **Manage class**, the **Teachers** section, a
                    teacher's other classes.
                    How you do it.
                    1. Open a class the teacher is on.
@@ -982,6 +954,7 @@ const mailboxPrompt = useMailboxPrompt()
               </button>
               <!-- HANDBOOK Hand a class over to another teacher
                    section: running-classes
+                   moment: setting-up
                    roles: teacher
                    place: class-detail
                    keywords: lead, hand over, class, teacher, transfer
@@ -989,7 +962,7 @@ const mailboxPrompt = useMailboxPrompt()
                    What it's for. Passing the lead of a class to another teacher
                    who already teaches it — for a maternity cover, a term swap,
                    or a permanent handover.
-                   Where it is. The class page, the **Teachers** section.
+                   Where it is. The class page, under **Manage class**, the **Teachers** section.
                    How you do it.
                    1. Open the class from My Classes.
                    2. Scroll to **Teachers**.
@@ -1039,13 +1012,14 @@ const mailboxPrompt = useMailboxPrompt()
                English rather than leaving a head to infer it. -->
           <!-- HANDBOOK Share a class with a colleague
                section: running-classes
+               moment: setting-up
                roles: teacher
                place: class-detail
                keywords: class, share, co-teacher, colleague, teachers
                walk: share-a-class
                What it's for. Adding another teacher to a class you already run, so
                you both see the same roster and the same progress.
-               Where it is. The class page, the **Teachers** section.
+               Where it is. The class page, under **Manage class**, the **Teachers** section.
                How you do it.
                1. Open the class from My Classes.
                2. Scroll to **Teachers**.
@@ -1088,13 +1062,14 @@ const mailboxPrompt = useMailboxPrompt()
 
         <!-- HANDBOOK Invite a teacher who isn't here yet
              section: running-classes
+             moment: setting-up
              roles: teacher
              place: class-detail
              keywords: supply, cover, teacher, invite, class, link
              walk: invite-a-supply-teacher
              What it's for. Getting a teacher who has no account yet into one class of
              yours, without going through the school admin.
-             Where it is. The class page, the **Teachers** section.
+             Where it is. The class page, under **Manage class**, the **Teachers** section.
              How you do it.
              1. Open the class from My Classes.
              2. Scroll to **Teachers**.
@@ -1130,6 +1105,7 @@ const mailboxPrompt = useMailboxPrompt()
     <div class="body-grid">
       <!-- HANDBOOK Students on their own accounts
            section: seeing-progress
+           moment: setting-up
            roles: teacher, school_admin
            place: class-detail
            keywords: roster, students, own accounts, progress, belt, last active
@@ -1140,10 +1116,9 @@ const mailboxPrompt = useMailboxPrompt()
            last at it. It counts only what each pupil did signed in as themselves.
            Whole-class play from the front is not in this table; that is on the
            class page.
-           Where it is. The class tools page, the **Students on their own accounts**
-           table.
+           Where it is. The class page, under **Manage class**, the roster table.
            How you do it.
-           1. Open **Manage class** from the class page.
+           1. Open the class from **My Classes** and scroll to **Manage class**.
            2. Read down the rows for who is practising on their own and who has gone
               quiet.
            3. Type a name into the search box to jump to one student.
@@ -1157,8 +1132,14 @@ const mailboxPrompt = useMailboxPrompt()
       <section class="roster schools-card" data-walk="class-roster">
         <header class="roster-head">
           <div class="roster-titles">
-            <h3 class="arsenal roster-title">{{ t('schools.classDetail.ownAccountsTitle', 'Students on their own accounts') }}</h3>
-            <p class="roster-caption schools-subtle">{{ t('schools.classDetail.ownAccountsCaption', 'Only pupils who have signed in themselves are counted here. Whole-class play counts on the class page.') }}</p>
+            <!-- Under **Manage class** this table is the one you ACT on — add a
+                 pupil, remove one, find one — and the class page's own
+                 **Students on their own accounts** list above it is the one you
+                 READ. Two tables with the same heading, one above the other,
+                 would read as the same thing twice; this one says what it is
+                 for (job #999). -->
+            <h3 class="arsenal roster-title">{{ embedded ? t('schools.classDetail.rosterTitle', 'Roster') : t('schools.classDetail.ownAccountsTitle', 'Students on their own accounts') }}</h3>
+            <p class="roster-caption schools-subtle">{{ embedded ? t('schools.classDetail.rosterCaption', 'Add a pupil, take one off, or search the list. What each of them has practised is in Students on their own accounts above.') : t('schools.classDetail.ownAccountsCaption', 'Only pupils who have signed in themselves are counted here. Whole-class play counts on the class page.') }}</p>
           </div>
           <div class="roster-tools">
             <!-- One search at a time: nothing to search in an empty class, and
@@ -1172,6 +1153,7 @@ const mailboxPrompt = useMailboxPrompt()
             />
             <!-- HANDBOOK Add students to a class
                  section: getting-people-in
+                 moment: setting-up
                  roles: teacher
                  place: class-detail
                  keywords: add, student, class, roster, move, join
@@ -1179,7 +1161,7 @@ const mailboxPrompt = useMailboxPrompt()
                  What it's for. Putting a pupil who is already in your school
                  into this class, for a pupil who has changed set or landed in
                  the wrong class.
-                 Where it is. The class page, the **Add students** button at the
+                 Where it is. The class page, under **Manage class**, the **Add students** button at the
                  top of the roster.
                  How you do it.
                  1. Open the class from **My Classes**.
@@ -1324,13 +1306,14 @@ const mailboxPrompt = useMailboxPrompt()
                 <td class="row-action">
                   <!-- HANDBOOK Remove a student from a class
                        section: running-classes
+                       moment: setting-up
                        roles: teacher
                        place: class-detail
                        keywords: remove, student, roster, leave, class
                        What it's for. Taking a student off a class roster,
                        for a pupil who has changed set or joined the wrong
                        class from a shared link.
-                       Where it is. The class page, the **Remove** button at
+                       Where it is. The class page, under **Manage class**, the **Remove** button at
                        the end of the student's row in the roster.
                        How you do it.
                        1. Open the class from **My Classes**.
@@ -1374,47 +1357,13 @@ const mailboxPrompt = useMailboxPrompt()
            "Add students", and a pointer at the invite card — so it stays first
            and the rail stays a rail. The join card still rises to the top of it. -->
       <aside class="rail">
-        <!-- HANDBOOK Where the class has got to
-             section: seeing-progress
-             roles: teacher
-             place: class-detail
-             keywords: progress, journey, belt, position, course
-             What it's for. How far the class has travelled through its course, as a
-             bar in phrases with the next belt named. A class is one learner account
-             played from the front, so this is the class's own place on the course,
-             moved by the sessions you run together.
-             Where it is. The class page, the **Course Journey** card in the column
-             beside the roster.
-             How you do it.
-             1. Open the class from **My Classes**.
-             2. Read the bar for how much of the course the class has covered.
-             3. Read the line under it for how far it is to the next belt.
-             Worth knowing. A class that has never played says **Not started** in
-             words; it is never shown as a bar of zero.
-             checked: 6c1128ac.c7baf113
-        -->
-        <div class="schools-card schools-card-pad rail-card" data-walk="class-journey">
-          <div class="schools-kicker rail-kicker">{{ t('schools.classDetail.courseJourneyKicker', 'Course Journey') }}</div>
-          <template v-if="classStarted === false">
-            <p class="rail-note">{{ t('schools.classDetail.notStartedJourney', 'Not started — the class has not played together yet.') }}</p>
-          </template>
-          <template v-else>
-            <JourneyBar :done="journeyDone" :total="Math.max(journeyTotal, journeyDone)" />
-            <p class="rail-note">
-              {{ t('schools.classDetail.classTravelled', 'The class has travelled {done} of {total} phrases together.').replace('{done}', String(journeyDone)).replace('{total}', String(journeyTotal)) }}<br />
-              <template v-if="nextBeltInfo">{{ t('schools.classDetail.moreToNextBelt', '{n} more to {belt} belt.').replace('{n}', String(nextBeltInfo.remaining)).replace('{belt}', nextBeltInfo.name) }}</template>
-              <template v-else>{{ t('schools.classDetail.reachedBlackBelt', 'Reached Black belt — top of the ladder.') }}</template>
-            </p>
-          </template>
-        </div>
-
         <!-- The repair for a lesson played on a teacher's own account. A leader
              picks the teacher (Angharad's commission, 2026-09-11); a teacher
              fixes their OWN lesson, no picker (job #651 — half of Chepstow's
              teachers had done exactly that in one week, and the server always
              admitted a teacher of the class). -->
         <CopyTeacherPlayCard
-          v-if="!isAdminView && classIdParam && (isSchoolAdmin || isGovtAdmin || isTeacher)"
+          v-if="!isAdminView && !embedded && classIdParam && (isSchoolAdmin || isGovtAdmin || isTeacher)"
           :class-id="classIdParam"
           :teachers="classTeachers.map(x => ({ user_id: x.user_id, name: x.name }))"
           :teachers-state="teacherListState"
@@ -1434,6 +1383,7 @@ const mailboxPrompt = useMailboxPrompt()
             </p>
             <!-- HANDBOOK How students join a class
                  section: getting-people-in
+                 moment: setting-up
                  roles: teacher
                  place: class-detail
                  keywords: join, link, code, students, invite, class
@@ -1441,7 +1391,7 @@ const mailboxPrompt = useMailboxPrompt()
                  the class link signs up and lands straight in the class, on the
                  right course, with no code to type. The same class also has a
                  short code for a room where a link is awkward.
-                 Where it is. The class page, the **Invite students** card.
+                 Where it is. The class page, under **Manage class**, the **Invite students** card.
                  How you do it.
                  1. Open the class from **My Classes**.
                  2. Copy the link from the **Invite students** card and send it to
@@ -1526,10 +1476,14 @@ const mailboxPrompt = useMailboxPrompt()
       @close="mailboxPrompt.dismiss()"
       @proved="mailboxPrompt.markProved()"
     />
-  </main>
+  </component>
 </template>
 
 <style scoped>
+/* Embedded, the tools are a SECTION of the class page: the page's own top
+   padding, max-width and background belong to the page above it. */
+.detail-embedded { padding-top: 0; }
+.detail-embedded .page-head { margin-top: 8px; }
 .roster-titles { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .roster-caption { margin: 0; font-size: var(--text-xs, 12px); }
 .tools-note { margin: 6px 0 0; font-size: var(--text-sm); }

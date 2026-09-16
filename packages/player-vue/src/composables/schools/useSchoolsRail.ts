@@ -87,6 +87,9 @@ export function useSchoolsRail(): {
   const ctx = useSchoolContext()
   const { classes: classesData, currentClass } = useClassesData()
 
+  // The flat class route was retired in job #999 and redirects to /org/:id,
+  // where NodeHomeView carries its own rail — so this never fires from the
+  // schools lane any more. Kept for a named class route if one returns.
   const isClassRoute = computed(() => route.name === 'class-detail')
   const routeClassId = computed(() => (isClassRoute.value ? String(route.params.id || '') : ''))
 
@@ -198,7 +201,9 @@ export function useSchoolsRail(): {
       id: c.id,
       name: c.name,
       label: 'class',
-      path: `/schools/classes/${c.id}`,
+      // ONE class page since job #999 — the class node home. The old flat
+      // class route redirects here, so the rail points straight at it.
+      path: `/org/${c.id}`,
     }))
     if (isClassRoute.value) {
       const here = classList.find((c) => c.id === routeClassId.value)

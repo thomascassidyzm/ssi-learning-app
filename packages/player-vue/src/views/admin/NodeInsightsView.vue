@@ -309,6 +309,7 @@ const homeLink = computed(() => {
              a learner with no mic data is absent here, never a zero. -->
         <!-- HANDBOOK Voice and pause
              section: seeing-progress
+             moment: setting-up
              roles: admin, leader, school_admin
              place: node-insights
              keywords: voice, pause, microphone, mic, speaking, uptake, prosody, adaptive

@@ -280,6 +280,7 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
          thousands of px tall, and a walk ring must fit in a viewport. -->
     <!-- HANDBOOK Ways in — who can get in, and how to change it
          section: getting-people-in
+         moment: something-wrong
          roles: admin, leader, school_admin
          place: node-home
          keywords: ways in, links, revoke, re-mint, access, ledger, shareable
@@ -309,6 +310,7 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
 
     <!-- HANDBOOK Open the folded ledger
          section: getting-people-in
+         moment: something-wrong
          roles: admin, leader, school_admin
          place: node-home
          keywords: show all, fold, ledger, links, ways in, fewer
@@ -388,6 +390,7 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
             <button v-if="l.status === 'active'" type="button" class="row-verb" :class="{ 'is-copied': copiedCode === l.code }" data-walk="ways-in-copy" @click="copyLink(l)">{{ copiedCode === l.code ? t('org.ui.waysInLedger.copied', 'Copied!') : t('org.ui.waysInLedger.copy', 'Copy') }}</button>
             <!-- HANDBOOK Hand out a sign-up link for one course
                  section: getting-people-in
+                 moment: setting-up
                  roles: admin, leader, school_admin
                  place: node-home
                  keywords: dialect, course, link, enrol, north, south, welsh, cohort
@@ -421,6 +424,7 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
             >{{ copiedDialect === `${l.code}:${d.course}` ? t('org.ui.waysInLedger.copied', 'Copied!') : t('org.ui.waysInLedger.copyCourse', 'Copy {course}').replace('{course}', d.name) }}</button>
             <!-- HANDBOOK Email someone their invite again
                  section: getting-people-in
+                 moment: something-wrong
                  roles: admin, leader, school_admin
                  place: node-home
                  keywords: resend, email, invite, again, lost, ways in

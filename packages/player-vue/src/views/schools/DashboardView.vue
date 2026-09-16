@@ -605,6 +605,7 @@ async function handlePlayClass(cls: ClassInfo) {
         >
           <!-- HANDBOOK Your classes at a glance
                section: seeing-progress
+               moment: every-lesson
                roles: teacher
                place: dashboard
                keywords: classes, dashboard, overview, minutes, phrases, journey, join code, course
@@ -697,6 +698,7 @@ async function handlePlayClass(cls: ClassInfo) {
 
           <!-- HANDBOOK Play as class from your dashboard
                section: running-classes
+               moment: every-lesson
                roles: teacher
                place: dashboard
                parts: dash-class-row-play
@@ -750,6 +752,7 @@ async function handlePlayClass(cls: ClassInfo) {
 
       <!-- HANDBOOK Practice on your own account
            section: seeing-progress
+           moment: something-wrong
            roles: teacher
            place: dashboard
            keywords: own account, library, play as class, minutes, mistake, my practice
@@ -776,6 +779,7 @@ async function handlePlayClass(cls: ClassInfo) {
            2026-07-30 — classes lead, numbers follow). -->
       <!-- HANDBOOK Your own teaching numbers
            section: seeing-progress
+           moment: setting-up
            roles: teacher
            place: dashboard
            keywords: numbers, totals, classes, minutes, phrases, students, own accounts
@@ -895,6 +899,7 @@ async function handlePlayClass(cls: ClassInfo) {
         </div>
         <!-- HANDBOOK Minutes in the app this week
              section: seeing-progress
+             moment: every-lesson
              roles: school_admin
              place: dashboard
              keywords: minutes, time in app, this week, classes practising, practice

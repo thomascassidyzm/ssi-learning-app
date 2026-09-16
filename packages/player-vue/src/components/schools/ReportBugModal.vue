@@ -139,6 +139,7 @@ function onKeydown(e: KeyboardEvent) {
 
         <!-- HANDBOOK Say what happened on the dashboard
              section: your-own-account
+             moment: something-wrong
              roles: teacher, school_admin, leader
              place: dashboard
              parts: schools-report-bug-modal, schools-report-bug-expected
@@ -190,6 +191,7 @@ function onKeydown(e: KeyboardEvent) {
 
         <!-- HANDBOOK Send a dashboard bug report
              section: your-own-account
+             moment: something-wrong
              roles: teacher, school_admin, leader
              place: dashboard
              keywords: bug, report, send, submit, screenshot, dashboard

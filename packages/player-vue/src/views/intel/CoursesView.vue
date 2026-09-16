@@ -83,6 +83,7 @@ function pct(v: number | null): string {
 <template>
   <!-- HANDBOOK Which courses are worth attention
        section: seeing-progress
+       moment: every-lesson
        roles: admin
        place: intel
        keywords: courses, reach, stickiness, finishing, ranking, practised, month

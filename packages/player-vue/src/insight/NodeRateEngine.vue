@@ -270,6 +270,7 @@ const metricDesc = computed(() => {
 
       <!-- HANDBOOK Reading your insights
            section: seeing-progress
+           moment: every-lesson
            roles: admin, leader, school_admin
            place: node-insights
            keywords: insights, numbers, week, compare, minutes, phrases, window
@@ -332,6 +333,7 @@ const metricDesc = computed(() => {
     <!-- ── The widget — or an honest state, never a fabricated number ── -->
     <!-- HANDBOOK Why the insights are told in weeks
          section: seeing-progress
+         moment: setting-up
          roles: admin, leader, school_admin
          place: node-insights
          keywords: week, monday, total, compare, average, denominator, this week, last week

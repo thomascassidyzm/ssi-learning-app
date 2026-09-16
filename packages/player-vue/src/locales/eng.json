@@ -1192,7 +1192,7 @@
           "say": "**Play as class** starts a whole-class lesson on the class's own account, so the minutes and phrases land on the class, not on you. While a platform admin is viewing this page as you, the button is greyed out and does nothing."
         },
         "1": {
-          "say": "**Manage class** goes to the class's tools: the roster, the teachers, the join link and code, renaming and deleting. The class's practice, minutes and journey stay here on the class page.",
+          "say": "**Manage class** takes you down to the class's tools on this same page: the roster, the teachers, the join link and code, renaming and deleting.",
           "terminal": "Play from here, manage from there — two different pages, one class. This tour started no lesson and opened no tools."
         }
       }
@@ -1517,10 +1517,10 @@
       "title": "Rename, delete or remove a student",
       "steps": {
         "0": {
-          "say": "The pencil beside the class name renames it. Only the name changes — the roster, the join link and the class's place on the course all carry on."
+          "say": "The pencil beside the **Manage class** heading renames the class. Only the name changes — the roster, the join link and the class's place on the course all carry on."
         },
         "1": {
-          "say": "The bin beside the name deletes the class. The app tells you what goes with it first, and asks you to type the class name back if there is real practice behind it. Students keep their own accounts and everything they have learned."
+          "say": "The bin beside the **Manage class** heading deletes the class. The app tells you what goes with it first, and asks you to type the class name when there is real practice behind it."
         },
         "2": {
           "say": "**Remove** at the end of a student's row in the roster takes them off this class only. Their account and everything they've learned stays with them, and they can join another class straight away.",
@@ -2140,10 +2140,7 @@
       "title": "Where a class's practice is read",
       "steps": {
         "0": {
-          "say": "A class has two pages. This one is its tools: the roster, the teachers, the join link, renaming and deleting. What the class has practised together, its minutes in the app and how far it has travelled live on the class page — the link in this line takes you there. Nothing on this page totals whole-class play."
-        },
-        "1": {
-          "say": "**Students on their own accounts** lists the pupils who have signed in as themselves and joined this class, one row each, with their belt, what they have learned, how much they have practised on that account and when they were last at it. Type a name into the search box to jump to one of them.",
+          "say": "**Roster**, under **Manage class**, lists the pupils who have signed in as themselves and joined this class, one row each, with their belt, what they have learned, how much they have practised on that account and when they were last at it. Type a name into the search box to jump to one of them.",
           "terminal": "This table counts only what each pupil did signed in as themselves. A class taught from the front with no pupil accounts has nobody here, and that is not a class that has done nothing."
         }
       }
@@ -2535,7 +2532,9 @@
       "whatItsFor": "What it's for",
       "whereItIs": "Where it is",
       "worthKnowing": "Worth knowing",
-      "writtenOut": "Written out"
+      "writtenOut": "Written out",
+      "nextThree": "Your next three",
+      "justMineAgain": "Just what I can do"
     },
     "teacherDashboard": {
       "showAllClasses": "Show all {n} classes",
@@ -3678,7 +3677,8 @@
         "skipTour": "Skip tour"
       },
       "walkOffer": {
-        "showMe": "Show me — {title}"
+        "showMe": "Show me — {title}",
+        "showMeCount": "Show me — {n}"
       },
       "waysInLedger": {
         "copyCourse": "Copy {course}",
