@@ -75,39 +75,62 @@ import {
   meanTrend,
   computeMeasureForClassIds,
   cohortFloor,
+  weekNumbersForClassIds,
+  meanWeekNumbers,
+  weeklyMinutesBars,
   type ScopedSessionRow,
   type MeasureId,
 } from '../../_utils/rateCompare'
+import {
+  DEFAULT_TIME_ZONE,
+  defaultWeekWindow,
+  fetchDaysForWeeks,
+  weekBuckets,
+  weekLabel,
+  weekRange,
+  type WeekWindowId,
+} from '../../_utils/schoolWeek'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
 const MAX_COHORT_IDS = 2000
+/**
+ * Y — the pupils' own minutes — costs one diary read per pupil account, so it
+ * is resolved only while the class set is small enough to be a real cohort.
+ * Past this the response says so (`pupilMinutesCapped`) rather than quietly
+ * reporting 0 minutes of individual practice, which would read as a fact.
+ */
+const PUPIL_CLASS_CAP = 400
 
-// ─── Windows (archive/docs-retired-2026-08-24/the-lens/windows-measures-REPORT.md contract; labels
-// re-ruled 2026-07-19: ROLLING day-unit windows anchored to now — Today /
-// Last 7 days / Last 30 days / All time. No calendar definitions ("this
-// week" / "this term" were ambiguous). ───
+// ─── Windows: THE SCHOOL WEEK, and only the school week (Tom, 2026-09-16 —
+// "today / 7 days / 30 days is the wrong primitive for schools who work in
+// week-units"). Exactly two: This week (Monday 00:00 local to now) and Last
+// week (the previous complete Monday–Sunday). No sliding windows, and no
+// all-time selector — all-time totals already live in the Course Journey
+// card, and two places telling the same total is how they disagree.
+// Monday-anchoring and the DST-safe boundary maths are in _utils/schoolWeek.ts.
 interface WindowConfig {
   value: string
   label: string
-  days: number       // headline period length; 'all' uses a practical-unbounded value
+  days: number       // days of history the rate/measure math reads (window start → now)
   periods: number     // trend series point count
-  periodDays: number  // trend granularity in days (fractional = sub-day buckets)
+  periodDays: number  // trend granularity in days
   trendLabel: string  // honest chart caption
-  perDay?: boolean    // per-week rate measures present in per-day form (a per-week rate over one day would lie)
+  perDay?: boolean
+  weekId?: WeekWindowId
 }
-const WINDOWS: WindowConfig[] = [
-  { value: 'today', label: 'Today', days: 1, periods: 24, periodDays: 1 / 24, trendLabel: 'Hourly · last 24 hours', perDay: true },
-  { value: '7d', label: 'Last 7 days', days: 7, periods: 7, periodDays: 1, trendLabel: 'Daily · last 7 days' },
-  { value: '30d', label: 'Last 30 days', days: 30, periods: 30, periodDays: 1, trendLabel: 'Daily · last 30 days' },
-  { value: 'all', label: 'All time', days: 3650, periods: 12, periodDays: 30, trendLabel: 'Monthly · last 12 months' },
+const TREND_WEEKS = 12
+const WINDOW_OPTIONS = [
+  { value: 'this_week', label: 'This week' },
+  { value: 'last_week', label: 'Last week' },
 ]
-const DEFAULT_WINDOW = '30d'
-// Old chip values live in bookmarks/deep links — map them onto the nearest
-// rolling window rather than 404ing to the default.
-const WINDOW_ALIASES: Record<string, string> = { week: '7d', '4w': '30d', term: '30d' }
-const WINDOW_OPTIONS = WINDOWS.map((w) => ({ value: w.value, label: w.label }))
+// Every old chip value lives in somebody's bookmark. They all mean "recent
+// practice", so they land on a week rather than 404ing.
+const WINDOW_ALIASES: Record<string, string> = {
+  week: 'this_week', today: 'this_week', '7d': 'this_week',
+  '4w': 'last_week', '30d': 'this_week', term: 'this_week', all: 'this_week',
+}
 // Legacy trend shape (unchanged) for callers that pass ?days= without ?window=.
 const LEGACY_TREND_WEEKS = 8
 
@@ -247,26 +270,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const requestedWindowRaw = String(req.query.window || '').trim()
   const requestedWindow = WINDOW_ALIASES[requestedWindowRaw] ?? requestedWindowRaw
   const requestedDaysRaw = req.query.days !== undefined ? String(req.query.days) : null
+  const now = new Date()
+  const nowMs = now.getTime()
+  // The school's own clock decides where Monday starts — the client sends its
+  // IANA zone. An unknown or absent zone falls back to Europe/London rather
+  // than UTC: every school on this platform today keeps UK hours, and a UTC
+  // Monday is an hour wrong for half the year.
+  const requestedTz = String(req.query.tz || '').trim()
+  let timeZone = DEFAULT_TIME_ZONE
+  if (requestedTz) {
+    try { new Intl.DateTimeFormat('en-GB', { timeZone: requestedTz }); timeZone = requestedTz } catch { /* keep the default */ }
+  }
   let windowConfig: WindowConfig
   let appliedWindowValue: string | null
-  if (requestedWindow && WINDOWS.some((w) => w.value === requestedWindow)) {
-    windowConfig = WINDOWS.find((w) => w.value === requestedWindow)!
-    appliedWindowValue = windowConfig.value
-  } else if (requestedDaysRaw !== null) {
-    const legacyDays = Math.min(180, Math.max(7, parseInt(requestedDaysRaw, 10) || 90))
+  let weekWindowId: WeekWindowId | null = null
+  if (requestedWindow === 'this_week' || requestedWindow === 'last_week') {
+    weekWindowId = requestedWindow
+  } else if (requestedDaysRaw === null) {
+    weekWindowId = defaultWeekWindow(nowMs, timeZone)
+  }
+  let currentWeek = { startMs: 0, endMs: 0 }
+  if (weekWindowId) {
+    currentWeek = weekRange(weekWindowId, nowMs, timeZone)
+    windowConfig = {
+      value: weekWindowId,
+      label: weekWindowId === 'this_week' ? 'This week' : 'Last week',
+      // The legacy measure math reads from the window's own Monday to now; the
+      // week card's three numbers read the week's exact bounds, never this.
+      days: Math.max(Math.ceil((nowMs - currentWeek.startMs) / 86_400_000), 1),
+      periods: TREND_WEEKS,
+      periodDays: 7,
+      trendLabel: `Weekly · last ${TREND_WEEKS} weeks`,
+      weekId: weekWindowId,
+    }
+    appliedWindowValue = weekWindowId
+  } else {
+    const legacyDays = Math.min(180, Math.max(7, parseInt(requestedDaysRaw!, 10) || 90))
     windowConfig = {
       value: 'custom', label: `Last ${legacyDays} days`, days: legacyDays,
       periods: LEGACY_TREND_WEEKS, periodDays: 7, trendLabel: `Weekly · last ${LEGACY_TREND_WEEKS} weeks`,
     }
     appliedWindowValue = null
-  } else {
-    windowConfig = WINDOWS.find((w) => w.value === DEFAULT_WINDOW)!
-    appliedWindowValue = DEFAULT_WINDOW
   }
   const days = windowConfig.days
-  // Ceil: periodDays can be fractional (hourly buckets) and the RPC takes whole days.
-  const fetchDays = Math.ceil(Math.max(days, (windowConfig.periods + 1) * windowConfig.periodDays))
-  const now = new Date()
+  // Week windows fetch the whole 12-week trend span, Monday-anchored, so the
+  // oldest bar is a real week rather than a truncated one.
+  const fetchDays = weekWindowId
+    ? fetchDaysForWeeks(nowMs, timeZone, TREND_WEEKS)
+    : Math.ceil(Math.max(days, (windowConfig.periods + 1) * windowConfig.periodDays))
 
   try {
     // ─── One opening wave: auth + every :id interpretation + the forest map.
@@ -472,11 +523,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // ─── Measure: options omit active_classes at class level (degenerate
     // 0/100 — a class either ran or didn't). An unavailable/unknown request
     // falls back to the default rather than erroring. ───
-    const availableMeasures = MEASURES.filter((m) => !(nodeMeta.kind === 'class' && m.classLevelExcluded))
+    // Under the week primitive the card IS the three numbers, so there is no
+    // measure to pick: 'rate' is a per-week rate over a one-week window (the
+    // count itself), 'minutes' is one of the three already, and
+    // 'active_classes' never applied at class level. The dropdown goes rather
+    // than standing there offering the same number three ways.
+    const availableMeasures = weekWindowId
+      ? []
+      : MEASURES.filter((m) => !(nodeMeta.kind === 'class' && m.classLevelExcluded))
     const requestedMeasureRaw = String(req.query.measure || '').trim()
     const requestedMeasure = MEASURE_ALIASES[requestedMeasureRaw] ?? requestedMeasureRaw
     const measureConfig = availableMeasures.find((m) => m.value === requestedMeasure)
-      ?? availableMeasures.find((m) => m.value === DEFAULT_MEASURE)!
+      ?? availableMeasures.find((m) => m.value === DEFAULT_MEASURE)
+      ?? MEASURES.find((m) => m.value === DEFAULT_MEASURE)!
 
     const baseBody = {
       node: nodeMeta,
@@ -538,7 +597,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         baseBody.applied.course_code = preferred.code
       }
       const scopeIds = scopeClasses.map((c) => c.id).slice(0, MAX_COHORT_IDS)
-      const { data: scopeData, error: scopeError } = await loadScopedSessionRows(svc, scopeIds, fetchDays, Boolean(nodeRow?.is_demo))
+      const { data: scopeData, error: scopeError } = await loadScopedSessionRows(
+        svc, scopeIds, fetchDays, Boolean(nodeRow?.is_demo), Date.now(),
+        { includePupils: Boolean(weekWindowId) && scopeIds.length <= PUPIL_CLASS_CAP })
       if (scopeError) console.error('[node-rate-compare] scope census error:', scopeError.message)
       else scopeRows = (scopeData as ScopedSessionRow[]) || []
     }
@@ -685,7 +746,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       rows = preRows
     } else {
       const allClassIds = [...new Set([...entityClassIds, ...members.flatMap((m) => m.classIds)])].slice(0, MAX_COHORT_IDS)
-      const { data: rawRows, error } = await loadScopedSessionRows(svc, allClassIds, fetchDays, entityIsDemo)
+      const { data: rawRows, error } = await loadScopedSessionRows(
+        svc, allClassIds, fetchDays, entityIsDemo, Date.now(),
+        { includePupils: Boolean(weekWindowId) && allClassIds.length <= PUPIL_CLASS_CAP })
       if (error) {
         console.error('[node-rate-compare] session rows error:', error.message)
         res.status(500).json({ error: 'Failed to load rate data' })
@@ -694,6 +757,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       rows = (rawRows as ScopedSessionRow[]) || []
     }
     const entityRateWindow = aggregateWindowPace(rows, entityClassIds, days, now)
+
+    // ─── THE WEEK CARD (job #989) — three numbers for the window, the
+    // cohort's same three beside them, and 12 Monday-anchored weekly bars.
+    // Never a ratio: the two sets of numbers sit side by side and the reader
+    // does the comparing (Tom's ruling via RBF, 2026-09-16). The cohort is
+    // job #979b's FIXED structural set — every class on the course in scope,
+    // the quiet ones and the viewed one included — so the school's week reads
+    // the same whoever is looking at it. ───
+    let weekBlock: Record<string, unknown> | null = null
+    if (weekWindowId) {
+      const buckets = weekBuckets(nowMs, timeZone, TREND_WEEKS)
+      const entityWeek = weekNumbersForClassIds(rows, entityClassIds, currentWeek.startMs, currentWeek.endMs)
+      const memberIdSets = [entityClassIds, ...members.map((m) => m.classIds)]
+      const cohortWeek = meanWeekNumbers(
+        memberIdSets.map((ids) => weekNumbersForClassIds(rows, ids, currentWeek.startMs, currentWeek.endMs)))
+      const cohortBars = memberIdSets.map((ids) => weeklyMinutesBars(rows, ids, buckets))
+      weekBlock = {
+        window: weekWindowId,
+        label: windowConfig.label,
+        rangeLabel: weekLabel(currentWeek, timeZone),
+        timeZone,
+        entity: {
+          label: nodeMeta.name,
+          classMinutes: entityWeek.classMinutes,
+          pupilMinutes: entityWeek.pupilMinutes,
+          totalMinutes: entityWeek.totalMinutes,
+          newPhrases: entityWeek.newPhrases,
+          hasData: entityWeek.hasData,
+        },
+        cohort: {
+          label: compareOptions.find((o) => o.value === compareTo)?.label ?? 'Average',
+          classMinutes: cohortWeek.classMinutes,
+          pupilMinutes: cohortWeek.pupilMinutes,
+          totalMinutes: cohortWeek.totalMinutes,
+          newPhrases: cohortWeek.newPhrases,
+          size: memberIdSets.length,
+        },
+        bars: {
+          weeks: buckets.map((b) => weekLabel(b, timeZone)),
+          entity: weeklyMinutesBars(rows, entityClassIds, buckets),
+          cohort: meanTrend(cohortBars),
+        },
+        // Named, not hidden: past the cap Y is not read at all, so the total
+        // is class play only and says so.
+        pupilMinutesCapped: entityClassIds.length > PUPIL_CLASS_CAP,
+      }
+    }
 
     // ─── The displayed measure — entity + every cohort member (active or
     // not), via the SAME dispatch function so every measure follows one
@@ -711,7 +821,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const perDay = Boolean(windowConfig.perDay) && measureConfig.per === 'week'
     const scaleValue = (v: number): number => (perDay ? Math.round((v / 7) * 10) / 10 : v)
     const measurePer = perDay ? 'day' : measureConfig.per
-    const entityMeasure = { value: scaleValue(entityMeasureRaw.value), trend: entityMeasureRaw.trend }
+    const entityMeasure = {
+      value: scaleValue(entityMeasureRaw.value),
+      // Under a week window every chart is Monday-anchored, so the legacy
+      // trend array carries the same bars the week card draws — no reader ever
+      // sees two different "last 12 weeks".
+      trend: weekBlock ? (weekBlock.bars as { entity: number[] }).entity : entityMeasureRaw.trend,
+    }
     const memberMeasures = memberMeasuresRaw.map((m) => ({ value: scaleValue(m.value), trend: m.trend }))
 
     // ─── The average ALWAYS includes the entity's own value (Tom's ruling
@@ -723,7 +839,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // self-inclusive cohort — reads identically whichever member is looking,
     // and a wider window can only raise or hold a sum measure, never lower it. ───
     const cohortValues = [entityMeasure.value, ...memberMeasures.map((m) => m.value)]
-    const averageTrend = meanTrend([entityMeasure.trend, ...memberMeasures.map((m) => m.trend)])
+    const averageTrend = weekBlock
+      ? (weekBlock.bars as { cohort: number[] }).cohort
+      : meanTrend([entityMeasure.trend, ...memberMeasures.map((m) => m.trend)])
     const averageValue = Math.round((cohortValues.reduce((a, b) => a + b, 0) / cohortValues.length) * 10) / 10
     const dist = distributionStats(cohortValues)
     const compareLabel = compareOptions.find((o) => o.value === compareTo)?.label ?? 'Average'
@@ -742,8 +860,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // "active in this window": under the structural ruling the denominator no
     // longer moves with the window, and saying so is what stops a teacher
     // reading a changed average as a bug.
-    const cohortScopeNote = cohortCourse ? 'on this course' : 'across all courses'
-    const cohortSizeLine = `${compareLabel} · all ${cohortValues.length} ${cohortUnit} ${cohortScopeNote}`
+    // The global rungs already carry their scope in the label itself — "Global
+    // average · this course" — so appending it again read "Global average ·
+    // this course · all 6 classes on this course" on staging. Name the scope
+    // once, wherever it already lives.
+    const alreadyScoped = / this course$| all courses$/.test(compareLabel)
+    const cohortScopeNote = cohortCourse ? ' on this course' : ' across all courses'
+    const cohortSizeLine = `${compareLabel} · all ${cohortValues.length} ${cohortUnit}${alreadyScoped ? '' : cohortScopeNote}`
+    // The week card says the same denominator in its own voice — the card
+    // already carries the cohort's NAME above the numbers, so this sentence
+    // only has to say how many and of what, with the right noun at every
+    // level: "all 34 classes on this course", "all 9 schools on this course".
+    if (weekBlock) weekBlock.cohortSizeLine = `Average of all ${cohortValues.length} ${cohortUnit}${alreadyScoped ? '' : cohortScopeNote}`
 
     // ─── Position context: the furthest LEGO's own CONTENT (position-is-LEGO
     // ruling — render what the LEGO says, never raw S/L ids; no content
@@ -780,6 +908,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       cohortUnit,
       cohortSizeLine,
       cohortIncludesEntity: true,
+      week: weekBlock,
       distribution: {
         values: dist.values,
         min: dist.min,
