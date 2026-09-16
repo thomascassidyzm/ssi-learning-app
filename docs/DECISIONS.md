@@ -3931,3 +3931,46 @@ extra tag on each row, and only when a week window asks for them.
 **Gap.** Y is unexercised against live data: Ysgol Cas-gwent, the only school with real volume,
 has no student class tags at all — it plays entirely from the front, so Y is a true 0 there. The
 X/Y split is covered by unit tests only until a school with pupil accounts practises.
+
+### 2026-09-16 — the cohort refinement, and where the week boundary comes from (job #989)
+
+Two rulings landed on top of the week card the same day.
+
+**The cohort is STARTED classes, evaluated PER WEEK.** Every class on the course in the
+compare-to subtree whose first session is on or before the end of the week being drawn, the
+viewed class included. A class set up and never played is in no denominator anywhere — 67 of
+the 127 active classes on cym_s_for_eng have never played a session, and counting them read a
+school as less than half as busy as it is. Chepstow's course cohort went 34 → 33 on the live
+data. A STARTED class that was quiet counts at its true value, 0 for a sum: dormancy is a fact
+about the week, never grounds for exclusion. Evaluating per week is what stops history moving —
+a class that first played in week 8 is absent from weeks 1-7, so a class starting today cannot
+rewrite last month's bars. The set is viewer-independent and only ever grows.
+
+**This overrides the never-started half of job #979b's structural cohort.** Everything else of
+#979b stands: the denominator does not move with the window, and the viewed class sits inside
+its own average. Job #982's "a dormant member contributes zeros, it does not drop out" also
+stands — its test fixture was a never-played class, changed here to a started-then-silent one,
+which is the case the rule was always about.
+
+**One function, three callers.** `cohortFor(candidates, firstPlay, weekEnd)` in
+`api/_utils/rateCompare.ts` is the only definition; the card calls it once, the weekly bars call
+it once per bucket, and the school series is built from per-member calls. A second definition
+would let a bar and the number above it disagree. Its one input is `class_first_play(uuid[])`
+(migration `20260916a`): a correlated `min()` over the diary and `class_sessions`, an index-only
+scan — 50ms for all 188 active classes, against 10.7 SECONDS for the GROUP BY form.
+
+**Absence is not zero.** A cohort that existed and did not play is a bar of zero height. A week
+before anyone had started is `null`: no bar, no number, and the dashed line breaks rather than
+ruling a school average across weeks when no school was playing. `connectNulls` is off.
+
+**The week boundary is Postgres's, read in Europe/London.** Both existing week-bucketing objects
+— `weekly_leaderboard` and `analytics_retention_days_active` — call `date_trunc('week', …)` under
+the session TimeZone, and that TimeZone is **UTC** (verified live). Under BST a UTC Monday starts
+an hour late, so play between Monday 00:00 and 01:00 London files into the PREVIOUS week — a week
+out, not an hour. The Monday rule is kept and the zone fixed.
+`api/_utils/schoolWeek.postgresParity.test.ts` pins seven instants to the output of the real
+query, run live and pasted in, and asserts exactly which rows London and UTC disagree on.
+
+**Open.** The two SQL objects above are still UTC-anchored. Nothing on the insights page reads
+them, so nothing there is wrong — but `weekly_leaderboard`'s "this week" and the retention
+buckets are an hour out for half the year, and they are somebody's next job, not this one's.
