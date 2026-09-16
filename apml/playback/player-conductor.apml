@@ -75,7 +75,7 @@ spec player_conductor_architecture:
     request: "(engine => void) => void — direct, synchronous, always-immediate engine control. Used internally by useSimplePlayer's play/pause/resume/stop/skip*/jumpToRound/addRounds/appendRounds/replaceQueueFromCurrent, and safe to call from INSIDE an interlude/seek body (never touches the serialization queue, so it can't deadlock against itself)."
     runInterlude: "(kind, fn, opts?) => Promise<void> — see interlude(kind, resumeTo) above. Exposed as simplePlayer.runInterlude in the composable."
     runSeek: "(fn(isStale), opts?) => Promise<T|undefined> — see seeking(intent) above. Exposed as simplePlayer.runSeek in the composable."
-    resumeAfterInterruption: "() => void — recover from an OUTSIDE audio-session interruption. Acts ONLY from the stable playing state and ONLY when the engine reports hasPendingInterruption; a no-op otherwise, so it is safe to call speculatively on every return to the foreground. Exposed as simplePlayer.resumeAfterInterruption; wired to document visibilitychange inside useSimplePlayer. See outside_audio_interruptions below."
+    self_paused: "engine event the conductor subscribes to in its constructor — the engine took ITSELF to isPlaying=false (an outside audio interruption, or the silent-run stop) and the conductor mirrors that into `userPaused` via syncStableState. No-op inside interlude/seeking, whose own landing reads the engine's truth. REPLACES resumeAfterInterruption (removed 2026-09-14): there is no recovery API any more because nothing recovers on its own. See outside_audio_interruptions below."
 
   dev_guard: |
     installDevGuard (dev/test builds only, import.meta.env.DEV or
@@ -250,6 +250,37 @@ spec player_conductor_architecture:
     id (404 from the proxy) never stops the session".
 
   outside_audio_interruptions: |
+    RULING CHANGE 2026-09-14 (job #644) — AN OUTSIDE PAUSE IS A PAUSE. Two
+    forum reports (2026-09-13) showed what the design below cost: with the
+    interruption only RECORDED and every timer left armed, the stall watchdog
+    skipped the paused clip after 10s and play()ed the next one (on the phone's
+    own speaker once the car's bluetooth was gone, or into silence with the
+    ring switch on), the pause trim timer started voice1 on schedule, and while
+    the audio session stayed lost every clip "stalled" in turn — one clip of
+    cursor per ten seconds with nothing audible ("enormous progress that I have
+    not made"). Then the recovery below un-paused whatever was left.
+    Now SimplePlayer.noteInterruption calls haltInPlace(): generation bump,
+    every timer disarmed (pause trim, stall + phase watchdogs, linger), element
+    stopped, isPlaying=false — position untouched, so the learner's tap
+    (resume()) replays the current cycle from the prompt. The engine emits
+    'interrupted' (telemetry: LearningPlayer logs `audio_interrupted`) and
+    'self_paused' (the conductor mirrors to userPaused). There is NO
+    auto-resume: resumeFromInterruption / hasPendingInterruption /
+    PlayerConductor.resumeAfterInterruption / the visibilitychange wiring and
+    FOREGROUND_RECOVERY_DELAY_MS in useSimplePlayer are all gone. The price is
+    one tap after a WhatsApp voice note or a call — the case the 2026-08-09
+    design was built for — which Tom chose over a player that can manufacture
+    progress. The same haltInPlace() serves the SILENT-RUN STOP: the fourth
+    consecutive unheard clip (failed retry, stall, phase-watchdog, no URL, or
+    a real 'ended' under MIN_AUDIBLE_CLIP_MS=50ms) stops the advance and emits
+    audio_failed reason 'silent-run'; three (one hollow cycle) is still walked
+    through per the plays-what-it-has ruling. Regressions:
+    playback/audioInterruption.test.ts ("An outside pause is a pause"),
+    playback/SimplePlayer.test.ts ("the silent-run stop"),
+    playback/PlayerConductor.test.ts ("the engine pausing itself").
+    The text below is the 2026-08-09 design, kept as the record of WHY the
+    detection exists; its transition half is superseded.
+
     ADDED 2026-08-09. Tom, on iOS: the app is backgrounded and playing, he
     switches to another app (WhatsApp — not recording, not a call), and that
     SOMETIMES kills the session — playback does not resume when he comes back.

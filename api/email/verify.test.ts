@@ -20,13 +20,34 @@ let crossAccountLearner: any
 let authUser: any
 let updateUserByIdCalls: any[]
 let learnersUpdateCalls: any[]
+// Stub-absorption fixtures: the colliding learner's own row (as read back by
+// isAbsorbableStub), the auth user behind it, its activity row count, and
+// every delete the handler issues.
+let stubLearnerRow: any
+let stubAuthUser: any
+let stubActivityCount: number
+let deleteCalls: any[]
+let deletedAuthUsers: string[]
 
-function makeLearnersBuilder() {
+function makeLearnersBuilder(table: string, hijacked: () => boolean) {
   const calls: any[] = []
   const builder: any = {
     select: (...args: any[]) => {
       calls.push(['select', ...args])
       return builder
+    },
+    delete: () => {
+      calls.push(['delete'])
+      deleteCalls.push({ table, calls })
+      return builder
+    },
+    // Awaiting a head-count probe (.select('id', {count, head}).eq(...)) lands
+    // here: a stub has zero activity rows, a real account has some.
+    then: (resolve: any) => {
+      const head = calls.some((c) => c[0] === 'select' && c[2]?.head)
+      if (head) return resolve({ count: table === 'learners' ? 0 : stubActivityCount, error: null })
+      if (calls.some((c) => c[0] === 'delete')) return resolve({ error: null })
+      return resolve({ data: null, error: null })
     },
     update: (obj: any) => {
       calls.push(['update', obj])
@@ -60,6 +81,10 @@ function makeLearnersBuilder() {
     single: () => {
       const isContains = calls.some((c) => c[0] === 'contains')
       if (isContains) return Promise.resolve({ data: crossAccountLearner, error: null })
+      // A client that has verified somebody else's OTP is no longer the
+      // service role — it is that address's stub, and own-row RLS hides the
+      // caller's learner from it. See the otpClient comment in verify.ts.
+      if (hijacked()) return Promise.resolve({ data: null, error: null })
       return Promise.resolve({ data: learnerRow, error: null })
     },
     // AUTH-CORE-06 moved the cross-account collision probe from .single() to
@@ -67,6 +92,8 @@ function makeLearnersBuilder() {
     maybeSingle: () => {
       const isContains = calls.some((c) => c[0] === 'contains')
       if (isContains) return Promise.resolve({ data: crossAccountLearner, error: null })
+      const readsStub = calls.some((c) => c[0] === 'select' && c[1] === 'verified_emails')
+      if (readsStub) return Promise.resolve({ data: stubLearnerRow, error: null })
       return Promise.resolve({ data: learnerRow, error: null })
     },
   }
@@ -74,19 +101,35 @@ function makeLearnersBuilder() {
 }
 
 vi.mock('@supabase/supabase-js', () => ({
-  createClient: () => ({
-    from: () => makeLearnersBuilder(),
+  createClient: () => {
+    // supabase-js keeps a successful verifyOtp's session on the client it was
+    // called on, and every later PostgREST call from THAT client goes out as
+    // that user. Modelled per client instance, because the whole point of the
+    // fix is which instance the OTP lands on.
+    let hijackedBy: string | null = null
+    const client: any = {
+    from: (table: string) => makeLearnersBuilder(table, () => hijackedBy !== null && hijackedBy !== 'user-1'),
     auth: {
-      verifyOtp: () => Promise.resolve(verifyOtpResult),
+      verifyOtp: ({ email }: { email: string }) => {
+        if (!verifyOtpResult.error) hijackedBy = email === authUser?.email ? 'user-1' : 'stub'
+        return Promise.resolve(verifyOtpResult)
+      },
       admin: {
-        getUserById: () => Promise.resolve({ data: { user: authUser } }),
+        getUserById: (id: string) =>
+          Promise.resolve({ data: { user: id === 'user-1' ? authUser : stubAuthUser } }),
+        deleteUser: (id: string) => {
+          deletedAuthUsers.push(id)
+          return Promise.resolve({ data: {}, error: null })
+        },
         updateUserById: (id: string, patch: any) => {
           updateUserByIdCalls.push({ id, patch })
           return Promise.resolve({ data: {}, error: null })
         },
       },
     },
-  }),
+    }
+    return client
+  },
 }))
 
 function makeRes() {
@@ -110,6 +153,11 @@ describe('POST /api/email/verify', () => {
     verifyOtpResult = { error: null }
     learnerRow = { id: 'learner-1', verified_emails: [] }
     crossAccountLearner = null
+    stubLearnerRow = null
+    stubAuthUser = null
+    stubActivityCount = 0
+    deleteCalls = []
+    deletedAuthUsers = []
     authUser = { id: 'user-1', email: 'teacher@school.example', user_metadata: { onboarded_via: 'possession' } }
     handler = (await import('./verify')).default
   })
@@ -148,9 +196,62 @@ describe('POST /api/email/verify', () => {
 
   it('returns 409 when the email is already linked to a different account', async () => {
     crossAccountLearner = { id: 'learner-2', user_id: 'someone-else' }
+    // A real second account: same address, but it has played.
+    stubLearnerRow = { verified_emails: ['personal@example.com'] }
+    stubAuthUser = { id: 'someone-else', email: 'personal@example.com' }
+    stubActivityCount = 8
     const res = makeRes()
     await handler(makeReq({ email: 'personal@example.com', token: '123456' }), res)
     expect(res._status).toBe(409)
+    expect(res._json.code).toBe('email_on_other_account')
+    expect(deleteCalls).toHaveLength(0)
+    expect(deletedAuthUsers).toHaveLength(0)
     expect(updateUserByIdCalls).toHaveLength(0)
   })
+
+  // Tom, 2026-09-14, production: linking a never-seen plus-address was refused
+  // as "already linked to another account". send-code's generateLink had
+  // created an auth user for it and the on_auth_user_created trigger a learners
+  // row holding that one address — the "other account" was our own empty stub.
+  it('absorbs the stub the sign-in code path minted, and links the email', async () => {
+    crossAccountLearner = { id: 'stub-learner', user_id: 'stub-user' }
+    stubLearnerRow = { verified_emails: ['fresh@example.com'] }
+    stubAuthUser = { id: 'stub-user', email: 'fresh@example.com' }
+    stubActivityCount = 0
+    const res = makeRes()
+    await handler(makeReq({ email: 'fresh@example.com', token: '123456' }), res)
+    expect(res._status).toBe(200)
+    expect(deleteCalls.map((d) => d.table)).toEqual(['learners'])
+    expect(deleteCalls[0].calls).toContainEqual(['eq', 'id', 'stub-learner'])
+    expect(deletedAuthUsers).toEqual(['stub-user'])
+    expect(learnersUpdateCalls[0]).toEqual({ verified_emails: ['fresh@example.com'] })
+  })
+
+  it('does not absorb a learner that holds more than the one address', async () => {
+    crossAccountLearner = { id: 'learner-2', user_id: 'someone-else' }
+    stubLearnerRow = { verified_emails: ['fresh@example.com', 'other@example.com'] }
+    stubAuthUser = { id: 'someone-else', email: 'fresh@example.com' }
+    stubActivityCount = 0
+    const res = makeRes()
+    await handler(makeReq({ email: 'fresh@example.com', token: '123456' }), res)
+    expect(res._status).toBe(409)
+    expect(deleteCalls).toHaveLength(0)
+  })
+
+  it('stays the service role after verifying a second address\'s code', async () => {
+    // The staging failure of 2026-09-16 (job #998): the stub was absorbed and
+    // then the handler, now running as the stub, could not see the caller's
+    // own learner row — every genuine second-email link died on 404 "Learner
+    // not found" one step short of the write it exists to make.
+    crossAccountLearner = { id: 'stub-learner', user_id: 'stub-user' }
+    stubLearnerRow = { verified_emails: ['personal@example.com'] }
+    stubAuthUser = { id: 'stub-user', email: 'personal@example.com' }
+    stubActivityCount = 0
+    const res = makeRes()
+    await handler(makeReq({ email: 'personal@example.com', token: '123456' }), res)
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    expect(learnersUpdateCalls).toContainEqual({ verified_emails: ['personal@example.com'] })
+  })
+
 })

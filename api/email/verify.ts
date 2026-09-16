@@ -53,6 +53,46 @@ async function otpAttemptsOverLimit(
   return (count ?? 0) >= OTP_ATTEMPT_LIMIT
 }
 
+/**
+ * The tables a learner leaves footprints in. A stub minted by the sign-in
+ * code path has none of these; a real second account has at least one, or
+ * carries more than the one address, or its auth user is somebody else's.
+ */
+const ACTIVITY_TABLES = ['sessions', 'course_enrollments', 'lego_progress', 'seed_progress'] as const
+
+async function isAbsorbableStub(
+  admin: SupabaseClient,
+  learnerId: string,
+  stubUserId: string,
+  email: string
+): Promise<boolean> {
+  const { data: row, error } = await admin
+    .from('learners')
+    .select('verified_emails')
+    .eq('id', learnerId)
+    .maybeSingle()
+  if (error || !row) return false
+  const emails: string[] = (row.verified_emails || []).map((e: string) => e.toLowerCase().trim())
+  if (emails.length !== 1 || emails[0] !== email) return false
+
+  const { data: stubUser } = await admin.auth.admin.getUserById(stubUserId)
+  if (stubUser?.user?.email?.toLowerCase().trim() !== email) return false
+
+  for (const table of ACTIVITY_TABLES) {
+    const { count, error: countErr } = await admin
+      .from(table)
+      .select('id', { count: 'exact', head: true })
+      .eq('learner_id', learnerId)
+    if (countErr || (count ?? 0) > 0) return false
+  }
+  const { count: tagCount, error: tagErr } = await admin
+    .from('user_tags')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', stubUserId)
+  if (tagErr || (tagCount ?? 0) > 0) return false
+  return true
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Cross-origin (native shell) policy + preflight. No-op same-origin.
   if (applyCors(req, res, { methods: 'POST' })) return
@@ -84,6 +124,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const admin = createClient(supabaseUrl, supabaseServiceKey)
+  // A SECOND client, used for nothing but the OTP round-trip.
+  //
+  // supabase-js keeps the session a successful verifyOtp returns ON THE
+  // CLIENT IT WAS CALLED ON, and every later PostgREST call from that client
+  // then goes out as that user instead of as the service role. When the code
+  // being verified belongs to the CALLER's own primary email that is
+  // invisible — same person either way. When it belongs to a SECOND address,
+  // the session is the address's own stub, and the rest of this handler ran
+  // as the stub under own-row RLS: it could delete the stub's learner row and
+  // then could not see the caller's, so every genuine second-email link
+  // ended in 404 "Learner not found" (staging, 2026-09-16, job #998 — the
+  // fix that shipped for job #646 got as far as absorbing the stub and no
+  // further). Keeping the OTP on its own client keeps `admin` the service
+  // role for the whole request.
+  const otpClient = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
   const ipHash = hashIp(getClientIp(req))
 
   try {
@@ -103,9 +160,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       outcome: 'email_verify_attempt',
     })
 
-    // Verify the OTP server-side using the admin client
-    // This confirms the user has access to this email without affecting client session
-    const { error: verifyError } = await admin.auth.verifyOtp({
+    // Verify the OTP server-side, on otpClient, so the session it returns
+    // cannot follow `admin` into the queries below. This confirms the person
+    // has access to this email without affecting their browser session.
+    const { error: verifyError } = await otpClient.auth.verifyOtp({
       email: normalizedEmail,
       token,
       type: 'email',
@@ -138,9 +196,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (existingLearner && existingLearner.user_id !== userId) {
-      return res.status(409).json({
-        error: 'This email is already linked to another account',
-      })
+      // Is the "other account" real, or the stub this very flow just minted?
+      //
+      // api/auth/send-code.ts mints the code with generateLink({type:'magiclink'}),
+      // which CREATES an auth.users row for an address nobody has seen before,
+      // and the on_auth_user_created trigger (handle_new_user) then inserts a
+      // learners row carrying verified_emails=[that address]. So by the time
+      // the person types the code, a brand-new address ALREADY "belongs to
+      // another account" — an empty one, seconds old, created by us — and the
+      // collision guard refused every fresh link (Tom, 2026-09-14, production:
+      // thomas.cassidy+ssi_2 refused as "already linked to another account").
+      //
+      // A stub is absorbed, not refused: it must hold ONLY this address, its
+      // auth user must BE this address, and it must carry no learner data at
+      // all. Anything else is a genuine second account and stays a 409.
+      const stub = await isAbsorbableStub(admin, existingLearner.id, existingLearner.user_id, normalizedEmail)
+      if (!stub) {
+        return res.status(409).json({
+          error: 'This email is already linked to another account',
+          code: 'email_on_other_account',
+        })
+      }
+      // learners(id) is the CASCADE root for every learner-scoped table
+      // (learner_emails included), and auth.users has no FK to learners, so
+      // both deletes are needed and this order leaves nothing behind.
+      const { error: stubLearnerErr } = await admin.from('learners').delete().eq('id', existingLearner.id)
+      if (stubLearnerErr) {
+        console.error('[email/verify] Could not remove stub learner:', stubLearnerErr)
+        return res.status(503).json({ error: 'Verification unavailable, please try again' })
+      }
+      const { error: stubUserErr } = await admin.auth.admin.deleteUser(existingLearner.user_id)
+      if (stubUserErr) console.warn('[email/verify] Stub auth user not removed (non-fatal):', stubUserErr.message)
     }
 
     // Add the email to this learner's verified_emails
