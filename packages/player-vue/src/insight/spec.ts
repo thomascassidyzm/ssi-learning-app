@@ -239,22 +239,34 @@ export interface RateComparisonData {
   // the entity is the viewer's own learner identity — the sole case the card may
   // say "You". `levelNoun` ("class") + `cohortLabel` ("classes in Gaelcholáiste
   // Luimnigh") anchor the cohort copy. All optional; an absent subject falls back
-  // to entity.label — never to "You". `distribution.values` are the entity's
-  // SIBLINGS at its level within the ancestor scope (entity excluded), never the
-  // entity's own members.
+  // to entity.label — never to "You". `distribution.values` are the FULL
+  // cohort's values, self-inclusive (job #979 — the entity's own value is
+  // always one of them, per Tom's ruling below), sorted ascending; the widget
+  // marks "You" and the average on top of that same anonymous shape.
   subject?: string
   subjectIsViewer?: boolean
   levelNoun?: string
   cohortLabel?: string
-  // ── Cohort size (job #979 — "school average" read as monotone-in-window
-  // before this: the denominator is the peers ACTIVE in the selected window,
-  // which grows with the window, so all-time can read lower than 30-day even
-  // though it's correct). Shown as "mean of N <unit> active in this window"
-  // so the average's own denominator is visible. Both optional: a caller
-  // (e.g. the schools lane) that hasn't wired cohortUnit yet still degrades
-  // to just the average, no cohort-size clause.
+  // ── Cohort size + self-inclusive averaging (Tom's ruling 2026-09-16: "a
+  // set member should ALWAYS be included in the average, not excluded — else
+  // the school average changes when a school leader looks at each class
+  // against it"). The cohort is every class/school in the compare-to scope
+  // on this course, active or not, entity included — a fixed denominator for
+  // a given school+course whoever is looking and whichever window is
+  // applied, so a sum measure (e.g. practice minutes) can only rise or hold
+  // as the window widens, never fall. `cohortSizeLine` is the server's own
+  // rendering of that denominator ("Ysgol Cas-gwent Chepstow average · all
+  // 32 classes on this course") — prefer it outright; `cohortSize`/`cohortUnit`
+  // remain as the raw numbers for a caller that hasn't wired the line yet.
   cohortSize?: number
   cohortUnit?: string      // "classes" | "schools" — the noun for cohortSize
+  cohortSizeLine?: string  // preformatted: "{average.label} · all N {cohortUnit} {on this course|across all courses}"
+  // Does `distribution.values` already contain the entity's own value? True on
+  // the node lane since the self-inclusive ruling; absent (and so false) on the
+  // lanes that still send a siblings-only shape — me/insights, intel/minutes,
+  // school/rate-compare. The widget's "Nth of M" chip reads this to know
+  // whether M is values.length or values.length + 1.
+  cohortIncludesEntity?: boolean
   // ── Time window (founder ruling 2026-07-19: the today/7d/30d/all-time ask
   // resolves as an explicit WINDOW selector, not a new lens). The chip sets the
   // period the rate is computed over AND the chart's x-span — headline and

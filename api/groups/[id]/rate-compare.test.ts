@@ -201,7 +201,8 @@ describe('GET /api/groups/:id/rate-compare', () => {
     // so the ladder widens to global · this course (c2/c3/c5): never a blank landing.
     expect(res.body.applied.compare_to).toBe('global')
     expect(res.body.insufficientData).toBe(false)
-    expect(res.body.cohortSize).toBe(3)
+    // cohort = c1 (itself) + c2/c3/c5 — the average is self-inclusive (Tom, 2026-09-16)
+    expect(res.body.cohortSize).toBe(4)
   })
 
   it('admin · class vs programme average: peer classes on the SAME course only', async () => {
@@ -210,10 +211,11 @@ describe('GET /api/groups/:id/rate-compare', () => {
     await handler(makeReq('c1', { compare_to: 'programme' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.insufficientData).toBe(false)
-    // cohort = c2 (8) + c3 (4); the tam class c4 is excluded by course
-    expect(res.body.cohortSize).toBe(2)
+    // cohort = c1 (itself, 10) + c2 (8) + c3 (4); the tam class c4 is excluded
+    // by course. The average is self-inclusive (Tom, 2026-09-16): mean(10,8,4).
+    expect(res.body.cohortSize).toBe(3)
     expect(res.body.entity.value).toBe(10)
-    expect(res.body.average.value).toBe(6)
+    expect(res.body.average.value).toBe(7.3)
     expect(res.body.average.label).toBe('IME Demo Programme average')
     expect(res.body.percentile).toBe(100)
     // Anonymity: no peer identity ever leaves the server
@@ -258,10 +260,11 @@ describe('GET /api/groups/:id/rate-compare', () => {
     // Default compare = parent (programme); peers-like-me = schools
     expect(res.body.applied.compare_to).toBe('programme')
     expect(res.body.insufficientData).toBe(false)
-    // cohort = school-1 only (aggregate of c1 = 10); entity = mean(c2, c3) = 6
-    expect(res.body.cohortSize).toBe(1)
+    // cohort = school-2 (itself) + school-1 peer (10); entity = mean(c2, c3) = 6.
+    // The average is self-inclusive (Tom, 2026-09-16): mean(6, 10) = 8.
+    expect(res.body.cohortSize).toBe(2)
     expect(res.body.entity.value).toBe(6)
-    expect(res.body.average.value).toBe(10)
+    expect(res.body.average.value).toBe(8)
   })
 
   it('admin · group node vs nation: school-spread cohort excludes own subtree', async () => {
@@ -272,10 +275,11 @@ describe('GET /api/groups/:id/rate-compare', () => {
     expect(res.body.applied.compare_to).toBe('nation')
     // entity = hin classes below programme: c1 (10), c2 (8), c3 (4) → 7.3
     expect(res.body.entity.value).toBe(7.3)
-    // cohort = schools under nation minus programme's own → school-3 (12)
-    expect(res.body.cohortSize).toBe(1)
-    expect(res.body.average.value).toBe(12)
-    expect(res.body.deltaPct).toBe(-39.2)
+    // cohort = programme (itself) + school-3 peer (12), excluding programme's
+    // own subtree from the PEER set. Self-inclusive average: mean(7.3, 12) = 9.7.
+    expect(res.body.cohortSize).toBe(2)
+    expect(res.body.average.value).toBe(9.7)
+    expect(res.body.deltaPct).toBe(-24.7)
   })
 
   // ─── Compare-set fullness at every depth (THE LENS windows+measures
@@ -343,7 +347,8 @@ describe('GET /api/groups/:id/rate-compare', () => {
     // The 5-floor is for cohorts of INDIVIDUAL learners (GDPR); classes are
     // entities. Before this ruling a teacher here was told "needs at least 5".
     expect(res.body.insufficientData).toBe(false)
-    expect(res.body.cohortSize).toBe(2)
+    // c1 (itself) + 2 peer classes — self-inclusive (Tom, 2026-09-16)
+    expect(res.body.cohortSize).toBe(3)
     expect(res.body.kFloor).toBe(1)
   })
 
@@ -351,7 +356,9 @@ describe('GET /api/groups/:id/rate-compare', () => {
     verifyAuthTokenResult = { valid: true, userId: 'teacher-1' }
     visibleScopeResult = { ...EMPTY_SCOPE, role: 'teacher', classIds: ['c1'] }
     // One class, one comparable class elsewhere: only c1 and c2 (another
-    // school, same course) have practised — a cohort of exactly one.
+    // school, same course) exist — membership is structural (Tom, 2026-09-16),
+    // so c3/c4/c5 are removed here rather than just their session rows.
+    TABLES.classes = TABLES.classes.filter((c: any) => ['c1', 'c2'].includes(c.id))
     SESSION_ROWS = [
       ...sessions('c1', 'hin_for_eng', [[0, 5], [5, 10]]),
       ...sessions('c2', 'hin_for_eng', [[0, 4], [4, 8]]),
@@ -360,7 +367,8 @@ describe('GET /api/groups/:id/rate-compare', () => {
     await handler(makeReq('c1', { compare_to: 'global' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.insufficientData).toBe(false)
-    expect(res.body.cohortSize).toBe(1)
+    // c1 (itself) + 1 comparable peer — self-inclusive (Tom, 2026-09-16)
+    expect(res.body.cohortSize).toBe(2)
     expect(res.body.kFloor).toBe(1)
     expect(res.body.average.value).toBeGreaterThan(0)
   })
@@ -414,8 +422,9 @@ describe('GET /api/groups/:id/rate-compare', () => {
     await handler(makeReq('school-1', { compare_to: 'global_all_courses' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.insufficientData).toBe(false)
-    // schools 2 + 3 as peers (school-2's pool now includes the tam class)
-    expect(res.body.cohortSize).toBe(2)
+    // school-1 (itself) + schools 2 + 3 as peers (school-2's pool now
+    // includes the tam class) — self-inclusive (Tom, 2026-09-16)
+    expect(res.body.cohortSize).toBe(3)
   })
 
   it('a DEMO node opts into its own demo sessions; a real node never does', async () => {
@@ -443,9 +452,9 @@ describe('GET /api/groups/:id/rate-compare', () => {
     expect(res.body.insufficientData).toBe(true)
     expect(res.body.cohortSize).toBe(0)
     // …and the empty-state NAMES the gate, not a vague "not enough data".
-    expect(res.body.reason).toMatch(/classes on this course/)
+    // Membership is structural now, so the reason no longer names a window.
+    expect(res.body.reason).toMatch(/demo classes running this course/)
     expect(res.body.reason).toMatch(/at least 1/)
-    expect(res.body.reason).toMatch(/Last 30 days/)
     expect(res.body.reason).not.toBe('Not enough data to compare fairly yet.')
   })
 
@@ -462,8 +471,9 @@ describe('GET /api/groups/:id/rate-compare', () => {
     await handler(makeReq('c1', { compare_to: 'global' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.insufficientData).toBe(false)
-    // only the demo peer (c6) — real peers c2/c3/c5 are excluded from the demo world
-    expect(res.body.cohortSize).toBe(1)
+    // c1 (itself) + the demo peer (c6) — real peers c2/c3/c5 are excluded
+    // from the demo world; self-inclusive (Tom, 2026-09-16).
+    expect(res.body.cohortSize).toBe(2)
   })
 
   it('real entity global_all_courses cohort excludes DEMO schools (a real average is never diluted)', async () => {
@@ -474,8 +484,9 @@ describe('GET /api/groups/:id/rate-compare', () => {
     const res = makeRes()
     await handler(makeReq('school-1', { compare_to: 'global_all_courses' }), res)
     expect(res.statusCode).toBe(200)
-    // school-2 remains (real); school-3 now demo → dropped. Was 2, now 1.
-    expect(res.body.cohortSize).toBe(1)
+    // school-1 (itself) + school-2 (real); school-3 now demo → dropped from
+    // peers. Was 2 peers, now 1 peer + entity = 2 (self-inclusive).
+    expect(res.body.cohortSize).toBe(2)
   })
 
   it('root node auto-widens to all-courses when its default this-course global cohort is empty (landing never blank)', async () => {
@@ -491,7 +502,8 @@ describe('GET /api/groups/:id/rate-compare', () => {
     // The empty this-course default silently widened to all-courses…
     expect(res.body.applied.compare_to).toBe('global_all_courses')
     expect(res.body.insufficientData).toBe(false)
-    expect(res.body.cohortSize).toBe(1) // school-3, via its (now fra) class
+    // programme (itself) + school-3 (via its now-fra class) — self-inclusive
+    expect(res.body.cohortSize).toBe(2)
     // …but the this-course option stays offered for anyone who wants to switch back.
     expect(res.body.options.compares.map((o: any) => o.value)).toEqual(['global', 'global_all_courses'])
     expect(res.body.average.label).toBe('Global average · all courses')
@@ -506,7 +518,7 @@ describe('GET /api/groups/:id/rate-compare', () => {
     expect(res.statusCode).toBe(200)
     expect(res.body.applied.compare_to).toBe('global') // respected, not widened
     expect(res.body.insufficientData).toBe(true)
-    expect(res.body.reason).toMatch(/on this course/)
+    expect(res.body.reason).toMatch(/running this course/)
     expect(res.body.reason).toMatch(/at least 1/)
   })
 
@@ -519,8 +531,8 @@ describe('GET /api/groups/:id/rate-compare', () => {
     expect(res.statusCode).toBe(200)
     expect(res.body.insufficientData).toBe(true)
     expect(res.body.applied.compare_to).toBe('global_all_courses') // it did attempt the widen
-    expect(res.body.reason).toMatch(/have practised in the selected period/)
-    expect(res.body.reason).not.toMatch(/on this course/) // all-courses scope, so no course clause
+    expect(res.body.reason).toMatch(/exist in this scope/)
+    expect(res.body.reason).not.toMatch(/running this course/) // all-courses scope, so no course clause
   })
 
   it('404s an unknown id', async () => {
@@ -601,7 +613,8 @@ describe('GET /api/groups/:id/rate-compare — course defaulting (founder rule 2
     expect(res.statusCode).toBe(200)
     expect(res.body.kFloor).toBe(1)
     expect(res.body.insufficientData).toBe(false) // school-1 is a single valid demo peer
-    expect(res.body.cohortSize).toBe(1)
+    // school-2 (itself) + school-1 peer — self-inclusive (Tom, 2026-09-16)
+    expect(res.body.cohortSize).toBe(2)
     // a REAL school for the same leader: a SCHOOL cohort is entities too, so
     // the floor is 1 there as well (Tom, 2026-09-15) — one real peer compares.
     for (const g of TABLES.groups) g.is_demo = false
@@ -610,7 +623,7 @@ describe('GET /api/groups/:id/rate-compare — course defaulting (founder rule 2
     await handler(makeReq('school-2'), res2)
     expect(res2.body.kFloor).toBe(1)
     expect(res2.body.insufficientData).toBe(false)
-    expect(res2.body.cohortSize).toBe(1)
+    expect(res2.body.cohortSize).toBe(2)
   })
 
   it('an INTERIOR node whose peers share NONE of its courses ladders the compare to global · all courses (the Metro case)', async () => {
@@ -704,7 +717,8 @@ describe('GET /api/groups/:id/rate-compare — windows (?window=, rolling day un
     expect(resToday.body.distribution.averageValue).toBe(resToday.body.average.value)
     // c1 advanced 5 LEGOs in its today-session → exactly 5 LEGOs/day, not 35/week
     expect(resToday.body.entity.value).toBe(5)
-    expect(resToday.body.average.value).toBe(3) // mean of c2 (4/day) and c3 (2/day)
+    // self-inclusive mean of c1 (5/day, itself), c2 (4/day) and c3 (2/day)
+    expect(resToday.body.average.value).toBe(3.7)
   })
 
   it('?window=all sets a practical-unbounded headline period and a 12-point monthly trend', async () => {
@@ -906,5 +920,84 @@ describe('GET /api/groups/:id/rate-compare — whole-class play lives in the dia
     expect(res.statusCode).toBe(200)
     expect(res.body.insufficientData).toBe(false)
     expect(res.body.entity.value).toBeGreaterThan(0)
+  })
+})
+
+// ─── Self-inclusive, structural averaging (Tom's ruling 2026-09-16: "the
+// averages need to be logical to a teacher, not technically correct, and a
+// set member should ALWAYS be included in the average, not excluded — else
+// the school average changes when a school leader looks at each class
+// against it"). Cohort membership is now every class/school in the compare-to
+// scope on this course, active or not, entity included — a fixed set for a
+// given school+course whoever is looking and whichever window is applied. ───
+describe('GET /api/groups/:id/rate-compare — self-inclusive averaging (Tom, 2026-09-16)', () => {
+  it('a sum measure (practice minutes): all-time average >= 30-day average >= 7-day average', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // c1 (entity) practises 2 days ago only; c2 (peer) 20 days ago only; c3
+    // (peer) 200 days ago only — inactive members count with their TRUE
+    // value (0) in a window they didn't practise in, never dropped.
+    SESSION_ROWS = [
+      { class_id: 'c1', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 1, duration_seconds: 3600, started_at: daysAgo(2) },
+      { class_id: 'c2', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 1, duration_seconds: 1800, started_at: daysAgo(20) },
+      { class_id: 'c3', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 1, duration_seconds: 1800, started_at: daysAgo(200) },
+    ]
+    const week = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', measure: 'minutes', window: '7d' }), week)
+    const month = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', measure: 'minutes', window: '30d' }), month)
+    const all = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', measure: 'minutes', window: 'all' }), all)
+    expect(week.statusCode).toBe(200)
+    expect(month.statusCode).toBe(200)
+    expect(all.statusCode).toBe(200)
+    // cohort = c1 (60), c2 (0 this window), c3 (0 this window) -> mean 20
+    expect(week.body.average.value).toBe(20)
+    // cohort = c1 (60), c2 (30), c3 (0 this window) -> mean 30
+    expect(month.body.average.value).toBe(30)
+    // cohort = c1 (60), c2 (30), c3 (30) -> mean 40
+    expect(all.body.average.value).toBe(40)
+    expect(month.body.average.value).toBeGreaterThanOrEqual(week.body.average.value)
+    expect(all.body.average.value).toBeGreaterThanOrEqual(month.body.average.value)
+  })
+
+  it('a ladder from an ancestor default onto a global rung values peers OUTSIDE the prefetched scope', async () => {
+    // Regression (job #983): the ancestor-default path prefetches session rows
+    // for the ancestor SCOPE and reuses them for the final averaging. When the
+    // compare ladder then widens to a global rung, the cohort is global — so
+    // school-3, which sits under `other-prog` and never appears in programme's
+    // scope rows, must have its rows fetched rather than silently valued 0.
+    verifyAdminResult = { userId: 'admin-1' }
+    TABLES.groups.push({ id: 'metro', name: 'Metro International', type: 'region', parent_id: 'programme', path: 'india/ime/metro', is_demo: false })
+    TABLES.groups.push({ id: 's4-node', name: 'Metro School', type: 'school', parent_id: 'metro', path: 'india/ime/metro/s4', is_demo: false })
+    TABLES.schools.push({ id: 'school-4', school_name: 'Metro School', group_id: 'metro', node_group_id: 's4-node', is_demo: false })
+    TABLES.classes.push({ id: 'c6', class_name: 'Year 8 French', course_code: 'fra_for_eng', school_id: 'school-4', group_id: 's4-node', is_active: true })
+    SESSION_ROWS.push(...sessions('c6', 'fra_for_eng', [[0, 6], [6, 12]]))
+    const res = makeRes()
+    await handler(makeReq('metro'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.applied.compare_to).toBe('global_all_courses')
+    // school-3 (outside programme's scope, pace 12 via c5) is in the cohort
+    // with its REAL value, so no cohort member reads as an unpractised zero.
+    expect(res.body.distribution.values).toContain(12)
+    expect(res.body.distribution.min).toBeGreaterThan(0)
+  })
+
+  it('the average is identical whichever of two classes in the same school requests it', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // c2 (pace 8) and c3 (pace 4) are the only two hin classes in school-2.
+    // Each viewer's own compare_to defaults to its own school node (s2-node);
+    // asking explicitly pins both requests to the same scope.
+    const asC2 = makeRes()
+    await handler(makeReq('c2', { compare_to: 's2-node' }), asC2)
+    const asC3 = makeRes()
+    await handler(makeReq('c3', { compare_to: 's2-node' }), asC3)
+    expect(asC2.statusCode).toBe(200)
+    expect(asC3.statusCode).toBe(200)
+    // same two-member cohort (c2, c3) either way -> the same mean, 6
+    expect(asC2.body.cohortSize).toBe(2)
+    expect(asC3.body.cohortSize).toBe(2)
+    expect(asC2.body.average.value).toBe(6)
+    expect(asC3.body.average.value).toBe(6)
+    expect(asC2.body.average.value).toBe(asC3.body.average.value)
   })
 })

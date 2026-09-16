@@ -35,8 +35,8 @@
  *
  * PRIVACY FLOOR is by COHORT KIND, not by role (Tom's ruling 2026-09-15, see
  * _utils/rateCompare.ts cohortFloor): every cohort here is made of ENTITIES —
- * classes or schools — so the floor is cohortFloor('entities') = 1 active
- * peer for every caller, teacher included. The 5-floor belongs to cohorts of
+ * classes or schools — so the floor is cohortFloor('entities') = 1 peer for
+ * every caller, teacher included. The 5-floor belongs to cohorts of
  * individual learners (me/insights) and never applied to classes by intent.
  *
  * Cohort member unit: peers-like-me — classes when the entity is a class,
@@ -44,6 +44,19 @@
  * spread is the meaningful, k-clearable unit above class level; sibling-group
  * cohorts are structurally too sparse). Classes attached directly to groups
  * with no school are counted in ENTITY values but not as cohort members.
+ *
+ * COHORT MEMBERSHIP IS STRUCTURAL, NOT ACTIVITY-GATED (Tom's ruling
+ * 2026-09-16): "the averages need to be logical to a teacher, not
+ * technically correct, and a set member should ALWAYS be included in the
+ * average, not excluded — else the school average changes when a school
+ * leader looks at each class against it." So the cohort is every class/
+ * school in the compare-to scope on this course — active or not, entity
+ * included — a fixed set for a given school+course whoever is looking and
+ * whichever window is applied. An inactive member counts with its true
+ * value (0 for a sum measure); a sum measure can therefore only rise or
+ * hold as the window widens, never fall, and the percentile ranks the
+ * entity within that same self-inclusive cohort. The floor and the compare
+ * ladder gate on membership COUNT alone (no session data needed for that).
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -501,38 +514,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // DEFAULTING the course at a node whose compare scope is an ancestor,
     // prefer the highest-ranked active course whose peer cohort actually
     // clears the floor — never land on an honest-but-empty screen when a
-    // comparable course exists one slot down. One scope-wide RPC; its rows
-    // are reused for the final comparison (no extra round trip on the
-    // ancestor path). Root nodes keep the global auto-widen fallback below. ───
+    // comparable course exists one slot down. Cohort membership is now
+    // STRUCTURAL (every school in scope running the course, active or not —
+    // Tom's ruling 2026-09-16), so this is a pure count over scopeClasses; no
+    // session data needed for it. The RPC below still runs to prefetch rows
+    // for the final comparison (no extra round trip on the ancestor path). ───
     let scopeRows: ScopedSessionRow[] | null = null
     const activeCourses = rankedCourses.filter((c) => c.hasData)
     if (!(requestedCourse && courseCounts.has(requestedCourse)) && !classRow && compareAnc?.path) {
+      const scopeSchoolIdSet = new Set(scopeSchools.map((s) => s.id))
+      const peerSchoolsFor = (code: string): number => {
+        const schools = new Set<string>()
+        for (const c of scopeClasses) {
+          if (!c.school_id || !scopeSchoolIdSet.has(c.school_id) || entitySchoolIds.has(c.school_id)) continue
+          if (c.course_code !== code) continue
+          schools.add(c.school_id)
+        }
+        return schools.size
+      }
+      const preferred = activeCourses.find((c) => peerSchoolsFor(c.code) >= effectiveFloor)
+      if (preferred && preferred.code !== courseCode) {
+        courseCode = preferred.code
+        baseBody.applied.course_code = preferred.code
+      }
       const scopeIds = scopeClasses.map((c) => c.id).slice(0, MAX_COHORT_IDS)
       const { data: scopeData, error: scopeError } = await loadScopedSessionRows(svc, scopeIds, fetchDays, Boolean(nodeRow?.is_demo))
-      if (scopeError) {
-        console.error('[node-rate-compare] scope census error:', scopeError.message)
-      } else {
-        scopeRows = (scopeData as ScopedSessionRow[]) || []
-        const scopeSchoolIdSet = new Set(scopeSchools.map((s) => s.id))
-        const activePeersFor = (code: string): number => {
-          const bySchool = new Map<string, string[]>()
-          for (const c of scopeClasses) {
-            if (!c.school_id || !scopeSchoolIdSet.has(c.school_id) || entitySchoolIds.has(c.school_id)) continue
-            if (c.course_code !== code) continue
-            const arr = bySchool.get(c.school_id) ?? []
-            arr.push(c.id)
-            bySchool.set(c.school_id, arr)
-          }
-          let n = 0
-          for (const ids of bySchool.values()) if (aggregateWindowPace(scopeRows!, ids, days, now).hasData) n++
-          return n
-        }
-        const preferred = activeCourses.find((c) => activePeersFor(c.code) >= effectiveFloor)
-        if (preferred && preferred.code !== courseCode) {
-          courseCode = preferred.code
-          baseBody.applied.course_code = preferred.code
-        }
-      }
+      if (scopeError) console.error('[node-rate-compare] scope census error:', scopeError.message)
+      else scopeRows = (scopeData as ScopedSessionRow[]) || []
     }
 
     const entityClassIds = entityAllClasses.filter((c) => c.course_code === courseCode).map((c) => c.id)
@@ -611,41 +619,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return { members: [...bySchool.entries()].map(([id, classIds]) => ({ id, classIds })) }
     }
 
-    // ─── Sessions + math (shared primitives). Gating (entity floor / "does this
-    // peer have any data") is always decided by RATE activity — the same
-    // cohort, regardless of which measure is displayed. `preRows`: the k-floor
-    // preference pass already fetched the whole ancestor scope's rows (a
-    // superset of entity + members) — reuse them instead of re-fetching. ───
-    const loadActive = async (
-      members: { id: string; classIds: string[] }[],
-      preRows: ScopedSessionRow[] | null = null,
-    ): Promise<{ rows: ScopedSessionRow[]; active: { member: { id: string; classIds: string[] }; rateWindow: ReturnType<typeof aggregateWindowPace> }[] } | { rpcError: string }> => {
-      let rows: ScopedSessionRow[]
-      if (preRows) {
-        rows = preRows
-      } else {
-        const allClassIds = [...new Set([...entityClassIds, ...members.flatMap((m) => m.classIds)])].slice(0, MAX_COHORT_IDS)
-        const { data: rawRows, error } = await loadScopedSessionRows(svc, allClassIds, fetchDays, entityIsDemo)
-        if (error) return { rpcError: error.message }
-        rows = (rawRows as ScopedSessionRow[]) || []
-      }
-      const active = members
-        .map((m) => ({ member: m, rateWindow: aggregateWindowPace(rows, m.classIds, days, now) }))
-        .filter((x) => x.rateWindow.hasData)
-      return { rows, active }
-    }
-
+    // ─── Cohort membership is STRUCTURAL, not activity-gated (Tom's ruling
+    // 2026-09-16): every OTHER class/school in the compare-to scope on this
+    // course is a member whether or not it practised in the selected window —
+    // an inactive member counts with its true value (0 for a sum measure).
+    // The floor and the compare ladder below gate on membership COUNT, which
+    // needs no session data at all — only the final averaging needs rows. ───
     const firstMembers = await resolveMembers()
     if (firstMembers.error) {
       insufficient(firstMembers.error)
       return
     }
-    let loaded = await loadActive(firstMembers.members, isGlobalCompare ? null : scopeRows)
-    if ('rpcError' in loaded) {
-      console.error('[node-rate-compare] session rows error:', loaded.rpcError)
-      res.status(500).json({ error: 'Failed to load rate data' })
-      return
-    }
+    let members = firstMembers.members
 
     // ─── Compare LADDER on the untouched DEFAULT (generalises the old
     // root-only all-courses fallback, 2026-07-20): when the default
@@ -660,45 +645,63 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // the last rung's state stands (honest all-courses reason). ───
     if (!requestedCompare) {
       for (const rung of ['global', 'global_all_courses'] as const) {
-        if (loaded.active.length >= effectiveFloor) break
+        if (members.length >= effectiveFloor) break
         if (compareTo === rung) continue // already tried as the default
         compareTo = rung
         cohortCourse = rung === 'global_all_courses' ? null : courseCode
         baseBody.applied.compare_to = rung
         const wm = await resolveMembers()
-        const wl = await loadActive(wm.members)
-        if ('rpcError' in wl) {
-          console.error('[node-rate-compare] session rows error:', wl.rpcError)
-          res.status(500).json({ error: 'Failed to load rate data' })
-          return
-        }
-        loaded = wl
+        if (wm.error) continue
+        members = wm.members
       }
     }
 
-    const rows = loaded.rows
-    const active = loaded.active
-    const entityRateWindow = aggregateWindowPace(rows, entityClassIds, days, now)
-    if (active.length < effectiveFloor) {
+    if (members.length < effectiveFloor) {
       // Name the actual gate rather than a vague "not enough data" (founder ask
-      // 2026-07-20): which peer unit, how many are needed, over what window. On
-      // a widened root this still fires only when all-courses is ALSO empty.
-      const unit = classRow ? 'classes' : 'schools'
+      // 2026-07-20): which peer unit, how many are needed. Membership is
+      // structural now, so this fires only when the scope genuinely has no
+      // other class/school running the course — never because of a quiet
+      // window (a widened root still only lands here when all-courses is
+      // ALSO empty).
+      const plural = classRow ? 'classes' : 'schools'
+      const unit = members.length === 1 ? (classRow ? 'class' : 'school') : plural
       const worldNote = entityIsDemo ? 'demo ' : ''
-      const scopeNote = cohortCourse ? 'on this course ' : ''
-      const reason = active.length === 0
-        ? `No other ${worldNote}${unit} ${scopeNote}have practised in the selected period (${windowConfig.label}) — a fair comparison needs at least ${effectiveFloor}.`
-        : `Only ${active.length} other ${worldNote}${unit} ${scopeNote}${active.length === 1 ? 'has' : 'have'} practised in the selected period (${windowConfig.label}) — a fair comparison needs at least ${effectiveFloor}.`
-      insufficient(reason, active.length)
+      const scopeNote = cohortCourse ? 'running this course ' : ''
+      const reason = members.length === 0
+        ? `No other ${worldNote}${plural} ${scopeNote}exist in this scope yet — a fair comparison needs at least ${effectiveFloor}.`
+        : `Only ${members.length} other ${worldNote}${unit} ${scopeNote}exists in this scope — a fair comparison needs at least ${effectiveFloor}.`
+      insufficient(reason, members.length)
       return
     }
 
-    // ─── The displayed measure — entity + each active cohort member, via
-    // the SAME dispatch function so every measure follows one grammar. ───
+    // The prefetched ancestor-scope rows only cover the ancestor scope, so they
+    // are reusable only while compareTo is STILL that ancestor — the ladder
+    // above may have moved it onto a global rung, whose members sit outside the
+    // scope entirely. Read compareTo's FINAL value, never the request-time flag.
+    const compareIsGlobalNow = compareTo === 'global' || compareTo === 'global_all_courses'
+    const preRows = compareIsGlobalNow ? null : scopeRows
+    let rows: ScopedSessionRow[]
+    if (preRows) {
+      rows = preRows
+    } else {
+      const allClassIds = [...new Set([...entityClassIds, ...members.flatMap((m) => m.classIds)])].slice(0, MAX_COHORT_IDS)
+      const { data: rawRows, error } = await loadScopedSessionRows(svc, allClassIds, fetchDays, entityIsDemo)
+      if (error) {
+        console.error('[node-rate-compare] session rows error:', error.message)
+        res.status(500).json({ error: 'Failed to load rate data' })
+        return
+      }
+      rows = (rawRows as ScopedSessionRow[]) || []
+    }
+    const entityRateWindow = aggregateWindowPace(rows, entityClassIds, days, now)
+
+    // ─── The displayed measure — entity + every cohort member (active or
+    // not), via the SAME dispatch function so every measure follows one
+    // grammar. ───
     const entityMeasureRaw = computeMeasureForClassIds(
       measureConfig.value, rows, entityClassIds, days, windowConfig.periods, windowConfig.periodDays, now)
-    const memberMeasuresRaw = active.map((x) =>
-      computeMeasureForClassIds(measureConfig.value, rows, x.member.classIds, days, windowConfig.periods, windowConfig.periodDays, now))
+    const memberMeasuresRaw = members.map((m) =>
+      computeMeasureForClassIds(measureConfig.value, rows, m.classIds, days, windowConfig.periods, windowConfig.periodDays, now))
 
     // Under 'Today' a per-week rate would be a 7x extrapolation of one day —
     // present per-week measures in their natural per-day form instead (the
@@ -711,8 +714,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const entityMeasure = { value: scaleValue(entityMeasureRaw.value), trend: entityMeasureRaw.trend }
     const memberMeasures = memberMeasuresRaw.map((m) => ({ value: scaleValue(m.value), trend: m.trend }))
 
-    const cohortValues = memberMeasures.map((m) => m.value)
-    const averageTrend = meanTrend(memberMeasures.map((m) => m.trend))
+    // ─── The average ALWAYS includes the entity's own value (Tom's ruling
+    // 2026-09-16): "a set member should ALWAYS be included in the average,
+    // not excluded — else the school average changes when a school leader
+    // looks at each class against it." Because membership is now the same
+    // fixed structural set for every viewer (every class/school in scope on
+    // this course), the average — and the percentile, ranked over this same
+    // self-inclusive cohort — reads identically whichever member is looking,
+    // and a wider window can only raise or hold a sum measure, never lower it. ───
+    const cohortValues = [entityMeasure.value, ...memberMeasures.map((m) => m.value)]
+    const averageTrend = meanTrend([entityMeasure.trend, ...memberMeasures.map((m) => m.trend)])
     const averageValue = Math.round((cohortValues.reduce((a, b) => a + b, 0) / cohortValues.length) * 10) / 10
     const dist = distributionStats(cohortValues)
     const compareLabel = compareOptions.find((o) => o.value === compareTo)?.label ?? 'Average'
@@ -726,6 +737,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const cohortLabel = compareTo === 'global' || compareTo === 'global_all_courses'
       ? (compareTo === 'global_all_courses' ? `all ${cohortUnit} · all courses` : `all ${cohortUnit} on this course`)
       : `${cohortUnit} in ${compareAnc?.name ?? 'this scope'}`
+    // "Ysgol Cas-gwent Chepstow average · all 32 classes on this course" — the
+    // average's own denominator, spelled out. It names the FIXED cohort, never
+    // "active in this window": under the structural ruling the denominator no
+    // longer moves with the window, and saying so is what stops a teacher
+    // reading a changed average as a bug.
+    const cohortScopeNote = cohortCourse ? 'on this course' : 'across all courses'
+    const cohortSizeLine = `${compareLabel} · all ${cohortValues.length} ${cohortUnit} ${cohortScopeNote}`
 
     // ─── Position context: the furthest LEGO's own CONTENT (position-is-LEGO
     // ruling — render what the LEGO says, never raw S/L ids; no content
@@ -760,6 +778,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       levelNoun,
       cohortLabel,
       cohortUnit,
+      cohortSizeLine,
+      cohortIncludesEntity: true,
       distribution: {
         values: dist.values,
         min: dist.min,
@@ -771,7 +791,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         averageValue,
         percentile: dist.percentileOf(entityMeasure.value),
       },
-      cohortSize: active.length,
+      cohortSize: cohortValues.length,
     })
   } catch (error) {
     console.error('[node-rate-compare] error:', error)

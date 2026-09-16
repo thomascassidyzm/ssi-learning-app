@@ -49,15 +49,17 @@ const valueSuffix = computed(() => (isPercent.value ? '%' : ''))
 // e.g. "RANG A 1 v SCHOOL AVG · LEGOs / WEEK" (uppercased via CSS).
 const captionRest = computed(() => `${props.data.average.label} · ${perLabel.value}`)
 
-// Cohort-size line under the headline: "school average · mean of 32 classes
-// active in this window" (job #979 — makes the average's own denominator
-// visible, since it grows with the window and can make a wider window read
-// lower than a narrower one even though the maths is correct). Omitted when
-// the server hasn't sent both a size and a unit (e.g. the schools lane).
+// Cohort-size line under the headline: "school average · all 32 classes on
+// this course" (job #979 — the average is now self-inclusive over EVERY
+// class/school in scope, active or not, so its denominator is fixed for a
+// given school+course whoever is looking; naming it here makes that plain).
+// Prefer the server's own rendering; fall back to assembling it from the raw
+// numbers for a caller that hasn't wired the line yet (e.g. the schools lane).
 const cohortSizeLine = computed(() => {
+  if (props.data.cohortSizeLine) return props.data.cohortSizeLine
   const { cohortSize, cohortUnit, average } = props.data
   if (!cohortSize || !cohortUnit) return null
-  return `${average.label} · mean of ${cohortSize} ${cohortUnit} active in this window`
+  return `${average.label} · all ${cohortSize} ${cohortUnit}`
 })
 
 // The chart caption comes from the server (windows+measures contract); the
@@ -87,12 +89,15 @@ const sitsLine = computed(() => {
   return `${head} · ${tail}`
 })
 
-// ── Honest rank: siblings + the entity itself ───────────────────────────────
-// distribution.values are the entity's SIBLINGS (entity excluded); the cohort
-// the entity sits in is siblings + itself. With a tiny cohort a percentile is
-// dishonest ("100th pctl" of 3 classes) — below TINY_COHORT we say "1st of 3".
+// ── Honest rank: the cohort the entity sits in, counted once ────────────────
+// distribution.values are siblings-only on the lanes that predate the
+// self-inclusive ruling, and already include the entity on the node lane
+// (cohortIncludesEntity) — so the total is values.length, plus one only when
+// the entity is NOT among them. With a tiny cohort a percentile is dishonest
+// ("100th pctl" of 3 classes) — below TINY_COHORT we say "1st of 3".
 const TINY_COHORT = 10
-const cohortTotal = computed(() => props.data.distribution.values.length + 1)
+const cohortTotal = computed(() =>
+  props.data.distribution.values.length + (props.data.cohortIncludesEntity ? 0 : 1))
 const rank = computed(() =>
   1 + props.data.distribution.values.filter((v) => v > props.data.distribution.entityValue).length)
 const useOrdinal = computed(() => cohortTotal.value < TINY_COHORT)
