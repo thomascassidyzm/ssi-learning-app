@@ -1,0 +1,2219 @@
+[
+  {
+    "id": "add-students-to-a-class",
+    "title": "Add students to a class",
+    "place": "class-detail",
+    "anchor": "class-student-add",
+    "clips": [
+      "add-students-to-a-class"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools/classes/ea59ef42-ab29-46d0-a956-a4fdbe5e1d09",
+    "showMeStarted": true,
+    "showMeWalk": "add-students-to-a-class",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "class-student-add",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "class-student-add",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "class-student-add",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "class-student-add",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "class-student-add",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "class-student-add",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "class-student-add",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "class-student-add",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      }
+    ],
+    "reachedTerminal": false,
+    "takeMeThereHref": "/schools/classes",
+    "expectedRoute": "/schools/classes",
+    "takeMeThereLandedUrl": "/schools/classes",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "choose-what-a-class-learns",
+    "title": "Choose what a class learns",
+    "place": "classes",
+    "anchor": "create-class-course",
+    "clips": [
+      "choose-a-class-course"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools/classes",
+    "showMeStarted": true,
+    "showMeWalk": "choose-a-class-course",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "create-class-course",
+        "on": "next",
+        "ringPresent": false,
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "wantedAnchor": "create-class-course",
+        "on": "click",
+        "ringPresent": false,
+        "cardPresent": true
+      }
+    ],
+    "reachedTerminal": false,
+    "takeMeThereHref": "/schools/classes",
+    "expectedRoute": "/schools/classes",
+    "takeMeThereLandedUrl": "/schools/classes",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "copy-a-class-link-without-opening-the-class",
+    "title": "Copy a class link without opening the class",
+    "place": "classes",
+    "anchor": "classes-share-link",
+    "clips": [
+      "copy-a-class-link-without-opening-the-class"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools/classes",
+    "showMeStarted": true,
+    "showMeWalk": "copy-a-class-link-without-opening-the-class",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "classes-share-link",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "classes-share-link",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "classes-share-link",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "classes-share-link",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "classes-share-link",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "classes-share-link",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "classes-share-link",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "classes-share-link",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      }
+    ],
+    "reachedTerminal": false,
+    "takeMeThereHref": "/schools/classes",
+    "expectedRoute": "/schools/classes",
+    "takeMeThereLandedUrl": "/schools/classes",
+    "anchorPresentOnLandedPage": true
+  },
+  {
+    "id": "copy-a-teacher-s-own-play-onto-the-class",
+    "title": "Copy a teacher's own play onto the class",
+    "place": "class-detail",
+    "anchor": "class-copy-play-preview",
+    "clips": [
+      "copy-a-teachers-play-onto-their-class"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools/classes/ea59ef42-ab29-46d0-a956-a4fdbe5e1d09",
+    "showMeStarted": true,
+    "showMeWalk": "copy-a-teachers-play-onto-their-class",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "class-copy-play-picker",
+        "on": "next",
+        "ringPresent": false,
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "wantedAnchor": "class-copy-play-preview",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "wantedAnchor": "class-copy-play-preview-result",
+        "on": "next",
+        "ringPresent": false,
+        "cardPresent": true
+      },
+      {
+        "idx": 3,
+        "wantedAnchor": "class-copy-play-apply",
+        "on": "next",
+        "ringPresent": false,
+        "cardPresent": true
+      },
+      {
+        "terminal": true,
+        "raw": "copy-a-teachers-play-onto-their-class:3:done"
+      }
+    ],
+    "reachedTerminal": true,
+    "takeMeThereHref": "/schools/classes",
+    "expectedRoute": "/schools/classes",
+    "takeMeThereLandedUrl": "/schools/classes",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "delete-a-class",
+    "title": "Delete a class",
+    "place": "class-detail",
+    "anchor": "class-delete",
+    "clips": [
+      "manage-a-class-from-its-page"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools/classes/ea59ef42-ab29-46d0-a956-a4fdbe5e1d09",
+    "showMeStarted": true,
+    "showMeWalk": "manage-a-class-from-its-page",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "class-rename",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "wantedAnchor": "class-delete",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "wantedAnchor": "class-student-remove",
+        "on": "next",
+        "ringPresent": false,
+        "cardPresent": true
+      },
+      {
+        "terminal": true,
+        "raw": "manage-a-class-from-its-page:2:done"
+      }
+    ],
+    "reachedTerminal": true,
+    "takeMeThereHref": "/schools/classes",
+    "expectedRoute": "/schools/classes",
+    "takeMeThereLandedUrl": "/schools/classes",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "download-your-school-s-data",
+    "title": "Download your school's data",
+    "place": "settings",
+    "anchor": "settings-export-data",
+    "clips": [
+      "download-your-schools-data"
+    ],
+    "showMeRendered": false,
+    "takeMeThereRendered": true,
+    "takeMeThereHref": "/schools/settings",
+    "expectedRoute": "/schools/settings",
+    "takeMeThereLandedUrl": "/schools/settings",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "export-your-class-list",
+    "title": "Export your class list",
+    "place": "classes",
+    "anchor": "classes-export",
+    "clips": [
+      "start-or-make-a-class"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools/classes",
+    "showMeStarted": true,
+    "showMeWalk": "start-or-make-a-class",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "classes-row-play",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "wantedAnchor": "verb-new-class",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "wantedAnchor": "classes-export",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "terminal": true,
+        "raw": "start-or-make-a-class:2:done"
+      }
+    ],
+    "reachedTerminal": true,
+    "takeMeThereHref": "/schools/classes",
+    "expectedRoute": "/schools/classes",
+    "takeMeThereLandedUrl": "/schools/classes",
+    "anchorPresentOnLandedPage": true
+  },
+  {
+    "id": "find-a-class-in-a-long-list",
+    "title": "Find a class in a long list",
+    "place": "classes",
+    "anchor": "classes-filters",
+    "clips": [
+      "reading-your-class-list"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools/classes",
+    "showMeStarted": true,
+    "showMeWalk": "reading-your-class-list",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "classes-table",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "wantedAnchor": "classes-filters",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "wantedAnchor": "classes-year-groups",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 3,
+        "wantedAnchor": "classes-row",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "terminal": true,
+        "raw": "reading-your-class-list:3:done"
+      }
+    ],
+    "reachedTerminal": true,
+    "takeMeThereHref": "/schools/classes",
+    "expectedRoute": "/schools/classes",
+    "takeMeThereLandedUrl": "/schools/classes",
+    "anchorPresentOnLandedPage": true
+  },
+  {
+    "id": "find-out-which-email-you-are-signed-in-with",
+    "title": "Find out which email you are signed in with",
+    "place": "settings",
+    "anchor": "account-identity",
+    "clips": [
+      "your-account-identity"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/?screen=settings",
+    "showMeStarted": true,
+    "showMeWalk": "your-account-identity",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "account-identity",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "wantedAnchor": "account-identity",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "terminal": true,
+        "raw": "your-account-identity:1:done"
+      }
+    ],
+    "reachedTerminal": true,
+    "takeMeThereHref": "/schools/settings",
+    "expectedRoute": "/schools/settings",
+    "takeMeThereLandedUrl": "/schools/settings",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "hand-a-class-over-to-another-teacher",
+    "title": "Hand a class over to another teacher",
+    "place": "class-detail",
+    "anchor": "class-teacher-make-lead",
+    "clips": [
+      "hand-over-the-lead"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools/classes/ea59ef42-ab29-46d0-a956-a4fdbe5e1d09",
+    "showMeStarted": true,
+    "showMeWalk": "hand-over-the-lead",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "class-teachers",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "wantedAnchor": "class-teacher-make-lead",
+        "on": "next",
+        "ringPresent": false,
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "wantedAnchor": "class-teachers",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "terminal": true,
+        "raw": "hand-over-the-lead:2:done"
+      }
+    ],
+    "reachedTerminal": true,
+    "takeMeThereHref": "/schools/classes",
+    "expectedRoute": "/schools/classes",
+    "takeMeThereLandedUrl": "/schools/classes",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "how-students-join-a-class",
+    "title": "How students join a class",
+    "place": "class-detail",
+    "anchor": "class-join-link",
+    "clips": [
+      "invite-a-supply-teacher",
+      "run-class-session"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools/classes/ea59ef42-ab29-46d0-a956-a4fdbe5e1d09",
+    "showMeStarted": true,
+    "showMeWalk": "invite-a-supply-teacher",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "class-teachers",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "wantedAnchor": "class-coteacher-link",
+        "on": "next",
+        "ringPresent": false,
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "wantedAnchor": "class-join-link",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "terminal": true,
+        "raw": "invite-a-supply-teacher:2:done"
+      }
+    ],
+    "reachedTerminal": true,
+    "takeMeThereHref": "/schools/classes",
+    "expectedRoute": "/schools/classes",
+    "takeMeThereLandedUrl": "/schools/classes",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "invite-a-teacher-who-isn-t-here-yet",
+    "title": "Invite a teacher who isn't here yet",
+    "place": "class-detail",
+    "anchor": "class-coteacher-link",
+    "clips": [
+      "invite-a-supply-teacher"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools/classes/ea59ef42-ab29-46d0-a956-a4fdbe5e1d09",
+    "showMeStarted": true,
+    "showMeWalk": "invite-a-supply-teacher",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "class-teachers",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "wantedAnchor": "class-coteacher-link",
+        "on": "next",
+        "ringPresent": false,
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "wantedAnchor": "class-join-link",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "terminal": true,
+        "raw": "invite-a-supply-teacher:2:done"
+      }
+    ],
+    "reachedTerminal": true,
+    "takeMeThereHref": "/schools/classes",
+    "expectedRoute": "/schools/classes",
+    "takeMeThereLandedUrl": "/schools/classes",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "look-up-one-student",
+    "title": "Look up one student",
+    "place": "students",
+    "anchor": "student-view-link",
+    "clips": [
+      "find-a-student-or-export-the-list"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools/students",
+    "showMeStarted": true,
+    "showMeWalk": "find-a-student-or-export-the-list",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "student-view-link",
+        "on": "next",
+        "ringPresent": false,
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "wantedAnchor": "students-export",
+        "on": "next",
+        "ringPresent": false,
+        "cardPresent": true
+      },
+      {
+        "terminal": true,
+        "raw": "find-a-student-or-export-the-list:1:done"
+      }
+    ],
+    "reachedTerminal": true,
+    "takeMeThereHref": "/schools/students",
+    "expectedRoute": "/schools/students",
+    "takeMeThereLandedUrl": "/schools/students",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "make-a-class",
+    "title": "Make a class",
+    "place": "classes",
+    "anchor": "verb-new-class",
+    "clips": [
+      "start-or-make-a-class"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools/classes",
+    "showMeStarted": true,
+    "showMeWalk": "start-or-make-a-class",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "classes-row-play",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "wantedAnchor": "verb-new-class",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "wantedAnchor": "classes-export",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "terminal": true,
+        "raw": "start-or-make-a-class:2:done"
+      }
+    ],
+    "reachedTerminal": true,
+    "takeMeThereHref": "/schools/classes",
+    "expectedRoute": "/schools/classes",
+    "takeMeThereLandedUrl": "/schools/classes",
+    "anchorPresentOnLandedPage": true
+  },
+  {
+    "id": "manage-a-class",
+    "title": "Manage a class",
+    "place": "node-home",
+    "anchor": "class-page-manage",
+    "clips": [
+      "class-page-play-and-manage"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "showMeStarted": false,
+    "showMeWalk": null,
+    "takeMeThereHref": "/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "expectedRoute": null,
+    "takeMeThereLandedUrl": "/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "move-a-teacher-to-another-class",
+    "title": "Move a teacher to another class",
+    "place": "class-detail",
+    "anchor": "class-teacher-other-classes",
+    "clips": [
+      "move-a-teacher-between-classes"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools/classes/ea59ef42-ab29-46d0-a956-a4fdbe5e1d09",
+    "showMeStarted": true,
+    "showMeWalk": "move-a-teacher-between-classes",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "class-teachers",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "wantedAnchor": "class-teacher-other-classes",
+        "on": "click",
+        "ringPresent": false,
+        "cardPresent": true
+      }
+    ],
+    "reachedTerminal": false,
+    "takeMeThereHref": "/schools/classes",
+    "expectedRoute": "/schools/classes",
+    "takeMeThereLandedUrl": "/schools/classes",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "open-a-class",
+    "title": "Open a class",
+    "place": "classes",
+    "anchor": "classes-row",
+    "clips": [
+      "reading-your-class-list"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools/classes",
+    "showMeStarted": true,
+    "showMeWalk": "reading-your-class-list",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "classes-table",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "wantedAnchor": "classes-filters",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "wantedAnchor": "classes-year-groups",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 3,
+        "wantedAnchor": "classes-row",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "terminal": true,
+        "raw": "reading-your-class-list:3:done"
+      }
+    ],
+    "reachedTerminal": true,
+    "takeMeThereHref": "/schools/classes",
+    "expectedRoute": "/schools/classes",
+    "takeMeThereLandedUrl": "/schools/classes",
+    "anchorPresentOnLandedPage": true
+  },
+  {
+    "id": "open-your-inbox",
+    "title": "Open your inbox",
+    "place": "dashboard",
+    "anchor": "schools-inbox-menu",
+    "clips": [
+      "open-your-inbox"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools",
+    "showMeStarted": true,
+    "showMeWalk": "open-your-inbox",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      }
+    ],
+    "reachedTerminal": false,
+    "takeMeThereHref": "/schools",
+    "expectedRoute": "/schools",
+    "takeMeThereLandedUrl": "/schools",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "play-as-class-from-the-class-page",
+    "title": "Play as class from the class page",
+    "place": "node-home",
+    "anchor": "class-page-play",
+    "clips": [
+      "class-page-play-and-manage"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "showMeStarted": false,
+    "showMeWalk": null,
+    "takeMeThereHref": "/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "expectedRoute": null,
+    "takeMeThereLandedUrl": "/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "play-as-class-from-your-dashboard",
+    "title": "Play as class from your dashboard",
+    "place": "dashboard",
+    "anchor": "dash-class-card-play",
+    "clips": [
+      "play-as-class-from-your-dashboard"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools",
+    "showMeStarted": true,
+    "showMeWalk": "play-as-class-from-your-dashboard",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "dash-class-card-play",
+        "on": "next",
+        "ringPresent": false,
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "wantedAnchor": "dash-class-card-play",
+        "on": "next",
+        "ringPresent": false,
+        "cardPresent": true
+      },
+      {
+        "terminal": true,
+        "raw": "play-as-class-from-your-dashboard:1:done"
+      }
+    ],
+    "reachedTerminal": true,
+    "takeMeThereHref": "/schools",
+    "expectedRoute": "/schools",
+    "takeMeThereLandedUrl": "/schools",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "practice-on-your-own-account",
+    "title": "Practice on your own account",
+    "place": "dashboard",
+    "anchor": "dash-own-practice",
+    "clips": [
+      "practice-on-your-own-account"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools",
+    "showMeStarted": true,
+    "showMeWalk": "practice-on-your-own-account",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "dash-own-practice",
+        "on": "next",
+        "ringPresent": false,
+        "cardPresent": true
+      },
+      {
+        "terminal": true,
+        "raw": "practice-on-your-own-account:0:done"
+      }
+    ],
+    "reachedTerminal": true,
+    "takeMeThereHref": "/schools",
+    "expectedRoute": "/schools",
+    "takeMeThereLandedUrl": "/schools",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "prove-your-mailbox-reaches-you",
+    "title": "Prove your mailbox reaches you",
+    "place": "dashboard",
+    "anchor": "mailbox-check-send",
+    "clips": [
+      "prove-your-mailbox-reaches-you"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools",
+    "showMeStarted": true,
+    "showMeWalk": "prove-your-mailbox-reaches-you",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "mailbox-check-send",
+        "on": "next",
+        "ringPresent": false,
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "wantedAnchor": "mailbox-check-confirm",
+        "on": "next",
+        "ringPresent": false,
+        "cardPresent": true
+      },
+      {
+        "terminal": true,
+        "raw": "prove-your-mailbox-reaches-you:1:done"
+      }
+    ],
+    "reachedTerminal": true,
+    "takeMeThereHref": "/schools",
+    "expectedRoute": "/schools",
+    "takeMeThereLandedUrl": "/schools",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "read-your-class-list",
+    "title": "Read your class list",
+    "place": "classes",
+    "anchor": "classes-table",
+    "clips": [
+      "reading-your-class-list"
+    ],
+    "showMeRendered": false,
+    "takeMeThereRendered": true,
+    "takeMeThereHref": "/schools/classes",
+    "expectedRoute": "/schools/classes",
+    "takeMeThereLandedUrl": "/schools/classes",
+    "anchorPresentOnLandedPage": true
+  },
+  {
+    "id": "read-your-messages",
+    "title": "Read your messages",
+    "place": "inbox",
+    "anchor": "schools-inbox",
+    "clips": [
+      "read-your-messages"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools/inbox",
+    "showMeStarted": true,
+    "showMeWalk": "read-your-messages",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-inbox",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "wantedAnchor": "schools-inbox",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "terminal": true,
+        "raw": "read-your-messages:1:done"
+      }
+    ],
+    "reachedTerminal": true,
+    "takeMeThereHref": "/schools/inbox",
+    "expectedRoute": "/schools/inbox",
+    "takeMeThereLandedUrl": "/schools/inbox",
+    "anchorPresentOnLandedPage": true
+  },
+  {
+    "id": "remove-a-student-from-a-class",
+    "title": "Remove a student from a class",
+    "place": "class-detail",
+    "anchor": "class-student-remove",
+    "clips": [
+      "manage-a-class-from-its-page"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools/classes/ea59ef42-ab29-46d0-a956-a4fdbe5e1d09",
+    "showMeStarted": true,
+    "showMeWalk": "manage-a-class-from-its-page",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "class-rename",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "wantedAnchor": "class-delete",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "wantedAnchor": "class-student-remove",
+        "on": "next",
+        "ringPresent": false,
+        "cardPresent": true
+      },
+      {
+        "terminal": true,
+        "raw": "manage-a-class-from-its-page:2:done"
+      }
+    ],
+    "reachedTerminal": true,
+    "takeMeThereHref": "/schools/classes",
+    "expectedRoute": "/schools/classes",
+    "takeMeThereLandedUrl": "/schools/classes",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "rename-a-class",
+    "title": "Rename a class",
+    "place": "class-detail",
+    "anchor": "class-rename",
+    "clips": [
+      "manage-a-class-from-its-page"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools/classes/ea59ef42-ab29-46d0-a956-a4fdbe5e1d09",
+    "showMeStarted": true,
+    "showMeWalk": "manage-a-class-from-its-page",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "class-rename",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "wantedAnchor": "class-delete",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "wantedAnchor": "class-student-remove",
+        "on": "next",
+        "ringPresent": false,
+        "cardPresent": true
+      },
+      {
+        "terminal": true,
+        "raw": "manage-a-class-from-its-page:2:done"
+      }
+    ],
+    "reachedTerminal": true,
+    "takeMeThereHref": "/schools/classes",
+    "expectedRoute": "/schools/classes",
+    "takeMeThereLandedUrl": "/schools/classes",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "report-a-bug-from-settings",
+    "title": "Report a bug from Settings",
+    "place": "settings",
+    "anchor": "report-bug",
+    "clips": [
+      "report-a-bug-from-settings"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/?screen=settings",
+    "showMeStarted": true,
+    "showMeWalk": "report-a-bug-from-settings",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "report-bug",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "report-bug",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "report-bug",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "report-bug",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "report-bug",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "report-bug",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "report-bug",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "report-bug",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      }
+    ],
+    "reachedTerminal": false,
+    "takeMeThereHref": "/schools/settings",
+    "expectedRoute": "/schools/settings",
+    "takeMeThereLandedUrl": "/schools/settings",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "report-a-bug-from-the-dashboard",
+    "title": "Report a bug from the dashboard",
+    "place": "dashboard",
+    "anchor": "schools-report-bug",
+    "clips": [
+      "report-a-bug-from-the-dashboard"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools",
+    "showMeStarted": true,
+    "showMeWalk": "report-a-bug-from-the-dashboard",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      }
+    ],
+    "reachedTerminal": false,
+    "takeMeThereHref": "/schools",
+    "expectedRoute": "/schools",
+    "takeMeThereLandedUrl": "/schools",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "run-your-first-class-session",
+    "title": "Run your first class session",
+    "place": "class-detail",
+    "anchor": "class-play",
+    "clips": [
+      "run-class-session"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools/classes/ea59ef42-ab29-46d0-a956-a4fdbe5e1d09",
+    "showMeStarted": true,
+    "showMeWalk": "run-class-session",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "class-join-link",
+        "on": "next",
+        "ringPresent": false,
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "wantedAnchor": "class-join-code",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "wantedAnchor": "class-play",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "terminal": true,
+        "raw": "run-class-session:2:done"
+      }
+    ],
+    "reachedTerminal": true,
+    "takeMeThereHref": "/schools/classes",
+    "expectedRoute": "/schools/classes",
+    "takeMeThereLandedUrl": "/schools/classes",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "say-what-happened",
+    "title": "Say what happened",
+    "place": "settings",
+    "anchor": "report-bug-text",
+    "clips": [
+      "report-a-bug-from-settings"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/?screen=settings",
+    "showMeStarted": true,
+    "showMeWalk": "report-a-bug-from-settings",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "report-bug",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "report-bug",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "report-bug",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "report-bug",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "report-bug",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "report-bug",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "report-bug",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "report-bug",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      }
+    ],
+    "reachedTerminal": false,
+    "takeMeThereHref": "/schools/settings",
+    "expectedRoute": "/schools/settings",
+    "takeMeThereLandedUrl": "/schools/settings",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "say-what-happened-on-the-dashboard",
+    "title": "Say what happened on the dashboard",
+    "place": "dashboard",
+    "anchor": "schools-report-bug-happened",
+    "clips": [
+      "report-a-bug-from-the-dashboard"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools",
+    "showMeStarted": true,
+    "showMeWalk": "report-a-bug-from-the-dashboard",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      }
+    ],
+    "reachedTerminal": false,
+    "takeMeThereHref": "/schools",
+    "expectedRoute": "/schools",
+    "takeMeThereLandedUrl": "/schools",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "see-that-your-report-arrived",
+    "title": "See that your report arrived",
+    "place": "settings",
+    "anchor": "report-bug-thanks",
+    "clips": [],
+    "showMeRendered": false,
+    "takeMeThereRendered": true,
+    "takeMeThereHref": "/schools/settings",
+    "expectedRoute": "/schools/settings",
+    "takeMeThereLandedUrl": "/schools/settings",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "send-a-dashboard-bug-report",
+    "title": "Send a dashboard bug report",
+    "place": "dashboard",
+    "anchor": "schools-report-bug-send",
+    "clips": [
+      "report-a-bug-from-the-dashboard"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools",
+    "showMeStarted": true,
+    "showMeWalk": "report-a-bug-from-the-dashboard",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "schools-user-menu-trigger",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      }
+    ],
+    "reachedTerminal": false,
+    "takeMeThereHref": "/schools",
+    "expectedRoute": "/schools",
+    "takeMeThereLandedUrl": "/schools",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "send-the-report",
+    "title": "Send the report",
+    "place": "settings",
+    "anchor": "report-bug-send",
+    "clips": [
+      "report-a-bug-from-settings"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/?screen=settings",
+    "showMeStarted": true,
+    "showMeWalk": "report-a-bug-from-settings",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "report-bug",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "report-bug",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "report-bug",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "report-bug",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "report-bug",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "report-bug",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "report-bug",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "report-bug",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      }
+    ],
+    "reachedTerminal": false,
+    "takeMeThereHref": "/schools/settings",
+    "expectedRoute": "/schools/settings",
+    "takeMeThereLandedUrl": "/schools/settings",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "set-your-language-and-time-zone",
+    "title": "Set your language and time zone",
+    "place": "settings",
+    "anchor": "settings-localisation-save",
+    "clips": [
+      "school-language-and-time-zone"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools/settings",
+    "showMeStarted": true,
+    "showMeWalk": "school-language-and-time-zone",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "settings-tab-locale",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "settings-tab-locale",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "settings-tab-locale",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "settings-tab-locale",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "settings-tab-locale",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "settings-tab-locale",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "settings-tab-locale",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 0,
+        "wantedAnchor": "settings-tab-locale",
+        "on": "click",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      }
+    ],
+    "reachedTerminal": false,
+    "takeMeThereHref": "/schools/settings",
+    "expectedRoute": "/schools/settings",
+    "takeMeThereLandedUrl": "/schools/settings",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "share-a-class-with-a-colleague",
+    "title": "Share a class with a colleague",
+    "place": "class-detail",
+    "anchor": "class-teacher-add",
+    "clips": [
+      "share-a-class"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools/classes/ea59ef42-ab29-46d0-a956-a4fdbe5e1d09",
+    "showMeStarted": true,
+    "showMeWalk": "share-a-class",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "class-teachers",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "wantedAnchor": "class-teacher-add",
+        "on": "click",
+        "ringPresent": false,
+        "cardPresent": true
+      }
+    ],
+    "reachedTerminal": false,
+    "takeMeThereHref": "/schools/classes",
+    "expectedRoute": "/schools/classes",
+    "takeMeThereLandedUrl": "/schools/classes",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "start-a-class-session-from-the-list",
+    "title": "Start a class session from the list",
+    "place": "classes",
+    "anchor": "classes-row-play",
+    "clips": [
+      "start-or-make-a-class"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools/classes",
+    "showMeStarted": true,
+    "showMeWalk": "start-or-make-a-class",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "classes-row-play",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "wantedAnchor": "verb-new-class",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "wantedAnchor": "classes-export",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "terminal": true,
+        "raw": "start-or-make-a-class:2:done"
+      }
+    ],
+    "reachedTerminal": true,
+    "takeMeThereHref": "/schools/classes",
+    "expectedRoute": "/schools/classes",
+    "takeMeThereLandedUrl": "/schools/classes",
+    "anchorPresentOnLandedPage": true
+  },
+  {
+    "id": "students-on-their-own-accounts",
+    "title": "Students on their own accounts",
+    "place": "class-detail",
+    "anchor": "class-roster",
+    "clips": [
+      "what-the-class-tools-page-counts"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools/classes/ea59ef42-ab29-46d0-a956-a4fdbe5e1d09",
+    "showMeStarted": true,
+    "showMeWalk": "what-the-class-tools-page-counts",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "class-tools-note",
+        "on": "next",
+        "ringPresent": false,
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "wantedAnchor": "class-roster",
+        "on": "next",
+        "ringPresent": true,
+        "ringedAnchor": null,
+        "ringedTag": "DIV",
+        "cardPresent": true
+      },
+      {
+        "terminal": true,
+        "raw": "what-the-class-tools-page-counts:1:done"
+      }
+    ],
+    "reachedTerminal": true,
+    "takeMeThereHref": "/schools/classes",
+    "expectedRoute": "/schools/classes",
+    "takeMeThereLandedUrl": "/schools/classes",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "subscribe-as-a-tutor",
+    "title": "Subscribe as a tutor",
+    "place": "upgrade",
+    "anchor": "upgrade-subscribe-tutor",
+    "clips": [
+      "subscribe-as-a-tutor"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools/upgrade",
+    "showMeStarted": true,
+    "showMeWalk": "subscribe-as-a-tutor",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "upgrade-subscribe-tutor",
+        "on": "next",
+        "ringPresent": false,
+        "cardPresent": true
+      },
+      {
+        "terminal": true,
+        "raw": "subscribe-as-a-tutor:0:done"
+      }
+    ],
+    "reachedTerminal": true,
+    "takeMeThereHref": "/schools/upgrade",
+    "expectedRoute": "/schools/upgrade",
+    "takeMeThereLandedUrl": "/schools/upgrade",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "take-a-teacher-off-a-class-or-move-them",
+    "title": "Take a teacher off a class, or move them",
+    "place": "teachers",
+    "anchor": "assign-classes-modal",
+    "clips": [
+      "take-a-teacher-off-a-class"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools/teachers",
+    "showMeStarted": true,
+    "showMeWalk": "take-a-teacher-off-a-class",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "teacher-assign-classes",
+        "on": "click",
+        "ringPresent": false,
+        "cardPresent": true
+      }
+    ],
+    "reachedTerminal": false,
+    "takeMeThereHref": "/schools/teachers",
+    "expectedRoute": "/schools/teachers",
+    "takeMeThereLandedUrl": "/schools/teachers",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "take-your-lists-away-as-a-spreadsheet",
+    "title": "Take your lists away as a spreadsheet",
+    "place": "students",
+    "anchor": "students-export",
+    "clips": [
+      "find-a-student-or-export-the-list"
+    ],
+    "showMeRendered": true,
+    "takeMeThereRendered": true,
+    "showMeStartUrl": "/schools/students",
+    "showMeStarted": true,
+    "showMeWalk": "find-a-student-or-export-the-list",
+    "steps": [
+      {
+        "idx": 0,
+        "wantedAnchor": "student-view-link",
+        "on": "next",
+        "ringPresent": false,
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "wantedAnchor": "students-export",
+        "on": "next",
+        "ringPresent": false,
+        "cardPresent": true
+      },
+      {
+        "terminal": true,
+        "raw": "find-a-student-or-export-the-list:1:done"
+      }
+    ],
+    "reachedTerminal": true,
+    "takeMeThereHref": "/schools/students",
+    "expectedRoute": "/schools/students",
+    "takeMeThereLandedUrl": "/schools/students",
+    "anchorPresentOnLandedPage": false
+  },
+  {
+    "id": "tell-us-about-something-that-went-wrong",
+    "skipped": true,
+    "reason": "time budget exhausted"
+  },
+  {
+    "id": "the-classes-by-year-group",
+    "skipped": true,
+    "reason": "time budget exhausted"
+  },
+  {
+    "id": "told-when-you-are-playing-as-yourself",
+    "skipped": true,
+    "reason": "time budget exhausted"
+  },
+  {
+    "id": "where-a-class-s-practice-is-read",
+    "skipped": true,
+    "reason": "time budget exhausted"
+  },
+  {
+    "id": "where-the-class-has-got-to",
+    "skipped": true,
+    "reason": "time budget exhausted"
+  },
+  {
+    "id": "your-class-against-the-average",
+    "skipped": true,
+    "reason": "time budget exhausted"
+  },
+  {
+    "id": "your-classes-at-a-glance",
+    "skipped": true,
+    "reason": "time budget exhausted"
+  },
+  {
+    "id": "your-own-teaching-numbers",
+    "skipped": true,
+    "reason": "time budget exhausted"
+  }
+]
