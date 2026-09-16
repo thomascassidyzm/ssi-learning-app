@@ -186,3 +186,49 @@ describe('useAdminGate', () => {
     expect(router.currentRoute.value.query.next).toBe('/admin/test?board=vad')
   })
 })
+
+describe('useAdminGate and a cache-only role (job #34)', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    sessionStorage.clear()
+    useUserRole().clear()
+    useResolvedSession().reset()
+  })
+
+  it('waits rather than denying while the only role is the last visit’s cache', async () => {
+    localStorage.setItem('ssi-user-role', JSON.stringify({ platformRole: null, educationalRole: null }))
+    const router = buildRouter()
+    router.push('/admin/test')
+    await router.isReady()
+
+    const wrapper = mount(Host, { global: { plugins: [router] } })
+    await flushPromises()
+    expect(wrapper.text()).toBe('checking')
+    expect(router.currentRoute.value.path).toBe('/admin/test')
+
+    // The DB answer lands: a real ssi_admin keeps the page they asked for.
+    useUserRole().setAuthoritative('ssi_admin', null)
+    useResolvedSession().resolve(true)
+    await flushPromises()
+    expect(wrapper.text()).toBe('allowed')
+    expect(router.currentRoute.value.path).toBe('/admin/test')
+    wrapper.unmount()
+  })
+
+  it('denies once the session resolves a genuine non-admin', async () => {
+    localStorage.setItem('ssi-user-role', JSON.stringify({ platformRole: null, educationalRole: null }))
+    const router = buildRouter()
+    router.push('/admin/test')
+    await router.isReady()
+
+    const wrapper = mount(Host, { global: { plugins: [router] } })
+    await flushPromises()
+    expect(wrapper.text()).toBe('checking')
+
+    useUserRole().setAuthoritative(null, 'teacher')
+    useResolvedSession().resolve(true)
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/')
+    wrapper.unmount()
+  })
+})
