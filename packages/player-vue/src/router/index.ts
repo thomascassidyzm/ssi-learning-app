@@ -872,7 +872,7 @@ const routes: RouteRecordRaw[] = [
     // the /admin prefix; a decision instrument, not a product surface.
     path: '/admin/insights-lab',
     name: 'admin-insights-lab',
-    component: () => import('@/views/admin/InsightsLabView.vue'),
+    component: () => import('@/views/admin/AdminInsightsLabView.vue'),
     meta: { title: 'Insights display lab' },
   },
   {
