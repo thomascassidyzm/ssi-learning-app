@@ -37,6 +37,8 @@ const props = defineProps<{
    * people reading is shown and the class words never appear (job #786).
    */
   classless?: boolean
+  /** The leader's page lists who has NOT practised, behind its own tap; the ranked people table is dentist energy there. */
+  hidePeople?: boolean
 }>()
 
 const { t } = useI18n()
@@ -257,7 +259,7 @@ const journeyRows = computed(() => [...(props.payload?.classes ?? [])]
           <span class="oq-row-num">{{ c.phrasesThisWeek }}<span class="oq-row-delta">{{ c.phrasesLastWeek }}</span></span>
         </router-link>
       </div>
-      <div v-if="payload && peopleRows.length" class="oq-rows">
+      <div v-if="payload && peopleRows.length && !hidePeople" class="oq-rows">
         <p class="oq-rows-title">{{ t('org.intel.practising.rowsPeople', 'People on their own account, minutes this week') }}</p>
         <div v-for="p in peopleRows" :key="p.learnerId" class="oq-row oq-row-static">
           <span class="oq-row-name">{{ p.name }}</span>

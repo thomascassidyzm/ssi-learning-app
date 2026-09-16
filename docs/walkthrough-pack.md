@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `bd0dfae52ccd` · generated 2026-09-16 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `124a3fa2ecdd` · generated 2026-09-16 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## add-a-class-under-a-group — Add a class to a group
 
@@ -393,15 +393,17 @@ Personas: admin · place: intel
 
 Personas: admin, leader, school_admin · place: node-insights
 
-1. [`insights-measure` · next] This page counts time and new phrases, by week. There is nothing to pick here — the line under the pickers says exactly what the numbers mean.
-2. [`insights-window` · next] The **window** is the school week. **This week** runs from Monday morning to right now; **Last week** is the Monday to Sunday just gone. Those are the only two.
-3. [`insights-compare` · next] **Compare to** decides whose average sits beside yours. It counts every class in that scope that has started on this course, this one included — a class that was set up and never played is in no average anywhere.
-4. [`insights-rate-widget` · next] Three numbers for the week: time playing as a class, time students put in on their own accounts, and those two added together. Underneath, the new phrases the class reached for the first time this week. The school's same three sit beside them so you do the comparing yourself.
-5. [`insights-org-practising` · next] **Practising** answers whether your classes are doing it: how many practised together this week against last week, the phrases practised each day over four weeks, and which people practised on their own account and for how long.
-6. [`insights-org-quiet` · next] **Quiet** is the half you act on: which classes practised before and have stopped, how long ago, and which have never started. Open a class row to see where it stopped.
-7. [`insights-org-journey` · next] **Journey** shows where in the course each class has got to, as the last phrase it played in both languages, and the funnel shows the sentence most classes stop before. Class rows run furthest first.
-8. [`insights-voice-pause` · next] **Voice and pause** is what the microphone is giving us below this level. Read the uptake figure first — it is how many learners the rest is based on. A learner with no mic data is absent here, never a zero.
-9. [`insights-overview` · next] **Overview** and **Insights** are two tabs on the same place. Overview takes you back to its home — insights is a lens on where you already are, not a different page to get lost in.
+1. [`insights-window` · next] **This week** or **Last week** — the school week, Monday to Sunday, and those are the only two. The card is the first thing on the page; this is the one thing you switch.
+2. [`insights-compare` · next] **Compare to** decides whose average sits beside yours. It opens on the smallest group this level is part of that holds more than one, and walks up from there — year, department, school, district. Every class in that scope that has started this course counts, this one included.
+3. [`insights-rate-widget` · next] One card, two columns. Down the left: time playing as a class, time students put in on their own accounts, those two added together, and the new phrases reached for the first time this week. The average's same numbers sit beside each so you do the comparing yourself. The thin line under the total is the last twelve weeks.
+4. [`insights-classes` · next] Under the card, every class here, the one that has gone longest without practising first. Each says when it last practised and its week. Tap one for its own card. Nothing is ranked by minutes.
+5. [`insights-not-practised` · next] **Who has not practised this week** lists the people on their own accounts who have not — by name, never by minutes. Tap it to open.
+6. [`insights-more` · next] **More about this level** keeps the three four-week questions off the first screen. Tap it to open them.
+7. [`insights-org-practising` · next] Open **More about this level** for the three questions over the last four weeks. **Practising** answers whether your classes are doing it: how many practised together this week against last week, and the phrases practised each day.
+8. [`insights-org-quiet` · next] **Quiet** is the half you act on: which classes practised before and have stopped, how long ago, and which have never started. Open a class row to see where it stopped.
+9. [`insights-org-journey` · next] **Journey** shows where in the course each class has got to, as the last phrase it played in both languages, and the funnel shows the sentence most classes stop before. Class rows run furthest first.
+10. [`insights-voice-pause` · next] **Voice and pause**, the last line, is what the microphone is giving us below this level. Tap it to open; read the uptake figure first — it is how many learners the rest is based on.
+11. [`insights-overview` · next] **Overview** and **Insights** are two tabs on the same place. Overview takes you back to its home — insights is a lens on where you already are, not a different page to get lost in.
    - terminal: Weeks lead, and there is no score to chase — a quiet week is allowed to read as a quiet week.
 
 ## reading-minutes — How many in-app minutes are being done
@@ -409,7 +411,7 @@ Personas: admin, leader, school_admin · place: node-insights
 Personas: admin · place: intel (pulse)
 
 1. [`question-pulse` · next] The first question: how many in-app minutes are being done, per course, in total and per person, and how each course stands against the average of all courses. A minute is everything between pressing play and stopping, on every screen.
-2. [`insights-window` · next] Pick the **window**: today, the last seven days or the last thirty days. The course picker beside it opens on the busiest course in that window.
+2. [`insights-window-legacy` · next] Pick the **window**: today, the last seven days or the last thirty days. The course picker beside it opens on the busiest course in that window.
 3. [`insights-measure` · next] Pick the **measure**: minutes per person, minutes in total, new enrolments, or people with no activity. The line under the pickers says what it counts and what the average of all courses is for it.
 4. [`evidence` · next] Two numbers: this course against the average of all courses, and the strip beneath for where the course sits among the rest. The average counts this course too, and a course with two enrolments weighs two people, not a whole course.
 5. [`rows` · next] The rows count the real people who practised in the last fourteen days, by course. Open one to see which bits of that course give trouble.
@@ -718,10 +720,12 @@ Personas: teacher, school_admin, leader · place: player-settings
 Personas: teacher · place: analytics
 
 1. [`teacher-insights-class` · next] **Your classes** picks which of your classes you are reading. If you teach only one, this picker stays out of the way and the page is already about that class.
-2. [`insights-measure` · next] The **measure** is what is being counted — the line underneath says exactly what the current one means.
-3. [`insights-window` · next] The **window** is the period the rate is worked out over. Shorter windows react faster, longer ones smooth the noise.
-4. [`insights-compare` · next] **Compare to** sets your class's rate beside an average. Everything here is a rate, not a raw total, so a class of eight and a class of thirty compare fairly.
-   - terminal: This answers whether a class is moving well, which a roster of totals cannot. A class with too few sessions to compare honestly says so rather than showing a number built from nothing.
+2. [`insights-window` · next] **This week** or **Last week** — the school week, Monday to Sunday. The card is already on screen; this is the one thing you switch.
+3. [`insights-compare` · next] **Compare to** decides whose average sits beside your class. It opens on the smallest group your class is part of that holds more than one — a year once you have confirmed it, else the school — and walks up from there.
+4. [`insights-rate-widget` · next] Three numbers with the average beside each: time playing as a class, time students put in on their own, those two added together, and the new phrases reached this week. No score, no rank — you do the comparing. The thin line under the total is the last twelve weeks, and the line under the card is the class's totals since it started.
+5. [`insights-all-time` · next] The last line of the card is the class's totals since the day it first pressed play: how long it has practised and how many phrases it has reached. Totals only — nothing here is compared with anyone.
+6. [`insights-class-tags` · next] Under the card, the year and department this class belongs to, guessed from its name and its course. A dotted underline is a guess; tap **confirm** if it is right or **change** to fix it. Once confirmed, **Compare to** can offer the year's own average.
+   - terminal: A class with nothing comparable yet still sees its own week and its totals; only the second column is missing, and the card says why.
 
 ## your-own-teaching-numbers — Your own teaching numbers
 

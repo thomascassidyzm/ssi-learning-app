@@ -227,10 +227,24 @@ describe('GET /api/groups/:id/rate-compare', () => {
     expect(res.body.options.compares.map((o: any) => o.value)).toEqual(
       ['s1-node', 'programme', 'nation', 'global', 'global_all_courses'])
     // c1 is the only class in school-1 — the school-average default is empty,
-    // so the ladder widens to global · this course (c2/c3/c5): never a blank landing.
-    expect(res.body.applied.compare_to).toBe('global')
+    // so the ladder walks ONE rung up to the programme (c2/c3 in school-2): the
+    // smallest container that holds more than one class (Tom, 2026-09-16),
+    // never a blank landing and never a leap straight to global.
+    expect(res.body.applied.compare_to).toBe('programme')
     expect(res.body.insufficientData).toBe(false)
-    // cohort = c1 (itself) + c2/c3/c5 — the average is self-inclusive (Tom, 2026-09-16)
+    // cohort = c1 (itself) + c2/c3 — the average is self-inclusive (Tom, 2026-09-16)
+    expect(res.body.cohortSize).toBe(3)
+  })
+
+  it('the DEFAULT walks every rung in order and stops at the first that holds more than one class — never skipping to global while an ancestor would do', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // Empty the programme of peers on c1's course: c2/c3 move to other-prog.
+    for (const c of TABLES.classes) if (c.id === 'c2' || c.id === 'c3') { c.school_id = 'school-3'; c.group_id = 's3-node' }
+    const res = makeRes()
+    await handler(makeReq('c1'), res)
+    expect(res.statusCode).toBe(200)
+    // school (empty) → programme (empty) → nation (c2/c3/c5 under other-prog): lands on the nation
+    expect(res.body.applied.compare_to).toBe('nation')
     expect(res.body.cohortSize).toBe(4)
   })
 
@@ -1261,5 +1275,103 @@ describe('GET /api/groups/:id/rate-compare — self-inclusive averaging (Tom, 20
     const bars: number[] = res.body.week.bars.cohort
     expect(bars).toHaveLength(12)
     expect(bars[bars.length - 1]).toBe(20)
+  })
+})
+
+describe('GET /api/groups/:id/rate-compare — year/department tags, the leader\'s per-class rows and all-time totals (job #22, 2026-09-16)', () => {
+  beforeEach(() => { verifyAdminResult = { userId: 'admin-1' } })
+
+  it('a DERIVED tag is reported as a guess and offers NO rung — a misread name must never move a cohort', async () => {
+    TABLES.classes.push({ id: 'c6', class_name: 'Year 6 Hindi B', course_code: 'hin_for_eng', school_id: 'school-1', group_id: 's1-node', is_active: true, tags: {} })
+    SESSION_ROWS.push(...sessions('c6', 'hin_for_eng', [[0, 3], [3, 6]]))
+    const res = makeRes()
+    await handler(makeReq('c1', { window: 'this_week' }), res)
+    expect(res.body.tags.year).toEqual({ value: '6', confirmed: false, derived: '6' })
+    expect(res.body.tags.department).toEqual({ value: 'Hindi', confirmed: false, derived: 'Hindi' })
+    expect(res.body.options.compares.map((o: any) => o.value)).not.toContain('tag:year')
+    // c6 IS a school peer, so the default lands on the school, not on a year
+    expect(res.body.applied.compare_to).toBe('s1-node')
+  })
+
+  it('a CONFIRMED year with a confirmed sibling offers the year rung first, and the default lands on it — the smallest container', async () => {
+    for (const c of TABLES.classes) if (c.id === 'c1') c.tags = { year: '6' }
+    TABLES.classes.push({ id: 'c6', class_name: 'Year 6 Hindi B', course_code: 'hin_for_eng', school_id: 'school-1', group_id: 's1-node', is_active: true, tags: { year: '6' } })
+    TABLES.classes.push({ id: 'c7', class_name: 'Year 5 Hindi', course_code: 'hin_for_eng', school_id: 'school-1', group_id: 's1-node', is_active: true, tags: { year: '5' } })
+    SESSION_ROWS.push(...sessions('c6', 'hin_for_eng', [[0, 3], [3, 6]]), ...sessions('c7', 'hin_for_eng', [[0, 3], [3, 6]]))
+    const res = makeRes()
+    await handler(makeReq('c1', { window: 'this_week' }), res)
+    expect(res.body.tags.year).toEqual({ value: '6', confirmed: true, derived: '6' })
+    const values = res.body.options.compares.map((o: any) => o.value)
+    expect(values[0]).toBe('tag:year')
+    expect(res.body.options.compares[0].label).toBe('Year 6 average')
+    expect(res.body.applied.compare_to).toBe('tag:year')
+    // c1 + c6 only — c7 is Year 5, and it is in the school rung, not this one
+    expect(res.body.cohortSize).toBe(2)
+    expect(res.body.week.cohort.sizeLabel).toBe('2 classes')
+  })
+
+  it('a confirmed year with NO confirmed sibling is absence — no rung, and the default walks on to the school', async () => {
+    for (const c of TABLES.classes) if (c.id === 'c1') c.tags = { year: '6' }
+    TABLES.classes.push({ id: 'c6', class_name: 'Year 6 Hindi B', course_code: 'hin_for_eng', school_id: 'school-1', group_id: 's1-node', is_active: true, tags: {} })
+    SESSION_ROWS.push(...sessions('c6', 'hin_for_eng', [[0, 3], [3, 6]]))
+    const res = makeRes()
+    await handler(makeReq('c1', { window: 'this_week' }), res)
+    expect(res.body.options.compares.map((o: any) => o.value)).not.toContain('tag:year')
+    expect(res.body.applied.compare_to).toBe('s1-node')
+  })
+
+  it('a school\'s week carries one row per class off the SAME rows and week — quietest first, never-started as absence, last', async () => {
+    // school-2 runs c2, c3 (Hindi) and c4 (Tamil); add a Hindi class that has never played
+    TABLES.classes.push({ id: 'c8', class_name: 'Year 2 Hindi', course_code: 'hin_for_eng', school_id: 'school-2', group_id: 's2-node', is_active: true, tags: {} })
+    // c3 last played a fortnight ago; c2 played today — c3 is the quieter
+    for (const r of SESSION_ROWS) if (r.class_id === 'c3') r.started_at = daysAgo(14)
+    const res = makeRes()
+    await handler(makeReq('school-2', { window: 'this_week' }), res)
+    expect(res.statusCode).toBe(200)
+    const rows = res.body.week.classes
+    expect(rows.map((r: any) => r.id)).toEqual(['c3', 'c2', 'c8'])
+    const c8 = rows.find((r: any) => r.id === 'c8')
+    expect(c8).toMatchObject({ started: false, lastPlayedAt: null, totalMinutes: null, newPhrases: null, classMinutes: null })
+    const c2 = rows.find((r: any) => r.id === 'c2')
+    expect(c2.started).toBe(true)
+    expect(typeof c2.lastPlayedAt).toBe('string')
+    expect(c2.totalMinutes).toBe(30) // one 1800s session inside this week
+    // the school's own card is the sum of its classes' rows — one source
+    expect(res.body.week.entity.classMinutes).toBe(30)
+    // a class entity carries no per-class rows
+    const single = makeRes()
+    await handler(makeReq('c2', { window: 'this_week' }), single)
+    expect(single.body.week.classes).toBeUndefined()
+  })
+
+  it('a class carries ALL-TIME totals with no comparison figure; a never-started class says so rather than showing zeros', async () => {
+    const res = makeRes()
+    await handler(makeReq('c1', { window: 'this_week' }), res)
+    expect(res.body.allTime).toMatchObject({ started: true, classMinutes: 60, pupilMinutes: 0, totalMinutes: 60, phrasesReached: 10 })
+    expect(typeof res.body.allTime.sinceLabel).toBe('string')
+    expect(Object.keys(res.body.allTime)).not.toContain('cohort')
+    TABLES.classes.push({ id: 'c9', class_name: 'Year 1 Hindi', course_code: 'hin_for_eng', school_id: 'school-1', group_id: 's1-node', is_active: true, tags: {} })
+    const dark = makeRes()
+    await handler(makeReq('c9', { window: 'this_week' }), dark)
+    expect(dark.body.allTime).toEqual({ started: false })
+    // a school has no all-time block: totals are a class's own
+    const school = makeRes()
+    await handler(makeReq('school-2', { window: 'this_week' }), school)
+    expect(school.body.allTime).toBeNull()
+  })
+
+  it('NO comparable cohort is not no page: the class keeps its own week and its all-time totals, the cohort column is absent, and the reason is named', async () => {
+    // An explicit pick of the school, where c1 is the only class: the named
+    // empty-state stands (no auto-widening on an explicit pick), and so does
+    // the class's own week beside it.
+    const res = makeRes()
+    await handler(makeReq('c1', { window: 'this_week', compare_to: 's1-node' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.insufficientData).toBe(true)
+    expect(res.body.reason).toMatch(/started/)
+    expect(res.body.week.entity.classMinutes).toBe(30)
+    expect(res.body.week.cohort).toBeNull()
+    expect(res.body.week.bars.cohort.every((v: any) => v === null)).toBe(true)
+    expect(res.body.allTime).toMatchObject({ started: true, totalMinutes: 60 })
   })
 })
