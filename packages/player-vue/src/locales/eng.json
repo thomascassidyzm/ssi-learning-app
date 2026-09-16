@@ -3372,8 +3372,8 @@
       "labelGroup": "Group",
       "labelSchool": "School",
       "overview": "Overview",
-      "subtitleClass": "How this class is moving, compared with the average you choose.",
-      "subtitleDefault": "How everyone below this is moving, compared with the average you choose.",
+      "subtitleClass": "This class’s week, beside the average you choose.",
+      "subtitleDefault": "This week, then each class, quietest first.",
       "vadReadError": "Could not read the voice & pause data.",
       "voicePauseSub": "What the microphone is actually giving us below this point — how many learners have mic-derived data at all, and for those who do, how the adaptive pause is settling and how they sound.",
       "voicePauseTitle": "Voice & pause"

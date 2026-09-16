@@ -117,4 +117,14 @@ describe('NodeRateEngine — week mode', () => {
     expect(w.text()).toContain('Course')
     expect(w.find('[data-walk="insights-class-tags"]').exists()).toBe(false)
   })
+
+  it('week mode never ALSO renders the legacy rate widget — no "+53%", no "1st of 3" under the card, at class or school level', async () => {
+    for (const nodeOverrides of [{}, { node: { id: 's1', name: 'Sunrise', label: 'school', kind: 'node' }, tags: null, allTime: null }]) {
+      fetchMock.mockImplementation(async () => ({ ok: true, json: async () => weekBody(nodeOverrides) }))
+      const w = mountEngine({ nodeId: (nodeOverrides as any).node?.id ?? 'c1' })
+      await flushPromises()
+      expect(w.findComponent({ name: 'RateCompare' }).exists()).toBe(false)
+      expect(w.text()).not.toMatch(/%|1st of|Rate of progress/)
+    }
+  })
 })
