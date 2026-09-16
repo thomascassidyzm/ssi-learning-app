@@ -1,0 +1,490 @@
+{
+  "base": "https://staging.saysomethingin.app",
+  "at": "2026-09-16T11:09:40.296Z",
+  "runs": {
+    "bumface__desktop": {
+      "email": "thomas.cassidy+bumface@gmail.com",
+      "nodeKind": null,
+      "nodeUrl": null,
+      "entries": [
+        {
+          "id": "add-a-school-to-your-programme",
+          "place": {
+            "route": "schools-list"
+          },
+          "hasClip": true,
+          "walkIds": [
+            "add-a-school-to-your-programme"
+          ],
+          "landedUrlAfterShowMe": "https://staging.saysomethingin.app/schools/all",
+          "startUrl": "https://staging.saysomethingin.app/schools/all",
+          "steps": [
+            {
+              "i": 0,
+              "active": null,
+              "note": "walk-active vanished"
+            }
+          ],
+          "showMe": "stalled",
+          "anchoredSteps": 0,
+          "unanchoredSteps": 1,
+          "anchorMismatches": 0,
+          "takeMeThereHref": "/schools/all",
+          "takeMeThereLandedUrl": "https://staging.saysomethingin.app/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a?lens=schools",
+          "takeMeThereExpected": "/schools/all",
+          "takeMeThere": "mismatch (got /org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a?lens=schools)",
+          "anchorPresentOnPage": false
+        },
+        {
+          "id": "add-a-student-to-a-class",
+          "place": {
+            "route": "node-home"
+          },
+          "hasClip": true,
+          "walkIds": [
+            "add-a-student-to-a-class"
+          ],
+          "landedUrlAfterShowMe": "https://staging.saysomethingin.app/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a",
+          "showMe": "never-started",
+          "takeMeThereHref": "/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a",
+          "takeMeThereLandedUrl": "https://staging.saysomethingin.app/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a",
+          "takeMeThereExpected": "/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a",
+          "takeMeThere": "landed-as-expected",
+          "anchorPresentOnPage": false
+        },
+        {
+          "id": "copy-a-school-s-joining-links",
+          "place": {
+            "route": "schools-list"
+          },
+          "hasClip": true,
+          "walkIds": [
+            "copy-a-schools-joining-links"
+          ],
+          "landedUrlAfterShowMe": "https://staging.saysomethingin.app/schools/all",
+          "startUrl": "https://staging.saysomethingin.app/schools/all",
+          "steps": [
+            {
+              "i": 0,
+              "active": null,
+              "note": "walk-active vanished"
+            }
+          ],
+          "showMe": "stalled",
+          "anchoredSteps": 0,
+          "unanchoredSteps": 1,
+          "anchorMismatches": 0,
+          "takeMeThereHref": "/schools/all",
+          "takeMeThereLandedUrl": "https://staging.saysomethingin.app/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a?lens=schools",
+          "takeMeThereExpected": "/schools/all",
+          "takeMeThere": "mismatch (got /org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a?lens=schools)",
+          "anchorPresentOnPage": false
+        },
+        {
+          "id": "give-a-teacher-their-classes",
+          "place": {
+            "route": "teachers"
+          },
+          "hasClip": true,
+          "walkIds": [
+            "take-a-teacher-off-a-class"
+          ],
+          "landedUrlAfterShowMe": "https://staging.saysomethingin.app/schools/teachers",
+          "startUrl": "https://staging.saysomethingin.app/schools/teachers",
+          "steps": [
+            {
+              "i": 0,
+              "active": "take-a-teacher-off-a-class:0",
+              "expectedAnchor": "teacher-assign-classes",
+              "ringed": false,
+              "ringTarget": null,
+              "anchorMatch": null,
+              "advanceOn": "click",
+              "done": false
+            }
+          ],
+          "showMe": "incomplete-maxsteps",
+          "anchoredSteps": 0,
+          "unanchoredSteps": 1,
+          "anchorMismatches": 0,
+          "takeMeThereHref": "/schools/teachers",
+          "takeMeThereLandedUrl": "https://staging.saysomethingin.app/schools/teachers",
+          "takeMeThereExpected": "/schools/teachers",
+          "takeMeThere": "landed-as-expected",
+          "anchorPresentOnPage": false
+        },
+        {
+          "id": "hand-out-a-sign-up-link-for-one-course",
+          "place": {
+            "route": "node-home"
+          },
+          "hasClip": true,
+          "walkIds": [
+            "hand-out-a-sign-up-link-for-one-course"
+          ],
+          "landedUrlAfterShowMe": "https://staging.saysomethingin.app/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a",
+          "startUrl": "https://staging.saysomethingin.app/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a",
+          "steps": [
+            {
+              "i": 0,
+              "active": "hand-out-a-sign-up-link-for-one-course:0",
+              "expectedAnchor": "ways-in-copy-course",
+              "ringed": false,
+              "ringTarget": null,
+              "anchorMatch": null,
+              "advanceOn": "click",
+              "done": false
+            }
+          ],
+          "showMe": "incomplete-maxsteps",
+          "anchoredSteps": 0,
+          "unanchoredSteps": 1,
+          "anchorMismatches": 0,
+          "takeMeThereHref": "/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a",
+          "takeMeThereLandedUrl": "https://staging.saysomethingin.app/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a",
+          "takeMeThereExpected": "/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a",
+          "takeMeThere": "landed-as-expected",
+          "anchorPresentOnPage": false
+        },
+        {
+          "id": "how-far-a-class-has-travelled",
+          "place": {
+            "route": "node-home"
+          },
+          "hasClip": true,
+          "walkIds": [
+            "reading-a-class-page"
+          ],
+          "landedUrlAfterShowMe": "https://staging.saysomethingin.app/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a",
+          "showMe": "never-started",
+          "takeMeThereHref": "/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a",
+          "takeMeThereLandedUrl": "https://staging.saysomethingin.app/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a",
+          "takeMeThereExpected": "/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a",
+          "takeMeThere": "landed-as-expected",
+          "anchorPresentOnPage": false
+        },
+        {
+          "id": "open-your-inbox",
+          "place": {
+            "route": "dashboard"
+          },
+          "hasClip": true,
+          "walkIds": [
+            "open-your-inbox"
+          ],
+          "landedUrlAfterShowMe": "https://staging.saysomethingin.app/schools",
+          "startUrl": "https://staging.saysomethingin.app/schools",
+          "steps": [
+            {
+              "i": 0,
+              "active": null,
+              "note": "walk-active vanished"
+            }
+          ],
+          "showMe": "stalled",
+          "anchoredSteps": 0,
+          "unanchoredSteps": 1,
+          "anchorMismatches": 0,
+          "takeMeThereHref": "/schools",
+          "takeMeThereLandedUrl": "https://staging.saysomethingin.app/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a",
+          "takeMeThereExpected": "/schools",
+          "takeMeThere": "mismatch (got /org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a)",
+          "anchorPresentOnPage": false
+        },
+        {
+          "id": "reading-one-student-s-progress",
+          "place": {
+            "route": "node-home"
+          },
+          "hasClip": true,
+          "walkIds": [
+            "reading-a-class-page"
+          ],
+          "landedUrlAfterShowMe": "https://staging.saysomethingin.app/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a",
+          "showMe": "never-started",
+          "takeMeThereHref": "/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a",
+          "takeMeThereLandedUrl": "https://staging.saysomethingin.app/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a",
+          "takeMeThereExpected": "/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a",
+          "takeMeThere": "landed-as-expected",
+          "anchorPresentOnPage": false
+        },
+        {
+          "id": "report-a-bug-from-settings",
+          "place": {
+            "route": "settings"
+          },
+          "hasClip": true,
+          "walkIds": [
+            "report-a-bug-from-settings"
+          ],
+          "landedUrlAfterShowMe": "https://staging.saysomethingin.app/?screen=settings",
+          "startUrl": "https://staging.saysomethingin.app/?screen=settings",
+          "steps": [
+            {
+              "i": 0,
+              "active": "report-a-bug-from-settings:0",
+              "expectedAnchor": "report-bug",
+              "ringed": true,
+              "ringTarget": {
+                "tag": "DIV",
+                "anchor": "report-bug",
+                "text": "Report a bugTell us what went wrong. We attach the details f"
+              },
+              "anchorMatch": true,
+              "advanceOn": "click",
+              "done": false
+            },
+            {
+              "i": 1,
+              "active": "report-a-bug-from-settings:1",
+              "expectedAnchor": "report-bug-sheet",
+              "ringed": true,
+              "ringTarget": {
+                "tag": "DIV",
+                "anchor": "report-bug-sheet",
+                "text": "Report a bug×Add a screenshot Send"
+              },
+              "anchorMatch": true,
+              "advanceOn": "next",
+              "done": false
+            },
+            {
+              "i": 2,
+              "active": "report-a-bug-from-settings:2",
+              "expectedAnchor": "report-bug-text",
+              "ringed": true,
+              "ringTarget": {
+                "tag": "TEXTAREA",
+                "anchor": "report-bug-text",
+                "text": ""
+              },
+              "anchorMatch": true,
+              "advanceOn": "next",
+              "done": false
+            },
+            {
+              "i": 3,
+              "active": "report-a-bug-from-settings:3",
+              "expectedAnchor": "report-bug-send",
+              "ringed": true,
+              "ringTarget": {
+                "tag": "BUTTON",
+                "anchor": "report-bug-send",
+                "text": "Send"
+              },
+              "anchorMatch": true,
+              "advanceOn": "next",
+              "done": false
+            },
+            {
+              "i": 4,
+              "active": "report-a-bug-from-settings:3",
+              "expectedAnchor": "report-bug-send",
+              "ringed": true,
+              "ringTarget": {
+                "tag": "BUTTON",
+                "anchor": "report-bug-send",
+                "text": "Send"
+              },
+              "anchorMatch": true,
+              "advanceOn": "next",
+              "done": false
+            },
+            {
+              "i": 5,
+              "active": "report-a-bug-from-settings:3:done",
+              "ringed": false,
+              "ringTarget": null,
+              "anchorMatch": null,
+              "done": true
+            }
+          ],
+          "showMe": "reached-terminal",
+          "anchoredSteps": 5,
+          "unanchoredSteps": 0,
+          "anchorMismatches": 0,
+          "takeMeThereHref": "/schools/settings",
+          "takeMeThereLandedUrl": "https://staging.saysomethingin.app/schools/settings",
+          "takeMeThereExpected": "/schools/settings",
+          "takeMeThere": "landed-as-expected",
+          "anchorPresentOnPage": false
+        },
+        {
+          "id": "report-a-bug-from-the-dashboard",
+          "place": {
+            "route": "dashboard"
+          },
+          "hasClip": true,
+          "walkIds": [
+            "report-a-bug-from-the-dashboard"
+          ],
+          "landedUrlAfterShowMe": "https://staging.saysomethingin.app/schools",
+          "startUrl": "https://staging.saysomethingin.app/schools",
+          "steps": [
+            {
+              "i": 0,
+              "active": null,
+              "note": "walk-active vanished"
+            }
+          ],
+          "showMe": "stalled",
+          "anchoredSteps": 0,
+          "unanchoredSteps": 1,
+          "anchorMismatches": 0,
+          "takeMeThereHref": "/schools",
+          "takeMeThereLandedUrl": "https://staging.saysomethingin.app/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a",
+          "takeMeThereExpected": "/schools",
+          "takeMeThere": "mismatch (got /org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a)",
+          "anchorPresentOnPage": false
+        },
+        {
+          "id": "say-what-happened",
+          "place": {
+            "route": "settings"
+          },
+          "hasClip": true,
+          "walkIds": [
+            "report-a-bug-from-settings"
+          ],
+          "landedUrlAfterShowMe": "https://staging.saysomethingin.app/?screen=settings",
+          "startUrl": "https://staging.saysomethingin.app/?screen=settings",
+          "steps": [
+            {
+              "i": 0,
+              "active": "report-a-bug-from-settings:0",
+              "expectedAnchor": "report-bug",
+              "ringed": true,
+              "ringTarget": null,
+              "anchorMatch": null,
+              "advanceOn": "click",
+              "done": false
+            }
+          ],
+          "showMe": "incomplete-maxsteps",
+          "anchoredSteps": 1,
+          "unanchoredSteps": 0,
+          "anchorMismatches": 0,
+          "takeMeThereHref": "/schools/settings",
+          "takeMeThereLandedUrl": "https://staging.saysomethingin.app/schools/settings",
+          "takeMeThereExpected": "/schools/settings",
+          "takeMeThere": "landed-as-expected",
+          "anchorPresentOnPage": false
+        },
+        {
+          "id": "say-what-happened-on-the-dashboard",
+          "place": {
+            "route": "dashboard"
+          },
+          "hasClip": true,
+          "walkIds": [
+            "report-a-bug-from-the-dashboard"
+          ],
+          "landedUrlAfterShowMe": "https://staging.saysomethingin.app/schools",
+          "startUrl": "https://staging.saysomethingin.app/schools",
+          "steps": [
+            {
+              "i": 0,
+              "active": null,
+              "note": "walk-active vanished"
+            }
+          ],
+          "showMe": "stalled",
+          "anchoredSteps": 0,
+          "unanchoredSteps": 1,
+          "anchorMismatches": 0,
+          "takeMeThereHref": "/schools",
+          "takeMeThereLandedUrl": "https://staging.saysomethingin.app/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a",
+          "takeMeThereExpected": "/schools",
+          "takeMeThere": "mismatch (got /org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a)",
+          "anchorPresentOnPage": false
+        },
+        {
+          "id": "see-and-download-your-funder-numbers",
+          "place": {
+            "route": "node-home"
+          },
+          "hasClip": true,
+          "walkIds": [
+            "funder-numbers"
+          ],
+          "landedUrlAfterShowMe": "https://staging.saysomethingin.app/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a",
+          "showMe": "never-started",
+          "takeMeThereHref": "/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a",
+          "takeMeThereLandedUrl": "https://staging.saysomethingin.app/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a",
+          "takeMeThereExpected": "/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a",
+          "takeMeThere": "landed-as-expected",
+          "anchorPresentOnPage": false
+        },
+        {
+          "id": "see-every-school-in-your-programme",
+          "place": {
+            "route": "schools-list"
+          },
+          "hasClip": true,
+          "walkIds": [
+            "see-every-school-in-your-programme"
+          ],
+          "landedUrlAfterShowMe": "https://staging.saysomethingin.app/schools/all",
+          "startUrl": "https://staging.saysomethingin.app/schools/all",
+          "steps": [
+            {
+              "i": 0,
+              "active": null,
+              "note": "walk-active vanished"
+            }
+          ],
+          "showMe": "stalled",
+          "anchoredSteps": 0,
+          "unanchoredSteps": 1,
+          "anchorMismatches": 0,
+          "takeMeThereHref": "/schools/all",
+          "takeMeThereLandedUrl": "https://staging.saysomethingin.app/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a?lens=schools",
+          "takeMeThereExpected": "/schools/all",
+          "takeMeThere": "mismatch (got /org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a?lens=schools)",
+          "anchorPresentOnPage": false
+        },
+        {
+          "id": "send-a-dashboard-bug-report",
+          "place": {
+            "route": "dashboard"
+          },
+          "hasClip": true,
+          "walkIds": [
+            "report-a-bug-from-the-dashboard"
+          ],
+          "landedUrlAfterShowMe": "https://staging.saysomethingin.app/schools",
+          "startUrl": "https://staging.saysomethingin.app/schools",
+          "steps": [
+            {
+              "i": 0,
+              "active": null,
+              "note": "walk-active vanished"
+            }
+          ],
+          "showMe": "stalled",
+          "anchoredSteps": 0,
+          "unanchoredSteps": 1,
+          "anchorMismatches": 0,
+          "takeMeThereHref": "/schools",
+          "takeMeThereLandedUrl": "https://staging.saysomethingin.app/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a",
+          "takeMeThereExpected": "/schools",
+          "takeMeThere": "mismatch (got /org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a)",
+          "anchorPresentOnPage": false
+        },
+        {
+          "id": "send-the-report",
+          "place": {
+            "route": "settings"
+          },
+          "hasClip": true,
+          "walkIds": [
+            "report-a-bug-from-settings"
+          ]
+        }
+      ],
+      "landingUrl": "https://staging.saysomethingin.app/org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a",
+      "nodeId": "2d98bc20-a9c7-4fed-b69a-aa64038ded2a",
+      "error": "page.goto: Target page, context or browser has been closed\nCall log:\n  - navigating to \"https://staging.saysomethingin.app/schools/handbook?entry=send-the-report\", waiting until \"domcontentloaded\"\n"
+    }
+  }
+}

@@ -1,0 +1,50 @@
+leader entries: 46
+
+=== bumface__desktop — thomas.cassidy+bumface@gmail.com
+  add-a-class-to-a-group: showMe=reached-terminal takeMeThere=landed-as-expected
+  add-a-school-to-your-programme: showMe=stalled takeMeThere=mismatch (got /org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a?lens=schools)
+  add-a-student-to-a-class: showMe=never-started takeMeThere=landed-as-expected
+  bring-your-first-person-in: showMe=reached-terminal takeMeThere=landed-as-expected
+  change-how-many-seats-you-pay-for: showMe=reached-terminal takeMeThere=landed-as-expected
+  choose-what-role-someone-arrives-as: showMe=reached-terminal takeMeThere=landed-as-expected
+  copy-a-school-s-joining-links: showMe=stalled takeMeThere=mismatch (got /org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a?lens=schools)
+  email-someone-their-invite-again: showMe=reached-terminal takeMeThere=landed-as-expected
+  find-out-which-email-you-are-signed-in-with: showMe=reached-terminal takeMeThere=landed-as-expected
+  finding-your-way-around-the-organisation: showMe=reached-terminal takeMeThere=landed-as-expected
+  give-a-teacher-their-classes: showMe=incomplete-maxsteps takeMeThere=landed-as-expected
+  hand-out-a-sign-up-link-for-one-course: showMe=button-not-rendered takeMeThere=landed-as-expected
+  how-far-a-class-has-travelled: showMe=never-started takeMeThere=landed-as-expected
+  how-fresh-these-numbers-are: showMe=reached-terminal takeMeThere=landed-as-expected
+  make-a-link-anyone-can-use: showMe=reached-terminal takeMeThere=landed-as-expected
+  open-the-folded-ledger: showMe=reached-terminal takeMeThere=landed-as-expected
+  open-your-inbox: showMe=button-not-rendered takeMeThere=mismatch (got /org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a)
+  put-the-app-on-your-device: showMe=reached-terminal takeMeThere=landed-as-expected
+  read-your-messages: showMe=reached-terminal takeMeThere=landed-as-expected
+  reading-one-student-s-progress: showMe=button-not-rendered takeMeThere=landed-as-expected
+  reading-your-insights: showMe=reached-terminal takeMeThere=landed-as-expected
+  report-a-bug-from-settings: showMe=incomplete-maxsteps takeMeThere=landed-as-expected
+  report-a-bug-from-the-dashboard: showMe=stalled takeMeThere=mismatch (got /org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a)
+  say-what-happened: showMe=incomplete-maxsteps takeMeThere=landed-as-expected
+  say-what-happened-on-the-dashboard: showMe=stalled takeMeThere=mismatch (got /org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a)
+  see-and-download-your-funder-numbers: showMe=never-started takeMeThere=landed-as-expected
+  see-every-school-in-your-programme: showMe=stalled takeMeThere=mismatch (got /org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a?lens=schools)
+  send-a-dashboard-bug-report: showMe=stalled takeMeThere=mismatch (got /org/2d98bc20-a9c7-4fed-b69a-aa64038ded2a)
+  send-the-report: showMe=incomplete-maxsteps takeMeThere=landed-as-expected
+  set-or-change-your-password: showMe=reached-terminal takeMeThere=landed-as-expected
+  subscribe-your-organisation: showMe=reached-terminal takeMeThere=landed-as-expected
+  take-a-teacher-off-a-class-or-move-them: showMe=incomplete-maxsteps takeMeThere=landed-as-expected
+  tell-us-about-something-that-went-wrong: showMe=incomplete-maxsteps takeMeThere=landed-as-expected
+  the-numbers-by-year-group: showMe=reached-terminal takeMeThere=landed-as-expected
+  the-numbers-on-any-level: showMe=reached-terminal takeMeThere=landed-as-expected
+  voice-and-pause: showMe=reached-terminal takeMeThere=landed-as-expected
+  walking-down-to-a-school-a-class-or-a-person: showMe=reached-terminal takeMeThere=landed-as-expected
+  ways-in-who-can-get-in-and-how-to-change-it: showMe=reached-terminal takeMeThere=landed-as-expected
+  what-your-classes-actually-practised: showMe=incomplete-maxsteps takeMeThere=landed-as-expected
+  when-more-people-join-than-you-have-seats: showMe=reached-terminal takeMeThere=landed-as-expected
+  where-classes-are-in-the-course-and-where-they-stop: showMe=reached-terminal takeMeThere=landed-as-expected
+  whether-a-class-is-practising-together: showMe=never-started takeMeThere=landed-as-expected
+  which-classes-have-gone-quiet: showMe=reached-terminal takeMeThere=landed-as-expected
+  which-classes-practised-this-week: showMe=reached-terminal takeMeThere=landed-as-expected
+  why-the-insights-show-a-rate-not-a-total: showMe=reached-terminal takeMeThere=landed-as-expected
+
+results -> /home/tomcassidy/.cs-scratch/cs-b33b515b-26f7-4d0a-83d2-6778d867e37b/leader-audit/results.json

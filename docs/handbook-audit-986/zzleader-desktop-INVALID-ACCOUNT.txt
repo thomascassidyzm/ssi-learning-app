@@ -1,0 +1,42 @@
+leader entries: 46
+
+=== zzleader__desktop — thomas.cassidy+zz.chepstow.leader@gmail.com
+  add-a-class-to-a-group: showMe=never-started takeMeThere=landed-as-expected
+  add-a-school-to-your-programme: showMe=button-not-rendered takeMeThere=landed-as-expected
+  add-a-student-to-a-class: showMe=never-started takeMeThere=landed-as-expected
+  bring-your-first-person-in: showMe=never-started takeMeThere=landed-as-expected
+  change-how-many-seats-you-pay-for: showMe=incomplete-maxsteps takeMeThere=landed-as-expected
+  choose-what-role-someone-arrives-as: showMe=never-started takeMeThere=landed-as-expected
+  copy-a-school-s-joining-links: showMe=button-not-rendered takeMeThere=landed-as-expected
+  email-someone-their-invite-again: showMe=never-started takeMeThere=landed-as-expected
+  find-out-which-email-you-are-signed-in-with: showMe=reached-terminal takeMeThere=landed-as-expected
+  finding-your-way-around-the-organisation: showMe=never-started takeMeThere=landed-as-expected
+  give-a-teacher-their-classes: showMe=reached-terminal takeMeThere=landed-as-expected
+  hand-out-a-sign-up-link-for-one-course: showMe=never-started takeMeThere=landed-as-expected
+  how-far-a-class-has-travelled: showMe=never-started takeMeThere=landed-as-expected
+  how-fresh-these-numbers-are: showMe=never-started takeMeThere=landed-as-expected
+  make-a-link-anyone-can-use: showMe=button-not-rendered takeMeThere=landed-as-expected
+  open-the-folded-ledger: showMe=never-started takeMeThere=landed-as-expected
+  open-your-inbox: showMe=stalled takeMeThere=mismatch (got /org/ec608982-2d9e-44eb-8236-06142aca6019)
+  put-the-app-on-your-device: showMe=never-started takeMeThere=landed-as-expected
+  read-your-messages: showMe=reached-terminal takeMeThere=landed-as-expected
+  reading-one-student-s-progress: showMe=never-started takeMeThere=landed-as-expected
+  reading-your-insights: showMe=button-not-rendered takeMeThere=landed-as-expected
+  report-a-bug-from-settings: showMe=incomplete-maxsteps takeMeThere=landed-as-expected
+  report-a-bug-from-the-dashboard: showMe=stalled takeMeThere=landed-as-expected
+  say-what-happened: showMe=incomplete-maxsteps takeMeThere=landed-as-expected
+  say-what-happened-on-the-dashboard: showMe=stalled takeMeThere=mismatch (got /org/ec608982-2d9e-44eb-8236-06142aca6019)
+  see-and-download-your-funder-numbers: showMe=button-not-rendered takeMeThere=landed-as-expected
+  see-every-school-in-your-programme: showMe=button-not-rendered takeMeThere=landed-as-expected
+  send-a-dashboard-bug-report: showMe=stalled takeMeThere=mismatch (got /org/ec608982-2d9e-44eb-8236-06142aca6019)
+  send-the-report: showMe=incomplete-maxsteps takeMeThere=landed-as-expected
+  set-or-change-your-password: showMe=never-started takeMeThere=landed-as-expected
+  subscribe-your-organisation: showMe=button-not-rendered takeMeThere=landed-as-expected
+  take-a-teacher-off-a-class-or-move-them: showMe=reached-terminal takeMeThere=landed-as-expected
+  tell-us-about-something-that-went-wrong: showMe=incomplete-maxsteps takeMeThere=landed-as-expected
+  the-numbers-by-year-group: showMe=never-started takeMeThere=landed-as-expected
+  the-numbers-on-any-level: showMe=never-started takeMeThere=landed-as-expected
+  voice-and-pause: showMe=reached-terminal takeMeThere=landed-as-expected
+  ERROR page.waitForTimeout: Target page, context or browser has been closed
+
+results -> /home/tomcassidy/.cs-scratch/cs-b33b515b-26f7-4d0a-83d2-6778d867e37b/leader-audit/results.json
