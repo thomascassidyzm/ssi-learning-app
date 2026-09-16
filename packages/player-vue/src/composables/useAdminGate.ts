@@ -90,6 +90,25 @@ interface InjectedAuth {
  * regardless (see the doctrine block above). This is purely about a guest
  * being able to SEE where the door is.
  */
+/**
+ * The admin deep link a `?next=` carries, or null.
+ *
+ * Both halves of the guest hand-off need it: `deniedDestination` writes it,
+ * SchoolsContainer replays it — and memberSurfaceGuard has to stand out of
+ * its way (job #34: an ssi_admin whose role was already cached was ejected
+ * from /schools straight to /admin/structure, swallowing the destination the
+ * hand-off was carrying, so the deep link died one hop short of its page).
+ *
+ * The prefix check keeps it from being an open redirect: no
+ * protocol-relative '//evil.example', no arbitrary in-app route.
+ */
+export function adminNextFromQuery(query: Record<string, unknown>): string | null {
+  const next = query.next
+  if (typeof next !== 'string') return null
+  if (!/^\/(admin|methodology)(\/|\?|$)/.test(next)) return null
+  return next
+}
+
 export function deniedDestination(status: string, fullPath: string) {
   if (status !== 'guest') return '/'
   return { path: '/schools', query: { next: fullPath } }
