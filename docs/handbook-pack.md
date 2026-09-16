@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `99d5ecc28093` · generated 2026-09-16 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `efb62cfe6bd8` · generated 2026-09-16 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -389,7 +389,7 @@ Moment: every-lesson · section: seeing-progress · roles: school_admin, leader,
 
 **Where it is.** Under the card on a school's or a group's insights page.
 
-1. Read down the list. Each card says when that class last practised, then its total time and new phrases for the week.
+1. Read down the list. Each card says when that class last practised, then its total time and new phrases for the week, then that class's last twelve weeks as small bars with the average here drawn across them as a faint line.
 2. Tap a class to open its own card, with the average beside it.
 3. Classes that have not started yet are counted in one quiet line at the end; open it to see their names.
 
@@ -967,7 +967,7 @@ Moment: every-lesson · section: seeing-progress · roles: admin, leader, school
 2. Switch **This week** and **Last week** if you need to. This week runs from Monday morning to right now; last week is the Monday to Sunday just gone. Those are the only two, because a school works in weeks.
 3. Read the three numbers down the left, with the average beside each one. **Play as class** is time on the class's own account, the lesson from the front. **Students on their own** is time on their own accounts. **Total learning time** is those two added together. **New phrases** is how much new ground was reached for the first time that week.
 4. Use **Compare to** to choose whose average sits in the second column. It walks up from the smallest group your class is part of — a year, a department, the school, the district, and on up — and opens on the smallest one that holds more than one class.
-5. The thin line under the total is the last twelve weeks: your class over a fainter line of the average. No axes; it is there to be glanced at.
+5. Under the numbers, the last twelve weeks as bars: one bar a week for this level, the newest one solid, with the average drawn across them as a faint line. No axes; it is there to be glanced at.
 
 **Worth knowing.** Nothing here is a score, a rank or a percentage — two columns of plain numbers, and you do the comparing. A class that was set up and has never played is in no average anywhere. The average counts every class in that scope that has started this course, including the one you are looking at, so it reads the same number whichever class you open it from. The line under the second column says how many. A week spent going back over old ground reads zero new phrases and a healthy pile of minutes, which is exactly what that week was; tap **why?** on the card for the rest.
 
@@ -1739,7 +1739,7 @@ Moment: setting-up · section: seeing-progress · roles: admin, leader, school_a
 **Where it is.** The card at the top of any level's insights page.
 
 1. Open a level and tap **See insights**.
-2. The card puts this level's week beside the average's same week, as two columns of plain numbers, with a thin twelve-week line under the total.
+2. The card puts this level's week beside the average's same week, as two columns of plain numbers, with twelve weekly bars under them and the average as a faint line across the bars.
 3. Switch between **This week** and **Last week**. On a Monday or a Tuesday the page opens on last week, because the week in progress is barely a lesson old.
 4. Tap **why?** on the card for what the numbers count and why minutes and new phrases move apart.
 

@@ -12,11 +12,17 @@
 // has no numbers at all and sits in its own quiet group at the end, because
 // it has not "gone quiet"; it has not begun.
 //
+// Each card carries the same trend rendering as the card above it, compact:
+// twelve weekly bars in the class colour with the level's mean as a faint
+// line across them (Tom's display-lab verdict, 2026-09-16: "Bars with a faint
+// normal line is best").
+//
 // No rank, no ordinal, no league table. Tap a card for that class's own card
 // with its comparison.
 // ============================================================================
 import { computed } from 'vue'
 import { useI18n } from '@/composables/useI18n'
+import WeekBars from './WeekBars.vue'
 import type { WeekClassRow } from './WeekNumbersCard.vue'
 
 const props = defineProps<{
@@ -24,6 +30,11 @@ const props = defineProps<{
   /** Builds the link to one class's own insights. */
   linkFor: (classId: string) => string
   windowLabel?: string
+  /**
+   * The faint normal line laid across every card's bars: the mean over the
+   * classes at this level, week by week. Absent is fine — bars alone then.
+   */
+  normal?: (number | null)[] | null
 }>()
 const { t } = useI18n()
 
@@ -62,7 +73,8 @@ const notStarted = computed(() => props.classes.filter((c) => !c.started))
        Where it is. Under the card on a school's or a group's insights page.
        How you do it.
        1. Read down the list. Each card says when that class last practised, then
-          its total time and new phrases for the week.
+          its total time and new phrases for the week, then that class's last twelve
+          weeks as small bars with the average here drawn across them as a faint line.
        2. Tap a class to open its own card, with the average beside it.
        3. Classes that have not started yet are counted in one quiet line at the
           end; open it to see their names.
@@ -88,6 +100,14 @@ const notStarted = computed(() => props.classes.filter((c) => !c.started))
             <span class="cwl-num"><span class="cwl-num-v">{{ mins(c.totalMinutes ?? 0) }}</span><span class="cwl-num-l">{{ windowLabel || t('insights.classes.thisWeek', 'this week') }}</span></span>
             <span class="cwl-num"><span class="cwl-num-v">{{ Math.round(c.newPhrases ?? 0) }}</span><span class="cwl-num-l">{{ t('insights.classes.newPhrases', 'new phrases') }}</span></span>
           </span>
+          <WeekBars
+            v-if="c.bars && c.bars.some((v) => typeof v === 'number')"
+            class="cwl-bars"
+            size="compact"
+            :entity="c.bars"
+            :cohort="normal ?? null"
+            :label="t('insights.classes.barsLabel', 'Last twelve weeks of learning time for {name}, against the average here').replace('{name}', c.name)"
+          />
         </router-link>
       </li>
     </ul>
@@ -121,7 +141,7 @@ const notStarted = computed(() => props.classes.filter((c) => !c.started))
 .cwl-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas: 'name nums' 'since nums';
+  grid-template-areas: 'name nums' 'since nums' 'bars bars';
   gap: 2px 14px;
   align-items: center;
   padding: 12px 14px;
@@ -139,6 +159,7 @@ const notStarted = computed(() => props.classes.filter((c) => !c.started))
 .cwl-num { display: flex; flex-direction: column; align-items: flex-end; }
 .cwl-num-v { font-family: var(--font-display, inherit); font-size: 19px; line-height: 1.1; color: var(--ink-primary, #2C2622); font-variant-numeric: tabular-nums; }
 .cwl-num-l { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-muted, #8A8078); }
+.cwl-bars { grid-area: bars; margin-top: 8px; }
 .cwl-quiet { margin: 0; }
 .cwl-quiet-sum { cursor: pointer; }
 .cwl-quiet-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; }
