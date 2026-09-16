@@ -29,7 +29,7 @@ let stubActivityCount: number
 let deleteCalls: any[]
 let deletedAuthUsers: string[]
 
-function makeLearnersBuilder(table: string) {
+function makeLearnersBuilder(table: string, hijacked: () => boolean) {
   const calls: any[] = []
   const builder: any = {
     select: (...args: any[]) => {
@@ -81,6 +81,10 @@ function makeLearnersBuilder(table: string) {
     single: () => {
       const isContains = calls.some((c) => c[0] === 'contains')
       if (isContains) return Promise.resolve({ data: crossAccountLearner, error: null })
+      // A client that has verified somebody else's OTP is no longer the
+      // service role — it is that address's stub, and own-row RLS hides the
+      // caller's learner from it. See the otpClient comment in verify.ts.
+      if (hijacked()) return Promise.resolve({ data: null, error: null })
       return Promise.resolve({ data: learnerRow, error: null })
     },
     // AUTH-CORE-06 moved the cross-account collision probe from .single() to
@@ -97,10 +101,19 @@ function makeLearnersBuilder(table: string) {
 }
 
 vi.mock('@supabase/supabase-js', () => ({
-  createClient: () => ({
-    from: (table: string) => makeLearnersBuilder(table),
+  createClient: () => {
+    // supabase-js keeps a successful verifyOtp's session on the client it was
+    // called on, and every later PostgREST call from THAT client goes out as
+    // that user. Modelled per client instance, because the whole point of the
+    // fix is which instance the OTP lands on.
+    let hijackedBy: string | null = null
+    const client: any = {
+    from: (table: string) => makeLearnersBuilder(table, () => hijackedBy !== null && hijackedBy !== 'user-1'),
     auth: {
-      verifyOtp: () => Promise.resolve(verifyOtpResult),
+      verifyOtp: ({ email }: { email: string }) => {
+        if (!verifyOtpResult.error) hijackedBy = email === authUser?.email ? 'user-1' : 'stub'
+        return Promise.resolve(verifyOtpResult)
+      },
       admin: {
         getUserById: (id: string) =>
           Promise.resolve({ data: { user: id === 'user-1' ? authUser : stubAuthUser } }),
@@ -114,7 +127,9 @@ vi.mock('@supabase/supabase-js', () => ({
         },
       },
     },
-  }),
+    }
+    return client
+  },
 }))
 
 function makeRes() {
@@ -222,4 +237,21 @@ describe('POST /api/email/verify', () => {
     expect(res._status).toBe(409)
     expect(deleteCalls).toHaveLength(0)
   })
+
+  it('stays the service role after verifying a second address\'s code', async () => {
+    // The staging failure of 2026-09-16 (job #998): the stub was absorbed and
+    // then the handler, now running as the stub, could not see the caller's
+    // own learner row — every genuine second-email link died on 404 "Learner
+    // not found" one step short of the write it exists to make.
+    crossAccountLearner = { id: 'stub-learner', user_id: 'stub-user' }
+    stubLearnerRow = { verified_emails: ['personal@example.com'] }
+    stubAuthUser = { id: 'stub-user', email: 'personal@example.com' }
+    stubActivityCount = 0
+    const res = makeRes()
+    await handler(makeReq({ email: 'personal@example.com', token: '123456' }), res)
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    expect(learnersUpdateCalls).toContainEqual({ verified_emails: ['personal@example.com'] })
+  })
+
 })
