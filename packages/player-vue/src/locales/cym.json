@@ -77,6 +77,7 @@
     "tapToStart": "Tapio i ddechrau",
     "pause": "Oedi",
     "resume": "Parhau",
+    "audioSilentRun": "Doedd dim i'w glywed — tapiwch i roi cynnig arall ar hwn",
     "offlinePracticeBody": "Allwn ni ddim cyrraedd eitemau newydd ar hyn o bryd, felly dyma gyfle i ymarfer yr hyn rwyt ti eisoes wedi'i ddysgu — bydd eitemau newydd yn cyrraedd cyn gynted ag y gallwn ni eu cyrraedd.",
     "offlinePracticeAck": "Iawn",
     "takeOffline": "Mynd ag e all-lein",
@@ -714,7 +715,6 @@
   "pronunciation": {
     "easier": "Haws",
     "loadingPhrases": "Wrthi'n llwytho ymadroddion...",
-    "audioSilentRun": "Doedd dim i'w glywed — tapiwch i roi cynnig arall ar hwn",
     "tapPlayStart": "Tapiwch play i ddechrau"
   },
   "prosody": {

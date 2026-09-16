@@ -79,6 +79,7 @@
     "tapToStart": "Tap to start",
     "pause": "Pause",
     "resume": "Resume",
+    "audioSilentRun": "Nothing could be heard — tap to try this one again",
     "offlinePracticeBody": "We can't reach new items right now, so here's a chance to practise what you've already covered — new items will come through as soon as we can reach them.",
     "offlinePracticeAck": "Got it",
     "takeOffline": "Take it offline",
@@ -827,7 +828,6 @@
   "pronunciation": {
     "easier": "Easier",
     "loadingPhrases": "Loading phrases...",
-    "audioSilentRun": "Nothing could be heard — tap to try this one again",
     "tapPlayStart": "Tap play to start"
   },
   "prosody": {
