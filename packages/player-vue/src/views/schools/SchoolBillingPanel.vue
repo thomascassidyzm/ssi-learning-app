@@ -28,6 +28,7 @@ const emit = defineEmits<{ (e: 'open-portal'): void }>()
           <h2 class="arsenal panel-title">{{ t('schools.billing.title', 'Billing') }}</h2>
           <!-- HANDBOOK See what your school pays
                section: your-school
+               moment: setting-up
                roles: school_admin
                place: settings
                keywords: billing, plan, pay, cost, price, seats, invoice, invoices, subscription, card, cancel

@@ -465,6 +465,7 @@ onMounted(() => {
               <span class="field-label">{{ t('schools.setup.schoolNameLabel', 'School name') }}</span>
               <!-- HANDBOOK Name your school
                    section: your-school
+                   moment: setting-up
                    roles: school_admin
                    place: setup
                    keywords: school, name, rename, title, setup, step 1, first
@@ -514,6 +515,7 @@ onMounted(() => {
 
           <!-- HANDBOOK Hand out your staff links
                section: getting-people-in
+               moment: setting-up
                roles: school_admin
                place: setup
                keywords: invite, teacher, staff, admin, link, join, colleague, setup, step 2
@@ -578,6 +580,7 @@ onMounted(() => {
 
           <!-- HANDBOOK Choose which courses your school uses
                section: courses-and-content
+               moment: setting-up
                roles: school_admin
                place: setup
                keywords: course, courses, language, languages, choose, pick, catalogue, setup, step 3
@@ -680,6 +683,7 @@ onMounted(() => {
               />
               <!-- HANDBOOK Give a class its course
                    section: courses-and-content
+                   moment: setting-up
                    roles: school_admin
                    place: setup
                    keywords: course, class, assign, choose, language, which, search, picker
@@ -731,6 +735,7 @@ onMounted(() => {
             </div>
             <!-- HANDBOOK Create your first classes
                  section: running-classes
+                 moment: setting-up
                  roles: school_admin
                  place: setup
                  keywords: class, classes, create, new, first, setup, step 4, group
@@ -777,6 +782,7 @@ onMounted(() => {
           <div class="step-nav-right">
             <!-- HANDBOOK Work through setup at your own pace
                  section: your-school
+                 moment: setting-up
                  roles: school_admin
                  place: setup
                  keywords: setup, wizard, first, start, onboarding, steps, later, finish, resume, save

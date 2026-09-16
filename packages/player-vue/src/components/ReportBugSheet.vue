@@ -89,6 +89,7 @@ onBeforeUnmount(() => { if (closeTimer) clearTimeout(closeTimer) })
 <template>
   <!-- HANDBOOK Tell us about something that went wrong
        section: your-own-account
+       moment: something-wrong
        roles: teacher, school_admin, leader
        place: settings
        keywords: bug, report, problem, went wrong, feedback, broken
@@ -109,6 +110,7 @@ onBeforeUnmount(() => { if (closeTimer) clearTimeout(closeTimer) })
       <template v-if="sent">
         <!-- HANDBOOK See that your report arrived
              section: your-own-account
+             moment: something-wrong
              roles: teacher, school_admin, leader
              place: settings
              keywords: bug, report, sent, thank you, arrived
@@ -129,6 +131,7 @@ onBeforeUnmount(() => { if (closeTimer) clearTimeout(closeTimer) })
         </header>
         <!-- HANDBOOK Say what happened
              section: your-own-account
+             moment: something-wrong
              roles: teacher, school_admin, leader
              place: settings
              keywords: bug, report, describe, what happened, text
@@ -162,6 +165,7 @@ onBeforeUnmount(() => { if (closeTimer) clearTimeout(closeTimer) })
         <p v-if="failed" class="bug-note" role="alert">{{ t('bugReport.failed') }}</p>
         <!-- HANDBOOK Send the report
              section: your-own-account
+             moment: something-wrong
              roles: teacher, school_admin, leader
              place: settings
              keywords: bug, report, send, submit, screenshot

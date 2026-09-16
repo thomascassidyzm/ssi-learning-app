@@ -594,6 +594,7 @@ function closeDelete(): void {
       <!-- Class mode: one verb, and it says what it does. -->
       <!-- HANDBOOK Add a student to a class
            section: getting-people-in
+           moment: setting-up
            roles: admin, leader, school_admin
            place: node-home
            keywords: student, invite, class, learner, join, link
@@ -617,6 +618,7 @@ function closeDelete(): void {
       <template v-else>
       <!-- HANDBOOK Bring your first person in
            section: getting-people-in
+           moment: setting-up
            roles: admin, leader, school_admin
            place: node-home
            keywords: invite, person, link, join, leader, learner
@@ -638,6 +640,7 @@ function closeDelete(): void {
       <button type="button" class="verb" :class="{ 'is-open': openForm === 'person' }" data-walk="verb-invite-person" @click="toggle('person')">{{ t('org.ui.nodeActionBar.inviteAPerson', 'Invite a person') }}</button>
       <!-- HANDBOOK Make a link anyone can use
            section: getting-people-in
+           moment: setting-up
            roles: admin, leader, school_admin
            place: node-home
            keywords: shareable, link, join, open, role, bulk
@@ -662,6 +665,7 @@ function closeDelete(): void {
       <button type="button" class="verb" :class="{ 'is-open': openForm === 'group' }" @click="toggle('group')">{{ t('org.ui.nodeActionBar.addAGroup', 'Add a group') }}</button>
       <!-- HANDBOOK Add a school under a group
            section: your-school
+           moment: setting-up
            roles: admin
            place: node-home
            keywords: school, add, create, group, structure
@@ -686,6 +690,7 @@ function closeDelete(): void {
       <!-- HANDBOOK Add a class to a group
            parts: add-class-name, add-class-submit
            section: running-classes
+           moment: setting-up
            roles: admin, leader, school_admin
            place: node-home
            keywords: class, add, group, org, leader
@@ -709,6 +714,7 @@ function closeDelete(): void {
       <button v-if="!neutral" type="button" class="verb" :class="{ 'is-open': openForm === 'class' }" data-walk="verb-add-class" @click="toggle('class')">{{ t('org.ui.nodeActionBar.addAClass', 'Add a class') }}</button>
       <!-- HANDBOOK Set up a demo organisation
            section: your-school
+           moment: setting-up
            roles: admin
            place: node-home
            keywords: demo, sales, pilot, mint, trial, prospect
@@ -730,6 +736,7 @@ function closeDelete(): void {
       <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'demo' }" data-walk="verb-mint-demo" @click="toggle('demo')">{{ t('org.ui.nodeActionBar.mintADemoOrg', 'Mint a demo org') }}</button>
       <!-- HANDBOOK Choose which courses a school can use
            section: courses-and-content
+           moment: setting-up
            roles: admin
            place: node-home
            keywords: courses, entitlement, trial, paid, access, catalogue
@@ -752,6 +759,7 @@ function closeDelete(): void {
       <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'courses' }" data-walk="verb-courses" @click="toggle('courses')">{{ t('org.ui.nodeActionBar.courses', 'Courses') }}</button>
       <!-- HANDBOOK Rename a school or group
            section: your-school
+           moment: setting-up
            roles: admin
            place: node-home
            keywords: rename, name, change, school, group
@@ -775,6 +783,7 @@ function closeDelete(): void {
       </button>
       <!-- HANDBOOK Delete a school or group
            section: your-school
+           moment: setting-up
            roles: admin
            place: node-home
            keywords: delete, remove, school, group, close
@@ -803,6 +812,7 @@ function closeDelete(): void {
       <div class="verb-form">
         <!-- HANDBOOK Choose what role someone arrives as
              section: getting-people-in
+             moment: setting-up
              roles: admin, leader, school_admin
              place: node-home
              keywords: role, teacher, leader, learner, invite, permissions

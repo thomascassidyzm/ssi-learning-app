@@ -13,7 +13,18 @@
  * Founder rulings, 2026-09-07: it is the HANDBOOK, never Training. And it
  * shows EVERY capability in the school, badged by role, not only the
  * reader's own — a teacher seeing what an admin can do is how they know who
- * to ask. "Just what I can do" is a one-tap narrowing, never the default.
+ * to ask.
+ *
+ * GROUPED BY MOMENT, AND NARROW BY DEFAULT (Tom, 2026-09-16: "the whole list
+ * is a bit overwhelming"). 109 entries showed a teacher 49 and a school
+ * leader 80, and the six topic sections did nothing to make that a shorter
+ * read. So the primary grouping is now WHEN you reach for a capability —
+ * setting up, every lesson, when something looks wrong — over just the
+ * reader's own, and "Read the lot" is what opens the compendium: everybody's
+ * capabilities, in the six alphabetical sections, exactly as before. That
+ * supersedes the 2026-09-07 reading of "Just what I can do" as never the
+ * default: everything is still one tap away, and the tap is now the long way
+ * round rather than the short one.
  */
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -21,9 +32,11 @@ import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useI18n } from '@/composables/useI18n'
 import { useClassesData } from '@/composables/schools/useClassesData'
 import {
-  handbookEntries, handbookSections, searchHandbook, viewerPersona, isMine, badgesFor, placeLink, clipsFor,
+  handbookEntries, handbookSections, handbookMoments, searchHandbook, viewerPersona, isMine, badgesFor,
+  placeLink, clipsFor, nextThree, stateFromHome,
   type HandbookEntry,
 } from '@/walkthrough/handbook'
+import { cachedNodeHome } from '@/composables/admin/nodeHomeCache'
 import { walkById, deferWalk, type Walk } from '@/walkthrough/useWalkthrough'
 
 const { t } = useI18n()
@@ -37,7 +50,10 @@ const persona = computed(() => viewerPersona(
 ))
 
 const query = ref('')
-const mineOnly = ref(false)
+// THE LOT = everybody's capabilities, in the six sections. Off is the
+// default: the reader's own, in three moments.
+const theLot = ref(false)
+const mineOnly = computed(() => !theLot.value)
 const open = ref<Set<string>>(new Set())
 // The words under a clip entry, folded by default: "Written out" unfolds them.
 const prose = ref<Set<string>>(new Set())
@@ -47,6 +63,11 @@ const matched = computed(() => searchHandbook(query.value, all))
 const visible = computed(() =>
   mineOnly.value ? matched.value.filter((e) => isMine(e, persona.value)) : matched.value)
 const sections = computed(() => handbookSections(visible.value))
+const moments = computed(() => handbookMoments(visible.value))
+// One list, two groupings: moments while the page is narrow, the old six
+// alphabetical sections once the reader has asked for the lot.
+const groups = computed(() => (theLot.value ? sections.value : moments.value))
+
 
 // A search that finds something opens what it found — the reader asked.
 watch(matched, (list) => {
@@ -68,10 +89,12 @@ function toggleProse(id: string): void {
   prose.value = next
 }
 
-// "Read the lot" reads: every entry open AND every clip entry's words unfolded.
-const allOpen = computed(() => visible.value.length > 0 && visible.value.every((e) => open.value.has(e.id)))
+// "Read the lot" is the compendium door: everybody's capabilities, in the six
+// sections, every entry open and every clip entry's words unfolded. Tapping it
+// again comes back to the reader's own three moments, closed.
 function readTheLot(): void {
-  const ids = allOpen.value ? [] : visible.value.map((e) => e.id)
+  theLot.value = !theLot.value
+  const ids = theLot.value ? visible.value.map((e) => e.id) : []
   open.value = new Set(ids)
   prose.value = new Set(ids)
 }
@@ -109,6 +132,17 @@ const nodeId = computed(() => currentUser.value?.group_id || currentUser.value?.
 function goTo(entry: HandbookEntry): string | null {
   return placeLink(entry, nodeId.value)
 }
+
+// YOUR NEXT THREE (job #5). Read off the node-home payload a sibling view
+// already fetched — cacheNodeHome holds it for this session — so this is a
+// second READER of the state the Last Step banner and the noticing rules use,
+// never a second state model. Cold cache, or no signal that applies, and it
+// falls back to the top of "Every lesson", which is never empty.
+const nextUp = computed(() => {
+  const home = nodeId.value ? cachedNodeHome(nodeId.value) : null
+  return nextThree(stateFromHome(home), persona.value, all)
+})
+
 
 // THE CLIP LEADS (job #627, 2026-09-14; supersedes the prose-first layout of
 // job #302). Tom, on staging: "the handbook still appears to be pointing to
@@ -157,6 +191,16 @@ async function showMe(entry: HandbookEntry): Promise<void> {
   await router.push(to)
 }
 
+// A Next-three row opens its entry where it lives on the page, rather than
+// navigating: the entry may be in any of the three moments, and scrolling to
+// the real row keeps one copy of every capability on the page.
+function openFromNext(entry: HandbookEntry): void {
+  open.value = new Set([...open.value, entry.id])
+  requestAnimationFrame(() => {
+    document.getElementById(`hb-${entry.id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  })
+}
+
 // One line under the clip: the first sentence of what the capability is for.
 function caption(entry: HandbookEntry): string {
   const m = entry.what.match(/^.*?[.!?](?=\s|$)/)
@@ -179,6 +223,19 @@ onMounted(() => {
       <p class="handbook-lede">{{ t('schools.handbookPage.ledeClips', 'Where you see Show me, tap it and the steps play on your own dashboard. Everything is written out as well. Search it, or read the lot.') }}</p>
     </header>
 
+    <!-- YOUR NEXT THREE, above the fold. Read off the same account state the
+         node home's Last Step banner reads, so the page opens on what this
+         school actually needs next rather than on a list of 109 things. -->
+    <section v-if="!query.trim() && nextUp.length" class="schools-card schools-card-pad handbook-next">
+      <h2 class="arsenal section-title">{{ t('schools.handbookPage.nextThree', 'Your next three') }}</h2>
+      <ol class="next-list">
+        <li v-for="e in nextUp" :key="e.id" class="next-item">
+          <button type="button" class="next-link" @click="openFromNext(e)">{{ e.title }}</button>
+          <span class="next-caption">{{ caption(e) }}</span>
+        </li>
+      </ol>
+    </section>
+
     <div class="schools-card schools-card-pad handbook-controls">
       <input
         v-model="query"
@@ -188,11 +245,10 @@ onMounted(() => {
         :aria-label="t('schools.handbookPage.searchAriaLabel', 'Search the handbook')"
       />
       <div class="handbook-toggles">
-        <div class="scope-toggle" role="group" :aria-label="t('schools.handbookPage.scopeAriaLabel', 'Which capabilities to show')">
-          <button type="button" class="scope-option" :class="{ 'is-on': !mineOnly }" @click="mineOnly = false">{{ t('schools.handbookPage.everything', 'Everything') }}</button>
-          <button type="button" class="scope-option" :class="{ 'is-on': mineOnly }" @click="mineOnly = true">{{ t('schools.handbookPage.justWhatICanDo', 'Just what I can do') }}</button>
-        </div>
-        <button type="button" class="btn-ghost" @click="readTheLot">{{ allOpen ? t('schools.handbookPage.closeThemAll', 'Close them all') : t('schools.handbookPage.readTheLot', 'Read the lot') }}</button>
+        <span class="handbook-scope">{{ theLot
+          ? t('schools.handbookPage.everything', 'Everything')
+          : t('schools.handbookPage.justWhatICanDo', 'Just what I can do') }}</span>
+        <button type="button" class="btn-ghost" @click="readTheLot">{{ theLot ? t('schools.handbookPage.justMineAgain', 'Just what I can do') : t('schools.handbookPage.readTheLot', 'Read the lot') }}</button>
       </div>
     </div>
 
@@ -200,8 +256,9 @@ onMounted(() => {
       {{ t('schools.handbookPage.emptyState', 'Nothing in the handbook matches that yet.') }}
     </p>
 
-    <section v-for="s in sections" :key="s.id" class="schools-card schools-card-pad handbook-section">
+    <section v-for="s in groups" :key="s.id" class="schools-card schools-card-pad handbook-section">
       <h2 class="arsenal section-title">{{ s.title }}</h2>
+      <p v-if="'blurb' in s" class="section-blurb">{{ s.blurb }}</p>
       <div class="entry-list">
         <article v-for="e in s.entries" :id="`hb-${e.id}`" :key="e.id" class="entry" :class="{ 'is-open': open.has(e.id) }">
           <button type="button" class="entry-head" :aria-expanded="open.has(e.id)" @click="toggle(e.id)">
@@ -277,13 +334,16 @@ onMounted(() => {
   background: var(--schools-card, #fff); color: var(--schools-fg, #0F1212);
 }
 .handbook-toggles { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
-.scope-toggle { display: inline-flex; border: 1px solid var(--schools-border-strong, rgba(15,18,18,.18)); border-radius: 999px; overflow: hidden; }
-.scope-option {
-  background: none; border: none; cursor: pointer; padding: 6px 14px; font: inherit;
-  font-size: var(--text-xs); color: var(--schools-fg-2, #555);
+.handbook-scope { font-size: var(--text-xs); color: var(--schools-fg-3, #8A8078); }
+.handbook-next { display: flex; flex-direction: column; gap: var(--space-2); }
+.next-list { margin: 0; padding-left: 1.1em; display: flex; flex-direction: column; gap: var(--space-2); }
+.next-item { color: var(--schools-fg-2, #555); }
+.next-link {
+  display: block; background: none; border: none; padding: 0; cursor: pointer; text-align: left;
+  font: inherit; font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--schools-red, #DB1E17);
 }
-.scope-option.is-on { background: var(--schools-red, #DB1E17); color: #fff; }
-
+.next-caption { display: block; font-size: var(--text-xs); color: var(--schools-fg-2, #555); line-height: 1.5; }
+.section-blurb { margin: -4px 0 0; font-size: var(--text-xs); color: var(--schools-fg-3, #8A8078); }
 .handbook-empty { color: var(--schools-fg-2, #555); font-size: var(--text-sm); }
 .handbook-section { display: flex; flex-direction: column; gap: var(--space-3); }
 .section-title { margin: 0; font-size: var(--text-lg); }

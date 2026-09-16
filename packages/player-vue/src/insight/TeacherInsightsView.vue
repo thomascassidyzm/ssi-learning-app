@@ -218,6 +218,7 @@ const requestedLearnerName = computed(() => {
       <div v-if="classSelectOptions.length > 1" class="tiv-controls">
         <!-- HANDBOOK Your class against the average
              section: seeing-progress
+             moment: setting-up
              roles: teacher
              place: analytics
              keywords: analytics, insights, rate, compare, average, class, pace, window

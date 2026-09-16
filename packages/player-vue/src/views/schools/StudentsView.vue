@@ -195,6 +195,7 @@ watch(selectedUser, (newUser) => {
              "> 0" inside this condition would hide the anchor from it. -->
         <!-- HANDBOOK Take your lists away as a spreadsheet
              section: seeing-progress
+             moment: setting-up
              roles: admin, school_admin, teacher
              place: students
              keywords: export, csv, spreadsheet, download, report
@@ -295,6 +296,7 @@ watch(selectedUser, (newUser) => {
             <td class="cell-action">
               <!-- HANDBOOK Look up one student
                    section: seeing-progress
+                   moment: something-wrong
                    roles: admin, school_admin, teacher
                    place: students
                    keywords: student, search, filter, find, progress, belt

@@ -157,6 +157,7 @@ function change(row: PulseCourseRow): string {
 <template>
   <!-- HANDBOOK How many in-app minutes are being done
        section: seeing-progress
+       moment: every-lesson
        roles: admin
        place: intel
        keywords: minutes, in-app, per person, total, course, compare, average, listening mode, main flow, enrolments, no activity

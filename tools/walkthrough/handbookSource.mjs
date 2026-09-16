@@ -100,7 +100,7 @@ export function parseHandbookBlocks(path, src, attrs = ANCHOR_ATTRS) {
     if (!title) { at('the first line must be the entry title, on the same line as HANDBOOK'); continue }
 
     const entry = {
-      title, path, section: '', personas: [], place: '', keywords: [], walk: null, parts: [], attr: null, anchor: null,
+      title, path, section: '', moment: '', personas: [], place: '', keywords: [], walk: null, parts: [], attr: null, anchor: null,
       what: '', where: '', how: [], note: '', checked: null,
       blockStart: start, blockEnd: start + raw.length, raw,
       // 1-indexed line of the HANDBOOK comment, so a gate failure can say
@@ -110,10 +110,15 @@ export function parseHandbookBlocks(path, src, attrs = ANCHOR_ATTRS) {
     let field = null
     for (const line of lines) {
       if (!line) { continue }
-      const label = line.match(/^(section|roles|place|keywords|walk|parts|checked):\s*(.*)$/)
+      const label = line.match(/^(section|moment|roles|place|keywords|walk|parts|checked):\s*(.*)$/)
       if (label) {
         const [, key, value] = label
         if (key === 'section') entry.section = value.trim()
+        // WHEN you reach for it, as opposed to what it is about. One moment
+        // per capability, from HANDBOOK_MOMENTS — the Handbook's primary
+        // grouping since Tom's 2026-09-16 ruling that "the whole list is a bit
+        // overwhelming". `section:` survives as the compendium's index.
+        else if (key === 'moment') entry.moment = value.trim()
         else if (key === 'place') entry.place = value.trim()
         else if (key === 'walk') entry.walk = value.trim() || null
         else if (key === 'checked') entry.checked = value.trim() || null

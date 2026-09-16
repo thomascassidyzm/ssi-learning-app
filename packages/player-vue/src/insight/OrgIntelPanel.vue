@@ -215,6 +215,7 @@ const journeyRows = computed(() => [...(props.payload?.classes ?? [])]
 
     <!-- HANDBOOK Which classes practised this week
          section: seeing-progress
+         moment: every-lesson
          roles: leader, school_admin
          place: node-insights
          keywords: practised, this week, last week, phrases, classes, people, minutes, adherence
@@ -268,6 +269,7 @@ const journeyRows = computed(() => [...(props.payload?.classes ?? [])]
 
     <!-- HANDBOOK Which classes have gone quiet
          section: seeing-progress
+         moment: something-wrong
          roles: leader, school_admin
          place: node-insights
          keywords: quiet, gone quiet, never started, stopped, not practising, drop off
@@ -306,6 +308,7 @@ const journeyRows = computed(() => [...(props.payload?.classes ?? [])]
 
     <!-- HANDBOOK Where classes are in the course and where they stop
          section: seeing-progress
+         moment: every-lesson
          roles: leader, school_admin
          place: node-insights
          keywords: journey, how far, drop off, stop, sentence, position, funnel, course

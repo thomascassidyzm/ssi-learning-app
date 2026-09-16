@@ -20,7 +20,7 @@ import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { runGates, assemblePack, comparePack, indexAnchors, gateClipCoverage, routeViewsFrom, gateWalkClaimers } from './lib.mjs'
+import { runGates, assemblePack, comparePack, indexAnchors, gateClipCoverage, routeViewsFrom, gateWalkClaimers, entryRoutesFrom } from './lib.mjs'
 import {
   parseHandbookBlocks, fingerprintCapability, stampChecked, proseFingerprint,
   checkedCode, checkedProse, anchorFingerprint, stepProseFingerprint,
@@ -345,7 +345,7 @@ function flattenLocale(obj, prefix = '') {
   )
 }
 
-const pack = assemblePack(walks, entries)
+const pack = assemblePack(walks, entries, entryRoutesFrom(routerSrc, vueFiles))
 const content = JSON.stringify(pack)
 const versioned = {
   version: createHash('sha256').update(content).digest('hex').slice(0, 12),
@@ -439,7 +439,7 @@ const handbookMd = [
   ...versioned.handbook.flatMap((e) => [
     `## ${e.title}`,
     '',
-    `Section: ${e.section} · roles: ${e.personas.join(', ')} · anchor: \`${e.anchor}\` · in \`${e.source}\`${e.walk ? ' · has a walk' : ''}`,
+    `Moment: ${e.moment} · section: ${e.section} · roles: ${e.personas.join(', ')} · anchor: \`${e.anchor}\` · in \`${e.source}\`${e.walk ? ' · has a walk' : ''}`,
     '',
     `**What it's for.** ${e.what}`,
     '',
