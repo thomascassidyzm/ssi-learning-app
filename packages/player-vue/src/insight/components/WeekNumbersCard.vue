@@ -51,6 +51,14 @@ const props = defineProps<{
   cohortUnit?: string | null
 }>()
 
+/** 1st, 2nd, 3rd, 4th — "91th percentile" is nobody's English. */
+function ordinal(n: number): string {
+  const v = Math.round(n)
+  const tens = v % 100
+  if (tens >= 11 && tens <= 13) return `${v}th`
+  return `${v}${['th', 'st', 'nd', 'rd'][v % 10] || 'th'}`
+}
+
 /** Minutes as a school reads them: "1h 25m" past the hour, plain minutes below. */
 function mins(n: number): string {
   const whole = Math.round(n)
@@ -134,7 +142,7 @@ const hasBars = computed(() => props.data.bars.entity.some((v) => v > 0) || prop
       Play-as-class time is complete.
     </p>
     <p v-else-if="percentile != null && cohortUnit" class="wk-tag">
-      {{ percentile }}th percentile of {{ cohortUnit }}
+      {{ ordinal(percentile) }} percentile of {{ cohortUnit }}
     </p>
 
     <!-- ── 12 Monday-anchored weeks. An empty week is an empty week. ── -->
@@ -153,7 +161,7 @@ const hasBars = computed(() => props.data.bars.entity.some((v) => v > 0) || prop
 </template>
 
 <style scoped>
-.wk { display: flex; flex-direction: column; gap: 18px; }
+.wk { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
 
 .wk-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 0; }
 .wk-window {
@@ -171,13 +179,17 @@ const hasBars = computed(() => props.data.bars.entity.some((v) => v > 0) || prop
   color: var(--ink-muted, #8A8078);
 }
 
-.wk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.wk-grid-solo { grid-template-columns: 1fr; }
+.wk-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+.wk-grid-solo { grid-template-columns: minmax(0, 1fr); }
 
 .wk-col {
   border: 1px solid rgba(44, 38, 34, 0.10);
   border-radius: 12px;
   padding: 14px 15px;
+  /* A grid item's min-width is auto, so the longest word inside sets the
+   * column's floor — "Ysgol Cas-gwent Chepstow School average" pushed the
+   * whole card wider than a phone and clipped its own caption. */
+  min-width: 0;
 }
 .wk-col-entity { background: rgba(var(--rc-entity, 96, 165, 250), 0.07); }
 .wk-col-label {
@@ -220,6 +232,7 @@ const hasBars = computed(() => props.data.bars.entity.some((v) => v > 0) || prop
 .wk-denominator,
 .wk-note {
   margin: 10px 0 0;
+  overflow-wrap: anywhere;
   font-family: var(--font-mono);
   font-size: 11px;
   line-height: 1.5;
