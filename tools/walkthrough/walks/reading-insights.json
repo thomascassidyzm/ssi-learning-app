@@ -17,52 +17,68 @@
     "minutes",
     "phrases",
     "total",
-    "practising",
+    "classes",
     "quiet",
-    "journey",
+    "not practised",
     "voice",
     "pause"
   ],
   "steps": [
     {
-      "anchor": "insights-measure",
-      "say": "This page counts time and new phrases, by week. There is nothing to pick here — the line under the pickers says exactly what the numbers mean.",
-      "advance": {
-        "on": "next"
-      },
-      "checked": "ee636721.5ccfae1b"
-    },
-    {
       "anchor": "insights-window",
-      "say": "The **window** is the school week. **This week** runs from Monday morning to right now; **Last week** is the Monday to Sunday just gone. Those are the only two.",
+      "say": "**This week** or **Last week** — the school week, Monday to Sunday, and those are the only two. The card is the first thing on the page; this is the one thing you switch.",
       "advance": {
         "on": "next"
       },
-      "checked": "e4bdf6b9.3be7e37a"
+      "checked": "0f907df5.7f9d55f6"
     },
     {
       "anchor": "insights-compare",
-      "say": "**Compare to** decides whose average sits beside yours. It counts every class in that scope that has started on this course, this one included — a class that was set up and never played is in no average anywhere.",
+      "say": "**Compare to** decides whose average sits beside yours. It opens on the smallest group this level is part of that holds more than one, and walks up from there — year, department, school, district. Every class in that scope that has started this course counts, this one included.",
       "advance": {
         "on": "next"
       },
-      "checked": "dcff4a14.97ac1945"
+      "checked": "dcff4a14.ec9a29fd"
     },
     {
       "anchor": "insights-rate-widget",
-      "say": "Three numbers for the week: time playing as a class, time students put in on their own accounts, and those two added together. Underneath, the new phrases the class reached for the first time this week. The school's same three sit beside them so you do the comparing yourself.",
+      "say": "One card, two columns. Down the left: time playing as a class, time students put in on their own accounts, those two added together, and the new phrases reached for the first time this week. The average's same numbers sit beside each so you do the comparing yourself. The thin line under the total is the last twelve weeks.",
       "advance": {
         "on": "next"
       },
-      "checked": "7d832afa.c234fff1"
+      "checked": "7d832afa.afbef272"
+    },
+    {
+      "anchor": "insights-classes",
+      "say": "Under the card, every class here, the one that has gone longest without practising first. Each says when it last practised and its week. Tap one for its own card. Nothing is ranked by minutes.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "b09ac89e.18d8c9b8"
+    },
+    {
+      "anchor": "insights-not-practised",
+      "say": "**Who has not practised this week** lists the people on their own accounts who have not — by name, never by minutes. Tap it to open.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "6fe90846.b3f75b36"
+    },
+    {
+      "anchor": "insights-more",
+      "say": "**More about this level** keeps the three four-week questions off the first screen. Tap it to open them.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "e7777d92.91bc482a"
     },
     {
       "anchor": "insights-org-practising",
-      "say": "**Practising** answers whether your classes are doing it: how many practised together this week against last week, the phrases practised each day over four weeks, and which people practised on their own account and for how long.",
+      "say": "Open **More about this level** for the three questions over the last four weeks. **Practising** answers whether your classes are doing it: how many practised together this week against last week, and the phrases practised each day.",
       "advance": {
         "on": "next"
       },
-      "checked": "27fe00c8.ebb6e2b0"
+      "checked": "27fe00c8.490c5f0b"
     },
     {
       "anchor": "insights-org-quiet",
@@ -82,11 +98,11 @@
     },
     {
       "anchor": "insights-voice-pause",
-      "say": "**Voice and pause** is what the microphone is giving us below this level. Read the uptake figure first — it is how many learners the rest is based on. A learner with no mic data is absent here, never a zero.",
+      "say": "**Voice and pause**, the last line, is what the microphone is giving us below this level. Tap it to open; read the uptake figure first — it is how many learners the rest is based on.",
       "advance": {
         "on": "next"
       },
-      "checked": "5320ccbd.5fb81d2c"
+      "checked": "18500c27.6ebbb158"
     },
     {
       "anchor": "insights-overview",

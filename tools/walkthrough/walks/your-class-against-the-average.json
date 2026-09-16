@@ -10,11 +10,12 @@
   "keywords": [
     "analytics",
     "insights",
-    "rate",
+    "week",
     "compare",
     "average",
     "class",
-    "pace"
+    "phrases",
+    "minutes"
   ],
   "steps": [
     {
@@ -26,29 +27,45 @@
       "checked": "dd4fbd49.0a9a0e2d"
     },
     {
-      "anchor": "insights-measure",
-      "say": "The **measure** is what is being counted — the line underneath says exactly what the current one means.",
-      "advance": {
-        "on": "next"
-      },
-      "checked": "ee636721.8cd12d76"
-    },
-    {
       "anchor": "insights-window",
-      "say": "The **window** is the period the rate is worked out over. Shorter windows react faster, longer ones smooth the noise.",
+      "say": "**This week** or **Last week** — the school week, Monday to Sunday. The card is already on screen; this is the one thing you switch.",
       "advance": {
         "on": "next"
       },
-      "checked": "e4bdf6b9.8a885a2d"
+      "checked": "0f907df5.3dfa2618"
     },
     {
       "anchor": "insights-compare",
-      "say": "**Compare to** sets your class's rate beside an average. Everything here is a rate, not a raw total, so a class of eight and a class of thirty compare fairly.",
+      "say": "**Compare to** decides whose average sits beside your class. It opens on the smallest group your class is part of that holds more than one — a year once you have confirmed it, else the school — and walks up from there.",
       "advance": {
         "on": "next"
       },
-      "terminal": "This answers whether a class is moving well, which a roster of totals cannot. A class with too few sessions to compare honestly says so rather than showing a number built from nothing.",
-      "checked": "dcff4a14.386e4f76"
+      "checked": "dcff4a14.4eb6f2b4"
+    },
+    {
+      "anchor": "insights-rate-widget",
+      "say": "Three numbers with the average beside each: time playing as a class, time students put in on their own, those two added together, and the new phrases reached this week. No score, no rank — you do the comparing. The thin line under the total is the last twelve weeks, and the line under the card is the class's totals since it started.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "7d832afa.3c22b489"
+    },
+    {
+      "anchor": "insights-all-time",
+      "say": "The last line of the card is the class's totals since the day it first pressed play: how long it has practised and how many phrases it has reached. Totals only — nothing here is compared with anyone.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "51cdde17.3d971e78"
+    },
+    {
+      "anchor": "insights-class-tags",
+      "say": "Under the card, the year and department this class belongs to, guessed from its name and its course. A dotted underline is a guess; tap **confirm** if it is right or **change** to fix it. Once confirmed, **Compare to** can offer the year's own average.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "A class with nothing comparable yet still sees its own week and its totals; only the second column is missing, and the card says why.",
+      "checked": "a7045400.e90862a9"
     }
   ]
 }

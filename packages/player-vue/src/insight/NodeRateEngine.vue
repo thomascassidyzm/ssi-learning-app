@@ -24,7 +24,8 @@
 // ============================================================================
 import { ref, computed, watch } from 'vue'
 import RateCompare from './components/RateCompare.vue'
-import WeekNumbersCard, { type WeekBlock } from './components/WeekNumbersCard.vue'
+import WeekNumbersCard, { type WeekBlock, type AllTimeBlock } from './components/WeekNumbersCard.vue'
+import ClassTagsLine, { type ClassTagsView } from './components/ClassTagsLine.vue'
 import WindowChips from './components/WindowChips.vue'
 import FrostSelect from '@/components/FrostSelect.vue'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
@@ -80,8 +81,11 @@ const comparison = ref<RateComparisonData | null>(null)
 // — a class with no peers still gets its own week, and only the comparison is
 // missing.
 const weekBlock = ref<WeekBlock | null>(null)
-const weekPercentile = ref<number | null>(null)
-const weekCohortUnit = ref<string | null>(null)
+// All-time totals (class only) and the year/department tags, both from the
+// same round trip. No percentile is held here any more: a rank is dentist
+// energy and nothing on this page draws one (Tom via RBF, 2026-09-16).
+const allTime = ref<AllTimeBlock | null>(null)
+const tags = ref<ClassTagsView | null>(null)
 const engineState = ref<EngineState | null>(null)
 
 // Direct calls can overlap (rapid prop changes) — latest request wins, a
@@ -135,8 +139,8 @@ async function fetchComparison(): Promise<void> {
     if (json.applied.window && json.applied.window !== props.window) emit('update:window', json.applied.window)
     if (json.applied.measure && json.applied.measure !== props.measure) emit('update:measure', json.applied.measure)
     weekBlock.value = (json.week as WeekBlock | null) ?? null
-    weekPercentile.value = typeof json.percentile === 'number' ? json.percentile : null
-    weekCohortUnit.value = typeof json.cohortUnit === 'string' ? json.cohortUnit : null
+    allTime.value = (json.allTime as AllTimeBlock | null) ?? null
+    tags.value = (json.tags as ClassTagsView | null) ?? null
     if (json.insufficientData) {
       insufficientReason.value = json.reason || t('insights.rateEngine.notEnoughData', 'Not enough data to compare fairly yet.')
     } else {
@@ -176,6 +180,46 @@ watch(
   { immediate: true },
 )
 
+// ─── Tags: confirm or correct in place; the server answers the fresh view
+// and the comparison is re-resolved, because a confirmed year may open a rung
+// that did not exist a moment ago. ───
+const tagSaving = ref(false)
+const tagError = ref<string | null>(null)
+async function saveTag(kind: 'year' | 'department', value: string | null): Promise<void> {
+  tagSaving.value = true
+  tagError.value = null
+  try {
+    const token = await props.getToken()
+    if (!token) { authMissing.value = true; return }
+    const resp = await fetch(`/api/classes/${props.nodeId}/tags`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [kind]: value }),
+    })
+    if (!resp.ok) throw new Error(`tags ${resp.status}`)
+    const json = await resp.json()
+    tags.value = (json.tags as ClassTagsView) ?? tags.value
+    lastApplied = null
+    await fetchComparison()
+  } catch (err) {
+    console.error('[NodeRateEngine] tag save failed:', err)
+    tagError.value = t('insights.tags.saveFailed', "Couldn't save that just now — try again shortly.")
+  } finally {
+    tagSaving.value = false
+  }
+}
+
+// ─── WEEK MODE — the settled shape (Tom, 2026-09-16): one toggle, one
+// compare-to picker, the card. No course picker for a class (a class has one
+// course), no measure picker (the measure is settled), no definitional
+// paragraph (the why? chip on the card carries it). The legacy layout below
+// stays for the mounts that are not weeks — me/insights and intel/minutes. ───
+const weekMode = computed(() => {
+  const w = engineState.value?.applied.window
+  return w === 'this_week' || w === 'last_week'
+})
+const isClassNode = computed(() => engineState.value?.node.kind === 'class')
+
 // ─── Pickers ───
 // Server sends courses sorted active-first (busiest by recent practice);
 // a course with no practice at THIS node is named as such so a human picking
@@ -190,6 +234,8 @@ const courseSelectOptions = computed(() =>
   })))
 
 function compareWord(o: CompareOption): string {
+  // The tag rungs are already in a teacher's words — "Year 6 average".
+  if (o.value === 'tag:year' || o.value === 'tag:department') return o.label
   if (!props.plainWords) return o.label
   if (o.value === 'global') return t('insights.rateEngine.compareEveryoneOnCourse', 'Everyone on this course')
   if (o.value === 'global_all_courses') return t('insights.rateEngine.compareAllLearnersAllCourses', 'All SSi learners · all courses')
@@ -239,22 +285,70 @@ const LEGACY_METRIC_DESC = t(
   'New phrases reached per week — the headline rate. Rate of progress matters more than position: a learner three seeds back but climbing fast is healthier than one parked far ahead.',
 )
 const metricDesc = computed(() => {
-  if (weekBlock.value) {
-    return t(
-      'insights.rateEngine.weekDesc',
-      'A school week, Monday to Sunday. Time is in-app time from pressing play to stopping; play-as-class and students on their own accounts are counted separately and then added. New phrases are the ones the class reached for the first time in the week.',
-    )
-  }
   const selected = measureOptions.value.find((m) => m.value === measureModel.value)
   return selected?.desc || LEGACY_METRIC_DESC
 })
 </script>
 
 <template>
-  <div class="nre">
-    <!-- ── Controls ── -->
-    <div v-if="engineState" class="nre-controls">
-      <div v-if="showWindowChips" class="nre-field" data-walk="insights-window">
+  <div class="nre" :class="{ 'nre-week': weekMode }">
+    <!-- ── WEEK MODE: one slim row — the week toggle and whose average sits
+         beside you — then the card. The answer is the first thing on the
+         screen, not the fourth. ── -->
+    <!-- HANDBOOK Reading your insights
+         section: seeing-progress
+         moment: every-lesson
+         roles: admin, leader, school_admin, teacher
+         place: node-insights
+         keywords: insights, numbers, week, compare, minutes, phrases, this week, last week
+         walk: reading-insights
+         What it's for. Reading a week of learning at this level — how much time was
+         spent, how much new ground was covered, and how that sits beside the average
+         you choose. One card, two columns, three numbers.
+         Where it is. The node's home page, **See insights**; for a teacher, **Analytics**.
+         How you do it.
+         1. Open the page. The card is the first thing on it.
+         2. Switch **This week** and **Last week** if you need to. This week runs from
+            Monday morning to right now; last week is the Monday to Sunday just gone.
+            Those are the only two, because a school works in weeks.
+         3. Read the three numbers down the left, with the average beside each one.
+            **Play as class** is time on the class's own account, the lesson from the
+            front. **Students on their own** is time on their own accounts. **Total
+            learning time** is those two added together. **New phrases** is how much
+            new ground was reached for the first time that week.
+         4. Use **Compare to** to choose whose average sits in the second column. It
+            walks up from the smallest group your class is part of — a year, a
+            department, the school, the district, and on up — and opens on the
+            smallest one that holds more than one class.
+         5. The thin line under the total is the last twelve weeks: your class over a
+            fainter line of the average. No axes; it is there to be glanced at.
+         Worth knowing. Nothing here is a score, a rank or a percentage — two columns
+         of plain numbers, and you do the comparing. A class that was set up and has
+         never played is in no average anywhere. The average counts every class in
+         that scope that has started this course, including the one you are looking
+         at, so it reads the same number whichever class you open it from. The line
+         under the second column says how many. A week spent going back over old
+         ground reads zero new phrases and a healthy pile of minutes, which is
+         exactly what that week was; tap **why?** on the card for the rest.
+         checked: 77790c2d.847eea15
+    -->
+    <div v-if="engineState && weekMode" class="nre-bar" data-walk="insights-window">
+      <WindowChips v-if="showWindowChips" v-model="windowModel" :options="windowOptions" :aria-label="t('insights.rateEngine.timeWindowAriaLabel', 'Time window')" />
+      <label class="nre-bar-field" data-walk="insights-compare">
+        <span class="nre-field-label">{{ t('insights.rateEngine.compareToLabel', 'Compare to') }}</span>
+        <FrostSelect v-model="compareModel" :options="compareSelectOptions" :aria-label="t('insights.rateEngine.compareToLabel', 'Compare to')" />
+      </label>
+      <!-- A class has one course, so no picker. A school running two courses
+           still needs to say which one its classes are being read on. -->
+      <label v-if="!isClassNode && courseSelectOptions.length > 1" class="nre-bar-field">
+        <span class="nre-field-label">{{ t('insights.rateEngine.courseLabel', 'Course') }}</span>
+        <FrostSelect v-model="courseModel" :options="courseSelectOptions" :aria-label="t('insights.rateEngine.courseLabel', 'Course')" />
+      </label>
+    </div>
+
+    <!-- ── LEGACY controls — the non-week mounts only (me/insights, intel/minutes). ── -->
+    <div v-if="engineState && !weekMode" class="nre-controls">
+      <div v-if="showWindowChips" class="nre-field" data-walk="insights-window-legacy">
         <span class="nre-field-label">{{ t('insights.rateEngine.windowLabel', 'Window') }}</span>
         <WindowChips v-model="windowModel" :options="windowOptions" :aria-label="t('insights.rateEngine.timeWindowAriaLabel', 'Time window')" />
       </div>
@@ -268,67 +362,22 @@ const metricDesc = computed(() => {
         <p class="nre-fixed">{{ courseShortName(engineState.applied.course_code) }}</p>
       </div>
 
-      <!-- HANDBOOK Reading your insights
-           section: seeing-progress
-           moment: every-lesson
-           roles: admin, leader, school_admin
-           place: node-insights
-           keywords: insights, numbers, week, compare, minutes, phrases, window
-           walk: reading-insights
-           What it's for. Reading a week of learning at this level — how much time was
-           spent, how much new ground was covered, and how that sits beside the school.
-           Where it is. The node's home page, **See insights**.
-           How you do it.
-           1. Open the node's home page and tap **See insights**.
-           2. Pick the **window**. **This week** runs from Monday morning to right now;
-              **Last week** is the Monday to Sunday just gone. Those are the only two,
-              because a school works in weeks.
-           3. Read the three numbers. **Play as class** is time on the class's own
-              account, the lesson from the front. **Students on their own** is time on
-              their own accounts. **Total learning time** is those two added together.
-           4. **New phrases** is how much new ground was reached for the first time
-              that week. A week spent going back over old ground reads zero there and a
-              healthy pile of minutes, which is exactly what that week was.
-           5. Use **Compare to** to choose whose average sits in the second column. It
-              is the mean of every class in that scope that has STARTED on this course,
-              counted whether or not it practised this week, and the class you are
-              looking at is one of them — so it reads the same number whichever class
-              you open it from. The line under it says how many.
-           6. **Overview** takes you back to the same place's home page.
-           Worth knowing. A class that was set up and has never played is in no average
-           anywhere — counting it would read your school as less busy than it is. A
-           class joins the average in the week it first plays and never leaves, so a new
-           class starting does not change last month's figures. The two columns are
-           plain numbers side by side: no score, no percentage, you do the comparing
-           yourself. The chart is one bar per week for the last twelve weeks,
-           Monday-anchored on your own clock. A week with no play is a bar of zero; a
-           week before anyone had started is a gap, because there was nothing there to
-           measure. A class that practises from the front is counted through its own
-           class account, so whole-class lessons show here the same as any other
-           practice.
-           checked: d02609b0.1e86d15d
-      -->
       <label v-if="showMeasurePicker" class="nre-field nre-field-wide" data-walk="insights-measure">
         <span class="nre-field-label">{{ t('insights.rateEngine.measureLabel', 'Measure') }}</span>
         <FrostSelect v-model="measureModel" :options="measureSelectOptions" :aria-label="t('insights.rateEngine.measureLabel', 'Measure')" />
       </label>
-      <!-- Under the week primitive there is nothing to pick: the card IS the
-           three numbers, so the field names them instead of offering the same
-           figure three ways. The anchor stays — the walk still points here. -->
       <div v-else class="nre-field" data-walk="insights-measure">
         <span class="nre-field-label">{{ t('insights.rateEngine.measureLabel', 'Measure') }}</span>
-        <p class="nre-fixed">{{ weekBlock
-          ? t('insights.rateEngine.weekMeasureFixed', 'Time and new phrases, by week')
-          : t('insights.rateEngine.rateOfProgressFixed', 'Rate of progress (new phrases / week)') }}</p>
+        <p class="nre-fixed">{{ t('insights.rateEngine.rateOfProgressFixed', 'Rate of progress (new phrases / week)') }}</p>
       </div>
 
-      <label class="nre-field nre-field-wide" data-walk="insights-compare">
+      <label class="nre-field nre-field-wide">
         <span class="nre-field-label">{{ t('insights.rateEngine.compareToLabel', 'Compare to') }}</span>
         <FrostSelect v-model="compareModel" :options="compareSelectOptions" :aria-label="t('insights.rateEngine.compareToLabel', 'Compare to')" />
       </label>
     </div>
 
-    <p class="nre-metric-desc">{{ metricDesc }}</p>
+    <p v-if="!weekMode" class="nre-metric-desc">{{ metricDesc }}</p>
 
     <!-- ── The widget — or an honest state, never a fabricated number ── -->
     <!-- HANDBOOK Why the insights are told in weeks
@@ -341,27 +390,30 @@ const metricDesc = computed(() => {
          weeks too — Monday morning to Sunday night, on your own clock. A rolling "last
          seven days" straddles two different weeks of teaching and cannot be talked about
          in a staff meeting.
-         Where it is. The block under the pickers on any level's insights page.
+         Where it is. The card at the top of any level's insights page.
          How you do it.
          1. Open a level and tap **See insights**.
-         2. Read the line under the pickers — it says in words what the numbers count.
-         3. The block below puts this level's week beside the average's same week, as two
-            columns of plain numbers.
-         4. Switch between **This week** and **Last week**. On a Monday or a Tuesday the
+         2. The card puts this level's week beside the average's same week, as two
+            columns of plain numbers, with a thin twelve-week line under the total.
+         3. Switch between **This week** and **Last week**. On a Monday or a Tuesday the
             page opens on last week, because the week in progress is barely a lesson old.
+         4. Tap **why?** on the card for what the numbers count and why minutes and
+            new phrases move apart.
          Worth knowing. The week runs Monday 00:00 to Sunday night on UK time, so a
          Monday-morning lesson belongs to the week it was taught in. Nothing here is a
-         score, a target or a streak. A quiet week is allowed to read as a quiet week.
+         score, a rank, a target or a streak. A quiet week is allowed to read as a quiet
+         week. Under the card, a class also shows its totals since it started — time
+         practised and phrases reached — on their own, with nothing to compare them to.
          checked: ac359fff.a9a3817c
     -->
     <div v-if="weekBlock" class="nre-widget-card" data-walk="insights-rate-widget">
       <WeekNumbersCard
         :data="weekBlock"
         :no-cohort-reason="insufficientReason"
-        :percentile="weekPercentile"
-        :cohort-unit="weekCohortUnit"
+        :all-time="allTime"
       />
     </div>
+    <ClassTagsLine v-if="weekMode && isClassNode && tags" :tags="tags" :saving="tagSaving" :error="tagError" @save="saveTag" />
     <div v-else-if="comparison" class="nre-widget-card" data-walk="insights-rate-widget">
       <RateCompare :data="comparison" />
     </div>
@@ -395,6 +447,14 @@ const metricDesc = computed(() => {
   gap: 16px;
 }
 
+.nre-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 16px;
+}
+.nre-bar-field { display: flex; flex-direction: column; gap: 5px; flex: 1 1 200px; min-width: 160px; max-width: 360px; }
+.nre-week { gap: 12px; }
 .nre-controls {
   display: flex;
   flex-wrap: wrap;

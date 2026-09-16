@@ -8218,7 +8218,8 @@ CREATE TABLE public.classes (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     last_lego_id text,
     class_learner_id uuid,
-    group_id uuid
+    group_id uuid,
+    tags jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 
@@ -8241,6 +8242,13 @@ COMMENT ON COLUMN public.classes.teacher_user_id IS 'Lead-teacher pointer (denor
 --
 
 COMMENT ON COLUMN public.classes.group_id IS 'Direct affiliation to ANY group node (THE MODEL I7). Dual-written with school_id during expand phase; school_id remains authoritative for deployed prod readers until contract.';
+
+
+--
+-- Name: COLUMN classes.tags; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.classes.tags IS 'CONFIRMED tags only (job #22, 2026-09-16): {"year": "6", "department": "English"}. A year or department a teacher has confirmed in place on the insights page. Derived guesses (year from the class name, department from the course) are never stored here — absence means unconfirmed, and no comparison is drawn at that level. Written only by PATCH /api/classes/:id/tags.';
 
 
 --

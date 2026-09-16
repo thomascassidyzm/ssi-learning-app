@@ -4012,6 +4012,85 @@ endpoint answers 500 saying which fact it could not read.
 index is `class_first_play`'s — plus two triggers. Tables 144→144, views 27→27 and functions
 154→161 stand. Commit messages are immutable, so the correction lives here.
 
+**The "63 classes" sighting, chased and closed.** Job #983 saw a Chepstow class land on
+"Global average · all courses · 63 classes" instead of its school's 33. It does not reproduce:
+on staging `e94bbc53b` all three classes probed default to the school node, `cohortSize` 33,
+caption "Ysgol Cas-gwent Chepstow School average · 33 classes". Asked explicitly, that class
+returns 60 for `global` and **63 for `global_all_courses`** — so the sighting was the compare
+ladder having fallen through every rung. The ladder only widens when the started-member count
+is below the floor of 1, which 33 started classes cannot do for a real reason — but could for a
+fake one: pre-fix, a failed `class_first_play` read returned null for every class, `onlyStarted`
+emptied every member, the count hit zero, and the ladder walked to all-courses and rendered it
+as the answer. That is the fifth defect above, now a 500. The floor logic itself is correct and
+was not touched. The build #983 saw is gone, so this names the mechanism rather than claiming a
+diagnosis nobody witnessed.
+
 **Open.** The two SQL objects above are still UTC-anchored. Nothing on the insights page reads
 them, so nothing there is wrong — but `weekly_leaderboard`'s "this week" and the retention
 buckets are an hour out for half the year, and they are somebody's next job, not this one's.
+
+### 2026-09-16 — the teacher's insight IS the class card, and the leader's page is that card once per class (job #22)
+
+Tom judged the populated pack of the previous shape "clumsy" and settled five rulings through
+RBF. This entry is the build of those rulings on the #989 week card, not a rewrite of it.
+
+**What was clumsy, and what replaced it.** The answer arrived after a row of pickers and a
+paragraph of prose; the class's numbers and the school's were two stacked cards; rank pills
+("100th percentile", "1st of 3") sat on both pages; the leader's page ran seventeen phone
+screens deep, ending on eighty pupils sorted by minutes. Now: one card, the first thing on the
+page, with the cohort's figure BESIDE each of the three numbers in one three-column grid on
+every width; a thin twelve-week temperature line under the total, the class over a fainter
+cohort, no axes and no legend; exactly one toggle, This week / Last week; exactly one compare-to
+picker; no course picker for a class, no measure picker anywhere in week mode, no definitional
+paragraph (the why? chip on the card carries it, and stays); no rank of any kind on either page.
+
+**Better × Simpler × Cheaper.** Better: a teacher reads the answer on the first screen and does
+the comparing herself, which is what two columns of plain numbers are for. Simpler: the engine
+lost two pickers and a paragraph in week mode; the card lost echarts (the line is one SVG
+element); the leader's page lost its first-screen sprawl and gained one list. Cheaper: the
+per-class rows ride the round trip the card already makes, off the same session rows and the
+same Monday-anchored bounds, so the list costs no second read and cannot disagree with the card
+above it; the structure of the tree is read once at its root and filtered per rung, so walking
+the compare ladder costs no extra structural reads and session rows are read once, for the
+entity and the rung that won.
+
+**The compare ladder walks every rung.** Year, department, school, then every ancestor to the
+root, then the two globals, in that order; the DEFAULT stops at the first rung holding more than
+one started class — "the smallest container that holds more than one class" (Tom). The old
+ladder skipped every intermediate ancestor and leapt to global. The floor, the started rule and
+the self-inclusive average from the #989 fix-up are unchanged.
+
+**Tags are stored only when confirmed.** `classes.tags` (jsonb, additive, live and
+re-snapshotted) holds a confirmed year and department and nothing else. The derived guess —
+year from the class name, department from the course — is computed on every read and never
+written, so it can never look confirmed. A rung is offered only when the viewed class's tag is
+confirmed AND a confirmed sibling shares it on the course; otherwise it is absence. That is the
+job #978 failure closed at the root: a misread "8A" cannot move a cohort, because a guess is
+never a cohort. The smallest durable storage was chosen over a new table; the one writer is
+`PATCH /api/classes/:id/tags`, gated on visible scope and refusing View As.
+
+**All time is totals only.** For a class, a line under the card: since first play, time
+practised and phrases reached, with no comparison figure and no cohort column. It is read off
+the same session rows as the week when the class is younger than twelve weeks, else one read
+back to its first play. Placement was the brief's taste-safe default, taken.
+
+**No comparable cohort is no longer no page.** The class's own week and its totals stand with
+the reason named beside them and the cohort column absent — before this, the whole card was
+withheld, which contradicted the ruling that all-time sits on its own.
+
+**The leader's page.** The card, then every class on the course, quietest first: started
+classes by time since last play, oldest first, with "not in the last 12 weeks" as the gap for a
+started class with nothing in the rows read; never-started classes in one quiet line at the
+end, because they have not gone quiet, they have not begun. The org questions, the voice panel
+and the people list all moved behind a tap. The people list is now "who has not practised this
+week", by name, never by minutes; the ranked people table is hidden on this page.
+
+**Closed on the way.** Main and staging opened on different default filter states because
+#989's week windows had reached staging but not main; once this promotion carries the same
+code to both, the default is the same everywhere.
+
+**Open.** The Handbook walks that step on the org questions point at elements inside a closed
+`<details>`; the compile is static and passes, but the walkthrough player's behaviour on a
+hidden step has not been checked. Bucket [3] of the rescope and the eng_for_mar class at
+Sunrise, which sits outside the school's default course and so outside its list, are noted, not
+solved: a school running two courses keeps a small course picker for exactly that reason.

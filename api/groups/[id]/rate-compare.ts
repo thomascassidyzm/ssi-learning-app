@@ -7,8 +7,17 @@
  *                          by class count — that seeded "opens on a course
  *                          with no learners here"), preferring one whose
  *                          default compare cohort clears the k-floor
- *   &compare_to=<groupId|global|global_all_courses>   optional — defaults to
- *                          the nearest ancestor (the parent's average)
+ *   &compare_to=<tag:year|tag:department|groupId|global|global_all_courses>
+ *                          optional — the DEFAULT walks the rungs in order
+ *                          (year, department, school, every ancestor, then
+ *                          the globals) and stops at the first that holds
+ *                          more than one started class: the smallest
+ *                          container the class is part of (Tom, 2026-09-16)
+ *   &window=this_week|last_week   the school week (job #989); the response
+ *                          also carries `allTime` totals for a class (no
+ *                          comparison figure), `week.classes` for a node (one
+ *                          row per class, quietest first) and `tags` (year /
+ *                          department: derived, confirmed or absent)
  *   &days=90              optional window
  *
  * `:id` resolves exactly like /api/groups/:id/home: a group node, a school id
@@ -69,6 +78,7 @@ import { descendantIds } from '../../_utils/groupSubtree'
 import { loadScopedSessionRows } from '../../_utils/diarySessionRows'
 import { loadClassFirstPlay, ClassFirstPlayError } from '../../_utils/classFirstPlay'
 import { applyCors } from '../../_utils/cors'
+import { classTagsView, confirmedTag, tagRungLabel, type TagKind } from '../../_utils/classTags'
 import {
   aggregateWindowPace,
   distributionStats,
@@ -77,6 +87,7 @@ import {
   computeMeasureForClassIds,
   cohortFloor,
   weekNumbersForClassIds,
+  rangeMinutesByActor,
   meanWeekNumbers,
   weeklyMinutesBars,
   meanBars,
@@ -195,7 +206,7 @@ async function subtreeSchools(svc: SupabaseClient, subtreeGroupIds: string[]): P
   return out
 }
 
-interface SubtreeClass { id: string; course_code: string | null; school_id: string | null; group_id: string | null }
+interface SubtreeClass { id: string; class_name: string | null; course_code: string | null; school_id: string | null; group_id: string | null; tags: unknown }
 
 /** Active classes in a subtree: node-attached (group_id) ∪ school-attached — the home.ts union. */
 async function subtreeClasses(
@@ -210,12 +221,12 @@ async function subtreeClasses(
     for (const c of rows ?? []) {
       if (c.id && !seen.has(c.id)) {
         seen.add(c.id)
-        out.push({ id: c.id, course_code: c.course_code ?? null, school_id: c.school_id ?? null, group_id: c.group_id ?? null })
+        out.push({ id: c.id, class_name: c.class_name ?? null, course_code: c.course_code ?? null, school_id: c.school_id ?? null, group_id: c.group_id ?? null, tags: c.tags ?? {} })
       }
     }
   }
   const forBatch = (col: 'group_id' | 'school_id', batch: string[]) => {
-    let q = svc.from('classes').select('id, course_code, school_id, group_id').in(col, batch).eq('is_active', true)
+    let q = svc.from('classes').select('id, class_name, course_code, school_id, group_id, tags').in(col, batch).eq('is_active', true)
     if (courseCode) q = q.eq('course_code', courseCode)
     return q.limit(MAX_COHORT_IDS).then(({ data }) => add(data))
   }
@@ -330,7 +341,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       verifyAdmin(req),
       svc.from('groups').select('id').eq('id', rawId).maybeSingle(),
       svc.from('schools').select('id, school_name, group_id, node_group_id, is_demo, is_test').eq('id', rawId).maybeSingle(),
-      svc.from('classes').select('id, class_name, course_code, school_id, group_id').eq('id', rawId).maybeSingle(),
+      svc.from('classes').select('id, class_name, course_code, school_id, group_id, tags').eq('id', rawId).maybeSingle(),
       svc.from('groups').select('id, name, type, parent_id, path, is_demo'),
     ])
 
@@ -354,7 +365,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     // ─── Resolve :id → node / class (same precedence as home.ts). ───
     let nodeId: string | null = null
-    let classRow: { id: string; class_name: string; course_code: string | null; school_id: string | null; group_id: string | null } | null = null
+    let classRow: { id: string; class_name: string; course_code: string | null; school_id: string | null; group_id: string | null; tags?: unknown } | null = null
 
     if (asGroup) {
       nodeId = rawId
@@ -432,30 +443,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       cursor = cursor.parent_id ? byId.get(cursor.parent_id) : undefined
     }
 
-    const compareOptions: CompareOption[] = [
-      ...ancestors.map((a) => ({ value: a.id, label: `${a.name} average`, word: a.type })),
-      { value: 'global', label: 'Global average · this course', word: 'global' },
-      { value: 'global_all_courses', label: 'Global average · all courses', word: 'global' },
-    ]
-    // `let`, not `const`: a root node whose default this-course global cohort
-    // is empty auto-widens to all-courses below (never a blank landing).
-    let compareTo = requestedCompare && compareOptions.some((o) => o.value === requestedCompare)
-      ? requestedCompare
-      : compareOptions[0].value
-
-    // ─── Entity subtree + cohort scope: ONE schools wave + ONE classes wave
-    // over the WIDEST scope needed (an ancestor's subtree contains the
-    // entity's), then split entity vs peers in memory — instead of fetching
-    // the entity's subtree and the compare scope's subtree separately. ───
-    const entitySubtreeGroupIds = classRow
-      ? []
-      : descendantIds(allGroups, nodeId!)
+    // ─── STRUCTURE, fetched once at the ROOT of the entity's tree. The compare
+    // ladder below walks every rung — year, department, school, district,
+    // region, country — and each rung's members are a filter over this one
+    // set, so widening the comparison costs no second structural read. Only
+    // the SESSION rows are expensive, and those are read once, at the end,
+    // for exactly the entity and the rung that won. ───
+    const rootScopeId = ancestors.length > 0 ? ancestors[ancestors.length - 1].id : nodeId
+    const scopeGroupIds = rootScopeId ? descendantIds(allGroups, rootScopeId) : []
+    const entitySubtreeGroupIds = classRow ? [] : descendantIds(allGroups, nodeId!)
     const entityGroupIdSet = new Set(entitySubtreeGroupIds)
-    const isGlobalCompare = compareTo === 'global' || compareTo === 'global_all_courses'
-    const compareAnc = isGlobalCompare ? undefined : byId.get(compareTo)
-    const scopeGroupIds = compareAnc
-      ? descendantIds(allGroups, compareAnc.id)
-      : entitySubtreeGroupIds
 
     const scopeSchools = await subtreeSchools(svc, scopeGroupIds)
     const entitySchoolIds = new Set(scopeSchools
@@ -463,9 +460,57 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       .map((s) => s.id))
     const scopeClasses = await subtreeClasses(svc, scopeGroupIds, scopeSchools.map((s) => s.id), null)
     const entityAllClasses = classRow
-      ? [{ id: classRow.id, course_code: classRow.course_code, school_id: classRow.school_id, group_id: classRow.group_id }]
+      ? [{ id: classRow.id, class_name: classRow.class_name, course_code: classRow.course_code, school_id: classRow.school_id, group_id: classRow.group_id, tags: classRow.tags ?? {} }]
       : scopeClasses.filter((c) =>
           (c.group_id && entityGroupIdSet.has(c.group_id)) || (c.school_id && entitySchoolIds.has(c.school_id)))
+
+    /** The schools and classes under ONE ancestor — a rung's own scope. */
+    const underAncestor = (ancId: string): { schools: SchoolRef[]; schoolIdSet: Set<string>; classes: SubtreeClass[] } => {
+      const groupSet = new Set(descendantIds(allGroups, ancId))
+      const schools = scopeSchools.filter((sc) =>
+        (sc.node_group_id && groupSet.has(sc.node_group_id)) || (sc.group_id && groupSet.has(sc.group_id)))
+      const schoolIdSet = new Set(schools.map((sc) => sc.id))
+      const classes = scopeClasses.filter((c) =>
+        (c.group_id && groupSet.has(c.group_id)) || (c.school_id && schoolIdSet.has(c.school_id)))
+      return { schools, schoolIdSet, classes }
+    }
+
+    // ─── TAG RUNGS — year and department, the two containers below a school
+    // (Tom's ruling 2026-09-16). Offered for a class only when ITS tag is
+    // CONFIRMED and at least one other class in its school carries the same
+    // confirmed tag on this course: a derived guess never moves a cohort, and
+    // a rung with nobody on it is absence, not an empty comparison. ───
+    const classTags = classRow ? classTagsView(classRow.class_name, classRow.course_code, classRow.tags) : null
+    const tagRungs: CompareOption[] = []
+    const tagPeers = (kind: TagKind, value: string): SubtreeClass[] => {
+      if (!classRow || ancestors.length === 0) return []
+      return underAncestor(ancestors[0].id).classes.filter((c) =>
+        c.id !== classRow!.id && c.course_code === classRow!.course_code && confirmedTag(c.tags, kind) === value)
+    }
+    if (classRow) {
+      for (const kind of ['year', 'department'] as const) {
+        const v = confirmedTag(classRow.tags, kind)
+        if (v && tagPeers(kind, v).length > 0) tagRungs.push({ value: `tag:${kind}`, label: tagRungLabel(kind, v), word: kind })
+      }
+    }
+
+    const compareOptions: CompareOption[] = [
+      ...tagRungs,
+      ...ancestors.map((a) => ({ value: a.id, label: `${a.name} average`, word: a.type })),
+      { value: 'global', label: 'Global average · this course', word: 'global' },
+      { value: 'global_all_courses', label: 'Global average · all courses', word: 'global' },
+    ]
+    // `let`, not `const`: the DEFAULT walks up the rungs below until one
+    // holds more than one started class — the smallest container that does
+    // (Tom, 2026-09-16) — so a class with no comparable sibling in its year
+    // opens on its school, and a school alone in its district on its region.
+    let compareTo = requestedCompare && compareOptions.some((o) => o.value === requestedCompare)
+      ? requestedCompare
+      : compareOptions[0].value
+    const isTagRung = (v: string): v is `tag:${TagKind}` => v === 'tag:year' || v === 'tag:department'
+    let compareAnc: GroupRow | undefined = isTagRung(compareTo) || compareTo === 'global' || compareTo === 'global_all_courses'
+      ? undefined
+      : byId.get(compareTo)
 
     const courseCounts = new Map<string, number>()
     for (const c of entityAllClasses) {
@@ -556,7 +601,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
     const insufficient = (reason: string, cohortSize = 0): void => {
       res.setHeader('Cache-Control', 'no-store')
-      res.status(200).json({ ...baseBody, insufficientData: true, cohortSize, reason })
+      // A class that has never played has no totals either, and says so.
+      res.status(200).json({ ...baseBody, tags: classTags, allTime: classRow ? { started: false } : null, insufficientData: true, cohortSize, reason })
     }
 
     if (!courseCode) {
@@ -581,14 +627,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // Tom's ruling 2026-09-16), so this is a pure count over scopeClasses; no
     // session data needed for it. The RPC below still runs to prefetch rows
     // for the final comparison (no extra round trip on the ancestor path). ───
-    let scopeRows: ScopedSessionRow[] | null = null
     const activeCourses = rankedCourses.filter((c) => c.hasData)
-    if (!(requestedCourse && courseCounts.has(requestedCourse)) && !classRow && compareAnc?.path) {
-      const scopeSchoolIdSet = new Set(scopeSchools.map((s) => s.id))
+    if (!(requestedCourse && courseCounts.has(requestedCourse)) && !classRow && ancestors.length > 0) {
+      const nearest = underAncestor(ancestors[0].id)
       const peerSchoolsFor = (code: string): number => {
         const schools = new Set<string>()
-        for (const c of scopeClasses) {
-          if (!c.school_id || !scopeSchoolIdSet.has(c.school_id) || entitySchoolIds.has(c.school_id)) continue
+        for (const c of nearest.classes) {
+          if (!c.school_id || !nearest.schoolIdSet.has(c.school_id) || entitySchoolIds.has(c.school_id)) continue
           if (c.course_code !== code) continue
           schools.add(c.school_id)
         }
@@ -599,12 +644,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         courseCode = preferred.code
         baseBody.applied.course_code = preferred.code
       }
-      const scopeIds = scopeClasses.map((c) => c.id).slice(0, MAX_COHORT_IDS)
-      const { data: scopeData, error: scopeError } = await loadScopedSessionRows(
-        svc, scopeIds, fetchDays, Boolean(nodeRow?.is_demo), Date.now(),
-        { includePupils: Boolean(weekWindowId) && scopeIds.length <= PUPIL_CLASS_CAP })
-      if (scopeError) console.error('[node-rate-compare] scope census error:', scopeError.message)
-      else scopeRows = (scopeData as ScopedSessionRow[]) || []
     }
 
     const entityClassIds = entityAllClasses.filter((c) => c.course_code === courseCode).map((c) => c.id)
@@ -658,23 +697,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         const world = await schoolIdsInWorld(svc, [...bySchool.keys()], entityIsDemo)
         return { members: [...bySchool.entries()].filter(([id]) => world.has(id)).map(([id, classIds]) => ({ id, classIds })) }
       }
-      // an ancestor group id — its subtree is exactly the scope already fetched
+      // a tag rung — the viewed class's school, filtered to its confirmed year
+      // or department. Same-course peers only, like every other rung.
+      if (isTagRung(compareTo)) {
+        const kind: TagKind = compareTo === 'tag:year' ? 'year' : 'department'
+        const v = classRow ? confirmedTag(classRow.tags, kind) : null
+        if (!v) return { members: [], error: 'That comparison needs the tag confirmed first.' }
+        return { members: tagPeers(kind, v).map((c) => ({ id: c.id, classIds: [c.id] })) }
+      }
+      // an ancestor group id — a filter over the root-scoped structure
       if (!compareAnc || !compareAnc.path) {
         return { members: [], error: 'That comparison scope has no resolvable data yet.' }
       }
+      const rung = underAncestor(compareAnc.id)
       if (classRow) {
         return {
-          members: scopeClasses
+          members: rung.classes
             .filter((c) => c.id !== classRow!.id && (!cohortCourse || c.course_code === cohortCourse))
             .map((c) => ({ id: c.id, classIds: [c.id] })),
         }
       }
       // Peer schools only: classes attached directly to groups with no school
       // stay out of the cohort (counted in entity values only — header note).
-      const scopeSchoolIdSet = new Set(scopeSchools.map((s) => s.id))
       const bySchool = new Map<string, string[]>()
-      for (const c of scopeClasses) {
-        if (!c.school_id || !scopeSchoolIdSet.has(c.school_id) || entitySchoolIds.has(c.school_id)) continue
+      for (const c of rung.classes) {
+        if (!c.school_id || !rung.schoolIdSet.has(c.school_id) || entitySchoolIds.has(c.school_id)) continue
         if (cohortCourse && c.course_code !== cohortCourse) continue
         const arr = bySchool.get(c.school_id) ?? []
         arr.push(c.id)
@@ -756,13 +803,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // the DEFAULT — an explicit empty pick keeps its named empty-state
     // (below), and every narrower option stays selectable. On total failure
     // the last rung's state stands (honest all-courses reason). ───
+    // The rungs are walked IN ORDER — year, department, school, then every
+    // ancestor up to the root, then the two globals — and the first one with
+    // enough started members wins. That is "the smallest container that holds
+    // more than one class" (Tom, 2026-09-16), and it is one rule at every
+    // level, so a school alone in its district lands on its region the same
+    // way a class alone in its year lands on its school.
     if (!requestedCompare) {
-      for (const rung of ['global', 'global_all_courses'] as const) {
+      for (const opt of compareOptions) {
         if (members.length >= effectiveFloor) break
-        if (compareTo === rung) continue // already tried as the default
-        compareTo = rung
-        cohortCourse = rung === 'global_all_courses' ? null : courseCode
-        baseBody.applied.compare_to = rung
+        if (compareTo === opt.value) continue // already tried as the default
+        compareTo = opt.value
+        cohortCourse = opt.value === 'global_all_courses' ? null : courseCode
+        compareAnc = isTagRung(opt.value) || opt.value === 'global' || opt.value === 'global_all_courses' ? undefined : byId.get(opt.value)
+        baseBody.applied.compare_to = opt.value
         const wm = await resolveMembers()
         if (wm.error) continue
         rawMembers = wm.members
@@ -770,6 +824,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       }
     }
 
+    // ─── NO COMPARABLE COHORT is not "no page" (Tom, 2026-09-16: the class's
+    // own numbers and its all-time totals stand on their own, with no
+    // comparison figure). The reason is named beside the card; the cohort
+    // column is absent; nothing else is withheld. ───
+    let noCohortReason: string | null = null
     if (members.length < effectiveFloor) {
       // Name the actual gate rather than a vague "not enough data" (founder ask
       // 2026-07-20): which peer unit, how many are needed. Membership does not
@@ -786,34 +845,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       const reason = members.length === 0
         ? `No other ${worldNote}${plural} ${scopeNote}have started in this scope yet — a fair comparison needs at least ${effectiveFloor}.`
         : `Only ${members.length} other ${worldNote}${unit} ${scopeNote}${members.length === 1 ? 'has' : 'have'} started in this scope — a fair comparison needs at least ${effectiveFloor}.`
-      insufficient(reason, members.length)
-      return
+      noCohortReason = reason
+      rawMembers = []
+      members = []
     }
 
-    // The prefetched ancestor-scope rows only cover the ancestor scope, so they
-    // are reusable only while compareTo is STILL that ancestor — the ladder
-    // above may have moved it onto a global rung, whose members sit outside the
-    // scope entirely. Read compareTo's FINAL value, never the request-time flag.
-    const compareIsGlobalNow = compareTo === 'global' || compareTo === 'global_all_courses'
-    const preRows = compareIsGlobalNow ? null : scopeRows
-    let rows: ScopedSessionRow[]
-    if (preRows) {
-      rows = preRows
-    } else {
-      // Rows for the RAW set, not the window-filtered one: a member that had
-      // not started by the end of the selected window still owns bars in the
-      // weeks after it did start, and those bars are drawn from these rows.
-      const allClassIds = [...new Set([...entityClassIds, ...rawMembers.flatMap((m) => m.classIds)])].slice(0, MAX_COHORT_IDS)
-      const { data: rawRows, error } = await loadScopedSessionRows(
-        svc, allClassIds, fetchDays, entityIsDemo, Date.now(),
-        { includePupils: Boolean(weekWindowId) && allClassIds.length <= PUPIL_CLASS_CAP })
-      if (error) {
-        console.error('[node-rate-compare] session rows error:', error.message)
-        res.status(500).json({ error: 'Failed to load rate data' })
-        return
-      }
-      rows = (rawRows as ScopedSessionRow[]) || []
+    // Rows for the RAW set, not the window-filtered one: a member that had
+    // not started by the end of the selected window still owns bars in the
+    // weeks after it did start, and those bars are drawn from these rows.
+    // ONE read, for the entity and the rung that won — never the whole tree.
+    const allClassIds = [...new Set([...entityClassIds, ...rawMembers.flatMap((m) => m.classIds)])].slice(0, MAX_COHORT_IDS)
+    const { data: rawRows, error } = await loadScopedSessionRows(
+      svc, allClassIds, fetchDays, entityIsDemo, Date.now(),
+      { includePupils: Boolean(weekWindowId) && allClassIds.length <= PUPIL_CLASS_CAP })
+    if (error) {
+      console.error('[node-rate-compare] session rows error:', error.message)
+      res.status(500).json({ error: 'Failed to load rate data' })
+      return
     }
+    const rows: ScopedSessionRow[] = (rawRows as ScopedSessionRow[]) || []
     // ─── The COHORT UNITS for the week card and its bars — peers-like-me,
     // the same unit this endpoint compares at every level: CLASSES when the
     // entity is a class, SCHOOLS when it is a school node or an interior
@@ -895,7 +945,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         },
         // An empty cohort is ABSENCE — no numbers at all, never a row of
         // zeros that reads as "the school did nothing".
-        cohort: windowCohort.length === 0 ? null : {
+        cohort: windowCohort.length === 0 || noCohortReason ? null : {
           label: compareOptions.find((o) => o.value === compareTo)?.label ?? 'Average',
           classMinutes: cohortWeek.classMinutes,
           pupilMinutes: cohortWeek.pupilMinutes,
@@ -911,12 +961,105 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         bars: {
           weeks: buckets.map((b) => weekLabel(b, timeZone)),
           entity: entityBars,
-          cohort: cohortBars,
+          cohort: noCohortReason ? cohortBars.map(() => null) : cohortBars,
         },
         // Named, not hidden: past the cap Y is not read at all, so the total
         // is class play only and says so.
         pupilMinutesCapped: entityClassIds.length > PUPIL_CLASS_CAP,
+        // ─── THE LEADER'S PAGE: the same week, once per class, quietest first
+        // (Tom, 2026-09-16: "how long since each class practised" IS the
+        // page). Each row is that class's own three numbers off the SAME rows
+        // and the SAME week bounds as the card above, so a class's card and
+        // the school's card cannot disagree. Silence is drawn as absence: a
+        // class that has never played carries no numbers and no zero, only
+        // `started: false`; one that played before the twelve weeks read here
+        // carries `lastPlayedAt: null` and `started: true` — quiet, not new.
+        // Started classes come first, longest since practice first; never-
+        // started ones follow, because they have not "gone quiet" — they have
+        // not begun. ───
+        classes: classRow ? undefined : entityAllClasses
+          .filter((c) => c.course_code === courseCode)
+          .map((c) => {
+            const started = typeof firstPlay.get(c.id) === 'number'
+            const w = weekNumbersForClassIds(rows, [c.id], currentWeek.startMs, currentWeek.endMs)
+            let lastMs: number | null = null
+            for (const r of rows) {
+              if (r.class_id !== c.id) continue
+              const t = new Date(r.started_at).getTime()
+              if (Number.isFinite(t) && (lastMs === null || t > lastMs)) lastMs = t
+            }
+            return {
+              id: c.id,
+              name: c.class_name || 'Unnamed class',
+              started,
+              lastPlayedAt: lastMs === null ? null : new Date(lastMs).toISOString(),
+              classMinutes: started ? w.classMinutes : null,
+              pupilMinutes: started ? w.pupilMinutes : null,
+              totalMinutes: started ? w.totalMinutes : null,
+              newPhrases: started ? w.newPhrases : null,
+            }
+          })
+          .sort((a, b) => {
+            if (a.started !== b.started) return a.started ? -1 : 1
+            const at = a.lastPlayedAt ? new Date(a.lastPlayedAt).getTime() : -1
+            const bt = b.lastPlayedAt ? new Date(b.lastPlayedAt).getTime() : -1
+            return at - bt || a.name.localeCompare(b.name)
+          }),
       }
+    }
+
+    // ─── ALL TIME, totals only (Tom, 2026-09-16: "'All time' returns as a
+    // TOTAL, never an average: since the class started, total practice time
+    // and phrases reached, shown on their own with no comparison figure").
+    // Class entities only; read off the same session rows as the week — the
+    // twelve weeks already in hand when the class is younger than that, else
+    // one read back to its first play. A class that has not started has no
+    // totals, and says so rather than showing zeros. ───
+    let allTime: Record<string, unknown> | null = null
+    if (classRow && weekWindowId) {
+      const first = firstPlay.get(classRow.id)
+      if (typeof first !== 'number') {
+        allTime = { started: false }
+      } else {
+        const daysSinceFirst = Math.ceil((nowMs - first) / 86_400_000) + 1
+        let lifeRows: ScopedSessionRow[] = rows
+        if (daysSinceFirst > fetchDays) {
+          const { data: lifeData, error: lifeError } = await loadScopedSessionRows(
+            svc, [classRow.id], Math.min(daysSinceFirst, 1500), entityIsDemo, nowMs, { includePupils: true })
+          if (lifeError) console.error('[node-rate-compare] all-time rows error:', lifeError.message)
+          else lifeRows = (lifeData as ScopedSessionRow[]) || []
+        }
+        const x = rangeMinutesByActor(lifeRows, [classRow.id], 'class', 0, nowMs)
+        const y = rangeMinutesByActor(lifeRows, [classRow.id], 'pupil', 0, nowMs)
+        let reached = 0
+        for (const r of lifeRows) {
+          if (r.class_id !== classRow.id || (r.actor ?? 'class') !== 'class') continue
+          reached = Math.max(reached, r.end_ord ?? 0, r.start_ord ?? 0)
+        }
+        allTime = {
+          started: true,
+          since: new Date(first).toISOString(),
+          sinceLabel: new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone }).format(new Date(first)),
+          classMinutes: x.minutes,
+          pupilMinutes: y.minutes,
+          totalMinutes: Math.round((x.minutes + y.minutes) * 10) / 10,
+          phrasesReached: reached,
+        }
+      }
+    }
+
+    if (noCohortReason) {
+      res.setHeader('Cache-Control', 'no-store')
+      res.status(200).json({
+        ...baseBody,
+        insufficientData: true,
+        cohortSize: 0,
+        reason: noCohortReason,
+        week: weekBlock,
+        allTime,
+        tags: classTags,
+      })
+      return
     }
 
     // ─── The displayed measure — entity + every cohort member (active or
@@ -980,7 +1123,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // its FINAL value, not the request-time isGlobalCompare.
     const cohortLabel = compareTo === 'global' || compareTo === 'global_all_courses'
       ? (compareTo === 'global_all_courses' ? `all ${cohortUnit} · all courses` : `all ${cohortUnit} on this course`)
-      : `${cohortUnit} in ${compareAnc?.name ?? 'this scope'}`
+      : `${cohortUnit} in ${compareAnc?.name ?? compareOptions.find((o) => o.value === compareTo)?.label ?? 'this scope'}`
     // "school average · 32 classes" — Tom's own form, 2026-09-16. The
     // denominator, named, and nothing else: not "all" classes, because a class
     // nobody has ever pressed play on is not in it, and not the course a second
@@ -1030,6 +1173,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       cohortSizeLine,
       cohortIncludesEntity: entityHasStarted,
       week: weekBlock,
+      allTime,
+      tags: classTags,
       distribution: {
         values: dist.values,
         min: dist.min,

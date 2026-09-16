@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
-import WeekNumbersCard, { type WeekBlock } from './WeekNumbersCard.vue'
+import WeekNumbersCard, { type WeekBlock, type AllTimeBlock } from './WeekNumbersCard.vue'
 
 function block(over: Partial<WeekBlock> = {}): WeekBlock {
   return {
@@ -15,36 +15,45 @@ function block(over: Partial<WeekBlock> = {}): WeekBlock {
   }
 }
 
-type CardProps = { data: WeekBlock; noCohortReason?: string; percentile?: number; cohortUnit?: string }
-const render = (props: CardProps) =>
-  mount(WeekNumbersCard, { props, global: { stubs: { RateTrend: true } } })
+type CardProps = { data: WeekBlock; noCohortReason?: string; allTime?: AllTimeBlock | null }
+const render = (props: CardProps) => mount(WeekNumbersCard, { props })
+const rowText = (w: ReturnType<typeof render>, key: string) => w.findAll(`.wk-row-${key} .wk-cell`).map((c) => c.text().trim()).join(' ').trim()
 
-describe('WeekNumbersCard — three numbers, no ratio', () => {
+describe('WeekNumbersCard — one card, two columns, three numbers, no rank', () => {
   it('names the week and its dates', () => {
     const t = render({ data: block() }).text()
     expect(t).toContain('Last week')
     expect(t).toContain('7–13 Sep')
   })
 
-  it('keeps play-as-class and students’ own time apart, then adds them', () => {
-    const t = render({ data: block() }).text()
-    expect(t).toContain('Play as class18m')
-    expect(t).toContain('Students on their own0m')
-    expect(t).toContain('Total learning time18m')
-    expect(t).toContain('New phrases7')
+  it('keeps play-as-class and students’ own time apart, then adds them — each with the cohort BESIDE it on one row', () => {
+    const w = render({ data: block() })
+    expect(rowText(w, 'class')).toBe('Play as class 18m 8m')
+    expect(rowText(w, 'pupils')).toBe('Students on their own 0m 2m')
+    expect(rowText(w, 'total')).toBe('Total learning time 18m 10m')
+    expect(rowText(w, 'phrases')).toBe('New phrases 7 4')
+    // two columns of numbers in ONE grid — never two stacked cards
+    expect(w.findAll('.wk-table')).toHaveLength(1)
+    expect(w.find('.wk-col-entity').text()).toBe('11P')
   })
 
-  it('puts the cohort’s SAME three beside them, and names the fixed denominator', () => {
+  it('names the fixed denominator beside the cohort', () => {
     const t = render({ data: block() }).text().replace(/\s+/g, ' ')
-    expect(t).toContain('Ysgol Cas-gwent Chepstow School average')
-    expect(t).toContain('Play as class8m')
     expect(t).toContain('Ysgol Cas-gwent Chepstow School average · 27 classes')
   })
 
-  it('NEVER draws a ratio, a percentage-of-average or a delta', () => {
+  it('NEVER draws a ratio, a percentage-of-average, a delta, a percentile or an ordinal rank', () => {
     const t = render({ data: block() }).text()
     expect(t).not.toMatch(/\d+\s*%/)
     expect(t).not.toMatch(/above average|below average|vs average|×|x the/i)
+    expect(t).not.toMatch(/percentile|\b\d+(st|nd|rd|th)\b|\bof \d+\b/i)
+  })
+
+  it('draws ONE thin temperature line under the total — the class over the cohort — and no chart furniture', () => {
+    const w = render({ data: block() })
+    expect(w.findAll('[data-testid="temperature-line"]')).toHaveLength(1)
+    expect(w.find('.wk-row-line').exists()).toBe(true)
+    expect(w.text()).not.toMatch(/minutes \/ week|axis|legend/i)
   })
 
   it('says minutes the way a school does, in hours past the hour', () => {
@@ -55,9 +64,10 @@ describe('WeekNumbersCard — three numbers, no ratio', () => {
   })
 
   it('renders its own week with no cohort at all, and says why', () => {
-    const t = render({ data: block({ cohort: null }), noCohortReason: 'No other classes running this course yet.' }).text()
-    expect(t).toContain('11P')
-    expect(t).toContain('No other classes running this course yet.')
+    const w = render({ data: block({ cohort: null, bars: { weeks: ['a'], entity: [18], cohort: [null] } }), noCohortReason: 'No other classes running this course yet.' })
+    expect(w.text()).toContain('11P')
+    expect(w.text()).toContain('No other classes running this course yet.')
+    expect(rowText(w, 'class')).toBe('Play as class 18m')
   })
 
   it('a quiet week reads as a quiet week — no scolding, no target, no streak', () => {
@@ -66,26 +76,31 @@ describe('WeekNumbersCard — three numbers, no ratio', () => {
     expect(t).not.toMatch(/streak|target|goal|behind|should|missed/i)
   })
 
-  it('writes the percentile as a person says it — 91st, not 91th', () => {
-    for (const [n, want] of [[91, '91st'], [2, '2nd'], [3, '3rd'], [11, '11th'], [12, '12th'], [13, '13th'], [100, '100th']] as const) {
-      const t = render({ data: block(), percentile: n, cohortUnit: 'classes' }).text().replace(/\s+/g, ' ')
-      expect(t).toContain(`${want} percentile of classes`)
-    }
-  })
-
   it('says the right noun above class level, because the server counts it', () => {
     const t = render({ data: block({ cohort: { label: 'Global average · this course', classMinutes: 8, pupilMinutes: 0, totalMinutes: 8, newPhrases: 4, size: 9, sizeLabel: '9 schools' } }) }).text().replace(/\s+/g, ' ')
     expect(t).toContain('Global average · this course · 9 schools')
     expect(t).not.toContain('classes')
   })
 
-  it('a cohort of one is a class, not classes', () => {
-    const t = render({ data: block({ cohort: { label: 'School average', classMinutes: 8, pupilMinutes: 0, totalMinutes: 8, newPhrases: 4, size: 1, sizeLabel: '1 class' } }) }).text()
-    expect(t).toContain('School average · 1 class')
-  })
-
   it('names a capped pupil read rather than reporting zero individual practice as a fact', () => {
     const t = render({ data: block({ pupilMinutesCapped: true }) }).text().replace(/\s+/g, ' ')
     expect(t).toContain("Students' own minutes aren't counted at this level")
+  })
+
+  it('ALL TIME is totals only, on its own line, with no comparison figure', () => {
+    const w = render({ data: block(), allTime: { started: true, sinceLabel: '3 Feb 2026', classMinutes: 800, pupilMinutes: 60, totalMinutes: 860, phrasesReached: 112 } })
+    const line = w.find('[data-walk="insights-all-time"]').text().replace(/\s+/g, ' ')
+    expect(line).toBe('Since 3 Feb 2026 · 14h 20m practised · 112 phrases reached')
+    expect(line).not.toMatch(/average|school/i)
+    const dark = render({ data: block(), allTime: { started: false } })
+    expect(dark.find('[data-walk="insights-all-time"]').text()).toBe('This class has not started yet.')
+    expect(render({ data: block(), allTime: null }).find('[data-walk="insights-all-time"]').exists()).toBe(false)
+  })
+
+  it('the why? chip stays, and explains Fast vs Easy on a tap — never on the glance', async () => {
+    const w = render({ data: block() })
+    expect(w.text()).not.toMatch(/Fast mode/)
+    await w.find('.wk-why').trigger('click')
+    expect(w.text()).toMatch(/Fast mode/)
   })
 })
