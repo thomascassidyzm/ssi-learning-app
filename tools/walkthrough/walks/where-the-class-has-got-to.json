@@ -5,7 +5,10 @@
     "teacher"
   ],
   "place": {
-    "route": "class-detail"
+    "route": "node-home",
+    "kinds": [
+      "class"
+    ]
   },
   "keywords": [
     "progress",
@@ -22,7 +25,7 @@
         "on": "next"
       },
       "terminal": "A class that has never played says Not started in words. It is never shown as a bar of zero.",
-      "checked": "6bf22aa4.8c98cdae"
+      "checked": "819d88e1.8c98cdae"
     }
   ]
 }

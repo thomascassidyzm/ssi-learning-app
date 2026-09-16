@@ -26,12 +26,12 @@
     },
     {
       "anchor": "class-page-manage",
-      "say": "**Manage class** goes to the class's tools: the roster, the teachers, the join link and code, renaming and deleting. The class's practice, minutes and journey stay here on the class page.",
+      "say": "**Manage class** takes you down to the class's tools on this same page: the roster, the teachers, the join link and code, renaming and deleting.",
       "advance": {
         "on": "next"
       },
       "terminal": "Play from here, manage from there — two different pages, one class. This tour started no lesson and opened no tools.",
-      "checked": "389f38f3.a9f834c9"
+      "checked": "261f9052.aa65a12e"
     }
   ]
 }
