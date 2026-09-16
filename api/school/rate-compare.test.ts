@@ -129,12 +129,19 @@ describe('GET /api/school/rate-compare — class entity', () => {
     expect(res.body.kFloor).toBe(1)
   })
 
-  it('returns insufficientData under the k-floor even when class ids exist but have no session activity', async () => {
+  // Flipped on Tom's ruling 2026-09-16 — cohort membership is STRUCTURAL,
+  // not activity-gated: peer classes that exist but have not practised are
+  // members at their true value, 0. The floor now gates on whether peers
+  // EXIST, so a quiet window no longer blanks the comparison.
+  it('compares against peer classes that exist but have no session activity — they count at 0', async () => {
     rpcRows = [sessRow('class-1', 10, new Date().toISOString())]
     const req = makeReq({ course_code: 'gle_for_eng', entity_level: 'class', entity_id: 'class-1', compare_to: 'school' })
     const res = makeRes()
     await handler(req, res)
-    expect(res.body.insufficientData).toBe(true)
+    expect(res.body.insufficientData).toBe(false)
+    // every peer sits at 0, so the average is the entity's own value spread
+    // over the whole self-inclusive cohort — never a peer-free comparison.
+    expect(res.body.distribution.values.filter((v: number) => v === 0)).toHaveLength(res.body.cohortSize - 1)
   })
 
   it('computes a real entity-vs-average comparison once the k-floor is met', async () => {
@@ -145,10 +152,13 @@ describe('GET /api/school/rate-compare — class entity', () => {
     await handler(req, res)
     expect(res.statusCode).toBe(200)
     expect(res.body.insufficientData).toBe(false)
-    expect(res.body.cohortSize).toBe(5)
+    // 6 peer classes in the school + the entity itself — the average is
+    // self-inclusive and structural (Tom, 2026-09-16), so the sixth peer
+    // counts at 0 even though only 5 of them practised.
+    expect(res.body.cohortSize).toBe(7)
     expect(res.body.entity.label).toBe('Rang a Cúig')
     expect(res.body.average.label).toBe('School average')
-    expect(res.body.distribution.values).toHaveLength(5)
+    expect(res.body.distribution.values).toHaveLength(7)
     // Never leaks another class's identity — only the aggregate label + numbers.
     expect(JSON.stringify(res.body)).not.toContain('cohort-0')
   })
@@ -230,7 +240,7 @@ describe('GET /api/school/rate-compare — school entity', () => {
     await handler(req, res)
     expect(res.statusCode).toBe(200)
     expect(res.body.insufficientData).toBe(false)
-    expect(res.body.cohortSize).toBe(5) // 5 peer SCHOOLS, not 10 peer classes
+    expect(res.body.cohortSize).toBe(6) // 5 peer SCHOOLS + the entity, not 10 peer classes
     expect(res.body.entity.label).toBe('Coláiste Éinde')
     expect(res.body.average.label).toBe('Global average · this course')
     expect(JSON.stringify(res.body)).not.toContain('peer-sch-0')
@@ -255,15 +265,19 @@ describe('GET /api/school/rate-compare — global_all_courses (offered alongside
     const sameCourseReq = makeReq({ course_code: 'gle_for_eng', entity_level: 'class', entity_id: 'class-1', compare_to: 'global' })
     const sameCourseRes = makeRes()
     await handler(sameCourseReq, sameCourseRes)
-    // Only the 6 gle_for_eng cohort-* classes exist on this course besides class-1, none have session rows here -> insufficient.
-    expect(sameCourseRes.body.insufficientData).toBe(true)
+    // The 6 gle_for_eng cohort-* classes exist on this course besides class-1.
+    // Membership is structural (Tom, 2026-09-16), so they compare at 0 rather
+    // than blanking the card — but never the other-course classes.
+    expect(sameCourseRes.body.insufficientData).toBe(false)
+    expect(sameCourseRes.body.cohortSize).toBe(7)
 
     const allCoursesReq = makeReq({ course_code: 'gle_for_eng', entity_level: 'class', entity_id: 'class-1', compare_to: 'global_all_courses' })
     const allCoursesRes = makeRes()
     await handler(allCoursesReq, allCoursesRes)
     expect(allCoursesRes.statusCode).toBe(200)
     expect(allCoursesRes.body.insufficientData).toBe(false)
-    expect(allCoursesRes.body.cohortSize).toBe(5) // the 5 other-course-* classes clear k-floor
+    // 6 cohort-* + 5 other-course-* peers + the entity — self-inclusive
+    expect(allCoursesRes.body.cohortSize).toBe(12)
     expect(allCoursesRes.body.average.label).toBe('Global average · all courses')
   })
 
@@ -278,9 +292,10 @@ describe('GET /api/school/rate-compare — global_all_courses (offered alongside
     const req = makeReq({ course_code: 'gle_for_eng', entity_level: 'class', entity_id: 'class-1', compare_to: 'global_all_courses' })
     const res = makeRes()
     await handler(req, res)
-    // 3 active peer CLASSES clear an entity floor of 1 (Tom, 2026-09-15).
+    // Peer CLASSES clear an entity floor of 1 (Tom, 2026-09-15); membership is
+    // structural, so the 6 quiet cohort-* classes count too, plus the entity.
     expect(res.body.insufficientData).toBe(false)
-    expect(res.body.cohortSize).toBe(3)
+    expect(res.body.cohortSize).toBe(10)
   })
 
   it('school-vs-global_all_courses aggregates each peer school across ALL its courses, not just the selected one', async () => {
@@ -304,7 +319,7 @@ describe('GET /api/school/rate-compare — global_all_courses (offered alongside
     await handler(req, res)
     expect(res.statusCode).toBe(200)
     expect(res.body.insufficientData).toBe(false)
-    expect(res.body.cohortSize).toBe(5) // peer-sch-0 (off-course) counts here, unlike compare_to=global
+    expect(res.body.cohortSize).toBe(6) // peer-sch-0 (off-course) counts here + the entity, unlike compare_to=global
   })
 
   it('group-vs-global_all_courses still excludes ancestor/descendant subtrees, using any-course peer classIds', async () => {
@@ -331,7 +346,7 @@ describe('GET /api/school/rate-compare — global_all_courses (offered alongside
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(200)
-    expect(res.body.cohortSize).toBe(5) // only the 5 unrelated "far" groups, picked up despite being off-course
+    expect(res.body.cohortSize).toBe(6) // the 5 unrelated "far" groups + the entity, picked up despite being off-course
     expect(res.body.average.label).toBe('Global average · all courses')
   })
 })
@@ -389,7 +404,7 @@ describe('GET /api/school/rate-compare — group entity', () => {
     await handler(req, res)
     expect(res.statusCode).toBe(200)
     expect(res.body.insufficientData).toBe(false)
-    expect(res.body.cohortSize).toBe(5)
+    expect(res.body.cohortSize).toBe(6) // 5 sibling groups + the entity
     expect(res.body.entity.label).toBe('Wales')
     expect(res.body.average.label).toBe('Regional average')
     expect(JSON.stringify(res.body)).not.toContain('grp-sib-0')
@@ -418,6 +433,6 @@ describe('GET /api/school/rate-compare — group entity', () => {
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(200)
-    expect(res.body.cohortSize).toBe(5) // only the 5 unrelated "far" groups — never grp-uk or grp-cardiff
+    expect(res.body.cohortSize).toBe(6) // the 5 unrelated "far" groups + the entity — never grp-uk or grp-cardiff
   })
 })
