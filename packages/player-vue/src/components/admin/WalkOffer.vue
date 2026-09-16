@@ -20,14 +20,12 @@
 // Ordered by the page's own moment order — setting up, every lesson, when
 // something looks wrong — so the first thing offered is the first thing a
 // reader standing here is likely to want.
-import { computed, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, getCurrentInstance, ref, watch } from 'vue'
 import { useI18n } from '@/composables/useI18n'
 import { walksFor, walkById, startWalk, claimDeferredWalk, type WalkPersona, type Walk } from '@/walkthrough/useWalkthrough'
 import { showMeOnPage } from '@/walkthrough/handbook'
 
 const { t } = useI18n()
-const route = useRoute()
 
 const props = defineProps<{ persona: WalkPersona; place: string; kind?: string }>()
 
@@ -35,7 +33,17 @@ const props = defineProps<{ persona: WalkPersona; place: string; kind?: string }
 // folds behind one chip. Five is what the Teachers page carried by hand.
 const COLLAPSE_ABOVE = 5
 
-const matchedPaths = computed(() => route.matched.map((r) => r.path))
+// WHERE THIS MOUNT IS STANDING, read off the global `$route` the router
+// installs rather than through useRoute(). A dozen unit tests mount their
+// host with a partial vue-router mock, and a named import of useRoute turns
+// every one of them red for a component that only wants to know its own
+// path — the global degrades to undefined instead, which is exactly the
+// "no routed view reaches this" case the place fallback already handles.
+const inst = getCurrentInstance()
+const matchedPaths = computed(() => {
+  const r = (inst?.proxy as { $route?: { matched?: Array<{ path: string }> } } | null | undefined)?.$route
+  return (r?.matched ?? []).map((m) => m.path)
+})
 
 const offers = computed<Walk[]>(() => {
   const ids = showMeOnPage(matchedPaths.value, props.persona, props.place)
