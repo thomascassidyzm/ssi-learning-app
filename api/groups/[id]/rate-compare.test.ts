@@ -142,6 +142,7 @@ function makeChainable(table: string) {
 }
 
 let lastRpcArgs: any = null
+let firstPlayRpcError = false
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
     from: (table: string) => makeChainable(table),
@@ -152,6 +153,10 @@ vi.mock('@supabase/supabase-js', () => ({
       // SESSION_ROWS and the class account's diary, null when it has neither,
       // which is the never-started case the rule excludes.
       if (fn === 'class_first_play') {
+        // A READ FAILURE is not an absence of play (job #989 fix-up): flip
+        // this and the endpoint must say so rather than quietly dividing by
+        // however many classes happened to survive.
+        if (firstPlayRpcError) return Promise.resolve({ data: null, error: { message: 'statement timeout' } })
         const ids = (args?.p_class_ids ?? []) as string[]
         const learnerByClass = new Map<string, string>()
         for (const c of TABLES.classes ?? []) if (c.class_learner_id) learnerByClass.set(c.id, c.class_learner_id)
@@ -197,6 +202,7 @@ let handler: typeof import('./rate-compare').default
 beforeEach(async () => {
   resetTables()
   coverageExpired = false
+  firstPlayRpcError = false
   verifyAdminResult = { error: 'Requires SSi admin access', status: 403 }
   verifyAuthTokenResult = { valid: false, error: 'no token' }
   visibleScopeResult = { ...EMPTY_SCOPE }
@@ -876,6 +882,72 @@ describe('GET /api/groups/:id/rate-compare — the SCHOOL WEEK is the window (jo
     expect(after.body.week.cohort.size).toBe(before.body.week.cohort.size + 1)
   })
 
+  it('at SCHOOL level the cohort is SCHOOLS — the mean and the caption count the same thing (job #989 fix-up)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('school-2', { compare_to: 'programme', window: 'this_week', tz: LONDON }), res)
+    expect(res.statusCode).toBe(200)
+    // Entity school-2 = c2 + c3 (30 min each this week). Peer school-1 = c1 (30).
+    // Two SCHOOLS, so the average is mean(60, 30) = 45 — not mean(30,30,30) = 30,
+    // which is what flattening the members into a list of class ids produced
+    // while the caption underneath it still said "schools".
+    expect(res.body.week.entity.totalMinutes).toBe(60)
+    expect(res.body.week.cohort.size).toBe(2)
+    expect(res.body.week.cohort.sizeLabel).toBe('2 schools')
+    expect(res.body.week.cohort.totalMinutes).toBe(45)
+    // One denominator for the whole page, at every level.
+    expect(res.body.cohortSize).toBe(2)
+  })
+
+  it('the 12 cohort bars are IDENTICAL whichever week is selected (job #989 fix-up)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // A class whose FIRST play is this week. Selecting "last week" used to drop
+    // it from the candidate set before the buckets were built, so the newest
+    // bar's average lost a member — history changed under the reader's feet
+    // depending on which week they were standing in.
+    TABLES.classes.push({ id: 'c9', class_name: 'Brand New', course_code: 'hin_for_eng', school_id: 'school-2', group_id: 's2-node', is_active: true })
+    SESSION_ROWS.push({ class_id: 'c9', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S3L01', start_ord: 0, end_ord: 3, duration_seconds: 5400, started_at: daysAgo(0) })
+    const thisW = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'this_week', tz: LONDON }), thisW)
+    const lastW = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'last_week', tz: LONDON }), lastW)
+    expect(thisW.body.week.bars.cohort).toEqual(lastW.body.week.bars.cohort)
+    expect(thisW.body.week.bars.entity).toEqual(lastW.body.week.bars.entity)
+    // The newcomer really is in the newest bar — otherwise this pins nothing.
+    expect(typeof thisW.body.week.bars.cohort[11]).toBe('number')
+  })
+
+  it('a viewed class that had not STARTED by the end of the selected week is in no denominator — headline and card agree (job #989 fix-up)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // c1's only play is today, i.e. THIS week. Read with "last week" selected,
+    // it had not started by that week's end — so it is not one of the classes
+    // last week's average divides by, exactly as a peer in the same position
+    // would not be. It is still shown its own numbers. Before this fix-up the
+    // headline counted it and the week card did not, so one screen carried two
+    // denominators.
+    SESSION_ROWS = [
+      { class_id: 'c1', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S2L01', start_ord: 0, end_ord: 2, duration_seconds: 1800, started_at: daysAgo(0) },
+      ...SESSION_ROWS.filter((r) => r.class_id === 'c2' || r.class_id === 'c3'),
+    ]
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'last_week', tz: LONDON }), res)
+    expect(res.statusCode).toBe(200)
+    // Its own row is still drawn — a class always sees itself.
+    expect(res.body.entity.label).toBe('Year 6 Hindi')
+    expect(res.body.week.cohort.size).toBe(2)      // c2 + c3, never c1
+    expect(res.body.cohortSize).toBe(2)            // ONE denominator for the page
+    expect(res.body.cohortIncludesEntity).toBe(false)
+  })
+
+  it('a FAILED first-play read is loud, never a quietly smaller cohort (job #989 fix-up)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    firstPlayRpcError = true
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'this_week', tz: LONDON }), res)
+    expect(res.statusCode).toBe(500)
+    expect(res.body.error).toMatch(/first played/i)
+  })
+
   it('a nonsense time zone falls back rather than throwing', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
@@ -1174,8 +1246,12 @@ describe('GET /api/groups/:id/rate-compare — self-inclusive averaging (Tom, 20
     // has been silent since. The bars are total learning time, so this week's
     // bar is mean(30, 30, 0) = 20 — dropping the dormant c3 would read 30.
     SESSION_ROWS = [
-      { class_id: 'c1', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 6, duration_seconds: 1800, started_at: new Date().toISOString() },
-      { class_id: 'c2', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 3, duration_seconds: 1800, started_at: new Date().toISOString() },
+      // daysAgo(0), not `new Date()`: the week's end is EXCLUSIVE (cohortFor
+      // and the minute sums both read `< endMs`), and for THIS week that end
+      // is the instant the request is served — a fixture stamped in the same
+      // millisecond as the handler's own clock is a knife-edge, not a case.
+      { class_id: 'c1', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 6, duration_seconds: 1800, started_at: daysAgo(0) },
+      { class_id: 'c2', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 3, duration_seconds: 1800, started_at: daysAgo(0) },
       { class_id: 'c3', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S0L01', start_ord: 0, end_ord: 0, duration_seconds: 600, started_at: daysAgo(150) },
     ]
     const res = makeRes()

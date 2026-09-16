@@ -67,7 +67,7 @@ import { ensureSchoolNode } from '../../_utils/schoolNode'
 import { isEntityCoverageExpired } from '../../_utils/schoolCoverageGate'
 import { descendantIds } from '../../_utils/groupSubtree'
 import { loadScopedSessionRows } from '../../_utils/diarySessionRows'
-import { loadClassFirstPlay } from '../../_utils/classFirstPlay'
+import { loadClassFirstPlay, ClassFirstPlayError } from '../../_utils/classFirstPlay'
 import { applyCors } from '../../_utils/cors'
 import {
   aggregateWindowPace,
@@ -730,7 +730,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         .filter((m) => m.classIds.length > 0)
     }
 
-    let members = await onlyStarted(firstMembers.members)
+    // TWO member lists, deliberately (job #989 fix-up):
+    //   · `members`     — started by the END OF THE SELECTED WINDOW. The floor,
+    //                     the ladder, the headline average and the percentile
+    //                     divide by this, because they describe that window.
+    //   · `rawMembers`  — the structural set, unfiltered. The 12 weekly bars
+    //                     are built from THIS, and each bucket does its own
+    //                     per-week exclusion through `cohortFor`. Filtering the
+    //                     candidates up front made the bars move when the
+    //                     reader changed the window: with "last week" selected,
+    //                     a class that first played THIS week vanished from the
+    //                     newest bar's average, and reappeared on "this week".
+    //                     History must read the same whichever week you stand in.
+    let rawMembers = firstMembers.members
+    let members = await onlyStarted(rawMembers)
 
     // ─── Compare LADDER on the untouched DEFAULT (generalises the old
     // root-only all-courses fallback, 2026-07-20): when the default
@@ -752,7 +765,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         baseBody.applied.compare_to = rung
         const wm = await resolveMembers()
         if (wm.error) continue
-        members = await onlyStarted(wm.members)
+        rawMembers = wm.members
+        members = await onlyStarted(rawMembers)
       }
     }
 
@@ -786,7 +800,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     if (preRows) {
       rows = preRows
     } else {
-      const allClassIds = [...new Set([...entityClassIds, ...members.flatMap((m) => m.classIds)])].slice(0, MAX_COHORT_IDS)
+      // Rows for the RAW set, not the window-filtered one: a member that had
+      // not started by the end of the selected window still owns bars in the
+      // weeks after it did start, and those bars are drawn from these rows.
+      const allClassIds = [...new Set([...entityClassIds, ...rawMembers.flatMap((m) => m.classIds)])].slice(0, MAX_COHORT_IDS)
       const { data: rawRows, error } = await loadScopedSessionRows(
         svc, allClassIds, fetchDays, entityIsDemo, Date.now(),
         { includePupils: Boolean(weekWindowId) && allClassIds.length <= PUPIL_CLASS_CAP })
@@ -797,10 +814,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       }
       rows = (rawRows as ScopedSessionRow[]) || []
     }
-    // Candidates for the PER-WEEK cohort below: the entity plus every started
-    // member. `firstPlay` already holds all of them (onlyStarted filled it).
-    const candidateIds = [...new Set([...entityClassIds, ...members.flatMap((m) => m.classIds)])]
+    // ─── The COHORT UNITS for the week card and its bars — peers-like-me,
+    // the same unit this endpoint compares at every level: CLASSES when the
+    // entity is a class, SCHOOLS when it is a school node or an interior
+    // group. Before this fix-up the card flattened the members into a list of
+    // class ids, so at school level the mean was over CLASSES while the
+    // caption counted them as "schools": a leader read "school average · 120
+    // schools" over a 120-CLASS average. The unit decides both, once.
+    //
+    // The entity is a unit of the same kind, on the same terms as any peer —
+    // that is what keeps "the same average whoever looks at it" true.
+    //
+    // Built from `rawMembers`, so the set does not move with the selected
+    // window; each bucket's own `cohortFor` decides who had started by THAT
+    // week, which is the per-week rule and the only place it belongs.
+    const cohortUnits: { id: string; classIds: string[] }[] =
+      [{ id: nodeMeta.id, classIds: entityClassIds }, ...rawMembers]
+    const candidateIds = [...new Set(cohortUnits.flatMap((u) => u.classIds))]
     await ensureFirstPlay(candidateIds)
+    // A unit is in a week's cohort once ANY of its classes has started, and it
+    // is measured over exactly those classes — a school that opened its second
+    // class in week 9 counts one class in weeks 1-8 and two from week 9.
+    const cohortUnitsAt = (weekEndMs: number): { id: string; classIds: string[] }[] =>
+      cohortUnits
+        .map((u) => ({ id: u.id, classIds: cohortFor(u.classIds, firstPlay, weekEndMs) }))
+        .filter((u) => u.classIds.length > 0)
 
     const entityRateWindow = aggregateWindowPace(rows, entityClassIds, days, now)
 
@@ -823,10 +861,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       // The cohort, evaluated at the end of the window for the card and
       // AGAIN at the end of each bucket for the bars — one function, three
       // callers, so a bar and the number above it can never disagree.
-      const cohortAt = (weekEndMs: number): string[] => cohortFor(candidateIds, firstPlay, weekEndMs)
-      const windowCohort = cohortAt(currentWeek.endMs)
+      const windowCohort = cohortUnitsAt(currentWeek.endMs)
       const cohortWeek = meanWeekNumbers(
-        windowCohort.map((id) => weekNumbersForClassIds(rows, [id], currentWeek.startMs, currentWeek.endMs)))
+        windowCohort.map((u) => weekNumbersForClassIds(rows, u.classIds, currentWeek.startMs, currentWeek.endMs)))
       // The entity's OWN series: the sum of ITS classes that had started by
       // each week, and absence before any of them had. A zero in a week the
       // class did not yet exist as a playing class would say it was idle.
@@ -837,8 +874,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       // weeks before it started and a zero in every week after. Same
       // `cohortFor`, one class at a time — the bar and the number above it
       // cannot disagree because they are the same function.
-      const cohortBars = meanBars(candidateIds.map((id) =>
-        weeklyMinutesBars(rows, [id], buckets, (end) => cohortFor([id], firstPlay, end))))
+      // One series per UNIT — a school's series is its own classes summed,
+      // and the cohort bar is the mean of those, never the mean of bare
+      // classes. Mean-of-schools and mean-of-classes are different numbers
+      // whenever schools differ in size, and the caption says schools.
+      const cohortBars = meanBars(cohortUnits.map((u) =>
+        weeklyMinutesBars(rows, u.classIds, buckets, (end) => cohortFor(u.classIds, firstPlay, end))))
       weekBlock = {
         window: weekWindowId,
         label: windowConfig.label,
@@ -911,10 +952,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // this course), the average — and the percentile, ranked over this same
     // self-inclusive cohort — reads identically whichever member is looking,
     // and a wider window can only raise or hold a sum measure, never lower it. ───
-    const cohortValues = [entityMeasure.value, ...memberMeasures.map((m) => m.value)]
+    //
+    // ONE EXCEPTION, and it is the same rule read straight (job #989 fix-up):
+    // the entity joins the DENOMINATOR only once it has STARTED, exactly like
+    // every peer. A never-started class is still shown its own numbers — it is
+    // simply not one of the classes the average divides by, in any week. Before
+    // this the headline and the percentile counted it while the week card did
+    // not, so one screen carried two denominators and two averages.
+    const entityHasStarted = cohortFor(entityClassIds, firstPlay, windowCohortEnd).length > 0
+    const cohortValues = entityHasStarted
+      ? [entityMeasure.value, ...memberMeasures.map((m) => m.value)]
+      : memberMeasures.map((m) => m.value)
     const averageTrend = weekBlock
       ? (weekBlock.bars as { cohort: number[] }).cohort
-      : meanTrend([entityMeasure.trend, ...memberMeasures.map((m) => m.trend)])
+      : meanTrend(entityHasStarted
+        ? [entityMeasure.trend, ...memberMeasures.map((m) => m.trend)]
+        : memberMeasures.map((m) => m.trend))
     const averageValue = Math.round((cohortValues.reduce((a, b) => a + b, 0) / cohortValues.length) * 10) / 10
     const dist = distributionStats(cohortValues)
     const compareLabel = compareOptions.find((o) => o.value === compareTo)?.label ?? 'Average'
@@ -975,7 +1028,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       cohortLabel,
       cohortUnit,
       cohortSizeLine,
-      cohortIncludesEntity: true,
+      cohortIncludesEntity: entityHasStarted,
       week: weekBlock,
       distribution: {
         values: dist.values,
@@ -991,6 +1044,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       cohortSize: cohortValues.length,
     })
   } catch (error) {
+    // A first-play read that FAILED is not a set of classes that never played.
+    // Falling through would have silently shrunk every denominator on the page
+    // and still rendered an average, so it is loud instead (job #989 fix-up).
+    if (error instanceof ClassFirstPlayError) {
+      console.error('[node-rate-compare] class first-play read failed:', error.message)
+      res.status(500).json({ error: 'Could not read when these classes first played, so the average would divide by the wrong number of them. Please try again.' })
+      return
+    }
     console.error('[node-rate-compare] error:', error)
     res.status(500).json({ error: 'Internal server error' })
   }

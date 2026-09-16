@@ -192,6 +192,24 @@ describe('cohortFor — one definition of who the average divides by', () => {
     expect([...asOneClass].sort()).toEqual([...asAnother].sort())
   })
 
+  it('a first play at the STROKE of Monday 00:00 belongs to the week starting, not the one closing', () => {
+    // The week's end is exclusive everywhere else — rangeMinutesByActor counts
+    // `t >= startMs && t < endMs` — so a class whose first session begins at
+    // exactly W(4) contributes no minutes to week 3. With an inclusive `<=` it
+    // joined week 3's denominator anyway and dragged that week's average down
+    // for a week it was not present in (job #989 fix-up).
+    const onTheStroke = new Map<string, number | null>([['mon', W(4)]])
+    expect(cohortFor(['mon'], onTheStroke, W(4))).toEqual([])   // end of week 3
+    expect(cohortFor(['mon'], onTheStroke, W(5))).toEqual(['mon']) // end of week 4
+    // And it really does play nothing in week 3.
+    const row: ScopedSessionRow = {
+      class_id: 'mon', course_code: 'c', start_lego_id: null, end_lego_id: null,
+      start_ord: 0, end_ord: 1, duration_seconds: 600, started_at: new Date(W(4)).toISOString(),
+    }
+    expect(rangeMinutesByActor([row], ['mon'], 'class', W(3), W(4)).minutes).toBe(0)
+    expect(rangeMinutesByActor([row], ['mon'], 'class', W(4), W(5)).minutes).toBe(10)
+  })
+
   it('an id it has never heard of is not a member', () => {
     expect(cohortFor(['ghost'], firstPlay, W(12))).toEqual([])
   })

@@ -15,7 +15,8 @@ function block(over: Partial<WeekBlock> = {}): WeekBlock {
   }
 }
 
-const render = (props: Record<string, unknown>) =>
+type CardProps = { data: WeekBlock; noCohortReason?: string; percentile?: number; cohortUnit?: string }
+const render = (props: CardProps) =>
   mount(WeekNumbersCard, { props, global: { stubs: { RateTrend: true } } })
 
 describe('WeekNumbersCard — three numbers, no ratio', () => {

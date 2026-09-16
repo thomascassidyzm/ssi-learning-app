@@ -3971,6 +3971,47 @@ out, not an hour. The Monday rule is kept and the zone fixed.
 `api/_utils/schoolWeek.postgresParity.test.ts` pins seven instants to the output of the real
 query, run live and pasted in, and asserts exactly which rows London and UTC disagree on.
 
+### 2026-09-16 — the cohort counts the right unit, and the bars stop moving (job #989 fix-up)
+
+A cross-family cold verify of the entry above found five things wrong with the code that
+serves it. All five are the same failure in different clothes: one screen telling a teacher
+two different things.
+
+**Above a class the cohort is SCHOOLS, and now the mean and the caption both say so.** The
+week card flattened its members into a list of class ids, so a school leader read an average
+over CLASSES under a caption that counted the same list as "120 schools" — and mean-of-schools
+is not mean-of-classes the moment schools differ in size. The cohort is a list of UNITS now:
+classes under a class, schools above one, which is the peers-like-me rule this endpoint has
+always used for its headline. One list feeds the mean, the twelve bars and the caption.
+
+**History no longer moves when you change the week you are standing in.** The candidate set
+was filtered to classes started by the end of the SELECTED window before the twelve buckets
+were built, so with "last week" showing, a class that first played this week vanished from the
+newest bar and reappeared when you picked "this week". The bars are built from the structural
+set, and each bucket does its own per-week exclusion through `cohortFor` — which is the only
+place that rule belongs. The card's own three numbers are unchanged.
+
+**A viewed class joins the DENOMINATOR only once it has started, like every peer.** The
+headline's percentile cohort included it unconditionally while the card's did not. It is
+always shown its own numbers; it is simply not one of the classes the average divides by until
+it has played. That is what keeps "the same average whoever looks at it" true, which was the
+whole of Tom's ruling.
+
+**Monday midnight.** `cohortFor` read `first <= weekEndMs` while every minute sum reads
+`t < endMs`. A class whose first play landed on the stroke of Monday 00:00 London joined the
+CLOSING week's denominator and contributed nothing to it, quietly pulling that week's average
+down. Exclusive now, with a fixture at the exact instant.
+
+**A failed read is not an absence of play.** `loadClassFirstPlay` swallowed an RPC error and
+returned null, which dropped those classes from every denominator on the page and still
+rendered an average nobody could tell was wrong. It throws `ClassFirstPlayError` now and the
+endpoint answers 500 saying which fact it could not read.
+
+**Bookkeeping correction.** The commit message for the entry above reports the re-snapshot of
+`supabase/schema.sql` as "indexes 310→310". That is wrong: it was **343→344** — the one new
+index is `class_first_play`'s — plus two triggers. Tables 144→144, views 27→27 and functions
+154→161 stand. Commit messages are immutable, so the correction lives here.
+
 **Open.** The two SQL objects above are still UTC-anchored. Nothing on the insights page reads
 them, so nothing there is wrong — but `weekly_leaderboard`'s "this week" and the retention
 buckets are an hour out for half the year, and they are somebody's next job, not this one's.

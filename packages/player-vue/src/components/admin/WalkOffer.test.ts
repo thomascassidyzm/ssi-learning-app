@@ -9,6 +9,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import WalkOffer from './WalkOffer.vue'
+import type { WalkPersona } from '@/walkthrough/useWalkthrough'
+import type { ComponentCustomProperties } from 'vue'
 
 // localiseWalk reads `t` directly, so the mock carries both shapes. Defined
 // inside the factory: vi.mock is hoisted above every const in this file.
@@ -18,10 +20,12 @@ vi.mock('@/composables/useI18n', () => {
 })
 
 /** Mount standing on a route, the way the router's global $route reads. */
-function onRoute(path: string, props: Record<string, unknown>) {
+function onRoute(path: string, props: { persona: WalkPersona; place: string; kind?: string }) {
   return mount(WalkOffer, {
     props,
-    global: { config: { globalProperties: { $route: { matched: [{ path }] } } } },
+    // Only `matched[].path` is ever read; the cast says so rather than
+    // standing up nine fields of RouteLocationNormalizedLoaded nobody touches.
+    global: { config: { globalProperties: { $route: { matched: [{ path }] } } as ComponentCustomProperties } },
   })
 }
 

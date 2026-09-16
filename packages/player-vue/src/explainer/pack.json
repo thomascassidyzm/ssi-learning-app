@@ -1,6 +1,6 @@
 {
-  "version": "721845e6d104",
-  "generatedAt": "2026-09-14",
+  "version": "120ffdbbb87a",
+  "generatedAt": "2026-09-16",
   "truth": {
     "verbs": [
       {
@@ -91,20 +91,12 @@
     ],
     "windows": [
       {
-        "value": "today",
-        "label": "Today"
+        "value": "this_week",
+        "label": "This week"
       },
       {
-        "value": "7d",
-        "label": "Last 7 days"
-      },
-      {
-        "value": "30d",
-        "label": "Last 30 days"
-      },
-      {
-        "value": "all",
-        "label": "All time"
+        "value": "last_week",
+        "label": "Last week"
       }
     ]
   },
