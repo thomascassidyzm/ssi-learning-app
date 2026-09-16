@@ -413,7 +413,6 @@ const metricDesc = computed(() => {
         :all-time="allTime"
       />
     </div>
-    <ClassTagsLine v-if="weekMode && isClassNode && tags" :tags="tags" :saving="tagSaving" :error="tagError" @save="saveTag" />
     <div v-else-if="comparison" class="nre-widget-card" data-walk="insights-rate-widget">
       <RateCompare :data="comparison" />
     </div>
@@ -427,6 +426,11 @@ const metricDesc = computed(() => {
     <div v-else-if="fetchFailed" class="nre-widget-card nre-status">
       <p>{{ t('insights.rateEngine.fetchFailed', "Couldn't load these numbers just now — try again shortly.") }}</p>
     </div>
+    <!-- After the v-if chain, never inside it: a tag line between the week
+         card and the legacy widget's v-else-if let the old rate widget — rank
+         pill and all — render under the card at school level (seen on the
+         first populated capture). -->
+    <ClassTagsLine v-if="weekMode && isClassNode && tags" :tags="tags" :saving="tagSaving" :error="tagError" @save="saveTag" />
   </div>
 </template>
 
