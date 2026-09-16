@@ -862,6 +862,7 @@ const listPayload = computed(() => {
              the main pane sliding into this column. -->
         <!-- HANDBOOK Finding your way around the organisation
              section: seeing-progress
+             moment: setting-up
              roles: admin, leader, school_admin
              place: node-home
              keywords: map, rail, navigate, where am i, ancestors, siblings, orientation
@@ -947,6 +948,7 @@ const listPayload = computed(() => {
             <div class="verbs">
               <!-- HANDBOOK Play as class from the class page
                    section: running-classes
+                   moment: every-lesson
                    roles: teacher, school_admin
                    place: node-home
                    keywords: play as class, lesson, start, class page, front of the room
@@ -976,6 +978,7 @@ const listPayload = computed(() => {
               >&#9654; {{ t('org.nodeHome.playAsClass', 'Play as class') }}</button>
               <!-- HANDBOOK Manage a class
                    section: running-classes
+                   moment: setting-up
                    roles: teacher, school_admin
                    place: node-home
                    keywords: manage, tools, roster, teachers, join link, rename, delete
@@ -1066,6 +1069,7 @@ const listPayload = computed(() => {
           <!-- STATS ROW -->
           <!-- HANDBOOK How fresh these numbers are
                section: seeing-progress
+               moment: something-wrong
                roles: admin, leader, school_admin
                place: node-home
                keywords: updated, refresh, fresh, stale, time, reload
@@ -1087,6 +1091,7 @@ const listPayload = computed(() => {
           <div class="stats-updated" data-walk="node-updated"><UpdatedStamp /></div>
           <!-- HANDBOOK The numbers on any level
                section: seeing-progress
+               moment: setting-up
                roles: admin, leader, school_admin
                place: node-home
                keywords: numbers, stats, practice hours, learners, teachers, classes, rollup
@@ -1139,6 +1144,7 @@ const listPayload = computed(() => {
           </div>
           <!-- HANDBOOK The numbers by year group
                section: seeing-progress
+               moment: setting-up
                roles: admin, leader, school_admin
                place: node-home
                keywords: year group, year 7, tiles, breakdown, classes practising, minutes, by class
@@ -1191,6 +1197,7 @@ const listPayload = computed(() => {
                week and how often each phrase came round. -->
           <!-- HANDBOOK What your classes actually practised
                section: seeing-progress
+               moment: setting-up
                roles: admin, leader, school_admin
                place: node-home
                keywords: phrases, practised, list, what they practised, repetition, this week, show all
@@ -1240,6 +1247,7 @@ const listPayload = computed(() => {
                  below. -->
             <!-- HANDBOOK Whether a class is practising together
                  section: seeing-progress
+                 moment: setting-up
                  roles: admin, leader, school_admin
                  place: node-home
                  keywords: class practice, sessions, together, this week, last session, play as class
@@ -1286,6 +1294,7 @@ const listPayload = computed(() => {
             </div>
             <!-- HANDBOOK How far a class has travelled
                  section: seeing-progress
+                 moment: setting-up
                  roles: admin, leader, school_admin
                  place: node-home
                  keywords: journey, progress, legos, position, course, belt, how far
@@ -1382,6 +1391,7 @@ const listPayload = computed(() => {
               </template>
               <!-- HANDBOOK Reading one student's progress
                    section: seeing-progress
+                   moment: setting-up
                    roles: admin, leader, school_admin
                    place: node-home
                    keywords: student, learner, progress, roster, last active, drifting, spark

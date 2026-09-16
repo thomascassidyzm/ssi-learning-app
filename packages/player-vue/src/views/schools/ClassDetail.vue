@@ -798,6 +798,7 @@ const mailboxPrompt = useMailboxPrompt()
           <template v-else>{{ classData.class_name }}</template>
           <!-- HANDBOOK Rename a class
                section: running-classes
+               moment: setting-up
                roles: teacher
                place: class-detail
                keywords: class, rename, name, edit, title
@@ -828,6 +829,7 @@ const mailboxPrompt = useMailboxPrompt()
           </button>
           <!-- HANDBOOK Delete a class
                section: running-classes
+               moment: setting-up
                roles: teacher
                place: class-detail
                keywords: class, delete, remove, close, archive
@@ -921,6 +923,7 @@ const mailboxPrompt = useMailboxPrompt()
                    another is one untick and one tick in here. -->
               <!-- HANDBOOK Move a teacher to another class
                    section: running-classes
+                   moment: setting-up
                    roles: teacher
                    place: class-detail
                    keywords: move, teacher, classes, assign, timetable
@@ -951,6 +954,7 @@ const mailboxPrompt = useMailboxPrompt()
               </button>
               <!-- HANDBOOK Hand a class over to another teacher
                    section: running-classes
+                   moment: setting-up
                    roles: teacher
                    place: class-detail
                    keywords: lead, hand over, class, teacher, transfer
@@ -1008,6 +1012,7 @@ const mailboxPrompt = useMailboxPrompt()
                English rather than leaving a head to infer it. -->
           <!-- HANDBOOK Share a class with a colleague
                section: running-classes
+               moment: setting-up
                roles: teacher
                place: class-detail
                keywords: class, share, co-teacher, colleague, teachers
@@ -1057,6 +1062,7 @@ const mailboxPrompt = useMailboxPrompt()
 
         <!-- HANDBOOK Invite a teacher who isn't here yet
              section: running-classes
+             moment: setting-up
              roles: teacher
              place: class-detail
              keywords: supply, cover, teacher, invite, class, link
@@ -1099,6 +1105,7 @@ const mailboxPrompt = useMailboxPrompt()
     <div class="body-grid">
       <!-- HANDBOOK Students on their own accounts
            section: seeing-progress
+           moment: setting-up
            roles: teacher, school_admin
            place: class-detail
            keywords: roster, students, own accounts, progress, belt, last active
@@ -1146,6 +1153,7 @@ const mailboxPrompt = useMailboxPrompt()
             />
             <!-- HANDBOOK Add students to a class
                  section: getting-people-in
+                 moment: setting-up
                  roles: teacher
                  place: class-detail
                  keywords: add, student, class, roster, move, join
@@ -1298,6 +1306,7 @@ const mailboxPrompt = useMailboxPrompt()
                 <td class="row-action">
                   <!-- HANDBOOK Remove a student from a class
                        section: running-classes
+                       moment: setting-up
                        roles: teacher
                        place: class-detail
                        keywords: remove, student, roster, leave, class
@@ -1374,6 +1383,7 @@ const mailboxPrompt = useMailboxPrompt()
             </p>
             <!-- HANDBOOK How students join a class
                  section: getting-people-in
+                 moment: setting-up
                  roles: teacher
                  place: class-detail
                  keywords: join, link, code, students, invite, class

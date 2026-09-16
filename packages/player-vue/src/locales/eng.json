@@ -2532,7 +2532,9 @@
       "whatItsFor": "What it's for",
       "whereItIs": "Where it is",
       "worthKnowing": "Worth knowing",
-      "writtenOut": "Written out"
+      "writtenOut": "Written out",
+      "nextThree": "Your next three",
+      "justMineAgain": "Just what I can do"
     },
     "teacherDashboard": {
       "showAllClasses": "Show all {n} classes",
@@ -3675,7 +3677,8 @@
         "skipTour": "Skip tour"
       },
       "walkOffer": {
-        "showMe": "Show me — {title}"
+        "showMe": "Show me — {title}",
+        "showMeCount": "Show me — {n}"
       },
       "waysInLedger": {
         "copyCourse": "Copy {course}",

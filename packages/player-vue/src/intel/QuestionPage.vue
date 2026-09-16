@@ -85,6 +85,7 @@ const walkKind = computed(() => (questionBySlug(slug())?.built === false ? 'not-
 <template>
   <!-- HANDBOOK How every question page is laid out
        section: seeing-progress
+       moment: setting-up
        roles: admin
        place: intel
        parts: verb-bar, answer, evidence, rows

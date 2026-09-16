@@ -4,7 +4,8 @@
 // pack, which the compiler will not emit unless the anchor is still live.
 import { describe, it, expect } from 'vitest'
 import {
-  HANDBOOK_SECTIONS, ROLE_BADGES, handbookEntries, handbookSections,
+  HANDBOOK_SECTIONS, HANDBOOK_MOMENTS, ROLE_BADGES, handbookEntries, handbookSections,
+  handbookMoments, entriesOnPage, showMeOnPage, nextThree, stateFromHome,
   searchHandbook, viewerPersona, isMine, badgesFor, placeLink, PLACE_LINKS, clipsFor,
   type HandbookEntry,
 } from './handbook'
@@ -12,6 +13,7 @@ import {
 const entry = (over: Partial<HandbookEntry> = {}): HandbookEntry => ({
   id: 'e', title: 'Bring your first teacher in', section: 'getting-people-in',
   personas: ['school_admin'], keywords: ['teacher', 'invite'],
+  moment: 'setting-up',
   place: { route: 'node-home' }, anchor: 'verb-invite-person', walk: 'invite-first-teacher',
   what: 'Getting a colleague in.', where: 'Your school home page.', how: ['Tap invite.'],
   ...over,
@@ -132,5 +134,120 @@ describe('clipsFor — every clip that shows a capability (job #627)', () => {
     const ids = handbookEntries().filter((e) => e.personas.includes('school_admin')).flatMap((e) => clipsFor(e, 'school_admin'))
     expect(ids).toContain('install-the-app')
     expect(ids).toContain('set-your-password')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// GROUPED BY MOMENT (job #5, 2026-09-16). Tom: "the whole list is a bit
+// overwhelming" — 109 entries showed a teacher 49 and a school leader 80.
+// ---------------------------------------------------------------------------
+describe('moments', () => {
+  it('gives every compiled entry exactly one moment the runtime knows', () => {
+    const known = new Set(HANDBOOK_MOMENTS.map((m) => m.id))
+    for (const e of handbookEntries()) {
+      expect(e.moment, `${e.id} carries no moment`).toBeTruthy()
+      expect(known.has(e.moment), `${e.id} carries unknown moment "${e.moment}"`).toBe(true)
+    }
+  })
+
+  it('groups in frequency order, dropping empty ones', () => {
+    const groups = handbookMoments([
+      entry({ moment: 'something-wrong' }),
+      entry({ id: 'f', moment: 'setting-up' }),
+    ])
+    expect(groups.map((g) => g.id)).toEqual(['setting-up', 'something-wrong'])
+  })
+
+  // Tom's cap, 2026-09-16: "the handful that matter — cap at ~6 for a teacher".
+  // A teacher standing in front of a class should not be reading a list.
+  it('keeps a teacher\'s "Every lesson" to six or fewer', () => {
+    const mine = handbookEntries().filter((e) => isMine(e, 'teacher') && e.moment === 'every-lesson')
+    expect(mine.length, mine.map((e) => e.id).join(', ')).toBeLessThanOrEqual(6)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// THE PER-PAGE SHOW-ME LIST — membership is the compiler-derived anchor →
+// route map, so a page offers the clips for the controls that are ON it.
+// ---------------------------------------------------------------------------
+describe('the page\'s own Show-me list', () => {
+  it('REGRESSION: the Teachers page offers exactly the five clips it carried by hand', () => {
+    const ids = showMeOnPage(['/schools/teachers'], 'school_admin', 'teachers')
+    expect([...ids].sort()).toEqual([
+      'add-teacher-by-name',
+      'hand-a-teacher-access-code',
+      'invite-a-teacher-to-your-school',
+      'remove-a-teacher',
+      'take-a-teacher-off-a-class',
+    ])
+  })
+
+  it('takes only the reader\'s own capabilities', () => {
+    const list = [
+      entry({ id: 'mine', moment: 'every-lesson', personas: ['teacher'], routes: ['/schools/x'] }),
+      entry({ id: 'theirs', moment: 'every-lesson', personas: ['school_admin'], routes: ['/schools/x'] }),
+    ]
+    expect(entriesOnPage(['/schools/x'], 'teacher', undefined, list).map((e) => e.id)).toEqual(['mine'])
+  })
+
+  it('orders by the page\'s own moment order, not alphabetically', () => {
+    const list = [
+      entry({ id: 'c', title: 'A', moment: 'something-wrong', routes: ['/p'] }),
+      entry({ id: 'b', title: 'B', moment: 'every-lesson', routes: ['/p'] }),
+      entry({ id: 'a', title: 'C', moment: 'setting-up', routes: ['/p'] }),
+    ]
+    expect(entriesOnPage(['/p'], 'school_admin', undefined, list).map((e) => e.id)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('falls back to the authored place only for an anchor no routed view reaches', () => {
+    const list = [entry({ id: 'orphan', routes: [], place: { route: 'teachers' } })]
+    expect(entriesOnPage(['/schools/teachers'], 'school_admin', 'teachers', list).map((e) => e.id)).toEqual(['orphan'])
+    expect(entriesOnPage(['/schools/teachers'], 'school_admin', 'students', list)).toEqual([])
+  })
+
+  it('reads a nested route as its own page and its parent\'s', () => {
+    const list = [entry({ id: 'parent', routes: ['/schools'] })]
+    expect(entriesOnPage(['/schools', '/schools/classes/:id'], 'school_admin', undefined, list)).toHaveLength(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// YOUR NEXT THREE — one state model, read twice. The signals are the ones the
+// node home's Last Step banner and the noticing rules already evaluate.
+// ---------------------------------------------------------------------------
+describe('your next three', () => {
+  it('lifts the same fields the Last Step banner and the noticing rules read', () => {
+    const state = stateFromHome({
+      node: { rollup: { learnerCount: 0, teacherCount: 2, classCount: 3 } },
+      classPractice: { activeClasses7d: 0, inAppMinutes7d: 0 },
+    })
+    expect(state).toEqual({ learnerCount: 0, teacherCount: 2, classCount: 3, activeClasses7d: 0, inAppMinutes7d: 0 })
+  })
+
+  it('answers a school with no pupils with the way pupils get in', () => {
+    // The signal names three anchors in preference order and takes the first
+    // this reader actually has: a school admin gets the invite verb, a teacher
+    // the class join link, which is theirs alone.
+    expect(nextThree({ learnerCount: 0, teacherCount: 2, classCount: 3 }, 'school_admin').map((e) => e.anchor)[0])
+      .toBe('verb-invite-student')
+    expect(nextThree({ learnerCount: 0, teacherCount: 2, classCount: 3 }, 'teacher').map((e) => e.anchor)[0])
+      .toBe('class-join-link')
+  })
+
+  it('answers a school that has pupils and no play this week with play as class', () => {
+    const picked = nextThree({ learnerCount: 40, teacherCount: 2, classCount: 3, inAppMinutes7d: 0 }, 'teacher')
+    expect(picked[0].anchor).toBe('dash-class-card-play')
+  })
+
+  it('falls back to the top of Every lesson when no signal applies', () => {
+    const picked = nextThree({}, 'teacher')
+    expect(picked).toHaveLength(3)
+    for (const e of picked) expect(e.moment).toBe('every-lesson')
+  })
+
+  it('never offers a capability the reader does not have', () => {
+    for (const persona of ['teacher', 'school_admin', 'leader'] as const) {
+      for (const e of nextThree({ learnerCount: 0 }, persona)) expect(isMine(e, persona)).toBe(true)
+    }
   })
 })

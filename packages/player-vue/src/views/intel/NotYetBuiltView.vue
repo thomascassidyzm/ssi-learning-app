@@ -19,6 +19,7 @@ const question = computed(() => questionBySlug(route.path.split('/').filter(Bool
 <template>
   <!-- HANDBOOK A question whose page is not built yet
        section: seeing-progress
+       moment: something-wrong
        roles: admin
        place: intel
        keywords: not yet, unbuilt, coming, question, frame

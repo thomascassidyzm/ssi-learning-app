@@ -389,6 +389,7 @@ if (typeof document !== 'undefined') {
           <router-link :to="handbookTo" class="menu-item" @click="closeMenu">{{ t('schools.ui.topBar.menuHandbook', 'Handbook') }}</router-link>
           <!-- HANDBOOK Open your inbox
                section: your-own-account
+               moment: something-wrong
                roles: teacher, school_admin, leader
                place: dashboard
                keywords: inbox, messages, unread, badge, reply, notice, undo
@@ -415,6 +416,7 @@ if (typeof document !== 'undefined') {
           <router-link v-if="isSchoolAdmin" to="/schools/settings" class="menu-item" @click="closeMenu">{{ t('schools.ui.topBar.menuSchoolSettings', 'School settings') }}</router-link>
           <!-- HANDBOOK Report a bug from the dashboard
                section: your-own-account
+               moment: something-wrong
                roles: teacher, school_admin, leader
                place: dashboard
                parts: schools-report-bug-toast

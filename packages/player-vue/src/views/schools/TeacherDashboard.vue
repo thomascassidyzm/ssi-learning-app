@@ -495,6 +495,7 @@ function exportCsv() {
       <div class="page-head-actions">
         <!-- HANDBOOK Export your class list
              section: running-classes
+             moment: setting-up
              roles: school_admin, teacher
              place: classes
              keywords: export, csv, download, report, classes
@@ -516,6 +517,7 @@ function exportCsv() {
         </button>
         <!-- HANDBOOK Make a class
              section: running-classes
+             moment: setting-up
              roles: school_admin, teacher
              place: classes
              keywords: class, create, new, make, start
@@ -559,6 +561,7 @@ function exportCsv() {
 
     <!-- HANDBOOK The classes by year group
          section: running-classes
+         moment: setting-up
          roles: school_admin, teacher
          place: classes
          keywords: year group, year 7, tiles, breakdown, classes practising, minutes, by class
@@ -593,6 +596,7 @@ function exportCsv() {
     <!-- Filters -->
     <!-- HANDBOOK Find a class in a long list
          section: running-classes
+         moment: setting-up
          roles: school_admin, teacher
          place: classes
          keywords: filter, sort, search, course, classes
@@ -636,6 +640,7 @@ function exportCsv() {
     <div v-if="filtered.length > 0" class="schools-card table-card">
       <!-- HANDBOOK Read your class list
            section: running-classes
+           moment: setting-up
            roles: school_admin, teacher
            place: classes
            keywords: classes, list, overview, belt, minutes, time in app
@@ -682,6 +687,7 @@ function exportCsv() {
         <tbody>
           <!-- HANDBOOK Open a class
                section: running-classes
+               moment: every-lesson
                roles: school_admin, teacher
                place: classes
                keywords: class, open, detail, roster, view
@@ -745,6 +751,7 @@ function exportCsv() {
             <td class="cell-share">
               <!-- HANDBOOK Copy a class link without opening the class
                    section: getting-people-in
+                   moment: setting-up
                    roles: school_admin, teacher
                    place: classes
                    keywords: copy, link, share, join, classes
@@ -769,6 +776,7 @@ function exportCsv() {
             <td class="cell-action">
               <!-- HANDBOOK Start a class session from the list
                    section: running-classes
+                   moment: every-lesson
                    roles: school_admin, teacher
                    place: classes
                    keywords: play, session, class, start, lesson

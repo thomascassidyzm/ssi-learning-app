@@ -29,6 +29,20 @@ export const HANDBOOK_SECTIONS = [
   'your-own-account',
 ]
 
+// HANDBOOK MOMENTS (Tom, 2026-09-16: "the whole list is a bit overwhelming").
+// WHEN you reach for a capability, in frequency order — the Handbook's PRIMARY
+// grouping. The six sections above are what a capability is ABOUT and stay as
+// the compendium's index behind "Read the lot"; a moment is when you need it,
+// which is what a teacher with a class in front of them is actually asking.
+// Exactly one per capability, lockstep-checked against handbook.ts like the
+// sections: a moment renamed on one side only FAILS rather than silently
+// dropping every entry carrying it off the page.
+export const HANDBOOK_MOMENTS = [
+  'setting-up',
+  'every-lesson',
+  'something-wrong',
+]
+
 // The handbook is the NON-LEARNER map: a leader, school admin, teacher or
 // tutor looking at what the dashboard can do. Learner-only walks belong to
 // the learner hub and are exempt from the handbook requirement.
@@ -110,6 +124,9 @@ export function validateHandbookEntry(entry) {
   const at = (msg) => errors.push(`${entry.path}: HANDBOOK "${entry.title}" — ${msg}`)
   if (!HANDBOOK_SECTIONS.includes(entry.section)) {
     at(`section "${entry.section || ''}" is not one of ${HANDBOOK_SECTIONS.join(', ')}`)
+  }
+  if (!HANDBOOK_MOMENTS.includes(entry.moment)) {
+    at(`moment "${entry.moment || ''}" is not one of ${HANDBOOK_MOMENTS.join(', ')} — say WHEN a reader reaches for this, not only what it is about`)
   }
   if (!entry.personas.length) at('roles: is required — say whose capability this is')
   for (const p of entry.personas) if (!PERSONAS.includes(p)) at(`unknown role "${p}"`)
@@ -255,6 +272,25 @@ export function gateSections(handbookSrc) {
   }
   for (const id of runtime) {
     if (!HANDBOOK_SECTIONS.includes(id)) failures.push(`LOCKSTEP: handbook.ts declares unknown section "${id}"`)
+  }
+  return { failures }
+}
+
+/**
+ * Gate 10b — MOMENT lockstep with the runtime, the same shape as gateSections.
+ * The page groups by moment first, so a moment declared on one side only would
+ * drop every entry under it out of the primary grouping without a word.
+ */
+export function gateMoments(handbookSrc) {
+  const failures = []
+  const m = handbookSrc.match(/HANDBOOK_MOMENTS\s*=\s*\[([\s\S]*?)\] as const/)
+  if (!m) return { failures: ['LOCKSTEP: handbook.ts no longer declares HANDBOOK_MOMENTS'] }
+  const runtime = [...m[1].matchAll(/id:\s*'([^']+)'/g)].map((x) => x[1])
+  for (const id of HANDBOOK_MOMENTS) {
+    if (!runtime.includes(id)) failures.push(`LOCKSTEP: handbook.ts is missing moment "${id}"`)
+  }
+  for (const id of runtime) {
+    if (!HANDBOOK_MOMENTS.includes(id)) failures.push(`LOCKSTEP: handbook.ts declares unknown moment "${id}"`)
   }
   return { failures }
 }
@@ -481,7 +517,43 @@ export function gateUniqueIds(walks) {
  * out of the .vue files themselves — so the prose ships from where the code
  * is, and cannot be edited into a lie without the compiler noticing.
  */
-export function assemblePack(walks, entries = []) {
+/**
+ * ANCHOR → ROUTE, DERIVED, NEVER AUTHORED (job #5, 2026-09-16).
+ *
+ * A page's own "Show me" list is every capability whose anchor element is
+ * actually ON that page. `place:` cannot answer that: it is one authored
+ * semantic name, and the 2026-09-16 audit (job #984·G) found 39 of 80
+ * school-leader entries whose place resolves to a route that does not contain
+ * their anchor at all. So the compiler resolves it from the two things that
+ * decide it — the router's own table, and the .vue import closure of each
+ * routed component. A route collapse elsewhere in the tree flows straight
+ * through here with nothing to re-author.
+ *
+ * An entry can legitimately land on several routes: a shared modal is on
+ * every page that mounts it, and that is the truth about where it lives.
+ */
+export function entryRoutesFrom(routerSrc, vueFiles) {
+  const table = routeTableFrom(routerSrc)
+  const toPath = (spec) => (spec.startsWith('@/') ? `packages/player-vue/src/${spec.slice(2)}` : spec)
+  const cache = new Map()
+  const closure = (spec) => {
+    if (!cache.has(spec)) cache.set(spec, new Set(vueImportClosure(toPath(spec), vueFiles).map((f) => f.path)))
+    return cache.get(spec)
+  }
+  const routesFor = new Map()
+  for (const r of table) {
+    if (!r.components.length) continue
+    for (const c of r.components) {
+      for (const p of closure(c)) {
+        if (!routesFor.has(p)) routesFor.set(p, new Set())
+        routesFor.get(p).add(r.path)
+      }
+    }
+  }
+  return routesFor
+}
+
+export function assemblePack(walks, entries = [], routesByFile = new Map()) {
   // The `checked:` stamp is build-time bookkeeping — the player has no use for
   // it, and shipping it would put a hash in front of every learner-facing clip
   // and into the pack's version hash on every re-pin. Strip it here, once, so
@@ -495,6 +567,7 @@ export function assemblePack(walks, entries = []) {
       id: e.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
       title: e.title,
       section: e.section,
+      moment: e.moment,
       personas: e.personas,
       keywords: e.keywords,
       place: { route: e.place },
@@ -503,6 +576,9 @@ export function assemblePack(walks, entries = []) {
       // the intelligence surface — read from the anchor's own namespace.
       surface: ANCHOR_SURFACES[e.attr] ?? 'schools',
       source: e.path,
+      // Every router path whose page actually renders this anchor. Derived,
+      // never authored — see entryRoutesFrom.
+      routes: [...(routesByFile.get(e.path) ?? [])].sort(),
       walk: e.walk ?? null,
       what: e.what,
       where: e.where,
@@ -571,6 +647,7 @@ export function runGates({
   failures.push(...gateRuntimeDenylist(runtimeSrc).failures)
   if (handbookSrc !== undefined) {
     failures.push(...gateSections(handbookSrc).failures)
+    failures.push(...gateMoments(handbookSrc).failures)
     failures.push(...gateRoleBadges(runtimeSrc, handbookSrc).failures)
     failures.push(...gatePlaceLinks(runtimeSrc, handbookSrc).failures)
   }

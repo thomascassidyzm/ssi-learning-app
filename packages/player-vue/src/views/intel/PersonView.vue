@@ -120,6 +120,7 @@ const flagReason = ref('')
 <template>
   <!-- HANDBOOK One person's story
        section: seeing-progress
+       moment: something-wrong
        roles: admin
        place: intel
        keywords: person, support, account, access, sign in, role, trial, flag, position, story

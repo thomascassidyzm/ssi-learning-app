@@ -133,6 +133,7 @@ const shellLine = computed(() => (data.value?.shells ?? []).map((s) => `${SHELL_
 <template>
   <!-- HANDBOOK Where in the world people are using us, and on what
        section: seeing-progress
+       moment: every-lesson
        roles: admin
        place: intel
        keywords: where, country, territory, device, phone, tablet, desktop, app, browser, web

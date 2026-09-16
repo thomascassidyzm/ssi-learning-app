@@ -156,6 +156,7 @@ defineExpose({ load })
 <template>
   <!-- HANDBOOK See and download your funder numbers
        section: seeing-progress
+       moment: setting-up
        roles: leader, admin
        place: node-home
        keywords: funder, report, numbers, minutes, monthly return, csv, download, registered, 16 to 24

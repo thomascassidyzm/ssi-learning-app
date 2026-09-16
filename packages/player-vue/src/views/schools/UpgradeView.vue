@@ -622,6 +622,7 @@ watch(currentUser, (user) => {
         <!-- Honest seats-vs-actual display (DECISION A, no gating). -->
         <!-- HANDBOOK When more people join than you have seats
              section: your-school
+             moment: something-wrong
              roles: school_admin, leader
              place: upgrade
              keywords: seats, over, run out, exceeded, too many, joined, paid, limit, blocked, locked
@@ -665,6 +666,7 @@ watch(currentUser, (user) => {
         <!-- Subscribed → edit seats in place (PATCH, monthly-oriented). -->
         <!-- HANDBOOK Change how many seats you pay for
              section: your-school
+             moment: setting-up
              roles: school_admin, leader
              place: upgrade
              keywords: seats, add, remove, more, fewer, change, update, billing, staff, grow
@@ -700,6 +702,7 @@ watch(currentUser, (user) => {
         <!-- Else → open the INITIAL inline checkout. -->
         <!-- HANDBOOK Subscribe your organisation
              section: your-school
+             moment: setting-up
              roles: leader
              place: upgrade
              keywords: subscribe, pay, upgrade, organisation, org, seats, learner seats, group, monthly, annual
@@ -832,6 +835,7 @@ watch(currentUser, (user) => {
         <!-- Else → open the INITIAL inline checkout. -->
         <!-- HANDBOOK Subscribe your school
              section: your-school
+             moment: setting-up
              roles: school_admin
              place: upgrade
              keywords: subscribe, pay, upgrade, seats, teacher seats, trial, monthly, annual, checkout, price
@@ -917,6 +921,7 @@ watch(currentUser, (user) => {
         </button>
         <!-- HANDBOOK Subscribe as a tutor
              section: your-school
+             moment: setting-up
              roles: teacher
              place: upgrade
              keywords: tutor, subscribe, pay, upgrade, freelance, single, monthly, annual, students

@@ -231,6 +231,7 @@ watch(currentUser, (u) => {
         </button>
         <!-- HANDBOOK Add a school to your programme
              section: your-school
+             moment: setting-up
              roles: leader
              place: schools-list
              keywords: add, new, school, create, programme, group, register
@@ -310,6 +311,7 @@ watch(currentUser, (u) => {
 
       <!-- HANDBOOK See every school in your programme
            section: seeing-progress
+           moment: setting-up
            roles: leader
            place: schools-list
            keywords: schools, all, list, programme, group, compare, search, sort, export
@@ -372,6 +374,7 @@ watch(currentUser, (u) => {
             </td>
             <!-- HANDBOOK Copy a school's joining links
                  section: getting-people-in
+                 moment: setting-up
                  roles: leader
                  place: schools-list
                  keywords: link, links, invite, admin, teacher, copy, join, code, chase
