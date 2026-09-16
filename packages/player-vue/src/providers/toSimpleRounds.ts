@@ -421,10 +421,14 @@ function* toSimpleRoundsGen(
     }
     if (cycles.length === 0) continue
 
+    // Carried from the generator's items; absent on a cached script written
+    // before the stamp existed (consumers then fall back to shape).
+    const revival = roundItems.find(i => typeof i.revival === 'boolean')?.revival
     rounds.push({
       roundNumber: roundNum,
       legoId: primaryLegoKey,
       seedId: primarySeedId,
+      ...(typeof revival === 'boolean' ? { revival } : {}),
       // Canonical LEGO text from intro item — avoids fragile cycle-ID scanning
       ...(introItem ? {
         legoTargetText: introItem.targetText,

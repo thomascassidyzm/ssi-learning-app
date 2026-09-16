@@ -1,3 +1,30 @@
+## 2026-09-16 — Both held fixes re-land, and the ceiling only ratchets down by hand (job #998)
+
+**Tom's ruling (11:59Z).** GO on both fixes held on 2026-09-14 for a diagnosis first: the player
+fix (job #644) and the linked-emails fix (job #646), re-merged through dev with the three
+single-row ceiling repairs the diagnosis names, and promoted to staging. Not to main: main ships
+on the weekly release.
+
+**How they re-landed.** By reverting the two hold reverts, not by re-merging the branches — the
+seed-gap half of #644 had already come back on its own through jobs #793 and #804, so bundle.ts
+and computePauseDuration.ts keep dev's chunked lookup and only the rest of the fix returns.
+
+**What the re-land found.** `LearningPlayer` asks for `t('player.audioSilentRun')`, but the
+original commit filed the string under `pronunciation` in eng.json and cym.json. The tap-to-retry
+banner — the whole visible half of "a silent run stops the player" — would have rendered its key,
+and the locale-parity gate was red on 21 locales against an enrolment naming `player.*`. A string
+is only shipped when the section the code names is the section it sits in.
+
+**The ceiling repair, and why it needed a transaction.** Three enrollments carry a ceiling at the
+course's final LEGO with the cursor 50+ seeds behind and zero belt skips — nba4191 `lit_for_eng`,
+knightghost1 `hrv_for_eng`, silverjfangio `hye_for_eng`. `course_enrollments_ratchet_highest_round`
+is monotonic by design and honours only an explicit reset to NULL, so an ordinary UPDATE that
+lowers the ceiling is silently discarded — it returns no error and changes nothing. Each row was
+repaired in one transaction: NULL the two ceiling columns, then name the cursor values so the
+trigger lifts the ceiling to exactly where the learner is. Before-state asserted per row, result
+read back per row, logged in `tools/job998-ceiling-repair-applied-log.json`; the script is
+`tools/job998-ceiling-repair.mjs`.
+
 ## 2026-09-16 — The comparison average is self-inclusive and structural: every class in scope counts, active or not (job #979)
 
 **Tom's ruling (10:05Z).** "The averages need to be logical to a teacher, not technically correct,
@@ -3866,3 +3893,41 @@ styling in the code.
 **Better × Simpler × Cheaper.** Better: three intel capabilities and the layout are clipped by
 walks that bind to real elements. Simpler: one selector helper instead of a second overlay, one
 offer mount for all ten pages instead of ten. Cheaper: two proof tests, no new surface, no new gate.
+
+## 2026-09-16 — Class Insights is told in school weeks (job #989)
+
+**Ruling (Tom).** "Today / 7 days / 30 days is the wrong primitive for schools who work in
+week-units." And: "We definitely need both the total in-app time and a measure of how much
+progress they're making. But easy, and simple to grok." And: "Play-as-class time = X, individual
+students time = Y, total effective learning time = X + Y." Comparison is the class's numbers beside
+the school's SAME numbers, never a computed ratio.
+
+**Better.** A school plans and reviews in weeks; a rolling seven days straddles two weeks of
+teaching and cannot be talked about in a staff meeting. Three plain numbers beside three plain
+numbers let a head of department see the gap themselves, where a single percentage decides for them
+and decides wrongly whenever the denominator is small.
+
+**Simpler.** Four windows become two and the measure dropdown disappears, because under a week
+there is nothing left to pick: a per-week rate over a one-week window is the count itself, and
+minutes is one of the three numbers already. The card replaces the picker.
+
+**Cheaper.** No new table, no new signal, no new endpoint — the week numbers come off the rows the
+rate engine already reads. Pupils' own minutes ride the same diary read as the class account, one
+extra tag on each row, and only when a week window asks for them.
+
+**Decisions taken inside the ruling.**
+- The default window is one constant: last week on a Monday or a Tuesday, this week from Wednesday.
+  A week one lesson old says nothing.
+- Monday is found in the school's own IANA zone, not a fixed offset. A fixed offset moves both
+  DST weekends by an hour.
+- New phrases is the CURSOR ADVANCE inside the week, not a count of what was played, so a week
+  spent consolidating reads zero new phrases and a healthy pile of minutes — the true shape of that
+  week. It is read off the class account's journey; a pupil racing ahead on their own account does
+  not move the class's cursor.
+- Y is capped: past 400 classes the pupils' diary is not read and the card says so, rather than
+  reporting zero individual practice as if it were a fact.
+- The cohort is job #979b's fixed, self-inclusive set, unchanged.
+
+**Gap.** Y is unexercised against live data: Ysgol Cas-gwent, the only school with real volume,
+has no student class tags at all — it plays entirely from the front, so Y is a true 0 there. The
+X/Y split is covered by unit tests only until a school with pupil accounts practises.

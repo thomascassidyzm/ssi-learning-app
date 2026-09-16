@@ -12,13 +12,18 @@
  * the post-voice2 linger) there is no stall watchdog to notice, which is
  * exactly why it was intermittent.
  *
- * These tests pin the two halves of the fix, and above all the distinction
- * between them: an OUTSIDE pause resumes on return to the foreground, a
- * LEARNER pause stays paused. A player that un-pauses itself against the
- * learner is a worse bug than the one being fixed.
+ * RULING CHANGE (Tom, 2026-09-14). The 2026-08-09 fix recorded the
+ * interruption and auto-resumed on return to the foreground. Two forum reports
+ * showed what that costs: with the timers left armed, the stall watchdog and
+ * the pause trim timer kept ADVANCING a session nobody could hear (the car's
+ * bluetooth dropped, the phone was on silent, "enormous progress" the learner
+ * never made), and the recovery then un-paused it. An outside pause is now a
+ * pause: the engine freezes in place, lands isPlaying=false, the conductor
+ * mirrors that into userPaused, and only the learner's tap resumes. These
+ * tests pin that — and that no timer can move a frozen machine.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { SimplePlayer, type Round, type AudioInterruptedEvent } from './SimplePlayer'
+import { SimplePlayer, type Round, type AudioInterruptedEvent, type AudioFailedEvent } from './SimplePlayer'
 import { PlayerConductor, type ConductorEngine } from './PlayerConductor'
 
 interface MockAudio {
@@ -166,12 +171,13 @@ describe('SimplePlayer — outside audio interruptions', () => {
     setVisibility('hidden')
     await interruptAfterGrace(mockAudio)
 
-    expect(player.hasPendingInterruption).toBe(true)
     expect(events).toHaveLength(1)
     expect(events[0].phase).toBe('prompt')
     expect(events[0].hidden).toBe(true)
-    // The engine NEVER self-resumes — recovery is the conductor's call.
-    expect(player.currentState.isPlaying).toBe(true)
+    // An outside pause IS a pause: the engine lands paused, in place.
+    expect(player.currentState.isPlaying).toBe(false)
+    expect(player.currentState.phase).toBe('prompt')
+    expect(player.currentState.cycleIndex).toBe(0)
   })
 
   it('records an interruption that lands during the SILENT pause clip', async () => {
@@ -210,7 +216,6 @@ describe('SimplePlayer — outside audio interruptions', () => {
     await vi.advanceTimersByTimeAsync(0)
 
     expect(events).toHaveLength(0)
-    expect(player.hasPendingInterruption).toBe(false)
   })
 
   it('notices a dropped pause event on return to the foreground (silent clip)', async () => {
@@ -240,7 +245,7 @@ describe('SimplePlayer — outside audio interruptions', () => {
   })
 })
 
-describe('PlayerConductor — resuming after an interruption', () => {
+describe('An outside pause is a pause — nothing resumes or advances on its own', () => {
   let mockAudio: MockAudio
 
   beforeEach(() => {
@@ -257,7 +262,7 @@ describe('PlayerConductor — resuming after an interruption', () => {
     setVisibility('visible')
   })
 
-  it('external pause + return to visible => resumes', async () => {
+  it('lands the conductor in userPaused and a return to visible changes nothing', async () => {
     const player = new SimplePlayer([makeRound()])
     const conductor = new PlayerConductor(player as unknown as ConductorEngine, { devGuard: false })
 
@@ -267,98 +272,100 @@ describe('PlayerConductor — resuming after an interruption', () => {
 
     setVisibility('hidden')
     await interruptAfterGrace(mockAudio)
-    expect(conductor.currentState).toEqual({ kind: 'playing' })
+    expect(conductor.currentState).toEqual({ kind: 'userPaused' })
+    expect(player.currentState.isPlaying).toBe(false)
 
-    // Back in the app — this is what the visibilitychange wiring calls.
+    // Back in the app. This used to be the auto-resume trigger.
     setVisibility('visible')
-    conductor.resumeAfterInterruption()
+    document.dispatchEvent(new Event('visibilitychange'))
+    await vi.advanceTimersByTimeAsync(5_000)
+
+    expect(player.currentState.isPlaying).toBe(false)
+    expect(mockAudio.play.mock.calls.length).toBe(playsBefore)
+    expect(conductor.currentState).toEqual({ kind: 'userPaused' })
+  })
+
+  it('the stall watchdog cannot advance a session paused from outside (the phantom-progress path)', async () => {
+    // FAILS on the pre-fix engine: the interruption was only recorded, the
+    // 10s stall watchdog fired, SKIPPED the prompt as unheard, and play()ed
+    // the pause clip and then voice1 — the session "determinedly" carried on.
+    const player = new SimplePlayer([makeRound(), makeRound('S0001L02')])
+    const failed: AudioFailedEvent[] = []
+    player.on('audio_failed', (e) => failed.push(e as AudioFailedEvent))
+
+    player.play()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(player.currentState.phase).toBe('prompt')
+    const playsBefore = mockAudio.play.mock.calls.length
+
+    await interruptAfterGrace(mockAudio)
+    await vi.advanceTimersByTimeAsync(60_000)
+
+    expect(player.currentState.phase).toBe('prompt')
+    expect(player.currentState.roundIndex).toBe(0)
+    expect(player.currentState.isPlaying).toBe(false)
+    expect(failed).toHaveLength(0)
+    expect(mockAudio.play.mock.calls.length).toBe(playsBefore)
+  })
+
+  it('the pause trim timer cannot end a PAUSE phase interrupted from outside', async () => {
+    const player = new SimplePlayer([makeRound()])
+
+    player.play()
+    await vi.advanceTimersByTimeAsync(0)
+    mockAudio._handlers.ended?.() // prompt finished → pause phase (4000ms)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(player.currentState.phase).toBe('pause')
+    const playsBefore = mockAudio.play.mock.calls.length
+
+    await interruptAfterGrace(mockAudio)
+    await vi.advanceTimersByTimeAsync(20_000)
+
+    expect(player.currentState.phase).toBe('pause')
+    expect(player.currentState.isPlaying).toBe(false)
+    expect(mockAudio.play.mock.calls.length).toBe(playsBefore)
+  })
+
+  it("the learner's tap replays the current cycle from the prompt", async () => {
+    const player = new SimplePlayer([makeRound()])
+    const conductor = new PlayerConductor(player as unknown as ConductorEngine, { devGuard: false })
+
+    conductor.request((e) => e.play())
+    await vi.advanceTimersByTimeAsync(0)
+    mockAudio._handlers.ended?.()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(player.currentState.phase).toBe('pause')
+    await interruptAfterGrace(mockAudio)
+    expect(conductor.currentState).toEqual({ kind: 'userPaused' })
+    const playsBefore = mockAudio.play.mock.calls.length
+
+    conductor.request((e) => e.resume())
     await vi.advanceTimersByTimeAsync(0)
 
     expect(player.currentState.isPlaying).toBe(true)
     expect(player.currentState.phase).toBe('prompt')
     expect(mockAudio.play.mock.calls.length).toBeGreaterThan(playsBefore)
-    expect(mockAudio.paused).toBe(false)
-    expect(player.hasPendingInterruption).toBe(false)
     expect(conductor.currentState).toEqual({ kind: 'playing' })
   })
 
-  it('learner pause + return to visible => stays paused', async () => {
+  it('a learner pause after an interruption stays a pause', async () => {
     const player = new SimplePlayer([makeRound()])
     const conductor = new PlayerConductor(player as unknown as ConductorEngine, { devGuard: false })
 
     conductor.request((e) => e.play())
     await vi.advanceTimersByTimeAsync(0)
+    await interruptAfterGrace(mockAudio)
     conductor.request((e) => e.pause())
-    await vi.advanceTimersByTimeAsync(0)
-    expect(conductor.currentState).toEqual({ kind: 'userPaused' })
     const playsBefore = mockAudio.play.mock.calls.length
 
-    // Backgrounded and returned — nothing about that is consent to play.
     setVisibility('hidden')
     await vi.advanceTimersByTimeAsync(1000)
     setVisibility('visible')
-    conductor.resumeAfterInterruption()
-    await vi.advanceTimersByTimeAsync(0)
+    document.dispatchEvent(new Event('visibilitychange'))
+    await vi.advanceTimersByTimeAsync(5_000)
 
     expect(player.currentState.isPlaying).toBe(false)
     expect(mockAudio.play.mock.calls.length).toBe(playsBefore)
     expect(conductor.currentState).toEqual({ kind: 'userPaused' })
-  })
-
-  it('a learner pause AFTER an interruption wins — the return does not un-pause them', async () => {
-    // The crux: the interruption is recorded, then the learner deliberately
-    // pauses (lock-screen, in-app). Coming back must leave them paused.
-    const player = new SimplePlayer([makeRound()])
-    const conductor = new PlayerConductor(player as unknown as ConductorEngine, { devGuard: false })
-
-    conductor.request((e) => e.play())
-    await vi.advanceTimersByTimeAsync(0)
-    setVisibility('hidden')
-    await interruptAfterGrace(mockAudio)
-    expect(player.hasPendingInterruption).toBe(true)
-
-    conductor.request((e) => e.pause())
-    expect(player.hasPendingInterruption).toBe(false)
-
-    const playsBefore = mockAudio.play.mock.calls.length
-    setVisibility('visible')
-    conductor.resumeAfterInterruption()
-    await vi.advanceTimersByTimeAsync(0)
-
-    expect(player.currentState.isPlaying).toBe(false)
-    expect(mockAudio.play.mock.calls.length).toBe(playsBefore)
-  })
-
-  it('resumeAfterInterruption is a no-op with nothing to recover (no double-play)', async () => {
-    const player = new SimplePlayer([makeRound()])
-    const conductor = new PlayerConductor(player as unknown as ConductorEngine, { devGuard: false })
-
-    conductor.request((e) => e.play())
-    await vi.advanceTimersByTimeAsync(0)
-    const playsBefore = mockAudio.play.mock.calls.length
-
-    conductor.resumeAfterInterruption()
-    conductor.resumeAfterInterruption()
-    await vi.advanceTimersByTimeAsync(0)
-
-    expect(mockAudio.play.mock.calls.length).toBe(playsBefore)
-    expect(player.currentState.phase).toBe('prompt')
-  })
-
-  it('recovers exactly once — a second call after a recovery does nothing', async () => {
-    const player = new SimplePlayer([makeRound()])
-    const conductor = new PlayerConductor(player as unknown as ConductorEngine, { devGuard: false })
-
-    conductor.request((e) => e.play())
-    await interruptAfterGrace(mockAudio)
-
-    conductor.resumeAfterInterruption()
-    await vi.advanceTimersByTimeAsync(0)
-    const playsAfterRecovery = mockAudio.play.mock.calls.length
-
-    conductor.resumeAfterInterruption()
-    await vi.advanceTimersByTimeAsync(0)
-
-    expect(mockAudio.play.mock.calls.length).toBe(playsAfterRecovery)
   })
 })
