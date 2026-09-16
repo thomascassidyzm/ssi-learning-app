@@ -18,9 +18,9 @@
     "phrases",
     "total",
     "classes",
-    "quiet",
     "voice",
-    "pause"
+    "pause",
+    "journey"
   ],
   "steps": [
     {
@@ -57,35 +57,19 @@
     },
     {
       "anchor": "insights-more",
-      "say": "**More about this level** keeps the three four-week questions off the first screen. Tap it to open them.",
+      "say": "**More about this level** keeps the journey question off the first screen — how far through the course your classes are, and where most of them stop. Tap it to open.",
       "advance": {
         "on": "next"
       },
       "checked": "e7777d92.91bc482a"
     },
     {
-      "anchor": "insights-org-practising",
-      "say": "Open **More about this level** for the three questions over the last four weeks. **Practising** answers whether your classes are doing it: how many practised together this week against last week, and the phrases practised each day.",
-      "advance": {
-        "on": "next"
-      },
-      "checked": "27fe00c8.490c5f0b"
-    },
-    {
-      "anchor": "insights-org-quiet",
-      "say": "**Quiet** is the half you act on: which classes practised before and have stopped, how long ago, and which have never started. Open a class row to see where it stopped.",
-      "advance": {
-        "on": "next"
-      },
-      "checked": "4a8354a5.cc9d58fe"
-    },
-    {
       "anchor": "insights-org-journey",
-      "say": "**Journey** shows where in the course each class has got to, as the last phrase it played in both languages, and the funnel shows the sentence most classes stop before. Class rows run furthest first.",
+      "say": "**Journey** shows where in the course each class has got to, as the last phrase it played in both languages, and the funnel shows the sentence most classes stop before. Nothing here is ranked.",
       "advance": {
         "on": "next"
       },
-      "checked": "ea10e603.724b2c8e"
+      "checked": "28e6edf7.1a829f31"
     },
     {
       "anchor": "insights-voice-pause",

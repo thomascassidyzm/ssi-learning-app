@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `99d5ecc28093` · generated 2026-09-16 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `3922acdc7fd9` · generated 2026-09-16 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -759,14 +759,14 @@ Moment: every-lesson · section: seeing-progress · roles: school_admin · ancho
 
 Moment: every-lesson · section: seeing-progress · roles: school_admin, leader, admin · anchor: `insights-more` · in `packages/player-vue/src/views/admin/NodeInsightsView.vue`
 
-**What it's for.** The three questions about this level — are they doing it, who has stopped, and where in the course each class has got to — kept off the first screen so the card and the class list can be read at a glance.
+**What it's for.** Where in the course this level's classes have got to, and the point most of them stop before — kept off the first screen so the card and the class list can be read at a glance.
 
 **Where it is.** **More about this level**, under the class list on any level's insights page. Tap it to open.
 
 1. Tap the line to open it.
-2. Read the three questions, each answered in a sentence with its own small chart underneath.
+2. Read the journey question, answered in a sentence with its funnel underneath.
 
-**Worth knowing.** These count the last four weeks, not the school week the card above counts, and nothing in them compares you with anyone else.
+**Worth knowing.** It reads the same course the card above reads. Whether classes are practising, and which have gone quiet, are answered by the card and the class list above rather than asked again here — they used to be, counted over a different four weeks, and the two answers disagreed. An organisation with no classes anywhere sees the people question here instead, which is the only one that can apply to it.
 
 ## Move a teacher to another class
 
@@ -1592,13 +1592,12 @@ Moment: every-lesson · section: seeing-progress · roles: leader, school_admin 
 
 **What it's for.** Where in the course your classes have got to, shown as the last phrase each class played, and the point most of them stop before. An organisation with no classes does not see this question.
 
-**Where it is.** The **Journey** question on any level's insights page, under Quiet.
+**Where it is.** The **Journey** question under **More about this level** on any level's insights page. It is the only question there, because the card and the class list above it answer the other two.
 
 1. Read the sentence for how many classes have started, how far the furthest have got and where most stop.
 2. Read the funnel: each step is a sentence of the course, and the bar is how many classes have reached it.
-3. Read the class rows, furthest first, for each class's own position.
 
-**Worth knowing.** A position is the phrase the class last played, in both languages. A sentence is one of the course's own sentences; the count out of the total says how far along that is.
+**Worth knowing.** A position is the phrase the class last played, in both languages. A sentence is one of the course's own sentences; the count out of the total says how far along that is. No class is named or ranked here: there is no order of merit to read off it, and the list on the page above is ordered by who has been quiet longest. It reads the same course the card above it reads.
 
 ## Where in the world people are using us, and on what
 
@@ -1659,33 +1658,17 @@ Moment: something-wrong · section: seeing-progress · roles: admin · anchor: `
 
 **Worth knowing.** When fewer than five real people have practised a course, the page says **too few to say** rather than showing a number. That is the truth about the course, not a fault in the page.
 
-## Which classes have gone quiet
-
-Moment: something-wrong · section: seeing-progress · roles: leader, school_admin · anchor: `insights-org-quiet` · in `packages/player-vue/src/insight/OrgIntelPanel.vue`
-
-**What it's for.** The half you act on: which classes practised before and have stopped, how long ago, and which have never started at all. An organisation with no classes does not see this question.
-
-**Where it is.** The **Quiet** question on any level's insights page, under Practising.
-
-1. Read the sentence for how many classes have gone quiet and how many have never started.
-2. Read the bars for how long since each class last practised.
-3. Open a class row to see where it stopped.
-
-**Worth knowing.** Practised this week counts any sign of practice, a phrase reached in a lesson or the course opened and progress saved. The Practising figure above counts phrases practised only, so it can be lower.
-
 ## Which classes practised this week
 
 Moment: every-lesson · section: seeing-progress · roles: leader, school_admin · anchor: `insights-org-practising` · in `packages/player-vue/src/insight/OrgIntelPanel.vue`
 
-**What it's for.** Whether your classes are actually doing it: how many practised together in the last seven days against the seven before, how many phrases they practised, and how many people practised on their own account — a count, never a name. An organisation with no classes reads only the people line here, asked as how many of your people practised.
+**What it's for.** Whether the people under an organisation that runs no classes are actually doing it: how many practised on their own account in the last seven days against the seven before, and how many minutes between them — a count, never a name.
 
-**Where it is.** The **Practising** question under **More about this level** on any level's insights page.
+**Where it is.** Under **More about this level** on the insights page of an organisation with no classes anywhere below it. A school or a group with classes does not see this question: the card at the top of its page answers it, in school weeks, and the class list under the card says which classes those minutes came from.
 
 1. Read the sentence for this week against last week.
-2. Read the line for how many phrases were practised each day over the last four weeks.
-3. Read the class rows for which classes practised, when they last practised together and where in the course they are.
 
-**Worth knowing.** A class's minutes are time in the app on its own class account, the gaps between phrases included, the same number its class page shows. People's own-account minutes are counted in the sentence and never listed by name.
+**Worth knowing.** People's own-account minutes are counted in the sentence and never listed by name.
 
 ## Which courses are worth attention
 

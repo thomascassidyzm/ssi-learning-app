@@ -29,7 +29,7 @@
 // too despite the name. No auth uid appears in the payload.
 // ============================================================================
 
-import type { MetricRow, ProsodyAgg, MasteryState } from './vadUptake'
+import type { MetricRow, ProsodyAgg, MasteryState, VadSummary } from './vadUptake'
 
 /** One class under the requested scope. */
 export interface VadScopeClass {
@@ -76,6 +76,32 @@ interface WirePayload {
   metrics: WireMetricRow[]
   prosody: Record<string, ProsodyAgg>
   prosodyAvailable: boolean
+  truncated: boolean
+}
+
+/**
+ * THE INSIGHTS PATH (Tom, 2026-09-16 16:31Z: "nothing in Insights names a
+ * pupil, on the glance or behind a tap"). The teacher's and leader's pages ask
+ * for this shape and no other: the summary and the per-class uptake, both
+ * computed server-side, with no roster, no names and no metric rows to hide.
+ * Hiding rows in the component was not enough — one leader's page received 86
+ * pupil names and 537 learner-keyed rows it never drew.
+ */
+export interface VadAggregateClass {
+  classId: string
+  className: string
+  courseCode: string | null
+  total: number
+  withData: number
+  uptake: number | null
+  legoSeries: number
+  medianLatency: number | null
+}
+
+export interface VadAggregatePayload {
+  scope: { kind: 'group' | 'class' | 'learner'; id: string; label: string; total: number; classes: { classId: string; className: string; courseCode: string | null; total: number }[] }
+  summary: VadSummary
+  classUptake: VadAggregateClass[]
   truncated: boolean
 }
 
@@ -153,6 +179,43 @@ export function adaptVadScopePayload(body: WirePayload): VadScopePayload {
     metricsByLearner,
     prosodyByLearner: new Map(Object.entries(body.prosody ?? {})),
     prosodyAvailable: body.prosodyAvailable !== false,
+    truncated: body.truncated === true,
+  }
+}
+
+/**
+ * Fetch one scope's VAD read as AGGREGATES ONLY — the call the Insights pages
+ * make. `courseCode` narrows to the course the card above is reading, so the
+ * panel cannot report four classes while the card reports one.
+ *
+ * A 403 is a real answer here too, and says so in the same words.
+ */
+export async function fetchVadAggregate(
+  target: VadTarget,
+  authToken?: string | null,
+  opts: { courseCode?: string | null } = {},
+): Promise<VadAggregatePayload> {
+  const qs = `${queryFor(target)}&aggregate=1${opts.courseCode ? `&courseCode=${encodeURIComponent(opts.courseCode)}` : ''}`
+  const res = await fetch(`/api/org/vad?${qs}`, {
+    headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+  })
+  if (!res.ok) {
+    let message = `VAD read failed (${res.status})`
+    if (res.status === 403) message = 'You do not have access to this scope.'
+    else if (res.status === 404) message = 'That scope no longer exists.'
+    else {
+      try {
+        const body = await res.json()
+        if (body?.error) message = String(body.error)
+      } catch { /* keep the status-derived message */ }
+    }
+    throw new Error(message)
+  }
+  const body = (await res.json()) as VadAggregatePayload
+  return {
+    scope: body.scope,
+    summary: body.summary,
+    classUptake: body.classUptake ?? [],
     truncated: body.truncated === true,
   }
 }

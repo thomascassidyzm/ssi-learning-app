@@ -1,9 +1,11 @@
 {
-  "$about": "Clip coverage registry, read by tools/walkthrough/compile.mjs gate 13 (job #854, 2026-09-15). Every HANDBOOK capability is stepped by a walk, or listed here under capabilities.obvious with a sentence on why nobody needs showing, or under capabilities.missing as honest backlog. Every routed page carries an anchor or is listed under pages. The gate fails the build on anything in none of those, and on a line here whose subject has since gained a walk or an anchor \u2014 remove the line, the debt is paid. Never add a line to silence the gate for something that genuinely needs showing: that is what missing is for, with a note.",
+  "$about": "Clip coverage registry, read by tools/walkthrough/compile.mjs gate 13 (job #854, 2026-09-15). Every HANDBOOK capability is stepped by a walk, or listed here under capabilities.obvious with a sentence on why nobody needs showing, or under capabilities.missing as honest backlog. Every routed page carries an anchor or is listed under pages. The gate fails the build on anything in none of those, and on a line here whose subject has since gained a walk or an anchor — remove the line, the debt is paid. Never add a line to silence the gate for something that genuinely needs showing: that is what missing is for, with a note.",
   "capabilities": {
-    "obvious": {},
+    "obvious": {
+      "insights-org-practising": "Job #32, 2026-09-16: \"Which classes practised this week\" now mounts only on the insights page of an organisation that runs no classes anywhere below it, where it is the whole page — one question, one sentence, nothing to find. Every school and group answers it with the card and the class list above, which the reading-insights walk steps on, so a step here would point at an element those personas never see."
+    },
     "missing": {
-      "report-bug-thanks": "Backlog since 2026-09-15 (job #882): \"See that your report arrived\" \u2014 teacher/school_admin/leader on settings. The Got it, thank you line only mounts after a real Send, and a walk must never file a real bug report, so no honest step can anchor to it. The report-a-bug-from-settings walk describes it in its closing card instead."
+      "report-bug-thanks": "Backlog since 2026-09-15 (job #882): \"See that your report arrived\" — teacher/school_admin/leader on settings. The Got it, thank you line only mounts after a real Send, and a walk must never file a real bug report, so no honest step can anchor to it. The report-a-bug-from-settings walk describes it in its closing card instead."
     }
   },
   "pages": {

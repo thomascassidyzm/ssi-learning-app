@@ -29,6 +29,18 @@ import { useI18n } from '@/composables/useI18n'
 
 const { t } = useI18n()
 
+/** One class's uptake, summarised server-side; no learner behind it. */
+export interface VadPanelClassUptake {
+  classId: string
+  className: string
+  courseCode: string | null
+  total: number
+  withData: number
+  uptake: number | null
+  legoSeries: number
+  medianLatency: number | null
+}
+
 /** A class row for the class-by-class breakdown. Omit to hide that table. */
 export interface VadPanelClass {
   classId: string
@@ -53,11 +65,19 @@ const props = withDefaults(defineProps<{
   truncated?: boolean
   /** Insights never publishes a pupil (Tom, 2026-09-16): the uptake stays, the named rows do not. */
   hideLearners?: boolean
+  /**
+   * The class-by-class uptake ALREADY SUMMARISED, by the server, for a caller
+   * that was never sent a learner id to summarise from (the Insights path:
+   * GET /api/org/vad?aggregate=1). Given this, the table draws from it and the
+   * learner maps above are not needed at all.
+   */
+  classUptake?: VadPanelClassUptake[] | null
 }>(), {
   isLoading: false,
   error: null,
   classes: () => [],
   truncated: false,
+  classUptake: null,
 })
 
 const emit = defineEmits<{ (e: 'open-learner', learnerId: string): void }>()
@@ -130,7 +150,9 @@ const latencyResolved = computed((): ResolvedInsight => {
 })
 
 // ---- widget 3: uptake by class (table) -------------------------------------
-const showClassTable = computed(() => (props.classes?.length ?? 0) > 1 && !!props.metricsByLearner)
+const showClassTable = computed(() =>
+  (props.classUptake?.length ?? 0) > 1
+  || ((props.classes?.length ?? 0) > 1 && !!props.metricsByLearner))
 const classTableSpec = computed((): InsightSpec<'table'> => ({
   widget: 'table',
   query: { metric: 'vadUptake', frame: 'world' },
@@ -155,24 +177,30 @@ const CLASS_COLUMNS = computed<TableData['columns']>(() => [
 ])
 const classTableResolved = computed((): ResolvedInsight => {
   const rows: TableData['rows'] = []
+  const cell = (c: { classId: string; className: string; courseCode: string | null; withData: number; total: number; uptake: number | null; legoSeries: number; medianLatency: number | null }) => ({
+    id: c.classId,
+    tone: (c.withData === 0 ? 'warn' : 'neutral') as 'warn' | 'neutral',
+    cells: {
+      cls: c.className,
+      course: c.courseCode ?? '—',
+      uptake: t('insights.vad.classTableUptakeCell', '{withData} of {total}').replace('{withData}', String(c.withData)).replace('{total}', String(c.total)),
+      share: c.uptake === null ? 0 : Math.round(c.uptake * 100),
+      legos: c.legoSeries,
+      latency: c.medianLatency === null ? 0 : Number(c.medianLatency.toFixed(1)),
+    },
+  })
   const names = props.names
   const metrics = props.metricsByLearner
   const prosody = props.prosodyByLearner
-  if (names && metrics && prosody) {
+  if (props.classUptake?.length) {
+    // The Insights path: summarised by the server, because this browser was
+    // never given a learner to summarise.
+    for (const c of props.classUptake) rows.push(cell(c))
+    rows.sort((a, b) => Number(b.cells.share) - Number(a.cells.share))
+  } else if (names && metrics && prosody) {
     for (const cls of props.classes ?? []) {
       const s = summariseVad(cls.learnerIds, names, metrics, prosody)
-      rows.push({
-        id: cls.classId,
-        tone: s.withData === 0 ? 'warn' : 'neutral',
-        cells: {
-          cls: cls.className,
-          course: cls.courseCode ?? '—',
-          uptake: t('insights.vad.classTableUptakeCell', '{withData} of {total}').replace('{withData}', String(s.withData)).replace('{total}', String(s.total)),
-          share: s.uptake === null ? 0 : Math.round(s.uptake * 100),
-          legos: s.legoSeries,
-          latency: s.medianLatency === null ? 0 : Number(s.medianLatency.toFixed(1)),
-        },
-      })
+      rows.push(cell({ ...cls, withData: s.withData, total: s.total, uptake: s.uptake, legoSeries: s.legoSeries, medianLatency: s.medianLatency }))
     }
     rows.sort((a, b) => Number(b.cells.share) - Number(a.cells.share))
   }
