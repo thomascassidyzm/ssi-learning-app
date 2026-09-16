@@ -928,18 +928,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const cohortLabel = compareTo === 'global' || compareTo === 'global_all_courses'
       ? (compareTo === 'global_all_courses' ? `all ${cohortUnit} · all courses` : `all ${cohortUnit} on this course`)
       : `${cohortUnit} in ${compareAnc?.name ?? 'this scope'}`
-    // "Ysgol Cas-gwent Chepstow average · all 32 classes on this course" — the
-    // average's own denominator, spelled out. It names the FIXED cohort, never
-    // "active in this window": under the structural ruling the denominator no
-    // longer moves with the window, and saying so is what stops a teacher
-    // reading a changed average as a bug.
+    // "school average · 32 classes" — Tom's own form, 2026-09-16. The
+    // denominator, named, and nothing else: not "all" classes, because a class
+    // nobody has ever pressed play on is not in it, and not the course a second
+    // time, which the label beside it already says on the rungs that carry it.
     // The global rungs already carry their scope in the label itself — "Global
     // average · this course" — so appending it again read "Global average ·
     // this course · all 6 classes on this course" on staging. Name the scope
     // once, wherever it already lives.
-    const alreadyScoped = / this course$| all courses$/.test(compareLabel)
-    const cohortScopeNote = cohortCourse ? ' on this course' : ' across all courses'
-    const cohortSizeLine = `${compareLabel} · all ${cohortValues.length} ${cohortUnit}${alreadyScoped ? '' : cohortScopeNote}`
+    const cohortSizeLine = `${compareLabel} · ${cohortValues.length} ${cohortUnit}`
     // The week card carries its own denominator caption (`cohort.sizeLabel`),
     // counted off the cohort its own numbers were averaged over. Nothing to
     // set here — the two must not be written twice.

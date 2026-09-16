@@ -49,17 +49,17 @@ const valueSuffix = computed(() => (isPercent.value ? '%' : ''))
 // e.g. "RANG A 1 v SCHOOL AVG · LEGOs / WEEK" (uppercased via CSS).
 const captionRest = computed(() => `${props.data.average.label} · ${perLabel.value}`)
 
-// Cohort-size line under the headline: "school average · all 32 classes on
-// this course" (job #979 — the average is now self-inclusive over EVERY
-// class/school in scope, active or not, so its denominator is fixed for a
-// given school+course whoever is looking; naming it here makes that plain).
+// Cohort-size line under the headline: "school average · 32 classes" (job
+// #979 — the average is self-inclusive over every class or school in scope
+// that has STARTED, so its denominator is the same for every viewer and every
+// window; naming it here makes that plain).
 // Prefer the server's own rendering; fall back to assembling it from the raw
 // numbers for a caller that hasn't wired the line yet (e.g. the schools lane).
 const cohortSizeLine = computed(() => {
   if (props.data.cohortSizeLine) return props.data.cohortSizeLine
   const { cohortSize, cohortUnit, average } = props.data
   if (!cohortSize || !cohortUnit) return null
-  return `${average.label} · all ${cohortSize} ${cohortUnit}`
+  return `${average.label} · ${cohortSize} ${cohortUnit}`
 })
 
 // The chart caption comes from the server (windows+measures contract); the
