@@ -987,6 +987,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         // Started classes come first, longest since practice first; never-
         // started ones follow, because they have not "gone quiet" — they have
         // not begun. ───
+        // The faint "normal" line drawn across every per-class card on the
+        // leader's page: the mean over THIS node's own classes, week by week,
+        // so a class reads against the level it actually sits in. Sent once,
+        // not once per class — 27 identical copies is payload, not meaning.
+        classesNormal: classRow ? undefined : meanBars(entityAllClasses
+          .filter((c) => c.course_code === courseCode)
+          .map((c) => weeklyMinutesBars(rows, [c.id], buckets, (end) => cohortFor([c.id], firstPlay, end)))),
         classes: classRow ? undefined : entityAllClasses
           .filter((c) => c.course_code === courseCode)
           .map((c) => {
@@ -1007,6 +1014,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
               pupilMinutes: started ? w.pupilMinutes : null,
               totalMinutes: started ? w.totalMinutes : null,
               newPhrases: started ? w.newPhrases : null,
+              // That class's own twelve weeks, same buckets and same
+              // `cohortFor` as the card above, so a bar and the number beside
+              // it can never disagree. Absence before it started, never a zero.
+              bars: started ? weeklyMinutesBars(rows, [c.id], buckets, (end) => cohortFor([c.id], firstPlay, end)) : null,
             }
           })
           .sort((a, b) => {

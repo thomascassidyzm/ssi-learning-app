@@ -49,11 +49,20 @@ describe('WeekNumbersCard — one card, two columns, three numbers, no rank', ()
     expect(t).not.toMatch(/percentile|\b\d+(st|nd|rd|th)\b|\bof \d+\b/i)
   })
 
-  it('draws ONE thin temperature line under the total — the class over the cohort — and no chart furniture', () => {
-    const w = render({ data: block() })
-    expect(w.findAll('[data-testid="temperature-line"]')).toHaveLength(1)
-    expect(w.find('.wk-row-line').exists()).toBe(true)
+  it('draws ONE set of weekly bars with the cohort as a faint line — under the numbers, above the all-time line — and no chart furniture', () => {
+    const w = render({ data: block(), allTime: { started: true, sinceLabel: '2 Sep', totalMinutes: 60, phrasesReached: 40 } })
+    expect(w.findAll('[data-testid="week-bars"]')).toHaveLength(1)
+    expect(w.findAll('.wb-bar').length).toBeGreaterThan(0)
+    expect(w.find('.wb-normal').exists()).toBe(true)
     expect(w.text()).not.toMatch(/minutes \/ week|axis|legend/i)
+    const html = w.html()
+    expect(html.indexOf('wk-table')).toBeLessThan(html.indexOf('week-bars'))
+    expect(html.indexOf('week-bars')).toBeLessThan(html.indexOf('wk-alltime'))
+  })
+
+  it('the newest week is the emphasised bar — the week the numbers above it belong to', () => {
+    const w = render({ data: block({ bars: { weeks: ['a', 'b', 'c'], entity: [4, 5, 6], cohort: [1, 2, 3] } }) })
+    expect(w.findAll('.wb-bar').map((b) => b.classes().includes('now'))).toEqual([false, false, true])
   })
 
   it('says minutes the way a school does, in hours past the hour', () => {

@@ -74,10 +74,13 @@ const state = ref<EngineState | null>(null)
 // disagree with the card. Everything else this page used to open on lives
 // behind a tap below. ───
 const weekClasses = ref<WeekClassRow[] | null>(null)
+/** The faint normal line across every per-class card: the mean over this level's classes. */
+const weekClassesNormal = ref<(number | null)[] | null>(null)
 const weekLabel = ref<string>('')
 function onEngineData(json: Record<string, unknown> | null): void {
-  const week = json?.week as { classes?: WeekClassRow[]; label?: string } | null | undefined
+  const week = json?.week as { classes?: WeekClassRow[]; classesNormal?: (number | null)[]; label?: string } | null | undefined
   weekClasses.value = Array.isArray(week?.classes) ? week!.classes! : null
+  weekClassesNormal.value = Array.isArray(week?.classesNormal) ? week!.classesNormal! : null
   weekLabel.value = week?.label ? week.label.toLowerCase() : ''
 }
 const classLinkFor = (id: string): string => (member.value ? `/org/${id}/insights` : `/admin/classes/${id}/insights`)
@@ -313,6 +316,7 @@ const homeLink = computed(() => {
           :classes="weekClasses"
           :link-for="classLinkFor"
           :window-label="weekLabel"
+          :normal="weekClassesNormal"
         />
 
         <!-- EVERYTHING ELSE IS BEHIND A TAP. Kept, reachable, never on the
