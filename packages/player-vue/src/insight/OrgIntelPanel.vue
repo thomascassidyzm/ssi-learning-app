@@ -37,8 +37,6 @@ const props = defineProps<{
    * people reading is shown and the class words never appear (job #786).
    */
   classless?: boolean
-  /** The leader's page lists who has NOT practised, behind its own tap; the ranked people table is dentist energy there. */
-  hidePeople?: boolean
 }>()
 
 const { t } = useI18n()
@@ -108,7 +106,8 @@ const practisingResolved = computed<ResolvedInsight>(() => ({
   },
 }))
 const practisingRows = computed(() => (props.payload?.classes ?? []).filter((c) => c.phrasesThisWeek > 0 || c.phrasesLastWeek > 0))
-const peopleRows = computed(() => (props.payload?.people ?? []).filter((p) => p.minutesThisWeek > 0 || p.minutesLastWeek > 0))
+// No named people here, ever (Tom, 2026-09-16): pupils' own practice is
+// recorded, never published. The sentence above carries the count only.
 
 // ─── QUIET ──────────────────────────────────────────────────────────────────
 const bucketLabel: Record<QuietBucketId, () => string> = {
@@ -223,21 +222,22 @@ const journeyRows = computed(() => [...(props.payload?.classes ?? [])]
          keywords: practised, this week, last week, phrases, classes, people, minutes, adherence
          What it's for. Whether your classes are actually doing it: how many
          practised together in the last seven days against the seven before,
-         how many phrases they practised, and which people practised on their own
-         account and for how long. An organisation with no classes reads
-         only the people line here, asked as how many of your people practised.
-         Where it is. The **Practising** question at the top of any level's
-         insights page.
+         how many phrases they practised, and how many people practised on their
+         own account — a count, never a name. An organisation with no classes
+         reads only the people line here, asked as how many of your people
+         practised.
+         Where it is. The **Practising** question under **More about this level**
+         on any level's insights page.
          How you do it.
          1. Read the sentence for this week against last week.
          2. Read the line for how many phrases were practised each day over the
             last four weeks.
-         3. Read the class rows for who practised, when they last practised
-            together and where in the course they are.
-         4. Read the people rows for own-account minutes.
+         3. Read the class rows for which classes practised, when they last
+            practised together and where in the course they are.
          Worth knowing. A class's minutes are time in the app on its own class
          account, the gaps between phrases included, the same number its class
-         page shows. People's minutes are their own logins.
+         page shows. People's own-account minutes are counted in the sentence
+         and never listed by name.
          checked: d824eaac.c640230d
     -->
     <section class="oq" data-walk="insights-org-practising">
@@ -258,14 +258,6 @@ const journeyRows = computed(() => [...(props.payload?.classes ?? [])]
           <span class="oq-row-min">{{ formatPracticeMinutes(c.minutesThisWeek) }}</span>
           <span class="oq-row-num">{{ c.phrasesThisWeek }}<span class="oq-row-delta">{{ c.phrasesLastWeek }}</span></span>
         </router-link>
-      </div>
-      <div v-if="payload && peopleRows.length && !hidePeople" class="oq-rows">
-        <p class="oq-rows-title">{{ t('org.intel.practising.rowsPeople', 'People on their own account, minutes this week') }}</p>
-        <div v-for="p in peopleRows" :key="p.learnerId" class="oq-row oq-row-static">
-          <span class="oq-row-name">{{ p.name }}</span>
-          <span class="oq-row-when">{{ p.lastPractisedDay ?? '' }}</span>
-          <span class="oq-row-num">{{ p.minutesThisWeek }}<span class="oq-row-delta">{{ p.minutesLastWeek }}</span></span>
-        </div>
       </div>
     </section>
 

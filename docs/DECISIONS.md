@@ -4094,3 +4094,11 @@ code to both, the default is the same everywhere.
 hidden step has not been checked. Bucket [3] of the rescope and the eng_for_mar class at
 Sunrise, which sits outside the school's default course and so outside its list, are noted, not
 solved: a school running two courses keeps a small course picker for exactly that reason.
+
+**Tightened the same afternoon (Tom, 16:31Z): no per-pupil display anywhere in Insights.**
+Pupils having their own accounts is optional and everything is fine as-class, so the
+"who has not practised" list went the way of the ranked one, the named people table left the
+org questions, and the voice panel's named learner rows are hidden on this page. Per-pupil
+practice is RECORDED, never PUBLISHED: the session rows stay in the DB for later analysis, the
+students-on-their-own minutes still add into the class card as a class total, and the "17 of
+39 people practised" sentence keeps its count. Nothing in Insights names a pupil.

@@ -82,13 +82,10 @@ function onEngineData(json: Record<string, unknown> | null): void {
 }
 const classLinkFor = (id: string): string => (member.value ? `/org/${id}/insights` : `/admin/classes/${id}/insights`)
 
-// Who has NOT practised this week, by name — never by minutes. The ranked
-// people table was dentist energy; this is the half a leader acts on.
-const notPractised = computed(() => {
-  const people = orgIntel.value?.people ?? []
-  return people.filter((p) => p.minutesThisWeek === 0).map((p) => p.name).sort((a, b) => a.localeCompare(b))
-})
-const peopleCount = computed(() => orgIntel.value?.people.length ?? 0)
+// NO PER-PUPIL DISPLAY ANYWHERE IN INSIGHTS (Tom, 2026-09-16 16:31Z): pupils
+// having their own accounts is optional and everything is fine as-class. Per-
+// pupil practice is RECORDED, never PUBLISHED — the rows stay in the DB for
+// later analysis; nothing here renders a named pupil, ranked or otherwise.
 
 // ─── The node-home chrome: same rail + identity data, same endpoint the
 // node home reads. One light fetch per node; the org map doesn't churn, so
@@ -321,37 +318,6 @@ const homeLink = computed(() => {
         <!-- EVERYTHING ELSE IS BEHIND A TAP. Kept, reachable, never on the
              first screen: the three org questions, who has not practised,
              and voice & pause. -->
-        <!-- HANDBOOK Who has not practised this week
-             section: seeing-progress
-             moment: something-wrong
-             roles: school_admin, leader, admin
-             place: node-insights
-             keywords: not practised, quiet, students, pupils, people, this week, names
-             What it's for. The names of the people on their own accounts who have
-             not practised in the last seven days — the half you act on. By name,
-             never by minutes: this is not a league table.
-             Where it is. **Who has not practised this week**, under the class list on
-             a school's or group's insights page. Tap it to open.
-             How you do it.
-             1. Tap the line to open it.
-             2. Read the names. The count beside the title says how many of how many.
-             Worth knowing. Someone who practised for a minute is not on this list. A
-             school with no pupil accounts has nobody to list and says so.
-             checked: 340d2061.b0100a70
-        -->
-        <details v-if="!classless && !isClass" class="niv-more" data-walk="insights-not-practised">
-          <summary class="niv-more-sum">
-            <span class="niv-more-title">{{ t('org.insights.notPractisedTitle', 'Who has not practised this week') }}</span>
-            <span v-if="orgIntel" class="niv-more-count">{{ t('org.insights.notPractisedCount', '{n} of {total}').replace('{n}', String(notPractised.length)).replace('{total}', String(peopleCount)) }}</span>
-          </summary>
-          <p v-if="orgIntelLoading" class="niv-more-note">{{ t('org.intel.counting', 'Counting…') }}</p>
-          <p v-else-if="orgIntelError" class="niv-more-note">{{ orgIntelError }}</p>
-          <p v-else-if="peopleCount === 0" class="niv-more-note">{{ t('org.insights.noPeople', 'Nobody here practises on their own account yet.') }}</p>
-          <p v-else-if="notPractised.length === 0" class="niv-more-note">{{ t('org.insights.everyonePractised', 'Everyone has practised this week.') }}</p>
-          <ul v-else class="niv-names">
-            <li v-for="n in notPractised" :key="n">{{ n }}</li>
-          </ul>
-        </details>
 
         <!-- HANDBOOK More about this level
              section: seeing-progress
@@ -409,13 +375,13 @@ const homeLink = computed(() => {
              2. Tap **Voice and pause** at the bottom of the page.
              3. Read the uptake figure first — it is how many learners this is based
                 on.
-             4. Open a class or a learner within it to see the same reading at a
-                smaller scope.
-             Worth knowing. A learner with no microphone data is absent from these
-             figures rather than counted as a zero, so the denominator is always
-             stated. A class that practises from the front counts as one learner,
-             its own class account, so a school with no pupil accounts still has a
-             roster here.
+             4. Open a class to see the same reading at a smaller scope.
+             Worth knowing. Nobody is named here: the figures are counts over the
+             level, never a row per pupil. A learner with no microphone data is
+             absent from these figures rather than counted as a zero, so the
+             denominator is always stated. A class that practises from the front
+             counts as one learner, its own class account, so a school with no
+             pupil accounts still has a reading here.
              checked: 1fb9e27f.4cca086b
         -->
         <details class="niv-more" data-walk="insights-voice-pause">
@@ -433,6 +399,7 @@ const homeLink = computed(() => {
             :metrics-by-learner="vad?.metricsByLearner"
             :prosody-by-learner="vad?.prosodyByLearner"
             :truncated="vad?.truncated"
+            :hide-learners="true"
             @open-learner="openVadLearner"
           />
         </details>
@@ -497,9 +464,6 @@ const homeLink = computed(() => {
   font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--ink-muted, #8A8078);
 }
 .niv-more-note { margin: 0; font-size: 13.5px; color: var(--ink-secondary, #5b534c); }
-.niv-names { list-style: none; margin: 0; padding: 0; columns: 2; column-gap: 24px; font-size: 14px; color: var(--ink-primary, #2C2622); }
-.niv-names li { break-inside: avoid; padding: 3px 0; }
-@media (max-width: 560px) { .niv-names { columns: 1; } }
 
 .verbs { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 .verb-btn {

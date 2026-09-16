@@ -2119,14 +2119,13 @@
     "walkthrough.your-own-teaching-numbers.steps.1.terminal",
     "walkthrough.what-the-class-tools-page-counts.steps.0.terminal",
     "walkthrough.reading-insights.steps.9.say",
-    "walkthrough.reading-insights.steps.10.say",
-    "walkthrough.reading-insights.steps.10.terminal",
     "walkthrough.your-class-against-the-average.steps.4.say",
     "walkthrough.your-class-against-the-average.steps.5.say",
     "walkthrough.your-class-against-the-average.steps.5.terminal",
     "schools.handbookPage.nextThree",
     "schools.handbookPage.justMineAgain",
     "org.ui.walkOffer.showMeCount",
-    "player.audioSilentRun"
+    "player.audioSilentRun",
+    "walkthrough.reading-insights.steps.9.terminal"
   ]
 }
