@@ -517,11 +517,40 @@ export function weekNumbersForClassIds(
 }
 
 /**
- * The COHORT's three numbers — the mean over a FIXED denominator (job #979b,
- * kept): every member counts, including the quiet ones and including the
- * viewed class itself, so "the school average" is the school, not the school
- * minus whoever did nothing. A cohort of zero members has no numbers at all
- * rather than a zero that reads like a fact.
+ * COHORT FOR A WEEK — the ONE definition of who the average divides by
+ * (Tom via Watson, 2026-09-16). Every candidate class whose FIRST SESSION is
+ * on or before `weekEndMs`, the viewed class included on the same terms as any
+ * other. Three properties fall out of it, and all three are the point:
+ *
+ *   · a class that has NEVER played is in no denominator, in any week;
+ *   · a STARTED class that was quiet counts at its true value, which for a sum
+ *     is 0 — being quiet is a fact about the week, not grounds for exclusion
+ *     (job #982's rule, preserved exactly);
+ *   · the set only ever GROWS, and never retroactively: a class that first
+ *     played in week 8 is absent from weeks 1-7 rather than a zero in them, so
+ *     yesterday's bars say the same thing tomorrow.
+ *
+ * It is viewer-independent by construction — nothing here reads who is asking.
+ * The card, the weekly bars and the school series all call THIS; a second
+ * definition anywhere is a bug, not an optimisation.
+ */
+export function cohortFor(
+  candidateClassIds: string[],
+  firstPlayByClass: Map<string, number | null>,
+  weekEndMs: number,
+): string[] {
+  return candidateClassIds.filter((id) => {
+    const first = firstPlayByClass.get(id)
+    return typeof first === 'number' && first <= weekEndMs
+  })
+}
+
+/**
+ * The COHORT's three numbers — the mean over the cohort as `cohortFor` defines
+ * it. Job #979b's self-inclusion is kept: the viewed class is one of the
+ * members, so the average reads the same whoever opens it. A cohort of zero
+ * members has no numbers at all rather than a zero that reads like a fact —
+ * that is ABSENCE, and the card and the bars both render it as nothing.
  */
 export function meanWeekNumbers(members: WeekNumbers[]): WeekNumbers {
   if (members.length === 0) {
@@ -539,19 +568,43 @@ export function meanWeekNumbers(members: WeekNumbers[]): WeekNumbers {
 }
 
 /**
- * Weekly bars — total effective minutes (X + Y) per week bucket, oldest
- * first. A week with no play is a 0 and renders as an empty week; nothing is
- * interpolated across a gap, because a school that took half term off did
- * take half term off.
+ * Weekly bars — total effective minutes (X + Y) per week bucket, oldest first.
+ *
+ * TWO DIFFERENT NOTHINGS, and telling them apart is the whole job:
+ *   · 0 — this cohort existed that week and did not play. A real bar of zero
+ *     height, and a real fact about the week. Never interpolated across: a
+ *     school that took half term off did take half term off.
+ *   · null — ABSENCE. Nobody in the cohort had started playing yet, so there
+ *     is no number to draw and no zero to imply one. The chart leaves a gap.
+ *
+ * `cohortAt` is `cohortFor` bound to the candidates; pass it and each bucket
+ * is drawn over the cohort as it stood THAT week. Omit it and the bars are the
+ * given classes throughout, which is what the entity's own series wants once
+ * its own absence has been decided by the caller.
  */
 export function weeklyMinutesBars(
   rows: ScopedSessionRow[],
   classIds: string[],
   buckets: { startMs: number; endMs: number }[],
-): number[] {
+  cohortAt?: (weekEndMs: number) => string[],
+): (number | null)[] {
   return buckets.map((b) => {
-    const x = rangeMinutesByActor(rows, classIds, 'class', b.startMs, b.endMs)
-    const y = rangeMinutesByActor(rows, classIds, 'pupil', b.startMs, b.endMs)
+    const ids = cohortAt ? cohortAt(b.endMs) : classIds
+    if (ids.length === 0) return null
+    const x = rangeMinutesByActor(rows, ids, 'class', b.startMs, b.endMs)
+    const y = rangeMinutesByActor(rows, ids, 'pupil', b.startMs, b.endMs)
     return round1(x.minutes + y.minutes)
   })
+}
+
+/** Element-wise mean of bar series, absence-aware: a bucket every series is absent from stays absent. */
+export function meanBars(series: (number | null)[][]): (number | null)[] {
+  if (series.length === 0) return []
+  const len = Math.max(...series.map((s) => s.length))
+  const out: (number | null)[] = []
+  for (let i = 0; i < len; i++) {
+    const present = series.map((s) => s[i]).filter((v): v is number => typeof v === 'number')
+    out.push(present.length === 0 ? null : round1(present.reduce((a, b) => a + b, 0) / present.length))
+  }
+  return out
 }

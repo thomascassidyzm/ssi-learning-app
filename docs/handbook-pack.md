@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `919e66a26910` · generated 2026-09-16 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `5e7e1b529b13` · generated 2026-09-16 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -954,10 +954,10 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `insig
 2. Pick the **window**. **This week** runs from Monday morning to right now; **Last week** is the Monday to Sunday just gone. Those are the only two, because a school works in weeks.
 3. Read the three numbers. **Play as class** is time on the class's own account, the lesson from the front. **Students on their own** is time on their own accounts. **Total learning time** is those two added together.
 4. **New phrases** is how much new ground was reached for the first time that week. A week spent going back over old ground reads zero there and a healthy pile of minutes, which is exactly what that week was.
-5. Use **Compare to** to choose whose average sits in the second column. It is the mean of every class in that scope on this course, counted whether or not it has practised, and the class you are looking at is one of them — so it reads the same number whichever class you open it from.
+5. Use **Compare to** to choose whose average sits in the second column. It is the mean of every class in that scope that has STARTED on this course, counted whether or not it practised this week, and the class you are looking at is one of them — so it reads the same number whichever class you open it from. The line under it says how many.
 6. **Overview** takes you back to the same place's home page.
 
-**Worth knowing.** The two columns are plain numbers side by side. There is no score and no percentage, so you do the comparing yourself. The chart is one bar per week for the last twelve weeks, Monday-anchored, and a week with no play is an empty week. A class that practises from the front is counted through its own class account, so whole-class lessons show here the same as any other practice.
+**Worth knowing.** A class that was set up and has never played is in no average anywhere — counting it would read your school as less busy than it is. A class joins the average in the week it first plays and never leaves, so a new class starting does not change last month's figures. The two columns are plain numbers side by side: no score, no percentage, you do the comparing yourself. The chart is one bar per week for the last twelve weeks, Monday-anchored on your own clock. A week with no play is a bar of zero; a week before anyone had started is a gap, because there was nothing there to measure. A class that practises from the front is counted through its own class account, so whole-class lessons show here the same as any other practice.
 
 ## Remove a student from a class
 
@@ -1747,7 +1747,7 @@ Section: seeing-progress · roles: admin, leader, school_admin · anchor: `insig
 3. The block below puts this level's week beside the average's same week, as two columns of plain numbers.
 4. Switch between **This week** and **Last week**. On a Monday or a Tuesday the page opens on last week, because the week in progress is barely a lesson old.
 
-**Worth knowing.** Nothing here is a score, a target or a streak. A quiet week is allowed to read as a quiet week.
+**Worth knowing.** The week runs Monday 00:00 to Sunday night on UK time, so a Monday-morning lesson belongs to the week it was taught in. Nothing here is a score, a target or a streak. A quiet week is allowed to read as a quiet week.
 
 ## Work through setup at your own pace
 

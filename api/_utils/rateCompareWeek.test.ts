@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
+  cohortFor,
+  meanBars,
   weekNumbersForClassIds,
   meanWeekNumbers,
   newPhrasesInRange,
@@ -144,5 +146,76 @@ describe('weekly bars', () => {
       row({ class_id: 'c1', actor: 'class', started_at: MON + 2 * WEEK + 1000, duration_seconds: 1200 }),
     ]
     expect(weeklyMinutesBars(rows, ['c1'], buckets)).toEqual([20, 0, 20])
+  })
+})
+
+describe('cohortFor — one definition of who the average divides by', () => {
+  const W = (n: number) => MON + n * WEEK // start of week n, 0-indexed
+  const firstPlay = new Map<string, number | null>([
+    ['old', MON - 20 * WEEK],   // playing long before the chart starts
+    ['wk3', W(3) + 86_400_000], // first played in week 3
+    ['wk8', W(8) + 3_600_000],  // first played in week 8
+    ['never', null],            // set up, never played a session
+  ])
+  const all = ['old', 'wk3', 'wk8', 'never']
+  const at = (n: number) => cohortFor(all, firstPlay, W(n + 1)) // end of week n
+
+  it('a class that has never played is in NO denominator, in any week', () => {
+    for (let n = 0; n < 12; n++) expect(at(n)).not.toContain('never')
+  })
+
+  it('a class joins in the week it first plays, and never before', () => {
+    expect(at(2)).toEqual(['old'])
+    expect(at(3)).toEqual(['old', 'wk3'])
+    expect(at(7)).toEqual(['old', 'wk3'])
+    expect(at(8)).toEqual(['old', 'wk3', 'wk8'])
+  })
+
+  it('the set only ever GROWS — past weeks never change when a new class starts', () => {
+    const before = [0, 1, 2, 3, 4, 5, 6, 7].map((n) => at(n).join(','))
+    const withNewcomer = new Map(firstPlay).set('joined-today', MON + 11 * WEEK)
+    const after = [0, 1, 2, 3, 4, 5, 6, 7]
+      .map((n) => cohortFor([...all, 'joined-today'], withNewcomer, W(n + 1)).join(','))
+    expect(after).toEqual(before)
+  })
+
+  it('a STARTED class that was quiet stays in — being quiet is a fact, not an exit', () => {
+    // 'old' played before the chart and nothing since; it is still a member,
+    // and its true value in a silent week is 0 (job #982's rule, preserved).
+    expect(at(11)).toContain('old')
+    expect(weekNumbersForClassIds([], ['old'], W(11), W(12)).totalMinutes).toBe(0)
+  })
+
+  it('is viewer-independent — it reads nobody’s identity, only first-play dates', () => {
+    const asOneClass = cohortFor(all, firstPlay, W(9))
+    const asAnother = cohortFor([...all].reverse(), firstPlay, W(9))
+    expect([...asOneClass].sort()).toEqual([...asAnother].sort())
+  })
+
+  it('an id it has never heard of is not a member', () => {
+    expect(cohortFor(['ghost'], firstPlay, W(12))).toEqual([])
+  })
+})
+
+describe('bars — absence and zero are different nothings', () => {
+  const buckets = [0, 1, 2].map((i) => ({ startMs: MON + i * WEEK, endMs: MON + (i + 1) * WEEK }))
+
+  it('no cohort that week → null, so the chart leaves a gap', () => {
+    const firstPlay = new Map<string, number | null>([['c1', MON + 2 * WEEK + 1000]])
+    const rows = [row({ class_id: 'c1', started_at: MON + 2 * WEEK + 2000, duration_seconds: 600 })]
+    const bars = weeklyMinutesBars(rows, ['c1'], buckets, (end) => cohortFor(['c1'], firstPlay, end))
+    expect(bars).toEqual([null, null, 10])
+  })
+
+  it('a started cohort that did not play that week → 0, a real bar of zero height', () => {
+    const firstPlay = new Map<string, number | null>([['c1', MON - WEEK]])
+    const rows = [row({ class_id: 'c1', started_at: MON + 2 * WEEK + 2000, duration_seconds: 600 })]
+    const bars = weeklyMinutesBars(rows, ['c1'], buckets, (end) => cohortFor(['c1'], firstPlay, end))
+    expect(bars).toEqual([0, 0, 10])
+  })
+
+  it('meanBars averages only what is present, and keeps a fully-absent week absent', () => {
+    expect(meanBars([[null, 10, 20], [null, 20, null]])).toEqual([null, 15, 20])
+    expect(meanBars([])).toEqual([])
   })
 })

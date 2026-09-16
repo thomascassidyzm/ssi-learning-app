@@ -42,7 +42,7 @@
     },
     {
       "anchor": "insights-compare",
-      "say": "**Compare to** decides whose average sits beside yours. It divides by every class on the course, the quiet ones and this one included.",
+      "say": "**Compare to** decides whose average sits beside yours. It counts every class in that scope that has started on this course, this one included — a class that was set up and never played is in no average anywhere.",
       "advance": {
         "on": "next"
       },

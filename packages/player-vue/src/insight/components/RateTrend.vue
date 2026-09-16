@@ -24,9 +24,9 @@ import { buildRateTrendOption } from './rateTrendOption'
 
 const props = withDefaults(defineProps<{
   entityLabel: string
-  entity: number[]
+  entity: (number | null)[]
   averageLabel: string
-  average: number[]
+  average: (number | null)[]
   yLabel?: string        // the rate unit for the y-axis title, e.g. "LEGOs / week"
   periodDays?: number    // spacing between trend points — <1 = hourly, 1 daily, 7 weekly, 30 monthly x labels
 }>(), {

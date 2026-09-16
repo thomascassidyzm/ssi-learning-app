@@ -289,16 +289,22 @@ const metricDesc = computed(() => {
               that week. A week spent going back over old ground reads zero there and a
               healthy pile of minutes, which is exactly what that week was.
            5. Use **Compare to** to choose whose average sits in the second column. It
-              is the mean of every class in that scope on this course, counted whether
-              or not it has practised, and the class you are looking at is one of them —
-              so it reads the same number whichever class you open it from.
+              is the mean of every class in that scope that has STARTED on this course,
+              counted whether or not it practised this week, and the class you are
+              looking at is one of them — so it reads the same number whichever class
+              you open it from. The line under it says how many.
            6. **Overview** takes you back to the same place's home page.
-           Worth knowing. The two columns are plain numbers side by side. There is no
-           score and no percentage, so you do the comparing yourself. The chart is one
-           bar per week for the last twelve weeks, Monday-anchored, and a week with no
-           play is an empty week. A class that practises from the front is counted
-           through its own class account, so whole-class lessons show here the same as
-           any other practice.
+           Worth knowing. A class that was set up and has never played is in no average
+           anywhere — counting it would read your school as less busy than it is. A
+           class joins the average in the week it first plays and never leaves, so a new
+           class starting does not change last month's figures. The two columns are
+           plain numbers side by side: no score, no percentage, you do the comparing
+           yourself. The chart is one bar per week for the last twelve weeks,
+           Monday-anchored on your own clock. A week with no play is a bar of zero; a
+           week before anyone had started is a gap, because there was nothing there to
+           measure. A class that practises from the front is counted through its own
+           class account, so whole-class lessons show here the same as any other
+           practice.
            checked: d02609b0.1e86d15d
       -->
       <label v-if="showMeasurePicker" class="nre-field nre-field-wide" data-walk="insights-measure">
@@ -341,8 +347,9 @@ const metricDesc = computed(() => {
             columns of plain numbers.
          4. Switch between **This week** and **Last week**. On a Monday or a Tuesday the
             page opens on last week, because the week in progress is barely a lesson old.
-         Worth knowing. Nothing here is a score, a target or a streak. A quiet week is
-         allowed to read as a quiet week.
+         Worth knowing. The week runs Monday 00:00 to Sunday night on UK time, so a
+         Monday-morning lesson belongs to the week it was taught in. Nothing here is a
+         score, a target or a streak. A quiet week is allowed to read as a quiet week.
          checked: ac359fff.a9a3817c
     -->
     <div v-if="weekBlock" class="nre-widget-card" data-walk="insights-rate-widget">

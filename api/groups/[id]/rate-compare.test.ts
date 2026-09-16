@@ -146,6 +146,28 @@ vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
     from: (table: string) => makeChainable(table),
     rpc: (fn: string, args: any) => {
+      // WHEN EACH CLASS FIRST PLAYED (migration 20260916a) — the cohort gate
+      // reads it for every candidate. The double answers from the same
+      // fixtures the rest of the file uses: a class's first session across
+      // SESSION_ROWS and the class account's diary, null when it has neither,
+      // which is the never-started case the rule excludes.
+      if (fn === 'class_first_play') {
+        const ids = (args?.p_class_ids ?? []) as string[]
+        const learnerByClass = new Map<string, string>()
+        for (const c of TABLES.classes ?? []) if (c.class_learner_id) learnerByClass.set(c.id, c.class_learner_id)
+        return Promise.resolve({
+          data: ids.map((id) => {
+            const times: number[] = []
+            for (const r of SESSION_ROWS) if (r.class_id === id) times.push(new Date(r.started_at).getTime())
+            const lid = learnerByClass.get(id)
+            if (lid) for (const e of (TABLES.player_events ?? [])) {
+              if (e.learner_id === lid) times.push(new Date(e.occurred_at).getTime())
+            }
+            return { class_id: id, first_play: times.length ? new Date(Math.min(...times)).toISOString() : null }
+          }),
+          error: null,
+        })
+      }
       if (fn !== 'analytics_class_sessions_scoped') return Promise.resolve({ data: null, error: { message: `unknown rpc ${fn}` } })
       lastRpcArgs = args
       const ids = (args?.p_class_ids ?? []) as string[]
@@ -532,7 +554,7 @@ describe('GET /api/groups/:id/rate-compare', () => {
     expect(res.statusCode).toBe(200)
     expect(res.body.insufficientData).toBe(true)
     expect(res.body.applied.compare_to).toBe('global_all_courses') // it did attempt the widen
-    expect(res.body.reason).toMatch(/exist in this scope/)
+    expect(res.body.reason).toMatch(/have started in this scope/)
     expect(res.body.reason).not.toMatch(/running this course/) // all-courses scope, so no course clause
   })
 
@@ -720,8 +742,15 @@ describe('GET /api/groups/:id/rate-compare — the SCHOOL WEEK is the window (jo
     // The legacy trend array carries the SAME bars — never two different
     // "last 12 weeks" on one page.
     expect(res.body.entity.trend).toEqual(res.body.week.bars.entity)
-    // Nothing is interpolated: a quiet bucket is a literal zero.
-    expect(res.body.week.bars.entity.every((v: number) => typeof v === 'number')).toBe(true)
+    // Two different nothings, and nothing else: a number is a real week, null
+    // is absence (nobody had started yet). Never an interpolated value.
+    const bars: (number | null)[] = res.body.week.bars.entity
+    expect(bars.every((v) => v === null || typeof v === 'number')).toBe(true)
+    // c1 first played 7 days ago, so the earlier buckets are ABSENCE, and the
+    // newest ones are real weeks — a zero there would claim it was idle when
+    // it did not yet exist as a playing class.
+    expect(bars[0]).toBeNull()
+    expect(typeof bars[bars.length - 1]).toBe('number')
   })
 
   it('carries the three numbers, with the total equal to X + Y', async () => {
@@ -782,6 +811,69 @@ describe('GET /api/groups/:id/rate-compare — the SCHOOL WEEK is the window (jo
     const res = makeRes()
     await handler(makeReq('c1', { compare_to: 'programme', window: 'last_week', days: '45' }), res)
     expect(res.body.applied.window).toBe('last_week')
+  })
+
+  it('a class that has NEVER played is in no denominator — the cohort counts started classes only (Tom via Watson, 2026-09-16)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // c1 (entity), c2 and c3 are the hin classes; c3 is set up and has never
+    // played a session. This OVERRIDES the never-started half of job #979b's
+    // structural cohort: averaging a school against classes that never started
+    // reads it as less than half as busy as it is — on the live cym_s course,
+    // 67 of 127 active classes have never played.
+    SESSION_ROWS = SESSION_ROWS.filter((r) => r.class_id !== 'c3')
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'this_week', tz: LONDON }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.week.cohort.size).toBe(2) // c1 + c2, never c3
+    expect(res.body.cohortSize).toBe(2)       // and ONE denominator for the whole page
+  })
+
+  it('the denominator does not move with the WINDOW — this week and last week divide by the same classes', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const thisW = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'this_week', tz: LONDON }), thisW)
+    const lastW = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'last_week', tz: LONDON }), lastW)
+    expect(thisW.body.week.cohort.size).toBe(lastW.body.week.cohort.size)
+  })
+
+  it('the denominator is viewer-independent — two classes in one school read the same N', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const asC2 = makeRes()
+    await handler(makeReq('c2', { compare_to: 'programme', window: 'last_week', tz: LONDON }), asC2)
+    const asC3 = makeRes()
+    await handler(makeReq('c3', { compare_to: 'programme', window: 'last_week', tz: LONDON }), asC3)
+    expect(asC2.body.week.cohort.size).toBe(asC3.body.week.cohort.size)
+    expect(asC2.body.week.cohort.totalMinutes).toBe(asC3.body.week.cohort.totalMinutes)
+  })
+
+  it('a week before any class had started draws as ABSENCE, never as a row of zeros', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // Every class first plays 7 days ago, so the eleven older buckets have no
+    // cohort at all — nothing to average, and nothing to draw.
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'this_week', tz: LONDON }), res)
+    const cohortBars: (number | null)[] = res.body.week.bars.cohort
+    expect(cohortBars).toHaveLength(12)
+    expect(cohortBars[0]).toBeNull()
+    expect(cohortBars.slice(0, 9).every((v) => v === null)).toBe(true)
+    expect(cohortBars.some((v) => typeof v === 'number')).toBe(true)
+  })
+
+  it('a class joining today does not rewrite the school’s past bars', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const before = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'this_week', tz: LONDON }), before)
+    // A brand-new class on the same course plays for the first time today.
+    TABLES.classes.push({ id: 'c9', class_name: 'New', course_code: 'hin_for_eng', school_id: 'school-2', group_id: 's2-node', is_active: true })
+    SESSION_ROWS.push({ class_id: 'c9', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 1, duration_seconds: 3600, started_at: daysAgo(0) })
+    const after = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'this_week', tz: LONDON }), after)
+    const b: (number | null)[] = before.body.week.bars.cohort
+    const a: (number | null)[] = after.body.week.bars.cohort
+    // Every bucket before the newcomer's first week is byte-identical.
+    expect(a.slice(0, 11)).toEqual(b.slice(0, 11))
+    expect(after.body.week.cohort.size).toBe(before.body.week.cohort.size + 1)
   })
 
   it('a nonsense time zone falls back rather than throwing', async () => {
@@ -1045,13 +1137,20 @@ describe('GET /api/groups/:id/rate-compare — self-inclusive averaging (Tom, 20
 
   it('the dashed comparison series is a mean over the SAME cohort as the headline average — a dormant member contributes zeros, it does not drop out', async () => {
     verifyAdminResult = { userId: 'admin-1' }
-    // c1 (entity) and c2 practise today; c3 exists on the same course but has
-    // never practised at all. periodTrendForClass used to return an empty
-    // array for c3 and meanTrend silently dropped it, so the dashed line was
+    // c1 (entity) and c2 practise today; c3 STARTED long ago and has been
+    // silent since. periodTrendForClass used to return an empty array for a
+    // silent class and meanTrend silently dropped it, so the dashed line was
     // a mean of 2 while the headline average beside it was a mean of 3.
+    //
+    // c3 was a NEVER-PLAYED class when this test was written. Tom's cohort
+    // ruling of 2026-09-16 (job #989) takes never-started classes out of every
+    // denominator, so the fixture is now a class that started and went quiet —
+    // which is the case this rule is actually about, and it is unchanged:
+    // dormancy is a fact about the week, never grounds for dropping out.
     SESSION_ROWS = [
       { class_id: 'c1', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 6, duration_seconds: 1800, started_at: daysAgo(0) },
       { class_id: 'c2', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 3, duration_seconds: 1800, started_at: daysAgo(0) },
+      { class_id: 'c3', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S0L01', start_ord: 0, end_ord: 0, duration_seconds: 600, started_at: daysAgo(150) },
     ]
     const res = makeRes()
     // measure=rate is where the bug lived: the minutes trend already emitted
@@ -1070,12 +1169,13 @@ describe('GET /api/groups/:id/rate-compare — self-inclusive averaging (Tom, 20
 
   it('the same rule under a WEEK window: the dashed weekly bars are a mean over every member, dormant ones at zero (job #989)', async () => {
     verifyAdminResult = { userId: 'admin-1' }
-    // c1 and c2 each play half an hour this week; c3 is on the course and has
-    // never practised. The bars are total learning time, so this week's bar is
-    // mean(30, 30, 0) = 20 — dropping c3 would read 30.
+    // c1 and c2 each play half an hour this week; c3 STARTED 150 days ago and
+    // has been silent since. The bars are total learning time, so this week's
+    // bar is mean(30, 30, 0) = 20 — dropping the dormant c3 would read 30.
     SESSION_ROWS = [
       { class_id: 'c1', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 6, duration_seconds: 1800, started_at: new Date().toISOString() },
       { class_id: 'c2', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 3, duration_seconds: 1800, started_at: new Date().toISOString() },
+      { class_id: 'c3', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S0L01', start_ord: 0, end_ord: 0, duration_seconds: 600, started_at: daysAgo(150) },
     ]
     const res = makeRes()
     await handler(makeReq('c1', { compare_to: 'programme', window: 'this_week', tz: 'Europe/London' }), res)
