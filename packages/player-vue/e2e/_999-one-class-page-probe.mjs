@@ -33,6 +33,14 @@ page.on('console', (m) => { if (m.type() === 'error') logs.push(`error: ${m.text
 page.on('pageerror', (e) => logs.push(`pageerror: ${String(e.message).slice(0, 160)}`))
 const count = (sel) => page.locator(sel).count()
 
+// (0) the teacher's own landing and top nav
+await page.goto(`${BASE}/schools`, { waitUntil: 'domcontentloaded', timeout: 60000 }); await settle(page, 7000)
+console.log('0 landed on:', page.url())
+console.log('0 top-nav tabs:', await page.locator('.tabs a').allInnerTexts().catch(() => []))
+console.log('0 greeting:', (await page.locator('.greeting, [class*=greeting]').first().innerText().catch(() => '(absent)')).replace(/\s+/g, ' ').slice(0, 120))
+console.log('0 own-practice line:', await page.locator('[data-walk="dash-own-practice"]').count(), '| teaching numbers:', await page.locator('[data-walk="dash-teacher-stats"]').count(), '| pupils-own line:', await page.locator('[data-walk="dash-teacher-own-accounts"]').count())
+await page.screenshot({ path: path.join(SHOTS, '0-my-classes.png'), fullPage: true })
+
 // (A) the OLD tools URL must land on the ONE class page
 await page.goto(`${BASE}/schools/classes/${CLASS_ID}`, { waitUntil: 'domcontentloaded', timeout: 60000 }); await settle(page, 7000)
 console.log('A redirect landed on:', page.url())
