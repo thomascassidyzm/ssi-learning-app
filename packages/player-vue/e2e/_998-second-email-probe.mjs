@@ -17,7 +17,8 @@ const stamp = Date.now().toString().slice(-6)
 const A = `zz-998-first-${stamp}@ssi-probe.test`
 const B = `zz-998-second-${stamp}@ssi-probe.test`
 
-const shot = (p, n) => p.screenshot({ path: `${OUT}/${n}.png`, fullPage: true })
+// never fatal: a moving player surface can outlast the screenshot's font wait
+const shot = (p, n) => p.screenshot({ path: `${OUT}/${n}.png`, timeout: 8000 }).catch(e => console.log(`  [shot ${n} skipped]`, e.message.split('\n')[0]))
 const db = (path, init) => fetch(`${U}/rest/v1/${path}`, { headers: H, ...init }).then(r => r.text()).then(t => { try { return JSON.parse(t) } catch { return t } })
 const link = (email) => fetch(`${U}/auth/v1/admin/generate_link`, { method:'POST', headers:H, body: JSON.stringify({ type:'magiclink', email }) }).then(r => r.json())
 const sessionFor = async (email) => {
@@ -54,9 +55,14 @@ await shot(page, '1-settings')
 
 const row = page.getByText('Add another email to sign in with').first()
 check(await row.count() > 0, 'Settings offers "Add another email to sign in with"')
-await row.click()
-await page.waitForTimeout(500)
-await page.locator('input.inline-input[type="email"]').fill(B)
+// the row is a toggle: click until the form is actually open
+const emailField = page.locator('input.inline-input[type="email"]').first()
+for (let i = 0; i < 4 && !(await emailField.isVisible().catch(() => false)); i++) {
+  await row.click(); await page.waitForTimeout(2000)
+}
+await emailField.waitFor({ state:'visible', timeout: 15000 })
+await emailField.click()
+await emailField.fill(B)
 await shot(page, '2-typed-second-email')
 await page.getByRole('button', { name: 'Send verification code' }).click()
 await page.waitForTimeout(6000)
@@ -80,8 +86,10 @@ const stubs = await db(`learners?verified_emails=cs.{"${B}"}&select=id`)
 check(Array.isArray(stubs) && stubs.length === 1, `only the real account holds the address (found ${Array.isArray(stubs) ? stubs.length : '?'} learner rows)`)
 await page.reload({ waitUntil:'domcontentloaded' })
 await page.waitForTimeout(6000)
-const listed = await page.getByText(B, { exact:false }).count()
-check(listed > 0, 'Settings lists the second address as linked')
+check(await page.getByText('2 emails linked').count() > 0, 'Settings says the account now has 2 emails linked')
+await page.getByText('2 emails linked').first().click()
+await page.waitForTimeout(800)
+check(await page.getByText(B, { exact:false }).count() > 0, 'the expanded list shows the second address')
 await shot(page, '5-linked-list')
 await ctx1.close()
 
@@ -94,8 +102,13 @@ await page2.addInitScript(([k,s]) => window.localStorage.setItem(k, JSON.stringi
 await page2.goto(`${BASE}/?screen=settings`, { waitUntil:'domcontentloaded' })
 await page2.waitForTimeout(9000)
 await shot(page2, '6-signed-in-as-second')
-const landedOnA = await page2.getByText(`ZZ998 ${stamp}`).count()
-check(landedOnA > 0, 'signed in with the second address, the account on screen is the first account')
+// The account on screen is the FIRST one if it still carries the first
+// address: a fresh account for B would hold B and nothing else.
+check(await page2.getByText('2 emails linked').count() > 0, 'the account reached by the second address has both emails on it')
+await page2.getByText('2 emails linked').first().click()
+await page2.waitForTimeout(800)
+check(await page2.getByText(A, { exact:false }).count() > 0, 'signed in with the second address, the account on screen is the first account')
+await shot(page2, '7-first-account-reached')
 const holders = await db(`learners?verified_emails=cs.{"${B}"}&select=id,display_name,user_id`)
 check(Array.isArray(holders) && holders.length === 1 && holders[0].id === learnerA.id,
   `no fresh stub was minted by signing in with the linked address (holders: ${JSON.stringify(holders)})`)
