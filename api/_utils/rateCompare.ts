@@ -100,10 +100,21 @@ export function windowPaceForClass(
 /**
  * Aggregate pace for an ENTITY that spans multiple classes (a school = its
  * classes, a group = its subtree's classes) — mean of each member class's
- * own window pace, over members that have data in the window. For a
- * single-class set this is identical to windowPaceForClass (mean of one).
- * Same primitive doubles as a COHORT member's value when the cohort being
- * compared against is itself made of schools or groups, not bare classes.
+ * own window pace, over EVERY member class. For a single-class set this is
+ * identical to windowPaceForClass (mean of one). Same primitive doubles as a
+ * COHORT member's value when the cohort being compared against is itself
+ * made of schools or groups, not bare classes.
+ *
+ * EVERY MEMBER COUNTS, ACTIVE OR NOT (Tom's ruling 2026-09-16: "a set member
+ * should ALWAYS be included in the average, not excluded"). A class that did
+ * not practise in the window advanced 0 LEGOs, so its true pace is 0 and it
+ * is averaged in at 0 — it is never dropped from the denominator. Before
+ * this, a school's own rate was the mean over whichever of its classes
+ * happened to practise, so the same school read differently window to window
+ * for reasons that had nothing to do with how fast it was going.
+ *
+ * `hasData` still means "somebody in this set practised" — it gates the
+ * furthest-LEGO context line, never the arithmetic.
  */
 export function aggregateWindowPace(
   rows: ScopedSessionRow[],
@@ -111,10 +122,12 @@ export function aggregateWindowPace(
   days: number,
   now: Date,
 ): WindowPace {
-  const active = classIds.map((id) => windowPaceForClass(rows, id, days, now)).filter((w) => w.hasData)
-  if (active.length === 0) return { pace: 0, legosAdvanced: 0, hasData: false, furthestLegoId: null, furthestOrd: 0 }
-  const pace = round1(active.reduce((s, w) => s + w.pace, 0) / active.length)
-  const legosAdvanced = Math.round(active.reduce((s, w) => s + w.legosAdvanced, 0) / active.length)
+  const all = classIds.map((id) => windowPaceForClass(rows, id, days, now))
+  const active = all.filter((w) => w.hasData)
+  if (all.length === 0) return { pace: 0, legosAdvanced: 0, hasData: false, furthestLegoId: null, furthestOrd: 0 }
+  const pace = round1(all.reduce((s, w) => s + w.pace, 0) / all.length)
+  const legosAdvanced = Math.round(all.reduce((s, w) => s + w.legosAdvanced, 0) / all.length)
+  if (active.length === 0) return { pace, legosAdvanced, hasData: false, furthestLegoId: null, furthestOrd: 0 }
   const furthest = active.reduce((best, w) => (w.furthestOrd > best.furthestOrd ? w : best), active[0])
   return { pace, legosAdvanced, hasData: true, furthestLegoId: furthest.furthestLegoId, furthestOrd: furthest.furthestOrd }
 }
@@ -146,7 +159,13 @@ export function periodTrendForClass(
   periodDays: number,
   now: Date,
 ): number[] {
-  if (!rows.some((r) => r.class_id === classId)) return []
+  // A class with no rows at all advanced 0 in every period — return that
+  // honestly rather than an empty array, so it is averaged into the dashed
+  // comparison series at 0 instead of silently dropping out of it (Tom's
+  // ruling 2026-09-16: a set member is always in the average). An empty
+  // return here used to make the dashed line disagree with the headline
+  // average, which included the same member at 0.
+  if (!rows.some((r) => r.class_id === classId)) return new Array(Math.max(periods, 0)).fill(0)
   const nowMs = now.getTime()
   const periodMs = periodDays * MS_PER_DAY
   const cum: number[] = []
@@ -164,7 +183,7 @@ export function weeklyTrendForClass(rows: ScopedSessionRow[], classId: string, w
   return periodTrendForClass(rows, classId, weeks, 7, now)
 }
 
-/** Same generalization as aggregateWindowPace, for the trend line — mean-trend across member classes, at any period granularity. */
+/** Same generalization as aggregateWindowPace, for the trend line — mean-trend across EVERY member class (a dormant one contributes zeros, never nothing), at any period granularity. */
 export function aggregatePeriodTrend(
   rows: ScopedSessionRow[],
   classIds: string[],

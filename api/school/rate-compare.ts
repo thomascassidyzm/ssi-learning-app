@@ -48,12 +48,28 @@
  * the response.
  *
  * PRIVACY FLOOR: if the cohort (excluding the entity) has fewer than
- * cohortFloor('entities') peer entities with any activity in the window,
- * responds with insufficientData — held at EVERY aggregate level (classes,
- * schools, AND groups) and both global variants. Every cohort here is made of
- * ENTITIES (classes/schools/groups), never individual learners, so that floor
- * is 1 for every role (Tom's ruling 2026-09-15: the 5-floor was for
- * individuals' GDPR protection, not to stop classes being compared).
+ * cohortFloor('entities') peer entities, responds with insufficientData —
+ * held at EVERY aggregate level (classes, schools, AND groups) and both
+ * global variants. Every cohort here is made of ENTITIES (classes/schools/
+ * groups), never individual learners, so that floor is 1 for every role
+ * (Tom's ruling 2026-09-15: the 5-floor was for individuals' GDPR
+ * protection, not to stop classes being compared).
+ *
+ * SELF-INCLUSIVE, STRUCTURAL AVERAGING (Tom's ruling 2026-09-16, the same
+ * ruling api/groups/[id]/rate-compare.ts carries): "a set member should
+ * ALWAYS be included in the average, not excluded — else the school average
+ * changes when a school leader looks at each class against it." So the
+ * average here is the mean over the entity's own value AND every resolved
+ * peer's, whether or not that peer practised in the window — a dormant peer
+ * counts with its true value, 0. `cohortSize` is that full self-inclusive
+ * denominator, and the percentile ranks the entity inside the same set. The
+ * floor still gates on PEER count, so a lone entity never compares with
+ * itself.
+ *
+ * NOTE (2026-09-16): this route currently has no client consumer — the
+ * teacher/leader insights page reads api/groups/[id]/rate-compare via
+ * NodeRateEngine.vue. It is kept switched in lockstep so the two lanes can
+ * never disagree about what an average means.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -400,19 +416,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const entityWindow = aggregateWindowPace(rows, entity.classIds, days, now)
     const entityTrend = aggregateWeeklyTrend(rows, entity.classIds, TREND_WEEKS, now)
 
-    const memberResults = cohort.members.map((m) => ({
+    // Every resolved peer is a member, active or not (Tom, 2026-09-16); the
+    // floor gates on the PEER count so an entity never compares with itself.
+    // A peer with no classes at all on this course is not RUNNING the course
+    // and was never a member of this cohort — dropping it is the course
+    // filter, not an activity filter.
+    const peerMembers = cohort.members.filter((m) => m.classIds.length > 0)
+    const memberResults = peerMembers.map((m) => ({
       id: m.id,
       window: aggregateWindowPace(rows, m.classIds, days, now),
       trend: aggregateWeeklyTrend(rows, m.classIds, TREND_WEEKS, now),
     }))
-    const active = memberResults.filter((m) => m.window.hasData)
-    if (active.length < ENTITY_FLOOR) {
-      respondInsufficientData(res, 'Not enough data to compare fairly yet.', active.length)
+    if (memberResults.length < ENTITY_FLOOR) {
+      respondInsufficientData(res, 'Not enough data to compare fairly yet.', memberResults.length)
       return
     }
 
-    const cohortValues = active.map((m) => m.window.pace)
-    const averageTrend = meanTrend(active.map((m) => m.trend))
+    // The average ALWAYS includes the entity's own value, so it reads the
+    // same whichever member of the cohort is doing the looking.
+    const cohortValues = [entityWindow.pace, ...memberResults.map((m) => m.window.pace)]
+    const averageTrend = meanTrend([entityTrend, ...memberResults.map((m) => m.trend)])
     const averageValue = Math.round((cohortValues.reduce((a, b) => a + b, 0) / cohortValues.length) * 10) / 10
 
     const dist = distributionStats(cohortValues)
@@ -447,7 +470,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         averageValue,
         percentile: dist.percentileOf(entityWindow.pace),
       },
-      cohortSize: active.length,
+      cohortSize: cohortValues.length,
     })
   } catch (err) {
     console.error('[rate-compare] error:', err)

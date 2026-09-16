@@ -1,3 +1,44 @@
+## 2026-09-16 — The comparison average is self-inclusive and structural: every class in scope counts, active or not (job #979)
+
+**Tom's ruling (10:05Z).** "The averages need to be logical to a teacher, not technically correct,
+and a set member should ALWAYS be included in the average, not excluded — else the school average
+changes when a school leader looks at each class against it."
+
+**What the code said before.** Both rate-compare engines built their cohort from peers with
+activity in the selected window and then excluded the entity from its own average. Two consequences
+a teacher reads as a bug: the school average moved as the leader stepped from class to class,
+because each viewer's own class was the one taken out; and the denominator grew with the window, so
+all-time could read a lower average than 30 days. Chepstow showed it plainly — 9.3 over 29 classes
+at 30 days, 8.8 over 32 all-time.
+
+**What it says now.** The cohort is every class or school in the compare-to scope running this
+course, whether or not it practised, the entity included. That set is fixed for a given
+school + course whoever is looking and whichever window is applied. A dormant member counts with
+its true value, 0 for a sum measure, so a sum measure can only rise or hold as the window widens.
+The percentile ranks the entity inside that same self-inclusive set, and the floor now gates on
+whether peers EXIST rather than on whether they practised, so a quiet fortnight no longer blanks
+the card. It applies to every measure the page offers and to the dashed comparison series.
+
+**Three places it had to change, not one.** `api/groups/[id]/rate-compare.ts` — structural
+membership, self-inclusive average and percentile, and a server-rendered caption naming the
+denominator; landed first, with two defects found on the way: a widened compare ladder reused
+prefetched session rows that no longer covered its cohort, silently valuing an out-of-scope peer at
+0, and the "Nth of M" chip added one for the entity that a self-inclusive distribution already
+counted. `api/_utils/rateCompare.ts` — `aggregateWindowPace` averaged a multi-class entity over
+whichever of its classes practised, so a school's own rate moved for reasons unrelated to how fast
+it was going; and `periodTrendForClass` returned an empty array for a dormant class, which
+`meanTrend` then dropped, so the dashed comparison line was drawn over a smaller cohort than the
+headline figure beside it. `api/school/rate-compare.ts` — switched in lockstep. That route has no
+client consumer today, the insights page reads the groups route, but two live definitions of
+"average" is exactly the drift that produces the next bug.
+
+**Proof.** The old expectations were flipped deliberately rather than worked around: three in
+`api/_utils/rateCompare.test.ts`, nine in `api/school/rate-compare.test.ts`. New tests assert a sum
+measure's all-time average >= 30-day >= 7-day; that the average is identical requested from two
+different classes in the same school; and that the dashed series is a mean over the same cohort as
+the headline figure — that last one reads 4.5 against the pre-fix code and 3 against the post-fix
+code.
+
 ## 2026-09-15 — The clamp, not the timestamp: what actually closes a refund on production (job #857)
 
 Supersedes the #851 entry below. That entry stays as written; it is the record of a fix that was
