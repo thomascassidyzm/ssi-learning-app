@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `5e7e1b529b13` · generated 2026-09-16 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `1cb763957868` · generated 2026-09-16 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -100,7 +100,7 @@ Section: getting-people-in · roles: teacher · anchor: `class-student-add` · i
 
 **What it's for.** Putting a pupil who is already in your school into this class, for a pupil who has changed set or landed in the wrong class.
 
-**Where it is.** The class page, the **Add students** button at the top of the roster.
+**Where it is.** The class page, under **Manage class**, the **Add students** button at the top of the roster.
 
 1. Open the class from **My Classes**.
 2. Tap **Add students** above the roster.
@@ -325,7 +325,7 @@ Section: running-classes · roles: teacher · anchor: `class-delete` · in `pack
 
 **What it's for.** Removing a class you no longer want, usually one set up by mistake or a group that has finished. Before anything is deleted the app tells you what goes with it.
 
-**Where it is.** The class page, the small bin beside the class name.
+**Where it is.** The class page, the small bin beside the **Manage class** heading.
 
 1. Open the class from **My Classes**.
 2. Tap the bin next to the name at the top.
@@ -491,7 +491,7 @@ Section: running-classes · roles: teacher · anchor: `class-teacher-make-lead` 
 
 **What it's for.** Passing the lead of a class to another teacher who already teaches it — for a maternity cover, a term swap, or a permanent handover.
 
-**Where it is.** The class page, the **Teachers** section.
+**Where it is.** The class page, under **Manage class**, the **Teachers** section.
 
 1. Open the class from My Classes.
 2. Scroll to **Teachers**.
@@ -614,7 +614,7 @@ Section: getting-people-in · roles: teacher · anchor: `class-join-link` · in 
 
 **What it's for.** The one door into a class. A student who follows the class link signs up and lands straight in the class, on the right course, with no code to type. The same class also has a short code for a room where a link is awkward.
 
-**Where it is.** The class page, the **Invite students** card.
+**Where it is.** The class page, under **Manage class**, the **Invite students** card.
 
 1. Open the class from **My Classes**.
 2. Copy the link from the **Invite students** card and send it to your students.
@@ -645,7 +645,7 @@ Section: running-classes · roles: teacher · anchor: `class-coteacher-link` · 
 
 **What it's for.** Getting a teacher who has no account yet into one class of yours, without going through the school admin.
 
-**Where it is.** The class page, the **Teachers** section.
+**Where it is.** The class page, under **Manage class**, the **Teachers** section.
 
 1. Open the class from My Classes.
 2. Scroll to **Teachers**.
@@ -718,15 +718,15 @@ Section: getting-people-in · roles: admin, leader, school_admin · anchor: `ver
 
 Section: running-classes · roles: teacher, school_admin · anchor: `class-page-manage` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
 
-**What it's for.** Getting from the class page to the class's tools: the roster of pupils on their own accounts, the teachers, the join link and code, renaming and deleting.
+**What it's for.** Getting to the class's tools: the roster of pupils on their own accounts, the teachers, the join link and code, renaming and deleting.
 
 **Where it is.** The class page, the **Manage class** link beside the class name.
 
 1. Open the class.
 2. Tap **Manage class**.
-3. The tools page opens; its own **Open the class page** line brings you back.
+3. The page scrolls down to the tools, on the same page.
 
-**Worth knowing.** The class's practice, minutes and journey stay on the class page. The tools page never totals whole-class play.
+**Worth knowing.** The class's practice, minutes and journey stay at the top of the page, above the tools. Nothing in the tools totals whole-class play.
 
 ## Minutes in the app this week
 
@@ -747,7 +747,7 @@ Section: running-classes · roles: teacher · anchor: `class-teacher-other-class
 
 **What it's for.** Changing which classes a teacher is on, in one pass, without visiting each class in turn.
 
-**Where it is.** The class page, the **Teachers** section, a teacher's other classes.
+**Where it is.** The class page, under **Manage class**, the **Teachers** section, a teacher's other classes.
 
 1. Open a class the teacher is on.
 2. Scroll to **Teachers** and open their other classes.
@@ -965,7 +965,7 @@ Section: running-classes · roles: teacher · anchor: `class-student-remove` · 
 
 **What it's for.** Taking a student off a class roster, for a pupil who has changed set or joined the wrong class from a shared link.
 
-**Where it is.** The class page, the **Remove** button at the end of the student's row in the roster.
+**Where it is.** The class page, under **Manage class**, the **Remove** button at the end of the student's row in the roster.
 
 1. Open the class from **My Classes**.
 2. Find the student in the roster.
@@ -995,7 +995,7 @@ Section: running-classes · roles: teacher · anchor: `class-rename` · in `pack
 
 **What it's for.** Changing what a class is called, for a name typed in a hurry or a group that has moved up a year.
 
-**Where it is.** The class page, the small pencil beside the class name.
+**Where it is.** The class page, the small pencil beside the **Manage class** heading.
 
 1. Open the class from **My Classes**.
 2. Tap the pencil next to the name at the top.
@@ -1045,21 +1045,6 @@ Section: your-own-account · roles: teacher, school_admin, leader · anchor: `sc
 2. Write what happened, add a screenshot if you have one, and tap **Send**.
 
 **Worth knowing.** Nobody replies through the app: the note goes to one place where we read it. Questions about the dashboard go to **Support** instead. The item is not shown while a platform admin is viewing the dashboard as someone else.
-
-## Run your first class session
-
-Section: running-classes · roles: teacher · anchor: `class-play` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
-
-**What it's for.** Running a live practice session with a class in the room, everyone hearing the same thing at the same time.
-
-**Where it is.** The class page, the join link and the play button.
-
-1. Open the class from My Classes.
-2. Put the join link or the join code on the screen for the room.
-3. Wait for the students to arrive on their own devices.
-4. Tap play to start the session.
-
-**Worth knowing.** The join code is the same code all lesson, so a student arriving late still gets in. While a platform admin is viewing the page as you the play button is greyed out and does nothing.
 
 ## Say what happened
 
@@ -1237,7 +1222,7 @@ Section: running-classes · roles: teacher · anchor: `class-teacher-add` · in 
 
 **What it's for.** Adding another teacher to a class you already run, so you both see the same roster and the same progress.
 
-**Where it is.** The class page, the **Teachers** section.
+**Where it is.** The class page, under **Manage class**, the **Teachers** section.
 
 1. Open the class from My Classes.
 2. Scroll to **Teachers**.
@@ -1267,9 +1252,9 @@ Section: seeing-progress · roles: teacher, school_admin · anchor: `class-roste
 
 **What it's for.** The pupils who have signed in on their own account and joined this class, one row each, with their belt, how much they have learned, how much they have practised on that account and when they were last at it. It counts only what each pupil did signed in as themselves. Whole-class play from the front is not in this table; that is on the class page.
 
-**Where it is.** The class tools page, the **Students on their own accounts** table.
+**Where it is.** The class page, under **Manage class**, the roster table.
 
-1. Open **Manage class** from the class page.
+1. Open the class from **My Classes** and scroll to **Manage class**.
 2. Read down the rows for who is practising on their own and who has gone quiet.
 3. Type a name into the search box to jump to one student.
 
@@ -1562,19 +1547,6 @@ Section: your-school · roles: school_admin, leader · anchor: `upgrade-seats-ac
 
 **Worth knowing.** This is deliberately an honest count rather than a gate. We would rather show you the gap than shut a class out mid-lesson.
 
-## Where a class's practice is read
-
-Section: seeing-progress · roles: teacher, school_admin · anchor: `class-tools-note` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
-
-**What it's for.** Telling the two pages of a class apart. The class page carries what the class has practised together, its minutes in the app and how far it has travelled. This page is the class's tools: the roster, the teachers, the join link, renaming and deleting.
-
-**Where it is.** The line under the class name at the top of the tools page.
-
-1. Read the line.
-2. Tap **Open the class page** to go to the class's practice.
-
-**Worth knowing.** Nothing on this page totals whole-class play. A class played from the front shows its minutes on the class page, never here.
-
 ## Where classes are in the course and where they stop
 
 Section: seeing-progress · roles: leader, school_admin · anchor: `insights-org-journey` · in `packages/player-vue/src/insight/OrgIntelPanel.vue`
@@ -1602,20 +1574,6 @@ Section: seeing-progress · roles: admin · anchor: `question-where-and-what` ·
 3. Read the rows, one per country, each with its phone, tablet and desktop split and its in-the-app or in-a-browser split. Tap a country to narrow the page to it; tap a device chip to count only that device. Both choices are written into the page address.
 
 **Worth knowing.** A person seen on two devices is counted once in the headline and once under each device. In the app or in a browser has only been recorded since 10 September 2026, so earlier people read as not recorded rather than being guessed at. Machine traffic is left out by rule.
-
-## Where the class has got to
-
-Section: seeing-progress · roles: teacher · anchor: `class-journey` · in `packages/player-vue/src/views/schools/ClassDetail.vue`
-
-**What it's for.** How far the class has travelled through its course, as a bar in phrases with the next belt named. A class is one learner account played from the front, so this is the class's own place on the course, moved by the sessions you run together.
-
-**Where it is.** The class page, the **Course Journey** card in the column beside the roster.
-
-1. Open the class from **My Classes**.
-2. Read the bar for how much of the course the class has covered.
-3. Read the line under it for how far it is to the next belt.
-
-**Worth knowing.** A class that has never played says **Not started** in words; it is never shown as a bar of zero.
 
 ## Whether a class is practising together
 

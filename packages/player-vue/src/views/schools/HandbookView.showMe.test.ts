@@ -132,11 +132,11 @@ describe('HandbookView — the clip leads, where a clip exists', () => {
     const mod: any = await import('@/composables/schools/useClassesData')
     mod.__classes.value = [{ id: 'class-7a' }, { id: 'class-8b' }]
     const wrapper = await mountAs({ ...SCHOOL_ADMIN, educational_role: 'teacher' })
-    const entry = entryWithClipFor('teacher', 'class-detail')!
+    const entry = entryWithClipFor('teacher', 'node-home')!
     await wrapper.find(`#hb-${entry.id} .entry-head`).trigger('click')
     await wrapper.find(`#hb-${entry.id} [data-walk-offer]`).trigger('click')
-    expect(push).toHaveBeenCalledWith('/schools/classes/class-7a')
-    expect(claimDeferredWalk('teacher', 'class-detail', 'class')).toBe(true)
+    expect(push).toHaveBeenCalledWith('/org/class-7a')
+    expect(claimDeferredWalk('teacher', 'node-home', 'class')).toBe(true)
     expect(useWalkthrough().activeWalk.value?.id).toBe(clipsFor(entry, 'teacher')[0])
   })
 
@@ -144,7 +144,7 @@ describe('HandbookView — the clip leads, where a clip exists', () => {
     const mod: any = await import('@/composables/schools/useClassesData')
     const wrapper = await mountAs({ ...SCHOOL_ADMIN, educational_role: 'teacher' })
     expect(mod.__fetchClasses).toHaveBeenCalled()
-    const entry = entryWithClipFor('teacher', 'class-detail')!
+    const entry = entryWithClipFor('teacher', 'node-home')!
     await wrapper.find(`#hb-${entry.id} .entry-head`).trigger('click')
     await wrapper.find(`#hb-${entry.id} [data-walk-offer]`).trigger('click')
     expect(push).toHaveBeenCalledWith('/schools/classes')

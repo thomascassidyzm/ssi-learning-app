@@ -5,7 +5,10 @@
     "teacher"
   ],
   "place": {
-    "route": "class-detail"
+    "route": "node-home",
+    "kinds": [
+      "class"
+    ]
   },
   "keywords": [
     "rename",
@@ -18,7 +21,7 @@
   "steps": [
     {
       "anchor": "class-rename",
-      "say": "The pencil beside the class name renames it. Only the name changes — the roster, the join link and the class's place on the course all carry on.",
+      "say": "The pencil beside the **Manage class** heading renames the class. Only the name changes — the roster, the join link and the class's place on the course all carry on.",
       "advance": {
         "on": "next"
       },
@@ -26,7 +29,7 @@
     },
     {
       "anchor": "class-delete",
-      "say": "The bin beside the name deletes the class. The app tells you what goes with it first, and asks you to type the class name back if there is real practice behind it. Students keep their own accounts and everything they have learned.",
+      "say": "The bin beside the **Manage class** heading deletes the class. The app tells you what goes with it first, and asks you to type the class name when there is real practice behind it.",
       "advance": {
         "on": "next"
       },

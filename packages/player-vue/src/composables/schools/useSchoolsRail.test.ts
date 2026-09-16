@@ -44,7 +44,7 @@ describe('useSchoolsRail — the rail source for flat /schools views', () => {
     await router.isReady()
   })
 
-  it('teacher: school is the here-node, own classes below opening the flat class pages', async () => {
+  it('teacher: school is the here-node, own classes below opening the ONE class page', async () => {
     ;(ctx.currentUser as any).value = {
       user_id: 't-1', learner_id: 'l1', display_name: 'Asha', educational_role: 'teacher',
       platform_role: null, school_id: 'sch-1', school_name: "St. Mary's Academy Kochi",
@@ -65,32 +65,11 @@ describe('useSchoolsRail — the rail source for flat /schools views', () => {
     expect(t.eligible).toBe(true)
     expect(t.rail?.node).toEqual({ id: 'sch-1', name: "St. Mary's Academy Kochi", label: 'school' })
     expect(t.rail?.children).toEqual([
-      { id: 'c-1', name: 'Year 6 French', label: 'class', path: '/schools/classes/c-1' },
-      { id: 'c-2', name: 'Year 5 Spanish', label: 'class', path: '/schools/classes/c-2' },
+      // Job #999: one class page, the class node home.
+      { id: 'c-1', name: 'Year 6 French', label: 'class', path: '/org/c-1' },
+      { id: 'c-2', name: 'Year 5 Spanish', label: 'class', path: '/org/c-2' },
     ])
     expect(t.rail?.ancestors).toEqual([])
-  })
-
-  it('teacher on a class page: the class is here, the school is NON-INTERACTIVE ancestor context, other classes are siblings', async () => {
-    ;(ctx.currentUser as any).value = {
-      user_id: 't-1', learner_id: 'l1', display_name: 'Asha', educational_role: 'teacher',
-      platform_role: null, school_id: 'sch-1', school_name: "St. Mary's Academy Kochi",
-    }
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
-      groups: [], classes: ['c-1', 'c-2'], can_play_as_class: true,
-      groups_detail: [{ id: 'sch-1', label: 'school', name: "St. Mary's Academy Kochi" }],
-      classes_detail: [
-        { id: 'c-1', name: 'Year 6 French', course_code: 'fra_for_eng' },
-        { id: 'c-2', name: 'Year 5 Spanish', course_code: 'spa_for_eng' },
-      ],
-    }), { status: 200 })))
-    await router.push('/schools/classes/c-2')
-    const t = harness()
-    await flushPromises()
-    expect(t.rail?.kind).toBe('class')
-    expect(t.rail?.node.name).toBe('Year 5 Spanish')
-    expect(t.rail?.ancestors).toEqual([{ id: 'sch-1', name: "St. Mary's Academy Kochi", label: 'school', inert: true }])
-    expect(t.rail?.siblings.map((s) => s.id)).toEqual(['c-1'])
   })
 
   it('groupless teacher (derived tutor): rooted at their own classes — the top visible level', async () => {

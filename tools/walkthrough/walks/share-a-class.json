@@ -6,7 +6,10 @@
     "school_admin"
   ],
   "place": {
-    "route": "class-detail"
+    "route": "node-home",
+    "kinds": [
+      "class"
+    ]
   },
   "keywords": [
     "class",

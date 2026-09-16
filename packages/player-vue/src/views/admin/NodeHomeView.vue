@@ -45,6 +45,9 @@ import NodeActionBar from '@/components/admin/NodeActionBar.vue'
 import WaysInLedger from '@/components/admin/WaysInLedger.vue'
 import OrgFunderNumbers from '@/components/admin/OrgFunderNumbers.vue'
 import HowThisWorks from '@/components/admin/HowThisWorks.vue'
+// The class's tools — roster, teachers, join link, rename, delete — mounted as
+// the Manage class section of this page since the collapse (job #999).
+const ClassTools = defineAsyncComponent(() => import('@/views/schools/ClassDetail.vue'))
 import YourAccount from '@/components/admin/YourAccount.vue'
 import NoticingInvitations from '@/components/admin/NoticingInvitations.vue'
 import { courseShortName } from '@ssi/core'
@@ -100,7 +103,10 @@ const playAsClassTitle = computed(() => (playAsClassReadOnly.value ? t('schools.
 const viewerTeachesClass = computed(() => !!home.value?.callerTeachesClass)
 const viewerIsLeader = computed(() => isSchoolAdmin.value || isGovtAdmin.value)
 const showClassVerbs = computed(() => member.value && isClass.value && !!home.value?.node)
-const classToolsPath = computed(() => (home.value?.node ? `/schools/classes/${home.value.node.id}` : ''))
+// MANAGE CLASS is a place on this page, not another page (job #999, Tom's
+// ruling 2026-09-16 collapsing the two class pages into one). The verb now
+// scrolls to the tools section mounted below; /schools/classes/:id redirects
+// here, so an old link still lands on the same tools.
 async function playThisClass(): Promise<void> {
   const n = home.value?.node
   if (!n) return
@@ -109,6 +115,10 @@ async function playThisClass(): Promise<void> {
 // The copy-play repair on the class page itself: a leader picks the teacher;
 // a teacher of this class fixes their own lesson (self mode, no picker).
 const showCopyPlay = computed(() => showClassVerbs.value && (viewerIsLeader.value || viewerTeachesClass.value))
+
+function scrollToManage() {
+  document.getElementById('manage-class')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
 const copyPlaySelfUserId = computed(() => (viewerIsLeader.value ? undefined : (schoolUser.value?.user_id || undefined)))
 const copyPlayTeachers = computed(() => (home.value?.teachers ?? []).map((x: any) => ({ user_id: x.user_id, name: x.name })))
 const isOrgLeaderView = computed(() => member.value && isGovtAdmin.value)
@@ -969,26 +979,27 @@ const listPayload = computed(() => {
                    roles: teacher, school_admin
                    place: node-home
                    keywords: manage, tools, roster, teachers, join link, rename, delete
-                   What it's for. Getting from the class page to the class's tools:
-                   the roster of pupils on their own accounts, the teachers, the
-                   join link and code, renaming and deleting.
+                   What it's for. Getting to the class's tools: the roster of pupils
+                   on their own accounts, the teachers, the join link and code,
+                   renaming and deleting.
                    Where it is. The class page, the **Manage class** link beside the
                    class name.
                    How you do it.
                    1. Open the class.
                    2. Tap **Manage class**.
-                   3. The tools page opens; its own **Open the class page** line
-                      brings you back.
-                   Worth knowing. The class's practice, minutes and journey stay on
-                   the class page. The tools page never totals whole-class play.
-                   checked: f1b631d2.b60644b6
+                   3. The page scrolls down to the tools, on the same page.
+                   Worth knowing. The class's practice, minutes and journey stay at
+                   the top of the page, above the tools. Nothing in the tools totals
+                   whole-class play.
+                   checked: bdedeb20.1e6ab15a
               -->
-              <router-link
+              <a
                 v-if="showClassVerbs && !switching"
-                :to="classToolsPath"
+                href="#manage-class"
                 class="btn-ghost"
                 data-walk="class-page-manage"
-              >{{ t('org.nodeHome.manageClass', 'Manage class') }}</router-link>
+                @click.prevent="scrollToManage"
+              >{{ t('org.nodeHome.manageClass', 'Manage class') }}</a>
               <LensTabs v-if="insightsLink" :overview-path="route.path" :insights-path="insightsLink" current="overview" />
             </div>
           </header>
@@ -1411,6 +1422,15 @@ const listPayload = computed(() => {
               </template>
             </div>
           </section>
+
+          <!-- MANAGE CLASS — the class's tools, on the class's own page (job
+               #999, Tom's ruling 2026-09-16). There used to be a second class
+               page at /schools/classes/:id carrying these; that route now
+               redirects here and the same component renders below the class's
+               own figures, with everything this page already shows — the
+               title, the belt line, Play as class, the journey, the copy-play
+               repair — turned off by its `embedded` flag. -->
+          <ClassTools v-if="showClassVerbs && !switching" embedded />
 
           <!-- HOW THIS WORKS — the self-explaining dashboard's reference
                entry: one quiet link, persona-scoped to exactly here. -->
