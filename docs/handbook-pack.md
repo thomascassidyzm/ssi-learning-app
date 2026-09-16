@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `919e66a26910` · generated 2026-09-16 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `1e7826a3e336` · generated 2026-09-16 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -841,27 +841,13 @@ Section: running-classes · roles: teacher, school_admin · anchor: `class-page-
 
 **Worth knowing.** Pressing play on a course from your own Library counts for you, not for the class. Only Play as class moves the class. While a platform admin is viewing the page as you the button is greyed out and does nothing.
 
-## Play as class from your dashboard
-
-Section: running-classes · roles: teacher · anchor: `dash-class-card-play` · in `packages/player-vue/src/views/schools/DashboardView.vue`
-
-**What it's for.** Starting a whole-class lesson straight from your dashboard, on the class's own account, so the minutes and the phrases land on the class rather than on you.
-
-**Where it is.** Your dashboard, the **Play as class** button on each class's card or row.
-
-1. Find the class on your dashboard.
-2. Tap **Play as class**.
-3. The player opens on the class's course at the class's own place.
-
-**Worth knowing.** The button is always there beside the class. While a platform admin is viewing the dashboard as you it is greyed out and does nothing, so they can see what you have without starting a lesson in your name.
-
 ## Practice on your own account
 
-Section: seeing-progress · roles: teacher · anchor: `dash-own-practice` · in `packages/player-vue/src/views/schools/DashboardView.vue`
+Section: seeing-progress · roles: teacher · anchor: `dash-own-practice` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
 
 **What it's for.** Telling you when practice this week landed on your own sign-in rather than on a class. Pressing play on a course from your Library counts for you; only Play as class counts for the class. The line names your own minutes and when you last played, so a lesson that went to the wrong place is found rather than lost.
 
-**Where it is.** Under your classes on the schools dashboard, only in a week when your own account has practised.
+**Where it is.** Under your classes on **My Classes**, only in a week when your own account has practised.
 
 1. Read the line.
 2. Next lesson, tap **Play as class** on the class instead of playing from the Library.
@@ -1781,32 +1767,17 @@ Section: seeing-progress · roles: teacher · anchor: `teacher-insights-class` �
 
 **Worth knowing.** A class with too few sessions to compare honestly says so rather than showing a number built from nothing.
 
-## Your classes at a glance
-
-Section: seeing-progress · roles: teacher · anchor: `dash-class-card` · in `packages/player-vue/src/views/schools/DashboardView.vue`
-
-**What it's for.** Your teaching dashboard, with your classes first. Every class you teach is a row or a card carrying its course, the minutes it spent in the app this week, the phrases it practised, how far it has travelled through the course, when it last played, and the join code you read out to get a new pupil in. The minutes are the class's own, from the lessons you ran with Play as class. Beside them, kept apart and never added in, is what the pupils did on their own accounts this week, said in words when there is nothing.
-
-**Where it is.** The schools dashboard you land on, above everything else on the page.
-
-1. Open the schools dashboard.
-2. Read down the list — one entry per class you teach.
-3. Tap a class name to open its class page, with what it practised this week and how far it has got.
-4. **Play as class** on any entry starts a session the whole class does together, on the class's own account.
-
-**Worth knowing.** A class that has never played says **Not started** in words. A brand new account shows a single button to create your first class instead of the list.
-
 ## Your own teaching numbers
 
-Section: seeing-progress · roles: teacher · anchor: `dash-teacher-stats` · in `packages/player-vue/src/views/schools/DashboardView.vue`
+Section: seeing-progress · roles: teacher · anchor: `dash-teacher-stats` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
 
 **What it's for.** One quiet line totalling your classes this week: how many classes, the minutes they spent in the app with a lesson running, and the phrases they practised. All of it is the classes' own play from the front. A second line, always there, is the minutes your pupils spent on their own accounts this week, kept apart from the first and never added to it. When no pupil has practised on their own account it says so in words, because that is usual for a class taught from the front and not a fault.
 
-**Where it is.** Underneath your classes on the schools dashboard.
+**Where it is.** **My Classes**, underneath the table of your classes.
 
-1. Open the schools dashboard and scroll past your classes.
+1. Open **My Classes** and scroll past the table.
 2. **Classes** is how many you teach.
 3. **In the app this week** is time with a lesson running, pauses included.
 4. **Phrases practised** is how many phrases your classes were prompted with this week.
 
-**Worth knowing.** The line only appears once you have at least one class.
+**Worth knowing.** The line only appears once you have at least one class, and it totals every class you teach, whatever the table is filtered to.

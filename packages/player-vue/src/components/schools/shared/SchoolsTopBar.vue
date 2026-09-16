@@ -180,8 +180,11 @@ const tabs = computed<NavTab[]>(() => {
   // need their own reachable Upgrade tab — same UpgradeView, whose tutor
   // lane (isSchoolLane false) already resolves their own teacher-billing
   // record via /api/teacher/me. Structure-gated, never on the 'tutor' label.
+  // No Dashboard tab: the dashboard and My Classes are ONE page for a teacher
+  // (Tom's ruling, 2026-09-16). The greeting and the week's summary sit on
+  // My Classes, and /schools hands over to it. A teacher's nav is exactly
+  // My Classes, Students, Insights.
   const teacherTabs: NavTab[] = [
-    { label: t('schools.ui.topBar.tabDashboard', 'Dashboard'), to: '/schools',           routeName: 'schools-dashboard' },
     // My Classes is a top-nav entry for the teacher shell (founder ruling,
     // 2026-09-16). It was reachable only sideways — the 'Classes /' crumb on a
     // class page — so a teacher's own classes, the thing they open every day,

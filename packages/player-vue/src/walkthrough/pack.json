@@ -1,5 +1,5 @@
 {
-  "version": "919e66a26910",
+  "version": "1e7826a3e336",
   "generatedAt": "2026-09-16",
   "walks": [
     {
@@ -1579,39 +1579,6 @@
       ]
     },
     {
-      "id": "play-as-class-from-your-dashboard",
-      "title": "Play as class from your dashboard",
-      "personas": [
-        "teacher"
-      ],
-      "place": {
-        "route": "dashboard"
-      },
-      "keywords": [
-        "play as class",
-        "lesson",
-        "dashboard",
-        "class card"
-      ],
-      "steps": [
-        {
-          "anchor": "dash-class-card-play",
-          "say": "**Play as class** on a class card starts a lesson straight from your dashboard, on the class's own account — the minutes and phrases land on the class, not on you.",
-          "advance": {
-            "on": "next"
-          }
-        },
-        {
-          "anchor": "dash-class-card-play",
-          "say": "The player opens on the class's course, at the class's own place in it. While a platform admin is viewing your dashboard as you, this button is greyed out and does nothing.",
-          "advance": {
-            "on": "next"
-          },
-          "terminal": "One tap from your dashboard, no need to open the class first. This tour started no lesson."
-        }
-      ]
-    },
-    {
       "id": "playing-as-yourself",
       "title": "Told when you are playing as yourself",
       "personas": [
@@ -1653,7 +1620,7 @@
         "teacher"
       ],
       "place": {
-        "route": "dashboard"
+        "route": "classes"
       },
       "keywords": [
         "own account",
@@ -1667,7 +1634,7 @@
       "steps": [
         {
           "anchor": "dash-own-practice",
-          "say": "This line appears under your classes only in a week when your own account has practised. Pressing play on a course from your Library counts for you; only **Play as class** counts for the class. It names your own minutes and when you last played, so a lesson that went to the wrong place is found rather than lost. When it is not here, nothing went astray.",
+          "say": "This line appears under your classes on My Classes, only in a week when your own account has practised. Pressing play on a course from your Library counts for you; only **Play as class** counts for the class. It names your own minutes and when you last played, so a lesson that went to the wrong place is found rather than lost. When it is not here, nothing went astray.",
           "advance": {
             "on": "next"
           },
@@ -3618,52 +3585,28 @@
       ]
     },
     {
-      "id": "your-classes-at-a-glance",
-      "title": "Your classes at a glance",
+      "id": "your-own-teaching-numbers",
+      "title": "Your own teaching numbers",
       "personas": [
         "teacher"
       ],
       "place": {
-        "route": "dashboard"
+        "route": "classes"
       },
       "keywords": [
-        "classes",
-        "dashboard",
-        "overview",
-        "minutes",
-        "phrases",
-        "journey",
-        "join code",
         "numbers",
         "totals",
+        "classes",
+        "minutes",
+        "phrases",
         "own accounts",
-        "students"
+        "students",
+        "teaching"
       ],
       "steps": [
         {
-          "anchor": "dash-class-card",
-          "say": "Every class you teach is here, one entry each, with its course beside it. Tap the class name to open its class page.",
-          "advance": {
-            "on": "next"
-          }
-        },
-        {
-          "anchor": "dash-class-week",
-          "say": "This is the class's own week: the minutes it spent in the app with a lesson running, the phrases it practised, and how far it has travelled through the course. Those minutes come from the lessons you ran with **Play as class**. A class that has never played says **Not started** in words.",
-          "advance": {
-            "on": "next"
-          }
-        },
-        {
-          "anchor": "dash-class-week-pupils",
-          "say": "Kept apart, and never added in, is what the pupils did on their own accounts this week. When there is nothing it says so in words, which is usual for a class taught from the front.",
-          "advance": {
-            "on": "next"
-          }
-        },
-        {
           "anchor": "dash-teacher-stats",
-          "say": "Under your classes, one quiet line totals them: how many classes you teach, the minutes they spent in the app this week with a lesson running, pauses included, and the phrases they were prompted with. All of it is the classes' own play from the front.",
+          "say": "Under your classes, one quiet line totals them: how many classes you teach, the minutes they spent in the app this week with a lesson running, pauses included, and the phrases they were prompted with. All of it is the classes' own play from the front, every class you teach, whatever the table above is filtered to.",
           "advance": {
             "on": "next"
           }
@@ -3674,7 +3617,7 @@
           "advance": {
             "on": "next"
           },
-          "terminal": "The join code on each class is what you read out to get a new pupil in."
+          "terminal": "Both lines live on My Classes, under the table."
         }
       ]
     }
@@ -5546,37 +5489,6 @@
       "note": "Pressing play on a course from your own Library counts for you, not for the class. Only Play as class moves the class. While a platform admin is viewing the page as you the button is greyed out and does nothing."
     },
     {
-      "id": "play-as-class-from-your-dashboard",
-      "title": "Play as class from your dashboard",
-      "section": "running-classes",
-      "personas": [
-        "teacher"
-      ],
-      "keywords": [
-        "play as class",
-        "lesson",
-        "start",
-        "dashboard",
-        "class card",
-        "front of the room"
-      ],
-      "place": {
-        "route": "dashboard"
-      },
-      "anchor": "dash-class-card-play",
-      "surface": "schools",
-      "source": "packages/player-vue/src/views/schools/DashboardView.vue",
-      "walk": null,
-      "what": "Starting a whole-class lesson straight from your dashboard, on the class's own account, so the minutes and the phrases land on the class rather than on you.",
-      "where": "Your dashboard, the **Play as class** button on each class's card or row.",
-      "how": [
-        "Find the class on your dashboard.",
-        "Tap **Play as class**.",
-        "The player opens on the class's course at the class's own place."
-      ],
-      "note": "The button is always there beside the class. While a platform admin is viewing the dashboard as you it is greyed out and does nothing, so they can see what you have without starting a lesson in your name."
-    },
-    {
       "id": "practice-on-your-own-account",
       "title": "Practice on your own account",
       "section": "seeing-progress",
@@ -5592,14 +5504,14 @@
         "my practice"
       ],
       "place": {
-        "route": "dashboard"
+        "route": "classes"
       },
       "anchor": "dash-own-practice",
       "surface": "schools",
-      "source": "packages/player-vue/src/views/schools/DashboardView.vue",
+      "source": "packages/player-vue/src/views/schools/TeacherDashboard.vue",
       "walk": null,
       "what": "Telling you when practice this week landed on your own sign-in rather than on a class. Pressing play on a course from your Library counts for you; only Play as class counts for the class. The line names your own minutes and when you last played, so a lesson that went to the wrong place is found rather than lost.",
-      "where": "Under your classes on the schools dashboard, only in a week when your own account has practised.",
+      "where": "Under your classes on **My Classes**, only in a week when your own account has practised.",
       "how": [
         "Read the line.",
         "Next lesson, tap **Play as class** on the class instead of playing from the Library.",
@@ -7687,40 +7599,6 @@
       "note": "A class with too few sessions to compare honestly says so rather than showing a number built from nothing."
     },
     {
-      "id": "your-classes-at-a-glance",
-      "title": "Your classes at a glance",
-      "section": "seeing-progress",
-      "personas": [
-        "teacher"
-      ],
-      "keywords": [
-        "classes",
-        "dashboard",
-        "overview",
-        "minutes",
-        "phrases",
-        "journey",
-        "join code",
-        "course"
-      ],
-      "place": {
-        "route": "dashboard"
-      },
-      "anchor": "dash-class-card",
-      "surface": "schools",
-      "source": "packages/player-vue/src/views/schools/DashboardView.vue",
-      "walk": null,
-      "what": "Your teaching dashboard, with your classes first. Every class you teach is a row or a card carrying its course, the minutes it spent in the app this week, the phrases it practised, how far it has travelled through the course, when it last played, and the join code you read out to get a new pupil in. The minutes are the class's own, from the lessons you ran with Play as class. Beside them, kept apart and never added in, is what the pupils did on their own accounts this week, said in words when there is nothing.",
-      "where": "The schools dashboard you land on, above everything else on the page.",
-      "how": [
-        "Open the schools dashboard.",
-        "Read down the list — one entry per class you teach.",
-        "Tap a class name to open its class page, with what it practised this week and how far it has got.",
-        "**Play as class** on any entry starts a session the whole class does together, on the class's own account."
-      ],
-      "note": "A class that has never played says **Not started** in words. A brand new account shows a single button to create your first class instead of the list."
-    },
-    {
       "id": "your-own-teaching-numbers",
       "title": "Your own teaching numbers",
       "section": "seeing-progress",
@@ -7737,21 +7615,21 @@
         "own accounts"
       ],
       "place": {
-        "route": "dashboard"
+        "route": "classes"
       },
       "anchor": "dash-teacher-stats",
       "surface": "schools",
-      "source": "packages/player-vue/src/views/schools/DashboardView.vue",
+      "source": "packages/player-vue/src/views/schools/TeacherDashboard.vue",
       "walk": null,
       "what": "One quiet line totalling your classes this week: how many classes, the minutes they spent in the app with a lesson running, and the phrases they practised. All of it is the classes' own play from the front. A second line, always there, is the minutes your pupils spent on their own accounts this week, kept apart from the first and never added to it. When no pupil has practised on their own account it says so in words, because that is usual for a class taught from the front and not a fault.",
-      "where": "Underneath your classes on the schools dashboard.",
+      "where": "**My Classes**, underneath the table of your classes.",
       "how": [
-        "Open the schools dashboard and scroll past your classes.",
+        "Open **My Classes** and scroll past the table.",
         "**Classes** is how many you teach.",
         "**In the app this week** is time with a lesson running, pauses included.",
         "**Phrases practised** is how many phrases your classes were prompted with this week."
       ],
-      "note": "The line only appears once you have at least one class."
+      "note": "The line only appears once you have at least one class, and it totals every class you teach, whatever the table is filtered to."
     }
   ]
 }

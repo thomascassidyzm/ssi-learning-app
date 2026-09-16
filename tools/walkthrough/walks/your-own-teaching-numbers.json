@@ -1,0 +1,39 @@
+{
+  "id": "your-own-teaching-numbers",
+  "title": "Your own teaching numbers",
+  "personas": [
+    "teacher"
+  ],
+  "place": {
+    "route": "classes"
+  },
+  "keywords": [
+    "numbers",
+    "totals",
+    "classes",
+    "minutes",
+    "phrases",
+    "own accounts",
+    "students",
+    "teaching"
+  ],
+  "steps": [
+    {
+      "anchor": "dash-teacher-stats",
+      "say": "Under your classes, one quiet line totals them: how many classes you teach, the minutes they spent in the app this week with a lesson running, pauses included, and the phrases they were prompted with. All of it is the classes' own play from the front, every class you teach, whatever the table above is filtered to.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "aabe386b.78785080"
+    },
+    {
+      "anchor": "dash-teacher-own-accounts",
+      "say": "The second line is the minutes your pupils spent on their own accounts this week, kept apart from the first and never added to it.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "Both lines live on My Classes, under the table.",
+      "checked": "a559ea85.26256748"
+    }
+  ]
+}

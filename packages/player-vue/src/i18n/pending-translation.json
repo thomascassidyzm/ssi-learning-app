@@ -1891,10 +1891,6 @@
     "walkthrough.org-choose-courses.steps.2.say",
     "walkthrough.org-choose-courses.steps.2.terminal",
     "walkthrough.org-choose-courses.title",
-    "walkthrough.play-as-class-from-your-dashboard.steps.0.say",
-    "walkthrough.play-as-class-from-your-dashboard.steps.1.say",
-    "walkthrough.play-as-class-from-your-dashboard.steps.1.terminal",
-    "walkthrough.play-as-class-from-your-dashboard.title",
     "walkthrough.playing-as-yourself.steps.0.say",
     "walkthrough.playing-as-yourself.steps.1.say",
     "walkthrough.playing-as-yourself.steps.1.terminal",
@@ -2121,12 +2117,9 @@
     "walkthrough.your-class-against-the-average.steps.3.say",
     "walkthrough.your-class-against-the-average.steps.3.terminal",
     "walkthrough.your-class-against-the-average.title",
-    "walkthrough.your-classes-at-a-glance.steps.0.say",
-    "walkthrough.your-classes-at-a-glance.steps.1.say",
-    "walkthrough.your-classes-at-a-glance.steps.2.say",
-    "walkthrough.your-classes-at-a-glance.steps.3.say",
-    "walkthrough.your-classes-at-a-glance.steps.4.say",
-    "walkthrough.your-classes-at-a-glance.steps.4.terminal",
-    "walkthrough.your-classes-at-a-glance.title"
+    "walkthrough.your-own-teaching-numbers.title",
+    "walkthrough.your-own-teaching-numbers.steps.0.say",
+    "walkthrough.your-own-teaching-numbers.steps.1.say",
+    "walkthrough.your-own-teaching-numbers.steps.1.terminal"
   ]
 }

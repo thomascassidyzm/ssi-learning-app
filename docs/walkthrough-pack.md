@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `919e66a26910` · generated 2026-09-16 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `1e7826a3e336` · generated 2026-09-16 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## add-a-class-under-a-group — Add a class to a group
 
@@ -329,14 +329,6 @@ Personas: admin · place: node-home (org/group/school)
 3. [`verb-courses` · next] Save, and everyone below that node inherits it. A trial runs for thirty days on a paid course and a year on a free or community one — the server works the dates out on save, so what you see before saving is a preview.
    - terminal: That's the whole of it — pick Trial or Paid, choose the courses if it's a trial, and save.
 
-## play-as-class-from-your-dashboard — Play as class from your dashboard
-
-Personas: teacher · place: dashboard
-
-1. [`dash-class-card-play` · next] **Play as class** on a class card starts a lesson straight from your dashboard, on the class's own account — the minutes and phrases land on the class, not on you.
-2. [`dash-class-card-play` · next] The player opens on the class's course, at the class's own place in it. While a platform admin is viewing your dashboard as you, this button is greyed out and does nothing.
-   - terminal: One tap from your dashboard, no need to open the class first. This tour started no lesson.
-
 ## playing-as-yourself — Told when you are playing as yourself
 
 Personas: teacher, school_admin · place: library
@@ -347,9 +339,9 @@ Personas: teacher, school_admin · place: library
 
 ## practice-on-your-own-account — Practice on your own account
 
-Personas: teacher · place: dashboard
+Personas: teacher · place: classes
 
-1. [`dash-own-practice` · next] This line appears under your classes only in a week when your own account has practised. Pressing play on a course from your Library counts for you; only **Play as class** counts for the class. It names your own minutes and when you last played, so a lesson that went to the wrong place is found rather than lost. When it is not here, nothing went astray.
+1. [`dash-own-practice` · next] This line appears under your classes on My Classes, only in a week when your own account has practised. Pressing play on a course from your Library counts for you; only **Play as class** counts for the class. It names your own minutes and when you last played, so a lesson that went to the wrong place is found rather than lost. When it is not here, nothing went astray.
    - terminal: To move this week's lesson onto the class, open the class and use **Ran a lesson signed in as yourself?** on its tools page.
 
 ## prove-your-mailbox-reaches-you — Prove your mailbox reaches you
@@ -732,13 +724,10 @@ Personas: teacher · place: analytics
 4. [`insights-compare` · next] **Compare to** sets your class's rate beside an average. Everything here is a rate, not a raw total, so a class of eight and a class of thirty compare fairly.
    - terminal: This answers whether a class is moving well, which a roster of totals cannot. A class with too few sessions to compare honestly says so rather than showing a number built from nothing.
 
-## your-classes-at-a-glance — Your classes at a glance
+## your-own-teaching-numbers — Your own teaching numbers
 
-Personas: teacher · place: dashboard
+Personas: teacher · place: classes
 
-1. [`dash-class-card` · next] Every class you teach is here, one entry each, with its course beside it. Tap the class name to open its class page.
-2. [`dash-class-week` · next] This is the class's own week: the minutes it spent in the app with a lesson running, the phrases it practised, and how far it has travelled through the course. Those minutes come from the lessons you ran with **Play as class**. A class that has never played says **Not started** in words.
-3. [`dash-class-week-pupils` · next] Kept apart, and never added in, is what the pupils did on their own accounts this week. When there is nothing it says so in words, which is usual for a class taught from the front.
-4. [`dash-teacher-stats` · next] Under your classes, one quiet line totals them: how many classes you teach, the minutes they spent in the app this week with a lesson running, pauses included, and the phrases they were prompted with. All of it is the classes' own play from the front.
-5. [`dash-teacher-own-accounts` · next] The second line is the minutes your pupils spent on their own accounts this week, kept apart from the first and never added to it.
-   - terminal: The join code on each class is what you read out to get a new pupil in.
+1. [`dash-teacher-stats` · next] Under your classes, one quiet line totals them: how many classes you teach, the minutes they spent in the app this week with a lesson running, pauses included, and the phrases they were prompted with. All of it is the classes' own play from the front, every class you teach, whatever the table above is filtered to.
+2. [`dash-teacher-own-accounts` · next] The second line is the minutes your pupils spent on their own accounts this week, kept apart from the first and never added to it.
+   - terminal: Both lines live on My Classes, under the table.
