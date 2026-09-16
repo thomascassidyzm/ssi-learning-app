@@ -79,6 +79,10 @@ vi.mock('../composables/useUserRole', () => ({
     hasSchoolRole: ref(false),
     isGovtAdmin: ref(false),
     educationalRole: ref(null),
+    // SettingsScreen also reads the effective role, to work out the persona
+    // that claims its deferred Handbook walks (job #882). A ref the double
+    // omits is `undefined` at `.value` and the render throws.
+    effectiveEducationalRole: ref(null),
   }),
 }))
 

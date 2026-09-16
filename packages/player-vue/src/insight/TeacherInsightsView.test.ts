@@ -21,8 +21,16 @@ vi.mock('vue-router', () => ({
 }))
 
 const viewingAsMock = ref<{ userId: string; role: string; name: string; key: string } | null>(null)
+// The double has to carry every ref the view reads, not just the one the test
+// is about: TeacherInsightsView also asks for the persona that claims its
+// deferred Handbook walk (job #881), and a ref this stub omits is `undefined`
+// at `.value` — the whole render throws before an assertion runs.
 vi.mock('@/composables/useUserRole', () => ({
-  useUserRole: () => ({ viewingAs: viewingAsMock }),
+  useUserRole: () => ({
+    viewingAs: viewingAsMock,
+    platformRole: ref(null),
+    educationalRole: ref('teacher'),
+  }),
 }))
 
 const getSessionMock = vi.fn(async () => ({ data: { session: { access_token: 'tok' } } }))

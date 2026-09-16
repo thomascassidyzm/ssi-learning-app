@@ -5,15 +5,19 @@
  * had ever met t(). A learner with the interface in Hindi tapped a walk and got
  * three cards of English spoken over their own screen.
  *
- * WHAT IS LOCALISED. All eighteen walks, mirrored into eng.json under
+ * WHAT IS LOCALISED. Every walk, mirrored into eng.json under
  * `walkthrough.<id>.*` and read through t() here. It was six — the learner
  * ones — until 2026-09-07, when the teacher and leader surfaces were localised
- * and the twelve staff walks stopped being the odd English voice speaking over
- * a Welsh dashboard.
+ * and the staff walks stopped being the odd English voice speaking over a
+ * Welsh dashboard.
  *
  * pack.json stays the source. It is a BUILD ARTEFACT of tools/walkthrough, so
  * hand-editing it would be undone by the next compile; the mirror in eng.json
- * is generated from it and a drift test compares the two string for string.
+ * is GENERATED from it by that same compile — `node tools/walkthrough/compile.mjs`
+ * writes both, and --check fails on any drift between them. It used to be
+ * hand-written alongside each new walk, and on 2026-09-16 the nightly found 44
+ * of 83 walks had never been mirrored at all (job #974); a rule enforced by
+ * memory is not enforced. A drift test still compares the two string for string.
  *
  * `keywords` are deliberately left English: they are search aliases, not copy,
  * and they sit alongside the localised title and topic in the same search text
