@@ -4,7 +4,8 @@
  *
  * Reads the hand-authored walks (tools/walkthrough/walks/*.json), runs the
  * drift gates in lib.mjs against the live Vue source, and emits the static
- * pack the player bundles. A broken anchor, a member walk pointing at an
+ * pack the player bundles, AND the eng.json mirror of every walk's prose that
+ * localiseWalk.ts reads through t(). A broken anchor, a member walk pointing at an
  * admin-only element, a click-advance step on a destructive verb — each
  * FAILS the compile. Zero runtime tokens; this CLI is the only refresh path.
  *
@@ -292,6 +293,58 @@ if (failures.length) {
   process.exit(1)
 }
 
+// --- the eng.json walkthrough mirror ------------------------------------
+// A walk's prose reaches a non-English learner only through
+// `walkthrough.<id>.*` in eng.json, which localiseWalk.ts reads with t(). That
+// mirror used to be written by hand in the same commit as the walk, and eight
+// walk-authoring jobs in a row forgot: on 2026-09-16 the pack carried 83 walks
+// and eng.json 39, so 44 walks spoke English over a Welsh dashboard and the
+// nightly went red with 50 failures (job #974). A rule enforced by memory is
+// not enforced, so the compiler that writes the pack now writes the mirror from
+// the same walks, in the same run, and --check fails on any drift.
+const ENG_PATH = join(ROOT, 'packages/player-vue/src/locales/eng.json')
+const PENDING_PATH = join(ROOT, 'packages/player-vue/src/i18n/pending-translation.json')
+const LOCALES_DIR = join(ROOT, 'packages/player-vue/src/locales')
+
+/** The mirror eng.json must carry, derived from the compiled walks. */
+function walkMirror(walks) {
+  const mirror = {}
+  for (const w of [...walks].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
+    const entry = { title: w.title }
+    if (w.topic) entry.topic = w.topic
+    entry.steps = {}
+    w.steps.forEach((s, i) => {
+      const step = { say: s.say }
+      if (s.terminal) step.terminal = s.terminal
+      entry.steps[String(i)] = step
+    })
+    mirror[w.id] = entry
+  }
+  return mirror
+}
+
+/** Every dot-path the mirror mints, e.g. `walkthrough.ways-in.steps.0.say`. */
+function mirrorKeys(mirror) {
+  const keys = []
+  for (const [id, e] of Object.entries(mirror)) {
+    keys.push(`walkthrough.${id}.title`)
+    if (e.topic) keys.push(`walkthrough.${id}.topic`)
+    for (const [i, step] of Object.entries(e.steps)) {
+      keys.push(`walkthrough.${id}.steps.${i}.say`)
+      if (step.terminal) keys.push(`walkthrough.${id}.steps.${i}.terminal`)
+    }
+  }
+  return keys
+}
+
+function flattenLocale(obj, prefix = '') {
+  return Object.entries(obj).flatMap(([k, v]) =>
+    v !== null && typeof v === 'object' && !Array.isArray(v)
+      ? flattenLocale(v, `${prefix}${k}.`)
+      : [`${prefix}${k}`],
+  )
+}
+
 const pack = assemblePack(walks, entries)
 const content = JSON.stringify(pack)
 const versioned = {
@@ -309,11 +362,28 @@ if (CHECK_ONLY) {
   let served = null
   try { served = JSON.parse(readFileSync(PACK_PATH, 'utf8')) } catch { served = null }
   const drift = comparePack(pack, served)
+  let engMirror = null
+  try { engMirror = JSON.parse(readFileSync(ENG_PATH, 'utf8')).walkthrough } catch { engMirror = null }
+  const wanted = walkMirror(pack.walks)
+  if (JSON.stringify(engMirror) !== JSON.stringify(wanted)) {
+    const have = new Set(Object.keys(engMirror ?? {}))
+    const want = Object.keys(wanted)
+    const absent = want.filter((id) => !have.has(id))
+    const orphan = [...have].filter((id) => !wanted[id])
+    drift.push(
+      'eng.json walkthrough mirror has drifted from the walks' +
+      (absent.length ? ` — not mirrored at all: ${absent.join(', ')}` : '') +
+      (orphan.length ? ` — mirrored but no longer a walk: ${orphan.join(', ')}` : '') +
+      (!absent.length && !orphan.length ? ' — the prose of a mirrored walk no longer matches' : ''),
+    )
+  }
   if (drift.length) {
-    console.error('\n[walkthrough] CHECK FAILED — the Handbook page is serving something the source does not say:')
+    console.error('\n[walkthrough] CHECK FAILED — what is served has drifted from the source:')
     for (const d of drift) console.error(`  ✗ ${d}`)
     console.error(
-      '\nThe page imports packages/player-vue/src/walkthrough/pack.json. Regenerate and commit it:\n' +
+      '\nThe page imports packages/player-vue/src/walkthrough/pack.json and reads its\n' +
+      'prose through the walkthrough mirror in packages/player-vue/src/locales/eng.json.\n' +
+      'One command regenerates both — run it and commit what changes:\n' +
       '    node tools/walkthrough/compile.mjs\n'
     )
     process.exit(1)
@@ -323,6 +393,27 @@ if (CHECK_ONLY) {
 }
 
 writeFileSync(PACK_PATH, JSON.stringify(versioned, null, 2) + '\n')
+
+// The mirror, and the translation debt it mints. eng.json is English source, so
+// it is regenerated outright; pending-translation.json is reconciled against the
+// other locales exactly as its own ratchet test does it — a walkthrough key any
+// locale lacks is enrolled, one every locale now carries is struck off.
+const engJson = JSON.parse(readFileSync(ENG_PATH, 'utf8'))
+engJson.walkthrough = walkMirror(versioned.walks)
+writeFileSync(ENG_PATH, JSON.stringify(engJson, null, 2) + '\n')
+
+const otherLocales = readdirSync(LOCALES_DIR)
+  .filter((f) => f.endsWith('.json') && f !== 'eng.json')
+  .map((f) => new Set(flattenLocale(JSON.parse(readFileSync(join(LOCALES_DIR, f), 'utf8')))))
+const minted = mirrorKeys(engJson.walkthrough)
+const owed = new Set(minted.filter((k) => otherLocales.some((l) => !l.has(k))))
+const pendingJson = JSON.parse(readFileSync(PENDING_PATH, 'utf8'))
+const kept = pendingJson.keys.filter((k) => !k.startsWith('walkthrough.') || owed.has(k))
+const added = [...owed].filter((k) => !pendingJson.keys.includes(k))
+const struck = pendingJson.keys.length - kept.length
+pendingJson.keys = [...kept, ...added]
+writeFileSync(PENDING_PATH, JSON.stringify(pendingJson, null, 2) + '\n')
+console.log(`[walkthrough] mirror ${Object.keys(engJson.walkthrough).length} walks → eng.json · pending-translation +${added.length} -${struck}`)
 
 const md = [
   '# Walkthrough pack — compiled render',
