@@ -557,6 +557,7 @@ function toggleDataItem(id: string) {
           <div v-if="canEditSchool" class="panel-actions">
             <!-- HANDBOOK Change your school's name and details
                  section: your-school
+                 moment: setting-up
                  roles: school_admin
                  place: settings
                  keywords: rename, name, profile, school, details, contact, email, city, region, about, edit
@@ -597,6 +598,7 @@ function toggleDataItem(id: string) {
                 <span class="identity-value">@{{ c.value }}</span>
                 <!-- HANDBOOK Take a domain or address off your school's list
                      section: getting-people-in
+                     moment: setting-up
                      roles: school_admin
                      place: settings
                      keywords: domain, address, remove, allow, links, identity
@@ -616,6 +618,7 @@ function toggleDataItem(id: string) {
               <input v-model="newDomain" type="text" class="field-input" :placeholder="t('schools.identity.domainPlaceholder', 'example.sch.uk')" autocapitalize="none" autocorrect="off" spellcheck="false" @keyup.enter="addIdentityClaim('domain')" />
               <!-- HANDBOOK Claim another email domain for your school
                    section: getting-people-in
+                   moment: setting-up
                    roles: school_admin
                    place: settings
                    keywords: domain, email, claim, trust, links, identity, sch.uk
@@ -645,6 +648,7 @@ function toggleDataItem(id: string) {
               <input v-model="newAddress" type="email" class="field-input" :placeholder="t('schools.identity.addressPlaceholder', 'name@example.com')" autocapitalize="none" autocorrect="off" spellcheck="false" @keyup.enter="addIdentityClaim('address')" />
               <!-- HANDBOOK Let a named address in through your links
                    section: getting-people-in
+                   moment: something-wrong
                    roles: school_admin
                    place: settings
                    keywords: supply, personal, address, allow, invite, links, identity, gmail
@@ -696,6 +700,7 @@ function toggleDataItem(id: string) {
           <div v-if="!isAdminView" class="panel-actions">
             <!-- HANDBOOK Set your language and time zone
                  section: your-school
+                 moment: setting-up
                  roles: school_admin, teacher
                  place: settings
                  keywords: language, welsh, cymraeg, spanish, time zone, timezone, localisation, interface, week
@@ -744,6 +749,7 @@ function toggleDataItem(id: string) {
           <div class="panel-actions data-actions">
             <!-- HANDBOOK Download your school's data
                  section: seeing-progress
+                 moment: setting-up
                  roles: school_admin, teacher
                  place: settings
                  keywords: export, download, csv, data, spreadsheet, report, records, progress
@@ -778,6 +784,7 @@ function toggleDataItem(id: string) {
               </div>
               <!-- HANDBOOK Delete your school
                    section: your-school
+                   moment: setting-up
                    roles: school_admin
                    place: settings
                    keywords: delete, remove, close, school, danger, permanent, undo

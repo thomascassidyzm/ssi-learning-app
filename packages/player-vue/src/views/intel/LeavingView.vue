@@ -106,6 +106,7 @@ function ends(r: Row): string {
 <template>
   <!-- HANDBOOK Who is about to leave
        section: seeing-progress
+       moment: something-wrong
        roles: admin
        place: intel
        keywords: leaving, quiet, stopped, churn, paying, trial, ending, write to

@@ -22,6 +22,7 @@ const text = computed(() => {
 <template>
   <!-- HANDBOOK When an answer was fetched
        section: seeing-progress
+       moment: something-wrong
        roles: admin
        place: intel
        keywords: updated, fetched, fresh, stale, time, stamp

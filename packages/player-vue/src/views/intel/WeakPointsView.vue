@@ -126,6 +126,7 @@ function stopped(r: WeakPointRow): string {
 <template>
   <!-- HANDBOOK Which bits of a course make people stumble
        section: seeing-progress
+       moment: something-wrong
        roles: admin
        place: intel
        keywords: weak points, stumble, skip, retry, lego, course, too few to say

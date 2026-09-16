@@ -82,6 +82,7 @@ function handleConfirm() {
     <Transition name="modal">
       <!-- HANDBOOK Take a teacher off a class, or move them
            section: running-classes
+           moment: setting-up
            roles: leader, school_admin, teacher
            place: teachers
            keywords: move, remove, class, teacher, swap, reassign

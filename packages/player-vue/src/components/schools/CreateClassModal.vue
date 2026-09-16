@@ -215,6 +215,7 @@ const handleSubmit = () => {
               <!-- Full catalogue (~74 courses): the shared searchable dropdown. -->
               <!-- HANDBOOK Choose what a class learns
                    section: courses-and-content
+                   moment: setting-up
                    roles: school_admin, teacher
                    place: classes
                    keywords: course, language, choose, class, catalogue

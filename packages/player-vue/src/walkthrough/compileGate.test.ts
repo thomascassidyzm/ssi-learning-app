@@ -264,6 +264,7 @@ describe('the real pack (live drift gate)', () => {
 const BLOCK = `
   <!-- HANDBOOK Bring your first teacher in
        section: getting-people-in
+       moment: setting-up
        roles: admin, leader, school_admin
        place: node-home
        keywords: teacher, invite
@@ -291,6 +292,7 @@ describe('parseHandbookBlocks (the prose, read out of the code)', () => {
     const e = entries[0]
     expect(e.title).toBe('Bring your first teacher in')
     expect(e.section).toBe('getting-people-in')
+    expect(e.moment).toBe('setting-up')
     expect(e.personas).toEqual(['admin', 'leader', 'school_admin'])
     expect(e.place).toBe('node-home')
     expect(e.anchor).toBe('verb-invite-person')
@@ -322,6 +324,14 @@ describe('validateHandbookEntry (no silent blanks)', () => {
   })
   it('FAILS placeholder text — a blank with words in it', () => {
     expect(validateHandbookEntry(entry({ what: 'TODO write this' })).length).toBe(1)
+  })
+  // MOMENT (job #5, 2026-09-16). The page groups by WHEN you reach for a
+  // capability before it groups by what it is about, so an entry with no
+  // moment would fall out of the primary grouping without a word.
+  it('FAILS an entry with no moment, or a moment the runtime does not know', () => {
+    expect(validateHandbookEntry(entry({ moment: '' })).length).toBe(1)
+    expect(validateHandbookEntry(entry({ moment: 'whenever' })).length).toBe(1)
+    expect(validateHandbookEntry(entry({ moment: 'every-lesson' }))).toEqual([])
   })
   it('fails an unknown section or role, and parentheses', () => {
     expect(validateHandbookEntry(entry({ section: 'making-tea' })).length).toBe(1)

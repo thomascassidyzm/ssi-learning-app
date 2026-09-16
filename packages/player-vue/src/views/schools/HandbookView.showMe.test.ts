@@ -79,7 +79,11 @@ describe('HandbookView — the clip leads, where a clip exists', () => {
   it('opens a clip entry on Show me with one caption line, the words folded beneath; a prose-only entry opens on its words', async () => {
     const wrapper = await mountAs(SCHOOL_ADMIN)
     const withClip = entryWithClipFor('school_admin')
-    const without = handbookEntries().find((e) => clipsFor(e, 'school_admin').length === 0)
+    // Theirs too: the page opens narrowed to the reader's own capabilities
+    // (Tom, 2026-09-16), so an entry that is somebody else's is not rendered
+    // until "Read the lot".
+    const without = handbookEntries().find((e) =>
+      clipsFor(e, 'school_admin').length === 0 && e.personas.includes('school_admin'))
     expect(withClip, 'the pack has at least one school_admin entry with a clip').toBeTruthy()
     expect(without).toBeTruthy()
     expect(wrapper.find(`#hb-${withClip!.id} .entry-clip-pill`).exists(), 'the closed entry already says it plays').toBe(true)
@@ -151,8 +155,11 @@ describe('HandbookView — the clip leads, where a clip exists', () => {
   })
 
   it('does not offer a walk that is not for the reader\'s persona', async () => {
+    // The invites desk is the SSi admin's. A teacher only ever sees it under
+    // "Read the lot", and even there it carries no Show me for them.
     const wrapper = await mountAs({ ...SCHOOL_ADMIN, educational_role: 'teacher' })
-    await wrapper.find('#hb-the-invites-desk .entry-head').trigger('click')
+    await wrapper.findAll('.btn-ghost').find((b) => b.text().includes('Read the lot'))!.trigger('click')
+    expect(wrapper.find('#hb-the-invites-desk').exists()).toBe(true)
     expect(wrapper.find('#hb-the-invites-desk [data-walk-offer]').exists()).toBe(false)
   })
 })

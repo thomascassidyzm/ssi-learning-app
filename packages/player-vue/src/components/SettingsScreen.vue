@@ -2201,6 +2201,7 @@ const confirmReset = async () => {
 
         <!-- HANDBOOK Find out which email you are signed in with
              section: your-own-account
+             moment: something-wrong
              roles: teacher, school_admin, leader
              place: settings
              keywords: email, signed in, which address, support, identify, code
@@ -2554,6 +2555,7 @@ const confirmReset = async () => {
                automatic thank-you. Tom's ruling, 2026-09-12. -->
           <!-- HANDBOOK Report a bug from Settings
                section: your-own-account
+               moment: something-wrong
                roles: teacher, school_admin, leader
                place: settings
                keywords: bug, report, problem, feedback, settings, tools
