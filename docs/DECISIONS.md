@@ -4012,6 +4012,19 @@ endpoint answers 500 saying which fact it could not read.
 index is `class_first_play`'s — plus two triggers. Tables 144→144, views 27→27 and functions
 154→161 stand. Commit messages are immutable, so the correction lives here.
 
+**The "63 classes" sighting, chased and closed.** Job #983 saw a Chepstow class land on
+"Global average · all courses · 63 classes" instead of its school's 33. It does not reproduce:
+on staging `e94bbc53b` all three classes probed default to the school node, `cohortSize` 33,
+caption "Ysgol Cas-gwent Chepstow School average · 33 classes". Asked explicitly, that class
+returns 60 for `global` and **63 for `global_all_courses`** — so the sighting was the compare
+ladder having fallen through every rung. The ladder only widens when the started-member count
+is below the floor of 1, which 33 started classes cannot do for a real reason — but could for a
+fake one: pre-fix, a failed `class_first_play` read returned null for every class, `onlyStarted`
+emptied every member, the count hit zero, and the ladder walked to all-courses and rendered it
+as the answer. That is the fifth defect above, now a 500. The floor logic itself is correct and
+was not touched. The build #983 saw is gone, so this names the mechanism rather than claiming a
+diagnosis nobody witnessed.
+
 **Open.** The two SQL objects above are still UTC-anchored. Nothing on the insights page reads
 them, so nothing there is wrong — but `weekly_leaderboard`'s "this week" and the retention
 buckets are an hour out for half the year, and they are somebody's next job, not this one's.
