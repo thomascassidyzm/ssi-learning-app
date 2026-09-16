@@ -3875,6 +3875,8 @@
       "measureLabel": "Measure",
       "notEnoughData": "Not enough data to compare fairly yet.",
       "rateOfProgressFixed": "Rate of progress (new phrases / week)",
+      "weekDesc": "A school week, Monday to Sunday. Time is in-app time from pressing play to stopping; play-as-class and students on their own accounts are counted separately and then added. New phrases are the ones the class reached for the first time in the week.",
+      "weekMeasureFixed": "Time and new phrases, by week",
       "sessionExpired": "Your session has expired — sign in again to see these numbers.",
       "timeWindowAriaLabel": "Time window",
       "windowLabel": "Window"
