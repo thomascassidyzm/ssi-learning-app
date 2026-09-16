@@ -35,7 +35,7 @@ const intelChildren = (router.options.routes.find((r) => r.path === '/intel')?.c
 /** The two trees a named thing lives in, and the node surfaces under them. */
 const SCOPE_PICKERS = ['', 'structure', 'users', 'handbook']
 /** The chores that are not questions, behind the Tools door in the bar. */
-const TOOLS = ['release-notes', 'invites', 'methodology', 'pod-auditioner', 'messages']
+const TOOLS = ['release-notes', 'invites', 'methodology', 'pod-auditioner', 'messages', 'support']
 
 describe('one route per question', () => {
   it('has exactly ten question routes under /intel, generated from the one list', () => {
