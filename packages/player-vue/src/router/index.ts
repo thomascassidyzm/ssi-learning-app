@@ -700,6 +700,14 @@ const routes: RouteRecordRaw[] = [
         redirect: '/admin/structure',
       },
       {
+        // Support (job #28): every in-app report a learner has sent us, from
+        // both postboxes, with the reply. Unanswered first.
+        path: 'support',
+        name: 'admin-support',
+        component: () => import('@/views/admin/AdminSupport.vue'),
+        meta: { title: 'Support', description: 'Every report sent from inside the app, and the reply' },
+      },
+      {
         // Admin-to-learner messaging (job #821): one composer, three audiences.
         path: 'messages',
         name: 'admin-messages',
@@ -1075,9 +1083,16 @@ router.afterEach((to) => {
 router.beforeEach((to, _from, next) => {
   const requiresAdmin = to.path.startsWith('/admin') || to.path.startsWith('/intel') || to.path.startsWith('/methodology')
   if (!requiresAdmin) return next()
-  const { canAccessAdmin, isInitialized, restoreFromCache } = useUserRole()
+  const { canAccessAdmin, isInitialized, isRoleAuthoritative, restoreFromCache } = useUserRole()
   restoreFromCache()
-  if (isInitialized.value && !canAccessAdmin.value) return next('/')
+  // A role that is only what localStorage remembered is not an ANSWER — it is
+  // the last visit's answer, carrying no identity and no timestamp. Bouncing
+  // on it threw a real ssi_admin off /admin/insights-lab on a phone whose
+  // cache still said "learner", milliseconds before the DB said ssi_admin
+  // (job #34). An unresolved-or-cached role defers to AdminContainer, which
+  // renders nothing while it waits and redirects once resolution genuinely
+  // says non-admin — so nothing is opened up to a non-admin here.
+  if (isInitialized.value && isRoleAuthoritative.value && !canAccessAdmin.value) return next('/')
   next()
 })
 

@@ -13144,8 +13144,32 @@ CREATE TABLE public.tester_feedback (
     priority text DEFAULT 'medium'::text,
     admin_notes text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    reply_message_id uuid,
+    replied_at timestamp with time zone,
+    replied_by text
 );
+
+
+--
+-- Name: COLUMN tester_feedback.reply_message_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.tester_feedback.reply_message_id IS 'The user_messages row the reply went out as, or null if nobody has replied. Same link as bug_reports; the words the learner reads live on that row.';
+
+
+--
+-- Name: COLUMN tester_feedback.replied_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.tester_feedback.replied_at IS 'When the reply was sent. Null means unanswered, which is what sorts a row to the top of the admin Support inbox.';
+
+
+--
+-- Name: COLUMN tester_feedback.replied_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.tester_feedback.replied_by IS 'Auth uid of whoever sent the reply.';
 
 
 --
@@ -19671,6 +19695,14 @@ ALTER TABLE ONLY public.teachers
 
 ALTER TABLE ONLY public.teachers
     ADD CONSTRAINT teachers_own_subscription_id_fkey FOREIGN KEY (own_subscription_id) REFERENCES public.subscriptions(id) ON DELETE SET NULL;
+
+
+--
+-- Name: tester_feedback tester_feedback_reply_message_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tester_feedback
+    ADD CONSTRAINT tester_feedback_reply_message_id_fkey FOREIGN KEY (reply_message_id) REFERENCES public.user_messages(id) ON DELETE SET NULL;
 
 
 --

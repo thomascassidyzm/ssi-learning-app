@@ -50,10 +50,15 @@ import { useResolvedSession } from '@/composables/useResolvedSession'
  * isDenied shape exactly.
  */
 export function useAdminAccessState() {
-  const { canAccessAdmin, isInitialized, restoreFromCache } = useUserRole()
+  const { canAccessAdmin, isInitialized, isRoleAuthoritative, restoreFromCache } = useUserRole()
   restoreFromCache()
   const { isResolved } = useResolvedSession()
-  const knowsAnswer = computed(() => isInitialized.value || isResolved.value)
+  // A cache-only role is the LAST visit's answer, not this session's (see
+  // useUserRole.isRoleAuthoritative): it denied a real ssi_admin a deep link
+  // on a phone that had previously been a learner, job #34. Wait for either a
+  // live role or a resolved session — both of which arrive on boot — and keep
+  // showing the loading state until then.
+  const knowsAnswer = computed(() => (isInitialized.value && isRoleAuthoritative.value) || isResolved.value)
   const isCheckingAccess = computed(() => !knowsAnswer.value)
   const isDenied = computed(() => knowsAnswer.value && !canAccessAdmin.value)
   return { isCheckingAccess, isDenied }

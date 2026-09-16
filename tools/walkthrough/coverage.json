@@ -8,6 +8,7 @@
   },
   "pages": {
     "obvious": {
+      "packages/player-vue/src/views/admin/AdminSupport.vue": "Staff-only. One list of reports, unanswered first; a row opens to the whole report and a reply box.",
       "packages/player-vue/src/views/schools/HandbookView.vue": "The Handbook is the page that explains every other page; its lede and search are the whole of it.",
       "packages/player-vue/src/views/schools/SupportView.vue": "One text box and one Send button: say what happened, send it.",
       "packages/player-vue/src/views/RedeemCode.vue": "A single code field and one button; the page is the instruction.",
