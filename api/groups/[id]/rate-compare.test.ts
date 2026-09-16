@@ -1000,4 +1000,29 @@ describe('GET /api/groups/:id/rate-compare — self-inclusive averaging (Tom, 20
     expect(asC3.body.average.value).toBe(6)
     expect(asC2.body.average.value).toBe(asC3.body.average.value)
   })
+
+  it('the dashed comparison series is a mean over the SAME cohort as the headline average — a dormant member contributes zeros, it does not drop out', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // c1 (entity) and c2 practise today; c3 exists on the same course but has
+    // never practised at all. periodTrendForClass used to return an empty
+    // array for c3 and meanTrend silently dropped it, so the dashed line was
+    // a mean of 2 while the headline average beside it was a mean of 3.
+    SESSION_ROWS = [
+      { class_id: 'c1', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 6, duration_seconds: 1800, started_at: daysAgo(0) },
+      { class_id: 'c2', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 3, duration_seconds: 1800, started_at: daysAgo(0) },
+    ]
+    const res = makeRes()
+    // measure=rate is where the bug lived: the minutes trend already emitted
+    // zeros for a dormant member, the LEGO-progress trend emitted nothing.
+    await handler(makeReq('c1', { compare_to: 'programme', measure: 'rate', window: '7d' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.cohortSize).toBe(3)
+    expect(res.body.average.trend).toHaveLength(7)
+    // Today's point is mean(c1's 6 LEGOs, c2's 3, c3's 0) = 3. Dropping c3
+    // reads 4.5 — a dashed line drawn over a different cohort than the
+    // figure it sits beside.
+    const trend: number[] = res.body.average.trend
+    expect(trend[trend.length - 1]).toBe(3)
+    expect(trend.slice(0, -1).every((v: number) => v === 0)).toBe(true)
+  })
 })
